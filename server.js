@@ -8,6 +8,7 @@ const crypto = require("node:crypto");
 const zlib = require("node:zlib");
 const { spawn } = require("node:child_process");
 const webpush = require("web-push");
+const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
 
@@ -192,7 +193,6 @@ let activeStreams = new Map();
 let lastStateBackupAt = 0;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
-const cronListCache = new Map();
 let state = loadState();
 let authKeyState = DISABLE_AUTH ? { key: "", source: "disabled" } : loadAuthKeyState();
 let clientVersionCache = { mtimeMs: 0, version: "" };
@@ -1562,43 +1562,17 @@ function runCronBridge(payload) {
   });
 }
 
+const automationProvider = createAutomationProvider({
+  runBridge: runCronBridge,
+  cacheTtlMs: CRON_LIST_CACHE_TTL_MS,
+});
+
 function clearCronListCache() {
-  cronListCache.clear();
+  automationProvider.clearListCache();
 }
 
 async function runCronListBridgeCached(options = {}) {
-  const includeDisabled = Boolean(options.includeDisabled);
-  const bypassCache = Boolean(options.bypassCache) || CRON_LIST_CACHE_TTL_MS <= 0;
-  const cacheKey = includeDisabled ? "includeDisabled" : "enabledOnly";
-  const now = Date.now();
-  const cached = cronListCache.get(cacheKey);
-  if (!bypassCache && cached?.result && now - cached.loadedAt < CRON_LIST_CACHE_TTL_MS) {
-    return Object.assign({}, cached.result, {
-      source: Object.assign({}, cached.result.source || {}, { cache: "hit", cacheAgeMs: now - cached.loadedAt }),
-    });
-  }
-  if (!bypassCache && cached?.promise) {
-    const result = await cached.promise;
-    return Object.assign({}, result, {
-      source: Object.assign({}, result.source || {}, { cache: "shared" }),
-    });
-  }
-  const promise = runCronBridge({
-    action: "list",
-    include_disabled: includeDisabled,
-    limit: 0,
-  }).then((result) => {
-    cronListCache.set(cacheKey, { loadedAt: Date.now(), result });
-    return result;
-  }).catch((err) => {
-    cronListCache.delete(cacheKey);
-    throw err;
-  });
-  cronListCache.set(cacheKey, { loadedAt: now, promise });
-  const result = await promise;
-  return Object.assign({}, result, {
-    source: Object.assign({}, result.source || {}, { cache: "miss" }),
-  });
+  return automationProvider.listJobs(Object.assign({ limit: 0 }, options));
 }
 
 function runDirectoryBridge(payload) {
@@ -5130,7 +5104,7 @@ async function runAutomationWebPushTick(options = {}) {
   if (!webPushConfig || !principals.length) {
     return { ok: true, enabled: Boolean(webPushConfig), principals, events: [], initialized: [], deliveries: [] };
   }
-  const result = await runCronBridge({ action: "list", include_disabled: true, limit: 0 });
+  const result = await automationProvider.listJobs({ includeDisabled: true, bypassCache: true, limit: 0 });
   if (!result?.ok) {
     return { ok: false, enabled: true, principals, events: [], initialized: [], deliveries: [], error: result?.error || "Hermes CRON bridge failed" };
   }
@@ -6543,7 +6517,7 @@ async function resolveAuthorizedCronFile(query, resolver, auth = null) {
   const ownerPrincipalId = workspacePrincipal(workspaceId);
   let bridgeResult;
   try {
-    bridgeResult = await runCronBridge({ action: "list", include_disabled: true, limit: 0 });
+    bridgeResult = await automationProvider.listJobs({ includeDisabled: true, bypassCache: true, limit: 0 });
   } catch (err) {
     return { status: 503, error: `Hermes CRON source unavailable: ${err.message || String(err)}` };
   }
@@ -7041,13 +7015,12 @@ async function handleApi(req, res) {
     }
     let result;
     try {
-      result = await runCronBridge({
-        action: "create",
-        dry_run: boolParam(body.dryRun || body.dry_run),
+      result = await automationProvider.createJob({
+        dryRun: boolParam(body.dryRun || body.dry_run),
         text,
         job: draft,
-        owner_principal_id: ownerPrincipalId,
-        access_policy_context: sanitizePolicy(workspace.policy || {}),
+        ownerPrincipalId,
+        accessPolicyContext: sanitizePolicy(workspace.policy || {}),
       });
     } catch (err) {
       sendJson(res, err.status || 500, { error: compactText(err.message || String(err), 800), draft });
@@ -7095,11 +7068,11 @@ async function handleApi(req, res) {
     } : {};
     let result;
     try {
-      result = await runCronBridge({
+      result = await automationProvider.mutateJob({
         action,
-        job_id: jobId,
-        owner_principal_id: ownerPrincipalId,
-        dry_run: dryRun,
+        jobId,
+        ownerPrincipalId,
+        dryRun,
         patch,
         reason: String(body.reason || ""),
       });

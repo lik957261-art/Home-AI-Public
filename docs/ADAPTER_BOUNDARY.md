@@ -33,9 +33,11 @@ These parts must remain replaceable:
 - Admin-created workspace records are managed through the core API/UI for now: create/update/delete local workspace records, configure root/allowed directories/toolsets, generate/revoke workspace Access Keys, and keep external route-map workspaces read-only from this local manager.
 - Runtime Gateway/Web Push configuration is currently in core server state through `workspace/hermes-web/runtime-config.json`; future packaging may move this behind a deployment settings provider if multiple deployment profiles are needed.
 - `adapters/todo-provider.js` owns the Todo bridge payload boundary. The HTTP server now asks the provider to list, create, mutate, and mark Web Push state for todos; the current private deployment still backs that provider with `todo_bridge.py`.
+- `adapters/automation-provider.js` owns the CRON bridge payload and list-cache boundary. The HTTP server now asks the provider to list, create, mutate, and refresh automation jobs; the current private deployment still backs that provider with `cron_bridge.py`.
 - `server.js` still owns many private helpers used by that provider, including access-policy construction, shared-directory expansion, and project-root discovery. Those helpers should move behind narrower providers in later phases instead of adding more direct file reads to `server.js`.
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 - `tests/todo-provider.test.js` is the contract smoke for Todo bridge payload mapping, public Todo normalization, search filtering, and Web Push mark/pending operations.
+- `tests/automation-provider.test.js` is the contract smoke for CRON bridge payload mapping and list-cache behavior.
 
 ## Current Private Couplings
 
