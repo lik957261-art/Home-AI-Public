@@ -11,6 +11,7 @@ const webpush = require("web-push");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
+const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
 
@@ -1658,6 +1659,18 @@ function runDirectoryBridge(payload) {
   });
 }
 
+const projectDiscoveryProvider = createProjectDiscoveryProvider({
+  repoRoot: REPO_ROOT,
+  singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
+  singleWindowThreadTitle: SINGLE_WINDOW_THREAD_TITLE,
+  normalizeLocalPath,
+  runDirectoryBridge,
+  sharedProjectsForWorkspace: sharedDirectoryProjectsForWorkspace,
+  workspacePrincipal,
+  findWorkspace,
+  makeId,
+});
+
 function runSkillBridge(payload) {
   return new Promise((resolve, reject) => {
     const command = process.platform === "win32" ? "wsl.exe" : "python3";
@@ -2829,50 +2842,7 @@ function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
 }
 
 function projectsForWorkspace(workspace, projectEntries, workspaces = null) {
-  const singleWindowProject = singleWindowProjectForWorkspace(workspace, projectEntries);
-  const sharedProjects = sharedDirectoryProjectsForWorkspace(workspace.id, workspaces);
-  if (workspace.id === "owner") {
-    const ownerProjects = ownerTopLevelProjects(workspace.id, projectEntries);
-    if (ownerProjects.length) return dedupeProjects([singleWindowProject, ...ownerProjects, ...sharedProjects]);
-  }
-
-  const out = [];
-  const root = workspace.defaultWorkspace || "";
-  out.push({
-    id: "general",
-    workspaceId: workspace.id,
-    label: "General",
-    root,
-    aliases: [],
-    source: "workspace-default",
-  });
-  out.push(singleWindowProject);
-  out.push(...sharedProjects);
-  const policy = workspace.policy || {};
-  const unrestricted = workspace.id === "owner" || policy.access_mode === "unrestricted";
-  for (const entry of projectEntries) {
-    const projectRoot = String(entry.wsl_root || entry.windows_root || "").trim();
-    if (!projectRoot) continue;
-    if (!unrestricted && !pathInsideAnyRoot(projectRoot, policy.allowed_roots || [])) continue;
-    out.push({
-      id: String(entry.project_key || makeId("project")),
-      workspaceId: workspace.id,
-      label: projectLabel(entry),
-      root: projectRoot,
-      aliases: Array.isArray(entry.aliases) ? entry.aliases.map(String) : [],
-      source: "project-directory-map",
-    });
-  }
-  if (!unrestricted) {
-    out.push(...workspaceDirectoryProjects(workspace, policy));
-  }
-  if (policy.sync_root) {
-    out.push({ id: "sync", workspaceId: workspace.id, label: "同步文件夹", root: policy.sync_root, aliases: [], source: "acl" });
-  }
-  if (policy.download_root) {
-    out.push({ id: "download", workspaceId: workspace.id, label: "下载", root: policy.download_root, aliases: [], source: "acl" });
-  }
-  return dedupeProjects(out);
+  return projectDiscoveryProvider.projectsForWorkspace(workspace, projectEntries, workspaces);
 }
 
 function cachedDynamicProjectsForWorkspace(workspaceId) {
@@ -2914,14 +2884,7 @@ async function publicProjectsForWorkspace(workspaceId) {
 }
 
 function isShareableRootProject(project) {
-  if (!project?.root || project.hidden || project.singleWindow || project.shared) return false;
-  const id = String(project.id || "");
-  if (["general", "sync", "download", SINGLE_WINDOW_PROJECT_ID].includes(id)) return false;
-  const source = String(project.source || "");
-  return source === "project-directory-map"
-    || source === "project-directory-map-top"
-    || source === "workspace-directory"
-    || source === "workspace-directory-wsl";
+  return projectDiscoveryProvider.isShareableRootProject(project);
 }
 
 async function shareableRootProjectForPath(workspaceId, displayPath) {
@@ -2962,48 +2925,7 @@ function workspaceDirectoryProjects(workspace, policy) {
 }
 
 async function remoteWorkspaceDirectoryProjects(workspace) {
-  const policy = workspace.policy || {};
-  const root = String(workspace.defaultWorkspace || policy.default_workspace || "").trim();
-  if (!root.startsWith("/volume1/")) return [];
-  let result;
-  try {
-    result = await runDirectoryBridge({ action: "tree", path: root });
-  } catch (_) {
-    return [];
-  }
-  if (!result?.ok || !Array.isArray(result.entries)) return [];
-  const specialRoots = workspaceSpecialRoots(policy);
-  const sharedRootKeys = explicitSharedRootKeys(policy, root, specialRoots);
-  const allowedRoots = policy.allowed_roots || [root];
-  const projects = [];
-  for (const entry of result.entries) {
-    if (entry?.type !== "directory" || !isUserProjectDirectory(entry.name)) continue;
-    const displayRoot = String(entry.path || joinDisplayPath(root, entry.name));
-    if (specialRoots.has(comparablePath(displayRoot))) continue;
-    if (!pathInsideAnyRoot(displayRoot, allowedRoots)) continue;
-    const source = sharedRootKeys.has(comparablePath(displayRoot)) ? "shared-allowed-root-wsl" : "workspace-directory-wsl";
-    const shared = source === "shared-allowed-root-wsl";
-    const principalId = shared ? workspacePrincipal(workspace.id) : "";
-    const project = {
-      id: `dir-${hashId(displayRoot)}`,
-      workspaceId: workspace.id,
-      label: String(entry.name || path.posix.basename(displayRoot) || "Directory"),
-      root: displayRoot,
-      aliases: [String(entry.name || "")].filter(Boolean),
-      source,
-      shared,
-      remote: "wsl",
-      children: remoteWorkspaceDirectoryChildren(workspace.id, displayRoot, entry.children || [], policy),
-    };
-    if (shared) {
-      project.sharedBy = workspace.id;
-      project.sharedByPrincipalId = principalId;
-      project.sharedByLabel = workspace.label || workspace.id || principalId;
-    }
-    projects.push(project);
-  }
-  return dedupeProjects(projects)
-    .sort((a, b) => String(a.label).localeCompare(String(b.label), "zh-Hans-CN"));
+  return projectDiscoveryProvider.remoteWorkspaceDirectoryProjects(workspace);
 }
 
 function remoteWorkspaceDirectoryChildren(workspaceId, displayRoot, entries, policy) {
@@ -3286,24 +3208,7 @@ function projectRootDedupeKey(project) {
 }
 
 function dedupeProjects(projects) {
-  const list = (projects || []).filter(Boolean);
-  const sharedRootKeys = new Set(list
-    .filter((project) => isSharedProject(project) && !isProjectRootDedupeExempt(project))
-    .map(projectRootDedupeKey)
-    .filter(Boolean));
-  const seenIds = new Set();
-  const seenSharedRoots = new Set();
-  return list.filter((project) => {
-    const key = `${project.workspaceId}:${project.id}`;
-    if (seenIds.has(key)) return false;
-    const rootKey = projectRootDedupeKey(project);
-    const dedupeSharedRoot = rootKey && sharedRootKeys.has(rootKey) && !isProjectRootDedupeExempt(project);
-    if (dedupeSharedRoot && !isSharedProject(project)) return false;
-    if (dedupeSharedRoot && seenSharedRoots.has(rootKey)) return false;
-    seenIds.add(key);
-    if (dedupeSharedRoot) seenSharedRoots.add(rootKey);
-    return true;
-  });
+  return projectDiscoveryProvider.dedupeProjects(projects);
 }
 
 function chatGptDriveParts(root) {

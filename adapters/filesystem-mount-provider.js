@@ -51,9 +51,9 @@ function createFilesystemMountProvider(options = {}) {
       valueFrom(options.volume1WindowsRoot),
       home ? path.join(home, "SynologyDrive") : "",
     ].filter(Boolean));
-    const suffix = String(match[2] || "").replace(/^\/+/, "").replaceAll("/", "\\");
+    const suffixParts = String(match[2] || "").replace(/^\/+/, "").split("/").filter(Boolean);
     for (const root of roots) {
-      const local = path.join(root, match[1], suffix);
+      const local = path.join(root, match[1], ...suffixParts);
       if (fs.existsSync(local)) return local;
     }
     return "";
