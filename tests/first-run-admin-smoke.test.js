@@ -71,6 +71,10 @@ async function main() {
   delete env.HERMES_WEB_KEY;
   delete env.HERMES_WEB_DISABLE_AUTH;
   delete env.HERMES_WEB_ALLOW_MEMORY_KEY;
+  delete env.WEB_PUSH_VAPID_PUBLIC_KEY;
+  delete env.HERMES_WEB_VAPID_PUBLIC_KEY;
+  delete env.WEB_PUSH_VAPID_PRIVATE_KEY;
+  delete env.HERMES_WEB_VAPID_PRIVATE_KEY;
 
   const child = spawn(process.execPath, ["server.js"], {
     cwd: repoRoot,
@@ -89,14 +93,27 @@ async function main() {
     const ownerKey = setup.key;
 
     const apiKeyPath = path.join(tempDir, "gateway-api.key");
+    const vapidPath = path.join(tempDir, "vapid.json");
     fs.writeFileSync(apiKeyPath, "test-gateway-key\n", "utf8");
     const runtimeConfig = await request(baseUrl, "/api/runtime-config", jsonOptions("PATCH", ownerKey, {
       hermesApiBase: baseUrl,
       hermesApiKeyPath: apiKeyPath,
+      webPushSubject: "mailto:admin@example.invalid",
+      webPushVapidPath: vapidPath,
     }));
     assert.equal(runtimeConfig.config.hermesApiBase, baseUrl);
     assert.equal(runtimeConfig.config.hermesApiKeyConfigured, true);
     assert.equal(runtimeConfig.config.hermesApiKeySource, "file");
+    assert.equal(runtimeConfig.config.webPushSubject, "mailto:admin@example.invalid");
+    assert.equal(runtimeConfig.config.webPushVapidPath, vapidPath);
+    assert.equal(runtimeConfig.config.webPushVapidExists, true);
+    assert.equal(fs.existsSync(vapidPath), true);
+    const vapid = JSON.parse(fs.readFileSync(vapidPath, "utf8"));
+    assert.ok(vapid.publicKey);
+    assert.ok(vapid.privateKey);
+    const regenerated = await request(baseUrl, "/api/runtime-config/web-push/generate", jsonOptions("POST", ownerKey, { overwrite: true }));
+    assert.ok(regenerated.generated.publicKey);
+    assert.equal(Object.hasOwn(regenerated.generated, "privateKey"), false);
     const runtimeTest = await request(baseUrl, "/api/runtime-config/test", jsonOptions("POST", ownerKey, {}));
     assert.equal(runtimeTest.status.apiBase, baseUrl);
     assert.equal(runtimeTest.ok, false);

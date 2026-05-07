@@ -3008,6 +3008,7 @@ function renderRuntimeConfigManager() {
   const config = state.runtimeConfig || {};
   const status = state.runtimeConfigTestStatus;
   const keyState = config.hermesApiKeyConfigured ? `${config.hermesApiKeySource || "configured"}` : "未配置";
+  const pushState = config.webPushConfigured ? "已配置" : (config.webPushEnabled ? "未配置" : "已禁用");
   const testBlock = status
     ? `<section class="runtime-config-status ${status.ok ? "ok" : "error"}">
         <div class="access-key-row-title">${status.ok ? "Gateway 可用" : "Gateway 不可用"}</div>
@@ -3029,14 +3030,28 @@ function renderRuntimeConfigManager() {
             <span>Hermes API Key 文件路径</span>
             <input id="runtimeHermesApiKeyPath" type="text" autocomplete="off" value="${escapeHtml(config.hermesApiKeyPath || "")}" placeholder="可留空，继续使用环境变量或默认路径">
           </label>
+          <div class="runtime-config-subtitle">Web Push / VAPID</div>
+          <label>
+            <span>Web Push subject</span>
+            <input id="runtimeWebPushSubject" type="text" autocomplete="off" value="${escapeHtml(config.webPushSubjectOverride || "")}" placeholder="mailto:admin@example.com">
+          </label>
+          <label>
+            <span>VAPID 文件路径</span>
+            <input id="runtimeWebPushVapidPath" type="text" autocomplete="off" value="${escapeHtml(config.webPushVapidPath || "")}" placeholder="可留空，使用默认 runtime 文件">
+          </label>
           <div class="runtime-config-meta">
             <div>默认 URL：${escapeHtml(config.hermesApiBaseDefault || "")}</div>
             <div>API Key：${escapeHtml(keyState)}${config.hermesApiKeyResolvedPath ? ` · ${escapeHtml(config.hermesApiKeyResolvedPath)}` : ""}</div>
+            <div>Web Push：${escapeHtml(pushState)} · 订阅 ${escapeHtml(config.webPushSubscriptionCount || 0)}</div>
+            <div>VAPID：${escapeHtml(config.webPushVapidExists ? "文件存在" : "文件不存在")}${config.webPushVapidResolvedPath ? ` · ${escapeHtml(config.webPushVapidResolvedPath)}` : ""}</div>
+            <div>Subject：${escapeHtml(config.webPushSubject || "")}</div>
             ${config.updatedAt ? `<div>更新：${escapeHtml(formatTime(config.updatedAt))}${config.updatedBy ? ` · ${escapeHtml(config.updatedBy)}` : ""}</div>` : ""}
           </div>
           <div class="runtime-config-actions">
             <button type="button" data-save-runtime-config>保存</button>
             <button type="button" data-test-runtime-config>测试连接</button>
+            <button type="button" data-reload-web-push-config>重载推送</button>
+            <button type="button" data-generate-web-push-vapid>生成 VAPID</button>
           </div>
         </section>`;
   overlay.innerHTML = `
@@ -3055,6 +3070,8 @@ function renderRuntimeConfigManager() {
   overlay.querySelector("[data-close-runtime-config]")?.addEventListener("click", closeRuntimeConfigManager);
   overlay.querySelector("[data-save-runtime-config]")?.addEventListener("click", () => saveRuntimeConfigManager().catch(showError));
   overlay.querySelector("[data-test-runtime-config]")?.addEventListener("click", () => testRuntimeConfigManager().catch(showError));
+  overlay.querySelector("[data-reload-web-push-config]")?.addEventListener("click", () => reloadWebPushRuntimeConfig().catch(showError));
+  overlay.querySelector("[data-generate-web-push-vapid]")?.addEventListener("click", () => generateWebPushVapidFromRuntimeConfig().catch(showError));
 }
 
 async function loadRuntimeConfigManager() {
@@ -3089,16 +3106,61 @@ function closeRuntimeConfigManager() {
 async function saveRuntimeConfigManager() {
   const hermesApiBase = $("runtimeHermesApiBase")?.value?.trim() || "";
   const hermesApiKeyPath = $("runtimeHermesApiKeyPath")?.value?.trim() || "";
+  const webPushSubject = $("runtimeWebPushSubject")?.value?.trim() || "";
+  const webPushVapidPath = $("runtimeWebPushVapidPath")?.value?.trim() || "";
   state.runtimeConfigLoading = true;
   state.runtimeConfigError = "";
   renderRuntimeConfigManager();
   try {
     const result = await api("/api/runtime-config", {
       method: "PATCH",
-      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath }),
+      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, webPushSubject, webPushVapidPath }),
     });
     state.runtimeConfig = result.config || {};
+    state.pushStatus = result.push || state.pushStatus;
     await loadStatus();
+  } catch (err) {
+    state.runtimeConfigError = err.message || String(err);
+  } finally {
+    state.runtimeConfigLoading = false;
+    renderRuntimeConfigManager();
+  }
+}
+
+async function reloadWebPushRuntimeConfig() {
+  state.runtimeConfigLoading = true;
+  state.runtimeConfigError = "";
+  renderRuntimeConfigManager();
+  try {
+    const result = await api("/api/runtime-config/web-push/reload", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    state.runtimeConfig = result.config || state.runtimeConfig;
+    state.pushStatus = result.push || state.pushStatus;
+    updatePushButton();
+  } catch (err) {
+    state.runtimeConfigError = err.message || String(err);
+  } finally {
+    state.runtimeConfigLoading = false;
+    renderRuntimeConfigManager();
+  }
+}
+
+async function generateWebPushVapidFromRuntimeConfig() {
+  const exists = Boolean(state.runtimeConfig?.webPushVapidExists);
+  if (exists && !window.confirm("重新生成 VAPID 会让已有浏览器推送订阅失效，需要用户重新启用通知。继续？")) return;
+  state.runtimeConfigLoading = true;
+  state.runtimeConfigError = "";
+  renderRuntimeConfigManager();
+  try {
+    const result = await api("/api/runtime-config/web-push/generate", {
+      method: "POST",
+      body: JSON.stringify({ overwrite: exists }),
+    });
+    state.runtimeConfig = result.config || state.runtimeConfig;
+    state.pushStatus = result.push || state.pushStatus;
+    updatePushButton();
   } catch (err) {
     state.runtimeConfigError = err.message || String(err);
   } finally {

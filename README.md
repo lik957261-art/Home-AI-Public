@@ -78,8 +78,12 @@ The runtime manager stores only:
 
 - Hermes Gateway URL
 - Hermes API Key file path
+- Web Push subject
+- VAPID key file path
 
-It does not store the Hermes API Key plaintext in Web configuration. The stored runtime config lives at `workspace/hermes-web/runtime-config.json` under `HERMES_WEB_DATA_DIR`.
+It does not store the Hermes API Key plaintext in Web configuration and it never displays the VAPID private key in the browser. The stored runtime config lives at `workspace/hermes-web/runtime-config.json` under `HERMES_WEB_DATA_DIR`.
+
+The Owner can generate or reload VAPID keys from the runtime manager. Regenerating VAPID keys invalidates existing browser push subscriptions; users must re-enable notifications afterward.
 
 ## Configuration
 

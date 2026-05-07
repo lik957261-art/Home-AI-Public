@@ -238,10 +238,14 @@ function normalizeRuntimeConfig(value) {
   const source = value && typeof value === "object" ? value : {};
   const hermesApiBase = String(source.hermesApiBase || source.hermes_api_base || "").trim();
   const hermesApiKeyPath = String(source.hermesApiKeyPath || source.hermes_api_key_path || "").trim();
+  const webPushSubject = String(source.webPushSubject || source.web_push_subject || "").trim();
+  const webPushVapidPath = String(source.webPushVapidPath || source.web_push_vapid_path || "").trim();
   return {
     schemaVersion: 1,
     hermesApiBase: hermesApiBase ? stripTrailingSlash(hermesApiBase) : "",
     hermesApiKeyPath,
+    webPushSubject,
+    webPushVapidPath,
     updatedAt: String(source.updatedAt || ""),
     updatedBy: String(source.updatedBy || ""),
   };
@@ -278,12 +282,27 @@ function validateHermesApiBase(value) {
   return stripTrailingSlash(parsed.toString());
 }
 
+function validateWebPushSubject(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^mailto:[^@\s]+@[^@\s]+\.[^@\s]+$/i.test(raw)) return raw;
+  try {
+    const parsed = new URL(raw);
+    if (["http:", "https:"].includes(parsed.protocol)) return parsed.toString();
+  } catch (_) {}
+  const err = new Error("Web Push subject must be a mailto: address or http(s) URL");
+  err.status = 400;
+  throw err;
+}
+
 function saveRuntimeConfig(input, actor = "owner") {
   ensureDataDir();
   const previous = loadRuntimeConfig();
   const next = normalizeRuntimeConfig(Object.assign({}, previous, input, {
     hermesApiBase: validateHermesApiBase(input.hermesApiBase ?? input.hermes_api_base ?? previous.hermesApiBase),
     hermesApiKeyPath: String(input.hermesApiKeyPath ?? input.hermes_api_key_path ?? previous.hermesApiKeyPath ?? "").trim(),
+    webPushSubject: validateWebPushSubject(input.webPushSubject ?? input.web_push_subject ?? previous.webPushSubject),
+    webPushVapidPath: String(input.webPushVapidPath ?? input.web_push_vapid_path ?? previous.webPushVapidPath ?? "").trim(),
     updatedAt: nowIso(),
     updatedBy: actor || "owner",
   }));
@@ -299,9 +318,19 @@ function configuredHermesApiKeyPaths(config = loadRuntimeConfig()) {
   return [config.hermesApiKeyPath, ...HERMES_API_KEY_PATHS].filter(Boolean);
 }
 
+function effectiveWebPushSubject(config = loadRuntimeConfig()) {
+  return config.webPushSubject || WEB_PUSH_SUBJECT;
+}
+
+function effectiveWebPushVapidPath(config = loadRuntimeConfig()) {
+  return path.resolve(config.webPushVapidPath || WEB_PUSH_VAPID_PATH);
+}
+
 function publicRuntimeConfig() {
   const config = loadRuntimeConfig();
   const keyStatus = hermesApiKeyStatus();
+  const pushStatus = publicPushStatus();
+  const vapidPath = effectiveWebPushVapidPath(config);
   return {
     hermesApiBase: effectiveHermesApiBase(config),
     hermesApiBaseOverride: config.hermesApiBase || "",
@@ -310,6 +339,16 @@ function publicRuntimeConfig() {
     hermesApiKeyConfigured: keyStatus.configured,
     hermesApiKeySource: keyStatus.source,
     hermesApiKeyResolvedPath: keyStatus.path,
+    webPushEnabled: WEB_PUSH_ENABLED,
+    webPushConfigured: pushStatus.enabled,
+    webPushSubject: effectiveWebPushSubject(config),
+    webPushSubjectOverride: config.webPushSubject || "",
+    webPushVapidPath: config.webPushVapidPath || "",
+    webPushVapidResolvedPath: vapidPath,
+    webPushVapidExists: fs.existsSync(vapidPath),
+    webPushSource: webPushConfig?.source || "",
+    webPushPublicKeyPresent: Boolean(webPushConfig?.publicKey),
+    webPushSubscriptionCount: pushStatus.subscriptionCount || 0,
     updatedAt: config.updatedAt || "",
     updatedBy: config.updatedBy || "",
   };
@@ -2044,29 +2083,32 @@ function loadVapidConfig() {
   if (envPublic && envPrivate) {
     return { publicKey: envPublic, privateKey: envPrivate, subject: envSubject || WEB_PUSH_SUBJECT, source: "env" };
   }
+  const runtime = loadRuntimeConfig();
+  const vapidPath = effectiveWebPushVapidPath(runtime);
+  const subject = effectiveWebPushSubject(runtime);
   try {
-    if (fs.existsSync(WEB_PUSH_VAPID_PATH)) {
-      const parsed = JSON.parse(fs.readFileSync(WEB_PUSH_VAPID_PATH, "utf8"));
+    if (fs.existsSync(vapidPath)) {
+      const parsed = JSON.parse(fs.readFileSync(vapidPath, "utf8"));
       if (parsed.publicKey && parsed.privateKey) {
         return {
           publicKey: String(parsed.publicKey),
           privateKey: String(parsed.privateKey),
-          subject: String(parsed.subject || WEB_PUSH_SUBJECT),
-          source: WEB_PUSH_VAPID_PATH,
+          subject: String(parsed.subject || subject),
+          source: vapidPath,
         };
       }
     }
   } catch (_) {}
   if (!WEB_PUSH_ENABLED) return null;
   const keys = webpush.generateVAPIDKeys();
-  const generated = { publicKey: keys.publicKey, privateKey: keys.privateKey, subject: WEB_PUSH_SUBJECT };
+  const generated = { publicKey: keys.publicKey, privateKey: keys.privateKey, subject };
   try {
-    ensureDataDir();
-    fs.writeFileSync(WEB_PUSH_VAPID_PATH, JSON.stringify(generated, null, 2), { encoding: "utf8", mode: 0o600 });
+    fs.mkdirSync(path.dirname(vapidPath), { recursive: true });
+    fs.writeFileSync(vapidPath, JSON.stringify(generated, null, 2), { encoding: "utf8", mode: 0o600 });
   } catch (_) {
     // Keep the generated pair in memory for this process if persistence fails.
   }
-  return Object.assign({ source: fs.existsSync(WEB_PUSH_VAPID_PATH) ? WEB_PUSH_VAPID_PATH : "memory" }, generated);
+  return Object.assign({ source: fs.existsSync(vapidPath) ? vapidPath : "memory" }, generated);
 }
 
 function initializeWebPush() {
@@ -2080,6 +2122,40 @@ function initializeWebPush() {
     console.error(`Hermes Web Push disabled: ${err.message || String(err)}`);
     return null;
   }
+}
+
+function generateWebPushVapidConfig(options = {}) {
+  if (!WEB_PUSH_ENABLED) {
+    const err = new Error("Web Push is disabled");
+    err.status = 409;
+    throw err;
+  }
+  if (process.env.WEB_PUSH_VAPID_PUBLIC_KEY || process.env.HERMES_WEB_VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY || process.env.HERMES_WEB_VAPID_PRIVATE_KEY) {
+    const err = new Error("Web Push VAPID keys are configured by environment variables");
+    err.status = 409;
+    throw err;
+  }
+  const runtime = loadRuntimeConfig();
+  const vapidPath = effectiveWebPushVapidPath(runtime);
+  if (fs.existsSync(vapidPath) && !options.overwrite) {
+    const err = new Error("VAPID key file already exists");
+    err.status = 409;
+    throw err;
+  }
+  const keys = webpush.generateVAPIDKeys();
+  const generated = {
+    publicKey: keys.publicKey,
+    privateKey: keys.privateKey,
+    subject: effectiveWebPushSubject(runtime),
+  };
+  fs.mkdirSync(path.dirname(vapidPath), { recursive: true });
+  fs.writeFileSync(vapidPath, JSON.stringify(generated, null, 2), { encoding: "utf8", mode: 0o600 });
+  webPushConfig = initializeWebPush();
+  return {
+    source: vapidPath,
+    publicKey: generated.publicKey,
+    subject: generated.subject,
+  };
 }
 
 function xmlDecode(value) {
@@ -6601,10 +6677,30 @@ async function handleApi(req, res) {
     }
     try {
       saveRuntimeConfig(body, ownerAuth.principalId || "owner");
-      sendJson(res, 200, { ok: true, config: publicRuntimeConfig() });
+      webPushConfig = initializeWebPush();
+      sendJson(res, 200, { ok: true, config: publicRuntimeConfig(), push: publicPushStatus() });
     } catch (err) {
       sendJson(res, err.status || 500, { error: err.message || String(err) });
     }
+    return;
+  }
+
+  if (url.pathname === "/api/runtime-config/web-push/generate" && req.method === "POST") {
+    if (!requireOwner(req, res)) return;
+    const body = await readBody(req).catch(() => ({}));
+    try {
+      const generated = generateWebPushVapidConfig({ overwrite: boolParam(body.overwrite) });
+      sendJson(res, 201, { ok: true, generated, config: publicRuntimeConfig(), push: publicPushStatus() });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err), config: publicRuntimeConfig(), push: publicPushStatus() });
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/runtime-config/web-push/reload" && req.method === "POST") {
+    if (!requireOwner(req, res)) return;
+    webPushConfig = initializeWebPush();
+    sendJson(res, 200, { ok: Boolean(webPushConfig), config: publicRuntimeConfig(), push: publicPushStatus() });
     return;
   }
 
