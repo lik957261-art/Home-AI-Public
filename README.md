@@ -76,7 +76,7 @@ If `HERMES_WEB_KEY` is not set and the Owner key file (`HERMES_WEB_AUTH_KEY_PATH
 
 The Owner can later edit or delete admin-created user workspaces from the same manager. Deleting a local user workspace also revokes that workspace Access Key; historical local state is not erased automatically. Workspace keys can also be revoked without deleting the user workspace.
 
-Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Workspace Access Key hashes are stored in `workspace/hermes-web/access-keys.json`. Runtime files in `workspace/` remain ignored by Git. On a fresh install without an external workspace catalog, the Owner's default file root is `drive/` under `HERMES_WEB_DATA_DIR`; override it with `HERMES_WEB_OWNER_DEFAULT_WORKSPACE` if user files should live elsewhere.
+Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Workspace Access Key hashes are stored in `workspace/hermes-web/access-keys.json`. Runtime files in `workspace/` remain ignored by Git. On a fresh install without an external workspace catalog, the Owner's default file root is `drive/` under `HERMES_WEB_DATA_DIR`; override it with `HERMES_WEB_OWNER_DEFAULT_WORKSPACE` if user files should live elsewhere. Todo and Automation also default to local JSON stores under `HERMES_WEB_DATA_DIR`; set `HERMES_WEB_TODO_BACKEND` / `HERMES_WEB_AUTOMATION_BACKEND` to an explicit bridge backend only when intentionally connecting this app to an existing deployment store.
 
 ## Runtime Setup
 
@@ -110,7 +110,8 @@ Important configuration groups:
 - `HERMES_WEB_WSL_USER`, `HERMES_WEB_WSL_HOME`, `HERMES_WEB_WSL_HERMES_HOME`
 - `HERMES_WEB_OWNER_ROOT_LABEL`, `HERMES_WEB_OWNER_ALIASES`, `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`
 - `HERMES_WEB_GENERIC_OWNER_PROJECT_PREFIXES`, `HERMES_WEB_GENERIC_OWNER_PROJECT_IDS`
-- `HERMES_WEB_TODO_PLUGIN_PATH`, `HERMES_WEB_TODO_PLUGIN_NAME`
+- `HERMES_WEB_TODO_BACKEND`, `HERMES_WEB_TODO_STORE_PATH`, `HERMES_WEB_TODO_PLUGIN_PATH`, `HERMES_WEB_TODO_PLUGIN_NAME`
+- `HERMES_WEB_AUTOMATION_BACKEND`, `HERMES_WEB_AUTOMATION_STORE_PATH`
 - `HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES`
 - `HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON`
 - `HERMES_WEB_VAPID_PATH` or `WEB_PUSH_VAPID_*`

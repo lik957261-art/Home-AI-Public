@@ -131,6 +131,10 @@ const AUTOMATION_CREATE_MODEL = process.env.HERMES_WEB_AUTOMATION_CREATE_MODEL |
 const DIRECTORY_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_DIRECTORY_BRIDGE_TIMEOUT_MS || "15000");
 const SKILL_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_SKILL_BRIDGE_TIMEOUT_MS || "12000");
 const CRON_OUTPUT_ROOT = stripTrailingSlash(process.env.HERMES_WEB_CRON_OUTPUT_ROOT || `${WSL_HERMES_HOME}/cron/output`);
+const TODO_BACKEND = String(process.env.HERMES_WEB_TODO_BACKEND || "local").trim().toLowerCase();
+const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
+const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
+const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
 const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH_ENABLED || process.env.WEB_PUSH_ENABLED || "1");
 const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
 const TODO_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_TODO_PUSH_ENABLED || "1");
@@ -1217,7 +1221,187 @@ function groupChatDeliveryRootForThread(thread) {
   return path.join(GROUP_DELIVERIES_DIR, safeStorageSegment(thread?.id || "thread"));
 }
 
+function backendIsLocal(value, bridgeNames = []) {
+  const backend = String(value || "").trim().toLowerCase();
+  return !bridgeNames.includes(backend);
+}
+
+function useLocalTodoBackend() {
+  return backendIsLocal(TODO_BACKEND, ["bridge", "plugin", "hermes", "hermes_todos"]);
+}
+
+function useLocalAutomationBackend() {
+  return backendIsLocal(AUTOMATION_BACKEND, ["bridge", "cron", "hermes", "hermes_cron"]);
+}
+
+function readJsonStore(filePath, fallback) {
+  ensureDataDir();
+  try {
+    if (!fs.existsSync(filePath)) return fallback;
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function writeJsonStore(filePath, value) {
+  ensureDataDir();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  fs.renameSync(tmp, filePath);
+}
+
+function localTodoStore() {
+  const raw = readJsonStore(LOCAL_TODO_STORE_PATH, {});
+  return {
+    schemaVersion: 1,
+    todos: Array.isArray(raw?.todos) ? raw.todos.filter((item) => item && typeof item === "object") : [],
+    pushMarks: raw?.pushMarks && typeof raw.pushMarks === "object" && !Array.isArray(raw.pushMarks) ? raw.pushMarks : {},
+    updatedAt: String(raw?.updatedAt || ""),
+  };
+}
+
+function saveLocalTodoStore(store) {
+  writeJsonStore(LOCAL_TODO_STORE_PATH, Object.assign({}, store, {
+    schemaVersion: 1,
+    updatedAt: nowIso(),
+  }));
+}
+
+function parseLocalTodoDue(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const normalized = text.includes("T") ? text : text.replace(/\s+/, "T");
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function localTodoDueLocal(value) {
+  const date = new Date(value || "");
+  return Number.isNaN(date.getTime()) ? "" : formatLocalDateTime(date);
+}
+
+function localTodoAuthorized(row, source) {
+  const principal = String(source || "").trim();
+  if (!principal) return false;
+  if (principal === "owner") return true;
+  return [row?.assignee_principal_id, row?.created_by_principal].map((item) => String(item || "").trim()).includes(principal);
+}
+
+function localTodoMatchesList(row, source, scope) {
+  const principal = String(source || "").trim();
+  if (!principal) return false;
+  if (principal === "owner") return true;
+  const normalizedScope = String(scope || "mine").trim().toLowerCase();
+  if (normalizedScope === "created") return String(row?.created_by_principal || "") === principal;
+  return localTodoAuthorized(row, principal);
+}
+
+async function runLocalTodoBridge(payload = {}) {
+  const action = String(payload.action || "").trim().toLowerCase();
+  const source = String(payload.source_principal || "owner").trim() || "owner";
+  const store = localTodoStore();
+  const now = nowIso();
+
+  if (action === "list") {
+    const includeCompleted = Boolean(payload.include_completed);
+    const assignee = String(payload.assignee || "").trim();
+    const limit = Math.max(1, Math.min(200, Number(payload.limit) || 80));
+    let rows = store.todos.filter((row) => localTodoMatchesList(row, source, payload.scope || "mine"));
+    if (!includeCompleted) rows = rows.filter((row) => String(row.status || "") === "open");
+    if (assignee) rows = rows.filter((row) => String(row.assignee_principal_id || "") === assignee);
+    rows = rows.sort((a, b) => String(a.due_at || a.created_at || "").localeCompare(String(b.due_at || b.created_at || ""))).slice(0, limit);
+    return { ok: true, todos: rows };
+  }
+
+  if (action === "add") {
+    const content = String(payload.content || "").trim();
+    const dueAt = parseLocalTodoDue(payload.due_time);
+    if (!content) return { ok: false, error: "Todo content is required" };
+    if (!dueAt) return { ok: false, error: "Todo due time is required" };
+    const assignee = String(payload.assignee || source).trim() || source;
+    const row = {
+      id: `todo_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+      content,
+      status: "open",
+      assignee_principal_id: assignee,
+      assignee_label: assignee,
+      created_by_principal: source,
+      due_at: dueAt,
+      due_local: localTodoDueLocal(dueAt),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+      reminder_lead_minutes: Number(payload.reminder_lead_minutes || 0) || 0,
+      recurrence_kind: String(payload.recurrence || "none"),
+      recurrence_label: String(payload.recurrence || "none"),
+      recurrence_days: String(payload.recurrence_days || ""),
+      recurrence_series_id: "",
+      recurrence_template: false,
+      created_at: now,
+      updated_at: now,
+      completed_at: "",
+      cancelled_at: "",
+      ok: true,
+    };
+    store.todos.push(row);
+    saveLocalTodoStore(store);
+    return row;
+  }
+
+  const todoId = String(payload.todo_id || "").trim();
+  const index = store.todos.findIndex((row) => String(row.id || "") === todoId);
+  const row = index >= 0 ? store.todos[index] : null;
+
+  if (["complete", "cancel", "postpone", "delete"].includes(action)) {
+    if (!row) return { ok: false, error: "No matching todo found." };
+    if (!localTodoAuthorized(row, source)) return { ok: false, error: "Not authorized to mutate this todo." };
+  }
+
+  if (action === "complete") {
+    row.status = "completed";
+    row.completed_at = now;
+    row.updated_at = now;
+    saveLocalTodoStore(store);
+    return Object.assign({}, row, { ok: true, action });
+  }
+  if (action === "cancel") {
+    row.status = "cancelled";
+    row.cancelled_at = now;
+    row.updated_at = now;
+    saveLocalTodoStore(store);
+    return Object.assign({}, row, { ok: true, action });
+  }
+  if (action === "postpone") {
+    const dueAt = parseLocalTodoDue(payload.due_time);
+    if (!dueAt) return { ok: false, error: "due_time is required" };
+    row.due_at = dueAt;
+    row.due_local = localTodoDueLocal(dueAt);
+    row.updated_at = now;
+    saveLocalTodoStore(store);
+    return Object.assign({}, row, { ok: true, action });
+  }
+  if (action === "delete") {
+    store.todos.splice(index, 1);
+    saveLocalTodoStore(store);
+    return Object.assign({}, row, { ok: true, action });
+  }
+  if (action === "web_pending_pushes") return { ok: true, events: [] };
+  if (action === "web_mark_push") {
+    store.pushMarks[String(payload.markKey || payload.mark_key || "")] = {
+      todoId: String(payload.todoId || payload.todo_id || ""),
+      principalId: String(payload.principalId || payload.principal_id || ""),
+      messageType: String(payload.messageType || payload.message_type || ""),
+      status: String(payload.status || "sent"),
+      updatedAt: now,
+    };
+    saveLocalTodoStore(store);
+    return { ok: true };
+  }
+  return { ok: false, error: `unknown action: ${action}` };
+}
+
 function runTodoBridge(payload) {
+  if (useLocalTodoBackend()) return runLocalTodoBridge(payload);
   return new Promise((resolve, reject) => {
     const command = process.platform === "win32" ? "wsl.exe" : "python3";
     const args = process.platform === "win32"
@@ -1277,10 +1461,196 @@ const todoProvider = createTodoProvider({
   workspacePrincipal,
   todoAssigneesForWorkspace,
   publicTodo,
-  sourceName: () => process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos",
+  sourceName: () => useLocalTodoBackend() ? "local_todos" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos"),
 });
 
+function localAutomationStore() {
+  const raw = readJsonStore(LOCAL_AUTOMATION_STORE_PATH, {});
+  return {
+    schemaVersion: 1,
+    jobs: Array.isArray(raw?.jobs) ? raw.jobs.filter((item) => item && typeof item === "object") : [],
+    updatedAt: String(raw?.updatedAt || ""),
+  };
+}
+
+function saveLocalAutomationStore(store) {
+  writeJsonStore(LOCAL_AUTOMATION_STORE_PATH, Object.assign({}, store, {
+    schemaVersion: 1,
+    updatedAt: nowIso(),
+  }));
+}
+
+function normalizeLocalAutomationSkills(value) {
+  const raw = Array.isArray(value) ? value : String(value || "").split(",");
+  return raw.map((item) => String(item || "").trim()).filter(Boolean);
+}
+
+function localAutomationScheduleText(job) {
+  return String(job.scheduleText || job.schedule || "").trim() || "manual";
+}
+
+function localAutomationStatus(job) {
+  if (!job.enabled) return "paused";
+  if (job.lastError) return "error";
+  return job.status || "scheduled";
+}
+
+function publicLocalAutomationJob(job) {
+  const schedule = localAutomationScheduleText(job);
+  return {
+    id: String(job.id || ""),
+    name: compactText(job.name || job.id || "Automation", 120),
+    prompt: compactText(job.prompt || "", 4000),
+    promptPreview: compactText(job.prompt || "", 220),
+    skills: normalizeLocalAutomationSkills(job.skills),
+    model: compactText(job.model || "", 80),
+    provider: compactText(job.provider || "", 80),
+    schedule,
+    scheduleText: schedule,
+    scheduleKind: String(job.scheduleKind || "local"),
+    repeat: String(job.repeat || "forever"),
+    enabled: job.enabled !== false,
+    state: String(job.state || (job.enabled === false ? "paused" : "scheduled")),
+    status: localAutomationStatus(job),
+    nextRunAt: String(job.nextRunAt || ""),
+    lastRunAt: String(job.lastRunAt || ""),
+    lastStatus: String(job.lastStatus || ""),
+    lastError: compactText(job.lastError || "", 400),
+    lastDeliveryError: compactText(job.lastDeliveryError || "", 400),
+    deliver: compactText(job.deliver || "local", 160),
+    ownerPrincipalId: compactText(job.ownerPrincipalId || "owner", 120),
+    workdir: compactText(job.workdir || "", 600),
+    hasScript: false,
+    hasWorkdir: Boolean(job.workdir),
+    hasContextFrom: false,
+    outputDocuments: Array.isArray(job.outputDocuments) ? job.outputDocuments : [],
+  };
+}
+
+async function runLocalCronBridge(payload = {}) {
+  const action = String(payload.action || "").trim().toLowerCase();
+  const store = localAutomationStore();
+  const now = nowIso();
+
+  if (action === "list") {
+    const includeDisabled = Boolean(payload.include_disabled);
+    let jobs = store.jobs.map(publicLocalAutomationJob);
+    if (!includeDisabled) jobs = jobs.filter((job) => job.enabled);
+    return {
+      ok: true,
+      jobs,
+      source: {
+        name: "local_automations",
+        available: true,
+        jobCount: jobs.length,
+        pathKind: "local",
+      },
+    };
+  }
+
+  if (action === "create") {
+    const draft = payload.job && typeof payload.job === "object" ? payload.job : {};
+    const ownerPrincipalId = String(payload.owner_principal_id || "owner").trim() || "owner";
+    const schedule = String(draft.schedule || draft.scheduleText || draft.schedule_text || "").trim() || "manual";
+    const job = {
+      id: `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+      name: compactText(draft.name || draft.title || payload.text || "Automation", 120),
+      prompt: String(draft.prompt || payload.text || "").trim(),
+      schedule,
+      scheduleText: schedule,
+      scheduleKind: "local",
+      repeat: String(draft.repeat || "forever"),
+      enabled: true,
+      state: "scheduled",
+      status: "scheduled",
+      nextRunAt: "",
+      lastRunAt: "",
+      lastStatus: "",
+      lastError: "",
+      lastDeliveryError: "",
+      deliver: String(draft.deliver || "local"),
+      ownerPrincipalId,
+      workdir: String(draft.workdir || ""),
+      skills: normalizeLocalAutomationSkills(draft.skills),
+      model: String(draft.model || ""),
+      provider: String(draft.provider || ""),
+      outputDocuments: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (!payload.dry_run) {
+      store.jobs.push(job);
+      saveLocalAutomationStore(store);
+    }
+    return {
+      ok: true,
+      job: publicLocalAutomationJob(job),
+      source: { name: "local_automations", available: true, pathKind: "local" },
+    };
+  }
+
+  const jobId = String(payload.job_id || "").trim();
+  const index = store.jobs.findIndex((job) => String(job.id || "") === jobId);
+  const job = index >= 0 ? store.jobs[index] : null;
+  if (["delete", "pause", "resume", "update"].includes(action) && !job) {
+    return { ok: false, error: "Automation job not found" };
+  }
+  if (job && String(job.ownerPrincipalId || "owner") !== String(payload.owner_principal_id || "owner")) {
+    return { ok: false, error: "Automation job is not owned by this workspace" };
+  }
+
+  if (action === "delete") {
+    if (!payload.dry_run) {
+      store.jobs.splice(index, 1);
+      saveLocalAutomationStore(store);
+    }
+    return {
+      ok: true,
+      deletedJob: publicLocalAutomationJob(job),
+      source: { name: "local_automations", available: true, pathKind: "local" },
+    };
+  }
+  if (action === "pause" || action === "resume") {
+    job.enabled = action === "resume";
+    job.state = job.enabled ? "scheduled" : "paused";
+    job.status = job.state;
+    job.updatedAt = now;
+    if (!payload.dry_run) saveLocalAutomationStore(store);
+    return {
+      ok: true,
+      job: publicLocalAutomationJob(job),
+      source: { name: "local_automations", available: true, pathKind: "local" },
+    };
+  }
+  if (action === "update") {
+    const patch = payload.patch && typeof payload.patch === "object" ? payload.patch : {};
+    for (const [field, value] of Object.entries({
+      name: patch.name,
+      prompt: patch.prompt,
+      schedule: patch.schedule,
+      scheduleText: patch.schedule,
+      deliver: patch.deliver,
+      model: patch.model,
+      provider: patch.provider,
+      workdir: patch.workdir,
+    })) {
+      if (value !== undefined) job[field] = String(value || "");
+    }
+    if (patch.skills !== undefined) job.skills = normalizeLocalAutomationSkills(patch.skills);
+    job.updatedAt = now;
+    if (!payload.dry_run) saveLocalAutomationStore(store);
+    return {
+      ok: true,
+      job: publicLocalAutomationJob(job),
+      source: { name: "local_automations", available: true, pathKind: "local" },
+    };
+  }
+
+  return { ok: false, error: `unknown action: ${action}` };
+}
+
 function runCronBridge(payload) {
+  if (useLocalAutomationBackend()) return runLocalCronBridge(payload);
   return new Promise((resolve, reject) => {
     const command = process.platform === "win32" ? "wsl.exe" : "python3";
     const args = process.platform === "win32"

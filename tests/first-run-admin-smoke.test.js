@@ -118,6 +118,36 @@ async function main() {
     assert.equal(runtimeTest.status.apiBase, baseUrl);
     assert.equal(runtimeTest.ok, false);
 
+    const initialTodos = await request(baseUrl, "/api/todos?workspaceId=owner&includeCompleted=1", {
+      headers: { "X-Hermes-Web-Key": ownerKey },
+    });
+    assert.equal(initialTodos.source, "local_todos");
+    assert.deepEqual(initialTodos.data, []);
+
+    const due = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16);
+    const createdTodo = await request(baseUrl, "/api/todos", jsonOptions("POST", ownerKey, {
+      workspaceId: "owner",
+      assignee: "owner",
+      content: "Smoke todo",
+      dueTime: due,
+    }));
+    assert.match(createdTodo.todo.id, /^todo_/);
+    const listedTodos = await request(baseUrl, "/api/todos?workspaceId=owner&includeCompleted=1", {
+      headers: { "X-Hermes-Web-Key": ownerKey },
+    });
+    assert.equal(listedTodos.data.some((todo) => todo.id === createdTodo.todo.id), true);
+
+    const completedTodo = await request(baseUrl, `/api/todos/${encodeURIComponent(createdTodo.todo.id)}/complete`, jsonOptions("POST", ownerKey, {
+      workspaceId: "owner",
+    }));
+    assert.equal(completedTodo.ok, true);
+
+    const initialAutomations = await request(baseUrl, "/api/automations?workspaceId=owner&includeDisabled=1", {
+      headers: { "X-Hermes-Web-Key": ownerKey },
+    });
+    assert.equal(initialAutomations.source.name, "local_automations");
+    assert.equal(initialAutomations.source.pathKind, "local");
+
     const created = await request(baseUrl, "/api/workspaces", jsonOptions("POST", ownerKey, {
       workspaceId: "demo-admin-user",
       label: "Demo Admin User",
