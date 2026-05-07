@@ -8,6 +8,7 @@ const crypto = require("node:crypto");
 const zlib = require("node:zlib");
 const { spawn } = require("node:child_process");
 const webpush = require("web-push");
+const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 
 const TOOL_ROOT = __dirname;
 const REPO_ROOT = path.resolve(TOOL_ROOT, "..", "..", "..");
@@ -184,7 +185,7 @@ const DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES = new Set(
 let clients = new Set();
 let activeStreams = new Map();
 let lastStateBackupAt = 0;
-let catalogCache = { loadedAt: 0, value: null };
+let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
 const cronListCache = new Map();
 let state = loadState();
@@ -2361,59 +2362,19 @@ function dedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
-function loadCatalog() {
-  const now = Date.now();
-  if (catalogCache.value && now - catalogCache.loadedAt < 5000) return catalogCache.value;
-
-  const usersRead = readJsonFirst(WEIXIN_USERS_PATHS, { users: [] });
-  const routesRead = readJsonFirst(WEIXIN_ROUTE_MAP_PATHS, { routes: [], principal_allowed_targets: {} });
-  const projectRead = readJsonFirst(PROJECT_MAP_PATHS, { entries: [] });
-
-  const userByPrincipal = new Map();
-  for (const user of Array.isArray(usersRead.data.users) ? usersRead.data.users : []) {
-    if (user && user.principal_id) userByPrincipal.set(String(user.principal_id), user);
-  }
-
-  const workspaces = [];
-  for (const route of Array.isArray(routesRead.data.routes) ? routesRead.data.routes : []) {
-    if (!route || !route.principal_id) continue;
-    const user = userByPrincipal.get(String(route.principal_id)) || {};
-    const policy = buildAccessPolicy(route, user, null);
-    workspaces.push({
-      id: String(route.principal_id),
-      label: String(route.principal_label || user.principal_label || route.principal_id),
-      role: route.principal_id === "owner" ? "admin" : "user",
-      accessMode: String(route.access_mode || user.access_mode || "restricted"),
-      defaultWorkspace: String(user.default_workspace || route.default_workspace || ""),
-      accountId: String(route.adapter_account_id || user.account_id || ""),
-      userId: String(route.user_id || user.user_id || ""),
-      chatId: String(route.chat_id || user.chat_id || ""),
-      target: String(route.target || user.target || ""),
-      contextTokenAvailable: route.context_token_available === undefined && user.context_token_available === undefined
-        ? null
-        : Boolean(route.context_token_available ?? user.context_token_available),
-      outboundStatus: String(route.outbound_status || user.outbound_status || ""),
-      aliases: Array.isArray(route.aliases) ? route.aliases.map(String) : [],
-      sessionMode: String(route.session_mode || user.session_mode || ""),
-      responseStyle: String(route.response_style || user.response_style || ""),
-      showTaskId: route.show_task_id !== undefined ? Boolean(route.show_task_id) : Boolean(user.show_task_id !== false),
-      maxParallelTasks: Number(route.max_parallel_tasks || user.max_parallel_tasks || 0),
-      policy,
-    });
-  }
-  if (!workspaces.some((item) => item.id === "owner")) {
-    workspaces.unshift({
-      id: "owner",
-      label: "Owner",
-      role: "admin",
-      accessMode: "unrestricted",
-      defaultWorkspace: REPO_ROOT,
-      aliases: normalizeStringList(process.env.HERMES_WEB_OWNER_ALIASES || "owner"),
-      sessionMode: "task_centric_stateless",
-      responseStyle: "task_platform",
-      showTaskId: true,
-      maxParallelTasks: 0,
-      policy: sanitizePolicy({
+function getWorkspaceProjectProvider() {
+  if (!workspaceProjectProvider) {
+    workspaceProjectProvider = createWorkspaceProjectProvider({
+      readJsonFirst,
+      usersPaths: WEIXIN_USERS_PATHS,
+      routeMapPaths: WEIXIN_ROUTE_MAP_PATHS,
+      projectMapPaths: PROJECT_MAP_PATHS,
+      repoRoot: REPO_ROOT,
+      normalizeStringList,
+      buildAccessPolicy,
+      projectsForWorkspace,
+      ownerAliases: () => process.env.HERMES_WEB_OWNER_ALIASES || "owner",
+      fallbackOwnerPolicy: () => sanitizePolicy({
         principal_id: "owner",
         principal_label: "Owner",
         access_mode: "unrestricted",
@@ -2423,25 +2384,15 @@ function loadCatalog() {
       }),
     });
   }
+  return workspaceProjectProvider;
+}
 
-  const projects = [];
-  const projectEntries = Array.isArray(projectRead.data.entries) ? projectRead.data.entries : [];
-  for (const workspace of workspaces) {
-    projects.push(...projectsForWorkspace(workspace, projectEntries, workspaces));
-  }
+function invalidateCatalogCache() {
+  if (workspaceProjectProvider) workspaceProjectProvider.invalidate();
+}
 
-  const catalog = {
-    workspaces,
-    projects,
-    sources: {
-      users: usersRead.path,
-      routes: routesRead.path,
-      projectMap: projectRead.path,
-    },
-    routeMap: routesRead.data,
-  };
-  catalogCache = { loadedAt: now, value: catalog };
-  return catalog;
+function loadCatalog() {
+  return getWorkspaceProjectProvider().loadCatalog();
 }
 
 function buildAccessPolicy(route, user, project) {
@@ -7460,7 +7411,7 @@ async function handleApi(req, res) {
         sendJson(res, status, { error: result?.error || "Create directory failed" });
         return;
       }
-      catalogCache = { loadedAt: 0, value: null };
+      invalidateCatalogCache();
       dynamicProjectCache.delete(String(thread.workspaceId || ""));
       sendJson(res, 201, {
         ok: true,
@@ -7496,7 +7447,7 @@ async function handleApi(req, res) {
         return;
       }
       fs.mkdirSync(targetLocalPath);
-      catalogCache = { loadedAt: 0, value: null };
+      invalidateCatalogCache();
       dynamicProjectCache.delete(String(thread.workspaceId || ""));
       sendJson(res, 201, {
         ok: true,
@@ -7651,7 +7602,7 @@ async function handleApi(req, res) {
       scope: normalizeShareScope(body.scope, normalizeShareTargets(body)),
       targetWorkspaceIds: normalizeShareTargets(body),
     });
-    catalogCache = { loadedAt: 0, value: null };
+    invalidateCatalogCache();
     dynamicProjectCache.clear();
     sendJson(res, 200, {
       ok: true,
@@ -7674,7 +7625,7 @@ async function handleApi(req, res) {
     if (!workspaceId) return;
     try {
       const record = removeSharedDirectoryRecord(body.id || body.path, workspaceId);
-      catalogCache = { loadedAt: 0, value: null };
+      invalidateCatalogCache();
       dynamicProjectCache.clear();
       sendJson(res, 200, { ok: true, removed: publicSharedDirectory(record, workspaceId) });
     } catch (err) {
@@ -7693,7 +7644,7 @@ async function handleApi(req, res) {
     if (!workspaceId) return;
     try {
       const record = updateSharedDirectoryAccess(body.id || body.path, workspaceId, body);
-      catalogCache = { loadedAt: 0, value: null };
+      invalidateCatalogCache();
       dynamicProjectCache.clear();
       sendJson(res, 200, { ok: true, shared: publicSharedDirectory(record, workspaceId) });
     } catch (err) {

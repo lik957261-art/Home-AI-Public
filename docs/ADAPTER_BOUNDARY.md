@@ -25,6 +25,12 @@ These parts must remain replaceable:
 - Skill detail provider.
 - External integration inventory, such as mail, GitHub, Google, or local desktop tools.
 
+## Current Adapter Entry Points
+
+- `adapters/workspace-project-provider.js` owns the first catalog boundary. It loads workspace route maps, user policy records, and project-map entries through injected file readers and returns a normalized `{ workspaces, projects, sources, routeMap }` catalog.
+- `server.js` still owns many private helpers used by that provider, including access-policy construction, shared-directory expansion, and project-root discovery. Those helpers should move behind narrower providers in later phases instead of adding more direct file reads to `server.js`.
+- `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
+
 ## Current Private Couplings
 
 The private checkout still contains local deployment behavior that must be moved behind adapters before public export:

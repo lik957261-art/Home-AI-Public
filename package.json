@@ -7,9 +7,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "check": "node --check server.js && node --check public/app.js && node --check public/service-worker.js",
+    "check": "node --check server.js && node --check public/app.js && node --check public/service-worker.js && node --check adapters/workspace-project-provider.js && node --check tests/workspace-project-provider.test.js",
     "privacy:scan": "node scripts/privacy-scan.js",
-    "test": "npm run check && python -m py_compile cron_bridge.py directory_bridge.py skill_bridge.py todo_bridge.py && npm run privacy:scan",
+    "test": "npm run check && node tests/workspace-project-provider.test.js && python -m py_compile cron_bridge.py directory_bridge.py skill_bridge.py todo_bridge.py && npm run privacy:scan",
     "start": "node server.js"
   },
   "dependencies": {
