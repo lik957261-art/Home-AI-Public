@@ -1,8 +1,31 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
+
+const CRON_MEDIA_LINE_PATTERN = /^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$/gim;
+const CRON_MEDIA_PATH_PATTERN = /(\\\\wsl(?:\.localhost|\$)\\[^\r\n]+?\.(?:pdf|docx|doc|md)|[a-z]:\\[^\r\n]+?\.(?:pdf|docx|doc|md)|\/(?:mnt\/[a-z]|home\/[^/]+)\/[^\r\n]+?\.(?:pdf|docx|doc|md))(?=$|[\s)>"'，,。；;])/gi;
+
 function positiveNumber(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function dedupe(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of values || []) {
+    const text = String(value || "").trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    result.push(text);
+  }
+  return result;
+}
+
+function queryValue(query, name) {
+  if (query && typeof query.get === "function") return query.get(name);
+  return query?.[name];
 }
 
 function createAutomationProvider(options = {}) {
@@ -11,6 +34,21 @@ function createAutomationProvider(options = {}) {
 
   const cacheTtlMs = Number(options.cacheTtlMs ?? 12000);
   const listCache = new Map();
+  const normalizeLocalPath = typeof options.normalizeLocalPath === "function"
+    ? options.normalizeLocalPath
+    : (value) => String(value || "");
+  const mimeFor = typeof options.mimeFor === "function" ? options.mimeFor : () => "application/octet-stream";
+  const isPathAllowed = typeof options.isPathAllowed === "function" ? options.isPathAllowed : () => false;
+  const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => ({});
+  const authCanAccessWorkspace = typeof options.authCanAccessWorkspace === "function"
+    ? options.authCanAccessWorkspace
+    : () => true;
+  const workspacePrincipal = typeof options.workspacePrincipal === "function"
+    ? options.workspacePrincipal
+    : (workspaceId) => String(workspaceId || "owner");
+  const jobMatchesOwner = typeof options.jobMatchesOwner === "function"
+    ? options.jobMatchesOwner
+    : (job, ownerPrincipalId) => String(job?.ownerPrincipalId || "owner") === String(ownerPrincipalId || "owner");
 
   function clearListCache() {
     listCache.clear();
@@ -77,11 +115,200 @@ function createAutomationProvider(options = {}) {
     });
   }
 
+  function deliverableRoots() {
+    const extraRoots = typeof options.extraDeliverableRoots === "function"
+      ? options.extraDeliverableRoots()
+      : (options.extraDeliverableRoots || []);
+    const roots = dedupe([
+      options.cronOutputRoot,
+      options.runLogRoot,
+      ...(Array.isArray(extraRoots) ? extraRoots : [extraRoots]),
+    ]);
+    return roots
+      .map(normalizeLocalPath)
+      .filter(Boolean)
+      .map((item) => {
+        try {
+          return fs.realpathSync.native(item);
+        } catch (_) {
+          return path.resolve(item);
+        }
+      });
+  }
+
+  function pathInsideResolvedRoots(filePath, roots) {
+    let target;
+    try {
+      target = fs.realpathSync.native(filePath);
+    } catch (_) {
+      target = path.resolve(filePath);
+    }
+    const normTarget = target.toLowerCase();
+    return (roots || []).some((root) => {
+      const normRoot = String(root || "").toLowerCase();
+      return normTarget === normRoot || normTarget.startsWith(`${normRoot}${path.sep}`);
+    });
+  }
+
+  function isDeliverablePathAllowed(filePath) {
+    return isPathAllowed(filePath) || pathInsideResolvedRoots(filePath, deliverableRoots());
+  }
+
+  function resolveOutputFile(query) {
+    const jobId = String(queryValue(query, "jobId") || "").trim();
+    const fileName = String(queryValue(query, "file") || "").trim();
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(jobId)) return { status: 400, error: "Invalid automation job id" };
+    if (!fileName || fileName !== path.basename(fileName) || /[\\/]/.test(fileName)) {
+      return { status: 400, error: "Invalid automation output file" };
+    }
+    const displayRoot = `${String(options.cronOutputRoot || "").replace(/\/+$/, "")}/${jobId}`;
+    const displayPath = `${displayRoot}/${fileName}`;
+    const localRoot = normalizeLocalPath(displayRoot);
+    const localPath = normalizeLocalPath(displayPath);
+    if (!localRoot || !localPath || !fs.existsSync(localPath)) return { status: 404, error: "Automation output not found" };
+    let rootReal;
+    let targetReal;
+    try {
+      rootReal = fs.realpathSync.native(localRoot);
+      targetReal = fs.realpathSync.native(localPath);
+    } catch (_) {
+      return { status: 404, error: "Automation output not found" };
+    }
+    const rootKey = rootReal.toLowerCase();
+    const targetKey = targetReal.toLowerCase();
+    if (!(targetKey === rootKey || targetKey.startsWith(`${rootKey}${path.sep}`))) {
+      return { status: 403, error: "Automation output is outside the job output directory" };
+    }
+    const stat = fs.statSync(targetReal);
+    if (!stat.isFile()) return { status: 400, error: "Automation output is not a file" };
+    return {
+      file: {
+        localPath: targetReal,
+        displayPath: `CRON output / ${jobId} / ${fileName}`,
+        name: fileName,
+        mime: mimeFor(targetReal),
+        size: stat.size,
+        updatedAt: stat.mtime.toISOString(),
+      },
+    };
+  }
+
+  function deliverablePathValues(text) {
+    const values = [];
+    for (const match of String(text || "").matchAll(CRON_MEDIA_LINE_PATTERN)) {
+      const payload = String(match[1] || "").trim();
+      const matches = [...payload.matchAll(CRON_MEDIA_PATH_PATTERN)].map((item) => item[1]).filter(Boolean);
+      values.push(...(matches.length ? matches : [payload]));
+    }
+    const seen = new Set();
+    return values
+      .map((item) => String(item || "").trim().replace(/^[`'"<]+|[\s`'">)，,。；;]+$/g, ""))
+      .filter((item) => {
+        if (!/\.(pdf|docx|doc|md)$/i.test(item)) return false;
+        const localPath = normalizeLocalPath(item);
+        if (!localPath || !path.isAbsolute(localPath) || !fs.existsSync(localPath)) return false;
+        let key = localPath.toLowerCase();
+        try {
+          key = fs.realpathSync.native(localPath).toLowerCase();
+        } catch (_) {}
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => {
+        const aOffice = /\.(pdf|docx|doc)$/i.test(a) ? 0 : 1;
+        const bOffice = /\.(pdf|docx|doc)$/i.test(b) ? 0 : 1;
+        return aOffice - bOffice;
+      });
+  }
+
+  function resolveDeliverableFile(query) {
+    const jobId = String(queryValue(query, "jobId") || "").trim();
+    const runName = String(queryValue(query, "run") || "").trim();
+    const indexText = String(queryValue(query, "index") || "0").trim();
+    const index = Number(indexText || "0");
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(jobId)) return { status: 400, error: "Invalid automation job id" };
+    if (!runName || runName !== path.basename(runName) || /[\\/]/.test(runName) || path.extname(runName).toLowerCase() !== ".md") {
+      return { status: 400, error: "Invalid automation run output" };
+    }
+    if (!Number.isInteger(index) || index < 0 || index > 999) return { status: 400, error: "Invalid automation deliverable index" };
+    const runOutput = resolveOutputFile({ jobId, file: runName });
+    if (!runOutput.file) return runOutput;
+    let values;
+    try {
+      values = deliverablePathValues(fs.readFileSync(runOutput.file.localPath, "utf8"));
+    } catch (_) {
+      return { status: 404, error: "Automation deliverable not found" };
+    }
+    const rawPath = values[index];
+    if (!rawPath) return { status: 404, error: "Automation deliverable not found" };
+    const localPath = normalizeLocalPath(rawPath);
+    if (!localPath || !path.isAbsolute(localPath) || !fs.existsSync(localPath)) {
+      return { status: 404, error: "Automation deliverable not found" };
+    }
+    let targetReal;
+    try {
+      targetReal = fs.realpathSync.native(localPath);
+    } catch (_) {
+      return { status: 404, error: "Automation deliverable not found" };
+    }
+    const ext = path.extname(targetReal).toLowerCase();
+    if (![".pdf", ".docx", ".doc", ".md"].includes(ext)) return { status: 415, error: "Unsupported automation deliverable type" };
+    if (!isDeliverablePathAllowed(targetReal)) return { status: 403, error: "Automation deliverable is outside allowed roots" };
+    const stat = fs.statSync(targetReal);
+    if (!stat.isFile()) return { status: 400, error: "Automation deliverable is not a file" };
+    return {
+      file: {
+        localPath: targetReal,
+        displayPath: `CRON delivery / ${jobId} / ${path.basename(targetReal)}`,
+        name: path.basename(targetReal),
+        mime: mimeFor(targetReal),
+        size: stat.size,
+        updatedAt: stat.mtime.toISOString(),
+      },
+    };
+  }
+
+  async function resolveAuthorizedFile(args = {}) {
+    const query = args.query || {};
+    const workspaceId = String(queryValue(query, "workspaceId") || "owner");
+    if (!findWorkspace(workspaceId)) return { status: 400, error: "Unknown workspace" };
+    if (args.auth && !authCanAccessWorkspace(args.auth, workspaceId)) {
+      return { status: 403, error: "Workspace access is not allowed" };
+    }
+
+    const jobId = String(queryValue(query, "jobId") || "").trim();
+    const ownerPrincipalId = workspacePrincipal(workspaceId);
+    let result;
+    try {
+      result = await listJobs({ includeDisabled: true, bypassCache: true, limit: 0 });
+    } catch (err) {
+      return { status: 503, error: `Hermes CRON source unavailable: ${err.message || String(err)}` };
+    }
+    if (!result?.ok) return { status: 503, error: result?.error || "Hermes CRON bridge failed" };
+    const allowed = (result.jobs || []).some((job) => String(job?.id || "") === jobId && jobMatchesOwner(job, ownerPrincipalId));
+    if (!allowed) return { status: 404, error: "Automation output not found" };
+    return args.kind === "deliverable" ? resolveDeliverableFile(query) : resolveOutputFile(query);
+  }
+
+  function resolveAuthorizedOutputFile(args = {}) {
+    return resolveAuthorizedFile(Object.assign({}, args, { kind: "output" }));
+  }
+
+  function resolveAuthorizedDeliverableFile(args = {}) {
+    return resolveAuthorizedFile(Object.assign({}, args, { kind: "deliverable" }));
+  }
+
   return {
     clearListCache,
     createJob,
+    deliverablePathValues,
     listJobs,
     mutateJob,
+    resolveAuthorizedDeliverableFile,
+    resolveAuthorizedOutputFile,
+    resolveDeliverableFile,
+    resolveOutputFile,
   };
 }
 

@@ -28,7 +28,7 @@ Use this private repository as the productization source for Hermes Web. The pub
 - Separate product core from private adapters.
 - Keep generic features in the main app: chat, tasks, directory, todos, automation list, preview, and notifications.
 - Move account-specific connectors, private mailbox labels, local directory maps, and owner-only integrations behind optional adapters.
-- Provider boundaries are now in place for workspace/project catalog loading, Todo operations, and Automation/CRON bridge operations. Continue by moving shared-directory expansion, project-root discovery, workspace external-integration inventory, and automation deliverable parsing behind provider methods.
+- Provider boundaries are now in place for workspace/project catalog loading, Todo operations, Automation/CRON bridge operations, and automation output/deliverable file resolution. Continue by moving shared-directory expansion, project-root discovery, workspace external-integration inventory, and filesystem mount helpers behind provider methods.
 - Target shape:
   - `core`: HTTP server, state store, Gateway client, Web Push, static app, preview routes.
   - `adapters`: workspace catalog, project map, todo provider, automation provider, filesystem mount helper, external integration inventory.
