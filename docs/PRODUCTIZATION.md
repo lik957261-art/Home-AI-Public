@@ -18,7 +18,9 @@ Use this private repository as the productization source for Hermes Web. The pub
 - Add explicit validation for required paths and credentials.
 - Document which features require Hermes Gateway, WSL, Web Push, CRON metadata, or local filesystem access.
 - Current baseline moves WSL user/home, Hermes home, Web Push subject, todo plugin path/name, skill root, and volume mount helpers behind environment variables. Remaining private labels and account-specific bindings are tracked in `ADAPTER_BOUNDARY.md`.
-- First-run Owner setup is visual: if no `HERMES_WEB_KEY` and no `.hermes_web_secret_key` exist, the browser creates the Owner Access Key once, displays it once, and then enters the app. Admin-created local workspaces are stored in `workspace/hermes-web/workspaces.json`.
+- First-run Owner setup is visual: if no `HERMES_WEB_KEY` and no Owner key file exists, the browser creates the Owner Access Key once, displays it once, and then enters the app. Admin-created local workspaces are stored in `workspace/hermes-web/workspaces.json`.
+- The Owner workspace manager now supports a usable local-user lifecycle: create, edit label/root/allowed directories/toolsets, generate or revoke a workspace Access Key, and delete the admin-created workspace. Deleting a local workspace revokes its key but intentionally leaves historical runtime state untouched.
+- `HERMES_WEB_AUTH_KEY_PATH` can point the file-backed Owner key outside the repository root; tests and packaged deployments should use it so first-run setup never writes secrets into source directories.
 
 ## Phase 2: Adapter Boundary
 
@@ -36,6 +38,7 @@ Use this private repository as the productization source for Hermes Web. The pub
 - Add repeatable unit checks for route auth, artifact ACL, automation deliverable parsing, workspace access-key scope, Web Push payload shape, and mobile preview return behavior.
 - Keep `npm run check` as a fast syntax gate.
 - Add install/run instructions for Windows and Linux.
+- Keep the first-run/admin HTTP smoke covering Owner setup, local workspace create/edit/key revoke/delete, and first authenticated workspace reads.
 
 ## Phase 4: Public Export
 

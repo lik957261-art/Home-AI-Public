@@ -59,14 +59,16 @@ Default URL: `http://0.0.0.0:8797`
 
 ## First Run
 
-If `HERMES_WEB_KEY` is not set and `.hermes_web_secret_key` does not exist, Hermes Mobile opens a first-run setup screen.
+If `HERMES_WEB_KEY` is not set and the Owner key file (`HERMES_WEB_AUTH_KEY_PATH`, or `.hermes_web_secret_key` by default) does not exist, Hermes Mobile opens a first-run setup screen.
 
 1. Create the Owner Access Key in the browser.
 2. Copy and store the plaintext key immediately; it is shown once.
 3. Enter Hermes Mobile.
-4. Open the sidebar `账号 / 根目录 / 接口` panel, choose `Access Key` management, create user workspaces, then generate each user's Access Key.
+4. Open the sidebar `账号 / 根目录 / 接口` panel, choose `Access Key` management, create user workspaces, configure root/allowed directories and optional toolsets, then generate each user's Access Key.
 
-Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Runtime files in `workspace/` remain ignored by Git.
+The Owner can later edit or delete admin-created user workspaces from the same manager. Deleting a local user workspace also revokes that workspace Access Key; historical local state is not erased automatically. Workspace keys can also be revoked without deleting the user workspace.
+
+Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Workspace Access Key hashes are stored in `workspace/hermes-web/access-keys.json`. Runtime files in `workspace/` remain ignored by Git.
 
 ## Configuration
 
@@ -76,7 +78,7 @@ Important configuration groups:
 
 - `HERMES_WEB_HOST`, `HERMES_WEB_PORT`, `HERMES_WEB_DATA_DIR`
 - `HERMES_WEB_REPO_ROOT`, `HERMES_WEB_CONFIG_DIR`
-- `HERMES_WEB_KEY` or a deployment secret file
+- `HERMES_WEB_KEY` or `HERMES_WEB_AUTH_KEY_PATH`
 - `HERMES_WEB_HERMES_API_BASE`
 - `HERMES_WEB_HERMES_API_KEY` or `HERMES_WEB_HERMES_API_KEY_PATH`
 - `HERMES_WEB_ALLOWED_ARTIFACT_ROOTS`

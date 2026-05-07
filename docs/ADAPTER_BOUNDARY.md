@@ -29,6 +29,7 @@ These parts must remain replaceable:
 
 - `adapters/workspace-project-provider.js` owns the first catalog boundary. It loads workspace route maps, user policy records, and project-map entries through injected file readers and returns a normalized `{ workspaces, projects, sources, routeMap }` catalog.
 - The same provider also accepts local admin-created workspace records from `workspace/hermes-web/workspaces.json`, so a fresh install can create users without an external Hermes ACL file.
+- Admin-created workspace records are managed through the core API/UI for now: create/update/delete local workspace records, configure root/allowed directories/toolsets, generate/revoke workspace Access Keys, and keep external route-map workspaces read-only from this local manager.
 - `server.js` still owns many private helpers used by that provider, including access-policy construction, shared-directory expansion, and project-root discovery. Those helpers should move behind narrower providers in later phases instead of adding more direct file reads to `server.js`.
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 

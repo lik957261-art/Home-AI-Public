@@ -165,6 +165,17 @@ function formatTime(value) {
   return date.toLocaleString([], { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function splitConfigList(value) {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[\n,，;；]+/g);
+  return [...new Set(raw.map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
+function joinConfigList(value) {
+  return splitConfigList(value).join("\n");
+}
+
 function formatElapsedDuration(startValue, endValue) {
   const start = new Date(startValue || "").getTime();
   const end = new Date(endValue || "").getTime();
@@ -2985,6 +2996,9 @@ function renderAccessKeyManager() {
   const selectedWorkspace = (state.workspaces || []).find((workspace) => workspace.id === selectedWorkspaceId) || currentWorkspace();
   const selectedAccessKeys = (state.accessKeys || []).filter((item) => !selectedWorkspace?.id || item.workspaceId === selectedWorkspace.id);
   const showOwnerKey = Boolean(state.accessKeysAuth?.isOwner && selectedWorkspace?.id === "owner");
+  const localWorkspaces = state.accessKeysAuth?.isOwner
+    ? (state.workspaces || []).filter((workspace) => workspace.source === "local-workspace")
+    : [];
   const generated = state.generatedAccessKey
     ? `<section class="access-key-result">
         <div class="access-key-result-label">${escapeHtml(state.generatedAccessKey.label || "New Access Key")}</div>
@@ -3005,6 +3019,7 @@ function renderAccessKeyManager() {
       </div>
       <div class="access-key-row-state">${item.hasKey ? "已生成" : "未生成"}</div>
       <button type="button" data-generate-workspace-key="${escapeHtml(item.workspaceId || "")}">${item.hasKey ? "更换" : "生成"}</button>
+      ${item.hasKey ? `<button type="button" data-revoke-workspace-key="${escapeHtml(item.workspaceId || "")}">撤销</button>` : ""}
     </article>`;
   }).join("") : `<div class="access-key-empty">当前工作区没有可管理的工作区 Access Key。</div>`;
   const body = state.accessKeysLoading
@@ -3019,7 +3034,26 @@ function renderAccessKeyManager() {
           <input id="newWorkspaceLabel" type="text" autocomplete="off" placeholder="显示名">
           <input id="newWorkspaceRoot" type="text" autocomplete="off" placeholder="根目录，可留空">
         </div>
+        <textarea id="newWorkspaceAllowedRoots" rows="3" placeholder="允许访问目录，每行一个；留空时使用根目录"></textarea>
+        <input id="newWorkspaceToolsets" type="text" autocomplete="off" placeholder="额外接口/toolsets，逗号分隔，可留空">
         <button type="button" data-create-workspace>保存工作区</button>
+      </section>` : "";
+  const workspaceAdminList = state.accessKeysAuth?.isOwner ? `<section class="access-key-workspace-admin">
+        <div class="access-key-row-title">本地用户工作区</div>
+        ${localWorkspaces.length ? localWorkspaces.map((workspace) => {
+          const root = workspace.localConfig?.defaultWorkspace || workspace.defaultWorkspace || "";
+          const toolsets = workspace.localConfig?.allowedToolsets || workspace.bindings?.allowedToolsets || [];
+          return `<article class="workspace-admin-row">
+            <div class="workspace-admin-main">
+              <div class="workspace-admin-title">${escapeHtml(workspace.label || workspace.id)}</div>
+              <div class="workspace-admin-meta">${escapeHtml(workspace.id)}${root ? ` · ${escapeHtml(root)}` : ""}</div>
+              ${toolsets.length ? `<div class="workspace-admin-meta">接口：${escapeHtml(toolsets.join(", "))}</div>` : ""}
+            </div>
+            <button type="button" data-edit-workspace="${escapeHtml(workspace.id)}">编辑</button>
+            <button type="button" data-manage-workspace="${escapeHtml(workspace.id)}">Key</button>
+            <button type="button" data-delete-workspace="${escapeHtml(workspace.id)}">删除</button>
+          </article>`;
+        }).join("") : `<div class="access-key-empty">还没有管理员创建的本地用户工作区。</div>`}
       </section>` : "";
   const subtitle = state.accessKeysAuth?.isOwner
     ? "只显示当前选择工作区的 Hermes Web 登录 key；切换工作区后可管理对应账号。"
@@ -3035,6 +3069,7 @@ function renderAccessKeyManager() {
       </header>
       ${generated}
       ${workspaceCreateForm}
+      ${workspaceAdminList}
       ${showOwnerKey ? `<section class="access-key-web">
         <div>
           <div class="access-key-row-title">Hermes Web Owner Key</div>
@@ -3049,8 +3084,20 @@ function renderAccessKeyManager() {
   overlay.querySelector("[data-create-workspace]")?.addEventListener("click", () => createWorkspaceFromAccessKeyManager().catch(showError));
   overlay.querySelector("[data-copy-access-key]")?.addEventListener("click", () => copyTextToClipboard(state.generatedAccessKey?.key || "").catch(showError));
   overlay.querySelector("[data-relogin-after-access-key]")?.addEventListener("click", () => finishAccessKeyRelogin());
+  overlay.querySelectorAll("[data-edit-workspace]").forEach((button) => {
+    button.addEventListener("click", () => fillWorkspaceConfigForm(button.dataset.editWorkspace || ""));
+  });
+  overlay.querySelectorAll("[data-manage-workspace]").forEach((button) => {
+    button.addEventListener("click", () => loadAccessKeyManager({ workspaceId: button.dataset.manageWorkspace || "" }).catch(showError));
+  });
+  overlay.querySelectorAll("[data-delete-workspace]").forEach((button) => {
+    button.addEventListener("click", () => deleteWorkspaceFromAccessKeyManager(button.dataset.deleteWorkspace || "").catch(showError));
+  });
   overlay.querySelectorAll("[data-generate-workspace-key]").forEach((button) => {
     button.addEventListener("click", () => generateWorkspaceAccessKey(button.dataset.generateWorkspaceKey).catch(showError));
+  });
+  overlay.querySelectorAll("[data-revoke-workspace-key]").forEach((button) => {
+    button.addEventListener("click", () => revokeWorkspaceAccessKey(button.dataset.revokeWorkspaceKey || "").catch(showError));
   });
 }
 
@@ -3081,14 +3128,28 @@ async function openAccessKeyManager(options = {}) {
   await loadAccessKeyManager({ workspaceId: options.workspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "" });
 }
 
+function fillWorkspaceConfigForm(workspaceId) {
+  const workspace = (state.workspaces || []).find((item) => item.id === workspaceId);
+  if (!workspace) return;
+  const localConfig = workspace.localConfig || {};
+  if ($("newWorkspaceId")) $("newWorkspaceId").value = workspace.id || "";
+  if ($("newWorkspaceLabel")) $("newWorkspaceLabel").value = workspace.label || workspace.id || "";
+  if ($("newWorkspaceRoot")) $("newWorkspaceRoot").value = localConfig.defaultWorkspace || workspace.defaultWorkspace || "";
+  if ($("newWorkspaceAllowedRoots")) $("newWorkspaceAllowedRoots").value = joinConfigList(localConfig.allowedRoots || []);
+  if ($("newWorkspaceToolsets")) $("newWorkspaceToolsets").value = splitConfigList(localConfig.allowedToolsets || workspace.bindings?.allowedToolsets || []).join(", ");
+  $("newWorkspaceLabel")?.focus();
+}
+
 async function createWorkspaceFromAccessKeyManager() {
   const workspaceId = $("newWorkspaceId")?.value?.trim() || "";
   const label = $("newWorkspaceLabel")?.value?.trim() || workspaceId;
   const defaultWorkspace = $("newWorkspaceRoot")?.value?.trim() || "";
+  const allowedRoots = splitConfigList($("newWorkspaceAllowedRoots")?.value || "");
+  const allowedToolsets = splitConfigList($("newWorkspaceToolsets")?.value || "");
   if (!workspaceId) throw new Error("请输入用户 ID");
   const result = await api("/api/workspaces", {
     method: "POST",
-    body: JSON.stringify({ workspaceId, label, defaultWorkspace }),
+    body: JSON.stringify({ workspaceId, label, defaultWorkspace, allowedRoots, allowedToolsets }),
   });
   const createdId = result.workspace?.id || workspaceId;
   state.selectedWorkspaceId = createdId;
@@ -3096,6 +3157,22 @@ async function createWorkspaceFromAccessKeyManager() {
   await loadWorkspaces();
   await loadProjects();
   await loadAccessKeyManager({ workspaceId: createdId });
+}
+
+async function deleteWorkspaceFromAccessKeyManager(workspaceId) {
+  const workspace = (state.workspaces || []).find((item) => item.id === workspaceId);
+  if (!workspace || workspace.source !== "local-workspace") return;
+  const label = workspace.label || workspace.id;
+  if (!window.confirm(`删除本地用户工作区 ${label}？该账号的 Workspace Access Key 也会撤销。历史消息不会被删除。`)) return;
+  await api(`/api/workspaces/${encodeURIComponent(workspace.id)}`, { method: "DELETE" });
+  if (state.selectedWorkspaceId === workspace.id) {
+    state.selectedWorkspaceId = "owner";
+    localStorage.setItem("hermesWebWorkspace", "owner");
+  }
+  if (state.accessKeyWorkspaceId === workspace.id) state.accessKeyWorkspaceId = state.selectedWorkspaceId;
+  await loadWorkspaces();
+  await loadProjects();
+  await loadAccessKeyManager({ workspaceId: state.accessKeyWorkspaceId || state.selectedWorkspaceId || "owner" });
 }
 
 function closeAccessKeyManager() {
@@ -3137,6 +3214,24 @@ async function generateWorkspaceAccessKey(workspaceId) {
     return;
   }
   await loadAccessKeyManager({ keepGenerated: true, workspaceId: state.accessKeyWorkspaceId || workspaceId });
+}
+
+async function revokeWorkspaceAccessKey(workspaceId) {
+  const target = (state.accessKeys || []).find((item) => item.workspaceId === workspaceId);
+  const label = target?.workspaceLabel || workspaceId || "workspace";
+  if (!workspaceId || !target?.hasKey) return;
+  if (!window.confirm(`撤销 ${label} 的 Hermes Web Access Key？该账号会在下次请求时需要重新登录。`)) return;
+  const result = await api(`/api/access-keys/workspace/${encodeURIComponent(workspaceId)}`, {
+    method: "DELETE",
+    body: JSON.stringify({}),
+  });
+  if (result.requiresReLogin) {
+    state.accessKeyRequiresLogin = true;
+    clearStoredAccessKey();
+    renderAccessKeyManager();
+    return;
+  }
+  await loadAccessKeyManager({ workspaceId: state.accessKeyWorkspaceId || workspaceId });
 }
 
 async function rotateWebAccessKey() {

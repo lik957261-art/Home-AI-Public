@@ -3162,7 +3162,8 @@ button.directory-alias-chip {
 .access-key-web,
 .access-key-row,
 .access-key-result,
-.access-key-create-workspace {
+.access-key-create-workspace,
+.access-key-workspace-admin {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3239,7 +3240,8 @@ button.directory-alias-chip {
 .access-key-row button,
 .access-key-web button,
 .access-key-result button,
-.access-key-create-workspace button {
+.access-key-create-workspace button,
+.access-key-workspace-admin button {
   flex: 0 0 auto;
   min-height: 34px;
   padding: 0 13px;
@@ -3262,7 +3264,7 @@ button.directory-alias-chip {
 
 .access-key-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
 }
 
 .access-key-row-main {
@@ -3299,6 +3301,12 @@ button.directory-alias-chip {
   justify-content: stretch;
 }
 
+.access-key-workspace-admin {
+  display: grid;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
 .access-key-create-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -3318,6 +3326,58 @@ button.directory-alias-chip {
 
 .access-key-create-grid input:last-child {
   grid-column: 1 / -1;
+}
+
+.access-key-create-workspace textarea,
+.access-key-create-workspace > input {
+  min-width: 0;
+  width: 100%;
+  padding: 9px 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  outline: none;
+  resize: vertical;
+  font: inherit;
+}
+
+.workspace-admin-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.workspace-admin-row:first-of-type {
+  border-top: 0;
+}
+
+.workspace-admin-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.workspace-admin-title {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 820;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workspace-admin-meta {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .access-key-login-button {

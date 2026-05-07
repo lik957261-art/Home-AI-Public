@@ -37,7 +37,7 @@ const SHARED_DIRECTORIES_PATH = path.join(DATA_DIR, "shared-directories.json");
 const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
 const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
 const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
-const AUTH_KEY_PATH = path.join(REPO_ROOT, ".hermes_web_secret_key");
+const AUTH_KEY_PATH = path.resolve(process.env.HERMES_WEB_AUTH_KEY_PATH || path.join(REPO_ROOT, ".hermes_web_secret_key"));
 const WEB_PUSH_VAPID_PATH = path.resolve(
   process.env.HERMES_WEB_VAPID_PATH || process.env.WEB_PUSH_VAPID_PATH || path.join(DATA_DIR, "web-push-vapid.json"),
 );
@@ -289,6 +289,10 @@ function currentGlobalAuthKey() {
   return authKeyState?.key || "";
 }
 
+function authKeyDisplayPath() {
+  return path.basename(AUTH_KEY_PATH) || "owner-key";
+}
+
 function ownerSetupStatus() {
   const ownerKeyConfigured = Boolean(currentGlobalAuthKey());
   const setupRequired = !DISABLE_AUTH && authKeyState?.source === "unconfigured" && !ownerKeyConfigured;
@@ -314,7 +318,7 @@ function createInitialOwnerKey() {
   authKeyState = { key, source: "file", updatedAt: nowIso() };
   return {
     key,
-    auth: { source: "file", path: ".hermes_web_secret_key", updatedAt: authKeyState.updatedAt },
+    auth: { source: "file", path: authKeyDisplayPath(), updatedAt: authKeyState.updatedAt },
   };
 }
 
@@ -488,6 +492,38 @@ function upsertLocalWorkspace(input, actor = "owner") {
   invalidateCatalogCache();
   dynamicProjectCache.delete(id);
   return record;
+}
+
+function deleteLocalWorkspace(workspaceId) {
+  const id = workspaceIdSlug(workspaceId);
+  if (!id || id === "owner") {
+    const err = new Error("Invalid workspace");
+    err.status = 400;
+    throw err;
+  }
+  const workspace = findWorkspace(id);
+  if (workspace && workspace.source !== "local-workspace") {
+    const err = new Error("Workspace is managed by the external workspace provider");
+    err.status = 409;
+    throw err;
+  }
+  const store = loadLocalWorkspaceStore();
+  const previousCount = store.workspaces.length;
+  const next = store.workspaces.filter((item) => item.id !== id);
+  if (next.length === previousCount) {
+    const err = new Error("Local workspace not found");
+    err.status = 404;
+    throw err;
+  }
+  saveLocalWorkspaceStore(Object.assign({}, store, { workspaces: next }));
+  const keyStore = loadAccessKeyStore();
+  if (keyStore.workspaceKeys?.[id]) {
+    delete keyStore.workspaceKeys[id];
+    saveAccessKeyStore(keyStore);
+  }
+  invalidateCatalogCache();
+  dynamicProjectCache.delete(id);
+  return { id };
 }
 
 function authenticateRequest(req) {
@@ -3462,6 +3498,7 @@ function publicWorkspaceBindings(workspace) {
 
 function publicWorkspace(workspace) {
   const policy = workspace.policy || {};
+  const isLocalWorkspace = workspace.source === "local-workspace";
   const workDirectories = dedupe([
     workspace.defaultWorkspace,
     policy.default_workspace,
@@ -3493,6 +3530,11 @@ function publicWorkspace(workspace) {
     responseStyle: workspace.responseStyle || "",
     showTaskId: workspace.showTaskId,
     maxParallelTasks: workspace.maxParallelTasks || 0,
+    localConfig: isLocalWorkspace ? {
+      defaultWorkspace: String(workspace.defaultWorkspace || policy.default_workspace || ""),
+      allowedRoots: Array.isArray(policy.allowed_roots) ? policy.allowed_roots : [],
+      allowedToolsets: Array.isArray(policy.allowed_toolsets) ? policy.allowed_toolsets : [],
+    } : null,
   };
 }
 
@@ -3550,6 +3592,31 @@ function rotateWorkspaceAccessKey(workspaceId, options = {}) {
   return { key, record: publicAccessKeyStatus(workspace, saved.workspaceKeys[workspace.id]), dryRun: false };
 }
 
+function revokeWorkspaceAccessKey(workspaceId, options = {}) {
+  const workspace = findWorkspace(workspaceId);
+  if (!workspace) {
+    const err = new Error("Unknown workspace");
+    err.status = 400;
+    throw err;
+  }
+  if (workspace.id === "owner") {
+    const err = new Error("Use the Hermes Web key rotation for Owner access");
+    err.status = 400;
+    throw err;
+  }
+  const store = loadAccessKeyStore();
+  const previous = store.workspaceKeys?.[workspace.id] || null;
+  if (!options.dryRun && previous) {
+    delete store.workspaceKeys[workspace.id];
+    saveAccessKeyStore(store);
+  }
+  return {
+    workspace: publicAccessKeyStatus(workspace, null),
+    revoked: Boolean(previous),
+    dryRun: Boolean(options.dryRun),
+  };
+}
+
 function rotateGlobalAccessKey(options = {}) {
   const key = generateWebAccessKey();
   const now = nowIso();
@@ -3569,7 +3636,7 @@ function rotateGlobalAccessKey(options = {}) {
   authKeyState = { key, source: "file", updatedAt: now };
   return {
     key,
-    auth: { source: "file", path: ".hermes_web_secret_key", updatedAt: now },
+    auth: { source: "file", path: authKeyDisplayPath(), updatedAt: now },
     dryRun: false,
   };
 }
@@ -6515,6 +6582,35 @@ async function handleApi(req, res) {
     return;
   }
 
+  const workspaceAdmin = url.pathname.match(/^\/api\/workspaces\/([^/]+)$/);
+  if (workspaceAdmin && ["PATCH", "DELETE"].includes(req.method)) {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    const workspaceId = decodeURIComponent(workspaceAdmin[1] || "");
+    if (req.method === "PATCH") {
+      const body = await readBody(req).catch((err) => ({ __error: err }));
+      if (body.__error) {
+        sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
+        return;
+      }
+      try {
+        const record = upsertLocalWorkspace(Object.assign({}, body, { workspaceId }), ownerAuth.principalId || "owner");
+        const workspace = findWorkspace(record.id);
+        sendJson(res, 200, { ok: true, workspace: publicWorkspace(workspace), record });
+      } catch (err) {
+        sendJson(res, err.status || 500, { error: err.message || String(err) });
+      }
+      return;
+    }
+    try {
+      const deleted = deleteLocalWorkspace(workspaceId);
+      sendJson(res, 200, { ok: true, deleted });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err) });
+    }
+    return;
+  }
+
   if (url.pathname === "/api/access-keys" && req.method === "GET") {
     const accessAuth = authenticateRequest(req);
     sendJson(res, 200, {
@@ -6552,6 +6648,28 @@ async function handleApi(req, res) {
         dryRun: result.dryRun,
         requiresReLogin,
       });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err) });
+    }
+    return;
+  }
+
+  const workspaceKeyAdmin = url.pathname.match(/^\/api\/access-keys\/workspace\/([^/]+)$/);
+  if (workspaceKeyAdmin && req.method === "DELETE") {
+    const accessAuth = authenticateRequest(req);
+    const requestedWorkspaceId = decodeURIComponent(workspaceKeyAdmin[1] || "").trim();
+    const workspaceId = isOwnerAuth(accessAuth) ? requestedWorkspaceId : String(accessAuth.workspaceId || "").trim();
+    if (!isOwnerAuth(accessAuth) && requestedWorkspaceId && requestedWorkspaceId !== workspaceId) {
+      sendJson(res, 403, { error: "Workspace access is not allowed" });
+      return;
+    }
+    const body = await readBody(req).catch(() => ({}));
+    try {
+      const result = revokeWorkspaceAccessKey(workspaceId, {
+        dryRun: boolParam(body.dryRun || body.dry_run),
+      });
+      const requiresReLogin = !result.dryRun && !isOwnerAuth(accessAuth) && workspaceId === accessAuth.workspaceId;
+      sendJson(res, 200, { ok: true, result, requiresReLogin });
     } catch (err) {
       sendJson(res, err.status || 500, { error: err.message || String(err) });
     }
@@ -8084,7 +8202,7 @@ server.listen(PORT, HOST, () => {
   console.log(`State directory: ${DATA_DIR}`);
   console.log(DISABLE_AUTH ? "Authentication disabled by HERMES_WEB_DISABLE_AUTH." : `Authentication enabled; Owner key source is ${authKeyState.source || "unknown"}.`);
   if (!DISABLE_AUTH && authKeyState.source !== "env") {
-    console.log("Current process login key is not printed; use .hermes_web_secret_key or HERMES_WEB_KEY.");
+    console.log("Current process login key is not printed; use the configured Owner key file or HERMES_WEB_KEY.");
   }
   startTodoWebPushDispatcher();
   startAutomationWebPushDispatcher();
