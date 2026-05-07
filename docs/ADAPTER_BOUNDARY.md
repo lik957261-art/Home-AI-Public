@@ -45,7 +45,8 @@ These parts must remain replaceable:
 - `adapters/filesystem-mount-provider.js` owns filesystem path/mount normalization: Windows-to-WSL path conversion, `/mnt/<drive>` conversion, `/volume1` mirror lookup, allowed artifact roots, and path-allowed checks.
 - `adapters/project-discovery-provider.js` owns project/root discovery from project-map entries, physical owner top-level directories, restricted workspace directories, remote `/volume1` directory trees, shareable-root filtering, and project deduping.
 - `adapters/shared-directory-provider.js` owns shared-directory management: persisted share records, derived ACL allowed-root shares, target/permission normalization, project injection for shared roots, read-only write guards, and ACL share removal writes through injected user-policy storage.
-- `server.js` still owns auth/session decisions and artifact/thread checks. Shared-directory endpoints now call the provider instead of reading the shared-directory store or user ACL files directly.
+- `adapters/skill-detail-provider.js` owns the Skill detail bridge boundary: child-process execution, timeout, stderr compaction, JSON parsing, and not-found mapping. The current private deployment still backs detail reads with `skill_bridge.py`.
+- `server.js` still owns HTTP route enforcement, artifact/thread access checks, state store, Gateway client, Web Push delivery, and frontend/static serving.
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 - `tests/access-policy-provider.test.js` is the contract smoke for policy field allow-listing, restricted-root merging, delivery/cache roots, and owner unrestricted behavior.
 - `tests/auth-provider.test.js` is the contract smoke for first-run Owner setup, Owner/workspace authentication, workspace key scoping, revocation, env-key rotation guard, and disabled-auth behavior.
@@ -58,6 +59,7 @@ These parts must remain replaceable:
 - `tests/filesystem-mount-provider.test.js` is the contract smoke for path conversion, `/volume1` mirror behavior, disabled shares, and allowed-root checks.
 - `tests/project-discovery-provider.test.js` is the contract smoke for owner physical root discovery, restricted workspace directory discovery, remote `/volume1` tree mapping, shareable-root filtering, and shared-root deduping.
 - `tests/shared-directory-provider.test.js` is the contract smoke for explicit shares, ACL allowed-root derived shares, target visibility, read-only/write access, access updates, and ACL removal writes.
+- `tests/skill-detail-provider.test.js` is the contract smoke for Skill detail bridge payload mapping, required-skill validation, and not-found status mapping.
 
 ## Current Private Couplings
 

@@ -17,6 +17,7 @@ const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-p
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
+const { createSkillDetailProvider } = require("./adapters/skill-detail-provider");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
@@ -1435,60 +1436,18 @@ const projectDiscoveryProvider = createProjectDiscoveryProvider({
   makeId,
 });
 
-function runSkillBridge(payload) {
-  return new Promise((resolve, reject) => {
+const skillDetailProvider = createSkillDetailProvider({
+  timeoutMs: SKILL_BRIDGE_TIMEOUT_MS,
+  compactText,
+  spawn,
+  bridgeCommand: () => {
     const command = process.platform === "win32" ? "wsl.exe" : "python3";
     const args = process.platform === "win32"
       ? ["-d", WSL_DISTRO, "--", "python3", windowsPathToWsl(SKILL_BRIDGE_SCRIPT)]
       : [SKILL_BRIDGE_SCRIPT];
-    const child = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill();
-      reject(new Error("Skill bridge timed out"));
-    }, SKILL_BRIDGE_TIMEOUT_MS);
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-      if (stdout.length > 1_000_000) stdout = stdout.slice(-1_000_000);
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
-      if (stderr.length > 200_000) stderr = stderr.slice(-200_000);
-    });
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      let result = null;
-      try {
-        result = JSON.parse(stdout.trim() || "{}");
-      } catch (err) {
-        reject(new Error(`Skill bridge returned invalid JSON: ${err.message || String(err)}`));
-        return;
-      }
-      if (code !== 0 && !result.error) {
-        reject(new Error(stderr.trim() || `Skill bridge exited with ${code}`));
-        return;
-      }
-      if (stderr.trim()) result.stderr = compactText(stderr.trim(), 1200);
-      resolve(result);
-    });
-    child.stdin.end(JSON.stringify(payload || {}));
-  });
-}
+    return { command, args };
+  },
+});
 
 function workspacePrincipal(workspaceId) {
   const workspace = findWorkspace(workspaceId || "owner");
@@ -5396,18 +5355,12 @@ async function handleApi(req, res) {
       sendJson(res, 400, { error: "Skill is required" });
       return;
     }
-    let result;
     try {
-      result = await runSkillBridge({ skill });
+      const detail = await skillDetailProvider.detail(skill);
+      sendJson(res, 200, { data: detail });
     } catch (err) {
-      sendJson(res, err.status || 500, { error: compactText(err.message || String(err), 800) });
-      return;
+      sendJson(res, err.status || 500, { error: compactText(err.message || String(err), 800), skill: err.skill || skill });
     }
-    if (!result.ok) {
-      sendJson(res, result.status || 404, { error: compactText(result.error || "Skill was not found", 800), skill: result.skill || skill });
-      return;
-    }
-    sendJson(res, 200, { data: result.skill });
     return;
   }
 
