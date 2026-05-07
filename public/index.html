@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en" data-client-version="20260507-1005">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Hermes Web</title>
+  <meta name="hermes-web-client-version" content="20260507-1005">
+  <meta name="theme-color" content="#f3efe7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hermes">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/styles.css?v=20260507-1005">
+</head>
+<body>
+  <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
+    <div class="boot-splash-mark" aria-hidden="true">H</div>
+    <div class="boot-splash-copy">
+      <div class="boot-splash-title">Hermes Web</div>
+      <div id="bootSplashText" class="boot-splash-text">正在载入工作区</div>
+    </div>
+    <div class="boot-splash-bar" aria-hidden="true"><span></span></div>
+  </main>
+
+  <main id="login" class="login hidden">
+    <form id="loginForm" class="login-panel">
+      <div class="eyebrow">Private local service</div>
+      <h1>Hermes Web</h1>
+      <p>Enter the Web access key. Keep this service behind Tailscale or localhost.</p>
+      <input id="loginKey" type="password" autocomplete="current-password" placeholder="Access key">
+      <button type="submit">Unlock</button>
+      <div id="loginError" class="error-text"></div>
+    </form>
+  </main>
+
+  <div id="app" class="app hidden">
+    <input id="fileInput" class="hidden" type="file" multiple tabindex="-1" aria-hidden="true">
+    <aside id="sidebar" class="sidebar">
+      <div class="side-title">
+        <div class="side-heading">
+          <div class="eyebrow">Hermes</div>
+        <div id="clientVersion" class="client-version">v20260507-0905</div>
+          <button id="searchButton" class="push-button" type="button" aria-label="Search" title="Search">⌕</button>
+          <button id="pushToggle" class="push-button" type="button" hidden aria-label="启用通知" title="启用通知">🔔</button>
+        </div>
+        <button id="closeMenu" class="icon-button mobile-only" type="button" aria-label="Close menu">&#10005;</button>
+      </div>
+
+      <label class="field-label" for="workspaceSelect">Workspace</label>
+      <select id="workspaceSelect" class="select"></select>
+      <div id="workspaceAccessPanel" class="workspace-access-panel" hidden></div>
+
+      <div class="section-toggle" role="group" aria-label="Management section">
+        <button id="taskManagementMode" type="button">任务</button>
+        <button id="projectsMode" type="button">目录</button>
+        <button id="todosMode" type="button">待办</button>
+        <button id="automationMode" type="button">自动化</button>
+      </div>
+
+      <div id="taskModeControls" class="mode-toggle task-mode-toggle" role="group" aria-label="Task mode">
+        <button id="tasksMode" type="button">任务列表</button>
+        <button id="singleMode" type="button" hidden>聊天</button>
+        <button id="singleTaskMode" type="button">任务流</button>
+      </div>
+
+      <div id="routeFields" class="route-fields">
+        <div class="route-field">
+          <label class="field-label" for="projectSelect">目录</label>
+          <select id="projectSelect" class="select"></select>
+        </div>
+
+        <div class="route-field">
+          <label class="field-label" for="subprojectSelect">子目录</label>
+          <select id="subprojectSelect" class="select"></select>
+        </div>
+      </div>
+
+      <input id="threadSearch" class="search hidden" type="search" placeholder="Search threads">
+      <div class="thread-tools">
+        <button id="directoryEntry" class="secondary-small" type="button">打开目录</button>
+      </div>
+
+      <div id="threadList" class="thread-list"></div>
+      <button id="newThread" class="sidebar-action-button primary-small" type="button">新建任务</button>
+    </aside>
+    <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
+    <div id="edgeSwipeZone" class="edge-swipe-zone disabled" aria-hidden="true"></div>
+    <div id="refreshNotice" class="refresh-notice hidden" role="status" aria-live="polite">
+      <span id="refreshNoticeText">客户端已更新</span>
+      <button id="refreshNow" class="refresh-notice-primary" type="button">刷新</button>
+      <button id="refreshLater" class="refresh-notice-secondary" type="button" aria-label="稍后">稍后</button>
+    </div>
+    <div id="pushToast" class="push-toast hidden" role="status" aria-live="polite"></div>
+    <nav id="bottomNav" class="bottom-nav" aria-label="Primary navigation">
+      <button id="bottomChatMode" class="bottom-tab" type="button" aria-label="&#32842;&#22825;">
+        <span class="bottom-tab-icon nav-chat-icon" aria-hidden="true"></span>
+        <span class="bottom-tab-label">&#32842;&#22825;</span>
+      </button>
+      <button id="bottomTasksMode" class="bottom-tab" type="button" aria-label="任务">
+        <span class="bottom-tab-icon nav-task-icon" aria-hidden="true"></span>
+        <span class="bottom-tab-label">任务</span>
+      </button>
+      <button id="bottomProjectsMode" class="bottom-tab" type="button" aria-label="目录">
+        <span class="bottom-tab-icon nav-directory-icon" aria-hidden="true"></span>
+        <span class="bottom-tab-label">目录</span>
+      </button>
+      <button id="bottomTodosMode" class="bottom-tab" type="button" aria-label="待办">
+        <span class="bottom-tab-icon nav-todo-icon" aria-hidden="true"></span>
+        <span class="bottom-tab-label">待办</span>
+      </button>
+      <button id="bottomAutomationMode" class="bottom-tab" type="button" aria-label="自动化">
+        <span class="bottom-tab-icon nav-automation-icon" aria-hidden="true"></span>
+        <span class="bottom-tab-label">自动化</span>
+      </button>
+    </nav>
+
+    <section class="main">
+      <header class="topbar">
+        <button id="openMenu" class="icon-button mobile-only top-nav-button" type="button" aria-label="Open menu"><span class="top-nav-button-glyph" aria-hidden="true">&#9776;</span></button>
+        <div id="taskDetailToolbar" class="task-detail-toolbar" hidden></div>
+        <div class="thread-title-wrap">
+          <div id="threadTitle" class="thread-title">Select or create a thread</div>
+          <div id="threadMeta" class="thread-meta"></div>
+        </div>
+        <div class="top-actions">
+          <span id="connectionState" class="connection">Starting</span>
+          <button id="interruptRun" class="danger-button" type="button" disabled>Stop</button>
+          <div id="topMoreWrap" class="top-more-wrap hidden">
+            <button id="topMoreButton" class="top-more-button" type="button" aria-label="More actions" aria-expanded="false">...</button>
+            <div id="topMoreMenu" class="top-more-menu" hidden>
+              <button id="topEditAutomation" class="top-more-action" type="button" hidden>&#20462;&#25913;</button>
+              <button id="topToggleAutomationPause" class="top-more-action" type="button" hidden>&#26242;&#20572;</button>
+              <button id="topDeleteAutomation" class="top-more-action top-more-danger" type="button" hidden>&#21024;&#38500;</button>
+              <button id="topNewTodo" class="top-more-action" type="button" hidden>新建待办</button>
+              <button id="topNewAutomation" class="top-more-action" type="button" hidden>新建自动化</button>
+              <button id="topDeleteTodo" class="top-more-action top-more-danger" type="button" hidden>删除</button>
+              <button id="topRenameTask" class="top-more-action" type="button" hidden>修改任务名</button>
+              <button id="topSearchChat" class="top-more-action" type="button" hidden>搜索</button>
+              <button id="topToggleTaskView" class="top-more-action" type="button">信息流</button>
+              <button id="topToggleSingleMode" class="top-more-action" type="button" hidden>任务流</button>
+              <button id="topClearDirectoryFilter" class="top-more-action" type="button" hidden>清除目录筛选</button>
+              <button id="topManageAccessKeys" class="top-more-action" type="button" hidden>Access Key</button>
+              <button id="topManageSharedDirectories" class="top-more-action" type="button" hidden>管理共享目录</button>
+              <button id="topNewDirectoryFolder" class="top-more-action" type="button" hidden>新建文件夹</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div id="accessKeyOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="accessKeyTitle"></div>
+      <section id="conversation" class="conversation">
+        <div class="empty-state">Create a thread to start a zero-context Hermes task.</div>
+      </section>
+
+      <div id="composer" class="composer" role="group" aria-label="Message composer">
+        <button id="attachFile" class="secondary-button" type="button" disabled aria-label="添加文件" title="添加文件">+</button>
+        <div id="messageInput" class="composer-editor" contenteditable="false" role="textbox" aria-multiline="true" aria-disabled="true" data-placeholder="Message Hermes..." inputmode="text" enterkeyhint="send" autocorrect="off" autocapitalize="sentences" spellcheck="false"></div>
+        <select id="taskReasoningSelect" class="task-reasoning-select" aria-label="推理等级" title="推理等级" hidden>
+          <option value="" selected>默认M</option>
+          <option value="low">Low</option>
+          <option value="medium">Med</option>
+          <option value="high">High</option>
+          <option value="xhigh">XHigh</option>
+        </select>
+        <button id="sendMessage" type="button" disabled>Send</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="/fixed-viewport.js?v=20260505-1135"></script>
+  <script src="/app.js?v=20260507-1005"></script>
+</body>
+</html>

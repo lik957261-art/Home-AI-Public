@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>File Preview</title>
+  <style>
+    :root {
+      --paper: #f6f0e4;
+      --panel: rgba(255, 252, 245, 0.9);
+      --ink: #142027;
+      --muted: #748078;
+      --line: rgba(36, 53, 48, 0.13);
+      --accent: #1f7768;
+      --word: #477cb3;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      min-height: 100%;
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 14% 6%, rgba(43, 126, 108, 0.12), transparent 30%),
+        linear-gradient(180deg, #fbf6ea 0%, var(--paper) 100%);
+      font: 16px/1.45 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
+      overflow: hidden;
+      touch-action: pan-y;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .shell {
+      height: 100dvh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      padding: calc(16px + env(safe-area-inset-top)) 14px calc(22px + env(safe-area-inset-bottom));
+    }
+
+    .topbar {
+      display: none;
+    }
+
+    .back {
+      display: inline-grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      color: var(--ink);
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.64);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 10px 24px rgba(35, 54, 48, 0.06);
+      font-size: 28px;
+      font-weight: 850;
+    }
+
+    h1 {
+      min-width: 0;
+      margin: 0;
+      font-size: 23px;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+
+    .card {
+      padding: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 18px 40px rgba(35, 54, 48, 0.08);
+    }
+
+    .file-icon {
+      width: 74px;
+      height: 74px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 16px;
+      color: #fffaf1;
+      background: linear-gradient(150deg, var(--word), #315c8d);
+      border-radius: 20px;
+      font-size: 15px;
+      font-weight: 860;
+      letter-spacing: 0.03em;
+    }
+
+    .meta {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      overflow-wrap: anywhere;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .button {
+      display: grid;
+      place-items: center;
+      min-height: 48px;
+      padding: 12px 16px;
+      color: #fffaf1;
+      text-decoration: none;
+      background: linear-gradient(145deg, var(--accent), #155b50);
+      border-radius: 18px;
+      font-weight: 820;
+      box-shadow: 0 15px 30px rgba(31, 119, 104, 0.20);
+    }
+
+    .button.secondary {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.58);
+      border: 1px solid var(--line);
+      box-shadow: none;
+    }
+
+    .note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .viewer-more-button {
+      position: fixed;
+      z-index: 5;
+      right: max(10px, env(safe-area-inset-right));
+      top: calc(10px + env(safe-area-inset-top));
+      min-width: 42px;
+      min-height: 34px;
+      padding: 0 12px 3px;
+      color: rgba(20, 32, 39, 0.82);
+      background: rgba(255, 252, 245, 0.54);
+      border: 1px solid rgba(36, 53, 48, 0.12);
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(35, 54, 48, 0.10);
+      backdrop-filter: blur(14px);
+      font-size: 21px;
+      font-weight: 860;
+      line-height: 1;
+    }
+
+    .viewer-done-button {
+      position: fixed;
+      z-index: 5;
+      left: max(10px, env(safe-area-inset-left));
+      top: calc(10px + env(safe-area-inset-top));
+      min-width: 54px;
+      min-height: 34px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0 14px;
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(15, 23, 42, 0.46);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(14px);
+      font: 760 14px/1.1 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .viewer-toast {
+      position: fixed;
+      z-index: 6;
+      left: 50%;
+      bottom: calc(18px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      max-width: min(360px, calc(100vw - 28px));
+      padding: 8px 12px;
+      color: #f8fafc;
+      background: rgba(15, 23, 42, 0.72);
+      border-radius: 999px;
+      backdrop-filter: blur(14px);
+      font-size: 13px;
+      font-weight: 720;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .preview {
+      width: 100%;
+      min-height: 60dvh;
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #fff;
+      touch-action: pan-y;
+    }
+
+    .preview-panel {
+      margin-top: 16px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 254, 250, 0.82);
+      touch-action: pan-y;
+    }
+
+    .preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .preview-text {
+      max-height: 62dvh;
+      overflow: auto;
+      padding: 16px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #17242c;
+      font: 15px/1.72 "Microsoft YaHei", "Aptos", "Segoe UI", sans-serif;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+    }
+
+    .preview-status {
+      margin-top: 14px;
+      padding: 12px 14px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.45);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      font-size: 14px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    body.text-document-mode {
+      background: #f7f1e8;
+      overflow-x: hidden;
+    }
+
+    body.image-document-mode {
+      min-height: 100dvh;
+      overflow: hidden;
+      background: #050607;
+      touch-action: pan-y;
+    }
+
+    body.text-document-mode .shell {
+      height: 100dvh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: 0;
+    }
+
+    body.image-document-mode .shell {
+      height: 100dvh;
+      min-height: 100dvh;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    body.text-document-mode h1,
+    body.text-document-mode .file-icon,
+    body.text-document-mode .meta,
+    body.text-document-mode .actions,
+    body.text-document-mode .note {
+      display: none;
+    }
+
+    body.image-document-mode h1,
+    body.image-document-mode .file-icon,
+    body.image-document-mode .meta,
+    body.image-document-mode .actions,
+    body.image-document-mode .note,
+    body.image-document-mode .preview,
+    body.image-document-mode .preview-panel,
+    body.image-document-mode .preview-status {
+      display: none;
+    }
+
+    body.text-document-mode .card {
+      min-height: 100dvh;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    body.image-document-mode .card {
+      min-height: 100dvh;
+      padding: 0;
+      background: #050607;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    body.image-document-mode .viewer-more-button {
+      color: rgba(255, 255, 255, 0.88);
+      background: rgba(15, 23, 42, 0.42);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+    }
+
+    body.image-document-mode .viewer-done-button {
+      display: inline-flex;
+    }
+
+    .image-stage {
+      display: grid;
+      place-items: center;
+      width: 100vw;
+      height: 100dvh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      background: #050607;
+    }
+
+    .image-stage img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center center;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    body.text-document-mode .preview-status {
+      position: fixed;
+      z-index: 3;
+      left: 50%;
+      top: calc(14px + env(safe-area-inset-top));
+      transform: translateX(-50%);
+      max-width: min(76vw, 420px);
+      margin: 0;
+      padding: 10px 14px;
+      color: #f8fafc;
+      background: rgba(15, 23, 42, 0.88);
+      border: 0;
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+      text-align: center;
+      backdrop-filter: blur(14px);
+    }
+
+    body.text-document-mode .preview-panel {
+      min-height: 100dvh;
+      margin: 0;
+      overflow: visible;
+      border: 0;
+      border-radius: 0;
+      background: #f7f1e8;
+      touch-action: pan-y;
+    }
+
+    body.text-document-mode .preview-head {
+      display: none;
+    }
+
+    body.text-document-mode .preview-text {
+      max-height: none;
+      min-height: 100dvh;
+      overflow: visible;
+      padding: calc(18px + env(safe-area-inset-top)) max(22px, env(safe-area-inset-left)) calc(32px + env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-right));
+      color: #17222b;
+      font: 22px/1.78 "Microsoft YaHei", "PingFang SC", "Aptos", "Segoe UI", sans-serif;
+      letter-spacing: 0.005em;
+      background: #f7f1e8;
+      touch-action: pan-y;
+    }
+
+    @media (max-width: 420px) {
+      body.text-document-mode .preview-text {
+        padding-left: 20px;
+        padding-right: 20px;
+        font-size: 21px;
+        line-height: 1.76;
+      }
+    }
+  </style>
+</head>
+<body>
+  <button id="share" class="viewer-more-button" type="button" aria-label="用其他应用打开" title="用其他应用打开">...</button>
+  <button id="done" class="viewer-done-button" type="button" aria-label="Done">&#23436;&#25104;</button>
+  <div id="toast" class="viewer-toast hidden" role="status" aria-live="polite"></div>
+  <main class="shell">
+    <div class="topbar">
+      <a id="back" class="back" href="javascript:history.back()" aria-label="Back">&#8249;</a>
+      <h1 id="title">File</h1>
+    </div>
+
+    <section class="card">
+      <div id="icon" class="file-icon">FILE</div>
+      <div id="meta" class="meta"></div>
+      <div id="previewStatus" class="preview-status hidden"></div>
+      <div id="textPreview" class="preview-panel hidden">
+        <div class="preview-head">
+          <span id="previewLabel">Preview</span>
+          <span id="previewInfo"></span>
+        </div>
+        <div id="previewText" class="preview-text"></div>
+      </div>
+      <div id="imagePreview" class="image-stage hidden">
+        <img id="imagePreviewImg" alt="">
+      </div>
+      <iframe id="preview" class="preview hidden" title="File preview"></iframe>
+      <div class="actions">
+        <a id="open" class="button" href="#" target="_blank" rel="noopener">Open Original</a>
+        <a id="download" class="button secondary" href="#" download>Download</a>
+      </div>
+      <div class="note">
+        This page keeps Hermes Web navigation available. Word/DOCX files are previewed inside the Web App; use Open Original only when you need the native viewer.
+      </div>
+    </section>
+  </main>
+
+  <script src="/fixed-viewport.js?v=20260505-1135"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const key = localStorage.getItem("hermesWebKey") || "";
+    const src = params.get("src") || "";
+    const name = params.get("name") || "File";
+    const mime = params.get("mime") || "file";
+    const size = Number(params.get("size") || 0);
+    const returnUrl = params.get("return") || "";
+    const previewStatus = document.getElementById("previewStatus");
+    const toast = document.getElementById("toast");
+    let toastTimer = 0;
+    let cachedShareBlob = null;
+    let shareBlobPromise = null;
+    let imageSwipe = null;
+    let handlingViewerBack = false;
+
+    function formatBytes(bytes) {
+      const n = Number(bytes || 0);
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+      return `${(n / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    function kindFor(name, mime) {
+      const lower = String(name || "").toLowerCase();
+      const type = String(mime || "").toLowerCase();
+      if (type.includes("word") || lower.endsWith(".doc") || lower.endsWith(".docx")) return "DOC";
+      if (type.includes("image") || /\.(png|jpe?g|webp|gif)$/i.test(lower)) return "IMG";
+      if (type.includes("text") || /\.(txt|md|csv|json)$/i.test(lower)) return "TXT";
+      return "FILE";
+    }
+
+    function sameOriginUrl(value) {
+      try {
+        const url = new URL(value, location.origin);
+        if (url.origin !== location.origin) return null;
+        return url;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function previewUrlFor(value) {
+      const url = sameOriginUrl(value);
+      if (!url) return "";
+      if (url.pathname === "/api/files") {
+        return `/api/files/preview?${url.searchParams.toString()}`;
+      }
+      if (url.pathname === "/api/automations/output") {
+        return `/api/automations/output/preview?${url.searchParams.toString()}`;
+      }
+      if (url.pathname === "/api/automations/deliverable") {
+        return `/api/automations/deliverable/preview?${url.searchParams.toString()}`;
+      }
+      const artifact = url.pathname.match(/^\/api\/artifacts\/([^/]+)$/);
+      if (artifact) {
+        return `/api/files/preview?artifactId=${encodeURIComponent(decodeURIComponent(artifact[1]))}`;
+      }
+      return "";
+    }
+
+    function downloadUrlFor(value) {
+      const url = sameOriginUrl(value);
+      if (!url) return value || "#";
+      url.searchParams.set("download", "1");
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+
+    function absoluteUrlFor(value) {
+      try {
+        return new URL(value || "#", location.href).href;
+      } catch (_) {
+        return value || "";
+      }
+    }
+
+    function safeReturnUrl() {
+      const value = String(returnUrl || "").trim();
+      if (!value) return "";
+      try {
+        const url = new URL(value, location.origin);
+        if (url.origin !== location.origin) return "";
+        return `${url.pathname}${url.search}${url.hash}`;
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function safeReferrerUrl() {
+      const value = String(document.referrer || "").trim();
+      if (!value) return "";
+      try {
+        const url = new URL(value, location.origin);
+        if (url.origin !== location.origin) return "";
+        return `${url.pathname}${url.search}${url.hash}`;
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function inferredReturnUrlFromSource() {
+      const url = sameOriginUrl(src);
+      if (!url) return "";
+      if (url.pathname === "/api/automations/output" || url.pathname === "/api/automations/deliverable") {
+        const workspaceId = String(url.searchParams.get("workspaceId") || "owner").trim() || "owner";
+        const jobId = String(url.searchParams.get("jobId") || "").trim();
+        const params = new URLSearchParams({ view: "automation", workspaceId });
+        if (jobId) params.set("automationId", jobId);
+        return `/?${params.toString()}`;
+      }
+      return "";
+    }
+
+    function isAutomationReturn(value) {
+      const rawValue = String(value || "").trim();
+      if (!rawValue) return false;
+      try {
+        const url = new URL(rawValue, location.origin);
+        return url.origin === location.origin && url.searchParams.get("view") === "automation";
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function fallbackReturnUrl() {
+      const explicit = safeReturnUrl();
+      const inferred = inferredReturnUrlFromSource();
+      if (inferred && !isAutomationReturn(explicit)) return inferred;
+      return explicit || inferred || safeReferrerUrl() || "/";
+    }
+
+    function navigateBack(event) {
+      event?.preventDefault?.();
+      location.assign(fallbackReturnUrl());
+    }
+
+    function pushViewerBackGuard() {
+      try {
+        history.pushState({ hermesViewerBackGuard: true }, "", location.href);
+      } catch (_) {}
+    }
+
+    function wireViewerBackGuard() {
+      try {
+        history.replaceState(Object.assign({}, history.state || {}, { hermesViewerBase: true }), "", location.href);
+        pushViewerBackGuard();
+      } catch (_) {}
+      window.addEventListener("popstate", () => {
+        if (handlingViewerBack) return;
+        handlingViewerBack = true;
+        const target = fallbackReturnUrl();
+        if (target && target !== `${location.pathname}${location.search}${location.hash}`) {
+          location.assign(target);
+          return;
+        }
+        pushViewerBackGuard();
+        handlingViewerBack = false;
+      });
+    }
+
+    function wireImageBackSwipe(stage) {
+      if (!stage || stage.dataset.backSwipeBound) return;
+      stage.dataset.backSwipeBound = "1";
+      stage.addEventListener("touchstart", (event) => {
+        if (event.touches.length !== 1) return;
+        imageSwipe = {
+          startX: event.touches[0].clientX,
+          startY: event.touches[0].clientY,
+          lastX: event.touches[0].clientX,
+          dragging: false,
+        };
+      }, { passive: true });
+      stage.addEventListener("touchmove", (event) => {
+        if (!imageSwipe || event.touches.length !== 1) return;
+        const x = event.touches[0].clientX;
+        const y = event.touches[0].clientY;
+        const dx = x - imageSwipe.startX;
+        const dy = y - imageSwipe.startY;
+        if (!imageSwipe.dragging) {
+          if (dx < 16 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+          imageSwipe.dragging = true;
+        }
+        imageSwipe.lastX = x;
+        event.preventDefault();
+      }, { passive: false });
+      const finish = () => {
+        const swipe = imageSwipe;
+        imageSwipe = null;
+        if (!swipe?.dragging) return;
+        if ((swipe.lastX || swipe.startX) - swipe.startX > 70) navigateBack();
+      };
+      stage.addEventListener("touchend", finish, { passive: true });
+      stage.addEventListener("touchcancel", () => {
+        imageSwipe = null;
+      }, { passive: true });
+    }
+
+    async function fetchFileBlob() {
+      const downloadUrl = downloadUrlFor(src);
+      if (!downloadUrl || downloadUrl === "#") throw new Error("No file URL is available.");
+      const headers = key ? { "X-Hermes-Web-Key": key } : {};
+      const res = await fetch(downloadUrl, { headers });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.blob();
+    }
+
+    function prepareShareBlob() {
+      if (!shareBlobPromise) {
+        shareBlobPromise = fetchFileBlob()
+          .then((blob) => {
+            cachedShareBlob = blob;
+            return blob;
+          })
+          .catch((err) => {
+            shareBlobPromise = null;
+            throw err;
+          });
+      }
+      return shareBlobPromise;
+    }
+
+    function isUserCancelledShare(err) {
+      return String(err?.name || "").toLowerCase() === "aborterror";
+    }
+
+    function canShareFiles(files) {
+      return Boolean(navigator.share && (!navigator.canShare || navigator.canShare({ files })));
+    }
+
+    function setStatus(message) {
+      previewStatus.textContent = message || "";
+      previewStatus.classList.toggle("hidden", !message);
+    }
+
+    function setTransientStatus(message) {
+      window.clearTimeout(toastTimer);
+      toast.textContent = message || "";
+      toast.classList.toggle("hidden", !message);
+      if (message) {
+        toastTimer = window.setTimeout(() => {
+          toast.textContent = "";
+          toast.classList.add("hidden");
+        }, 2000);
+      }
+    }
+
+    function renderTextPreview(data, label) {
+      document.getElementById("previewLabel").textContent = label;
+      document.getElementById("previewInfo").textContent = "";
+      document.getElementById("previewText").textContent = data.text || "";
+      document.getElementById("textPreview").classList.remove("hidden");
+      setStatus("");
+    }
+
+    async function loadTextPreview(label) {
+      const previewUrl = previewUrlFor(src);
+      if (!previewUrl) {
+        setStatus("No internal preview route is available for this file.");
+        return;
+      }
+      setStatus("Loading preview...");
+      const headers = key ? { "X-Hermes-Web-Key": key } : {};
+      const res = await fetch(previewUrl, { headers });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
+      renderTextPreview(body, label);
+    }
+
+    function enableTextDocumentMode() {
+      document.body.classList.add("text-document-mode");
+    }
+
+    async function enableImageDocumentMode() {
+      document.body.classList.add("image-document-mode");
+      const stage = document.getElementById("imagePreview");
+      const image = document.getElementById("imagePreviewImg");
+      image.alt = name;
+      stage.classList.remove("hidden");
+      wireImageBackSwipe(stage);
+      try {
+        const blob = await fetchFileBlob();
+        cachedShareBlob = blob;
+        const objectUrl = URL.createObjectURL(blob);
+        image.src = objectUrl;
+        image.addEventListener("load", () => {
+          window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+        }, { once: true });
+        image.addEventListener("error", () => {
+          URL.revokeObjectURL(objectUrl);
+          if (src) image.src = src;
+        }, { once: true });
+      } catch (_) {
+        if (src) image.src = src;
+      }
+    }
+
+    async function downloadFile(event) {
+      event.preventDefault();
+      const downloadUrl = downloadUrlFor(src);
+      if (!downloadUrl || downloadUrl === "#") return;
+      setStatus("Preparing download...");
+      try {
+        const blob = await fetchFileBlob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = name;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+        setStatus("Download requested. If iOS does not show a save/share prompt, use Open Original.");
+      } catch (_) {
+        location.href = downloadUrl;
+      }
+    }
+
+    async function shareFile() {
+      if (!src) return;
+      const downloadUrl = downloadUrlFor(src);
+      const shareUrl = absoluteUrlFor(downloadUrl);
+      try {
+        if (cachedShareBlob) {
+          const file = new File([cachedShareBlob], name, { type: cachedShareBlob.type || mime || "application/octet-stream" });
+          if (canShareFiles([file])) {
+            await navigator.share({ files: [file], title: name });
+            setTransientStatus("");
+            return;
+          }
+        } else {
+          prepareShareBlob().catch(() => {});
+        }
+        if (navigator.share && shareUrl) {
+          await navigator.share({ title: name, url: shareUrl });
+          setTransientStatus("");
+          return;
+        }
+        if (!cachedShareBlob) {
+          setTransientStatus("文件还在准备，已先打开原文件。");
+          location.href = downloadUrl;
+          return;
+        }
+        const cachedFile = new File([cachedShareBlob], name, { type: cachedShareBlob.type || mime || "application/octet-stream" });
+        if (canShareFiles([cachedFile])) {
+          await navigator.share({ files: [cachedFile], title: name });
+          setTransientStatus("");
+          return;
+        }
+        const cachedUrl = URL.createObjectURL(cachedShareBlob);
+        window.open(cachedUrl, "_blank", "noopener");
+        window.setTimeout(() => URL.revokeObjectURL(cachedUrl), 30000);
+        setTransientStatus("此浏览器不支持系统分享，已尝试打开文件。");
+        return;
+      } catch (err) {
+        if (isUserCancelledShare(err)) return;
+        setTransientStatus("系统分享不可用，已打开原文件。");
+        location.href = downloadUrl;
+        return;
+      }
+      setTransientStatus("准备文件...");
+      try {
+        const blob = await fetchFileBlob();
+        const file = new File([blob], name, { type: blob.type || mime || "application/octet-stream" });
+        if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+          await navigator.share({ files: [file], title: name });
+          setTransientStatus("");
+          return;
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, "_blank", "noopener");
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+        setTransientStatus("此浏览器不支持系统分享，已尝试打开文件。");
+      } catch (err) {
+        setTransientStatus(err.message || "无法分享此文件。");
+      }
+    }
+
+    const kind = kindFor(name, mime);
+    document.getElementById("title").textContent = name;
+    document.getElementById("icon").textContent = kind;
+    document.getElementById("meta").textContent = `${mime || "file"} | ${formatBytes(size)}`;
+    const internalReturnUrl = fallbackReturnUrl();
+    if (internalReturnUrl) document.getElementById("back").href = internalReturnUrl;
+    document.getElementById("back").addEventListener("click", navigateBack);
+    document.getElementById("done").addEventListener("click", navigateBack);
+    wireViewerBackGuard();
+    document.getElementById("open").href = src || "#";
+    document.getElementById("download").href = downloadUrlFor(src);
+    document.getElementById("download").setAttribute("download", name);
+    document.getElementById("download").addEventListener("click", downloadFile);
+    document.getElementById("share").addEventListener("click", shareFile);
+    if (src) window.setTimeout(() => prepareShareBlob().catch(() => {}), 500);
+
+    if (src && kind === "IMG") {
+      enableImageDocumentMode();
+    }
+
+    if (src && kind === "DOC" && String(name).toLowerCase().endsWith(".docx")) {
+      enableTextDocumentMode();
+      loadTextPreview("Word preview").catch((err) => {
+        setStatus(err.message || "Word preview failed.");
+      });
+    } else if (src && kind === "DOC") {
+      setStatus("Legacy .doc preview is not supported inside the Web App. Use Open Original.");
+    } else if (src && kind === "TXT") {
+      enableTextDocumentMode();
+      loadTextPreview("Text preview").catch((err) => {
+        setStatus(err.message || "Text preview failed.");
+      });
+    }
+  </script>
+</body>
+</html>

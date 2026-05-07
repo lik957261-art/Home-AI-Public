@@ -1,0 +1,37 @@
+# Hermes Web Productization
+
+## Direction
+
+Use this private repository as the productization source for Hermes Web. The public repository should be created later from a clean export after configuration, adapter boundaries, docs, and privacy checks are stable.
+
+## Phase 0: Source Split
+
+- Copy Hermes Web app source into an independent private checkout.
+- Exclude dependency folders, runtime logs, user state, uploaded files, Agent context, and secrets.
+- Add repository-local README, `.gitignore`, and `.env.example`.
+- Keep the original Agent workspace as the live integration source until cutover is deliberately planned.
+
+## Phase 1: Configuration Boundary
+
+- Move deployment-specific paths behind environment variables or config files.
+- Keep built-in defaults generic.
+- Add explicit validation for required paths and credentials.
+- Document which features require Hermes Gateway, WSL, Web Push, CRON metadata, or local filesystem access.
+
+## Phase 2: Adapter Boundary
+
+- Separate product core from private adapters.
+- Keep generic features in the main app: chat, tasks, directory, todos, automation list, preview, and notifications.
+- Move account-specific connectors, private mailbox labels, local directory maps, and owner-only integrations behind optional adapters.
+
+## Phase 3: Tests And Packaging
+
+- Add repeatable unit checks for route auth, artifact ACL, automation deliverable parsing, workspace access-key scope, Web Push payload shape, and mobile preview return behavior.
+- Keep `npm run check` as a fast syntax gate.
+- Add install/run instructions for Windows and Linux.
+
+## Phase 4: Public Export
+
+- Create the public repository only after a clean export passes privacy scanning.
+- The public repo must not include private paths, private clone URLs, uploads, logs, access keys, tokens, push endpoints, Tailscale hostnames, or Agent context files.
+- Public commits must update README in the same commit when user-visible behavior changes.
