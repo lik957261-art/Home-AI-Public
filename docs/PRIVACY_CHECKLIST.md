@@ -23,4 +23,5 @@ The private repository may temporarily contain adapter implementation details wh
 - `npm test`
 - `git diff --check`
 - `npm run privacy:scan` for known private path/key patterns.
+- `npm run export:public -- --out <clean-public-export-dir> --force` from a clean source tree.
 - README review for install steps that can be followed outside the original Agent workspace.

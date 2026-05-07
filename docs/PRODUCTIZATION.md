@@ -51,5 +51,6 @@ The productized runtime target is official-Hermes-clean Gateway Pool scheduling 
 ## Phase 4: Public Export
 
 - Create the public repository only after a clean export passes privacy scanning.
+- Use `npm run export:public -- --out <clean-public-export-dir> --force`; the command refuses dirty source trees by default so `.public-export-report.json` matches the exported commit.
 - The public repo must not include private paths, private clone URLs, uploads, logs, access keys, tokens, push endpoints, Tailscale hostnames, or Agent context files.
 - Public commits must update README in the same commit when user-visible behavior changes.
