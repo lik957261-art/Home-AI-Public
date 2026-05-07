@@ -132,5 +132,6 @@ It must not contain:
 See [docs/PRODUCTIZATION.md](docs/PRODUCTIZATION.md).
 See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the current private-adapter extraction map.
 See [docs/OFFICIAL_HERMES_COMPATIBILITY.md](docs/OFFICIAL_HERMES_COMPATIBILITY.md) for the compatibility boundary with official Hermes.
+See [docs/SERVICE_LAYER_SQLITE.md](docs/SERVICE_LAYER_SQLITE.md) for the SQLite service-layer migration plan.
 
 The public repository should be created from a privacy-scanned export of this private repo, not from the Agent workspace history.

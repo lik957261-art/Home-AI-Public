@@ -10,6 +10,7 @@ These parts belong in the reusable product:
 - Hermes Gateway client: run creation, streaming events, interrupt, liveness watchdog, usage rendering.
 - Auth/session: owner key, workspace-scoped access keys, one-time plaintext key display, re-login after key rotation.
 - State store: local JSON state with backup/drop guards.
+- Service data layer: SQLite schema and migration tooling for product-owned workspaces, keys, threads, messages, artifacts, Web Push state, shared directories, Todo, Automation, and audit events.
 - Runtime configuration: Owner-managed Gateway URL, API-key file path, Web Push subject, and VAPID file path. Store only paths/config metadata in Web config; do not store API-key plaintext or expose VAPID private keys in the browser.
 - Web Push: subscription, receipts, delivery summaries, deep links, foreground toast, task/todo/automation/mention payloads.
 - Preview routes: authenticated PDF/file/image viewer, artifact ACL, same-window return links.
@@ -46,6 +47,7 @@ These parts must remain replaceable:
 - `adapters/project-discovery-provider.js` owns project/root discovery from project-map entries, physical owner top-level directories, restricted workspace directories, remote `/volume1` directory trees, shareable-root filtering, and project deduping.
 - `adapters/shared-directory-provider.js` owns shared-directory management: persisted share records, derived ACL allowed-root shares, target/permission normalization, project injection for shared roots, read-only write guards, and ACL share removal writes through injected user-policy storage.
 - `adapters/skill-detail-provider.js` owns the Skill detail bridge boundary: child-process execution, timeout, stderr compaction, JSON parsing, and not-found mapping. The current private deployment still backs detail reads with `skill_bridge.py`.
+- `adapters/mobile-sqlite-store.js` owns the first generic SQLite service-layer schema and JSON import boundary. It can import current JSON state, access-key hash stores, shared-directory records, and future Todo/Automation rows into normalized tables while preserving `raw_json` for compatibility.
 - `server.js` still owns HTTP route enforcement, artifact/thread access checks, state store, Gateway client, Web Push delivery, and frontend/static serving.
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 - `tests/access-policy-provider.test.js` is the contract smoke for policy field allow-listing, restricted-root merging, delivery/cache roots, and owner unrestricted behavior.
@@ -60,6 +62,7 @@ These parts must remain replaceable:
 - `tests/project-discovery-provider.test.js` is the contract smoke for owner physical root discovery, restricted workspace directory discovery, remote `/volume1` tree mapping, shareable-root filtering, and shared-root deduping.
 - `tests/shared-directory-provider.test.js` is the contract smoke for explicit shares, ACL allowed-root derived shares, target visibility, read-only/write access, access updates, and ACL removal writes.
 - `tests/skill-detail-provider.test.js` is the contract smoke for Skill detail bridge payload mapping, required-skill validation, and not-found status mapping.
+- `tests/mobile-sqlite-store.test.js` and `tests/json-to-sqlite-migration.test.js` are the contract smoke for SQLite schema migration, JSON import counts, endpoint-hash privacy preservation, CLI dry-run/write behavior, and SQLite integrity checks.
 
 ## Current Private Couplings
 
