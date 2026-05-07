@@ -193,6 +193,7 @@ function createMobileSqliteStore(options = {}) {
 
       CREATE TABLE IF NOT EXISTS threads (
         id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL DEFAULT 0,
         workspace_id TEXT NOT NULL DEFAULT '',
         title TEXT NOT NULL DEFAULT '',
         project_id TEXT NOT NULL DEFAULT '',
@@ -216,6 +217,7 @@ function createMobileSqliteStore(options = {}) {
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
         thread_id TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
         workspace_id TEXT NOT NULL DEFAULT '',
         role TEXT NOT NULL DEFAULT '',
         status TEXT NOT NULL DEFAULT '',
@@ -256,6 +258,7 @@ function createMobileSqliteStore(options = {}) {
 
       CREATE TABLE IF NOT EXISTS artifacts (
         id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL DEFAULT 0,
         thread_id TEXT NOT NULL DEFAULT '',
         message_id TEXT NOT NULL DEFAULT '',
         workspace_id TEXT NOT NULL DEFAULT '',
@@ -276,6 +279,7 @@ function createMobileSqliteStore(options = {}) {
 
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL DEFAULT 0,
         workspace_id TEXT NOT NULL DEFAULT '',
         principal_ids_json TEXT,
         workspace_ids_json TEXT,
@@ -290,6 +294,7 @@ function createMobileSqliteStore(options = {}) {
 
       CREATE TABLE IF NOT EXISTS push_receipts (
         id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL DEFAULT 0,
         subscription_id TEXT NOT NULL DEFAULT '',
         principal_id TEXT NOT NULL DEFAULT '',
         workspace_id TEXT NOT NULL DEFAULT '',
@@ -306,6 +311,7 @@ function createMobileSqliteStore(options = {}) {
 
       CREATE TABLE IF NOT EXISTS push_deliveries (
         id TEXT PRIMARY KEY,
+        position INTEGER NOT NULL DEFAULT 0,
         principal_id TEXT NOT NULL DEFAULT '',
         workspace_id TEXT NOT NULL DEFAULT '',
         message_type TEXT NOT NULL DEFAULT '',
@@ -380,6 +386,13 @@ function createMobileSqliteStore(options = {}) {
       );
     `);
 
+    ensureColumn("threads", "position", "INTEGER NOT NULL DEFAULT 0");
+    ensureColumn("messages", "position", "INTEGER NOT NULL DEFAULT 0");
+    ensureColumn("artifacts", "position", "INTEGER NOT NULL DEFAULT 0");
+    ensureColumn("push_subscriptions", "position", "INTEGER NOT NULL DEFAULT 0");
+    ensureColumn("push_receipts", "position", "INTEGER NOT NULL DEFAULT 0");
+    ensureColumn("push_deliveries", "position", "INTEGER NOT NULL DEFAULT 0");
+
     const row = open().prepare("SELECT version FROM schema_migrations WHERE version = ?").get(CURRENT_SCHEMA_VERSION);
     if (!row) {
       open().prepare("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
@@ -389,6 +402,12 @@ function createMobileSqliteStore(options = {}) {
       );
     }
     setMeta("schemaVersion", CURRENT_SCHEMA_VERSION);
+  }
+
+  function ensureColumn(table, column, definition) {
+    const rows = open().prepare(`PRAGMA table_info(${sqlQuoteIdent(table)})`).all();
+    if (rows.some((row) => row.name === column)) return;
+    open().exec(`ALTER TABLE ${sqlQuoteIdent(table)} ADD COLUMN ${sqlQuoteIdent(column)} ${definition};`);
   }
 
   function clearImportedData() {
@@ -472,15 +491,16 @@ function createMobileSqliteStore(options = {}) {
     return true;
   }
 
-  function importThread(thread = {}) {
+  function importThread(thread = {}, position = 0) {
     const id = normalizeId(thread.id);
     if (!id) return false;
     open().prepare(`
-      INSERT INTO threads(id, workspace_id, title, project_id, subproject_id, status, single_window,
+      INSERT INTO threads(id, position, workspace_id, title, project_id, subproject_id, status, single_window,
         hermes_session_id, active_run_id, active_run_ids_json, chat_group_json, task_group_meta_json,
         events_json, raw_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        position = excluded.position,
         workspace_id = excluded.workspace_id,
         title = excluded.title,
         project_id = excluded.project_id,
@@ -497,6 +517,7 @@ function createMobileSqliteStore(options = {}) {
         updated_at = excluded.updated_at
     `).run(
       id,
+      Number(position) || 0,
       String(thread.workspaceId || "owner"),
       String(thread.title || ""),
       String(thread.projectId || ""),
@@ -516,19 +537,20 @@ function createMobileSqliteStore(options = {}) {
     return true;
   }
 
-  function importMessage(thread, message = {}) {
+  function importMessage(thread, message = {}, position = 0) {
     const id = normalizeId(message.id);
     const threadId = normalizeId(thread?.id);
     if (!id || !threadId) return false;
     open().prepare(`
-      INSERT INTO messages(id, thread_id, workspace_id, role, status, task_group_id, message_kind,
+      INSERT INTO messages(id, thread_id, position, workspace_id, role, status, task_group_id, message_kind,
         sender_workspace_id, sender_principal_id, sender_label, reply_to_message_id, run_id, task_id,
         reasoning_effort, content, artifacts_json, directory_route_json, directory_aliases_json,
         usage_json, run_options_json, error, raw_json, created_at, updated_at, submitted_at,
         queued_at, started_at, first_feedback_at, completed_at, failed_at, cancelled_at, revoked_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         thread_id = excluded.thread_id,
+        position = excluded.position,
         workspace_id = excluded.workspace_id,
         role = excluded.role,
         status = excluded.status,
@@ -557,6 +579,7 @@ function createMobileSqliteStore(options = {}) {
     `).run(
       id,
       threadId,
+      Number(position) || 0,
       String(message.senderWorkspaceId || thread.workspaceId || "owner"),
       String(message.role || ""),
       String(message.status || ""),
@@ -610,9 +633,10 @@ function createMobileSqliteStore(options = {}) {
     const id = artifactKey(threadId, messageId, artifact, index);
     if (!id) return false;
     open().prepare(`
-      INSERT INTO artifacts(id, thread_id, message_id, workspace_id, name, mime, url, path, size, source, raw_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO artifacts(id, position, thread_id, message_id, workspace_id, name, mime, url, path, size, source, raw_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        position = excluded.position,
         thread_id = excluded.thread_id,
         message_id = excluded.message_id,
         workspace_id = excluded.workspace_id,
@@ -626,6 +650,7 @@ function createMobileSqliteStore(options = {}) {
         updated_at = excluded.updated_at
     `).run(
       id,
+      Number(index) || 0,
       threadId,
       messageId,
       String(message?.senderWorkspaceId || thread?.workspaceId || "owner"),
@@ -646,10 +671,11 @@ function createMobileSqliteStore(options = {}) {
     const id = normalizeId(row.id || row.subscriptionId, `push_subscription_${index}`);
     const endpoint = String(row.endpoint || row.subscription?.endpoint || "");
     open().prepare(`
-      INSERT INTO push_subscriptions(id, workspace_id, principal_ids_json, workspace_ids_json, endpoint_hash,
+      INSERT INTO push_subscriptions(id, position, workspace_id, principal_ids_json, workspace_ids_json, endpoint_hash,
         disabled, last_success_at, last_failure_at, raw_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        position = excluded.position,
         workspace_id = excluded.workspace_id,
         principal_ids_json = excluded.principal_ids_json,
         workspace_ids_json = excluded.workspace_ids_json,
@@ -661,6 +687,7 @@ function createMobileSqliteStore(options = {}) {
         updated_at = excluded.updated_at
     `).run(
       id,
+      Number(index) || 0,
       String(row.workspaceId || row.workspace_id || ""),
       stableJson(row.principalIds || row.principal_ids || []),
       stableJson(row.workspaceIds || row.workspace_ids || []),
@@ -678,10 +705,11 @@ function createMobileSqliteStore(options = {}) {
   function importPushReceipt(row = {}, index = 0) {
     const id = normalizeId(row.id || row.receiptId, `push_receipt_${index}`);
     open().prepare(`
-      INSERT INTO push_receipts(id, subscription_id, principal_id, workspace_id, message_type, mark_key,
+      INSERT INTO push_receipts(id, position, subscription_id, principal_id, workspace_id, message_type, mark_key,
         shown, foreground, raw_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        position = excluded.position,
         subscription_id = excluded.subscription_id,
         principal_id = excluded.principal_id,
         workspace_id = excluded.workspace_id,
@@ -693,6 +721,7 @@ function createMobileSqliteStore(options = {}) {
         created_at = excluded.created_at
     `).run(
       id,
+      Number(index) || 0,
       String(row.subscriptionId || row.subscription_id || ""),
       String(row.principalId || row.principal_id || row.data?.principalId || ""),
       String(row.workspaceId || row.workspace_id || row.data?.workspaceId || ""),
@@ -709,9 +738,10 @@ function createMobileSqliteStore(options = {}) {
   function importPushDelivery(row = {}, index = 0) {
     const id = normalizeId(row.id || row.deliveryId, `push_delivery_${index}`);
     open().prepare(`
-      INSERT INTO push_deliveries(id, principal_id, workspace_id, message_type, title, tag, attempted, sent, failed, raw_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO push_deliveries(id, position, principal_id, workspace_id, message_type, title, tag, attempted, sent, failed, raw_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
+        position = excluded.position,
         principal_id = excluded.principal_id,
         workspace_id = excluded.workspace_id,
         message_type = excluded.message_type,
@@ -724,6 +754,7 @@ function createMobileSqliteStore(options = {}) {
         created_at = excluded.created_at
     `).run(
       id,
+      Number(index) || 0,
       String(row.principalId || row.principal_id || ""),
       String(row.workspaceId || row.workspace_id || ""),
       String(row.messageType || row.message_type || ""),
@@ -913,11 +944,11 @@ function createMobileSqliteStore(options = {}) {
       pushDeliveries: 0,
     };
     const threads = asArray(state.threads);
-    for (const thread of threads) {
-      if (!importThread(thread)) continue;
+    for (const [threadIndex, thread] of threads.entries()) {
+      if (!importThread(thread, threadIndex)) continue;
       stats.threads += 1;
-      for (const message of asArray(thread.messages)) {
-        if (!importMessage(thread, message)) continue;
+      for (const [messageIndex, message] of asArray(thread.messages).entries()) {
+        if (!importMessage(thread, message, messageIndex)) continue;
         stats.messages += 1;
         asArray(message.artifacts).forEach((artifact, index) => {
           if (importArtifact(thread, message, artifact, index)) stats.artifacts += 1;
@@ -939,6 +970,169 @@ function createMobileSqliteStore(options = {}) {
       if (importPushDelivery(row, index)) stats.pushDeliveries += 1;
     });
     return stats;
+  }
+
+  function runtimeStateCounts() {
+    const database = open();
+    return {
+      threads: Number(database.prepare("SELECT COUNT(*) AS count FROM threads").get()?.count || 0),
+      messages: Number(database.prepare("SELECT COUNT(*) AS count FROM messages").get()?.count || 0),
+      artifacts: Number(database.prepare("SELECT COUNT(*) AS count FROM artifacts").get()?.count || 0),
+      pushSubscriptions: Number(database.prepare("SELECT COUNT(*) AS count FROM push_subscriptions").get()?.count || 0),
+      pushReceipts: Number(database.prepare("SELECT COUNT(*) AS count FROM push_receipts").get()?.count || 0),
+      pushDeliveries: Number(database.prepare("SELECT COUNT(*) AS count FROM push_deliveries").get()?.count || 0),
+    };
+  }
+
+  function replaceRuntimeState(nextState = {}) {
+    migrate();
+    const database = open();
+    database.exec("BEGIN IMMEDIATE;");
+    try {
+      database.prepare("DELETE FROM messages").run();
+      database.prepare("DELETE FROM threads").run();
+      database.prepare("DELETE FROM artifacts").run();
+      database.prepare("DELETE FROM push_subscriptions").run();
+      database.prepare("DELETE FROM push_receipts").run();
+      database.prepare("DELETE FROM push_deliveries").run();
+      importState(nextState);
+      setMeta("automationPushMarks", nextState.automationPushMarks || {});
+      setMeta("lastRuntimeStateSave", { savedAt: nowIso(), counts: runtimeStateCounts() });
+      database.exec("COMMIT;");
+    } catch (err) {
+      try {
+        database.exec("ROLLBACK;");
+      } catch (_) {}
+      throw err;
+    }
+  }
+
+  function rowJson(row, fallback = {}) {
+    const parsed = parseJson(row?.raw_json, null);
+    return parsed && typeof parsed === "object" ? parsed : Object.assign({}, fallback);
+  }
+
+  function exportRuntimeState() {
+    migrate();
+    const database = open();
+    const messageRowsByThread = new Map();
+    const messageRows = database.prepare("SELECT * FROM messages ORDER BY thread_id, position, created_at, id").all();
+    for (const row of messageRows) {
+      const list = messageRowsByThread.get(row.thread_id) || [];
+      list.push(row);
+      messageRowsByThread.set(row.thread_id, list);
+    }
+    const threadRows = database.prepare("SELECT * FROM threads ORDER BY position, updated_at DESC, id").all();
+    const threads = threadRows.map((row) => {
+      const thread = rowJson(row, {
+        id: row.id,
+        workspaceId: row.workspace_id,
+        title: row.title,
+        projectId: row.project_id,
+        subprojectId: row.subproject_id,
+        status: row.status,
+        singleWindow: Boolean(row.single_window),
+        hermesSessionId: row.hermes_session_id,
+        activeRunId: row.active_run_id || null,
+        activeRunIds: parseJson(row.active_run_ids_json, []),
+        chatGroup: parseJson(row.chat_group_json, null),
+        taskGroupMeta: parseJson(row.task_group_meta_json, {}),
+        events: parseJson(row.events_json, []),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      });
+      thread.messages = (messageRowsByThread.get(row.id) || []).map((messageRow) => rowJson(messageRow, {
+        id: messageRow.id,
+        role: messageRow.role,
+        status: messageRow.status,
+        taskGroupId: messageRow.task_group_id,
+        messageKind: messageRow.message_kind,
+        senderWorkspaceId: messageRow.sender_workspace_id,
+        senderPrincipalId: messageRow.sender_principal_id,
+        senderLabel: messageRow.sender_label,
+        replyToMessageId: messageRow.reply_to_message_id,
+        runId: messageRow.run_id,
+        taskId: messageRow.task_id,
+        reasoningEffort: messageRow.reasoning_effort,
+        content: messageRow.content,
+        artifacts: parseJson(messageRow.artifacts_json, []),
+        directoryRoute: parseJson(messageRow.directory_route_json, null),
+        directoryAliases: parseJson(messageRow.directory_aliases_json, []),
+        usage: parseJson(messageRow.usage_json, null),
+        runOptions: parseJson(messageRow.run_options_json, null),
+        error: messageRow.error,
+        createdAt: messageRow.created_at,
+        updatedAt: messageRow.updated_at,
+        submittedAt: messageRow.submitted_at,
+        queuedAt: messageRow.queued_at,
+        startedAt: messageRow.started_at,
+        firstFeedbackAt: messageRow.first_feedback_at,
+        completedAt: messageRow.completed_at,
+        failedAt: messageRow.failed_at,
+        cancelledAt: messageRow.cancelled_at,
+        revokedAt: messageRow.revoked_at,
+      }));
+      return thread;
+    });
+    const artifacts = database.prepare("SELECT * FROM artifacts ORDER BY position, created_at, id").all()
+      .map((row) => rowJson(row, {
+        id: row.id,
+        threadId: row.thread_id,
+        messageId: row.message_id,
+        workspaceId: row.workspace_id,
+        name: row.name,
+        mime: row.mime,
+        url: row.url,
+        path: row.path,
+        size: row.size,
+        source: row.source,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    const pushSubscriptions = database.prepare("SELECT * FROM push_subscriptions ORDER BY position, created_at, id").all()
+      .map((row) => rowJson(row, {
+        id: row.id,
+        workspaceId: row.workspace_id,
+        principalIds: parseJson(row.principal_ids_json, []),
+        workspaceIds: parseJson(row.workspace_ids_json, []),
+        endpointHash: row.endpoint_hash,
+        disabledAt: row.disabled ? row.updated_at : null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    const pushReceipts = database.prepare("SELECT * FROM push_receipts ORDER BY position, created_at, id").all()
+      .map((row) => rowJson(row, {
+        id: row.id,
+        principalId: row.principal_id,
+        workspaceId: row.workspace_id,
+        messageType: row.message_type,
+        markKey: row.mark_key,
+        shown: Boolean(row.shown),
+        foreground: Boolean(row.foreground),
+        receivedAt: row.created_at,
+      }));
+    const pushDeliveries = database.prepare("SELECT * FROM push_deliveries ORDER BY position, created_at, id").all()
+      .map((row) => rowJson(row, {
+        id: row.id,
+        principalId: row.principal_id,
+        workspaceId: row.workspace_id,
+        messageType: row.message_type,
+        title: row.title,
+        tag: row.tag,
+        attempted: row.attempted,
+        sent: row.sent,
+        failed: row.failed,
+        sentAt: row.created_at,
+      }));
+    return {
+      schemaVersion: 1,
+      threads,
+      artifacts,
+      pushSubscriptions,
+      pushReceipts: pushReceipts.slice(-200),
+      pushDeliveries: pushDeliveries.slice(-200),
+      automationPushMarks: getMeta("automationPushMarks", {}),
+    };
   }
 
   function importFromDataDir(dataDir, options = {}) {
@@ -1127,9 +1321,12 @@ function createMobileSqliteStore(options = {}) {
     deleteTodoItem,
     getAutomationJob,
     getTodoItem,
+    exportRuntimeState,
     listAutomationJobs,
     listTodoItems,
     migrate,
+    replaceRuntimeState,
+    runtimeStateCounts,
     open,
     setMeta,
     tableCounts,

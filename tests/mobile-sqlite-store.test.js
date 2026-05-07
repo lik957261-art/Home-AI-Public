@@ -284,7 +284,42 @@ function testServiceLayerLocalRows() {
   store.close();
 }
 
+function testRuntimeStateRoundTrip() {
+  const dataDir = makeJsonDataDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dataDir, "runtime.sqlite3") });
+  const manifest = store.importFromDataDir(dataDir);
+  assert.equal(manifest.counts.threads, 1);
+  const exported = store.exportRuntimeState();
+  assert.equal(exported.threads.length, 1);
+  assert.equal(exported.threads[0].messages.length, 2);
+  assert.equal(exported.threads[0].messages[1].id, "msg_assistant");
+  assert.equal(exported.artifacts.length, 1);
+  assert.equal(exported.pushSubscriptions.length, 1);
+  assert.equal(exported.pushReceipts.length, 1);
+  assert.equal(exported.pushDeliveries.length, 1);
+
+  exported.threads[0].messages.push({
+    id: "msg_runtime",
+    role: "user",
+    content: "runtime message",
+    status: "done",
+    taskGroupId: "chat",
+    createdAt: "2026-05-07T00:00:06.000Z",
+  });
+  exported.automationPushMarks = { "automation:auto_1:deliverable": { status: "sent" } };
+  store.replaceRuntimeState(exported);
+  const after = store.exportRuntimeState();
+  assert.equal(after.threads[0].messages.length, 3);
+  assert.equal(after.threads[0].messages[2].content, "runtime message");
+  assert.deepEqual(after.automationPushMarks, { "automation:auto_1:deliverable": { status: "sent" } });
+  const report = store.integrityReport();
+  assert.equal(report.ok, true);
+  assert.equal(report.counts.messages, 3);
+  store.close();
+}
+
 testImportAndIntegrity();
 testWorkspaceInferenceFallback();
 testServiceLayerLocalRows();
+testRuntimeStateRoundTrip();
 console.log("mobile-sqlite-store tests passed");

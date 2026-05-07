@@ -16,7 +16,7 @@ Hermes Mobile should integrate with official Hermes through stable HTTP/API boun
 - Gateway task execution uses `/v1/responses` and run liveness checks use `/v1/runs/<id>`.
 - Usage rendering expects detailed Gateway usage when available, but tolerates aggregate-only historical payloads.
 - Optional bridges may read native Hermes files, such as CRON jobs or plugin-backed todo data, through deployment-specific adapters.
-- The SQLite service-layer migration keeps Hermes Mobile-owned state outside official Hermes. Todo and Automation bridge backends should remain opt-in compatibility adapters for existing deployments, not the default product architecture.
+- The SQLite service-layer migration/runtime keeps Hermes Mobile-owned state outside official Hermes. Todo and Automation bridge backends should remain opt-in compatibility adapters for existing deployments, not the default product architecture.
 
 ## Upgrade Policy
 

@@ -78,6 +78,8 @@ The Owner can later edit or delete admin-created user workspaces from the same m
 
 Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Workspace Access Key hashes are stored in `workspace/hermes-web/access-keys.json`. Runtime files in `workspace/` remain ignored by Git. On a fresh install without an external workspace catalog, the Owner's default file root is `drive/` under `HERMES_WEB_DATA_DIR`; override it with `HERMES_WEB_OWNER_DEFAULT_WORKSPACE` if user files should live elsewhere. Todo and Automation also default to local JSON stores under `HERMES_WEB_DATA_DIR`; set `HERMES_WEB_TODO_BACKEND` / `HERMES_WEB_AUTOMATION_BACKEND` to an explicit bridge backend only when intentionally connecting this app to an existing deployment store.
 
+For SQLite-backed installs, set `HERMES_WEB_SERVICE_STORE=sqlite` and `HERMES_WEB_DB_PATH`. SQLite mode stores threads, messages, artifacts, Web Push state, and local Todo/Automation service rows in one database while still writing `state.json` snapshots for rollback.
+
 ## Runtime Setup
 
 Owner can open `账号 / 根目录 / 接口` -> `运行配置` to configure and test the Hermes Gateway bridge after login.

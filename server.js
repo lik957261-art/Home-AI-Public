@@ -216,6 +216,7 @@ let lastStateBackupAt = 0;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
 let state = null;
+let sqliteServiceStore = null;
 const authProvider = createAuthProvider({
   disableAuth: () => DISABLE_AUTH,
   envKey: () => process.env.HERMES_WEB_KEY || "",
@@ -676,6 +677,7 @@ function defaultState() {
 
 function loadState() {
   ensureDataDir();
+  if (useSqliteServiceStore()) return loadStateFromSqlite();
   let raw = "";
   let parsed = null;
   try {
@@ -708,6 +710,30 @@ function loadState() {
     backupStateFile("normalize-failed", { force: true, rawFallback: true });
     throw err;
   }
+}
+
+function loadStateFromSqlite() {
+  const store = mobileSqliteStore();
+  const counts = store.runtimeStateCounts();
+  const hasRuntimeRows = Object.values(counts).some((value) => Number(value || 0) > 0);
+  if (!hasRuntimeRows) {
+    const existing = readStateFileIfValid();
+    if (existing) {
+      backupStateFile("sqlite-import-source", { force: true });
+      const normalized = normalizeState(existing);
+      store.replaceRuntimeState(normalized);
+      writeStateFile(normalized);
+      return normalized;
+    }
+    const fresh = defaultState();
+    store.replaceRuntimeState(fresh);
+    writeStateFile(fresh);
+    return fresh;
+  }
+  const exported = store.exportRuntimeState();
+  const normalized = normalizeState(exported);
+  writeStateFile(normalized);
+  return normalized;
 }
 
 function normalizeState(value) {
@@ -1090,6 +1116,9 @@ function saveState(next = state, options = {}) {
   } else {
     backupStateFile(options.reason || "periodic-save");
   }
+  if (useSqliteServiceStore()) {
+    mobileSqliteStore().replaceRuntimeState(next);
+  }
   writeStateFile(next);
 }
 
@@ -1349,7 +1378,6 @@ function useSqliteServiceStore() {
   return SERVICE_STORE_BACKEND === "sqlite";
 }
 
-let sqliteServiceStore = null;
 function mobileSqliteStore() {
   if (!sqliteServiceStore) {
     const { createMobileSqliteStore } = require("./adapters/mobile-sqlite-store");
