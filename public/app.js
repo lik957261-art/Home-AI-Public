@@ -3277,11 +3277,33 @@ function renderAccessKeyManager() {
   }
   const selectedWorkspaceId = state.accessKeyWorkspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "";
   const selectedWorkspace = (state.workspaces || []).find((workspace) => workspace.id === selectedWorkspaceId) || currentWorkspace();
-  const selectedAccessKeys = (state.accessKeys || []).filter((item) => !selectedWorkspace?.id || item.workspaceId === selectedWorkspace.id);
-  const showOwnerKey = Boolean(state.accessKeysAuth?.isOwner && selectedWorkspace?.id === "owner");
-  const localWorkspaces = state.accessKeysAuth?.isOwner
+  const isOwnerAccessManager = Boolean(state.accessKeysAuth?.isOwner);
+  const ownerWideAccessKeyList = Boolean(isOwnerAccessManager && selectedWorkspace?.id === "owner");
+  const selectedAccessKeys = (state.accessKeys || []).filter((item) => ownerWideAccessKeyList || !selectedWorkspace?.id || item.workspaceId === selectedWorkspace.id);
+  const showOwnerKey = Boolean(isOwnerAccessManager && selectedWorkspace?.id === "owner");
+  const localWorkspaces = isOwnerAccessManager
     ? (state.workspaces || []).filter((workspace) => workspace.source === "local-workspace")
     : [];
+  const deploymentWorkspaces = isOwnerAccessManager
+    ? (state.workspaces || []).filter((workspace) => workspace.id !== "owner" && workspace.source !== "local-workspace")
+    : [];
+  const workspaceRootLabel = (workspace) => workspace?.localConfig?.defaultWorkspace || workspace?.defaultWorkspace || "";
+  const workspaceToolsets = (workspace) => workspace?.localConfig?.allowedToolsets || workspace?.bindings?.allowedToolsets || [];
+  const renderWorkspaceAdminRow = (workspace, options = {}) => {
+    const editable = Boolean(options.editable);
+    const root = workspaceRootLabel(workspace);
+    const toolsets = workspaceToolsets(workspace);
+    return `<article class="workspace-admin-row">
+      <div class="workspace-admin-main">
+        <div class="workspace-admin-title">${escapeHtml(workspace.label || workspace.id)}</div>
+        <div class="workspace-admin-meta">${escapeHtml(workspace.id)}${root ? ` · ${escapeHtml(root)}` : ""}</div>
+        ${toolsets.length ? `<div class="workspace-admin-meta">接口：${escapeHtml(toolsets.join(", "))}</div>` : ""}
+      </div>
+      ${editable ? `<button type="button" data-edit-workspace="${escapeHtml(workspace.id)}">编辑</button>` : `<span class="workspace-admin-readonly">只读</span>`}
+      <button type="button" data-manage-workspace="${escapeHtml(workspace.id)}">Key</button>
+      ${editable ? `<button type="button" data-delete-workspace="${escapeHtml(workspace.id)}">删除</button>` : ""}
+    </article>`;
+  };
   const generatedAccessKeyBlock = (target = {}) => {
     if (!state.generatedAccessKey) return "";
     const generatedKind = state.generatedAccessKey.kind || "workspace";
@@ -3353,25 +3375,18 @@ function renderAccessKeyManager() {
         </label>
         <button type="button" data-create-workspace>保存工作区</button>
       </section>` : "";
-  const workspaceAdminList = state.accessKeysAuth?.isOwner ? `<section class="access-key-workspace-admin">
+  const workspaceAdminList = isOwnerAccessManager ? `<section class="access-key-workspace-admin">
         <div class="access-key-row-title">本地用户工作区</div>
         ${localWorkspaces.length ? localWorkspaces.map((workspace) => {
-          const root = workspace.localConfig?.defaultWorkspace || workspace.defaultWorkspace || "";
-          const toolsets = workspace.localConfig?.allowedToolsets || workspace.bindings?.allowedToolsets || [];
-          return `<article class="workspace-admin-row">
-            <div class="workspace-admin-main">
-              <div class="workspace-admin-title">${escapeHtml(workspace.label || workspace.id)}</div>
-              <div class="workspace-admin-meta">${escapeHtml(workspace.id)}${root ? ` · ${escapeHtml(root)}` : ""}</div>
-              ${toolsets.length ? `<div class="workspace-admin-meta">接口：${escapeHtml(toolsets.join(", "))}</div>` : ""}
-            </div>
-            <button type="button" data-edit-workspace="${escapeHtml(workspace.id)}">编辑</button>
-            <button type="button" data-manage-workspace="${escapeHtml(workspace.id)}">Key</button>
-            <button type="button" data-delete-workspace="${escapeHtml(workspace.id)}">删除</button>
-          </article>`;
+          return renderWorkspaceAdminRow(workspace, { editable: true });
         }).join("") : `<div class="access-key-empty">还没有管理员创建的本地用户工作区。</div>`}
+        ${deploymentWorkspaces.length ? `
+          <div class="access-key-row-title workspace-admin-subtitle">部署账号 / 只读</div>
+          ${deploymentWorkspaces.map((workspace) => renderWorkspaceAdminRow(workspace, { editable: false })).join("")}
+        ` : ""}
       </section>` : "";
-  const subtitle = state.accessKeysAuth?.isOwner
-    ? "只显示当前选择工作区的 Hermes Web 登录 key；切换工作区后可管理对应账号。"
+  const subtitle = isOwnerAccessManager
+    ? "Owner 可查看全部账号；生产部署账号在这里只读，Access Key 仍可管理。"
     : "只能查看并更换当前账号的 Hermes Web 登录 key。";
   overlay.innerHTML = `
     <div class="access-key-sheet">
@@ -3433,10 +3448,12 @@ async function loadAccessKeyManager(options = {}) {
   renderAccessKeyManager();
   try {
     const params = new URLSearchParams();
-    if (state.accessKeyWorkspaceId) params.set("workspaceId", state.accessKeyWorkspaceId);
+    const requestAllWorkspaceKeys = String(state.accessKeyWorkspaceId || "") === "owner";
+    if (state.accessKeyWorkspaceId && !requestAllWorkspaceKeys) params.set("workspaceId", state.accessKeyWorkspaceId);
     const query = params.toString();
     const result = await api(`/api/access-keys${query ? `?${query}` : ""}`);
-    state.accessKeys = (result.data || []).filter((item) => !state.accessKeyWorkspaceId || item.workspaceId === state.accessKeyWorkspaceId);
+    const showAllOwnerKeys = Boolean(result.auth?.isOwner && requestAllWorkspaceKeys);
+    state.accessKeys = (result.data || []).filter((item) => showAllOwnerKeys || !state.accessKeyWorkspaceId || item.workspaceId === state.accessKeyWorkspaceId);
     state.accessKeysAuth = result.auth || null;
   } catch (err) {
     state.accessKeysError = err.message || String(err);

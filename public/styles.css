@@ -3391,6 +3391,12 @@ button.directory-alias-chip {
   border-top: 0;
 }
 
+.workspace-admin-subtitle {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
 .workspace-admin-main {
   min-width: 0;
   display: grid;
@@ -3413,6 +3419,20 @@ button.directory-alias-chip {
   font-size: 12px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.workspace-admin-readonly {
+  flex: 0 0 auto;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(31, 43, 51, 0.06);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
 }
 
 .workspace-runtime-config-button {
