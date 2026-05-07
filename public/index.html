@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="en" data-client-version="20260507-1005">
+<html lang="en" data-client-version="20260507-1435">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Web</title>
-  <meta name="hermes-web-client-version" content="20260507-1005">
+  <meta name="hermes-web-client-version" content="20260507-1435">
   <meta name="theme-color" content="#f3efe7">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Hermes">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
-  <link rel="stylesheet" href="/styles.css?v=20260507-1005">
+  <link rel="stylesheet" href="/styles.css?v=20260507-1435">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -39,7 +39,7 @@
       <div class="side-title">
         <div class="side-heading">
           <div class="eyebrow">Hermes</div>
-        <div id="clientVersion" class="client-version">v20260507-0905</div>
+        <div id="clientVersion" class="client-version">v20260507-1435</div>
           <button id="searchButton" class="push-button" type="button" aria-label="Search" title="Search">⌕</button>
           <button id="pushToggle" class="push-button" type="button" hidden aria-label="启用通知" title="启用通知">🔔</button>
         </div>
@@ -136,6 +136,8 @@
               <button id="topDeleteTodo" class="top-more-action top-more-danger" type="button" hidden>删除</button>
               <button id="topRenameTask" class="top-more-action" type="button" hidden>修改任务名</button>
               <button id="topSearchChat" class="top-more-action" type="button" hidden>搜索</button>
+              <button id="topToggleGroupChat" class="top-more-action" type="button" hidden>&#20999;&#25442;&#21040;&#32676;</button>
+              <button id="topManageGroupMembers" class="top-more-action" type="button" hidden>&#25104;&#21592;</button>
               <button id="topToggleTaskView" class="top-more-action" type="button">信息流</button>
               <button id="topToggleSingleMode" class="top-more-action" type="button" hidden>任务流</button>
               <button id="topClearDirectoryFilter" class="top-more-action" type="button" hidden>清除目录筛选</button>
@@ -148,26 +150,32 @@
       </header>
 
       <div id="accessKeyOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="accessKeyTitle"></div>
+      <div id="groupChatOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="groupChatTitle"></div>
       <section id="conversation" class="conversation">
         <div class="empty-state">Create a thread to start a zero-context Hermes task.</div>
       </section>
 
       <div id="composer" class="composer" role="group" aria-label="Message composer">
+        <div id="groupMentionMenu" class="group-mention-menu" hidden></div>
         <button id="attachFile" class="secondary-button" type="button" disabled aria-label="添加文件" title="添加文件">+</button>
         <div id="messageInput" class="composer-editor" contenteditable="false" role="textbox" aria-multiline="true" aria-disabled="true" data-placeholder="Message Hermes..." inputmode="text" enterkeyhint="send" autocorrect="off" autocapitalize="sentences" spellcheck="false"></div>
         <select id="taskReasoningSelect" class="task-reasoning-select" aria-label="推理等级" title="推理等级" hidden>
-          <option value="" selected>默认M</option>
-          <option value="low">Low</option>
-          <option value="medium">Med</option>
-          <option value="high">High</option>
-          <option value="xhigh">XHigh</option>
+          <option value="" selected>中</option>
+          <option value="low">低</option>
+          <option value="medium">中</option>
+          <option value="high">高</option>
+          <option value="xhigh">极高</option>
         </select>
+        <button id="chatSearchPrev" class="composer-search-nav" type="button" aria-label="Previous match" title="Previous match" hidden disabled>&uarr;</button>
+        <button id="chatSearchNext" class="composer-search-nav" type="button" aria-label="Next match" title="Next match" hidden disabled>&darr;</button>
+        <span id="chatSearchStatus" class="composer-search-status" aria-live="polite" hidden></span>
+        <button id="chatAiToggle" class="chat-ai-toggle" type="button" aria-pressed="false" hidden>AI</button>
         <button id="sendMessage" type="button" disabled>Send</button>
       </div>
     </section>
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260507-1005"></script>
+  <script src="/app.js?v=20260507-1435"></script>
 </body>
 </html>

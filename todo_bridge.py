@@ -1,38 +1,43 @@
 #!/usr/bin/env python3
-"""Small JSON bridge from Hermes Web to the existing Weixin todo plugin.
+"""Small JSON bridge from Hermes Mobile to a configured Hermes todo plugin.
 
-The Web app must not create a second todo store. This bridge imports the live
-`xuxin_weixin_todos` plugin inside WSL and calls its public functions against
-`~/.hermes/weixin-todos/todos.sqlite3`.
+The Web app must not create a second todo store. This bridge imports the
+deployment-configured plugin inside WSL and calls its public functions against
+that plugin's own persistent store.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 
+HERMES_HOME = Path(os.environ.get("HERMES_HOME") or os.environ.get("HERMES_WEB_HERMES_HOME") or (Path.home() / ".hermes"))
+TODO_PLUGIN_NAME = os.environ.get("HERMES_WEB_TODO_PLUGIN_NAME", "hermes_todos")
+TODO_PLUGIN_RELATIVE_PATH = Path(*TODO_PLUGIN_NAME.split(".")) / "__init__.py"
 PLUGIN_PATHS = [
-    Path("/home/xuxin/.hermes/plugins/xuxin_weixin_todos/__init__.py"),
-    Path("/mnt/c/Users/xuxin/Documents/Agent/configs/hermes/local-overrides/user-plugins/xuxin_weixin_todos/__init__.py"),
+    Path(os.environ["HERMES_WEB_TODO_PLUGIN_PATH"]) if os.environ.get("HERMES_WEB_TODO_PLUGIN_PATH") else None,
+    HERMES_HOME / "plugins" / TODO_PLUGIN_RELATIVE_PATH,
 ]
+PLUGIN_PATHS = [path for path in PLUGIN_PATHS if path]
 
 
 def _load_plugin():
     for path in PLUGIN_PATHS:
         if not path.exists():
             continue
-        spec = importlib.util.spec_from_file_location("xuxin_weixin_todos_web_bridge", path)
+        spec = importlib.util.spec_from_file_location("hermes_mobile_todo_bridge", path)
         if not spec or not spec.loader:
             continue
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
-    raise RuntimeError("xuxin_weixin_todos plugin not found")
+    raise RuntimeError(f"{TODO_PLUGIN_NAME} plugin not found")
 
 
 def _as_bool(value: Any) -> bool:

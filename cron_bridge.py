@@ -21,27 +21,28 @@ except Exception:
     HAS_CRONITER = False
 
 
+HERMES_HOME = Path(os.environ.get("HERMES_HOME") or os.environ.get("HERMES_WEB_HERMES_HOME") or (Path.home() / ".hermes"))
 DEFAULT_JOBS_PATHS = [
-    "/home/xuxin/.hermes/cron/jobs.json",
-    "/mnt/c/Users/xuxin/Documents/Agent/configs/hermes/local-overrides/hermes-home/cron/jobs.json",
+    str(HERMES_HOME / "cron" / "jobs.json"),
+    os.environ.get("HERMES_WEB_CRON_JOBS_FALLBACK_PATH", ""),
 ]
 
-CRON_OUTPUT_ROOT = Path(os.environ.get("HERMES_WEB_CRON_OUTPUT_ROOT") or "/home/xuxin/.hermes/cron/output")
+CRON_OUTPUT_ROOT = Path(os.environ.get("HERMES_WEB_CRON_OUTPUT_ROOT") or (HERMES_HOME / "cron" / "output"))
 DELIVERY_DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".doc"}
 MEDIA_DOCUMENT_EXTENSIONS = DELIVERY_DOCUMENT_EXTENSIONS | {".md"}
 MEDIA_LINE_PATTERN = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$")
 MEDIA_PATH_PATTERN = re.compile(
     r"(?i)(\\\\wsl(?:\.localhost|\$)\\[^\r\n]+?\.(?:pdf|docx|doc|md)|"
     r"[a-z]:\\[^\r\n]+?\.(?:pdf|docx|doc|md)|"
-    r"/(?:mnt/[a-z]|home/xuxin)/[^\r\n]+?\.(?:pdf|docx|doc|md))"
+    r"/(?:mnt/[a-z]|home/[^/]+)/[^\r\n]+?\.(?:pdf|docx|doc|md))"
     r"(?=$|[\s)>\"'，,。；;])"
 )
 
 PATH_PATTERNS = [
     re.compile(r"(?i)\\\\wsl(?:\.localhost|\$)\\[^\s]+"),
-    re.compile(r"(?i)[a-z]:\\Users\\xuxin\\[^\s]+"),
-    re.compile(r"/mnt/[a-z]/Users/xuxin/[^\s]+"),
-    re.compile(r"/home/xuxin/[^\s]+"),
+    re.compile(r"(?i)[a-z]:\\Users\\[^\\]+\\[^\s]+"),
+    re.compile(r"/mnt/[a-z]/Users/[^/]+/[^\s]+"),
+    re.compile(r"/home/[^/]+/[^\s]+"),
 ]
 
 
@@ -544,8 +545,8 @@ def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
 def try_native_create_job(payload: dict[str, Any]) -> dict[str, Any] | None:
     repo_paths = [
         os.environ.get("HERMES_WEB_HERMES_REPO"),
-        "/home/xuxin/.hermes/hermes-agent",
-        "/mnt/c/Users/xuxin/Documents/Agent/configs/hermes/local-overrides/repo-files",
+        str(HERMES_HOME / "hermes-agent"),
+        os.environ.get("HERMES_WEB_HERMES_REPO_FALLBACK", ""),
     ]
     for raw_path in repo_paths:
         if raw_path and Path(raw_path).exists() and str(raw_path) not in sys.path:

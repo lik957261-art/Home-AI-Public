@@ -16,11 +16,28 @@ from typing import Any
 
 
 MAX_LIST_ENTRIES = 300
-MOUNT_HELPERS = {
-    "/volume1/Hermes-\u5434\u840d": "/home/xuxin/.hermes/bin/ensure-wuping-volume1-mount.sh",
-    "/volume1/Hermes-\u5c0f\u5357": "/home/xuxin/.hermes/bin/ensure-xiaonan-volume1-mount.sh",
-    "/volume1/Hermes-\u90d1\u5bc5\u6b4c": "/home/xuxin/.hermes/bin/ensure-zhengyinge-volume1-mount.sh",
-}
+
+
+def load_mount_helpers() -> dict[str, str]:
+    raw = os.environ.get("HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON", "").strip()
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    helpers: dict[str, str] = {}
+    for root, script in data.items():
+        root_text = str(root or "").rstrip("/")
+        script_text = str(script or "").strip()
+        if root_text and script_text:
+            helpers[root_text] = script_text
+    return helpers
+
+
+MOUNT_HELPERS = load_mount_helpers()
 
 
 def read_request() -> dict[str, Any]:

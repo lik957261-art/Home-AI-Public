@@ -4,17 +4,19 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
 
 
+HERMES_HOME = Path(os.environ.get("HERMES_HOME") or os.environ.get("HERMES_WEB_HERMES_HOME") or (Path.home() / ".hermes"))
 SKILL_ROOTS = [
-    Path("/home/xuxin/.hermes/skills"),
-    Path("/mnt/c/Users/xuxin/.hermes/skills"),
-    Path("/mnt/c/Users/xuxin/Documents/Agent/configs/hermes/local-overrides/hermes-home/skills"),
+    Path(os.environ["HERMES_WEB_SKILLS_ROOT"]) if os.environ.get("HERMES_WEB_SKILLS_ROOT") else None,
+    HERMES_HOME / "skills",
 ]
+SKILL_ROOTS = [root for root in SKILL_ROOTS if root]
 MAX_SKILL_CHARS = 60000
 
 

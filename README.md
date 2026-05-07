@@ -1,8 +1,8 @@
-# Hermes Web
+# Hermes Mobile
 
-Hermes Web is a mobile-first web app for using a local Hermes Gateway from a phone or desktop browser. It is separate from the official Hermes dashboard and does not use the dashboard terminal/PTY chat surface as its product model.
+Hermes Mobile is a mobile-first web app for using a local Hermes Gateway from a phone or desktop browser. It is separate from the official Hermes dashboard and does not use the dashboard terminal/PTY chat surface as its product model.
 
-This repository is the private productization checkout. It was split from the larger Agent workspace so Hermes Web can be stabilized, tested, packaged, and later exported to a clean public repository.
+This repository is the private productization checkout. It was split from the larger internal workspace so Hermes Mobile can be stabilized, tested, packaged, and later exported to a clean public repository.
 
 ## Current Scope
 
@@ -10,7 +10,7 @@ This repository is the private productization checkout. It was split from the la
 - Streaming Hermes Gateway runs with usage display.
 - Directory-bound task creation and file/artifact preview.
 - Workspace-scoped access keys.
-- Web Push notifications for task, todo, and automation events.
+- Web Push notifications for task, todo, group mention, and automation events.
 - CRON/automation list and deliverable preview.
 
 ## Run
@@ -66,6 +66,13 @@ Important configuration groups:
 - `HERMES_WEB_HERMES_API_BASE`
 - `HERMES_WEB_HERMES_API_KEY` or `HERMES_WEB_HERMES_API_KEY_PATH`
 - `HERMES_WEB_ALLOWED_ARTIFACT_ROOTS`
+- `HERMES_WEB_WSL_USER`, `HERMES_WEB_WSL_HOME`, `HERMES_WEB_WSL_HERMES_HOME`
+- `HERMES_WEB_OWNER_ROOT_LABEL`, `HERMES_WEB_OWNER_ALIASES`
+- `HERMES_WEB_GENERIC_OWNER_PROJECT_PREFIXES`, `HERMES_WEB_GENERIC_OWNER_PROJECT_IDS`
+- `HERMES_WEB_TODO_PLUGIN_PATH`, `HERMES_WEB_TODO_PLUGIN_NAME`
+- `HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON`
+- `HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES`
+- `HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON`
 - `HERMES_WEB_VAPID_PATH` or `WEB_PUSH_VAPID_*`
 
 ## Repository Boundary
@@ -74,13 +81,15 @@ This checkout should contain product source code, static assets, scripts, tests,
 
 It must not contain:
 
-- Agent workspace context such as `.agent-context/`
-- Codex/Hermes operator instructions such as `AGENTS.md`
+- internal workspace context directories
+- local operator instruction files
 - runtime state, logs, uploads, generated reports, or private outbox files
 - raw access keys, mailbox passwords, OAuth tokens, VAPID private keys, push endpoints, or API tokens
 
 ## Productization Plan
 
 See [docs/PRODUCTIZATION.md](docs/PRODUCTIZATION.md).
+See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the current private-adapter extraction map.
+See [docs/OFFICIAL_HERMES_COMPATIBILITY.md](docs/OFFICIAL_HERMES_COMPATIBILITY.md) for the compatibility boundary with official Hermes.
 
 The public repository should be created from a privacy-scanned export of this private repo, not from the Agent workspace history.

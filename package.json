@@ -1,8 +1,8 @@
 {
-  "name": "hermes-web",
+  "name": "hermes-mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Mobile-first Hermes Web App bridge over the local Hermes API server.",
+  "description": "Mobile-first Hermes client bridge over the local Hermes API server.",
   "engines": {
     "node": ">=22"
   },

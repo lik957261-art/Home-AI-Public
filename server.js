@@ -33,16 +33,19 @@ const STATE_PATH = path.join(DATA_DIR, "state.json");
 const STATE_BACKUP_DIR = path.join(DATA_DIR, "backups");
 const SHARED_DIRECTORIES_PATH = path.join(DATA_DIR, "shared-directories.json");
 const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
+const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
 const AUTH_KEY_PATH = path.join(REPO_ROOT, ".hermes_web_secret_key");
 const WEB_PUSH_VAPID_PATH = path.resolve(
   process.env.HERMES_WEB_VAPID_PATH || process.env.WEB_PUSH_VAPID_PATH || path.join(DATA_DIR, "web-push-vapid.json"),
 );
 const WSL_DISTRO = process.env.HERMES_WEB_WSL_DISTRO || "Ubuntu-24.04";
-const WINDOWS_HOME = process.env.USERPROFILE || os.homedir() || "C:\\Users\\xuxin";
+const WINDOWS_HOME = process.env.USERPROFILE || os.homedir() || "";
+const WSL_USER = process.env.HERMES_WEB_WSL_USER || process.env.WSL_USER || process.env.USER || "hermes";
+const WSL_HOME = stripTrailingSlash(process.env.HERMES_WEB_WSL_HOME || `/home/${WSL_USER}`);
+const WSL_HERMES_HOME = stripTrailingSlash(process.env.HERMES_WEB_WSL_HERMES_HOME || `${WSL_HOME}/.hermes`);
 const HERMES_ENV_PATHS = [
   process.env.HERMES_WEB_HERMES_ENV_PATH,
-  `\\\\wsl.localhost\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\.env`,
-  `\\\\wsl$\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\.env`,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, ".env"),
 ].filter(Boolean);
 const HERMES_API_KEY_PATHS = [
   process.env.HERMES_WEB_HERMES_API_KEY_PATH,
@@ -50,43 +53,36 @@ const HERMES_API_KEY_PATHS = [
 ].filter(Boolean);
 const WEIXIN_USERS_PATHS = [
   process.env.HERMES_WEB_WEIXIN_USERS_PATH,
-  `\\\\wsl.localhost\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\access-control\\weixin-users.json`,
-  `\\\\wsl$\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\access-control\\weixin-users.json`,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-users.json"),
   path.join(REPO_ROOT, "configs", "hermes", "local-overrides", "hermes-home", "access-control", "weixin-users.json"),
 ].filter(Boolean);
 const WEIXIN_ROUTE_MAP_PATHS = [
   process.env.HERMES_WEB_WEIXIN_ROUTE_MAP_PATH,
-  `\\\\wsl.localhost\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\access-control\\weixin-routing-map.json`,
-  `\\\\wsl$\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\access-control\\weixin-routing-map.json`,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-routing-map.json"),
   path.join(REPO_ROOT, "configs", "hermes", "local-overrides", "hermes-home", "access-control", "weixin-routing-map.json"),
 ].filter(Boolean);
 const HERMES_CONFIG_PATHS = [
   process.env.HERMES_WEB_HERMES_CONFIG_PATH,
   process.env.HERMES_CONFIG_PATH,
-  `\\\\wsl.localhost\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\config.yaml`,
-  `\\\\wsl$\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\config.yaml`,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "config.yaml"),
   path.join(REPO_ROOT, "configs", "hermes", "local-overrides", "hermes-home", "config.yaml"),
 ].filter(Boolean);
 const GOOGLE_TOKEN_PATHS = [
   process.env.HERMES_WEB_GOOGLE_TOKEN_PATH,
-  `\\\\wsl.localhost\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\google_token.json`,
-  `\\\\wsl$\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\google_token.json`,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "google_token.json"),
 ].filter(Boolean);
 const GOOGLE_CLIENT_SECRET_PATHS = [
   process.env.HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH,
-  `\\\\wsl.localhost\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\google_client_secret.json`,
-  `\\\\wsl$\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\google_client_secret.json`,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "google_client_secret.json"),
 ].filter(Boolean);
 const OUTLOOK_GRAPH_TOKEN_PATHS = [
   process.env.HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH,
-  `\\\\wsl.localhost\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\microsoft-graph-outlook-mail\\token.json`,
-  `\\\\wsl$\\${WSL_DISTRO}\\home\\xuxin\\.hermes\\microsoft-graph-outlook-mail\\token.json`,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "microsoft-graph-outlook-mail", "token.json"),
 ].filter(Boolean);
 const GITHUB_CLI_HOSTS_PATHS = [
   process.env.HERMES_WEB_GITHUB_CLI_HOSTS_PATH,
   path.join(WINDOWS_HOME, "AppData", "Roaming", "GitHub CLI", "hosts.yml"),
-  `\\\\wsl.localhost\\${WSL_DISTRO}\\home\\xuxin\\.config\\gh\\hosts.yml`,
-  `\\\\wsl$\\${WSL_DISTRO}\\home\\xuxin\\.config\\gh\\hosts.yml`,
+  ...wslUncPathCandidates(WSL_HOME, ".config", "gh", "hosts.yml"),
 ].filter(Boolean);
 const PROJECT_MAP_PATHS = [
   process.env.HERMES_WEB_PROJECT_MAP_PATH,
@@ -110,9 +106,9 @@ const AUTOMATION_CREATE_TIMEOUT_MS = Number(process.env.HERMES_WEB_AUTOMATION_CR
 const AUTOMATION_CREATE_MODEL = process.env.HERMES_WEB_AUTOMATION_CREATE_MODEL || "gpt-5.4-mini";
 const DIRECTORY_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_DIRECTORY_BRIDGE_TIMEOUT_MS || "15000");
 const SKILL_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_SKILL_BRIDGE_TIMEOUT_MS || "12000");
-const CRON_OUTPUT_ROOT = stripTrailingSlash(process.env.HERMES_WEB_CRON_OUTPUT_ROOT || "/home/xuxin/.hermes/cron/output");
+const CRON_OUTPUT_ROOT = stripTrailingSlash(process.env.HERMES_WEB_CRON_OUTPUT_ROOT || `${WSL_HERMES_HOME}/cron/output`);
 const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH_ENABLED || process.env.WEB_PUSH_ENABLED || "1");
-const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-web@gmk.tail62e8ce.ts.net";
+const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
 const TODO_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_TODO_PUSH_ENABLED || "1");
 const TODO_WEB_PUSH_INTERVAL_MS = Number(process.env.HERMES_WEB_TODO_PUSH_INTERVAL_MS || "60000");
 const TODO_WEB_PUSH_RECENT_CREATE_MINUTES = Number(process.env.HERMES_WEB_TODO_PUSH_RECENT_CREATE_MINUTES || "30");
@@ -121,8 +117,18 @@ const TODO_WEB_PUSH_RECEIPT_RETRY_LIMIT = Number(process.env.HERMES_WEB_TODO_PUS
 const AUTOMATION_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_AUTOMATION_PUSH_ENABLED || "1");
 const AUTOMATION_WEB_PUSH_INTERVAL_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_INTERVAL_MS || "60000");
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
+const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
+const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
+const GROUP_AI_REPLY_REVOKED_TEXT = "\u5173\u8054\u7684 AI \u56de\u590d\u5df2\u64a4\u56de";
 const SINGLE_WINDOW_PROJECT_ID = "single-window";
 const SINGLE_WINDOW_THREAD_TITLE = "Single Window";
+const OWNER_ROOT_FALLBACK_LABEL = process.env.HERMES_WEB_OWNER_ROOT_LABEL || "Hermes Owner";
+const GENERIC_OWNER_TOPIC_PROJECT_PREFIXES = normalizeStringList(
+  process.env.HERMES_WEB_GENERIC_OWNER_PROJECT_PREFIXES || "owner-",
+);
+const GENERIC_OWNER_TOPIC_PROJECT_IDS = new Set(normalizeStringList(
+  process.env.HERMES_WEB_GENERIC_OWNER_PROJECT_IDS || "hermes-sync-folder",
+));
 const VALID_REASONING_EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
 const MESSAGE_TIME_FIELDS = Object.freeze([
   "submittedAt",
@@ -158,6 +164,12 @@ const MIME_BY_EXT = {
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
+
+function isSingleWindowConversationTaskGroupId(value) {
+  const id = String(value || "");
+  return id === SINGLE_WINDOW_CHAT_TASK_GROUP_ID || id === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
+}
+
 const AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS = new Set([".pdf", ".doc", ".docx", ".xlsx", ".pptx"]);
 const AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS || String(30 * 60 * 1000));
 const AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS || String(30 * 60 * 1000));
@@ -165,7 +177,9 @@ const AUTOMATION_PUSH_INITIAL_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMA
 const MAX_STATE_BACKUPS = Number(process.env.HERMES_WEB_MAX_STATE_BACKUPS || "80");
 const STATE_BACKUP_MIN_INTERVAL_MS = Number(process.env.HERMES_WEB_STATE_BACKUP_MIN_INTERVAL_MS || String(10 * 60 * 1000));
 const ENABLE_DIRECT_TODO_CREATE = /^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_DIRECT_TODO_CREATE || "");
-const DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES = new Set(["hermes-\u5434\u840d"]);
+const DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES = new Set(
+  normalizeStringList(process.env.HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES || "").map((share) => share.toLowerCase()),
+);
 
 let clients = new Set();
 let activeStreams = new Map();
@@ -183,6 +197,20 @@ let automationWebPushRunning = false;
 
 function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
+}
+
+function wslUncPathCandidates(root, ...parts) {
+  const normalizedRoot = String(root || "").replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!normalizedRoot) return [];
+  const suffix = parts
+    .map((part) => String(part || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean)
+    .join("/");
+  const full = [normalizedRoot, suffix].filter(Boolean).join("/").replaceAll("/", "\\");
+  return [
+    `\\\\wsl.localhost\\${WSL_DISTRO}\\${full}`,
+    `\\\\wsl$\\${WSL_DISTRO}\\${full}`,
+  ];
 }
 
 function loadAuthKeyState() {
@@ -357,6 +385,37 @@ function authCanAccessWorkspace(auth, workspaceId) {
   return Boolean(auth?.ok && auth.workspaceId && id === auth.workspaceId);
 }
 
+function chatGroupMemberWorkspaceIds(thread) {
+  if (!thread?.singleWindow) return [];
+  const group = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId);
+  return group.enabled ? group.memberWorkspaceIds : [];
+}
+
+function messageContainsArtifact(message, artifact) {
+  const artifactId = String(artifact?.id || "");
+  if (!message || !artifactId) return false;
+  return (message.artifacts || []).some((item) => String(item?.id || "") === artifactId);
+}
+
+function groupChatArtifactAccessibleToAuth(auth, thread, artifact) {
+  if (!auth?.ok || !auth.workspaceId || !thread?.singleWindow) return false;
+  if (!chatGroupMemberWorkspaceIds(thread).includes(auth.workspaceId)) return false;
+  const message = (thread.messages || []).find((item) => String(item?.id || "") === String(artifact?.messageId || ""));
+  return Boolean(message?.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID && messageContainsArtifact(message, artifact));
+}
+
+function artifactAccessibleToAuth(auth, thread, artifact) {
+  if (authCanAccessWorkspace(auth, thread?.workspaceId || "")) return true;
+  return groupChatArtifactAccessibleToAuth(auth, thread, artifact);
+}
+
+function threadAccessibleToAuth(auth, thread) {
+  if (!thread) return false;
+  if (authCanAccessWorkspace(auth, thread.workspaceId)) return true;
+  if (!auth?.ok || !auth.workspaceId) return false;
+  return chatGroupMemberWorkspaceIds(thread).includes(auth.workspaceId);
+}
+
 function pushWorkspaceForAuth(auth, requestedWorkspaceId = "owner") {
   const requested = String(requestedWorkspaceId || auth?.workspaceId || "owner").trim() || "owner";
   if (isOwnerAuth(auth)) return findWorkspace(requested) ? requested : "owner";
@@ -392,7 +451,7 @@ function requireWorkspaceAccess(req, res, workspaceId) {
 }
 
 function threadAccessibleToRequest(req, thread) {
-  return Boolean(thread && authCanAccessWorkspace(authenticateRequest(req), thread.workspaceId));
+  return threadAccessibleToAuth(authenticateRequest(req), thread);
 }
 
 function findThreadForRequest(req, threadId) {
@@ -578,6 +637,22 @@ function normalizeStringList(value) {
   return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean));
 }
 
+function normalizeChatGroup(value, ownerWorkspaceId = "owner") {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const ownerId = String(ownerWorkspaceId || "owner").trim() || "owner";
+  const memberWorkspaceIds = normalizeStringList(
+    source.memberWorkspaceIds || source.member_workspace_ids || source.members || source.workspaceIds,
+  ).filter((workspaceId) => findWorkspace(workspaceId));
+  if (source.enabled) memberWorkspaceIds.unshift(ownerId);
+  const normalizedMembers = dedupe(memberWorkspaceIds);
+  return {
+    enabled: Boolean(source.enabled),
+    memberWorkspaceIds: source.enabled ? normalizedMembers : [],
+    createdAt: String(source.createdAt || source.created_at || ""),
+    updatedAt: String(source.updatedAt || source.updated_at || ""),
+  };
+}
+
 function normalizeThread(thread) {
   const now = new Date().toISOString();
   const normalized = {
@@ -594,6 +669,7 @@ function normalizeThread(thread) {
     createdAt: thread.createdAt || now,
     updatedAt: thread.updatedAt || now,
     taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
+    chatGroup: normalizeChatGroup(thread.chatGroup || thread.groupChat, thread.workspaceId || "owner"),
     messages: Array.isArray(thread.messages) ? thread.messages : [],
     events: Array.isArray(thread.events) ? thread.events.slice(-MAX_STORED_EVENTS_PER_THREAD) : [],
   };
@@ -616,16 +692,40 @@ function normalizeThreadMessages(thread, messages) {
     next.artifacts = Array.isArray(next.artifacts) ? next.artifacts : [];
     next.directoryAliases = Array.isArray(next.directoryAliases) ? next.directoryAliases : [];
     next.directoryRoute = next.directoryRoute && typeof next.directoryRoute === "object" ? next.directoryRoute : null;
+    next.messageKind = String(next.messageKind || next.message_kind || "").trim() === "plain" ? "plain" : "ai";
+    next.senderWorkspaceId = String(next.senderWorkspaceId || next.sender_workspace_id || next.actorWorkspaceId || thread.workspaceId || "").trim();
+    next.senderPrincipalId = String(next.senderPrincipalId || next.sender_principal_id || "").trim();
+    next.senderLabel = String(next.senderLabel || next.sender_label || "").trim();
+    if (!next.senderLabel && next.senderWorkspaceId) next.senderLabel = workspaceLabel(next.senderWorkspaceId);
+    next.revokedAt = String(next.revokedAt || next.revoked_at || "").trim();
+    next.revokedByWorkspaceId = String(next.revokedByWorkspaceId || next.revoked_by_workspace_id || "").trim();
+    next.revokedByPrincipalId = String(next.revokedByPrincipalId || next.revoked_by_principal_id || "").trim();
+    next.revokedByLabel = String(next.revokedByLabel || next.revoked_by_label || "").trim();
+    if (next.revokedAt) {
+      next.content = next.content || GROUP_MESSAGE_REVOKED_TEXT;
+      next.error = null;
+      next.artifacts = [];
+      next.directoryAliases = [];
+      next.directoryRoute = null;
+    }
     const reasoningEffort = String(next.reasoningEffort || next.reasoning_effort || "").trim();
     next.reasoningEffort = VALID_REASONING_EFFORTS.has(reasoningEffort) ? reasoningEffort : "";
     if (next.role === "user" && !next.submittedAt) next.submittedAt = next.createdAt;
     if (next.role === "assistant") {
       if (!next.queuedAt) next.queuedAt = next.createdAt;
       if (next.status === "done" && !next.completedAt && (next.content || next.artifacts.length)) next.completedAt = next.updatedAt;
-      if (next.status === "failed" && !next.failedAt) next.failedAt = next.updatedAt;
+    if (next.status === "failed" && !next.failedAt) next.failedAt = next.updatedAt;
       if (next.status === "cancelled" && !next.cancelledAt) next.cancelledAt = next.updatedAt;
     }
     if (next.taskGroupId) next.taskGroupId = sanitizeTaskGroupId(next.taskGroupId);
+    if (
+      thread.singleWindow
+      && next.messageKind === "plain"
+      && next.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID
+      && chatGroupMemberWorkspaceIds(thread).length
+    ) {
+      next.taskGroupId = SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
+    }
     return next;
   });
   if (!thread.singleWindow) return normalized;
@@ -998,6 +1098,17 @@ function windowsPathToWsl(value) {
   const match = resolved.match(/^([A-Za-z]):\\(.*)$/);
   if (!match) return resolved.replaceAll("\\", "/");
   return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}`;
+}
+
+function safeStorageSegment(value, fallback = "item") {
+  return String(value || fallback)
+    .replace(/[^A-Za-z0-9_.:-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 96) || fallback;
+}
+
+function groupChatDeliveryRootForThread(thread) {
+  return path.join(GROUP_DELIVERIES_DIR, safeStorageSegment(thread?.id || "thread"));
 }
 
 function runTodoBridge(payload) {
@@ -1842,6 +1953,17 @@ function normalizeSharedDirectoryRecord(item) {
   const targetWorkspaceIds = normalizeShareTargets(item);
   const scope = normalizeShareScope(item?.scope, targetWorkspaceIds);
   const source = String(item?.source || "").trim();
+  const aliases = Array.isArray(item?.aliases)
+    ? dedupe(item.aliases.map((value) => String(value || "").trim()).filter(Boolean))
+    : [];
+  const workspaceLabels = {};
+  if (item?.workspaceLabels && typeof item.workspaceLabels === "object" && !Array.isArray(item.workspaceLabels)) {
+    for (const [key, value] of Object.entries(item.workspaceLabels)) {
+      const workspaceId = String(key || "").trim();
+      const workspaceLabel = String(value || "").trim();
+      if (workspaceId && workspaceLabel) workspaceLabels[workspaceId] = workspaceLabel;
+    }
+  }
   const out = {
     path: root,
     label,
@@ -1852,6 +1974,8 @@ function normalizeSharedDirectoryRecord(item) {
     scope,
     targetWorkspaceIds,
   };
+  if (aliases.length) out.aliases = aliases;
+  if (Object.keys(workspaceLabels).length) out.workspaceLabels = workspaceLabels;
   if (source) out.source = source;
   return out;
 }
@@ -2284,7 +2408,7 @@ function loadCatalog() {
       role: "admin",
       accessMode: "unrestricted",
       defaultWorkspace: REPO_ROOT,
-      aliases: ["owner", "xuxin"],
+      aliases: normalizeStringList(process.env.HERMES_WEB_OWNER_ALIASES || "owner"),
       sessionMode: "task_centric_stateless",
       responseStyle: "task_platform",
       showTaskId: true,
@@ -2353,14 +2477,14 @@ function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
     .filter((record) => record && shareAppliesToWorkspace(record, workspaceId))
     .map((record) => {
       const creator = sharedDirectoryCreator(record, workspaces);
-      const label = record.label || sharedDirectoryLabel(record.path);
+      const label = record.workspaceLabels?.[workspaceId] || record.label || sharedDirectoryLabel(record.path);
       return {
         id: `dir-${hashId(record.path)}`,
         shareId: sharedDirectoryId(record),
         workspaceId,
         label,
         root: record.path,
-        aliases: dedupe([record.label, sharedDirectoryLabel(record.path)]),
+        aliases: dedupe([label, ...(record.aliases || []), record.label, sharedDirectoryLabel(record.path)]),
         source: "hermes-web-shared-directory",
         shared: true,
         sharedBy: creator.workspaceId || creator.principalId || "",
@@ -2922,7 +3046,7 @@ function sharedProjectRootOwnerLabel(project) {
   const volumeIndex = parts.findIndex((part) => part.toLowerCase() === "volume1");
   if (volumeIndex >= 0 && parts[volumeIndex + 1]) return parts[volumeIndex + 1];
   const chatDriveIndex = parts.findIndex((part) => part.toLowerCase() === "chatgpt-drive");
-  if (chatDriveIndex >= 0) return "ChatGPT Drive";
+  if (chatDriveIndex >= 0) return OWNER_ROOT_FALLBACK_LABEL;
   return "";
 }
 
@@ -3047,6 +3171,42 @@ function ensureSingleWindowThread(workspaceId) {
   return thread;
 }
 
+function findGroupChatThreadForWorkspace(workspaceId) {
+  const id = String(workspaceId || "").trim();
+  if (!id) return null;
+  return (state.threads || [])
+    .filter((thread) => thread?.singleWindow && chatGroupMemberWorkspaceIds(thread).includes(id))
+    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
+}
+
+function workspaceLabel(workspaceId) {
+  const workspace = findWorkspace(String(workspaceId || ""));
+  return workspace?.label || workspace?.id || String(workspaceId || "");
+}
+
+function senderInfoForWorkspace(workspaceId) {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  return {
+    senderWorkspaceId: id,
+    senderPrincipalId: workspacePrincipal(id),
+    senderLabel: workspaceLabel(id),
+  };
+}
+
+function publicChatGroup(thread) {
+  const group = normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner");
+  return {
+    enabled: group.enabled,
+    memberWorkspaceIds: group.memberWorkspaceIds,
+    members: group.memberWorkspaceIds.map((workspaceId) => ({
+      workspaceId,
+      label: workspaceLabel(workspaceId),
+    })),
+    createdAt: group.createdAt || "",
+    updatedAt: group.updatedAt || "",
+  };
+}
+
 const WORKSPACE_INTERFACE_TOOLSETS = {
   web: { label: "Web", category: "接口" },
   vision: { label: "视觉", category: "接口" },
@@ -3057,8 +3217,8 @@ const WORKSPACE_INTERFACE_TOOLSETS = {
   weixin_reminders: { label: "微信提醒", category: "接口" },
   weixin_todos: { label: "微信待办", category: "接口" },
   taobao_desktop: { label: "淘宝桌面", category: "接口" },
-  wuping_qqmail: { label: "QQ 邮箱", category: "邮箱", detail: "IMAP/SMTP", scope: "吴萍" },
 };
+Object.assign(WORKSPACE_INTERFACE_TOOLSETS, configuredWorkspaceInterfaceToolsets());
 
 const DEFAULT_WORKSPACE_TOOLSETS = new Set([
   "web",
@@ -3073,6 +3233,17 @@ const DEFAULT_WORKSPACE_TOOLSETS = new Set([
 
 function firstExistingPath(paths) {
   return (paths || []).find((item) => item && fs.existsSync(item)) || "";
+}
+
+function configuredWorkspaceInterfaceToolsets() {
+  const raw = String(process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "").trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) {
+    return {};
+  }
 }
 
 function readFirstExistingText(paths) {
@@ -3485,13 +3656,14 @@ function taskDirectoryAttachmentForGroup(thread, taskGroupId) {
 function taskDirectoryAttachmentForMessage(thread, message) {
   const direct = normalizeTaskDirectoryAttachment(thread, message?.directoryRoute || {});
   if (direct) return direct;
-  if (thread?.singleWindow && message?.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID) return null;
+  if (thread?.singleWindow && isSingleWindowConversationTaskGroupId(message?.taskGroupId)) return null;
   return taskDirectoryAttachmentForGroup(thread, message?.taskGroupId || "");
 }
 
 function isGenericOwnerTopicProjectId(projectId) {
   const value = String(projectId || "");
-  return value.startsWith("xuxin-") || value === "hermes-sync-folder";
+  return GENERIC_OWNER_TOPIC_PROJECT_IDS.has(value)
+    || GENERIC_OWNER_TOPIC_PROJECT_PREFIXES.some((prefix) => value.startsWith(prefix));
 }
 
 function isContextAnchorProjectMatch(match) {
@@ -3556,6 +3728,10 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     if (singleWindowMode === "chat") {
       lines.push("This request comes from the Hermes Web single-window chat mode. Treat the latest user message as part of one continuous chat task.");
       lines.push("Use the supplied same-task conversation_history as normal chat context, while still respecting the selected workspace and access policy.");
+      if (options.groupChatDeliveryRoot) {
+        lines.push(`This is a group-chat AI request. Final user-facing deliverables for this group turn must be written under the group delivery directory: ${options.groupChatDeliveryRoot}.`);
+        lines.push("Do not place group-chat PDF/Word/media deliverables only in the sender's private sync root. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Web.");
+      }
       lines.push("Do not inherit, emit, or display prior directory bindings or `目录别名：当前绑定目录=...` from older chat turns. Only an explicit directory attachment on the latest message is a current directory binding.");
     } else {
       lines.push("This request comes from the Hermes Web single-window task stream. Treat the latest user message as a new stateless task, similar to the Weixin single-window task flow.");
@@ -3679,6 +3855,7 @@ function threadSummary(thread) {
     activeRunIds: Array.isArray(thread.activeRunIds) ? thread.activeRunIds : [],
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
+    chatGroup: publicChatGroup(thread),
     preview: last ? compactText(last.content, 180) : "",
   };
 }
@@ -3822,6 +3999,7 @@ function compactThread(thread) {
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
     taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
+    chatGroup: publicChatGroup(thread),
     messages: (thread.messages || []).map(compactMessage),
     events: (thread.events || []).slice(-MAX_STORED_EVENTS_PER_THREAD),
   };
@@ -3836,6 +4014,10 @@ function compactMessage(message) {
     runId: message.runId || null,
     taskId: message.taskId || null,
     taskGroupId: message.taskGroupId || "",
+    messageKind: message.messageKind || "ai",
+    senderWorkspaceId: message.senderWorkspaceId || "",
+    senderPrincipalId: message.senderPrincipalId || "",
+    senderLabel: message.senderLabel || "",
     replyToMessageId: message.replyToMessageId || "",
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
@@ -3846,6 +4028,10 @@ function compactMessage(message) {
     completedAt: message.completedAt || null,
     failedAt: message.failedAt || null,
     cancelledAt: message.cancelledAt || null,
+    revokedAt: message.revokedAt || null,
+    revokedByWorkspaceId: message.revokedByWorkspaceId || "",
+    revokedByPrincipalId: message.revokedByPrincipalId || "",
+    revokedByLabel: message.revokedByLabel || "",
     usage: message.usage || null,
     error: message.error || null,
     artifacts: Array.isArray(message.artifacts) ? message.artifacts.map(compactArtifactForMessage).filter(Boolean) : [],
@@ -3916,13 +4102,13 @@ function payloadWorkspaceId(payload) {
 function clientCanReceivePayload(client, payload) {
   const auth = client?.auth || { ok: true, role: "owner", isOwner: true };
   if (isOwnerAuth(auth)) return true;
-  const workspaceId = payloadWorkspaceId(payload);
-  if (workspaceId) return authCanAccessWorkspace(auth, workspaceId);
-  const threadId = payload?.threadId || payload?.message?.threadId || "";
+  const threadId = payload?.threadId || payload?.thread?.id || payload?.message?.threadId || "";
   if (threadId) {
     const thread = state.threads.find((item) => item.id === String(threadId));
-    return authCanAccessWorkspace(auth, thread?.workspaceId || "");
+    if (thread) return threadAccessibleToAuth(auth, thread);
   }
+  const workspaceId = payloadWorkspaceId(payload);
+  if (workspaceId) return authCanAccessWorkspace(auth, workspaceId);
   return true;
 }
 
@@ -4076,6 +4262,20 @@ function taskDetailUrl(thread, message) {
   });
 }
 
+function terminalNotificationRoute(thread, message) {
+  const workspaceId = thread?.workspaceId || "owner";
+  if (thread?.singleWindow && message?.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID) {
+    return {
+      url: appRouteUrl({ view: "single", workspaceId }),
+      viewMode: "single",
+    };
+  }
+  return {
+    url: taskDetailUrl(thread, message),
+    viewMode: "tasks",
+  };
+}
+
 function todoDetailUrl(event) {
   const principalId = event?.principalId || "";
   return appRouteUrl({
@@ -4104,13 +4304,154 @@ function notificationBodyForMessage(thread, message, fallback) {
   return summary || prompt || fallback;
 }
 
+function normalizeMentionAlias(value) {
+  return String(value || "")
+    .replace(/^@+/, "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function trimMentionToken(value) {
+  return String(value || "")
+    .replace(/^[\s@]+/, "")
+    .replace(/[.,，。!！?？:：;；、)）\]】}>"'`]+$/g, "")
+    .trim();
+}
+
+function groupMentionCandidates(thread) {
+  return chatGroupMemberWorkspaceIds(thread).map((workspaceId) => {
+    const workspace = findWorkspace(workspaceId) || {};
+    const principalId = workspacePrincipal(workspaceId);
+    const label = workspaceLabel(workspaceId);
+    const aliases = dedupe([
+      workspaceId,
+      principalId,
+      label,
+      workspace.label,
+      workspace.name,
+    ].map((item) => String(item || "").trim()).filter(Boolean));
+    return { workspaceId, principalId, label, aliases };
+  });
+}
+
+function groupMentionWorkspaceIds(thread, text, senderWorkspaceId = "") {
+  const candidates = groupMentionCandidates(thread);
+  if (!candidates.length || !String(text || "").includes("@")) return [];
+  const byAlias = new Map();
+  for (const candidate of candidates) {
+    for (const alias of candidate.aliases || []) {
+      const normalized = normalizeMentionAlias(alias);
+      if (normalized) byAlias.set(normalized, candidate.workspaceId);
+    }
+  }
+  const mentioned = new Set();
+  const source = String(text || "").replace(/\u00a0/g, " ");
+  const tokenPattern = /@([^\s@]{1,80})/g;
+  let match = null;
+  while ((match = tokenPattern.exec(source))) {
+    const token = normalizeMentionAlias(trimMentionToken(match[1] || ""));
+    const workspaceId = token ? byAlias.get(token) : "";
+    if (workspaceId && workspaceId !== senderWorkspaceId) mentioned.add(workspaceId);
+  }
+  return [...mentioned];
+}
+
+function notifyGroupChatMentions(thread, userMessage) {
+  if (!thread?.singleWindow || userMessage?.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) {
+    return Promise.resolve([]);
+  }
+  const mentionedWorkspaceIds = groupMentionWorkspaceIds(thread, userMessage.content || "", userMessage.senderWorkspaceId || "");
+  if (!mentionedWorkspaceIds.length) return Promise.resolve([]);
+  const senderLabel = userMessage.senderLabel || workspaceLabel(userMessage.senderWorkspaceId || "") || "Hermes Web";
+  const body = compactText(String(userMessage.content || "").replace(/\s+/g, " ").trim(), 180);
+  const jobs = mentionedWorkspaceIds.map((workspaceId) => {
+    const principalId = workspacePrincipal(workspaceId);
+    return sendPushNotification({
+      title: "群聊 @你",
+      body: `${senderLabel}: ${body || "有人在群聊中提到了你"}`,
+      tag: `hermes-group-mention-${thread.id}-${userMessage.id}-${workspaceId}`,
+      renotify: true,
+      requireInteraction: true,
+      silent: false,
+      timestamp: Date.now(),
+      vibrate: [200, 100, 200],
+      data: {
+        url: appRouteUrl({ view: "single", workspaceId, groupChat: "1", threadId: thread.id, messageId: userMessage.id }),
+        viewMode: "single",
+        workspaceId,
+        principalId,
+        messageType: "group_mention",
+        threadId: thread.id,
+        messageId: userMessage.id,
+        senderWorkspaceId: userMessage.senderWorkspaceId || "",
+        requireInteraction: true,
+      },
+    }, {
+      principalIds: [principalId],
+      urgency: "high",
+      ttl: 24 * 60 * 60,
+    });
+  });
+  return Promise.all(jobs).catch((err) => {
+    console.error(`Hermes group mention Web Push send failed: ${err.message || String(err)}`);
+    return [];
+  });
+}
+
+function groupMessageRevoker(auth) {
+  const workspaceId = isOwnerAuth(auth) ? "owner" : String(auth?.workspaceId || "").trim();
+  return senderInfoForWorkspace(workspaceId || "owner");
+}
+
+function canRevokeGroupChatMessage(auth, thread, message) {
+  if (!auth?.ok || !thread?.singleWindow || !message) return false;
+  if (message.role !== "user") return false;
+  if (message.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return false;
+  if (message.revokedAt) return false;
+  if (isOwnerAuth(auth)) return true;
+  const workspaceId = String(auth.workspaceId || "").trim();
+  return Boolean(workspaceId && workspaceId === String(message.senderWorkspaceId || "").trim());
+}
+
+function groupAssistantReplyForUserMessage(thread, userMessage) {
+  const messages = thread?.messages || [];
+  const index = messages.findIndex((message) => message.id === userMessage?.id);
+  if (index < 0) return null;
+  const assistant = messages[index + 1];
+  if (
+    assistant?.role === "assistant"
+    && assistant.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
+    && assistant.messageKind !== "plain"
+  ) {
+    return assistant;
+  }
+  return null;
+}
+
+function revokeGroupMessagePayload(message, now, revoker, text) {
+  message.content = text || GROUP_MESSAGE_REVOKED_TEXT;
+  message.revokedAt = now;
+  message.revokedByWorkspaceId = revoker.senderWorkspaceId || "";
+  message.revokedByPrincipalId = revoker.senderPrincipalId || "";
+  message.revokedByLabel = revoker.senderLabel || "";
+  message.error = null;
+  message.artifacts = [];
+  message.usage = null;
+  message.directoryAliases = [];
+  message.directoryRoute = null;
+  message.updatedAt = now;
+}
+
 function notifyTaskTerminal(thread, message, status) {
+  if (thread?.singleWindow && message?.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return;
   const principalId = workspacePrincipal(thread.workspaceId || "owner");
   const workspaceId = thread.workspaceId || workspaceIdForPrincipal(principalId) || "owner";
   const messageType = status === "failed" ? "task_failed" : "task_completed";
   const title = status === "failed" ? "\u4efb\u52a1\u5931\u8d25" : "\u4efb\u52a1\u5b8c\u6210";
   const fallback = status === "failed" ? (message.error || "Task failed") : "Task completed";
   const body = notificationBodyForMessage(thread, message, fallback);
+  const route = terminalNotificationRoute(thread, message);
   sendPushNotification({
     title,
     body,
@@ -4121,8 +4462,8 @@ function notifyTaskTerminal(thread, message, status) {
     timestamp: Date.now(),
     vibrate: [200, 100, 200],
     data: {
-      url: taskDetailUrl(thread, message),
-      viewMode: "tasks",
+      url: route.url,
+      viewMode: route.viewMode,
       workspaceId,
       principalId,
       messageType,
@@ -4592,7 +4933,7 @@ function buildConversationHistory(thread, latestUserMessageId) {
     .filter((msg) => !thread.singleWindow || msg.taskGroupId === latest.taskGroupId)
     .filter((msg) => (msg.role === "user" || msg.role === "assistant") && msg.status !== "running")
     .filter((msg) => String(msg.content || "").trim());
-  if (thread.singleWindow && latest?.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID) {
+  if (thread.singleWindow && isSingleWindowConversationTaskGroupId(latest?.taskGroupId)) {
     return compactConversationHistory(messages, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS);
   }
   return messages.slice(-MAX_HISTORY_MESSAGES).map((msg) => ({
@@ -4618,6 +4959,9 @@ function compactConversationHistory(messages, maxMessages, maxChars) {
     const msg = recent[index];
     let content = stripDirectoryAliasLinesForChatHistory(msg.content);
     if (!content) continue;
+    if (msg.role === "user" && msg.senderLabel) {
+      content = `${msg.senderLabel}: ${content}`;
+    }
     if (content.length > remainingChars) {
       const marker = "[Earlier chat content omitted]\n";
       const allowed = Math.max(0, remainingChars - marker.length);
@@ -4639,10 +4983,28 @@ function deriveTitle(text) {
 }
 
 async function startRunForThread(thread, userMessage, assistantMessage, options = {}) {
+  const actorWorkspaceId = String(options.actorWorkspaceId || userMessage.senderWorkspaceId || thread.workspaceId || "owner").trim() || "owner";
+  const policyThread = actorWorkspaceId === thread.workspaceId
+    ? thread
+    : Object.assign({}, thread, {
+      workspaceId: actorWorkspaceId,
+      projectId: SINGLE_WINDOW_PROJECT_ID,
+      subprojectId: "",
+    });
   const taskDirectory = taskDirectoryAttachmentForMessage(thread, userMessage);
-  const project = taskDirectory ? projectForTaskDirectoryAttachment(thread, taskDirectory) : effectiveProjectForThread(thread);
-  const workspace = findWorkspace(thread.workspaceId);
+  const project = taskDirectory ? projectForTaskDirectoryAttachment(thread, taskDirectory) : effectiveProjectForThread(policyThread);
+  const workspace = findWorkspace(actorWorkspaceId);
   const policy = buildAccessPolicy(workspace?.policy || workspace || {}, {}, project);
+  const groupChatDeliveryRoot = thread.singleWindow && userMessage.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
+    ? groupChatDeliveryRootForThread(thread)
+    : "";
+  const groupChatDeliveryRootForModel = groupChatDeliveryRoot ? windowsPathToWsl(groupChatDeliveryRoot) : "";
+  if (groupChatDeliveryRoot) {
+    fs.mkdirSync(groupChatDeliveryRoot, { recursive: true });
+    policy.allowed_roots = dedupe([...(policy.allowed_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
+    policy.delivery_roots = dedupe([...(policy.delivery_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
+    policy.cache_roots = dedupe([...(policy.cache_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
+  }
   const taskId = makePublicTaskId("web");
   const body = {
     input: userMessage.content,
@@ -4651,7 +5013,14 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     conversation: thread.singleWindow ? `${thread.hermesSessionId}_${userMessage.taskGroupId || userMessage.id}` : thread.hermesSessionId,
     conversation_history: buildConversationHistory(thread, userMessage.id),
     instructions: [
-      buildHermesInstructions(thread, policy, project, userMessage.content, taskDirectory, options),
+      buildHermesInstructions(
+        policyThread,
+        policy,
+        project,
+        userMessage.content,
+        taskDirectory,
+        Object.assign({}, options, { groupChatDeliveryRoot: groupChatDeliveryRootForModel }),
+      ),
       options.instructions || "",
     ].filter(Boolean).join("\n\n"),
     access_policy_context: policy,
@@ -5212,7 +5581,7 @@ function volume1WindowsMirrorPath(rawPath) {
   const match = text.match(/^\/volume1\/([^/]+)(\/.*)?$/);
   if (!match) return "";
   if (DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES.has(String(match[1] || "").toLowerCase())) return "";
-  const home = process.env.USERPROFILE || os.homedir() || "C:\\Users\\xuxin";
+  const home = process.env.USERPROFILE || os.homedir() || "";
   const roots = dedupe([
     process.env.HERMES_WEB_VOLUME1_WINDOWS_ROOT,
     path.join(home, "SynologyDrive"),
@@ -5295,7 +5664,7 @@ function automationDeliverableRoots() {
     .filter(Boolean);
   return dedupe([
     CRON_OUTPUT_ROOT,
-    "/home/xuxin/.hermes/run-logs",
+    process.env.HERMES_WEB_RUN_LOG_ROOT || `${WSL_HERMES_HOME}/run-logs`,
     ...configured,
   ])
     .map(normalizeLocalPath)
@@ -5666,7 +6035,7 @@ function resolveArtifactForRequest(artifactId, auth = null) {
   if (artifact.threadId) {
     const thread = state.threads.find((item) => item.id === String(artifact.threadId || ""));
     if (!thread) return { status: 404, error: "Artifact not found" };
-    if (auth && !authCanAccessWorkspace(auth, thread.workspaceId || "")) {
+    if (auth && !artifactAccessibleToAuth(auth, thread, artifact)) {
       return { status: 404, error: "Artifact not found" };
     }
     if (!isPathAllowedForThread(thread, artifact.path, artifact.displayPath || artifact.path)) {
@@ -5723,7 +6092,7 @@ function resolveCronOutputFile(query) {
 }
 
 const CRON_MEDIA_LINE_PATTERN = /^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$/gim;
-const CRON_MEDIA_PATH_PATTERN = /(\\\\wsl(?:\.localhost|\$)\\[^\r\n]+?\.(?:pdf|docx|doc|md)|[a-z]:\\[^\r\n]+?\.(?:pdf|docx|doc|md)|\/(?:mnt\/[a-z]|home\/xuxin)\/[^\r\n]+?\.(?:pdf|docx|doc|md))(?=$|[\s)>"'，,。；;])/gi;
+const CRON_MEDIA_PATH_PATTERN = /(\\\\wsl(?:\.localhost|\$)\\[^\r\n]+?\.(?:pdf|docx|doc|md)|[a-z]:\\[^\r\n]+?\.(?:pdf|docx|doc|md)|\/(?:mnt\/[a-z]|home\/[^/]+)\/[^\r\n]+?\.(?:pdf|docx|doc|md))(?=$|[\s)>"'，,。；;])/gi;
 
 function cronDeliverablePathValues(text) {
   const values = [];
@@ -6328,7 +6697,7 @@ async function handleApi(req, res) {
     sendJson(res, 200, {
       data: todos,
       assignees: todoAssigneesForWorkspace(workspaceId),
-      source: "xuxin_weixin_todos",
+      source: process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos",
     });
     return;
   }
@@ -6398,9 +6767,14 @@ async function handleApi(req, res) {
 
   if (url.pathname === "/api/single-window" && req.method === "POST") {
     const body = await readBody(req);
+    const auth = authenticateRequest(req);
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
-    const thread = ensureSingleWindowThread(workspaceId);
+    const groupRequested = Boolean(body.groupChat || body.group_chat);
+    const groupThread = groupRequested ? findGroupChatThreadForWorkspace(workspaceId) : null;
+    const thread = groupThread && threadAccessibleToAuth(auth, groupThread)
+      ? groupThread
+      : ensureSingleWindowThread(workspaceId);
     if (!thread) {
       sendJson(res, 400, { error: "Unknown workspace or single-window project" });
       return;
@@ -6423,7 +6797,9 @@ async function handleApi(req, res) {
     const selectedProject = workspaceId && projectId ? findProject(workspaceId, projectId) : null;
     const selectedSubproject = selectedProject && subprojectId ? findSubproject(selectedProject, subprojectId) : null;
     let threads = state.threads.filter((item) => threadAccessibleToRequest(req, item));
-    if (workspaceId) threads = threads.filter((item) => item.workspaceId === workspaceId);
+    if (workspaceId) {
+      threads = threads.filter((item) => item.workspaceId === workspaceId || chatGroupMemberWorkspaceIds(item).includes(workspaceId));
+    }
     if (projectId) threads = threads.filter((item) => item.projectId === projectId);
     if (subprojectId) threads = threads.filter((item) => (item.subprojectId || "") === subprojectId);
     if (search) {
@@ -6526,6 +6902,39 @@ async function handleApi(req, res) {
     return;
   }
 
+  const groupChatRoute = url.pathname.match(/^\/api\/threads\/([^/]+)\/group-chat$/);
+  if (groupChatRoute && req.method === "PATCH") {
+    const auth = requireOwner(req, res);
+    if (!auth) return;
+    const thread = findThreadForRequest(req, decodeURIComponent(groupChatRoute[1]));
+    if (!thread) {
+      sendJson(res, 404, { error: "Thread not found" });
+      return;
+    }
+    if (!thread.singleWindow) {
+      sendJson(res, 400, { error: "Group chat is only supported for single-window chat" });
+      return;
+    }
+    const body = await readBody(req).catch(() => ({}));
+    const enabled = body.enabled !== false;
+    const now = nowIso();
+    const current = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId);
+    const memberWorkspaceIds = normalizeStringList(
+      body.memberWorkspaceIds || body.member_workspace_ids || body.members || current.memberWorkspaceIds,
+    ).filter((workspaceId) => findWorkspace(workspaceId));
+    thread.chatGroup = normalizeChatGroup({
+      enabled,
+      memberWorkspaceIds,
+      createdAt: current.createdAt || now,
+      updatedAt: now,
+    }, thread.workspaceId);
+    thread.updatedAt = now;
+    saveState();
+    broadcast({ type: "thread.updated", threadId: thread.id, thread: compactThread(thread) });
+    sendJson(res, 200, { ok: true, thread: compactThread(thread) });
+    return;
+  }
+
   const threadMessages = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages$/);
   if (threadMessages && req.method === "POST") {
     const thread = findThreadForRequest(req, decodeURIComponent(threadMessages[1]));
@@ -6544,6 +6953,7 @@ async function handleApi(req, res) {
       sendJson(res, 400, { error: "Message text is required" });
       return;
     }
+    const auth = authenticateRequest(req);
     const createdAt = nowIso();
     if (thread.title === "New thread") thread.title = deriveTitle(text);
     const singleWindowMode = normalizeSingleWindowMode(body.singleWindowMode || body.single_window_mode || "");
@@ -6565,6 +6975,32 @@ async function handleApi(req, res) {
     const taskGroupId = thread.singleWindow
       ? (requestedTaskGroupId || (singleWindowMode === "chat" ? SINGLE_WINDOW_CHAT_TASK_GROUP_ID : makeId("task")))
       : "";
+    if (thread.singleWindow && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID && singleWindowMode !== "chat") {
+      sendJson(res, 400, { error: "Group chat messages must use chat mode" });
+      return;
+    }
+    const groupMemberIds = chatGroupMemberWorkspaceIds(thread);
+    const requestedGroupChat = thread.singleWindow
+      && singleWindowMode === "chat"
+      && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
+    const isGroupChatMessage = requestedGroupChat && groupMemberIds.length > 0;
+    if (requestedGroupChat && !isGroupChatMessage) {
+      sendJson(res, 403, { error: "Group chat is not enabled for this thread" });
+      return;
+    }
+    let actorWorkspaceId = thread.workspaceId;
+    const requestedActorWorkspaceId = String(body.workspaceId || body.actorWorkspaceId || body.actor_workspace_id || "").trim();
+    if (requestedActorWorkspaceId && authCanAccessWorkspace(auth, requestedActorWorkspaceId)) {
+      actorWorkspaceId = requestedActorWorkspaceId;
+    } else if (!isOwnerAuth(auth) && auth?.workspaceId) {
+      actorWorkspaceId = auth.workspaceId;
+    }
+    if (isGroupChatMessage && !groupMemberIds.includes(actorWorkspaceId)) {
+      sendJson(res, 403, { error: "Selected workspace is not a group chat member" });
+      return;
+    }
+    const senderInfo = senderInfoForWorkspace(actorWorkspaceId);
+    const messageKind = isGroupChatMessage && String(body.messageKind || body.message_kind || "").trim() === "plain" ? "plain" : "ai";
     const requestedReasoningEffort = String(body.reasoning_effort || "").trim();
     const reasoningEffort = VALID_REASONING_EFFORTS.has(requestedReasoningEffort) ? requestedReasoningEffort : "";
     const allowAutomaticDirectoryAttachment = singleWindowMode !== "chat";
@@ -6581,6 +7017,10 @@ async function handleApi(req, res) {
       submittedAt: createdAt,
       artifacts: uploadArtifacts.map(publicArtifactFromClient).filter(Boolean),
       taskGroupId,
+      messageKind,
+      senderWorkspaceId: senderInfo.senderWorkspaceId,
+      senderPrincipalId: senderInfo.senderPrincipalId,
+      senderLabel: senderInfo.senderLabel,
       replyToMessageId: quotedMessage?.id || "",
       directoryAliases: directoryAttachment ? [directoryAttachment] : [],
       directoryRoute: directoryAttachment || null,
@@ -6598,9 +7038,24 @@ async function handleApi(req, res) {
       queuedAt: createdAt,
       artifacts: [],
       taskGroupId,
+      messageKind: "ai",
+      senderWorkspaceId: "hermes",
+      senderPrincipalId: "hermes",
+      senderLabel: "Hermes",
       reasoningEffort,
       singleWindowMode,
     };
+    if (isGroupChatMessage && messageKind === "plain") {
+      thread.messages.push(userMessage);
+      thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
+      thread.updatedAt = createdAt;
+      saveState();
+      broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
+      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
+      notifyGroupChatMentions(thread, userMessage);
+      sendJson(res, 201, { ok: true, thread: compactThread(thread) });
+      return;
+    }
     const directTodoIntent = ENABLE_DIRECT_TODO_CREATE
       ? (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId)
         || detectDirectTodoCreateIntent(text, thread.workspaceId))
@@ -6656,6 +7111,7 @@ async function handleApi(req, res) {
     const runOptions = {
       reasoning_effort: reasoningEffort,
       singleWindowMode,
+      actorWorkspaceId,
       instructions: [body.instructions || "", followUpInstructions].filter(Boolean).join("\n\n"),
     };
     if (body.model) runOptions.model = body.model;
@@ -6675,6 +7131,7 @@ async function handleApi(req, res) {
     broadcast({ type: "thread.updated", thread: threadSummary(thread) });
     broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
     broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+    if (isGroupChatMessage) notifyGroupChatMentions(thread, userMessage);
     if (queueBehindActiveChatRun) {
       sendJson(res, 202, { run: { status: "queued", taskGroupId, engine: "responses" }, thread: compactThread(thread) });
       return;
@@ -6697,6 +7154,83 @@ async function handleApi(req, res) {
     return;
   }
 
+  const messageRevoke = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages\/([^/]+)\/revoke$/);
+  if (messageRevoke && req.method === "POST") {
+    const auth = authenticateRequest(req);
+    const thread = findThreadForRequest(req, decodeURIComponent(messageRevoke[1]));
+    if (!thread) {
+      sendJson(res, 404, { error: "Thread not found" });
+      return;
+    }
+    const messageId = decodeURIComponent(messageRevoke[2]);
+    const message = (thread.messages || []).find((item) => String(item.id || "") === messageId);
+    if (!message) {
+      sendJson(res, 404, { error: "Message not found" });
+      return;
+    }
+    if (!canRevokeGroupChatMessage(auth, thread, message)) {
+      sendJson(res, 403, { error: "This group chat message cannot be revoked by the current account" });
+      return;
+    }
+    const now = nowIso();
+    const revoker = groupMessageRevoker(auth);
+    const pairedAssistant = message.messageKind === "ai" ? groupAssistantReplyForUserMessage(thread, message) : null;
+    const touchedMessages = [message];
+    const touchedArtifactIds = new Set();
+    const rememberArtifacts = (item) => {
+      for (const artifact of Array.isArray(item?.artifacts) ? item.artifacts : []) {
+        if (artifact?.id) touchedArtifactIds.add(String(artifact.id));
+      }
+    };
+    const shouldRevokePairedAssistant = Boolean(pairedAssistant && !pairedAssistant.revokedAt);
+    const activeRunIds = [];
+    rememberArtifacts(message);
+    if (shouldRevokePairedAssistant) {
+      rememberArtifacts(pairedAssistant);
+      if (["queued", "running"].includes(pairedAssistant.status) && pairedAssistant.runId) {
+        activeRunIds.push(pairedAssistant.runId);
+      }
+    }
+    let stoppedRunIds = [];
+    try {
+      stoppedRunIds = await stopRunIds(activeRunIds);
+    } catch (err) {
+      sendJson(res, err.status || 502, { error: err.message || String(err) });
+      return;
+    }
+    revokeGroupMessagePayload(message, now, revoker, GROUP_MESSAGE_REVOKED_TEXT);
+    if (shouldRevokePairedAssistant) {
+      revokeGroupMessagePayload(pairedAssistant, now, revoker, GROUP_AI_REPLY_REVOKED_TEXT);
+      pairedAssistant.status = "cancelled";
+      pairedAssistant.cancelledAt = now;
+      pairedAssistant.completedAt = "";
+      pairedAssistant.failedAt = "";
+      touchedMessages.push(pairedAssistant);
+    }
+    for (const runId of stoppedRunIds) removeThreadActiveRun(thread, runId, "idle");
+    const touchedMessageIds = new Set(touchedMessages.map((item) => String(item.id || "")).filter(Boolean));
+    state.artifacts = (state.artifacts || []).filter((artifact) => {
+      if (touchedArtifactIds.has(String(artifact.id || ""))) return false;
+      if (artifact.threadId === thread.id && touchedMessageIds.has(String(artifact.messageId || ""))) return false;
+      return true;
+    });
+    thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
+    thread.updatedAt = now;
+    saveState(state, { reason: "group-message-revoke", forceBackup: true });
+    broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
+    for (const touched of touchedMessages) {
+      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(touched), thread: threadSummary(thread) });
+    }
+    if (shouldRevokePairedAssistant) scheduleNextQueuedRunForTaskGroup(thread, SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID);
+    sendJson(res, 200, {
+      ok: true,
+      stoppedRunIds,
+      messages: touchedMessages.map(compactMessage),
+      thread: compactThread(thread),
+    });
+    return;
+  }
+
   const taskDelete = url.pathname.match(/^\/api\/threads\/([^/]+)\/tasks\/([^/]+)$/);
   if (taskDelete && req.method === "PATCH") {
     const thread = findThreadForRequest(req, decodeURIComponent(taskDelete[1]));
@@ -6709,7 +7243,7 @@ async function handleApi(req, res) {
       return;
     }
     const taskGroupId = sanitizeTaskGroupId(decodeURIComponent(taskDelete[2]));
-    if (taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID) {
+    if (isSingleWindowConversationTaskGroupId(taskGroupId)) {
       sendJson(res, 400, { error: "Chat history cannot be renamed as a task" });
       return;
     }
@@ -6745,7 +7279,7 @@ async function handleApi(req, res) {
       return;
     }
     const taskGroupId = sanitizeTaskGroupId(decodeURIComponent(taskDelete[2]));
-    if (taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID) {
+    if (isSingleWindowConversationTaskGroupId(taskGroupId)) {
       sendJson(res, 400, { error: "Chat history cannot be deleted as a task" });
       return;
     }
@@ -7351,7 +7885,7 @@ function handleEvents(req, res) {
   });
   res.write(`data: ${JSON.stringify({
     type: "snapshot",
-    threads: state.threads.filter((thread) => authCanAccessWorkspace(auth, thread.workspaceId)).map(threadSummary),
+    threads: state.threads.filter((thread) => threadAccessibleToAuth(auth, thread)).map(threadSummary),
     status: { apiBase: HERMES_API_BASE, activeRuns: activeStreams.size },
     clientVersion: clientVersionInfo(reportedClientVersion),
   })}\n\n`);

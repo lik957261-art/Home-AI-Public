@@ -17,12 +17,17 @@ Use this private repository as the productization source for Hermes Web. The pub
 - Keep built-in defaults generic.
 - Add explicit validation for required paths and credentials.
 - Document which features require Hermes Gateway, WSL, Web Push, CRON metadata, or local filesystem access.
+- Current baseline moves WSL user/home, Hermes home, Web Push subject, todo plugin path/name, skill root, and volume mount helpers behind environment variables. Remaining private labels and account-specific bindings are tracked in `ADAPTER_BOUNDARY.md`.
 
 ## Phase 2: Adapter Boundary
 
 - Separate product core from private adapters.
 - Keep generic features in the main app: chat, tasks, directory, todos, automation list, preview, and notifications.
 - Move account-specific connectors, private mailbox labels, local directory maps, and owner-only integrations behind optional adapters.
+- Target shape:
+  - `core`: HTTP server, state store, Gateway client, Web Push, static app, preview routes.
+  - `adapters`: workspace catalog, project map, todo provider, automation provider, filesystem mount helper, external integration inventory.
+  - `deployments/private-local`: local-only adapter config and private runbooks, never copied to public export.
 
 ## Phase 3: Tests And Packaging
 

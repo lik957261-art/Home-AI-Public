@@ -4,6 +4,9 @@ const CLIENT_VERSION = document.documentElement?.dataset?.clientVersion
   || document.querySelector('meta[name="hermes-web-client-version"]')?.content
   || "dev";
 
+const GENERIC_OWNER_TOPIC_ROUTE_PREFIXES = ["owner-"];
+const GENERIC_OWNER_TOPIC_ROUTE_IDS = new Set(["hermes-sync-folder"]);
+
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
   auth: null,
@@ -66,13 +69,27 @@ const state = {
   renderScheduled: false,
   shouldStickToBottom: true,
   preservedBottomOffset: 0,
+  routeScrollTaskGroupId: "",
+  routeScrollMessageId: "",
   searchTimer: null,
   chatSearchOpen: false,
+  chatSearchDraft: "",
+  chatSearchComposerDraft: "",
+  chatSearchDraftChangedSinceSearch: false,
   chatSearchQuery: "",
   chatSearchMatches: [],
   chatSearchIndex: 0,
   chatSearchScrollPending: false,
   chatSearchRefocus: false,
+  suppressComposerFocusUntil: 0,
+  groupChatOpen: localStorage.getItem("hermesWebGroupChatOpen") === "1",
+  groupAiMode: false,
+  groupChatManagerOpen: false,
+  groupChatMemberDraft: [],
+  groupMentionOpen: false,
+  groupMentionOptions: [],
+  groupMentionIndex: 0,
+  groupMentionToken: null,
   sidebarSwipe: null,
   directorySwipe: null,
   taskSwipe: null,
@@ -112,6 +129,14 @@ const TASK_REASONING_OPTIONS = [
   { value: "xhigh", label: "XHigh" },
 ];
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
+const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
+const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
+const GROUP_REVOKE_LABEL = "\u64a4\u56de";
+
+function isSingleWindowConversationTaskGroupId(value) {
+  const id = String(value || "");
+  return id === SINGLE_WINDOW_CHAT_TASK_GROUP_ID || id === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
+}
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, Number(value) || 0));
@@ -228,7 +253,23 @@ function taskGroupsForThread(thread) {
 }
 
 function taskListGroupsForThread(thread) {
-  return taskGroupsForThread(thread).filter((group) => group.id !== SINGLE_WINDOW_CHAT_TASK_GROUP_ID);
+  return taskGroupsForThread(thread).filter((group) => !isSingleWindowConversationTaskGroupId(group.id));
+}
+
+function activeChatTaskGroupId() {
+  return isGroupChatView() ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+}
+
+function chatMessagesForThread(thread, taskGroupId = activeChatTaskGroupId()) {
+  const groupId = String(taskGroupId || SINGLE_WINDOW_CHAT_TASK_GROUP_ID);
+  return (thread?.messages || []).filter((message) => String(message?.taskGroupId || "") === groupId);
+}
+
+function activeChatRunIds(thread = state.currentThread) {
+  return chatMessagesForThread(thread)
+    .filter((message) => ["queued", "running"].includes(message.status))
+    .map((message) => message.runId)
+    .filter(Boolean);
 }
 
 function taskStatus(group) {
@@ -504,6 +545,7 @@ function currentViewerReturnUrl() {
     params.set("view", "directory");
   } else if (state.viewMode === "single") {
     params.set("view", "single");
+    if (isGroupChatView()) params.set("groupChat", "1");
   } else {
     return `${location.pathname}${location.search}`;
   }
@@ -602,12 +644,39 @@ function isCurrentSingleWindowLoaded() {
   return Boolean(
     state.currentThread &&
     state.currentThread.singleWindow &&
-    state.currentThread.workspaceId === state.selectedWorkspaceId
+    (state.currentThread.workspaceId === state.selectedWorkspaceId || selectedWorkspaceInThreadGroup(state.currentThread))
   );
 }
 
-function focusComposerSoon() {
-  window.requestAnimationFrame(() => $("messageInput")?.focus());
+function suppressComposerAutoFocus(ms = 1200) {
+  state.suppressComposerFocusUntil = Math.max(state.suppressComposerFocusUntil || 0, Date.now() + ms);
+}
+
+function composerAutoFocusAllowed() {
+  return document.visibilityState !== "hidden" && Date.now() >= (state.suppressComposerFocusUntil || 0);
+}
+
+function blurComposerInput() {
+  const input = $("messageInput");
+  if (input && document.activeElement === input) input.blur();
+  closeGroupMentionMenu();
+}
+
+function handleAppBackgrounded() {
+  suppressComposerAutoFocus(1800);
+  blurComposerInput();
+}
+
+function handleAppForegrounded() {
+  suppressComposerAutoFocus(900);
+  blurComposerInput();
+}
+
+function focusComposerSoon(options = {}) {
+  window.requestAnimationFrame(() => {
+    if (!options.force && !composerAutoFocusAllowed()) return;
+    $("messageInput")?.focus({ preventScroll: true });
+  });
 }
 
 function isSkillDetailView() {
@@ -650,6 +719,50 @@ function isSingleWindowChatView() {
   return isSingleWindowView() && state.singleWindowMode === "chat";
 }
 
+function threadGroupMemberIds(thread = state.currentThread) {
+  return Array.isArray(thread?.chatGroup?.memberWorkspaceIds) ? thread.chatGroup.memberWorkspaceIds : [];
+}
+
+function isThreadGroupChat(thread = state.currentThread) {
+  return Boolean(thread?.singleWindow && thread?.chatGroup?.enabled && threadGroupMemberIds(thread).length);
+}
+
+function selectedWorkspaceInThreadGroup(thread = state.currentThread) {
+  return isThreadGroupChat(thread) && threadGroupMemberIds(thread).includes(state.selectedWorkspaceId);
+}
+
+function isGroupChatView() {
+  return isSingleWindowChatView() && state.groupChatOpen && selectedWorkspaceInThreadGroup(state.currentThread);
+}
+
+function groupChatMemberLabels(thread = state.currentThread) {
+  const members = Array.isArray(thread?.chatGroup?.members) ? thread.chatGroup.members : [];
+  if (members.length) return members.map((item) => item.label || item.workspaceId).filter(Boolean);
+  return threadGroupMemberIds(thread).map((workspaceId) => {
+    const workspace = state.workspaces.find((item) => item.id === workspaceId);
+    return workspace?.label || workspaceId;
+  }).filter(Boolean);
+}
+
+function groupChatMentionMembers(thread = state.currentThread) {
+  const members = Array.isArray(thread?.chatGroup?.members) && thread.chatGroup.members.length
+    ? thread.chatGroup.members
+    : threadGroupMemberIds(thread).map((workspaceId) => {
+      const workspace = state.workspaces.find((item) => item.id === workspaceId);
+      return { workspaceId, label: workspace?.label || workspaceId };
+    });
+  return members
+    .map((member) => ({
+      workspaceId: String(member.workspaceId || "").trim(),
+      label: String(member.label || member.workspaceId || "").trim(),
+    }))
+    .filter((member) => member.workspaceId && member.workspaceId !== state.selectedWorkspaceId);
+}
+
+function normalizeMentionSearch(value) {
+  return String(value || "").trim().replace(/\s+/g, "").toLowerCase();
+}
+
 function isMinimalWindowView() {
   return isTaskDetailView() || isTodoDetailView() || isSkillDetailView();
 }
@@ -670,6 +783,7 @@ function activeTaskRunIds() {
 
 function activeComposerRunIds() {
   if (isTaskDetailView()) return activeTaskRunIds();
+  if (isSingleWindowChatView()) return activeChatRunIds();
   if (isSingleWindowView()) return activeThreadRunIds();
   return [];
 }
@@ -766,19 +880,79 @@ function renderRunProgressPanel(thread, runIds) {
 }
 
 function composerHasDraft() {
+  if (isChatSearchMode()) return false;
   return Boolean(getComposerText().trim() || state.pendingArtifacts.length);
 }
 
 function isComposerStopMode() {
+  if (isChatSearchMode()) return false;
   if (!activeComposerRunIds().length) return false;
   if (isSingleWindowView() && composerHasDraft()) return false;
   return true;
 }
 
 function updateComposerAction() {
-  updateTaskReasoningControl();
   const button = $("sendMessage");
   if (!button) return;
+  const composer = $("composer");
+  const attach = $("attachFile");
+  const input = $("messageInput");
+  const reasoningSelect = $("taskReasoningSelect");
+  const aiToggle = $("chatAiToggle");
+  const prevSearch = $("chatSearchPrev");
+  const nextSearch = $("chatSearchNext");
+  const searchMode = isChatSearchMode();
+  composer?.classList.toggle("chat-search-composer", searchMode);
+  input?.classList.toggle("chat-search-editor", searchMode);
+  composer?.classList.toggle("group-chat-composer", !searchMode && isGroupChatView());
+  if (searchMode || !isGroupChatView()) closeGroupMentionMenu();
+  if (aiToggle) {
+    const showAiToggle = !searchMode && isGroupChatView();
+    aiToggle.hidden = !showAiToggle;
+    aiToggle.disabled = !showAiToggle || isComposerStopMode();
+    aiToggle.classList.toggle("active", Boolean(state.groupAiMode && showAiToggle));
+    aiToggle.setAttribute("aria-pressed", state.groupAiMode && showAiToggle ? "true" : "false");
+  }
+  if (input) {
+    input.setAttribute("enterkeyhint", searchMode ? "search" : "send");
+    input.setAttribute("aria-label", searchMode ? "Search chat" : "Message Hermes");
+  }
+  if (searchMode) {
+    composer?.classList.remove("reasoning-visible");
+    composer?.classList.remove("group-chat-composer");
+    if (aiToggle) aiToggle.hidden = true;
+    if (reasoningSelect) {
+      reasoningSelect.hidden = true;
+      reasoningSelect.disabled = true;
+    }
+    if (attach) {
+      attach.textContent = "×";
+      attach.disabled = false;
+      attach.setAttribute("aria-label", "关闭搜索");
+      attach.setAttribute("title", "关闭搜索");
+    }
+    const draft = currentChatSearchDraft();
+    button.textContent = "搜索";
+    button.classList.remove("stop-mode");
+    button.disabled = !draft;
+    updateChatSearchStatus();
+    return;
+  }
+  if (prevSearch) {
+    prevSearch.hidden = true;
+    prevSearch.disabled = true;
+  }
+  if (nextSearch) {
+    nextSearch.hidden = true;
+    nextSearch.disabled = true;
+  }
+  if (attach) {
+    attach.textContent = "+";
+    attach.setAttribute("aria-label", "添加文件");
+    attach.setAttribute("title", "添加文件");
+  }
+  updateChatSearchStatus();
+  updateTaskReasoningControl();
   const stopMode = isComposerStopMode();
   button.textContent = stopMode ? "Stop" : "Send";
   button.classList.toggle("stop-mode", stopMode);
@@ -793,6 +967,7 @@ function setSingleWindowMode(mode) {
   state.singleWindowMode = normalizeSingleWindowMode(mode);
   localStorage.setItem("hermesWebSingleWindowMode", state.singleWindowMode);
   if (state.singleWindowMode === "chat") clearQuotedReply({ render: false });
+  if (state.singleWindowMode !== "chat") state.groupAiMode = false;
 }
 
 function reasoningEffortLabel(value) {
@@ -807,17 +982,20 @@ function defaultReasoningLabel() {
 
 function defaultReasoningCompactLabel() {
   const effort = String(state.defaultReasoningEffort || "medium").trim().toLowerCase();
-  if (effort === "low") return "默认L";
-  if (effort === "medium") return "默认M";
-  if (effort === "high") return "默认H";
-  if (effort === "xhigh") return "默认X";
-  if (effort === "none") return "默认关";
-  return "默认M";
+  if (effort === "low") return "\u4f4e";
+  if (effort === "medium") return "\u4e2d";
+  if (effort === "high") return "\u9ad8";
+  if (effort === "xhigh") return "\u6781\u9ad8";
+  if (effort === "none") return "\u5173";
+  return "\u4e2d";
 }
 
 function taskReasoningCompactLabel(item) {
   if (!item?.value) return defaultReasoningCompactLabel();
-  if (item.value === "medium") return "Med";
+  if (item.value === "low") return "\u4f4e";
+  if (item.value === "medium") return "\u4e2d";
+  if (item.value === "high") return "\u9ad8";
+  if (item.value === "xhigh") return "\u6781\u9ad8";
   return item.label || item.value;
 }
 
@@ -1098,6 +1276,17 @@ function updateTopMoreControls() {
     searchChat.hidden = !chatView;
     searchChat.disabled = !chatView || !state.currentThread;
   }
+  const toggleGroupChat = $("topToggleGroupChat");
+  if (toggleGroupChat) {
+    toggleGroupChat.hidden = !chatView;
+    toggleGroupChat.disabled = !chatView || !state.currentThread;
+    toggleGroupChat.textContent = isGroupChatView() ? "\u5207\u56de\u804a\u5929" : "\u5207\u6362\u5230\u7fa4";
+  }
+  const manageGroupMembers = $("topManageGroupMembers");
+  if (manageGroupMembers) {
+    manageGroupMembers.hidden = !chatView || !isGroupChatView();
+    manageGroupMembers.disabled = !chatView || !isGroupChatView() || !state.currentThread;
+  }
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
   wrap.classList.toggle("hidden", !hasVisibleAction);
@@ -1115,8 +1304,16 @@ function chatSearchAvailable() {
   return isSingleWindowChatView() && Boolean(state.currentThread);
 }
 
+function isChatSearchMode() {
+  return state.chatSearchOpen && chatSearchAvailable();
+}
+
 function currentChatSearchQuery() {
   return String(state.chatSearchQuery || "").trim();
+}
+
+function currentChatSearchDraft() {
+  return String(isChatSearchMode() ? getComposerText() : state.chatSearchDraft || "").trim();
 }
 
 function chatSearchContentForMessage(message) {
@@ -1145,7 +1342,7 @@ function syncChatSearchMatches() {
     state.chatSearchIndex = 0;
     return [];
   }
-  const matches = (state.currentThread?.messages || [])
+  const matches = chatMessagesForThread(state.currentThread)
     .filter((message) => message?.id && chatSearchContentForMessage(message).includes(query))
     .map((message) => message.id);
   state.chatSearchMatches = matches;
@@ -1164,49 +1361,69 @@ function chatSearchClassForMessage(message) {
   return matchIndex === state.chatSearchIndex ? " chat-search-match chat-search-current-match" : " chat-search-match";
 }
 
-function renderChatSearchBar() {
-  if (!chatSearchAvailable() || !state.chatSearchOpen) return "";
-  const query = currentChatSearchQuery();
-  const total = state.chatSearchMatches.length;
-  const label = query ? `${total ? state.chatSearchIndex + 1 : 0}/${total}` : "";
-  const disabled = !query || !total ? " disabled" : "";
-  return `<div class="chat-search-bar" data-chat-search-bar>
-    <input id="chatSearchInput" class="chat-search-input" type="search" placeholder="搜索聊天" value="${escapeHtml(state.chatSearchQuery || "")}" enterkeyhint="search" autocomplete="off">
-    <span class="chat-search-count">${escapeHtml(label)}</span>
-    <button class="chat-search-nav" type="button" data-chat-search-prev aria-label="上一个"${disabled}>↑</button>
-    <button class="chat-search-nav" type="button" data-chat-search-next aria-label="下一个"${disabled}>↓</button>
-    <button class="chat-search-close" type="button" data-chat-search-close aria-label="关闭">×</button>
-  </div>`;
-}
-
 function openChatSearch() {
   closeTopMoreMenu();
   if (!chatSearchAvailable()) return;
+  if (!state.chatSearchOpen) {
+    state.chatSearchComposerDraft = getComposerText();
+    state.chatSearchDraft = state.chatSearchQuery || "";
+  }
   state.chatSearchOpen = true;
   state.chatSearchRefocus = true;
-  state.chatSearchScrollPending = Boolean(currentChatSearchQuery());
+  state.chatSearchDraftChangedSinceSearch = false;
+  state.chatSearchScrollPending = false;
   renderCurrentThread({ stickToBottom: false });
+  setComposerText(state.chatSearchDraft || "");
+  focusChatSearchInput({ force: true });
+  requestAnimationFrame(() => requestAnimationFrame(() => focusChatSearchInput({ force: true })));
 }
 
 function closeChatSearch(options = {}) {
+  const restoreDraft = state.chatSearchComposerDraft || "";
   state.chatSearchOpen = false;
+  state.chatSearchDraft = "";
+  state.chatSearchComposerDraft = "";
+  state.chatSearchDraftChangedSinceSearch = false;
   state.chatSearchQuery = "";
   state.chatSearchMatches = [];
   state.chatSearchIndex = 0;
   state.chatSearchScrollPending = false;
   state.chatSearchRefocus = false;
-  if (options.render !== false) renderCurrentThread({ stickToBottom: false });
+  if (options.render !== false) {
+    renderCurrentThread({ stickToBottom: options.stickToBottom !== false });
+    setComposerText(restoreDraft);
+  }
 }
 
-function updateChatSearchQuery(value) {
-  state.chatSearchQuery = String(value || "");
+function updateChatSearchDraft(value) {
+  state.chatSearchDraft = String(value || "");
+  state.chatSearchDraftChangedSinceSearch = state.chatSearchDraft.trim() !== currentChatSearchQuery();
+  updateComposerAction();
+}
+
+function performChatSearch() {
+  if (!isChatSearchMode()) return;
+  const draft = currentChatSearchDraft();
+  state.chatSearchDraft = draft;
+  const sameCommittedQuery = draft && draft === currentChatSearchQuery() && state.chatSearchMatches.length && !state.chatSearchDraftChangedSinceSearch;
+  if (sameCommittedQuery) {
+    moveChatSearch(1);
+    return;
+  }
+  state.chatSearchQuery = draft;
   state.chatSearchIndex = 0;
+  state.chatSearchDraftChangedSinceSearch = false;
+  syncChatSearchMatches();
   state.chatSearchRefocus = true;
-  state.chatSearchScrollPending = Boolean(currentChatSearchQuery());
+  state.chatSearchScrollPending = Boolean(draft && state.chatSearchMatches.length);
   renderCurrentThread({ stickToBottom: false });
 }
 
 function moveChatSearch(delta) {
+  if (isChatSearchMode() && state.chatSearchDraftChangedSinceSearch) {
+    focusChatSearchInput();
+    return;
+  }
   syncChatSearchMatches();
   const total = state.chatSearchMatches.length;
   if (!total) {
@@ -1219,14 +1436,22 @@ function moveChatSearch(delta) {
   renderCurrentThread({ stickToBottom: false });
 }
 
-function focusChatSearchInput() {
-  const input = $("chatSearchInput");
+function focusChatSearchInput(options = {}) {
+  const input = $("messageInput");
   if (!input) return;
+  if (!options.force && !composerAutoFocusAllowed()) return;
   input.focus({ preventScroll: true });
-  const len = input.value.length;
+  const len = input.textContent.length;
   try {
-    input.setSelectionRange(len, len);
-  } catch (_) {}
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(input);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  } catch (_) {
+    void len;
+  }
 }
 
 function scrollToCurrentChatSearchMatch(conversation = $("conversation")) {
@@ -1241,27 +1466,36 @@ function scrollToCurrentChatSearchMatch(conversation = $("conversation")) {
   });
 }
 
+function updateChatSearchStatus() {
+  const status = $("chatSearchStatus");
+  const prevSearch = $("chatSearchPrev");
+  const nextSearch = $("chatSearchNext");
+  const setNav = (visible, enabled) => {
+    [prevSearch, nextSearch].forEach((button) => {
+      if (!button) return;
+      button.hidden = !visible;
+      button.disabled = !enabled;
+    });
+  };
+  if (!isChatSearchMode() || !currentChatSearchQuery()) {
+    if (status) {
+      status.hidden = true;
+      status.textContent = "";
+    }
+    setNav(false, false);
+    return;
+  }
+  const changed = state.chatSearchDraftChangedSinceSearch;
+  const total = state.chatSearchMatches.length;
+  if (status) {
+    status.hidden = changed;
+    status.textContent = total && !changed ? `${state.chatSearchIndex + 1}/${total}` : "0/0";
+  }
+  setNav(!changed && total > 1, !changed && total > 1);
+}
+
 function wireChatSearchControls(root) {
   if (!root) return;
-  const input = $("chatSearchInput");
-  if (input && !input.dataset.boundChatSearch) {
-    input.dataset.boundChatSearch = "1";
-    input.addEventListener("input", () => updateChatSearchQuery(input.value));
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeChatSearch();
-        return;
-      }
-      if (event.key === "Enter") {
-        event.preventDefault();
-        moveChatSearch(event.shiftKey ? -1 : 1);
-      }
-    });
-  }
-  root.querySelector("[data-chat-search-prev]")?.addEventListener("click", () => moveChatSearch(-1));
-  root.querySelector("[data-chat-search-next]")?.addEventListener("click", () => moveChatSearch(1));
-  root.querySelector("[data-chat-search-close]")?.addEventListener("click", () => closeChatSearch());
   if (state.chatSearchRefocus) {
     state.chatSearchRefocus = false;
     requestAnimationFrame(focusChatSearchInput);
@@ -1695,6 +1929,7 @@ function openTaskGroupFromList(taskGroupId) {
   if (!taskGroupId) return;
   state.pendingTaskReasoningEffort = "";
   state.pendingTaskReasoningExplicit = false;
+  clearRouteScrollTarget();
   state.currentTaskGroupId = taskGroupId;
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
@@ -1868,6 +2103,34 @@ function messageElementById(messageId) {
     .find((item) => item.dataset.messageId === messageId) || null;
 }
 
+function clearRouteScrollTarget() {
+  state.routeScrollTaskGroupId = "";
+  state.routeScrollMessageId = "";
+}
+
+function setRouteScrollTarget(taskGroupId, messageId = "") {
+  state.routeScrollTaskGroupId = String(taskGroupId || "").trim();
+  state.routeScrollMessageId = String(messageId || "").trim();
+}
+
+function routeScrollMessageIdForTaskGroup(group) {
+  if (!group || !state.routeScrollTaskGroupId || state.routeScrollTaskGroupId !== group.id) return "";
+  const messages = Array.isArray(group.messages) ? group.messages : [];
+  const requested = state.routeScrollMessageId;
+  if (requested && messages.some((message) => message.id === requested)) return requested;
+  return [...messages].reverse().find((message) => message?.id)?.id || "";
+}
+
+function consumeTaskRouteScrollTarget(group) {
+  const messageId = routeScrollMessageIdForTaskGroup(group);
+  if (!messageId) return false;
+  clearRouteScrollTarget();
+  requestAnimationFrame(() => {
+    scrollMessageIntoView(messageId, "start");
+  });
+  return true;
+}
+
 function scrollMessageIntoView(messageId, position = "start") {
   const conversation = $("conversation");
   const target = messageElementById(messageId);
@@ -2024,12 +2287,22 @@ function normalizedRouteView(value, fallback = "") {
   return fallback;
 }
 
-function applyInitialRouteFromUrl() {
-  const params = new URLSearchParams(window.location.search || "");
+function sameOriginRouteUrl(value) {
+  try {
+    const parsed = new URL(value || "/", window.location.origin);
+    return parsed.origin === window.location.origin ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function applyRouteParams(params) {
   const automationId = String(params.get("automationId") || "").trim();
   const todoId = String(params.get("todoId") || "").trim();
   const taskGroupId = String(params.get("taskGroupId") || params.get("taskId") || "").trim();
-  const routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : "");
+  const messageId = String(params.get("messageId") || "").trim();
+  const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
+  const routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : groupChatRequested ? "single" : "");
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && state.workspaces.some((item) => item.id === workspaceId)) {
     state.selectedWorkspaceId = workspaceId;
@@ -2048,8 +2321,47 @@ function applyInitialRouteFromUrl() {
     state.automationOutputHistoryOpen = false;
   }
   if (routeView === "todos" && todoId) state.selectedTodoId = todoId;
-  if (routeView === "tasks" && taskGroupId) state.currentTaskGroupId = taskGroupId;
-  return Boolean(routeView || automationId || todoId || taskGroupId);
+  if (routeView === "tasks" && taskGroupId) {
+    state.currentTaskGroupId = taskGroupId;
+    setRouteScrollTarget(taskGroupId, messageId);
+  } else if (routeView && routeView !== "tasks") {
+    clearRouteScrollTarget();
+  }
+  if (routeView === "single") {
+    setSingleWindowMode("chat");
+    if (groupChatRequested) {
+      state.groupChatOpen = true;
+      localStorage.setItem("hermesWebGroupChatOpen", "1");
+    }
+  }
+  return Boolean(routeView || automationId || todoId || taskGroupId || groupChatRequested);
+}
+
+function applyRouteFromUrl(value) {
+  const parsed = sameOriginRouteUrl(value);
+  if (!parsed) return false;
+  return applyRouteParams(new URLSearchParams(parsed.search || ""));
+}
+
+function applyInitialRouteFromUrl() {
+  return applyRouteFromUrl(window.location.href);
+}
+
+async function openNotificationRoute(value) {
+  const parsed = sameOriginRouteUrl(value);
+  if (!parsed) return;
+  if (!applyRouteParams(new URLSearchParams(parsed.search || ""))) return;
+  suppressComposerAutoFocus(1200);
+  blurComposerInput();
+  closeSidebar();
+  closeTopMoreMenu();
+  try {
+    const nextState = Object.assign({}, window.history.state || {}, { hermesWebBase: true });
+    window.history.replaceState(nextState, "", `${parsed.pathname}${parsed.search}${parsed.hash}`);
+  } catch (_) {
+    // Route state is already applied; URL replacement is only for reload/back consistency.
+  }
+  await loadSelectedView();
 }
 
 function applyDefaultLaunchView() {
@@ -2842,7 +3154,7 @@ function sharedProjectRootOwnerLabel(project) {
   const volumeIndex = parts.findIndex((part) => part.toLowerCase() === "volume1");
   if (volumeIndex >= 0 && parts[volumeIndex + 1]) return parts[volumeIndex + 1];
   const chatDriveIndex = parts.findIndex((part) => part.toLowerCase() === "chatgpt-drive");
-  if (chatDriveIndex >= 0) return "ChatGPT Drive";
+  if (chatDriveIndex >= 0) return "Hermes Owner";
   return "";
 }
 
@@ -4617,6 +4929,7 @@ function summarizeThread(thread) {
     activeRunIds: thread.activeRunIds || [],
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
+    chatGroup: thread.chatGroup || null,
     preview: last ? last.content.slice(0, 180) : "",
   };
 }
@@ -4632,10 +4945,16 @@ function mergeServerMessage(existing, incoming) {
     existingContent &&
     (!incomingContent || (incomingStatus === "running" && incomingContent.length < existingContent.length));
   if (shouldKeepLiveContent) merged.content = existingContent;
-  if (Array.isArray(existing.artifacts) && existing.artifacts.length && !merged.artifacts?.length) {
+  if (incoming.revokedAt) {
+    merged.content = incomingContent || GROUP_MESSAGE_REVOKED_TEXT;
+    merged.artifacts = [];
+    merged.usage = incoming.usage || null;
+    merged.error = incoming.error || null;
+  }
+  if (!incoming.revokedAt && Array.isArray(existing.artifacts) && existing.artifacts.length && !merged.artifacts?.length) {
     merged.artifacts = existing.artifacts;
   }
-  if (existing.usage && !incoming.usage) merged.usage = existing.usage;
+  if (!incoming.revokedAt && existing.usage && !incoming.usage) merged.usage = existing.usage;
   for (const field of MESSAGE_TIMESTAMP_FIELDS) {
     if (existing[field] && !incoming[field]) merged[field] = existing[field];
   }
@@ -4657,12 +4976,18 @@ function mergeCurrentThread(incomingThread) {
   return Object.assign({}, state.currentThread, incomingThread, { messages });
 }
 
-async function loadSingleWindow() {
+async function loadSingleWindow(options = {}) {
+  const groupChat = options.groupChat ?? state.groupChatOpen;
   const result = await api("/api/single-window", {
     method: "POST",
-    body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
+    body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, groupChat }),
   });
   state.currentThread = mergeCurrentThread(result.thread);
+  if (groupChat && !selectedWorkspaceInThreadGroup(state.currentThread)) {
+    state.groupChatOpen = false;
+    state.groupAiMode = false;
+    localStorage.setItem("hermesWebGroupChatOpen", "0");
+  }
   state.currentThreadId = state.currentThread.id;
   state.threads = [summarizeThread(state.currentThread)];
   if (state.viewMode !== "tasks") state.currentTaskGroupId = "";
@@ -4672,6 +4997,122 @@ async function loadSingleWindow() {
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
   setComposerEnabled(true);
+}
+
+async function toggleGroupChat() {
+  closeTopMoreMenu();
+  clearQuotedReply({ render: false });
+  state.currentTaskGroupId = "";
+  if (state.groupChatOpen && isGroupChatView()) {
+    state.groupChatOpen = false;
+    state.groupAiMode = false;
+    localStorage.setItem("hermesWebGroupChatOpen", "0");
+    await loadSingleWindow({ groupChat: false });
+    return;
+  }
+  await loadSingleWindow({ groupChat: true });
+  if (selectedWorkspaceInThreadGroup(state.currentThread)) {
+    state.groupChatOpen = true;
+    localStorage.setItem("hermesWebGroupChatOpen", "1");
+    renderCurrentThread({ stickToBottom: true });
+    return;
+  }
+  if (!state.auth?.isOwner) {
+    state.groupChatOpen = false;
+    localStorage.setItem("hermesWebGroupChatOpen", "0");
+    throw new Error("当前账号还没有可加入的群聊");
+  }
+  const ownerId = state.currentThread?.workspaceId || state.selectedWorkspaceId || "owner";
+  const memberWorkspaceIds = [...new Set([ownerId, state.selectedWorkspaceId || ownerId].filter(Boolean))];
+  const result = await api(`/api/threads/${encodeURIComponent(state.currentThread.id)}/group-chat`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled: true, memberWorkspaceIds }),
+  });
+  state.currentThread = mergeCurrentThread(result.thread);
+  state.currentThreadId = state.currentThread.id;
+  state.threads = [summarizeThread(state.currentThread)];
+  state.groupChatOpen = true;
+  localStorage.setItem("hermesWebGroupChatOpen", "1");
+  renderThreads();
+  renderCurrentThread({ stickToBottom: true });
+}
+
+function renderGroupChatManager() {
+  const overlay = $("groupChatOverlay");
+  if (!overlay) return;
+  if (!state.groupChatManagerOpen) {
+    overlay.classList.add("hidden");
+    overlay.innerHTML = "";
+    return;
+  }
+  const thread = state.currentThread;
+  const fixedOwnerId = thread?.workspaceId || state.selectedWorkspaceId || "owner";
+  const selected = new Set(state.groupChatMemberDraft.length ? state.groupChatMemberDraft : threadGroupMemberIds(thread));
+  selected.add(fixedOwnerId);
+  const canEdit = Boolean(state.auth?.isOwner);
+  const workspaces = canEdit
+    ? (state.workspaces || [])
+    : (Array.isArray(thread?.chatGroup?.members)
+      ? thread.chatGroup.members.map((member) => ({ id: member.workspaceId, label: member.label }))
+      : []);
+  const rows = workspaces.map((workspace) => {
+    const checked = selected.has(workspace.id);
+    const disabled = !canEdit || workspace.id === fixedOwnerId;
+    return `<label class="group-member-option">
+      <input type="checkbox" value="${escapeHtml(workspace.id)}"${checked ? " checked" : ""}${disabled ? " disabled" : ""}>
+      <span>${escapeHtml(workspace.label || workspace.id)}</span>
+    </label>`;
+  }).join("");
+  overlay.classList.remove("hidden");
+  overlay.innerHTML = `
+    <div class="access-key-sheet group-chat-sheet">
+      <header class="access-key-header">
+        <div>
+          <div id="groupChatTitle" class="access-key-title">群聊成员</div>
+          <div class="access-key-subtitle">${canEdit ? "Owner 可以选择加入这个群聊的工作区账号。" : "当前账号只能查看群聊成员。"}</div>
+        </div>
+        <button class="access-key-close" type="button" data-close-group-chat>关闭</button>
+      </header>
+      <div class="group-member-list">${rows}</div>
+      <div class="group-member-actions">
+        ${canEdit ? `<button class="primary-button" type="button" data-save-group-chat>保存</button>` : ""}
+      </div>
+    </div>`;
+  overlay.querySelector("[data-close-group-chat]")?.addEventListener("click", closeGroupChatManager);
+  overlay.querySelector("[data-save-group-chat]")?.addEventListener("click", () => saveGroupChatMembers().catch(showError));
+}
+
+async function openGroupChatMembers() {
+  closeTopMoreMenu();
+  if (!isGroupChatView()) await toggleGroupChat();
+  if (!isGroupChatView()) return;
+  state.groupChatManagerOpen = true;
+  state.groupChatMemberDraft = threadGroupMemberIds(state.currentThread);
+  renderGroupChatManager();
+}
+
+function closeGroupChatManager() {
+  state.groupChatManagerOpen = false;
+  state.groupChatMemberDraft = [];
+  renderGroupChatManager();
+}
+
+async function saveGroupChatMembers() {
+  if (!state.currentThread?.id) return;
+  const overlay = $("groupChatOverlay");
+  const checked = [...(overlay?.querySelectorAll?.(".group-member-option input:checked") || [])].map((input) => input.value);
+  const ownerId = state.currentThread.workspaceId || state.selectedWorkspaceId || "owner";
+  const memberWorkspaceIds = [...new Set([ownerId, ...checked].filter(Boolean))];
+  const result = await api(`/api/threads/${encodeURIComponent(state.currentThread.id)}/group-chat`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled: true, memberWorkspaceIds }),
+  });
+  state.currentThread = mergeCurrentThread(result.thread);
+  state.threads = [summarizeThread(state.currentThread)];
+  state.groupChatMemberDraft = threadGroupMemberIds(state.currentThread);
+  closeGroupChatManager();
+  renderThreads();
+  renderCurrentThread({ stickToBottom: false });
 }
 
 async function loadThreads() {
@@ -5130,10 +5571,11 @@ async function openProjectTask(sourceThreadId, taskGroupId) {
 
 function configureComposer(options = {}) {
   const enabled = Boolean(options.enabled);
-  setComposerEditorEnabled(enabled);
-  setComposerPlaceholder(composerPlaceholder(options.placeholder || "Message Hermes..."));
-  $("attachFile").disabled = !enabled;
-  $("sendMessage").disabled = !enabled;
+  const searchMode = isChatSearchMode();
+  setComposerEditorEnabled(enabled || searchMode);
+  setComposerPlaceholder(searchMode ? "搜索聊天" : composerPlaceholder(options.placeholder || "Message Hermes..."));
+  $("attachFile").disabled = searchMode ? false : !enabled;
+  $("sendMessage").disabled = searchMode ? !currentChatSearchDraft() : !enabled;
   updateComposerAction();
   renderQuotedReply();
 }
@@ -5204,6 +5646,14 @@ function renderThreads() {
   });
 }
 
+function renderGroupMemberStrip(thread) {
+  const labels = groupChatMemberLabels(thread);
+  if (!labels.length) return "";
+  return `<div class="group-member-strip" aria-label="Group members">
+    ${labels.map((label) => `<span>${escapeHtml(label)}</span>`).join("")}
+  </div>`;
+}
+
 function renderCurrentThread(options = {}) {
   if (isSkillDetailView()) {
     renderSkillDetailPanel();
@@ -5244,29 +5694,34 @@ function renderCurrentThread(options = {}) {
   updateNavigationControls();
   configureComposer({ enabled: true, placeholder: "Message Hermes..." });
   const infoStream = isSingleWindowView();
+  const groupChat = isGroupChatView();
   $("threadTitle").textContent = infoStream
-    ? (state.singleWindowMode === "chat" ? "聊天" : "任务流")
+    ? (state.singleWindowMode === "chat" ? (groupChat ? "群聊" : "聊天") : "任务流")
     : (thread.title || thread.id);
   const project = state.projects.find((item) => item.id === thread.projectId);
   const subproject = (project?.children || []).find((item) => item.id === thread.subprojectId);
-  const activeRuns = activeThreadRunIds(thread);
+  const displayMessages = isSingleWindowChatView() ? chatMessagesForThread(thread) : (thread.messages || []);
+  const activeRuns = isSingleWindowChatView() ? activeChatRunIds(thread) : activeThreadRunIds(thread);
   const projectScope = project ? projectDisplayLabel(project) : "";
   const scope = infoStream || thread.singleWindow
     ? ""
     : subproject
     ? `${projectScope || thread.projectId} / ${subproject.label || subproject.id}`
     : (projectScope || thread.projectId || "general");
-  $("threadMeta").textContent = scope ? `${scope} | session ${thread.hermesSessionId || ""}` : "";
+  $("threadMeta").textContent = groupChat
+    ? groupChatMemberLabels(thread).join(" · ")
+    : (scope ? `${scope} | session ${thread.hermesSessionId || ""}` : "");
   $("interruptRun").disabled = !activeRuns.length;
   if (isSingleWindowChatView()) {
     syncChatSearchMatches();
   }
   const progressPanel = renderRunProgressPanel(thread, activeRuns);
-  const searchBar = renderChatSearchBar();
-  conversation.innerHTML = `${progressPanel}${searchBar}${(thread.messages || []).map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  const groupStrip = groupChat ? renderGroupMemberStrip(thread) : "";
+  conversation.innerHTML = `${groupStrip}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);
   wireQuoteButtons(conversation);
+  wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
   wireChatSearchControls(conversation);
   ensureVerticalScrollAffordance(conversation);
@@ -5293,7 +5748,10 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   const selected = allGroups.find((group) => group.id === state.currentTaskGroupId) || null;
   const allActiveRuns = activeThreadRunIds(thread);
 
-  if (state.currentTaskGroupId && !selected) state.currentTaskGroupId = "";
+  if (state.currentTaskGroupId && !selected) {
+    if (state.routeScrollTaskGroupId === state.currentTaskGroupId) clearRouteScrollTarget();
+    state.currentTaskGroupId = "";
+  }
   if (!state.currentTaskGroupId) {
     $("threadTitle").textContent = "任务列表";
     $("threadMeta").textContent = "";
@@ -5331,10 +5789,14 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   wireDirectoryProjectLinks(conversation);
   wireSkillLinks(conversation);
   wireQuoteButtons(conversation);
+  wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
   updateNavigationControls();
   ensureVerticalScrollAffordance(conversation);
 
+  if (selected && consumeTaskRouteScrollTarget(selected)) {
+    return;
+  }
   if (options.stickToBottom) {
     conversation.scrollTop = state.currentTaskGroupId ? conversation.scrollHeight : 0;
   } else {
@@ -5674,27 +6136,45 @@ function renderMessageQuoteAction(message) {
   return `<button class="message-quote-button" type="button" data-quote-message="${escapeHtml(message.id)}" title="引用 ${escapeHtml(taskId)}">引用 ${escapeHtml(shortTaskDisplayId(taskId))}</button>`;
 }
 
+function canRevokeGroupMessage(message) {
+  if (!isGroupChatView() || !message || message.revokedAt) return false;
+  if (message.role !== "user" || message.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return false;
+  if (state.auth?.isOwner) return true;
+  return Boolean(state.auth?.workspaceId && state.auth.workspaceId === message.senderWorkspaceId);
+}
+
+function renderMessageRevokeAction(message) {
+  if (!canRevokeGroupMessage(message)) return "";
+  return `<button class="message-revoke-button" type="button" data-revoke-message="${escapeHtml(message.id || "")}" title="${escapeHtml(GROUP_REVOKE_LABEL)}">${escapeHtml(GROUP_REVOKE_LABEL)}</button>`;
+}
+
 function renderMessage(message) {
-  const roleLabel = message.role === "user" ? "You" : "Hermes";
-  const status = message.status && message.status !== "done" ? ` - ${message.status}` : "";
+  const revoked = Boolean(message.revokedAt);
+  const roleLabel = isGroupChatView() && message.role === "user"
+    ? (message.senderLabel || "You")
+    : (message.role === "user" ? "You" : "Hermes");
+  const kindLabel = isGroupChatView() && message.role === "user" && message.messageKind === "ai" ? " · AI" : "";
+  const status = !revoked && message.status && message.status !== "done" ? ` - ${message.status}` : "";
   const timeLabel = messageDisplayTimeLabel(message);
-  const usage = message.usage ? renderUsage(message.usage) : "";
+  const usage = !revoked && message.usage ? renderUsage(message.usage) : "";
   const footer = renderMessageFooter(message, usage);
-  const error = message.error ? `<div class="error-box">${escapeHtml(message.error)}</div>` : "";
-  const artifacts = Array.isArray(message.artifacts) && message.artifacts.length ? renderArtifacts(message.artifacts) : "";
+  const error = !revoked && message.error ? `<div class="error-box">${escapeHtml(message.error)}</div>` : "";
+  const artifacts = !revoked && Array.isArray(message.artifacts) && message.artifacts.length ? renderArtifacts(message.artifacts) : "";
   const searchClass = chatSearchClassForMessage(message);
-  return `<article class="message ${escapeHtml(message.role || "assistant")}${searchClass}" data-message-id="${escapeHtml(message.id || "")}">
+  const body = revoked ? `<div class="message-revoked-text">${escapeHtml(GROUP_MESSAGE_REVOKED_TEXT)}</div>` : renderText(message.content || "", message);
+  return `<article class="message ${escapeHtml(message.role || "assistant")}${searchClass}${revoked ? " revoked" : ""}" data-message-id="${escapeHtml(message.id || "")}">
     <div class="message-head">
       <div class="message-head-main-wrap">
-        <span class="message-head-main">${escapeHtml(roleLabel)}${escapeHtml(status)}</span>
+        <span class="message-head-main">${escapeHtml(roleLabel)}${escapeHtml(kindLabel)}${escapeHtml(status)}</span>
         ${renderMessageScrollButton(message, "end")}
       </div>
       <div class="message-head-actions">
         ${renderMessageQuoteAction(message)}
+        ${renderMessageRevokeAction(message)}
         <span>${escapeHtml(timeLabel)}</span>
       </div>
     </div>
-    <div class="message-body">${renderText(message.content || "", message)}${error}${artifacts}${footer}</div>
+    <div class="message-body">${body}${error}${artifacts}${footer}</div>
   </article>`;
 }
 
@@ -5707,6 +6187,37 @@ function wireQuoteButtons(root) {
       event.stopPropagation();
       const message = (state.currentThread?.messages || []).find((item) => item.id === button.dataset.quoteMessage);
       setQuotedReply(message);
+    });
+  });
+}
+
+function wireMessageRevokeButtons(root) {
+  root?.querySelectorAll?.("[data-revoke-message]").forEach((button) => {
+    if (button.dataset.boundRevokeMessage) return;
+    button.dataset.boundRevokeMessage = "1";
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const messageId = String(button.dataset.revokeMessage || "");
+      const threadId = state.currentThread?.id || "";
+      if (!messageId || !threadId) return;
+      if (!window.confirm("\u64a4\u56de\u8fd9\u6761\u7fa4\u804a\u6d88\u606f\uff1f")) return;
+      button.disabled = true;
+      try {
+        const result = await api(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/revoke`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        });
+        if (result?.thread) state.currentThread = mergeCurrentThread(result.thread);
+        if (Array.isArray(result?.messages)) {
+          for (const message of result.messages) upsertMessage(message);
+        }
+        renderCurrentThread({ stickToBottom: false });
+      } catch (err) {
+        showError(err.message || String(err));
+      } finally {
+        button.disabled = false;
+      }
     });
   });
 }
@@ -6178,7 +6689,7 @@ function isGenericCurrentBoundDirectoryAlias(alias) {
 
 function explicitDirectoryRouteForContext(context = null) {
   const aliases = [];
-  const isChatContext = context?.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+  const isChatContext = isSingleWindowConversationTaskGroupId(context?.taskGroupId);
   if (!isChatContext && context?.taskGroupId && state.currentThread) {
     const group = taskGroupsForThread(state.currentThread).find((item) => item.id === context.taskGroupId);
     if (group) aliases.push(...explicitTaskDirectoryAliases(group));
@@ -6193,7 +6704,7 @@ function explicitDirectoryRouteForContext(context = null) {
 }
 
 function messageTaskSearchText(message) {
-  const group = message?.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID ? null : messageTaskGroup(message);
+  const group = isSingleWindowConversationTaskGroupId(message?.taskGroupId) ? null : messageTaskGroup(message);
   return [message?.content || "", ...(group?.messages || []).map((item) => item.content || "")]
     .join("\n")
     .toLowerCase()
@@ -6250,7 +6761,8 @@ function resolveDirectoryProjectRoute(alias) {
 
 function isGenericOwnerTopicRoute(route) {
   const projectId = String(route?.projectId || "");
-  return projectId.startsWith("xuxin-") || projectId === "hermes-sync-folder";
+  return GENERIC_OWNER_TOPIC_ROUTE_IDS.has(projectId)
+    || GENERIC_OWNER_TOPIC_ROUTE_PREFIXES.some((prefix) => projectId.startsWith(prefix));
 }
 
 function isContextAnchorDirectoryRoute(route) {
@@ -6582,7 +7094,11 @@ function scheduleRenderCurrentThread() {
 
 function threadMatchesSelection(thread) {
   if (!thread) return false;
-  if (state.selectedWorkspaceId && thread.workspaceId !== state.selectedWorkspaceId) return false;
+  if (
+    state.selectedWorkspaceId
+    && thread.workspaceId !== state.selectedWorkspaceId
+    && !threadGroupMemberIds(thread).includes(state.selectedWorkspaceId)
+  ) return false;
   if (state.viewMode === "single" || state.viewMode === "tasks") {
     if (!thread.singleWindow) return false;
     const search = currentSearchText().toLowerCase();
@@ -6661,6 +7177,11 @@ function applyEvent(payload) {
     return;
   }
   if (payload.thread) upsertThreadSummary(payload.thread);
+  if (payload.type === "thread.updated" && state.currentThread && payload.thread?.id === state.currentThread.id) {
+    state.currentThread = mergeCurrentThread(payload.thread);
+    renderCurrentThread({ stickToBottom: false });
+    return;
+  }
   if (payload.type === "message.delta") {
     appendDelta(payload.threadId, payload.messageId, payload.delta || "", payload);
     return;
@@ -6714,6 +7235,10 @@ function connectEvents() {
 
 async function sendMessage(event) {
   event?.preventDefault?.();
+  if (isChatSearchMode()) {
+    performChatSearch();
+    return;
+  }
   if (isComposerStopMode()) {
     const button = $("sendMessage");
     button.disabled = true;
@@ -6727,18 +7252,23 @@ async function sendMessage(event) {
   }
   if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
   if (!state.currentThreadId) return;
-  const input = $("messageInput");
   const text = getComposerText().trim();
   if (!text && !state.pendingArtifacts.length) return;
   if (isDraftThread(state.currentThread)) await materializeCurrentThread();
   if (!state.currentThreadId) return;
+  closeGroupMentionMenu();
   setComposerText("");
   $("sendMessage").disabled = true;
   try {
-    const body = { text, artifacts: state.pendingArtifacts };
+    const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
     if (state.viewMode === "single") {
       body.singleWindowMode = state.singleWindowMode === "chat" ? "chat" : "task";
-      if (state.singleWindowMode === "chat") body.taskGroupId = SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+      if (state.singleWindowMode === "chat") {
+        body.taskGroupId = isGroupChatView()
+          ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
+          : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+      }
+      if (isGroupChatView()) body.messageKind = state.groupAiMode ? "ai" : "plain";
     }
     if (state.viewMode === "tasks" && state.currentTaskGroupId) body.taskGroupId = state.currentTaskGroupId;
     const reasoningEffort = state.viewMode === "tasks" ? selectedTaskReasoningEffort() : "";
@@ -6765,6 +7295,7 @@ async function sendMessage(event) {
     }
     if (state.viewMode === "tasks") state.pendingTaskReasoningEffort = "";
     if (state.viewMode === "tasks") state.pendingTaskReasoningExplicit = false;
+    if (isGroupChatView()) state.groupAiMode = false;
     clearQuotedReply({ render: false });
     renderPendingArtifacts();
     state.currentThread = mergeCurrentThread(result.thread);
@@ -6774,12 +7305,13 @@ async function sendMessage(event) {
     }
     renderThreads();
     renderCurrentThread({ stickToBottom: true });
+    suppressComposerAutoFocus(1200);
+    blurComposerInput();
   } catch (err) {
     showError(err);
   } finally {
     $("sendMessage").disabled = false;
     updateComposerAction();
-    input.focus();
   }
 }
 
@@ -7126,6 +7658,136 @@ function setComposerText(text) {
   updateComposerAction();
 }
 
+function composerCaretOffset() {
+  const input = $("messageInput");
+  const selection = window.getSelection?.();
+  if (!input || !selection || !selection.rangeCount) return getComposerText().length;
+  const range = selection.getRangeAt(0);
+  if (!input.contains(range.endContainer)) return getComposerText().length;
+  const before = document.createRange();
+  before.selectNodeContents(input);
+  before.setEnd(range.endContainer, range.endOffset);
+  return before.toString().replace(/\u00a0/g, " ").length;
+}
+
+function setComposerCaretOffset(offset) {
+  const input = $("messageInput");
+  if (!input) return;
+  const target = Math.max(0, Number(offset) || 0);
+  const walker = document.createTreeWalker(input, NodeFilter.SHOW_TEXT);
+  let remaining = target;
+  let node = walker.nextNode();
+  const selection = window.getSelection?.();
+  const range = document.createRange();
+  while (node) {
+    const length = node.nodeValue.length;
+    if (remaining <= length) {
+      range.setStart(node, remaining);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      return;
+    }
+    remaining -= length;
+    node = walker.nextNode();
+  }
+  range.selectNodeContents(input);
+  range.collapse(false);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+function activeGroupMentionToken() {
+  if (!isGroupChatView() || isChatSearchMode()) return null;
+  const text = getComposerText();
+  const caret = composerCaretOffset();
+  const before = text.slice(0, caret);
+  const at = before.lastIndexOf("@");
+  if (at < 0) return null;
+  const previous = at > 0 ? before[at - 1] : "";
+  if (previous && !/[\s([（【,，;；:：]/.test(previous)) return null;
+  const query = before.slice(at + 1);
+  if (/[\s\r\n@]/.test(query) || query.length > 40) return null;
+  return { start: at, end: caret, query };
+}
+
+function mentionOptionsForQuery(query) {
+  const needle = normalizeMentionSearch(query);
+  return groupChatMentionMembers().filter((member) => {
+    if (!needle) return true;
+    return normalizeMentionSearch(member.label).includes(needle)
+      || normalizeMentionSearch(member.workspaceId).includes(needle);
+  }).slice(0, 8);
+}
+
+function closeGroupMentionMenu() {
+  const menu = $("groupMentionMenu");
+  state.groupMentionOpen = false;
+  state.groupMentionOptions = [];
+  state.groupMentionIndex = 0;
+  state.groupMentionToken = null;
+  if (menu) {
+    menu.hidden = true;
+    menu.innerHTML = "";
+  }
+}
+
+function renderGroupMentionMenu() {
+  const menu = $("groupMentionMenu");
+  if (!menu) return;
+  const token = activeGroupMentionToken();
+  if (!token) {
+    closeGroupMentionMenu();
+    return;
+  }
+  const options = mentionOptionsForQuery(token.query);
+  if (!options.length) {
+    closeGroupMentionMenu();
+    return;
+  }
+  state.groupMentionOpen = true;
+  state.groupMentionOptions = options;
+  state.groupMentionToken = token;
+  state.groupMentionIndex = Math.min(Math.max(0, state.groupMentionIndex), options.length - 1);
+  menu.hidden = false;
+  menu.innerHTML = options.map((member, index) => `
+    <button class="group-mention-option${index === state.groupMentionIndex ? " active" : ""}" type="button" data-group-mention-index="${index}">
+      <span class="group-mention-name">@${escapeHtml(member.label)}</span>
+      <span class="group-mention-id">${escapeHtml(member.workspaceId)}</span>
+    </button>`).join("");
+}
+
+function moveGroupMentionSelection(delta) {
+  if (!state.groupMentionOpen || !state.groupMentionOptions.length) return;
+  const total = state.groupMentionOptions.length;
+  state.groupMentionIndex = (state.groupMentionIndex + delta + total) % total;
+  renderGroupMentionMenu();
+}
+
+function chooseGroupMention(index = state.groupMentionIndex) {
+  if (!state.groupMentionOpen || !state.groupMentionToken) return false;
+  const member = state.groupMentionOptions[index] || state.groupMentionOptions[0];
+  if (!member) return false;
+  const token = state.groupMentionToken;
+  const text = getComposerText();
+  const insertion = `@${member.label} `;
+  const next = `${text.slice(0, token.start)}${insertion}${text.slice(token.end)}`;
+  setComposerText(next);
+  $("messageInput")?.focus({ preventScroll: true });
+  setComposerCaretOffset(token.start + insertion.length);
+  closeGroupMentionMenu();
+  updateComposerAction();
+  return true;
+}
+
+function updateGroupMentionMenu() {
+  if (!isGroupChatView() || isChatSearchMode()) {
+    closeGroupMentionMenu();
+    return;
+  }
+  renderGroupMentionMenu();
+}
+
 function autoSizeComposerEditor(el) {
   el.style.height = "auto";
   el.style.height = `${Math.min(180, Math.max(44, el.scrollHeight))}px`;
@@ -7138,9 +7800,35 @@ function pastePlainText(event) {
 }
 
 function handleComposerKeydown(event) {
+  if (!isChatSearchMode() && isGroupChatView() && state.groupMentionOpen) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveGroupMentionSelection(1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveGroupMentionSelection(-1);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeGroupMentionMenu();
+      return;
+    }
+    if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && !event.isComposing) {
+      event.preventDefault();
+      chooseGroupMention();
+      return;
+    }
+  }
   if (event.key !== "Enter") return;
   if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
   event.preventDefault();
+  if (isChatSearchMode()) {
+    performChatSearch();
+    return;
+  }
   void sendMessage();
 }
 
@@ -7156,11 +7844,25 @@ function wireUi() {
     hideRefreshNotice();
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") checkClientVersion("visible").catch(() => {});
+    if (document.visibilityState === "hidden") {
+      handleAppBackgrounded();
+      return;
+    }
+    handleAppForegrounded();
+    checkClientVersion("visible").catch(() => {});
   });
-  window.addEventListener("focus", () => checkClientVersion("focus").catch(() => {}));
+  window.addEventListener("pagehide", handleAppBackgrounded);
+  window.addEventListener("pageshow", handleAppForegrounded);
+  window.addEventListener("focus", () => {
+    handleAppForegrounded();
+    checkClientVersion("focus").catch(() => {});
+  });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type === "hermes.notification.open") {
+        openNotificationRoute(event.data.url || event.data.data?.url || "/").catch(showError);
+        return;
+      }
       if (event.data?.type === "hermes.push.received") {
         handleForegroundPushMessage(event.data);
         checkClientVersion("push").catch(() => {});
@@ -7391,6 +8093,12 @@ function wireUi() {
   $("topSearchChat")?.addEventListener("click", () => {
     openChatSearch();
   });
+  $("topToggleGroupChat")?.addEventListener("click", () => {
+    toggleGroupChat().catch(showError);
+  });
+  $("topManageGroupMembers")?.addEventListener("click", () => {
+    openGroupChatMembers().catch(showError);
+  });
   document.addEventListener("click", closeTopMoreMenu);
   document.addEventListener("click", () => closeTaskCardMenus());
   document.addEventListener("click", () => closeDirectoryEntryMenus());
@@ -7416,14 +8124,57 @@ function wireUi() {
   $("closeMenu").addEventListener("click", closeSidebar);
   $("sidebarBack")?.addEventListener("click", sidebarBackToMenu);
   $("sendMessage").addEventListener("click", () => void sendMessage());
+  $("groupMentionMenu")?.addEventListener("pointerdown", (event) => {
+    const option = event.target.closest?.("[data-group-mention-index]");
+    if (!option) return;
+    event.preventDefault();
+    event.stopPropagation();
+    chooseGroupMention(Number(option.dataset.groupMentionIndex || 0));
+  });
+  $("chatAiToggle")?.addEventListener("click", () => {
+    if (!isGroupChatView()) return;
+    state.groupAiMode = !state.groupAiMode;
+    updateComposerAction();
+    focusComposerSoon();
+  });
   $("interruptRun").addEventListener("click", interruptRun);
   $("messageInput").addEventListener("input", (event) => {
     autoSizeComposerEditor(event.target);
-    updateComposerAction();
+    if (isChatSearchMode()) updateChatSearchDraft(getComposerText());
+    else {
+      updateComposerAction();
+      updateGroupMentionMenu();
+    }
   });
   $("messageInput").addEventListener("keydown", handleComposerKeydown);
   $("messageInput").addEventListener("paste", pastePlainText);
-  $("attachFile").addEventListener("click", () => $("fileInput").click());
+  document.addEventListener("pointerdown", (event) => {
+    if (!state.groupMentionOpen) return;
+    if ($("composer")?.contains(event.target)) return;
+    closeGroupMentionMenu();
+  });
+  $("attachFile").addEventListener("pointerdown", (event) => {
+    if (!state.chatSearchOpen) return;
+    event.preventDefault();
+    event.stopPropagation();
+    $("attachFile").dataset.searchCloseHandled = "1";
+    closeChatSearch();
+  });
+  $("attachFile").addEventListener("click", (event) => {
+    if ($("attachFile").dataset.searchCloseHandled === "1") {
+      delete $("attachFile").dataset.searchCloseHandled;
+      event.preventDefault();
+      return;
+    }
+    if (state.chatSearchOpen) {
+      event.preventDefault();
+      closeChatSearch();
+      return;
+    }
+    $("fileInput").click();
+  });
+  $("chatSearchPrev")?.addEventListener("click", () => moveChatSearch(-1));
+  $("chatSearchNext")?.addEventListener("click", () => moveChatSearch(1));
   $("fileInput").addEventListener("change", (event) => uploadFiles([...event.target.files]).catch(showError));
 }
 

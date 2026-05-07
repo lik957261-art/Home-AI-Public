@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260507-push-title-cleanup";
+const HERMES_SW_VERSION = "20260507-notification-route";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -129,20 +129,32 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const notificationData = event.notification.data || {};
   const rawTargetUrl = event.notification.data?.url || "/";
   const parsedTargetUrl = new URL(rawTargetUrl, self.location.origin);
   const targetUrl = parsedTargetUrl.origin === self.location.origin ? parsedTargetUrl.href : `${self.location.origin}/`;
   event.waitUntil((async () => {
     const windowClients = await sameOriginWindowClients();
     for (const client of windowClients) {
+      let targetClient = client;
       if ("navigate" in client) {
         try {
-          await client.navigate(targetUrl);
+          targetClient = await client.navigate(targetUrl) || client;
         } catch (_) {
-          // Fall through to focusing the existing client.
+          targetClient = client;
         }
       }
-      await client.focus();
+      try {
+        targetClient.postMessage({
+          type: "hermes.notification.open",
+          version: HERMES_SW_VERSION,
+          url: targetUrl,
+          data: notificationData,
+        });
+      } catch (_) {
+        // A full navigation may replace the client before it can receive the fallback message.
+      }
+      await targetClient.focus();
       return;
     }
     await self.clients.openWindow(targetUrl);
