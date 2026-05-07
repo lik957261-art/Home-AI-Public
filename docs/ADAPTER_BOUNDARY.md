@@ -22,7 +22,7 @@ These parts must remain replaceable:
 - Project/directory map source.
 - Todo provider.
 - Automation/CRON provider.
-- Filesystem mount helpers.
+- Filesystem mount and path normalization helpers.
 - Skill detail provider.
 - External integration inventory, such as mail, GitHub, Google, or local desktop tools.
 
@@ -56,7 +56,7 @@ The private checkout still contains local deployment behavior that must be moved
 - ChatGPT-Drive display compatibility.
 - Owner-only external integration display labels remain product metadata, while deployment-specific path/env detection lives behind the integration provider.
 - CRON deliverable URL shape and file preview UI remain core, while deployment-specific path roots stay injected into the automation provider.
-- Volume mount helper behavior outside path normalization, now configurable through `HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON`.
+- Any future deployment-specific mount command execution. Current code only normalizes paths and maps `/volume1` mirrors through `adapters/filesystem-mount-provider.js`.
 
 ## Extraction Rule
 
