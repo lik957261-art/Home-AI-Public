@@ -10,6 +10,9 @@ const GENERIC_OWNER_TOPIC_ROUTE_IDS = new Set(["hermes-sync-folder"]);
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
   auth: null,
+  setupRequired: false,
+  setupOwnerKey: "",
+  setupError: "",
   clientVersion: CLIENT_VERSION,
   serverClientVersion: "",
   defaultReasoningEffort: "medium",
@@ -2216,6 +2219,7 @@ function setBootSplashText(message = "正在载入工作区") {
 
 function showBootSplash(message = "正在载入工作区") {
   setBootSplashText(message);
+  $("setup")?.classList.add("hidden");
   $("login")?.classList.add("hidden");
   $("app")?.classList.add("hidden");
   $("bootSplash")?.classList.remove("hidden");
@@ -2232,6 +2236,7 @@ async function hasCookieSession() {
 
 function showLogin(message = "") {
   hideBootSplash();
+  $("setup")?.classList.add("hidden");
   $("app").classList.add("hidden");
   $("login").classList.remove("hidden");
   $("loginError").textContent = message;
@@ -2239,9 +2244,55 @@ function showLogin(message = "") {
 
 function showApp() {
   hideBootSplash();
+  $("setup")?.classList.add("hidden");
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
   restoreVisibleAppScroll();
+}
+
+function showSetup(message = "") {
+  hideBootSplash();
+  $("app")?.classList.add("hidden");
+  $("login")?.classList.add("hidden");
+  $("setup")?.classList.remove("hidden");
+  state.setupError = message || "";
+  renderSetup();
+}
+
+function renderSetup() {
+  const error = $("setupError");
+  if (error) error.textContent = state.setupError || "";
+  const result = $("setupResult");
+  const key = $("setupKey");
+  if (result) result.hidden = !state.setupOwnerKey;
+  if (key) key.textContent = state.setupOwnerKey || "";
+  const submit = $("setupSubmit");
+  if (submit) submit.hidden = Boolean(state.setupOwnerKey);
+}
+
+async function createOwnerSetup() {
+  state.setupError = "";
+  renderSetup();
+  const result = await fetch("/api/setup/owner", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  }).then(async (res) => {
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(payload.error || "Owner setup failed");
+    return payload;
+  });
+  state.setupOwnerKey = result.key || "";
+  state.key = state.setupOwnerKey;
+  if (state.key) localStorage.setItem("hermesWebKey", state.key);
+  renderSetup();
+}
+
+async function enterAfterSetup() {
+  if (!state.setupOwnerKey) return;
+  showBootSplash("正在打开 Hermes Mobile");
+  await bootstrap();
+  showApp();
 }
 
 async function login(key) {
@@ -2961,6 +3012,15 @@ function renderAccessKeyManager() {
     : state.accessKeysError
       ? `<div class="access-key-empty error">${escapeHtml(state.accessKeysError)}</div>`
       : `<div class="access-key-list">${rows}</div>`;
+  const workspaceCreateForm = state.accessKeysAuth?.isOwner ? `<section class="access-key-create-workspace">
+        <div class="access-key-row-title">创建 / 配置用户工作区</div>
+        <div class="access-key-create-grid">
+          <input id="newWorkspaceId" type="text" autocomplete="off" placeholder="用户 ID，例如 zhangsan">
+          <input id="newWorkspaceLabel" type="text" autocomplete="off" placeholder="显示名">
+          <input id="newWorkspaceRoot" type="text" autocomplete="off" placeholder="根目录，可留空">
+        </div>
+        <button type="button" data-create-workspace>保存工作区</button>
+      </section>` : "";
   const subtitle = state.accessKeysAuth?.isOwner
     ? "只显示当前选择工作区的 Hermes Web 登录 key；切换工作区后可管理对应账号。"
     : "只能查看并更换当前账号的 Hermes Web 登录 key。";
@@ -2974,6 +3034,7 @@ function renderAccessKeyManager() {
         <button class="access-key-close" type="button" data-close-access-keys>完成</button>
       </header>
       ${generated}
+      ${workspaceCreateForm}
       ${showOwnerKey ? `<section class="access-key-web">
         <div>
           <div class="access-key-row-title">Hermes Web Owner Key</div>
@@ -2985,6 +3046,7 @@ function renderAccessKeyManager() {
     </div>`;
   overlay.querySelector("[data-close-access-keys]")?.addEventListener("click", closeAccessKeyManager);
   overlay.querySelector("[data-rotate-web-key]")?.addEventListener("click", () => rotateWebAccessKey().catch(showError));
+  overlay.querySelector("[data-create-workspace]")?.addEventListener("click", () => createWorkspaceFromAccessKeyManager().catch(showError));
   overlay.querySelector("[data-copy-access-key]")?.addEventListener("click", () => copyTextToClipboard(state.generatedAccessKey?.key || "").catch(showError));
   overlay.querySelector("[data-relogin-after-access-key]")?.addEventListener("click", () => finishAccessKeyRelogin());
   overlay.querySelectorAll("[data-generate-workspace-key]").forEach((button) => {
@@ -3017,6 +3079,23 @@ async function openAccessKeyManager(options = {}) {
   closeTopMoreMenu();
   state.accessKeyManagerOpen = true;
   await loadAccessKeyManager({ workspaceId: options.workspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "" });
+}
+
+async function createWorkspaceFromAccessKeyManager() {
+  const workspaceId = $("newWorkspaceId")?.value?.trim() || "";
+  const label = $("newWorkspaceLabel")?.value?.trim() || workspaceId;
+  const defaultWorkspace = $("newWorkspaceRoot")?.value?.trim() || "";
+  if (!workspaceId) throw new Error("请输入用户 ID");
+  const result = await api("/api/workspaces", {
+    method: "POST",
+    body: JSON.stringify({ workspaceId, label, defaultWorkspace }),
+  });
+  const createdId = result.workspace?.id || workspaceId;
+  state.selectedWorkspaceId = createdId;
+  localStorage.setItem("hermesWebWorkspace", createdId);
+  await loadWorkspaces();
+  await loadProjects();
+  await loadAccessKeyManager({ workspaceId: createdId });
 }
 
 function closeAccessKeyManager() {
@@ -7869,6 +7948,21 @@ function wireUi() {
       }
     });
   }
+  $("setupForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    createOwnerSetup().catch((err) => {
+      state.setupError = err.message || String(err);
+      renderSetup();
+    });
+  });
+  $("copySetupKey")?.addEventListener("click", () => copyTextToClipboard(state.setupOwnerKey || "").catch((err) => {
+    state.setupError = err.message || String(err);
+    renderSetup();
+  }));
+  $("enterAfterSetup")?.addEventListener("click", () => enterAfterSetup().catch((err) => {
+    state.setupError = err.message || String(err);
+    renderSetup();
+  }));
   $("loginForm").addEventListener("submit", (event) => {
     event.preventDefault();
     login($("loginKey").value.trim()).catch((err) => showLogin(err.message));
@@ -8183,6 +8277,11 @@ async function start() {
   showBootSplash("正在连接 Hermes Web");
   try {
     const config = await fetch("/api/public-config").then((res) => res.json());
+    state.setupRequired = Boolean(config.setupRequired);
+    if (state.setupRequired) {
+      showSetup();
+      return;
+    }
     if (config.authRequired && !state.key) {
       if (!(await hasCookieSession().catch(() => false))) {
         showLogin();

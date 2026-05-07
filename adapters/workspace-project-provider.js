@@ -74,6 +74,37 @@ function createWorkspaceProjectProvider(options = {}) {
     };
   }
 
+  function workspaceFromLocalRecord(record) {
+    const id = String(record?.id || record?.workspaceId || "").trim();
+    const label = String(record?.label || id || "Workspace").trim();
+    const defaultWorkspace = String(record?.defaultWorkspace || record?.default_workspace || "").trim();
+    const accessMode = String(record?.accessMode || record?.access_mode || "restricted").trim() || "restricted";
+    const allowedRoots = normalizeStringList(record?.allowedRoots || record?.allowed_roots || defaultWorkspace);
+    const route = {
+      principal_id: id,
+      principal_label: label,
+      access_mode: accessMode,
+      default_workspace: defaultWorkspace,
+      aliases: normalizeStringList(record?.aliases),
+      show_task_id: record?.showTaskId !== false,
+      max_parallel_tasks: Number(record?.maxParallelTasks || 0),
+    };
+    const user = {
+      principal_id: id,
+      principal_label: label,
+      access_mode: accessMode,
+      default_workspace: defaultWorkspace,
+      allowed_roots: allowedRoots,
+      delivery_roots: normalizeStringList(record?.deliveryRoots || record?.delivery_roots),
+      sync_root: String(record?.syncRoot || record?.sync_root || "").trim(),
+      download_root: String(record?.downloadRoot || record?.download_root || "").trim(),
+      allowed_toolsets: normalizeStringList(record?.allowedToolsets || record?.allowed_toolsets),
+    };
+    const workspace = workspaceFromRoute(route, user);
+    workspace.source = "local-workspace";
+    return workspace;
+  }
+
   function loadCatalog() {
     const now = Date.now();
     if (catalogCache.value && now - catalogCache.loadedAt < cacheTtlMs) return catalogCache.value;
@@ -92,6 +123,14 @@ function createWorkspaceProjectProvider(options = {}) {
       if (!route || !route.principal_id) continue;
       const user = userByPrincipal.get(String(route.principal_id)) || {};
       workspaces.push(workspaceFromRoute(route, user));
+    }
+    const existingWorkspaceIds = new Set(workspaces.map((item) => item.id));
+    const localRecords = typeof options.localWorkspaces === "function" ? options.localWorkspaces() : [];
+    for (const record of Array.isArray(localRecords) ? localRecords : []) {
+      const workspace = workspaceFromLocalRecord(record);
+      if (!workspace.id || workspace.id === "owner" || existingWorkspaceIds.has(workspace.id)) continue;
+      workspaces.push(workspace);
+      existingWorkspaceIds.add(workspace.id);
     }
     if (!workspaces.some((item) => item.id === "owner")) {
       workspaces.unshift(fallbackOwnerWorkspace());

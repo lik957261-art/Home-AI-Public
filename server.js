@@ -11,13 +11,14 @@ const webpush = require("web-push");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 
 const TOOL_ROOT = __dirname;
-const REPO_ROOT = path.resolve(TOOL_ROOT, "..", "..", "..");
+const REPO_ROOT = path.resolve(process.env.HERMES_WEB_REPO_ROOT || process.env.HERMES_MOBILE_ROOT || TOOL_ROOT);
 const PUBLIC_ROOT = path.join(TOOL_ROOT, "public");
 const INDEX_HTML_PATH = path.join(PUBLIC_ROOT, "index.html");
 const TODO_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "todo_bridge.py");
 const CRON_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "cron_bridge.py");
 const DIRECTORY_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "directory_bridge.py");
 const SKILL_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "skill_bridge.py");
+const LOCAL_CONFIG_ROOT = path.resolve(process.env.HERMES_WEB_CONFIG_DIR || path.join(REPO_ROOT, "config"));
 
 const HOST = process.env.HERMES_WEB_HOST || "0.0.0.0";
 const PORT = Number(process.env.HERMES_WEB_PORT || "8797");
@@ -34,6 +35,7 @@ const STATE_PATH = path.join(DATA_DIR, "state.json");
 const STATE_BACKUP_DIR = path.join(DATA_DIR, "backups");
 const SHARED_DIRECTORIES_PATH = path.join(DATA_DIR, "shared-directories.json");
 const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
+const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
 const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
 const AUTH_KEY_PATH = path.join(REPO_ROOT, ".hermes_web_secret_key");
 const WEB_PUSH_VAPID_PATH = path.resolve(
@@ -55,18 +57,19 @@ const HERMES_API_KEY_PATHS = [
 const WEIXIN_USERS_PATHS = [
   process.env.HERMES_WEB_WEIXIN_USERS_PATH,
   ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-users.json"),
-  path.join(REPO_ROOT, "configs", "hermes", "local-overrides", "hermes-home", "access-control", "weixin-users.json"),
+  path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-users.json"),
 ].filter(Boolean);
 const WEIXIN_ROUTE_MAP_PATHS = [
   process.env.HERMES_WEB_WEIXIN_ROUTE_MAP_PATH,
   ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-routing-map.json"),
-  path.join(REPO_ROOT, "configs", "hermes", "local-overrides", "hermes-home", "access-control", "weixin-routing-map.json"),
+  path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-routing-map.json"),
 ].filter(Boolean);
 const HERMES_CONFIG_PATHS = [
   process.env.HERMES_WEB_HERMES_CONFIG_PATH,
   process.env.HERMES_CONFIG_PATH,
   ...wslUncPathCandidates(WSL_HERMES_HOME, "config.yaml"),
-  path.join(REPO_ROOT, "configs", "hermes", "local-overrides", "hermes-home", "config.yaml"),
+  path.join(LOCAL_CONFIG_ROOT, "hermes-config.yaml"),
+  path.join(LOCAL_CONFIG_ROOT, "config.yaml"),
 ].filter(Boolean);
 const GOOGLE_TOKEN_PATHS = [
   process.env.HERMES_WEB_GOOGLE_TOKEN_PATH,
@@ -87,7 +90,7 @@ const GITHUB_CLI_HOSTS_PATHS = [
 ].filter(Boolean);
 const PROJECT_MAP_PATHS = [
   process.env.HERMES_WEB_PROJECT_MAP_PATH,
-  path.join(REPO_ROOT, "configs", "hermes", "project-directory-map.json"),
+  path.join(LOCAL_CONFIG_ROOT, "project-directory-map.json"),
 ].filter(Boolean);
 
 const MAX_BODY_BYTES = 2_000_000;
@@ -222,9 +225,12 @@ function loadAuthKeyState() {
     const value = fs.readFileSync(AUTH_KEY_PATH, "utf8").trim();
     if (value) return { key: value, source: "file" };
   } catch (_) {
-    // Fall through to an in-memory key. Startup logs identify this mode.
+    // Fall through to first-run setup.
   }
-  return { key: crypto.randomBytes(18).toString("base64url"), source: "memory" };
+  if (/^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_ALLOW_MEMORY_KEY || "")) {
+    return { key: crypto.randomBytes(18).toString("base64url"), source: "memory" };
+  }
+  return { key: "", source: "unconfigured" };
 }
 
 function loadHermesApiKey() {
@@ -281,6 +287,35 @@ function generateWebAccessKey() {
 
 function currentGlobalAuthKey() {
   return authKeyState?.key || "";
+}
+
+function ownerSetupStatus() {
+  const ownerKeyConfigured = Boolean(currentGlobalAuthKey());
+  const setupRequired = !DISABLE_AUTH && authKeyState?.source === "unconfigured" && !ownerKeyConfigured;
+  return {
+    setupRequired,
+    authRequired: !DISABLE_AUTH,
+    ownerKeyConfigured,
+    ownerKeySource: authKeyState?.source || "unknown",
+    canCreateOwner: setupRequired,
+  };
+}
+
+function createInitialOwnerKey() {
+  const status = ownerSetupStatus();
+  if (!status.setupRequired) {
+    const err = new Error(status.ownerKeyConfigured ? "Owner key is already configured" : "Owner setup is not available");
+    err.status = 409;
+    throw err;
+  }
+  const key = generateWebAccessKey();
+  fs.mkdirSync(path.dirname(AUTH_KEY_PATH), { recursive: true });
+  fs.writeFileSync(AUTH_KEY_PATH, `${key}\n`, { encoding: "utf8", mode: 0o600 });
+  authKeyState = { key, source: "file", updatedAt: nowIso() };
+  return {
+    key,
+    auth: { source: "file", path: ".hermes_web_secret_key", updatedAt: authKeyState.updatedAt },
+  };
 }
 
 function parseCookies(header) {
@@ -342,13 +377,127 @@ function saveAccessKeyStore(store) {
   return normalized;
 }
 
+function workspaceIdSlug(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
+function normalizeLocalWorkspaceRecord(record) {
+  const source = record && typeof record === "object" ? record : {};
+  const id = workspaceIdSlug(source.id || source.workspaceId || source.workspace_id);
+  if (!id || id === "owner") return null;
+  const label = String(source.label || source.name || id).trim() || id;
+  const defaultWorkspace = String(source.defaultWorkspace || source.default_workspace || source.root || "").trim();
+  const allowedRoots = normalizeStringList(source.allowedRoots || source.allowed_roots || defaultWorkspace);
+  return {
+    id,
+    label,
+    accessMode: String(source.accessMode || source.access_mode || "restricted").trim() || "restricted",
+    defaultWorkspace,
+    allowedRoots,
+    aliases: normalizeStringList(source.aliases),
+    allowedToolsets: normalizeStringList(source.allowedToolsets || source.allowed_toolsets),
+    createdAt: String(source.createdAt || ""),
+    updatedAt: String(source.updatedAt || source.createdAt || ""),
+    createdBy: String(source.createdBy || "owner"),
+  };
+}
+
+function normalizeLocalWorkspaceStore(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const raw = Array.isArray(source.workspaces) ? source.workspaces : [];
+  const workspaces = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const record = normalizeLocalWorkspaceRecord(item);
+    if (!record || seen.has(record.id)) continue;
+    seen.add(record.id);
+    workspaces.push(record);
+  }
+  return {
+    schemaVersion: 1,
+    workspaces,
+    updatedAt: String(source.updatedAt || ""),
+  };
+}
+
+function loadLocalWorkspaceStore() {
+  ensureDataDir();
+  try {
+    return normalizeLocalWorkspaceStore(JSON.parse(fs.readFileSync(LOCAL_WORKSPACES_PATH, "utf8")));
+  } catch (_) {
+    return normalizeLocalWorkspaceStore({});
+  }
+}
+
+function saveLocalWorkspaceStore(store) {
+  ensureDataDir();
+  const normalized = normalizeLocalWorkspaceStore(Object.assign({}, store, { updatedAt: nowIso() }));
+  fs.writeFileSync(LOCAL_WORKSPACES_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+  return normalized;
+}
+
+function localWorkspaceRecords() {
+  return loadLocalWorkspaceStore().workspaces || [];
+}
+
+function upsertLocalWorkspace(input, actor = "owner") {
+  const rawId = input.workspaceId || input.workspace_id || input.id || "";
+  const id = workspaceIdSlug(rawId);
+  if (!id) {
+    const err = new Error("Workspace id is required");
+    err.status = 400;
+    throw err;
+  }
+  if (id === "owner") {
+    const err = new Error("Owner workspace already exists");
+    err.status = 409;
+    throw err;
+  }
+  const existing = findWorkspace(id);
+  if (existing && existing.source !== "local-workspace") {
+    const err = new Error("Workspace id is already managed by the external workspace provider");
+    err.status = 409;
+    throw err;
+  }
+  const now = nowIso();
+  const store = loadLocalWorkspaceStore();
+  const previous = store.workspaces.find((item) => item.id === id) || {};
+  const record = normalizeLocalWorkspaceRecord(Object.assign({}, previous, input, {
+    id,
+    label: String(input.label || input.name || previous.label || id).trim(),
+    defaultWorkspace: String(input.defaultWorkspace || input.default_workspace || input.root || previous.defaultWorkspace || "").trim(),
+    allowedRoots: normalizeStringList(input.allowedRoots || input.allowed_roots || input.root || input.defaultWorkspace || input.default_workspace || previous.allowedRoots || []),
+    allowedToolsets: normalizeStringList(input.allowedToolsets || input.allowed_toolsets || previous.allowedToolsets || []),
+    createdAt: previous.createdAt || now,
+    updatedAt: now,
+    createdBy: previous.createdBy || actor || "owner",
+  }));
+  if (!record) {
+    const err = new Error("Invalid workspace");
+    err.status = 400;
+    throw err;
+  }
+  const next = store.workspaces.filter((item) => item.id !== id);
+  next.push(record);
+  saveLocalWorkspaceStore(Object.assign({}, store, { workspaces: next }));
+  invalidateCatalogCache();
+  dynamicProjectCache.delete(id);
+  return record;
+}
+
 function authenticateRequest(req) {
   if (DISABLE_AUTH) {
     return { ok: true, role: "owner", workspaceId: "owner", principalId: "owner", isOwner: true, keySource: "disabled" };
   }
   if (req.auth) return req.auth;
   const key = requestAccessKey(req);
-  if (timingSafeEquals(key, currentGlobalAuthKey())) {
+  const globalKey = currentGlobalAuthKey();
+  if (key && globalKey && timingSafeEquals(key, globalKey)) {
     req.auth = { ok: true, role: "owner", workspaceId: "owner", principalId: "owner", isOwner: true, keySource: authKeyState.source || "global" };
     return req.auth;
   }
@@ -2373,6 +2522,7 @@ function getWorkspaceProjectProvider() {
       normalizeStringList,
       buildAccessPolicy,
       projectsForWorkspace,
+      localWorkspaces: localWorkspaceRecords,
       ownerAliases: () => process.env.HERMES_WEB_OWNER_ALIASES || "owner",
       fallbackOwnerPolicy: () => sanitizePolicy({
         principal_id: "owner",
@@ -3324,6 +3474,7 @@ function publicWorkspace(workspace) {
     id: workspace.id,
     label: workspace.label,
     role: workspace.role,
+    source: workspace.source || "",
     accessMode: workspace.accessMode,
     defaultWorkspace: workspace.defaultWorkspace,
     accessKey: String(policy.principal_id || workspace.id || ""),
@@ -6197,7 +6348,28 @@ async function handleApi(req, res) {
   attachClientVersionHeaders(req, res);
 
   if (url.pathname === "/api/public-config") {
-    sendJson(res, 200, { authRequired: !DISABLE_AUTH, title: "Hermes Web" });
+    sendJson(res, 200, Object.assign({ title: "Hermes Mobile" }, ownerSetupStatus()));
+    return;
+  }
+
+  if (url.pathname === "/api/setup/status" && req.method === "GET") {
+    sendJson(res, 200, ownerSetupStatus());
+    return;
+  }
+
+  if (url.pathname === "/api/setup/owner" && req.method === "POST") {
+    try {
+      await readBody(req).catch(() => ({}));
+      const result = createInitialOwnerKey();
+      res.writeHead(201, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Set-Cookie": `hermes_web_key=${encodeURIComponent(result.key || "")}; Path=/; Max-Age=31536000; SameSite=Lax`,
+      });
+      res.end(JSON.stringify(Object.assign({ ok: true }, result, ownerSetupStatus())));
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err), setup: ownerSetupStatus() });
+    }
     return;
   }
 
@@ -6322,6 +6494,24 @@ async function handleApi(req, res) {
   if (url.pathname === "/api/workspaces" && req.method === "GET") {
     const catalog = loadCatalog();
     sendJson(res, 200, { data: publicWorkspacesForAuth(auth).map(publicWorkspace), sources: catalog.sources, auth: { role: auth.role, workspaceId: auth.workspaceId, isOwner: isOwnerAuth(auth) } });
+    return;
+  }
+
+  if (url.pathname === "/api/workspaces" && req.method === "POST") {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    const body = await readBody(req).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const record = upsertLocalWorkspace(body, ownerAuth.principalId || "owner");
+      const workspace = findWorkspace(record.id);
+      sendJson(res, 201, { ok: true, workspace: publicWorkspace(workspace), record });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err) });
+    }
     return;
   }
 

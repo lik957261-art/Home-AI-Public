@@ -72,6 +72,12 @@ function run() {
       };
     },
     ownerAliases: () => "owner,admin",
+    localWorkspaces: () => [{
+      id: "local_user",
+      label: "Local User",
+      defaultWorkspace: "/workspace/local",
+      allowedRoots: ["/workspace/local"],
+    }],
     projectsForWorkspace(workspace, projectEntries) {
       return [{
         id: `${workspace.id}-project`,
@@ -86,14 +92,17 @@ function run() {
   assert.equal(catalog.sources.users, "users.json");
   assert.equal(catalog.sources.routes, "routes.json");
   assert.equal(catalog.sources.projectMap, "projects.json");
-  assert.equal(catalog.workspaces.length, 2);
+  assert.equal(catalog.workspaces.length, 3);
   assert.equal(catalog.workspaces[0].id, "owner");
   assert.deepEqual(catalog.workspaces[0].aliases, ["owner", "admin"]);
   assert.equal(catalog.workspaces[1].id, "workspace_a");
   assert.equal(catalog.workspaces[1].label, "Workspace A");
   assert.equal(catalog.workspaces[1].accountId, "acct_a");
   assert.equal(catalog.workspaces[1].showTaskId, false);
-  assert.equal(catalog.projects.length, 2);
+  assert.equal(catalog.workspaces[2].id, "local_user");
+  assert.equal(catalog.workspaces[2].source, "local-workspace");
+  assert.equal(catalog.workspaces[2].policy.default_workspace, "/workspace/local");
+  assert.equal(catalog.projects.length, 3);
   assert.equal(reads, 3);
 
   const cached = provider.loadCatalog();

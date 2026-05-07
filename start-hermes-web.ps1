@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 $scriptRoot = (Resolve-Path -LiteralPath $scriptRoot).Path
-$repoRoot = (Resolve-Path -LiteralPath (Join-Path $scriptRoot "..\..\..")).Path
+$repoRoot = $scriptRoot
 $serverPath = Join-Path $scriptRoot "server.js"
 $appPath = Join-Path $scriptRoot "public\app.js"
 $logDir = Join-Path $repoRoot "workspace\hermes-web\logs"

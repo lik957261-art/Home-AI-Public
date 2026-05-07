@@ -18,6 +18,7 @@ Use this private repository as the productization source for Hermes Web. The pub
 - Add explicit validation for required paths and credentials.
 - Document which features require Hermes Gateway, WSL, Web Push, CRON metadata, or local filesystem access.
 - Current baseline moves WSL user/home, Hermes home, Web Push subject, todo plugin path/name, skill root, and volume mount helpers behind environment variables. Remaining private labels and account-specific bindings are tracked in `ADAPTER_BOUNDARY.md`.
+- First-run Owner setup is visual: if no `HERMES_WEB_KEY` and no `.hermes_web_secret_key` exist, the browser creates the Owner Access Key once, displays it once, and then enters the app. Admin-created local workspaces are stored in `workspace/hermes-web/workspaces.json`.
 
 ## Phase 2: Adapter Boundary
 

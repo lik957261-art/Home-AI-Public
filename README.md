@@ -57,6 +57,17 @@ WSL/Linux:
 
 Default URL: `http://0.0.0.0:8797`
 
+## First Run
+
+If `HERMES_WEB_KEY` is not set and `.hermes_web_secret_key` does not exist, Hermes Mobile opens a first-run setup screen.
+
+1. Create the Owner Access Key in the browser.
+2. Copy and store the plaintext key immediately; it is shown once.
+3. Enter Hermes Mobile.
+4. Open the sidebar `账号 / 根目录 / 接口` panel, choose `Access Key` management, create user workspaces, then generate each user's Access Key.
+
+Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Runtime files in `workspace/` remain ignored by Git.
+
 ## Configuration
 
 Start from `.env.example`. Do not commit real keys, push endpoints, access-key stores, VAPID private keys, local state, uploaded files, or user data.
@@ -64,6 +75,7 @@ Start from `.env.example`. Do not commit real keys, push endpoints, access-key s
 Important configuration groups:
 
 - `HERMES_WEB_HOST`, `HERMES_WEB_PORT`, `HERMES_WEB_DATA_DIR`
+- `HERMES_WEB_REPO_ROOT`, `HERMES_WEB_CONFIG_DIR`
 - `HERMES_WEB_KEY` or a deployment secret file
 - `HERMES_WEB_HERMES_API_BASE`
 - `HERMES_WEB_HERMES_API_KEY` or `HERMES_WEB_HERMES_API_KEY_PATH`

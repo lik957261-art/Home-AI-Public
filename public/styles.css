@@ -219,6 +219,40 @@ button {
   font-size: 13px;
 }
 
+.setup-result {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--accent-mist);
+  border: 1px solid rgba(31, 111, 98, 0.22);
+  border-radius: 14px;
+}
+
+.setup-result-label {
+  color: var(--ink);
+  font-weight: 820;
+}
+
+.setup-key-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.setup-key-row code {
+  min-width: 0;
+  padding: 10px;
+  overflow: auto;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(31, 43, 51, 0.1);
+  border-radius: 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .app {
   height: 100vh;
   height: 100dvh;
@@ -3127,7 +3161,8 @@ button.directory-alias-chip {
 .access-key-header,
 .access-key-web,
 .access-key-row,
-.access-key-result {
+.access-key-result,
+.access-key-create-workspace {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3203,7 +3238,8 @@ button.directory-alias-chip {
 .access-key-close,
 .access-key-row button,
 .access-key-web button,
-.access-key-result button {
+.access-key-result button,
+.access-key-create-workspace button {
   flex: 0 0 auto;
   min-height: 34px;
   padding: 0 13px;
@@ -3255,6 +3291,33 @@ button.directory-alias-chip {
   justify-content: stretch;
   background: var(--accent-mist);
   border-color: rgba(31, 111, 98, 0.22);
+}
+
+.access-key-create-workspace {
+  display: grid;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.access-key-create-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.access-key-create-grid input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  outline: none;
+}
+
+.access-key-create-grid input:last-child {
+  grid-column: 1 / -1;
 }
 
 .access-key-login-button {
