@@ -17,6 +17,10 @@ const state = {
   serverClientVersion: "",
   defaultReasoningEffort: "medium",
   defaultReasoningSource: "gateway-default",
+  displayConfig: {
+    ownerDriveRootNames: ["ChatGPT-Drive"],
+    ownerRootFallbackLabel: "Hermes Owner",
+  },
   refreshCheckTimer: null,
   refreshNoticeDismissedVersion: "",
   pushToastTimer: null,
@@ -2453,6 +2457,15 @@ async function loadStatus() {
   const status = await api("/api/status").catch((err) => ({ ok: false, error: err.message }));
   $("connectionState").textContent = status.ok ? "Hermes OK" : `Hermes unavailable: ${status.error || "unknown"}`;
   if (status.clientVersion) handleClientVersion(status.clientVersion, "status");
+  if (status.display && typeof status.display === "object") {
+    const names = Array.isArray(status.display.ownerDriveRootNames)
+      ? status.display.ownerDriveRootNames.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+    state.displayConfig = {
+      ownerDriveRootNames: names.length ? names : state.displayConfig.ownerDriveRootNames,
+      ownerRootFallbackLabel: String(status.display.ownerRootFallbackLabel || state.displayConfig.ownerRootFallbackLabel || "Hermes Owner"),
+    };
+  }
   if (status.reasoning?.defaultEffort) {
     state.defaultReasoningEffort = String(status.reasoning.defaultEffort || "medium").toLowerCase();
     state.defaultReasoningSource = status.reasoning.source || "";
@@ -3531,8 +3544,8 @@ function sharedProjectRootOwnerLabel(project) {
   const parts = root.split("/").filter(Boolean);
   const volumeIndex = parts.findIndex((part) => part.toLowerCase() === "volume1");
   if (volumeIndex >= 0 && parts[volumeIndex + 1]) return parts[volumeIndex + 1];
-  const chatDriveIndex = parts.findIndex((part) => part.toLowerCase() === "chatgpt-drive");
-  if (chatDriveIndex >= 0) return "Hermes Owner";
+  const driveIndex = ownerDriveRootIndexForParts(parts);
+  if (driveIndex >= 0) return state.displayConfig.ownerRootFallbackLabel || "Hermes Owner";
   return "";
 }
 
@@ -6923,6 +6936,23 @@ function comparableDirectoryPath(value) {
     .toLowerCase();
 }
 
+function configuredOwnerDriveRootNames() {
+  const names = Array.isArray(state.displayConfig?.ownerDriveRootNames)
+    ? state.displayConfig.ownerDriveRootNames.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  return names.length ? names : ["ChatGPT-Drive"];
+}
+
+function ownerDriveRootIndexForParts(parts) {
+  const names = new Set(configuredOwnerDriveRootNames().map((item) => item.toLowerCase()));
+  return (parts || []).findIndex((part) => names.has(String(part || "").toLowerCase()));
+}
+
+function pathContainsOwnerDriveRoot(rawPath) {
+  const parts = String(rawPath || "").trim().replaceAll("\\", "/").split("/").filter(Boolean);
+  return ownerDriveRootIndexForParts(parts) >= 0;
+}
+
 function pathMatchesDirectoryRoot(candidatePath, rootPath) {
   const candidate = comparableDirectoryPath(candidatePath);
   const root = comparableDirectoryPath(rootPath);
@@ -6948,7 +6978,7 @@ function logicalUserPathFallback(rawPath, fallbackLabel = "") {
   const normalized = String(rawPath || "").trim().replaceAll("\\", "/");
   const parts = normalized.split("/").filter(Boolean);
   const lowerParts = parts.map((part) => part.toLowerCase());
-  const driveIndex = lowerParts.findIndex((part) => part === "chatgpt-drive");
+  const driveIndex = ownerDriveRootIndexForParts(parts);
   if (driveIndex >= 0 && parts.length > driveIndex + 1) return parts.slice(driveIndex + 1).join(" / ");
   const synologyIndex = lowerParts.findIndex((part) => part === "synologydrive");
   if (synologyIndex >= 0) return ["SynologyDrive", ...parts.slice(synologyIndex + 1)].join(" / ");
@@ -7047,7 +7077,7 @@ function isGenericDefaultDirectoryAlias(alias) {
     "资料根目录",
     "defaultdirectory",
     "defaultdataroot",
-  ].includes(label) || path === "chatgpt-drive";
+  ].includes(label) || pathContainsOwnerDriveRoot(path);
 }
 
 function isGenericCurrentBoundDirectoryAlias(alias) {

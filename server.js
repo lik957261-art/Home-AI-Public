@@ -5058,6 +5058,10 @@ async function handleApi(req, res) {
   if (url.pathname === "/api/status" && req.method === "GET") {
     const status = await getHermesStatus();
     status.catalog = loadCatalog().sources;
+    status.display = {
+      ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
+      ownerRootFallbackLabel: OWNER_ROOT_FALLBACK_LABEL,
+    };
     status.push = publicPushStatus();
     status.reasoning = defaultReasoningInfo();
     status.clientVersion = clientVersionInfo(req.headers["x-hermes-web-client-version"] || "");
