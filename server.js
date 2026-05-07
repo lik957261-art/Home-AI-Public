@@ -10,6 +10,7 @@ const { spawn } = require("node:child_process");
 const webpush = require("web-push");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
+const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
 
@@ -185,9 +186,6 @@ const AUTOMATION_PUSH_INITIAL_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMA
 const MAX_STATE_BACKUPS = Number(process.env.HERMES_WEB_MAX_STATE_BACKUPS || "80");
 const STATE_BACKUP_MIN_INTERVAL_MS = Number(process.env.HERMES_WEB_STATE_BACKUP_MIN_INTERVAL_MS || String(10 * 60 * 1000));
 const ENABLE_DIRECT_TODO_CREATE = /^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_DIRECT_TODO_CREATE || "");
-const DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES = new Set(
-  normalizeStringList(process.env.HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES || "").map((share) => share.toLowerCase()),
-);
 
 let clients = new Set();
 let activeStreams = new Map();
@@ -201,6 +199,16 @@ let defaultReasoningCache = { cacheKey: "", value: null };
 let webPushConfig = initializeWebPush();
 let todoWebPushRunning = false;
 let automationWebPushRunning = false;
+
+const filesystemMountProvider = createFilesystemMountProvider({
+  wslDistro: WSL_DISTRO,
+  windowsHome: WINDOWS_HOME,
+  repoRoot: REPO_ROOT,
+  dataDir: DATA_DIR,
+  volume1WindowsRoot: () => process.env.HERMES_WEB_VOLUME1_WINDOWS_ROOT || "",
+  disabledVolume1Shares: () => normalizeStringList(process.env.HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES || ""),
+  allowedArtifactRoots: () => String(process.env.HERMES_WEB_ALLOWED_ARTIFACT_ROOTS || ""),
+});
 
 function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -1428,10 +1436,7 @@ function readBody(req, maxBytes = MAX_BODY_BYTES) {
 }
 
 function windowsPathToWsl(value) {
-  const resolved = path.resolve(String(value || ""));
-  const match = resolved.match(/^([A-Za-z]):\\(.*)$/);
-  if (!match) return resolved.replaceAll("\\", "/");
-  return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}`;
+  return filesystemMountProvider.windowsPathToWsl(value);
 }
 
 function safeStorageSegment(value, fallback = "item") {
@@ -5876,84 +5881,19 @@ function addPathCandidate(set, value) {
 }
 
 function volume1WindowsMirrorPath(rawPath) {
-  const text = String(rawPath || "").trim().replaceAll("\\", "/");
-  const match = text.match(/^\/volume1\/([^/]+)(\/.*)?$/);
-  if (!match) return "";
-  if (DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES.has(String(match[1] || "").toLowerCase())) return "";
-  const home = process.env.USERPROFILE || os.homedir() || "";
-  const roots = dedupe([
-    process.env.HERMES_WEB_VOLUME1_WINDOWS_ROOT,
-    path.join(home, "SynologyDrive"),
-  ].filter(Boolean));
-  const suffix = String(match[2] || "").replace(/^\/+/, "").replaceAll("/", "\\");
-  for (const root of roots) {
-    const local = path.join(root, match[1], suffix);
-    if (fs.existsSync(local)) return local;
-  }
-  return "";
+  return filesystemMountProvider.volume1WindowsMirrorPath(rawPath);
 }
 
 function normalizeLocalPath(rawPath) {
-  let p = String(rawPath || "").trim();
-  if (!p) return "";
-  if (/^file:\/\//i.test(p)) {
-    try {
-      p = decodeURIComponent(new URL(p).pathname);
-    } catch (_) {}
-  }
-  const m = p.match(/^\/mnt\/([A-Za-z])\/(.+)$/);
-  if (m) {
-    return `${m[1].toUpperCase()}:\\${m[2].replaceAll("/", "\\")}`;
-  }
-  const volume1Mirror = volume1WindowsMirrorPath(p);
-  if (volume1Mirror) return volume1Mirror;
-  if (p.startsWith("/")) {
-    const unc = `\\\\wsl.localhost\\${WSL_DISTRO}${p.replaceAll("/", "\\")}`;
-    if (fs.existsSync(unc)) return unc;
-    const uncLegacy = `\\\\wsl$\\${WSL_DISTRO}${p.replaceAll("/", "\\")}`;
-    if (fs.existsSync(uncLegacy)) return uncLegacy;
-  }
-  return p;
+  return filesystemMountProvider.normalizeLocalPath(rawPath);
 }
 
 function allowedRoots() {
-  const configured = String(process.env.HERMES_WEB_ALLOWED_ARTIFACT_ROOTS || "")
-    .split(path.delimiter)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const home = os.homedir();
-  const defaults = [
-    path.join(REPO_ROOT, "workspace"),
-    path.join(REPO_ROOT, "outbox"),
-    path.join(DATA_DIR, "artifacts"),
-    path.join(WINDOWS_HOME, "Documents", "ChatGPT-Drive"),
-  ];
-  if (home) defaults.push(path.join(home, "SynologyDrive"));
-  return [...configured, ...defaults]
-    .map(normalizeLocalPath)
-    .filter(Boolean)
-    .map((item) => {
-      try {
-        return fs.realpathSync.native(item);
-      } catch (_) {
-        return path.resolve(item);
-      }
-    });
+  return filesystemMountProvider.resolvedAllowedRoots();
 }
 
 function isPathAllowed(filePath) {
-  const roots = allowedRoots();
-  let target;
-  try {
-    target = fs.realpathSync.native(filePath);
-  } catch (_) {
-    target = path.resolve(filePath);
-  }
-  const normTarget = target.toLowerCase();
-  return roots.some((root) => {
-    const normRoot = root.toLowerCase();
-    return normTarget === normRoot || normTarget.startsWith(`${normRoot}${path.sep}`);
-  });
+  return filesystemMountProvider.isPathAllowed(filePath);
 }
 
 function isPathAllowedForThread(thread, localPath, originalPath = "") {
