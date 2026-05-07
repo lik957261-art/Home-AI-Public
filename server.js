@@ -12,6 +12,7 @@ const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
+const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
 
@@ -209,6 +210,17 @@ const filesystemMountProvider = createFilesystemMountProvider({
   volume1WindowsRoot: () => process.env.HERMES_WEB_VOLUME1_WINDOWS_ROOT || "",
   disabledVolume1Shares: () => normalizeStringList(process.env.HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES || ""),
   allowedArtifactRoots: () => String(process.env.HERMES_WEB_ALLOWED_ARTIFACT_ROOTS || ""),
+});
+
+const sharedDirectoryProvider = createSharedDirectoryProvider({
+  storagePath: SHARED_DIRECTORIES_PATH,
+  ensureDataDir,
+  nowIso,
+  readJsonFirst,
+  usersPaths: WEIXIN_USERS_PATHS,
+  loadCatalog,
+  findWorkspace,
+  workspacePrincipal,
 });
 
 function stripTrailingSlash(value) {
@@ -2313,400 +2325,83 @@ function readJsonFirst(paths, fallback = {}) {
 }
 
 function sharedDirectoryLabel(rawPath) {
-  const text = String(rawPath || "").trim().replace(/[\\/]+$/g, "");
-  return text.split(/[\\/]/).filter(Boolean).pop() || "Shared";
+  return sharedDirectoryProvider.label(rawPath);
 }
 
 function normalizeSharePermission(value) {
-  return String(value || "").trim() === "read_only" ? "read_only" : "read_write";
+  return sharedDirectoryProvider.normalizePermission(value);
 }
 
 function normalizeShareTargets(value) {
-  const raw = Array.isArray(value)
-    ? value
-    : Array.isArray(value?.targetWorkspaceIds) ? value.targetWorkspaceIds
-      : Array.isArray(value?.workspaceIds) ? value.workspaceIds
-        : Array.isArray(value?.sharedWith) ? value.sharedWith
-          : [];
-  return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean));
+  return sharedDirectoryProvider.normalizeTargets(value);
 }
 
 function normalizeShareScope(value, targets) {
-  const text = String(value || "").trim();
-  if (text === "selected_workspaces" || text === "workspace_acl") return text;
-  if (text === "all_workspaces") return text;
-  return targets?.length ? "selected_workspaces" : "all_workspaces";
+  return sharedDirectoryProvider.normalizeScope(value, targets);
 }
 
 function normalizeSharedDirectoryRecord(item) {
-  const root = String(item?.path || item?.root || "").trim();
-  if (!root) return null;
-  const label = String(item?.label || sharedDirectoryLabel(root)).trim() || sharedDirectoryLabel(root);
-  const permission = normalizeSharePermission(item?.permission || item?.access);
-  const targetWorkspaceIds = normalizeShareTargets(item);
-  const scope = normalizeShareScope(item?.scope, targetWorkspaceIds);
-  const source = String(item?.source || "").trim();
-  const aliases = Array.isArray(item?.aliases)
-    ? dedupe(item.aliases.map((value) => String(value || "").trim()).filter(Boolean))
-    : [];
-  const workspaceLabels = {};
-  if (item?.workspaceLabels && typeof item.workspaceLabels === "object" && !Array.isArray(item.workspaceLabels)) {
-    for (const [key, value] of Object.entries(item.workspaceLabels)) {
-      const workspaceId = String(key || "").trim();
-      const workspaceLabel = String(value || "").trim();
-      if (workspaceId && workspaceLabel) workspaceLabels[workspaceId] = workspaceLabel;
-    }
-  }
-  const out = {
-    path: root,
-    label,
-    createdAt: String(item?.createdAt || nowIso()),
-    createdBy: String(item?.createdBy || ""),
-    createdByPrincipalId: String(item?.createdByPrincipalId || item?.createdByPrincipal || ""),
-    permission,
-    scope,
-    targetWorkspaceIds,
-  };
-  if (aliases.length) out.aliases = aliases;
-  if (Object.keys(workspaceLabels).length) out.workspaceLabels = workspaceLabels;
-  if (source) out.source = source;
-  return out;
+  return sharedDirectoryProvider.normalizeRecord(item);
 }
 
 function loadSharedDirectoryRecords() {
-  try {
-    if (!fs.existsSync(SHARED_DIRECTORIES_PATH)) return [];
-    const parsed = JSON.parse(fs.readFileSync(SHARED_DIRECTORIES_PATH, "utf8"));
-    const list = Array.isArray(parsed?.directories) ? parsed.directories : Array.isArray(parsed) ? parsed : [];
-    return list.map(normalizeSharedDirectoryRecord).filter(Boolean);
-  } catch (_) {
-    return [];
-  }
+  return sharedDirectoryProvider.loadRecords();
 }
 
 function saveSharedDirectoryRecords(records) {
-  ensureDataDir();
-  const directories = [];
-  const seen = new Set();
-  for (const record of records || []) {
-    const normalized = normalizeSharedDirectoryRecord(record);
-    if (!normalized) continue;
-    const key = comparablePath(normalized.path);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    directories.push(normalized);
-  }
-  const payload = { schemaVersion: 1, directories };
-  const tmp = `${SHARED_DIRECTORIES_PATH}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), "utf8");
-  fs.renameSync(tmp, SHARED_DIRECTORIES_PATH);
+  sharedDirectoryProvider.saveRecords(records);
 }
 
 function sharedDirectoryRoots(workspaceId = "") {
-  return loadSharedDirectoryRecords()
-    .filter((item) => !workspaceId || shareAppliesToWorkspace(item, workspaceId))
-    .map((item) => item.path)
-    .filter(Boolean);
+  return sharedDirectoryProvider.roots(workspaceId);
 }
 
 function sharedDirectoryId(record) {
-  if (String(record?.source || "") === "acl-allowed-root") {
-    return `acl-share-${hashId(`${record?.createdBy || ""}:${record?.path || ""}`)}`;
-  }
-  return `share-${hashId(record?.path || "")}`;
+  return sharedDirectoryProvider.id(record);
 }
 
 function sharedDirectoryPermissionLabel(record) {
-  const permission = String(record?.permission || "read_write");
-  const scope = String(record?.scope || "all_workspaces");
-  if (scope === "workspace_acl") {
-    return `工作区 ACL / ${permission === "read_only" ? "只读" : "读写"}`;
-  }
-  if (scope === "selected_workspaces") {
-    const count = normalizeShareTargets(record).length;
-    return `${count || 0} 个工作区 / ${permission === "read_only" ? "只读" : "读写"}`;
-  }
-  const scopeLabel = scope === "all_workspaces" ? "所有工作区" : scope;
-  const accessLabel = permission === "read_only" ? "只读" : "读写";
-  return `${scopeLabel} · ${accessLabel}`;
-}
-
-function workspaceFromList(workspaces, workspaceId) {
-  const id = String(workspaceId || "").trim();
-  return (workspaces || []).find((item) => String(item?.id || "") === id) || null;
+  return sharedDirectoryProvider.permissionLabel(record);
 }
 
 function sharedDirectoryCreator(record, workspaces = null) {
-  const workspaceId = String(record?.createdBy || "").trim();
-  const workspace = workspaceId ? (workspaceFromList(workspaces, workspaceId) || findWorkspace(workspaceId)) : null;
-  const principalId = String(record?.createdByPrincipalId || workspace?.policy?.principal_id || workspaceId || "").trim();
-  return {
-    workspaceId,
-    principalId,
-    label: workspace?.label || workspaceId || principalId || "Unknown",
-  };
+  return sharedDirectoryProvider.creator(record, workspaces);
 }
 
 function shareAppliesToWorkspace(record, workspaceId) {
-  const actorWorkspaceId = String(workspaceId || "owner").trim() || "owner";
-  if (actorWorkspaceId === "owner") return true;
-  const actorPrincipal = actorWorkspaceId;
-  const creatorWorkspaceId = String(record?.createdBy || "").trim();
-  const creatorPrincipalId = String(record?.createdByPrincipalId || creatorWorkspaceId || "").trim();
-  if (creatorWorkspaceId && actorWorkspaceId === creatorWorkspaceId) return true;
-  if (creatorPrincipalId && actorPrincipal === creatorPrincipalId) return true;
-  const scope = String(record?.scope || "all_workspaces");
-  if (scope === "all_workspaces") return true;
-  const targets = normalizeShareTargets(record);
-  return targets.includes(actorWorkspaceId) || targets.includes(actorPrincipal);
+  return sharedDirectoryProvider.appliesToWorkspace(record, workspaceId);
 }
 
 function canManageSharedDirectory(record, workspaceId) {
-  const actorWorkspaceId = String(workspaceId || "owner").trim() || "owner";
-  const actorPrincipal = workspacePrincipal(actorWorkspaceId);
-  const creator = sharedDirectoryCreator(record);
-  return actorPrincipal === "owner"
-    || actorWorkspaceId === creator.workspaceId
-    || (creator.principalId && actorPrincipal === creator.principalId);
+  return sharedDirectoryProvider.canManage(record, workspaceId);
 }
 
 function publicSharedDirectory(record, workspaceId = "owner") {
-  const normalized = normalizeSharedDirectoryRecord(record);
-  if (!normalized) return null;
-  const creator = sharedDirectoryCreator(normalized);
-  return {
-    id: sharedDirectoryId(normalized),
-    label: normalized.label,
-    createdAt: normalized.createdAt,
-    createdBy: creator.workspaceId,
-    createdByPrincipalId: creator.principalId,
-    createdByLabel: creator.label,
-    permission: normalized.permission,
-    scope: normalized.scope,
-    targetWorkspaceIds: normalizeShareTargets(normalized),
-    targetLabels: normalizeShareTargets(normalized).map((id) => findWorkspace(id)?.label || id),
-    permissionLabel: sharedDirectoryPermissionLabel(normalized),
-    source: normalized.source || "hermes-web-shared-directory",
-    canUnshare: canManageSharedDirectory(normalized, workspaceId),
-    canManage: canManageSharedDirectory(normalized, workspaceId),
-  };
+  return sharedDirectoryProvider.publicRecord(record, workspaceId);
 }
 
 function removeSharedDirectoryRecord(identifier, workspaceId = "owner") {
-  const value = String(identifier || "").trim();
-  const records = loadSharedDirectoryRecords();
-  const index = records.findIndex((record) => sharedDirectoryId(record) === value || comparablePath(record.path) === comparablePath(value));
-  if (index < 0) {
-    const aclRecord = removeAclSharedDirectoryRecord(value, workspaceId);
-    if (aclRecord) return aclRecord;
-    const err = new Error("Shared directory not found");
-    err.status = 404;
-    throw err;
-  }
-  const record = records[index];
-  if (!canManageSharedDirectory(record, workspaceId)) {
-    const err = new Error("Only the owner or the original sharer can cancel this share");
-    err.status = 403;
-    throw err;
-  }
-  records.splice(index, 1);
-  saveSharedDirectoryRecords(records);
-  if (String(record.source || "") === "acl-allowed-root") {
-    return removeAclSharedDirectoryRecord(record.path, workspaceId) || record;
-  }
-  return record;
-}
-
-function pathSegmentsForComparison(value) {
-  return comparablePath(value).split("/").filter(Boolean);
-}
-
-function pathSegmentsBelowRoot(candidate, root) {
-  const candidateParts = pathSegmentsForComparison(candidate);
-  const rootParts = pathSegmentsForComparison(root);
-  if (!candidateParts.length || !rootParts.length || candidateParts.length <= rootParts.length) return null;
-  for (let index = 0; index < rootParts.length; index += 1) {
-    if (candidateParts[index] !== rootParts[index]) return null;
-  }
-  return candidateParts.slice(rootParts.length);
-}
-
-function sharedAclRootLabel(root, defaultRoot) {
-  const parts = defaultRoot ? pathSegmentsBelowRoot(root, defaultRoot) : null;
-  if (parts?.length) {
-    const rawParts = String(root || "").trim().replaceAll("\\", "/").split("/").filter(Boolean);
-    return rawParts[rawParts.length - parts.length] || sharedDirectoryLabel(root);
-  }
-  return sharedDirectoryLabel(root);
+  return sharedDirectoryProvider.removeRecord(identifier, workspaceId);
 }
 
 function aclSharedDirectoryRecords() {
-  const catalog = loadCatalog();
-  const explicitSharedKeys = new Set(sharedDirectoryRoots().map(comparablePath).filter(Boolean));
-  const records = [];
-  const seen = new Set();
-  for (const workspace of catalog.workspaces || []) {
-    const policy = workspace.policy || {};
-    if (!policy || policy.access_mode === "unrestricted") continue;
-    const defaultRoot = String(workspace.defaultWorkspace || policy.default_workspace || "").trim();
-    const specialRoots = workspaceSpecialRoots(policy);
-    for (const root of dedupe(policy.allowed_roots || [])) {
-      const key = comparablePath(root);
-      if (!key || seen.has(`${workspace.id}:${key}`)) continue;
-      if (explicitSharedKeys.has(key) || specialRoots.has(key)) continue;
-      if (defaultRoot && key === comparablePath(defaultRoot)) continue;
-      const belowDefault = defaultRoot ? pathSegmentsBelowRoot(root, defaultRoot) : null;
-      if (belowDefault && belowDefault.length !== 1) continue;
-      seen.add(`${workspace.id}:${key}`);
-      records.push({
-        path: root,
-        label: sharedAclRootLabel(root, defaultRoot),
-        createdAt: String(policy.updated_at || ""),
-        createdBy: workspace.id,
-        createdByPrincipalId: String(policy.principal_id || workspace.id || ""),
-        permission: "read_write",
-        scope: "workspace_acl",
-        targetWorkspaceIds: [workspace.id],
-        source: "acl-allowed-root",
-      });
-    }
-  }
-  return records;
+  return sharedDirectoryProvider.aclRecords();
 }
 
 function sharedDirectoriesForWorkspace(workspaceId = "owner") {
-  const actorWorkspaceId = String(workspaceId || "owner").trim() || "owner";
-  const actorPrincipal = workspacePrincipal(actorWorkspaceId);
-  const actorIsOwner = actorPrincipal === "owner";
-  const workspace = findWorkspace(actorWorkspaceId);
-  const actorRoots = workspace?.policy?.allowed_roots || [];
-  const explicit = loadSharedDirectoryRecords().filter((record) => (
-    actorIsOwner
-    || canManageSharedDirectory(record, actorWorkspaceId)
-    || shareAppliesToWorkspace(record, actorWorkspaceId)
-  ));
-  const acl = aclSharedDirectoryRecords().filter((record) => (
-    actorIsOwner
-    || canManageSharedDirectory(record, actorWorkspaceId)
-    || pathInsideAnyRoot(record.path, actorRoots)
-  ));
-  const out = [];
-  const seen = new Set();
-  for (const record of [...explicit, ...acl]) {
-    const normalized = normalizeSharedDirectoryRecord(record);
-    if (!normalized) continue;
-    const source = normalized.source || "hermes-web-shared-directory";
-    const key = `${source}:${normalized.createdBy || ""}:${comparablePath(normalized.path)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(normalized);
-  }
-  return out.sort((a, b) => String(a.createdBy || "").localeCompare(String(b.createdBy || ""), "zh-Hans-CN")
-    || String(a.label || "").localeCompare(String(b.label || ""), "zh-Hans-CN"));
-}
-
-function writeJsonAtomic(filePath, data) {
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf8");
-  fs.renameSync(tmp, filePath);
+  return sharedDirectoryProvider.directoriesForWorkspace(workspaceId);
 }
 
 function removeAclSharedDirectoryRecord(identifier, workspaceId = "owner") {
-  const value = String(identifier || "").trim();
-  const record = aclSharedDirectoryRecords().find((item) => (
-    sharedDirectoryId(item) === value || comparablePath(item.path) === comparablePath(value)
-  ));
-  if (!record) return null;
-  if (!canManageSharedDirectory(record, workspaceId)) {
-    const err = new Error("Only the owner or the original sharer can cancel this share");
-    err.status = 403;
-    throw err;
-  }
-  const usersRead = readJsonFirst(WEIXIN_USERS_PATHS, { users: [] });
-  const users = Array.isArray(usersRead.data?.users) ? usersRead.data.users : [];
-  const targetPrincipal = String(record.createdByPrincipalId || record.createdBy || "").trim();
-  const user = users.find((item) => String(item?.principal_id || "").trim() === targetPrincipal);
-  if (!usersRead.path || !user) {
-    const err = new Error("ACL shared directory source was not found");
-    err.status = 404;
-    throw err;
-  }
-  const rootKey = comparablePath(record.path);
-  const removeRoot = (values) => (Array.isArray(values)
-    ? values.filter((item) => comparablePath(item) !== rootKey)
-    : values);
-  const beforeAllowed = Array.isArray(user.allowed_roots) ? user.allowed_roots.length : 0;
-  const beforeDelivery = Array.isArray(user.delivery_roots) ? user.delivery_roots.length : 0;
-  user.allowed_roots = removeRoot(user.allowed_roots);
-  user.delivery_roots = removeRoot(user.delivery_roots);
-  const changed = (Array.isArray(user.allowed_roots) ? user.allowed_roots.length : 0) !== beforeAllowed
-    || (Array.isArray(user.delivery_roots) ? user.delivery_roots.length : 0) !== beforeDelivery;
-  if (!changed) {
-    const err = new Error("Shared directory not found");
-    err.status = 404;
-    throw err;
-  }
-  writeJsonAtomic(usersRead.path, usersRead.data);
-  return record;
+  return sharedDirectoryProvider.removeAcl(identifier, workspaceId);
 }
 
 function updateSharedDirectoryAccess(identifier, workspaceId = "owner", updates = {}) {
-  const value = String(identifier || "").trim();
-  const explicit = loadSharedDirectoryRecords();
-  let record = explicit.find((item) => sharedDirectoryId(item) === value || comparablePath(item.path) === comparablePath(value));
-  if (!record) {
-    record = aclSharedDirectoryRecords().find((item) => sharedDirectoryId(item) === value || comparablePath(item.path) === comparablePath(value));
-  }
-  if (!record) {
-    const err = new Error("Shared directory not found");
-    err.status = 404;
-    throw err;
-  }
-  if (!canManageSharedDirectory(record, workspaceId)) {
-    const err = new Error("Only the owner or the original sharer can manage this share");
-    err.status = 403;
-    throw err;
-  }
-  const targetWorkspaceIds = normalizeShareTargets(updates);
-  const scope = normalizeShareScope(updates.scope, targetWorkspaceIds);
-  if (scope === "selected_workspaces" && !targetWorkspaceIds.length) {
-    const err = new Error("Select at least one workspace to share with");
-    err.status = 400;
-    throw err;
-  }
-  const updated = upsertSharedDirectory(Object.assign({}, record, {
-    permission: normalizeSharePermission(updates.permission || record.permission),
-    scope,
-    targetWorkspaceIds: scope === "all_workspaces" ? [] : targetWorkspaceIds,
-    source: record.source || "hermes-web-shared-directory",
-  }));
-  return updated;
+  return sharedDirectoryProvider.updateAccess(identifier, workspaceId, updates);
 }
 
 function upsertSharedDirectory(record) {
-  const normalized = normalizeSharedDirectoryRecord(record);
-  if (!normalized) {
-    const err = new Error("Missing shared directory path");
-    err.status = 400;
-    throw err;
-  }
-  const records = loadSharedDirectoryRecords();
-  const key = comparablePath(normalized.path);
-  const existing = records.find((item) => comparablePath(item.path) === key);
-  if (existing) {
-    existing.label = normalized.label || existing.label;
-    existing.createdBy = existing.createdBy || normalized.createdBy || "";
-    existing.createdByPrincipalId = existing.createdByPrincipalId || normalized.createdByPrincipalId || "";
-    existing.permission = normalized.permission || existing.permission || "read_write";
-    existing.scope = normalized.scope || existing.scope || "all_workspaces";
-    existing.targetWorkspaceIds = normalizeShareTargets(normalized);
-    existing.source = normalized.source || existing.source || "";
-    saveSharedDirectoryRecords(records);
-    return existing;
-  }
-  records.push(normalized);
-  saveSharedDirectoryRecords(records);
-  return normalized;
+  return sharedDirectoryProvider.upsert(record);
 }
 
 function sanitizePolicy(policy) {
@@ -2816,29 +2511,7 @@ function buildAccessPolicy(route, user, project) {
 }
 
 function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
-  return loadSharedDirectoryRecords()
-    .map((record) => normalizeSharedDirectoryRecord(record))
-    .filter((record) => record && shareAppliesToWorkspace(record, workspaceId))
-    .map((record) => {
-      const creator = sharedDirectoryCreator(record, workspaces);
-      const label = record.workspaceLabels?.[workspaceId] || record.label || sharedDirectoryLabel(record.path);
-      return {
-        id: `dir-${hashId(record.path)}`,
-        shareId: sharedDirectoryId(record),
-        workspaceId,
-        label,
-        root: record.path,
-        aliases: dedupe([label, ...(record.aliases || []), record.label, sharedDirectoryLabel(record.path)]),
-        source: "hermes-web-shared-directory",
-        shared: true,
-        sharedBy: creator.workspaceId || creator.principalId || "",
-        sharedByPrincipalId: creator.principalId,
-        sharedByLabel: creator.label,
-        permission: record.permission || "read_write",
-        permissionLabel: sharedDirectoryPermissionLabel(record),
-        children: [],
-      };
-    });
+  return sharedDirectoryProvider.projectsForWorkspace(workspaceId, workspaces);
 }
 
 function projectsForWorkspace(workspace, projectEntries, workspaces = null) {
@@ -6000,15 +5673,7 @@ function isOwnWritableDirectoryPath(thread, localPath, displayPath = "") {
 
 function isSharedDirectoryWriteAllowed(thread, localPath, displayPath = "") {
   if (isOwnWritableDirectoryPath(thread, localPath, displayPath)) return true;
-  const matches = loadSharedDirectoryRecords().filter((record) => (
-    shareAppliesToWorkspace(record, thread.workspaceId)
-    && (
-      pathInsideAnyRoot(displayPath || localPath, [record.path])
-      || pathInsideAnyRoot(localPath, [normalizeLocalPath(record.path)])
-    )
-  ));
-  if (!matches.length) return true;
-  return matches.some((record) => normalizeSharePermission(record.permission) === "read_write");
+  return sharedDirectoryProvider.isWriteAllowed(thread, localPath, displayPath);
 }
 
 function publicManagedEntry(thread, parentDisplayPath, parentLocalPath, localPath) {

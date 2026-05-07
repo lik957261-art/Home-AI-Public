@@ -37,19 +37,21 @@ These parts must remain replaceable:
 - `adapters/external-integration-provider.js` owns the non-secret Owner integration inventory boundary. It detects configured integrations such as GitHub, Google, Outlook, AliMail, and Hotmail from injected path/env sources and returns only display metadata.
 - `adapters/filesystem-mount-provider.js` owns filesystem path/mount normalization: Windows-to-WSL path conversion, `/mnt/<drive>` conversion, `/volume1` mirror lookup, allowed artifact roots, and path-allowed checks.
 - `adapters/project-discovery-provider.js` owns project/root discovery from project-map entries, physical owner top-level directories, restricted workspace directories, remote `/volume1` directory trees, shareable-root filtering, and project deduping.
-- `server.js` still owns access-policy construction and shared-directory management endpoints. Those helpers should move behind narrower providers in later phases instead of adding more direct file reads to `server.js`.
+- `adapters/shared-directory-provider.js` owns shared-directory management: persisted share records, derived ACL allowed-root shares, target/permission normalization, project injection for shared roots, read-only write guards, and ACL share removal writes through injected user-policy storage.
+- `server.js` still owns access-policy construction. Shared-directory endpoints now call the provider instead of reading the shared-directory store or user ACL files directly.
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 - `tests/todo-provider.test.js` is the contract smoke for Todo bridge payload mapping, public Todo normalization, search filtering, and Web Push mark/pending operations.
 - `tests/automation-provider.test.js` is the contract smoke for CRON bridge payload mapping, list-cache behavior, deliverable path parsing, output resolution, and workspace authorization.
 - `tests/external-integration-provider.test.js` is the contract smoke for Owner integration detection without exposing raw tokens or secret file contents.
 - `tests/filesystem-mount-provider.test.js` is the contract smoke for path conversion, `/volume1` mirror behavior, disabled shares, and allowed-root checks.
 - `tests/project-discovery-provider.test.js` is the contract smoke for owner physical root discovery, restricted workspace directory discovery, remote `/volume1` tree mapping, shareable-root filtering, and shared-root deduping.
+- `tests/shared-directory-provider.test.js` is the contract smoke for explicit shares, ACL allowed-root derived shares, target visibility, read-only/write access, access updates, and ACL removal writes.
 
 ## Current Private Couplings
 
 The private checkout still contains local deployment behavior that must be moved behind adapters before public export:
 
-- Weixin-flavored workspace catalog and todo plugin naming.
+- Weixin-flavored workspace catalog and todo plugin naming behind the current local catalog and Todo provider defaults.
 - Account-specific directory display labels and project-id heuristics.
 - ChatGPT-Drive display compatibility.
 - Owner-only external integration display labels remain product metadata, while deployment-specific path/env detection lives behind the integration provider.
