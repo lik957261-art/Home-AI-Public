@@ -223,6 +223,68 @@ function testWorkspaceInferenceFallback() {
   store.close();
 }
 
+function testServiceLayerLocalRows() {
+  const dir = tempDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "service.sqlite3") });
+  store.migrate();
+  store.importTodoItem({
+    id: "todo_owner",
+    content: "owner task",
+    status: "open",
+    assignee_principal_id: "owner",
+    created_by_principal: "owner",
+    due_at: "2026-05-07T01:00:00.000Z",
+  });
+  store.importTodoItem({
+    id: "todo_other",
+    content: "other task",
+    status: "open",
+    assignee_principal_id: "workspace_a",
+    created_by_principal: "workspace_a",
+    due_at: "2026-05-07T02:00:00.000Z",
+  });
+  assert.deepEqual(
+    store.listTodoItems({ sourcePrincipal: "workspace_a" }).map((row) => row.id),
+    ["todo_other"],
+  );
+  assert.deepEqual(
+    store.listTodoItems({ sourcePrincipal: "owner" }).map((row) => row.id),
+    ["todo_owner", "todo_other"],
+  );
+  assert.equal(store.getTodoItem("todo_other").content, "other task");
+  assert.equal(store.deleteTodoItem("todo_other").id, "todo_other");
+  assert.equal(store.getTodoItem("todo_other"), null);
+
+  store.importAutomationJob({
+    id: "auto_owner",
+    name: "Owner job",
+    status: "scheduled",
+    ownerPrincipalId: "owner",
+    enabled: true,
+  });
+  store.importAutomationJob({
+    id: "auto_workspace",
+    name: "Workspace job",
+    status: "paused",
+    state: "paused",
+    ownerPrincipalId: "workspace_a",
+    enabled: false,
+  });
+  assert.deepEqual(
+    store.listAutomationJobs({ ownerPrincipalId: "workspace_a", includeDisabled: true }).map((row) => row.id),
+    ["auto_workspace"],
+  );
+  assert.deepEqual(
+    store.listAutomationJobs({ ownerPrincipalId: "workspace_a", includeDisabled: false }).map((row) => row.id),
+    [],
+  );
+  assert.equal(store.getAutomationJob("auto_owner").name, "Owner job");
+  assert.equal(store.deleteAutomationJob("auto_owner").id, "auto_owner");
+  assert.equal(store.getAutomationJob("auto_owner"), null);
+  store.close();
+}
+
 testImportAndIntegrity();
 testWorkspaceInferenceFallback();
+testServiceLayerLocalRows();
 console.log("mobile-sqlite-store tests passed");

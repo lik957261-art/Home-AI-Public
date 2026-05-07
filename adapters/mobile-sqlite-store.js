@@ -48,6 +48,38 @@ function normalizeId(value, fallback = "") {
   return text || fallback;
 }
 
+function publicTodoFromRow(row) {
+  const raw = parseJson(row?.raw_json, null);
+  if (raw && typeof raw === "object") return raw;
+  return {
+    id: String(row?.id || ""),
+    content: String(row?.content || ""),
+    status: String(row?.status || ""),
+    assignee_principal_id: String(row?.assignee || ""),
+    assignee_label: String(row?.assignee || ""),
+    created_by_principal: String(row?.principal_id || ""),
+    due_at: String(row?.due_at || ""),
+    due_local: String(row?.due_at || ""),
+    created_at: String(row?.created_at || ""),
+    updated_at: String(row?.updated_at || ""),
+  };
+}
+
+function publicAutomationFromRow(row) {
+  const raw = parseJson(row?.raw_json, null);
+  if (raw && typeof raw === "object") return raw;
+  return {
+    id: String(row?.id || ""),
+    name: String(row?.name || ""),
+    status: String(row?.status || ""),
+    state: String(row?.status || ""),
+    schedule: String(row?.schedule || ""),
+    ownerPrincipalId: String(row?.principal_id || ""),
+    updatedAt: String(row?.updated_at || ""),
+    createdAt: String(row?.created_at || ""),
+  };
+}
+
 function sha256File(filePath) {
   try {
     const hash = crypto.createHash("sha256");
@@ -780,6 +812,40 @@ function createMobileSqliteStore(options = {}) {
     return true;
   }
 
+  function getTodoItem(todoId) {
+    const row = open().prepare("SELECT * FROM todo_items WHERE id = ?").get(String(todoId || ""));
+    return row ? publicTodoFromRow(row) : null;
+  }
+
+  function deleteTodoItem(todoId) {
+    const before = getTodoItem(todoId);
+    open().prepare("DELETE FROM todo_items WHERE id = ?").run(String(todoId || ""));
+    return before;
+  }
+
+  function listTodoItems(args = {}) {
+    const source = String(args.sourcePrincipal || args.source_principal || "owner").trim() || "owner";
+    const includeCompleted = Boolean(args.includeCompleted || args.include_completed);
+    const assignee = String(args.assignee || "").trim();
+    const limit = Math.max(1, Math.min(500, Number(args.limit) || 80));
+    let rows = open().prepare("SELECT * FROM todo_items ORDER BY due_at, created_at LIMIT ?").all(limit * 4)
+      .map(publicTodoFromRow);
+    if (source !== "owner") {
+      rows = rows.filter((row) => {
+        const createdBy = String(row.created_by_principal || row.createdByPrincipal || row.principalId || "");
+        const assignedTo = String(row.assignee_principal_id || row.assignee || "");
+        return createdBy === source || assignedTo === source;
+      });
+    }
+    if (!includeCompleted) {
+      rows = rows.filter((row) => String(row.status || "") === "open");
+    }
+    if (assignee) {
+      rows = rows.filter((row) => String(row.assignee_principal_id || row.assignee || "") === assignee);
+    }
+    return rows.slice(0, limit);
+  }
+
   function importAutomationJob(row = {}, index = 0) {
     const id = normalizeId(row.id, `automation_${index}`);
     open().prepare(`
@@ -810,6 +876,31 @@ function createMobileSqliteStore(options = {}) {
       normalizeIso(row.updatedAt || row.updated_at || row.createdAt || row.created_at),
     );
     return true;
+  }
+
+  function getAutomationJob(jobId) {
+    const row = open().prepare("SELECT * FROM automation_jobs WHERE id = ?").get(String(jobId || ""));
+    return row ? publicAutomationFromRow(row) : null;
+  }
+
+  function deleteAutomationJob(jobId) {
+    const before = getAutomationJob(jobId);
+    open().prepare("DELETE FROM automation_jobs WHERE id = ?").run(String(jobId || ""));
+    return before;
+  }
+
+  function listAutomationJobs(args = {}) {
+    const principal = String(args.ownerPrincipalId || args.owner_principal_id || "owner").trim() || "owner";
+    const includeDisabled = Boolean(args.includeDisabled || args.include_disabled);
+    let rows = open().prepare("SELECT * FROM automation_jobs ORDER BY updated_at DESC, created_at DESC").all()
+      .map(publicAutomationFromRow);
+    if (principal !== "owner") {
+      rows = rows.filter((row) => String(row.ownerPrincipalId || row.owner_principal_id || row.principalId || "") === principal);
+    }
+    if (!includeDisabled) {
+      rows = rows.filter((row) => row.enabled !== false && String(row.state || row.status || "") !== "paused");
+    }
+    return rows;
   }
 
   function importState(state = {}) {
@@ -1032,6 +1123,12 @@ function createMobileSqliteStore(options = {}) {
     importAutomationJob,
     importWorkspace,
     integrityReport,
+    deleteAutomationJob,
+    deleteTodoItem,
+    getAutomationJob,
+    getTodoItem,
+    listAutomationJobs,
+    listTodoItems,
     migrate,
     open,
     setMeta,

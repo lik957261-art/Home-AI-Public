@@ -12,7 +12,7 @@ This branch adds the first SQLite service-layer foundation:
 - `scripts/migrate-json-to-sqlite.js`
 - contract tests for import, integrity checks, and migration CLI behavior
 
-The SQLite layer is currently a migration and validation target. It does not yet replace the production JSON runtime store. This keeps rollback simple: the live listener can continue using existing JSON files while the SQLite copy is validated.
+The SQLite layer is currently a migration and validation target plus an optional local Todo/Automation store. It does not replace the production thread/message JSON runtime store yet. This keeps rollback simple: the live listener can continue using existing JSON files while the SQLite copy is validated.
 
 ## Schema Scope
 
@@ -65,4 +65,19 @@ The migration report contains only counts, file hashes, byte sizes, warnings, an
 
 ## Next Runtime Step
 
-After migration validation is stable, add an optional `HERMES_WEB_DB_PATH` runtime mode that writes through SQLite while keeping JSON snapshot export enabled. Todo and Automation should then move from deployment bridges into generic service tables, with deployment-specific bridges remaining opt-in adapters.
+## Optional Local Runtime
+
+For clean product installs, local Todo and Automation can use the SQLite service store:
+
+```powershell
+$env:HERMES_WEB_SERVICE_STORE = "sqlite"
+$env:HERMES_WEB_DB_PATH = ".\workspace\hermes-web\hermes-mobile.sqlite3"
+$env:HERMES_WEB_TODO_BACKEND = "local"
+$env:HERMES_WEB_AUTOMATION_BACKEND = "local"
+```
+
+Existing deployments can continue to set `HERMES_WEB_TODO_BACKEND` and `HERMES_WEB_AUTOMATION_BACKEND` to bridge backends. Those bridge backends remain compatibility adapters, not the default product architecture.
+
+## Next Runtime Step
+
+After migration validation is stable, move thread/message/artifact and Web Push runtime reads and writes behind the same SQLite service layer while keeping JSON snapshot export enabled during the transition.

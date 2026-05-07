@@ -135,6 +135,8 @@ const TODO_BACKEND = String(process.env.HERMES_WEB_TODO_BACKEND || "local").trim
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
+const SERVICE_STORE_BACKEND = String(process.env.HERMES_WEB_SERVICE_STORE || "").trim().toLowerCase();
+const MOBILE_SQLITE_DB_PATH = path.resolve(process.env.HERMES_WEB_DB_PATH || path.join(DATA_DIR, "hermes-mobile.sqlite3"));
 const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH_ENABLED || process.env.WEB_PUSH_ENABLED || "1");
 const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
 const TODO_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_TODO_PUSH_ENABLED || "1");
@@ -1343,6 +1345,20 @@ function useLocalAutomationBackend() {
   return backendIsLocal(AUTOMATION_BACKEND, ["bridge", "cron", "hermes", "hermes_cron"]);
 }
 
+function useSqliteServiceStore() {
+  return SERVICE_STORE_BACKEND === "sqlite";
+}
+
+let sqliteServiceStore = null;
+function mobileSqliteStore() {
+  if (!sqliteServiceStore) {
+    const { createMobileSqliteStore } = require("./adapters/mobile-sqlite-store");
+    sqliteServiceStore = createMobileSqliteStore({ dbPath: MOBILE_SQLITE_DB_PATH });
+    sqliteServiceStore.migrate();
+  }
+  return sqliteServiceStore;
+}
+
 function readJsonStore(filePath, fallback) {
   ensureDataDir();
   try {
@@ -1407,7 +1423,114 @@ function localTodoMatchesList(row, source, scope) {
   return localTodoAuthorized(row, principal);
 }
 
+async function runSqliteTodoBridge(payload = {}) {
+  const action = String(payload.action || "").trim().toLowerCase();
+  const source = String(payload.source_principal || "owner").trim() || "owner";
+  const store = mobileSqliteStore();
+  const now = nowIso();
+
+  if (action === "list") {
+    return {
+      ok: true,
+      todos: store.listTodoItems({
+        sourcePrincipal: source,
+        scope: payload.scope || "mine",
+        includeCompleted: Boolean(payload.include_completed),
+        assignee: payload.assignee || "",
+        limit: payload.limit || 80,
+      }),
+    };
+  }
+
+  if (action === "add") {
+    const content = String(payload.content || "").trim();
+    const dueAt = parseLocalTodoDue(payload.due_time);
+    if (!content) return { ok: false, error: "Todo content is required" };
+    if (!dueAt) return { ok: false, error: "Todo due time is required" };
+    const assignee = String(payload.assignee || source).trim() || source;
+    const row = {
+      id: `todo_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+      content,
+      status: "open",
+      assignee_principal_id: assignee,
+      assignee_label: assignee,
+      created_by_principal: source,
+      due_at: dueAt,
+      due_local: localTodoDueLocal(dueAt),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+      reminder_lead_minutes: Number(payload.reminder_lead_minutes || 0) || 0,
+      recurrence_kind: String(payload.recurrence || "none"),
+      recurrence_label: String(payload.recurrence || "none"),
+      recurrence_days: String(payload.recurrence_days || ""),
+      recurrence_series_id: "",
+      recurrence_template: false,
+      source: "sqlite",
+      created_at: now,
+      updated_at: now,
+      completed_at: "",
+      cancelled_at: "",
+      ok: true,
+    };
+    store.importTodoItem(row);
+    return row;
+  }
+
+  const todoId = String(payload.todo_id || "").trim();
+  const row = store.getTodoItem(todoId);
+
+  if (["complete", "cancel", "postpone", "delete"].includes(action)) {
+    if (!row) return { ok: false, error: "No matching todo found." };
+    if (!localTodoAuthorized(row, source)) return { ok: false, error: "Not authorized to mutate this todo." };
+  }
+
+  if (action === "complete") {
+    row.status = "completed";
+    row.completed_at = now;
+    row.updated_at = now;
+    store.importTodoItem(row);
+    return Object.assign({}, row, { ok: true, action });
+  }
+  if (action === "cancel") {
+    row.status = "cancelled";
+    row.cancelled_at = now;
+    row.updated_at = now;
+    store.importTodoItem(row);
+    return Object.assign({}, row, { ok: true, action });
+  }
+  if (action === "postpone") {
+    const dueAt = parseLocalTodoDue(payload.due_time);
+    if (!dueAt) return { ok: false, error: "due_time is required" };
+    row.due_at = dueAt;
+    row.due_local = localTodoDueLocal(dueAt);
+    row.updated_at = now;
+    store.importTodoItem(row);
+    return Object.assign({}, row, { ok: true, action });
+  }
+  if (action === "delete") {
+    store.deleteTodoItem(todoId);
+    return Object.assign({}, row, { ok: true, action });
+  }
+  if (action === "web_pending_pushes") return { ok: true, events: [] };
+  if (action === "web_mark_push") {
+    store.audit("todo_web_push_mark", {
+      actorWorkspaceId: "system",
+      actorPrincipalId: source,
+      targetType: "todo",
+      targetId: String(payload.todoId || payload.todo_id || ""),
+      payload: {
+        markKey: String(payload.markKey || payload.mark_key || ""),
+        principalId: String(payload.principalId || payload.principal_id || ""),
+        messageType: String(payload.messageType || payload.message_type || ""),
+        status: String(payload.status || "sent"),
+      },
+    });
+    return { ok: true };
+  }
+  return { ok: false, error: `unknown action: ${action}` };
+}
+
 async function runLocalTodoBridge(payload = {}) {
+  if (useSqliteServiceStore()) return runSqliteTodoBridge(payload);
   const action = String(payload.action || "").trim().toLowerCase();
   const source = String(payload.source_principal || "owner").trim() || "owner";
   const store = localTodoStore();
@@ -1573,7 +1696,9 @@ const todoProvider = createTodoProvider({
   workspacePrincipal,
   todoAssigneesForWorkspace,
   publicTodo,
-  sourceName: () => useLocalTodoBackend() ? "local_todos" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos"),
+  sourceName: () => useLocalTodoBackend()
+    ? (useSqliteServiceStore() ? "sqlite_todos" : "local_todos")
+    : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos"),
 });
 
 function localAutomationStore() {
@@ -1639,7 +1764,126 @@ function publicLocalAutomationJob(job) {
   };
 }
 
+async function runSqliteCronBridge(payload = {}) {
+  const action = String(payload.action || "").trim().toLowerCase();
+  const store = mobileSqliteStore();
+  const now = nowIso();
+
+  if (action === "list") {
+    const includeDisabled = Boolean(payload.include_disabled);
+    const jobs = store.listAutomationJobs({
+      ownerPrincipalId: payload.owner_principal_id || "owner",
+      includeDisabled,
+    }).map(publicLocalAutomationJob);
+    return {
+      ok: true,
+      jobs,
+      source: {
+        name: "sqlite_automations",
+        available: true,
+        jobCount: jobs.length,
+        pathKind: "sqlite",
+      },
+    };
+  }
+
+  if (action === "create") {
+    const draft = payload.job && typeof payload.job === "object" ? payload.job : {};
+    const ownerPrincipalId = String(payload.owner_principal_id || "owner").trim() || "owner";
+    const schedule = String(draft.schedule || draft.scheduleText || draft.schedule_text || "").trim() || "manual";
+    const job = {
+      id: `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+      name: compactText(draft.name || draft.title || payload.text || "Automation", 120),
+      prompt: String(draft.prompt || payload.text || "").trim(),
+      schedule,
+      scheduleText: schedule,
+      scheduleKind: "sqlite",
+      repeat: String(draft.repeat || "forever"),
+      enabled: true,
+      state: "scheduled",
+      status: "scheduled",
+      nextRunAt: "",
+      lastRunAt: "",
+      lastStatus: "",
+      lastError: "",
+      lastDeliveryError: "",
+      deliver: String(draft.deliver || "local"),
+      ownerPrincipalId,
+      workdir: String(draft.workdir || ""),
+      skills: normalizeLocalAutomationSkills(draft.skills),
+      model: String(draft.model || ""),
+      provider: String(draft.provider || ""),
+      outputDocuments: [],
+      source: "sqlite",
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (!payload.dry_run) store.importAutomationJob(job);
+    return {
+      ok: true,
+      job: publicLocalAutomationJob(job),
+      source: { name: "sqlite_automations", available: true, pathKind: "sqlite" },
+    };
+  }
+
+  const jobId = String(payload.job_id || "").trim();
+  const job = store.getAutomationJob(jobId);
+  if (["delete", "pause", "resume", "update"].includes(action) && !job) {
+    return { ok: false, error: "Automation job not found" };
+  }
+  if (job && String(job.ownerPrincipalId || "owner") !== String(payload.owner_principal_id || "owner")) {
+    return { ok: false, error: "Automation job is not owned by this workspace" };
+  }
+
+  if (action === "delete") {
+    if (!payload.dry_run) store.deleteAutomationJob(jobId);
+    return {
+      ok: true,
+      deletedJob: publicLocalAutomationJob(job),
+      source: { name: "sqlite_automations", available: true, pathKind: "sqlite" },
+    };
+  }
+  if (action === "pause" || action === "resume") {
+    job.enabled = action === "resume";
+    job.state = job.enabled ? "scheduled" : "paused";
+    job.status = job.state;
+    job.updatedAt = now;
+    if (!payload.dry_run) store.importAutomationJob(job);
+    return {
+      ok: true,
+      job: publicLocalAutomationJob(job),
+      source: { name: "sqlite_automations", available: true, pathKind: "sqlite" },
+    };
+  }
+  if (action === "update") {
+    const patch = payload.patch && typeof payload.patch === "object" ? payload.patch : {};
+    for (const [field, value] of Object.entries({
+      name: patch.name,
+      prompt: patch.prompt,
+      schedule: patch.schedule,
+      scheduleText: patch.schedule,
+      deliver: patch.deliver,
+      model: patch.model,
+      provider: patch.provider,
+      workdir: patch.workdir,
+    })) {
+      if (value !== undefined) job[field] = String(value || "");
+    }
+    if (patch.skills !== undefined) job.skills = normalizeLocalAutomationSkills(patch.skills);
+    job.updatedAt = now;
+    if (!payload.dry_run) store.importAutomationJob(job);
+    return {
+      ok: true,
+      job: publicLocalAutomationJob(job),
+      source: { name: "sqlite_automations", available: true, pathKind: "sqlite" },
+    };
+  }
+
+  return { ok: false, error: `unknown action: ${action}` };
+}
+
 async function runLocalCronBridge(payload = {}) {
+  if (useSqliteServiceStore()) return runSqliteCronBridge(payload);
   const action = String(payload.action || "").trim().toLowerCase();
   const store = localAutomationStore();
   const now = nowIso();
