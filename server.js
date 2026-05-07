@@ -18,6 +18,7 @@ const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider"
 const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
+const { createRunConcurrencyPolicy } = require("./adapters/run-concurrency-policy");
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
@@ -45,6 +46,8 @@ const GATEWAY_POOL_HEALTH_TIMEOUT_MS = Number(process.env.HERMES_WEB_GATEWAY_POO
 const RUN_START_TIMEOUT_MS = Number(process.env.HERMES_WEB_RUN_START_TIMEOUT_MS || "90000");
 const RUN_LIVENESS_CHECK_AFTER_MS = Number(process.env.HERMES_WEB_RUN_LIVENESS_CHECK_AFTER_MS || "120000");
 const RUN_LIVENESS_CHECK_INTERVAL_MS = Number(process.env.HERMES_WEB_RUN_LIVENESS_CHECK_INTERVAL_MS || "45000");
+const RUN_CONCURRENCY_MAX_GLOBAL = Number(process.env.HERMES_WEB_MAX_ACTIVE_RUNS || "0");
+const RUN_CONCURRENCY_MAX_PER_WORKSPACE = Number(process.env.HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE || "0");
 const DISABLE_AUTH = /^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_DISABLE_AUTH || "");
 const DATA_DIR = path.resolve(process.env.HERMES_WEB_DATA_DIR || path.join(REPO_ROOT, "workspace", "hermes-web"));
 const STATE_PATH = path.join(DATA_DIR, "state.json");
@@ -227,6 +230,10 @@ let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
+const runConcurrencyPolicy = createRunConcurrencyPolicy({
+  maxGlobal: () => RUN_CONCURRENCY_MAX_GLOBAL,
+  maxPerWorkspace: () => RUN_CONCURRENCY_MAX_PER_WORKSPACE,
+});
 const authProvider = createAuthProvider({
   disableAuth: () => DISABLE_AUTH,
   envKey: () => process.env.HERMES_WEB_KEY || "",
@@ -401,6 +408,52 @@ function gatewayTargetForRun(runId) {
   }
   const gatewayUrl = gatewayUrlForRun(runId);
   return gatewayPool().targetForGatewayUrl(gatewayUrl);
+}
+
+function runConcurrencySnapshot() {
+  return runConcurrencyPolicy.snapshot(state?.threads || []);
+}
+
+function runConcurrencyError(workspaceId) {
+  return runConcurrencyPolicy.limitError(state?.threads || [], workspaceId);
+}
+
+function assertRunConcurrencyCapacity(workspaceId) {
+  const error = runConcurrencyError(workspaceId);
+  if (!error) return;
+  const err = new Error(error.message);
+  err.status = error.status || 429;
+  err.code = error.code;
+  err.details = error;
+  throw err;
+}
+
+function publicReasoningInfoForAuth(auth) {
+  const info = defaultReasoningInfo();
+  if (isOwnerAuth(auth)) return info;
+  return { defaultEffort: info.defaultEffort || "medium" };
+}
+
+function publicGatewayPoolStatusForAuth(auth, pool) {
+  if (isOwnerAuth(auth)) return pool || null;
+  if (!pool || typeof pool !== "object") return null;
+  const workers = Array.isArray(pool.workers) ? pool.workers : [];
+  return {
+    enabled: Boolean(pool.enabled),
+    mode: pool.mode || "",
+    workerCount: Number(pool.workerCount || workers.length || 0),
+    healthy: workers.filter((worker) => worker.healthy === true).length,
+  };
+}
+
+function publicConcurrencyForAuth(auth) {
+  if (isOwnerAuth(auth)) return runConcurrencySnapshot();
+  const snapshot = runConcurrencySnapshot();
+  const workspaceId = String(auth?.workspaceId || "").trim();
+  return {
+    maxPerWorkspace: snapshot.maxPerWorkspace,
+    activeForWorkspace: workspaceId ? (snapshot.activeByWorkspace[workspaceId] || 0) : 0,
+  };
 }
 
 function ownerSetupStatus() {
@@ -3824,6 +3877,7 @@ function compactMessage(message) {
     taskId: message.taskId || null,
     taskGroupId: message.taskGroupId || "",
     messageKind: message.messageKind || "ai",
+    actorWorkspaceId: message.actorWorkspaceId || "",
     senderWorkspaceId: message.senderWorkspaceId || "",
     senderPrincipalId: message.senderPrincipalId || "",
     senderLabel: message.senderLabel || "",
@@ -3847,6 +3901,9 @@ function compactMessage(message) {
     directoryAliases: Array.isArray(message.directoryAliases) ? message.directoryAliases : [],
     directoryRoute: message.directoryRoute || null,
     reasoningEffort: message.reasoningEffort || "",
+    gatewayName: message.gatewayName || "",
+    gatewayProfile: message.gatewayProfile || "",
+    gatewaySource: message.gatewaySource || "",
     truncated: typeof message.content === "string" && message.content.length > MAX_API_TEXT_CHARS,
   };
 }
@@ -4742,6 +4799,8 @@ function deriveTitle(text) {
 
 async function startRunForThread(thread, userMessage, assistantMessage, options = {}) {
   const actorWorkspaceId = String(options.actorWorkspaceId || userMessage.senderWorkspaceId || thread.workspaceId || "owner").trim() || "owner";
+  assertRunConcurrencyCapacity(actorWorkspaceId);
+  assistantMessage.actorWorkspaceId = actorWorkspaceId;
   const policyThread = actorWorkspaceId === thread.workspaceId
     ? thread
     : Object.assign({}, thread, {
@@ -5829,20 +5888,22 @@ async function handleApi(req, res) {
   }
 
   if (url.pathname === "/api/client-version" && req.method === "GET") {
-    sendJson(res, 200, Object.assign(clientVersionInfo(requestClientVersion(req)), { reasoning: defaultReasoningInfo() }));
+    sendJson(res, 200, Object.assign(clientVersionInfo(requestClientVersion(req)), { reasoning: publicReasoningInfoForAuth(auth) }));
     return;
   }
 
   if (url.pathname === "/api/status" && req.method === "GET") {
     const status = await getHermesStatus();
-    status.catalog = loadCatalog().sources;
+    status.gatewayPool = publicGatewayPoolStatusForAuth(auth, status.gatewayPool);
+    if (isOwnerAuth(auth)) status.catalog = loadCatalog().sources;
     status.display = {
       ownerLabel: OWNER_LABEL,
       ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
       ownerRootFallbackLabel: OWNER_ROOT_FALLBACK_LABEL,
     };
     status.push = publicPushStatus();
-    status.reasoning = defaultReasoningInfo();
+    status.reasoning = publicReasoningInfoForAuth(auth);
+    status.concurrency = publicConcurrencyForAuth(auth);
     status.clientVersion = clientVersionInfo(req.headers["x-hermes-web-client-version"] || "");
     sendJson(res, 200, status);
     return;
@@ -5894,6 +5955,7 @@ async function handleApi(req, res) {
   if (url.pathname === "/api/runtime-config/test" && req.method === "POST") {
     if (!requireOwner(req, res)) return;
     const status = await getHermesStatus();
+    status.concurrency = runConcurrencySnapshot();
     sendJson(res, 200, { ok: Boolean(status.ok), status, config: publicRuntimeConfig() });
     return;
   }
@@ -6703,6 +6765,7 @@ async function handleApi(req, res) {
       senderWorkspaceId: senderInfo.senderWorkspaceId,
       senderPrincipalId: senderInfo.senderPrincipalId,
       senderLabel: senderInfo.senderLabel,
+      actorWorkspaceId,
       replyToMessageId: quotedMessage?.id || "",
       directoryAliases: directoryAttachment ? [directoryAttachment] : [],
       directoryRoute: directoryAttachment || null,
@@ -6724,6 +6787,7 @@ async function handleApi(req, res) {
       senderWorkspaceId: "hermes",
       senderPrincipalId: "hermes",
       senderLabel: "Hermes",
+      actorWorkspaceId,
       reasoningEffort,
       singleWindowMode,
     };
@@ -6805,6 +6869,17 @@ async function handleApi(req, res) {
       && singleWindowMode === "chat"
       && taskGroupId
       && taskGroupHasRunningRun(thread, taskGroupId);
+    if (!queueBehindActiveChatRun) {
+      const concurrencyError = runConcurrencyError(actorWorkspaceId);
+      if (concurrencyError) {
+        sendJson(res, concurrencyError.status || 429, {
+          error: concurrencyError.message,
+          code: concurrencyError.code,
+          concurrency: concurrencyError.snapshot || runConcurrencySnapshot(),
+        });
+        return;
+      }
+    }
     thread.messages.push(userMessage, assistantMessage);
     thread.status = queueBehindActiveChatRun && (thread.activeRunIds || []).length ? "running" : "queued";
     thread.updatedAt = createdAt;
@@ -7567,7 +7642,7 @@ function handleEvents(req, res) {
   res.write(`data: ${JSON.stringify({
     type: "snapshot",
     threads: state.threads.filter((thread) => threadAccessibleToAuth(auth, thread)).map(threadSummary),
-    status: { apiBase: effectiveHermesApiBase(), activeRuns: activeStreams.size },
+    status: { apiBase: effectiveHermesApiBase(), activeRuns: activeStreams.size, concurrency: runConcurrencySnapshot() },
     clientVersion: clientVersionInfo(reportedClientVersion),
   })}\n\n`);
   lastSentClientVersion = readClientVersion();

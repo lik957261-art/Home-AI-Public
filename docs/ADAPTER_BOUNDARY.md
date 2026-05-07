@@ -46,6 +46,7 @@ These parts must remain replaceable:
 - `adapters/filesystem-mount-provider.js` owns filesystem path/mount normalization: Windows-to-WSL path conversion, `/mnt/<drive>` conversion, `/volume1` mirror lookup, allowed artifact roots, and path-allowed checks.
 - `adapters/gateway-pool-provider.js` owns non-secret Gateway Pool scheduling: manifest loading, worker normalization, exact/preferred worker hints, tag/provider filters, health checks, round-robin selection, fallback to the configured default Gateway, and API-key lookup by `gatewayUrl` without persisting worker keys into mobile state.
 - `adapters/gateway-runner.js` owns the official Hermes Gateway execution boundary: authenticated requests, `/v1/responses` streaming, health/status probing, run stop, run liveness checks, SSE parsing, and per-run Gateway URL/API-key overrides.
+- `adapters/run-concurrency-policy.js` owns product-level active-run counting and limit decisions before Gateway run creation.
 - `adapters/project-discovery-provider.js` owns project/root discovery from project-map entries, physical owner top-level directories, restricted workspace directories, remote `/volume1` directory trees, shareable-root filtering, and project deduping.
 - `adapters/shared-directory-provider.js` owns shared-directory management: persisted share records, derived ACL allowed-root shares, target/permission normalization, project injection for shared roots, read-only write guards, and ACL share removal writes through injected user-policy storage.
 - `adapters/skill-detail-provider.js` owns the Skill detail bridge boundary: child-process execution, timeout, stderr compaction, JSON parsing, and not-found mapping. The current private deployment still backs detail reads with `skill_bridge.py`.
@@ -63,6 +64,7 @@ These parts must remain replaceable:
 - `tests/filesystem-mount-provider.test.js` is the contract smoke for path conversion, `/volume1` mirror behavior, disabled shares, and allowed-root checks.
 - `tests/gateway-pool-provider.test.js` is the contract smoke for worker manifest normalization, routing hints, health-checked selection, fallback behavior, and secret lookup by Gateway URL.
 - `tests/gateway-runner.test.js` is the contract smoke for official Gateway request auth/body handling, status tolerance, SSE event preservation, per-run API key overrides, and `runId -> gatewayUrl` operation routing.
+- `tests/run-concurrency-policy.test.js` is the contract smoke for active assistant-run counting, global limits, per-workspace limits, and non-secret worker diagnostic fields.
 - `tests/project-discovery-provider.test.js` is the contract smoke for owner physical root discovery, restricted workspace directory discovery, remote `/volume1` tree mapping, shareable-root filtering, and shared-root deduping.
 - `tests/shared-directory-provider.test.js` is the contract smoke for explicit shares, ACL allowed-root derived shares, target visibility, read-only/write access, access updates, and ACL removal writes.
 - `tests/skill-detail-provider.test.js` is the contract smoke for Skill detail bridge payload mapping, required-skill validation, and not-found status mapping.

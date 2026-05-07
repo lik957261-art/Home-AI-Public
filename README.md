@@ -108,6 +108,7 @@ Important configuration groups:
 - `HERMES_WEB_HERMES_API_BASE`
 - `HERMES_WEB_HERMES_API_KEY` or `HERMES_WEB_HERMES_API_KEY_PATH`
 - `HERMES_WEB_GATEWAY_POOL_ENABLED`, `HERMES_WEB_GATEWAY_POOL_MANIFEST`
+- `HERMES_WEB_MAX_ACTIVE_RUNS`, `HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE`
 - `HERMES_WEB_WORKSPACE_USERS_PATH`, `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH`
 - `HERMES_WEB_ALLOWED_ARTIFACT_ROOTS`
 - `HERMES_WEB_WSL_USER`, `HERMES_WEB_WSL_HOME`, `HERMES_WEB_WSL_HERMES_HOME`
@@ -138,5 +139,25 @@ See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the current private
 See [docs/OFFICIAL_HERMES_COMPATIBILITY.md](docs/OFFICIAL_HERMES_COMPATIBILITY.md) for the compatibility boundary with official Hermes.
 See [docs/GATEWAY_POOL_ARCHITECTURE.md](docs/GATEWAY_POOL_ARCHITECTURE.md) for the product runtime target: Hermes Mobile scheduling one or more official Hermes Gateway profiles while preserving official Hermes Skill, memory, tool, session, and artifact behavior. A single Gateway remains the minimal install and fallback mode.
 See [docs/SERVICE_LAYER_SQLITE.md](docs/SERVICE_LAYER_SQLITE.md) for the SQLite service-layer migration plan.
+See [docs/OFFICIAL_HERMES_CLEANUP_PLAN.md](docs/OFFICIAL_HERMES_CLEANUP_PLAN.md) for the path back to clean official Hermes profiles.
+See [docs/PUBLIC_EXPORT_CHECKLIST.md](docs/PUBLIC_EXPORT_CHECKLIST.md) before creating a public repository/export.
 
 The public repository should be created from a privacy-scanned export of this private repo, not from the Agent workspace history.
+
+## Production Smoke
+
+After a Gateway Pool or runtime cutover, run:
+
+```powershell
+node scripts\gateway-pool-production-smoke.js --base http://127.0.0.1:8797 --key-file <owner-key-file>
+```
+
+The smoke creates one temporary task-stream run, verifies Gateway Pool health and non-secret worker metadata, then deletes the temporary task unless `--keep` is supplied.
+
+For a direct official Gateway boundary check without changing Mobile state:
+
+```powershell
+node scripts\official-hermes-compat-smoke.js --api-base http://127.0.0.1:8642 --api-key-file <gateway-api-key-file>
+```
+
+Add `--run-model` only when an actual minimal model call is acceptable.

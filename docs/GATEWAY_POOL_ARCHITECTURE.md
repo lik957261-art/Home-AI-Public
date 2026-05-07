@@ -78,6 +78,19 @@ The scheduler:
 
 The worker API key is read from the manifest for requests only. It must not be written to messages, SQLite rows, state snapshots, browser payloads, logs, or docs.
 
+## Concurrency Contract
+
+Hermes Mobile owns product-level concurrency before a Gateway run is created.
+
+- `HERMES_WEB_MAX_ACTIVE_RUNS` limits active model runs globally.
+- `HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE` limits active model runs for one workspace/account.
+- `0` means unlimited for that dimension.
+- Single-window chat still keeps its serial per-chat queue. Messages queued behind an already-running chat turn do not count as active until they start.
+- If a limit is reached, Hermes Mobile rejects the new model request with `429` before appending user/assistant messages. This avoids creating invisible backlog rows that block later work.
+- Queued chat turns are checked again when they are promoted to active runs.
+
+The status API exposes only counts and limits, not prompts, secrets, or worker API keys. Owner UI surfaces the Gateway Pool health and concurrency summary in the account/runtime panel. Workspace-scoped users do not receive manifest paths, worker URLs, catalog file paths, or reasoning-source file paths.
+
 ## Run Routing
 
 Every started Hermes Mobile assistant message stores non-secret routing metadata:
@@ -87,7 +100,7 @@ Every started Hermes Mobile assistant message stores non-secret routing metadata
 - `gatewayProfile`
 - `gatewaySource`
 
-The API key is resolved in memory from the manifest by `gatewayUrl` whenever Hermes Mobile needs to stream, stop, or check the run.
+The browser receives only non-secret worker labels/profile/source for diagnostics. The API key is resolved in memory from the manifest by `gatewayUrl` whenever Hermes Mobile needs to stream, stop, or check the run.
 
 Hermes Mobile must use the same Gateway for:
 
@@ -121,6 +134,8 @@ Official Hermes should remain clean enough to upgrade directly from upstream. If
 - `HERMES_WEB_GATEWAY_POOL_ENABLED=auto|true|false`
 - `HERMES_WEB_GATEWAY_POOL_MANIFEST=<path-to-worker-pool.json>`
 - `HERMES_WEB_GATEWAY_POOL_HEALTH_TIMEOUT_MS=5000`
+- `HERMES_WEB_MAX_ACTIVE_RUNS=<global-active-run-limit-or-0>`
+- `HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE=<per-workspace-active-run-limit-or-0>`
 - `HERMES_WEB_HERMES_API_BASE=<fallback-gateway-url>`
 - `HERMES_WEB_HERMES_API_KEY_PATH=<fallback-gateway-api-key-file>`
 
@@ -135,6 +150,7 @@ Before treating Gateway Pool mode as production-ready, validate:
 - Stop/cancel calls the same worker that created the run.
 - Liveness checks call the same worker that created the run.
 - Missing/disabled/unhealthy worker manifest falls back to the configured default Gateway.
+- Product-level active-run limits reject excess new work before run creation.
 - A task that uses an existing Skill still uses official Hermes behavior.
 - A task that creates or updates a Skill writes through official Hermes behavior.
 - Usage, events, and artifacts are preserved through the GatewayRunner boundary.

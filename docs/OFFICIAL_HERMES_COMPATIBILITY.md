@@ -20,6 +20,7 @@ The current product decision is Gateway Pool scheduling in Hermes Mobile: Hermes
 - Gateway task execution uses `/v1/responses`; run liveness checks use `/v1/runs/<id>`.
 - Runtime records retain `runId -> gatewayUrl` / profile metadata so stop, liveness, and event handling go back to the Gateway that created the run.
 - Gateway Pool mode may read a deployment worker-pool manifest, but worker API keys are request-only secrets and must not be persisted into Hermes Mobile state or browser payloads.
+- Product-level active-run concurrency is enforced in Hermes Mobile before Gateway run creation. Official Hermes still owns the run lifecycle once a run starts.
 - Usage rendering expects detailed Gateway usage when available, but tolerates aggregate-only historical payloads.
 - Optional bridges may read native Hermes files, such as CRON jobs or plugin-backed todo data, through deployment-specific adapters.
 - The SQLite service-layer migration/runtime keeps Hermes Mobile-owned state outside official Hermes. Todo and Automation bridge backends should remain opt-in compatibility adapters for existing deployments, not the default product architecture.

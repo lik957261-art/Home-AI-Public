@@ -17,6 +17,8 @@ const state = {
   serverClientVersion: "",
   defaultReasoningEffort: "medium",
   defaultReasoningSource: "gateway-default",
+  gatewayPool: null,
+  concurrency: null,
   displayConfig: {
     ownerDriveRootNames: ["ChatGPT-Drive"],
     ownerRootFallbackLabel: "Hermes Owner",
@@ -2239,10 +2241,19 @@ function renderMessageScrollButton(message, position) {
   return `<button class="message-scroll-button" type="button" data-scroll-message="${escapeHtml(message.id)}" data-scroll-position="${end ? "end" : "start"}" aria-label="${end ? "Jump to reply end" : "Jump to reply start"}" title="${end ? "End" : "Start"}"><span class="message-scroll-glyph">${end ? "&#8595;" : "&#8593;"}</span></button>`;
 }
 
+function renderMessageGatewayDiagnostic(message) {
+  if (!state.auth?.isOwner || message?.role !== "assistant") return "";
+  const label = message.gatewayName || message.gatewayProfile || "";
+  if (!label) return "";
+  const source = message.gatewaySource === "worker_pool" ? "pool" : (message.gatewaySource || "gateway");
+  return `<span class="message-gateway-diagnostic" title="${escapeHtml(source)}">${escapeHtml(label)}</span>`;
+}
+
 function renderMessageFooter(message, usage) {
   const startButton = renderMessageScrollButton(message, "start");
-  if (!startButton && !usage) return "";
-  return `<div class="message-footer-row">${startButton}${usage}</div>`;
+  const gatewayDiagnostic = renderMessageGatewayDiagnostic(message);
+  if (!startButton && !usage && !gatewayDiagnostic) return "";
+  return `<div class="message-footer-row">${startButton}${gatewayDiagnostic}${usage}</div>`;
 }
 
 function wireMessageScrollButtons(root) {
@@ -2522,6 +2533,8 @@ async function loadStatus() {
   const status = await api("/api/status").catch((err) => ({ ok: false, error: err.message }));
   $("connectionState").textContent = status.ok ? "Hermes OK" : `Hermes unavailable: ${status.error || "unknown"}`;
   if (status.clientVersion) handleClientVersion(status.clientVersion, "status");
+  state.gatewayPool = status.gatewayPool || null;
+  state.concurrency = status.concurrency || null;
   if (status.display && typeof status.display === "object") {
     const names = Array.isArray(status.display.ownerDriveRootNames)
       ? status.display.ownerDriveRootNames.map((item) => String(item || "").trim()).filter(Boolean)
@@ -2552,6 +2565,49 @@ function renderClientVersion() {
   const version = normalizeClientVersion(state.clientVersion);
   badge.textContent = version ? `v${version}` : "";
   badge.title = version ? `Client version ${version}` : "";
+}
+
+function gatewayPoolSummary(pool = state.gatewayPool) {
+  if (!pool || typeof pool !== "object") return { label: "Gateway Pool: unknown", detail: "" };
+  const workers = Array.isArray(pool.workers) ? pool.workers : [];
+  const healthy = workers.filter((worker) => worker.healthy === true).length;
+  const workerCount = Number(pool.workerCount ?? workers.length) || workers.length;
+  if (!pool.enabled) {
+    return {
+      label: "Gateway Pool: fallback",
+      detail: pool.error || pool.reason || pool.fallbackApiBase || "",
+      healthy,
+      workerCount,
+    };
+  }
+  return {
+    label: `Gateway Pool: ${healthy}/${workerCount} healthy`,
+    detail: pool.mode ? `mode ${pool.mode}` : "",
+    healthy,
+    workerCount,
+  };
+}
+
+function concurrencySummary(concurrency = state.concurrency) {
+  if (!concurrency || typeof concurrency !== "object") return "";
+  const active = Number(concurrency.activeGlobal || 0);
+  const maxGlobal = Number(concurrency.maxGlobal || 0);
+  const maxPerWorkspace = Number(concurrency.maxPerWorkspace || 0);
+  const parts = [`active ${active}`];
+  if (maxGlobal) parts.push(`global ${maxGlobal}`);
+  if (maxPerWorkspace) parts.push(`workspace ${maxPerWorkspace}`);
+  return parts.join(" / ");
+}
+
+function renderGatewayPoolMiniStatus(pool = state.gatewayPool, concurrency = state.concurrency) {
+  if (!state.auth?.isOwner) return "";
+  const summary = gatewayPoolSummary(pool);
+  const concurrencyText = concurrencySummary(concurrency);
+  return `<section class="workspace-gateway-status">
+    <div class="workspace-gateway-title">${escapeHtml(summary.label)}</div>
+    ${summary.detail ? `<div class="workspace-gateway-meta">${escapeHtml(summary.detail)}</div>` : ""}
+    ${concurrencyText ? `<div class="workspace-gateway-meta">Run limit: ${escapeHtml(concurrencyText)}</div>` : ""}
+  </section>`;
 }
 
 function refreshNoticeText(serverVersion) {
@@ -3061,6 +3117,7 @@ function renderWorkspaceAccessPanel() {
   panel.innerHTML = `<details>
     <summary>账号 / 根目录 / 接口</summary>
     <div class="workspace-access-list">${rows}</div>
+    ${renderGatewayPoolMiniStatus()}
     ${runtimeConfigButton}
   </details>`;
   panel.querySelectorAll("[data-open-access-keys]").forEach((button) => {
@@ -3094,6 +3151,10 @@ function renderRuntimeConfigManager() {
         ${status.status?.error ? `<div class="runtime-config-error">${escapeHtml(status.status.error)}</div>` : ""}
       </section>`
     : "";
+  const gatewayStatusBlock = renderGatewayPoolMiniStatus(
+    status?.status?.gatewayPool || state.gatewayPool,
+    status?.status?.concurrency || state.concurrency,
+  );
   const errorBlock = state.runtimeConfigError
     ? `<div class="access-key-empty error">${escapeHtml(state.runtimeConfigError)}</div>`
     : "";
@@ -3143,6 +3204,7 @@ function renderRuntimeConfigManager() {
       </header>
       ${errorBlock}
       ${body}
+      ${gatewayStatusBlock}
       ${testBlock}
     </div>`;
   overlay.querySelector("[data-close-runtime-config]")?.addEventListener("click", closeRuntimeConfigManager);
@@ -3259,6 +3321,8 @@ async function testRuntimeConfigManager() {
     });
     state.runtimeConfigTestStatus = result;
     state.runtimeConfig = result.config || state.runtimeConfig;
+    state.gatewayPool = result.status?.gatewayPool || state.gatewayPool;
+    state.concurrency = result.status?.concurrency || state.concurrency;
   } catch (err) {
     state.runtimeConfigError = err.message || String(err);
   } finally {
