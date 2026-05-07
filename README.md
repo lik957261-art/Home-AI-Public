@@ -29,6 +29,14 @@ npm test
 
 This runs JavaScript syntax checks, provider contract tests, Python bridge compilation, and a privacy scan for local paths, runtime state, private key material, and internal workspace markers.
 
+Run the full productization gate before packaging or exporting:
+
+```powershell
+npm run productization:check
+```
+
+This runs `npm test`, the startup `-CheckOnly` path, and `git diff --check`.
+
 Start the listener:
 
 ```powershell
