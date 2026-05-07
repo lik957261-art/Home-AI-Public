@@ -9,6 +9,7 @@ const zlib = require("node:zlib");
 const { spawn } = require("node:child_process");
 const webpush = require("web-push");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
+const { createTodoProvider } = require("./adapters/todo-provider");
 
 const TOOL_ROOT = __dirname;
 const REPO_ROOT = path.resolve(process.env.HERMES_WEB_REPO_ROOT || process.env.HERMES_MOBILE_ROOT || TOOL_ROOT);
@@ -1497,6 +1498,14 @@ function runTodoBridge(payload) {
     child.stdin.end(JSON.stringify(payload || {}));
   });
 }
+
+const todoProvider = createTodoProvider({
+  runBridge: runTodoBridge,
+  workspacePrincipal,
+  todoAssigneesForWorkspace,
+  publicTodo,
+  sourceName: () => process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos",
+});
 
 function runCronBridge(payload) {
   return new Promise((resolve, reject) => {
@@ -4887,8 +4896,7 @@ function todoPushPayload(event) {
 
 async function markTodoWebPush(event, status, options = {}) {
   if (!event?.markKey || !event?.principalId) return null;
-  return runTodoBridge({
-    action: "web_mark_push",
+  return todoProvider.markWebPush({
     markKey: event.markKey,
     todoId: event.todoId || "",
     principalId: event.principalId,
@@ -4925,15 +4933,14 @@ async function runTodoWebPushTick(options = {}) {
   if (!webPushConfig || !principals.length) {
     return { ok: true, enabled: Boolean(webPushConfig), principals, events: [], deliveries: [] };
   }
-  const pending = await runTodoBridge({
-    action: "web_pending_pushes",
-    source_principal: "owner",
+  const pending = await todoProvider.pendingPushes({
+    sourcePrincipal: "owner",
     principals,
     limit: options.limit || 100,
-    recent_create_minutes: TODO_WEB_PUSH_RECENT_CREATE_MINUTES,
-    confirmed_mark_keys: confirmedTodoPushMarkKeys(),
-    retry_without_receipt_minutes: TODO_WEB_PUSH_RECEIPT_RETRY_MINUTES,
-    retry_limit: TODO_WEB_PUSH_RECEIPT_RETRY_LIMIT,
+    recentCreateMinutes: TODO_WEB_PUSH_RECENT_CREATE_MINUTES,
+    confirmedMarkKeys: confirmedTodoPushMarkKeys(),
+    retryWithoutReceiptMinutes: TODO_WEB_PUSH_RECEIPT_RETRY_MINUTES,
+    retryLimit: TODO_WEB_PUSH_RECEIPT_RETRY_LIMIT,
   });
   const events = Array.isArray(pending.events) ? pending.events : [];
   if (options.dryRun) {
@@ -7170,27 +7177,22 @@ async function handleApi(req, res) {
   if (url.pathname === "/api/todos" && req.method === "GET") {
     const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
     if (!workspaceId) return;
-    const result = await runTodoBridge({
-      action: "list",
-      source_principal: workspacePrincipal(workspaceId),
+    const result = await todoProvider.listTodos({
+      workspaceId,
       scope: url.searchParams.get("scope") || "mine",
-      include_completed: boolParam(url.searchParams.get("includeCompleted")),
+      includeCompleted: boolParam(url.searchParams.get("includeCompleted")),
       assignee: url.searchParams.get("assignee") || "",
       limit: Number(url.searchParams.get("limit") || "80"),
+      search: url.searchParams.get("search") || "",
     });
     if (!result.ok) {
-      todoErrorResponse(res, result);
+      todoErrorResponse(res, result.result || result);
       return;
     }
-    const search = String(url.searchParams.get("search") || "").trim().toLowerCase();
-    let todos = (result.todos || []).map(publicTodo);
-    if (search) {
-      todos = todos.filter((todo) => `${todo.id}\n${todo.content}\n${todo.assigneeLabel}\n${todo.dueLocal}`.toLowerCase().includes(search));
-    }
     sendJson(res, 200, {
-      data: todos,
-      assignees: todoAssigneesForWorkspace(workspaceId),
-      source: process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos",
+      data: result.data,
+      assignees: result.assignees,
+      source: result.source,
     });
     return;
   }
@@ -7199,17 +7201,16 @@ async function handleApi(req, res) {
     const body = await readBody(req);
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
-    const result = await runTodoBridge({
-      action: "add",
-      source_principal: workspacePrincipal(workspaceId),
+    const result = await todoProvider.addTodo({
+      workspaceId,
       assignee: body.assignee || "",
       content: body.content || "",
-      due_time: body.dueTime || body.due_time || "",
-      suppress_weixin_notice: true,
-      reminder_lead_minutes: body.reminderLeadMinutes ?? body.reminder_lead_minutes ?? null,
+      dueTime: body.dueTime || body.due_time || "",
+      suppressWeixinNotice: true,
+      reminderLeadMinutes: body.reminderLeadMinutes ?? body.reminder_lead_minutes ?? null,
       recurrence: body.recurrence || "none",
-      recurrence_days: body.recurrenceDays || body.recurrence_days || "",
-      recurrence_until: body.recurrenceUntil || body.recurrence_until || "",
+      recurrenceDays: body.recurrenceDays || body.recurrence_days || "",
+      recurrenceUntil: body.recurrenceUntil || body.recurrence_until || "",
     });
     if (!result.ok) {
       todoErrorResponse(res, result);
@@ -7241,13 +7242,13 @@ async function handleApi(req, res) {
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
     if (!workspaceId) return;
     const action = todoAction[2];
-    const result = await runTodoBridge({
+    const result = await todoProvider.mutateTodo({
       action,
-      source_principal: workspacePrincipal(workspaceId),
-      todo_id: decodeURIComponent(todoAction[1]),
+      workspaceId,
+      todoId: decodeURIComponent(todoAction[1]),
       assignee: body.assignee || "",
-      recurrence_scope: body.recurrenceScope || body.recurrence_scope || "one",
-      due_time: body.dueTime || body.due_time || "",
+      recurrenceScope: body.recurrenceScope || body.recurrence_scope || "one",
+      dueTime: body.dueTime || body.due_time || "",
     });
     if (!result.ok) {
       todoErrorResponse(res, result);
@@ -7556,17 +7557,16 @@ async function handleApi(req, res) {
     if (directTodoIntent) {
       let result = null;
       try {
-        result = await runTodoBridge({
-          action: "add",
-          source_principal: workspacePrincipal(thread.workspaceId),
+        result = await todoProvider.addTodo({
+          workspaceId: thread.workspaceId,
           assignee: directTodoIntent.assignee,
           content: directTodoIntent.content,
-          due_time: directTodoIntent.dueTime,
-          suppress_weixin_notice: true,
-          reminder_lead_minutes: null,
+          dueTime: directTodoIntent.dueTime,
+          suppressWeixinNotice: true,
+          reminderLeadMinutes: null,
           recurrence: "none",
-          recurrence_days: "",
-          recurrence_until: "",
+          recurrenceDays: "",
+          recurrenceUntil: "",
         });
       } catch (err) {
         result = { ok: false, error: err.message || String(err) };
