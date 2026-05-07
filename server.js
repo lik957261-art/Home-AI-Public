@@ -8,11 +8,14 @@ const crypto = require("node:crypto");
 const zlib = require("node:zlib");
 const { spawn } = require("node:child_process");
 const webpush = require("web-push");
+const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
 const { createAutomationProvider } = require("./adapters/automation-provider");
+const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
+const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
 
@@ -61,14 +64,20 @@ const HERMES_API_KEY_PATHS = [
   process.env.HERMES_WEB_HERMES_API_KEY_PATH,
   path.join(WINDOWS_HOME, ".hermes-windows", "hermes-api-server-key.secret"),
 ].filter(Boolean);
-const WEIXIN_USERS_PATHS = [
+const WORKSPACE_USERS_PATHS = [
+  process.env.HERMES_WEB_WORKSPACE_USERS_PATH,
   process.env.HERMES_WEB_WEIXIN_USERS_PATH,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "workspace-users.json"),
   ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-users.json"),
+  path.join(LOCAL_CONFIG_ROOT, "access-control", "workspace-users.json"),
   path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-users.json"),
 ].filter(Boolean);
-const WEIXIN_ROUTE_MAP_PATHS = [
+const WORKSPACE_ROUTE_MAP_PATHS = [
+  process.env.HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH,
   process.env.HERMES_WEB_WEIXIN_ROUTE_MAP_PATH,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "workspace-routing-map.json"),
   ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-routing-map.json"),
+  path.join(LOCAL_CONFIG_ROOT, "access-control", "workspace-routing-map.json"),
   path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-routing-map.json"),
 ].filter(Boolean);
 const HERMES_CONFIG_PATHS = [
@@ -218,10 +227,26 @@ const sharedDirectoryProvider = createSharedDirectoryProvider({
   ensureDataDir,
   nowIso,
   readJsonFirst,
-  usersPaths: WEIXIN_USERS_PATHS,
+  usersPaths: WORKSPACE_USERS_PATHS,
   loadCatalog,
   findWorkspace,
   workspacePrincipal,
+});
+
+const accessPolicyProvider = createAccessPolicyProvider({
+  uploadCacheRoot: () => path.join(DATA_DIR, "uploads"),
+  sharedRoots: (principalId) => sharedDirectoryRoots(principalId),
+});
+
+const workspaceBindingsProvider = createWorkspaceBindingsProvider({
+  interfaceToolsetsJson: () => process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "",
+  ownerExternalInterfaceBindings: () => ownerExternalInterfaceBindings(),
+});
+
+const displayPathProvider = createDisplayPathProvider({
+  ownerDriveRootNames: () => OWNER_DRIVE_ROOT_NAMES,
+  ownerRootFallbackLabel: () => OWNER_ROOT_FALLBACK_LABEL,
+  normalizeLocalPath: (value) => normalizeLocalPath(value),
 });
 
 function stripTrailingSlash(value) {
@@ -2407,44 +2432,7 @@ function upsertSharedDirectory(record) {
 }
 
 function sanitizePolicy(policy) {
-  if (!policy || typeof policy !== "object") return {};
-  const listKeys = new Set([
-    "allowed_roots",
-    "delivery_roots",
-    "cache_roots",
-    "allowed_toolsets",
-    "blocked_toolsets",
-    "allowed_skills",
-    "blocked_skills",
-  ]);
-  const boolKeys = new Set(["can_delegate_codex", "allow_shell", "show_task_id"]);
-  const intKeys = new Set(["context_window_turns", "max_parallel_tasks"]);
-  const allowed = [
-    "principal_id", "principal_label", "access_mode", "default_workspace",
-    "allowed_roots", "delivery_roots", "sync_root", "download_root", "cache_roots",
-    "can_delegate_codex", "allow_shell", "allowed_toolsets", "blocked_toolsets",
-    "allowed_skills", "blocked_skills", "connector_profiles", "cron_scope",
-    "interaction_mode", "session_mode", "response_style", "background_mode",
-    "show_task_id", "context_window_turns", "max_parallel_tasks", "source_platform",
-    "source_chat_id", "source_chat_id_alt", "source_user_id", "source_user_id_alt",
-    "reason",
-  ];
-  const out = {};
-  for (const key of allowed) {
-    const value = policy[key];
-    if (value == null || value === "" || (Array.isArray(value) && !value.length)) continue;
-    if (listKeys.has(key)) out[key] = dedupe((Array.isArray(value) ? value : [value]).map(String).filter(Boolean));
-    else if (boolKeys.has(key)) out[key] = Boolean(value);
-    else if (intKeys.has(key)) {
-      const n = Number(value);
-      if (Number.isFinite(n) && n > 0) out[key] = Math.floor(n);
-    } else if (key === "connector_profiles" && value && typeof value === "object") {
-      out[key] = Object.fromEntries(Object.entries(value).map(([k, v]) => [String(k), String(v)]));
-    } else {
-      out[key] = String(value);
-    }
-  }
-  return out;
+  return accessPolicyProvider.sanitize(policy);
 }
 
 function dedupe(values) {
@@ -2455,8 +2443,8 @@ function getWorkspaceProjectProvider() {
   if (!workspaceProjectProvider) {
     workspaceProjectProvider = createWorkspaceProjectProvider({
       readJsonFirst,
-      usersPaths: WEIXIN_USERS_PATHS,
-      routeMapPaths: WEIXIN_ROUTE_MAP_PATHS,
+      usersPaths: WORKSPACE_USERS_PATHS,
+      routeMapPaths: WORKSPACE_ROUTE_MAP_PATHS,
       projectMapPaths: PROJECT_MAP_PATHS,
       repoRoot: REPO_ROOT,
       normalizeStringList,
@@ -2486,30 +2474,7 @@ function loadCatalog() {
 }
 
 function buildAccessPolicy(route, user, project) {
-  const merged = Object.assign({}, route || {}, user || {});
-  const source = {
-    source_platform: "web",
-    source_chat_id: project?.id || route?.chat_id || user?.user_id || route?.principal_id,
-    source_chat_id_alt: route?.adapter_account_id || user?.account_id || "",
-    source_user_id: route?.user_id || user?.user_id || route?.principal_id || "",
-    source_user_id_alt: route?.principal_id || user?.principal_id || "",
-    reason: "hermes_web",
-  };
-  const policy = sanitizePolicy(Object.assign({}, merged, source));
-  if (project && project.root) {
-    policy.default_workspace = project.root;
-  }
-  const sharedRoots = sharedDirectoryRoots(policy.principal_id || route?.principal_id || user?.principal_id || "");
-  if (policy.principal_id === "owner" || policy.access_mode === "unrestricted") {
-    policy.access_mode = "unrestricted";
-    policy.cache_roots = dedupe([...(policy.cache_roots || []), path.join(DATA_DIR, "uploads")]);
-    return policy;
-  }
-  const roots = dedupe([...(policy.allowed_roots || []), policy.default_workspace, ...sharedRoots].filter(Boolean));
-  policy.allowed_roots = roots;
-  policy.delivery_roots = dedupe([...(policy.delivery_roots || []), policy.sync_root, policy.download_root].filter(Boolean));
-  policy.cache_roots = dedupe([...(policy.cache_roots || []), path.join(DATA_DIR, "uploads")]);
-  return policy;
+  return accessPolicyProvider.build(route, user, project);
 }
 
 function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
@@ -2612,37 +2577,23 @@ function policyForThread(thread) {
 }
 
 function sharedProjectOwnerLabel(project) {
-  return String(project?.sharedByLabel || project?.createdByLabel || project?.sharedBy || project?.createdBy || "").trim();
+  return displayPathProvider.sharedProjectOwnerLabel(project);
 }
 
 function ownerDriveRootIndex(parts) {
-  const roots = new Set((OWNER_DRIVE_ROOT_NAMES.length ? OWNER_DRIVE_ROOT_NAMES : ["ChatGPT-Drive"])
-    .map((name) => String(name || "").trim().toLowerCase())
-    .filter(Boolean));
-  return (parts || []).findIndex((part) => roots.has(String(part || "").trim().toLowerCase()));
+  return displayPathProvider.ownerDriveRootIndex(parts);
 }
 
 function sharedProjectRootOwnerLabel(project) {
-  const root = String(project?.root || "").replaceAll("\\", "/");
-  const parts = root.split("/").filter(Boolean);
-  const volumeIndex = parts.findIndex((part) => part.toLowerCase() === "volume1");
-  if (volumeIndex >= 0 && parts[volumeIndex + 1]) return parts[volumeIndex + 1];
-  const ownerDriveIndex = ownerDriveRootIndex(parts);
-  if (ownerDriveIndex >= 0) return OWNER_ROOT_FALLBACK_LABEL;
-  return "";
+  return displayPathProvider.sharedProjectRootOwnerLabel(project);
 }
 
 function sharedProjectDisplayLabel(project) {
-  const label = project?.label || project?.id || "Project";
-  if (!project?.shared) return label;
-  const ownerLabel = sharedProjectRootOwnerLabel(project) || sharedProjectOwnerLabel(project);
-  return ownerLabel ? `${ownerLabel} · ${label}` : label;
+  return displayPathProvider.sharedProjectDisplayLabel(project);
 }
 
 function directoryRouteDisplayLabel(project, child = null) {
-  const projectLabel = sharedProjectDisplayLabel(project);
-  if (!child) return projectLabel;
-  return `${projectLabel} / ${child.label || child.id || "Directory"}`;
+  return displayPathProvider.directoryRouteDisplayLabel(project, child);
 }
 
 function directoryRouteCandidatesForWorkspace(workspaceId) {
@@ -2684,20 +2635,7 @@ function relativeDisplayTail(rawPath, rootPath) {
 }
 
 function logicalUserPathFallback(rawPath, fallbackLabel = "") {
-  const normalized = String(rawPath || "").trim().replaceAll("\\", "/");
-  const parts = normalized.split("/").filter(Boolean);
-  const lowerParts = parts.map((part) => part.toLowerCase());
-  const driveIndex = ownerDriveRootIndex(parts);
-  if (driveIndex >= 0 && parts.length > driveIndex + 1) return parts.slice(driveIndex + 1).join(" / ");
-  const synologyIndex = lowerParts.findIndex((part) => part === "synologydrive");
-  if (synologyIndex >= 0) return ["SynologyDrive", ...parts.slice(synologyIndex + 1)].join(" / ");
-  const documentsIndex = lowerParts.findIndex((part) => part === "documents");
-  const agentIndex = lowerParts.findIndex((part, index) => part === "agent" && index > documentsIndex);
-  if (documentsIndex >= 0 && agentIndex >= 0) return ["Agent", ...parts.slice(agentIndex + 1)].join(" / ");
-  if (documentsIndex >= 0) return ["Documents", ...parts.slice(documentsIndex + 1)].join(" / ");
-  const usersIndex = lowerParts.findIndex((part) => part === "users");
-  if (usersIndex >= 0 && parts.length > usersIndex + 2) return ["用户目录", ...parts.slice(usersIndex + 2)].join(" / ");
-  return fallbackLabel || path.basename(normalizeLocalPath(rawPath) || normalized) || "";
+  return displayPathProvider.logicalUserPathFallback(rawPath, fallbackLabel);
 }
 
 function logicalDirectoryDisplayPath(thread, rawPath, fallbackLabel = "") {
@@ -2789,41 +2727,6 @@ function publicChatGroup(thread) {
   };
 }
 
-const WORKSPACE_INTERFACE_TOOLSETS = {
-  web: { label: "Web", category: "接口" },
-  vision: { label: "视觉", category: "接口" },
-  image_gen: { label: "图片生成", category: "接口" },
-  messaging: { label: "消息发送", category: "接口" },
-  todo: { label: "待办", category: "接口" },
-  cronjob: { label: "自动化", category: "接口" },
-  weixin_reminders: { label: "微信提醒", category: "接口" },
-  weixin_todos: { label: "微信待办", category: "接口" },
-  taobao_desktop: { label: "淘宝桌面", category: "接口" },
-};
-Object.assign(WORKSPACE_INTERFACE_TOOLSETS, configuredWorkspaceInterfaceToolsets());
-
-const DEFAULT_WORKSPACE_TOOLSETS = new Set([
-  "web",
-  "vision",
-  "image_gen",
-  "messaging",
-  "todo",
-  "cronjob",
-  "weixin_reminders",
-  "weixin_todos",
-]);
-
-function configuredWorkspaceInterfaceToolsets() {
-  const raw = String(process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "").trim();
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch (_) {
-    return {};
-  }
-}
-
 function ownerExternalInterfaceBindings() {
   return externalIntegrationProvider.ownerInterfaceBindings();
 }
@@ -2851,36 +2754,7 @@ function publicWorkspaceAccessKeyStatus(workspace) {
 }
 
 function publicWorkspaceBindings(workspace) {
-  const policy = workspace.policy || {};
-  const allowedToolsets = dedupe(policy.allowed_toolsets || []);
-  const channels = [];
-  if (workspace.accountId || workspace.userId || workspace.chatId || workspace.target) {
-    channels.push({
-      type: "weixin",
-      label: "微信",
-      accountId: workspace.accountId || "",
-      userId: workspace.userId || "",
-      chatId: workspace.chatId || "",
-      target: workspace.target || "",
-      contextTokenAvailable: workspace.contextTokenAvailable,
-      outboundStatus: workspace.outboundStatus || "",
-    });
-  }
-  const interfaces = allowedToolsets
-    .filter((toolset) => !DEFAULT_WORKSPACE_TOOLSETS.has(String(toolset || "")))
-    .map((toolset) => {
-      const info = WORKSPACE_INTERFACE_TOOLSETS[toolset];
-      if (!info) return null;
-      return Object.assign({ id: toolset }, info);
-    })
-    .filter(Boolean);
-  if (String(workspace.id || "") === "owner") interfaces.push(...ownerExternalInterfaceBindings());
-  return {
-    channels,
-    interfaces,
-    allowedToolsets,
-    connectorProfiles: Object.keys(policy.connector_profiles || {}).sort(),
-  };
+  return workspaceBindingsProvider.publicBindings(workspace);
 }
 
 function publicWorkspace(workspace) {

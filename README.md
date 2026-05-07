@@ -27,7 +27,7 @@ Run validation:
 npm test
 ```
 
-This runs JavaScript syntax checks, Python bridge compilation, and a privacy scan for local paths, runtime state, private key material, and internal workspace markers.
+This runs JavaScript syntax checks, provider contract tests, Python bridge compilation, and a privacy scan for local paths, runtime state, private key material, and internal workspace markers.
 
 Start the listener:
 
@@ -96,6 +96,7 @@ Important configuration groups:
 - `HERMES_WEB_KEY` or `HERMES_WEB_AUTH_KEY_PATH`
 - `HERMES_WEB_HERMES_API_BASE`
 - `HERMES_WEB_HERMES_API_KEY` or `HERMES_WEB_HERMES_API_KEY_PATH`
+- `HERMES_WEB_WORKSPACE_USERS_PATH`, `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH`
 - `HERMES_WEB_ALLOWED_ARTIFACT_ROOTS`
 - `HERMES_WEB_WSL_USER`, `HERMES_WEB_WSL_HOME`, `HERMES_WEB_WSL_HERMES_HOME`
 - `HERMES_WEB_OWNER_ROOT_LABEL`, `HERMES_WEB_OWNER_ALIASES`, `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`
