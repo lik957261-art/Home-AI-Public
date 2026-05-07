@@ -185,6 +185,71 @@ function joinConfigList(value) {
   return splitConfigList(value).join("\n");
 }
 
+function workspaceCreateInputs(root = document) {
+  return {
+    id: root.querySelector?.("#newWorkspaceId") || null,
+    label: root.querySelector?.("#newWorkspaceLabel") || null,
+    root: root.querySelector?.("#newWorkspaceRoot") || null,
+    allowedRoots: root.querySelector?.("#newWorkspaceAllowedRoots") || null,
+    toolsets: root.querySelector?.("#newWorkspaceToolsets") || null,
+  };
+}
+
+function setWorkspaceAutoValue(input, value) {
+  if (!input || input.dataset.manual === "1") return;
+  input.value = value || "";
+  input.dataset.autofilled = "1";
+}
+
+function workspaceDefaultUsername(value) {
+  return String(value || "").trim();
+}
+
+let workspaceDefaultRequestSeq = 0;
+
+async function refreshWorkspaceCreateDefaults(root = document) {
+  const inputs = workspaceCreateInputs(root);
+  const username = workspaceDefaultUsername(inputs.id?.value || "");
+  if (!username) {
+    Object.values(inputs).forEach((input) => {
+      if (input && input !== inputs.id && input.dataset.manual !== "1") input.value = "";
+    });
+    return;
+  }
+  const seq = ++workspaceDefaultRequestSeq;
+  const params = new URLSearchParams({ username });
+  const labelValue = inputs.label?.dataset.manual === "1" ? inputs.label.value.trim() : "";
+  if (labelValue) params.set("label", labelValue);
+  const result = await api(`/api/workspaces/defaults?${params}`);
+  if (seq !== workspaceDefaultRequestSeq) return;
+  const defaults = result.defaults || {};
+  setWorkspaceAutoValue(inputs.label, defaults.label || username);
+  setWorkspaceAutoValue(inputs.root, defaults.defaultWorkspace || "");
+  setWorkspaceAutoValue(inputs.allowedRoots, joinConfigList(defaults.allowedRoots || defaults.defaultWorkspace || ""));
+  setWorkspaceAutoValue(inputs.toolsets, splitConfigList(defaults.allowedToolsets || []).join(", "));
+  const hint = root.querySelector?.("#newWorkspaceDefaultsHint");
+  if (hint) hint.textContent = defaults.workspaceId ? `ID: ${defaults.workspaceId}` : "";
+}
+
+function wireWorkspaceCreateDefaults(root = document) {
+  const inputs = workspaceCreateInputs(root);
+  [inputs.label, inputs.root, inputs.allowedRoots, inputs.toolsets].forEach((input) => {
+    input?.addEventListener("input", () => {
+      input.dataset.manual = "1";
+    });
+  });
+  let timer = null;
+  inputs.id?.addEventListener("input", () => {
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      refreshWorkspaceCreateDefaults(root).catch(showError);
+    }, 180);
+  });
+  inputs.label?.addEventListener("blur", () => {
+    refreshWorkspaceCreateDefaults(root).catch(showError);
+  });
+}
+
 function formatElapsedDuration(startValue, endValue) {
   const start = new Date(startValue || "").getTime();
   const end = new Date(endValue || "").getTime();
@@ -3246,13 +3311,30 @@ function renderAccessKeyManager() {
       : `<div class="access-key-list">${rows}</div>`;
   const workspaceCreateForm = state.accessKeysAuth?.isOwner ? `<section class="access-key-create-workspace">
         <div class="access-key-row-title">创建 / 配置用户工作区</div>
+        <div class="workspace-create-help">先填用户名，显示名、根目录和访问目录会自动预填。</div>
         <div class="access-key-create-grid">
-          <input id="newWorkspaceId" type="text" autocomplete="off" placeholder="用户 ID，例如 zhangsan">
-          <input id="newWorkspaceLabel" type="text" autocomplete="off" placeholder="显示名">
-          <input id="newWorkspaceRoot" type="text" autocomplete="off" placeholder="根目录，可留空">
+          <label>
+            <span>用户名</span>
+            <input id="newWorkspaceId" type="text" autocomplete="off" placeholder="zhangsan / 张三">
+          </label>
+          <label>
+            <span>显示名</span>
+            <input id="newWorkspaceLabel" type="text" autocomplete="off" placeholder="自动生成">
+          </label>
+          <label class="workspace-create-full">
+            <span>根目录</span>
+            <input id="newWorkspaceRoot" type="text" autocomplete="off" placeholder="自动生成，可修改">
+          </label>
         </div>
-        <textarea id="newWorkspaceAllowedRoots" rows="3" placeholder="允许访问目录，每行一个；留空时使用根目录"></textarea>
-        <input id="newWorkspaceToolsets" type="text" autocomplete="off" placeholder="额外接口/toolsets，逗号分隔，可留空">
+        <div id="newWorkspaceDefaultsHint" class="workspace-create-hint"></div>
+        <label class="workspace-create-field">
+          <span>允许访问目录</span>
+          <textarea id="newWorkspaceAllowedRoots" rows="3" placeholder="自动使用根目录；每行一个"></textarea>
+        </label>
+        <label class="workspace-create-field">
+          <span>额外接口 / toolsets</span>
+          <input id="newWorkspaceToolsets" type="text" autocomplete="off" placeholder="可留空，逗号分隔">
+        </label>
         <button type="button" data-create-workspace>保存工作区</button>
       </section>` : "";
   const workspaceAdminList = state.accessKeysAuth?.isOwner ? `<section class="access-key-workspace-admin">
@@ -3299,6 +3381,7 @@ function renderAccessKeyManager() {
   overlay.querySelector("[data-close-access-keys]")?.addEventListener("click", closeAccessKeyManager);
   overlay.querySelector("[data-rotate-web-key]")?.addEventListener("click", () => rotateWebAccessKey().catch(showError));
   overlay.querySelector("[data-create-workspace]")?.addEventListener("click", () => createWorkspaceFromAccessKeyManager().catch(showError));
+  wireWorkspaceCreateDefaults(overlay);
   overlay.querySelector("[data-copy-access-key]")?.addEventListener("click", () => copyTextToClipboard(state.generatedAccessKey?.key || "").catch(showError));
   overlay.querySelector("[data-relogin-after-access-key]")?.addEventListener("click", () => finishAccessKeyRelogin());
   overlay.querySelectorAll("[data-edit-workspace]").forEach((button) => {
@@ -3349,11 +3432,29 @@ function fillWorkspaceConfigForm(workspaceId) {
   const workspace = (state.workspaces || []).find((item) => item.id === workspaceId);
   if (!workspace) return;
   const localConfig = workspace.localConfig || {};
-  if ($("newWorkspaceId")) $("newWorkspaceId").value = workspace.id || "";
-  if ($("newWorkspaceLabel")) $("newWorkspaceLabel").value = workspace.label || workspace.id || "";
-  if ($("newWorkspaceRoot")) $("newWorkspaceRoot").value = localConfig.defaultWorkspace || workspace.defaultWorkspace || "";
-  if ($("newWorkspaceAllowedRoots")) $("newWorkspaceAllowedRoots").value = joinConfigList(localConfig.allowedRoots || []);
-  if ($("newWorkspaceToolsets")) $("newWorkspaceToolsets").value = splitConfigList(localConfig.allowedToolsets || workspace.bindings?.allowedToolsets || []).join(", ");
+  const inputs = workspaceCreateInputs();
+  if (inputs.id) {
+    inputs.id.value = workspace.id || "";
+    inputs.id.dataset.manual = "1";
+  }
+  if (inputs.label) {
+    inputs.label.value = workspace.label || workspace.id || "";
+    inputs.label.dataset.manual = "1";
+  }
+  if (inputs.root) {
+    inputs.root.value = localConfig.defaultWorkspace || workspace.defaultWorkspace || "";
+    inputs.root.dataset.manual = "1";
+  }
+  if (inputs.allowedRoots) {
+    inputs.allowedRoots.value = joinConfigList(localConfig.allowedRoots || []);
+    inputs.allowedRoots.dataset.manual = "1";
+  }
+  if (inputs.toolsets) {
+    inputs.toolsets.value = splitConfigList(localConfig.allowedToolsets || workspace.bindings?.allowedToolsets || []).join(", ");
+    inputs.toolsets.dataset.manual = "1";
+  }
+  const hint = $("newWorkspaceDefaultsHint");
+  if (hint) hint.textContent = workspace.id ? `ID: ${workspace.id}` : "";
   $("newWorkspaceLabel")?.focus();
 }
 

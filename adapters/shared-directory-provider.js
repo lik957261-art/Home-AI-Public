@@ -163,9 +163,9 @@ function createSharedDirectoryProvider(options = {}) {
     fs.renameSync(tmp, storagePath);
   }
 
-  function roots(workspaceId = "") {
+  function roots(workspaceId = "", actorPrincipalOverride = "") {
     return loadRecords()
-      .filter((item) => !workspaceId || appliesToWorkspace(item, workspaceId))
+      .filter((item) => !workspaceId || appliesToWorkspace(item, workspaceId, actorPrincipalOverride))
       .map((item) => item.path)
       .filter(Boolean);
   }
@@ -195,6 +195,12 @@ function createSharedDirectoryProvider(options = {}) {
     return (workspaces || []).find((item) => String(item?.id || "") === workspaceIdText) || null;
   }
 
+  function workspacePrincipalFromList(workspaces, workspaceId) {
+    const workspace = workspaceFromList(workspaces, workspaceId);
+    const fallback = String(workspaceId || "owner").trim() || "owner";
+    return String(workspace?.policy?.principal_id || workspace?.id || fallback);
+  }
+
   function creator(record, workspaces = null) {
     const workspaceId = String(record?.createdBy || "").trim();
     const workspace = workspaceId ? (workspaceFromList(workspaces, workspaceId) || findWorkspace(workspaceId)) : null;
@@ -206,10 +212,10 @@ function createSharedDirectoryProvider(options = {}) {
     };
   }
 
-  function appliesToWorkspace(record, workspaceId) {
+  function appliesToWorkspace(record, workspaceId, actorPrincipalOverride = "") {
     const actorWorkspaceId = String(workspaceId || "owner").trim() || "owner";
     if (actorWorkspaceId === "owner") return true;
-    const actorPrincipal = workspacePrincipal(actorWorkspaceId);
+    const actorPrincipal = String(actorPrincipalOverride || workspacePrincipal(actorWorkspaceId));
     const creatorWorkspaceId = String(record?.createdBy || "").trim();
     const creatorPrincipalId = String(record?.createdByPrincipalId || creatorWorkspaceId || "").trim();
     if (creatorWorkspaceId && actorWorkspaceId === creatorWorkspaceId) return true;
@@ -433,9 +439,10 @@ function createSharedDirectoryProvider(options = {}) {
   }
 
   function projectsForWorkspace(workspaceId, workspaces = null) {
+    const actorPrincipal = workspaces ? workspacePrincipalFromList(workspaces, workspaceId) : "";
     return loadRecords()
       .map((record) => normalizeRecord(record))
-      .filter((record) => record && appliesToWorkspace(record, workspaceId))
+      .filter((record) => record && appliesToWorkspace(record, workspaceId, actorPrincipal))
       .map((record) => {
         const source = creator(record, workspaces);
         const label = record.workspaceLabels?.[workspaceId] || record.label || sharedDirectoryLabel(record.path);

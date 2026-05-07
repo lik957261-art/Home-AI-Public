@@ -349,6 +349,69 @@ function workspaceIdSlug(value) {
     .slice(0, 48);
 }
 
+function workspaceIdFromUsername(value) {
+  const raw = String(value || "").trim();
+  const slug = workspaceIdSlug(raw);
+  if (slug) return slug;
+  if (!raw) return "";
+  return `user-${hashValue(raw).slice(0, 8)}`;
+}
+
+function titleCaseWorkspaceId(value) {
+  const parts = String(value || "")
+    .replace(/^user[-_]+/i, "")
+    .split(/[-_\s.]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.map((part) => {
+    if (part.length <= 2) return part.toUpperCase();
+    return `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`;
+  }).join(" ");
+}
+
+function defaultWorkspaceLabel(value, workspaceId) {
+  const raw = String(value || "").trim();
+  if (raw && /[^\x00-\x7F]/.test(raw)) return raw.slice(0, 80);
+  return titleCaseWorkspaceId(raw || workspaceId) || workspaceId || "User";
+}
+
+function safeWorkspaceFolderName(value, fallback = "workspace") {
+  const text = String(value || fallback)
+    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/g, "")
+    .slice(0, 80);
+  return text || fallback;
+}
+
+function localWorkspaceDefaults(input = {}, previous = {}) {
+  const username = String(input.username || input.userName || input.workspaceId || input.workspace_id || input.id || previous.id || "").trim();
+  const id = workspaceIdFromUsername(input.workspaceId || input.workspace_id || input.id || username) || previous.id || "";
+  const label = String(input.label || input.name || "").trim()
+    || String(previous.label || "").trim()
+    || defaultWorkspaceLabel(username, id);
+  const folderName = safeWorkspaceFolderName(label, id || "workspace");
+  const defaultWorkspace = String(input.defaultWorkspace || input.default_workspace || input.root || previous.defaultWorkspace || "").trim()
+    || path.join(OWNER_DEFAULT_WORKSPACE, folderName);
+  const allowedRoots = normalizeStringList(
+    input.allowedRoots
+      || input.allowed_roots
+      || input.root
+      || input.defaultWorkspace
+      || input.default_workspace
+      || previous.allowedRoots
+      || defaultWorkspace,
+  );
+  return {
+    workspaceId: id,
+    label,
+    defaultWorkspace,
+    allowedRoots: allowedRoots.length ? allowedRoots : [defaultWorkspace],
+    allowedToolsets: normalizeStringList(input.allowedToolsets || input.allowed_toolsets || previous.allowedToolsets || []),
+  };
+}
+
 function normalizeLocalWorkspaceRecord(record) {
   const source = record && typeof record === "object" ? record : {};
   const id = workspaceIdSlug(source.id || source.workspaceId || source.workspace_id);
@@ -410,7 +473,7 @@ function localWorkspaceRecords() {
 
 function upsertLocalWorkspace(input, actor = "owner") {
   const rawId = input.workspaceId || input.workspace_id || input.id || "";
-  const id = workspaceIdSlug(rawId);
+  const id = workspaceIdFromUsername(rawId || input.username || input.userName);
   if (!id) {
     const err = new Error("Workspace id is required");
     err.status = 400;
@@ -430,12 +493,13 @@ function upsertLocalWorkspace(input, actor = "owner") {
   const now = nowIso();
   const store = loadLocalWorkspaceStore();
   const previous = store.workspaces.find((item) => item.id === id) || {};
+  const defaults = localWorkspaceDefaults(Object.assign({}, input, { workspaceId: id }), previous);
   const record = normalizeLocalWorkspaceRecord(Object.assign({}, previous, input, {
     id,
-    label: String(input.label || input.name || previous.label || id).trim(),
-    defaultWorkspace: String(input.defaultWorkspace || input.default_workspace || input.root || previous.defaultWorkspace || "").trim(),
-    allowedRoots: normalizeStringList(input.allowedRoots || input.allowed_roots || input.root || input.defaultWorkspace || input.default_workspace || previous.allowedRoots || []),
-    allowedToolsets: normalizeStringList(input.allowedToolsets || input.allowed_toolsets || previous.allowedToolsets || []),
+    label: defaults.label,
+    defaultWorkspace: defaults.defaultWorkspace,
+    allowedRoots: defaults.allowedRoots,
+    allowedToolsets: defaults.allowedToolsets,
     createdAt: previous.createdAt || now,
     updatedAt: now,
     createdBy: previous.createdBy || actor || "owner",
@@ -2436,7 +2500,7 @@ function saveSharedDirectoryRecords(records) {
 }
 
 function sharedDirectoryRoots(workspaceId = "") {
-  return sharedDirectoryProvider.roots(workspaceId);
+  return sharedDirectoryProvider.roots(workspaceId, workspaceId);
 }
 
 function sharedDirectoryId(record) {
@@ -5579,6 +5643,21 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/workspaces/defaults" && req.method === "GET") {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    const defaults = localWorkspaceDefaults({
+      username: url.searchParams.get("username") || "",
+      workspaceId: url.searchParams.get("workspaceId") || url.searchParams.get("id") || "",
+      label: url.searchParams.get("label") || "",
+    });
+    sendJson(res, 200, {
+      ok: true,
+      defaults,
+    });
+    return;
+  }
+
   if (url.pathname === "/api/workspaces" && req.method === "POST") {
     const ownerAuth = requireOwner(req, res);
     if (!ownerAuth) return;
@@ -7179,6 +7258,7 @@ const server = http.createServer(async (req, res) => {
     }
     serveStatic(req, res);
   } catch (err) {
+    console.error(`Hermes Web request failed ${req.method || ""} ${req.url || ""}: ${err.stack || err.message || String(err)}`);
     sendJson(res, 500, { error: err.message || String(err) });
   }
 });

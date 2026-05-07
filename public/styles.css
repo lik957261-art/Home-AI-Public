@@ -3313,7 +3313,29 @@ button.directory-alias-chip {
   gap: 8px;
 }
 
-.access-key-create-grid input {
+.access-key-create-grid label,
+.workspace-create-field {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.workspace-create-help,
+.workspace-create-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.workspace-create-hint:empty {
+  display: none;
+}
+
+.access-key-create-grid input,
+.workspace-create-field input {
   min-width: 0;
   min-height: 38px;
   padding: 0 10px;
@@ -3324,7 +3346,7 @@ button.directory-alias-chip {
   outline: none;
 }
 
-.access-key-create-grid input:last-child {
+.access-key-create-grid .workspace-create-full {
   grid-column: 1 / -1;
 }
 

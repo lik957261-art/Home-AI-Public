@@ -92,6 +92,21 @@ function run() {
   assert.equal(bobProjects[0].sharedByLabel, "Alice");
   assert.equal(provider.isWriteAllowed({ workspaceId: "weixin_bob" }, "", "/volume1/Hermes-Alice/Reports/out.pdf"), false);
 
+  const catalogBuildProvider = createSharedDirectoryProvider({
+    storagePath,
+    ensureDataDir: () => fs.mkdirSync(path.dirname(storagePath), { recursive: true }),
+    nowIso: () => "2026-01-01T00:00:00.000Z",
+    readJsonFirst,
+    usersPaths: [usersPath],
+    loadCatalog: () => { throw new Error("projectsForWorkspace must not load catalog during catalog build"); },
+    findWorkspace: () => { throw new Error("projectsForWorkspace must use the provided workspace snapshot"); },
+    workspacePrincipal: () => { throw new Error("projectsForWorkspace must not call workspacePrincipal during catalog build"); },
+  });
+  const snapshotProjects = catalogBuildProvider.projectsForWorkspace("weixin_bob", workspaces);
+  assert.equal(snapshotProjects.length, 1);
+  assert.equal(snapshotProjects[0].sharedByLabel, "Alice");
+  assert.deepEqual(catalogBuildProvider.roots("weixin_bob", "weixin_bob"), ["/volume1/Hermes-Alice/Reports"]);
+
   const updated = provider.updateAccess(provider.id(record), "weixin_alice", {
     permission: "read_write",
     scope: "all_workspaces",

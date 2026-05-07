@@ -148,6 +148,26 @@ async function main() {
     assert.equal(initialAutomations.source.name, "local_automations");
     assert.equal(initialAutomations.source.pathKind, "local");
 
+    const defaults = await request(baseUrl, "/api/workspaces/defaults?username=demo-prefill-user", {
+      headers: { "X-Hermes-Web-Key": ownerKey },
+    });
+    assert.equal(defaults.defaults.workspaceId, "demo-prefill-user");
+    assert.equal(defaults.defaults.label, "Demo Prefill User");
+    assert.equal(defaults.defaults.defaultWorkspace, path.join(tempDir, "data", "drive", "Demo Prefill User"));
+    assert.deepEqual(defaults.defaults.allowedRoots, [defaults.defaults.defaultWorkspace]);
+
+    const autoWorkspace = await request(baseUrl, "/api/workspaces", jsonOptions("POST", ownerKey, {
+      workspaceId: "demo-prefill-user",
+    }));
+    assert.equal(autoWorkspace.workspace.id, "demo-prefill-user");
+    assert.equal(autoWorkspace.workspace.label, "Demo Prefill User");
+    assert.equal(autoWorkspace.workspace.localConfig.defaultWorkspace, defaults.defaults.defaultWorkspace);
+    assert.deepEqual(autoWorkspace.workspace.localConfig.allowedRoots, [defaults.defaults.defaultWorkspace]);
+    await request(baseUrl, "/api/workspaces/demo-prefill-user", {
+      method: "DELETE",
+      headers: { "X-Hermes-Web-Key": ownerKey },
+    });
+
     const created = await request(baseUrl, "/api/workspaces", jsonOptions("POST", ownerKey, {
       workspaceId: "demo-admin-user",
       label: "Demo Admin User",
