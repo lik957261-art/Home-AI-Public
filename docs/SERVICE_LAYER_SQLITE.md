@@ -56,6 +56,16 @@ node scripts/migrate-json-to-sqlite.js --data-dir ".\workspace\hermes-web" --wor
 
 The migration report contains only counts, file hashes, byte sizes, warnings, and SQLite integrity status. It must not include raw access keys, push endpoints, VAPID private keys, or message contents.
 
+## Runtime Smoke
+
+After creating a SQLite database, run a temporary listener smoke before cutover:
+
+```powershell
+node scripts/sqlite-runtime-smoke.js --data-dir ".\workspace\hermes-web" --db ".\workspace\hermes-web\hermes-mobile.sqlite3" --port 19041 --report ".\workspace\sqlite-runtime-smoke.json"
+```
+
+The smoke runs with auth disabled, Web Push disabled, local Todo/Automation, and `HERMES_WEB_SERVICE_STORE=sqlite`. It verifies that threads load from SQLite and that a push receipt persists back into SQLite.
+
 ## Safety Rules
 
 - Run migrations on a copied data directory before touching any live data directory.
