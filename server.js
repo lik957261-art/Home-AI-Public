@@ -9,6 +9,7 @@ const zlib = require("node:zlib");
 const { spawn } = require("node:child_process");
 const webpush = require("web-push");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
+const { createAuthProvider } = require("./adapters/auth-provider");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
@@ -205,7 +206,18 @@ let lastStateBackupAt = 0;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
 let state = loadState();
-let authKeyState = DISABLE_AUTH ? { key: "", source: "disabled" } : loadAuthKeyState();
+const authProvider = createAuthProvider({
+  disableAuth: () => DISABLE_AUTH,
+  envKey: () => process.env.HERMES_WEB_KEY || "",
+  authKeyPath: () => AUTH_KEY_PATH,
+  accessKeysPath: () => ACCESS_KEYS_PATH,
+  allowMemoryKey: () => /^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_ALLOW_MEMORY_KEY || ""),
+  nowIso,
+  ensureDataDir,
+  findWorkspace,
+  workspacePrincipal,
+  listWorkspaces: () => loadCatalog().workspaces,
+});
 let clientVersionCache = { mtimeMs: 0, version: "" };
 let defaultReasoningCache = { cacheKey: "", value: null };
 let webPushConfig = initializeWebPush();
@@ -265,22 +277,6 @@ function wslUncPathCandidates(root, ...parts) {
     `\\\\wsl.localhost\\${WSL_DISTRO}\\${full}`,
     `\\\\wsl$\\${WSL_DISTRO}\\${full}`,
   ];
-}
-
-function loadAuthKeyState() {
-  if (process.env.HERMES_WEB_KEY && process.env.HERMES_WEB_KEY.trim()) {
-    return { key: process.env.HERMES_WEB_KEY.trim(), source: "env" };
-  }
-  try {
-    const value = fs.readFileSync(AUTH_KEY_PATH, "utf8").trim();
-    if (value) return { key: value, source: "file" };
-  } catch (_) {
-    // Fall through to first-run setup.
-  }
-  if (/^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_ALLOW_MEMORY_KEY || "")) {
-    return { key: crypto.randomBytes(18).toString("base64url"), source: "memory" };
-  }
-  return { key: "", source: "unconfigured" };
 }
 
 function normalizeRuntimeConfig(value) {
@@ -465,115 +461,16 @@ function hermesApiKeyStatus() {
   return { configured: false, source: "", path: "" };
 }
 
-function timingSafeEquals(a, b) {
-  const left = Buffer.from(String(a || ""), "utf8");
-  const right = Buffer.from(String(b || ""), "utf8");
-  if (left.length !== right.length) return false;
-  return crypto.timingSafeEqual(left, right);
-}
-
-function keyHash(value) {
-  return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");
-}
-
-function generateWebAccessKey() {
-  return `hwk_${crypto.randomBytes(27).toString("base64url")}`;
-}
-
-function currentGlobalAuthKey() {
-  return authKeyState?.key || "";
-}
-
-function authKeyDisplayPath() {
-  return path.basename(AUTH_KEY_PATH) || "owner-key";
-}
-
 function ownerSetupStatus() {
-  const ownerKeyConfigured = Boolean(currentGlobalAuthKey());
-  const setupRequired = !DISABLE_AUTH && authKeyState?.source === "unconfigured" && !ownerKeyConfigured;
-  return {
-    setupRequired,
-    authRequired: !DISABLE_AUTH,
-    ownerKeyConfigured,
-    ownerKeySource: authKeyState?.source || "unknown",
-    canCreateOwner: setupRequired,
-  };
+  return authProvider.ownerSetupStatus();
 }
 
 function createInitialOwnerKey() {
-  const status = ownerSetupStatus();
-  if (!status.setupRequired) {
-    const err = new Error(status.ownerKeyConfigured ? "Owner key is already configured" : "Owner setup is not available");
-    err.status = 409;
-    throw err;
-  }
-  const key = generateWebAccessKey();
-  fs.mkdirSync(path.dirname(AUTH_KEY_PATH), { recursive: true });
-  fs.writeFileSync(AUTH_KEY_PATH, `${key}\n`, { encoding: "utf8", mode: 0o600 });
-  authKeyState = { key, source: "file", updatedAt: nowIso() };
-  return {
-    key,
-    auth: { source: "file", path: authKeyDisplayPath(), updatedAt: authKeyState.updatedAt },
-  };
-}
-
-function parseCookies(header) {
-  const out = {};
-  for (const part of String(header || "").split(";")) {
-    const idx = part.indexOf("=");
-    if (idx < 0) continue;
-    out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
-  }
-  return out;
+  return authProvider.createInitialOwnerKey();
 }
 
 function getUrl(req) {
   return new URL(req.url, `http://${req.headers.host || "localhost"}`);
-}
-
-function requestAccessKey(req) {
-  const url = getUrl(req);
-  return req.headers["x-hermes-web-key"]
-    || url.searchParams.get("key")
-    || parseCookies(req.headers.cookie).hermes_web_key;
-}
-
-function normalizeAccessKeyStore(value) {
-  const workspaceKeys = {};
-  const source = value && typeof value === "object" ? value : {};
-  const raw = source.workspaceKeys && typeof source.workspaceKeys === "object" ? source.workspaceKeys : {};
-  for (const [workspaceId, record] of Object.entries(raw)) {
-    const id = String(workspaceId || "").trim();
-    const hash = String(record?.hash || "").trim();
-    if (!id || !/^[a-f0-9]{64}$/i.test(hash)) continue;
-    workspaceKeys[id] = {
-      hash: hash.toLowerCase(),
-      createdAt: String(record?.createdAt || ""),
-      updatedAt: String(record?.updatedAt || record?.createdAt || ""),
-      createdBy: String(record?.createdBy || "owner"),
-    };
-  }
-  return {
-    schemaVersion: 1,
-    workspaceKeys,
-    updatedAt: String(source.updatedAt || ""),
-  };
-}
-
-function loadAccessKeyStore() {
-  ensureDataDir();
-  try {
-    return normalizeAccessKeyStore(JSON.parse(fs.readFileSync(ACCESS_KEYS_PATH, "utf8")));
-  } catch (_) {
-    return normalizeAccessKeyStore({});
-  }
-}
-
-function saveAccessKeyStore(store) {
-  ensureDataDir();
-  const normalized = normalizeAccessKeyStore(Object.assign({}, store, { updatedAt: nowIso() }));
-  fs.writeFileSync(ACCESS_KEYS_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-  return normalized;
 }
 
 function workspaceIdSlug(value) {
@@ -711,45 +608,14 @@ function deleteLocalWorkspace(workspaceId) {
     throw err;
   }
   saveLocalWorkspaceStore(Object.assign({}, store, { workspaces: next }));
-  const keyStore = loadAccessKeyStore();
-  if (keyStore.workspaceKeys?.[id]) {
-    delete keyStore.workspaceKeys[id];
-    saveAccessKeyStore(keyStore);
-  }
+  authProvider.deleteWorkspaceAccessKey(id);
   invalidateCatalogCache();
   dynamicProjectCache.delete(id);
   return { id };
 }
 
 function authenticateRequest(req) {
-  if (DISABLE_AUTH) {
-    return { ok: true, role: "owner", workspaceId: "owner", principalId: "owner", isOwner: true, keySource: "disabled" };
-  }
-  if (req.auth) return req.auth;
-  const key = requestAccessKey(req);
-  const globalKey = currentGlobalAuthKey();
-  if (key && globalKey && timingSafeEquals(key, globalKey)) {
-    req.auth = { ok: true, role: "owner", workspaceId: "owner", principalId: "owner", isOwner: true, keySource: authKeyState.source || "global" };
-    return req.auth;
-  }
-  const hash = keyHash(key);
-  const store = loadAccessKeyStore();
-  for (const [workspaceId, record] of Object.entries(store.workspaceKeys || {})) {
-    if (!record?.hash || !timingSafeEquals(hash, record.hash)) continue;
-    const workspace = findWorkspace(workspaceId);
-    if (!workspace) continue;
-    req.auth = {
-      ok: true,
-      role: "workspace",
-      workspaceId,
-      principalId: workspacePrincipal(workspaceId),
-      isOwner: false,
-      keySource: "workspace",
-    };
-    return req.auth;
-  }
-  req.auth = { ok: false, role: "anonymous", workspaceId: "", principalId: "", isOwner: false, keySource: "" };
-  return req.auth;
+  return authProvider.authenticateRequest(req);
 }
 
 function isAuthorized(req) {
@@ -757,13 +623,11 @@ function isAuthorized(req) {
 }
 
 function isOwnerAuth(auth) {
-  return DISABLE_AUTH || Boolean(auth?.isOwner || auth?.role === "owner");
+  return authProvider.isOwnerAuth(auth);
 }
 
 function authCanAccessWorkspace(auth, workspaceId) {
-  if (isOwnerAuth(auth)) return true;
-  const id = String(workspaceId || "owner").trim() || "owner";
-  return Boolean(auth?.ok && auth.workspaceId && id === auth.workspaceId);
+  return authProvider.authCanAccessWorkspace(auth, workspaceId);
 }
 
 function chatGroupMemberWorkspaceIds(thread) {
@@ -2732,25 +2596,7 @@ function ownerExternalInterfaceBindings() {
 }
 
 function publicWorkspaceAccessKeyStatus(workspace) {
-  if (!workspace || workspace.id === "owner") {
-    return {
-      kind: "owner",
-      label: "Owner Key",
-      hasKey: Boolean(currentGlobalAuthKey()),
-      source: authKeyState.source || "unknown",
-      canRotate: authKeyState.source !== "env",
-      updatedAt: authKeyState.updatedAt || "",
-    };
-  }
-  const store = loadAccessKeyStore();
-  const record = store.workspaceKeys?.[workspace.id] || null;
-  return {
-    kind: "workspace",
-    label: "Workspace Key",
-    hasKey: Boolean(record?.hash),
-    canRotate: true,
-    updatedAt: record?.updatedAt || record?.createdAt || "",
-  };
+  return authProvider.publicWorkspaceAccessKeyStatus(workspace);
 }
 
 function publicWorkspaceBindings(workspace) {
@@ -2800,106 +2646,23 @@ function publicWorkspace(workspace) {
 }
 
 function publicAccessKeyStatus(workspace, record = null) {
-  return {
-    workspaceId: workspace.id,
-    workspaceLabel: workspace.label || workspace.id,
-    role: workspace.role || "",
-    principalId: workspacePrincipal(workspace.id),
-    hasKey: Boolean(record?.hash),
-    createdAt: record?.createdAt || "",
-    updatedAt: record?.updatedAt || "",
-  };
+  return authProvider.publicAccessKeyStatus(workspace, record);
 }
 
 function listWorkspaceAccessKeyStatuses(auth, options = {}) {
-  const store = loadAccessKeyStore();
-  const catalog = loadCatalog();
-  const requestedWorkspaceId = String(options.workspaceId || "").trim();
-  const workspaces = isOwnerAuth(auth)
-    ? catalog.workspaces.filter((workspace) =>
-      workspace.id !== "owner" && requestedWorkspaceId && workspace.id === requestedWorkspaceId)
-    : catalog.workspaces.filter((workspace) => workspace.id === auth?.workspaceId && workspace.id !== "owner");
-  return workspaces
-    .map((workspace) => publicAccessKeyStatus(workspace, store.workspaceKeys?.[workspace.id] || null));
+  return authProvider.listWorkspaceAccessKeyStatuses(auth, options);
 }
 
 function rotateWorkspaceAccessKey(workspaceId, options = {}) {
-  const workspace = findWorkspace(workspaceId);
-  if (!workspace) {
-    const err = new Error("Unknown workspace");
-    err.status = 400;
-    throw err;
-  }
-  if (workspace.id === "owner") {
-    const err = new Error("Use the Hermes Web key rotation for Owner access");
-    err.status = 400;
-    throw err;
-  }
-  const key = generateWebAccessKey();
-  const now = nowIso();
-  if (options.dryRun) {
-    return { key, record: publicAccessKeyStatus(workspace, { createdAt: now, updatedAt: now, hash: keyHash(key) }), dryRun: true };
-  }
-  const store = loadAccessKeyStore();
-  const previous = store.workspaceKeys?.[workspace.id] || {};
-  store.workspaceKeys = store.workspaceKeys || {};
-  store.workspaceKeys[workspace.id] = {
-    hash: keyHash(key),
-    createdAt: previous.createdAt || now,
-    updatedAt: now,
-    createdBy: String(options.actor || "owner"),
-  };
-  const saved = saveAccessKeyStore(store);
-  return { key, record: publicAccessKeyStatus(workspace, saved.workspaceKeys[workspace.id]), dryRun: false };
+  return authProvider.rotateWorkspaceAccessKey(workspaceId, options);
 }
 
 function revokeWorkspaceAccessKey(workspaceId, options = {}) {
-  const workspace = findWorkspace(workspaceId);
-  if (!workspace) {
-    const err = new Error("Unknown workspace");
-    err.status = 400;
-    throw err;
-  }
-  if (workspace.id === "owner") {
-    const err = new Error("Use the Hermes Web key rotation for Owner access");
-    err.status = 400;
-    throw err;
-  }
-  const store = loadAccessKeyStore();
-  const previous = store.workspaceKeys?.[workspace.id] || null;
-  if (!options.dryRun && previous) {
-    delete store.workspaceKeys[workspace.id];
-    saveAccessKeyStore(store);
-  }
-  return {
-    workspace: publicAccessKeyStatus(workspace, null),
-    revoked: Boolean(previous),
-    dryRun: Boolean(options.dryRun),
-  };
+  return authProvider.revokeWorkspaceAccessKey(workspaceId, options);
 }
 
 function rotateGlobalAccessKey(options = {}) {
-  const key = generateWebAccessKey();
-  const now = nowIso();
-  if (options.dryRun) {
-    return {
-      key,
-      auth: { source: authKeyState.source || "unknown", canPersist: authKeyState.source !== "env", updatedAt: now },
-      dryRun: true,
-    };
-  }
-  if (authKeyState.source === "env") {
-    const err = new Error("Hermes Web key is configured by HERMES_WEB_KEY; remove or update the environment variable before rotating from Web");
-    err.status = 409;
-    throw err;
-  }
-  fs.writeFileSync(AUTH_KEY_PATH, `${key}\n`, { encoding: "utf8", mode: 0o600 });
-  authKeyState = { key, source: "file", updatedAt: now };
-  return {
-    key,
-    auth: { source: "file", path: authKeyDisplayPath(), updatedAt: now },
-    dryRun: false,
-  };
+  return authProvider.rotateGlobalAccessKey(options);
 }
 
 function pathInsideAnyRoot(candidate, roots) {
@@ -5673,8 +5436,8 @@ async function handleApi(req, res) {
       auth: {
         isOwner: isOwnerAuth(accessAuth),
         workspaceId: accessAuth.workspaceId || "",
-        source: isOwnerAuth(accessAuth) ? (authKeyState.source || "unknown") : "workspace",
-        canRotateGlobal: isOwnerAuth(accessAuth) && authKeyState.source !== "env",
+        source: isOwnerAuth(accessAuth) ? authProvider.ownerKeySource() : "workspace",
+        canRotateGlobal: isOwnerAuth(accessAuth) && authProvider.ownerKeySource() !== "env",
       },
       data: listWorkspaceAccessKeyStatuses(accessAuth, { workspaceId: url.searchParams.get("workspaceId") || "" }),
     });
@@ -7247,8 +7010,8 @@ server.listen(PORT, HOST, () => {
   console.log(`Hermes Web listening on http://${HOST}:${PORT}`);
   console.log(`Hermes API base: ${effectiveHermesApiBase()}`);
   console.log(`State directory: ${DATA_DIR}`);
-  console.log(DISABLE_AUTH ? "Authentication disabled by HERMES_WEB_DISABLE_AUTH." : `Authentication enabled; Owner key source is ${authKeyState.source || "unknown"}.`);
-  if (!DISABLE_AUTH && authKeyState.source !== "env") {
+  console.log(DISABLE_AUTH ? "Authentication disabled by HERMES_WEB_DISABLE_AUTH." : `Authentication enabled; Owner key source is ${authProvider.ownerKeySource()}.`);
+  if (!DISABLE_AUTH && authProvider.ownerKeySource() !== "env") {
     console.log("Current process login key is not printed; use the configured Owner key file or HERMES_WEB_KEY.");
   }
   startTodoWebPushDispatcher();
