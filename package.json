@@ -8,6 +8,8 @@
   },
   "scripts": {
     "check": "node --check server.js && node --check public/app.js && node --check public/service-worker.js",
+    "privacy:scan": "node scripts/privacy-scan.js",
+    "test": "npm run check && python -m py_compile cron_bridge.py directory_bridge.py skill_bridge.py todo_bridge.py && npm run privacy:scan",
     "start": "node server.js"
   },
   "dependencies": {

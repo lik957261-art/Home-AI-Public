@@ -20,7 +20,7 @@ The private repository may temporarily contain adapter implementation details wh
 
 ## Required Checks
 
-- `npm run check`
+- `npm test`
 - `git diff --check`
-- Tracked-file text scan for known private path/key patterns.
+- `npm run privacy:scan` for known private path/key patterns.
 - README review for install steps that can be followed outside the original Agent workspace.

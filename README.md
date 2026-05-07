@@ -21,11 +21,13 @@ Install dependencies:
 npm install
 ```
 
-Run checks:
+Run validation:
 
 ```powershell
-npm run check
+npm test
 ```
+
+This runs JavaScript syntax checks, Python bridge compilation, and a privacy scan for local paths, runtime state, private key material, and internal workspace markers.
 
 Start the listener:
 
