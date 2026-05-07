@@ -11,6 +11,7 @@ const webpush = require("web-push");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
 const { createAuthProvider } = require("./adapters/auth-provider");
 const { createAutomationProvider } = require("./adapters/automation-provider");
+const { createBridgeCommandProvider } = require("./adapters/bridge-command-provider");
 const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
@@ -29,10 +30,10 @@ const TOOL_ROOT = __dirname;
 const REPO_ROOT = path.resolve(process.env.HERMES_WEB_REPO_ROOT || process.env.HERMES_MOBILE_ROOT || TOOL_ROOT);
 const PUBLIC_ROOT = path.join(TOOL_ROOT, "public");
 const INDEX_HTML_PATH = path.join(PUBLIC_ROOT, "index.html");
-const TODO_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "todo_bridge.py");
-const CRON_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "cron_bridge.py");
-const DIRECTORY_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "directory_bridge.py");
-const SKILL_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "skill_bridge.py");
+const DEFAULT_TODO_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "todo_bridge.py");
+const DEFAULT_CRON_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "cron_bridge.py");
+const DEFAULT_DIRECTORY_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "directory_bridge.py");
+const DEFAULT_SKILL_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "skill_bridge.py");
 const LOCAL_CONFIG_ROOT = path.resolve(process.env.HERMES_WEB_CONFIG_DIR || path.join(REPO_ROOT, "config"));
 
 const HOST = process.env.HERMES_WEB_HOST || "0.0.0.0";
@@ -271,6 +272,15 @@ const filesystemMountProvider = createFilesystemMountProvider({
   disabledVolume1Shares: () => normalizeStringList(process.env.HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES || ""),
   allowedArtifactRoots: () => String(process.env.HERMES_WEB_ALLOWED_ARTIFACT_ROOTS || ""),
 });
+
+const bridgeCommandProvider = createBridgeCommandProvider({
+  wslDistro: () => WSL_DISTRO,
+  windowsPathToWsl: (value) => windowsPathToWsl(value),
+});
+const TODO_BRIDGE_SCRIPT = bridgeCommandProvider.script("HERMES_WEB_TODO_BRIDGE_SCRIPT", DEFAULT_TODO_BRIDGE_SCRIPT);
+const CRON_BRIDGE_SCRIPT = bridgeCommandProvider.script("HERMES_WEB_CRON_BRIDGE_SCRIPT", DEFAULT_CRON_BRIDGE_SCRIPT);
+const DIRECTORY_BRIDGE_SCRIPT = bridgeCommandProvider.script("HERMES_WEB_DIRECTORY_BRIDGE_SCRIPT", DEFAULT_DIRECTORY_BRIDGE_SCRIPT);
+const SKILL_BRIDGE_SCRIPT = bridgeCommandProvider.script("HERMES_WEB_SKILL_BRIDGE_SCRIPT", DEFAULT_SKILL_BRIDGE_SCRIPT);
 
 const sharedDirectoryProvider = createSharedDirectoryProvider({
   storagePath: SHARED_DIRECTORIES_PATH,
@@ -1434,35 +1444,6 @@ function windowsPathToWsl(value) {
   return filesystemMountProvider.windowsPathToWsl(value);
 }
 
-function wslBridgeEnvArgs(names = []) {
-  const entries = [];
-  for (const name of names) {
-    const key = String(name || "").trim();
-    if (!key) continue;
-    const value = process.env[key];
-    if (value === undefined || value === null || String(value) === "") continue;
-    entries.push(`${key}=${String(value)}`);
-  }
-  return entries;
-}
-
-function wslPythonBridgeArgs(scriptPath, envNames = []) {
-  const envArgs = wslBridgeEnvArgs([
-    "HERMES_HOME",
-    "HERMES_WEB_HERMES_HOME",
-    "PYTHONPATH",
-    ...envNames,
-  ]);
-  return [
-    "-d",
-    WSL_DISTRO,
-    "--",
-    ...(envArgs.length ? ["env", ...envArgs] : []),
-    "python3",
-    windowsPathToWsl(scriptPath),
-  ];
-}
-
 function safeStorageSegment(value, fallback = "item") {
   return String(value || fallback)
     .replace(/[^A-Za-z0-9_.:-]+/g, "_")
@@ -1776,13 +1757,11 @@ async function runLocalTodoBridge(payload = {}) {
 function runTodoBridge(payload) {
   if (useLocalTodoBackend()) return runLocalTodoBridge(payload);
   return new Promise((resolve, reject) => {
-    const command = process.platform === "win32" ? "wsl.exe" : "python3";
-    const args = process.platform === "win32"
-      ? wslPythonBridgeArgs(TODO_BRIDGE_SCRIPT, [
-        "HERMES_WEB_TODO_PLUGIN_NAME",
-        "HERMES_WEB_TODO_PLUGIN_PATH",
-      ])
-      : [TODO_BRIDGE_SCRIPT];
+    const bridge = bridgeCommandProvider.python(TODO_BRIDGE_SCRIPT, [
+      "HERMES_WEB_TODO_PLUGIN_NAME",
+      "HERMES_WEB_TODO_PLUGIN_PATH",
+    ]);
+    const { command, args } = bridge;
     const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
@@ -2149,15 +2128,13 @@ async function runLocalCronBridge(payload = {}) {
 function runCronBridge(payload) {
   if (useLocalAutomationBackend()) return runLocalCronBridge(payload);
   return new Promise((resolve, reject) => {
-    const command = process.platform === "win32" ? "wsl.exe" : "python3";
-    const args = process.platform === "win32"
-      ? wslPythonBridgeArgs(CRON_BRIDGE_SCRIPT, [
-        "HERMES_WEB_CRON_JOBS_PATH",
-        "HERMES_CRON_JOBS_PATH",
-        "HERMES_WEB_CRON_JOBS_FALLBACK_PATH",
-        "HERMES_WEB_CRON_OUTPUT_ROOT",
-      ])
-      : [CRON_BRIDGE_SCRIPT];
+    const bridge = bridgeCommandProvider.python(CRON_BRIDGE_SCRIPT, [
+      "HERMES_WEB_CRON_JOBS_PATH",
+      "HERMES_CRON_JOBS_PATH",
+      "HERMES_WEB_CRON_JOBS_FALLBACK_PATH",
+      "HERMES_WEB_CRON_OUTPUT_ROOT",
+    ]);
+    const { command, args } = bridge;
     const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
@@ -2244,10 +2221,10 @@ async function runCronListBridgeCached(options = {}) {
 
 function runDirectoryBridge(payload) {
   return new Promise((resolve, reject) => {
-    const command = process.platform === "win32" ? "wsl.exe" : "python3";
-    const args = process.platform === "win32"
-      ? ["-d", WSL_DISTRO, "--", "python3", windowsPathToWsl(DIRECTORY_BRIDGE_SCRIPT)]
-      : [DIRECTORY_BRIDGE_SCRIPT];
+    const bridge = bridgeCommandProvider.python(DIRECTORY_BRIDGE_SCRIPT, [
+      "HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON",
+    ]);
+    const { command, args } = bridge;
     const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
@@ -2302,11 +2279,9 @@ const skillDetailProvider = createSkillDetailProvider({
   compactText,
   spawn,
   bridgeCommand: () => {
-    const command = process.platform === "win32" ? "wsl.exe" : "python3";
-    const args = process.platform === "win32"
-      ? ["-d", WSL_DISTRO, "--", "python3", windowsPathToWsl(SKILL_BRIDGE_SCRIPT)]
-      : [SKILL_BRIDGE_SCRIPT];
-    return { command, args };
+    return bridgeCommandProvider.python(SKILL_BRIDGE_SCRIPT, [
+      "HERMES_WEB_SKILLS_ROOT",
+    ]);
   },
 });
 

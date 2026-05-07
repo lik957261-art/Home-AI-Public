@@ -26,6 +26,7 @@ These parts must remain replaceable:
 - Project/directory map source.
 - Todo provider.
 - Automation/CRON provider.
+- External bridge command/script resolution.
 - Filesystem mount and path normalization helpers.
 - Skill detail provider.
 - External integration inventory, such as mail, GitHub, Google, or local desktop tools.
@@ -42,6 +43,7 @@ These parts must remain replaceable:
 - `adapters/runtime-config-provider.js` owns runtime Gateway/Web Push configuration stored in `workspace/hermes-web/runtime-config.json`: Gateway URL validation, API-key file/env loading, Web Push subject validation, VAPID path resolution, and public non-secret runtime status.
 - `adapters/todo-provider.js` owns the Todo bridge payload boundary. The HTTP server now asks the provider to list, create, mutate, and mark Web Push state for todos; the current private deployment still backs that provider with `todo_bridge.py`.
 - `adapters/automation-provider.js` owns the CRON bridge payload, list-cache, output-file, deliverable-path parsing, and automation file authorization boundary. The HTTP server now asks the provider to list, create, mutate, refresh, and resolve authorized automation output/deliverable files; the current private deployment still backs job operations with `cron_bridge.py`.
+- `adapters/bridge-command-provider.js` owns Python bridge command resolution for Todo, CRON, Directory, and Skill bridge scripts. Default scripts remain in the repository for product installs, while deployments can override `HERMES_WEB_TODO_BRIDGE_SCRIPT`, `HERMES_WEB_CRON_BRIDGE_SCRIPT`, `HERMES_WEB_DIRECTORY_BRIDGE_SCRIPT`, and `HERMES_WEB_SKILL_BRIDGE_SCRIPT` with Windows paths, WSL absolute paths, or WSL UNC paths without editing `server.js`.
 - `adapters/external-integration-provider.js` owns the non-secret Owner integration inventory boundary. It detects configured integrations such as GitHub, Google, Outlook, AliMail, and Hotmail from injected path/env sources and returns only display metadata.
 - `adapters/filesystem-mount-provider.js` owns filesystem path/mount normalization: Windows-to-WSL path conversion, `/mnt/<drive>` conversion, `/volume1` mirror lookup, allowed artifact roots, and path-allowed checks.
 - `adapters/gateway-pool-provider.js` owns non-secret Gateway Pool scheduling: manifest loading, worker normalization, exact/preferred worker hints, tag/provider filters, health checks, round-robin selection, fallback to the configured default Gateway, and API-key lookup by `gatewayUrl` without persisting worker keys into mobile state.
@@ -60,6 +62,7 @@ These parts must remain replaceable:
 - `tests/display-path-provider.test.js` is the contract smoke for shared-root labels, owner drive-root labels, directory-route labels, and logical path fallback.
 - `tests/todo-provider.test.js` is the contract smoke for Todo bridge payload mapping, public Todo normalization, search filtering, and Web Push mark/pending operations.
 - `tests/automation-provider.test.js` is the contract smoke for CRON bridge payload mapping, list-cache behavior, deliverable path parsing, output resolution, and workspace authorization.
+- `tests/bridge-command-provider.test.js` is the contract smoke for bridge script env overrides, Windows/WSL command construction, WSL absolute path preservation, and WSL UNC path conversion.
 - `tests/external-integration-provider.test.js` is the contract smoke for Owner integration detection without exposing raw tokens or secret file contents.
 - `tests/filesystem-mount-provider.test.js` is the contract smoke for path conversion, `/volume1` mirror behavior, disabled shares, and allowed-root checks.
 - `tests/gateway-pool-provider.test.js` is the contract smoke for worker manifest normalization, routing hints, health-checked selection, fallback behavior, and secret lookup by Gateway URL.

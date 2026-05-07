@@ -19,7 +19,7 @@ The productized runtime target is official-Hermes-clean Gateway Pool scheduling 
 - Keep built-in defaults generic.
 - Add explicit validation for required paths and credentials.
 - Document which features require Hermes Gateway, WSL, Web Push, CRON metadata, or local filesystem access.
-- Current baseline moves workspace user/route-map files, WSL user/home, Hermes home, Web Push subject, todo plugin path/name, skill root, and filesystem path/mount normalization behind environment variables and providers. Remaining private labels and account-specific bindings are tracked in `ADAPTER_BOUNDARY.md`.
+- Current baseline moves workspace user/route-map files, WSL user/home, Hermes home, Web Push subject, todo plugin path/name, bridge script paths, skill root, and filesystem path/mount normalization behind environment variables and providers. Remaining private labels and account-specific bindings are tracked in `ADAPTER_BOUNDARY.md`.
 - First-run Owner setup is visual: if no `HERMES_WEB_KEY` and no Owner key file exists, the browser creates the Owner Access Key once, displays it once, and then enters the app. Admin-created local workspaces are stored in `workspace/hermes-web/workspaces.json`.
 - The Owner workspace manager now supports a usable local-user lifecycle: create, edit label/root/allowed directories/toolsets, generate or revoke a workspace Access Key, and delete the admin-created workspace. Deleting a local workspace revokes its key but intentionally leaves historical runtime state untouched.
 - `HERMES_WEB_AUTH_KEY_PATH` can point the file-backed Owner key outside the repository root; tests and packaged deployments should use it so first-run setup never writes secrets into source directories.
