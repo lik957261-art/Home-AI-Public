@@ -9,6 +9,7 @@ const zlib = require("node:zlib");
 const { spawn } = require("node:child_process");
 const webpush = require("web-push");
 const { createAutomationProvider } = require("./adapters/automation-provider");
+const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
 
@@ -1578,6 +1579,15 @@ const automationProvider = createAutomationProvider({
   authCanAccessWorkspace,
   workspacePrincipal,
   jobMatchesOwner: cronJobMatchesOwner,
+});
+
+const externalIntegrationProvider = createExternalIntegrationProvider({
+  envPaths: HERMES_ENV_PATHS,
+  configPaths: HERMES_CONFIG_PATHS,
+  githubCliHostsPaths: GITHUB_CLI_HOSTS_PATHS,
+  googleTokenPaths: GOOGLE_TOKEN_PATHS,
+  googleClientSecretPaths: GOOGLE_CLIENT_SECRET_PATHS,
+  outlookGraphTokenPaths: OUTLOOK_GRAPH_TOKEN_PATHS,
 });
 
 function clearCronListCache() {
@@ -3547,10 +3557,6 @@ const DEFAULT_WORKSPACE_TOOLSETS = new Set([
   "weixin_todos",
 ]);
 
-function firstExistingPath(paths) {
-  return (paths || []).find((item) => item && fs.existsSync(item)) || "";
-}
-
 function configuredWorkspaceInterfaceToolsets() {
   const raw = String(process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "").trim();
   if (!raw) return {};
@@ -3562,62 +3568,8 @@ function configuredWorkspaceInterfaceToolsets() {
   }
 }
 
-function readFirstExistingText(paths) {
-  const p = firstExistingPath(paths);
-  if (!p) return "";
-  try {
-    return fs.readFileSync(p, "utf8");
-  } catch (_) {
-    return "";
-  }
-}
-
-function parseEnvFileText(text) {
-  const out = {};
-  for (const rawLine of String(text || "").split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const idx = line.indexOf("=");
-    if (idx <= 0) continue;
-    out[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
-  }
-  return out;
-}
-
 function ownerExternalInterfaceBindings() {
-  const env = parseEnvFileText(readFirstExistingText(HERMES_ENV_PATHS));
-  const configText = readFirstExistingText(HERMES_CONFIG_PATHS);
-  const bindings = [];
-
-  const githubHosts = readFirstExistingText(GITHUB_CLI_HOSTS_PATHS);
-  if (/github\.com/i.test(githubHosts)) {
-    bindings.push({ id: "owner_github", label: "GitHub", category: "外部接口", detail: "CLI" });
-  }
-
-  if (firstExistingPath(GOOGLE_TOKEN_PATHS) && firstExistingPath(GOOGLE_CLIENT_SECRET_PATHS)) {
-    bindings.push({ id: "owner_google", label: "Google", category: "外部接口", detail: "OAuth" });
-  }
-
-  const outlookConfigured = Boolean(env.MS_GRAPH_CLIENT_ID)
-    || (/outlook_graph:\s*[\s\S]{0,400}?enabled:\s*true/i.test(configText) && firstExistingPath(OUTLOOK_GRAPH_TOKEN_PATHS));
-  if (outlookConfigured) {
-    bindings.push({ id: "owner_outlook", label: "Outlook", category: "邮箱", detail: "Graph" });
-  }
-
-  if (/aliyun|aliyun\.com|qiye\.aliyun\.com/i.test(`${env.EMAIL_IMAP_HOST || ""} ${env.EMAIL_SMTP_HOST || ""}`)) {
-    bindings.push({ id: "owner_alimail", label: "阿里邮箱", category: "邮箱", detail: "IMAP/SMTP" });
-  }
-
-  if (/hotmail\.com/i.test(String(env.EMAIL_HOME_CHANNEL || env.EMAIL_HOME_ADDRESS || ""))) {
-    bindings.push({ id: "owner_hotmail", label: "Hotmail", category: "邮箱", detail: "Home Channel" });
-  }
-
-  const seen = new Set();
-  return bindings.filter((item) => {
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
+  return externalIntegrationProvider.ownerInterfaceBindings();
 }
 
 function publicWorkspaceAccessKeyStatus(workspace) {

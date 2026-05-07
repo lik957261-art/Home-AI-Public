@@ -34,10 +34,12 @@ These parts must remain replaceable:
 - Runtime Gateway/Web Push configuration is currently in core server state through `workspace/hermes-web/runtime-config.json`; future packaging may move this behind a deployment settings provider if multiple deployment profiles are needed.
 - `adapters/todo-provider.js` owns the Todo bridge payload boundary. The HTTP server now asks the provider to list, create, mutate, and mark Web Push state for todos; the current private deployment still backs that provider with `todo_bridge.py`.
 - `adapters/automation-provider.js` owns the CRON bridge payload, list-cache, output-file, deliverable-path parsing, and automation file authorization boundary. The HTTP server now asks the provider to list, create, mutate, refresh, and resolve authorized automation output/deliverable files; the current private deployment still backs job operations with `cron_bridge.py`.
+- `adapters/external-integration-provider.js` owns the non-secret Owner integration inventory boundary. It detects configured integrations such as GitHub, Google, Outlook, AliMail, and Hotmail from injected path/env sources and returns only display metadata.
 - `server.js` still owns many private helpers used by that provider, including access-policy construction, shared-directory expansion, and project-root discovery. Those helpers should move behind narrower providers in later phases instead of adding more direct file reads to `server.js`.
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 - `tests/todo-provider.test.js` is the contract smoke for Todo bridge payload mapping, public Todo normalization, search filtering, and Web Push mark/pending operations.
 - `tests/automation-provider.test.js` is the contract smoke for CRON bridge payload mapping, list-cache behavior, deliverable path parsing, output resolution, and workspace authorization.
+- `tests/external-integration-provider.test.js` is the contract smoke for Owner integration detection without exposing raw tokens or secret file contents.
 
 ## Current Private Couplings
 
@@ -46,7 +48,7 @@ The private checkout still contains local deployment behavior that must be moved
 - Weixin-flavored workspace catalog and todo plugin naming.
 - Account-specific directory display labels and project-id heuristics.
 - ChatGPT-Drive display compatibility.
-- Owner-only external integration detection labels.
+- Owner-only external integration display labels remain product metadata, while deployment-specific path/env detection lives behind the integration provider.
 - CRON deliverable URL shape and file preview UI remain core, while deployment-specific path roots stay injected into the automation provider.
 - Volume mount helper behavior, now configurable through `HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON`.
 
