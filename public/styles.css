@@ -3271,6 +3271,13 @@ button.directory-alias-chip {
   min-width: 0;
 }
 
+.access-key-web {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: stretch;
+}
+
 .access-key-row-title {
   min-width: 0;
   color: var(--ink);
@@ -3293,6 +3300,12 @@ button.directory-alias-chip {
   justify-content: stretch;
   background: var(--accent-mist);
   border-color: rgba(31, 111, 98, 0.22);
+}
+
+.access-key-row .access-key-result,
+.access-key-web .access-key-result {
+  grid-column: 1 / -1;
+  margin-top: 4px;
 }
 
 .access-key-create-workspace {

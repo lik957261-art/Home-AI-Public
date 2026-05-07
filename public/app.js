@@ -3170,6 +3170,7 @@ async function loadRuntimeConfigManager() {
 
 async function openRuntimeConfigManager() {
   closeTopMoreMenu();
+  closeSidebar();
   state.runtimeConfigOpen = true;
   await loadRuntimeConfigManager();
 }
@@ -3281,8 +3282,15 @@ function renderAccessKeyManager() {
   const localWorkspaces = state.accessKeysAuth?.isOwner
     ? (state.workspaces || []).filter((workspace) => workspace.source === "local-workspace")
     : [];
-  const generated = state.generatedAccessKey
-    ? `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(state.generatedAccessKey.workspaceId || "")}">
+  const generatedAccessKeyBlock = (target = {}) => {
+    if (!state.generatedAccessKey) return "";
+    const generatedKind = state.generatedAccessKey.kind || "workspace";
+    const targetKind = target.kind || "workspace";
+    const generatedWorkspaceId = String(state.generatedAccessKey.workspaceId || "");
+    const targetWorkspaceId = String(target.workspaceId || "");
+    if (generatedKind !== targetKind) return "";
+    if (targetKind === "workspace" && targetWorkspaceId && generatedWorkspaceId !== targetWorkspaceId) return "";
+    return `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(generatedWorkspaceId)}">
         <div class="access-key-result-label">${escapeHtml(state.generatedAccessKey.label || "New Access Key")}</div>
         <div class="access-key-value-row">
           <code>${escapeHtml(state.generatedAccessKey.key || "")}</code>
@@ -3290,7 +3298,14 @@ function renderAccessKeyManager() {
         </div>
         <div class="access-key-note">明文 key 只在本次生成后显示一次。${state.accessKeyRequiresLogin ? "复制后需要重新登录。" : ""}</div>
         ${state.accessKeyRequiresLogin ? `<button class="access-key-login-button" type="button" data-relogin-after-access-key>重新登录</button>` : ""}
-      </section>`
+      </section>`;
+  };
+  const generatedKind = state.generatedAccessKey?.kind || "workspace";
+  const generatedWorkspaceId = String(state.generatedAccessKey?.workspaceId || "");
+  const generatedInRow = Boolean(generatedKind === "workspace" && generatedWorkspaceId && selectedAccessKeys.some((item) => String(item.workspaceId || "") === generatedWorkspaceId));
+  const generatedInOwner = Boolean(generatedKind === "owner" && showOwnerKey);
+  const fallbackGenerated = state.generatedAccessKey && !generatedInRow && !generatedInOwner
+    ? generatedAccessKeyBlock({ kind: generatedKind })
     : "";
   const rows = selectedAccessKeys.length ? selectedAccessKeys.map((item) => {
     const updated = item.updatedAt ? formatTime(item.updatedAt) : "";
@@ -3302,6 +3317,7 @@ function renderAccessKeyManager() {
       <div class="access-key-row-state">${item.hasKey ? "已生成" : "未生成"}</div>
       <button type="button" data-generate-workspace-key="${escapeHtml(item.workspaceId || "")}">${item.hasKey ? "更换" : "生成"}</button>
       ${item.hasKey ? `<button type="button" data-revoke-workspace-key="${escapeHtml(item.workspaceId || "")}">撤销</button>` : ""}
+      ${generatedAccessKeyBlock({ kind: "workspace", workspaceId: item.workspaceId || "" })}
     </article>`;
   }).join("") : `<div class="access-key-empty">当前工作区没有可管理的工作区 Access Key。</div>`;
   const body = state.accessKeysLoading
@@ -3366,7 +3382,6 @@ function renderAccessKeyManager() {
         </div>
         <button class="access-key-close" type="button" data-close-access-keys>完成</button>
       </header>
-      ${generated}
       ${workspaceCreateForm}
       ${workspaceAdminList}
       ${showOwnerKey ? `<section class="access-key-web">
@@ -3375,7 +3390,9 @@ function renderAccessKeyManager() {
           <div class="access-key-row-meta">当前来源：${escapeHtml(state.accessKeysAuth?.source || "unknown")}</div>
         </div>
         <button type="button" data-rotate-web-key${state.accessKeysAuth?.canRotateGlobal === false ? " disabled" : ""}>更换</button>
+        ${generatedAccessKeyBlock({ kind: "owner" })}
       </section>` : ""}
+      ${fallbackGenerated}
       ${body}
     </div>`;
   overlay.querySelector("[data-close-access-keys]")?.addEventListener("click", closeAccessKeyManager);
@@ -3431,6 +3448,7 @@ async function loadAccessKeyManager(options = {}) {
 
 async function openAccessKeyManager(options = {}) {
   closeTopMoreMenu();
+  closeSidebar();
   state.accessKeyManagerOpen = true;
   await loadAccessKeyManager({ workspaceId: options.workspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "" });
 }
@@ -3529,6 +3547,7 @@ async function generateWorkspaceAccessKey(workspaceId) {
     body: JSON.stringify({ workspaceId }),
   });
   state.generatedAccessKey = {
+    kind: "workspace",
     key: result.key || "",
     label: `${label} Hermes Web Access Key`,
     workspaceId,
@@ -3565,6 +3584,7 @@ async function rotateWebAccessKey() {
   if (!window.confirm("更换 Hermes Web Owner Access Key？旧 Owner key 会立即失效。")) return;
   const result = await api("/api/access-keys/web", { method: "POST", body: JSON.stringify({}) });
   state.generatedAccessKey = {
+    kind: "owner",
     key: result.key || "",
     label: "Hermes Web Owner Access Key",
     workspaceId: "owner",
