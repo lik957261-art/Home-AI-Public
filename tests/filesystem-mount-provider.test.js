@@ -24,9 +24,9 @@ function run() {
     allowedArtifactRoots: [mirrorRoot],
   });
 
-  assert.equal(provider.windowsPathToWsl("C:\\Users\\xuxin\\Documents\\file.txt"), "/mnt/c/Users/xuxin/Documents/file.txt");
+  assert.equal(provider.windowsPathToWsl("D:\\Work\\Documents\\file.txt"), "/mnt/d/Work/Documents/file.txt");
   assert.equal(provider.volume1WindowsMirrorPath("/volume1/Hermes-Test/folder/file.txt"), shareFile);
-  assert.equal(provider.normalizeLocalPath("/mnt/c/Users/xuxin/file.txt"), "C:\\Users\\xuxin\\file.txt");
+  assert.equal(provider.normalizeLocalPath("/mnt/d/Work/file.txt"), "D:\\Work\\file.txt");
   assert.equal(provider.normalizeLocalPath("/volume1/Hermes-Test/folder/file.txt"), shareFile);
   assert.equal(provider.isPathAllowed(shareFile), true);
 

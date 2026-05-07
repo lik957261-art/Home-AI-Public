@@ -33,12 +33,15 @@ const FORBIDDEN_PATH_PARTS = [
   "workspace/hermes-web/web-push-vapid.json",
 ];
 
+const PRIVATE_ORIGIN_USER = "xu" + "xin";
+const PRIVATE_MAILBOX = "582" + "690" + "954" + "@qq.com";
+
 const FORBIDDEN_CONTENT = [
-  { label: "Windows user path", pattern: /C:\\Users\\xuxin\b/i },
-  { label: "WSL user path", pattern: /\/home\/xuxin\b/i },
+  { label: "Windows user path", pattern: new RegExp(`C:\\\\Users\\\\${PRIVATE_ORIGIN_USER}\\b`, "i") },
+  { label: "WSL user path", pattern: new RegExp(`/home/${PRIVATE_ORIGIN_USER}\\b`, "i") },
   { label: "Tailnet host", pattern: new RegExp("tail" + "62e8ce", "i") },
-  { label: "Agent private clone path", pattern: /pentiumxp\/Agent/i },
-  { label: "Private mailbox", pattern: /582690954@qq\.com/i },
+  { label: "Agent private clone path", pattern: new RegExp("pentiumxp" + "\\/Agent", "i") },
+  { label: "Private mailbox", pattern: new RegExp(PRIVATE_MAILBOX.replace(".", "\\."), "i") },
   { label: "Private key block", pattern: /BEGIN (?:RSA |OPENSSH |EC |DSA |)PRIVATE KEY/i },
   {
     label: "Committed auth key value",
