@@ -8,6 +8,8 @@ Create a public repository only from a clean export, not from private deployment
 - Run `npm run productization:check`.
 - Run `git diff --check`.
 - Run the privacy scan: `npm run privacy:scan`.
+- Create the export with `npm run export:public -- --out <clean-public-export-dir> --force`.
+- Run the privacy scan against the export root if it is moved or edited: `node scripts/privacy-scan.js --root <clean-public-export-dir> --all-files`.
 - Review `README.md` in the public export and update it in the same public commit.
 - Confirm the public README clone URL points to the public repository, not the private repository.
 
@@ -33,6 +35,8 @@ The public export should include:
 - public-safe sample configs only
 
 The public export should not include private production launchers. Provide example launchers that use environment variables and secret-file paths supplied by the installer.
+
+Do not manually copy files from the private repository into a public repository. Use the export command so only tracked source files are copied and ignored runtime data stays out of the public tree.
 
 ## Public README Requirements
 

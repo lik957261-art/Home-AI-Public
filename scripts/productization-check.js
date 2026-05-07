@@ -41,6 +41,7 @@ function main() {
   runNpm(["test"]);
   startupCheck();
   run("Whitespace diff check", "git", ["diff", "--check"]);
+  run("Staged whitespace diff check", "git", ["diff", "--cached", "--check"]);
   console.log("\nProductization check passed.");
 }
 

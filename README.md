@@ -37,6 +37,14 @@ npm run productization:check
 
 This runs `npm test`, the startup `-CheckOnly` path, and `git diff --check`.
 
+Create a clean public-export candidate from tracked source files only:
+
+```powershell
+npm run export:public -- --out workspace\public-export\hermes-mobile-public-smoke --force
+```
+
+The export command excludes runtime/private workspace paths, rewrites the README wording for a public repository, writes a small export report, and reruns the privacy scan against the exported tree. Review the exported README and update public release notes before any public push.
+
 Start the listener:
 
 ```powershell
