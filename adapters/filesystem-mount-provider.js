@@ -31,7 +31,10 @@ function createFilesystemMountProvider(options = {}) {
   const wslDistro = String(options.wslDistro || "Ubuntu-24.04");
 
   function windowsPathToWsl(value) {
-    const resolved = path.resolve(String(value || ""));
+    const raw = String(value || "").trim();
+    const directMatch = raw.match(/^([A-Za-z]):[\\/](.*)$/);
+    if (directMatch) return `/mnt/${directMatch[1].toLowerCase()}/${directMatch[2].replaceAll("\\", "/")}`;
+    const resolved = path.resolve(raw);
     const match = resolved.match(/^([A-Za-z]):\\(.*)$/);
     if (!match) return resolved.replaceAll("\\", "/");
     return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}`;
