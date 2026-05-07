@@ -7,7 +7,7 @@ Hermes Mobile should keep the mobile product core independent from deployment-sp
 These parts belong in the reusable product:
 
 - Mobile UI: chat, group chat, tasks, directory, todos, automation, previews, settings, and Web Push status.
-- Hermes Gateway client: run creation, streaming events, interrupt, liveness watchdog, usage rendering.
+- Hermes Gateway client: pool scheduling, run creation, streaming events, interrupt, liveness watchdog, usage rendering. This boundary should converge on `GatewayPoolProvider` plus `GatewayRunner` abstractions that call official Hermes Gateway profiles and preserve official Hermes Skill, memory, session, tool, usage, event, and artifact behavior instead of reimplementing it.
 - Auth/session: owner key, workspace-scoped access keys, one-time plaintext key display, re-login after key rotation.
 - State store: local JSON state with backup/drop guards.
 - Service data layer: SQLite schema, migration tooling, and optional runtime backend for product-owned workspaces, keys, threads, messages, artifacts, Web Push state, shared directories, Todo, Automation, and audit events.
@@ -44,11 +44,13 @@ These parts must remain replaceable:
 - `adapters/automation-provider.js` owns the CRON bridge payload, list-cache, output-file, deliverable-path parsing, and automation file authorization boundary. The HTTP server now asks the provider to list, create, mutate, refresh, and resolve authorized automation output/deliverable files; the current private deployment still backs job operations with `cron_bridge.py`.
 - `adapters/external-integration-provider.js` owns the non-secret Owner integration inventory boundary. It detects configured integrations such as GitHub, Google, Outlook, AliMail, and Hotmail from injected path/env sources and returns only display metadata.
 - `adapters/filesystem-mount-provider.js` owns filesystem path/mount normalization: Windows-to-WSL path conversion, `/mnt/<drive>` conversion, `/volume1` mirror lookup, allowed artifact roots, and path-allowed checks.
+- `adapters/gateway-pool-provider.js` owns non-secret Gateway Pool scheduling: manifest loading, worker normalization, exact/preferred worker hints, tag/provider filters, health checks, round-robin selection, fallback to the configured default Gateway, and API-key lookup by `gatewayUrl` without persisting worker keys into mobile state.
+- `adapters/gateway-runner.js` owns the official Hermes Gateway execution boundary: authenticated requests, `/v1/responses` streaming, health/status probing, run stop, run liveness checks, SSE parsing, and per-run Gateway URL/API-key overrides.
 - `adapters/project-discovery-provider.js` owns project/root discovery from project-map entries, physical owner top-level directories, restricted workspace directories, remote `/volume1` directory trees, shareable-root filtering, and project deduping.
 - `adapters/shared-directory-provider.js` owns shared-directory management: persisted share records, derived ACL allowed-root shares, target/permission normalization, project injection for shared roots, read-only write guards, and ACL share removal writes through injected user-policy storage.
 - `adapters/skill-detail-provider.js` owns the Skill detail bridge boundary: child-process execution, timeout, stderr compaction, JSON parsing, and not-found mapping. The current private deployment still backs detail reads with `skill_bridge.py`.
 - `adapters/mobile-sqlite-store.js` owns the first generic SQLite service-layer schema, JSON import boundary, and optional runtime state backend. It can import/export current JSON state, access-key hash stores, shared-directory records, Todo/Automation rows, and Web Push state while preserving `raw_json` for compatibility.
-- `server.js` still owns HTTP route enforcement, artifact/thread access checks, state store, Gateway client, Web Push delivery, and frontend/static serving.
+- `server.js` still owns HTTP route enforcement, artifact/thread access checks, state store, Web Push delivery, and frontend/static serving. New execution work should be extracted behind the Gateway Pool / GatewayRunner boundary described in [Gateway Pool Architecture](GATEWAY_POOL_ARCHITECTURE.md).
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 - `tests/access-policy-provider.test.js` is the contract smoke for policy field allow-listing, restricted-root merging, delivery/cache roots, and owner unrestricted behavior.
 - `tests/auth-provider.test.js` is the contract smoke for first-run Owner setup, Owner/workspace authentication, workspace key scoping, revocation, env-key rotation guard, and disabled-auth behavior.
@@ -59,10 +61,12 @@ These parts must remain replaceable:
 - `tests/automation-provider.test.js` is the contract smoke for CRON bridge payload mapping, list-cache behavior, deliverable path parsing, output resolution, and workspace authorization.
 - `tests/external-integration-provider.test.js` is the contract smoke for Owner integration detection without exposing raw tokens or secret file contents.
 - `tests/filesystem-mount-provider.test.js` is the contract smoke for path conversion, `/volume1` mirror behavior, disabled shares, and allowed-root checks.
+- `tests/gateway-pool-provider.test.js` is the contract smoke for worker manifest normalization, routing hints, health-checked selection, fallback behavior, and secret lookup by Gateway URL.
+- `tests/gateway-runner.test.js` is the contract smoke for official Gateway request auth/body handling, status tolerance, SSE event preservation, per-run API key overrides, and `runId -> gatewayUrl` operation routing.
 - `tests/project-discovery-provider.test.js` is the contract smoke for owner physical root discovery, restricted workspace directory discovery, remote `/volume1` tree mapping, shareable-root filtering, and shared-root deduping.
 - `tests/shared-directory-provider.test.js` is the contract smoke for explicit shares, ACL allowed-root derived shares, target visibility, read-only/write access, access updates, and ACL removal writes.
 - `tests/skill-detail-provider.test.js` is the contract smoke for Skill detail bridge payload mapping, required-skill validation, and not-found status mapping.
-- `tests/mobile-sqlite-store.test.js` and `tests/json-to-sqlite-migration.test.js` are the contract smoke for SQLite schema migration, JSON import counts, endpoint-hash privacy preservation, CLI dry-run/write behavior, and SQLite integrity checks.
+- `tests/mobile-sqlite-store.test.js`, `tests/json-to-sqlite-migration.test.js`, and `tests/sqlite-maintenance.test.js` are the contract smoke for SQLite schema migration, JSON import counts, endpoint-hash privacy preservation, CLI dry-run/write behavior, backup/export behavior, and SQLite integrity checks.
 
 ## Current Private Couplings
 

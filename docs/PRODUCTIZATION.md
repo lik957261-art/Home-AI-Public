@@ -4,6 +4,8 @@
 
 Use this private repository as the productization source for Hermes Web. The public repository should be created later from a clean export after configuration, adapter boundaries, docs, and privacy checks are stable.
 
+The productized runtime target is official-Hermes-clean Gateway Pool scheduling in Hermes Mobile. Hermes Mobile must preserve official Hermes Skill, memory, tool, session, usage, event, and artifact behavior instead of replacing the Hermes agent runtime. A single Gateway is the minimal install and fallback path. See `GATEWAY_POOL_ARCHITECTURE.md`.
+
 ## Phase 0: Source Split
 
 - Copy Hermes Web app source into an independent private checkout.
@@ -31,10 +33,11 @@ Use this private repository as the productization source for Hermes Web. The pub
 - Separate product core from private adapters.
 - Keep generic features in the main app: chat, tasks, directory, todos, automation list, preview, and notifications.
 - Move account-specific connectors, private mailbox labels, local directory maps, and owner-only integrations behind optional adapters.
+- Keep official Hermes execution behind a Gateway Pool / GatewayRunner boundary. Hermes Mobile schedules new runs across healthy official Gateway profiles when a worker-pool manifest is configured, and falls back to one configured Gateway when no pool is available. Run stop/liveness/event handling must route back to the Gateway that created the run.
 - Provider boundaries are now in place for auth/key management, runtime configuration, workspace/project catalog loading, access-policy construction, workspace binding summaries, display-path labels, project/root discovery, shared-directory management, Skill detail reads, Todo operations, Automation/CRON bridge operations, automation output/deliverable file resolution, external integration inventory, and filesystem mount/path normalization. Continue by moving any remaining private display heuristics behind provider methods.
 - The next product boundary is the service data layer. `adapters/mobile-sqlite-store.js` and `scripts/migrate-json-to-sqlite.js` now provide a SQLite migration target for workspaces, access-key hashes, threads, messages, artifacts, Web Push state, shared directories, Todo, Automation, and audit events. `HERMES_WEB_SERVICE_STORE=sqlite` enables SQLite runtime state for threads/messages/artifacts/Web Push and can also back local Todo/Automation when those backends are local. SQLite runtime still writes `state.json` snapshots after successful database writes for rollback.
 - Target shape:
-  - `core`: HTTP server, state store, Gateway client, Web Push, static app, preview routes.
+  - `core`: HTTP server, state store, Gateway Pool scheduler, GatewayRunner/Gateway client, Web Push, static app, preview routes.
   - `adapters`: workspace catalog, access policy, workspace binding summaries, display paths, project map, shared-directory provider, skill detail provider, todo provider, automation provider, filesystem mount helper, external integration inventory, SQLite service-layer store.
   - `deployments/private-local`: local-only adapter config and private runbooks, never copied to public export.
 

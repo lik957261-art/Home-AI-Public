@@ -14,6 +14,8 @@ const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
+const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
+const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
@@ -38,6 +40,8 @@ const HERMES_API_BASE = stripTrailingSlash(
   process.env.HERMES_WEB_HERMES_API_BASE || process.env.HERMES_API_BASE || "http://127.0.0.1:8642",
 );
 const HERMES_API_TIMEOUT_MS = Number(process.env.HERMES_WEB_HERMES_API_TIMEOUT_MS || "8000");
+const GATEWAY_POOL_ENABLED = process.env.HERMES_WEB_GATEWAY_POOL_ENABLED || "auto";
+const GATEWAY_POOL_HEALTH_TIMEOUT_MS = Number(process.env.HERMES_WEB_GATEWAY_POOL_HEALTH_TIMEOUT_MS || "5000");
 const RUN_START_TIMEOUT_MS = Number(process.env.HERMES_WEB_RUN_START_TIMEOUT_MS || "90000");
 const RUN_LIVENESS_CHECK_AFTER_MS = Number(process.env.HERMES_WEB_RUN_LIVENESS_CHECK_AFTER_MS || "120000");
 const RUN_LIVENESS_CHECK_INTERVAL_MS = Number(process.env.HERMES_WEB_RUN_LIVENESS_CHECK_INTERVAL_MS || "45000");
@@ -90,6 +94,10 @@ const HERMES_CONFIG_PATHS = [
   ...wslUncPathCandidates(WSL_HERMES_HOME, "config.yaml"),
   path.join(LOCAL_CONFIG_ROOT, "hermes-config.yaml"),
   path.join(LOCAL_CONFIG_ROOT, "config.yaml"),
+].filter(Boolean);
+const GATEWAY_POOL_MANIFEST_PATHS = [
+  process.env.HERMES_WEB_GATEWAY_POOL_MANIFEST,
+  ...wslUncPathCandidates(WSL_HERMES_HOME, "worker-pool.json"),
 ].filter(Boolean);
 const GOOGLE_TOKEN_PATHS = [
   process.env.HERMES_WEB_GOOGLE_TOKEN_PATH,
@@ -212,6 +220,8 @@ const ENABLE_DIRECT_TODO_CREATE = /^(1|true|yes|on)$/i.test(process.env.HERMES_W
 
 let clients = new Set();
 let activeStreams = new Map();
+let gatewayRunner = null;
+let gatewayPoolProvider = null;
 let lastStateBackupAt = 0;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
@@ -345,6 +355,52 @@ function publicRuntimeConfig() {
 
 function loadHermesApiKey() {
   return runtimeConfigProvider.loadHermesApiKey();
+}
+
+function singleGatewayRunner() {
+  if (!gatewayRunner) {
+    gatewayRunner = createGatewayRunner({
+      apiBase: () => effectiveHermesApiBase(),
+      apiKey: () => loadHermesApiKey(),
+      timeoutMs: () => HERMES_API_TIMEOUT_MS,
+    });
+  }
+  return gatewayRunner;
+}
+
+function gatewayPool() {
+  if (!gatewayPoolProvider) {
+    gatewayPoolProvider = createGatewayPoolProvider({
+      enabled: () => GATEWAY_POOL_ENABLED,
+      manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS,
+      fallbackApiBase: () => effectiveHermesApiBase(),
+      fallbackApiKey: () => loadHermesApiKey(),
+      timeoutMs: () => HERMES_API_TIMEOUT_MS,
+      healthTimeoutMs: GATEWAY_POOL_HEALTH_TIMEOUT_MS,
+      createGatewayRunner,
+    });
+  }
+  return gatewayPoolProvider;
+}
+
+async function chooseGatewayRunTarget(hints = {}) {
+  return gatewayPool().chooseTarget(hints);
+}
+
+function gatewayTargetForRun(runId) {
+  const active = activeStreams.get(runId);
+  if (active?.gatewayUrl) {
+    return {
+      apiBase: active.gatewayUrl,
+      apiKey: active.gatewayApiKey || "",
+      name: active.gatewayName || "",
+      profile: active.gatewayProfile || "",
+      pooled: active.gatewaySource === "worker_pool",
+      source: active.gatewaySource || "",
+    };
+  }
+  const gatewayUrl = gatewayUrlForRun(runId);
+  return gatewayPool().targetForGatewayUrl(gatewayUrl);
 }
 
 function ownerSetupStatus() {
@@ -917,6 +973,10 @@ function normalizeThreadMessages(thread, messages) {
     next.senderWorkspaceId = String(next.senderWorkspaceId || next.sender_workspace_id || next.actorWorkspaceId || thread.workspaceId || "").trim();
     next.senderPrincipalId = String(next.senderPrincipalId || next.sender_principal_id || "").trim();
     next.senderLabel = String(next.senderLabel || next.sender_label || "").trim();
+    next.gatewayUrl = String(next.gatewayUrl || next.gateway_url || "").trim();
+    next.gatewayName = String(next.gatewayName || next.gateway_name || "").trim();
+    next.gatewayProfile = String(next.gatewayProfile || next.gateway_profile || "").trim();
+    next.gatewaySource = String(next.gatewaySource || next.gateway_source || "").trim();
     if (!next.senderLabel && next.senderWorkspaceId) next.senderLabel = workspaceLabel(next.senderWorkspaceId);
     next.revokedAt = String(next.revokedAt || next.revoked_at || "").trim();
     next.revokedByWorkspaceId = String(next.revokedByWorkspaceId || next.revoked_by_workspace_id || "").trim();
@@ -2448,36 +2508,22 @@ function extractJsonObject(text) {
 }
 
 async function hermesModelText(body, timeoutMs = AUTOMATION_CREATE_TIMEOUT_MS) {
-  const response = await hermesRequest("/v1/responses", {
-    method: "POST",
-    body,
-    signal: AbortSignal.timeout(Math.max(5000, timeoutMs)),
-  });
-  if (!response?.body?.getReader) return responseTextFromValue(response);
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
   let text = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx;
-    while ((idx = buffer.indexOf("\n\n")) >= 0) {
-      const frame = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
-      const event = parseSseFrame(frame);
-      if (!event) continue;
+  const gatewayTarget = await chooseGatewayRunTarget({ purpose: "automation_draft" });
+  const response = await gatewayPool().runnerFor(gatewayTarget).streamResponses(body, {
+    signal: AbortSignal.timeout(Math.max(5000, timeoutMs)),
+    gatewayUrl: gatewayTarget.apiBase,
+    apiKey: gatewayTarget.apiKey,
+    onEvent: (event) => {
       const eventName = String(event.event || event.type || "");
       if (eventName === "message.delta" || eventName === "response.output_text.delta") {
         text += String(event.delta || event.text || "");
       } else {
         text += responseTextFromValue(event.output_text || event.output || event.message || "");
       }
-    }
-  }
-  const final = parseSseFrame(buffer);
-  if (final) text += responseTextFromValue(final.output_text || final.output || final.message || "");
+    },
+  });
+  if (!response?.body?.getReader) text += responseTextFromValue(response);
   return text.trim();
 }
 
@@ -4622,65 +4668,15 @@ function notifyTodoCreated(result, sourcePrincipal = "") {
 }
 
 async function hermesRequest(apiPath, options = {}) {
-  const headers = Object.assign({}, options.headers || {});
-  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
-  const hermesApiKey = loadHermesApiKey();
-  if (hermesApiKey) headers.Authorization = `Bearer ${hermesApiKey}`;
-  const body = options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body;
-  const signal = options.signal || AbortSignal.timeout(Math.max(1000, HERMES_API_TIMEOUT_MS));
-  const apiBase = effectiveHermesApiBase();
-  let response;
-  try {
-    response = await fetch(`${apiBase}${apiPath}`, Object.assign({}, options, { headers, body, signal }));
-  } catch (err) {
-    const isTimeout = err?.name === "AbortError" || err?.name === "TimeoutError";
-    const message = isTimeout
-      ? `Hermes Gateway API request timed out at ${apiBase}${apiPath}`
-      : `Hermes Gateway API unreachable at ${apiBase}${apiPath}: ${err?.message || String(err)}`;
-    const wrapped = new Error(message);
-    wrapped.status = 502;
-    wrapped.cause = err;
-    throw wrapped;
-  }
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const parsed = await response.json();
-      detail = parsed.error?.message || parsed.error || JSON.stringify(parsed);
-    } catch (_) {
-      try {
-        detail = await response.text();
-      } catch (_) {}
-    }
-    const err = new Error(detail || `${response.status} ${response.statusText}`);
-    err.status = response.status;
-    throw err;
-  }
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) return response.json();
-  return response;
+  return singleGatewayRunner().request(apiPath, options);
 }
 
 async function getHermesStatus() {
-  const status = {
-    apiBase: effectiveHermesApiBase(),
-    health: null,
-    detailed: null,
-    capabilities: null,
-    ok: false,
-    error: null,
-  };
+  const status = await singleGatewayRunner().status();
   try {
-    status.health = await hermesRequest("/health");
-    status.detailed = await hermesRequest("/health/detailed");
-    try {
-      status.capabilities = await hermesRequest("/v1/capabilities");
-    } catch (err) {
-      status.capabilities = { error: err.message };
-    }
-    status.ok = true;
+    status.gatewayPool = await gatewayPool().status();
   } catch (err) {
-    status.error = err.message || String(err);
+    status.gatewayPool = { enabled: false, error: err.message || String(err) };
   }
   return status;
 }
@@ -4794,9 +4790,21 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     body.access_policy_context = sanitizePolicy(Object.assign({}, policy, options.access_policy_context));
   }
 
+  const gatewayTarget = await chooseGatewayRunTarget(Object.assign({}, options.gatewayRouting || {}, {
+    purpose: "user_run",
+    workspaceId: actorWorkspaceId,
+    taskGroupId: userMessage.taskGroupId || "",
+    model: body.model || "",
+    reasoning_effort: body.reasoning_effort || "",
+  }));
   const startedAt = nowIso();
+  const gatewayUrl = gatewayTarget.apiBase;
   assistantMessage.runId = taskId;
   assistantMessage.taskId = taskId;
+  assistantMessage.gatewayUrl = gatewayUrl;
+  assistantMessage.gatewayName = gatewayTarget.name || "";
+  assistantMessage.gatewayProfile = gatewayTarget.profile || "";
+  assistantMessage.gatewaySource = gatewayTarget.source || "";
   assistantMessage.status = "running";
   assistantMessage.startedAt = assistantMessage.startedAt || startedAt;
   assistantMessage.updatedAt = startedAt;
@@ -4805,8 +4813,22 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
   thread.updatedAt = startedAt;
   saveState();
   broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-  streamResponse(taskId, thread.id, assistantMessage.id, body);
-  return { run_id: taskId, status: "started", engine: "responses" };
+  streamResponse(taskId, thread.id, assistantMessage.id, body, {
+    gatewayUrl,
+    gatewayApiKey: gatewayTarget.apiKey || "",
+    gatewayName: gatewayTarget.name || "",
+    gatewayProfile: gatewayTarget.profile || "",
+    gatewaySource: gatewayTarget.source || "",
+  });
+  return {
+    run_id: taskId,
+    status: "started",
+    engine: "responses",
+    gatewayUrl,
+    gatewayName: gatewayTarget.name || "",
+    gatewayProfile: gatewayTarget.profile || "",
+    gatewaySource: gatewayTarget.source || "",
+  };
 }
 
 function makePublicTaskId(prefix) {
@@ -4937,7 +4959,11 @@ async function stopRunIds(runIds) {
       stopped.push(runId);
     } else {
       try {
-        await hermesRequest(`/v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST", body: {} });
+        const target = gatewayTargetForRun(runId);
+        await gatewayPool().runnerFor(target).stopRun(runId, {
+          gatewayUrl: target.apiBase,
+          apiKey: target.apiKey,
+        });
       } catch (err) {
         if (err.status !== 404) throw err;
       }
@@ -4945,6 +4971,16 @@ async function stopRunIds(runIds) {
     }
   }
   return stopped;
+}
+
+function gatewayUrlForRun(runId) {
+  const active = activeStreams.get(runId);
+  if (active?.gatewayUrl) return active.gatewayUrl;
+  for (const thread of state.threads || []) {
+    const message = (thread.messages || []).find((item) => item.runId === runId);
+    if (message?.gatewayUrl) return String(message.gatewayUrl || "");
+  }
+  return "";
 }
 
 function abortActiveStreamAsFailed(publicRunId, reason) {
@@ -4968,8 +5004,10 @@ async function checkActiveStreamLiveness(publicRunId) {
   }
   if (RUN_LIVENESS_CHECK_AFTER_MS > 0 && now - stream.lastEventAt < RUN_LIVENESS_CHECK_AFTER_MS) return;
   try {
-    await hermesRequest(`/v1/runs/${encodeURIComponent(stream.realRunId)}`, {
-      method: "GET",
+    const target = gatewayTargetForRun(publicRunId);
+    await gatewayPool().runnerFor(target).checkRun(stream.realRunId, {
+      gatewayUrl: target.apiBase,
+      apiKey: target.apiKey,
       signal: AbortSignal.timeout(Math.max(1000, HERMES_API_TIMEOUT_MS)),
     });
   } catch (err) {
@@ -4979,7 +5017,7 @@ async function checkActiveStreamLiveness(publicRunId) {
   }
 }
 
-function streamResponse(runId, threadId, messageId, body) {
+function streamResponse(runId, threadId, messageId, body, options = {}) {
   if (activeStreams.has(runId)) return;
   const controller = new AbortController();
   const streamState = {
@@ -4987,6 +5025,11 @@ function streamResponse(runId, threadId, messageId, body) {
     messageId,
     controller,
     engine: "responses",
+    gatewayUrl: options.gatewayUrl || singleGatewayRunner().apiBase(),
+    gatewayApiKey: options.gatewayApiKey || "",
+    gatewayName: options.gatewayName || "",
+    gatewayProfile: options.gatewayProfile || "",
+    gatewaySource: options.gatewaySource || "",
     startedAt: Date.now(),
     lastEventAt: Date.now(),
     livenessTimer: null,
@@ -5023,28 +5066,13 @@ function streamResponse(runId, threadId, messageId, body) {
 }
 
 async function readResponseEvents(runId, body, signal) {
-  const response = await hermesRequest("/v1/responses", {
-    method: "POST",
-    body,
+  const target = gatewayTargetForRun(runId);
+  await gatewayPool().runnerFor(target).streamResponses(body, {
     signal,
+    gatewayUrl: target.apiBase,
+    apiKey: target.apiKey,
+    onEvent: (event) => applyHermesRunEvent(Object.assign({ run_id: runId }, event)),
   });
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx;
-    while ((idx = buffer.indexOf("\n\n")) >= 0) {
-      const frame = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 2);
-      const event = parseSseFrame(frame);
-      if (event) applyHermesRunEvent(Object.assign({ run_id: runId }, event));
-    }
-  }
-  const final = parseSseFrame(buffer);
-  if (final) applyHermesRunEvent(Object.assign({ run_id: runId }, final));
 }
 
 function parseSseFrame(frame) {
