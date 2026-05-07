@@ -348,8 +348,9 @@ function createProjectDiscoveryProvider(options = {}) {
     group.children.push(child);
   }
 
-  function addPhysicalOwnerTopLevelProjects(groups, workspaceId, projectEntries) {
-    const driveRoot = chatGptDriveRootFromEntries(projectEntries, ownerDriveRootNames);
+  function addPhysicalOwnerTopLevelProjects(groups, workspaceId, projectEntries, fallbackDriveRoot = "") {
+    const driveRoot = chatGptDriveRootFromEntries(projectEntries, ownerDriveRootNames)
+      || String(fallbackDriveRoot || "").trim();
     if (!driveRoot) return;
     const localRoot = normalizeLocalPath(driveRoot);
     let entries = [];
@@ -376,7 +377,7 @@ function createProjectDiscoveryProvider(options = {}) {
     }
   }
 
-  function ownerTopLevelProjects(workspaceId, projectEntries) {
+  function ownerTopLevelProjects(workspaceId, projectEntries, fallbackDriveRoot = "") {
     const groups = new Map();
     for (const entry of projectEntries || []) {
       const projectRoot = String(entry.wsl_root || entry.windows_root || "").trim();
@@ -408,7 +409,7 @@ function createProjectDiscoveryProvider(options = {}) {
       }
       mergeOwnerSubdirectory(group, entry, workspaceId, topSegment, parts, projectRoot);
     }
-    addPhysicalOwnerTopLevelProjects(groups, workspaceId, projectEntries);
+    addPhysicalOwnerTopLevelProjects(groups, workspaceId, projectEntries, fallbackDriveRoot);
     return [...groups.values()].map((project) => {
       project.children = dedupeProjects(project.children || []);
       return project;
@@ -463,13 +464,13 @@ function createProjectDiscoveryProvider(options = {}) {
     const singleWindowProject = singleWindowProjectForWorkspace(workspace, projectEntries);
     const sharedProjects = sharedProjectsForWorkspace(workspace.id, workspaces);
     if (workspace.id === "owner") {
-      const ownerProjects = ownerTopLevelProjects(workspace.id, projectEntries);
+      const ownerProjects = ownerTopLevelProjects(workspace.id, projectEntries, workspace.defaultWorkspace);
       if (ownerProjects.length) return dedupeProjects([singleWindowProject, ...ownerProjects, ...sharedProjects]);
     }
 
     const out = [];
     const root = workspace.defaultWorkspace || "";
-    out.push({ id: "general", workspaceId: workspace.id, label: "General", root, aliases: [], source: "workspace-default" });
+    out.push({ id: "general", workspaceId: workspace.id, label: "根目录", root, aliases: [], source: "workspace-default" });
     out.push(singleWindowProject);
     out.push(...sharedProjects);
     const policy = workspace.policy || {};

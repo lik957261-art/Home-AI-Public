@@ -10,6 +10,7 @@ function run() {
     routeMapPaths: ["routes.json"],
     projectMapPaths: ["projects.json"],
     repoRoot: "/repo",
+    defaultOwnerWorkspace: "/data/drive",
     cacheTtlMs: 60_000,
     readJsonFirst(paths, fallback) {
       reads += 1;
@@ -94,6 +95,7 @@ function run() {
   assert.equal(catalog.sources.projectMap, "projects.json");
   assert.equal(catalog.workspaces.length, 3);
   assert.equal(catalog.workspaces[0].id, "owner");
+  assert.equal(catalog.workspaces[0].defaultWorkspace, "/data/drive");
   assert.deepEqual(catalog.workspaces[0].aliases, ["owner", "admin"]);
   assert.equal(catalog.workspaces[1].id, "workspace_a");
   assert.equal(catalog.workspaces[1].label, "Workspace A");

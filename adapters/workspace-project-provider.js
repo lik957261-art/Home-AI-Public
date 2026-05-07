@@ -25,20 +25,25 @@ function createWorkspaceProjectProvider(options = {}) {
 
   function fallbackOwnerWorkspace() {
     const repoRoot = String(options.repoRoot || "");
+    const defaultOwnerWorkspace = String(
+      typeof options.defaultOwnerWorkspace === "function"
+        ? options.defaultOwnerWorkspace()
+        : (options.defaultOwnerWorkspace || repoRoot),
+    ).trim() || repoRoot;
     const fallbackPolicy = typeof options.fallbackOwnerPolicy === "function"
       ? options.fallbackOwnerPolicy()
       : buildAccessPolicy({
         principal_id: "owner",
         principal_label: "Owner",
         access_mode: "unrestricted",
-        default_workspace: repoRoot,
+        default_workspace: defaultOwnerWorkspace,
       }, {}, null);
     return {
       id: "owner",
       label: "Owner",
       role: "admin",
       accessMode: "unrestricted",
-      defaultWorkspace: repoRoot,
+      defaultWorkspace: defaultOwnerWorkspace,
       aliases: normalizeStringList(typeof options.ownerAliases === "function" ? options.ownerAliases() : (options.ownerAliases || "owner")),
       sessionMode: "task_centric_stateless",
       responseStyle: "task_platform",

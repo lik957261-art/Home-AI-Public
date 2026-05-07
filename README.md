@@ -76,7 +76,7 @@ If `HERMES_WEB_KEY` is not set and the Owner key file (`HERMES_WEB_AUTH_KEY_PATH
 
 The Owner can later edit or delete admin-created user workspaces from the same manager. Deleting a local user workspace also revokes that workspace Access Key; historical local state is not erased automatically. Workspace keys can also be revoked without deleting the user workspace.
 
-Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Workspace Access Key hashes are stored in `workspace/hermes-web/access-keys.json`. Runtime files in `workspace/` remain ignored by Git.
+Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Workspace Access Key hashes are stored in `workspace/hermes-web/access-keys.json`. Runtime files in `workspace/` remain ignored by Git. On a fresh install without an external workspace catalog, the Owner's default file root is `drive/` under `HERMES_WEB_DATA_DIR`; override it with `HERMES_WEB_OWNER_DEFAULT_WORKSPACE` if user files should live elsewhere.
 
 ## Runtime Setup
 
@@ -100,6 +100,7 @@ Start from `.env.example`. Do not commit real keys, push endpoints, access-key s
 Important configuration groups:
 
 - `HERMES_WEB_HOST`, `HERMES_WEB_PORT`, `HERMES_WEB_DATA_DIR`
+- `HERMES_WEB_OWNER_DEFAULT_WORKSPACE`
 - `HERMES_WEB_REPO_ROOT`, `HERMES_WEB_CONFIG_DIR`
 - `HERMES_WEB_KEY` or `HERMES_WEB_AUTH_KEY_PATH`
 - `HERMES_WEB_HERMES_API_BASE`

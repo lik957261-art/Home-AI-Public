@@ -59,6 +59,16 @@ async function run() {
   assert.equal(ownerProjects.some((project) => project.label === "PhysicalOnly"), true);
   assert.equal(ownerProjects.some((project) => project.id === "shared"), true);
 
+  const freshDriveRoot = path.join(tempRoot, "FreshDrive");
+  fs.mkdirSync(path.join(freshDriveRoot, "Health"), { recursive: true });
+  const freshOwnerProjects = provider.projectsForWorkspace({
+    id: "owner",
+    defaultWorkspace: freshDriveRoot,
+    policy: { access_mode: "unrestricted" },
+  }, []);
+  assert.equal(freshOwnerProjects.some((project) => project.label === "Health"), true);
+  assert.equal(freshOwnerProjects.some((project) => project.id === "general"), false);
+
   const workspaceRoot = path.join(tempRoot, "Workspace");
   fs.mkdirSync(path.join(workspaceRoot, "ProjectA"), { recursive: true });
   const workspaceProjects = provider.projectsForWorkspace({

@@ -50,6 +50,7 @@ const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
 const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
 const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
 const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
+const OWNER_DEFAULT_WORKSPACE = path.resolve(process.env.HERMES_WEB_OWNER_DEFAULT_WORKSPACE || path.join(DATA_DIR, "drive"));
 const AUTH_KEY_PATH = path.resolve(process.env.HERMES_WEB_AUTH_KEY_PATH || path.join(REPO_ROOT, ".hermes_web_secret_key"));
 const WEB_PUSH_VAPID_PATH = path.resolve(
   process.env.HERMES_WEB_VAPID_PATH || process.env.WEB_PUSH_VAPID_PATH || path.join(DATA_DIR, "web-push-vapid.json"),
@@ -568,6 +569,7 @@ function findThreadForRequest(req, threadId) {
 
 function ensureDataDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(OWNER_DEFAULT_WORKSPACE, { recursive: true });
 }
 
 function ensureStateBackupDir() {
@@ -2131,6 +2133,7 @@ function getWorkspaceProjectProvider() {
       routeMapPaths: WORKSPACE_ROUTE_MAP_PATHS,
       projectMapPaths: PROJECT_MAP_PATHS,
       repoRoot: REPO_ROOT,
+      defaultOwnerWorkspace: () => OWNER_DEFAULT_WORKSPACE,
       normalizeStringList,
       buildAccessPolicy,
       projectsForWorkspace,
@@ -2140,7 +2143,7 @@ function getWorkspaceProjectProvider() {
         principal_id: "owner",
         principal_label: "Owner",
         access_mode: "unrestricted",
-        default_workspace: REPO_ROOT,
+        default_workspace: OWNER_DEFAULT_WORKSPACE,
         source_platform: "web",
         reason: "hermes_web_fallback_owner",
       }),
