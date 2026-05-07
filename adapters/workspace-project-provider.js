@@ -23,6 +23,12 @@ function createWorkspaceProjectProvider(options = {}) {
   const cacheTtlMs = Number(options.cacheTtlMs ?? 5000);
   let catalogCache = { loadedAt: 0, value: null };
 
+  function ownerLabel() {
+    return String(
+      typeof options.ownerLabel === "function" ? options.ownerLabel() : (options.ownerLabel || "Owner"),
+    ).trim() || "Owner";
+  }
+
   function fallbackOwnerWorkspace() {
     const repoRoot = String(options.repoRoot || "");
     const defaultOwnerWorkspace = String(
@@ -30,17 +36,18 @@ function createWorkspaceProjectProvider(options = {}) {
         ? options.defaultOwnerWorkspace()
         : (options.defaultOwnerWorkspace || repoRoot),
     ).trim() || repoRoot;
+    const label = ownerLabel();
     const fallbackPolicy = typeof options.fallbackOwnerPolicy === "function"
       ? options.fallbackOwnerPolicy()
       : buildAccessPolicy({
         principal_id: "owner",
-        principal_label: "Owner",
+        principal_label: label,
         access_mode: "unrestricted",
         default_workspace: defaultOwnerWorkspace,
       }, {}, null);
     return {
       id: "owner",
-      label: "Owner",
+      label,
       role: "admin",
       accessMode: "unrestricted",
       defaultWorkspace: defaultOwnerWorkspace,

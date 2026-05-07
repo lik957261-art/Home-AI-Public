@@ -67,11 +67,13 @@ function run() {
     fallbackOwnerPolicy() {
       return {
         principal_id: "owner",
+        principal_label: "Admin Owner",
         access_mode: "unrestricted",
         default_workspace: "/repo",
         reason: "fallback",
       };
     },
+    ownerLabel: () => "Admin Owner",
     ownerAliases: () => "owner,admin",
     localWorkspaces: () => [{
       id: "local_user",
@@ -95,6 +97,7 @@ function run() {
   assert.equal(catalog.sources.projectMap, "projects.json");
   assert.equal(catalog.workspaces.length, 3);
   assert.equal(catalog.workspaces[0].id, "owner");
+  assert.equal(catalog.workspaces[0].label, "Admin Owner");
   assert.equal(catalog.workspaces[0].defaultWorkspace, "/data/drive");
   assert.deepEqual(catalog.workspaces[0].aliases, ["owner", "admin"]);
   assert.equal(catalog.workspaces[1].id, "workspace_a");

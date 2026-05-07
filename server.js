@@ -150,6 +150,7 @@ const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
 const GROUP_AI_REPLY_REVOKED_TEXT = "\u5173\u8054\u7684 AI \u56de\u590d\u5df2\u64a4\u56de";
 const SINGLE_WINDOW_PROJECT_ID = "single-window";
 const SINGLE_WINDOW_THREAD_TITLE = "Single Window";
+const OWNER_LABEL = process.env.HERMES_WEB_OWNER_LABEL || "Owner";
 const OWNER_ROOT_FALLBACK_LABEL = process.env.HERMES_WEB_OWNER_ROOT_LABEL || "Hermes Owner";
 const OWNER_DRIVE_ROOT_NAMES = normalizeStringList(process.env.HERMES_WEB_OWNER_DRIVE_ROOT_NAMES || "ChatGPT-Drive");
 const GENERIC_OWNER_TOPIC_PROJECT_PREFIXES = normalizeStringList(
@@ -2568,6 +2569,7 @@ function getWorkspaceProjectProvider() {
       projectMapPaths: PROJECT_MAP_PATHS,
       repoRoot: REPO_ROOT,
       defaultOwnerWorkspace: () => OWNER_DEFAULT_WORKSPACE,
+      ownerLabel: () => OWNER_LABEL,
       normalizeStringList,
       buildAccessPolicy,
       projectsForWorkspace,
@@ -2575,7 +2577,7 @@ function getWorkspaceProjectProvider() {
       ownerAliases: () => process.env.HERMES_WEB_OWNER_ALIASES || "owner",
       fallbackOwnerPolicy: () => sanitizePolicy({
         principal_id: "owner",
-        principal_label: "Owner",
+        principal_label: OWNER_LABEL,
         access_mode: "unrestricted",
         default_workspace: OWNER_DEFAULT_WORKSPACE,
         source_platform: "web",
@@ -5496,6 +5498,7 @@ async function handleApi(req, res) {
     const status = await getHermesStatus();
     status.catalog = loadCatalog().sources;
     status.display = {
+      ownerLabel: OWNER_LABEL,
       ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
       ownerRootFallbackLabel: OWNER_ROOT_FALLBACK_LABEL,
     };

@@ -3282,7 +3282,7 @@ function renderAccessKeyManager() {
     ? (state.workspaces || []).filter((workspace) => workspace.source === "local-workspace")
     : [];
   const generated = state.generatedAccessKey
-    ? `<section class="access-key-result">
+    ? `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(state.generatedAccessKey.workspaceId || "")}">
         <div class="access-key-result-label">${escapeHtml(state.generatedAccessKey.label || "New Access Key")}</div>
         <div class="access-key-value-row">
           <code>${escapeHtml(state.generatedAccessKey.key || "")}</code>
@@ -3384,6 +3384,13 @@ function renderAccessKeyManager() {
   wireWorkspaceCreateDefaults(overlay);
   overlay.querySelector("[data-copy-access-key]")?.addEventListener("click", () => copyTextToClipboard(state.generatedAccessKey?.key || "").catch(showError));
   overlay.querySelector("[data-relogin-after-access-key]")?.addEventListener("click", () => finishAccessKeyRelogin());
+  const generatedNode = overlay.querySelector("[data-generated-access-key]");
+  if (generatedNode && state.generatedAccessKey?.focus) {
+    state.generatedAccessKey.focus = false;
+    window.requestAnimationFrame(() => {
+      generatedNode.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+  }
   overlay.querySelectorAll("[data-edit-workspace]").forEach((button) => {
     button.addEventListener("click", () => fillWorkspaceConfigForm(button.dataset.editWorkspace || ""));
   });
@@ -3524,6 +3531,8 @@ async function generateWorkspaceAccessKey(workspaceId) {
   state.generatedAccessKey = {
     key: result.key || "",
     label: `${label} Hermes Web Access Key`,
+    workspaceId,
+    focus: true,
   };
   if (result.requiresReLogin) {
     state.accessKeyRequiresLogin = true;
@@ -3558,6 +3567,8 @@ async function rotateWebAccessKey() {
   state.generatedAccessKey = {
     key: result.key || "",
     label: "Hermes Web Owner Access Key",
+    workspaceId: "owner",
+    focus: true,
   };
   state.accessKeyRequiresLogin = Boolean(result.requiresReLogin);
   if (state.accessKeyRequiresLogin) clearStoredAccessKey();

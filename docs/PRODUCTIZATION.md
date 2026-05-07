@@ -24,7 +24,7 @@ Use this private repository as the productization source for Hermes Web. The pub
 - Fresh installs without an external workspace catalog use `HERMES_WEB_DATA_DIR/drive` as the Owner file root by default. This keeps user-created folders out of the source checkout; deployments can override it with `HERMES_WEB_OWNER_DEFAULT_WORKSPACE`.
 - Fresh product installs use local JSON stores under `HERMES_WEB_DATA_DIR` for Todo and Automation by default. Existing deployment plugin/CRON stores are opt-in through `HERMES_WEB_TODO_BACKEND` and `HERMES_WEB_AUTOMATION_BACKEND`, so a clean official-Gateway test instance does not accidentally list production tasks.
 - Owner runtime setup is now visual for the Hermes Gateway bridge and Web Push. The UI stores Gateway URL, API key file path, Web Push subject, and VAPID file path in `workspace/hermes-web/runtime-config.json`, tests the Gateway connection from the browser flow, can generate/reload VAPID keys, and does not store API key plaintext or display VAPID private key material in Web config.
-- Owner drive-root grouping is configurable through `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`; the default keeps existing `ChatGPT-Drive` deployments working, while packaged installs can use a product-specific root name.
+- Owner account display is configurable through `HERMES_WEB_OWNER_LABEL`; Owner drive-root grouping is configurable through `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`; the default keeps existing `ChatGPT-Drive` deployments working, while packaged installs can use a product-specific root name.
 
 ## Phase 2: Adapter Boundary
 

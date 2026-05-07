@@ -67,6 +67,7 @@ async function main() {
     HERMES_WEB_PORT: String(port),
     HERMES_WEB_DATA_DIR: path.join(tempDir, "data"),
     HERMES_WEB_AUTH_KEY_PATH: path.join(tempDir, "owner.key"),
+    HERMES_WEB_OWNER_LABEL: "Admin Owner",
   });
   delete env.HERMES_WEB_KEY;
   delete env.HERMES_WEB_DISABLE_AUTH;
@@ -147,6 +148,12 @@ async function main() {
     });
     assert.equal(initialAutomations.source.name, "local_automations");
     assert.equal(initialAutomations.source.pathKind, "local");
+
+    const ownerWorkspaces = await request(baseUrl, "/api/workspaces", {
+      headers: { "X-Hermes-Web-Key": ownerKey },
+    });
+    assert.equal(ownerWorkspaces.data[0].id, "owner");
+    assert.equal(ownerWorkspaces.data[0].label, "Admin Owner");
 
     const defaults = await request(baseUrl, "/api/workspaces/defaults?username=demo-prefill-user", {
       headers: { "X-Hermes-Web-Key": ownerKey },
