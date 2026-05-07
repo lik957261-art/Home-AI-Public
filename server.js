@@ -213,7 +213,7 @@ let activeStreams = new Map();
 let lastStateBackupAt = 0;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
-let state = loadState();
+let state = null;
 const authProvider = createAuthProvider({
   disableAuth: () => DISABLE_AUTH,
   envKey: () => process.env.HERMES_WEB_KEY || "",
@@ -267,6 +267,21 @@ const accessPolicyProvider = createAccessPolicyProvider({
   uploadCacheRoot: () => path.join(DATA_DIR, "uploads"),
   sharedRoots: (principalId) => sharedDirectoryRoots(principalId),
 });
+
+const projectDiscoveryProvider = createProjectDiscoveryProvider({
+  repoRoot: REPO_ROOT,
+  singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
+  singleWindowThreadTitle: SINGLE_WINDOW_THREAD_TITLE,
+  ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
+  normalizeLocalPath,
+  runDirectoryBridge,
+  sharedProjectsForWorkspace: sharedDirectoryProjectsForWorkspace,
+  workspacePrincipal,
+  findWorkspace,
+  makeId,
+});
+
+state = loadState();
 
 const workspaceBindingsProvider = createWorkspaceBindingsProvider({
   interfaceToolsetsJson: () => process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "",
@@ -1275,6 +1290,35 @@ function windowsPathToWsl(value) {
   return filesystemMountProvider.windowsPathToWsl(value);
 }
 
+function wslBridgeEnvArgs(names = []) {
+  const entries = [];
+  for (const name of names) {
+    const key = String(name || "").trim();
+    if (!key) continue;
+    const value = process.env[key];
+    if (value === undefined || value === null || String(value) === "") continue;
+    entries.push(`${key}=${String(value)}`);
+  }
+  return entries;
+}
+
+function wslPythonBridgeArgs(scriptPath, envNames = []) {
+  const envArgs = wslBridgeEnvArgs([
+    "HERMES_HOME",
+    "HERMES_WEB_HERMES_HOME",
+    "PYTHONPATH",
+    ...envNames,
+  ]);
+  return [
+    "-d",
+    WSL_DISTRO,
+    "--",
+    ...(envArgs.length ? ["env", ...envArgs] : []),
+    "python3",
+    windowsPathToWsl(scriptPath),
+  ];
+}
+
 function safeStorageSegment(value, fallback = "item") {
   return String(value || fallback)
     .replace(/[^A-Za-z0-9_.:-]+/g, "_")
@@ -1470,7 +1514,10 @@ function runTodoBridge(payload) {
   return new Promise((resolve, reject) => {
     const command = process.platform === "win32" ? "wsl.exe" : "python3";
     const args = process.platform === "win32"
-      ? ["-d", WSL_DISTRO, "--", "python3", windowsPathToWsl(TODO_BRIDGE_SCRIPT)]
+      ? wslPythonBridgeArgs(TODO_BRIDGE_SCRIPT, [
+        "HERMES_WEB_TODO_PLUGIN_NAME",
+        "HERMES_WEB_TODO_PLUGIN_PATH",
+      ])
       : [TODO_BRIDGE_SCRIPT];
     const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -1719,7 +1766,12 @@ function runCronBridge(payload) {
   return new Promise((resolve, reject) => {
     const command = process.platform === "win32" ? "wsl.exe" : "python3";
     const args = process.platform === "win32"
-      ? ["-d", WSL_DISTRO, "--", "python3", windowsPathToWsl(CRON_BRIDGE_SCRIPT)]
+      ? wslPythonBridgeArgs(CRON_BRIDGE_SCRIPT, [
+        "HERMES_WEB_CRON_JOBS_PATH",
+        "HERMES_CRON_JOBS_PATH",
+        "HERMES_WEB_CRON_JOBS_FALLBACK_PATH",
+        "HERMES_WEB_CRON_OUTPUT_ROOT",
+      ])
       : [CRON_BRIDGE_SCRIPT];
     const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -1859,19 +1911,6 @@ function runDirectoryBridge(payload) {
     child.stdin.end(JSON.stringify(payload || {}));
   });
 }
-
-const projectDiscoveryProvider = createProjectDiscoveryProvider({
-  repoRoot: REPO_ROOT,
-  singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
-  singleWindowThreadTitle: SINGLE_WINDOW_THREAD_TITLE,
-  ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
-  normalizeLocalPath,
-  runDirectoryBridge,
-  sharedProjectsForWorkspace: sharedDirectoryProjectsForWorkspace,
-  workspacePrincipal,
-  findWorkspace,
-  makeId,
-});
 
 const skillDetailProvider = createSkillDetailProvider({
   timeoutMs: SKILL_BRIDGE_TIMEOUT_MS,

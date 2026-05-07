@@ -203,7 +203,9 @@ function createSharedDirectoryProvider(options = {}) {
 
   function creator(record, workspaces = null) {
     const workspaceId = String(record?.createdBy || "").trim();
-    const workspace = workspaceId ? (workspaceFromList(workspaces, workspaceId) || findWorkspace(workspaceId)) : null;
+    const workspace = workspaceId
+      ? (workspaces ? workspaceFromList(workspaces, workspaceId) : findWorkspace(workspaceId))
+      : null;
     const principalId = String(record?.createdByPrincipalId || workspace?.policy?.principal_id || workspaceId || "").trim();
     return {
       workspaceId,
