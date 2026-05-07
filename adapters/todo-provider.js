@@ -62,13 +62,15 @@ function createTodoProvider(options = {}) {
 
   function addTodo(args = {}) {
     const workspaceId = args.workspaceId || "owner";
+    const suppressExternalNotice = args.suppressExternalNotice ?? args.suppress_external_notice ?? args.suppressWeixinNotice;
     return runBridge({
       action: "add",
       source_principal: workspacePrincipal(workspaceId),
       assignee: args.assignee || "",
       content: args.content || "",
       due_time: args.dueTime || args.due_time || "",
-      suppress_weixin_notice: args.suppressWeixinNotice !== false,
+      suppress_external_notice: suppressExternalNotice !== false,
+      suppress_weixin_notice: suppressExternalNotice !== false,
       reminder_lead_minutes: args.reminderLeadMinutes ?? args.reminder_lead_minutes ?? null,
       recurrence: args.recurrence || "none",
       recurrence_days: args.recurrenceDays || args.recurrence_days || "",

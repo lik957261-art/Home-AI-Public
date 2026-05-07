@@ -64,14 +64,20 @@ def _emit(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
 
-def _suppress_weixin_creation_notice(plugin: Any) -> Any:
+def _suppress_plugin_creation_notice(plugin: Any) -> Any:
+    """Disable plugin-owned outbound creation notices while Mobile owns Web Push.
+
+    Some deployment plugins expose this as a Weixin-specific hook. Keep that
+    compatibility local to this bridge instead of making the provider API
+    Weixin-specific.
+    """
     original = getattr(plugin, "_send_weixin", None)
 
     def _noop_send_weixin(principal_id: str, message: str, *, todo_id: str = "", message_type: str = "") -> dict[str, Any]:
         return {
             "ok": True,
             "skipped": True,
-            "reason": "hermes_web_uses_web_push",
+            "reason": "hermes_mobile_uses_web_push",
             "principal_id": principal_id,
             "todo_id": todo_id,
             "message_type": message_type,
@@ -523,9 +529,12 @@ def main() -> int:
 
         if action == "add":
             original_send = None
-            suppress_notice = _as_bool_default(request.get("suppress_weixin_notice"), True)
+            suppress_notice = _as_bool_default(
+                request.get("suppress_external_notice", request.get("suppress_weixin_notice")),
+                True,
+            )
             if suppress_notice:
-                original_send = _suppress_weixin_creation_notice(plugin)
+                original_send = _suppress_plugin_creation_notice(plugin)
             try:
                 result = plugin.add_todo(
                     assignee=str(request.get("assignee") or source),
