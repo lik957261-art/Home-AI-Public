@@ -53,7 +53,7 @@ The private checkout still contains local deployment behavior that must be moved
 
 - Weixin-flavored workspace catalog and todo plugin naming behind the current local catalog and Todo provider defaults.
 - Account-specific directory display labels and project-id heuristics.
-- ChatGPT-Drive display compatibility.
+- Owner drive-root display compatibility is configurable through `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`; the default keeps `ChatGPT-Drive` compatibility for existing deployments.
 - Owner-only external integration display labels remain product metadata, while deployment-specific path/env detection lives behind the integration provider.
 - CRON deliverable URL shape and file preview UI remain core, while deployment-specific path roots stay injected into the automation provider.
 - Any future deployment-specific mount command execution. Current code only normalizes paths and maps `/volume1` mirrors through `adapters/filesystem-mount-provider.js`.

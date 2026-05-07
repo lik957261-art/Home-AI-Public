@@ -22,6 +22,7 @@ Use this private repository as the productization source for Hermes Web. The pub
 - The Owner workspace manager now supports a usable local-user lifecycle: create, edit label/root/allowed directories/toolsets, generate or revoke a workspace Access Key, and delete the admin-created workspace. Deleting a local workspace revokes its key but intentionally leaves historical runtime state untouched.
 - `HERMES_WEB_AUTH_KEY_PATH` can point the file-backed Owner key outside the repository root; tests and packaged deployments should use it so first-run setup never writes secrets into source directories.
 - Owner runtime setup is now visual for the Hermes Gateway bridge and Web Push. The UI stores Gateway URL, API key file path, Web Push subject, and VAPID file path in `workspace/hermes-web/runtime-config.json`, tests the Gateway connection from the browser flow, can generate/reload VAPID keys, and does not store API key plaintext or display VAPID private key material in Web config.
+- Owner drive-root grouping is configurable through `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`; the default keeps existing `ChatGPT-Drive` deployments working, while packaged installs can use a product-specific root name.
 
 ## Phase 2: Adapter Boundary
 

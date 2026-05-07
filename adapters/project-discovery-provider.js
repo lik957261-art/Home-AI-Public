@@ -46,32 +46,43 @@ function projectLabel(entry, fallback = "") {
   return String(fallback || entry.project_key || "Project");
 }
 
-function chatGptDriveParts(root) {
+function normalizeDriveRootNames(value) {
+  const raw = Array.isArray(value) ? value : (value ? [value] : []);
+  const names = raw.map((item) => String(item || "").trim()).filter(Boolean);
+  return names.length ? names : ["ChatGPT-Drive"];
+}
+
+function ownerDriveRootIndex(parts, ownerDriveRootNames) {
+  const roots = new Set(normalizeDriveRootNames(ownerDriveRootNames).map((item) => item.toLowerCase()));
+  return (parts || []).findIndex((part) => roots.has(String(part || "").trim().toLowerCase()));
+}
+
+function chatGptDriveParts(root, ownerDriveRootNames) {
   const parts = String(root || "").trim().replaceAll("\\", "/").split("/").filter(Boolean);
-  const index = parts.findIndex((part) => part.toLowerCase() === "chatgpt-drive");
+  const index = ownerDriveRootIndex(parts, ownerDriveRootNames);
   if (index < 0) return [];
   return parts.slice(index + 1);
 }
 
-function chatGptDriveRootWithParts(root, countAfterDrive) {
+function chatGptDriveRootWithParts(root, countAfterDrive, ownerDriveRootNames) {
   const normalized = String(root || "").trim().replaceAll("\\", "/");
   const parts = normalized.split("/").filter(Boolean);
-  const index = parts.findIndex((part) => part.toLowerCase() === "chatgpt-drive");
+  const index = ownerDriveRootIndex(parts, ownerDriveRootNames);
   const count = Math.max(1, Number(countAfterDrive || 1));
   const end = index + 1 + count;
   if (index < 0 || parts.length < end) return "";
   return `${normalized.startsWith("/") ? "/" : ""}${parts.slice(0, end).join("/")}`;
 }
 
-function chatGptDriveTopRoot(root) {
-  return chatGptDriveRootWithParts(root, 1);
+function chatGptDriveTopRoot(root, ownerDriveRootNames) {
+  return chatGptDriveRootWithParts(root, 1, ownerDriveRootNames);
 }
 
-function chatGptDriveRootFromEntries(projectEntries) {
+function chatGptDriveRootFromEntries(projectEntries, ownerDriveRootNames) {
   for (const entry of projectEntries || []) {
     const root = String(entry.wsl_root || entry.windows_root || "").trim().replaceAll("\\", "/");
     const parts = root.split("/").filter(Boolean);
-    const index = parts.findIndex((part) => part.toLowerCase() === "chatgpt-drive");
+    const index = ownerDriveRootIndex(parts, ownerDriveRootNames);
     if (index >= 0) return `${root.startsWith("/") ? "/" : ""}${parts.slice(0, index + 1).join("/")}`;
   }
   return "";
@@ -96,6 +107,7 @@ function createProjectDiscoveryProvider(options = {}) {
   const makeId = typeof options.makeId === "function" ? options.makeId : (prefix) => `${prefix}-${hashId(`${prefix}:${Date.now()}`)}`;
   const singleWindowProjectId = String(options.singleWindowProjectId || "single-window");
   const singleWindowThreadTitle = String(options.singleWindowThreadTitle || "Single Window");
+  const ownerDriveRootNames = normalizeDriveRootNames(options.ownerDriveRootNames || ["ChatGPT-Drive"]);
   const repoRoot = String(options.repoRoot || "");
 
   function singleWindowProjectForWorkspace(workspace, projectEntries) {
@@ -104,7 +116,7 @@ function createProjectDiscoveryProvider(options = {}) {
       workspaceId: workspace.id,
       label: singleWindowThreadTitle,
       root: workspace.id === "owner"
-        ? (chatGptDriveRootFromEntries(projectEntries) || workspace.defaultWorkspace || repoRoot)
+        ? (chatGptDriveRootFromEntries(projectEntries, ownerDriveRootNames) || workspace.defaultWorkspace || repoRoot)
         : (workspace.defaultWorkspace || ""),
       aliases: ["single", "inbox", "weixin", "stream"],
       source: "single-window",
@@ -313,7 +325,7 @@ function createProjectDiscoveryProvider(options = {}) {
   function mergeOwnerSubdirectory(group, entry, workspaceId, topSegment, parts, projectRoot) {
     const subSegment = parts[1];
     if (!subSegment) return;
-    const subRoot = chatGptDriveRootWithParts(projectRoot, 2) || projectRoot;
+    const subRoot = chatGptDriveRootWithParts(projectRoot, 2, ownerDriveRootNames) || projectRoot;
     const key = comparablePath(subRoot);
     const aliases = dedupe([
       subSegment,
@@ -337,7 +349,7 @@ function createProjectDiscoveryProvider(options = {}) {
   }
 
   function addPhysicalOwnerTopLevelProjects(groups, workspaceId, projectEntries) {
-    const driveRoot = chatGptDriveRootFromEntries(projectEntries);
+    const driveRoot = chatGptDriveRootFromEntries(projectEntries, ownerDriveRootNames);
     if (!driveRoot) return;
     const localRoot = normalizeLocalPath(driveRoot);
     let entries = [];
@@ -369,10 +381,10 @@ function createProjectDiscoveryProvider(options = {}) {
     for (const entry of projectEntries || []) {
       const projectRoot = String(entry.wsl_root || entry.windows_root || "").trim();
       if (!projectRoot) continue;
-      const parts = chatGptDriveParts(projectRoot);
+      const parts = chatGptDriveParts(projectRoot, ownerDriveRootNames);
       if (!parts.length) continue;
       const topSegment = parts[0];
-      const topRoot = chatGptDriveTopRoot(projectRoot);
+      const topRoot = chatGptDriveTopRoot(projectRoot, ownerDriveRootNames);
       const groupKey = comparablePath(topRoot || topSegment);
       if (!groups.has(groupKey)) {
         groups.set(groupKey, {

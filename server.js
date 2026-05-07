@@ -134,6 +134,7 @@ const GROUP_AI_REPLY_REVOKED_TEXT = "\u5173\u8054\u7684 AI \u56de\u590d\u5df2\u6
 const SINGLE_WINDOW_PROJECT_ID = "single-window";
 const SINGLE_WINDOW_THREAD_TITLE = "Single Window";
 const OWNER_ROOT_FALLBACK_LABEL = process.env.HERMES_WEB_OWNER_ROOT_LABEL || "Hermes Owner";
+const OWNER_DRIVE_ROOT_NAMES = normalizeStringList(process.env.HERMES_WEB_OWNER_DRIVE_ROOT_NAMES || "ChatGPT-Drive");
 const GENERIC_OWNER_TOPIC_PROJECT_PREFIXES = normalizeStringList(
   process.env.HERMES_WEB_GENERIC_OWNER_PROJECT_PREFIXES || "owner-",
 );
@@ -1675,6 +1676,7 @@ const projectDiscoveryProvider = createProjectDiscoveryProvider({
   repoRoot: REPO_ROOT,
   singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
   singleWindowThreadTitle: SINGLE_WINDOW_THREAD_TITLE,
+  ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
   normalizeLocalPath,
   runDirectoryBridge,
   sharedProjectsForWorkspace: sharedDirectoryProjectsForWorkspace,
@@ -2613,13 +2615,20 @@ function sharedProjectOwnerLabel(project) {
   return String(project?.sharedByLabel || project?.createdByLabel || project?.sharedBy || project?.createdBy || "").trim();
 }
 
+function ownerDriveRootIndex(parts) {
+  const roots = new Set((OWNER_DRIVE_ROOT_NAMES.length ? OWNER_DRIVE_ROOT_NAMES : ["ChatGPT-Drive"])
+    .map((name) => String(name || "").trim().toLowerCase())
+    .filter(Boolean));
+  return (parts || []).findIndex((part) => roots.has(String(part || "").trim().toLowerCase()));
+}
+
 function sharedProjectRootOwnerLabel(project) {
   const root = String(project?.root || "").replaceAll("\\", "/");
   const parts = root.split("/").filter(Boolean);
   const volumeIndex = parts.findIndex((part) => part.toLowerCase() === "volume1");
   if (volumeIndex >= 0 && parts[volumeIndex + 1]) return parts[volumeIndex + 1];
-  const chatDriveIndex = parts.findIndex((part) => part.toLowerCase() === "chatgpt-drive");
-  if (chatDriveIndex >= 0) return OWNER_ROOT_FALLBACK_LABEL;
+  const ownerDriveIndex = ownerDriveRootIndex(parts);
+  if (ownerDriveIndex >= 0) return OWNER_ROOT_FALLBACK_LABEL;
   return "";
 }
 
@@ -2678,7 +2687,7 @@ function logicalUserPathFallback(rawPath, fallbackLabel = "") {
   const normalized = String(rawPath || "").trim().replaceAll("\\", "/");
   const parts = normalized.split("/").filter(Boolean);
   const lowerParts = parts.map((part) => part.toLowerCase());
-  const driveIndex = lowerParts.findIndex((part) => part === "chatgpt-drive");
+  const driveIndex = ownerDriveRootIndex(parts);
   if (driveIndex >= 0 && parts.length > driveIndex + 1) return parts.slice(driveIndex + 1).join(" / ");
   const synologyIndex = lowerParts.findIndex((part) => part === "synologydrive");
   if (synologyIndex >= 0) return ["SynologyDrive", ...parts.slice(synologyIndex + 1)].join(" / ");

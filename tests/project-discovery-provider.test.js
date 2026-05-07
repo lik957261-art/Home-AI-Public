@@ -92,6 +92,30 @@ async function run() {
     { id: "shared", workspaceId: "w", root: "/r", source: "hermes-web-shared-directory", shared: true },
   ]);
   assert.deepEqual(deduped.map((project) => project.id), ["shared"]);
+
+  const customDriveRoot = path.join(tempRoot, "Hermes-Drive");
+  fs.mkdirSync(path.join(customDriveRoot, "CustomMapped"), { recursive: true });
+  const customProvider = createProjectDiscoveryProvider({
+    repoRoot: tempRoot,
+    singleWindowProjectId: "single-window",
+    singleWindowThreadTitle: "Single Window",
+    ownerDriveRootNames: ["Hermes-Drive"],
+    normalizeLocalPath: (value) => String(value || ""),
+    sharedProjectsForWorkspace: () => [],
+  });
+  const customOwnerProjects = customProvider.projectsForWorkspace({
+    id: "owner",
+    defaultWorkspace: customDriveRoot,
+    policy: { access_mode: "unrestricted" },
+  }, [{
+    project_key: "custom-mapped",
+    windows_root: path.join(customDriveRoot, "CustomMapped"),
+  }]);
+  assert.equal(customOwnerProjects.some((project) => project.label === "CustomMapped"), true);
+  assert.equal(
+    customOwnerProjects.find((project) => project.id === "single-window").root,
+    customDriveRoot.replaceAll("\\", "/"),
+  );
 }
 
 run()
