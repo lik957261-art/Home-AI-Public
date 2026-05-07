@@ -70,6 +70,17 @@ The Owner can later edit or delete admin-created user workspaces from the same m
 
 Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Workspace Access Key hashes are stored in `workspace/hermes-web/access-keys.json`. Runtime files in `workspace/` remain ignored by Git.
 
+## Runtime Setup
+
+Owner can open `账号 / 根目录 / 接口` -> `运行配置` to configure and test the Hermes Gateway bridge after login.
+
+The runtime manager stores only:
+
+- Hermes Gateway URL
+- Hermes API Key file path
+
+It does not store the Hermes API Key plaintext in Web configuration. The stored runtime config lives at `workspace/hermes-web/runtime-config.json` under `HERMES_WEB_DATA_DIR`.
+
 ## Configuration
 
 Start from `.env.example`. Do not commit real keys, push endpoints, access-key stores, VAPID private keys, local state, uploaded files, or user data.

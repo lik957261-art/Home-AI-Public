@@ -36,6 +36,7 @@ const STATE_BACKUP_DIR = path.join(DATA_DIR, "backups");
 const SHARED_DIRECTORIES_PATH = path.join(DATA_DIR, "shared-directories.json");
 const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
 const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
+const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
 const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
 const AUTH_KEY_PATH = path.resolve(process.env.HERMES_WEB_AUTH_KEY_PATH || path.join(REPO_ROOT, ".hermes_web_secret_key"));
 const WEB_PUSH_VAPID_PATH = path.resolve(
@@ -233,6 +234,87 @@ function loadAuthKeyState() {
   return { key: "", source: "unconfigured" };
 }
 
+function normalizeRuntimeConfig(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const hermesApiBase = String(source.hermesApiBase || source.hermes_api_base || "").trim();
+  const hermesApiKeyPath = String(source.hermesApiKeyPath || source.hermes_api_key_path || "").trim();
+  return {
+    schemaVersion: 1,
+    hermesApiBase: hermesApiBase ? stripTrailingSlash(hermesApiBase) : "",
+    hermesApiKeyPath,
+    updatedAt: String(source.updatedAt || ""),
+    updatedBy: String(source.updatedBy || ""),
+  };
+}
+
+function loadRuntimeConfig() {
+  ensureDataDir();
+  try {
+    return normalizeRuntimeConfig(JSON.parse(fs.readFileSync(RUNTIME_CONFIG_PATH, "utf8")));
+  } catch (_) {
+    return normalizeRuntimeConfig({});
+  }
+}
+
+function validateHermesApiBase(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (_) {
+    const err = new Error("Hermes Gateway URL is not valid");
+    err.status = 400;
+    throw err;
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    const err = new Error("Hermes Gateway URL must use http or https");
+    err.status = 400;
+    throw err;
+  }
+  parsed.pathname = parsed.pathname.replace(/\/+$/g, "");
+  parsed.search = "";
+  parsed.hash = "";
+  return stripTrailingSlash(parsed.toString());
+}
+
+function saveRuntimeConfig(input, actor = "owner") {
+  ensureDataDir();
+  const previous = loadRuntimeConfig();
+  const next = normalizeRuntimeConfig(Object.assign({}, previous, input, {
+    hermesApiBase: validateHermesApiBase(input.hermesApiBase ?? input.hermes_api_base ?? previous.hermesApiBase),
+    hermesApiKeyPath: String(input.hermesApiKeyPath ?? input.hermes_api_key_path ?? previous.hermesApiKeyPath ?? "").trim(),
+    updatedAt: nowIso(),
+    updatedBy: actor || "owner",
+  }));
+  fs.writeFileSync(RUNTIME_CONFIG_PATH, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  return next;
+}
+
+function effectiveHermesApiBase(config = loadRuntimeConfig()) {
+  return stripTrailingSlash(config.hermesApiBase || HERMES_API_BASE);
+}
+
+function configuredHermesApiKeyPaths(config = loadRuntimeConfig()) {
+  return [config.hermesApiKeyPath, ...HERMES_API_KEY_PATHS].filter(Boolean);
+}
+
+function publicRuntimeConfig() {
+  const config = loadRuntimeConfig();
+  const keyStatus = hermesApiKeyStatus();
+  return {
+    hermesApiBase: effectiveHermesApiBase(config),
+    hermesApiBaseOverride: config.hermesApiBase || "",
+    hermesApiBaseDefault: HERMES_API_BASE,
+    hermesApiKeyPath: config.hermesApiKeyPath || "",
+    hermesApiKeyConfigured: keyStatus.configured,
+    hermesApiKeySource: keyStatus.source,
+    hermesApiKeyResolvedPath: keyStatus.path,
+    updatedAt: config.updatedAt || "",
+    updatedBy: config.updatedBy || "",
+  };
+}
+
 function loadHermesApiKey() {
   const direct = process.env.HERMES_WEB_HERMES_API_KEY
     || process.env.HERMES_API_KEY
@@ -240,7 +322,7 @@ function loadHermesApiKey() {
     || "";
   if (String(direct).trim()) return String(direct).trim();
 
-  for (const keyPath of HERMES_API_KEY_PATHS) {
+  for (const keyPath of configuredHermesApiKeyPaths()) {
     try {
       if (!keyPath || !fs.existsSync(keyPath)) continue;
       const text = fs.readFileSync(keyPath, "utf8").trim();
@@ -268,6 +350,31 @@ function loadHermesApiKey() {
     }
   }
   return "";
+}
+
+function hermesApiKeyStatus() {
+  const direct = process.env.HERMES_WEB_HERMES_API_KEY
+    || process.env.HERMES_API_KEY
+    || process.env.API_SERVER_KEY
+    || "";
+  if (String(direct).trim()) return { configured: true, source: "env", path: "" };
+  for (const keyPath of configuredHermesApiKeyPaths()) {
+    try {
+      if (!keyPath || !fs.existsSync(keyPath)) continue;
+      const value = fs.readFileSync(keyPath, "utf8").trim();
+      if (value) return { configured: true, source: "file", path: keyPath };
+    } catch (_) {}
+  }
+  for (const envPath of HERMES_ENV_PATHS) {
+    try {
+      if (!envPath || !fs.existsSync(envPath)) continue;
+      const text = fs.readFileSync(envPath, "utf8");
+      if (/^\s*(?:export\s+)?(?:API_SERVER_KEY|HERMES_API_KEY)\s*=/m.test(text)) {
+        return { configured: true, source: "env-file", path: envPath };
+      }
+    } catch (_) {}
+  }
+  return { configured: false, source: "", path: "" };
 }
 
 function timingSafeEquals(a, b) {
@@ -5036,14 +5143,15 @@ async function hermesRequest(apiPath, options = {}) {
   if (hermesApiKey) headers.Authorization = `Bearer ${hermesApiKey}`;
   const body = options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body;
   const signal = options.signal || AbortSignal.timeout(Math.max(1000, HERMES_API_TIMEOUT_MS));
+  const apiBase = effectiveHermesApiBase();
   let response;
   try {
-    response = await fetch(`${HERMES_API_BASE}${apiPath}`, Object.assign({}, options, { headers, body, signal }));
+    response = await fetch(`${apiBase}${apiPath}`, Object.assign({}, options, { headers, body, signal }));
   } catch (err) {
     const isTimeout = err?.name === "AbortError" || err?.name === "TimeoutError";
     const message = isTimeout
-      ? `Hermes Gateway API request timed out at ${HERMES_API_BASE}${apiPath}`
-      : `Hermes Gateway API unreachable at ${HERMES_API_BASE}${apiPath}: ${err?.message || String(err)}`;
+      ? `Hermes Gateway API request timed out at ${apiBase}${apiPath}`
+      : `Hermes Gateway API unreachable at ${apiBase}${apiPath}: ${err?.message || String(err)}`;
     const wrapped = new Error(message);
     wrapped.status = 502;
     wrapped.cause = err;
@@ -5070,7 +5178,7 @@ async function hermesRequest(apiPath, options = {}) {
 
 async function getHermesStatus() {
   const status = {
-    apiBase: HERMES_API_BASE,
+    apiBase: effectiveHermesApiBase(),
     health: null,
     detailed: null,
     capabilities: null,
@@ -6474,6 +6582,36 @@ async function handleApi(req, res) {
     status.reasoning = defaultReasoningInfo();
     status.clientVersion = clientVersionInfo(req.headers["x-hermes-web-client-version"] || "");
     sendJson(res, 200, status);
+    return;
+  }
+
+  if (url.pathname === "/api/runtime-config" && req.method === "GET") {
+    if (!requireOwner(req, res)) return;
+    sendJson(res, 200, { ok: true, config: publicRuntimeConfig() });
+    return;
+  }
+
+  if (url.pathname === "/api/runtime-config" && req.method === "PATCH") {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    const body = await readBody(req).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      saveRuntimeConfig(body, ownerAuth.principalId || "owner");
+      sendJson(res, 200, { ok: true, config: publicRuntimeConfig() });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err) });
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/runtime-config/test" && req.method === "POST") {
+    if (!requireOwner(req, res)) return;
+    const status = await getHermesStatus();
+    sendJson(res, 200, { ok: Boolean(status.ok), status, config: publicRuntimeConfig() });
     return;
   }
 
@@ -8145,7 +8283,7 @@ function handleEvents(req, res) {
   res.write(`data: ${JSON.stringify({
     type: "snapshot",
     threads: state.threads.filter((thread) => threadAccessibleToAuth(auth, thread)).map(threadSummary),
-    status: { apiBase: HERMES_API_BASE, activeRuns: activeStreams.size },
+    status: { apiBase: effectiveHermesApiBase(), activeRuns: activeStreams.size },
     clientVersion: clientVersionInfo(reportedClientVersion),
   })}\n\n`);
   lastSentClientVersion = readClientVersion();
@@ -8198,7 +8336,7 @@ function shutdown() {
 
 server.listen(PORT, HOST, () => {
   console.log(`Hermes Web listening on http://${HOST}:${PORT}`);
-  console.log(`Hermes API base: ${HERMES_API_BASE}`);
+  console.log(`Hermes API base: ${effectiveHermesApiBase()}`);
   console.log(`State directory: ${DATA_DIR}`);
   console.log(DISABLE_AUTH ? "Authentication disabled by HERMES_WEB_DISABLE_AUTH." : `Authentication enabled; Owner key source is ${authKeyState.source || "unknown"}.`);
   if (!DISABLE_AUTH && authKeyState.source !== "env") {

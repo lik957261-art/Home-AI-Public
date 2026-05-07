@@ -88,6 +88,19 @@ async function main() {
     assert.match(setup.key, /^hwk_/);
     const ownerKey = setup.key;
 
+    const apiKeyPath = path.join(tempDir, "gateway-api.key");
+    fs.writeFileSync(apiKeyPath, "test-gateway-key\n", "utf8");
+    const runtimeConfig = await request(baseUrl, "/api/runtime-config", jsonOptions("PATCH", ownerKey, {
+      hermesApiBase: baseUrl,
+      hermesApiKeyPath: apiKeyPath,
+    }));
+    assert.equal(runtimeConfig.config.hermesApiBase, baseUrl);
+    assert.equal(runtimeConfig.config.hermesApiKeyConfigured, true);
+    assert.equal(runtimeConfig.config.hermesApiKeySource, "file");
+    const runtimeTest = await request(baseUrl, "/api/runtime-config/test", jsonOptions("POST", ownerKey, {}));
+    assert.equal(runtimeTest.status.apiBase, baseUrl);
+    assert.equal(runtimeTest.ok, false);
+
     const created = await request(baseUrl, "/api/workspaces", jsonOptions("POST", ownerKey, {
       workspaceId: "demo-admin-user",
       label: "Demo Admin User",

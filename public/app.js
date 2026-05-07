@@ -59,6 +59,11 @@ const state = {
   generatedAccessKey: null,
   accessKeyRequiresLogin: false,
   accessKeyWorkspaceId: "",
+  runtimeConfigOpen: false,
+  runtimeConfig: null,
+  runtimeConfigLoading: false,
+  runtimeConfigError: "",
+  runtimeConfigTestStatus: null,
   currentThread: null,
   currentThreadId: "",
   currentTaskGroupId: "",
@@ -2972,9 +2977,13 @@ function renderWorkspaceAccessPanel() {
       ${bindings}
     </section>`;
   }).join("");
+  const runtimeConfigButton = state.auth?.isOwner
+    ? `<button class="workspace-access-key-button workspace-runtime-config-button" type="button" data-open-runtime-config>运行配置</button>`
+    : "";
   panel.innerHTML = `<details>
     <summary>账号 / 根目录 / 接口</summary>
     <div class="workspace-access-list">${rows}</div>
+    ${runtimeConfigButton}
   </details>`;
   panel.querySelectorAll("[data-open-access-keys]").forEach((button) => {
     button.addEventListener("click", (event) => {
@@ -2982,6 +2991,139 @@ function renderWorkspaceAccessPanel() {
       openAccessKeyManager({ workspaceId: button.dataset.accessKeyWorkspace || state.selectedWorkspaceId }).catch(showError);
     });
   });
+  panel.querySelector("[data-open-runtime-config]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openRuntimeConfigManager().catch(showError);
+  });
+}
+
+function renderRuntimeConfigManager() {
+  const overlay = $("runtimeConfigOverlay");
+  if (!overlay) return;
+  overlay.classList.toggle("hidden", !state.runtimeConfigOpen);
+  if (!state.runtimeConfigOpen) {
+    overlay.innerHTML = "";
+    return;
+  }
+  const config = state.runtimeConfig || {};
+  const status = state.runtimeConfigTestStatus;
+  const keyState = config.hermesApiKeyConfigured ? `${config.hermesApiKeySource || "configured"}` : "未配置";
+  const testBlock = status
+    ? `<section class="runtime-config-status ${status.ok ? "ok" : "error"}">
+        <div class="access-key-row-title">${status.ok ? "Gateway 可用" : "Gateway 不可用"}</div>
+        <div class="access-key-row-meta">${escapeHtml(status.status?.apiBase || config.hermesApiBase || "")}</div>
+        ${status.status?.error ? `<div class="runtime-config-error">${escapeHtml(status.status.error)}</div>` : ""}
+      </section>`
+    : "";
+  const errorBlock = state.runtimeConfigError
+    ? `<div class="access-key-empty error">${escapeHtml(state.runtimeConfigError)}</div>`
+    : "";
+  const body = state.runtimeConfigLoading && !state.runtimeConfig
+    ? `<div class="access-key-empty">正在读取运行配置...</div>`
+    : `<section class="runtime-config-form">
+          <label>
+            <span>Hermes Gateway URL</span>
+            <input id="runtimeHermesApiBase" type="url" autocomplete="off" value="${escapeHtml(config.hermesApiBase || "")}" placeholder="http://127.0.0.1:8642">
+          </label>
+          <label>
+            <span>Hermes API Key 文件路径</span>
+            <input id="runtimeHermesApiKeyPath" type="text" autocomplete="off" value="${escapeHtml(config.hermesApiKeyPath || "")}" placeholder="可留空，继续使用环境变量或默认路径">
+          </label>
+          <div class="runtime-config-meta">
+            <div>默认 URL：${escapeHtml(config.hermesApiBaseDefault || "")}</div>
+            <div>API Key：${escapeHtml(keyState)}${config.hermesApiKeyResolvedPath ? ` · ${escapeHtml(config.hermesApiKeyResolvedPath)}` : ""}</div>
+            ${config.updatedAt ? `<div>更新：${escapeHtml(formatTime(config.updatedAt))}${config.updatedBy ? ` · ${escapeHtml(config.updatedBy)}` : ""}</div>` : ""}
+          </div>
+          <div class="runtime-config-actions">
+            <button type="button" data-save-runtime-config>保存</button>
+            <button type="button" data-test-runtime-config>测试连接</button>
+          </div>
+        </section>`;
+  overlay.innerHTML = `
+    <div class="access-key-sheet runtime-config-sheet">
+      <header class="access-key-header">
+        <div>
+          <div id="runtimeConfigTitle" class="access-key-title">运行配置</div>
+          <div class="access-key-subtitle">只保存 Gateway URL 和 API key 文件路径；不在 Web 配置里保存 API key 明文。</div>
+        </div>
+        <button class="access-key-close" type="button" data-close-runtime-config>完成</button>
+      </header>
+      ${errorBlock}
+      ${body}
+      ${testBlock}
+    </div>`;
+  overlay.querySelector("[data-close-runtime-config]")?.addEventListener("click", closeRuntimeConfigManager);
+  overlay.querySelector("[data-save-runtime-config]")?.addEventListener("click", () => saveRuntimeConfigManager().catch(showError));
+  overlay.querySelector("[data-test-runtime-config]")?.addEventListener("click", () => testRuntimeConfigManager().catch(showError));
+}
+
+async function loadRuntimeConfigManager() {
+  state.runtimeConfigLoading = true;
+  state.runtimeConfigError = "";
+  state.runtimeConfigTestStatus = null;
+  renderRuntimeConfigManager();
+  try {
+    const result = await api("/api/runtime-config");
+    state.runtimeConfig = result.config || {};
+  } catch (err) {
+    state.runtimeConfigError = err.message || String(err);
+  } finally {
+    state.runtimeConfigLoading = false;
+    renderRuntimeConfigManager();
+  }
+}
+
+async function openRuntimeConfigManager() {
+  closeTopMoreMenu();
+  state.runtimeConfigOpen = true;
+  await loadRuntimeConfigManager();
+}
+
+function closeRuntimeConfigManager() {
+  state.runtimeConfigOpen = false;
+  state.runtimeConfigError = "";
+  state.runtimeConfigTestStatus = null;
+  renderRuntimeConfigManager();
+}
+
+async function saveRuntimeConfigManager() {
+  const hermesApiBase = $("runtimeHermesApiBase")?.value?.trim() || "";
+  const hermesApiKeyPath = $("runtimeHermesApiKeyPath")?.value?.trim() || "";
+  state.runtimeConfigLoading = true;
+  state.runtimeConfigError = "";
+  renderRuntimeConfigManager();
+  try {
+    const result = await api("/api/runtime-config", {
+      method: "PATCH",
+      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath }),
+    });
+    state.runtimeConfig = result.config || {};
+    await loadStatus();
+  } catch (err) {
+    state.runtimeConfigError = err.message || String(err);
+  } finally {
+    state.runtimeConfigLoading = false;
+    renderRuntimeConfigManager();
+  }
+}
+
+async function testRuntimeConfigManager() {
+  state.runtimeConfigLoading = true;
+  state.runtimeConfigError = "";
+  renderRuntimeConfigManager();
+  try {
+    const result = await api("/api/runtime-config/test", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    state.runtimeConfigTestStatus = result;
+    state.runtimeConfig = result.config || state.runtimeConfig;
+  } catch (err) {
+    state.runtimeConfigError = err.message || String(err);
+  } finally {
+    state.runtimeConfigLoading = false;
+    renderRuntimeConfigManager();
+  }
 }
 
 function renderAccessKeyManager() {
