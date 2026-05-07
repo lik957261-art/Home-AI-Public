@@ -30,18 +30,21 @@ function parseArgs(argv) {
     outDir: path.join(REPO_ROOT, "workspace", "public-export", `hermes-mobile-public-${stamp}`),
     force: false,
     skipPrivacyScan: false,
+    allowDirty: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--out") out.outDir = path.resolve(argv[++index] || out.outDir);
     else if (arg === "--force") out.force = true;
     else if (arg === "--skip-privacy-scan") out.skipPrivacyScan = true;
+    else if (arg === "--allow-dirty") out.allowDirty = true;
     else if (arg === "--help") {
       console.log([
-        "Usage: node scripts/create-public-export.js [--out <dir>] [--force]",
+        "Usage: node scripts/create-public-export.js [--out <dir>] [--force] [--allow-dirty]",
         "",
         "Creates a clean public-export directory from tracked source files only.",
         "Runtime state, ignored files, node_modules, workspace data, secrets, and Agent context are not copied.",
+        "By default, the repository must be clean so the export matches the reported source commit.",
       ].join("\n"));
       process.exit(0);
     }
@@ -55,6 +58,25 @@ function trackedFiles() {
     encoding: "utf8",
   });
   return output.split("\0").filter(Boolean).sort();
+}
+
+function workingTreeStatus() {
+  return execFileSync("git", ["status", "--porcelain", "--untracked-files=normal"], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  }).trim();
+}
+
+function assertCleanSource(allowDirty) {
+  const status = workingTreeStatus();
+  if (!status || allowDirty) return status;
+  const preview = status.split(/\r?\n/).slice(0, 12).join("\n");
+  throw new Error([
+    "Refusing public export from a dirty source tree.",
+    "Commit, stash, or remove pending changes first so .public-export-report.json sourceCommit is exact.",
+    "Use --allow-dirty only for local smoke tests.",
+    preview,
+  ].filter(Boolean).join("\n"));
 }
 
 function normalizePath(value) {
@@ -126,6 +148,7 @@ function runPrivacyScan(outDir) {
 
 function createExport(options) {
   const outDir = path.resolve(options.outDir);
+  const sourceStatus = assertCleanSource(options.allowDirty);
   safeResetOutputDir(outDir, options.force);
   const files = trackedFiles().filter(shouldExport);
   for (const file of files) copyFile(file, outDir);
@@ -134,6 +157,8 @@ function createExport(options) {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     sourceCommit: sourceCommit(),
+    sourceDirty: Boolean(sourceStatus),
+    sourceDirtyAllowed: Boolean(options.allowDirty),
     fileCount: files.length,
     excludes: {
       exact: [...EXCLUDED_EXACT].sort(),

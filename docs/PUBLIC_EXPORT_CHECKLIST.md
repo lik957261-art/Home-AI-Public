@@ -9,6 +9,7 @@ Create a public repository only from a clean export, not from private deployment
 - Run `git diff --check`.
 - Run the privacy scan: `npm run privacy:scan`.
 - Create the export with `npm run export:public -- --out <clean-public-export-dir> --force`.
+- The export command should run from a clean private checkout. Do not use `--allow-dirty` for a public release.
 - Run the privacy scan against the export root if it is moved or edited: `node scripts/privacy-scan.js --root <clean-public-export-dir> --all-files`.
 - Review `README.md` in the public export and update it in the same public commit.
 - Confirm the public README clone URL points to the public repository, not the private repository.

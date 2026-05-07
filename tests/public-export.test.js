@@ -39,6 +39,7 @@ function testCreatesCleanExport() {
       "--out",
       outDir,
       "--force",
+      "--allow-dirty",
     ], {
       cwd: REPO_ROOT,
       encoding: "utf8",
