@@ -76,7 +76,9 @@ Gateway Pool mode expects a manifest such as:
       "api_key": "stored-outside-repo",
       "enabled": true,
       "securityLevel": "user",
-      "allowedWorkspaceIds": ["*"]
+      "allowedWorkspaceIds": ["*"],
+      "telemetryStateDbPath": "/var/lib/hermes-gateway/profiles/lowgw1/state.db",
+      "telemetryResponseStoreDbPath": "/var/lib/hermes-gateway/profiles/lowgw1/response_store.db"
     },
     {
       "name": "maintenance1",
@@ -167,12 +169,24 @@ Official Hermes should remain clean enough to upgrade directly from upstream. If
 - `HERMES_WEB_GATEWAY_POOL_ENABLED=auto|true|false`
 - `HERMES_WEB_GATEWAY_POOL_MANIFEST=<path-to-worker-pool.json>`
 - `HERMES_WEB_GATEWAY_POOL_HEALTH_TIMEOUT_MS=5000`
+- `HERMES_MOBILE_GATEWAY_USAGE_TELEMETRY_ENABLED=auto|true|false`
+- `HERMES_MOBILE_GATEWAY_TELEMETRY_PROFILES_ROOTS=<read-only-profile-root-list>`
 - `HERMES_WEB_MAX_ACTIVE_RUNS=<global-active-run-limit-or-0>`
 - `HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE=<per-workspace-active-run-limit-or-0>`
 - `HERMES_WEB_HERMES_API_BASE=<fallback-gateway-url>`
 - `HERMES_WEB_HERMES_API_KEY_PATH=<fallback-gateway-api-key-file>`
 
 In `auto` mode, Hermes Mobile uses the pool only when a manifest exists and declares enabled workers.
+If a Gateway response omits cached-token or cost fields, Hermes Mobile may
+read official Hermes profile `response_store.db` and `state.db` files through
+the telemetry profile root to recover session-level cached tokens, API call
+count, and cost status. This is a read-only compatibility adapter; it does not
+patch Gateway source or reconstruct per-call routing details.
+For process-isolated workers whose profile DBs live outside the default
+profile root, set per-worker `telemetryStateDbPath` and
+`telemetryResponseStoreDbPath` in the deployment manifest. These paths are
+deployment configuration and must not contain secrets or be committed with
+local machine paths in a public release.
 
 User-run safety depends on the manifest. At least one healthy `securityLevel=user`
 worker is required for chat/tasks. Workers that can read operator source,

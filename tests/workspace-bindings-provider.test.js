@@ -55,7 +55,23 @@ function testCustomChannelProvider() {
   assert.deepEqual(bindings.channels, [{ type: "email", label: "Email", accountId: "mailbox" }]);
 }
 
+function testQqmailToolsetsAreShownAsConnectedMail() {
+  const provider = createWorkspaceBindingsProvider();
+  const bindings = provider.publicBindings({
+    id: "weixin_wuping",
+    policy: {
+      allowed_toolsets: ["web", "wuping_qqmail", "qq_mail"],
+    },
+  });
+
+  assert.deepEqual(bindings.interfaces, [
+    { id: "wuping_qqmail", label: "QQ 邮箱", category: "邮箱", detail: "已连接" },
+    { id: "qq_mail", label: "QQ 邮箱", category: "邮箱", detail: "已连接" },
+  ]);
+}
+
 testFiltersCommonToolsetsAndShowsSpecialInterfaces();
 testOwnerGetsExternalBindings();
 testCustomChannelProvider();
+testQqmailToolsetsAreShownAsConnectedMail();
 console.log("workspace-bindings-provider tests passed");

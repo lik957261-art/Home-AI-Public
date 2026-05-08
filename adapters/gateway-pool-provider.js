@@ -56,6 +56,15 @@ function normalizeWorker(raw, index = 0) {
     securityLevel: normalizeSecurityLevel(raw.securityLevel || raw.security_level || raw.level),
     allowedWorkspaceIds: normalizeWorkspaceIds(raw.allowedWorkspaceIds || raw.allowed_workspace_ids || raw.workspaceIds || raw.workspace_ids),
     allowMaintenance: Boolean(raw.allowMaintenance || raw.allow_maintenance),
+    telemetryProfile: String(raw.telemetryProfile || raw.telemetry_profile || raw.telemetryStateProfile || raw.telemetry_state_profile || profile).trim(),
+    telemetryStateDbPath: String(raw.telemetryStateDbPath || raw.telemetry_state_db_path || raw.stateDbPath || raw.state_db_path || "").trim(),
+    telemetryResponseStoreDbPath: String(
+      raw.telemetryResponseStoreDbPath
+      || raw.telemetry_response_store_db_path
+      || raw.responseStoreDbPath
+      || raw.response_store_db_path
+      || "",
+    ).trim(),
   };
 }
 

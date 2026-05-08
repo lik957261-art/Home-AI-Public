@@ -594,6 +594,45 @@
       });
     }
 
+    function wireViewerBackSwipe(surface) {
+      if (!surface || surface.dataset.viewerBackSwipeBound) return;
+      surface.dataset.viewerBackSwipeBound = "1";
+      let swipe = null;
+      surface.addEventListener("touchstart", (event) => {
+        if (event.touches.length !== 1 || event.target?.closest?.("button, a, input, select, textarea, [contenteditable='true']")) {
+          swipe = null;
+          return;
+        }
+        swipe = {
+          startX: event.touches[0].clientX,
+          startY: event.touches[0].clientY,
+          lastX: event.touches[0].clientX,
+          dragging: false,
+        };
+      }, { passive: true });
+      surface.addEventListener("touchmove", (event) => {
+        if (!swipe || event.touches.length !== 1) return;
+        const point = event.touches[0];
+        const dx = point.clientX - swipe.startX;
+        const dy = point.clientY - swipe.startY;
+        if (dx <= 0 || (!swipe.dragging && (Math.abs(dx) < 16 || Math.abs(dx) < Math.abs(dy) * 1.2))) return;
+        swipe.dragging = true;
+        swipe.lastX = point.clientX;
+        event.preventDefault();
+        event.stopPropagation();
+      }, { passive: false });
+      const finish = () => {
+        const current = swipe;
+        swipe = null;
+        if (!current?.dragging) return;
+        if ((current.lastX || current.startX) - current.startX > 64) navigateBack();
+      };
+      surface.addEventListener("touchend", finish, { passive: true });
+      surface.addEventListener("touchcancel", () => {
+        swipe = null;
+      }, { passive: true });
+    }
+
     function wireImageBackSwipe(stage) {
       if (!stage || stage.dataset.backSwipeBound) return;
       stage.dataset.backSwipeBound = "1";
@@ -820,6 +859,7 @@
     document.getElementById("back").addEventListener("click", navigateBack);
     document.getElementById("done").addEventListener("click", navigateBack);
     wireViewerBackGuard();
+    wireViewerBackSwipe(document.querySelector(".shell"));
     document.getElementById("open").href = src || "#";
     document.getElementById("download").href = downloadUrlFor(src);
     document.getElementById("download").setAttribute("download", name);

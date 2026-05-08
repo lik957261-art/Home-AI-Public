@@ -72,6 +72,9 @@ const state = {
   runtimeConfigTestStatus: null,
   currentThread: null,
   currentThreadId: "",
+  currentThreadRefreshInFlight: false,
+  currentThreadRefreshPending: false,
+  currentThreadRefreshTimer: 0,
   currentTaskGroupId: "",
   viewMode: localStorage.getItem("hermesWebViewMode") || "single",
   singleWindowMode: localStorage.getItem("hermesWebSingleWindowMode") || "chat",
@@ -96,6 +99,7 @@ const state = {
   chatSearchScrollPending: false,
   chatSearchRefocus: false,
   suppressComposerFocusUntil: 0,
+  attachFilePickerActivationAt: 0,
   groupChatOpen: localStorage.getItem("hermesWebGroupChatOpen") === "1",
   groupAiMode: false,
   groupChatManagerOpen: false,
@@ -342,8 +346,30 @@ function taskGroupsForThread(thread) {
   return [...groups.values()].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 
+function messageOwnerWorkspaceId(message, fallback = "") {
+  return String(
+    message?.actorWorkspaceId
+    || message?.senderWorkspaceId
+    || message?.workspaceId
+    || fallback
+    || "",
+  ).trim();
+}
+
+function taskGroupOwnerWorkspaceId(group, fallback = "") {
+  const messages = group?.messages || [];
+  const user = messages.find((message) => message.role === "user");
+  return messageOwnerWorkspaceId(user || messages[0], fallback);
+}
+
 function taskListGroupsForThread(thread) {
-  return taskGroupsForThread(thread).filter((group) => !isSingleWindowConversationTaskGroupId(group.id));
+  const selectedWorkspaceId = String(state.selectedWorkspaceId || "").trim();
+  return taskGroupsForThread(thread)
+    .filter((group) => !isSingleWindowConversationTaskGroupId(group.id))
+    .filter((group) => {
+      const ownerWorkspaceId = taskGroupOwnerWorkspaceId(group, thread?.workspaceId || "");
+      return !selectedWorkspaceId || !ownerWorkspaceId || ownerWorkspaceId === selectedWorkspaceId;
+    });
 }
 
 function activeChatTaskGroupId() {
@@ -633,6 +659,12 @@ function currentViewerReturnUrl() {
     if (state.currentTaskGroupId) params.set("taskGroupId", state.currentTaskGroupId);
   } else if (state.viewMode === "projects") {
     params.set("view", "directory");
+    if (state.selectedProjectId) params.set("projectId", state.selectedProjectId);
+    if (state.selectedSubprojectId) params.set("subprojectId", state.selectedSubprojectId);
+    const directoryPath = directoryActivePath();
+    if (directoryPath) params.set("directoryPath", directoryPath);
+    const directoryRoot = state.directoryRootPath || directoryRootForPath(directoryPath, "");
+    if (directoryRoot) params.set("directoryRoot", directoryRoot);
   } else if (state.viewMode === "single") {
     params.set("view", "single");
     if (isGroupChatView()) params.set("groupChat", "1");
@@ -2241,19 +2273,90 @@ function renderMessageScrollButton(message, position) {
   return `<button class="message-scroll-button" type="button" data-scroll-message="${escapeHtml(message.id)}" data-scroll-position="${end ? "end" : "start"}" aria-label="${end ? "Jump to reply end" : "Jump to reply start"}" title="${end ? "End" : "Start"}"><span class="message-scroll-glyph">${end ? "&#8595;" : "&#8593;"}</span></button>`;
 }
 
+function canUseMessageReplyActions(message) {
+  return Boolean(message?.role === "assistant" && message?.id && !message.revokedAt);
+}
+
+function renderMessageCopyButton(message) {
+  if (!canUseMessageReplyActions(message)) return "";
+  return `<button class="message-mini-action-button" type="button" data-copy-message="${escapeHtml(message.id)}" aria-label="Copy full reply" title="Copy full reply"><svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="5" width="11" height="11" rx="2.5"></rect><rect x="5" y="8" width="11" height="11" rx="2.5"></rect></svg></button>`;
+}
+
+function renderMessageImageButton(message) {
+  if (!canUseMessageReplyActions(message)) return "";
+  return `<button class="message-mini-action-button" type="button" data-share-message-image="${escapeHtml(message.id)}" aria-label="Share reply image" title="Share reply image"><svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="M8.5 7.5 12 4l3.5 3.5"></path><path d="M6 14v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4"></path></svg></button>`;
+}
+
+function renderMessageActionStrip(message, scrollPosition) {
+  const controls = [
+    renderMessageScrollButton(message, scrollPosition),
+    renderMessageCopyButton(message),
+    renderMessageImageButton(message),
+  ].filter(Boolean).join("");
+  return controls ? `<span class="message-action-strip">${controls}</span>` : "";
+}
+
 function renderMessageGatewayDiagnostic(message) {
-  if (!state.auth?.isOwner || message?.role !== "assistant") return "";
-  const label = message.gatewayName || message.gatewayProfile || "";
-  if (!label) return "";
-  const source = message.gatewaySource === "worker_pool" ? "pool" : (message.gatewaySource || "gateway");
-  return `<span class="message-gateway-diagnostic" title="${escapeHtml(source)}">${escapeHtml(label)}</span>`;
+  return "";
 }
 
 function renderMessageFooter(message, usage) {
-  const startButton = renderMessageScrollButton(message, "start");
+  const actions = renderMessageActionStrip(message, "start");
   const gatewayDiagnostic = renderMessageGatewayDiagnostic(message);
-  if (!startButton && !usage && !gatewayDiagnostic) return "";
-  return `<div class="message-footer-row">${startButton}${gatewayDiagnostic}${usage}</div>`;
+  if (!actions && !usage && !gatewayDiagnostic) return "";
+  return `<div class="message-footer-row">${actions}${gatewayDiagnostic}${usage}</div>`;
+}
+
+function eventClientPoint(event) {
+  const touch = event?.changedTouches?.[0] || event?.touches?.[0];
+  if (touch) return { x: touch.clientX, y: touch.clientY };
+  if (Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
+    return { x: event.clientX, y: event.clientY };
+  }
+  return null;
+}
+
+function eventInAttachFileHitZone(event) {
+  const button = $("attachFile");
+  if (!button || button.disabled) return false;
+  const point = eventClientPoint(event);
+  if (!point) return false;
+  const rect = button.getBoundingClientRect();
+  const slop = 6;
+  return point.x >= rect.left - slop
+    && point.x <= rect.right + slop
+    && point.y >= rect.top - slop
+    && point.y <= rect.bottom + slop;
+}
+
+function openAttachFilePicker() {
+  const input = $("fileInput");
+  if (!input) return;
+  state.attachFilePickerActivationAt = Date.now();
+  input.value = "";
+  input.click();
+}
+
+function handleAttachFileActivation(event, options = {}) {
+  const fromHitZone = Boolean(options.fromHitZone);
+  if (fromHitZone && !eventInAttachFileHitZone(event)) return false;
+  const recentActivation = Date.now() - (state.attachFilePickerActivationAt || 0) < 650;
+  if (recentActivation && !state.chatSearchOpen) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    return true;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation?.();
+  if (state.chatSearchOpen) {
+    $("attachFile").dataset.searchCloseHandled = "1";
+    closeChatSearch();
+    return true;
+  }
+  openAttachFilePicker();
+  return true;
 }
 
 function wireMessageScrollButtons(root) {
@@ -2266,6 +2369,112 @@ function wireMessageScrollButtons(root) {
       scrollMessageIntoView(button.dataset.scrollMessage || "", button.dataset.scrollPosition || "start");
     });
   });
+}
+
+function currentMessageById(messageId) {
+  const id = String(messageId || "");
+  if (!id) return null;
+  return (state.currentThread?.messages || []).find((message) => message?.id === id) || null;
+}
+
+function wireMessageReplyActionButtons(root) {
+  root?.querySelectorAll?.("[data-copy-message]").forEach((button) => {
+    if (button.dataset.boundCopyMessage) return;
+    button.dataset.boundCopyMessage = "1";
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      try {
+        await copyMessageContent(button.dataset.copyMessage || "");
+      } catch (err) {
+        showError(err);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+  root?.querySelectorAll?.("[data-share-message-image]").forEach((button) => {
+    if (button.dataset.boundShareMessageImage) return;
+    button.dataset.boundShareMessageImage = "1";
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      try {
+        await shareMessageImage(button.dataset.shareMessageImage || "");
+      } catch (err) {
+        if (err?.name !== "AbortError") showError(err);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}
+
+function positionUsagePanel(details) {
+  if (!details?.open) return;
+  const panel = details.querySelector(".usage-details");
+  if (!panel) return;
+  panel.style.setProperty("--usage-panel-shift", "0px");
+  requestAnimationFrame(() => {
+    if (!details.open) return;
+    const viewportWidth = window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0;
+    if (!viewportWidth) return;
+    const rect = panel.getBoundingClientRect();
+    const margin = 10;
+    let shift = 0;
+    if (rect.right > viewportWidth - margin) shift -= rect.right - (viewportWidth - margin);
+    if (rect.left + shift < margin) shift += margin - (rect.left + shift);
+    panel.style.setProperty("--usage-panel-shift", `${Math.round(shift)}px`);
+  });
+}
+
+function closeOpenUsagePanels(root = document) {
+  root.querySelectorAll?.(".usage[open]")?.forEach((details) => {
+    details.open = false;
+  });
+}
+
+function wireUsageOutsideDismiss() {
+  if (document.documentElement.dataset.usageOutsideDismissBound) return;
+  document.documentElement.dataset.usageOutsideDismissBound = "1";
+  document.addEventListener("pointerdown", (event) => {
+    if (event.target?.closest?.(".usage")) return;
+    closeOpenUsagePanels();
+  }, { capture: true });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeOpenUsagePanels();
+  });
+}
+
+function wireUsagePanels(root) {
+  wireUsageOutsideDismiss();
+  root?.querySelectorAll?.(".usage").forEach((details) => {
+    if (details.dataset.boundUsagePanel) return;
+    details.dataset.boundUsagePanel = "1";
+    details.addEventListener("toggle", () => positionUsagePanel(details));
+  });
+}
+
+function updateMessageScrollButtonVisibility(root) {
+  const conversation = $("conversation");
+  if (!conversation || !root?.querySelectorAll) return;
+  const viewportHeight = Math.max(0, conversation.clientHeight || window.innerHeight || 0);
+  root.querySelectorAll(".message[data-message-id]").forEach((article) => {
+    const messageHeight = article.getBoundingClientRect().height || article.offsetHeight || 0;
+    const shouldShow = viewportHeight > 0 && messageHeight > Math.max(420, viewportHeight - 28);
+    article.querySelectorAll(".message-scroll-button").forEach((button) => {
+      button.classList.toggle("hidden", !shouldShow);
+      button.tabIndex = shouldShow ? 0 : -1;
+      button.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+    });
+  });
+}
+
+function scheduleMessageScrollButtonVisibility(root) {
+  updateMessageScrollButtonVisibility(root);
+  requestAnimationFrame(() => updateMessageScrollButtonVisibility(root));
 }
 
 async function api(path, options = {}) {
@@ -2448,6 +2657,10 @@ function applyRouteParams(params) {
   const todoId = String(params.get("todoId") || "").trim();
   const taskGroupId = String(params.get("taskGroupId") || params.get("taskId") || "").trim();
   const messageId = String(params.get("messageId") || "").trim();
+  const projectId = String(params.get("projectId") || "").trim();
+  const subprojectId = String(params.get("subprojectId") || "").trim();
+  const directoryPath = String(params.get("directoryPath") || "").trim();
+  const directoryRoot = String(params.get("directoryRoot") || "").trim();
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
   const routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : groupChatRequested ? "single" : "");
   const workspaceId = String(params.get("workspaceId") || "").trim();
@@ -2468,6 +2681,23 @@ function applyRouteParams(params) {
     state.automationOutputHistoryOpen = false;
   }
   if (routeView === "todos" && todoId) state.selectedTodoId = todoId;
+  if (routeView === "projects") {
+    state.directoryReturnRoute = null;
+    state.sharedDirectoryManagerOpen = false;
+    if (projectId) {
+      state.selectedProjectId = projectId;
+      localStorage.setItem("hermesWebProject", projectId);
+      if ($("projectSelect")) $("projectSelect").value = projectId;
+    }
+    if (subprojectId || params.has("subprojectId")) {
+      persistSelectedSubproject(subprojectId);
+    }
+    if (directoryPath) {
+      resetDirectoryPath(directoryPath, { rootPath: directoryRoot || directoryRootForPath(directoryPath, directoryPath) });
+    } else {
+      resetDirectoryPath();
+    }
+  }
   if (routeView === "tasks" && taskGroupId) {
     state.currentTaskGroupId = taskGroupId;
     setRouteScrollTarget(taskGroupId, messageId);
@@ -2600,7 +2830,7 @@ function concurrencySummary(concurrency = state.concurrency) {
 }
 
 function renderGatewayPoolMiniStatus(pool = state.gatewayPool, concurrency = state.concurrency) {
-  if (!state.auth?.isOwner) return "";
+  if (!state.auth?.isOwner || state.selectedWorkspaceId !== "owner") return "";
   const summary = gatewayPoolSummary(pool);
   const concurrencyText = concurrencySummary(concurrency);
   return `<section class="workspace-gateway-status">
@@ -2919,7 +3149,21 @@ handleForegroundPushMessage = function handleForegroundPushMessageWithBusinessTo
   handleForegroundPushMessageBase(eventData);
   if (eventData.notification?.shown === false) return;
   const payload = eventData.payload || {};
-  const messageType = payload?.data?.messageType || payload?.data?.data?.messageType;
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
+  const nestedData = data?.data && typeof data.data === "object" ? data.data : {};
+  const messageType = data.messageType || nestedData.messageType;
+  const pushThreadId = String(data.threadId || nestedData.threadId || "").trim();
+  const pushWorkspaceId = String(data.workspaceId || nestedData.workspaceId || "").trim();
+  if (
+    ["task_completed", "task_failed"].includes(messageType)
+    && (
+      currentThreadHasPendingMessages()
+      || (pushThreadId && pushThreadId === state.currentThreadId)
+      || (!pushThreadId && state.currentThreadId && (!pushWorkspaceId || pushWorkspaceId === state.selectedWorkspaceId))
+    )
+  ) {
+    requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 80 });
+  }
   if (messageType === "test") return;
   if (["task_completed", "task_failed", "created_by_other", "pre_due_30m", "pre_due_60m", "daily_digest", "owner_daily_report", "automation_completed"].includes(messageType)) {
     const title = String(payload.title || "\u901a\u77e5").trim();
@@ -3095,23 +3339,27 @@ function renderWorkspaceAccessPanel() {
     panel.innerHTML = "";
     return;
   }
+  const canManageOwnerSettings = Boolean(state.auth?.isOwner && state.selectedWorkspaceId === "owner");
   const rows = accessRows.map((workspace) => {
     const account = workspaceAccountSummary(workspace);
     const rootDirectory = workspaceRootDirectoryName(workspace);
     const accessKeyStatus = workspaceAccessKeyStatusLabel(workspace);
     const bindings = workspaceBindingChips(workspace);
+    const accessKeyLine = canManageOwnerSettings
+      ? `<div class="workspace-access-key-row">
+        <div class="workspace-access-line"><span>Access Key</span>${escapeHtml(accessKeyStatus)}</div>
+        <button class="workspace-access-key-button" type="button" data-open-access-keys data-access-key-workspace="owner">管理</button>
+      </div>`
+      : "";
     return `<section class="workspace-access-row">
       <div class="workspace-access-name">${escapeHtml(workspace.label || workspace.id)}</div>
-      ${account ? `<div class="workspace-access-line"><span>账号</span>${escapeHtml(account)}</div>` : ""}
+      ${canManageOwnerSettings && account ? `<div class="workspace-access-line"><span>账号</span>${escapeHtml(account)}</div>` : ""}
       <div class="workspace-access-line"><span>根目录</span>${escapeHtml(rootDirectory)}</div>
-      <div class="workspace-access-key-row">
-        <div class="workspace-access-line"><span>Access Key</span>${escapeHtml(accessKeyStatus)}</div>
-        <button class="workspace-access-key-button" type="button" data-open-access-keys data-access-key-workspace="${escapeHtml(workspace.id || "")}">管理</button>
-      </div>
+      ${accessKeyLine}
       ${bindings}
     </section>`;
   }).join("");
-  const runtimeConfigButton = state.auth?.isOwner
+  const runtimeConfigButton = canManageOwnerSettings
     ? `<button class="workspace-access-key-button workspace-runtime-config-button" type="button" data-open-runtime-config>运行配置</button>`
     : "";
   panel.innerHTML = `<details>
@@ -3233,6 +3481,14 @@ async function loadRuntimeConfigManager() {
 async function openRuntimeConfigManager() {
   closeTopMoreMenu();
   closeSidebar();
+  if (!state.auth?.isOwner) {
+    showError(new Error("Owner access is required"));
+    return;
+  }
+  if (state.selectedWorkspaceId !== "owner") {
+    showError(new Error("Switch to Owner workspace to manage runtime configuration"));
+    return;
+  }
   state.runtimeConfigOpen = true;
   await loadRuntimeConfigManager();
 }
@@ -3530,8 +3786,16 @@ async function loadAccessKeyManager(options = {}) {
 async function openAccessKeyManager(options = {}) {
   closeTopMoreMenu();
   closeSidebar();
+  if (!state.auth?.isOwner) {
+    showError(new Error("Owner access is required"));
+    return;
+  }
+  if ((options.workspaceId || state.selectedWorkspaceId || "") !== "owner") {
+    showError(new Error("Switch to Owner workspace to manage Access Keys"));
+    return;
+  }
   state.accessKeyManagerOpen = true;
-  await loadAccessKeyManager({ workspaceId: options.workspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "" });
+  await loadAccessKeyManager({ workspaceId: "owner" });
 }
 
 function fillWorkspaceConfigForm(workspaceId) {
@@ -3693,6 +3957,356 @@ async function copyTextToClipboard(text) {
     area.remove();
   }
   showPushToast("已复制到剪贴板", "success");
+}
+
+function messageShareText(message) {
+  if (!message) return "";
+  const content = cleanDisplayText(rewriteDirectoryPathsForDisplay(message.content || ""));
+  const error = message.error ? `Error: ${message.error}` : "";
+  const artifacts = Array.isArray(message.artifacts)
+    ? message.artifacts
+      .map((artifact) => String(artifact?.name || artifact?.id || "").trim())
+      .filter(Boolean)
+    : [];
+  const artifactText = artifacts.length ? `Attachments:\n${artifacts.map((name) => `- ${name}`).join("\n")}` : "";
+  return [content, error, artifactText].filter(Boolean).join("\n\n").trim();
+}
+
+async function copyMessageContent(messageId) {
+  const message = currentMessageById(messageId);
+  if (!message) throw new Error("Message not found");
+  const text = messageShareText(message);
+  if (!text) throw new Error("Message has no copyable content");
+  await copyTextToClipboard(text);
+}
+
+function messageShareTitle(message) {
+  if (!message) return "Hermes Mobile";
+  if (message.taskGroupId && !isSingleWindowConversationTaskGroupId(message.taskGroupId)) {
+    return `Hermes Mobile - ${shortTaskDisplayId(messageTaskDisplayId(message))}`;
+  }
+  return "Hermes Mobile";
+}
+
+function stripInlineMarkdownForShare(value) {
+  return String(value || "")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
+function shareImageBlocksFromText(text) {
+  const blocks = [];
+  const lines = String(text || "").split(/\r?\n/);
+  let paragraph = [];
+  let codeLines = null;
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    blocks.push({ type: "paragraph", text: stripInlineMarkdownForShare(paragraph.join(" ")) });
+    paragraph = [];
+  };
+  const pushTextBlock = (type, value, extra = {}) => {
+    const textValue = stripInlineMarkdownForShare(value);
+    if (textValue) blocks.push(Object.assign({ type, text: textValue }, extra));
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\s+$/g, "");
+    const trimmed = line.trim();
+
+    if (codeLines) {
+      if (/^```/.test(trimmed)) {
+        blocks.push({ type: "code", text: codeLines.join("\n").trimEnd() });
+        codeLines = null;
+      } else {
+        codeLines.push(line);
+      }
+      continue;
+    }
+
+    if (/^```/.test(trimmed)) {
+      flushParagraph();
+      codeLines = [];
+      continue;
+    }
+
+    if (!trimmed) {
+      flushParagraph();
+      continue;
+    }
+
+    const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      pushTextBlock("heading", heading[2], { level: heading[1].length });
+      continue;
+    }
+
+    const bullet = trimmed.match(/^[-*+]\s+(.+)$/);
+    if (bullet) {
+      flushParagraph();
+      pushTextBlock("list", bullet[1], { marker: "-" });
+      continue;
+    }
+
+    const numbered = trimmed.match(/^(\d+)[.)]\s+(.+)$/);
+    if (numbered) {
+      flushParagraph();
+      pushTextBlock("list", numbered[2], { marker: `${numbered[1]}.` });
+      continue;
+    }
+
+    const quote = trimmed.match(/^>\s?(.+)$/);
+    if (quote) {
+      flushParagraph();
+      pushTextBlock("quote", quote[1]);
+      continue;
+    }
+
+    if (/^\|.+\|$/.test(trimmed)) {
+      flushParagraph();
+      blocks.push({ type: "code", text: trimmed });
+      continue;
+    }
+
+    paragraph.push(trimmed);
+  }
+  if (codeLines) blocks.push({ type: "code", text: codeLines.join("\n").trimEnd() });
+  flushParagraph();
+  return blocks.length ? blocks : [{ type: "paragraph", text: "No content." }];
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const lines = [];
+  for (const sourceLine of String(text || "").split(/\r?\n/)) {
+    const chars = Array.from(sourceLine);
+    let line = "";
+    for (const char of chars) {
+      const next = `${line}${char}`;
+      if (line && ctx.measureText(next).width > maxWidth) {
+        lines.push(line.trimEnd());
+        line = char.trimStart();
+      } else {
+        line = next;
+      }
+    }
+    if (line) lines.push(line.trimEnd());
+    else if (!chars.length) lines.push("");
+  }
+  return lines;
+}
+
+function setShareImageFont(ctx, size, weight = 400, family = "\"Microsoft YaHei UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Segoe UI\", sans-serif") {
+  ctx.font = `${weight} ${size}px ${family}`;
+}
+
+function roundRectPath(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function fillRoundRect(ctx, x, y, width, height, radius, fillStyle) {
+  ctx.fillStyle = fillStyle;
+  roundRectPath(ctx, x, y, width, height, radius);
+  ctx.fill();
+}
+
+function layoutShareImage(ctx, message, text) {
+  const width = 900;
+  const margin = 54;
+  const contentWidth = width - margin * 2;
+  const items = [];
+  let y = 54;
+  const title = messageShareTitle(message);
+  const meta = [messageDisplayTimeLabel(message), state.currentThread?.title || ""].filter(Boolean).join(" - ");
+
+  setShareImageFont(ctx, 30, 800);
+  items.push({ type: "brand", x: margin, y, text: "Hermes Mobile", size: 30, weight: 800 });
+  y += 46;
+  setShareImageFont(ctx, 46, 760);
+  const titleLines = wrapCanvasText(ctx, title, contentWidth);
+  items.push({ type: "text", x: margin, y, lines: titleLines, size: 46, weight: 760, lineHeight: 58, color: "#142027" });
+  y += titleLines.length * 58 + 12;
+  if (meta) {
+    setShareImageFont(ctx, 26, 500);
+    const metaLines = wrapCanvasText(ctx, meta, contentWidth);
+    items.push({ type: "text", x: margin, y, lines: metaLines, size: 26, weight: 500, lineHeight: 36, color: "#6f6a5f" });
+    y += metaLines.length * 36 + 24;
+  }
+  items.push({ type: "rule", x: margin, y, width: contentWidth });
+  y += 38;
+
+  for (const block of shareImageBlocksFromText(text)) {
+    if (block.type === "heading") {
+      const size = block.level <= 1 ? 52 : 48;
+      const lineHeight = block.level <= 1 ? 66 : 60;
+      setShareImageFont(ctx, size, 780);
+      const lines = wrapCanvasText(ctx, block.text, contentWidth);
+      items.push({ type: "text", x: margin, y, lines, size, weight: 780, lineHeight, color: "#182833" });
+      y += lines.length * lineHeight + 20;
+    } else if (block.type === "list") {
+      setShareImageFont(ctx, 40, 500);
+      const markerWidth = 48;
+      const lines = wrapCanvasText(ctx, block.text, contentWidth - markerWidth);
+      items.push({ type: "list", x: margin, y, marker: block.marker || "-", lines, size: 40, weight: 500, lineHeight: 62, markerWidth, color: "#182833" });
+      y += lines.length * 62 + 10;
+    } else if (block.type === "quote") {
+      setShareImageFont(ctx, 38, 500);
+      const lines = wrapCanvasText(ctx, block.text, contentWidth - 54);
+      const height = lines.length * 58 + 32;
+      items.push({ type: "quote", x: margin, y, width: contentWidth, height, lines, size: 38, weight: 500, lineHeight: 58, color: "#374742" });
+      y += height + 20;
+    } else if (block.type === "code") {
+      setShareImageFont(ctx, 31, 500, "\"Cascadia Mono\", Consolas, monospace");
+      const lines = wrapCanvasText(ctx, block.text, contentWidth - 44);
+      const height = lines.length * 46 + 34;
+      items.push({ type: "code", x: margin, y, width: contentWidth, height, lines, size: 31, weight: 500, lineHeight: 46, color: "#22302d" });
+      y += height + 20;
+    } else {
+      setShareImageFont(ctx, 42, 500);
+      const lines = wrapCanvasText(ctx, block.text, contentWidth);
+      items.push({ type: "text", x: margin, y, lines, size: 42, weight: 500, lineHeight: 66, color: "#182833" });
+      y += lines.length * 66 + 22;
+    }
+  }
+
+  y += 24;
+  items.push({ type: "footer", x: margin, y, text: "Shared from Hermes Mobile", size: 24, weight: 500 });
+  y += 58;
+  return { width, height: Math.max(640, Math.ceil(y)), items };
+}
+
+function drawShareImage(ctx, layout) {
+  ctx.fillStyle = "#f4efe6";
+  ctx.fillRect(0, 0, layout.width, layout.height);
+  fillRoundRect(ctx, 28, 28, layout.width - 56, layout.height - 56, 24, "rgba(255, 252, 246, 0.84)");
+  ctx.strokeStyle = "rgba(95, 83, 63, 0.12)";
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, 28, 28, layout.width - 56, layout.height - 56, 24);
+  ctx.stroke();
+
+  for (const item of layout.items) {
+    if (item.type === "brand") {
+      setShareImageFont(ctx, item.size, item.weight);
+      ctx.fillStyle = "#876f3c";
+      ctx.fillText(item.text, item.x, item.y + item.size);
+      continue;
+    }
+    if (item.type === "rule") {
+      ctx.strokeStyle = "rgba(135, 111, 60, 0.24)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(item.x, item.y);
+      ctx.lineTo(item.x + item.width, item.y);
+      ctx.stroke();
+      continue;
+    }
+    if (item.type === "footer") {
+      setShareImageFont(ctx, item.size, item.weight);
+      ctx.fillStyle = "#8a8478";
+      ctx.fillText(item.text, item.x, item.y + item.size);
+      continue;
+    }
+    if (item.type === "quote") {
+      fillRoundRect(ctx, item.x, item.y, item.width, item.height, 18, "rgba(235, 229, 216, 0.72)");
+      ctx.fillStyle = "#b28b47";
+      ctx.fillRect(item.x + 20, item.y + 18, 5, item.height - 36);
+      setShareImageFont(ctx, item.size, item.weight);
+      ctx.fillStyle = item.color;
+      item.lines.forEach((line, index) => ctx.fillText(line, item.x + 44, item.y + 24 + item.lineHeight * (index + 0.75)));
+      continue;
+    }
+    if (item.type === "code") {
+      fillRoundRect(ctx, item.x, item.y, item.width, item.height, 18, "rgba(226, 231, 225, 0.82)");
+      setShareImageFont(ctx, item.size, item.weight, "\"Cascadia Mono\", Consolas, monospace");
+      ctx.fillStyle = item.color;
+      item.lines.forEach((line, index) => ctx.fillText(line, item.x + 22, item.y + 18 + item.lineHeight * (index + 0.78)));
+      continue;
+    }
+    if (item.type === "list") {
+      setShareImageFont(ctx, item.size, item.weight);
+      ctx.fillStyle = "#876f3c";
+      ctx.fillText(item.marker, item.x, item.y + item.lineHeight * 0.78);
+      ctx.fillStyle = item.color;
+      item.lines.forEach((line, index) => ctx.fillText(line, item.x + item.markerWidth, item.y + item.lineHeight * (index + 0.78)));
+      continue;
+    }
+    setShareImageFont(ctx, item.size, item.weight);
+    ctx.fillStyle = item.color;
+    item.lines.forEach((line, index) => ctx.fillText(line, item.x, item.y + item.lineHeight * (index + 0.78)));
+  }
+}
+
+function canvasToBlob(canvas, type = "image/png") {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Could not render image"));
+    }, type);
+  });
+}
+
+async function renderMessageShareImageBlob(message) {
+  const text = messageShareText(message);
+  if (!text) throw new Error("Message has no image content");
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d");
+  const layout = layoutShareImage(measureCtx, message, text);
+  if (layout.height > 30000) throw new Error("Reply is too long for one image");
+  const canvas = document.createElement("canvas");
+  canvas.width = layout.width;
+  canvas.height = layout.height;
+  const ctx = canvas.getContext("2d");
+  drawShareImage(ctx, layout);
+  return canvasToBlob(canvas, "image/png");
+}
+
+async function copyImageBlobToClipboard(blob) {
+  if (!navigator.clipboard?.write || !window.ClipboardItem || !window.isSecureContext) return false;
+  await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+  showPushToast("\u56fe\u7247\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f", "success");
+  return true;
+}
+
+function openImageBlobPreview(blob) {
+  const url = URL.createObjectURL(blob);
+  const opened = window.open(url, "_blank", "noopener");
+  window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+  if (!opened) throw new Error("Could not open image preview");
+  showPushToast("\u5df2\u751f\u6210\u56fe\u7247\u9884\u89c8", "success");
+}
+
+async function shareMessageImage(messageId) {
+  const message = currentMessageById(messageId);
+  if (!message) throw new Error("Message not found");
+  const blob = await renderMessageShareImageBlob(message);
+  const title = messageShareTitle(message);
+  if (typeof File !== "undefined" && navigator.share && navigator.canShare) {
+    const file = new File([blob], `hermes-reply-${Date.now().toString(36)}.png`, { type: "image/png" });
+    if (navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title });
+      return;
+    }
+  }
+  if (await copyImageBlobToClipboard(blob)) return;
+  openImageBlobPreview(blob);
 }
 
 function isDraftThread(thread) {
@@ -3948,6 +4562,20 @@ function ensureDirectoryRootForPath(pathText) {
   if (state.directoryRootPath && pathMatchesDirectoryRoot(active, state.directoryRootPath)) return;
   const project = matchingDirectoryProject(active);
   state.directoryRootPath = project?.root || currentDirectoryTarget()?.root || active;
+}
+
+function directoryRootForPath(pathText, fallbackPath = "") {
+  const active = String(pathText || "").trim();
+  if (!active) return fallbackPath || "";
+  const project = matchingDirectoryProject(active);
+  if (project?.root) return project.root;
+  const workspace = currentWorkspace();
+  if (workspace?.defaultWorkspace && pathMatchesDirectoryRoot(active, workspace.defaultWorkspace)) {
+    return workspace.defaultWorkspace;
+  }
+  const target = currentDirectoryTarget();
+  if (target?.root && pathMatchesDirectoryRoot(active, target.root)) return target.root;
+  return fallbackPath || active;
 }
 
 function isDirectoryAtRouteRoot(pathText = directoryActivePath()) {
@@ -4471,7 +5099,7 @@ function renderDirectoryEntries() {
     const meta = directoryEntryMeta(entry);
     const main = entry.type === "directory"
       ? `<button class="directory-entry-main" type="button" data-open-directory-path="${escapeHtml(entry.path || "")}">`
-      : `<a class="directory-entry-main" href="${escapeHtml(directoryEntryHref(entry))}" target="_blank" rel="noopener">`;
+      : `<a class="directory-entry-main" href="${escapeHtml(directoryEntryHref(entry))}" target="_self" rel="noopener">`;
     const close = entry.type === "directory" ? "</button>" : "</a>";
     return `<article class="directory-entry ${escapeHtml(kind)}">
       ${main}
@@ -4741,8 +5369,71 @@ async function updateSharedDirectoryAccess(button) {
 function wireDirectorySwipe(root) {
   const shell = root.querySelector(".directory-shell");
   if (!shell) return;
-  if (root.dataset.directorySwipeBound) return;
-  root.dataset.directorySwipeBound = "1";
+  if (shell.dataset.directorySwipeBound) return;
+  shell.dataset.directorySwipeBound = "1";
+  const interactiveSelector = ".directory-entry-menu-wrap, .directory-commandbar, input, select, textarea, [contenteditable='true']";
+  const clearSwipe = () => {
+    state.directorySwipe = null;
+  };
+  const canSwipeDirectoryUp = () => (
+    isMobileLayout()
+    && state.viewMode === "projects"
+    && !state.directoryLoading
+    && Boolean(directoryActivePath())
+  );
+  shell.addEventListener("touchstart", (event) => {
+    if (!canSwipeDirectoryUp() || event.touches.length !== 1 || event.target?.closest?.(interactiveSelector)) {
+      clearSwipe();
+      return;
+    }
+    const point = event.touches[0];
+    state.directorySwipe = {
+      startX: point.clientX,
+      startY: point.clientY,
+      lastX: point.clientX,
+      startedAt: performance.now(),
+      dragging: false,
+      accepted: false,
+      shell,
+    };
+  }, { passive: true });
+  shell.addEventListener("touchmove", (event) => {
+    const swipe = state.directorySwipe;
+    if (!swipe || !canSwipeDirectoryUp() || event.touches.length !== 1) return;
+    const point = event.touches[0];
+    const dx = point.clientX - swipe.startX;
+    const dy = point.clientY - swipe.startY;
+    const horizontal = Math.abs(dx);
+    const vertical = Math.abs(dy);
+    if (dx <= 0 || (!swipe.dragging && (horizontal < 12 || horizontal < vertical * 1.1))) return;
+    swipe.dragging = true;
+    swipe.lastX = point.clientX;
+    const elapsed = Math.max(1, performance.now() - (swipe.startedAt || performance.now()));
+    const velocity = dx / elapsed;
+    swipe.accepted = dx > 58 || velocity > 0.55;
+    const visualOffset = Math.min(64, Math.max(0, dx) * 0.42);
+    shell.classList.add("directory-dragging");
+    shell.style.transform = visualOffset ? `translate3d(${visualOffset}px, 0, 0)` : "";
+    shell.style.opacity = "";
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+  }, { passive: false });
+  shell.addEventListener("touchend", () => {
+    const swipe = state.directorySwipe;
+    clearSwipe();
+    if (!swipe?.dragging) return;
+    if (swipe.accepted) {
+      navigateDirectoryUp({ exitShell: swipe.shell, animateEntry: true }).catch(showError);
+    } else {
+      settleDirectorySwipeShell(swipe.shell, false);
+    }
+  }, { passive: true });
+  shell.addEventListener("touchcancel", () => {
+    const swipe = state.directorySwipe;
+    clearSwipe();
+    if (swipe?.dragging) settleDirectorySwipeShell(swipe.shell, false);
+  }, { passive: true });
 }
 
 function wireDirectoryView(root) {
@@ -5581,7 +6272,11 @@ function mergeCurrentThread(incomingThread) {
 }
 
 async function loadSingleWindow(options = {}) {
-  const groupChat = options.groupChat ?? state.groupChatOpen;
+  const groupChat = options.groupChat ?? (
+    state.viewMode === "single"
+    && state.singleWindowMode === "chat"
+    && state.groupChatOpen
+  );
   const result = await api("/api/single-window", {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, groupChat }),
@@ -6327,8 +7022,11 @@ function renderCurrentThread(options = {}) {
   wireQuoteButtons(conversation);
   wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
+  wireMessageReplyActionButtons(conversation);
+  wireUsagePanels(conversation);
   wireChatSearchControls(conversation);
   ensureVerticalScrollAffordance(conversation);
+  scheduleMessageScrollButtonVisibility(conversation);
   if (state.chatSearchScrollPending) {
     state.chatSearchScrollPending = false;
     requestAnimationFrame(() => scrollToCurrentChatSearchMatch(conversation));
@@ -6395,8 +7093,11 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   wireQuoteButtons(conversation);
   wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
+  wireMessageReplyActionButtons(conversation);
+  wireUsagePanels(conversation);
   updateNavigationControls();
   ensureVerticalScrollAffordance(conversation);
+  scheduleMessageScrollButtonVisibility(conversation);
 
   if (selected && consumeTaskRouteScrollTarget(selected)) {
     return;
@@ -6781,7 +7482,6 @@ function renderMessage(message) {
     <div class="message-head">
       <div class="message-head-main-wrap">
         <span class="message-head-main">${escapeHtml(roleLabel)}${escapeHtml(kindLabel)}${escapeHtml(status)}</span>
-        ${renderMessageScrollButton(message, "end")}
       </div>
       <div class="message-head-actions">
         ${renderMessageQuoteAction(message)}
@@ -7491,7 +8191,7 @@ async function openDirectoryProjectRoute(projectId, subprojectId = "", pathText 
   const targetPath = requestedPath && (!directoryRoot || pathMatchesDirectoryRoot(requestedPath, directoryRoot))
     ? requestedPath
     : (directoryTarget?.root || directoryRoot);
-  resetDirectoryPath(targetPath, { rootPath: returnRoute ? targetPath : (directoryRoot || targetPath) });
+  resetDirectoryPath(targetPath, { rootPath: directoryRootForPath(targetPath, directoryRoot || targetPath) });
   if (!returnRoute) {
     state.currentThread = null;
     state.currentThreadId = "";
@@ -7524,7 +8224,7 @@ async function openDirectoryPathInManager(pathText, label = "") {
   state.viewMode = "projects";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   syncDirectoryRouteFromPath(targetPath);
-  resetDirectoryPath(targetPath, { rootPath: returnRoute ? targetPath : (matchingDirectoryProject(targetPath)?.root || targetPath) });
+  resetDirectoryPath(targetPath, { rootPath: directoryRootForPath(targetPath, targetPath) });
   if (!returnRoute) {
     state.currentThread = null;
     state.currentThreadId = "";
@@ -7607,16 +8307,18 @@ function renderUsage(usage) {
   const apiCallCount = explicitApiCallCount !== null
     ? explicitApiCallCount
     : (apiCallRows.length ? apiCallRows.length : null);
+  const apiCost = normalizeUsageCost(usage);
   const rows = [
-    ["Uncached input", normalized.uncachedInput],
-    ["Cached input", normalized.cachedInput],
+    normalized.uncachedInput !== null ? ["Uncached input", normalized.uncachedInput] : null,
+    ["Cached input", normalized.cachedInput !== null ? normalized.cachedInput : "Not reported"],
     ["Input total", normalized.input],
     ["Output", normalized.output],
     ["Reasoning output", normalized.reasoningOutput],
-    ["API calls", apiCallCount],
+    ["API calls", apiCallCount !== null ? apiCallCount : "Not reported"],
+    apiCost !== null ? ["API cost", apiCost] : null,
     ["Total", normalized.total],
-  ].filter(([, value]) => value !== null && value !== undefined);
-  const detailRows = rows.map(([label, value]) => `<div class="usage-row"><span>${escapeHtml(label)}</span><strong>${formatTokenCount(value)}</strong></div>`).join("");
+  ].filter((row) => row && row[1] !== null && row[1] !== undefined);
+  const detailRows = rows.map(([label, value]) => `<div class="usage-row"><span>${escapeHtml(label)}</span><strong>${formatUsageValue(value)}</strong></div>`).join("");
   const apiDetails = apiCallRows.length ? `<div class="usage-api-calls">
     <div class="usage-api-title">API calls</div>
     ${apiCallRows.map((call, index) => `<div class="usage-api-row">
@@ -7629,7 +8331,7 @@ function renderUsage(usage) {
       </div>
     </div>`).join("")}
   </div>` : "";
-  return `<details class="usage"><summary>Usage: ${formatTokenCount(total)} tokens</summary><div class="usage-details">${detailRows}${apiDetails}</div></details>`;
+  return `<details class="usage" title="Usage: ${formatTokenCount(total)} tokens"><summary aria-label="Usage: ${formatTokenCount(total)} tokens">Usage</summary><div class="usage-details">${detailRows}${apiDetails}</div></details>`;
 }
 
 function numericUsageValue(...values) {
@@ -7665,7 +8367,9 @@ function normalizeUsage(usage = {}) {
   const cachedRemainder = total !== null
     ? Math.max(0, total - (input || 0) - (output || 0) - (reasoningOutput || 0) - cacheWriteInput)
     : 0;
-  const shouldInferCachedInput = explicitCachedInput === null || (explicitCachedInput === 0 && cachedRemainder > 0);
+  const shouldInferCachedInput = explicitCachedInput === null
+    ? cachedRemainder > 0
+    : (explicitCachedInput === 0 && cachedRemainder > 0);
   const inferredCachedInput = shouldInferCachedInput ? cachedRemainder : 0;
   const cachedInput = shouldInferCachedInput ? inferredCachedInput : explicitCachedInput;
   const explicitUncached = numericUsageValue(
@@ -7677,10 +8381,10 @@ function normalizeUsage(usage = {}) {
   const inputIncludesCached = !shouldInferCachedInput && explicitCachedInput !== null && input !== null && input >= cachedInput;
   const uncachedInput = explicitUncached !== null
     ? explicitUncached
-    : (input !== null ? Math.max(0, inputIncludesCached ? input - cachedInput : input) : null);
+    : (cachedInput !== null && input !== null ? Math.max(0, inputIncludesCached ? input - cachedInput : input) : null);
   const inputTotal = explicitUncached !== null
     ? explicitUncached + cachedInput
-    : (inputIncludesCached ? input : ((input || 0) + cachedInput));
+    : (inputIncludesCached ? input : ((input || 0) + (cachedInput || 0)));
   return {
     input: inputTotal,
     output,
@@ -7720,9 +8424,35 @@ function normalizeUsageApiCalls(usage = {}) {
     });
 }
 
+function normalizeUsageCost(usage = {}) {
+  const status = String(usage.cost_status || usage.billing_status || "").trim().toLowerCase();
+  const mode = String(usage.billing_mode || "").trim().toLowerCase();
+  const actual = numericCostValue(usage.actual_cost_usd, usage.api_cost_usd, usage.cost_usd);
+  const estimated = numericCostValue(usage.estimated_cost_usd, usage.estimated_api_cost_usd);
+  const cost = actual !== null ? actual : estimated;
+  if (status === "included" || mode === "subscription_included") return "Included";
+  if (cost === null) return null;
+  if (cost === 0) return "$0.00";
+  return `$${cost.toFixed(cost < 0.01 ? 6 : 4)}`;
+}
+
+function numericCostValue(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
 function formatTokenCount(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number.toLocaleString() : "0";
+}
+
+function formatUsageValue(value) {
+  if (typeof value === "string") return escapeHtml(value);
+  return formatTokenCount(value);
 }
 
 function scheduleRenderCurrentThread() {
@@ -7789,6 +8519,75 @@ function upsertMessage(message) {
   scheduleRenderCurrentThread();
 }
 
+function currentThreadHasPendingMessages(thread = state.currentThread) {
+  return Boolean(
+    thread
+    && (
+      activeThreadRunIds(thread).length
+      || (thread.messages || []).some((message) => (
+        message?.role === "assistant"
+        && ["queued", "running"].includes(String(message.status || ""))
+      ))
+    )
+  );
+}
+
+function summaryHasActiveRun(summary) {
+  return Boolean(
+    (Array.isArray(summary?.activeRunIds) && summary.activeRunIds.length)
+    || summary?.activeRunId
+    || ["queued", "running"].includes(String(summary?.status || ""))
+  );
+}
+
+function shouldRefreshCurrentThreadForSummary(summary) {
+  if (!summary || !state.currentThread || summary.id !== state.currentThread.id) return false;
+  const summaryUpdated = String(summary.updatedAt || "");
+  const currentUpdated = String(state.currentThread.updatedAt || "");
+  if (summaryUpdated && currentUpdated && summaryUpdated > currentUpdated) return true;
+  return currentThreadHasPendingMessages() && !summaryHasActiveRun(summary);
+}
+
+async function refreshCurrentThreadFromServer(options = {}) {
+  const threadId = state.currentThreadId || state.currentThread?.id || "";
+  if (!threadId || !["single", "tasks"].includes(state.viewMode)) return;
+  if (state.currentThreadRefreshInFlight) {
+    state.currentThreadRefreshPending = true;
+    return;
+  }
+  state.currentThreadRefreshInFlight = true;
+  state.currentThreadRefreshPending = false;
+  const stickToBottom = Object.prototype.hasOwnProperty.call(options, "stickToBottom")
+    ? Boolean(options.stickToBottom)
+    : isNearBottom();
+  try {
+    const result = await api(`/api/threads/${encodeURIComponent(threadId)}`);
+    if ((state.currentThreadId || state.currentThread?.id || "") !== threadId) return;
+    state.currentThread = mergeCurrentThread(result.thread);
+    state.currentThreadId = state.currentThread?.id || threadId;
+    upsertThreadSummary(summarizeThread(state.currentThread));
+    renderCurrentThread({ stickToBottom });
+  } catch (err) {
+    if (options.reportError) showError(err);
+  } finally {
+    state.currentThreadRefreshInFlight = false;
+    if (state.currentThreadRefreshPending) {
+      state.currentThreadRefreshPending = false;
+      requestCurrentThreadRefresh(Object.assign({}, options, { delayMs: 180 }));
+    }
+  }
+}
+
+function requestCurrentThreadRefresh(options = {}) {
+  if (!state.currentThreadId || !["single", "tasks"].includes(state.viewMode)) return;
+  window.clearTimeout(state.currentThreadRefreshTimer);
+  const delayMs = Math.max(0, Number(options.delayMs || 120));
+  state.currentThreadRefreshTimer = window.setTimeout(() => {
+    state.currentThreadRefreshTimer = 0;
+    refreshCurrentThreadFromServer(options).catch(() => {});
+  }, delayMs);
+}
+
 function appendDelta(threadId, messageId, delta, payload = {}) {
   if (!state.currentThread || state.currentThread.id !== threadId) return;
   const message = (state.currentThread.messages || []).find((item) => item.id === messageId);
@@ -7814,17 +8613,24 @@ function applyEvent(payload) {
   if (payload.type === "snapshot") {
     const drafts = state.threads.filter(isDraftThread).filter(threadMatchesSelection);
     const incoming = (payload.threads || state.threads).filter(threadMatchesSelection);
+    const currentSummary = incoming.find((thread) => thread.id === state.currentThreadId);
     state.threads = [
       ...drafts,
       ...incoming.filter((thread) => !drafts.some((draft) => draft.id === thread.id)),
     ];
     renderThreads();
+    if (shouldRefreshCurrentThreadForSummary(currentSummary)) {
+      requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 80 });
+    }
     return;
   }
   if (payload.thread) upsertThreadSummary(payload.thread);
   if (payload.type === "thread.updated" && state.currentThread && payload.thread?.id === state.currentThread.id) {
     state.currentThread = mergeCurrentThread(payload.thread);
     renderCurrentThread({ stickToBottom: false });
+    if (shouldRefreshCurrentThreadForSummary(payload.thread)) {
+      requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 120 });
+    }
     return;
   }
   if (payload.type === "message.delta") {
@@ -8220,7 +9026,7 @@ function wireRightSwipeGuard() {
   if (document.documentElement.dataset.rightSwipeGuardBound) return;
   document.documentElement.dataset.rightSwipeGuardBound = "1";
   let touch = null;
-  const interactiveSelector = ".sidebar, input, select, textarea, [contenteditable='true']";
+  const interactiveSelector = ".sidebar, .directory-shell, input, select, textarea, [contenteditable='true']";
   const clear = () => {
     touch = null;
   };
@@ -8621,6 +9427,7 @@ function wireUi() {
   });
   $("projectsMode").addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    state.directoryReturnRoute = null;
     state.viewMode = "projects";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
@@ -8630,6 +9437,7 @@ function wireUi() {
   });
   $("bottomProjectsMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    state.directoryReturnRoute = null;
     state.viewMode = "projects";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
@@ -8813,29 +9621,31 @@ function wireUi() {
     if ($("composer")?.contains(event.target)) return;
     closeGroupMentionMenu();
   });
-  $("attachFile").addEventListener("pointerdown", (event) => {
-    if (!state.chatSearchOpen) return;
-    event.preventDefault();
-    event.stopPropagation();
-    $("attachFile").dataset.searchCloseHandled = "1";
-    closeChatSearch();
-  });
+  document.addEventListener("pointerup", (event) => {
+    if (event.pointerType === "mouse") return;
+    handleAttachFileActivation(event, { fromHitZone: true });
+  }, { capture: true });
+  document.addEventListener("touchend", (event) => {
+    if (window.PointerEvent) return;
+    handleAttachFileActivation(event, { fromHitZone: true });
+  }, { capture: true, passive: false });
   $("attachFile").addEventListener("click", (event) => {
     if ($("attachFile").dataset.searchCloseHandled === "1") {
       delete $("attachFile").dataset.searchCloseHandled;
       event.preventDefault();
       return;
     }
-    if (state.chatSearchOpen) {
-      event.preventDefault();
-      closeChatSearch();
-      return;
-    }
-    $("fileInput").click();
+    handleAttachFileActivation(event);
   });
   $("chatSearchPrev")?.addEventListener("click", () => moveChatSearch(-1));
   $("chatSearchNext")?.addEventListener("click", () => moveChatSearch(1));
-  $("fileInput").addEventListener("change", (event) => uploadFiles([...event.target.files]).catch(showError));
+  $("fileInput").addEventListener("change", (event) => {
+    const input = event.target;
+    const files = [...input.files];
+    input.value = "";
+    if (!files.length) return;
+    uploadFiles(files).catch(showError);
+  });
 }
 
 async function start() {

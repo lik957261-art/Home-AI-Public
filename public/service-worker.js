@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260507-notification-route";
+const HERMES_SW_VERSION = "20260508-realtime-refresh-usage-dismiss";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -88,8 +88,8 @@ self.addEventListener("push", (event) => {
   notificationData.url = routeUrlForNotificationData(notificationData);
   const options = {
     body: data.body || "",
-    icon: data.icon || "/icons/icon-192.png",
-    badge: data.badge || "/icons/badge-72.png",
+    icon: data.icon || "/icons/hermes-mobile-icon-192-20260508.png",
+    badge: data.badge || "/icons/hermes-mobile-badge-72-20260508.png",
     tag: data.tag || data.data?.taskGroupId || "hermes-task",
     renotify: data.renotify !== false,
     requireInteraction: Boolean(data.requireInteraction || data.data?.requireInteraction || data.data?.messageType === "test"),

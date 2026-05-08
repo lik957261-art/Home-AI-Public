@@ -33,6 +33,9 @@ function testNormalizeWorker() {
     securityLevel: "unspecified",
     allowedWorkspaceIds: [],
     allowMaintenance: false,
+    telemetryProfile: "worker1",
+    telemetryStateDbPath: "",
+    telemetryResponseStoreDbPath: "",
   });
   assert.equal(normalizeSecurityLevel("low-privilege"), "user");
   assert.equal(normalizeSecurityLevel("admin"), "owner-maintenance");

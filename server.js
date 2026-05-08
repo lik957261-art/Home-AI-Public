@@ -12,11 +12,13 @@ const { createAccessPolicyProvider } = require("./adapters/access-policy-provide
 const { createAuthProvider } = require("./adapters/auth-provider");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createBridgeCommandProvider } = require("./adapters/bridge-command-provider");
+const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
 const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
+const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createRunConcurrencyPolicy } = require("./adapters/run-concurrency-policy");
@@ -45,6 +47,16 @@ const HERMES_API_BASE = stripTrailingSlash(
 );
 const HERMES_API_TIMEOUT_MS = Number(process.env.HERMES_WEB_HERMES_API_TIMEOUT_MS || "8000");
 const GATEWAY_POOL_ENABLED = process.env.HERMES_WEB_GATEWAY_POOL_ENABLED || "auto";
+const GATEWAY_USAGE_TELEMETRY_ENABLED = (
+  process.env.HERMES_MOBILE_GATEWAY_USAGE_TELEMETRY_ENABLED
+  || process.env.HERMES_WEB_GATEWAY_USAGE_TELEMETRY_ENABLED
+  || "auto"
+);
+const GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS = normalizeStringList(
+  process.env.HERMES_MOBILE_GATEWAY_TELEMETRY_PROFILES_ROOTS
+  || process.env.HERMES_WEB_GATEWAY_TELEMETRY_PROFILES_ROOTS
+  || "",
+);
 const GATEWAY_POOL_HEALTH_TIMEOUT_MS = Number(process.env.HERMES_WEB_GATEWAY_POOL_HEALTH_TIMEOUT_MS || "5000");
 const RUN_START_TIMEOUT_MS = Number(process.env.HERMES_WEB_RUN_START_TIMEOUT_MS || "90000");
 const RUN_LIVENESS_CHECK_AFTER_MS = Number(process.env.HERMES_WEB_RUN_LIVENESS_CHECK_AFTER_MS || "120000");
@@ -275,6 +287,7 @@ let clients = new Set();
 let activeStreams = new Map();
 let gatewayRunner = null;
 let gatewayPoolProvider = null;
+let gatewayUsageTelemetryProvider = null;
 let lastStateBackupAt = 0;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
@@ -349,6 +362,7 @@ const securityBoundaryProvider = createSecurityBoundaryProvider({
     process.env.HERMES_MOBILE_HERMES_REPO,
     WSL_HERMES_HOME,
     `${WSL_HOME}/.hermes-update-sandboxes`,
+    ...GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS,
     ...normalizeStringList(process.env.HERMES_MOBILE_SECURITY_PROTECTED_ROOTS || process.env.HERMES_WEB_SECURITY_PROTECTED_ROOTS || ""),
   ].filter(Boolean)),
   protectedFiles: () => dedupe([
@@ -532,6 +546,17 @@ function gatewayPool() {
     });
   }
   return gatewayPoolProvider;
+}
+
+function gatewayUsageTelemetry() {
+  if (!gatewayUsageTelemetryProvider) {
+    gatewayUsageTelemetryProvider = createGatewayUsageTelemetryProvider({
+      enabled: () => GATEWAY_USAGE_TELEMETRY_ENABLED,
+      profileRoots: () => GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS,
+      manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS,
+    });
+  }
+  return gatewayUsageTelemetryProvider;
 }
 
 async function chooseGatewayRunTarget(hints = {}) {
@@ -886,6 +911,33 @@ function groupChatArtifactAccessibleToAuth(auth, thread, artifact) {
 function artifactAccessibleToAuth(auth, thread, artifact) {
   if (authCanAccessWorkspace(auth, thread?.workspaceId || "")) return true;
   return groupChatArtifactAccessibleToAuth(auth, thread, artifact);
+}
+
+function findArtifactReference(artifact) {
+  const artifactId = String(artifact?.id || "");
+  if (!artifactId) return null;
+  for (const thread of state.threads || []) {
+    for (const message of thread.messages || []) {
+      if (messageContainsArtifact(message, artifact)) return { thread, message };
+    }
+  }
+  return null;
+}
+
+function resolveArtifactPathFromMessage(artifact, message) {
+  const name = String(artifact?.name || "").trim();
+  const candidates = extractArtifactPaths(message?.content || "")
+    .map((rawPath) => {
+      const localPath = normalizeLocalPath(rawPath);
+      return { rawPath, localPath };
+    })
+    .filter((candidate) => candidate.localPath && fs.existsSync(candidate.localPath));
+  if (!candidates.length) return null;
+  if (name) {
+    const matched = candidates.find((candidate) => path.basename(candidate.localPath) === name || path.basename(candidate.rawPath) === name);
+    if (matched) return matched;
+  }
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function threadAccessibleToAuth(auth, thread) {
@@ -2885,7 +2937,7 @@ function normalizeAutomationDraft(raw, sourceText) {
   const prompt = [
     promptBase,
     "",
-    "交付要求：任务完成时给出面向用户的最终结果；如果生成 PDF、Word 或其他正式交付文件，必须写入该工作区自己的 `交付` 目录或明确传入的交付目录，并在最终回复中包含 `MEDIA:<本地文件绝对路径>`，便于 Hermes Mobile 在自动化列表中预览最后交付文件。不要再为了 Hermes Mobile 预览把文件复制到旧的 `Hermes同步文件夹`。",
+    createAutomationDeliveryRequirement(),
   ].join("\n");
   return {
     name,
@@ -3479,13 +3531,20 @@ function logicalDirectoryDisplayPath(thread, rawPath, fallbackLabel = "") {
   return logicalUserPathFallback(value, fallbackLabel);
 }
 
-function ensureSingleWindowThread(workspaceId) {
-  const workspace = findWorkspace(workspaceId);
-  const project = findProject(workspaceId, SINGLE_WINDOW_PROJECT_ID);
-  if (!workspace || !project) return null;
-  let thread = state.threads.find((item) => item.workspaceId === workspaceId && item.singleWindow);
-  if (thread) return thread;
-  thread = normalizeThread({
+function isGroupChatThread(thread) {
+  return Boolean(normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner").enabled);
+}
+
+function latestMessageTimestamp(messages) {
+  return (messages || []).reduce((latest, message) => {
+    const value = message?.completedAt || message?.failedAt || message?.cancelledAt || message?.updatedAt || message?.createdAt || "";
+    return String(value) > String(latest || "") ? value : latest;
+  }, "");
+}
+
+function createSingleWindowThread(workspaceId, overrides = {}) {
+  const now = nowIso();
+  return normalizeThread(Object.assign({
     id: makeId("thread"),
     title: SINGLE_WINDOW_THREAD_TITLE,
     workspaceId,
@@ -3494,11 +3553,120 @@ function ensureSingleWindowThread(workspaceId) {
     singleWindow: true,
     hermesSessionId: `web_single_${makeId("session")}`,
     status: "idle",
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
+    createdAt: now,
+    updatedAt: now,
     messages: [],
     events: [],
-  });
+  }, overrides));
+}
+
+function taskGroupHasActiveRun(group) {
+  return (group?.messages || []).some((message) => (
+    message?.status === "queued"
+    || message?.status === "running"
+  ));
+}
+
+function migratePrivateSingleWindowGroups(workspaceId) {
+  const id = String(workspaceId || "").trim();
+  if (!id) return null;
+  let privateThread = (state.threads || []).find((thread) => (
+    thread.workspaceId === id
+    && thread.singleWindow
+    && !isGroupChatThread(thread)
+  )) || null;
+  const groupThreads = (state.threads || []).filter((thread) => (
+    thread?.singleWindow
+    && isGroupChatThread(thread)
+    && (thread.workspaceId === id || chatGroupMemberWorkspaceIds(thread).includes(id))
+  ));
+  let changed = false;
+  for (const groupThread of groupThreads) {
+    const moveMessageIds = new Set();
+    const moveArtifactIds = new Set();
+    const moveTaskGroupMeta = {};
+    for (const group of taskGroupsForThread(groupThread)) {
+      if (group.id === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) continue;
+      if (taskGroupOwnerWorkspaceId(group, groupThread.workspaceId) !== id) continue;
+      if (taskGroupHasActiveRun(group)) continue;
+      const meta = normalizeTaskGroupMeta(groupThread.taskGroupMeta)[group.id];
+      if (meta) moveTaskGroupMeta[group.id] = meta;
+      for (const message of group.messages || []) {
+        moveMessageIds.add(String(message.id || ""));
+        for (const artifact of Array.isArray(message.artifacts) ? message.artifacts : []) {
+          if (artifact?.id) moveArtifactIds.add(String(artifact.id));
+        }
+      }
+    }
+    if (!moveMessageIds.size) continue;
+    if (!privateThread) {
+      privateThread = createSingleWindowThread(id);
+      state.threads.unshift(privateThread);
+    }
+    const existingMessageIds = new Set((privateThread.messages || []).map((message) => String(message.id || "")));
+    const movedMessages = [];
+    const keptMessages = [];
+    for (const message of groupThread.messages || []) {
+      const messageId = String(message.id || "");
+      if (moveMessageIds.has(messageId)) {
+        if (!existingMessageIds.has(messageId)) {
+          movedMessages.push(message);
+          existingMessageIds.add(messageId);
+        }
+      } else {
+        keptMessages.push(message);
+      }
+    }
+    privateThread.messages = [...(privateThread.messages || []), ...movedMessages]
+      .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+    privateThread.taskGroupMeta = Object.assign(
+      {},
+      normalizeTaskGroupMeta(privateThread.taskGroupMeta),
+      moveTaskGroupMeta,
+    );
+    const privateLatest = latestMessageTimestamp(privateThread.messages);
+    if (privateLatest) privateThread.updatedAt = privateLatest;
+    const privateEarliest = (privateThread.messages || [])
+      .map((message) => message.createdAt || "")
+      .filter(Boolean)
+      .sort()[0];
+    if (privateEarliest && String(privateEarliest) < String(privateThread.createdAt || "")) {
+      privateThread.createdAt = privateEarliest;
+    }
+    groupThread.messages = keptMessages;
+    const groupMeta = normalizeTaskGroupMeta(groupThread.taskGroupMeta);
+    for (const key of Object.keys(moveTaskGroupMeta)) delete groupMeta[key];
+    groupThread.taskGroupMeta = groupMeta;
+    groupThread.updatedAt = latestMessageTimestamp(groupThread.messages) || nowIso();
+    for (const artifact of state.artifacts || []) {
+      if (moveMessageIds.has(String(artifact.messageId || "")) || moveArtifactIds.has(String(artifact.id || ""))) {
+        artifact.threadId = privateThread.id;
+      }
+    }
+    changed = true;
+  }
+  if (changed) {
+    saveState(state, { reason: "single-window-private-split", forceBackup: true });
+  }
+  return privateThread;
+}
+
+function ensureSingleWindowThread(workspaceId, options = {}) {
+  const workspace = findWorkspace(workspaceId);
+  const project = findProject(workspaceId, SINGLE_WINDOW_PROJECT_ID);
+  if (!workspace || !project) return null;
+  const allowGroupThread = Boolean(options.allowGroupThread);
+  if (!allowGroupThread) {
+    const migrated = migratePrivateSingleWindowGroups(workspaceId);
+    if (migrated) return migrated;
+  }
+  let thread = state.threads.find((item) => (
+    item.workspaceId === workspaceId
+    && item.singleWindow
+    && (allowGroupThread || !isGroupChatThread(item))
+  ));
+  if (thread) return thread;
+  thread = createSingleWindowThread(workspaceId);
   state.threads.unshift(thread);
   saveState();
   return thread;
@@ -3855,25 +4023,30 @@ function projectForTaskDirectoryAttachment(thread, attachment) {
 
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
   const singleWindowMode = normalizeSingleWindowMode(options.singleWindowMode || options.single_window_mode || "");
+  const groupChatDeliveryRoot = String(options.groupChatDeliveryRoot || options.group_chat_delivery_root || "").trim();
+  const deliveryBoundaryOptions = groupChatDeliveryRoot
+    ? { deliveryTarget: `the group delivery directory: ${groupChatDeliveryRoot}` }
+    : {};
   const lines = [
     "You are serving a Hermes Mobile app request.",
     "Use the selected account/workspace/project as the operational boundary.",
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
     "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
     "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
+    createDeliveryBoundaryInstructions(deliveryBoundaryOptions),
   ];
   if (taskDirectory?.path) {
     lines.push(`Attached task directory: ${taskDirectory.label || "Directory"} => ${taskDirectory.path}.`);
     lines.push("Base this task on the cleaned/normalized data in the attached directory first; use broader allowed roots only when the user request clearly requires it.");
     lines.push("Use Skill: productivity/directory-context-cleaning before analysis: clean new or changed files in the attached directory, update `.hermes-cleaned/summary.md` / indexes, then answer from summary-first cleaned context and open detailed cleaned Markdown only when needed.");
-    lines.push("Keep the attached data directory separate from delivery folders. Do not write final PDF/Word deliverables into the attached data directory unless the user explicitly asks for that; use the selected workspace's own `交付` directory or the explicitly supplied delivery directory for MEDIA files. Do not use the legacy Hermes sync folder for Hermes Mobile preview delivery.");
+    lines.push("Keep the attached data directory separate from delivery folders. Do not write final PDF/Word deliverables into the attached data directory unless the user explicitly asks for that archival copy; use the selected workspace's own `交付` directory or the explicitly supplied delivery directory for MEDIA files. Do not use the legacy Hermes sync folder for Hermes Mobile preview delivery.");
   }
   if (thread.singleWindow || project?.singleWindow) {
     if (singleWindowMode === "chat") {
       lines.push("This request comes from the Hermes Mobile single-window chat mode. Treat the latest user message as part of one continuous chat task.");
       lines.push("Use the supplied same-task conversation_history as normal chat context, while still respecting the selected workspace and access policy.");
-      if (options.groupChatDeliveryRoot) {
-        lines.push(`This is a group-chat AI request. Final user-facing deliverables for this group turn must be written under the group delivery directory: ${options.groupChatDeliveryRoot}.`);
+      if (groupChatDeliveryRoot) {
+        lines.push(`This is a group-chat AI request. Final user-facing deliverables for this group turn must be written under the group delivery directory: ${groupChatDeliveryRoot}.`);
         lines.push("Do not place group-chat PDF/Word/media deliverables only in the sender's private delivery directory. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
       }
       lines.push("Do not inherit, emit, or display prior directory bindings or `目录别名：当前绑定目录=...` from older chat turns. Only an explicit directory attachment on the latest message is a current directory binding.");
@@ -4385,6 +4558,22 @@ function taskGroupsForThread(thread) {
   return [...groups.values()].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 
+function messageOwnerWorkspaceId(message, fallback = "") {
+  return String(
+    message?.actorWorkspaceId
+    || message?.senderWorkspaceId
+    || message?.workspaceId
+    || fallback
+    || "",
+  ).trim();
+}
+
+function taskGroupOwnerWorkspaceId(group, fallback = "") {
+  const messages = group?.messages || [];
+  const user = messages.find((message) => message.role === "user");
+  return messageOwnerWorkspaceId(user || messages[0], fallback);
+}
+
 function taskGroupTaskId(group) {
   const assistant = [...(group?.messages || [])].reverse().find((message) => message.role === "assistant");
   return assistant?.taskId || assistant?.runId || group?.id || "task";
@@ -4459,6 +4648,7 @@ function singleWindowProjectTaskSummaries(workspaceId, project, subproject, sear
   for (const thread of state.threads) {
     if (!thread.singleWindow || thread.workspaceId !== workspaceId) continue;
     for (const group of taskGroupsForThread(thread)) {
+      if (taskGroupOwnerWorkspaceId(group, thread.workspaceId) !== workspaceId) continue;
       if (!taskGroupMatchesProject(group, project, subproject)) continue;
       const haystack = `${taskGroupTaskId(group)}\n${taskGroupPrompt(group)}\n${taskGroupPreview(group)}\n${taskGroupHaystack(group)}`.toLowerCase();
       if (lowerSearch && !haystack.includes(lowerSearch)) continue;
@@ -5831,6 +6021,17 @@ function findRunTarget(runId) {
   return null;
 }
 
+function supplementGatewayUsage(usage, runId, message = {}) {
+  const target = gatewayTargetForRun(runId);
+  return gatewayUsageTelemetry().supplementUsage(usage, Object.assign({}, target, {
+    responseId: message.runId || runId,
+    runId,
+    gatewayProfile: message.gatewayProfile || target.profile || "",
+    gatewayName: message.gatewayName || target.name || "",
+    gatewayUrl: message.gatewayUrl || target.apiBase || "",
+  }));
+}
+
 function applyHermesRunEvent(event) {
   const eventName = String(event.event || event.type || "");
   const originalRunId = event.run_id || event.runId || "";
@@ -5903,7 +6104,7 @@ function applyHermesRunEvent(event) {
     const completedAt = nowIso();
     message.content = compactFullContent(output);
     message.status = "done";
-    message.usage = event.usage || event.response?.usage || null;
+    message.usage = supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message);
     if (!message.firstFeedbackAt && output) message.firstFeedbackAt = completedAt;
     message.completedAt = completedAt;
     message.updatedAt = completedAt;
@@ -6439,28 +6640,48 @@ function resolveFileForBrowserRequest(query, auth = null) {
 }
 
 function resolveArtifactForRequest(artifactId, auth = null) {
-  const artifact = state.artifacts.find((item) => String(item.id || "") === String(artifactId || ""));
-  if (!artifact || !artifact.path || !fs.existsSync(artifact.path)) {
+  let artifact = state.artifacts.find((item) => String(item.id || "") === String(artifactId || ""));
+  if (!artifact) {
     return { status: 404, error: "Artifact not found" };
   }
+  let thread = null;
+  let localPath = artifact.path ? normalizeLocalPath(artifact.path) : "";
+  if (!localPath || !fs.existsSync(localPath)) {
+    const reference = findArtifactReference(artifact);
+    const recoveredPath = reference ? resolveArtifactPathFromMessage(artifact, reference.message) : null;
+    if (!reference || !recoveredPath) {
+      return { status: 404, error: "Artifact not found" };
+    }
+    thread = reference.thread;
+    localPath = recoveredPath.localPath;
+    artifact = {
+      ...artifact,
+      path: artifact.path || recoveredPath.rawPath,
+      displayPath: artifact.displayPath || recoveredPath.rawPath,
+      threadId: artifact.threadId || reference.thread.id,
+      messageId: artifact.messageId || reference.message.id,
+      workspaceId: artifact.workspaceId || reference.thread.workspaceId,
+      localPath,
+    };
+  }
   if (artifact.threadId) {
-    const thread = state.threads.find((item) => item.id === String(artifact.threadId || ""));
+    thread = thread || state.threads.find((item) => item.id === String(artifact.threadId || ""));
     if (!thread) return { status: 404, error: "Artifact not found" };
     if (auth && !artifactAccessibleToAuth(auth, thread, artifact)) {
       return { status: 404, error: "Artifact not found" };
     }
-    if (!isPathAllowedForThread(thread, artifact.path, artifact.displayPath || artifact.path)) {
+    if (!isPathAllowedForThread(thread, localPath, artifact.displayPath || artifact.path)) {
       return { status: 404, error: "Artifact not found" };
     }
-    return { artifact, thread };
+    return { artifact: { ...artifact, localPath }, thread };
   }
   if (auth && !isOwnerAuth(auth)) {
     return { status: 404, error: "Artifact not found" };
   }
-  if (!isPathAllowed(artifact.path)) {
+  if (!isPathAllowed(localPath)) {
     return { status: 404, error: "Artifact not found" };
   }
-  return { artifact, thread: null };
+  return { artifact: { ...artifact, localPath }, thread: null };
 }
 
 async function resolveAuthorizedCronOutputFile(query, auth = null) {
@@ -6902,7 +7123,8 @@ async function handleApi(req, res) {
   }
 
   if (url.pathname === "/api/access-keys" && req.method === "GET") {
-    const accessAuth = authenticateRequest(req);
+    const accessAuth = requireOwner(req, res);
+    if (!accessAuth) return;
     sendJson(res, 200, {
       ok: true,
       auth: {
@@ -6917,26 +7139,25 @@ async function handleApi(req, res) {
   }
 
   if (url.pathname === "/api/access-keys/workspace" && req.method === "POST") {
-    const accessAuth = authenticateRequest(req);
+    const accessAuth = requireOwner(req, res);
+    if (!accessAuth) return;
     const body = await readBody(req).catch(() => ({}));
     const requestedWorkspaceId = String(body.workspaceId || body.workspace_id || "").trim();
-    const workspaceId = isOwnerAuth(accessAuth) ? requestedWorkspaceId : String(accessAuth.workspaceId || "").trim();
-    if (!isOwnerAuth(accessAuth) && requestedWorkspaceId && requestedWorkspaceId !== workspaceId) {
-      sendJson(res, 403, { error: "Workspace access is not allowed" });
+    if (!requestedWorkspaceId) {
+      sendJson(res, 400, { error: "workspaceId is required" });
       return;
     }
     try {
-      const result = rotateWorkspaceAccessKey(workspaceId, {
+      const result = rotateWorkspaceAccessKey(requestedWorkspaceId, {
         dryRun: boolParam(body.dryRun || body.dry_run),
         actor: accessAuth.principalId || accessAuth.workspaceId || "owner",
       });
-      const requiresReLogin = !result.dryRun && !isOwnerAuth(accessAuth) && workspaceId === accessAuth.workspaceId;
       sendJson(res, result.dryRun ? 200 : 201, {
         ok: true,
         key: result.key,
         workspace: result.record,
         dryRun: result.dryRun,
-        requiresReLogin,
+        requiresReLogin: false,
       });
     } catch (err) {
       sendJson(res, err.status || 500, { error: err.message || String(err) });
@@ -6946,20 +7167,19 @@ async function handleApi(req, res) {
 
   const workspaceKeyAdmin = url.pathname.match(/^\/api\/access-keys\/workspace\/([^/]+)$/);
   if (workspaceKeyAdmin && req.method === "DELETE") {
-    const accessAuth = authenticateRequest(req);
+    const accessAuth = requireOwner(req, res);
+    if (!accessAuth) return;
     const requestedWorkspaceId = decodeURIComponent(workspaceKeyAdmin[1] || "").trim();
-    const workspaceId = isOwnerAuth(accessAuth) ? requestedWorkspaceId : String(accessAuth.workspaceId || "").trim();
-    if (!isOwnerAuth(accessAuth) && requestedWorkspaceId && requestedWorkspaceId !== workspaceId) {
-      sendJson(res, 403, { error: "Workspace access is not allowed" });
+    if (!requestedWorkspaceId) {
+      sendJson(res, 400, { error: "workspaceId is required" });
       return;
     }
     const body = await readBody(req).catch(() => ({}));
     try {
-      const result = revokeWorkspaceAccessKey(workspaceId, {
+      const result = revokeWorkspaceAccessKey(requestedWorkspaceId, {
         dryRun: boolParam(body.dryRun || body.dry_run),
       });
-      const requiresReLogin = !result.dryRun && !isOwnerAuth(accessAuth) && workspaceId === accessAuth.workspaceId;
-      sendJson(res, 200, { ok: true, result, requiresReLogin });
+      sendJson(res, 200, { ok: true, result, requiresReLogin: false });
     } catch (err) {
       sendJson(res, err.status || 500, { error: err.message || String(err) });
     }
@@ -7327,7 +7547,7 @@ async function handleApi(req, res) {
     const groupThread = groupRequested ? findGroupChatThreadForWorkspace(workspaceId) : null;
     const thread = groupThread && threadAccessibleToAuth(auth, groupThread)
       ? groupThread
-      : ensureSingleWindowThread(workspaceId);
+      : ensureSingleWindowThread(workspaceId, { allowGroupThread: false });
     if (!thread) {
       sendJson(res, 400, { error: "Unknown workspace or single-window project" });
       return;
@@ -8423,16 +8643,17 @@ async function handleApi(req, res) {
       return;
     }
     const artifact = resolvedArtifact.artifact;
+    const artifactPath = artifact.localPath || artifact.path;
     const disposition = /^(1|true|yes|on)$/i.test(String(url.searchParams.get("download") || ""))
       ? "attachment"
       : "inline";
     res.writeHead(200, {
-      "Content-Type": artifact.mime || mimeFor(artifact.path),
-      "Content-Length": fs.statSync(artifact.path).size,
-      "Content-Disposition": contentDisposition(disposition, artifact.name || path.basename(artifact.path)),
+      "Content-Type": artifact.mime || mimeFor(artifactPath),
+      "Content-Length": fs.statSync(artifactPath).size,
+      "Content-Disposition": contentDisposition(disposition, artifact.name || path.basename(artifactPath)),
       "Cache-Control": "private, max-age=60",
     });
-    fs.createReadStream(artifact.path).pipe(res);
+    fs.createReadStream(artifactPath).pipe(res);
     return;
   }
 

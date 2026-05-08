@@ -15,6 +15,16 @@ function parseJsonObject(value) {
   }
 }
 
+function defaultInterfaceForToolset(toolset) {
+  const id = String(toolset || "").trim();
+  const normalized = id.toLowerCase().replace(/[-\s]+/g, "_");
+  if (!id) return null;
+  if (normalized === "qqmail" || normalized.endsWith("_qqmail") || normalized === "qq_mail" || normalized.endsWith("_qq_mail")) {
+    return { label: "QQ 邮箱", category: "邮箱", detail: "已连接" };
+  }
+  return null;
+}
+
 const DEFAULT_INTERFACE_TOOLSETS = {
   web: { label: "Web", category: "接口" },
   vision: { label: "视觉", category: "接口" },
@@ -85,7 +95,7 @@ function createWorkspaceBindingsProvider(options = {}) {
     const interfaces = allowedToolsets
       .filter((toolset) => !commonToolsets.has(String(toolset || "")))
       .map((toolset) => {
-        const info = interfaceMap[toolset];
+        const info = interfaceMap[toolset] || defaultInterfaceForToolset(toolset);
         if (!info) return null;
         return Object.assign({ id: toolset }, info);
       })
@@ -106,4 +116,5 @@ function createWorkspaceBindingsProvider(options = {}) {
 
 module.exports = {
   createWorkspaceBindingsProvider,
+  defaultInterfaceForToolset,
 };

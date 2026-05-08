@@ -116,6 +116,7 @@ Important configuration groups:
 - `HERMES_WEB_HERMES_API_BASE`
 - `HERMES_WEB_HERMES_API_KEY` or `HERMES_WEB_HERMES_API_KEY_PATH`
 - `HERMES_WEB_GATEWAY_POOL_ENABLED`, `HERMES_WEB_GATEWAY_POOL_MANIFEST`
+- `HERMES_MOBILE_GATEWAY_USAGE_TELEMETRY_ENABLED`, `HERMES_MOBILE_GATEWAY_TELEMETRY_PROFILES_ROOTS`
 - `HERMES_WEB_MAX_ACTIVE_RUNS`, `HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE`
 - `HERMES_MOBILE_WEIXIN_INGRESS_KEY` or `HERMES_MOBILE_WEIXIN_INGRESS_KEY_PATH`
 - `HERMES_WEB_WORKSPACE_USERS_PATH`, `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH`
@@ -150,6 +151,7 @@ See [docs/PRODUCTIZATION.md](docs/PRODUCTIZATION.md).
 See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the current private-adapter extraction map.
 See [docs/OFFICIAL_HERMES_COMPATIBILITY.md](docs/OFFICIAL_HERMES_COMPATIBILITY.md) for the compatibility boundary with official Hermes.
 See [docs/GATEWAY_POOL_ARCHITECTURE.md](docs/GATEWAY_POOL_ARCHITECTURE.md) for the product runtime target: Hermes Mobile scheduling one or more official Hermes Gateway profiles while preserving official Hermes Skill, memory, tool, session, and artifact behavior. A single Gateway remains the minimal install and fallback mode.
+See [docs/MULTI_TASK_AND_ACCOUNT_PERMISSIONS.zh-CN.md](docs/MULTI_TASK_AND_ACCOUNT_PERMISSIONS.zh-CN.md) for the Chinese product architecture note on multi-task scheduling, workspace accounts, low-privilege Gateway routing, and permission boundaries.
 See [docs/WEIXIN_INGRESS.md](docs/WEIXIN_INGRESS.md) for the optional Weixin/iLink ingress sidecar boundary. Only one poller may own a Weixin account at a time.
 See [docs/SERVICE_LAYER_SQLITE.md](docs/SERVICE_LAYER_SQLITE.md) for the SQLite service-layer migration plan.
 See [docs/OFFICIAL_HERMES_CLEANUP_PLAN.md](docs/OFFICIAL_HERMES_CLEANUP_PLAN.md) for the path back to clean official Hermes profiles.

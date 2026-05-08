@@ -23,6 +23,18 @@ async function request(baseUrl, route, options = {}) {
   return body;
 }
 
+async function expectHttpStatus(baseUrl, route, options, expectedStatus) {
+  const res = await fetch(`${baseUrl}${route}`, Object.assign({
+    headers: {},
+  }, options || {}));
+  let body = null;
+  try {
+    body = await res.json();
+  } catch (_) {}
+  assert.equal(res.status, expectedStatus, body?.error || `${res.status} ${res.statusText}`);
+  return body;
+}
+
 async function waitForServer(baseUrl) {
   const deadline = Date.now() + 15000;
   let lastError = null;
@@ -190,6 +202,46 @@ async function main() {
       workspaceId: "demo-admin-user",
     }));
     assert.match(generated.key, /^hwk_/);
+
+    const ownerSingleBeforeGroup = await request(baseUrl, "/api/single-window", jsonOptions("POST", ownerKey, {
+      workspaceId: "owner",
+      groupChat: false,
+    }));
+    await request(baseUrl, `/api/threads/${encodeURIComponent(ownerSingleBeforeGroup.thread.id)}/group-chat`, jsonOptions("PATCH", ownerKey, {
+      enabled: true,
+      memberWorkspaceIds: ["owner", "demo-admin-user"],
+    }));
+    const groupSingle = await request(baseUrl, "/api/single-window", jsonOptions("POST", ownerKey, {
+      workspaceId: "demo-admin-user",
+      groupChat: true,
+    }));
+    assert.equal(groupSingle.thread.id, ownerSingleBeforeGroup.thread.id);
+    const ownerPrivateAfterGroup = await request(baseUrl, "/api/single-window", jsonOptions("POST", ownerKey, {
+      workspaceId: "owner",
+      groupChat: false,
+    }));
+    assert.notEqual(ownerPrivateAfterGroup.thread.id, groupSingle.thread.id);
+    assert.equal(ownerPrivateAfterGroup.thread.chatGroup.enabled, false);
+
+    const workspaceWorkspaces = await request(baseUrl, "/api/workspaces", {
+      headers: { "X-Hermes-Web-Key": generated.key },
+    });
+    assert.equal(workspaceWorkspaces.auth.isOwner, false);
+    assert.deepEqual(workspaceWorkspaces.data.map((item) => item.id), ["demo-admin-user"]);
+    await expectHttpStatus(baseUrl, "/api/access-keys", {
+      headers: { "X-Hermes-Web-Key": generated.key },
+    }, 403);
+    await expectHttpStatus(baseUrl, "/api/access-keys/workspace", jsonOptions("POST", generated.key, {
+      workspaceId: "demo-admin-user",
+    }), 403);
+    await expectHttpStatus(baseUrl, "/api/access-keys/workspace/demo-admin-user", jsonOptions("DELETE", generated.key, {}), 403);
+    await expectHttpStatus(baseUrl, "/api/runtime-config", {
+      headers: { "X-Hermes-Web-Key": generated.key },
+    }, 403);
+    await expectHttpStatus(baseUrl, "/api/runtime-config", jsonOptions("PATCH", generated.key, {
+      hermesApiBase: baseUrl,
+    }), 403);
+    await expectHttpStatus(baseUrl, "/api/runtime-config/test", jsonOptions("POST", generated.key, {}), 403);
 
     const keyStatus = await request(baseUrl, "/api/access-keys?workspaceId=demo-admin-user", {
       headers: { "X-Hermes-Web-Key": ownerKey },
