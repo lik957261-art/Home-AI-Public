@@ -52,7 +52,13 @@ def normalize_skill_path(value: Any) -> str:
     return "/".join(parts)
 
 
-def resolve_skill_file(skill_path: str) -> Path | None:
+def relative_skill_path(root: Path, file_path: Path) -> str:
+    root_resolved = root.resolve()
+    skill_dir = file_path.parent.resolve()
+    return skill_dir.relative_to(root_resolved).as_posix()
+
+
+def resolve_skill_file(skill_path: str) -> tuple[Path, str] | None:
     for root in SKILL_ROOTS:
         candidate = (root / skill_path / "SKILL.md").resolve()
         try:
@@ -60,29 +66,57 @@ def resolve_skill_file(skill_path: str) -> Path | None:
         except ValueError:
             continue
         if candidate.is_file():
-            return candidate
+            return candidate, relative_skill_path(root, candidate)
+    if "/" in skill_path:
+        return None
+    matches: list[tuple[str, Path]] = []
+    for root in SKILL_ROOTS:
+        root_resolved = root.resolve()
+        if not root_resolved.is_dir():
+            continue
+        for candidate in root_resolved.glob(f"**/{skill_path}/SKILL.md"):
+            try:
+                resolved_path = relative_skill_path(root_resolved, candidate)
+            except ValueError:
+                continue
+            matches.append((resolved_path, candidate.resolve()))
+    deduped: dict[str, Path] = {}
+    for resolved_path, candidate in sorted(matches, key=lambda item: item[0]):
+        deduped.setdefault(resolved_path, candidate)
+    if len(deduped) == 1:
+        resolved_path, candidate = next(iter(deduped.items()))
+        return candidate, resolved_path
+    if len(deduped) > 1:
+        json_response({
+            "ok": False,
+            "status": 409,
+            "error": "Skill path is ambiguous",
+            "skill": skill_path,
+            "matches": list(deduped.keys())[:20],
+        }, 2)
     return None
 
 
 def main() -> None:
     request = read_request()
     skill_path = normalize_skill_path(request.get("skill") or request.get("path"))
-    file_path = resolve_skill_file(skill_path)
-    if not file_path:
+    resolved = resolve_skill_file(skill_path)
+    if not resolved:
         json_response({"ok": False, "error": "Skill was not found", "skill": skill_path}, 2)
+    file_path, resolved_skill_path = resolved
     text = file_path.read_text(encoding="utf-8", errors="replace")
     total_chars = len(text)
     truncated = total_chars > MAX_SKILL_CHARS
     if truncated:
         text = text[:MAX_SKILL_CHARS].rstrip()
-    parts = skill_path.split("/")
+    parts = resolved_skill_path.split("/")
     json_response({
         "ok": True,
         "skill": {
             "id": parts[-1],
             "label": parts[-1],
             "namespace": "/".join(parts[:-1]),
-            "path": skill_path,
+            "path": resolved_skill_path,
             "content": text,
             "totalChars": total_chars,
             "truncated": truncated,
