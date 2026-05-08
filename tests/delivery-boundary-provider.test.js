@@ -14,6 +14,9 @@ function testDefaultBoundary() {
   assert.match(text, /Markdown files are source artifacts/);
   assert.match(text, /do not write Markdown into any `交付` directory/);
   assert.match(text, /Do not leave generated PDF\/Word delivery copies in project directories/);
+  assert.match(text, /phone-readable portrait PDF/);
+  assert.match(text, /88 mm x 190 mm/);
+  assert.match(text, /Do not create A4\/Letter small-font PDFs/);
   assert.match(text, /chat replies, task replies, group-chat replies, and automation runs/);
 }
 

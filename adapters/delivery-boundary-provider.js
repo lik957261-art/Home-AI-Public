@@ -16,6 +16,7 @@ function createDeliveryBoundaryInstructions(options = {}) {
     `- Final user-facing PDF/Word/Office/media/image deliverables must be written to ${deliveryTarget}; include MEDIA:<absolute_path> for each final file.`,
     `- Markdown files are source artifacts. Keep Markdown in ${sourceTarget}; do not write Markdown into any \`交付\` directory and do not attach Markdown as the user-facing deliverable.`,
     "- Project directories are for Markdown/source/context files. Do not leave generated PDF/Word delivery copies in project directories unless the user explicitly asks for an archival copy there.",
+    "- If a user-facing PDF is generated from Markdown or text for mobile reading, default to a phone-readable portrait PDF: about 88 mm x 190 mm, large CJK-wrapped body text, Microsoft YaHei or another clear CJK font when available, and vertical/key-value rendering for wide tables. Do not create A4/Letter small-font PDFs unless the user explicitly asks for print layout.",
     "- This boundary applies equally to chat replies, task replies, group-chat replies, and automation runs.",
   ].join("\n");
 }
