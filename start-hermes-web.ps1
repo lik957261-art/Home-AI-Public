@@ -19,7 +19,8 @@ $scriptRoot = (Resolve-Path -LiteralPath $scriptRoot).Path
 $repoRoot = $scriptRoot
 $serverPath = Join-Path $scriptRoot "server.js"
 $appPath = Join-Path $scriptRoot "public\app.js"
-$logDir = Join-Path $repoRoot "workspace\hermes-web\logs"
+$dataDir = if ($env:HERMES_WEB_DATA_DIR) { $env:HERMES_WEB_DATA_DIR } else { Join-Path $repoRoot "workspace\hermes-web" }
+$logDir = Join-Path $dataDir "logs"
 
 if (-not (Test-Path -LiteralPath $serverPath)) {
     throw "Hermes Mobile server not found: $serverPath"

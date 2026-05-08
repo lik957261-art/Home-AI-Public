@@ -97,11 +97,13 @@ function createSharedDirectoryProvider(options = {}) {
     : (workspaceId) => String(workspaceId || "owner");
   const loadCatalog = typeof options.loadCatalog === "function" ? options.loadCatalog : () => ({ workspaces: [] });
   const readJsonFirst = typeof options.readJsonFirst === "function" ? options.readJsonFirst : () => ({ data: { users: [] }, path: "" });
+  const isRootAllowed = typeof options.isRootAllowed === "function" ? options.isRootAllowed : () => true;
   const usersPaths = options.usersPaths || [];
 
   function normalizeRecord(item) {
     const root = String(item?.path || item?.root || "").trim();
     if (!root) return null;
+    if (!isRootAllowed(root)) return null;
     const label = String(item?.label || sharedDirectoryLabel(root)).trim() || sharedDirectoryLabel(root);
     const permission = normalizeSharePermission(item?.permission || item?.access);
     const targetWorkspaceIds = normalizeShareTargets(item);

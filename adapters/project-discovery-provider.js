@@ -4,6 +4,15 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
+function trace(label) {
+  const tracePath = process.env.HERMES_MOBILE_BOOT_TRACE_PATH || process.env.HERMES_WEB_BOOT_TRACE_PATH || "";
+  if (!tracePath) return;
+  try {
+    fs.mkdirSync(path.dirname(tracePath), { recursive: true });
+    fs.appendFileSync(tracePath, `${new Date().toISOString()} pid=${process.pid} ${label}\n`, "utf8");
+  } catch (_) {}
+}
+
 function dedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
@@ -145,8 +154,11 @@ function createProjectDiscoveryProvider(options = {}) {
   function workspaceDirectoryChildren(workspaceId, displayRoot, localRoot, policy) {
     let entries = [];
     try {
+      trace(`projectDiscovery.workspaceDirectoryChildren before readdir ${workspaceId}`);
       entries = fs.readdirSync(localRoot, { withFileTypes: true });
+      trace(`projectDiscovery.workspaceDirectoryChildren after readdir ${workspaceId} entries=${entries.length}`);
     } catch (_) {
+      trace(`projectDiscovery.workspaceDirectoryChildren readdir failed ${workspaceId}`);
       return [];
     }
     return entries
@@ -204,8 +216,11 @@ function createProjectDiscoveryProvider(options = {}) {
         if (!localRoot) return null;
         let stat = null;
         try {
+          trace(`projectDiscovery.sharedAllowedRoot before stat ${workspace.id}`);
           stat = fs.statSync(localRoot);
+          trace(`projectDiscovery.sharedAllowedRoot after stat ${workspace.id}`);
         } catch (_) {
+          trace(`projectDiscovery.sharedAllowedRoot stat failed ${workspace.id}`);
           return null;
         }
         if (!stat.isDirectory()) return null;
@@ -225,8 +240,11 @@ function createProjectDiscoveryProvider(options = {}) {
     if (root && localRoot && pathInsideAnyRoot(root, policy.allowed_roots || [root])) {
       let entries = [];
       try {
+        trace(`projectDiscovery.workspaceDirectory before readdir ${workspace.id}`);
         entries = fs.readdirSync(localRoot, { withFileTypes: true });
+        trace(`projectDiscovery.workspaceDirectory after readdir ${workspace.id} entries=${entries.length}`);
       } catch (_) {
+        trace(`projectDiscovery.workspaceDirectory readdir failed ${workspace.id}`);
         entries = [];
       }
       projects.push(...entries
@@ -355,8 +373,11 @@ function createProjectDiscoveryProvider(options = {}) {
     const localRoot = normalizeLocalPath(driveRoot);
     let entries = [];
     try {
+      trace(`projectDiscovery.ownerPhysical before readdir ${workspaceId}`);
       entries = fs.readdirSync(localRoot, { withFileTypes: true });
+      trace(`projectDiscovery.ownerPhysical after readdir ${workspaceId} entries=${entries.length}`);
     } catch (_) {
+      trace(`projectDiscovery.ownerPhysical readdir failed ${workspaceId}`);
       return;
     }
     const displayBase = driveRoot.replace(/[\\/]+$/g, "");
@@ -461,6 +482,7 @@ function createProjectDiscoveryProvider(options = {}) {
   }
 
   function projectsForWorkspace(workspace, projectEntries, workspaces = null) {
+    trace(`projectDiscovery.projectsForWorkspace enter ${workspace.id}`);
     const singleWindowProject = singleWindowProjectForWorkspace(workspace, projectEntries);
     const sharedProjects = sharedProjectsForWorkspace(workspace.id, workspaces);
     if (workspace.id === "owner") {

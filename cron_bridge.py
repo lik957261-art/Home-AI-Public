@@ -9,6 +9,7 @@ import re
 import tempfile
 import sys
 import uuid
+import base64
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,7 @@ DEFAULT_JOBS_PATHS = [
 CRON_OUTPUT_ROOT = Path(os.environ.get("HERMES_WEB_CRON_OUTPUT_ROOT") or (HERMES_HOME / "cron" / "output"))
 DELIVERY_DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".doc"}
 MEDIA_DOCUMENT_EXTENSIONS = DELIVERY_DOCUMENT_EXTENSIONS | {".md"}
+MAX_READ_FILE_BYTES = int(os.environ.get("HERMES_MOBILE_CRON_FILE_MAX_BYTES") or os.environ.get("HERMES_WEB_CRON_FILE_MAX_BYTES") or "26214400")
 MEDIA_LINE_PATTERN = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$")
 MEDIA_PATH_PATTERN = re.compile(
     r"(?i)(\\\\wsl(?:\.localhost|\$)\\[^\r\n]+?\.(?:pdf|docx|doc|md)|"
@@ -262,6 +264,10 @@ def media_paths_from_run(path: Path) -> list[Path]:
     return docs
 
 
+def deliverable_paths_from_run(path: Path) -> list[Path]:
+    return [item for item in media_paths_from_run(path) if item.suffix.lower() in MEDIA_DOCUMENT_EXTENSIONS and item.is_file()]
+
+
 def delivery_document(clean_job_id: str, run_path: Path, index: int, path: Path) -> dict[str, Any] | None:
     if path.suffix.lower() not in MEDIA_DOCUMENT_EXTENSIONS or not path.is_file():
         return None
@@ -291,12 +297,10 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
         if not path.is_file():
             continue
         if path.suffix.lower() == ".md":
-            for index, delivery_path in enumerate(media_paths_from_run(path)):
+            for index, delivery_path in enumerate(deliverable_paths_from_run(path)):
                 doc = delivery_document(clean_job_id, path, index, delivery_path)
                 if doc:
                     docs.append(doc)
-                if len(docs) >= limit:
-                    return docs
             continue
         if path.suffix.lower() not in DELIVERY_DOCUMENT_EXTENSIONS:
             continue
@@ -308,9 +312,105 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
             "updatedAt": datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(),
             "url": f"/api/automations/output?{urlencode({'jobId': clean_job_id, 'file': path.name})}",
         })
-        if len(docs) >= limit:
-            break
-    return docs
+    docs.sort(key=lambda item: (
+        0 if Path(str(item.get("name") or "")).suffix.lower() in DELIVERY_DOCUMENT_EXTENSIONS else 1,
+        -document_timestamp_score(item),
+        str(item.get("name") or ""),
+    ))
+    return docs[:limit]
+
+
+def clean_job_id(value: Any) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]", "", str(value or ""))[:100]
+
+
+def safe_output_path(job_id: str, file_name: str) -> Path | None:
+    clean = clean_job_id(job_id)
+    name = str(file_name or "").strip()
+    if not clean or not name or Path(name).name != name or "/" in name or "\\" in name:
+        return None
+    root = (CRON_OUTPUT_ROOT / clean).resolve()
+    path = (root / name).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
+
+
+def file_payload(path: Path, display_path: str = "") -> dict[str, Any]:
+    if path.suffix.lower() not in MEDIA_DOCUMENT_EXTENSIONS or not path.is_file():
+        raise FileNotFoundError("Automation file not found")
+    stat = path.stat()
+    if stat.st_size > MAX_READ_FILE_BYTES:
+        raise ValueError("Automation file is too large to read through the bridge")
+    data = path.read_bytes()
+    return {
+        "name": path.name,
+        "mime": mime_for_output(path),
+        "size": stat.st_size,
+        "updatedAt": datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(),
+        "displayPath": display_path or str(path),
+        "contentBase64": base64.b64encode(data).decode("ascii"),
+    }
+
+
+def read_output_file_from_request(request: dict[str, Any]) -> dict[str, Any]:
+    job_id = request.get("job_id") or request.get("jobId")
+    owner_principal_id = request.get("owner_principal_id") or request.get("ownerPrincipalId")
+    file_name = str(request.get("file") or "").strip()
+    if not clean_job_id(job_id):
+        return {"ok": False, "status": 400, "error": "job_id is required"}
+    jobs, source, warning = load_jobs_file()
+    _, job = find_owned_job(jobs, clean_job_id(job_id), owner_principal_id)
+    if job is None:
+        return {"ok": False, "status": 404, "error": "Automation output was not found for this workspace"}
+    path = safe_output_path(clean_job_id(job_id), file_name)
+    if path is None or not path.is_file():
+        return {"ok": False, "status": 404, "error": "Automation output not found"}
+    try:
+        payload = {"ok": True, "file": file_payload(path, f"CRON output / {clean_job_id(job_id)} / {path.name}"), "source": source}
+        if warning:
+            payload["warning"] = warning
+        return payload
+    except ValueError as exc:
+        return {"ok": False, "status": 413, "error": compact_text(exc, 200)}
+    except OSError:
+        return {"ok": False, "status": 404, "error": "Automation output not found"}
+
+
+def read_deliverable_file_from_request(request: dict[str, Any]) -> dict[str, Any]:
+    job_id = request.get("job_id") or request.get("jobId")
+    owner_principal_id = request.get("owner_principal_id") or request.get("ownerPrincipalId")
+    run_name = str(request.get("run") or "").strip()
+    try:
+        index = int(request.get("index") or 0)
+    except (TypeError, ValueError):
+        return {"ok": False, "status": 400, "error": "Invalid automation deliverable index"}
+    if not clean_job_id(job_id):
+        return {"ok": False, "status": 400, "error": "job_id is required"}
+    if index < 0 or index > 999:
+        return {"ok": False, "status": 400, "error": "Invalid automation deliverable index"}
+    jobs, source, warning = load_jobs_file()
+    _, job = find_owned_job(jobs, clean_job_id(job_id), owner_principal_id)
+    if job is None:
+        return {"ok": False, "status": 404, "error": "Automation deliverable was not found for this workspace"}
+    run_path = safe_output_path(clean_job_id(job_id), run_name)
+    if run_path is None or run_path.suffix.lower() != ".md" or not run_path.is_file():
+        return {"ok": False, "status": 404, "error": "Automation run output not found"}
+    paths = deliverable_paths_from_run(run_path)
+    if index >= len(paths):
+        return {"ok": False, "status": 404, "error": "Automation deliverable not found"}
+    path = paths[index]
+    try:
+        payload = {"ok": True, "file": file_payload(path, f"CRON delivery / {clean_job_id(job_id)} / {path.name}"), "source": source}
+        if warning:
+            payload["warning"] = warning
+        return payload
+    except ValueError as exc:
+        return {"ok": False, "status": 413, "error": compact_text(exc, 200)}
+    except OSError:
+        return {"ok": False, "status": 404, "error": "Automation deliverable not found"}
 
 
 def status_label(job: dict[str, Any]) -> str:
@@ -372,13 +472,27 @@ def timestamp_score(value: Any) -> float:
         return 0.0
 
 
+def document_timestamp_score(doc: dict[str, Any]) -> float:
+    if not isinstance(doc, dict):
+        return 0.0
+    return max(
+        timestamp_score(doc.get("runOutputUpdatedAt")),
+        timestamp_score(doc.get("updatedAt")),
+    )
+
+
+def latest_delivery_score(job: dict[str, Any]) -> float:
+    scores = [document_timestamp_score(doc) for doc in job.get("outputDocuments") or []]
+    return max(scores, default=0.0)
+
+
 def sort_key(job: dict[str, Any]) -> tuple[int, float, int, float, str]:
-    last_score = timestamp_score(job.get("lastRunAt"))
+    delivery_score = latest_delivery_score(job)
     next_score = timestamp_score(job.get("nextRunAt"))
     next_missing = 0 if next_score else 1
     return (
-        0 if last_score else 1,
-        -last_score,
+        0 if delivery_score else 1,
+        -delivery_score,
         next_missing,
         next_score or float("inf"),
         str(job.get("name") or job.get("id") or ""),
@@ -785,6 +899,12 @@ def main() -> None:
         json_response(create_job_from_request(request))
     if action in {"delete", "pause", "resume", "update"}:
         result = mutate_job_from_request(request)
+        json_response(result, 0 if result.get("ok") else 2)
+    if action == "read_output":
+        result = read_output_file_from_request(request)
+        json_response(result, 0 if result.get("ok") else 2)
+    if action == "read_deliverable":
+        result = read_deliverable_file_from_request(request)
         json_response(result, 0 if result.get("ok") else 2)
     if action != "list":
         json_response({"ok": False, "error": f"Unsupported cron bridge action: {action}"}, 2)

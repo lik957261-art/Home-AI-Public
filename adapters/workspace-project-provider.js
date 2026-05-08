@@ -1,5 +1,17 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
+
+function trace(label) {
+  const tracePath = process.env.HERMES_MOBILE_BOOT_TRACE_PATH || process.env.HERMES_WEB_BOOT_TRACE_PATH || "";
+  if (!tracePath) return;
+  try {
+    fs.mkdirSync(path.dirname(tracePath), { recursive: true });
+    fs.appendFileSync(tracePath, `${new Date().toISOString()} pid=${process.pid} ${label}\n`, "utf8");
+  } catch (_) {}
+}
+
 function defaultStringList(value) {
   const raw = Array.isArray(value)
     ? value
@@ -118,12 +130,20 @@ function createWorkspaceProjectProvider(options = {}) {
   }
 
   function loadCatalog() {
+    trace("workspaceProject.loadCatalog enter");
     const now = Date.now();
-    if (catalogCache.value && now - catalogCache.loadedAt < cacheTtlMs) return catalogCache.value;
+    if (catalogCache.value && now - catalogCache.loadedAt < cacheTtlMs) {
+      trace("workspaceProject.loadCatalog cache hit");
+      return catalogCache.value;
+    }
 
+    trace("workspaceProject.loadCatalog before users");
     const usersRead = readJsonFirst(listFrom(options.usersPaths), { users: [] });
+    trace("workspaceProject.loadCatalog after users");
     const routesRead = readJsonFirst(listFrom(options.routeMapPaths), { routes: [], principal_allowed_targets: {} });
+    trace("workspaceProject.loadCatalog after routes");
     const projectRead = readJsonFirst(listFrom(options.projectMapPaths), { entries: [] });
+    trace("workspaceProject.loadCatalog after project map");
 
     const userByPrincipal = new Map();
     for (const user of Array.isArray(usersRead.data?.users) ? usersRead.data.users : []) {
@@ -151,7 +171,9 @@ function createWorkspaceProjectProvider(options = {}) {
     const projects = [];
     const projectEntries = Array.isArray(projectRead.data?.entries) ? projectRead.data.entries : [];
     for (const workspace of workspaces) {
+      trace(`workspaceProject.loadCatalog before projects ${workspace.id}`);
       projects.push(...projectsForWorkspace(workspace, projectEntries, workspaces));
+      trace(`workspaceProject.loadCatalog after projects ${workspace.id}`);
     }
 
     const catalog = {
@@ -165,6 +187,7 @@ function createWorkspaceProjectProvider(options = {}) {
       routeMap: routesRead.data,
     };
     catalogCache = { loadedAt: now, value: catalog };
+    trace(`workspaceProject.loadCatalog done workspaces=${workspaces.length} projects=${projects.length}`);
     return catalog;
   }
 

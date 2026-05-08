@@ -6486,19 +6486,30 @@ function isDeliveryDirectoryAlias(alias, route = null) {
 }
 
 function isTaskBindingDirectoryItem(item) {
-  return Boolean(item?.route && !isDeliveryDirectoryAlias(item.displayAlias, item.route) && !isGenericDefaultDirectoryAlias(item.displayAlias));
+  return Boolean(
+    item?.route
+    && !isDeliveryDirectoryAlias(item.displayAlias, item.route)
+    && !isGenericDefaultDirectoryAlias(item.displayAlias)
+    && !isOperationalTaskDirectoryAlias(item.displayAlias, item.route)
+  );
 }
 
 function taskPrimaryDirectoryAlias(group) {
   const context = taskDirectoryContext(group);
   const candidates = [
     ...explicitTaskDirectoryAliases(group),
-    ...extractedTaskDirectoryAliases(group).filter((alias) => !alias.referenceKind && !isDeliveryDirectoryAlias(alias)),
+    ...extractedTaskDirectoryAliases(group).filter((alias) =>
+      !alias.referenceKind && !isDeliveryDirectoryAlias(alias) && !isOperationalTaskDirectoryAlias(alias)),
   ];
   const items = directoryAliasItemsForAliases(candidates, context, { includeGenericDefault: false });
   const bindingItems = items.filter(isTaskBindingDirectoryItem);
   const primary = bindingItems.find((item) => isContextAnchorDirectoryRoute(item.route)) || bindingItems[0] || null;
-  return primary ? aliasFromDirectoryItem(primary, { source: "bound" }) : null;
+  if (primary) return aliasFromDirectoryItem(primary, { source: "bound" });
+  const fallback = candidates.find((alias) => {
+    if (!alias || isDeliveryDirectoryAlias(alias) || isGenericDefaultDirectoryAlias(alias) || isOperationalTaskDirectoryAlias(alias)) return false;
+    return Boolean(alias.label || alias.path);
+  });
+  return fallback ? Object.assign({}, fallback, { source: "bound" }) : null;
 }
 
 function taskDirectoryAliases(group) {
@@ -7282,7 +7293,6 @@ function rewriteDirectoryPathsForDisplay(text) {
 
 function isGenericDefaultDirectoryAlias(alias) {
   const label = directoryAliasKey(alias?.label);
-  const path = comparableDirectoryPath(alias?.path || "");
   return [
     "默认目录",
     "默认资料根",
@@ -7290,7 +7300,21 @@ function isGenericDefaultDirectoryAlias(alias) {
     "资料根目录",
     "defaultdirectory",
     "defaultdataroot",
-  ].includes(label) || pathContainsOwnerDriveRoot(path);
+  ].includes(label);
+}
+
+function isOperationalTaskDirectoryAlias(alias, route = null) {
+  const label = directoryAliasKey(alias?.label || "");
+  const pathValue = comparableDirectoryPath(alias?.path || route?.root || "");
+  return Boolean(
+    (label.includes("agent") && (label.includes("workspace") || label.includes("工作区")))
+    || label.includes("hermesweb")
+    || pathValue.includes("/documents/agent")
+    || pathValue.includes("/documents/hermes-web-private")
+    || pathValue.includes("/programdata/hermesmobile/app")
+    || pathValue.includes("/workspace/hermes-web")
+    || pathValue.includes("/tools/cli/hermes-web")
+  );
 }
 
 function isGenericCurrentBoundDirectoryAlias(alias) {

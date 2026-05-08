@@ -20,6 +20,7 @@ const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createRunConcurrencyPolicy } = require("./adapters/run-concurrency-policy");
+const { createSecurityBoundaryProvider } = require("./adapters/security-boundary-provider");
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
@@ -113,6 +114,20 @@ const HERMES_CONFIG_PATHS = [
   path.join(LOCAL_CONFIG_ROOT, "hermes-config.yaml"),
   path.join(LOCAL_CONFIG_ROOT, "config.yaml"),
 ].filter(Boolean);
+const EXPLICIT_HERMES_CONFIG_PATHS = new Set([
+  process.env.HERMES_WEB_HERMES_CONFIG_PATH,
+  process.env.HERMES_CONFIG_PATH,
+].map((item) => String(item || "").trim()).filter(Boolean));
+const ALLOW_WSL_REASONING_CONFIG_LOOKUP = /^(1|true|yes|on)$/i.test(
+  process.env.HERMES_MOBILE_ALLOW_WSL_REASONING_CONFIG_LOOKUP
+  || process.env.HERMES_WEB_ALLOW_WSL_REASONING_CONFIG_LOOKUP
+  || "",
+);
+const STATUS_INCLUDE_CATALOG = /^(1|true|yes|on)$/i.test(
+  process.env.HERMES_MOBILE_STATUS_INCLUDE_CATALOG
+  || process.env.HERMES_WEB_STATUS_INCLUDE_CATALOG
+  || "",
+);
 const GATEWAY_POOL_MANIFEST_PATHS = [
   process.env.HERMES_WEB_GATEWAY_POOL_MANIFEST,
   ...wslUncPathCandidates(WSL_HERMES_HOME, "worker-pool.json"),
@@ -151,18 +166,24 @@ const MAX_UPLOAD_BYTES = Number(process.env.HERMES_WEB_MAX_UPLOAD_BYTES || "1048
 const MAX_FILE_PREVIEW_CHARS = Number(process.env.HERMES_WEB_MAX_FILE_PREVIEW_CHARS || "180000");
 const TODO_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_TODO_BRIDGE_TIMEOUT_MS || "15000");
 const CRON_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_CRON_BRIDGE_TIMEOUT_MS || "15000");
+const CRON_BRIDGE_STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_CRON_BRIDGE_STDOUT_LIMIT_BYTES || process.env.HERMES_WEB_CRON_BRIDGE_STDOUT_LIMIT_BYTES || "50000000");
 const CRON_LIST_CACHE_TTL_MS = Number(process.env.HERMES_WEB_CRON_LIST_CACHE_TTL_MS || "12000");
 const AUTOMATION_CREATE_TIMEOUT_MS = Number(process.env.HERMES_WEB_AUTOMATION_CREATE_TIMEOUT_MS || "60000");
 const AUTOMATION_CREATE_MODEL = process.env.HERMES_WEB_AUTOMATION_CREATE_MODEL || "gpt-5.4-mini";
 const DIRECTORY_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_DIRECTORY_BRIDGE_TIMEOUT_MS || "15000");
 const SKILL_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_SKILL_BRIDGE_TIMEOUT_MS || "12000");
 const CRON_OUTPUT_ROOT = stripTrailingSlash(process.env.HERMES_WEB_CRON_OUTPUT_ROOT || `${WSL_HERMES_HOME}/cron/output`);
+const CRON_RUN_LOG_ROOT = stripTrailingSlash(process.env.HERMES_WEB_RUN_LOG_ROOT || `${WSL_HERMES_HOME}/run-logs`);
 const TODO_BACKEND = String(process.env.HERMES_WEB_TODO_BACKEND || "local").trim().toLowerCase();
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
 const SERVICE_STORE_BACKEND = String(process.env.HERMES_WEB_SERVICE_STORE || "").trim().toLowerCase();
 const MOBILE_SQLITE_DB_PATH = path.resolve(process.env.HERMES_WEB_DB_PATH || path.join(DATA_DIR, "hermes-mobile.sqlite3"));
+const BRIDGE_HOST_URL = stripTrailingSlash(process.env.HERMES_MOBILE_BRIDGE_HOST_URL || process.env.HERMES_WEB_BRIDGE_HOST_URL || "");
+const BRIDGE_HOST_KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
+let bridgeHostKeyCache = { path: "", value: "" };
+const OWNER_MAINTENANCE_RUNS_ENABLED = /^(1|true|yes|on)$/i.test(process.env.HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS || process.env.HERMES_WEB_ALLOW_OWNER_MAINTENANCE_RUNS || "");
 const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH_ENABLED || process.env.WEB_PUSH_ENABLED || "1");
 const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
 const TODO_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_TODO_PUSH_ENABLED || "1");
@@ -238,6 +259,17 @@ const AUTOMATION_PUSH_INITIAL_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMA
 const MAX_STATE_BACKUPS = Number(process.env.HERMES_WEB_MAX_STATE_BACKUPS || "80");
 const STATE_BACKUP_MIN_INTERVAL_MS = Number(process.env.HERMES_WEB_STATE_BACKUP_MIN_INTERVAL_MS || String(10 * 60 * 1000));
 const ENABLE_DIRECT_TODO_CREATE = /^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_DIRECT_TODO_CREATE || "");
+const BOOT_TRACE_PATH = process.env.HERMES_MOBILE_BOOT_TRACE_PATH || process.env.HERMES_WEB_BOOT_TRACE_PATH || "";
+
+function bootTrace(label) {
+  if (!BOOT_TRACE_PATH) return;
+  try {
+    fs.mkdirSync(path.dirname(BOOT_TRACE_PATH), { recursive: true });
+    fs.appendFileSync(BOOT_TRACE_PATH, `${new Date().toISOString()} pid=${process.pid} ${label}\n`, "utf8");
+  } catch (_) {}
+}
+
+bootTrace("constants ready");
 
 let clients = new Set();
 let activeStreams = new Map();
@@ -252,6 +284,7 @@ const runConcurrencyPolicy = createRunConcurrencyPolicy({
   maxGlobal: () => RUN_CONCURRENCY_MAX_GLOBAL,
   maxPerWorkspace: () => RUN_CONCURRENCY_MAX_PER_WORKSPACE,
 });
+bootTrace("concurrency ready");
 const authProvider = createAuthProvider({
   disableAuth: () => DISABLE_AUTH,
   envKey: () => process.env.HERMES_WEB_KEY || "",
@@ -264,11 +297,13 @@ const authProvider = createAuthProvider({
   workspacePrincipal,
   listWorkspaces: () => loadCatalog().workspaces,
 });
+bootTrace("auth ready");
 const weixinIngressProvider = createWeixinIngressProvider({
   listWorkspaces: () => loadCatalog().workspaces,
   workspaceIdForPrincipal,
   defaultWorkspaceId: () => WEIXIN_INGRESS_DEFAULT_WORKSPACE,
 });
+bootTrace("ingress ready");
 const runtimeConfigProvider = createRuntimeConfigProvider({
   storagePath: () => RUNTIME_CONFIG_PATH,
   ensureDataDir,
@@ -279,9 +314,11 @@ const runtimeConfigProvider = createRuntimeConfigProvider({
   defaultWebPushSubject: () => WEB_PUSH_SUBJECT,
   defaultWebPushVapidPath: () => WEB_PUSH_VAPID_PATH,
 });
+bootTrace("runtime config ready");
 let clientVersionCache = { mtimeMs: 0, version: "" };
 let defaultReasoningCache = { cacheKey: "", value: null };
 let webPushConfig = initializeWebPush();
+bootTrace("web push ready");
 let todoWebPushRunning = false;
 let automationWebPushRunning = false;
 
@@ -294,6 +331,62 @@ const filesystemMountProvider = createFilesystemMountProvider({
   disabledVolume1Shares: () => normalizeStringList(process.env.HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES || ""),
   allowedArtifactRoots: () => String(process.env.HERMES_WEB_ALLOWED_ARTIFACT_ROOTS || ""),
 });
+bootTrace("filesystem mount ready");
+
+const securityBoundaryProvider = createSecurityBoundaryProvider({
+  allowUnrestricted: () => process.env.HERMES_MOBILE_SECURITY_ALLOW_UNRESTRICTED || process.env.HERMES_WEB_SECURITY_ALLOW_UNRESTRICTED || "",
+  allowDeveloperToolsets: () => process.env.HERMES_MOBILE_SECURITY_ALLOW_DEVELOPER_TOOLSETS || process.env.HERMES_WEB_SECURITY_ALLOW_DEVELOPER_TOOLSETS || "",
+  protectedRoots: () => dedupe([
+    REPO_ROOT,
+    TOOL_ROOT,
+    PUBLIC_ROOT,
+    LOCAL_CONFIG_ROOT,
+    path.dirname(AUTH_KEY_PATH),
+    WINDOWS_HOME ? path.join(WINDOWS_HOME, ".hermes-windows") : "",
+    process.env.HERMES_WEB_HERMES_HOME,
+    process.env.HERMES_MOBILE_HERMES_HOME,
+    process.env.HERMES_WEB_HERMES_REPO,
+    process.env.HERMES_MOBILE_HERMES_REPO,
+    WSL_HERMES_HOME,
+    `${WSL_HOME}/.hermes-update-sandboxes`,
+    ...normalizeStringList(process.env.HERMES_MOBILE_SECURITY_PROTECTED_ROOTS || process.env.HERMES_WEB_SECURITY_PROTECTED_ROOTS || ""),
+  ].filter(Boolean)),
+  protectedFiles: () => dedupe([
+    STATE_PATH,
+    ACCESS_KEYS_PATH,
+    LOCAL_WORKSPACES_PATH,
+    RUNTIME_CONFIG_PATH,
+    SHARED_DIRECTORIES_PATH,
+    AUTH_KEY_PATH,
+    WEB_PUSH_VAPID_PATH,
+    LOCAL_TODO_STORE_PATH,
+    LOCAL_AUTOMATION_STORE_PATH,
+    MOBILE_SQLITE_DB_PATH,
+    ...WEIXIN_INGRESS_KEY_PATHS,
+    ...HERMES_ENV_PATHS,
+    ...HERMES_API_KEY_PATHS,
+    ...WORKSPACE_USERS_PATHS,
+    ...WORKSPACE_ROUTE_MAP_PATHS,
+    ...HERMES_CONFIG_PATHS,
+    ...GATEWAY_POOL_MANIFEST_PATHS,
+    ...GOOGLE_TOKEN_PATHS,
+    ...GOOGLE_CLIENT_SECRET_PATHS,
+    ...OUTLOOK_GRAPH_TOKEN_PATHS,
+    ...GITHUB_CLI_HOSTS_PATHS,
+    ...normalizeStringList(process.env.HERMES_MOBILE_SECURITY_PROTECTED_FILES || process.env.HERMES_WEB_SECURITY_PROTECTED_FILES || ""),
+  ].filter(Boolean)),
+  allowedExceptionRoots: () => dedupe([
+    OWNER_DEFAULT_WORKSPACE,
+    path.join(DATA_DIR, "drive"),
+    path.join(DATA_DIR, "artifacts"),
+    path.join(DATA_DIR, "uploads"),
+    GROUP_DELIVERIES_DIR,
+    CRON_OUTPUT_ROOT,
+    CRON_RUN_LOG_ROOT,
+    ...normalizeStringList(process.env.HERMES_MOBILE_SECURITY_ALLOWED_EXCEPTIONS || process.env.HERMES_WEB_SECURITY_ALLOWED_EXCEPTIONS || ""),
+  ].filter(Boolean)),
+});
+bootTrace("security boundary ready");
 
 const bridgeCommandProvider = createBridgeCommandProvider({
   wslDistro: () => WSL_DISTRO,
@@ -303,6 +396,7 @@ const TODO_BRIDGE_SCRIPT = bridgeCommandProvider.script("HERMES_WEB_TODO_BRIDGE_
 const CRON_BRIDGE_SCRIPT = bridgeCommandProvider.script("HERMES_WEB_CRON_BRIDGE_SCRIPT", DEFAULT_CRON_BRIDGE_SCRIPT);
 const DIRECTORY_BRIDGE_SCRIPT = bridgeCommandProvider.script("HERMES_WEB_DIRECTORY_BRIDGE_SCRIPT", DEFAULT_DIRECTORY_BRIDGE_SCRIPT);
 const SKILL_BRIDGE_SCRIPT = bridgeCommandProvider.script("HERMES_WEB_SKILL_BRIDGE_SCRIPT", DEFAULT_SKILL_BRIDGE_SCRIPT);
+bootTrace("bridge commands ready");
 
 const sharedDirectoryProvider = createSharedDirectoryProvider({
   storagePath: SHARED_DIRECTORIES_PATH,
@@ -313,12 +407,15 @@ const sharedDirectoryProvider = createSharedDirectoryProvider({
   loadCatalog,
   findWorkspace,
   workspacePrincipal,
+  isRootAllowed: (root) => !securityBoundaryProvider.rootConflictsWithProtected(root),
 });
+bootTrace("shared directories ready");
 
 const accessPolicyProvider = createAccessPolicyProvider({
   uploadCacheRoot: () => path.join(DATA_DIR, "uploads"),
   sharedRoots: (principalId) => sharedDirectoryRoots(principalId),
 });
+bootTrace("access policy ready");
 
 const projectDiscoveryProvider = createProjectDiscoveryProvider({
   repoRoot: REPO_ROOT,
@@ -332,25 +429,40 @@ const projectDiscoveryProvider = createProjectDiscoveryProvider({
   findWorkspace,
   makeId,
 });
+bootTrace("project discovery ready");
 
+bootTrace("before loadState");
 state = loadState();
+bootTrace("after loadState");
 
 const workspaceBindingsProvider = createWorkspaceBindingsProvider({
   interfaceToolsetsJson: () => process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "",
   ownerExternalInterfaceBindings: () => ownerExternalInterfaceBindings(),
 });
+bootTrace("workspace bindings ready");
 
 const displayPathProvider = createDisplayPathProvider({
   ownerDriveRootNames: () => OWNER_DRIVE_ROOT_NAMES,
   ownerRootFallbackLabel: () => OWNER_ROOT_FALLBACK_LABEL,
   normalizeLocalPath: (value) => normalizeLocalPath(value),
 });
+bootTrace("display paths ready");
 
 function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
 }
 
+function isUncPath(value) {
+  return /^\\\\/.test(String(value || ""));
+}
+
 function wslUncPathCandidates(root, ...parts) {
+  const allowWslUnc = /^(1|true|yes|on)$/i.test(
+    process.env.HERMES_MOBILE_ALLOW_WSL_UNC_PROBES
+    || process.env.HERMES_WEB_ALLOW_WSL_UNC_PROBES
+    || "",
+  );
+  if (!allowWslUnc) return [];
   const normalizedRoot = String(root || "").replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+$/, "");
   if (!normalizedRoot) return [];
   const suffix = parts
@@ -488,6 +600,24 @@ function publicConcurrencyForAuth(auth) {
   };
 }
 
+function gatewayRoutingForModelRun(auth, text, options = {}) {
+  const classification = securityBoundaryProvider.classifyMaintenanceIntent(text);
+  const explicitMaintenance = Boolean(options.maintenanceMode || options.maintenance_mode);
+  if (!classification) return { securityLevel: "user", maintenance: false };
+  if (isOwnerAuth(auth) && explicitMaintenance && OWNER_MAINTENANCE_RUNS_ENABLED) {
+    return {
+      securityLevel: "owner-maintenance",
+      maintenance: true,
+      maintenanceCategory: classification.category,
+    };
+  }
+  const err = new Error(classification.message);
+  err.status = isOwnerAuth(auth) ? 409 : 403;
+  err.code = classification.category;
+  err.operatorRequired = true;
+  throw err;
+}
+
 function ownerSetupStatus() {
   return authProvider.ownerSetupStatus();
 }
@@ -563,11 +693,22 @@ function localWorkspaceDefaults(input = {}, previous = {}) {
       || previous.allowedRoots
       || defaultWorkspace,
   );
+  if (securityBoundaryProvider?.rootConflictsWithProtected(defaultWorkspace)) {
+    const err = new Error("Workspace root is blocked by the Hermes Mobile security boundary");
+    err.status = 403;
+    throw err;
+  }
+  const safeAllowedRoots = securityBoundaryProvider?.filterRoots(allowedRoots) || allowedRoots;
+  if (allowedRoots.length && !safeAllowedRoots.length) {
+    const err = new Error("Workspace allowed roots are blocked by the Hermes Mobile security boundary");
+    err.status = 403;
+    throw err;
+  }
   return {
     workspaceId: id,
     label,
     defaultWorkspace,
-    allowedRoots: allowedRoots.length ? allowedRoots : [defaultWorkspace],
+    allowedRoots: safeAllowedRoots.length ? safeAllowedRoots : [defaultWorkspace],
     allowedToolsets: normalizeStringList(input.allowedToolsets || input.allowed_toolsets || previous.allowedToolsets || []),
   };
 }
@@ -579,12 +720,14 @@ function normalizeLocalWorkspaceRecord(record) {
   const label = String(source.label || source.name || id).trim() || id;
   const defaultWorkspace = String(source.defaultWorkspace || source.default_workspace || source.root || "").trim();
   const allowedRoots = normalizeStringList(source.allowedRoots || source.allowed_roots || defaultWorkspace);
+  if (securityBoundaryProvider?.rootConflictsWithProtected(defaultWorkspace)) return null;
+  const safeAllowedRoots = securityBoundaryProvider?.filterRoots(allowedRoots) || allowedRoots;
   return {
     id,
     label,
     accessMode: String(source.accessMode || source.access_mode || "restricted").trim() || "restricted",
     defaultWorkspace,
-    allowedRoots,
+    allowedRoots: safeAllowedRoots,
     aliases: normalizeStringList(source.aliases),
     allowedToolsets: normalizeStringList(source.allowedToolsets || source.allowed_toolsets),
     createdAt: String(source.createdAt || ""),
@@ -817,8 +960,11 @@ function defaultState() {
 }
 
 function loadState() {
+  bootTrace("loadState enter");
   ensureDataDir();
+  bootTrace("loadState ensured data dir");
   if (useSqliteServiceStore()) return loadStateFromSqlite();
+  bootTrace("loadState json mode");
   let raw = "";
   let parsed = null;
   try {
@@ -842,7 +988,7 @@ function loadState() {
   }
   backupStateFile("startup", { force: true });
   try {
-    const normalized = normalizeState(parsed);
+      const normalized = normalizeState(parsed, { skipCatalogLookups: true });
     if (pushSubscriptionScopeSignature(parsed.pushSubscriptions) !== pushSubscriptionScopeSignature(normalized.pushSubscriptions)) {
       saveState(normalized, { reason: "normalize-push-subscriptions" });
     }
@@ -854,38 +1000,62 @@ function loadState() {
 }
 
 function loadStateFromSqlite() {
+  bootTrace("loadState sqlite enter");
   const store = mobileSqliteStore();
+  bootTrace("loadState sqlite store ready");
   const counts = store.runtimeStateCounts();
+  bootTrace(`loadState sqlite counts ${JSON.stringify(counts)}`);
   const hasRuntimeRows = Object.values(counts).some((value) => Number(value || 0) > 0);
   if (!hasRuntimeRows) {
+    bootTrace("loadState sqlite empty runtime");
     const existing = readStateFileIfValid();
     if (existing) {
+      bootTrace("loadState sqlite import state-file source");
       backupStateFile("sqlite-import-source", { force: true });
-      const normalized = normalizeState(existing);
+      const normalized = normalizeState(existing, { skipCatalogLookups: true });
+      bootTrace("loadState sqlite state-file normalized");
       store.replaceRuntimeState(normalized);
+      bootTrace("loadState sqlite state-file imported");
       writeStateFile(normalized);
+      bootTrace("loadState sqlite state-file snapshot written");
       return normalized;
     }
     const fresh = defaultState();
+    bootTrace("loadState sqlite writing fresh state");
     store.replaceRuntimeState(fresh);
+    bootTrace("loadState sqlite fresh imported");
     writeStateFile(fresh);
+    bootTrace("loadState sqlite fresh snapshot written");
     return fresh;
   }
+  bootTrace("loadState sqlite before exportRuntimeState");
   const exported = store.exportRuntimeState();
-  const normalized = normalizeState(exported);
+  bootTrace("loadState sqlite after exportRuntimeState");
+  const normalized = normalizeState(exported, { skipCatalogLookups: true });
+  bootTrace("loadState sqlite after normalizeState");
   writeStateFile(normalized);
+  bootTrace("loadState sqlite snapshot written");
   return normalized;
 }
 
-function normalizeState(value) {
+function normalizeState(value, options = {}) {
   const next = value && typeof value === "object" ? value : {};
+  bootTrace("normalizeState start");
+  const threads = Array.isArray(next.threads) ? next.threads.map((thread) => normalizeThread(thread, options)) : [];
+  bootTrace(`normalizeState threads ${threads.length}`);
+  const pushSubscriptions = Array.isArray(next.pushSubscriptions) ? next.pushSubscriptions.map((item) => normalizePushSubscription(item, options)).filter(Boolean) : [];
+  bootTrace(`normalizeState pushSubscriptions ${pushSubscriptions.length}`);
+  const pushReceipts = Array.isArray(next.pushReceipts) ? next.pushReceipts.map(normalizePushReceipt).filter(Boolean).slice(-200) : [];
+  bootTrace(`normalizeState pushReceipts ${pushReceipts.length}`);
+  const pushDeliveries = Array.isArray(next.pushDeliveries) ? next.pushDeliveries.map(normalizePushDelivery).filter(Boolean).slice(-200) : [];
+  bootTrace(`normalizeState pushDeliveries ${pushDeliveries.length}`);
   return {
     schemaVersion: 1,
-    threads: Array.isArray(next.threads) ? next.threads.map(normalizeThread) : [],
+    threads,
     artifacts: Array.isArray(next.artifacts) ? next.artifacts : [],
-    pushSubscriptions: Array.isArray(next.pushSubscriptions) ? next.pushSubscriptions.map(normalizePushSubscription).filter(Boolean) : [],
-    pushReceipts: Array.isArray(next.pushReceipts) ? next.pushReceipts.map(normalizePushReceipt).filter(Boolean).slice(-200) : [],
-    pushDeliveries: Array.isArray(next.pushDeliveries) ? next.pushDeliveries.map(normalizePushDelivery).filter(Boolean).slice(-200) : [],
+    pushSubscriptions,
+    pushReceipts,
+    pushDeliveries,
     automationPushMarks: next.automationPushMarks && typeof next.automationPushMarks === "object" && !Array.isArray(next.automationPushMarks)
       ? next.automationPushMarks
       : {},
@@ -940,7 +1110,7 @@ function normalizePushReceipt(item) {
   };
 }
 
-function normalizePushSubscription(item) {
+function normalizePushSubscription(item, options = {}) {
   if (!item || typeof item !== "object") return null;
   const subscription = item.subscription && typeof item.subscription === "object" ? item.subscription : item;
   const endpoint = String(subscription.endpoint || item.endpoint || "").trim();
@@ -949,7 +1119,7 @@ function normalizePushSubscription(item) {
   const workspaceIds = normalizeStringList(item.workspaceIds || item.workspaceId || item.workspaces);
   const principalIds = normalizeStringList(item.principalIds || item.principalId || item.principals || (workspaceIds.length ? workspacePrincipal(workspaceIds[0]) : "owner"));
   const scopedPrincipalIds = scopedPushPrincipalIds(principalIds);
-  const scopedWorkspaceIds = scopedPushWorkspaceIds(scopedPrincipalIds[0], workspaceIds);
+  const scopedWorkspaceIds = scopedPushWorkspaceIds(scopedPrincipalIds[0], workspaceIds, options);
   return {
     id: String(item.id || `push_${hashValue(endpoint).slice(0, 16)}`),
     endpointHash: hashValue(endpoint),
@@ -973,10 +1143,12 @@ function scopedPushPrincipalIds(principalIds) {
   return [principals[principals.length - 1]];
 }
 
-function scopedPushWorkspaceIds(principalId, workspaceIds = []) {
+function scopedPushWorkspaceIds(principalId, workspaceIds = [], options = {}) {
   const principal = String(principalId || "owner").trim() || "owner";
   if (principal === "owner") return ["owner"];
-  const workspaceId = workspaceIdForPrincipal(principal) || normalizeStringList(workspaceIds)[0] || "";
+  const workspaceId = options.skipCatalogLookups
+    ? (normalizeStringList(workspaceIds)[0] || principal)
+    : (workspaceIdForPrincipal(principal) || normalizeStringList(workspaceIds)[0] || "");
   return workspaceId ? [workspaceId] : [];
 }
 
@@ -1007,12 +1179,13 @@ function stripPrincipalLabelPrefixes(value) {
   return text;
 }
 
-function normalizeChatGroup(value, ownerWorkspaceId = "owner") {
+function normalizeChatGroup(value, ownerWorkspaceId = "owner", options = {}) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const ownerId = String(ownerWorkspaceId || "owner").trim() || "owner";
-  const memberWorkspaceIds = normalizeStringList(
+  let memberWorkspaceIds = normalizeStringList(
     source.memberWorkspaceIds || source.member_workspace_ids || source.members || source.workspaceIds,
-  ).filter((workspaceId) => findWorkspace(workspaceId));
+  );
+  if (!options.skipCatalogLookups) memberWorkspaceIds = memberWorkspaceIds.filter((workspaceId) => findWorkspace(workspaceId));
   if (source.enabled) memberWorkspaceIds.unshift(ownerId);
   const normalizedMembers = dedupe(memberWorkspaceIds);
   return {
@@ -1059,7 +1232,7 @@ function normalizeExternalDelivery(value) {
   });
 }
 
-function normalizeThread(thread) {
+function normalizeThread(thread, options = {}) {
   const now = new Date().toISOString();
   const normalized = {
     id: String(thread.id || makeId("thread")),
@@ -1075,16 +1248,16 @@ function normalizeThread(thread) {
     createdAt: thread.createdAt || now,
     updatedAt: thread.updatedAt || now,
     taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
-    chatGroup: normalizeChatGroup(thread.chatGroup || thread.groupChat, thread.workspaceId || "owner"),
+    chatGroup: normalizeChatGroup(thread.chatGroup || thread.groupChat, thread.workspaceId || "owner", options),
     externalIngress: normalizeExternalIngress(thread.externalIngress || thread.external_ingress),
     messages: Array.isArray(thread.messages) ? thread.messages : [],
     events: Array.isArray(thread.events) ? thread.events.slice(-MAX_STORED_EVENTS_PER_THREAD) : [],
   };
-  normalized.messages = normalizeThreadMessages(normalized, normalized.messages);
+  normalized.messages = normalizeThreadMessages(normalized, normalized.messages, options);
   return normalized;
 }
 
-function normalizeThreadMessages(thread, messages) {
+function normalizeThreadMessages(thread, messages, options = {}) {
   const normalized = messages.map((message) => {
     const next = message && typeof message === "object" ? Object.assign({}, message) : {};
     next.id = String(next.id || makeId("msg"));
@@ -1109,7 +1282,9 @@ function normalizeThreadMessages(thread, messages) {
     next.gatewaySource = String(next.gatewaySource || next.gateway_source || "").trim();
     next.externalIngress = normalizeExternalIngress(next.externalIngress || next.external_ingress);
     next.externalDelivery = normalizeExternalDelivery(next.externalDelivery || next.external_delivery);
-    if (!next.senderLabel && next.senderWorkspaceId) next.senderLabel = workspaceLabel(next.senderWorkspaceId);
+    if (!next.senderLabel && next.senderWorkspaceId) {
+      next.senderLabel = options.skipCatalogLookups ? next.senderWorkspaceId : workspaceLabel(next.senderWorkspaceId);
+    }
     next.revokedAt = String(next.revokedAt || next.revoked_at || "").trim();
     next.revokedByWorkspaceId = String(next.revokedByWorkspaceId || next.revoked_by_workspace_id || "").trim();
     next.revokedByPrincipalId = String(next.revokedByPrincipalId || next.revoked_by_principal_id || "").trim();
@@ -1402,7 +1577,12 @@ function defaultReasoningInfo() {
   if (envEffort) {
     return { defaultEffort: envEffort, source: "env:HERMES_WEB_DEFAULT_REASONING_EFFORT" };
   }
-  const parts = HERMES_CONFIG_PATHS.map((item) => {
+  const configPaths = HERMES_CONFIG_PATHS.filter((item) => (
+    !isUncPath(item)
+    || EXPLICIT_HERMES_CONFIG_PATHS.has(String(item || "").trim())
+    || ALLOW_WSL_REASONING_CONFIG_LOOKUP
+  ));
+  const parts = configPaths.map((item) => {
     try {
       const stat = fs.statSync(item);
       return `${item}:${stat.mtimeMs}`;
@@ -1411,7 +1591,7 @@ function defaultReasoningInfo() {
     }
   }).join("|");
   if (defaultReasoningCache.value && defaultReasoningCache.cacheKey === parts) return defaultReasoningCache.value;
-  for (const configPath of HERMES_CONFIG_PATHS) {
+  for (const configPath of configPaths) {
     try {
       if (!configPath || !fs.existsSync(configPath)) continue;
       const raw = parseAgentReasoningEffortFromYaml(fs.readFileSync(configPath, "utf8"));
@@ -1426,7 +1606,7 @@ function defaultReasoningInfo() {
     } catch (_) {}
   }
   defaultReasoningCache = {
-    cacheKey: parts,
+    cacheKey: parts || "no-config",
     value: { defaultEffort: "medium", source: "gateway-default" },
   };
   return defaultReasoningCache.value;
@@ -1566,6 +1746,51 @@ function writeJsonStore(filePath, value) {
   const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
   fs.renameSync(tmp, filePath);
+}
+
+function bridgeHostKey() {
+  const envKey = String(process.env.HERMES_MOBILE_BRIDGE_HOST_KEY || process.env.HERMES_WEB_BRIDGE_HOST_KEY || "").trim();
+  if (envKey) return envKey;
+  if (!BRIDGE_HOST_KEY_PATH) return "";
+  const normalizedPath = path.resolve(BRIDGE_HOST_KEY_PATH);
+  if (bridgeHostKeyCache.path === normalizedPath && bridgeHostKeyCache.value) return bridgeHostKeyCache.value;
+  const value = String(fs.readFileSync(normalizedPath, "utf8") || "").trim();
+  bridgeHostKeyCache = { path: normalizedPath, value };
+  return value;
+}
+
+async function runBridgeHost(kind, payload, timeoutMs) {
+  if (!BRIDGE_HOST_URL) return null;
+  const key = bridgeHostKey();
+  if (!key) throw new Error("Hermes Mobile bridge host key is not configured");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || 15000));
+  try {
+    const response = await fetch(`${BRIDGE_HOST_URL}/bridge/${encodeURIComponent(kind)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify(payload || {}),
+      signal: controller.signal,
+    });
+    let parsed = {};
+    try {
+      parsed = await response.json();
+    } catch (_) {
+      parsed = {};
+    }
+    if (!response.ok) {
+      throw new Error(parsed?.error || `Hermes Mobile bridge host returned HTTP ${response.status}`);
+    }
+    return parsed;
+  } catch (err) {
+    if (err?.name === "AbortError") throw new Error(`${kind} bridge host timed out`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function localTodoStore() {
@@ -1825,6 +2050,7 @@ async function runLocalTodoBridge(payload = {}) {
 
 function runTodoBridge(payload) {
   if (useLocalTodoBackend()) return runLocalTodoBridge(payload);
+  if (BRIDGE_HOST_URL) return runBridgeHost("todo", payload, TODO_BRIDGE_TIMEOUT_MS);
   return new Promise((resolve, reject) => {
     const bridge = bridgeCommandProvider.python(TODO_BRIDGE_SCRIPT, [
       "HERMES_WEB_TODO_PLUGIN_NAME",
@@ -1846,7 +2072,7 @@ function runTodoBridge(payload) {
     }, TODO_BRIDGE_TIMEOUT_MS);
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString("utf8");
-      if (stdout.length > 2_000_000) stdout = stdout.slice(-2_000_000);
+      if (stdout.length > CRON_BRIDGE_STDOUT_LIMIT_BYTES) stdout = stdout.slice(-CRON_BRIDGE_STDOUT_LIMIT_BYTES);
     });
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString("utf8");
@@ -1963,7 +2189,7 @@ async function runSqliteCronBridge(payload = {}) {
     const jobs = store.listAutomationJobs({
       ownerPrincipalId: payload.owner_principal_id || "owner",
       includeDisabled,
-    }).map(publicLocalAutomationJob);
+    }).map(publicLocalAutomationJob).sort(automationListSortByLatestDeliverable);
     return {
       ok: true,
       jobs,
@@ -2196,6 +2422,7 @@ async function runLocalCronBridge(payload = {}) {
 
 function runCronBridge(payload) {
   if (useLocalAutomationBackend()) return runLocalCronBridge(payload);
+  if (BRIDGE_HOST_URL) return runBridgeHost("cron", payload, CRON_BRIDGE_TIMEOUT_MS);
   return new Promise((resolve, reject) => {
     const bridge = bridgeCommandProvider.python(CRON_BRIDGE_SCRIPT, [
       "HERMES_WEB_CRON_JOBS_PATH",
@@ -2257,13 +2484,14 @@ const automationProvider = createAutomationProvider({
   runBridge: runCronBridge,
   cacheTtlMs: CRON_LIST_CACHE_TTL_MS,
   cronOutputRoot: CRON_OUTPUT_ROOT,
-  runLogRoot: process.env.HERMES_WEB_RUN_LOG_ROOT || `${WSL_HERMES_HOME}/run-logs`,
+  runLogRoot: CRON_RUN_LOG_ROOT,
   extraDeliverableRoots: () => String(process.env.HERMES_WEB_AUTOMATION_DELIVERABLE_ROOTS || "")
     .split(path.delimiter)
     .map((item) => item.trim())
     .filter(Boolean),
   normalizeLocalPath,
   isPathAllowed,
+  isPathProtected: (value) => securityBoundaryProvider.isProtectedPath(value),
   mimeFor,
   findWorkspace,
   authCanAccessWorkspace,
@@ -2289,6 +2517,7 @@ async function runCronListBridgeCached(options = {}) {
 }
 
 function runDirectoryBridge(payload) {
+  if (BRIDGE_HOST_URL) return runBridgeHost("directory", payload, DIRECTORY_BRIDGE_TIMEOUT_MS);
   return new Promise((resolve, reject) => {
     const bridge = bridgeCommandProvider.python(DIRECTORY_BRIDGE_SCRIPT, [
       "HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON",
@@ -2656,7 +2885,7 @@ function normalizeAutomationDraft(raw, sourceText) {
   const prompt = [
     promptBase,
     "",
-    "交付要求：任务完成时给出面向用户的最终结果；如果生成 PDF、Word 或其他正式交付文件，最终回复必须包含 `MEDIA:<本地文件绝对路径>`，便于 Hermes Mobile 在自动化列表中预览最后交付文件。",
+    "交付要求：任务完成时给出面向用户的最终结果；如果生成 PDF、Word 或其他正式交付文件，必须写入该工作区自己的 `交付` 目录或明确传入的交付目录，并在最终回复中包含 `MEDIA:<本地文件绝对路径>`，便于 Hermes Mobile 在自动化列表中预览最后交付文件。不要再为了 Hermes Mobile 预览把文件复制到旧的 `Hermes同步文件夹`。",
   ].join("\n");
   return {
     name,
@@ -2916,8 +3145,11 @@ function readJsonFirst(paths, fallback = {}) {
     const p = String(candidate || "").trim();
     if (!p) continue;
     try {
+      bootTrace(`readJsonFirst candidate ${isUncPath(p) ? "unc" : "local"} ${path.basename(p) || "root"}`);
       if (!fs.existsSync(p)) continue;
+      bootTrace(`readJsonFirst exists ${path.basename(p) || "root"}`);
       const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+      bootTrace(`readJsonFirst parsed ${path.basename(p) || "root"}`);
       return { data: parsed, path: p };
     } catch (_) {
       // Try the next candidate. Recovery copies can be stale or damaged.
@@ -3003,11 +3235,12 @@ function updateSharedDirectoryAccess(identifier, workspaceId = "owner", updates 
 }
 
 function upsertSharedDirectory(record) {
+  securityBoundaryProvider.assertRootNotProtected(record?.path || record?.root || "", "Shared directory is blocked by the Hermes Mobile security boundary");
   return sharedDirectoryProvider.upsert(record);
 }
 
 function sanitizePolicy(policy) {
-  return accessPolicyProvider.sanitize(policy);
+  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.sanitize(policy));
 }
 
 function dedupe(values) {
@@ -3047,11 +3280,14 @@ function invalidateCatalogCache() {
 }
 
 function loadCatalog() {
-  return getWorkspaceProjectProvider().loadCatalog();
+  bootTrace("loadCatalog enter");
+  const catalog = getWorkspaceProjectProvider().loadCatalog();
+  bootTrace(`loadCatalog done workspaces=${catalog.workspaces.length} projects=${catalog.projects.length}`);
+  return catalog;
 }
 
 function buildAccessPolicy(route, user, project) {
-  return accessPolicyProvider.build(route, user, project);
+  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.build(route, user, project));
 }
 
 function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
@@ -3326,7 +3562,9 @@ function publicWorkspace(workspace) {
     policy.download_root,
     ...(Array.isArray(policy.allowed_roots) ? policy.allowed_roots : []),
     ...(Array.isArray(policy.delivery_roots) ? policy.delivery_roots : []),
-  ].filter(Boolean)).map((item) => ({ path: item }));
+  ].filter(Boolean))
+    .filter((item) => !securityBoundaryProvider.rootConflictsWithProtected(item))
+    .map((item) => ({ path: item }));
   return {
     id: workspace.id,
     label: workspace.label,
@@ -3352,7 +3590,7 @@ function publicWorkspace(workspace) {
     maxParallelTasks: workspace.maxParallelTasks || 0,
     localConfig: isLocalWorkspace ? {
       defaultWorkspace: String(workspace.defaultWorkspace || policy.default_workspace || ""),
-      allowedRoots: Array.isArray(policy.allowed_roots) ? policy.allowed_roots : [],
+      allowedRoots: Array.isArray(policy.allowed_roots) ? securityBoundaryProvider.filterRoots(policy.allowed_roots) : [],
       allowedToolsets: Array.isArray(policy.allowed_toolsets) ? policy.allowed_toolsets : [],
     } : null,
   };
@@ -3628,7 +3866,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     lines.push(`Attached task directory: ${taskDirectory.label || "Directory"} => ${taskDirectory.path}.`);
     lines.push("Base this task on the cleaned/normalized data in the attached directory first; use broader allowed roots only when the user request clearly requires it.");
     lines.push("Use Skill: productivity/directory-context-cleaning before analysis: clean new or changed files in the attached directory, update `.hermes-cleaned/summary.md` / indexes, then answer from summary-first cleaned context and open detailed cleaned Markdown only when needed.");
-    lines.push("Keep the attached data directory separate from delivery folders. Do not write final PDF/Word deliverables into the attached data directory unless the user explicitly asks for that; use the user's Hermes sync delivery folder/category for MEDIA files. For wardrobe/outfit deliverables, prefer a `穿搭建议` delivery folder under the Hermes sync folder instead of writing final PDFs into `衣橱`.");
+    lines.push("Keep the attached data directory separate from delivery folders. Do not write final PDF/Word deliverables into the attached data directory unless the user explicitly asks for that; use the selected workspace's own `交付` directory or the explicitly supplied delivery directory for MEDIA files. Do not use the legacy Hermes sync folder for Hermes Mobile preview delivery.");
   }
   if (thread.singleWindow || project?.singleWindow) {
     if (singleWindowMode === "chat") {
@@ -3636,7 +3874,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
       lines.push("Use the supplied same-task conversation_history as normal chat context, while still respecting the selected workspace and access policy.");
       if (options.groupChatDeliveryRoot) {
         lines.push(`This is a group-chat AI request. Final user-facing deliverables for this group turn must be written under the group delivery directory: ${options.groupChatDeliveryRoot}.`);
-        lines.push("Do not place group-chat PDF/Word/media deliverables only in the sender's private sync root. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
+        lines.push("Do not place group-chat PDF/Word/media deliverables only in the sender's private delivery directory. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
       }
       lines.push("Do not inherit, emit, or display prior directory bindings or `目录别名：当前绑定目录=...` from older chat turns. Only an explicit directory attachment on the latest message is a current directory binding.");
     } else {
@@ -3983,6 +4221,13 @@ async function startWeixinIngressEvent(body) {
   if (!workspaceId || !findWorkspace(workspaceId)) {
     const err = new Error("No workspace route matched this Weixin ingress event");
     err.status = 404;
+    throw err;
+  }
+  const maintenanceIntent = securityBoundaryProvider.classifyMaintenanceIntent(weixinIngressMessageContent(event));
+  if (maintenanceIntent) {
+    const err = new Error(maintenanceIntent.message);
+    err.status = 403;
+    err.result = { code: maintenanceIntent.category, operatorRequired: true };
     throw err;
   }
   const thread = weixinIngressThreadForEvent(event, workspaceId);
@@ -4914,24 +5159,52 @@ function automationDeliverableTimeMs(doc) {
   );
 }
 
+function automationLatestDeliverableTimeMs(job) {
+  return Math.max(0, ...(Array.isArray(job?.outputDocuments) ? job.outputDocuments : []).map(automationDeliverableTimeMs));
+}
+
+function automationListSortByLatestDeliverable(left, right) {
+  const leftDelivery = automationLatestDeliverableTimeMs(left);
+  const rightDelivery = automationLatestDeliverableTimeMs(right);
+  if (leftDelivery !== rightDelivery) return rightDelivery - leftDelivery;
+  const leftNext = automationTimeMs(left?.nextRunAt);
+  const rightNext = automationTimeMs(right?.nextRunAt);
+  if (Boolean(leftNext) !== Boolean(rightNext)) return leftNext ? -1 : 1;
+  if (leftNext && rightNext && leftNext !== rightNext) return leftNext - rightNext;
+  return String(left?.name || left?.id || "").localeCompare(String(right?.name || right?.id || ""));
+}
+
+function automationPushMarkDeliverableTimeMs(mark) {
+  if (!mark || typeof mark !== "object") return 0;
+  return Math.max(
+    automationTimeMs(mark.deliverableTimeAt),
+    automationTimeMs(mark.deliverableUpdatedAt),
+    automationTimeMs(mark.runOutputUpdatedAt),
+  );
+}
+
 function automationLatestDeliverableForPush(job, existingMark = null) {
   const lastRunMs = automationTimeMs(job?.lastRunAt);
   if (!lastRunMs) return null;
-  const previousRunMs = automationTimeMs(
-    typeof existingMark === "string" ? existingMark.split("|")[0] : existingMark?.lastRunAt,
-  );
+  const previousDeliverableMs = automationPushMarkDeliverableTimeMs(existingMark);
   const nowWithGrace = Date.now() + AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS;
-  return (Array.isArray(job?.outputDocuments) ? job.outputDocuments : []).find((doc) => {
-    const ext = automationDeliverableExtension(doc);
-    if (!AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS.has(ext)) return false;
-    if (!doc?.url || Number(doc?.size || 0) <= 0) return false;
-    const docTimeMs = automationDeliverableTimeMs(doc);
-    if (!docTimeMs) return false;
-    if (previousRunMs && docTimeMs <= previousRunMs) return false;
-    if (docTimeMs < lastRunMs - AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS) return false;
-    if (docTimeMs > nowWithGrace) return false;
-    return true;
-  }) || null;
+  const candidates = (Array.isArray(job?.outputDocuments) ? job.outputDocuments : [])
+    .filter((doc) => {
+      const ext = automationDeliverableExtension(doc);
+      if (!AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS.has(ext)) return false;
+      if (!doc?.url || Number(doc?.size || 0) <= 0) return false;
+      const docTimeMs = automationDeliverableTimeMs(doc);
+      if (!docTimeMs) return false;
+      // Web Push is tied to formal delivery-file freshness, not CRON execution time.
+      // A silent CRON run that only advances lastRunAt must not re-notify for the
+      // same unchanged PDF/Office file.
+      if (previousDeliverableMs && docTimeMs <= previousDeliverableMs) return false;
+      if (docTimeMs < lastRunMs - AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS) return false;
+      if (docTimeMs > nowWithGrace) return false;
+      return true;
+    })
+    .sort((left, right) => automationDeliverableTimeMs(right) - automationDeliverableTimeMs(left));
+  return candidates[0] || null;
 }
 
 function automationPushSignature(job, latestDoc = null) {
@@ -4974,6 +5247,8 @@ function setAutomationPushMark(job, signature, latestDoc = null) {
     lastStatus: String(job?.lastStatus || job?.status || ""),
     deliverableName: latestDoc ? String(latestDoc.name || "") : "",
     deliverableUpdatedAt: latestDoc ? String(latestDoc.updatedAt || "") : "",
+    runOutputUpdatedAt: latestDoc ? String(latestDoc.runOutputUpdatedAt || "") : "",
+    deliverableTimeAt: latestDoc ? new Date(automationDeliverableTimeMs(latestDoc)).toISOString() : "",
     updatedAt: nowIso(),
   };
 }
@@ -5203,7 +5478,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
   const taskDirectory = taskDirectoryAttachmentForMessage(thread, userMessage);
   const project = taskDirectory ? projectForTaskDirectoryAttachment(thread, taskDirectory) : effectiveProjectForThread(policyThread);
   const workspace = findWorkspace(actorWorkspaceId);
-  const policy = buildAccessPolicy(workspace?.policy || workspace || {}, {}, project);
+  let policy = buildAccessPolicy(workspace?.policy || workspace || {}, {}, project);
   const groupChatDeliveryRoot = thread.singleWindow && userMessage.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
     ? groupChatDeliveryRootForThread(thread)
     : "";
@@ -5214,6 +5489,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     policy.delivery_roots = dedupe([...(policy.delivery_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
     policy.cache_roots = dedupe([...(policy.cache_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
   }
+  policy = sanitizePolicy(policy);
   const taskId = makePublicTaskId("web");
   const body = {
     input: userMessage.content,
@@ -5830,14 +6106,16 @@ function normalizeLocalPath(rawPath) {
 }
 
 function allowedRoots() {
-  return filesystemMountProvider.resolvedAllowedRoots();
+  return securityBoundaryProvider.filterRoots(filesystemMountProvider.resolvedAllowedRoots());
 }
 
 function isPathAllowed(filePath) {
+  if (securityBoundaryProvider.isProtectedPath(filePath)) return false;
   return filesystemMountProvider.isPathAllowed(filePath);
 }
 
 function isPathAllowedForThread(thread, localPath, originalPath = "") {
+  if (securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(originalPath)) return false;
   const policy = policyForThread(thread);
   if (policy.access_mode === "unrestricted" || policy.principal_id === "owner") {
     const ownerRoots = dedupe([
@@ -5865,6 +6143,7 @@ function isPathAllowedForThread(thread, localPath, originalPath = "") {
 }
 
 function isDirectoryBrowserPathAllowedForThread(thread, localPath, originalPath = "") {
+  if (securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(originalPath)) return false;
   if (isPathAllowedForThread(thread, localPath, originalPath)) return true;
   const policy = policyForThread(thread);
   if (!(policy.access_mode === "unrestricted" || policy.principal_id === "owner")) return false;
@@ -5874,12 +6153,11 @@ function isDirectoryBrowserPathAllowedForThread(thread, localPath, originalPath 
     home ? path.join(home, "SynologyDrive") : "",
     path.join(REPO_ROOT, "workspace"),
     path.join(REPO_ROOT, "outbox"),
-    DATA_DIR,
     ...sharedDirectoryRoots(thread.workspaceId),
     ...loadCatalog().projects
       .filter((project) => project.workspaceId === "owner")
       .flatMap((project) => [project.root, ...(project.children || []).map((child) => child.root)]),
-  ].filter(Boolean);
+  ].filter((root) => root && !securityBoundaryProvider.rootConflictsWithProtected(root));
   let realLocalPath = localPath;
   try {
     realLocalPath = fs.realpathSync.native(localPath);
@@ -6206,6 +6484,24 @@ function sendResolvedFile(res, file, query) {
   fs.createReadStream(file.localPath).pipe(res);
 }
 
+function bridgeFileBuffer(file) {
+  return Buffer.from(String(file?.contentBase64 || ""), "base64");
+}
+
+function sendResolvedBridgeFile(res, file, query) {
+  const buffer = bridgeFileBuffer(file);
+  const disposition = /^(1|true|yes|on)$/i.test(String(query.get("download") || ""))
+    ? "attachment"
+    : "inline";
+  res.writeHead(200, {
+    "Content-Type": file.mime || mimeFor(file.name || file.displayPath || ""),
+    "Content-Length": buffer.length,
+    "Content-Disposition": contentDisposition(disposition, file.name || path.basename(file.displayPath || "automation-deliverable")),
+    "Cache-Control": "private, max-age=60",
+  });
+  res.end(buffer);
+}
+
 function sendResolvedFilePreview(res, file) {
   const ext = path.extname(file.localPath).toLowerCase();
   try {
@@ -6229,6 +6525,44 @@ function sendResolvedFilePreview(res, file) {
   } catch (err) {
     sendJson(res, 422, { error: `Preview failed: ${err.message || String(err)}` });
   }
+}
+
+function sendResolvedBridgeFilePreview(res, file) {
+  const ext = path.extname(file.name || file.displayPath || "").toLowerCase();
+  try {
+    const buffer = bridgeFileBuffer(file);
+    let text = "";
+    if ([".txt", ".md", ".csv", ".json"].includes(ext) || /^text\//i.test(file.mime || "")) {
+      text = buffer.toString("utf8");
+    } else {
+      sendJson(res, 415, { error: "Preview is not supported for this file type", name: file.name, mime: file.mime });
+      return;
+    }
+    const truncated = text.length > MAX_FILE_PREVIEW_CHARS;
+    sendJson(res, 200, {
+      name: file.name,
+      mime: file.mime,
+      size: file.size || buffer.length,
+      updatedAt: file.updatedAt,
+      path: file.displayPath,
+      text: truncated ? text.slice(0, MAX_FILE_PREVIEW_CHARS) : text,
+      totalChars: text.length,
+      truncated,
+    });
+  } catch (err) {
+    sendJson(res, 422, { error: `Preview failed: ${err.message || String(err)}` });
+  }
+}
+
+function maybeRejectModelMaintenanceRequest(res, text, auth) {
+  const classification = securityBoundaryProvider.classifyMaintenanceIntent(text);
+  if (!classification) return false;
+  sendJson(res, isOwnerAuth(auth) ? 409 : 403, {
+    error: classification.message,
+    code: classification.category,
+    operatorRequired: true,
+  });
+  return true;
 }
 
 async function handleApi(req, res) {
@@ -6338,18 +6672,24 @@ async function handleApi(req, res) {
   }
 
   if (url.pathname === "/api/status" && req.method === "GET") {
+    bootTrace("request api/status enter");
     const status = await getHermesStatus();
+    bootTrace("request api/status after getHermesStatus");
     status.gatewayPool = publicGatewayPoolStatusForAuth(auth, status.gatewayPool);
-    if (isOwnerAuth(auth)) status.catalog = loadCatalog().sources;
+    if (isOwnerAuth(auth) && STATUS_INCLUDE_CATALOG) status.catalog = loadCatalog().sources;
+    bootTrace("request api/status after optional catalog");
     status.display = {
       ownerLabel: OWNER_LABEL,
       ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
       ownerRootFallbackLabel: OWNER_ROOT_FALLBACK_LABEL,
     };
     status.push = publicPushStatus();
+    bootTrace("request api/status after push status");
     status.reasoning = publicReasoningInfoForAuth(auth);
+    bootTrace("request api/status after reasoning");
     status.concurrency = publicConcurrencyForAuth(auth);
     status.clientVersion = clientVersionInfo(req.headers["x-hermes-web-client-version"] || "");
+    bootTrace("request api/status before send");
     sendJson(res, 200, status);
     return;
   }
@@ -6487,23 +6827,30 @@ async function handleApi(req, res) {
   }
 
   if (url.pathname === "/api/workspaces" && req.method === "GET") {
+    bootTrace("request api/workspaces enter");
     const catalog = loadCatalog();
+    bootTrace("request api/workspaces after loadCatalog");
     sendJson(res, 200, { data: publicWorkspacesForAuth(auth).map(publicWorkspace), sources: catalog.sources, auth: { role: auth.role, workspaceId: auth.workspaceId, isOwner: isOwnerAuth(auth) } });
+    bootTrace("request api/workspaces sent");
     return;
   }
 
   if (url.pathname === "/api/workspaces/defaults" && req.method === "GET") {
     const ownerAuth = requireOwner(req, res);
     if (!ownerAuth) return;
-    const defaults = localWorkspaceDefaults({
-      username: url.searchParams.get("username") || "",
-      workspaceId: url.searchParams.get("workspaceId") || url.searchParams.get("id") || "",
-      label: url.searchParams.get("label") || "",
-    });
-    sendJson(res, 200, {
-      ok: true,
-      defaults,
-    });
+    try {
+      const defaults = localWorkspaceDefaults({
+        username: url.searchParams.get("username") || "",
+        workspaceId: url.searchParams.get("workspaceId") || url.searchParams.get("id") || "",
+        label: url.searchParams.get("label") || "",
+      });
+      sendJson(res, 200, {
+        ok: true,
+        defaults,
+      });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err) });
+    }
     return;
   }
 
@@ -6702,7 +7049,8 @@ async function handleApi(req, res) {
     const search = String(url.searchParams.get("search") || "").trim().toLowerCase();
     let jobs = (result.jobs || [])
       .filter((job) => cronJobMatchesOwner(job, ownerPrincipalId))
-      .filter((job) => cronJobMatchesSearch(job, search));
+      .filter((job) => cronJobMatchesSearch(job, search))
+      .sort(automationListSortByLatestDeliverable);
     if (requestedLimit > 0) jobs = jobs.slice(0, requestedLimit);
     sendJson(res, 200, {
       data: jobs,
@@ -6831,6 +7179,10 @@ async function handleApi(req, res) {
 
   if (url.pathname === "/api/automations/deliverable" && req.method === "GET") {
     const resolved = await resolveAuthorizedCronDeliverableFile(url.searchParams, auth);
+    if (resolved.bridgeFile) {
+      sendResolvedBridgeFile(res, resolved.bridgeFile, url.searchParams);
+      return;
+    }
     if (!resolved.file) {
       sendJson(res, resolved.status || 404, { error: resolved.error || "Automation deliverable not found" });
       return;
@@ -6841,6 +7193,10 @@ async function handleApi(req, res) {
 
   if (url.pathname === "/api/automations/deliverable/preview" && req.method === "GET") {
     const resolved = await resolveAuthorizedCronDeliverableFile(url.searchParams, auth);
+    if (resolved.bridgeFile) {
+      sendResolvedBridgeFilePreview(res, resolved.bridgeFile);
+      return;
+    }
     if (!resolved.file) {
       sendJson(res, resolved.status || 404, { error: resolved.error || "Automation deliverable not found" });
       return;
@@ -6851,6 +7207,10 @@ async function handleApi(req, res) {
 
   if (url.pathname === "/api/automations/output" && req.method === "GET") {
     const resolved = await resolveAuthorizedCronOutputFile(url.searchParams, auth);
+    if (resolved.bridgeFile) {
+      sendResolvedBridgeFile(res, resolved.bridgeFile, url.searchParams);
+      return;
+    }
     if (!resolved.file) {
       sendJson(res, resolved.status || 404, { error: resolved.error || "Automation output not found" });
       return;
@@ -6861,6 +7221,10 @@ async function handleApi(req, res) {
 
   if (url.pathname === "/api/automations/output/preview" && req.method === "GET") {
     const resolved = await resolveAuthorizedCronOutputFile(url.searchParams, auth);
+    if (resolved.bridgeFile) {
+      sendResolvedBridgeFilePreview(res, resolved.bridgeFile);
+      return;
+    }
     if (!resolved.file) {
       sendJson(res, resolved.status || 404, { error: resolved.error || "Automation output not found" });
       return;
@@ -7190,6 +7554,19 @@ async function handleApi(req, res) {
     }
     const senderInfo = senderInfoForWorkspace(actorWorkspaceId);
     const messageKind = isGroupChatMessage && String(body.messageKind || body.message_kind || "").trim() === "plain" ? "plain" : "ai";
+    let gatewayRouting = { securityLevel: "user", maintenance: false };
+    if (messageKind === "ai") {
+      try {
+        gatewayRouting = gatewayRoutingForModelRun(auth, text, body);
+      } catch (err) {
+        sendJson(res, err.status || 403, {
+          error: err.message || String(err),
+          code: err.code || "gateway_security_boundary",
+          operatorRequired: Boolean(err.operatorRequired),
+        });
+        return;
+      }
+    }
     const requestedReasoningEffort = String(body.reasoning_effort || "").trim();
     const reasoningEffort = VALID_REASONING_EFFORTS.has(requestedReasoningEffort) ? requestedReasoningEffort : "";
     const allowAutomaticDirectoryAttachment = singleWindowMode !== "chat";
@@ -7302,6 +7679,7 @@ async function handleApi(req, res) {
       reasoning_effort: reasoningEffort,
       singleWindowMode,
       actorWorkspaceId,
+      gatewayRouting,
       instructions: [body.instructions || "", followUpInstructions].filter(Boolean).join("\n\n"),
     };
     if (body.model) runOptions.model = body.model;

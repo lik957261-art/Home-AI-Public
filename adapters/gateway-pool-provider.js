@@ -22,6 +22,19 @@ function cleanList(value) {
   return [];
 }
 
+function normalizeSecurityLevel(value) {
+  const text = String(value || "").trim().toLowerCase().replaceAll("_", "-");
+  if (["user", "restricted", "low", "low-privilege"].includes(text)) return "user";
+  if (["owner", "owner-maintenance", "maintenance", "admin", "high", "high-privilege"].includes(text)) return "owner-maintenance";
+  return "unspecified";
+}
+
+function normalizeWorkspaceIds(value) {
+  const all = cleanList(value);
+  if (all.some((item) => item === "*" || item.toLowerCase() === "all")) return ["*"];
+  return all;
+}
+
 function normalizeWorker(raw, index = 0) {
   if (!raw || typeof raw !== "object") return null;
   if (raw.enabled === false) return null;
@@ -40,6 +53,9 @@ function normalizeWorker(raw, index = 0) {
     apiKey: String(raw.api_key || raw.apiKey || "").trim(),
     provider: String(raw.provider || "").trim(),
     tags: cleanList(raw.tags),
+    securityLevel: normalizeSecurityLevel(raw.securityLevel || raw.security_level || raw.level),
+    allowedWorkspaceIds: normalizeWorkspaceIds(raw.allowedWorkspaceIds || raw.allowed_workspace_ids || raw.workspaceIds || raw.workspace_ids),
+    allowMaintenance: Boolean(raw.allowMaintenance || raw.allow_maintenance),
   };
 }
 
@@ -66,6 +82,9 @@ function publicWorker(worker, health = null) {
     apiBase: worker.apiBase,
     provider: worker.provider,
     tags: worker.tags,
+    securityLevel: worker.securityLevel,
+    allowedWorkspaceIds: worker.allowedWorkspaceIds,
+    allowMaintenance: Boolean(worker.allowMaintenance),
     healthy: health == null ? null : Boolean(health),
   };
 }
@@ -81,6 +100,15 @@ function matchesExact(worker, hints = {}) {
 function satisfiesFilter(worker, hints = {}) {
   const provider = String(hints.provider || "").trim();
   if (provider && worker.provider !== provider) return false;
+  const requiredSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
+  if (requiredSecurityLevel !== "unspecified" && worker.securityLevel !== requiredSecurityLevel) return false;
+  const workspaceId = String(hints.workspaceId || hints.workspace_id || "").trim();
+  if (workspaceId && Array.isArray(worker.allowedWorkspaceIds) && worker.allowedWorkspaceIds.length) {
+    if (!worker.allowedWorkspaceIds.includes("*") && !worker.allowedWorkspaceIds.includes(workspaceId)) return false;
+  }
+  const maintenance = Boolean(hints.maintenance || hints.allowMaintenance || hints.allow_maintenance);
+  if (maintenance && !worker.allowMaintenance && worker.securityLevel !== "owner-maintenance") return false;
+  if (!maintenance && worker.securityLevel === "owner-maintenance") return false;
   const requiredTags = cleanList(hints.worker_tags);
   if (requiredTags.length) {
     const tags = new Set(worker.tags || []);
@@ -194,13 +222,28 @@ function createGatewayPoolProvider(options = {}) {
 
   async function chooseTarget(hints = {}) {
     const loaded = load();
+    const requestedSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
     if (!loaded.enabled) {
+      if (requestedSecurityLevel === "user") {
+        const err = new Error("No user-level Hermes Gateway worker pool is available");
+        err.status = 503;
+        err.code = "gateway_user_pool_unavailable";
+        err.details = { reason: loaded.error ? `manifest_error:${loaded.error.message || loaded.error}` : "pool_unavailable" };
+        throw err;
+      }
       return Object.assign(fallbackTarget(), {
         reason: loaded.error ? `manifest_error:${loaded.error.message || loaded.error}` : "pool_unavailable",
       });
     }
     const candidates = orderedWorkers(loaded.workers, nextIndex, hints);
     if (!candidates.length) {
+      if (requestedSecurityLevel === "user") {
+        const err = new Error("No matching user-level Hermes Gateway worker is available");
+        err.status = 503;
+        err.code = "gateway_user_worker_unavailable";
+        err.details = { reason: "no_matching_worker" };
+        throw err;
+      }
       return Object.assign(fallbackTarget(), { reason: "no_matching_worker" });
     }
     for (const worker of candidates) {
@@ -213,6 +256,13 @@ function createGatewayPoolProvider(options = {}) {
           manifestPath: loaded.manifestPath,
         });
       }
+    }
+    if (requestedSecurityLevel === "user") {
+      const err = new Error("No healthy user-level Hermes Gateway worker is available");
+      err.status = 503;
+      err.code = "gateway_user_worker_unhealthy";
+      err.details = { reason: "no_healthy_worker" };
+      throw err;
     }
     return Object.assign(fallbackTarget(), { reason: "no_healthy_worker" });
   }
@@ -264,6 +314,7 @@ function createGatewayPoolProvider(options = {}) {
 
 module.exports = {
   createGatewayPoolProvider,
+  normalizeSecurityLevel,
   normalizeWorker,
   orderedWorkers,
 };

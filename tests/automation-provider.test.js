@@ -55,6 +55,19 @@ async function run() {
           source: { name: "hermes_cron", jobCount: 1 },
         };
       }
+      if (payload.action === "read_deliverable") {
+        return {
+          ok: true,
+          file: {
+            name: "report.pdf",
+            mime: "application/pdf",
+            size: Buffer.byteLength("%PDF-1.7\n%%EOF\n"),
+            updatedAt: new Date(0).toISOString(),
+            displayPath: "bridge/report.pdf",
+            contentBase64: Buffer.from("%PDF-1.7\n%%EOF\n").toString("base64"),
+          },
+        };
+      }
       return Object.assign({ ok: true }, payload);
     },
   });
@@ -139,6 +152,14 @@ async function run() {
     auth: { workspaceId: "workspace_a" },
   });
   assert.equal(authorized.file.name, "report.pdf");
+
+  fs.rmSync(jobOutputRoot, { recursive: true, force: true });
+  const bridgeAuthorized = await provider.resolveAuthorizedDeliverableFile({
+    query: new URLSearchParams({ workspaceId: "workspace_a", jobId: "job_1", run: "run.md", index: "0" }),
+    auth: { workspaceId: "workspace_a" },
+  });
+  assert.equal(bridgeAuthorized.bridgeFile.name, "report.pdf");
+  assert.equal(Buffer.from(bridgeAuthorized.bridgeFile.contentBase64, "base64").toString("utf8"), "%PDF-1.7\n%%EOF\n");
 }
 
 run()

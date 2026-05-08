@@ -29,6 +29,7 @@ function valueFrom(value) {
 
 function createFilesystemMountProvider(options = {}) {
   const wslDistro = String(options.wslDistro || "Ubuntu-24.04");
+  const allowWslUncProbes = /^(1|true|yes|on)$/i.test(String(options.allowWslUncProbes || process.env.HERMES_MOBILE_ALLOW_WSL_UNC_PROBES || process.env.HERMES_WEB_ALLOW_WSL_UNC_PROBES || ""));
 
   function windowsPathToWsl(value) {
     const raw = String(value || "").trim();
@@ -71,7 +72,7 @@ function createFilesystemMountProvider(options = {}) {
     if (m) return `${m[1].toUpperCase()}:\\${m[2].replaceAll("/", "\\")}`;
     const volume1Mirror = volume1WindowsMirrorPath(p);
     if (volume1Mirror) return volume1Mirror;
-    if (p.startsWith("/")) {
+    if (p.startsWith("/") && allowWslUncProbes) {
       const unc = `\\\\wsl.localhost\\${wslDistro}${p.replaceAll("/", "\\")}`;
       if (fs.existsSync(unc)) return unc;
       const uncLegacy = `\\\\wsl$\\${wslDistro}${p.replaceAll("/", "\\")}`;

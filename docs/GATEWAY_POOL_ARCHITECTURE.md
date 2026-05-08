@@ -69,12 +69,24 @@ Gateway Pool mode expects a manifest such as:
   "version": 1,
   "workers": [
     {
-      "name": "worker1",
-      "profile": "worker1",
+      "name": "lowgw1",
+      "profile": "lowgw1",
       "host": "127.0.0.1",
-      "port": 8651,
+      "port": 18751,
       "api_key": "stored-outside-repo",
-      "enabled": true
+      "enabled": true,
+      "securityLevel": "user",
+      "allowedWorkspaceIds": ["*"]
+    },
+    {
+      "name": "maintenance1",
+      "profile": "officialclean1",
+      "host": "127.0.0.1",
+      "port": 18651,
+      "api_key": "stored-outside-repo",
+      "enabled": true,
+      "securityLevel": "owner-maintenance",
+      "allowMaintenance": true
     }
   ]
 }
@@ -90,10 +102,12 @@ The scheduler:
 - Filters disabled workers.
 - Honors exact hints such as `worker_profile`, `worker_profiles`, `worker_name`, and `worker_names`.
 - Honors optional preferred hints such as `preferred_worker_profiles` and `preferred_worker_names`.
-- Honors optional `provider` and `worker_tags` filters.
+- Honors optional `provider`, `worker_tags`, `securityLevel`, `allowedWorkspaceIds`, and `allowMaintenance` filters.
 - Health checks `/health` with the worker's API key.
 - Picks healthy workers round-robin.
-- Falls back to the configured default Gateway when the manifest is missing, disabled, has no matching worker, or has no healthy worker.
+- For ordinary user runs, requires a healthy `securityLevel=user` worker and fails closed with `503` if none is available.
+- For explicit Owner maintenance runs, may select `securityLevel=owner-maintenance` workers only when the request is marked as maintenance and the deployment enables Owner maintenance routing.
+- Falls back to the configured default Gateway only for non-user fallback paths. Owner-maintenance workers must not be used as ordinary user-run fallback.
 
 The worker API key is read from the manifest for requests only. It must not be written to messages, SQLite rows, state snapshots, browser payloads, logs, or docs.
 
@@ -159,6 +173,11 @@ Official Hermes should remain clean enough to upgrade directly from upstream. If
 - `HERMES_WEB_HERMES_API_KEY_PATH=<fallback-gateway-api-key-file>`
 
 In `auto` mode, Hermes Mobile uses the pool only when a manifest exists and declares enabled workers.
+
+User-run safety depends on the manifest. At least one healthy `securityLevel=user`
+worker is required for chat/tasks. Workers that can read operator source,
+deployment config, or broad Hermes home state should be labeled
+`owner-maintenance` and kept out of normal scheduling.
 
 ## Acceptance Tests
 

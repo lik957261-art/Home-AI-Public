@@ -99,11 +99,16 @@ function parseArgs(argv) {
 }
 
 function gitFiles(root) {
-  const output = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
-    cwd: root,
-    encoding: "utf8",
-  });
-  return output.split("\0").filter(Boolean).sort();
+  try {
+    const output = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return output.split("\0").filter(Boolean).sort();
+  } catch (_) {
+    return allFiles(root);
+  }
 }
 
 function allFiles(root) {

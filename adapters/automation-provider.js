@@ -39,6 +39,7 @@ function createAutomationProvider(options = {}) {
     : (value) => String(value || "");
   const mimeFor = typeof options.mimeFor === "function" ? options.mimeFor : () => "application/octet-stream";
   const isPathAllowed = typeof options.isPathAllowed === "function" ? options.isPathAllowed : () => false;
+  const isPathProtected = typeof options.isPathProtected === "function" ? options.isPathProtected : () => false;
   const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => ({});
   const authCanAccessWorkspace = typeof options.authCanAccessWorkspace === "function"
     ? options.authCanAccessWorkspace
@@ -151,6 +152,7 @@ function createAutomationProvider(options = {}) {
   }
 
   function isDeliverablePathAllowed(filePath) {
+    if (isPathProtected(filePath)) return false;
     return isPathAllowed(filePath) || pathInsideResolvedRoots(filePath, deliverableRoots());
   }
 
@@ -165,6 +167,9 @@ function createAutomationProvider(options = {}) {
     const displayPath = `${displayRoot}/${fileName}`;
     const localRoot = normalizeLocalPath(displayRoot);
     const localPath = normalizeLocalPath(displayPath);
+    if (isPathProtected(displayPath) || isPathProtected(localRoot) || isPathProtected(localPath)) {
+      return { status: 403, error: "Automation output is blocked by the security boundary" };
+    }
     if (!localRoot || !localPath || !fs.existsSync(localPath)) return { status: 404, error: "Automation output not found" };
     let rootReal;
     let targetReal;
@@ -207,6 +212,7 @@ function createAutomationProvider(options = {}) {
         if (!/\.(pdf|docx|doc|md)$/i.test(item)) return false;
         const localPath = normalizeLocalPath(item);
         if (!localPath || !path.isAbsolute(localPath) || !fs.existsSync(localPath)) return false;
+        if (isPathProtected(item) || isPathProtected(localPath)) return false;
         let key = localPath.toLowerCase();
         try {
           key = fs.realpathSync.native(localPath).toLowerCase();
@@ -288,7 +294,37 @@ function createAutomationProvider(options = {}) {
     if (!result?.ok) return { status: 503, error: result?.error || "Hermes CRON bridge failed" };
     const allowed = (result.jobs || []).some((job) => String(job?.id || "") === jobId && jobMatchesOwner(job, ownerPrincipalId));
     if (!allowed) return { status: 404, error: "Automation output not found" };
-    return args.kind === "deliverable" ? resolveDeliverableFile(query) : resolveOutputFile(query);
+    const localResult = args.kind === "deliverable" ? resolveDeliverableFile(query) : resolveOutputFile(query);
+    if (localResult.file || typeof runBridge !== "function") return localResult;
+    try {
+      const bridgePayload = args.kind === "deliverable"
+        ? {
+          action: "read_deliverable",
+          job_id: jobId,
+          owner_principal_id: ownerPrincipalId,
+          run: String(queryValue(query, "run") || ""),
+          index: String(queryValue(query, "index") || "0"),
+        }
+        : {
+          action: "read_output",
+          job_id: jobId,
+          owner_principal_id: ownerPrincipalId,
+          file: String(queryValue(query, "file") || ""),
+        };
+      const bridgeResult = await runBridge(bridgePayload);
+      if (bridgeResult?.ok && bridgeResult.file?.contentBase64) {
+        return {
+          bridgeFile: bridgeResult.file,
+          source: bridgeResult.source || null,
+        };
+      }
+      if (bridgeResult?.error) {
+        return { status: bridgeResult.status || localResult.status || 404, error: bridgeResult.error };
+      }
+    } catch (err) {
+      return { status: 503, error: `Hermes CRON bridge failed: ${err.message || String(err)}` };
+    }
+    return localResult;
   }
 
   function resolveAuthorizedOutputFile(args = {}) {
