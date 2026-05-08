@@ -49,6 +49,7 @@ These parts must remain replaceable:
 - `adapters/gateway-pool-provider.js` owns non-secret Gateway Pool scheduling: manifest loading, worker normalization, exact/preferred worker hints, tag/provider filters, health checks, round-robin selection, fallback to the configured default Gateway, and API-key lookup by `gatewayUrl` without persisting worker keys into mobile state.
 - `adapters/gateway-runner.js` owns the official Hermes Gateway execution boundary: authenticated requests, `/v1/responses` streaming, health/status probing, run stop, run liveness checks, SSE parsing, and per-run Gateway URL/API-key overrides.
 - `adapters/run-concurrency-policy.js` owns product-level active-run counting and limit decisions before Gateway run creation.
+- `adapters/weixin-ingress-provider.js` owns the optional Weixin/iLink sidecar boundary: inbound event normalization, deterministic event ids, account/chat/principal workspace routing, outbound delivery ids, and delivery ack validation. The server endpoint requires a separate ingress key and does not reuse browser access keys.
 - `adapters/project-discovery-provider.js` owns project/root discovery from project-map entries, physical owner top-level directories, restricted workspace directories, remote `/volume1` directory trees, shareable-root filtering, and project deduping.
 - `adapters/shared-directory-provider.js` owns shared-directory management: persisted share records, derived ACL allowed-root shares, target/permission normalization, project injection for shared roots, read-only write guards, and ACL share removal writes through injected user-policy storage.
 - `adapters/skill-detail-provider.js` owns the Skill detail bridge boundary: child-process execution, timeout, stderr compaction, JSON parsing, and not-found mapping. The current private deployment still backs detail reads with `skill_bridge.py`.
@@ -68,6 +69,7 @@ These parts must remain replaceable:
 - `tests/gateway-pool-provider.test.js` is the contract smoke for worker manifest normalization, routing hints, health-checked selection, fallback behavior, and secret lookup by Gateway URL.
 - `tests/gateway-runner.test.js` is the contract smoke for official Gateway request auth/body handling, status tolerance, SSE event preservation, per-run API key overrides, and `runId -> gatewayUrl` operation routing.
 - `tests/run-concurrency-policy.test.js` is the contract smoke for active assistant-run counting, global limits, per-workspace limits, and non-secret worker diagnostic fields.
+- `tests/weixin-ingress-provider.test.js` is the contract smoke for Weixin event normalization, workspace route matching, deterministic ids, and delivery ack validation.
 - `tests/project-discovery-provider.test.js` is the contract smoke for owner physical root discovery, restricted workspace directory discovery, remote `/volume1` tree mapping, shareable-root filtering, and shared-root deduping.
 - `tests/shared-directory-provider.test.js` is the contract smoke for explicit shares, ACL allowed-root derived shares, target visibility, read-only/write access, access updates, and ACL removal writes.
 - `tests/skill-detail-provider.test.js` is the contract smoke for Skill detail bridge payload mapping, required-skill validation, and not-found status mapping.
@@ -78,6 +80,7 @@ These parts must remain replaceable:
 The private checkout still contains local deployment behavior that must be moved behind adapters before public export:
 
 - Legacy Weixin workspace user/route-map filenames are not used by default. Existing deployments must opt in with `HERMES_WEB_ENABLE_LEGACY_WEIXIN_COMPAT=1` or pass explicit `HERMES_WEB_WEIXIN_USERS_PATH` / `HERMES_WEB_WEIXIN_ROUTE_MAP_PATH`; new deployments should use the generic `HERMES_WEB_WORKSPACE_USERS_PATH` and `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH` inputs.
+- Weixin message polling/delivery is now a Mobile sidecar boundary, not a reason to patch official Hermes Gateway. A deployment must disable the corresponding Gateway Weixin poller before enabling the sidecar for that same account; otherwise both pollers can race the same cursor.
 - Project-id heuristics that are not already covered by the project discovery and display-path providers.
 - Owner drive-root display compatibility is configurable through `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`; the default keeps `ChatGPT-Drive` compatibility for existing deployments.
 - Owner-only external integration display labels remain product metadata, while deployment-specific path/env detection lives behind the integration provider.

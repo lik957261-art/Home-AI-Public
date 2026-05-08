@@ -117,6 +117,7 @@ Important configuration groups:
 - `HERMES_WEB_HERMES_API_KEY` or `HERMES_WEB_HERMES_API_KEY_PATH`
 - `HERMES_WEB_GATEWAY_POOL_ENABLED`, `HERMES_WEB_GATEWAY_POOL_MANIFEST`
 - `HERMES_WEB_MAX_ACTIVE_RUNS`, `HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE`
+- `HERMES_MOBILE_WEIXIN_INGRESS_KEY` or `HERMES_MOBILE_WEIXIN_INGRESS_KEY_PATH`
 - `HERMES_WEB_WORKSPACE_USERS_PATH`, `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH`
 - `HERMES_WEB_ENABLE_LEGACY_WEIXIN_COMPAT`, `HERMES_WEB_PRINCIPAL_LABEL_PREFIXES`
 - `HERMES_WEB_ALLOWED_ARTIFACT_ROOTS`
@@ -148,6 +149,7 @@ See [docs/PRODUCTIZATION.md](docs/PRODUCTIZATION.md).
 See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the current private-adapter extraction map.
 See [docs/OFFICIAL_HERMES_COMPATIBILITY.md](docs/OFFICIAL_HERMES_COMPATIBILITY.md) for the compatibility boundary with official Hermes.
 See [docs/GATEWAY_POOL_ARCHITECTURE.md](docs/GATEWAY_POOL_ARCHITECTURE.md) for the product runtime target: Hermes Mobile scheduling one or more official Hermes Gateway profiles while preserving official Hermes Skill, memory, tool, session, and artifact behavior. A single Gateway remains the minimal install and fallback mode.
+See [docs/WEIXIN_INGRESS.md](docs/WEIXIN_INGRESS.md) for the optional Weixin/iLink ingress sidecar boundary. Only one poller may own a Weixin account at a time.
 See [docs/SERVICE_LAYER_SQLITE.md](docs/SERVICE_LAYER_SQLITE.md) for the SQLite service-layer migration plan.
 See [docs/OFFICIAL_HERMES_CLEANUP_PLAN.md](docs/OFFICIAL_HERMES_CLEANUP_PLAN.md) for the path back to clean official Hermes profiles.
 See [docs/PUBLIC_EXPORT_CHECKLIST.md](docs/PUBLIC_EXPORT_CHECKLIST.md) before creating a public repository/export.

@@ -11,6 +11,7 @@ The current product decision is Gateway Pool scheduling in Hermes Mobile: Hermes
 - Treat official dashboard UI and PTY Chat as reference only; do not depend on its frontend internals.
 - Use configuration/env variables for Hermes home, config paths, Gateway URL, API key path, and CRON paths.
 - Keep official Hermes source clean and directly upgradable. Deep deployment behavior, including Weixin-era Todo/Automation routing, should move into Hermes Mobile services or optional adapters rather than patching Gateway/agent internals.
+- Weixin/iLink polling and outbound delivery should be treated as a Mobile sidecar boundary when a deployment needs it. Official Hermes Gateway should receive already-routed Mobile runs rather than owning deployment-specific account polling, queueing, or delivery receipts.
 - Do not bypass Gateway by calling Codex/OpenAI directly for user tasks. If official Hermes agent behavior is required, the run must go through official Gateway.
 - Do not reimplement Skill discovery, Skill creation/update, memory, compression, session, tool routing, or artifact semantics inside Hermes Mobile.
 

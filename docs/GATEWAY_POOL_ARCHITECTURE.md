@@ -18,6 +18,25 @@ Official Hermes agent runtime, tools, skills, memory, sessions, artifacts
 
 Single Gateway remains the minimal install and fallback path. It is not the long-term production ceiling.
 
+External chat bridges use the same Mobile scheduler:
+
+```text
+Weixin / iLink poller sidecar
+    |
+Hermes Mobile ingress queue and workspace router
+    |  Gateway Pool scheduler
+Official Hermes Gateway profile A / profile B / ...
+    |
+Hermes Mobile outbound delivery queue
+    |
+Weixin / iLink sender sidecar
+```
+
+Only one poller may own a Weixin account at a time. For cutover, disable that
+account in any Hermes-native Gateway poller before enabling the Mobile sidecar.
+This prevents cursor races, duplicate deliveries, and messages being consumed
+before Mobile can route them.
+
 ## Why Pool Scheduling Belongs In Hermes Mobile
 
 Existing private production already uses multiple Gateway profiles for parallel work. That mechanism can be reused without keeping product behavior patched into Hermes native code.
@@ -151,6 +170,7 @@ Before treating Gateway Pool mode as production-ready, validate:
 - Liveness checks call the same worker that created the run.
 - Missing/disabled/unhealthy worker manifest falls back to the configured default Gateway.
 - Product-level active-run limits reject excess new work before run creation.
+- A Weixin sidecar event is accepted once, deduplicated by event id, routed to the correct workspace, scheduled through the same Gateway Pool, and surfaced as a pending outbound delivery after the run reaches a terminal state.
 - A task that uses an existing Skill still uses official Hermes behavior.
 - A task that creates or updates a Skill writes through official Hermes behavior.
 - Usage, events, and artifacts are preserved through the GatewayRunner boundary.

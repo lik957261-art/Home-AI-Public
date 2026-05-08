@@ -25,6 +25,7 @@ const { createSkillDetailProvider } = require("./adapters/skill-detail-provider"
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
+const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 
 const TOOL_ROOT = __dirname;
 const REPO_ROOT = path.resolve(process.env.HERMES_WEB_REPO_ROOT || process.env.HERMES_MOBILE_ROOT || TOOL_ROOT);
@@ -57,6 +58,16 @@ const SHARED_DIRECTORIES_PATH = path.join(DATA_DIR, "shared-directories.json");
 const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
 const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
 const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
+const WEIXIN_INGRESS_KEY_PATHS = [
+  process.env.HERMES_MOBILE_WEIXIN_INGRESS_KEY_PATH,
+  process.env.HERMES_WEB_WEIXIN_INGRESS_KEY_PATH,
+  path.join(DATA_DIR, "weixin-ingress.secret"),
+].filter(Boolean);
+const WEIXIN_INGRESS_DEFAULT_WORKSPACE = String(
+  process.env.HERMES_MOBILE_WEIXIN_INGRESS_DEFAULT_WORKSPACE
+    || process.env.HERMES_WEB_WEIXIN_INGRESS_DEFAULT_WORKSPACE
+    || "",
+).trim();
 const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
 const OWNER_DEFAULT_WORKSPACE = path.resolve(process.env.HERMES_WEB_OWNER_DEFAULT_WORKSPACE || path.join(DATA_DIR, "drive"));
 const AUTH_KEY_PATH = path.resolve(process.env.HERMES_WEB_AUTH_KEY_PATH || path.join(REPO_ROOT, ".hermes_web_secret_key"));
@@ -252,6 +263,11 @@ const authProvider = createAuthProvider({
   findWorkspace,
   workspacePrincipal,
   listWorkspaces: () => loadCatalog().workspaces,
+});
+const weixinIngressProvider = createWeixinIngressProvider({
+  listWorkspaces: () => loadCatalog().workspaces,
+  workspaceIdForPrincipal,
+  defaultWorkspaceId: () => WEIXIN_INGRESS_DEFAULT_WORKSPACE,
 });
 const runtimeConfigProvider = createRuntimeConfigProvider({
   storagePath: () => RUNTIME_CONFIG_PATH,
@@ -1007,6 +1023,42 @@ function normalizeChatGroup(value, ownerWorkspaceId = "owner") {
   };
 }
 
+function normalizeExternalIngress(value) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const sourceName = String(source.source || "").trim();
+  if (!sourceName) return null;
+  return {
+    source: sourceName.slice(0, 80),
+    threadKey: String(source.threadKey || source.thread_key || "").slice(0, 120),
+    eventId: String(source.eventId || source.event_id || "").slice(0, 160),
+    accountId: String(source.accountId || source.account_id || "").slice(0, 160),
+    chatId: String(source.chatId || source.chat_id || "").slice(0, 240),
+    userId: String(source.userId || source.user_id || "").slice(0, 240),
+    principalId: String(source.principalId || source.principal_id || "").slice(0, 160),
+    workspaceId: String(source.workspaceId || source.workspace_id || "").slice(0, 160),
+    senderLabel: String(source.senderLabel || source.sender_label || "").slice(0, 120),
+    status: String(source.status || "").slice(0, 80),
+    createdAt: String(source.createdAt || source.created_at || ""),
+    updatedAt: String(source.updatedAt || source.updated_at || ""),
+  };
+}
+
+function normalizeExternalDelivery(value) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const sourceName = String(source.source || "").trim();
+  if (!sourceName) return null;
+  return Object.assign({}, source, {
+    source: sourceName.slice(0, 80),
+    deliveryId: String(source.deliveryId || source.delivery_id || "").slice(0, 160),
+    status: String(source.status || "waiting").slice(0, 80),
+    accountId: String(source.accountId || source.account_id || "").slice(0, 160),
+    chatId: String(source.chatId || source.chat_id || "").slice(0, 240),
+    userId: String(source.userId || source.user_id || "").slice(0, 240),
+    eventId: String(source.eventId || source.event_id || "").slice(0, 160),
+    updatedAt: String(source.updatedAt || source.updated_at || ""),
+  });
+}
+
 function normalizeThread(thread) {
   const now = new Date().toISOString();
   const normalized = {
@@ -1024,6 +1076,7 @@ function normalizeThread(thread) {
     updatedAt: thread.updatedAt || now,
     taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
     chatGroup: normalizeChatGroup(thread.chatGroup || thread.groupChat, thread.workspaceId || "owner"),
+    externalIngress: normalizeExternalIngress(thread.externalIngress || thread.external_ingress),
     messages: Array.isArray(thread.messages) ? thread.messages : [],
     events: Array.isArray(thread.events) ? thread.events.slice(-MAX_STORED_EVENTS_PER_THREAD) : [],
   };
@@ -1054,6 +1107,8 @@ function normalizeThreadMessages(thread, messages) {
     next.gatewayName = String(next.gatewayName || next.gateway_name || "").trim();
     next.gatewayProfile = String(next.gatewayProfile || next.gateway_profile || "").trim();
     next.gatewaySource = String(next.gatewaySource || next.gateway_source || "").trim();
+    next.externalIngress = normalizeExternalIngress(next.externalIngress || next.external_ingress);
+    next.externalDelivery = normalizeExternalDelivery(next.externalDelivery || next.external_delivery);
     if (!next.senderLabel && next.senderWorkspaceId) next.senderLabel = workspaceLabel(next.senderWorkspaceId);
     next.revokedAt = String(next.revokedAt || next.revoked_at || "").trim();
     next.revokedByWorkspaceId = String(next.revokedByWorkspaceId || next.revoked_by_workspace_id || "").trim();
@@ -3692,6 +3747,354 @@ function buildUserMessageContent(text, artifacts) {
   return lines.join("\n\n").trim();
 }
 
+function readFirstConfiguredSecret(paths) {
+  for (const candidate of paths || []) {
+    const filePath = String(candidate || "").trim();
+    if (!filePath) continue;
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      const text = fs.readFileSync(filePath, "utf8").trim();
+      if (text) return text.split(/\r?\n/)[0].trim();
+    } catch (_) {}
+  }
+  return "";
+}
+
+function configuredWeixinIngressKey() {
+  return String(
+    process.env.HERMES_MOBILE_WEIXIN_INGRESS_KEY
+      || process.env.HERMES_WEB_WEIXIN_INGRESS_KEY
+      || readFirstConfiguredSecret(WEIXIN_INGRESS_KEY_PATHS)
+      || "",
+  ).trim();
+}
+
+function requestIngressKey(req) {
+  const auth = String(req.headers.authorization || "").trim();
+  const bearer = auth.match(/^Bearer\s+(.+)$/i);
+  return String(
+    req.headers["x-hermes-mobile-ingress-key"]
+      || req.headers["x-hermes-web-ingress-key"]
+      || (bearer ? bearer[1] : "")
+      || "",
+  ).trim();
+}
+
+function constantTimeStringEqual(a, b) {
+  const left = Buffer.from(hashValue(a), "hex");
+  const right = Buffer.from(hashValue(b), "hex");
+  return crypto.timingSafeEqual(left, right);
+}
+
+function authenticateWeixinIngressRequest(req) {
+  const configured = configuredWeixinIngressKey();
+  if (!configured) return { ok: false, status: 503, error: "Weixin ingress key is not configured" };
+  const provided = requestIngressKey(req);
+  if (!provided || !constantTimeStringEqual(provided, configured)) {
+    return { ok: false, status: 401, error: "Invalid Weixin ingress key" };
+  }
+  return { ok: true };
+}
+
+function requireWeixinIngress(req, res) {
+  const auth = authenticateWeixinIngressRequest(req);
+  if (!auth.ok) {
+    sendJson(res, auth.status || 401, { ok: false, error: auth.error || "Unauthorized" });
+    return null;
+  }
+  return auth;
+}
+
+function weixinIngressMessageContent(event) {
+  const lines = [];
+  if (event.text) lines.push(event.text);
+  for (const item of event.attachments || []) {
+    if (item.path) lines.push(`MEDIA:${item.path}`);
+    else if (item.url) lines.push(`Attachment: ${item.name || "file"} ${item.url}`);
+    else if (item.name) lines.push(`Attachment: ${item.name}`);
+  }
+  return lines.join("\n\n").trim();
+}
+
+function weixinIngressInstructions(event) {
+  return [
+    "This request arrived from Hermes Mobile's Weixin ingress sidecar.",
+    "Hermes Mobile owns outbound delivery back to the origin chat. Do not call send_message, Weixin, or other external chat delivery tools unless the user explicitly asks to send something to a third party.",
+    "Produce the final reply for Hermes Mobile to deliver. If you create user-facing files, include MEDIA:/absolute/path lines in the final answer.",
+    `Ingress route: account=${event.accountId || "unknown"}, chat=${event.chatId || event.userId || "unknown"}.`,
+  ].join("\n");
+}
+
+function findExistingWeixinIngressEvent(eventId) {
+  const id = String(eventId || "").trim();
+  if (!id) return null;
+  for (const thread of state.threads || []) {
+    for (const message of thread.messages || []) {
+      if (message?.role === "user" && message.externalIngress?.source === "weixin" && message.externalIngress.eventId === id) {
+        return { thread, message };
+      }
+    }
+  }
+  return null;
+}
+
+function weixinIngressThreadForEvent(event, workspaceId) {
+  const threadKey = weixinIngressProvider.threadKey(event);
+  let thread = (state.threads || []).find((item) => (
+    item.externalIngress?.source === "weixin" && item.externalIngress.threadKey === threadKey
+  ));
+  if (thread) return thread;
+  const now = nowIso();
+  thread = normalizeThread({
+    id: makeId("thread"),
+    title: `Weixin - ${workspaceLabel(workspaceId)}`,
+    workspaceId,
+    projectId: SINGLE_WINDOW_PROJECT_ID,
+    subprojectId: "",
+    singleWindow: true,
+    hermesSessionId: `weixin_${hashId(`${event.accountId}|${event.chatId || event.userId || event.principalId}`)}`,
+    status: "idle",
+    externalIngress: Object.assign({}, event, {
+      threadKey,
+      workspaceId,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    }),
+    createdAt: now,
+    updatedAt: now,
+    messages: [],
+    events: [],
+  });
+  state.threads.unshift(thread);
+  return thread;
+}
+
+function enqueueExternalDeliveryForTerminalMessage(thread, message, terminalStatus) {
+  const existing = normalizeExternalDelivery(message?.externalDelivery || null);
+  if (!existing || existing.source !== "weixin") return null;
+  if (["sent", "skipped"].includes(existing.status)) return existing;
+  const updatedAt = nowIso();
+  const deliveryId = existing.deliveryId || weixinIngressProvider.deliveryId(thread.id, message.id);
+  const content = terminalStatus === "failed"
+    ? `Task failed: ${message.error || message.content || "Hermes run failed"}`
+    : String(message.content || "").trim();
+  const next = normalizeExternalDelivery(Object.assign({}, existing, {
+    deliveryId,
+    status: "pending",
+    terminalStatus,
+    content: compactText(content, MAX_MESSAGE_CHARS),
+    artifacts: Array.isArray(message.artifacts) ? message.artifacts : [],
+    threadId: thread.id,
+    messageId: message.id,
+    taskGroupId: message.taskGroupId || "",
+    taskId: message.taskId || message.runId || "",
+    workspaceId: thread.workspaceId,
+    queuedAt: existing.queuedAt || updatedAt,
+    updatedAt,
+  }));
+  message.externalDelivery = next;
+  return next;
+}
+
+function publicWeixinOutboundDelivery(thread, message) {
+  const delivery = normalizeExternalDelivery(message?.externalDelivery || null);
+  if (!delivery) return null;
+  return {
+    deliveryId: delivery.deliveryId || weixinIngressProvider.deliveryId(thread.id, message.id),
+    source: "weixin",
+    status: delivery.status || "pending",
+    accountId: delivery.accountId || "",
+    chatId: delivery.chatId || "",
+    userId: delivery.userId || "",
+    eventId: delivery.eventId || "",
+    workspaceId: delivery.workspaceId || thread.workspaceId || "",
+    threadId: thread.id,
+    messageId: message.id,
+    taskGroupId: message.taskGroupId || "",
+    taskId: message.taskId || message.runId || "",
+    content: String(delivery.content || message.content || message.error || "").trim(),
+    artifacts: Array.isArray(delivery.artifacts) ? delivery.artifacts : (Array.isArray(message.artifacts) ? message.artifacts : []),
+    terminalStatus: delivery.terminalStatus || message.status || "",
+    queuedAt: delivery.queuedAt || delivery.updatedAt || message.updatedAt || "",
+    updatedAt: delivery.updatedAt || message.updatedAt || "",
+  };
+}
+
+function pendingWeixinOutboundDeliveries(filters = {}) {
+  const status = String(filters.status || "pending").trim().toLowerCase();
+  const accountId = String(filters.accountId || "").trim();
+  const limit = Math.max(1, Math.min(100, Number(filters.limit || 20) || 20));
+  const out = [];
+  for (const thread of state.threads || []) {
+    for (const message of thread.messages || []) {
+      const delivery = normalizeExternalDelivery(message?.externalDelivery || null);
+      if (!delivery || delivery.source !== "weixin") continue;
+      if (status && delivery.status !== status) continue;
+      if (accountId && delivery.accountId !== accountId) continue;
+      const publicDelivery = publicWeixinOutboundDelivery(thread, message);
+      if (publicDelivery) out.push(publicDelivery);
+    }
+  }
+  return out
+    .sort((a, b) => String(a.queuedAt || a.updatedAt).localeCompare(String(b.queuedAt || b.updatedAt)))
+    .slice(0, limit);
+}
+
+function ackWeixinOutboundDelivery(deliveryId, ack) {
+  const id = String(deliveryId || "").trim();
+  if (!id) return null;
+  for (const thread of state.threads || []) {
+    for (const message of thread.messages || []) {
+      const delivery = normalizeExternalDelivery(message?.externalDelivery || null);
+      const candidateId = delivery?.deliveryId || weixinIngressProvider.deliveryId(thread.id, message.id);
+      if (!delivery || candidateId !== id) continue;
+      message.externalDelivery = normalizeExternalDelivery(Object.assign({}, delivery, {
+        deliveryId: candidateId,
+        status: ack.status,
+        providerMessageId: ack.providerMessageId,
+        error: ack.error,
+        rawStatus: ack.rawStatus,
+        acknowledgedAt: ack.acknowledgedAt,
+        updatedAt: ack.acknowledgedAt,
+      }));
+      message.updatedAt = ack.acknowledgedAt || nowIso();
+      thread.updatedAt = message.updatedAt;
+      saveState();
+      return publicWeixinOutboundDelivery(thread, message);
+    }
+  }
+  return null;
+}
+
+async function startWeixinIngressEvent(body) {
+  const event = weixinIngressProvider.normalizeInboundEvent(body);
+  const duplicate = findExistingWeixinIngressEvent(event.eventId);
+  if (duplicate) {
+    return {
+      ok: true,
+      duplicate: true,
+      eventId: event.eventId,
+      thread: compactThread(duplicate.thread),
+      message: compactMessage(duplicate.message),
+    };
+  }
+  const workspaceId = weixinIngressProvider.resolveWorkspaceId(event);
+  if (!workspaceId || !findWorkspace(workspaceId)) {
+    const err = new Error("No workspace route matched this Weixin ingress event");
+    err.status = 404;
+    throw err;
+  }
+  const thread = weixinIngressThreadForEvent(event, workspaceId);
+  const taskGroupId = "weixin-chat";
+  const queueBehindActiveRun = taskGroupHasRunningRun(thread, taskGroupId);
+  if (!queueBehindActiveRun) {
+    const concurrencyError = runConcurrencyError(workspaceId);
+    if (concurrencyError) throw concurrencyError;
+  }
+  const createdAt = nowIso();
+  const senderInfo = senderInfoForWorkspace(workspaceId);
+  const ingressMeta = normalizeExternalIngress(Object.assign({}, event, {
+    threadKey: weixinIngressProvider.threadKey(event),
+    workspaceId,
+    status: "received",
+    createdAt,
+    updatedAt: createdAt,
+  }));
+  const userMessage = {
+    id: makeId("msg"),
+    role: "user",
+    content: weixinIngressMessageContent(event),
+    status: "done",
+    createdAt,
+    updatedAt: createdAt,
+    submittedAt: createdAt,
+    artifacts: [],
+    taskGroupId,
+    messageKind: "ai",
+    senderWorkspaceId: senderInfo.senderWorkspaceId,
+    senderPrincipalId: senderInfo.senderPrincipalId,
+    senderLabel: event.senderLabel || senderInfo.senderLabel,
+    actorWorkspaceId: workspaceId,
+    externalIngress: ingressMeta,
+    singleWindowMode: "chat",
+  };
+  const assistantMessage = {
+    id: makeId("msg"),
+    role: "assistant",
+    content: "",
+    status: "queued",
+    runId: null,
+    createdAt,
+    updatedAt: createdAt,
+    queuedAt: createdAt,
+    artifacts: [],
+    taskGroupId,
+    messageKind: "ai",
+    senderWorkspaceId: "hermes",
+    senderPrincipalId: "hermes",
+    senderLabel: "Hermes",
+    actorWorkspaceId: workspaceId,
+    singleWindowMode: "chat",
+    externalDelivery: normalizeExternalDelivery({
+      source: "weixin",
+      status: "waiting",
+      accountId: event.accountId,
+      chatId: event.chatId,
+      userId: event.userId,
+      eventId: event.eventId,
+      workspaceId,
+      createdAt,
+      updatedAt: createdAt,
+    }),
+  };
+  const runOptions = {
+    singleWindowMode: "chat",
+    actorWorkspaceId: workspaceId,
+    instructions: weixinIngressInstructions(event),
+    gatewayRouting: {
+      source: "weixin",
+      workspaceId,
+      accountId: event.accountId,
+      chatId: event.chatId || event.userId || "",
+    },
+  };
+  assistantMessage.runOptions = runOptions;
+  thread.messages.push(userMessage, assistantMessage);
+  thread.status = queueBehindActiveRun && (thread.activeRunIds || []).length ? "running" : "queued";
+  thread.updatedAt = createdAt;
+  saveState();
+  broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
+  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+  if (queueBehindActiveRun) {
+    return { ok: true, duplicate: false, eventId: event.eventId, run: { status: "queued", taskGroupId }, thread: compactThread(thread) };
+  }
+  try {
+    const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
+    return { ok: true, duplicate: false, eventId: event.eventId, run, thread: compactThread(thread) };
+  } catch (err) {
+    const failedAt = nowIso();
+    assistantMessage.status = "failed";
+    assistantMessage.error = err.message || String(err);
+    assistantMessage.failedAt = failedAt;
+    assistantMessage.updatedAt = failedAt;
+    enqueueExternalDeliveryForTerminalMessage(thread, assistantMessage, "failed");
+    removeThreadActiveRun(thread, assistantMessage.runId, "failed");
+    thread.updatedAt = failedAt;
+    saveState();
+    broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+    return {
+      ok: false,
+      accepted: true,
+      eventId: event.eventId,
+      error: assistantMessage.error,
+      run: { status: "failed", taskGroupId },
+      thread: compactThread(thread),
+    };
+  }
+}
+
 function threadSummary(thread) {
   const last = [...(thread.messages || [])].reverse().find((msg) => msg.content);
   return {
@@ -5229,6 +5632,7 @@ function applyHermesRunEvent(event) {
     message.completedAt = completedAt;
     message.updatedAt = completedAt;
     message.artifacts = registerArtifactsFromText(thread, message, output);
+    enqueueExternalDeliveryForTerminalMessage(thread, message, "done");
     removeThreadActiveRun(thread, runId, "idle");
     thread.updatedAt = completedAt;
     saveState();
@@ -5244,6 +5648,7 @@ function applyHermesRunEvent(event) {
     message.error = String(event.error?.message || event.error || "run failed");
     message.failedAt = failedAt;
     message.updatedAt = failedAt;
+    enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
     removeThreadActiveRun(thread, runId, "failed");
     thread.updatedAt = failedAt;
     saveState();
@@ -5285,6 +5690,7 @@ function markRunFailed(threadId, messageId, runId, err) {
   message.error = err.message || String(err);
   message.failedAt = failedAt;
   message.updatedAt = failedAt;
+  enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
   removeThreadActiveRun(thread, runId, "failed");
   thread.updatedAt = failedAt;
   saveState();
@@ -5323,6 +5729,7 @@ function reconcileDetachedActiveRuns(reason = "Hermes Mobile restarted while thi
       message.error = reason;
       message.failedAt = failedAt;
       message.updatedAt = failedAt;
+      enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
       if (runId) removeThreadActiveRun(thread, runId, "failed");
       changed = true;
       threadChanged = true;
@@ -5867,6 +6274,55 @@ async function handleApi(req, res) {
       "Cache-Control": "no-store",
     });
     res.end();
+    return;
+  }
+
+  if (url.pathname === "/api/ingress/weixin/events" && req.method === "POST") {
+    if (!requireWeixinIngress(req, res)) return;
+    const body = await readBody(req).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const result = await startWeixinIngressEvent(body);
+      sendJson(res, result.duplicate ? 200 : 202, result);
+    } catch (err) {
+      sendJson(res, err.status || 500, Object.assign({ ok: false, error: err.message || String(err) }, err.result || {}));
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/ingress/weixin/outbound" && req.method === "GET") {
+    if (!requireWeixinIngress(req, res)) return;
+    const data = pendingWeixinOutboundDeliveries({
+      status: url.searchParams.get("status") || "pending",
+      accountId: url.searchParams.get("accountId") || url.searchParams.get("account_id") || "",
+      limit: url.searchParams.get("limit") || "",
+    });
+    sendJson(res, 200, { ok: true, data });
+    return;
+  }
+
+  const weixinOutboundAck = url.pathname.match(/^\/api\/ingress\/weixin\/outbound\/([^/]+)\/ack$/);
+  if (weixinOutboundAck && req.method === "POST") {
+    if (!requireWeixinIngress(req, res)) return;
+    const body = await readBody(req).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const ack = weixinIngressProvider.normalizeAck(body);
+      const delivery = ackWeixinOutboundDelivery(decodeURIComponent(weixinOutboundAck[1]), ack);
+      if (!delivery) {
+        sendJson(res, 404, { ok: false, error: "Delivery not found" });
+        return;
+      }
+      sendJson(res, 200, { ok: true, delivery });
+    } catch (err) {
+      sendJson(res, err.status || 500, { ok: false, error: err.message || String(err) });
+    }
     return;
   }
 
