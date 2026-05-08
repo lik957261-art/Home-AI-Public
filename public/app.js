@@ -7398,6 +7398,7 @@ function renderTaskDetailToolbar(group) {
     deleteTaskGroup(group.id).catch(showError);
   });
   wireDirectoryProjectLinks(toolbar);
+  wireSkillLinks(toolbar);
 }
 
 function renderTaskCard(group) {
