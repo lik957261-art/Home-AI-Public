@@ -154,6 +154,7 @@ See [docs/WEIXIN_INGRESS.md](docs/WEIXIN_INGRESS.md) for the optional Weixin/iLi
 See [docs/SERVICE_LAYER_SQLITE.md](docs/SERVICE_LAYER_SQLITE.md) for the SQLite service-layer migration plan.
 See [docs/OFFICIAL_HERMES_CLEANUP_PLAN.md](docs/OFFICIAL_HERMES_CLEANUP_PLAN.md) for the path back to clean official Hermes profiles.
 See [docs/PROCESS_ISOLATION.md](docs/PROCESS_ISOLATION.md) for the protected-path boundary and Windows/macOS/Linux low-privilege runtime layout.
+See [docs/LOCAL_WORKSPACE_ROOT_MIGRATION.md](docs/LOCAL_WORKSPACE_ROOT_MIGRATION.md) for moving deployment workspace roots from mounted paths into local per-user data directories.
 See [docs/PUBLIC_EXPORT_CHECKLIST.md](docs/PUBLIC_EXPORT_CHECKLIST.md) before creating a public repository/export.
 
 The public repository should be created from a privacy-scanned export of this private repo, not from the Agent workspace history.
