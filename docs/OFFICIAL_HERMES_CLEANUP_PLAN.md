@@ -44,7 +44,7 @@ These are candidates to remove from customized Hermes only after equivalent Mobi
 
 - Weixin-specific Todo notice suppression and routing glue.
 - Weixin-specific foreground delivery receipt shaping that is now a Mobile Web Push concern.
-- Hermes Web/mobile-specific usage payload compatibility patches, if official Gateway exposes the same fields.
+- Hermes Mobile-specific usage payload compatibility patches, if official Gateway exposes the same fields.
 - Product account/workspace policy code that can be expressed through Hermes Mobile access-policy adapters.
 
 ## Non-Negotiable Checks

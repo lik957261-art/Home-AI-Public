@@ -8,7 +8,7 @@ param(
     [switch]$StartOnly,
     [switch]$StopOnly,
     [switch]$NoAuth,
-    [string]$StartupTaskName = "Hermes Web Listener User Logon",
+    [string]$StartupTaskName = "Hermes Mobile Listener User Logon",
     [string]$StartupTaskPath = "\",
     [switch]$ForceLocalStart
 )
@@ -21,7 +21,7 @@ $serverPath = (Resolve-Path -LiteralPath (Join-Path $scriptRoot "server.js")).Pa
 $startScript = Join-Path $scriptRoot "start-hermes-web.ps1"
 
 if (-not (Test-Path -LiteralPath $startScript)) {
-    throw "Hermes Web start script not found: $startScript"
+    throw "Hermes Mobile start script not found: $startScript"
 }
 
 function Normalize-PathText {
@@ -68,7 +68,7 @@ function Start-HermesWebRegisteredTask {
     }
 
     Start-ScheduledTask -TaskName $StartupTaskName -TaskPath $StartupTaskPath -ErrorAction Stop
-    Write-Host "Started Hermes Web via registered user task: $StartupTaskPath$StartupTaskName ($principalUser)"
+    Write-Host "Started Hermes Mobile via registered user task: $StartupTaskPath$StartupTaskName ($principalUser)"
 
     $deadline = (Get-Date).AddSeconds($StopTimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
@@ -77,37 +77,37 @@ function Start-HermesWebRegisteredTask {
         if (-not $listener) { continue }
         $processInfo = Get-ListenerProcessInfo -ProcessId $listener.OwningProcess
         if (Test-HermesWebProcess -ProcessInfo $processInfo) {
-            Write-Host "Hermes Web listening on $($listener.LocalAddress):$($listener.LocalPort), PID $($listener.OwningProcess)"
+        Write-Host "Hermes Mobile listening on $($listener.LocalAddress):$($listener.LocalPort), PID $($listener.OwningProcess)"
             return $true
         }
     }
-    throw "Registered user task '$StartupTaskPath$StartupTaskName' did not open Hermes Web port $Port."
+    throw "Registered user task '$StartupTaskPath$StartupTaskName' did not open Hermes Mobile port $Port."
 }
 
 function Stop-HermesWebListener {
     $listener = Get-HermesWebListener
     if (-not $listener) {
-        Write-Host "Hermes Web is not listening on port $Port."
+        Write-Host "Hermes Mobile is not listening on port $Port."
         return
     }
 
     $processInfo = Get-ListenerProcessInfo -ProcessId $listener.OwningProcess
     if (-not (Test-HermesWebProcess -ProcessInfo $processInfo)) {
-        throw "Port $Port is owned by PID $($listener.OwningProcess), but it does not look like Hermes Web: $($processInfo.CommandLine)"
+        throw "Port $Port is owned by PID $($listener.OwningProcess), but it does not look like Hermes Mobile: $($processInfo.CommandLine)"
     }
 
-    Write-Host "Stopping Hermes Web listener PID $($listener.OwningProcess) on port $Port"
+    Write-Host "Stopping Hermes Mobile listener PID $($listener.OwningProcess) on port $Port"
     Stop-Process -Id $listener.OwningProcess -Force -ErrorAction Stop
 
     $deadline = (Get-Date).AddSeconds($StopTimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Milliseconds 300
         if (-not (Get-HermesWebListener)) {
-            Write-Host "Hermes Web listener stopped."
+            Write-Host "Hermes Mobile listener stopped."
             return
         }
     }
-    throw "Timed out waiting for Hermes Web listener on port $Port to stop."
+    throw "Timed out waiting for Hermes Mobile listener on port $Port to stop."
 }
 
 function Start-HermesWebDetached {
@@ -133,6 +133,6 @@ if (-not $StartOnly) {
 if (-not $StopOnly) {
     Start-HermesWebDetached
     $listener = Get-HermesWebListener
-    if (-not $listener) { throw "Hermes Web did not open port $Port after restart." }
-    Write-Host "Hermes Web listening on $($listener.LocalAddress):$($listener.LocalPort), PID $($listener.OwningProcess)"
+    if (-not $listener) { throw "Hermes Mobile did not open port $Port after restart." }
+    Write-Host "Hermes Mobile listening on $($listener.LocalAddress):$($listener.LocalPort), PID $($listener.OwningProcess)"
 }

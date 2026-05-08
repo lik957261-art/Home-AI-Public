@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read Hermes Skill detail content for Hermes Web."""
+"""Read Hermes Skill detail content for Hermes Mobile."""
 
 from __future__ import annotations
 

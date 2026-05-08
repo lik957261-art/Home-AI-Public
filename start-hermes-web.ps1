@@ -7,7 +7,7 @@ param(
     [switch]$CheckOnly,
     [switch]$NoAuth,
     [switch]$Detached,
-    [string]$StartupTaskName = "Hermes Web Listener User Logon",
+    [string]$StartupTaskName = "Hermes Mobile Listener User Logon",
     [string]$StartupTaskPath = "\",
     [switch]$ForceLocalStart
 )
@@ -22,7 +22,7 @@ $appPath = Join-Path $scriptRoot "public\app.js"
 $logDir = Join-Path $repoRoot "workspace\hermes-web\logs"
 
 if (-not (Test-Path -LiteralPath $serverPath)) {
-    throw "Hermes Web server not found: $serverPath"
+    throw "Hermes Mobile server not found: $serverPath"
 }
 
 $nodeCommand = Get-Command $NodeExe -ErrorAction Stop
@@ -71,9 +71,9 @@ function Start-HermesWebRegisteredTask {
             return $false
         }
         Start-ScheduledTask -TaskName $StartupTaskName -TaskPath $StartupTaskPath -ErrorAction Stop
-        Write-Host "Started Hermes Web via registered user task: $StartupTaskPath$StartupTaskName ($principalUser)"
+        Write-Host "Started Hermes Mobile via registered user task: $StartupTaskPath$StartupTaskName ($principalUser)"
     } catch {
-        Write-Warning "Could not start registered Hermes Web task '$StartupTaskPath$StartupTaskName': $($_.Exception.Message)"
+        Write-Warning "Could not start registered Hermes Mobile task '$StartupTaskPath$StartupTaskName': $($_.Exception.Message)"
         return $false
     }
 
@@ -83,11 +83,11 @@ function Start-HermesWebRegisteredTask {
         $listener = Get-HermesWebListener -ListenPort $Port
         if (-not $listener) { continue }
         if (Test-HermesWebProcess -ProcessId $listener.OwningProcess -ExpectedServerPath $serverPath) {
-            Write-Host "Hermes Web listener OK; PID $($listener.OwningProcess)"
+            Write-Host "Hermes Mobile listener OK; PID $($listener.OwningProcess)"
             return $true
         }
     }
-    throw "Registered user task '$StartupTaskPath$StartupTaskName' did not open Hermes Web port $Port."
+    throw "Registered user task '$StartupTaskPath$StartupTaskName' did not open Hermes Mobile port $Port."
 }
 
 $env:HERMES_WEB_HOST = $HostAddress
@@ -105,7 +105,7 @@ if ($CheckOnly) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     & $nodeCommand.Source --check $appPath
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    Write-Host "Hermes Web startup check OK"
+    Write-Host "Hermes Mobile startup check OK"
     Write-Host "Repo root: $repoRoot"
     Write-Host "Server: $serverPath"
     Write-Host "Node: $($nodeCommand.Source)"
@@ -119,7 +119,7 @@ if ($Detached) {
 
     $existing = Get-HermesWebListener -ListenPort $Port
     if ($existing) {
-        Write-Host "Hermes Web already listening on port $Port; PID $($existing.OwningProcess)"
+        Write-Host "Hermes Mobile already listening on port $Port; PID $($existing.OwningProcess)"
         return
     }
 
@@ -127,7 +127,7 @@ if ($Detached) {
     $stdoutLog = Join-Path $logDir "hermes-web.out.log"
     $stderrLog = Join-Path $logDir "hermes-web.err.log"
 
-    Write-Host "Starting Hermes Web detached on http://$HostAddress`:$Port"
+    Write-Host "Starting Hermes Mobile detached on http://$HostAddress`:$Port"
     $process = Start-Process `
         -FilePath $nodeCommand.Source `
         -ArgumentList @($serverPath) `
@@ -141,16 +141,16 @@ if ($Detached) {
     $listener = Get-HermesWebListener -ListenPort $Port
     if (-not $listener) {
         if ($process.HasExited) {
-            throw "Hermes Web detached start failed; PID $($process.Id) exited with code $($process.ExitCode). See $stderrLog"
+            throw "Hermes Mobile detached start failed; PID $($process.Id) exited with code $($process.ExitCode). See $stderrLog"
         }
-        throw "Hermes Web detached start did not open port $Port yet; PID $($process.Id). See $stdoutLog and $stderrLog"
+        throw "Hermes Mobile detached start did not open port $Port yet; PID $($process.Id). See $stdoutLog and $stderrLog"
     }
-    Write-Host "Hermes Web detached listener OK; PID $($listener.OwningProcess)"
+    Write-Host "Hermes Mobile detached listener OK; PID $($listener.OwningProcess)"
     Write-Host "Logs: $stdoutLog ; $stderrLog"
     return
 }
 
-Write-Host "Starting Hermes Web on http://$HostAddress`:$Port"
+Write-Host "Starting Hermes Mobile on http://$HostAddress`:$Port"
 Write-Host "Hermes API: $HermesApiBase"
 Push-Location -LiteralPath $scriptRoot
 try {

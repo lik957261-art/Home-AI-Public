@@ -428,7 +428,7 @@
         <a id="download" class="button secondary" href="#" download>Download</a>
       </div>
       <div class="note">
-        This page keeps Hermes Web navigation available. Word/DOCX files are previewed inside the Web App; use Open Original only when you need the native viewer.
+        This page keeps Hermes Mobile navigation available. Word/DOCX files are previewed inside Hermes Mobile; use Open Original only when you need the native viewer.
       </div>
     </section>
   </main>
@@ -837,7 +837,7 @@
         setStatus(err.message || "Word preview failed.");
       });
     } else if (src && kind === "DOC") {
-      setStatus("Legacy .doc preview is not supported inside the Web App. Use Open Original.");
+      setStatus("Legacy .doc preview is not supported inside Hermes Mobile. Use Open Original.");
     } else if (src && kind === "TXT") {
       enableTextDocumentMode();
       loadTextPreview("Text preview").catch((err) => {

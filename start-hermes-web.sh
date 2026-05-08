@@ -30,7 +30,7 @@ if [[ ! -f "$server_js" ]]; then
 fi
 
 if [[ "$check_only" == "1" ]]; then
-  echo "Hermes Web startup check OK"
+  echo "Hermes Mobile startup check OK"
   echo "Repo root: $script_dir"
   echo "Server: $server_js"
   echo "Node: $(command -v "$node_bin")"

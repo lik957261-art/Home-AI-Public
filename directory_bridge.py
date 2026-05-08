@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restricted directory operations for WSL-only Hermes Web workspaces."""
+"""Restricted directory operations for WSL-only Hermes Mobile workspaces."""
 
 from __future__ import annotations
 

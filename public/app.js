@@ -2401,7 +2401,7 @@ async function login(key) {
   });
   state.key = key;
   localStorage.setItem("hermesWebKey", key);
-  showBootSplash("正在打开 Hermes Web");
+  showBootSplash("正在打开 Hermes Mobile");
   try {
     await bootstrap();
     showApp();
@@ -2830,7 +2830,7 @@ async function enablePushNotifications(options = {}) {
     subscription = await withTimeout(registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(state.pushStatus.publicKey),
-    }), 15000, "创建通知订阅超时，请关闭后重新打开 Hermes Web 再试");
+    }), 15000, "创建通知订阅超时，请关闭后重新打开 Hermes Mobile 再试");
   }
   state.pushSubscription = subscription;
   progress("正在同步订阅");
@@ -3451,7 +3451,7 @@ function renderAccessKeyManager() {
       </section>` : "";
   const subtitle = isOwnerAccessManager
     ? "Owner 可查看全部账号；生产部署账号在这里只读，Access Key 仍可管理。"
-    : "只能查看并更换当前账号的 Hermes Web 登录 key。";
+    : "只能查看并更换当前账号的 Hermes Mobile 登录 key。";
   overlay.innerHTML = `
     <div class="access-key-sheet">
       <header class="access-key-header">
@@ -3465,7 +3465,7 @@ function renderAccessKeyManager() {
       ${workspaceAdminList}
       ${showOwnerKey ? `<section class="access-key-web">
         <div>
-          <div class="access-key-row-title">Hermes Web Owner Key</div>
+          <div class="access-key-row-title">Hermes Mobile Owner Key</div>
           <div class="access-key-row-meta">当前来源：${escapeHtml(state.accessKeysAuth?.source || "unknown")}</div>
         </div>
         <button type="button" data-rotate-web-key${state.accessKeysAuth?.canRotateGlobal === false ? " disabled" : ""}>更换</button>
@@ -3622,7 +3622,7 @@ async function generateWorkspaceAccessKey(workspaceId) {
   const target = (state.accessKeys || []).find((item) => item.workspaceId === workspaceId);
   const label = target?.workspaceLabel || workspaceId || "workspace";
   if (!workspaceId) return;
-  if (target?.hasKey && !window.confirm(`更换 ${label} 的 Hermes Web Access Key？旧 key 会立即失效。`)) return;
+  if (target?.hasKey && !window.confirm(`更换 ${label} 的 Hermes Mobile Access Key？旧 key 会立即失效。`)) return;
   const result = await api("/api/access-keys/workspace", {
     method: "POST",
     body: JSON.stringify({ workspaceId }),
@@ -3630,7 +3630,7 @@ async function generateWorkspaceAccessKey(workspaceId) {
   state.generatedAccessKey = {
     kind: "workspace",
     key: result.key || "",
-    label: `${label} Hermes Web Access Key`,
+    label: `${label} Hermes Mobile Access Key`,
     workspaceId,
     focus: true,
   };
@@ -3647,7 +3647,7 @@ async function revokeWorkspaceAccessKey(workspaceId) {
   const target = (state.accessKeys || []).find((item) => item.workspaceId === workspaceId);
   const label = target?.workspaceLabel || workspaceId || "workspace";
   if (!workspaceId || !target?.hasKey) return;
-  if (!window.confirm(`撤销 ${label} 的 Hermes Web Access Key？该账号会在下次请求时需要重新登录。`)) return;
+  if (!window.confirm(`撤销 ${label} 的 Hermes Mobile Access Key？该账号会在下次请求时需要重新登录。`)) return;
   const result = await api(`/api/access-keys/workspace/${encodeURIComponent(workspaceId)}`, {
     method: "DELETE",
     body: JSON.stringify({}),
@@ -3662,12 +3662,12 @@ async function revokeWorkspaceAccessKey(workspaceId) {
 }
 
 async function rotateWebAccessKey() {
-  if (!window.confirm("更换 Hermes Web Owner Access Key？旧 Owner key 会立即失效。")) return;
+  if (!window.confirm("更换 Hermes Mobile Owner Access Key？旧 Owner key 会立即失效。")) return;
   const result = await api("/api/access-keys/web", { method: "POST", body: JSON.stringify({}) });
   state.generatedAccessKey = {
     kind: "owner",
     key: result.key || "",
-    label: "Hermes Web Owner Access Key",
+    label: "Hermes Mobile Owner Access Key",
     workspaceId: "owner",
     focus: true,
   };
@@ -8816,7 +8816,7 @@ function wireUi() {
 
 async function start() {
   wireUi();
-  showBootSplash("正在连接 Hermes Web");
+  showBootSplash("正在连接 Hermes Mobile");
   try {
     const config = await fetch("/api/public-config").then((res) => res.json());
     state.setupRequired = Boolean(config.setupRequired);

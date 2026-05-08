@@ -68,6 +68,9 @@ const WINDOWS_HOME = process.env.USERPROFILE || os.homedir() || "";
 const WSL_USER = process.env.HERMES_WEB_WSL_USER || process.env.WSL_USER || process.env.USER || "hermes";
 const WSL_HOME = stripTrailingSlash(process.env.HERMES_WEB_WSL_HOME || `/home/${WSL_USER}`);
 const WSL_HERMES_HOME = stripTrailingSlash(process.env.HERMES_WEB_WSL_HERMES_HOME || `${WSL_HOME}/.hermes`);
+const ENABLE_LEGACY_WEIXIN_COMPAT = /^(1|true|yes|on)$/i.test(
+  process.env.HERMES_WEB_ENABLE_LEGACY_WEIXIN_COMPAT || process.env.HERMES_WEB_LEGACY_WEIXIN_COMPAT || "",
+);
 const HERMES_ENV_PATHS = [
   process.env.HERMES_WEB_HERMES_ENV_PATH,
   ...wslUncPathCandidates(WSL_HERMES_HOME, ".env"),
@@ -78,19 +81,19 @@ const HERMES_API_KEY_PATHS = [
 ].filter(Boolean);
 const WORKSPACE_USERS_PATHS = [
   process.env.HERMES_WEB_WORKSPACE_USERS_PATH,
-  process.env.HERMES_WEB_WEIXIN_USERS_PATH,
   ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "workspace-users.json"),
-  ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-users.json"),
   path.join(LOCAL_CONFIG_ROOT, "access-control", "workspace-users.json"),
-  path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-users.json"),
+  process.env.HERMES_WEB_WEIXIN_USERS_PATH,
+  ...(ENABLE_LEGACY_WEIXIN_COMPAT ? wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-users.json") : []),
+  ...(ENABLE_LEGACY_WEIXIN_COMPAT ? [path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-users.json")] : []),
 ].filter(Boolean);
 const WORKSPACE_ROUTE_MAP_PATHS = [
   process.env.HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH,
-  process.env.HERMES_WEB_WEIXIN_ROUTE_MAP_PATH,
   ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "workspace-routing-map.json"),
-  ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-routing-map.json"),
   path.join(LOCAL_CONFIG_ROOT, "access-control", "workspace-routing-map.json"),
-  path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-routing-map.json"),
+  process.env.HERMES_WEB_WEIXIN_ROUTE_MAP_PATH,
+  ...(ENABLE_LEGACY_WEIXIN_COMPAT ? wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-routing-map.json") : []),
+  ...(ENABLE_LEGACY_WEIXIN_COMPAT ? [path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-routing-map.json")] : []),
 ].filter(Boolean);
 const HERMES_CONFIG_PATHS = [
   process.env.HERMES_WEB_HERMES_CONFIG_PATH,
@@ -173,6 +176,9 @@ const GENERIC_OWNER_TOPIC_PROJECT_PREFIXES = normalizeStringList(
 const GENERIC_OWNER_TOPIC_PROJECT_IDS = new Set(normalizeStringList(
   process.env.HERMES_WEB_GENERIC_OWNER_PROJECT_IDS || "hermes-sync-folder",
 ));
+const PRINCIPAL_LABEL_PREFIXES = normalizeStringList(
+  process.env.HERMES_WEB_PRINCIPAL_LABEL_PREFIXES || (ENABLE_LEGACY_WEIXIN_COMPAT ? "weixin_" : ""),
+);
 const VALID_REASONING_EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
 const MESSAGE_TIME_FIELDS = Object.freeze([
   "submittedAt",
@@ -813,7 +819,7 @@ function loadState() {
     parsed = JSON.parse(raw);
   } catch (err) {
     backupStateFile("parse-failed", { force: true, rawFallback: true });
-    console.error(`Hermes Web state parse failed; wrote fresh state after backup: ${err.message || String(err)}`);
+    console.error(`Hermes Mobile state parse failed; wrote fresh state after backup: ${err.message || String(err)}`);
     const fresh = defaultState();
     writeStateFile(fresh);
     return fresh;
@@ -975,6 +981,14 @@ function normalizeStringList(value) {
     ? value
     : (typeof value === "string" ? value.split(",") : (value ? [value] : []));
   return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean));
+}
+
+function stripPrincipalLabelPrefixes(value) {
+  let text = String(value || "").trim();
+  for (const prefix of PRINCIPAL_LABEL_PREFIXES) {
+    if (prefix && text.startsWith(prefix)) text = text.slice(prefix.length);
+  }
+  return text;
 }
 
 function normalizeChatGroup(value, ownerWorkspaceId = "owner") {
@@ -1169,7 +1183,7 @@ function backupStateFile(reason = "save", options = {}) {
     pruneStateBackups();
     return filePath;
   } catch (err) {
-    console.error(`Hermes Web state backup failed: ${err.message || String(err)}`);
+    console.error(`Hermes Mobile state backup failed: ${err.message || String(err)}`);
     return null;
   }
 }
@@ -1230,7 +1244,7 @@ function saveState(next = state, options = {}) {
     const backupPath = backupStateFile(`refused-${options.reason || "message-drop"}`, { force: true });
     const previousMessages = stateMessageCount(previous);
     const nextMessages = stateMessageCount(next);
-    throw new Error(`Refusing to overwrite Hermes Web state: message count would drop from ${previousMessages} to ${nextMessages}.${backupPath ? ` Backup: ${backupPath}` : ""}`);
+    throw new Error(`Refusing to overwrite Hermes Mobile state: message count would drop from ${previousMessages} to ${nextMessages}.${backupPath ? ` Backup: ${backupPath}` : ""}`);
   }
   const previousMessages = previous ? stateMessageCount(previous) : 0;
   const nextMessages = stateMessageCount(next);
@@ -2338,7 +2352,7 @@ function resolveTodoAssigneeFromText(text, workspaceId) {
   const source = workspacePrincipal(workspaceId);
   const candidates = [];
   for (const item of todoAssigneesForWorkspace(workspaceId)) {
-    const labels = [item.label, item.id, String(item.id || "").replace(/^weixin_/, "")].filter(Boolean);
+    const labels = [item.label, item.id, stripPrincipalLabelPrefixes(item.id)].filter(Boolean);
     for (const label of labels) candidates.push({ id: item.id, label: String(label) });
   }
   candidates.sort((a, b) => b.label.length - a.label.length);
@@ -2383,7 +2397,7 @@ function detectDirectTodoCreateIntent(text, workspaceId) {
   const assignee = resolveTodoAssigneeFromText(rawText, workspaceId);
   const assigneeLabel = todoAssigneeLabel(workspaceId, assignee);
   let content = rawText;
-  for (const token of [assigneeLabel, assignee, assignee.replace(/^weixin_/, "")].filter(Boolean)) {
+  for (const token of [assigneeLabel, assignee, stripPrincipalLabelPrefixes(assignee)].filter(Boolean)) {
     content = content.replace(new RegExp(`(?:给|为|帮)?\\s*${escapeRegExp(token)}`, "g"), " ");
   }
   content = content
@@ -2436,7 +2450,7 @@ function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
   const assignee = resolveTodoAssigneeFromText(rawText, workspaceId);
   const assigneeLabel = todoAssigneeLabel(workspaceId, assignee);
   let content = rawText;
-  for (const token of [assigneeLabel, assignee, assignee.replace(/^weixin_/, "")].filter(Boolean)) {
+  for (const token of [assigneeLabel, assignee, stripPrincipalLabelPrefixes(assignee)].filter(Boolean)) {
     content = content.replace(new RegExp(`(?:\\u7ed9|\\u4e3a|\\u5e2e)?\\s*${escapeRegExp(token)}`, "g"), " ");
   }
   content = content
@@ -2587,7 +2601,7 @@ function normalizeAutomationDraft(raw, sourceText) {
   const prompt = [
     promptBase,
     "",
-    "交付要求：任务完成时给出面向用户的最终结果；如果生成 PDF、Word 或其他正式交付文件，最终回复必须包含 `MEDIA:<本地文件绝对路径>`，便于 Hermes Web 在自动化列表中预览最后交付文件。",
+    "交付要求：任务完成时给出面向用户的最终结果；如果生成 PDF、Word 或其他正式交付文件，最终回复必须包含 `MEDIA:<本地文件绝对路径>`，便于 Hermes Mobile 在自动化列表中预览最后交付文件。",
   ].join("\n");
   return {
     name,
@@ -2688,7 +2702,7 @@ function initializeWebPush() {
     webpush.setVapidDetails(config.subject || WEB_PUSH_SUBJECT, config.publicKey, config.privateKey);
     return config;
   } catch (err) {
-    console.error(`Hermes Web Push disabled: ${err.message || String(err)}`);
+    console.error(`Hermes Mobile Push disabled: ${err.message || String(err)}`);
     return null;
   }
 }
@@ -3549,11 +3563,11 @@ function projectForTaskDirectoryAttachment(thread, attachment) {
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
   const singleWindowMode = normalizeSingleWindowMode(options.singleWindowMode || options.single_window_mode || "");
   const lines = [
-    "You are serving a Hermes Web App request.",
+    "You are serving a Hermes Mobile app request.",
     "Use the selected account/workspace/project as the operational boundary.",
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
-    "Prefer a concise final receipt in the Web UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Web can render it as a link card.",
-    "Do not send Weixin messages unless the user explicitly asks for Weixin delivery.",
+    "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
+    "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
   ];
   if (taskDirectory?.path) {
     lines.push(`Attached task directory: ${taskDirectory.label || "Directory"} => ${taskDirectory.path}.`);
@@ -3563,15 +3577,15 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
   }
   if (thread.singleWindow || project?.singleWindow) {
     if (singleWindowMode === "chat") {
-      lines.push("This request comes from the Hermes Web single-window chat mode. Treat the latest user message as part of one continuous chat task.");
+      lines.push("This request comes from the Hermes Mobile single-window chat mode. Treat the latest user message as part of one continuous chat task.");
       lines.push("Use the supplied same-task conversation_history as normal chat context, while still respecting the selected workspace and access policy.");
       if (options.groupChatDeliveryRoot) {
         lines.push(`This is a group-chat AI request. Final user-facing deliverables for this group turn must be written under the group delivery directory: ${options.groupChatDeliveryRoot}.`);
-        lines.push("Do not place group-chat PDF/Word/media deliverables only in the sender's private sync root. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Web.");
+        lines.push("Do not place group-chat PDF/Word/media deliverables only in the sender's private sync root. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
       }
       lines.push("Do not inherit, emit, or display prior directory bindings or `目录别名：当前绑定目录=...` from older chat turns. Only an explicit directory attachment on the latest message is a current directory binding.");
     } else {
-      lines.push("This request comes from the Hermes Web single-window task stream. Treat the latest user message as a new stateless task, similar to the Weixin single-window task flow.");
+      lines.push("This request comes from the Hermes Mobile single-window task stream. Treat the latest user message as a new stateless task, similar to the single-window task flow.");
       lines.push("Do not use prior stream turns as context unless the latest user message explicitly quotes or names a Task ID, file, prior result, or asks for a follow-up.");
     }
     lines.push("When the user does not preselect a project, use semantic routing and the project directory map to choose the right workspace/files.");
@@ -4204,7 +4218,7 @@ function notifyGroupChatMentions(thread, userMessage) {
   }
   const mentionedWorkspaceIds = groupMentionWorkspaceIds(thread, userMessage.content || "", userMessage.senderWorkspaceId || "");
   if (!mentionedWorkspaceIds.length) return Promise.resolve([]);
-  const senderLabel = userMessage.senderLabel || workspaceLabel(userMessage.senderWorkspaceId || "") || "Hermes Web";
+  const senderLabel = userMessage.senderLabel || workspaceLabel(userMessage.senderWorkspaceId || "") || "Hermes Mobile";
   const body = compactText(String(userMessage.content || "").replace(/\s+/g, " ").trim(), 180);
   const jobs = mentionedWorkspaceIds.map((workspaceId) => {
     const principalId = workspacePrincipal(workspaceId);
@@ -4320,7 +4334,7 @@ function notifyTaskTerminal(thread, message, status) {
     urgency: "high",
     ttl: 24 * 60 * 60,
   }).catch((err) => {
-    console.error(`Hermes Web Push send failed: ${err.message || String(err)}`);
+    console.error(`Hermes Mobile Push send failed: ${err.message || String(err)}`);
   });
 }
 
@@ -4929,9 +4943,9 @@ function nextQueuedRunPairForTaskGroup(thread, taskGroupId) {
 
 function queuedRunInstructions(singleWindowMode) {
   if (singleWindowMode === "chat") {
-    return "The latest user message is a queued Hermes Web continuous-chat turn. Treat it as the next message in the supplied same-task conversation_history.";
+    return "The latest user message is a queued Hermes Mobile continuous-chat turn. Treat it as the next message in the supplied same-task conversation_history.";
   }
-  return "The latest user message is a queued Web follow-up to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task.";
+  return "The latest user message is a queued mobile follow-up to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task.";
 }
 
 function markQueuedRunStartFailed(thread, taskGroupId, err) {
@@ -5072,7 +5086,7 @@ function streamResponse(runId, threadId, messageId, body, options = {}) {
   if (RUN_LIVENESS_CHECK_INTERVAL_MS > 0) {
     streamState.livenessTimer = setInterval(() => {
       checkActiveStreamLiveness(runId).catch((err) => {
-        console.error(`Hermes Web run liveness check failed: ${err.message || String(err)}`);
+        console.error(`Hermes Mobile run liveness check failed: ${err.message || String(err)}`);
       });
     }, Math.max(5000, RUN_LIVENESS_CHECK_INTERVAL_MS));
     if (typeof streamState.livenessTimer.unref === "function") streamState.livenessTimer.unref();
@@ -5295,7 +5309,7 @@ function markRunCancelled(threadId, messageId, runId) {
   scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);
 }
 
-function reconcileDetachedActiveRuns(reason = "Hermes Web restarted while this task was running; the result stream is no longer attached. Please rerun the task.") {
+function reconcileDetachedActiveRuns(reason = "Hermes Mobile restarted while this task was running; the result stream is no longer attached. Please rerun the task.") {
   let changed = false;
   const failedAt = nowIso();
   for (const thread of state.threads || []) {
@@ -6431,7 +6445,7 @@ async function handleApi(req, res) {
       assignee: body.assignee || "",
       content: body.content || "",
       dueTime: body.dueTime || body.due_time || "",
-      suppressWeixinNotice: true,
+      suppressExternalNotice: true,
       reminderLeadMinutes: body.reminderLeadMinutes ?? body.reminder_lead_minutes ?? null,
       recurrence: body.recurrence || "none",
       recurrenceDays: body.recurrenceDays || body.recurrence_days || "",
@@ -6789,7 +6803,7 @@ async function handleApi(req, res) {
           assignee: directTodoIntent.assignee,
           content: directTodoIntent.content,
           dueTime: directTodoIntent.dueTime,
-          suppressWeixinNotice: true,
+          suppressExternalNotice: true,
           reminderLeadMinutes: null,
           recurrence: "none",
           recurrenceDays: "",
@@ -6825,7 +6839,7 @@ async function handleApi(req, res) {
     }
     const followUpInstructions = thread.singleWindow && requestedTaskGroupId
       ? singleWindowMode === "chat"
-        ? "The latest user message is a Hermes Web continuous-chat turn. Treat it as part of the supplied same-task conversation_history."
+        ? "The latest user message is a Hermes Mobile continuous-chat turn. Treat it as part of the supplied same-task conversation_history."
         : "The latest user message is an explicit Web quote/reply to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task."
       : "";
     const runOptions = {
@@ -7650,7 +7664,7 @@ const server = http.createServer(async (req, res) => {
     }
     serveStatic(req, res);
   } catch (err) {
-    console.error(`Hermes Web request failed ${req.method || ""} ${req.url || ""}: ${err.stack || err.message || String(err)}`);
+    console.error(`Hermes Mobile request failed ${req.method || ""} ${req.url || ""}: ${err.stack || err.message || String(err)}`);
     sendJson(res, 500, { error: err.message || String(err) });
   }
 });
@@ -7670,7 +7684,7 @@ function shutdown() {
 }
 
 server.listen(PORT, HOST, () => {
-  console.log(`Hermes Web listening on http://${HOST}:${PORT}`);
+  console.log(`Hermes Mobile listening on http://${HOST}:${PORT}`);
   console.log(`Hermes API base: ${effectiveHermesApiBase()}`);
   console.log(`State directory: ${DATA_DIR}`);
   console.log(DISABLE_AUTH ? "Authentication disabled by HERMES_WEB_DISABLE_AUTH." : `Authentication enabled; Owner key source is ${authProvider.ownerKeySource()}.`);

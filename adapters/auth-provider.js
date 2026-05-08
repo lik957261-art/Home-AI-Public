@@ -238,7 +238,7 @@ function createAuthProvider(options = {}) {
       throw err;
     }
     if (workspace.id === "owner") {
-      const err = new Error("Use the Hermes Web key rotation for Owner access");
+      const err = new Error("Use the Hermes Mobile key rotation for Owner access");
       err.status = 400;
       throw err;
     }
@@ -303,7 +303,7 @@ function createAuthProvider(options = {}) {
       };
     }
     if (ownerKeyState.source === "env") {
-      const err = new Error("Hermes Web key is configured by HERMES_WEB_KEY; remove or update the environment variable before rotating from Web");
+      const err = new Error("Hermes Mobile key is configured by HERMES_WEB_KEY; remove or update the environment variable before rotating from Web");
       err.status = 409;
       throw err;
     }

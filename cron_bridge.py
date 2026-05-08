@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read and create Hermes native CRON jobs for Hermes Web."""
+"""Read and create Hermes native CRON jobs for Hermes Mobile."""
 
 from __future__ import annotations
 

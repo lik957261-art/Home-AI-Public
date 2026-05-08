@@ -77,7 +77,7 @@ These parts must remain replaceable:
 
 The private checkout still contains local deployment behavior that must be moved behind adapters before public export:
 
-- Legacy Weixin workspace user/route-map filenames remain as compatibility fallbacks, but new deployments can use the generic `HERMES_WEB_WORKSPACE_USERS_PATH` and `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH` inputs.
+- Legacy Weixin workspace user/route-map filenames are not used by default. Existing deployments must opt in with `HERMES_WEB_ENABLE_LEGACY_WEIXIN_COMPAT=1` or pass explicit `HERMES_WEB_WEIXIN_USERS_PATH` / `HERMES_WEB_WEIXIN_ROUTE_MAP_PATH`; new deployments should use the generic `HERMES_WEB_WORKSPACE_USERS_PATH` and `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH` inputs.
 - Project-id heuristics that are not already covered by the project discovery and display-path providers.
 - Owner drive-root display compatibility is configurable through `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`; the default keeps `ChatGPT-Drive` compatibility for existing deployments.
 - Owner-only external integration display labels remain product metadata, while deployment-specific path/env detection lives behind the integration provider.

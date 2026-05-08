@@ -1,5 +1,5 @@
 param(
-    [string]$TaskName = "Hermes Web Listener User Logon",
+    [string]$TaskName = "Hermes Mobile Listener User Logon",
     [string]$TaskPath = "\",
     [ValidateSet("LogonTask", "StartupS4U", "LogonShortcut")]
     [string]$Mode = "LogonTask",
@@ -22,10 +22,10 @@ $startScript = Join-Path $scriptRoot "start-hermes-web.ps1"
 $hiddenLauncher = Join-Path $scriptRoot "start-hermes-web-hidden.vbs"
 
 if (-not (Test-Path -LiteralPath $startScript)) {
-    throw "Hermes Web start script not found: $startScript"
+    throw "Hermes Mobile start script not found: $startScript"
 }
 if (-not (Test-Path -LiteralPath $hiddenLauncher)) {
-    throw "Hermes Web hidden launcher not found: $hiddenLauncher"
+    throw "Hermes Mobile hidden launcher not found: $hiddenLauncher"
 }
 
 function Quote-TaskArg {
@@ -100,7 +100,7 @@ function Register-UserLogonTask {
         -Trigger $trigger `
         -Principal $principal `
         -Settings (New-HermesWebTaskSettings) `
-        -Description "Start Hermes Web listener when the current user logs on, without a visible console window."
+        -Description "Start Hermes Mobile listener when the current user logs on, without a visible console window."
 
     Register-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -InputObject $task -Force | Out-Null
     Remove-StartupShortcut
@@ -124,7 +124,7 @@ function Register-StartupS4UTask {
         -Trigger $trigger `
         -Principal $principal `
         -Settings (New-HermesWebTaskSettings) `
-        -Description "Start Hermes Web listener at Windows startup using S4U without requiring an interactive logon."
+        -Description "Start Hermes Mobile listener at Windows startup using S4U without requiring an interactive logon."
 
     Register-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -InputObject $task -Force | Out-Null
     Remove-StartupShortcut
@@ -145,7 +145,7 @@ function Register-StartupShortcut {
     $shortcut.Arguments = '"' + $hiddenLauncher + '"'
     $shortcut.WorkingDirectory = $scriptRoot
     $shortcut.WindowStyle = 7
-    $shortcut.Description = "Start Hermes Web listener without a visible console window."
+    $shortcut.Description = "Start Hermes Mobile listener without a visible console window."
     $shortcut.Save()
     Write-Host "Registered Startup shortcut: $startupShortcut"
     return $startupShortcut

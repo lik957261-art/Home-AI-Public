@@ -1,14 +1,14 @@
-# Hermes Web Productization
+# Hermes Mobile Productization
 
 ## Direction
 
-Use this private repository as the productization source for Hermes Web. The public repository should be created later from a clean export after configuration, adapter boundaries, docs, and privacy checks are stable.
+Use this private repository as the productization source for Hermes Mobile. The public repository should be created later from a clean export after configuration, adapter boundaries, docs, and privacy checks are stable.
 
 The productized runtime target is official-Hermes-clean Gateway Pool scheduling in Hermes Mobile. Hermes Mobile must preserve official Hermes Skill, memory, tool, session, usage, event, and artifact behavior instead of replacing the Hermes agent runtime. A single Gateway is the minimal install and fallback path. See `GATEWAY_POOL_ARCHITECTURE.md`.
 
 ## Phase 0: Source Split
 
-- Copy Hermes Web app source into an independent private checkout.
+- Copy Hermes Mobile app source into an independent private checkout.
 - Exclude dependency folders, runtime logs, user state, uploaded files, Agent context, and secrets.
 - Add repository-local README, `.gitignore`, and `.env.example`.
 - Keep the original Agent workspace as the live integration source until cutover is deliberately planned.
@@ -27,6 +27,7 @@ The productized runtime target is official-Hermes-clean Gateway Pool scheduling 
 - Fresh product installs use local JSON stores under `HERMES_WEB_DATA_DIR` for Todo and Automation by default. Existing deployment plugin/CRON stores are opt-in through `HERMES_WEB_TODO_BACKEND` and `HERMES_WEB_AUTOMATION_BACKEND`, so a clean official-Gateway test instance does not accidentally list production tasks.
 - Owner runtime setup is now visual for the Hermes Gateway bridge and Web Push. The UI stores Gateway URL, API key file path, Web Push subject, and VAPID file path in `workspace/hermes-web/runtime-config.json`, tests the Gateway connection from the browser flow, can generate/reload VAPID keys, and does not store API key plaintext or display VAPID private key material in Web config.
 - Owner account display is configurable through `HERMES_WEB_OWNER_LABEL`; Owner drive-root grouping is configurable through `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`; the default keeps existing `ChatGPT-Drive` deployments working, while packaged installs can use a product-specific root name.
+- Legacy Weixin workspace catalog filenames and `weixin_` label stripping are now explicit compatibility settings. Production deployments that still use those files should set `HERMES_WEB_ENABLE_LEGACY_WEIXIN_COMPAT=1` and `HERMES_WEB_PRINCIPAL_LABEL_PREFIXES=weixin_`; fresh installs should use generic workspace catalog paths and no principal prefix stripping.
 
 ## Phase 2: Adapter Boundary
 
