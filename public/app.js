@@ -6124,12 +6124,10 @@ function renderAutomationList() {
   list.innerHTML = loading + state.automations.map((job) => {
     const active = job.id === state.selectedAutomationId ? " active" : "";
     const status = automationStatusLabel(job);
-    const latestDoc = automationLatestDocument(job);
     return `<div class="thread-card automation-list-card${active} ${escapeHtml(status)}">
       <button class="thread-card-main" type="button" data-automation-id="${escapeHtml(job.id)}">
         <div class="thread-card-title">${escapeHtml(automationTitle(job))}</div>
       </button>
-      ${latestDoc ? renderAutomationDocumentPreview(latestDoc, { compact: true }) : ""}
     </div>`;
   }).join("");
   list.querySelectorAll("[data-automation-id]").forEach((button) => {
