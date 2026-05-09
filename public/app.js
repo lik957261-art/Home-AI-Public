@@ -1127,6 +1127,18 @@ function composerReasoningLabel() {
   return `\u63a8\u7406 ${compact}`;
 }
 
+function composerGatewayPermissionLabel() {
+  if (isChatSearchMode()) return null;
+  if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
+  if (ownerElevationComposerAvailable() && ownerElevationOnceTagInfo(getComposerText())) {
+    return { label: "Gateway 权限 高（本次）", tone: "active" };
+  }
+  if (ownerElevationActive()) {
+    return { label: "Gateway 权限 高（限时）", tone: "active" };
+  }
+  return { label: "Gateway 权限 低" };
+}
+
 function composerDirectoryLabel() {
   if (state.pendingTaskDirectory?.projectId) {
     return String(state.pendingTaskDirectory.label || state.pendingTaskDirectory.projectId || "").trim();
@@ -1240,6 +1252,8 @@ function composerContextItems(counts = composerRunCounts()) {
   }
   const targetLabel = composerTargetLabel();
   if (targetLabel) items.push({ label: targetLabel });
+  const gatewayPermissionLabel = composerGatewayPermissionLabel();
+  if (gatewayPermissionLabel?.label) items.push(gatewayPermissionLabel);
   const reasoningLabel = composerReasoningLabel();
   if (reasoningLabel) items.push({ label: reasoningLabel });
   const directoryLabel = composerDirectoryLabel();
@@ -3591,7 +3605,6 @@ async function activateOwnerElevationOnce(options = {}) {
   state.ownerElevationOnceToken = String(grant.token || "");
   state.ownerElevationOnceExpiresAt = String(grant.expiresAt || "");
   if (!state.ownerElevationOnceToken) throw new Error("Owner high-privilege authorization token was not returned");
-  showPushToast("本次高权限已授权", "success");
   return true;
 }
 
@@ -10024,8 +10037,8 @@ async function sendMessage(event) {
   if (!state.currentThreadId) return;
   let text = getComposerText().trim();
   const originalText = text;
-  const ownerElevationOnceTag = ownerElevationOnceTagInfo(text);
-  let ownerElevationOnceRequested = Boolean(ownerElevationOnceTag);
+  const ownerElevationOnceTag = ownerElevationComposerAvailable() ? ownerElevationOnceTagInfo(text) : null;
+  let ownerElevationOnceRequested = false;
   if (ownerElevationOnceTag) {
     text = stripOwnerElevationOnceTags(text);
   }
@@ -10039,9 +10052,11 @@ async function sendMessage(event) {
     if (ownerElevationOnceTag) clearOwnerElevationOnce();
     return;
   }
-  if (ownerElevationOnceTag && !ownerElevationOnceActive()) {
+  if (ownerElevationOnceTag) {
+    clearOwnerElevationOnce();
     const ok = await activateOwnerElevationOnce();
     if (!ok) return;
+    ownerElevationOnceRequested = true;
   }
   closeGroupMentionMenu();
   setComposerText("");
@@ -10051,11 +10066,11 @@ async function sendMessage(event) {
   let consumedPendingDirectory = false;
   try {
     const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
-    if (ownerElevationActive() || (ownerElevationOnceTag && ownerElevationOnceActive())) {
+    if (ownerElevationActive() || ownerElevationOnceTag) {
       body.maintenanceMode = true;
       body.maintenance_mode = true;
       body.elevationScope = "owner_high_privilege";
-      if (ownerElevationOnceTag && ownerElevationOnceActive()) {
+      if (ownerElevationOnceTag) {
         body.ownerElevationOnceToken = state.ownerElevationOnceToken;
       }
     }
@@ -10675,10 +10690,7 @@ async function chooseGroupMention(index = state.groupMentionIndex) {
   if (!state.groupMentionOpen || !state.groupMentionToken) return false;
   const member = state.groupMentionOptions[index] || state.groupMentionOptions[0];
   if (!member) return false;
-  if (member.ownerElevationOnce) {
-    const ok = await activateOwnerElevationOnce();
-    if (!ok) return false;
-  }
+  if (member.ownerElevationOnce) clearOwnerElevationOnce();
   const token = state.groupMentionToken;
   const text = getComposerText();
   const insertion = `${String(member.mentionText || `@${member.label}`).trimEnd()} `;
