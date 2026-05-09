@@ -93,7 +93,7 @@ const state = {
   pendingArtifacts: [],
   composerFocused: false,
   keyboardContextMode: false,
-  keyboardInsetPx: 0,
+  keyboardContextTopPx: 0,
   renderScheduled: false,
   shouldStickToBottom: true,
   preservedBottomOffset: 0,
@@ -985,21 +985,21 @@ function composerRunCounts() {
   return counts;
 }
 
-function keyboardVisualInsetPx() {
-  const viewport = window.visualViewport;
-  if (!viewport) return 0;
-  const layoutHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-  if (!layoutHeight || !viewport.height) return 0;
-  return Math.max(0, Math.round(layoutHeight - viewport.height - viewport.offsetTop));
+function nativeKeyboardGeometry() {
+  const keyboard = navigator.virtualKeyboard;
+  const rect = keyboard?.boundingRect;
+  if (!rect || !Number.isFinite(rect.height) || rect.height <= 0) return null;
+  const top = Number.isFinite(rect.y) ? rect.y : rect.top;
+  if (!Number.isFinite(top) || top <= 0) return null;
+  return { top, height: rect.height };
 }
 
 function updateKeyboardContextMetrics() {
-  const inset = keyboardVisualInsetPx();
-  const bottom = inset > 80 ? Math.max(6, Math.round(inset * 0.7)) : 6;
-  state.keyboardInsetPx = inset;
-  state.keyboardContextMode = Boolean(state.composerFocused && isMobileLayout() && inset > 80);
-  document.documentElement.style.setProperty("--keyboard-context-inset", `${inset}px`);
-  document.documentElement.style.setProperty("--keyboard-context-bottom", `${bottom}px`);
+  const geometry = nativeKeyboardGeometry();
+  const top = geometry ? Math.max(8, Math.round(geometry.top - 44)) : 0;
+  state.keyboardContextTopPx = top;
+  state.keyboardContextMode = Boolean(state.composerFocused && isMobileLayout() && geometry);
+  document.documentElement.style.setProperty("--keyboard-context-top", `${top}px`);
   $("composer")?.classList.toggle("keyboard-context-mode", state.keyboardContextMode);
 }
 
@@ -10109,6 +10109,7 @@ function wireUi() {
     refreshComposerContextSoon(80);
   });
   const refreshKeyboardContext = () => refreshComposerContextSoon(0);
+  navigator.virtualKeyboard?.addEventListener("geometrychange", refreshKeyboardContext);
   window.visualViewport?.addEventListener("resize", refreshKeyboardContext);
   window.visualViewport?.addEventListener("scroll", refreshKeyboardContext);
   window.addEventListener("resize", refreshKeyboardContext);
