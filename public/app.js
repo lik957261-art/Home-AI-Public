@@ -963,6 +963,7 @@ function virtualAssistantMember() {
 function composerAiMentionOptions() {
   const label = assistantDisplayLabel();
   const modelLabel = state.defaultModel || label;
+  const defaultEffort = validTaskReasoningEffort(state.defaultReasoningEffort) || "medium";
   const options = [{
     workspaceId: "assistant-default",
     label,
@@ -972,6 +973,7 @@ function composerAiMentionOptions() {
     reasoningEffort: "",
   }];
   for (const option of configuredReasoningOptions()) {
+    if (option.value === defaultEffort) continue;
     const shortLabel = option.shortLabel || option.label || option.value;
     options.push({
       workspaceId: `assistant-${option.value}`,

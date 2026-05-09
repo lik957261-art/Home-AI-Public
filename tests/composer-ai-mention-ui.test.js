@@ -21,6 +21,7 @@ assert.equal(appJs.includes("AI_MENTION_OPTIONS"), false);
 assert.match(appJs, /function composerAiMentionOptions\(\)/);
 assert.ok(appJs.includes("mentionText: `@${label}`"));
 assert.ok(appJs.includes("mentionText: `@${label} ${shortLabel}`"));
+assert.match(appJs, /if \(option\.value === defaultEffort\) continue/);
 assert.match(appJs, /if \(effort === "xhigh"\) return "Xhigh"/);
 assert.match(appJs, /function composerAiMentionInfo\(text\)/);
 assert.match(appJs, /function composerMentionAvailable\(\)/);

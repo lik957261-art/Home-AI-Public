@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260509-runtime-model-xhigh";
+const HERMES_SW_VERSION = "20260509-runtime-model-xhigh-visible";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,8 +8,8 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260509-1605",
-  "/app.js?v=20260509-1605",
+  "/styles.css?v=20260509-1610",
+  "/app.js?v=20260509-1610",
   "/fixed-viewport.js?v=20260505-1135",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",
