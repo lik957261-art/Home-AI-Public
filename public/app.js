@@ -115,6 +115,11 @@ const state = {
   backSwipe: null,
   pushStatus: null,
   pushSubscription: null,
+  pwaInstallPrompt: null,
+  pwaInstallOpen: false,
+  pwaInstalled: false,
+  pwaServiceWorkerReady: false,
+  pwaServiceWorkerError: "",
   transientProjectRoute: null,
   quotedReply: null,
   taskDirectoryFilter: null,
@@ -1345,6 +1350,7 @@ function updateTopMoreControls() {
     manageAccessKeys.hidden = true;
     manageAccessKeys.disabled = true;
   }
+  updatePwaInstallControls();
   const newDirectoryFolder = $("topNewDirectoryFolder");
   if (newDirectoryFolder) {
     newDirectoryFolder.hidden = !directory;
@@ -2914,6 +2920,136 @@ function reloadForClientUpdate() {
     .finally(reload);
 }
 
+function isStandalonePwa() {
+  return Boolean(
+    window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+    || navigator.standalone === true,
+  );
+}
+
+function pwaPlatformHint() {
+  const ua = navigator.userAgent || "";
+  if (/iPad|iPhone|iPod/i.test(ua)) {
+    return "在 iPhone/iPad 上，用 Safari 打开本页，点系统分享按钮，然后选择“添加到主屏幕”。安装后再从桌面图标打开。";
+  }
+  if (/Android/i.test(ua)) {
+    return "在 Android 上，用 Chrome 或 Edge 打开本页，点浏览器菜单里的“安装应用”或“添加到主屏幕”。";
+  }
+  return "在支持 PWA 的浏览器里打开本页，使用地址栏或浏览器菜单中的“安装应用”。";
+}
+
+function pwaRequirementHint() {
+  if (isStandalonePwa()) return "当前已经以桌面应用模式运行。";
+  if (!window.isSecureContext) return "当前连接不是安全上下文。多数浏览器要求 HTTPS 或 localhost 才能安装 PWA 和启用 Service Worker。";
+  if (!("serviceWorker" in navigator)) return "当前浏览器不支持 Service Worker，不能完整安装为 PWA。";
+  if (state.pwaServiceWorkerReady) return "Service Worker 已就绪，应用壳可缓存，离线时可以打开登录页和静态界面。";
+  if (state.pwaServiceWorkerError) return state.pwaServiceWorkerError;
+  return "正在准备 PWA 安装能力。";
+}
+
+async function ensurePwaServiceWorker(options = {}) {
+  if (!("serviceWorker" in navigator)) {
+    state.pwaServiceWorkerError = "当前浏览器不支持 Service Worker。";
+    updateTopMoreControls();
+    return null;
+  }
+  try {
+    const registration = await withTimeout(
+      navigator.serviceWorker.register("/service-worker.js", { scope: "/" }),
+      options.timeoutMs || 8000,
+      "Service Worker 注册超时",
+    );
+    registration.update().catch(() => {});
+    state.pwaServiceWorkerReady = true;
+    state.pwaServiceWorkerError = "";
+    updateTopMoreControls();
+    return registration;
+  } catch (err) {
+    state.pwaServiceWorkerReady = false;
+    state.pwaServiceWorkerError = err.message || String(err);
+    updateTopMoreControls();
+    return null;
+  }
+}
+
+function pwaInstallButtonLabel() {
+  if (isStandalonePwa() || state.pwaInstalled) return "已安装";
+  return state.pwaInstallPrompt ? "安装应用" : "安装说明";
+}
+
+function updatePwaInstallControls() {
+  const button = $("topInstallPwa");
+  if (!button) return;
+  button.hidden = false;
+  button.disabled = Boolean(isStandalonePwa() || state.pwaInstalled);
+  button.textContent = pwaInstallButtonLabel();
+}
+
+function renderPwaInstallOverlay() {
+  const overlay = $("pwaInstallOverlay");
+  if (!overlay) return;
+  overlay.classList.toggle("hidden", !state.pwaInstallOpen);
+  if (!state.pwaInstallOpen) {
+    overlay.innerHTML = "";
+    return;
+  }
+  const canPrompt = Boolean(state.pwaInstallPrompt && !isStandalonePwa());
+  overlay.innerHTML = `<section class="access-key-sheet pwa-install-sheet">
+    <header class="access-key-header">
+      <div>
+        <div id="pwaInstallTitle" class="access-key-title">安装 Hermes Mobile</div>
+        <div class="access-key-subtitle">${escapeHtml(pwaRequirementHint())}</div>
+      </div>
+      <button class="access-key-close" type="button" data-close-pwa-install>完成</button>
+    </header>
+    <section class="pwa-install-panel">
+      <div class="pwa-install-icon" aria-hidden="true">H</div>
+      <div>
+        <div class="access-key-row-title">桌面应用模式</div>
+        <div class="access-key-row-meta">安装后可以从主屏幕/桌面打开，使用独立窗口，并继续使用 Hermes Mobile 的通知和离线应用壳。</div>
+      </div>
+    </section>
+    ${canPrompt ? `<button class="pwa-install-primary" type="button" data-run-pwa-install>安装应用</button>` : ""}
+    <section class="pwa-install-instructions">
+      <div class="access-key-row-title">手动安装</div>
+      <div class="access-key-note">${escapeHtml(pwaPlatformHint())}</div>
+    </section>
+  </section>`;
+  overlay.querySelector("[data-close-pwa-install]")?.addEventListener("click", closePwaInstall);
+  overlay.querySelector("[data-run-pwa-install]")?.addEventListener("click", () => runPwaInstallPrompt().catch(showError));
+}
+
+function openPwaInstall() {
+  closeTopMoreMenu();
+  state.pwaInstallOpen = true;
+  renderPwaInstallOverlay();
+}
+
+function closePwaInstall() {
+  state.pwaInstallOpen = false;
+  renderPwaInstallOverlay();
+}
+
+async function runPwaInstallPrompt() {
+  const prompt = state.pwaInstallPrompt;
+  if (!prompt) {
+    showPushToast(pwaPlatformHint(), "");
+    return;
+  }
+  prompt.prompt();
+  const choice = await prompt.userChoice.catch(() => null);
+  state.pwaInstallPrompt = null;
+  if (choice?.outcome === "accepted") {
+    state.pwaInstalled = true;
+    closePwaInstall();
+    showPushToast("Hermes Mobile 已提交安装。", "success");
+  } else {
+    renderPwaInstallOverlay();
+  }
+  updateTopMoreControls();
+}
+
 function pushSupported() {
   return Boolean(
     window.isSecureContext &&
@@ -2974,12 +3110,8 @@ function urlBase64ToUint8Array(value) {
 async function getServiceWorkerRegistration(options = {}) {
   const progress = options.onProgress || (() => {});
   progress("正在准备通知服务");
-  const registration = await withTimeout(
-    navigator.serviceWorker.register("/service-worker.js", { scope: "/" }),
-    8000,
-    "Service Worker 注册超时",
-  );
-  registration.update().catch(() => {});
+  const registration = await ensurePwaServiceWorker({ timeoutMs: 8000 });
+  if (!registration) throw new Error(state.pwaServiceWorkerError || "Service Worker 注册失败");
   try {
     progress("正在等待通知服务");
     return await withTimeout(navigator.serviceWorker.ready, 8000, "Service Worker 启动超时");
@@ -9362,6 +9494,19 @@ function wireUi() {
     handleAppForegrounded();
     checkClientVersion("focus").catch(() => {});
   });
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    state.pwaInstallPrompt = event;
+    updateTopMoreControls();
+    renderPwaInstallOverlay();
+  });
+  window.addEventListener("appinstalled", () => {
+    state.pwaInstalled = true;
+    state.pwaInstallPrompt = null;
+    closePwaInstall();
+    updateTopMoreControls();
+    showPushToast("Hermes Mobile 已安装。", "success");
+  });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (event) => {
       if (event.data?.type === "hermes.notification.open") {
@@ -9545,6 +9690,7 @@ function wireUi() {
     openCurrentDirectoryEntry().catch(showError);
   });
   $("searchButton").addEventListener("click", () => openSearchPrompt().catch(showError));
+  $("topInstallPwa")?.addEventListener("click", openPwaInstall);
   $("newThread").addEventListener("click", () => createThread().catch(showError));
   $("pushToggle").addEventListener("click", () => handlePushButton().catch(showError));
   $("topMoreButton")?.addEventListener("click", (event) => {
@@ -9704,6 +9850,8 @@ function wireUi() {
 
 async function start() {
   wireUi();
+  state.pwaInstalled = isStandalonePwa();
+  ensurePwaServiceWorker({ timeoutMs: 8000 }).catch(() => {});
   showBootSplash("正在连接 Hermes Mobile");
   try {
     const config = await fetch("/api/public-config").then((res) => res.json());

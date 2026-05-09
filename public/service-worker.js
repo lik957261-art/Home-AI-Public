@@ -1,13 +1,96 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260508-realtime-refresh-usage-dismiss";
+const HERMES_SW_VERSION = "20260509-pwa-shell";
+const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
+const HERMES_APP_SHELL_URLS = [
+  "/",
+  "/index.html",
+  "/styles.css?v=20260509-1015",
+  "/app.js?v=20260509-1015",
+  "/fixed-viewport.js?v=20260505-1135",
+  "/manifest-20260509.json",
+  "/icons/hermes-mobile-icon-192-20260508.png",
+  "/icons/hermes-mobile-icon-512-20260508.png",
+  "/icons/hermes-mobile-badge-72-20260508.png",
+  "/icons/favicon-32-20260508.png",
+  "/icons/apple-touch-icon-180-20260508.png",
+];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil((async () => {
+    try {
+      const cache = await caches.open(HERMES_APP_SHELL_CACHE);
+      await cache.addAll(HERMES_APP_SHELL_URLS);
+    } catch (_) {
+      // A failed cache warmup must not block an app update.
+    }
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys
+        .filter((key) => key.startsWith("hermes-mobile-shell-") && key !== HERMES_APP_SHELL_CACHE)
+        .map((key) => caches.delete(key)));
+    } catch (_) {
+      // Cache cleanup is best-effort.
+    }
+    await self.clients.claim();
+  })());
+});
+
+function isApiOrEventRequest(url) {
+  return url.pathname.startsWith("/api/") || url.pathname === "/events";
+}
+
+function isCacheableStaticRequest(url) {
+  return /\.(?:css|js|json|png|svg|ico|html|wasm)$/i.test(url.pathname)
+    || url.pathname === "/"
+    || url.pathname === "/index.html";
+}
+
+async function networkFirst(request, fallbackUrl = "/") {
+  const cache = await caches.open(HERMES_APP_SHELL_CACHE);
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+    return response;
+  } catch (_) {
+    return (await caches.match(request))
+      || (fallbackUrl ? await caches.match(fallbackUrl) : null)
+      || new Response("Hermes Mobile is offline.", {
+        status: 503,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+  }
+}
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(HERMES_APP_SHELL_CACHE);
+  const cached = await caches.match(request);
+  const refresh = fetch(request).then((response) => {
+    if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+    return response;
+  }).catch(() => null);
+  return cached || await refresh || new Response("", { status: 504 });
+}
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (isApiOrEventRequest(url)) return;
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirst(request, "/"));
+    return;
+  }
+  if (isCacheableStaticRequest(url)) {
+    event.respondWith(staleWhileRevalidate(request));
+  }
 });
 
 async function sameOriginWindowClients() {

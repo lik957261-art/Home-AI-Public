@@ -54,6 +54,12 @@ worker in the same `skillProfile`:
 node scripts\link-skill-profile-store.js --shared "<shared-skills-dir>" --profile "<gateway-profile-a>\skills" --profile "<gateway-profile-b>\skills" --apply
 ```
 
+Hermes Mobile ships as an installable PWA. Serve it from HTTPS or localhost so
+the browser can enable the Service Worker, then use the top-right menu's install
+entry or the browser's native install/add-to-home-screen command. The PWA caches
+only the application shell and static assets; API data, artifacts, secrets, and
+workspace files remain network/runtime data.
+
 Start the listener:
 
 ```powershell

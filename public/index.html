@@ -1,17 +1,20 @@
 <!doctype html>
-<html lang="en" data-client-version="20260509-0950">
+<html lang="en" data-client-version="20260509-1015">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260509-0950">
+  <meta name="hermes-web-client-version" content="20260509-1015">
+  <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f3efe7">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Hermes">
-  <link rel="manifest" href="/manifest-20260508.json">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="/manifest-20260509.json">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32-20260508.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180-20260508.png">
-  <link rel="stylesheet" href="/styles.css?v=20260509-0950">
+  <link rel="stylesheet" href="/styles.css?v=20260509-1015">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -162,6 +165,7 @@
               <button id="topToggleSingleMode" class="top-more-action" type="button" hidden>任务流</button>
               <button id="topClearDirectoryFilter" class="top-more-action" type="button" hidden>清除目录筛选</button>
               <button id="topManageAccessKeys" class="top-more-action" type="button" hidden>Access Key</button>
+              <button id="topInstallPwa" class="top-more-action" type="button" hidden>安装应用</button>
               <button id="topManageSharedDirectories" class="top-more-action" type="button" hidden>管理共享目录</button>
               <button id="topNewDirectoryFolder" class="top-more-action" type="button" hidden>新建文件夹</button>
             </div>
@@ -172,6 +176,7 @@
       <div id="accessKeyOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="accessKeyTitle"></div>
       <div id="runtimeConfigOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="runtimeConfigTitle"></div>
       <div id="groupChatOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="groupChatTitle"></div>
+      <div id="pwaInstallOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle"></div>
       <section id="conversation" class="conversation">
         <div class="empty-state">Create a thread to start a zero-context Hermes task.</div>
       </section>
@@ -197,6 +202,6 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260509-0950"></script>
+  <script src="/app.js?v=20260509-1015"></script>
 </body>
 </html>
