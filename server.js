@@ -4531,15 +4531,56 @@ function isDeliveryProjectMatch(match) {
   return isGenericOwnerTopicProjectId(projectId) || root.includes("hermes\u540c\u6b65\u6587\u4ef6\u5939");
 }
 
+function uniqueTaskDirectoryAttachments(items) {
+  const unique = new Map();
+  for (const item of items || []) {
+    if (!item?.root && !item?.path) continue;
+    const key = [
+      item.projectId || "",
+      item.subprojectId || "",
+      comparablePath(item.root || item.path || ""),
+    ].join("|");
+    if (!unique.has(key)) unique.set(key, item);
+  }
+  return [...unique.values()];
+}
+
+function messageTaskDirectoryHaystack(message) {
+  const parts = [message?.content || ""];
+  if (message?.directoryRoute) {
+    parts.push(message.directoryRoute.label || "", message.directoryRoute.path || "", message.directoryRoute.root || "");
+  }
+  for (const alias of Array.isArray(message?.directoryAliases) ? message.directoryAliases : []) {
+    parts.push(alias?.label || "", alias?.path || "", alias?.root || "");
+  }
+  for (const artifact of Array.isArray(message?.artifacts) ? message.artifacts : []) {
+    parts.push(artifact?.name || "", artifact?.path || "", artifact?.displayPath || "", artifact?.url || "");
+  }
+  return parts.join("\n");
+}
+
+function taskDirectoryAttachmentCandidatesForMessage(thread, message) {
+  const rawCandidates = [];
+  if (message?.directoryRoute) rawCandidates.push(message.directoryRoute);
+  for (const alias of Array.isArray(message?.directoryAliases) ? message.directoryAliases : []) {
+    if (alias) rawCandidates.push(alias);
+  }
+  const haystack = messageTaskDirectoryHaystack(message);
+  for (const candidate of directoryAttachmentCandidatesForThread(thread)) {
+    if (textIncludesPath(haystack, candidate.root)) rawCandidates.push(candidate);
+  }
+  return uniqueTaskDirectoryAttachments(rawCandidates
+    .map((raw) => resolveTaskDirectoryAttachment(thread, raw || {}))
+    .filter(Boolean));
+}
+
 function taskDirectoryAttachmentForGroup(thread, taskGroupId) {
   if (!taskGroupId) return null;
   for (const message of thread.messages || []) {
     if (message.taskGroupId !== taskGroupId) continue;
-    const route = normalizeTaskDirectoryAttachment(thread, message.directoryRoute || {});
-    if (route) return route;
-    const alias = Array.isArray(message.directoryAliases) ? message.directoryAliases.find(Boolean) : null;
-    const aliasRoute = normalizeTaskDirectoryAttachment(thread, alias || {});
-    if (aliasRoute) return aliasRoute;
+    const candidates = taskDirectoryAttachmentCandidatesForMessage(thread, message);
+    const binding = candidates.find((item) => !isDeliveryProjectMatch(item));
+    if (binding) return binding;
   }
   return null;
 }
@@ -4617,6 +4658,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
   ].filter(Boolean);
   if (taskDirectory?.path) {
     lines.push(`Attached task directory: ${taskDirectory.label || "Directory"} => ${taskDirectory.path}.`);
+    lines.push("For this task group, the attached task directory is the frozen working directory. Do not switch the task to a later semantic project match, delivery folder, or unrelated path mentioned in follow-up text unless the user starts a new task from that directory.");
     lines.push("Base this task on the cleaned/normalized data in the attached directory first; use broader allowed roots only when the user request clearly requires it.");
     lines.push("Use Skill: productivity/directory-context-cleaning before analysis: clean new or changed files in the attached directory, update `.hermes-cleaned/summary.md` / indexes, then answer from summary-first cleaned context and open detailed cleaned Markdown only when needed.");
     lines.push("Keep the attached data directory separate from delivery folders. Write final document deliverables as Markdown by default and expose them with MEDIA:<path>. Generate PDF/Word copies only when explicitly requested for external forwarding, printing, editable Office, or another required format. Do not use the legacy Hermes sync folder for Hermes Mobile preview delivery.");
@@ -4642,7 +4684,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
   if (Array.isArray(policy.allowed_roots) && policy.allowed_roots.length) {
     lines.push(`Allowed roots: ${policy.allowed_roots.join("; ")}.`);
   }
-  const routingInstructions = singleWindowMode === "chat" ? "" : semanticProjectRoutingInstructions(thread, latestText);
+  const routingInstructions = singleWindowMode === "chat" || taskDirectory?.path ? "" : semanticProjectRoutingInstructions(thread, latestText);
   if (routingInstructions) lines.push(routingInstructions);
   if (policy.response_style === "concise") lines.push("Keep final replies concise unless the user asks for a detailed report.");
   if (policy.show_task_id === false) lines.push("Do not surface internal task IDs in the final user-facing prose unless needed for troubleshooting.");

@@ -8442,12 +8442,18 @@ function messageDirectoryAliases(message) {
 function extractedTaskDirectoryAliases(group) {
   const aliases = [];
   for (const message of group?.messages || []) {
-    const extracted = extractDirectoryAliases(message.content || "");
-    for (const alias of extracted.aliases || []) {
-      aliases.push(Object.assign({ messageId: message.id, source: "extracted" }, alias));
-    }
-    aliases.push(...extractMediaDirectoryAliases(message.content || "", message.id));
+    aliases.push(...messageExtractedDirectoryAliases(message));
   }
+  return aliases;
+}
+
+function messageExtractedDirectoryAliases(message) {
+  const aliases = [];
+  const extracted = extractDirectoryAliases(message?.content || "");
+  for (const alias of extracted.aliases || []) {
+    aliases.push(Object.assign({ messageId: message?.id || "", source: "extracted" }, alias));
+  }
+  aliases.push(...extractMediaDirectoryAliases(message?.content || "", message?.id || ""));
   return aliases;
 }
 
@@ -8510,22 +8516,40 @@ function isTaskBindingDirectoryItem(item) {
   );
 }
 
-function taskPrimaryDirectoryAlias(group) {
-  const context = taskDirectoryContext(group);
-  const candidates = [
-    ...explicitTaskDirectoryAliases(group),
-    ...extractedTaskDirectoryAliases(group).filter((alias) =>
-      !alias.referenceKind && !isDeliveryDirectoryAlias(alias) && !isOperationalTaskDirectoryAlias(alias)),
-  ];
+function usableTaskBindingAliases(aliases) {
+  return (aliases || []).filter((alias) => (
+    alias
+    && !alias.referenceKind
+    && !isDeliveryDirectoryAlias(alias)
+    && !isGenericDefaultDirectoryAlias(alias)
+    && !isOperationalTaskDirectoryAlias(alias)
+  ));
+}
+
+function selectTaskBindingAlias(candidates, context) {
   const items = directoryAliasItemsForAliases(candidates, context, { includeGenericDefault: false });
   const bindingItems = items.filter(isTaskBindingDirectoryItem);
   const primary = bindingItems.find((item) => isContextAnchorDirectoryRoute(item.route)) || bindingItems[0] || null;
   if (primary) return aliasFromDirectoryItem(primary, { source: "bound" });
-  const fallback = candidates.find((alias) => {
-    if (!alias || isDeliveryDirectoryAlias(alias) || isGenericDefaultDirectoryAlias(alias) || isOperationalTaskDirectoryAlias(alias)) return false;
-    return Boolean(alias.label || alias.path);
-  });
+  const fallback = usableTaskBindingAliases(candidates).find((alias) => alias.label || alias.path);
   return fallback ? Object.assign({}, fallback, { source: "bound" }) : null;
+}
+
+function taskPrimaryDirectoryAlias(group) {
+  const context = taskDirectoryContext(group);
+  for (const message of group?.messages || []) {
+    const candidates = usableTaskBindingAliases([
+      ...messageDirectoryAliases(message).map((alias) => Object.assign({ messageId: message.id }, alias)),
+      ...messageExtractedDirectoryAliases(message),
+    ]);
+    const primary = selectTaskBindingAlias(candidates, context);
+    if (primary) return primary;
+  }
+  const candidates = [
+    ...explicitTaskDirectoryAliases(group),
+    ...usableTaskBindingAliases(extractedTaskDirectoryAliases(group)),
+  ];
+  return selectTaskBindingAlias(candidates, context);
 }
 
 function taskDirectoryAliases(group) {
@@ -9398,6 +9422,14 @@ function resolveDirectoryProjectRoute(alias) {
   const requestedProjectId = String(alias?.projectId || "").trim();
   const requestedSubprojectId = String(alias?.subprojectId || "").trim();
   if (requestedProjectId) {
+    const exactProject = candidates.find((candidate) =>
+      candidate.projectId === requestedProjectId && String(candidate.subprojectId || "") === requestedSubprojectId);
+    if (exactProject) return exactProject;
+    if (!requestedSubprojectId) {
+      const rootProject = candidates.find((candidate) =>
+        candidate.projectId === requestedProjectId && !candidate.subprojectId);
+      if (rootProject) return rootProject;
+    }
     const projectMatches = candidates
       .filter((candidate) => candidate.projectId === requestedProjectId && (!requestedSubprojectId || candidate.subprojectId === requestedSubprojectId))
       .sort((a, b) => comparableDirectoryPath(b.root).length - comparableDirectoryPath(a.root).length);
