@@ -2516,6 +2516,14 @@ function clearStoredAccessKey() {
   document.cookie = "hermes_web_key=; Path=/; Max-Age=0; SameSite=Lax";
 }
 
+function storeAccessKey(key) {
+  const value = String(key || "").trim();
+  if (!value) return;
+  state.key = value;
+  localStorage.setItem("hermesWebKey", value);
+  document.cookie = `hermes_web_key=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+}
+
 function handleClientVersionFromResponse(response) {
   const serverVersion = response?.headers?.get?.("X-Hermes-Web-Version") || "";
   if (!serverVersion) return;
@@ -2597,8 +2605,7 @@ async function createOwnerSetup() {
     return payload;
   });
   state.setupOwnerKey = result.key || "";
-  state.key = state.setupOwnerKey;
-  if (state.key) localStorage.setItem("hermesWebKey", state.key);
+  storeAccessKey(state.setupOwnerKey);
   renderSetup();
 }
 
@@ -2617,8 +2624,7 @@ async function login(key) {
   }).then(async (res) => {
     if (!res.ok) throw new Error("Access key is not valid");
   });
-  state.key = key;
-  localStorage.setItem("hermesWebKey", key);
+  storeAccessKey(key);
   showBootSplash("正在打开 Hermes Mobile");
   try {
     await bootstrap();
@@ -3937,6 +3943,7 @@ async function revokeWorkspaceAccessKey(workspaceId) {
 async function rotateWebAccessKey() {
   if (!window.confirm("更换 Hermes Mobile Owner Access Key？旧 Owner key 会立即失效。")) return;
   const result = await api("/api/access-keys/web", { method: "POST", body: JSON.stringify({}) });
+  storeAccessKey(result.key || "");
   state.generatedAccessKey = {
     kind: "owner",
     key: result.key || "",
@@ -3944,9 +3951,9 @@ async function rotateWebAccessKey() {
     workspaceId: "owner",
     focus: true,
   };
-  state.accessKeyRequiresLogin = Boolean(result.requiresReLogin);
-  if (state.accessKeyRequiresLogin) clearStoredAccessKey();
+  state.accessKeyRequiresLogin = false;
   renderAccessKeyManager();
+  if (result.key) copyTextToClipboard(result.key).catch(() => {});
 }
 
 async function copyTextToClipboard(text) {
