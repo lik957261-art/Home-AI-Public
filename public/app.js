@@ -4197,12 +4197,9 @@ handleForegroundPushMessage = function handleForegroundPushMessageWithBusinessTo
   ) {
     requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 80 });
   }
-  if (messageType === "test") return;
-  if (["task_completed", "task_failed", "created_by_other", "pre_due_30m", "pre_due_60m", "daily_digest", "owner_daily_report", "automation_completed"].includes(messageType)) {
-    const title = String(payload.title || "\u901a\u77e5").trim();
-    const body = String(payload.body || "").replace(/\s+/g, " ").trim();
-    showPushToast(body ? `${title}: ${body}` : title, "success");
-  }
+  // Do not duplicate real Web Push notifications with an in-app toast.
+  // The system notification is the user-visible delivery surface; this handler
+  // only refreshes current views when the push relates to the open thread.
 };
 
 async function handlePushButton() {
