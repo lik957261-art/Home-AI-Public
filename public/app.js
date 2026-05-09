@@ -2820,11 +2820,19 @@ function normalizeClientVersion(value) {
   return String(value || "").trim();
 }
 
+function compactClientVersion(value) {
+  const version = normalizeClientVersion(value);
+  const match = version.match(/^\d{8}-(\d{4})$/);
+  if (match) return match[1];
+  if (version.length > 8) return version.slice(-8);
+  return version;
+}
+
 function renderClientVersion() {
   const badge = $("clientVersion");
   if (!badge) return;
   const version = normalizeClientVersion(state.clientVersion);
-  badge.textContent = version ? `v${version}` : "";
+  badge.textContent = version ? `v${compactClientVersion(version)}` : "";
   badge.title = version ? `Client version ${version}` : "";
 }
 

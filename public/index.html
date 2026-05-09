@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260509-1130">
+<html lang="en" data-client-version="20260509-1140">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260509-1130">
+  <meta name="hermes-web-client-version" content="20260509-1140">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f3efe7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -25,7 +25,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260509-1130">
+  <link rel="stylesheet" href="/styles.css?v=20260509-1140">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -73,9 +73,10 @@
       <div class="side-title">
         <div class="side-heading">
           <div class="eyebrow">Hermes</div>
-      <div id="clientVersion" class="client-version">v20260509-1130</div>
+      <div id="clientVersion" class="client-version">v1140</div>
           <button id="searchButton" class="push-button" type="button" aria-label="Search" title="Search">⌕</button>
           <button id="pushToggle" class="push-button" type="button" hidden aria-label="启用通知" title="启用通知">🔔</button>
+          <button id="topSettingsButton" class="push-button settings-button" type="button" aria-label="设置" title="设置">⚙</button>
         </div>
         <button id="closeMenu" class="icon-button mobile-only" type="button" aria-label="Close menu">&#10005;</button>
       </div>
@@ -159,7 +160,6 @@
         <div class="top-actions">
           <span id="connectionState" class="connection">Starting</span>
           <button id="interruptRun" class="danger-button" type="button" disabled>Stop</button>
-          <button id="topSettingsButton" class="top-more-button top-settings-button" type="button" aria-label="设置" title="设置">⚙</button>
           <div id="topMoreWrap" class="top-more-wrap hidden">
             <button id="topMoreButton" class="top-more-button" type="button" aria-label="More actions" aria-expanded="false">...</button>
             <div id="topMoreMenu" class="top-more-menu" hidden>
@@ -215,6 +215,6 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260509-1130"></script>
+  <script src="/app.js?v=20260509-1140"></script>
 </body>
 </html>

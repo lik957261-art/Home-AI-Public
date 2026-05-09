@@ -340,9 +340,10 @@ button {
 
 .side-heading {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .client-version {
@@ -1060,11 +1061,6 @@ button {
   font-size: 18px;
   font-weight: 820;
   line-height: 1;
-}
-
-.top-settings-button {
-  flex: 0 0 auto;
-  font-size: 17px;
 }
 
 .top-more-menu {
