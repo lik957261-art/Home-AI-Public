@@ -10,6 +10,7 @@ import tempfile
 import sys
 import uuid
 import base64
+import stat as stat_module
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,7 @@ DEFAULT_JOBS_PATHS = [
 CRON_OUTPUT_ROOT = Path(os.environ.get("HERMES_WEB_CRON_OUTPUT_ROOT") or (HERMES_HOME / "cron" / "output"))
 DELIVERY_DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".doc"}
 MEDIA_DOCUMENT_EXTENSIONS = DELIVERY_DOCUMENT_EXTENSIONS | {".md"}
+OUTPUT_SCAN_LIMIT = int(os.environ.get("HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT") or os.environ.get("HERMES_WEB_AUTOMATION_OUTPUT_SCAN_LIMIT") or "80")
 MAX_READ_FILE_BYTES = int(os.environ.get("HERMES_MOBILE_CRON_FILE_MAX_BYTES") or os.environ.get("HERMES_WEB_CRON_FILE_MAX_BYTES") or "26214400")
 MEDIA_LINE_PATTERN = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$")
 MEDIA_PATH_PATTERN = re.compile(
@@ -252,10 +254,7 @@ def media_paths_from_run(path: Path) -> list[Path]:
         candidate = normalize_delivery_path(raw)
         if not candidate or candidate.suffix.lower() not in MEDIA_DOCUMENT_EXTENSIONS:
             continue
-        try:
-            key = str(candidate.resolve())
-        except OSError:
-            key = str(candidate)
+        key = os.path.normcase(os.path.abspath(str(candidate)))
         if key in seen:
             continue
         seen.add(key)
@@ -268,11 +267,11 @@ def deliverable_paths_from_run(path: Path) -> list[Path]:
     return [item for item in media_paths_from_run(path) if item.suffix.lower() in MEDIA_DOCUMENT_EXTENSIONS and item.is_file()]
 
 
-def delivery_document(clean_job_id: str, run_path: Path, index: int, path: Path) -> dict[str, Any] | None:
+def delivery_document(clean_job_id: str, run_path: Path, index: int, path: Path, *, run_stat: os.stat_result | None = None) -> dict[str, Any] | None:
     if path.suffix.lower() not in MEDIA_DOCUMENT_EXTENSIONS or not path.is_file():
         return None
     stat = path.stat()
-    run_stat = run_path.stat()
+    run_stat = run_stat or run_path.stat()
     return {
         "name": path.name,
         "mime": mime_for_output(path),
@@ -293,23 +292,33 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
     if not output_dir.is_dir():
         return []
     docs: list[dict[str, Any]] = []
-    for path in sorted(output_dir.iterdir(), key=lambda item: item.stat().st_mtime if item.exists() else 0, reverse=True):
-        if not path.is_file():
+    entries: list[tuple[Path, os.stat_result]] = []
+    for path in output_dir.iterdir():
+        try:
+            path_stat = path.stat()
+        except OSError:
             continue
+        if not stat_module.S_ISREG(path_stat.st_mode):
+            continue
+        entries.append((path, path_stat))
+    entries.sort(key=lambda item: item[1].st_mtime, reverse=True)
+    scan_limit = max(0, OUTPUT_SCAN_LIMIT)
+    if scan_limit:
+        entries = entries[:scan_limit]
+    for path, path_stat in entries:
         if path.suffix.lower() == ".md":
             for index, delivery_path in enumerate(deliverable_paths_from_run(path)):
-                doc = delivery_document(clean_job_id, path, index, delivery_path)
+                doc = delivery_document(clean_job_id, path, index, delivery_path, run_stat=path_stat)
                 if doc:
                     docs.append(doc)
             continue
         if path.suffix.lower() not in DELIVERY_DOCUMENT_EXTENSIONS:
             continue
-        stat = path.stat()
         docs.append({
             "name": path.name,
             "mime": mime_for_output(path),
-            "size": stat.st_size,
-            "updatedAt": datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(),
+            "size": path_stat.st_size,
+            "updatedAt": datetime.fromtimestamp(path_stat.st_mtime).astimezone().isoformat(),
             "url": f"/api/automations/output?{urlencode({'jobId': clean_job_id, 'file': path.name})}",
         })
     docs.sort(key=lambda item: (
