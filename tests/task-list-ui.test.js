@@ -30,6 +30,10 @@ assert.match(appJs, /owner_high_privilege/);
 assert.match(stylesCss, /\.workspace-permission-panel/);
 assert.match(serverJs, /function publicOwnerElevationStatus\(auth\)/);
 assert.match(serverJs, /url\.pathname === "\/api\/owner-elevation"/);
+assert.match(serverJs, /url\.pathname === "\/api\/owner-elevation\/once"/);
+assert.match(serverJs, /function grantOwnerElevationOnce\(auth\)/);
+assert.match(serverJs, /function consumeOwnerElevationOnce\(auth, token\)/);
+assert.match(serverJs, /consumeOwnerElevationOnce\(auth, onceToken\) \|\| isOwnerElevationActive\(auth\)/);
 assert.match(serverJs, /isOwnerElevationActive\(auth\)/);
 
 console.log("task list UI tests passed");

@@ -140,6 +140,8 @@ const state = {
   pushSubscription: null,
   ownerElevation: null,
   ownerElevationDurationMinutes: Number(localStorage.getItem("hermesOwnerElevationMinutes") || "15") || 15,
+  ownerElevationOnceToken: "",
+  ownerElevationOnceExpiresAt: "",
   pwaInstallPrompt: null,
   pwaInstallOpen: false,
   pwaInstalled: false,
@@ -3560,6 +3562,37 @@ async function revokeOwnerElevation() {
   state.ownerElevation = result.ownerElevation || state.ownerElevation;
   renderWorkspaceAccessPanel();
   showPushToast("已恢复普通权限", "success");
+}
+
+function clearOwnerElevationOnce() {
+  state.ownerElevationOnceToken = "";
+  state.ownerElevationOnceExpiresAt = "";
+}
+
+function ownerElevationOnceActive() {
+  const expiresAt = Date.parse(state.ownerElevationOnceExpiresAt || "");
+  return Boolean(
+    state.ownerElevationOnceToken
+    && Number.isFinite(expiresAt)
+    && expiresAt > Date.now()
+  );
+}
+
+async function activateOwnerElevationOnce(options = {}) {
+  if (!state.auth?.isOwner || state.selectedWorkspaceId !== "owner") {
+    throw new Error("Owner access is required");
+  }
+  if (options.confirm !== false) {
+    const ok = window.confirm("授权当前这一条消息高权限运行？发送后不会保留高权限状态。");
+    if (!ok) return false;
+  }
+  const result = await api("/api/owner-elevation/once", { method: "POST", body: JSON.stringify({}) });
+  const grant = result.ownerElevationOnce || {};
+  state.ownerElevationOnceToken = String(grant.token || "");
+  state.ownerElevationOnceExpiresAt = String(grant.expiresAt || "");
+  if (!state.ownerElevationOnceToken) throw new Error("Owner high-privilege authorization token was not returned");
+  showPushToast("本次高权限已授权", "success");
+  return true;
 }
 
 function refreshNoticeText(serverVersion) {
@@ -9989,11 +10022,27 @@ async function sendMessage(event) {
   }
   if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
   if (!state.currentThreadId) return;
-  const text = getComposerText().trim();
-  if (!text && !state.pendingArtifacts.length) return;
+  let text = getComposerText().trim();
+  const originalText = text;
+  const ownerElevationOnceTag = ownerElevationOnceTagInfo(text);
+  let ownerElevationOnceRequested = Boolean(ownerElevationOnceTag);
+  if (ownerElevationOnceTag) {
+    text = stripOwnerElevationOnceTags(text);
+  }
+  if (!text && !state.pendingArtifacts.length) {
+    if (ownerElevationOnceTag) clearOwnerElevationOnce();
+    return;
+  }
   const aiMention = composerAiMentionInfo(text);
   if (isDraftThread(state.currentThread)) await materializeCurrentThread();
-  if (!state.currentThreadId) return;
+  if (!state.currentThreadId) {
+    if (ownerElevationOnceTag) clearOwnerElevationOnce();
+    return;
+  }
+  if (ownerElevationOnceTag && !ownerElevationOnceActive()) {
+    const ok = await activateOwnerElevationOnce();
+    if (!ok) return;
+  }
   closeGroupMentionMenu();
   setComposerText("");
   $("sendMessage").disabled = true;
@@ -10002,10 +10051,13 @@ async function sendMessage(event) {
   let consumedPendingDirectory = false;
   try {
     const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
-    if (ownerElevationActive()) {
+    if (ownerElevationActive() || (ownerElevationOnceTag && ownerElevationOnceActive())) {
       body.maintenanceMode = true;
       body.maintenance_mode = true;
       body.elevationScope = "owner_high_privilege";
+      if (ownerElevationOnceTag && ownerElevationOnceActive()) {
+        body.ownerElevationOnceToken = state.ownerElevationOnceToken;
+      }
     }
     if (state.viewMode === "single") {
       body.singleWindowMode = state.singleWindowMode === "chat" ? "chat" : "task";
@@ -10038,21 +10090,22 @@ async function sendMessage(event) {
     handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
   } catch (err) {
     if (shouldOfferOwnerElevation(err) && requestBody) {
-      const minutes = ownerElevationSelectedDuration();
-      const prompt = ownerElevationActive()
-        ? ownerElevationConfirmMessage(err)
-        : `${ownerElevationConfirmMessage(err)}\n\n授权时间：${minutes} 分钟。`;
+      const prompt = ownerElevationConfirmMessage(err);
       const ok = window.confirm(prompt);
       if (ok) {
         try {
+          let onceToken = "";
           if (!ownerElevationActive()) {
-            await activateOwnerElevation(minutes, { confirm: false });
+            await activateOwnerElevationOnce({ confirm: false });
+            onceToken = state.ownerElevationOnceToken;
+            ownerElevationOnceRequested = true;
           }
           const elevatedBody = Object.assign({}, requestBody, {
             maintenanceMode: true,
             maintenance_mode: true,
             elevationScope: err.elevationScope || err.code || "shared_skill_write",
           });
+          if (onceToken) elevatedBody.ownerElevationOnceToken = onceToken;
           const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
             method: "POST",
             body: JSON.stringify(elevatedBody),
@@ -10060,18 +10113,19 @@ async function sendMessage(event) {
           handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
           return;
         } catch (elevatedErr) {
-          setComposerText(text);
+          setComposerText(originalText);
           showError(elevatedErr);
           return;
         }
       }
-      setComposerText(text);
+      setComposerText(originalText);
       showError(new Error("已取消 Owner 提权，未执行这次越权请求。"));
       return;
     }
-    setComposerText(text);
+    setComposerText(originalText);
     showError(err);
   } finally {
+    if (ownerElevationOnceRequested) clearOwnerElevationOnce();
     $("sendMessage").disabled = false;
     updateComposerAction();
   }
@@ -10441,7 +10495,7 @@ function ownerElevationConfirmMessage(err) {
     return "这次操作需要写入共享或系统级 Skill。批准后只会把这一条消息路由到 Owner maintenance Gateway。是否批准？";
   }
   if (scope === "owner_high_privilege" || scope === "owner_high_privilege_required") {
-    return "这次请求需要 Owner 高权限运行。批准后会把后续授权时间内的 Owner 任务路由到 maintenance Gateway。是否批准？";
+    return "这次请求需要 Owner 高权限运行。批准后只会把这一条消息路由到 Owner maintenance Gateway。是否批准？";
   }
   return "这次请求需要 Owner 提权。批准后只会把这一条消息路由到 Owner maintenance Gateway。是否批准？";
 }
@@ -10498,6 +10552,38 @@ function setComposerCaretOffset(offset) {
   selection?.addRange(range);
 }
 
+function ownerElevationComposerAvailable() {
+  if (isChatSearchMode()) return false;
+  return Boolean(state.auth?.isOwner && state.selectedWorkspaceId === "owner" && (state.viewMode === "single" || state.viewMode === "tasks"));
+}
+
+function ownerElevationMentionOptions() {
+  if (!ownerElevationComposerAvailable()) return [];
+  return [{
+    workspaceId: "owner-elevation-once",
+    label: "高权限本次",
+    virtual: true,
+    mentionText: "#高权限本次",
+    description: "只授权当前这一条 Owner 消息",
+    ownerElevationOnce: true,
+  }];
+}
+
+function ownerElevationTagPattern() {
+  return /(^|[\s([{,.;:!?\u3000\uff08\uff3b\u3010\uff0c\u3002\uff1b\uff1a\uff01\uff1f])[#\uff03]\s*(?:高权限|高權限|owner[-_\s]?high[-_\s]?privilege|high[-_\s]?privilege)\s*(?:本次|once)?/gi;
+}
+
+function ownerElevationOnceTagInfo(text) {
+  return ownerElevationTagPattern().test(String(text || "")) ? { present: true } : null;
+}
+
+function stripOwnerElevationOnceTags(text) {
+  return String(text || "")
+    .replace(ownerElevationTagPattern(), (match, prefix = "") => prefix)
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 function composerMentionAvailable() {
   if (isChatSearchMode()) return false;
   return state.viewMode === "single" || state.viewMode === "tasks";
@@ -10514,17 +10600,22 @@ function activeGroupMentionToken() {
   const caret = composerCaretOffset();
   const before = text.slice(0, caret);
   const at = Math.max(before.lastIndexOf("@"), before.lastIndexOf("\uff20"));
-  if (at < 0) return null;
-  const previous = at > 0 ? before[at - 1] : "";
+  const hash = ownerElevationComposerAvailable()
+    ? Math.max(before.lastIndexOf("#"), before.lastIndexOf("\uff03"))
+    : -1;
+  const start = Math.max(at, hash);
+  if (start < 0) return null;
+  const trigger = start === hash ? "#" : "@";
+  const previous = start > 0 ? before[start - 1] : "";
   if (previous && !/[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?，。；：！？、]/.test(previous)) return null;
-  const query = before.slice(at + 1);
-  if (/[\s\r\n@\uff20]/.test(query) || query.length > 40) return null;
-  return { start: at, end: caret, query };
+  const query = before.slice(start + 1);
+  if (/[\s\r\n@\uff20#\uff03]/.test(query) || query.length > 40) return null;
+  return { start, end: caret, query, trigger };
 }
 
-function mentionOptionsForQuery(query) {
+function mentionOptionsForQuery(query, members = composerMentionMembers()) {
   const needle = normalizeMentionSearch(query);
-  return composerMentionMembers().filter((member) => {
+  return members.filter((member) => {
     if (!needle) return true;
     return normalizeMentionSearch(member.label).includes(needle)
       || normalizeMentionSearch(member.workspaceId).includes(needle)
@@ -10554,7 +10645,9 @@ function renderGroupMentionMenu() {
     closeGroupMentionMenu();
     return;
   }
-  const options = mentionOptionsForQuery(token.query);
+  const options = token.trigger === "#"
+    ? mentionOptionsForQuery(token.query, ownerElevationMentionOptions())
+    : mentionOptionsForQuery(token.query);
   if (!options.length) {
     closeGroupMentionMenu();
     return;
@@ -10578,10 +10671,14 @@ function moveGroupMentionSelection(delta) {
   renderGroupMentionMenu();
 }
 
-function chooseGroupMention(index = state.groupMentionIndex) {
+async function chooseGroupMention(index = state.groupMentionIndex) {
   if (!state.groupMentionOpen || !state.groupMentionToken) return false;
   const member = state.groupMentionOptions[index] || state.groupMentionOptions[0];
   if (!member) return false;
+  if (member.ownerElevationOnce) {
+    const ok = await activateOwnerElevationOnce();
+    if (!ok) return false;
+  }
   const token = state.groupMentionToken;
   const text = getComposerText();
   const insertion = `${String(member.mentionText || `@${member.label}`).trimEnd()} `;
@@ -10632,7 +10729,7 @@ function handleComposerKeydown(event) {
     }
     if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && !event.isComposing) {
       event.preventDefault();
-      chooseGroupMention();
+      void chooseGroupMention();
       return;
     }
   }
@@ -10958,7 +11055,7 @@ function wireUi() {
     if (!option) return;
     event.preventDefault();
     event.stopPropagation();
-    chooseGroupMention(Number(option.dataset.groupMentionIndex || 0));
+    void chooseGroupMention(Number(option.dataset.groupMentionIndex || 0));
   });
   $("interruptRun").addEventListener("click", interruptRun);
   $("messageInput").addEventListener("input", (event) => {

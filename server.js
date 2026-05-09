@@ -225,6 +225,8 @@ const OWNER_ELEVATION_DEFAULT_MINUTES = OWNER_ELEVATION_DURATION_OPTIONS_MINUTES
   ? 15
   : OWNER_ELEVATION_DURATION_OPTIONS_MINUTES[0];
 let ownerElevationGrant = null;
+let ownerElevationOnceGrants = new Map();
+const OWNER_ELEVATION_ONCE_TTL_MS = Number(process.env.HERMES_MOBILE_OWNER_ELEVATION_ONCE_TTL_MS || process.env.HERMES_WEB_OWNER_ELEVATION_ONCE_TTL_MS || "120000");
 const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH_ENABLED || process.env.WEB_PUSH_ENABLED || "1");
 const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
 const TODO_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_TODO_PUSH_ENABLED || "1");
@@ -753,7 +755,8 @@ function classifyAutomationAdminIntentForRun(text, options = {}) {
 function gatewayRoutingForModelRun(auth, text, options = {}) {
   const explicitMaintenance = Boolean(options.maintenanceMode || options.maintenance_mode);
   if (explicitMaintenance) {
-    if (isOwnerElevationActive(auth)) {
+    const onceToken = options.ownerElevationOnceToken || options.owner_elevation_once_token || "";
+    if (consumeOwnerElevationOnce(auth, onceToken) || isOwnerElevationActive(auth)) {
       return {
         securityLevel: "owner-maintenance",
         maintenance: true,
@@ -1090,6 +1093,51 @@ function currentOwnerElevationGrant(now = Date.now()) {
 
 function isOwnerElevationActive(auth) {
   return Boolean(isOwnerAuth(auth) && OWNER_MAINTENANCE_RUNS_ENABLED && currentOwnerElevationGrant());
+}
+
+function pruneOwnerElevationOnceGrants(now = Date.now()) {
+  for (const [token, grant] of ownerElevationOnceGrants.entries()) {
+    if (!grant?.expiresAtMs || grant.expiresAtMs <= now) ownerElevationOnceGrants.delete(token);
+  }
+}
+
+function grantOwnerElevationOnce(auth) {
+  if (!isOwnerAuth(auth)) {
+    const err = new Error("Owner access is required");
+    err.status = 403;
+    throw err;
+  }
+  if (!OWNER_MAINTENANCE_RUNS_ENABLED) {
+    const err = new Error("Owner maintenance runs are disabled by server configuration");
+    err.status = 409;
+    throw err;
+  }
+  pruneOwnerElevationOnceGrants();
+  const token = crypto.randomBytes(24).toString("base64url");
+  const grantedAtMs = Date.now();
+  const ttlMs = Math.max(30_000, OWNER_ELEVATION_ONCE_TTL_MS || 120_000);
+  const grant = {
+    token,
+    grantedAt: new Date(grantedAtMs).toISOString(),
+    expiresAt: new Date(grantedAtMs + ttlMs).toISOString(),
+    expiresAtMs: grantedAtMs + ttlMs,
+    grantedBy: auth.principalId || auth.workspaceId || "owner",
+  };
+  ownerElevationOnceGrants.set(token, grant);
+  return grant;
+}
+
+function consumeOwnerElevationOnce(auth, token) {
+  if (!isOwnerAuth(auth) || !OWNER_MAINTENANCE_RUNS_ENABLED) return false;
+  const normalized = String(token || "").trim();
+  if (!normalized) return false;
+  pruneOwnerElevationOnceGrants();
+  const grant = ownerElevationOnceGrants.get(normalized);
+  if (!grant) return false;
+  const principal = auth.principalId || auth.workspaceId || "owner";
+  if (grant.grantedBy && grant.grantedBy !== principal) return false;
+  ownerElevationOnceGrants.delete(normalized);
+  return true;
 }
 
 function publicOwnerElevationStatus(auth) {
@@ -7638,6 +7686,26 @@ async function handleApi(req, res) {
     const ownerAuth = requireOwner(req, res);
     if (!ownerAuth) return;
     sendJson(res, 200, { ok: true, ownerElevation: publicOwnerElevationStatus(ownerAuth) });
+    return;
+  }
+
+  if (url.pathname === "/api/owner-elevation/once" && req.method === "POST") {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    try {
+      const grant = grantOwnerElevationOnce(ownerAuth);
+      sendJson(res, 200, {
+        ok: true,
+        ownerElevationOnce: {
+          token: grant.token,
+          expiresAt: grant.expiresAt,
+          grantedAt: grant.grantedAt,
+        },
+        ownerElevation: publicOwnerElevationStatus(ownerAuth),
+      });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err), ownerElevation: publicOwnerElevationStatus(ownerAuth) });
+    }
     return;
   }
 
