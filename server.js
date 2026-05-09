@@ -220,6 +220,11 @@ const BRIDGE_HOST_URL = stripTrailingSlash(process.env.HERMES_MOBILE_BRIDGE_HOST
 const BRIDGE_HOST_KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
 let bridgeHostKeyCache = { path: "", value: "" };
 const OWNER_MAINTENANCE_RUNS_ENABLED = /^(1|true|yes|on)$/i.test(process.env.HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS || process.env.HERMES_WEB_ALLOW_OWNER_MAINTENANCE_RUNS || "");
+const OWNER_ELEVATION_DURATION_OPTIONS_MINUTES = normalizeOwnerElevationDurations(process.env.HERMES_MOBILE_OWNER_ELEVATION_MINUTES || process.env.HERMES_WEB_OWNER_ELEVATION_MINUTES || "5,15,30,60");
+const OWNER_ELEVATION_DEFAULT_MINUTES = OWNER_ELEVATION_DURATION_OPTIONS_MINUTES.includes(15)
+  ? 15
+  : OWNER_ELEVATION_DURATION_OPTIONS_MINUTES[0];
+let ownerElevationGrant = null;
 const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH_ENABLED || process.env.WEB_PUSH_ENABLED || "1");
 const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
 const TODO_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_TODO_PUSH_ENABLED || "1");
@@ -746,18 +751,27 @@ function classifyAutomationAdminIntentForRun(text, options = {}) {
 }
 
 function gatewayRoutingForModelRun(auth, text, options = {}) {
+  const explicitMaintenance = Boolean(options.maintenanceMode || options.maintenance_mode);
+  if (explicitMaintenance) {
+    if (isOwnerElevationActive(auth)) {
+      return {
+        securityLevel: "owner-maintenance",
+        maintenance: true,
+        maintenanceCategory: options.elevationScope || options.elevation_scope || "owner_high_privilege",
+      };
+    }
+    const err = new Error("Owner high-privilege authorization is not active. Use the Owner navigation permission control before running this request.");
+    err.status = isOwnerAuth(auth) ? 409 : 403;
+    err.code = "owner_high_privilege_required";
+    err.operatorRequired = true;
+    err.elevationRequired = Boolean(isOwnerAuth(auth));
+    err.elevationScope = options.elevationScope || options.elevation_scope || "owner_high_privilege";
+    throw err;
+  }
   const classification = securityBoundaryProvider.classifyMaintenanceIntent(text)
     || classifyAutomationAdminIntentForRun(text, options)
     || securityBoundaryProvider.classifySharedSkillWriteIntent(text);
-  const explicitMaintenance = Boolean(options.maintenanceMode || options.maintenance_mode);
   if (!classification) return { securityLevel: "user", maintenance: false };
-  if (isOwnerAuth(auth) && explicitMaintenance && OWNER_MAINTENANCE_RUNS_ENABLED) {
-    return {
-      securityLevel: "owner-maintenance",
-      maintenance: true,
-      maintenanceCategory: classification.category,
-    };
-  }
   const err = new Error(classification.message);
   err.status = isOwnerAuth(auth) ? 409 : 403;
   err.code = classification.category;
@@ -780,6 +794,13 @@ function sharedSkillElevationInstructions(options = {}) {
 
 function ownerElevationInstructions(options = {}) {
   const scope = String(options.elevationScope || options.elevation_scope || "").trim();
+  if (scope === "owner_high_privilege") {
+    return [
+      "APPROVED OWNER HIGH-PRIVILEGE RUN: this run is routed to an Owner maintenance Gateway because the Owner explicitly authorized high-privilege execution in Hermes Mobile.",
+      "Use elevated tools only for the latest user request. Do not make unrelated changes, expose raw secrets, print keys/tokens, or modify worker manifests/runtime configuration unless the user explicitly requested that exact maintenance action.",
+      "If the requested target is ambiguous, stop and ask for clarification instead of guessing.",
+    ].join("\n");
+  }
   if (scope === "shared_skill_write") return sharedSkillElevationInstructions(options);
   if (scope === "automation_admin_write") {
     return [
@@ -1057,6 +1078,76 @@ function isAuthorized(req) {
 
 function isOwnerAuth(auth) {
   return authProvider.isOwnerAuth(auth);
+}
+
+function currentOwnerElevationGrant(now = Date.now()) {
+  if (!ownerElevationGrant || !ownerElevationGrant.expiresAtMs || ownerElevationGrant.expiresAtMs <= now) {
+    ownerElevationGrant = null;
+    return null;
+  }
+  return ownerElevationGrant;
+}
+
+function isOwnerElevationActive(auth) {
+  return Boolean(isOwnerAuth(auth) && OWNER_MAINTENANCE_RUNS_ENABLED && currentOwnerElevationGrant());
+}
+
+function publicOwnerElevationStatus(auth) {
+  const owner = isOwnerAuth(auth);
+  const grant = owner ? currentOwnerElevationGrant() : null;
+  const remainingMs = grant ? Math.max(0, grant.expiresAtMs - Date.now()) : 0;
+  return {
+    available: Boolean(owner && OWNER_MAINTENANCE_RUNS_ENABLED),
+    active: Boolean(grant),
+    currentPermission: grant ? "owner-maintenance" : "standard",
+    label: grant ? "高权限运行" : "普通权限",
+    expiresAt: grant?.expiresAt || "",
+    grantedAt: grant?.grantedAt || "",
+    remainingMs,
+    durationOptionsMinutes: OWNER_ELEVATION_DURATION_OPTIONS_MINUTES.slice(),
+    defaultDurationMinutes: OWNER_ELEVATION_DEFAULT_MINUTES,
+    reason: !owner
+      ? "Owner access is required"
+      : (OWNER_MAINTENANCE_RUNS_ENABLED ? "" : "Owner maintenance runs are disabled by server configuration"),
+  };
+}
+
+function grantOwnerElevation(auth, durationMinutes) {
+  if (!isOwnerAuth(auth)) {
+    const err = new Error("Owner access is required");
+    err.status = 403;
+    throw err;
+  }
+  if (!OWNER_MAINTENANCE_RUNS_ENABLED) {
+    const err = new Error("Owner maintenance runs are disabled by server configuration");
+    err.status = 409;
+    throw err;
+  }
+  const requested = Math.round(Number(durationMinutes || OWNER_ELEVATION_DEFAULT_MINUTES));
+  if (!OWNER_ELEVATION_DURATION_OPTIONS_MINUTES.includes(requested)) {
+    const err = new Error("Unsupported owner elevation duration");
+    err.status = 400;
+    throw err;
+  }
+  const grantedAtMs = Date.now();
+  const expiresAtMs = grantedAtMs + requested * 60 * 1000;
+  ownerElevationGrant = {
+    grantedAt: new Date(grantedAtMs).toISOString(),
+    expiresAt: new Date(expiresAtMs).toISOString(),
+    expiresAtMs,
+    durationMinutes: requested,
+    grantedBy: auth.principalId || auth.workspaceId || "owner",
+  };
+  return ownerElevationGrant;
+}
+
+function revokeOwnerElevation(auth) {
+  if (!isOwnerAuth(auth)) {
+    const err = new Error("Owner access is required");
+    err.status = 403;
+    throw err;
+  }
+  ownerElevationGrant = null;
 }
 
 function authCanAccessWorkspace(auth, workspaceId) {
@@ -1765,6 +1856,15 @@ function normalizeReasoningEffort(value) {
   if (effort === "none") return "none";
   if (VALID_REASONING_EFFORTS.has(effort)) return effort;
   return "";
+}
+
+function normalizeOwnerElevationDurations(value) {
+  const parsed = normalizeStringList(value)
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item) && item > 0 && item <= 240)
+    .map((item) => Math.round(item));
+  const unique = [...new Set(parsed)].sort((a, b) => a - b);
+  return unique.length ? unique : [5, 15, 30, 60];
 }
 
 function normalizeSingleWindowMode(value) {
@@ -7527,9 +7627,46 @@ async function handleApi(req, res) {
     status.reasoning = publicReasoningInfoForAuth(auth);
     bootTrace("request api/status after reasoning");
     status.concurrency = publicConcurrencyForAuth(auth);
+    status.ownerElevation = publicOwnerElevationStatus(auth);
     status.clientVersion = clientVersionInfo(req.headers["x-hermes-web-client-version"] || "");
     bootTrace("request api/status before send");
     sendJson(res, 200, status);
+    return;
+  }
+
+  if (url.pathname === "/api/owner-elevation" && req.method === "GET") {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    sendJson(res, 200, { ok: true, ownerElevation: publicOwnerElevationStatus(ownerAuth) });
+    return;
+  }
+
+  if (url.pathname === "/api/owner-elevation" && req.method === "POST") {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    const body = await readBody(req).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      grantOwnerElevation(ownerAuth, body.durationMinutes || body.duration_minutes);
+      sendJson(res, 200, { ok: true, ownerElevation: publicOwnerElevationStatus(ownerAuth) });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err), ownerElevation: publicOwnerElevationStatus(ownerAuth) });
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/owner-elevation" && req.method === "DELETE") {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    try {
+      revokeOwnerElevation(ownerAuth);
+      sendJson(res, 200, { ok: true, ownerElevation: publicOwnerElevationStatus(ownerAuth) });
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err), ownerElevation: publicOwnerElevationStatus(ownerAuth) });
+    }
     return;
   }
 

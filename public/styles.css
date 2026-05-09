@@ -488,6 +488,105 @@ button {
   overflow-wrap: anywhere;
 }
 
+.workspace-permission-panel {
+  margin: 0 10px 10px;
+  padding: 10px;
+  border: 1px solid rgba(31, 43, 51, 0.10);
+  border-radius: 10px;
+  background: rgba(255, 250, 241, 0.55);
+}
+
+.workspace-permission-panel.active {
+  border-color: rgba(151, 84, 38, 0.28);
+  background: rgba(255, 244, 226, 0.78);
+}
+
+.workspace-permission-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workspace-permission-title {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.workspace-permission-state {
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 840;
+}
+
+.workspace-permission-badge {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid rgba(31, 111, 98, 0.16);
+  border-radius: 8px;
+  color: #285f52;
+  background: rgba(222, 243, 237, 0.58);
+  font-size: 10px;
+  font-weight: 820;
+}
+
+.workspace-permission-panel.active .workspace-permission-badge {
+  color: #815126;
+  background: rgba(255, 232, 191, 0.78);
+  border-color: rgba(151, 84, 38, 0.22);
+}
+
+.workspace-permission-meta,
+.workspace-permission-hint,
+.workspace-permission-warning {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.workspace-permission-warning {
+  color: var(--danger);
+}
+
+.workspace-permission-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.workspace-permission-select,
+.workspace-permission-actions button {
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.workspace-permission-select {
+  color: var(--ink);
+  background: rgba(255, 252, 246, 0.72);
+  border: 1px solid var(--line);
+}
+
+.workspace-permission-primary {
+  color: #fffaf1;
+  background: var(--accent);
+  border: 0;
+}
+
+.workspace-permission-secondary {
+  color: var(--danger);
+  background: rgba(255, 255, 255, 0.48);
+  border: 1px solid rgba(172, 78, 70, 0.22);
+}
+
 .section-toggle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5967,6 +6066,7 @@ button.directory-alias-chip {
 :root[data-font-size] .workspace-access-dir,
 :root[data-font-size] .workspace-access-account,
 :root[data-font-size] .workspace-access-line,
+:root[data-font-size] .workspace-permission-panel,
 :root[data-font-size] .workspace-gateway-status,
 :root[data-font-size] .access-key-subtitle,
 :root[data-font-size] .access-key-row-meta,

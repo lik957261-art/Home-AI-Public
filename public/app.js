@@ -138,6 +138,8 @@ const state = {
   backSwipe: null,
   pushStatus: null,
   pushSubscription: null,
+  ownerElevation: null,
+  ownerElevationDurationMinutes: Number(localStorage.getItem("hermesOwnerElevationMinutes") || "15") || 15,
   pwaInstallPrompt: null,
   pwaInstallOpen: false,
   pwaInstalled: false,
@@ -3298,6 +3300,7 @@ async function loadStatus() {
   if (status.clientVersion) handleClientVersion(status.clientVersion, "status");
   state.gatewayPool = status.gatewayPool || null;
   state.concurrency = status.concurrency || null;
+  state.ownerElevation = status.ownerElevation || state.ownerElevation || null;
   if (status.display && typeof status.display === "object") {
     const names = Array.isArray(status.display.ownerDriveRootNames)
       ? status.display.ownerDriveRootNames.map((item) => String(item || "").trim()).filter(Boolean)
@@ -3451,6 +3454,112 @@ function renderGatewayPoolMiniStatus(pool = state.gatewayPool, concurrency = sta
     ${summary.detail ? `<div class="workspace-gateway-meta">${escapeHtml(summary.detail)}</div>` : ""}
     ${concurrencyText ? `<div class="workspace-gateway-meta">Run limit: ${escapeHtml(concurrencyText)}</div>` : ""}
   </section>`;
+}
+
+function ownerElevationDurationOptions() {
+  const options = Array.isArray(state.ownerElevation?.durationOptionsMinutes)
+    ? state.ownerElevation.durationOptionsMinutes.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+    : [];
+  return options.length ? options : [5, 15, 30, 60];
+}
+
+function ownerElevationActive() {
+  const elevation = state.ownerElevation || {};
+  const expiresAt = Date.parse(elevation.expiresAt || "");
+  return Boolean(
+    state.auth?.isOwner
+    && state.selectedWorkspaceId === "owner"
+    && elevation.active
+    && Number.isFinite(expiresAt)
+    && expiresAt > Date.now()
+  );
+}
+
+function ownerElevationRemainingLabel() {
+  if (!ownerElevationActive()) return "";
+  const expiresAt = Date.parse(state.ownerElevation?.expiresAt || "");
+  const minutes = Math.max(1, Math.ceil((expiresAt - Date.now()) / 60000));
+  return `${minutes} 分钟后到期`;
+}
+
+function ownerElevationSelectedDuration() {
+  const options = ownerElevationDurationOptions();
+  const raw = Number($("ownerElevationDuration")?.value || state.ownerElevationDurationMinutes || state.ownerElevation?.defaultDurationMinutes || options[0]);
+  return options.includes(raw) ? raw : (state.ownerElevation?.defaultDurationMinutes || options[0]);
+}
+
+function renderOwnerElevationPanel() {
+  if (!state.auth?.isOwner || state.selectedWorkspaceId !== "owner") return "";
+  const elevation = state.ownerElevation || {};
+  const available = elevation.available !== false;
+  const active = ownerElevationActive();
+  const durationOptions = ownerElevationDurationOptions();
+  if (!durationOptions.includes(state.ownerElevationDurationMinutes)) {
+    state.ownerElevationDurationMinutes = elevation.defaultDurationMinutes || durationOptions[0];
+  }
+  const selectedDuration = state.ownerElevationDurationMinutes;
+  const label = active ? "高权限运行" : "普通权限";
+  const meta = active
+    ? `后续 Owner 任务会路由到 maintenance Gateway，${ownerElevationRemainingLabel()}。`
+    : "后续 Owner 任务默认走普通低权限 Gateway。";
+  const options = durationOptions.map((minutes) => (
+    `<option value="${escapeHtml(minutes)}"${minutes === selectedDuration ? " selected" : ""}>${escapeHtml(minutes)} 分钟</option>`
+  )).join("");
+  const disabled = available ? "" : " disabled";
+  const reason = !available && elevation.reason ? `<div class="workspace-permission-warning">${escapeHtml(elevation.reason)}</div>` : "";
+  return `<section class="workspace-permission-panel ${active ? "active" : ""}">
+    <div class="workspace-permission-head">
+      <div>
+        <div class="workspace-permission-title">当前权限</div>
+        <div class="workspace-permission-state">${escapeHtml(label)}</div>
+      </div>
+      <span class="workspace-permission-badge">${active ? "HIGH" : "LOW"}</span>
+    </div>
+    <div class="workspace-permission-meta">${escapeHtml(meta)}</div>
+    <div class="workspace-permission-actions">
+      <select id="ownerElevationDuration" class="workspace-permission-select"${disabled}>${options}</select>
+      <button class="workspace-permission-primary" type="button" data-owner-elevation-grant${disabled}>高权限运行</button>
+      ${active ? `<button class="workspace-permission-secondary" type="button" data-owner-elevation-revoke>结束</button>` : ""}
+    </div>
+    <div class="workspace-permission-hint">只在授权时间内生效；到期后自动恢复普通权限。</div>
+    ${reason}
+  </section>`;
+}
+
+function wireOwnerElevationPanel(root) {
+  root.querySelector("#ownerElevationDuration")?.addEventListener("change", (event) => {
+    const minutes = Number(event.target.value || 0);
+    if (Number.isFinite(minutes) && minutes > 0) {
+      state.ownerElevationDurationMinutes = minutes;
+      localStorage.setItem("hermesOwnerElevationMinutes", String(minutes));
+    }
+  });
+  root.querySelector("[data-owner-elevation-grant]")?.addEventListener("click", () => activateOwnerElevation().catch(showError));
+  root.querySelector("[data-owner-elevation-revoke]")?.addEventListener("click", () => revokeOwnerElevation().catch(showError));
+}
+
+async function activateOwnerElevation(durationMinutes = ownerElevationSelectedDuration(), options = {}) {
+  if (!state.auth?.isOwner) throw new Error("Owner access is required");
+  const minutes = Number(durationMinutes) || ownerElevationSelectedDuration();
+  if (options.confirm !== false) {
+    const ok = window.confirm(`授权 ${minutes} 分钟高权限运行？授权期间 Owner 后续任务会路由到 maintenance Gateway。`);
+    if (!ok) return false;
+  }
+  const result = await api("/api/owner-elevation", {
+    method: "POST",
+    body: JSON.stringify({ durationMinutes: minutes }),
+  });
+  state.ownerElevation = result.ownerElevation || state.ownerElevation;
+  renderWorkspaceAccessPanel();
+  showPushToast("高权限运行已授权", "success");
+  return true;
+}
+
+async function revokeOwnerElevation() {
+  const result = await api("/api/owner-elevation", { method: "DELETE" });
+  state.ownerElevation = result.ownerElevation || state.ownerElevation;
+  renderWorkspaceAccessPanel();
+  showPushToast("已恢复普通权限", "success");
 }
 
 function refreshNoticeText(serverVersion) {
@@ -4219,12 +4328,14 @@ function renderWorkspaceAccessPanel() {
   const runtimeConfigButton = canManageOwnerSettings
     ? `<button class="workspace-access-key-button workspace-runtime-config-button" type="button" data-open-runtime-config>运行配置</button>`
     : "";
-  panel.innerHTML = `<details>
+  panel.innerHTML = `${renderOwnerElevationPanel()}
+  <details>
     <summary>账号 / 根目录 / 接口</summary>
     <div class="workspace-access-list">${rows}</div>
     ${renderGatewayPoolMiniStatus()}
     ${runtimeConfigButton}
   </details>`;
+  wireOwnerElevationPanel(panel);
   panel.querySelectorAll("[data-open-access-keys]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -9891,6 +10002,11 @@ async function sendMessage(event) {
   let consumedPendingDirectory = false;
   try {
     const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
+    if (ownerElevationActive()) {
+      body.maintenanceMode = true;
+      body.maintenance_mode = true;
+      body.elevationScope = "owner_high_privilege";
+    }
     if (state.viewMode === "single") {
       body.singleWindowMode = state.singleWindowMode === "chat" ? "chat" : "task";
       if (state.singleWindowMode === "chat") {
@@ -9922,9 +10038,16 @@ async function sendMessage(event) {
     handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
   } catch (err) {
     if (shouldOfferOwnerElevation(err) && requestBody) {
-      const ok = window.confirm(ownerElevationConfirmMessage(err));
+      const minutes = ownerElevationSelectedDuration();
+      const prompt = ownerElevationActive()
+        ? ownerElevationConfirmMessage(err)
+        : `${ownerElevationConfirmMessage(err)}\n\n授权时间：${minutes} 分钟。`;
+      const ok = window.confirm(prompt);
       if (ok) {
         try {
+          if (!ownerElevationActive()) {
+            await activateOwnerElevation(minutes, { confirm: false });
+          }
           const elevatedBody = Object.assign({}, requestBody, {
             maintenanceMode: true,
             maintenance_mode: true,
@@ -10316,6 +10439,9 @@ function ownerElevationConfirmMessage(err) {
   }
   if (scope === "shared_skill_write") {
     return "这次操作需要写入共享或系统级 Skill。批准后只会把这一条消息路由到 Owner maintenance Gateway。是否批准？";
+  }
+  if (scope === "owner_high_privilege" || scope === "owner_high_privilege_required") {
+    return "这次请求需要 Owner 高权限运行。批准后会把后续授权时间内的 Owner 任务路由到 maintenance Gateway。是否批准？";
   }
   return "这次请求需要 Owner 提权。批准后只会把这一条消息路由到 Owner maintenance Gateway。是否批准？";
 }
