@@ -9805,7 +9805,7 @@ async function sendMessage(event) {
     handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
   } catch (err) {
     if (shouldOfferOwnerElevation(err) && requestBody) {
-      const ok = window.confirm("这次操作需要写入共享或系统级 Skill。批准后只会将这一条消息路由到 Owner maintenance Gateway。是否批准？");
+      const ok = window.confirm(ownerElevationConfirmMessage(err));
       if (ok) {
         try {
           const elevatedBody = Object.assign({}, requestBody, {
@@ -9826,6 +9826,7 @@ async function sendMessage(event) {
         }
       }
       setComposerText(text);
+      showError(new Error("已取消 Owner 提权，未执行这次越权请求。"));
       return;
     }
     setComposerText(text);
@@ -10189,6 +10190,17 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
 
 function shouldOfferOwnerElevation(err) {
   return Boolean(err?.elevationRequired && state.auth?.isOwner);
+}
+
+function ownerElevationConfirmMessage(err) {
+  const scope = String(err?.elevationScope || err?.code || "").trim();
+  if (scope === "automation_admin_write") {
+    return "这次请求会修改其他账号的自动化任务，需要 Owner 提权。批准后只会把这一条消息路由到 Owner maintenance Gateway。是否批准？";
+  }
+  if (scope === "shared_skill_write") {
+    return "这次操作需要写入共享或系统级 Skill。批准后只会把这一条消息路由到 Owner maintenance Gateway。是否批准？";
+  }
+  return "这次请求需要 Owner 提权。批准后只会把这一条消息路由到 Owner maintenance Gateway。是否批准？";
 }
 
 function getComposerText() {

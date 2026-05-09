@@ -154,9 +154,12 @@ Public release 应包含以下行为：
 
 - 强制普通 run 的 `can_delegate_codex=false`。
 - 强制普通 run 的 `allow_shell=false`。
-- 从 `allowed_toolsets` 中过滤 `codex`、`shell`、`terminal`、`cmd`、`powershell`、`bash`、`git`、`developer`、`source` 等开发工具集。
+- 从 `allowed_toolsets` 中过滤 `codex`、`shell`、`terminal`、`cmd`、`powershell`、`bash`、`git`、`developer`、`source`、`process`、`code_execution`、`delegation`、`cronjob`、`mcp` 等开发或跨边界工具集。
+- 当普通 run 的 policy 没有显式 `allowed_toolsets` 时，Hermes Mobile 必须写入自己的安全白名单，而不能依赖 Gateway 的默认 restricted toolsets。默认白名单只应包含普通任务能力，例如 `web`、`file`、`vision`、`image_gen`、`skills`、`todo`、`memory`、`session_search`、`clarify`。
 - 将这些工具集加入 `blocked_toolsets`。
 - 过滤受保护路径，包括源代码目录、运行配置、密钥文件、SQLite/JSON 状态、worker manifest、Hermes home、token 文件和 operator-only 目录。
+
+自然语言意图识别只能用于提前提示 Owner “这可能需要提权”，不能作为唯一权限边界。没有被识别出来的越权请求，也必须在 `access_policy_context`、Gateway worker toolsets 和 Hermes Mobile API ACL 这三层 fail closed。
 
 如果某个 deployment 未来需要“用户只能在自己 workspace 内使用 Codex”，应实现为 Hermes Mobile 侧的受限 adapter 或独立 sandbox：
 

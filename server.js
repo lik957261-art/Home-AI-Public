@@ -672,8 +672,81 @@ function publicConcurrencyForAuth(auth) {
   };
 }
 
+function mentionSearchText(value) {
+  return String(value || "").toLowerCase().replace(/\s+/g, "");
+}
+
+function workspaceMentionCandidates(workspace = {}) {
+  const policy = workspace.policy && typeof workspace.policy === "object" ? workspace.policy : {};
+  return dedupe([
+    workspace.id,
+    workspace.workspaceId,
+    workspace.label,
+    workspace.name,
+    workspace.displayName,
+    workspace.principalId,
+    policy.principal_id,
+    policy.principal_label,
+    ...(Array.isArray(workspace.aliases) ? workspace.aliases : []),
+  ].map((item) => String(item || "").trim()).filter(Boolean));
+}
+
+function mentionedWorkspaceIdsInText(text) {
+  const haystack = mentionSearchText(text);
+  if (!haystack) return [];
+  const matches = [];
+  for (const workspace of loadCatalog().workspaces || []) {
+    const workspaceId = String(workspace?.id || "").trim();
+    if (!workspaceId) continue;
+    for (const candidate of workspaceMentionCandidates(workspace)) {
+      const needle = mentionSearchText(candidate);
+      if (needle.length < 2) continue;
+      if (haystack.includes(needle)) {
+        matches.push(workspaceId);
+        break;
+      }
+    }
+  }
+  return dedupe(matches);
+}
+
+function textLooksLikeAutomationWrite(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return false;
+  const mentionsAutomation = (
+    /automation|cron|scheduled?\s+(?:job|task)|timer\s+job/i.test(raw)
+    || /\u81ea\u52a8\u5316|\u81ea\u52a8\u4efb\u52a1|\u5b9a\u65f6\u4efb\u52a1|\u5b9a\u65f6|\u89e6\u53d1\u65f6\u95f4|\u8ba1\u5212\u4efb\u52a1/.test(raw)
+  );
+  const hasWriteAction = (
+    /create|add|update|modify|edit|change|delete|remove|pause|resume|enable|disable|reschedule|set/i.test(raw)
+    || /\u521b\u5efa|\u65b0\u589e|\u66f4\u65b0|\u4fee\u6539|\u7f16\u8f91|\u6539\u4e3a|\u8c03\u6574|\u5220\u9664|\u79fb\u9664|\u6682\u505c|\u6062\u590d|\u542f\u7528|\u7981\u7528|\u8bbe\u7f6e|\u6539\u5230|\u6539\u6210/.test(raw)
+  );
+  return mentionsAutomation && hasWriteAction;
+}
+
+function classifyAutomationAdminIntentForRun(text, options = {}) {
+  const actorWorkspaceId = String(options.actorWorkspaceId || options.actor_workspace_id || "").trim();
+  let mentionedWorkspaceIds = [];
+  if (textLooksLikeAutomationWrite(text)) {
+    mentionedWorkspaceIds = mentionedWorkspaceIdsInText(text);
+    if (mentionedWorkspaceIds.some((workspaceId) => workspaceId && workspaceId !== actorWorkspaceId)) {
+      return {
+        category: "automation_admin_write",
+        elevationRequired: true,
+        elevationScope: "automation_admin_write",
+        message: "This looks like a cross-account automation management request. Confirm elevation to route this one run to an Owner maintenance Gateway.",
+      };
+    }
+  }
+  const classification = securityBoundaryProvider.classifyAutomationAdminWriteIntent(text);
+  if (!classification) return null;
+  if (mentionedWorkspaceIds.length && !mentionedWorkspaceIds.some((workspaceId) => workspaceId !== actorWorkspaceId)) return null;
+  return classification;
+}
+
 function gatewayRoutingForModelRun(auth, text, options = {}) {
   const classification = securityBoundaryProvider.classifyMaintenanceIntent(text)
+    || classifyAutomationAdminIntentForRun(text, options)
     || securityBoundaryProvider.classifySharedSkillWriteIntent(text);
   const explicitMaintenance = Boolean(options.maintenanceMode || options.maintenance_mode);
   if (!classification) return { securityLevel: "user", maintenance: false };
@@ -704,6 +777,20 @@ function sharedSkillElevationInstructions(options = {}) {
   ].join("\n");
 }
 
+function ownerElevationInstructions(options = {}) {
+  const scope = String(options.elevationScope || options.elevation_scope || "").trim();
+  if (scope === "shared_skill_write") return sharedSkillElevationInstructions(options);
+  if (scope === "automation_admin_write") {
+    return [
+      "APPROVED OWNER ELEVATION: this run is allowed to inspect and update the Automation/CRON job explicitly requested in the latest user message.",
+      "Limit the operation to the named target account/workspace and named automation job. Do not modify unrelated jobs, Access Keys, runtime secrets, worker manifests, product source, or user-private files.",
+      "If the exact target job is ambiguous, stop and ask for clarification instead of guessing.",
+      "Report the old schedule and new schedule in the final receipt.",
+    ].join("\n");
+  }
+  return "";
+}
+
 function gatewaySkillRoutingForWorkspace(workspaceId, routing = {}) {
   if (GATEWAY_SKILL_PROFILE_ROUTING === "off") return {};
   const securityLevel = String(routing.securityLevel || routing.security_level || "user").trim();
@@ -714,6 +801,19 @@ function gatewaySkillRoutingForWorkspace(workspaceId, routing = {}) {
   const hints = { skillWorkspaceId };
   if (GATEWAY_SKILL_PROFILE_ROUTING === "on") hints.requireSkillProfile = true;
   return hints;
+}
+
+function isOwnerMaintenanceGatewayRouting(routing = {}) {
+  const securityLevel = String(routing.securityLevel || routing.security_level || "").trim();
+  return Boolean(routing.maintenance || routing.allowMaintenance || routing.allow_maintenance || /^owner[-_]maintenance$/i.test(securityLevel));
+}
+
+function accessPolicyHardeningOptionsForGatewayRouting(routing = {}) {
+  const allowMaintenanceTools = isOwnerMaintenanceGatewayRouting(routing);
+  return {
+    allowUnrestricted: allowMaintenanceTools,
+    allowDeveloperToolsets: allowMaintenanceTools,
+  };
 }
 
 function ownerSetupStatus() {
@@ -3609,8 +3709,8 @@ function upsertSharedDirectory(record) {
   return sharedDirectoryProvider.upsert(record);
 }
 
-function sanitizePolicy(policy) {
-  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.sanitize(policy));
+function sanitizePolicy(policy, hardeningOptions = {}) {
+  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.sanitize(policy), hardeningOptions);
 }
 
 function dedupe(values) {
@@ -3656,8 +3756,8 @@ function loadCatalog() {
   return catalog;
 }
 
-function buildAccessPolicy(route, user, project) {
-  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.build(route, user, project));
+function buildAccessPolicy(route, user, project, hardeningOptions = {}) {
+  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.build(route, user, project), hardeningOptions);
 }
 
 function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
@@ -6129,6 +6229,8 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
   const actorWorkspaceId = String(options.actorWorkspaceId || userMessage.senderWorkspaceId || thread.workspaceId || "owner").trim() || "owner";
   assertRunConcurrencyCapacity(actorWorkspaceId);
   assistantMessage.actorWorkspaceId = actorWorkspaceId;
+  const requestedGatewayRouting = Object.assign({}, options.gatewayRouting || {});
+  const policyHardeningOptions = accessPolicyHardeningOptionsForGatewayRouting(requestedGatewayRouting);
   const policyThread = actorWorkspaceId === thread.workspaceId
     ? thread
     : Object.assign({}, thread, {
@@ -6139,7 +6241,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
   const taskDirectory = taskDirectoryAttachmentForMessage(thread, userMessage);
   const project = taskDirectory ? projectForTaskDirectoryAttachment(thread, taskDirectory) : effectiveProjectForThread(policyThread);
   const workspace = findWorkspace(actorWorkspaceId);
-  let policy = buildAccessPolicy(workspace?.policy || workspace || {}, {}, project);
+  let policy = buildAccessPolicy(workspace?.policy || workspace || {}, {}, project, policyHardeningOptions);
   const groupChatDeliveryRoot = thread.singleWindow && userMessage.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
     ? groupChatDeliveryRootForThread(thread)
     : "";
@@ -6150,7 +6252,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     policy.delivery_roots = dedupe([...(policy.delivery_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
     policy.cache_roots = dedupe([...(policy.cache_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
   }
-  policy = sanitizePolicy(policy);
+  policy = sanitizePolicy(policy, policyHardeningOptions);
   const taskId = makePublicTaskId("web");
   const body = {
     input: userMessage.content,
@@ -6175,10 +6277,10 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
   if (options.reasoning_effort) body.reasoning_effort = options.reasoning_effort;
   if (options.reasoning && typeof options.reasoning === "object") body.reasoning = options.reasoning;
   if (options.access_policy_context && typeof options.access_policy_context === "object") {
-    body.access_policy_context = sanitizePolicy(Object.assign({}, policy, options.access_policy_context));
+    body.access_policy_context = sanitizePolicy(Object.assign({}, policy, options.access_policy_context), policyHardeningOptions);
   }
 
-  const gatewayRouting = Object.assign({}, options.gatewayRouting || {}, {
+  const gatewayRouting = Object.assign({}, requestedGatewayRouting, {
     purpose: "user_run",
     workspaceId: actorWorkspaceId,
     taskGroupId: userMessage.taskGroupId || "",
@@ -8278,7 +8380,7 @@ async function handleApi(req, res) {
     let gatewayRouting = { securityLevel: "user", maintenance: false };
     if (messageKind === "ai") {
       try {
-        gatewayRouting = gatewayRoutingForModelRun(auth, text, body);
+        gatewayRouting = gatewayRoutingForModelRun(auth, text, Object.assign({}, body, { actorWorkspaceId }));
       } catch (err) {
         sendJson(res, err.status || 403, {
           error: err.message || String(err),
@@ -8405,7 +8507,7 @@ async function handleApi(req, res) {
       gatewayRouting,
       instructions: [
         body.instructions || "",
-        sharedSkillElevationInstructions(body),
+        ownerElevationInstructions(body),
         followUpInstructions,
       ].filter(Boolean).join("\n\n"),
     };

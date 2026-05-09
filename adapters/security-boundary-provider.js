@@ -91,6 +91,45 @@ function envFlag(value) {
   return /^(1|true|yes|on)$/i.test(String(valueFrom(value) || "").trim());
 }
 
+const SAFE_RESTRICTED_TOOLSETS = Object.freeze([
+  "web",
+  "file",
+  "vision",
+  "image_gen",
+  "skills",
+  "todo",
+  "memory",
+  "session_search",
+  "clarify",
+]);
+
+const DEVELOPER_TOOLSETS = Object.freeze([
+  "shell",
+  "terminal",
+  "process",
+  "cmd",
+  "powershell",
+  "bash",
+  "git",
+  "codex",
+  "developer",
+  "source",
+  "debug",
+  "debugging",
+  "code",
+  "code_execution",
+  "execute_code",
+  "python",
+  "delegation",
+  "delegate",
+  "delegate_task",
+  "cron",
+  "cronjob",
+  "mcp",
+]);
+
+const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|cron|cronjob|mcp)(?:$|[-_])/i;
+
 function classifySharedSkillWriteIntent(text) {
   const raw = String(text || "").trim();
   if (!raw) return null;
@@ -110,6 +149,37 @@ function classifySharedSkillWriteIntent(text) {
     elevationRequired: true,
     elevationScope: "shared_skill_write",
     message: "This looks like a shared/system Skill write. Confirm elevation to route this one run to an Owner maintenance Gateway.",
+  };
+}
+
+function classifyAutomationAdminWriteIntent(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  const mentionsAutomation = (
+    /automation|cron|scheduled?\s+(?:job|task)|timer\s+job/i.test(raw)
+    || /\u81ea\u52a8\u5316|\u81ea\u52a8\u4efb\u52a1|\u5b9a\u65f6\u4efb\u52a1|\u5b9a\u65f6|\u89e6\u53d1\u65f6\u95f4|\u8ba1\u5212\u4efb\u52a1/.test(raw)
+  );
+  if (!mentionsAutomation) return null;
+  const hasWriteAction = (
+    /create|add|update|modify|edit|change|delete|remove|pause|resume|enable|disable|reschedule|set/i.test(raw)
+    || /\u521b\u5efa|\u65b0\u589e|\u66f4\u65b0|\u4fee\u6539|\u7f16\u8f91|\u6539\u4e3a|\u8c03\u6574|\u5220\u9664|\u79fb\u9664|\u6682\u505c|\u6062\u590d|\u542f\u7528|\u7981\u7528|\u8bbe\u7f6e|\u6539\u5230|\u6539\u6210/.test(raw)
+  );
+  if (!hasWriteAction) return null;
+  const hasAccountScope = (
+    /account|user|workspace|another\s+workspace|other\s+(?:account|user|workspace)/i.test(raw)
+    || /\u8d26\u53f7|\u8d26\u6237|\u7528\u6237|\u5de5\u4f5c\u533a|\u522b\u4eba|\u5176\u4ed6\u4eba|\u5176\u4ed6\u7528\u6237|\u4ed6\u4eba/.test(raw)
+  );
+  if (!hasAccountScope) return null;
+  const selfOnly = (
+    /\bmy\s+(?:account|workspace)\b|\bthis\s+(?:account|workspace)\b/i.test(raw)
+    || /\u6211\u7684\u8d26\u53f7|\u6211\u7684\u8d26\u6237|\u6211\u7684\u5de5\u4f5c\u533a|\u81ea\u5df1\u7684\u8d26\u53f7|\u81ea\u5df1\u7684\u8d26\u6237|\u5f53\u524d\u8d26\u53f7|\u5f53\u524d\u8d26\u6237|\u5f53\u524d\u5de5\u4f5c\u533a/.test(raw)
+  );
+  if (selfOnly) return null;
+  return {
+    category: "automation_admin_write",
+    elevationRequired: true,
+    elevationScope: "automation_admin_write",
+    message: "This looks like a cross-account automation management request. Confirm elevation to route this one run to an Owner maintenance Gateway.",
   };
 }
 
@@ -163,24 +233,32 @@ function createSecurityBoundaryProvider(options = {}) {
     return text && !rootConflictsWithProtected(text) ? text : "";
   }
 
-  function filterToolsets(values) {
-    const raw = dedupe(values || []);
-    if (allowDeveloperToolsets()) return raw;
-    return raw.filter((item) => !/(?:^|[-_])(?:shell|terminal|cmd|powershell|bash|git|codex|developer|source)(?:$|[-_])/i.test(item));
+  function unrestrictedAllowed(localOptions = {}) {
+    return Boolean(localOptions.allowUnrestricted) || allowUnrestricted();
   }
 
-  function hardenAccessPolicy(policy = {}) {
+  function developerToolsetsAllowed(localOptions = {}) {
+    return Boolean(localOptions.allowDeveloperToolsets) || allowDeveloperToolsets();
+  }
+
+  function filterToolsets(values, localOptions = {}) {
+    const raw = dedupe(values || []);
+    if (developerToolsetsAllowed(localOptions)) return raw;
+    return raw.filter((item) => !DEVELOPER_TOOLSET_RE.test(item));
+  }
+
+  function hardenAccessPolicy(policy = {}, localOptions = {}) {
     const source = policy && typeof policy === "object" ? policy : {};
     const out = Object.assign({}, source);
     const accessMode = String(out.access_mode || out.accessMode || "").trim().toLowerCase();
-    out.access_mode = accessMode === "unrestricted" && !allowUnrestricted() ? "restricted" : (accessMode || "restricted");
+    out.access_mode = accessMode === "unrestricted" && !unrestrictedAllowed(localOptions) ? "restricted" : (accessMode || "restricted");
     out.allowed_roots = filterRoots(out.allowed_roots || out.allowedRoots || []);
     out.delivery_roots = filterRoots(out.delivery_roots || out.deliveryRoots || []);
     out.cache_roots = filterRoots(out.cache_roots || out.cacheRoots || []);
     out.default_workspace = filterScalarRoot(out.default_workspace || out.defaultWorkspace || "");
     out.sync_root = filterScalarRoot(out.sync_root || out.syncRoot || "");
     out.download_root = filterScalarRoot(out.download_root || out.downloadRoot || "");
-    out.allowed_toolsets = filterToolsets(out.allowed_toolsets || out.allowedToolsets || []);
+    out.allowed_toolsets = filterToolsets(out.allowed_toolsets || out.allowedToolsets || [], localOptions);
 
     const rootCandidates = [
       out.default_workspace,
@@ -189,16 +267,15 @@ function createSecurityBoundaryProvider(options = {}) {
       ...(out.delivery_roots || []),
     ].filter(Boolean);
     out.allowed_roots = filterRoots([...(out.allowed_roots || []), ...rootCandidates]);
-    if (!allowDeveloperToolsets()) {
+    if (!developerToolsetsAllowed(localOptions)) {
+      if (!out.allowed_toolsets.length) {
+        out.allowed_toolsets = SAFE_RESTRICTED_TOOLSETS.slice();
+      }
       out.allow_shell = false;
       out.can_delegate_codex = false;
       out.blocked_toolsets = dedupe([
         ...(out.blocked_toolsets || []),
-        "shell",
-        "terminal",
-        "git",
-        "codex",
-        "source",
+        ...DEVELOPER_TOOLSETS,
       ]);
     }
     return out;
@@ -230,6 +307,7 @@ function createSecurityBoundaryProvider(options = {}) {
   return {
     allowedExceptionRoots,
     assertRootNotProtected,
+    classifyAutomationAdminWriteIntent,
     classifyMaintenanceIntent,
     classifySharedSkillWriteIntent,
     filterRoots,
@@ -244,6 +322,7 @@ function createSecurityBoundaryProvider(options = {}) {
 }
 
 module.exports = {
+  classifyAutomationAdminWriteIntent,
   classifySharedSkillWriteIntent,
   createSecurityBoundaryProvider,
   normalizeComparablePath,

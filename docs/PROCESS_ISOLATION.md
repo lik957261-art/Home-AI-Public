@@ -98,6 +98,13 @@ that prevents model worker processes from reading the developer checkout and
 Agent workspace. Label those workers as `securityLevel=user` in the Gateway Pool
 manifest. Keep broader operator-owned workers labeled `owner-maintenance`.
 
+For every low-privilege Gateway profile, set a narrow `platform_toolsets.api_server`
+list. Do not rely on the Gateway's default API-server toolset for user workers,
+because a deployment default may include terminal, code execution, delegation, or
+automation-management tools. Hermes Mobile also sends an explicit safe
+`allowed_toolsets` list per ordinary run, but the profile toolset should be a
+second boundary.
+
 ## macOS
 
 Use a dedicated service user, for example `_hermesmobile`, and launch with `launchd`.

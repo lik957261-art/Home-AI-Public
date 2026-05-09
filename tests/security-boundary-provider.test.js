@@ -2,6 +2,7 @@
 
 const assert = require("node:assert");
 const {
+  classifyAutomationAdminWriteIntent,
   classifySharedSkillWriteIntent,
   createSecurityBoundaryProvider,
   normalizeComparablePath,
@@ -61,6 +62,43 @@ function run() {
   assert.strictEqual(policy.allow_shell, false);
   assert.strictEqual(policy.can_delegate_codex, false);
   assert.ok(policy.blocked_toolsets.includes("codex"));
+  assert.ok(policy.blocked_toolsets.includes("code_execution"));
+  assert.ok(policy.blocked_toolsets.includes("cronjob"));
+  assert.ok(!policy.allowed_toolsets.includes("terminal"));
+  assert.ok(!policy.allowed_toolsets.includes("code_execution"));
+
+  const defaultToolPolicy = provider.hardenAccessPolicy({
+    principal_id: "owner",
+    access_mode: "restricted",
+    allowed_roots: ["/Users/alice/HermesDrive"],
+  });
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("web"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("file"));
+  assert.ok(!defaultToolPolicy.allowed_toolsets.includes("terminal"));
+  assert.ok(!defaultToolPolicy.allowed_toolsets.includes("code_execution"));
+  assert.ok(!defaultToolPolicy.allowed_toolsets.includes("cronjob"));
+
+  const maintenancePolicy = provider.hardenAccessPolicy({
+    principal_id: "owner",
+    access_mode: "unrestricted",
+    allowed_roots: ["/Users/alice/HermesDrive"],
+    allowed_toolsets: ["web", "terminal", "code_execution", "cronjob"],
+    allow_shell: true,
+    can_delegate_codex: true,
+  }, {
+    allowUnrestricted: true,
+    allowDeveloperToolsets: true,
+  });
+  assert.strictEqual(maintenancePolicy.access_mode, "unrestricted");
+  assert.deepStrictEqual(maintenancePolicy.allowed_toolsets, ["web", "terminal", "code_execution", "cronjob"]);
+  assert.strictEqual(maintenancePolicy.allow_shell, true);
+  assert.strictEqual(maintenancePolicy.can_delegate_codex, true);
+
+  assert.strictEqual(
+    classifyAutomationAdminWriteIntent("\u628a\u5434\u840d\u8d26\u53f7\u7684\u6bcf\u65e5\u8ba8\u8bba\u7b80\u8981\u81ea\u52a8\u5316\u4efb\u52a1\u89e6\u53d1\u65f6\u95f4\u6539\u4e3a\u4e0b\u5348 2 \u70b9")?.category,
+    "automation_admin_write",
+  );
+  assert.strictEqual(classifyAutomationAdminWriteIntent("\u67e5\u770b\u6211\u7684\u81ea\u52a8\u5316\u4efb\u52a1"), null);
 
   assert.strictEqual(
     classifySharedSkillWriteIntent("create a shared skill for all users")?.category,
