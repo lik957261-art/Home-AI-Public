@@ -123,6 +123,7 @@ const state = {
   chatSearchRefocus: false,
   suppressComposerFocusUntil: 0,
   attachFilePickerActivationAt: 0,
+  topNavActivationAt: 0,
   groupChatOpen: localStorage.getItem("hermesWebGroupChatOpen") === "1",
   groupChatManagerOpen: false,
   groupChatMemberDraft: [],
@@ -2711,6 +2712,53 @@ function eventInAttachFileHitZone(event) {
     && point.x <= rect.right + slop
     && point.y >= rect.top - slop
     && point.y <= rect.bottom + slop;
+}
+
+function eventInTopNavHitZone(event) {
+  const button = $("openMenu");
+  if (!button || button.disabled || button.hidden) return false;
+  const rect = button.getBoundingClientRect();
+  if (!rect.width || !rect.height) return false;
+  const point = eventClientPoint(event);
+  if (!point) return false;
+  const slop = 10;
+  return point.x >= rect.left - slop
+    && point.x <= rect.right + slop
+    && point.y >= rect.top - slop
+    && point.y <= rect.bottom + slop;
+}
+
+function activateTopNavButton() {
+  if (isSkillDetailView()) {
+    closeSkillDetail();
+    return;
+  }
+  if (isTaskDetailView()) {
+    openTaskList();
+    return;
+  }
+  if (isTodoDetailView()) {
+    openTodoList();
+    return;
+  }
+  if (isAutomationDetailView()) {
+    openAutomationList();
+    return;
+  }
+  openSidebar();
+}
+
+function handleTopNavActivation(event, options = {}) {
+  const fromHitZone = Boolean(options.fromHitZone);
+  if (fromHitZone && !eventInTopNavHitZone(event)) return false;
+  const recentActivation = Date.now() - (state.topNavActivationAt || 0) < 500;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation?.();
+  if (recentActivation) return true;
+  state.topNavActivationAt = Date.now();
+  activateTopNavButton();
+  return true;
 }
 
 function openAttachFilePicker() {
@@ -10706,25 +10754,7 @@ function wireUi() {
   document.addEventListener("click", closeTopMoreMenu);
   document.addEventListener("click", () => closeTaskCardMenus());
   document.addEventListener("click", () => closeDirectoryEntryMenus());
-  $("openMenu").addEventListener("click", () => {
-    if (isSkillDetailView()) {
-      closeSkillDetail();
-      return;
-    }
-    if (isTaskDetailView()) {
-      openTaskList();
-      return;
-    }
-    if (isTodoDetailView()) {
-      openTodoList();
-      return;
-    }
-    if (isAutomationDetailView()) {
-      openAutomationList();
-      return;
-    }
-    openSidebar();
-  });
+  $("openMenu").addEventListener("click", (event) => handleTopNavActivation(event));
   $("closeMenu").addEventListener("click", closeSidebar);
   $("sidebarBack")?.addEventListener("click", sidebarBackToMenu);
   $("sendMessage").addEventListener("click", () => void sendMessage());
@@ -10773,10 +10803,12 @@ function wireUi() {
   });
   document.addEventListener("pointerup", (event) => {
     if (event.pointerType === "mouse") return;
+    if (handleTopNavActivation(event, { fromHitZone: true })) return;
     handleAttachFileActivation(event, { fromHitZone: true });
   }, { capture: true });
   document.addEventListener("touchend", (event) => {
     if (window.PointerEvent) return;
+    if (handleTopNavActivation(event, { fromHitZone: true })) return;
     handleAttachFileActivation(event, { fromHitZone: true });
   }, { capture: true, passive: false });
   $("attachFile").addEventListener("click", (event) => {

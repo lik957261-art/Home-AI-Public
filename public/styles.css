@@ -798,10 +798,12 @@ button {
 }
 
 .top-nav-button {
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
   padding: 0;
+  display: grid;
+  place-items: center;
   position: relative;
   z-index: 24;
   color: var(--ink);
