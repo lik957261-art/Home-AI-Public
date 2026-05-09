@@ -170,7 +170,7 @@ const TASK_REASONING_OPTIONS = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
-  { value: "xhigh", label: "XHigh" },
+  { value: "xhigh", label: "Xhigh" },
 ];
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
@@ -918,7 +918,7 @@ function fallbackReasoningCompactLabel(value) {
   if (effort === "low") return "\u4f4e";
   if (effort === "medium") return "\u4e2d";
   if (effort === "high") return "\u9ad8";
-  if (effort === "xhigh") return "XHI";
+  if (effort === "xhigh") return "Xhigh";
   if (effort === "none") return "\u5173";
   return "\u4e2d";
 }

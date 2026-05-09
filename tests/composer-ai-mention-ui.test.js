@@ -11,7 +11,7 @@ const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
 assert.match(serverJs, /const REASONING_EFFORT_OPTIONS = Object\.freeze\(\[/);
-assert.match(serverJs, /shortLabel: "XHI"/);
+assert.match(serverJs, /shortLabel: "Xhigh"/);
 assert.match(serverJs, /function parseAgentRuntimeConfigFromYaml\(text\)/);
 assert.match(serverJs, /function runtimeModelConfigInfo\(\)/);
 assert.match(serverJs, /function assistantLabelForRuntimeConfig\(info = \{\}\)/);
@@ -21,6 +21,7 @@ assert.equal(appJs.includes("AI_MENTION_OPTIONS"), false);
 assert.match(appJs, /function composerAiMentionOptions\(\)/);
 assert.ok(appJs.includes("mentionText: `@${label}`"));
 assert.ok(appJs.includes("mentionText: `@${label} ${shortLabel}`"));
+assert.match(appJs, /if \(effort === "xhigh"\) return "Xhigh"/);
 assert.match(appJs, /function composerAiMentionInfo\(text\)/);
 assert.match(appJs, /function composerMentionAvailable\(\)/);
 assert.match(appJs, /return state\.viewMode === "single" \|\| state\.viewMode === "tasks"/);

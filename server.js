@@ -241,7 +241,7 @@ const REASONING_EFFORT_OPTIONS = Object.freeze([
   { value: "low", label: "Low", shortLabel: "\u4f4e" },
   { value: "medium", label: "Medium", shortLabel: "\u4e2d" },
   { value: "high", label: "High", shortLabel: "\u9ad8" },
-  { value: "xhigh", label: "XHigh", shortLabel: "XHI" },
+  { value: "xhigh", label: "Xhigh", shortLabel: "Xhigh" },
 ]);
 const VALID_REASONING_EFFORTS = new Set(REASONING_EFFORT_OPTIONS.map((item) => item.value));
 const MESSAGE_TIME_FIELDS = Object.freeze([
