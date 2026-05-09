@@ -20,7 +20,28 @@
   --shadow: 0 28px 70px rgba(34, 28, 20, 0.16);
   --radius: 18px;
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
+  --app-font-scale: 1;
   font-family: "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+:root[data-font-size="small"] {
+  --app-font-scale: 0.92;
+}
+
+:root[data-font-size="standard"] {
+  --app-font-scale: 1;
+}
+
+:root[data-font-size="large"] {
+  --app-font-scale: 1.1;
+}
+
+:root[data-font-size="xlarge"] {
+  --app-font-scale: 1.2;
+}
+
+:root[data-font-size="xxlarge"] {
+  --app-font-scale: 1.32;
 }
 
 * {
@@ -3305,6 +3326,84 @@ button.directory-alias-chip {
   border-radius: 14px;
 }
 
+.settings-sheet {
+  width: min(560px, 100%);
+}
+
+.settings-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.settings-row-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 840;
+}
+
+.font-size-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.font-size-option {
+  min-width: 0;
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 7px 4px;
+  color: var(--ink);
+  background: rgba(255, 252, 246, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-weight: 820;
+}
+
+.font-size-option.active {
+  color: #fffaf1;
+  background: var(--accent);
+  border-color: rgba(31, 111, 98, 0.45);
+}
+
+.font-size-option-name {
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.font-size-option-sample {
+  color: inherit;
+  opacity: 0.86;
+  font-size: calc(15px * var(--font-preview-scale, 1));
+  line-height: 1;
+}
+
+.settings-preview {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  background: rgba(31, 111, 98, 0.06);
+  border: 1px solid rgba(31, 111, 98, 0.12);
+  border-radius: 12px;
+}
+
+.settings-preview-title {
+  color: var(--ink);
+  font-size: calc(16px * var(--app-font-scale));
+  font-weight: 850;
+}
+
+.settings-preview-body {
+  color: var(--muted);
+  font-size: calc(14px * var(--app-font-scale));
+  line-height: 1.45;
+}
+
 .access-key-header,
 .access-key-web,
 .access-key-row,
@@ -5532,4 +5631,109 @@ button.directory-alias-chip {
     transition: none !important;
     animation: none !important;
   }
+}
+
+:root[data-font-size] body,
+:root[data-font-size] button,
+:root[data-font-size] input,
+:root[data-font-size] select,
+:root[data-font-size] textarea,
+:root[data-font-size] .composer-editor {
+  font-size: calc(16px * var(--app-font-scale));
+}
+
+:root[data-font-size] .thread-title,
+:root[data-font-size] .automation-detail-head h2 {
+  font-size: calc(18px * var(--app-font-scale));
+}
+
+:root[data-font-size] .thread-meta,
+:root[data-font-size] .connection,
+:root[data-font-size] .field-label,
+:root[data-font-size] .client-version,
+:root[data-font-size] .workspace-access-key,
+:root[data-font-size] .workspace-access-dir,
+:root[data-font-size] .workspace-access-account,
+:root[data-font-size] .workspace-access-line,
+:root[data-font-size] .workspace-gateway-status,
+:root[data-font-size] .access-key-subtitle,
+:root[data-font-size] .access-key-row-meta,
+:root[data-font-size] .access-key-note {
+  font-size: calc(12px * var(--app-font-scale));
+}
+
+:root[data-font-size] .message-head,
+:root[data-font-size] .message-head-actions,
+:root[data-font-size] .message-action-strip,
+:root[data-font-size] .message-mini-action-button,
+:root[data-font-size] .message-quote-button,
+:root[data-font-size] .message-revoke-button,
+:root[data-font-size] .task-row-meta,
+:root[data-font-size] .task-state,
+:root[data-font-size] .task-summary,
+:root[data-font-size] .task-meta,
+:root[data-font-size] .task-detail-summary,
+:root[data-font-size] .directory-entry-meta,
+:root[data-font-size] .todo-card-meta,
+:root[data-font-size] .todo-card-status,
+:root[data-font-size] .automation-card-meta,
+:root[data-font-size] .automation-card-submeta,
+:root[data-font-size] .automation-state,
+:root[data-font-size] .automation-detail-meta,
+:root[data-font-size] .automation-preview,
+:root[data-font-size] .automation-doc-meta {
+  font-size: calc(13px * var(--app-font-scale));
+}
+
+:root[data-font-size] .message-body,
+:root[data-font-size] .message.assistant .message-body,
+:root[data-font-size] .task-detail-mode .message.assistant .message-body,
+:root[data-font-size] .message-prose,
+:root[data-font-size] .message-prose p,
+:root[data-font-size] .message-prose li,
+:root[data-font-size] .message-prose td,
+:root[data-font-size] .message-prose th,
+:root[data-font-size] .task-prompt,
+:root[data-font-size] .directory-entry-name,
+:root[data-font-size] .todo-card-title,
+:root[data-font-size] .automation-card-title,
+:root[data-font-size] .automation-doc-name {
+  font-size: calc(16.8px * var(--app-font-scale));
+}
+
+:root[data-font-size] .message-prose h1 {
+  font-size: calc(22px * var(--app-font-scale));
+}
+
+:root[data-font-size] .message-prose h2 {
+  font-size: calc(20px * var(--app-font-scale));
+}
+
+:root[data-font-size] .message-prose h3,
+:root[data-font-size] .task-title-line,
+:root[data-font-size] .directory-breadcrumb button,
+:root[data-font-size] .todo-create-toggle,
+:root[data-font-size] .access-key-title,
+:root[data-font-size] .settings-row-title {
+  font-size: calc(15px * var(--app-font-scale));
+}
+
+:root[data-font-size] .message-prose pre,
+:root[data-font-size] .message-prose code,
+:root[data-font-size] .directory-entry-menu-item,
+:root[data-font-size] .task-card-menu-item,
+:root[data-font-size] .top-more-action,
+:root[data-font-size] .bottom-tab-label,
+:root[data-font-size] .access-key-row-title,
+:root[data-font-size] .workspace-admin-title,
+:root[data-font-size] .settings-preview-body {
+  font-size: calc(14px * var(--app-font-scale));
+}
+
+:root[data-font-size] .composer-editor {
+  line-height: 1.35;
+}
+
+:root[data-font-size] .bottom-nav {
+  min-height: calc(78px * var(--app-font-scale));
 }

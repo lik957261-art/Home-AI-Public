@@ -6,6 +6,14 @@ const CLIENT_VERSION = document.documentElement?.dataset?.clientVersion
 
 const GENERIC_OWNER_TOPIC_ROUTE_PREFIXES = ["owner-"];
 const GENERIC_OWNER_TOPIC_ROUTE_IDS = new Set(["hermes-sync-folder"]);
+const FONT_SIZE_OPTIONS = Object.freeze([
+  { id: "small", label: "小", scale: 0.92 },
+  { id: "standard", label: "标准", scale: 1 },
+  { id: "large", label: "大", scale: 1.1 },
+  { id: "xlarge", label: "特大", scale: 1.2 },
+  { id: "xxlarge", label: "超大", scale: 1.32 },
+]);
+const DEFAULT_FONT_SIZE = "standard";
 
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
@@ -120,6 +128,8 @@ const state = {
   pwaInstalled: false,
   pwaServiceWorkerReady: false,
   pwaServiceWorkerError: "",
+  settingsOpen: false,
+  fontSize: normalizeFontSizePreference(localStorage.getItem("hermesWebFontSize") || DEFAULT_FONT_SIZE),
   transientProjectRoute: null,
   quotedReply: null,
   taskDirectoryFilter: null,
@@ -1414,6 +1424,11 @@ function updateTopMoreControls() {
   if (manageGroupMembers) {
     manageGroupMembers.hidden = !chatView || !isGroupChatView();
     manageGroupMembers.disabled = !chatView || !isGroupChatView() || !state.currentThread;
+  }
+  const openSettingsButton = $("topOpenSettings");
+  if (openSettingsButton) {
+    openSettingsButton.hidden = false;
+    openSettingsButton.disabled = false;
   }
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
@@ -3048,6 +3063,89 @@ async function runPwaInstallPrompt() {
     renderPwaInstallOverlay();
   }
   updateTopMoreControls();
+}
+
+function fontSizeOption(value) {
+  const normalized = normalizeFontSizePreference(value);
+  return FONT_SIZE_OPTIONS.find((option) => option.id === normalized) || FONT_SIZE_OPTIONS[1];
+}
+
+function normalizeFontSizePreference(value) {
+  const id = String(value || "").trim();
+  return FONT_SIZE_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_SIZE;
+}
+
+function applyFontSizePreference(value = state.fontSize) {
+  const option = fontSizeOption(value);
+  state.fontSize = option.id;
+  document.documentElement.dataset.fontSize = option.id;
+  document.documentElement.style.setProperty("--app-font-scale", String(option.scale));
+}
+
+function setFontSizePreference(value) {
+  const option = fontSizeOption(value);
+  state.fontSize = option.id;
+  localStorage.setItem("hermesWebFontSize", option.id);
+  applyFontSizePreference(option.id);
+  renderSettingsOverlay();
+}
+
+function renderSettingsOverlay() {
+  const overlay = $("settingsOverlay");
+  if (!overlay) return;
+  overlay.classList.toggle("hidden", !state.settingsOpen);
+  if (!state.settingsOpen) {
+    overlay.innerHTML = "";
+    return;
+  }
+  const current = normalizeFontSizePreference(state.fontSize);
+  const options = FONT_SIZE_OPTIONS.map((option) => {
+    const active = option.id === current;
+    return `<button class="font-size-option${active ? " active" : ""}" type="button" data-font-size-option="${escapeHtml(option.id)}" style="--font-preview-scale:${option.scale}">
+      <span class="font-size-option-name">${escapeHtml(option.label)}</span>
+      <span class="font-size-option-sample">Aa</span>
+    </button>`;
+  }).join("");
+  overlay.innerHTML = `<section class="access-key-sheet settings-sheet">
+    <header class="access-key-header">
+      <div>
+        <div id="settingsTitle" class="access-key-title">设置</div>
+        <div class="access-key-subtitle">当前设备显示偏好</div>
+      </div>
+      <button class="access-key-close" type="button" data-close-settings>完成</button>
+    </header>
+    <section class="settings-panel">
+      <div class="settings-row-title">字体大小</div>
+      <div class="font-size-options" role="group" aria-label="字体大小">
+        ${options}
+      </div>
+      <div class="settings-preview">
+        <div class="settings-preview-title">Hermes Mobile</div>
+        <div class="settings-preview-body">聊天、任务、目录、待办和自动化页面会使用这个字体大小。</div>
+      </div>
+    </section>
+  </section>`;
+  if (!overlay.dataset.settingsBackdropBound) {
+    overlay.dataset.settingsBackdropBound = "1";
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeSettings();
+    });
+  }
+  overlay.querySelector("[data-close-settings]")?.addEventListener("click", closeSettings);
+  overlay.querySelectorAll("[data-font-size-option]").forEach((button) => {
+    button.addEventListener("click", () => setFontSizePreference(button.dataset.fontSizeOption || DEFAULT_FONT_SIZE));
+  });
+}
+
+function openSettings() {
+  closeTopMoreMenu();
+  state.settingsOpen = true;
+  renderSettingsOverlay();
+}
+
+function closeSettings() {
+  state.settingsOpen = false;
+  renderSettingsOverlay();
 }
 
 function pushSupported() {
@@ -9767,6 +9865,7 @@ function wireUi() {
   $("topManageGroupMembers")?.addEventListener("click", () => {
     openGroupChatMembers().catch(showError);
   });
+  $("topOpenSettings")?.addEventListener("click", openSettings);
   document.addEventListener("click", closeTopMoreMenu);
   document.addEventListener("click", () => closeTaskCardMenus());
   document.addEventListener("click", () => closeDirectoryEntryMenus());
@@ -9849,6 +9948,7 @@ function wireUi() {
 }
 
 async function start() {
+  applyFontSizePreference();
   wireUi();
   state.pwaInstalled = isStandalonePwa();
   ensurePwaServiceWorker({ timeoutMs: 8000 }).catch(() => {});
