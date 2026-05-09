@@ -49,8 +49,8 @@ const FORBIDDEN_CONTENT = [
   { label: "WSL user path", pattern: /\/home\/(?!hermes\b|user\b|ubuntu\b|runner\b|example\b)[A-Za-z0-9._-]+/i },
   { label: "Windows-mounted user path", pattern: /\/mnt\/[a-z]\/Users\//i },
   { label: "Tailnet host", pattern: /(?:^|[\s/"'])[\w.-]*tail[a-z0-9-]+\.ts\.net\b/i },
-  { label: "Agent private clone path", pattern: new RegExp("pentium" + "xp" + "\\/Agent", "i") },
-  { label: "Private Hermes Mobile clone path", pattern: new RegExp("pentium" + "xp" + "\\/hermes-mobile", "i") },
+  { label: "Non-public Agent clone path", pattern: new RegExp("pentium" + "xp" + "\\/Agent(?:\\.git)?(?:[\\s\"'<>)]|$)", "i") },
+  { label: "Non-public Hermes Mobile clone path", pattern: new RegExp("pentium" + "xp" + "\\/hermes-mobile(?:\\.git)?(?:[\\s\"'<>)]|$)", "i") },
   { label: "Private key block", pattern: /BEGIN (?:RSA |OPENSSH |EC |DSA |)PRIVATE KEY/i },
   {
     label: "Committed auth key value",

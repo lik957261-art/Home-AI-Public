@@ -41,7 +41,7 @@ function parseArgs(argv) {
       console.log([
         "Usage: node scripts/create-runtime-package.js [--out <dir>] [--force] [--allow-dirty] [--windows-worker-account <name>]",
         "",
-        "Creates a private runtime package from tracked and untracked source files.",
+        "Creates a runtime package from tracked and untracked source files.",
         "Runtime state, ignored files, node_modules, workspace data, logs, uploads, and secrets are not copied.",
       ].join("\n"));
       process.exit(0);

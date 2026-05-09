@@ -30,6 +30,6 @@ The current product decision is Gateway Pool scheduling in Hermes Mobile: Hermes
 
 - Do not patch official Hermes source as part of Hermes Mobile product code.
 - If a required Gateway field is missing, add compatibility handling in Hermes Mobile first and track the desired upstream Gateway contract separately.
-- Keep private deployment fixes outside the product core unless they generalize cleanly.
+- Keep deployment-specific fixes outside the product core unless they generalize cleanly.
 - Treat single Gateway as the minimal install and fallback. Production can reuse official Hermes worker profiles when the deployment already shares the required Skill/memory state safely through official/profile configuration.
 - Before public export, run a privacy scan and verify the repository does not contain private paths, tokens, push endpoints, uploaded files, Agent context, or private clone URLs.

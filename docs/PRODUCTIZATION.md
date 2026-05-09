@@ -2,16 +2,16 @@
 
 ## Direction
 
-Use this private repository as the productization source for Hermes Mobile. The public repository should be created later from a clean export after configuration, adapter boundaries, docs, and privacy checks are stable.
+Use this repository as the productization source for Hermes Mobile. Public releases should be created from a clean export after configuration, adapter boundaries, docs, and privacy checks pass.
 
 The productized runtime target is official-Hermes-clean Gateway Pool scheduling in Hermes Mobile. Hermes Mobile must preserve official Hermes Skill, memory, tool, session, usage, event, and artifact behavior instead of replacing the Hermes agent runtime. A single Gateway is the minimal install and fallback path. See `GATEWAY_POOL_ARCHITECTURE.md`.
 
-## Phase 0: Source Split
+## Phase 0: Source Boundary
 
-- Copy Hermes Mobile app source into an independent private checkout.
-- Exclude dependency folders, runtime logs, user state, uploaded files, Agent context, and secrets.
+- Keep Hermes Mobile app source in an independent product checkout.
+- Exclude dependency folders, runtime logs, user state, uploaded files, local operator context, and secrets.
 - Add repository-local README, `.gitignore`, and `.env.example`.
-- Keep the original Agent workspace as the live integration source until cutover is deliberately planned.
+- Keep deployment runtime directories separate from source directories.
 
 ## Phase 1: Configuration Boundary
 
@@ -19,7 +19,7 @@ The productized runtime target is official-Hermes-clean Gateway Pool scheduling 
 - Keep built-in defaults generic.
 - Add explicit validation for required paths and credentials.
 - Document which features require Hermes Gateway, WSL, Web Push, CRON metadata, or local filesystem access.
-- Current baseline moves workspace user/route-map files, WSL user/home, Hermes home, Web Push subject, todo plugin path/name, bridge script paths, skill root, and filesystem path/mount normalization behind environment variables and providers. Remaining private labels and account-specific bindings are tracked in `ADAPTER_BOUNDARY.md`.
+- Current baseline moves workspace user/route-map files, WSL user/home, Hermes home, Web Push subject, todo plugin path/name, bridge script paths, skill root, and filesystem path/mount normalization behind environment variables and providers. Remaining deployment labels and account-specific bindings are tracked in `ADAPTER_BOUNDARY.md`.
 - First-run Owner setup is visual: if no `HERMES_WEB_KEY` and no Owner key file exists, the browser creates the Owner Access Key once, displays it once, and then enters the app. Admin-created local workspaces are stored in `workspace/hermes-web/workspaces.json`.
 - The Owner workspace manager now supports a usable local-user lifecycle: create, edit label/root/allowed directories/toolsets, generate or revoke a workspace Access Key, and delete the admin-created workspace. Deleting a local workspace revokes its key but intentionally leaves historical runtime state untouched.
 - `HERMES_WEB_AUTH_KEY_PATH` can point the file-backed Owner key outside the repository root; tests and packaged deployments should use it so first-run setup never writes secrets into source directories.
@@ -31,17 +31,17 @@ The productized runtime target is official-Hermes-clean Gateway Pool scheduling 
 
 ## Phase 2: Adapter Boundary
 
-- Separate product core from private adapters.
+- Separate product core from deployment adapters.
 - Keep generic features in the main app: chat, tasks, directory, todos, automation list, preview, and notifications.
-- Move account-specific connectors, private mailbox labels, local directory maps, and owner-only integrations behind optional adapters.
+- Move account-specific connectors, mailbox labels, local directory maps, and owner-only integrations behind optional adapters.
 - Keep official Hermes execution behind a Gateway Pool / GatewayRunner boundary. Hermes Mobile schedules new runs across healthy official Gateway profiles when a worker-pool manifest is configured, and falls back to one configured Gateway when no pool is available. For multi-account Skill isolation, route ordinary runs by workspace through manifest `skillProfile` / `skillWorkspaceIds` fields instead of modifying official Gateway Skill code. Run stop/liveness/event handling must route back to the Gateway that created the run.
-- Provider boundaries are now in place for auth/key management, runtime configuration, workspace/project catalog loading, access-policy construction, workspace binding summaries, display-path labels, project/root discovery, shared-directory management, Skill detail reads, Todo operations, Automation/CRON bridge operations, automation output/deliverable file resolution, external integration inventory, filesystem mount/path normalization, and the protected-path security boundary. Continue by moving any remaining private display heuristics behind provider methods.
+- Provider boundaries are now in place for auth/key management, runtime configuration, workspace/project catalog loading, access-policy construction, workspace binding summaries, display-path labels, project/root discovery, shared-directory management, Skill detail reads, Todo operations, Automation/CRON bridge operations, automation output/deliverable file resolution, external integration inventory, filesystem mount/path normalization, and the protected-path security boundary. Continue by moving any remaining deployment display heuristics behind provider methods.
 - Product/source maintenance must stay outside ordinary Hermes Mobile model runs. The security boundary hardens `access_policy_context`, blocks protected roots/files, filters shared directories and automation deliverables, and rejects source-maintenance prompts before Gateway scheduling.
 - The next product boundary is the service data layer. `adapters/mobile-sqlite-store.js` and `scripts/migrate-json-to-sqlite.js` now provide a SQLite migration target for workspaces, access-key hashes, threads, messages, artifacts, Web Push state, shared directories, Todo, Automation, and audit events. `HERMES_WEB_SERVICE_STORE=sqlite` enables SQLite runtime state for threads/messages/artifacts/Web Push and can also back local Todo/Automation when those backends are local. SQLite runtime still writes `state.json` snapshots after successful database writes for rollback.
 - Target shape:
   - `core`: HTTP server, state store, Gateway Pool scheduler, GatewayRunner/Gateway client, Web Push, static app, preview routes.
   - `adapters`: workspace catalog, access policy, workspace binding summaries, display paths, project map, shared-directory provider, skill detail provider, todo provider, automation provider, filesystem mount helper, external integration inventory, SQLite service-layer store.
-  - `deployments/private-local`: local-only adapter config and private runbooks, never copied to public export.
+  - `deployments/local`: local-only adapter config and deployment runbooks, never copied to public export.
 
 ## Phase 3: Tests And Packaging
 
@@ -55,5 +55,5 @@ The productized runtime target is official-Hermes-clean Gateway Pool scheduling 
 
 - Create the public repository only after a clean export passes privacy scanning.
 - Use `npm run export:public -- --out <clean-public-export-dir> --force`; the command refuses dirty source trees by default so `.public-export-report.json` matches the exported commit.
-- The public repo must not include private paths, private clone URLs, uploads, logs, access keys, tokens, push endpoints, Tailscale hostnames, or Agent context files.
+- The public repo must not include deployment-only paths, non-public clone URLs, uploads, logs, access keys, tokens, push endpoints, Tailscale hostnames, or local operator context files.
 - Public commits must update README in the same commit when user-visible behavior changes.

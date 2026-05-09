@@ -110,18 +110,9 @@ function safeResetOutputDir(outDir, force) {
 
 function transformPublicReadme(text) {
   return String(text || "")
-    .replace(
-      "This repository is the private productization checkout. It was split from the larger internal workspace so Hermes Mobile can be stabilized, tested, packaged, and later exported to a clean public repository.",
-      "This repository contains the Hermes Mobile product source. Keep deployment-specific secrets, runtime data, and private adapter configuration outside the source checkout.",
-    )
-    .replace(
-      "See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the current private-adapter extraction map.",
-      "See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the adapter extraction map.",
-    )
-    .replace(
-      "The public repository should be created from a privacy-scanned export of this private repo, not from the Agent workspace history.",
-      "Public releases should be created from this privacy-scanned export workflow, not from deployment runtime directories.",
-    );
+    .replace(/This repository is the .*? productization checkout\.[^\n]+/s, "This repository contains the public Hermes Mobile product source. Keep deployment-specific secrets, runtime data, and adapter configuration outside the source checkout.")
+    .replace(/See \[docs\/ADAPTER_BOUNDARY\.md\]\(docs\/ADAPTER_BOUNDARY\.md\) for the current .*? adapter extraction map\./, "See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the adapter extraction map.")
+    .replace(/The public repository should be created from a privacy-scanned export of this .*? repository, not from .*?\./, "Public releases should be created from this privacy-scanned export workflow, not from deployment runtime directories.");
 }
 
 function copyFile(relativePath, outDir) {

@@ -143,7 +143,7 @@ sudo scripts/prepare-process-isolation.sh --apply --user hermes-mobile --runtime
 
 Before cutover:
 
-1. Run `npm run productization:check` in the private checkout.
+1. Run `npm run productization:check` in the source checkout.
 2. Create a clean runtime export or package.
 3. Start Hermes Mobile from the runtime package with the low-privilege account.
 4. Confirm `/api/status` is healthy.

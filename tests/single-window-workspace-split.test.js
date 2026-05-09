@@ -77,7 +77,7 @@ async function main() {
       updatedAt: "2026-05-08T10:04:00.000Z",
       chatGroup: {
         enabled: true,
-        memberWorkspaceIds: ["owner", "weixin_wuping"],
+        memberWorkspaceIds: ["owner", "weixin_example_user"],
         createdAt: "2026-05-08T10:00:00.000Z",
         updatedAt: "2026-05-08T10:00:00.000Z",
       },
@@ -85,8 +85,8 @@ async function main() {
         { id: "owner_user", role: "user", status: "done", taskGroupId: "chat", messageKind: "ai", senderWorkspaceId: "owner", actorWorkspaceId: "owner", content: "owner private", createdAt: "2026-05-08T10:01:00.000Z", updatedAt: "2026-05-08T10:01:00.000Z" },
         { id: "owner_assistant", role: "assistant", status: "done", taskGroupId: "chat", messageKind: "ai", senderWorkspaceId: "hermes", actorWorkspaceId: "owner", content: "owner reply", artifacts: [{ id: "artifact_owner", name: "owner.pdf" }], createdAt: "2026-05-08T10:01:01.000Z", updatedAt: "2026-05-08T10:01:01.000Z" },
         { id: "group_user", role: "user", status: "done", taskGroupId: "group-chat", messageKind: "plain", senderWorkspaceId: "owner", actorWorkspaceId: "owner", content: "shared group", artifacts: [{ id: "artifact_group", name: "group.pdf" }], createdAt: "2026-05-08T10:02:00.000Z", updatedAt: "2026-05-08T10:02:00.000Z" },
-        { id: "wuping_user", role: "user", status: "done", taskGroupId: "task_wuping", messageKind: "ai", senderWorkspaceId: "weixin_wuping", actorWorkspaceId: "weixin_wuping", content: "wuping task", createdAt: "2026-05-08T10:03:00.000Z", updatedAt: "2026-05-08T10:03:00.000Z" },
-        { id: "wuping_assistant", role: "assistant", status: "done", taskGroupId: "task_wuping", messageKind: "ai", senderWorkspaceId: "hermes", actorWorkspaceId: "weixin_wuping", content: "wuping reply", createdAt: "2026-05-08T10:03:01.000Z", updatedAt: "2026-05-08T10:03:01.000Z" },
+        { id: "example_user_user", role: "user", status: "done", taskGroupId: "task_example_user", messageKind: "ai", senderWorkspaceId: "weixin_example_user", actorWorkspaceId: "weixin_example_user", content: "example_user task", createdAt: "2026-05-08T10:03:00.000Z", updatedAt: "2026-05-08T10:03:00.000Z" },
+        { id: "example_user_assistant", role: "assistant", status: "done", taskGroupId: "task_example_user", messageKind: "ai", senderWorkspaceId: "hermes", actorWorkspaceId: "weixin_example_user", content: "example_user reply", createdAt: "2026-05-08T10:03:01.000Z", updatedAt: "2026-05-08T10:03:01.000Z" },
       ],
       events: [],
     }],
@@ -123,7 +123,7 @@ async function main() {
     const groupThread = groupResult.thread;
     assert.equal(groupThread.id, "thread_group");
     assert.equal(groupThread.chatGroup.enabled, true);
-    assert.deepEqual(groupThread.messages.map((message) => message.id), ["group_user", "wuping_user", "wuping_assistant"]);
+    assert.deepEqual(groupThread.messages.map((message) => message.id), ["group_user", "example_user_user", "example_user_assistant"]);
 
     const persisted = JSON.parse(fs.readFileSync(statePath, "utf8"));
     const ownerArtifact = persisted.artifacts.find((artifact) => artifact.id === "artifact_owner");

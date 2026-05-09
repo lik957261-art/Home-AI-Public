@@ -1,0 +1,44 @@
+{
+  "workspaces": [
+    {
+      "id": "owner",
+      "label": "Owner",
+      "role": "owner",
+      "principalId": "owner",
+      "root": "workspace/hermes-web/drive",
+      "allowed_roots": [
+        "workspace/hermes-web/drive"
+      ],
+      "allowed_toolsets": [
+        "web",
+        "file",
+        "vision",
+        "image_gen",
+        "skills",
+        "todo",
+        "memory",
+        "session_search",
+        "clarify"
+      ]
+    },
+    {
+      "id": "workspace_a",
+      "label": "Workspace A",
+      "role": "workspace",
+      "principalId": "workspace_a",
+      "root": "workspace/hermes-web/drive/users/workspace-a",
+      "allowed_roots": [
+        "workspace/hermes-web/drive/users/workspace-a"
+      ],
+      "allowed_toolsets": [
+        "web",
+        "file",
+        "vision",
+        "skills",
+        "todo",
+        "memory",
+        "clarify"
+      ]
+    }
+  ]
+}

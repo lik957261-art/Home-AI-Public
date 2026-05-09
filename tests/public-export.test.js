@@ -24,10 +24,10 @@ function testPathFilters() {
 }
 
 function testReadmeTransform() {
-  const input = "This repository is the private productization checkout. It was split from the larger internal workspace so Hermes Mobile can be stabilized, tested, packaged, and later exported to a clean public repository.";
+  const input = "This repository is the internal productization checkout. It was split from a larger integration workspace so Hermes Mobile can be stabilized, tested, packaged, and exported safely.";
   const output = transformPublicReadme(input);
-  assert.match(output, /Hermes Mobile product source/);
-  assert.doesNotMatch(output, /private productization checkout/);
+  assert.match(output, /public Hermes Mobile product source/);
+  assert.doesNotMatch(output, /internal productization checkout/);
 }
 
 function testCreatesCleanExport() {
@@ -55,7 +55,7 @@ function testCreatesCleanExport() {
     assert.equal(fs.existsSync(path.join(outDir, ".agent-context")), false);
     assert.equal(fs.existsSync(path.join(outDir, "AGENTS.md")), false);
     const readme = fs.readFileSync(path.join(outDir, "README.md"), "utf8");
-    assert.doesNotMatch(readme, /private productization checkout/);
+    assert.doesNotMatch(readme, /internal productization checkout/);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

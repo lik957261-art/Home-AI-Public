@@ -12,13 +12,13 @@ function sampleWorkspaces() {
   return [
     { id: "owner", label: "Owner", policy: { principal_id: "owner" } },
     {
-      id: "wuping",
-      label: "WuPing",
+      id: "example_user",
+      label: "Example User",
       policy: {
-        principal_id: "weixin_wuping",
+        principal_id: "weixin_example_user",
         adapter_account_id: "wx_main",
-        chat_id: "chat_wuping",
-        user_id: "user_wuping",
+        chat_id: "chat_example_user",
+        user_id: "user_example_user",
       },
     },
     {
@@ -33,13 +33,13 @@ function sampleWorkspaces() {
 function testNormalizeInboundEventCreatesStableId() {
   const first = normalizeInboundEvent({
     account_id: "wx_main",
-    chat_id: "chat_wuping",
+    chat_id: "chat_example_user",
     text: "hello",
     timestamp: "2026-05-08T00:00:00Z",
   });
   const second = normalizeInboundEvent({
     account_id: "wx_main",
-    chat_id: "chat_wuping",
+    chat_id: "chat_example_user",
     text: "hello",
     timestamp: "2026-05-08T00:00:00Z",
   });
@@ -50,26 +50,26 @@ function testNormalizeInboundEventCreatesStableId() {
 
 function testNormalizeInboundEventRequiresContent() {
   assert.throws(
-    () => normalizeInboundEvent({ account_id: "wx_main", chat_id: "chat_wuping" }),
+    () => normalizeInboundEvent({ account_id: "wx_main", chat_id: "chat_example_user" }),
     /must include text or attachments/,
   );
 }
 
 function testWorkspaceMatching() {
   const workspace = sampleWorkspaces()[1];
-  assert.equal(workspaceMatchesEvent(workspace, { accountId: "wx_main", chatId: "chat_wuping" }), true);
-  assert.equal(workspaceMatchesEvent(workspace, { accountId: "wx_main", userId: "user_wuping" }), true);
+  assert.equal(workspaceMatchesEvent(workspace, { accountId: "wx_main", chatId: "chat_example_user" }), true);
+  assert.equal(workspaceMatchesEvent(workspace, { accountId: "wx_main", userId: "user_example_user" }), true);
   assert.equal(workspaceMatchesEvent(workspace, { accountId: "wx_main", chatId: "other" }), false);
 }
 
 function testResolveWorkspacePriority() {
   const provider = createWeixinIngressProvider({
     listWorkspaces: sampleWorkspaces,
-    workspaceIdForPrincipal: (principalId) => (principalId === "weixin_wuping" ? "wuping" : ""),
+    workspaceIdForPrincipal: (principalId) => (principalId === "weixin_example_user" ? "example_user" : ""),
     defaultWorkspaceId: () => "owner",
   });
   assert.equal(provider.resolveWorkspaceId({ workspaceId: "xiaonan" }), "xiaonan");
-  assert.equal(provider.resolveWorkspaceId({ principalId: "weixin_wuping" }), "wuping");
+  assert.equal(provider.resolveWorkspaceId({ principalId: "weixin_example_user" }), "example_user");
   assert.equal(provider.resolveWorkspaceId({ accountId: "wx_main", chatId: "chat_xiaonan" }), "xiaonan");
   assert.equal(provider.resolveWorkspaceId({ accountId: "unknown", chatId: "missing" }), "owner");
 }
@@ -97,8 +97,8 @@ function testAckValidation() {
 function testDeliveryAndThreadIdsAreStable() {
   const provider = createWeixinIngressProvider({ listWorkspaces: sampleWorkspaces });
   assert.equal(
-    provider.threadKey({ accountId: "wx_main", chatId: "chat_wuping" }),
-    provider.threadKey({ accountId: "wx_main", chatId: "chat_wuping" }),
+    provider.threadKey({ accountId: "wx_main", chatId: "chat_example_user" }),
+    provider.threadKey({ accountId: "wx_main", chatId: "chat_example_user" }),
   );
   assert.equal(provider.deliveryId("thread_a", "msg_b"), provider.deliveryId("thread_a", "msg_b"));
   assert.ok(provider.deliveryId("thread_a", "msg_b").startsWith("wxout_"));

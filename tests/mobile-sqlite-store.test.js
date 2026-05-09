@@ -29,7 +29,7 @@ function makeJsonDataDir() {
         status: "idle",
         createdAt: "2026-05-07T00:00:00.000Z",
         updatedAt: "2026-05-07T00:01:00.000Z",
-        chatGroup: { enabled: true, memberWorkspaceIds: ["weixin_wuping"] },
+        chatGroup: { enabled: true, memberWorkspaceIds: ["weixin_example_user"] },
         taskGroupMeta: { chat: { title: "Chat" } },
         messages: [
           {
@@ -111,7 +111,7 @@ function makeJsonDataDir() {
   writeJson(path.join(dir, "access-keys.json"), {
     schemaVersion: 1,
     workspaceKeys: {
-      weixin_wuping: {
+      weixin_example_user: {
         hash: "a".repeat(64),
         createdAt: "2026-05-07T00:00:00.000Z",
         updatedAt: "2026-05-07T00:00:00.000Z",
@@ -127,9 +127,9 @@ function makeJsonDataDir() {
         label: "Health",
         root: "/data/health",
         ownerWorkspaceId: "owner",
-        targetWorkspaceIds: ["weixin_wuping"],
+        targetWorkspaceIds: ["weixin_example_user"],
         permissions: { read: true, write: false },
-        workspaceLabels: { weixin_wuping: "Health" },
+        workspaceLabels: { weixin_example_user: "Health" },
       },
     ],
   });
@@ -137,7 +137,7 @@ function makeJsonDataDir() {
     schemaVersion: 1,
     workspaces: [
       { id: "owner", label: "Owner", role: "owner", principalId: "owner", source: "local" },
-      { id: "weixin_wuping", label: "WuPing", role: "workspace", principalId: "weixin_wuping", source: "local" },
+      { id: "weixin_example_user", label: "Example User", role: "workspace", principalId: "weixin_example_user", source: "local" },
     ],
   });
   writeJson(path.join(dir, "todos.json"), {

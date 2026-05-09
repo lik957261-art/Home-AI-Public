@@ -18,10 +18,10 @@ function sampleThreads() {
       ],
     },
     {
-      id: "thread-wuping",
-      workspaceId: "weixin_wuping",
+      id: "thread-example_user",
+      workspaceId: "weixin_example_user",
       messages: [
-        { id: "m3", role: "assistant", status: "running", runId: "run_wuping", gatewayProfile: "worker2" },
+        { id: "m3", role: "assistant", status: "running", runId: "run_example_user", gatewayProfile: "worker2" },
       ],
     },
   ];
@@ -40,7 +40,7 @@ function testSnapshotCountsByWorkspace() {
   assert.equal(snapshot.maxPerWorkspace, 2);
   assert.equal(snapshot.activeGlobal, 2);
   assert.equal(snapshot.activeByWorkspace.owner, 1);
-  assert.equal(snapshot.activeByWorkspace.weixin_wuping, 1);
+  assert.equal(snapshot.activeByWorkspace.weixin_example_user, 1);
 
   const records = activeRunRecords(sampleThreads());
   assert.deepEqual(records.map((record) => record.gatewayName || record.gatewayProfile), ["worker1", "worker2"]);

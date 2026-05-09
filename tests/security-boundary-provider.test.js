@@ -19,7 +19,7 @@ function run() {
   const provider = createSecurityBoundaryProvider({
     protectedRoots: [
       "/Users/alice/src/hermes-mobile",
-      "D:\\HermesUsers\\Alice\\Documents\\hermes-web-private",
+      "D:\\HermesUsers\\Alice\\Documents\\hermes-mobile-source",
       "/home/example/.hermes",
     ],
     protectedFiles: [

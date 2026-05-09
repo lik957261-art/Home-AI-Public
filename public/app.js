@@ -9125,7 +9125,7 @@ function isOperationalTaskDirectoryAlias(alias, route = null) {
     (label.includes("agent") && (label.includes("workspace") || label.includes("工作区")))
     || label.includes("hermesweb")
     || pathValue.includes("/documents/agent")
-    || pathValue.includes("/documents/hermes-web-private")
+    || pathValue.includes("/documents/hermes-mobile-source")
     || pathValue.includes("/programdata/hermesmobile/app")
     || pathValue.includes("/workspace/hermes-web")
     || pathValue.includes("/tools/cli/hermes-web")

@@ -39,7 +39,7 @@ before Mobile can route them.
 
 ## Why Pool Scheduling Belongs In Hermes Mobile
 
-Existing private production already uses multiple Gateway profiles for parallel work. That mechanism can be reused without keeping product behavior patched into Hermes native code.
+Deployments can use multiple Gateway profiles for parallel work. That mechanism can be reused without keeping product behavior patched into Hermes native code.
 
 Hermes Mobile owns:
 
@@ -192,7 +192,7 @@ Custom deployment behavior should move into Hermes Mobile adapters and services:
 - Web Push routing.
 - Preview/artifact authorization.
 
-Official Hermes should remain clean enough to upgrade directly from upstream. If Hermes needs a missing public field, Hermes Mobile should handle compatibility locally and track the desired upstream contract separately instead of patching private product behavior into Gateway source.
+Official Hermes should remain clean enough to upgrade directly from upstream. If Hermes needs a missing public field, Hermes Mobile should handle compatibility locally and track the desired upstream contract separately instead of patching product behavior into Gateway source.
 
 ## Configuration
 

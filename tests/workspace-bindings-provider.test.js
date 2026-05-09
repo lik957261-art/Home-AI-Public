@@ -58,14 +58,14 @@ function testCustomChannelProvider() {
 function testQqmailToolsetsAreShownAsConnectedMail() {
   const provider = createWorkspaceBindingsProvider();
   const bindings = provider.publicBindings({
-    id: "weixin_wuping",
+    id: "weixin_example_user",
     policy: {
-      allowed_toolsets: ["web", "wuping_qqmail", "qq_mail"],
+      allowed_toolsets: ["web", "example_user_qqmail", "qq_mail"],
     },
   });
 
   assert.deepEqual(bindings.interfaces, [
-    { id: "wuping_qqmail", label: "QQ 邮箱", category: "邮箱", detail: "已连接" },
+    { id: "example_user_qqmail", label: "QQ 邮箱", category: "邮箱", detail: "已连接" },
     { id: "qq_mail", label: "QQ 邮箱", category: "邮箱", detail: "已连接" },
   ]);
 }

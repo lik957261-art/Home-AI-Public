@@ -1,20 +1,41 @@
 # Hermes Mobile
 
-Hermes Mobile is a mobile-first web app for using a local Hermes Gateway from a phone or desktop browser. It is separate from the official Hermes dashboard and does not use the dashboard terminal/PTY chat surface as its product model.
+Hermes Mobile is a mobile-first web app for using a local Hermes Gateway from a
+phone or desktop browser. It is separate from the official Hermes dashboard and
+does not use the dashboard terminal/PTY chat surface as its product model.
 
-This repository is the private productization checkout. It was split from the larger internal workspace so Hermes Mobile can be stabilized, tested, packaged, and later exported to a clean public repository.
+This repository contains the public Hermes Mobile product source. Keep
+deployment-specific secrets, runtime data, generated reports, logs, uploads,
+tokens, push endpoints, and adapter configuration outside the source
+checkout.
 
-## Current Scope
+## 1.0 Scope
 
-- Mobile chat, task list, directory, todo, and automation views.
-- Streaming Hermes Gateway runs with usage display.
+- Mobile chat, task list, directory, todo, automation, and group chat views.
+- Streaming Hermes Gateway runs with usage/model/reasoning display.
 - Directory-bound task creation and file/artifact preview.
-- Workspace-scoped access keys.
-- Web Push notifications for task, todo, group mention, and automation events.
-- CRON/automation list and deliverable preview.
-- Markdown-first document delivery: chat, task, group, and automation outputs default to `.md`, render as HTML in the app, and offer generated export/share choices for external forwarding.
+- Workspace-scoped Access Keys and Owner-managed local workspaces.
+- Runtime Gateway and Web Push configuration from the Owner UI.
+- Optional Gateway Pool scheduling with workspace-aware worker selection.
+- Optional Weixin/iLink ingress sidecar boundary.
+- Markdown-first deliverables: generated documents default to Markdown, render as
+  HTML in the app, and offer explicit PDF, Word-compatible, HTML, copy, or raw
+  Markdown export/share actions.
+- Installable PWA shell with static version checks, distinct app icons, and local
+  font-size preferences.
 
-## Run
+## Requirements
+
+- Node.js `>=22`
+- Python `>=3.12`
+- A reachable Hermes Gateway API server
+- A private network, localhost, or trusted HTTPS reverse proxy for browser access
+
+Hermes Mobile schedules and monitors Hermes Gateway runs. It does not call
+OpenAI/Codex providers directly for user tasks and does not reimplement Hermes
+agent semantics.
+
+## Quick Start
 
 Install dependencies:
 
@@ -22,65 +43,28 @@ Install dependencies:
 npm install
 ```
 
-Run validation:
+Create a local environment file:
 
 ```powershell
-npm test
+Copy-Item .env.example .env
 ```
 
-This runs JavaScript syntax checks, provider contract tests, Python bridge compilation, and a privacy scan for local paths, runtime state, private key material, and internal workspace markers.
+Minimum single-Gateway configuration:
 
-Run the full productization gate before packaging or exporting:
-
-```powershell
-npm run productization:check
+```dotenv
+HERMES_WEB_HOST=127.0.0.1
+HERMES_WEB_PORT=8797
+HERMES_WEB_DATA_DIR=workspace/hermes-web
+HERMES_WEB_HERMES_API_BASE=http://127.0.0.1:8642
+HERMES_WEB_HERMES_API_KEY_PATH=workspace/hermes-web/secrets/hermes-api-key.secret
+HERMES_WEB_AUTH_KEY_PATH=workspace/hermes-web/secrets/owner-web-key.secret
 ```
-
-This runs `npm test`, the startup `-CheckOnly` path, and `git diff --check`.
-
-Create a clean public-export candidate from tracked source files only:
-
-```powershell
-npm run export:public -- --out workspace\public-export\hermes-mobile-public-smoke --force
-```
-
-The export command excludes runtime/private workspace paths, rewrites the README wording for a public repository, writes a small export report, and reruns the privacy scan against the exported tree. By default it refuses a dirty source tree so the report's source commit matches the exported content. Review the exported README and update public release notes before any public push.
-
-For Gateway Pool deployments that use multiple workers for one Skill profile,
-link those Gateway profile `skills` directories to one shared store before
-cutover. This keeps official Hermes Skill creation and updates visible to every
-worker in the same `skillProfile`:
-
-```powershell
-node scripts\link-skill-profile-store.js --shared "<shared-skills-dir>" --profile "<gateway-profile-a>\skills" --profile "<gateway-profile-b>\skills" --apply
-```
-
-Hermes Mobile ships as an installable PWA. Serve it from HTTPS or localhost so
-the browser can enable the Service Worker, then use the top-right menu's install
-entry or the browser's native install/add-to-home-screen command. The PWA caches
-only the application shell and static assets; API data, artifacts, secrets, and
-workspace files remain network/runtime data.
-The install identity is path-scoped to `/hermes-mobile/` so deployments that
-also expose another app on the same HTTPS host, such as a Codex Mobile console
-on another port or legacy root scope, do not collide with Hermes Mobile's PWA.
 
 Start the listener:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-hermes-web.ps1 -CheckOnly
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-hermes-web.ps1
-```
-
-Detached Windows listener:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-hermes-web.ps1 -Detached
-```
-
-Restart after code changes:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\restart-hermes-web.ps1
 ```
 
 WSL/Linux:
@@ -90,112 +74,152 @@ WSL/Linux:
 ./start-hermes-web.sh
 ```
 
-Default URL: `http://0.0.0.0:8797`
+Default URL: `http://127.0.0.1:8797`
 
-## First Run
+The first browser visit opens the Owner setup screen when no Owner Access Key is
+configured. Create the Owner key, store the plaintext value immediately, then
+use the Owner UI to configure workspaces and runtime Gateway settings.
 
-If `HERMES_WEB_KEY` is not set and the Owner key file (`HERMES_WEB_AUTH_KEY_PATH`, or `.hermes_web_secret_key` by default) does not exist, Hermes Mobile opens a first-run setup screen.
+## Gateway Modes
 
-1. Create the Owner Access Key in the browser.
-2. Copy and store the plaintext key immediately; it is shown once.
-3. Enter Hermes Mobile.
-4. Open the sidebar `账号 / 根目录 / 接口` panel, choose `Access Key` management, create user workspaces, configure root/allowed directories and optional toolsets, then generate each user's Access Key.
+### Single Gateway
 
-The Owner can later edit or delete admin-created user workspaces from the same manager. Deleting a local user workspace also revokes that workspace Access Key; historical local state is not erased automatically. Workspace keys can also be revoked without deleting the user workspace.
+Single Gateway is the minimal install and fallback mode. Configure
+`HERMES_WEB_HERMES_API_BASE` and either `HERMES_WEB_HERMES_API_KEY` or
+`HERMES_WEB_HERMES_API_KEY_PATH`.
 
-Local user workspaces are stored in `workspace/hermes-web/workspaces.json` under `HERMES_WEB_DATA_DIR`. Workspace Access Key hashes are stored in `workspace/hermes-web/access-keys.json`. Runtime files in `workspace/` remain ignored by Git. On a fresh install without an external workspace catalog, the Owner's default file root is `drive/` under `HERMES_WEB_DATA_DIR`; override it with `HERMES_WEB_OWNER_DEFAULT_WORKSPACE` if user files should live elsewhere. Todo and Automation also default to local JSON stores under `HERMES_WEB_DATA_DIR`; set `HERMES_WEB_TODO_BACKEND` / `HERMES_WEB_AUTOMATION_BACKEND` to an explicit bridge backend only when intentionally connecting this app to an existing deployment store.
+### Gateway Pool
 
-For SQLite-backed installs, set `HERMES_WEB_SERVICE_STORE=sqlite` and `HERMES_WEB_DB_PATH`. SQLite mode stores threads, messages, artifacts, Web Push state, and local Todo/Automation service rows in one database while still writing `state.json` snapshots for rollback.
+Gateway Pool is optional. It lets Hermes Mobile schedule runs across multiple
+official Hermes Gateway profiles while keeping Gateway execution semantics in
+the Gateway. Configure:
 
-## Runtime Setup
+```dotenv
+HERMES_WEB_GATEWAY_POOL_ENABLED=auto
+HERMES_WEB_GATEWAY_POOL_MANIFEST=/path/to/gateway-pool-manifest.json
+HERMES_WEB_MAX_ACTIVE_RUNS=10
+HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE=3
+```
 
-Owner can open `账号 / 根目录 / 接口` -> `运行配置` to configure and test the Hermes Gateway bridge after login.
+See `examples/gateway-pool-manifest.example.json` and
+`docs/GATEWAY_POOL_ARCHITECTURE.md`. Do not commit real worker API keys or
+worker manifests containing secrets.
 
-The runtime manager stores only:
+## Runtime Data
 
-- Hermes Gateway URL
-- Hermes API Key file path
-- Web Push subject
-- VAPID key file path
+Runtime files live under `HERMES_WEB_DATA_DIR`. On fresh installs, the Owner's
+default file root is `drive/` under that data directory. Access Key hashes,
+workspace config, runtime config, local Todo/Automation stores, SQLite
+databases, Web Push state, uploads, and generated artifacts should remain
+outside Git.
 
-It does not store the Hermes API Key plaintext in Web configuration and it never displays the VAPID private key in the browser. The stored runtime config lives at `workspace/hermes-web/runtime-config.json` under `HERMES_WEB_DATA_DIR`.
+For SQLite-backed installs:
 
-The Owner can generate or reload VAPID keys from the runtime manager. Regenerating VAPID keys invalidates existing browser push subscriptions; users must re-enable notifications afterward.
+```dotenv
+HERMES_WEB_SERVICE_STORE=sqlite
+HERMES_WEB_DB_PATH=workspace/hermes-web/hermes-mobile.sqlite3
+```
+
+SQLite mode stores threads, messages, artifacts, Web Push state, and local
+Todo/Automation service rows in one database while still writing `state.json`
+snapshots for rollback.
+
+## Optional Features
+
+- **Todo:** defaults to local JSON under `HERMES_WEB_DATA_DIR`; bridge/plugin
+  backends are opt-in compatibility adapters.
+- **Automation:** defaults to local JSON under `HERMES_WEB_DATA_DIR`; native
+  Hermes CRON bridge integration is optional.
+- **Web Push:** configure VAPID key file path and subject from the Owner runtime
+  panel or with environment variables.
+- **Weixin/iLink ingress:** optional sidecar boundary. Only one poller should
+  own a Weixin account at a time.
+- **Gateway usage telemetry:** optional read-only fallback when Gateway responses
+  omit detailed usage fields.
 
 ## Configuration
 
-Start from `.env.example`. Do not commit real keys, push endpoints, access-key stores, VAPID private keys, local state, uploaded files, or user data.
-
-Important configuration groups:
+Start from `.env.example`. Important groups:
 
 - `HERMES_WEB_HOST`, `HERMES_WEB_PORT`, `HERMES_WEB_DATA_DIR`
 - `HERMES_WEB_OWNER_DEFAULT_WORKSPACE`
-- `HERMES_WEB_REPO_ROOT`, `HERMES_WEB_CONFIG_DIR`
 - `HERMES_WEB_KEY` or `HERMES_WEB_AUTH_KEY_PATH`
 - `HERMES_WEB_HERMES_API_BASE`
 - `HERMES_WEB_HERMES_API_KEY` or `HERMES_WEB_HERMES_API_KEY_PATH`
 - `HERMES_WEB_GATEWAY_POOL_ENABLED`, `HERMES_WEB_GATEWAY_POOL_MANIFEST`
 - `HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING`
-- `HERMES_MOBILE_GATEWAY_USAGE_TELEMETRY_ENABLED`, `HERMES_MOBILE_GATEWAY_TELEMETRY_PROFILES_ROOTS`
 - `HERMES_WEB_MAX_ACTIVE_RUNS`, `HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE`
-- `HERMES_MOBILE_WEIXIN_INGRESS_KEY` or `HERMES_MOBILE_WEIXIN_INGRESS_KEY_PATH`
-- `HERMES_WEB_WORKSPACE_USERS_PATH`, `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH`
-- `HERMES_WEB_ENABLE_LEGACY_WEIXIN_COMPAT`, `HERMES_WEB_PRINCIPAL_LABEL_PREFIXES`
-- `HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT`
-- `HERMES_WEB_ALLOWED_ARTIFACT_ROOTS`
-- `HERMES_WEB_WSL_USER`, `HERMES_WEB_WSL_HOME`, `HERMES_WEB_WSL_HERMES_HOME`
-- `HERMES_WEB_OWNER_LABEL`, `HERMES_WEB_OWNER_ROOT_LABEL`, `HERMES_WEB_OWNER_ALIASES`, `HERMES_WEB_OWNER_DRIVE_ROOT_NAMES`
-- `HERMES_WEB_GENERIC_OWNER_PROJECT_PREFIXES`, `HERMES_WEB_GENERIC_OWNER_PROJECT_IDS`
-- `HERMES_WEB_TODO_BACKEND`, `HERMES_WEB_TODO_STORE_PATH`, `HERMES_WEB_TODO_PLUGIN_PATH`, `HERMES_WEB_TODO_PLUGIN_NAME`
+- `HERMES_WEB_SERVICE_STORE`, `HERMES_WEB_DB_PATH`
+- `HERMES_WEB_TODO_BACKEND`, `HERMES_WEB_TODO_STORE_PATH`
 - `HERMES_WEB_AUTOMATION_BACKEND`, `HERMES_WEB_AUTOMATION_STORE_PATH`
-- `HERMES_WEB_TODO_BRIDGE_SCRIPT`, `HERMES_WEB_CRON_BRIDGE_SCRIPT`, `HERMES_WEB_DIRECTORY_BRIDGE_SCRIPT`, `HERMES_WEB_SKILL_BRIDGE_SCRIPT`
-- `HERMES_WEB_SERVICE_STORE=sqlite`, `HERMES_WEB_DB_PATH`
-- `HERMES_WEB_DISABLED_VOLUME1_WINDOWS_MIRROR_SHARES`
-- `HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON`
-- `HERMES_MOBILE_SECURITY_PROTECTED_ROOTS`, `HERMES_MOBILE_SECURITY_PROTECTED_FILES`, `HERMES_MOBILE_SECURITY_ALLOWED_EXCEPTIONS`
 - `HERMES_WEB_VAPID_PATH` or `WEB_PUSH_VAPID_*`
+- `HERMES_MOBILE_SECURITY_PROTECTED_ROOTS`
+- `HERMES_MOBILE_SECURITY_PROTECTED_FILES`
+- `HERMES_MOBILE_SECURITY_ALLOWED_EXCEPTIONS`
 
-## Repository Boundary
+Do not commit real `.env` files, raw keys, OAuth tokens, push endpoints, Access
+Key stores, VAPID private keys, local state, uploaded files, generated reports,
+or user data.
 
-This checkout should contain product source code, static assets, scripts, tests, and non-secret documentation only.
+## Validation
 
-It must not contain:
-
-- internal workspace context directories
-- local operator instruction files
-- runtime state, logs, uploads, generated reports, or private outbox files
-- raw access keys, mailbox passwords, OAuth tokens, VAPID private keys, push endpoints, or API tokens
-
-## Productization Plan
-
-See [docs/PRODUCTIZATION.md](docs/PRODUCTIZATION.md).
-See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the current private-adapter extraction map.
-See [docs/OFFICIAL_HERMES_COMPATIBILITY.md](docs/OFFICIAL_HERMES_COMPATIBILITY.md) for the compatibility boundary with official Hermes.
-See [docs/GATEWAY_POOL_ARCHITECTURE.md](docs/GATEWAY_POOL_ARCHITECTURE.md) for the product runtime target: Hermes Mobile scheduling one or more official Hermes Gateway profiles while preserving official Hermes Skill, memory, tool, session, and artifact behavior. A single Gateway remains the minimal install and fallback mode.
-See [docs/MULTI_TASK_AND_ACCOUNT_PERMISSIONS.zh-CN.md](docs/MULTI_TASK_AND_ACCOUNT_PERMISSIONS.zh-CN.md) for the Chinese product architecture note on multi-task scheduling, workspace accounts, low-privilege Gateway routing, and permission boundaries.
-See [docs/WEIXIN_INGRESS.md](docs/WEIXIN_INGRESS.md) for the optional Weixin/iLink ingress sidecar boundary. Only one poller may own a Weixin account at a time.
-See [docs/SERVICE_LAYER_SQLITE.md](docs/SERVICE_LAYER_SQLITE.md) for the SQLite service-layer migration plan.
-See [docs/OFFICIAL_HERMES_CLEANUP_PLAN.md](docs/OFFICIAL_HERMES_CLEANUP_PLAN.md) for the path back to clean official Hermes profiles.
-See [docs/PROCESS_ISOLATION.md](docs/PROCESS_ISOLATION.md) for the protected-path boundary and Windows/macOS/Linux low-privilege runtime layout.
-See [docs/LOCAL_WORKSPACE_ROOT_MIGRATION.md](docs/LOCAL_WORKSPACE_ROOT_MIGRATION.md) for moving deployment workspace roots from mounted paths into local per-user data directories.
-See [docs/PUBLIC_EXPORT_CHECKLIST.md](docs/PUBLIC_EXPORT_CHECKLIST.md) before creating a public repository/export.
-
-The public repository should be created from a privacy-scanned export of this private repo, not from the Agent workspace history.
-
-## Production Smoke
-
-After a Gateway Pool or runtime cutover, run:
+Run fast syntax checks:
 
 ```powershell
-node scripts\gateway-pool-production-smoke.js --base http://127.0.0.1:8797 --key-file <owner-key-file>
+npm run check
 ```
 
-The smoke creates one temporary task-stream run, verifies Gateway Pool health and non-secret worker metadata, then deletes the temporary task unless `--keep` is supplied.
-
-For a direct official Gateway boundary check without changing Mobile state:
+Run the full test and privacy gate:
 
 ```powershell
-node scripts\official-hermes-compat-smoke.js --api-base http://127.0.0.1:8642 --api-key-file <gateway-api-key-file>
+npm test
+npm run productization:check
 ```
 
-Add `--run-model` only when an actual minimal model call is acceptable.
+`productization:check` runs syntax checks, provider tests, Python bridge
+compilation, privacy scanning, startup `-CheckOnly`, and whitespace checks.
+
+## Public Export
+
+Create public releases from a clean export, not from runtime directories:
+
+```powershell
+npm run productization:check
+npm run export:public -- --out workspace\public-export\hermes-mobile-public-smoke --force
+```
+
+The export command copies tracked source files, excludes runtime/deployment
+directories, writes `.public-export-report.json`, and reruns the privacy scan
+against the exported tree. By default it refuses dirty source trees so the
+report's source commit matches the exported content.
+
+## PWA Install
+
+Serve Hermes Mobile from HTTPS or localhost so the browser can enable the
+Service Worker. Use the top-right install entry or the browser's native
+install/add-to-home-screen command. The PWA caches only the application shell
+and static assets; API data, artifacts, secrets, and workspace files remain
+network/runtime data.
+
+The install identity is path-scoped to `/hermes-mobile/` so deployments that
+also expose another app on the same HTTPS host do not collide with Hermes
+Mobile's PWA.
+
+## Documentation
+
+- [Productization](docs/PRODUCTIZATION.md)
+- [Adapter boundary](docs/ADAPTER_BOUNDARY.md)
+- [Official Hermes compatibility](docs/OFFICIAL_HERMES_COMPATIBILITY.md)
+- [Gateway Pool architecture](docs/GATEWAY_POOL_ARCHITECTURE.md)
+- [Multi-task and account permissions](docs/MULTI_TASK_AND_ACCOUNT_PERMISSIONS.zh-CN.md)
+- [Weixin ingress sidecar](docs/WEIXIN_INGRESS.md)
+- [SQLite service layer](docs/SERVICE_LAYER_SQLITE.md)
+- [Process isolation](docs/PROCESS_ISOLATION.md)
+- [Local workspace root migration](docs/LOCAL_WORKSPACE_ROOT_MIGRATION.md)
+- [Public export checklist](docs/PUBLIC_EXPORT_CHECKLIST.md)
+- [Security policy](SECURITY.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+## License
+
+Hermes Mobile is released under the MIT License. See [LICENSE](LICENSE).

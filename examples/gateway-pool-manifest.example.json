@@ -1,0 +1,31 @@
+{
+  "enabled": true,
+  "version": 1,
+  "workers": [
+    {
+      "name": "user-worker-1",
+      "profile": "user-worker-1",
+      "host": "127.0.0.1",
+      "port": 18751,
+      "api_key": "replace-with-worker-api-key",
+      "enabled": true,
+      "securityLevel": "user",
+      "allowedWorkspaceIds": ["*"],
+      "skillProfile": "workspace:owner",
+      "skillWorkspaceIds": ["owner"],
+      "telemetryStateDbPath": "/var/lib/hermes-gateway/profiles/user-worker-1/state.db",
+      "telemetryResponseStoreDbPath": "/var/lib/hermes-gateway/profiles/user-worker-1/response_store.db"
+    },
+    {
+      "name": "maintenance-worker-1",
+      "profile": "maintenance-worker-1",
+      "host": "127.0.0.1",
+      "port": 18651,
+      "api_key": "replace-with-maintenance-api-key",
+      "enabled": true,
+      "securityLevel": "owner-maintenance",
+      "allowedWorkspaceIds": ["owner"],
+      "allowMaintenance": true
+    }
+  ]
+}
