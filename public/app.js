@@ -168,6 +168,13 @@ const TASK_REASONING_OPTIONS = [
   { value: "high", label: "High" },
   { value: "xhigh", label: "XHigh" },
 ];
+const AI_MENTION_OPTIONS = Object.freeze([
+  Object.assign({}, VIRTUAL_GROUP_AI_MEMBER, { mentionText: "@AI", description: "\u9ed8\u8ba4\u63a8\u7406", reasoningEffort: "" }),
+  { workspaceId: "AI-low", label: "AI \u4f4e", virtual: true, mentionText: "@AI \u4f4e", description: "\u4f4e\u63a8\u7406", reasoningEffort: "low" },
+  { workspaceId: "AI-medium", label: "AI \u4e2d", virtual: true, mentionText: "@AI \u4e2d", description: "\u4e2d\u63a8\u7406", reasoningEffort: "medium" },
+  { workspaceId: "AI-high", label: "AI \u9ad8", virtual: true, mentionText: "@AI \u9ad8", description: "\u9ad8\u63a8\u7406", reasoningEffort: "high" },
+  { workspaceId: "AI-xhigh", label: "AI \u6781\u9ad8", virtual: true, mentionText: "@AI \u6781\u9ad8", description: "\u6781\u9ad8\u63a8\u7406", reasoningEffort: "xhigh" },
+]);
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
@@ -888,7 +895,7 @@ function groupChatMemberLabels(thread = state.currentThread) {
   return [...new Set([...labels, VIRTUAL_GROUP_AI_MEMBER.label])];
 }
 
-function groupChatMentionMembers(thread = state.currentThread) {
+function groupChatMentionMembers(thread = state.currentThread, options = {}) {
   const members = Array.isArray(thread?.chatGroup?.members) && thread.chatGroup.members.length
     ? thread.chatGroup.members
     : threadGroupMemberIds(thread).map((workspaceId) => {
@@ -901,6 +908,7 @@ function groupChatMentionMembers(thread = state.currentThread) {
       label: String(member.label || member.workspaceId || "").trim(),
     }))
     .filter((member) => member.workspaceId && member.workspaceId !== state.selectedWorkspaceId);
+  if (options.includeAi === false) return realMembers;
   return [VIRTUAL_GROUP_AI_MEMBER, ...realMembers];
 }
 
@@ -908,9 +916,32 @@ function normalizeMentionSearch(value) {
   return String(value || "").trim().replace(/\s+/g, "").toLowerCase();
 }
 
-function groupChatMentionsAi(text) {
+function reasoningEffortFromAiAlias(value) {
+  const alias = normalizeMentionSearch(value).replace(/[-_:：]/g, "");
+  if (!alias) return "";
+  if (alias === "low" || alias === "\u4f4e" || alias === "\u4f4e\u63a8\u7406") return "low";
+  if (alias === "medium" || alias === "med" || alias === "mid" || alias === "standard" || alias === "\u4e2d" || alias === "\u4e2d\u63a8\u7406" || alias === "\u9ed8\u8ba4" || alias === "\u6807\u51c6" || alias === "\u6a19\u6e96") return "medium";
+  if (alias === "high" || alias === "\u9ad8" || alias === "\u9ad8\u63a8\u7406") return "high";
+  if (alias === "xhigh" || alias === "highest" || alias === "max" || alias === "maximum" || alias === "\u6781\u9ad8" || alias === "\u6975\u9ad8" || alias === "\u6700\u9ad8" || alias === "\u6700\u9ad8\u63a8\u7406") return "xhigh";
+  return "";
+}
+
+function composerAiMentionInfo(text) {
   const normalized = String(text || "").replace(/\u00a0/g, " ");
-  return /(^|[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?，。；：！？、])[@\uff20]\s*ai(?=$|[\s)\]}\u3000\uff09\uff3d\u3011\uff0c,.;:!?，。；：！？、])/i.test(normalized);
+  const pattern = /(^|[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?，。；：！？、])[@\uff20]\s*ai(?:\s*[-_:：]?\s*(x-?high|highest|max(?:imum)?|low|medium|med|mid|standard|high|\u4f4e\u63a8\u7406|\u4f4e|\u4e2d\u63a8\u7406|\u9ed8\u8ba4|\u6807\u51c6|\u6a19\u6e96|\u4e2d|\u6700\u9ad8\u63a8\u7406|\u6700\u9ad8|\u6781\u9ad8|\u6975\u9ad8|\u9ad8\u63a8\u7406|\u9ad8))?(?=$|[\s)\]}\u3000\uff09\uff3d\u3011\uff0c,.;:!?，。；：！？、])/ig;
+  let mentionsAi = false;
+  let reasoningEffort = "";
+  let match;
+  while ((match = pattern.exec(normalized)) !== null) {
+    mentionsAi = true;
+    const effort = reasoningEffortFromAiAlias(match[2] || "");
+    if (effort) reasoningEffort = effort;
+  }
+  return { mentionsAi, reasoningEffort };
+}
+
+function groupChatMentionsAi(text) {
+  return composerAiMentionInfo(text).mentionsAi;
 }
 
 function isMinimalWindowView() {
@@ -961,7 +992,7 @@ function composerTargetLabel() {
 function composerReasoningLabel() {
   if (isChatSearchMode()) return "";
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return "";
-  const explicit = state.viewMode === "tasks" ? selectedTaskReasoningEffort() : "";
+  const explicit = selectedComposerReasoningEffort(getComposerText());
   const compact = explicit ? taskReasoningCompactLabel({ value: explicit }) : defaultReasoningCompactLabel();
   return `\u63a8\u7406 ${compact}`;
 }
@@ -1238,23 +1269,17 @@ function updateComposerAction() {
   const composer = $("composer");
   const attach = $("attachFile");
   const input = $("messageInput");
-  const reasoningSelect = $("taskReasoningSelect");
   const prevSearch = $("chatSearchPrev");
   const nextSearch = $("chatSearchNext");
   const searchMode = isChatSearchMode();
   composer?.classList.toggle("chat-search-composer", searchMode);
   input?.classList.toggle("chat-search-editor", searchMode);
-  if (searchMode || !isGroupChatView()) closeGroupMentionMenu();
+  if (searchMode || !composerMentionAvailable()) closeGroupMentionMenu();
   if (input) {
     input.setAttribute("enterkeyhint", searchMode ? "search" : "send");
     input.setAttribute("aria-label", searchMode ? "Search chat" : "Message Hermes");
   }
   if (searchMode) {
-    composer?.classList.remove("reasoning-visible");
-    if (reasoningSelect) {
-      reasoningSelect.hidden = true;
-      reasoningSelect.disabled = true;
-    }
     if (attach) {
       attach.textContent = "×";
       attach.disabled = false;
@@ -1283,7 +1308,6 @@ function updateComposerAction() {
     attach.setAttribute("title", "添加文件");
   }
   updateChatSearchStatus();
-  updateTaskReasoningControl();
   const stopMode = isComposerStopMode();
   button.textContent = stopMode ? "Stop" : "Send";
   button.classList.toggle("stop-mode", stopMode);
@@ -1357,36 +1381,17 @@ function taskReasoningControlValue() {
 }
 
 function selectedTaskReasoningEffort() {
-  const select = $("taskReasoningSelect");
-  if (select && !select.hidden && !select.disabled) return validTaskReasoningEffort(select.value || "");
   return validTaskReasoningEffort(state.pendingTaskReasoningEffort);
 }
 
+function selectedComposerReasoningEffort(text = getComposerText()) {
+  const mentionEffort = composerAiMentionInfo(text).reasoningEffort;
+  if (mentionEffort) return mentionEffort;
+  return state.viewMode === "tasks" ? selectedTaskReasoningEffort() : "";
+}
+
 function updateTaskReasoningControl() {
-  const select = $("taskReasoningSelect");
-  if (!select) return;
-  const visible = isTaskWindowView();
-  if (!select.dataset.boundTaskReasoning) {
-    select.addEventListener("change", () => {
-      state.pendingTaskReasoningEffort = select.value || "";
-      state.pendingTaskReasoningExplicit = true;
-      renderComposerContext();
-    });
-    select.dataset.boundTaskReasoning = "1";
-  }
-  const defaultEffort = state.defaultReasoningEffort || "medium";
-  if (select.dataset.defaultReasoningEffort !== defaultEffort) {
-    select.innerHTML = TASK_REASONING_OPTIONS.map((item) =>
-      `<option value="${escapeHtml(item.value)}">${escapeHtml(taskReasoningCompactLabel(item))}</option>`,
-    ).join("");
-    select.dataset.defaultReasoningEffort = defaultEffort;
-  }
-  select.value = taskReasoningControlValue();
-  select.title = `默认推理等级：${defaultReasoningLabel()}`;
-  select.setAttribute("aria-label", `推理等级，默认 ${defaultReasoningLabel()}`);
-  select.hidden = !visible;
-  select.disabled = !visible;
-  $("composer")?.classList.toggle("reasoning-visible", visible);
+  renderComposerContext();
 }
 
 function ensureVerticalScrollAffordance(container = $("conversation")) {
@@ -9232,6 +9237,7 @@ async function sendMessage(event) {
   if (!state.currentThreadId) return;
   const text = getComposerText().trim();
   if (!text && !state.pendingArtifacts.length) return;
+  const aiMention = composerAiMentionInfo(text);
   if (isDraftThread(state.currentThread)) await materializeCurrentThread();
   if (!state.currentThreadId) return;
   closeGroupMentionMenu();
@@ -9249,10 +9255,10 @@ async function sendMessage(event) {
           ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
           : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
       }
-      if (isGroupChatView()) body.messageKind = groupChatMentionsAi(text) ? "ai" : "plain";
+      if (isGroupChatView()) body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
     }
     if (state.viewMode === "tasks" && state.currentTaskGroupId) body.taskGroupId = state.currentTaskGroupId;
-    const reasoningEffort = state.viewMode === "tasks" ? selectedTaskReasoningEffort() : "";
+    const reasoningEffort = selectedComposerReasoningEffort(text);
     if (reasoningEffort) body.reasoning_effort = reasoningEffort;
     const quotedReply = activeQuotedReplyForSend();
     if (quotedReply) {
@@ -9711,26 +9717,39 @@ function setComposerCaretOffset(offset) {
   selection?.addRange(range);
 }
 
+function composerMentionAvailable() {
+  if (isChatSearchMode()) return false;
+  return state.viewMode === "single" || state.viewMode === "tasks";
+}
+
+function composerMentionMembers() {
+  const groupMembers = isGroupChatView() ? groupChatMentionMembers(state.currentThread, { includeAi: false }) : [];
+  return [...AI_MENTION_OPTIONS, ...groupMembers];
+}
+
 function activeGroupMentionToken() {
-  if (!isGroupChatView() || isChatSearchMode()) return null;
+  if (!composerMentionAvailable()) return null;
   const text = getComposerText();
   const caret = composerCaretOffset();
   const before = text.slice(0, caret);
-  const at = before.lastIndexOf("@");
+  const at = Math.max(before.lastIndexOf("@"), before.lastIndexOf("\uff20"));
   if (at < 0) return null;
   const previous = at > 0 ? before[at - 1] : "";
-  if (previous && !/[\s([（【,，;；:：]/.test(previous)) return null;
+  if (previous && !/[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?，。；：！？、]/.test(previous)) return null;
   const query = before.slice(at + 1);
-  if (/[\s\r\n@]/.test(query) || query.length > 40) return null;
+  if (/[\s\r\n@\uff20]/.test(query) || query.length > 40) return null;
   return { start: at, end: caret, query };
 }
 
 function mentionOptionsForQuery(query) {
   const needle = normalizeMentionSearch(query);
-  return groupChatMentionMembers().filter((member) => {
+  return composerMentionMembers().filter((member) => {
     if (!needle) return true;
     return normalizeMentionSearch(member.label).includes(needle)
-      || normalizeMentionSearch(member.workspaceId).includes(needle);
+      || normalizeMentionSearch(member.workspaceId).includes(needle)
+      || normalizeMentionSearch(member.description).includes(needle)
+      || normalizeMentionSearch(member.mentionText).includes(needle)
+      || normalizeMentionSearch(member.reasoningEffort).includes(needle);
   }).slice(0, 8);
 }
 
@@ -9766,8 +9785,8 @@ function renderGroupMentionMenu() {
   menu.hidden = false;
   menu.innerHTML = options.map((member, index) => `
     <button class="group-mention-option${index === state.groupMentionIndex ? " active" : ""}" type="button" data-group-mention-index="${index}">
-      <span class="group-mention-name">@${escapeHtml(member.label)}</span>
-      <span class="group-mention-id">${escapeHtml(member.workspaceId)}</span>
+      <span class="group-mention-name">${escapeHtml(member.mentionText || `@${member.label}`)}</span>
+      <span class="group-mention-id">${escapeHtml(member.description || member.workspaceId)}</span>
     </button>`).join("");
 }
 
@@ -9784,7 +9803,7 @@ function chooseGroupMention(index = state.groupMentionIndex) {
   if (!member) return false;
   const token = state.groupMentionToken;
   const text = getComposerText();
-  const insertion = `@${member.label} `;
+  const insertion = `${String(member.mentionText || `@${member.label}`).trimEnd()} `;
   const next = `${text.slice(0, token.start)}${insertion}${text.slice(token.end)}`;
   setComposerText(next);
   $("messageInput")?.focus({ preventScroll: true });
@@ -9795,7 +9814,7 @@ function chooseGroupMention(index = state.groupMentionIndex) {
 }
 
 function updateGroupMentionMenu() {
-  if (!isGroupChatView() || isChatSearchMode()) {
+  if (!composerMentionAvailable()) {
     closeGroupMentionMenu();
     return;
   }
@@ -9814,7 +9833,7 @@ function pastePlainText(event) {
 }
 
 function handleComposerKeydown(event) {
-  if (!isChatSearchMode() && isGroupChatView() && state.groupMentionOpen) {
+  if (composerMentionAvailable() && state.groupMentionOpen) {
     if (event.key === "ArrowDown") {
       event.preventDefault();
       moveGroupMentionSelection(1);

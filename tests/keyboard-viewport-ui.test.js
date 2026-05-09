@@ -9,6 +9,8 @@ const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorker = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
+const clientVersion = indexHtml.match(/data-client-version="([^"]+)"/)?.[1] || "";
+const escapedClientVersion = clientVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 assert.match(appJs, /keyboardViewportActive/);
 assert.match(appJs, /function visualViewportKeyboardMetrics\(\)/);
@@ -28,9 +30,11 @@ assert.match(stylesCss, /height: var\(--app-viewport-height, 100dvh\)/);
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.bottom-nav/);
 assert.match(stylesCss, /display: none/);
 
-assert.match(indexHtml, /data-client-version="20260509-1455"/);
-assert.match(serviceWorker, /20260509-keyboard-fixed-viewport/);
-assert.match(serviceWorker, /styles\.css\?v=20260509-1455/);
-assert.match(serviceWorker, /app\.js\?v=20260509-1455/);
+assert.ok(clientVersion);
+assert.match(serviceWorker, /HERMES_SW_VERSION = "20260509-/);
+assert.match(indexHtml, new RegExp(`styles\\.css\\?v=${escapedClientVersion}`));
+assert.match(indexHtml, new RegExp(`app\\.js\\?v=${escapedClientVersion}`));
+assert.match(serviceWorker, new RegExp(`styles\\.css\\?v=${escapedClientVersion}`));
+assert.match(serviceWorker, new RegExp(`app\\.js\\?v=${escapedClientVersion}`));
 
 console.log("keyboard viewport UI tests passed");

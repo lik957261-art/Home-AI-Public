@@ -1187,10 +1187,6 @@ button {
   grid-template-columns: 44px minmax(0, 1fr) 30px 30px auto auto;
 }
 
-.composer.chat-search-composer.reasoning-visible {
-  grid-template-columns: 44px minmax(0, 1fr) 30px 30px auto auto;
-}
-
 .composer.chat-search-composer #sendMessage {
   grid-column: 6;
 }
@@ -4869,10 +4865,6 @@ button.directory-alias-chip {
   backdrop-filter: blur(18px);
 }
 
-.composer.reasoning-visible {
-  grid-template-columns: 44px minmax(0, 1fr) 58px auto;
-}
-
 .group-mention-menu {
   position: absolute;
   left: 66px;
@@ -5048,31 +5040,6 @@ button.directory-alias-chip {
   background: #d8efe6;
   border: 1px solid rgba(31, 111, 98, 0.18);
   box-shadow: 0 8px 18px rgba(31, 111, 98, 0.08);
-}
-
-.composer.reasoning-visible #sendMessage {
-  grid-column: 4;
-}
-
-#taskReasoningSelect {
-  grid-column: 3;
-  min-width: 56px;
-  max-width: 58px;
-  min-height: 38px;
-  padding: 0 16px 0 8px;
-  color: rgba(36, 94, 83, 0.72);
-  background: rgba(255, 250, 241, 0.48);
-  border: 1px solid rgba(31, 111, 98, 0.1);
-  border-radius: 10px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 680;
-  outline: none;
-  box-shadow: none;
-}
-
-#taskReasoningSelect[hidden] {
-  display: none;
 }
 
 .pending-artifacts {
@@ -5666,10 +5633,6 @@ button.directory-alias-chip {
     min-height: 23px;
   }
 
-  .composer.reasoning-visible {
-    grid-template-columns: 44px minmax(0, 1fr) 54px auto;
-  }
-
   .group-mention-menu {
     left: 58px;
     right: 62px;
@@ -5684,14 +5647,6 @@ button.directory-alias-chip {
   .composer button {
     min-height: 36px;
     padding: 0 12px;
-  }
-
-  #taskReasoningSelect {
-    min-width: 52px;
-    max-width: 54px;
-    min-height: 36px;
-    padding: 0 15px 0 7px;
-    font-size: 11px;
   }
 
   .composer-editor {
