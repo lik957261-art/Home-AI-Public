@@ -6750,14 +6750,20 @@ function resolveFileForBrowserRequest(query, auth = null) {
     const resolvedArtifact = resolveArtifactForRequest(artifactId, auth);
     if (!resolvedArtifact.artifact) return { status: resolvedArtifact.status || 404, error: resolvedArtifact.error || "Artifact not found" };
     const artifact = resolvedArtifact.artifact;
-    const stat = fs.statSync(artifact.path);
+    const localPath = artifact.localPath || artifact.path;
+    let stat;
+    try {
+      stat = fs.statSync(localPath);
+    } catch (_) {
+      return { status: 404, error: "Artifact not found" };
+    }
     if (!stat.isFile()) return { status: 400, error: "Artifact path is not a file" };
     return {
       file: {
-        localPath: artifact.path,
-        displayPath: logicalUserPathFallback(artifact.displayPath || artifact.path, artifact.name || ""),
-        name: artifact.name || path.basename(artifact.path),
-        mime: artifact.mime || mimeFor(artifact.path),
+        localPath,
+        displayPath: logicalUserPathFallback(artifact.displayPath || artifact.path || localPath, artifact.name || ""),
+        name: artifact.name || path.basename(localPath),
+        mime: artifact.mime || mimeFor(localPath),
         size: stat.size,
         updatedAt: stat.mtime.toISOString(),
       },

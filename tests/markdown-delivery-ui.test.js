@@ -14,6 +14,8 @@ const cronBridge = fs.readFileSync(path.join(repoRoot, "cron_bridge.py"), "utf8"
 assert.match(serverJs, /AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS = new Set\(\["\.md", "\.pdf"/);
 assert.match(serverJs, /Write final document deliverables as Markdown by default/);
 assert.match(serverJs, /Markdown\/PDF\/Office file/);
+assert.match(serverJs, /const localPath = artifact\.localPath \|\| artifact\.path/);
+assert.match(serverJs, /stat = fs\.statSync\(localPath\)/);
 
 assert.match(appJs, /function isMarkdownArtifact\(artifact\)/);
 assert.match(appJs, /const markdownDocuments = artifacts\.filter\(isMarkdownArtifact\)/);
