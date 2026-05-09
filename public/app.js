@@ -4682,9 +4682,12 @@ function renderAccessKeyManager() {
       <button type="button" data-create-workspace>保存工作区</button>
     </section>
   </details>` : "";
+  const localWorkspaceSection = renderWorkspaceSection("本地用户", localWorkspaces, { editable: true });
+  const deploymentWorkspaceSection = renderWorkspaceSection("部署账号", deploymentWorkspaces, { editable: false });
   const workspaceAdminList = isOwnerAccessManager
-    ? `${renderWorkspaceSection("本地用户", localWorkspaces, { editable: true })}
-       ${renderWorkspaceSection("部署账号", deploymentWorkspaces, { editable: false })}
+    ? `${localWorkspaceSection}
+       ${workspaceCreateForm}
+       ${deploymentWorkspaceSection}
        ${!localWorkspaces.length && !deploymentWorkspaces.length ? `<section class="access-key-section"><div class="access-key-empty">还没有可管理的账号。</div></section>` : ""}
        ${orphanKeySection}`
     : `<section class="access-key-section"><div class="access-key-list">${accessKeys.map((item) => {
@@ -4717,7 +4720,6 @@ function renderAccessKeyManager() {
       ${errorBlock}
       ${ownerKeySection}
       ${workspaceAdminList}
-      ${workspaceCreateForm}
       ${fallbackGenerated}
     </div>`;
 
