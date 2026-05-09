@@ -106,6 +106,7 @@ const state = {
   keyboardContextTopPx: 0,
   keyboardViewportActive: false,
   renderScheduled: false,
+  streamingMessageRenderScheduled: new Set(),
   shouldStickToBottom: true,
   preservedBottomOffset: 0,
   conversationPinnedToBottom: true,
@@ -9843,6 +9844,38 @@ function scheduleRenderCurrentThread() {
   });
 }
 
+function renderStreamingMessageContent(message) {
+  if (!message?.id || message.role !== "assistant") return false;
+  if (isChatSearchMode() && currentChatSearchQuery()) return false;
+  const article = messageElementById(message.id);
+  const body = article?.querySelector?.(".message-body");
+  const content = body?.querySelector?.(".text-content");
+  if (!article || !body || !content || message.revokedAt) return false;
+  const shouldStick = isNearBottom();
+  content.outerHTML = renderText(message.content || "", message);
+  if (shouldStick) {
+    const conversation = $("conversation");
+    conversation.scrollTop = conversation.scrollHeight;
+    state.conversationPinnedToBottom = true;
+  } else {
+    state.conversationPinnedToBottom = false;
+  }
+  scheduleMessageScrollButtonVisibility($("conversation"));
+  return true;
+}
+
+function scheduleStreamingMessageRender(message) {
+  if (!message?.id) return false;
+  const id = String(message.id);
+  if (state.streamingMessageRenderScheduled.has(id)) return true;
+  state.streamingMessageRenderScheduled.add(id);
+  requestAnimationFrame(() => {
+    state.streamingMessageRenderScheduled.delete(id);
+    if (!renderStreamingMessageContent(message)) scheduleRenderCurrentThread();
+  });
+  return true;
+}
+
 function threadMatchesSelection(thread) {
   if (!thread) return false;
   if (
@@ -9972,8 +10005,7 @@ function appendDelta(threadId, messageId, delta, payload = {}) {
   message.content = `${message.content || ""}${delta || ""}`;
   if (!message.firstFeedbackAt) message.firstFeedbackAt = payload.firstFeedbackAt || updatedAt;
   message.updatedAt = updatedAt;
-  if (state.viewMode === "tasks") renderThreads();
-  scheduleRenderCurrentThread();
+  if (!scheduleStreamingMessageRender(message)) scheduleRenderCurrentThread();
 }
 
 function applyEvent(payload) {
