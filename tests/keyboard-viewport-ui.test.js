@@ -31,7 +31,7 @@ assert.match(stylesCss, /:root\.keyboard-viewport-active \.bottom-nav/);
 assert.match(stylesCss, /display: none/);
 
 assert.ok(clientVersion);
-assert.match(serviceWorker, /HERMES_SW_VERSION = "20260509-/);
+assert.match(serviceWorker, /HERMES_SW_VERSION = "20\d{6}-/);
 assert.match(indexHtml, new RegExp(`styles\\.css\\?v=${escapedClientVersion}`));
 assert.match(indexHtml, new RegExp(`app\\.js\\?v=${escapedClientVersion}`));
 assert.match(serviceWorker, new RegExp(`styles\\.css\\?v=${escapedClientVersion}`));

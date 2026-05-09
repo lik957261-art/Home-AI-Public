@@ -8717,14 +8717,7 @@ function renderTaskDetailToolbar(group) {
 }
 
 function renderTaskCard(group) {
-  const latestArtifact = latestTaskListDocument(group);
   const skills = taskSkills(group);
-  const artifactChips = latestArtifact ? `<span class="task-doc-item">
-    <a class="task-doc-icon doc-${escapeHtml(artifactKind(latestArtifact))}" href="${escapeHtml(artifactHref(latestArtifact))}" target="_blank" rel="noopener" data-task-doc title="${escapeHtml(latestArtifact.name || latestArtifact.id || "document")}" aria-label="${escapeHtml(latestArtifact.name || latestArtifact.id || "document")}">
-      ${escapeHtml(iconForArtifact(latestArtifact))}
-    </a>
-    ${renderArtifactDirectoryButton(latestArtifact, { compact: true })}
-  </span>` : "";
   const skillChips = renderTaskSkillChips(skills, { compact: true });
   return `<article class="task-card task-card-collapsed task-swipe-row" data-task-swipe-card data-task-id="${escapeHtml(group.id)}">
     <button class="task-swipe-delete" type="button" data-delete-task="${escapeHtml(group.id)}" aria-label="Delete task">&#21024;&#38500;</button>
@@ -8737,12 +8730,9 @@ function renderTaskCard(group) {
       </div>
       <button class="task-card-main" type="button" data-open-task="${escapeHtml(group.id)}">
         <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled task")}</span>
-        <span class="task-row-meta">${escapeHtml(`${taskStatus(group)} | ${formatTime(group.updatedAt)}`)}</span>
+        <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}</span>
       </button>
       <div class="task-card-assets">
-        <div class="task-docs${artifactChips || !skillChips ? "" : " empty"}" aria-label="Task documents">
-          ${artifactChips || (skillChips ? "" : `<span class="task-doc-empty">No doc</span>`)}
-        </div>
         ${skillChips}
         ${renderTaskDirectoryBadges(group, { empty: true })}
       </div>
