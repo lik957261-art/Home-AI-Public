@@ -64,6 +64,10 @@ assert.match(appJs, /input\.setRangeText\(text, start, end, "end"\)/);
 assert.match(appJs, /state\.composerComposing = true/);
 assert.match(appJs, /state\.composerSendAfterComposition = true/);
 assert.match(stylesCss, /resize: none/);
+assert.match(appJs, /const SHARE_IMAGE_WIDTH = 1080/);
+assert.match(appJs, /const SHARE_IMAGE_SCALE = 2/);
+assert.match(appJs, /function shareImageRenderScale\(layout\)/);
+assert.match(appJs, /ctx\.scale\(scale, scale\)/);
 
 assert.equal(indexHtml.includes("taskReasoningSelect"), false);
 assert.equal(stylesCss.includes("taskReasoningSelect"), false);

@@ -186,6 +186,10 @@ const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
 const GROUP_REVOKE_LABEL = "\u64a4\u56de";
+const SHARE_IMAGE_WIDTH = 1080;
+const SHARE_IMAGE_SCALE = 2;
+const SHARE_IMAGE_MAX_PIXELS = 32000000;
+const SHARE_IMAGE_MAX_DIMENSION = 16384;
 
 function isSingleWindowConversationTaskGroupId(value) {
   const id = String(value || "");
@@ -5422,8 +5426,8 @@ function fillRoundRect(ctx, x, y, width, height, radius, fillStyle) {
 }
 
 function layoutShareImage(ctx, message, text) {
-  const width = 900;
-  const margin = 54;
+  const width = SHARE_IMAGE_WIDTH;
+  const margin = 72;
   const contentWidth = width - margin * 2;
   const items = [];
   let y = 54;
@@ -5556,6 +5560,14 @@ function canvasToBlob(canvas, type = "image/png") {
   });
 }
 
+function shareImageRenderScale(layout) {
+  const width = Math.max(1, Number(layout?.width || 1));
+  const height = Math.max(1, Number(layout?.height || 1));
+  const maxByPixels = Math.sqrt(SHARE_IMAGE_MAX_PIXELS / (width * height));
+  const maxByDimension = Math.min(SHARE_IMAGE_MAX_DIMENSION / width, SHARE_IMAGE_MAX_DIMENSION / height);
+  return Math.max(1, Math.min(SHARE_IMAGE_SCALE, maxByPixels, maxByDimension));
+}
+
 async function renderMessageShareImageBlob(message) {
   const text = messageShareText(message);
   if (!text) throw new Error("Message has no image content");
@@ -5563,10 +5575,12 @@ async function renderMessageShareImageBlob(message) {
   const measureCtx = measureCanvas.getContext("2d");
   const layout = layoutShareImage(measureCtx, message, text);
   if (layout.height > 30000) throw new Error("Reply is too long for one image");
+  const scale = shareImageRenderScale(layout);
   const canvas = document.createElement("canvas");
-  canvas.width = layout.width;
-  canvas.height = layout.height;
+  canvas.width = Math.ceil(layout.width * scale);
+  canvas.height = Math.ceil(layout.height * scale);
   const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
   drawShareImage(ctx, layout);
   return canvasToBlob(canvas, "image/png");
 }
