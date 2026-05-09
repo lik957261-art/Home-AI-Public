@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_DELIVERY_TARGET = "the selected workspace's `交付` directory or an explicitly supplied delivery directory";
+const DEFAULT_DELIVERY_TARGET = "the selected workspace delivery directory, project directory, run directory, or an explicitly supplied delivery directory";
 const DEFAULT_SOURCE_TARGET = "the relevant project directory, attached task directory, or run working directory";
 
 function normalizeTarget(value, fallback) {
@@ -13,19 +13,22 @@ function createDeliveryBoundaryInstructions(options = {}) {
   const sourceTarget = normalizeTarget(options.sourceTarget || options.source_target, DEFAULT_SOURCE_TARGET);
   return [
     "Hermes Mobile delivery boundary:",
-    `- Final user-facing PDF/Word/Office/media/image deliverables must be written to ${deliveryTarget}; include MEDIA:<absolute_path> for each final file.`,
-    `- Markdown files are source artifacts. Keep Markdown in ${sourceTarget}; do not write Markdown into any \`交付\` directory and do not attach Markdown as the user-facing deliverable.`,
-    "- Project directories are for Markdown/source/context files. Do not leave generated PDF/Word delivery copies in project directories unless the user explicitly asks for an archival copy there.",
-    "- If a user-facing PDF is generated from Markdown or text for mobile reading, default to a phone-readable portrait PDF: about 88 mm x 190 mm, large CJK-wrapped body text, Microsoft YaHei or another clear CJK font when available, and vertical/key-value rendering for wide tables. Do not create A4/Letter small-font PDFs unless the user explicitly asks for print layout.",
+    "- The default final document deliverable is Markdown (.md), including chat replies, task replies, group-chat replies, and automation runs.",
+    `- Write final Markdown deliverables to ${deliveryTarget}; include MEDIA:<absolute_path> for each final Markdown file so Hermes Mobile can preview it as rendered HTML.`,
+    `- Keep supporting source/context Markdown in ${sourceTarget}. If the task also needs intermediate notes, do not expose those notes as final deliverables unless they are explicitly named as final output.`,
+    "- Do not generate PDF, Word, Office, or image copies by default. Generate them only when the user explicitly asks for external forwarding, printing, editable Office output, a required non-Markdown format, or a non-document media artifact.",
+    "- Hermes Mobile previews Markdown as dynamic HTML internally. Do not force phone-only PDF pagination just for internal preview.",
+    "- When forwarding or sharing a Markdown deliverable through the system share flow, do not treat the raw .md file as the default external payload. Use the Hermes Mobile export/share flow to choose a generated format such as HTML, Word-compatible document, print/PDF, or explicitly requested raw Markdown.",
+    "- If a user-facing PDF is explicitly requested from Markdown or text for mobile reading, default to a phone-readable portrait PDF: about 88 mm x 190 mm, large CJK-wrapped body text, Microsoft YaHei or another clear CJK font when available, and vertical/key-value rendering for wide tables. Do not create A4/Letter small-font PDFs unless the user explicitly asks for print layout.",
     "- This boundary applies equally to chat replies, task replies, group-chat replies, and automation runs.",
   ].join("\n");
 }
 
 function createAutomationDeliveryRequirement(options = {}) {
   return [
-    "交付要求：任务完成时给出面向用户的最终结果；如果生成 PDF、Word 或其他正式交付文件，必须写入该工作区自己的 `交付` 目录或明确传入的交付目录，并在最终回复中包含 `MEDIA:<本地文件绝对路径>`，便于 Hermes Mobile 在自动化列表中预览最后交付文件。不要再为了 Hermes Mobile 预览把文件复制到旧的 `Hermes同步文件夹`。",
+    "Automation delivery requirement: when the run completes, produce the user-facing final document as Markdown (.md) by default. Include `MEDIA:<absolute_path>` for the final Markdown file so Hermes Mobile can preview it in the Automation list. Generate PDF, Word, or Office output only when the automation request or user explicitly asks for that external/export format.",
     createDeliveryBoundaryInstructions(Object.assign({
-      deliveryTarget: "the workspace's `交付` directory or the explicitly supplied delivery directory",
+      deliveryTarget: "the workspace delivery directory, project directory, run directory, or the explicitly supplied delivery directory",
       sourceTarget: "the corresponding project directory or run working directory",
     }, options)),
   ].join("\n");

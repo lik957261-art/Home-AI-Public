@@ -135,11 +135,11 @@ async function run() {
   assert.equal(outputFile.file.mime, "text/markdown");
 
   const values = provider.deliverablePathValues(fs.readFileSync(outputFile.file.localPath, "utf8"));
-  assert.deepEqual(values.map((item) => path.basename(item)), ["report.pdf", "notes.md"]);
+  assert.deepEqual(values.map((item) => path.basename(item)), ["notes.md", "report.pdf"]);
 
   const deliverableFile = provider.resolveDeliverableFile(new URLSearchParams({ jobId: "job_1", run: "run.md", index: "0" }));
-  assert.equal(deliverableFile.file.name, "report.pdf");
-  assert.equal(deliverableFile.file.mime, "application/pdf");
+  assert.equal(deliverableFile.file.name, "notes.md");
+  assert.equal(deliverableFile.file.mime, "text/markdown");
 
   const unauthorized = await provider.resolveAuthorizedDeliverableFile({
     query: new URLSearchParams({ workspaceId: "workspace_a", jobId: "job_1", run: "run.md", index: "0" }),
@@ -151,7 +151,7 @@ async function run() {
     query: new URLSearchParams({ workspaceId: "workspace_a", jobId: "job_1", run: "run.md", index: "0" }),
     auth: { workspaceId: "workspace_a" },
   });
-  assert.equal(authorized.file.name, "report.pdf");
+  assert.equal(authorized.file.name, "notes.md");
 
   fs.rmSync(jobOutputRoot, { recursive: true, force: true });
   const bridgeAuthorized = await provider.resolveAuthorizedDeliverableFile({

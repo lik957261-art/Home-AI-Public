@@ -284,7 +284,7 @@ function isSingleWindowConversationTaskGroupId(value) {
   return id === SINGLE_WINDOW_CHAT_TASK_GROUP_ID || id === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
 }
 
-const AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS = new Set([".pdf", ".doc", ".docx", ".xlsx", ".pptx"]);
+const AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS = new Set([".md", ".pdf", ".doc", ".docx", ".xlsx", ".pptx"]);
 const AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS || String(30 * 60 * 1000));
 const AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS || String(30 * 60 * 1000));
 const AUTOMATION_PUSH_INITIAL_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_INITIAL_LOOKBACK_MS || String(24 * 60 * 60 * 1000));
@@ -4186,15 +4186,15 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     lines.push(`Attached task directory: ${taskDirectory.label || "Directory"} => ${taskDirectory.path}.`);
     lines.push("Base this task on the cleaned/normalized data in the attached directory first; use broader allowed roots only when the user request clearly requires it.");
     lines.push("Use Skill: productivity/directory-context-cleaning before analysis: clean new or changed files in the attached directory, update `.hermes-cleaned/summary.md` / indexes, then answer from summary-first cleaned context and open detailed cleaned Markdown only when needed.");
-    lines.push("Keep the attached data directory separate from delivery folders. Do not write final PDF/Word deliverables into the attached data directory unless the user explicitly asks for that archival copy; use the selected workspace's own `交付` directory or the explicitly supplied delivery directory for MEDIA files. Do not use the legacy Hermes sync folder for Hermes Mobile preview delivery.");
+    lines.push("Keep the attached data directory separate from delivery folders. Write final document deliverables as Markdown by default and expose them with MEDIA:<path>. Generate PDF/Word copies only when explicitly requested for external forwarding, printing, editable Office, or another required format. Do not use the legacy Hermes sync folder for Hermes Mobile preview delivery.");
   }
   if (thread.singleWindow || project?.singleWindow) {
     if (singleWindowMode === "chat") {
       lines.push("This request comes from the Hermes Mobile single-window chat mode. Treat the latest user message as part of one continuous chat task.");
       lines.push("Use the supplied same-task conversation_history as normal chat context, while still respecting the selected workspace and access policy.");
       if (groupChatDeliveryRoot) {
-        lines.push(`This is a group-chat AI request. Final user-facing deliverables for this group turn must be written under the group delivery directory: ${groupChatDeliveryRoot}.`);
-        lines.push("Do not place group-chat PDF/Word/media deliverables only in the sender's private delivery directory. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
+        lines.push(`This is a group-chat AI request. Final user-facing document deliverables for this group turn should be Markdown by default and must be written under the group delivery directory: ${groupChatDeliveryRoot}.`);
+        lines.push("Do not place group-chat deliverables only in the sender's private delivery directory. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
       }
       lines.push("Do not inherit, emit, or display prior directory bindings or `目录别名：当前绑定目录=...` from older chat turns. Only an explicit directory attachment on the latest message is a current directory binding.");
     } else {
@@ -5532,9 +5532,9 @@ function automationLatestDeliverableForPush(job, existingMark = null) {
       if (!doc?.url || Number(doc?.size || 0) <= 0) return false;
       const docTimeMs = automationDeliverableTimeMs(doc);
       if (!docTimeMs) return false;
-      // Web Push is tied to formal delivery-file freshness, not CRON execution time.
+      // Web Push is tied to delivery-file freshness, not CRON execution time.
       // A silent CRON run that only advances lastRunAt must not re-notify for the
-      // same unchanged PDF/Office file.
+      // same unchanged Markdown/PDF/Office file.
       if (previousDeliverableMs && docTimeMs <= previousDeliverableMs) return false;
       if (docTimeMs < lastRunMs - AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS) return false;
       if (docTimeMs > nowWithGrace) return false;

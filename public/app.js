@@ -476,13 +476,16 @@ function isTaskListPrimaryDocument(artifact) {
   return name.endsWith(".md") || name.endsWith(".txt");
 }
 
+function isMarkdownArtifact(artifact) {
+  const name = String(artifact?.name || artifact?.id || "").toLowerCase();
+  const mime = String(artifact?.mime || "").toLowerCase();
+  return mime.includes("markdown") || name.endsWith(".md");
+}
+
 function latestTaskListDocument(group) {
   const artifacts = taskArtifacts(group);
-  const formalDocuments = artifacts.filter((artifact) => {
-    const kind = artifactKind(artifact);
-    return kind === "pdf" || kind === "word";
-  });
-  const candidates = formalDocuments.length ? formalDocuments : artifacts.filter(isTaskListPrimaryDocument);
+  const markdownDocuments = artifacts.filter(isMarkdownArtifact);
+  const candidates = markdownDocuments.length ? markdownDocuments : artifacts.filter(isTaskListPrimaryDocument);
   return candidates[candidates.length - 1] || null;
 }
 
@@ -657,10 +660,9 @@ function artifactKind(artifact) {
   ) {
     return "word";
   }
+  if (mime.includes("markdown") || name.endsWith(".md")) return "markdown";
   if (
-    mime.includes("markdown") ||
     mime.startsWith("text/") ||
-    name.endsWith(".md") ||
     name.endsWith(".txt") ||
     name.endsWith(".csv") ||
     name.endsWith(".json")
@@ -8916,6 +8918,7 @@ function iconForArtifact(artifact) {
   const kind = artifactKind(artifact);
   if (kind === "pdf") return "PDF";
   if (kind === "word") return "DOC";
+  if (kind === "markdown") return "MD";
   if (kind === "text") return "TXT";
   return iconForMime(artifact?.mime);
 }

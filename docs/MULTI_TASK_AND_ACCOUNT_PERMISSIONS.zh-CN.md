@@ -141,9 +141,9 @@ Public release 应包含以下行为：
 
 任务和聊天生成的文件应分清源文件和交付文件：
 
-- Markdown 通常是源内容或中间稿，保存在项目、任务或运行目录中。
-- 用户交付目录应优先放 PDF、Word、Office、图片、媒体等最终交付格式。
-- 如果需要把 Markdown 发给外部用户，应由 Hermes Mobile 或任务生成器渲染成适合阅读的 PDF/Word，而不是把 Markdown 当成最终交付物。
+- Markdown (`.md`) 是默认最终文档交付格式，适用于聊天、任务、群聊和自动化运行。Hermes Mobile 内部预览应把 Markdown 渲染为 HTML，而不是要求模型为了预览额外生成 PDF。
+- PDF、Word、Office、图片、媒体等格式只在用户明确需要外部转发、打印、可编辑 Office、非 Markdown 媒体或指定格式时生成。
+- 系统转发 Markdown 交付物时，不应默认转发原生 `.md` 文件；应由 Hermes Mobile 提供导出/分享选择，例如 HTML、Word-compatible、打印/另存 PDF，原始 Markdown 只作为明确选择。
 - 交付文件路径必须通过 `MEDIA:<absolute_path>` 或等价 artifact 元数据进入 Hermes Mobile 预览与投递流程。
 
 该边界适用于聊天、任务、group chat 和自动化运行。

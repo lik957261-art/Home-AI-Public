@@ -12,6 +12,7 @@ This repository is the private productization checkout. It was split from the la
 - Workspace-scoped access keys.
 - Web Push notifications for task, todo, group mention, and automation events.
 - CRON/automation list and deliverable preview.
+- Markdown-first document delivery: chat, task, group, and automation outputs default to `.md`, render as HTML in the app, and offer generated export/share choices for external forwarding.
 
 ## Run
 

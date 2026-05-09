@@ -222,9 +222,9 @@ function createAutomationProvider(options = {}) {
         return true;
       })
       .sort((a, b) => {
-        const aOffice = /\.(pdf|docx|doc)$/i.test(a) ? 0 : 1;
-        const bOffice = /\.(pdf|docx|doc)$/i.test(b) ? 0 : 1;
-        return aOffice - bOffice;
+        const aMarkdown = /\.md$/i.test(a) ? 0 : 1;
+        const bMarkdown = /\.md$/i.test(b) ? 0 : 1;
+        return aMarkdown - bMarkdown;
       });
   }
 

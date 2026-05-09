@@ -30,8 +30,8 @@ DEFAULT_JOBS_PATHS = [
 ]
 
 CRON_OUTPUT_ROOT = Path(os.environ.get("HERMES_WEB_CRON_OUTPUT_ROOT") or (HERMES_HOME / "cron" / "output"))
-DELIVERY_DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".doc"}
-MEDIA_DOCUMENT_EXTENSIONS = DELIVERY_DOCUMENT_EXTENSIONS | {".md"}
+EXPORT_DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".doc"}
+MEDIA_DOCUMENT_EXTENSIONS = {".md"} | EXPORT_DOCUMENT_EXTENSIONS
 OUTPUT_SCAN_LIMIT = int(os.environ.get("HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT") or os.environ.get("HERMES_WEB_AUTOMATION_OUTPUT_SCAN_LIMIT") or "80")
 MAX_READ_FILE_BYTES = int(os.environ.get("HERMES_MOBILE_CRON_FILE_MAX_BYTES") or os.environ.get("HERMES_WEB_CRON_FILE_MAX_BYTES") or "26214400")
 MEDIA_LINE_PATTERN = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$")
@@ -233,8 +233,14 @@ def normalize_delivery_path(raw: str) -> Path | None:
         value = "/" + unc.group(2).replace("\\", "/")
     drive = re.match(r"(?i)^([a-z]):[\\/](.+)$", value)
     if drive:
+        if os.name == "nt":
+            return Path(f"{drive.group(1).upper()}:\\{drive.group(2)}")
         drive_tail = drive.group(2).replace("\\", "/")
         value = f"/mnt/{drive.group(1).lower()}/{drive_tail}"
+    mnt_drive = re.match(r"(?i)^/mnt/([a-z])/(.+)$", value)
+    if mnt_drive and os.name == "nt":
+        drive_tail = mnt_drive.group(2).replace("/", "\\")
+        return Path(f"{mnt_drive.group(1).upper()}:\\{drive_tail}")
     return Path(value)
 
 
@@ -259,7 +265,7 @@ def media_paths_from_run(path: Path) -> list[Path]:
             continue
         seen.add(key)
         docs.append(candidate)
-    docs.sort(key=lambda item: 0 if item.suffix.lower() in DELIVERY_DOCUMENT_EXTENSIONS else 1)
+    docs.sort(key=lambda item: 0 if item.suffix.lower() == ".md" else 1)
     return docs
 
 
@@ -312,7 +318,7 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
                 if doc:
                     docs.append(doc)
             continue
-        if path.suffix.lower() not in DELIVERY_DOCUMENT_EXTENSIONS:
+        if path.suffix.lower() not in EXPORT_DOCUMENT_EXTENSIONS:
             continue
         docs.append({
             "name": path.name,
@@ -322,7 +328,7 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
             "url": f"/api/automations/output?{urlencode({'jobId': clean_job_id, 'file': path.name})}",
         })
     docs.sort(key=lambda item: (
-        0 if Path(str(item.get("name") or "")).suffix.lower() in DELIVERY_DOCUMENT_EXTENSIONS else 1,
+        0 if Path(str(item.get("name") or "")).suffix.lower() == ".md" else 1,
         -document_timestamp_score(item),
         str(item.get("name") or ""),
     ))

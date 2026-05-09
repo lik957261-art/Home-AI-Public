@@ -75,6 +75,37 @@ function main() {
     ["report-5.pdf", "report-4.pdf", "report-3.pdf", "report-2.pdf", "report-1.pdf", "report-0.pdf"],
   );
 
+  const mdJobRoot = path.join(outputRoot, "job_md");
+  const mdDelivery = path.join(tempRoot, "delivery.md");
+  const pdfDelivery = path.join(tempRoot, "delivery.pdf");
+  fs.mkdirSync(mdJobRoot, { recursive: true });
+  fs.writeFileSync(mdDelivery, "# Delivery\n");
+  fs.writeFileSync(pdfDelivery, "%PDF-1.7\n%%EOF\n");
+  fs.writeFileSync(path.join(mdJobRoot, "run.md"), [
+    `MEDIA: ${pdfDelivery}`,
+    `MEDIA: ${mdDelivery}`,
+  ].join("\n"));
+  const jobsPath = path.join(hermesHome, "cron", "jobs.json");
+  const jobsDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  jobsDoc.jobs.push({
+    id: "job_md",
+    name: "Markdown delivery job",
+    enabled: true,
+    owner_principal_id: "owner",
+    schedule: { kind: "cron", expr: "0 9 * * *", display: "0 9 * * *" },
+    repeat: { times: null, completed: 0 },
+  });
+  fs.writeFileSync(jobsPath, JSON.stringify(jobsDoc));
+  const markdownFirst = runBridge(Object.assign({}, baseEnv, {
+    HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT: "0",
+  }));
+  const mdJob = markdownFirst.jobs.find((job) => job.id === "job_md");
+  assert.ok(mdJob);
+  assert.deepEqual(
+    mdJob.outputDocuments.map((item) => item.name),
+    ["delivery.md", "delivery.pdf"],
+  );
+
   fs.rmSync(tempRoot, { recursive: true, force: true });
   console.log("cron-bridge tests passed");
 }

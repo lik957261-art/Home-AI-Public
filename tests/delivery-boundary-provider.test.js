@@ -9,15 +9,15 @@ const {
 function testDefaultBoundary() {
   const text = createDeliveryBoundaryInstructions();
   assert.match(text, /Hermes Mobile delivery boundary/);
-  assert.match(text, /PDF\/Word\/Office\/media\/image deliverables/);
-  assert.match(text, /selected workspace's `交付` directory/);
-  assert.match(text, /Markdown files are source artifacts/);
-  assert.match(text, /do not write Markdown into any `交付` directory/);
-  assert.match(text, /Do not leave generated PDF\/Word delivery copies in project directories/);
-  assert.match(text, /phone-readable portrait PDF/);
-  assert.match(text, /88 mm x 190 mm/);
-  assert.match(text, /Do not create A4\/Letter small-font PDFs/);
+  assert.match(text, /default final document deliverable is Markdown \(\.md\)/);
   assert.match(text, /chat replies, task replies, group-chat replies, and automation runs/);
+  assert.match(text, /include MEDIA:<absolute_path> for each final Markdown file/);
+  assert.match(text, /preview it as rendered HTML/);
+  assert.match(text, /Do not generate PDF, Word, Office, or image copies by default/);
+  assert.match(text, /external forwarding, printing, editable Office output/);
+  assert.match(text, /do not treat the raw \.md file as the default external payload/);
+  assert.match(text, /print\/PDF/);
+  assert.match(text, /88 mm x 190 mm/);
 }
 
 function testCustomDeliveryTarget() {
@@ -31,9 +31,12 @@ function testCustomDeliveryTarget() {
 
 function testAutomationRequirement() {
   const text = createAutomationDeliveryRequirement();
-  assert.match(text, /PDF、Word 或其他正式交付文件/);
-  assert.match(text, /Markdown files are source artifacts/);
-  assert.doesNotMatch(text, /PDF\/Word\/Markdown/);
+  assert.match(text, /Automation delivery requirement/);
+  assert.match(text, /produce the user-facing final document as Markdown \(\.md\) by default/);
+  assert.match(text, /Hermes Mobile can preview it in the Automation list/);
+  assert.match(text, /Generate PDF, Word, or Office output only when/);
+  assert.doesNotMatch(text, /Markdown files are source artifacts/);
+  assert.doesNotMatch(text, /Final user-facing PDF\/Word\/Office\/media\/image deliverables/);
 }
 
 testDefaultBoundary();
