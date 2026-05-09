@@ -677,6 +677,9 @@
       if (url.pathname === "/api/files") {
         return `/api/files/preview?${url.searchParams.toString()}`;
       }
+      if (url.pathname === "/api/files/preview") {
+        return `/api/files/preview?${url.searchParams.toString()}`;
+      }
       if (url.pathname === "/api/automations/output") {
         return `/api/automations/output/preview?${url.searchParams.toString()}`;
       }
@@ -693,7 +696,19 @@
     function downloadUrlFor(value) {
       const url = sameOriginUrl(value);
       if (!url) return value || "#";
+      if (url.pathname === "/api/files/preview") {
+        url.pathname = "/api/files";
+      }
       url.searchParams.set("download", "1");
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+
+    function originalUrlFor(value) {
+      const url = sameOriginUrl(value);
+      if (!url) return value || "#";
+      if (url.pathname === "/api/files/preview") {
+        url.pathname = "/api/files";
+      }
       return `${url.pathname}${url.search}${url.hash}`;
     }
 
@@ -1160,7 +1175,14 @@
       return cachedPreviewText;
     }
 
-    function markdownExportHtml() {
+    function markdownExportHtml(options = {}) {
+      const autoPrintScript = options.autoPrint ? `<script>
+window.addEventListener("load", function () {
+  window.setTimeout(function () {
+    try { window.focus(); window.print(); } catch (_) {}
+  }, 250);
+});
+<\/script>` : "";
       return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1179,7 +1201,7 @@
     @media print{body{background:#fff;}main{max-width:none;padding:18mm 16mm;font-size:12pt;}}
   </style>
 </head>
-<body><main>${renderMarkdownDocument(cachedPreviewText)}</main></body>
+<body><main>${renderMarkdownDocument(cachedPreviewText)}</main>${autoPrintScript}</body>
 </html>`;
     }
 
@@ -1210,24 +1232,31 @@
       setTransientStatus("Generated file saved for sharing.");
     }
 
+    function openMarkdownPrintWindow() {
+      const printWindow = window.open("about:blank", "_blank");
+      if (!printWindow) return null;
+      try {
+        printWindow.document.open();
+        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preparing PDF</title><style>body{margin:0;background:#f7f1e8;color:#17222b;font:18px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}main{padding:28px 22px;}</style></head><body><main>Preparing PDF preview...</main></body></html>`);
+        printWindow.document.close();
+      } catch (_) {}
+      return printWindow;
+    }
+
     async function printMarkdownAsPdf() {
+      const printWindow = openMarkdownPrintWindow();
       await ensureMarkdownPreviewText();
-      const html = markdownExportHtml();
-      const printWindow = window.open("", "_blank", "noopener");
+      const html = markdownExportHtml({ autoPrint: true });
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       if (!printWindow) {
-        downloadGeneratedBlob(new Blob([html], { type: "text/html;charset=utf-8" }), markdownBaseName("html"));
+        downloadGeneratedBlob(blob, markdownBaseName("html"));
         setTransientStatus("Popup was blocked; saved HTML instead.");
         return;
       }
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.addEventListener("load", () => printWindow.print(), { once: true });
-      window.setTimeout(() => {
-        try {
-          printWindow.print();
-        } catch (_) {}
-      }, 500);
+      const objectUrl = URL.createObjectURL(blob);
+      printWindow.location.href = objectUrl;
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
+      setTransientStatus("Opened print page.");
     }
 
     async function copyMarkdownText() {
@@ -1362,7 +1391,7 @@
     wireViewerBackGuard();
     wireViewerBackSwipe(document.querySelector(".shell"));
     wireMarkdownShareSheet();
-    document.getElementById("open").href = src || "#";
+    document.getElementById("open").href = originalUrlFor(src);
     document.getElementById("download").href = downloadUrlFor(src);
     document.getElementById("download").setAttribute("download", name);
     document.getElementById("download").addEventListener("click", downloadFile);

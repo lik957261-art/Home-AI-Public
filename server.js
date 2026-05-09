@@ -4329,7 +4329,7 @@ function publicMarkdownPreviewArtifact(thread, rawPath, baseId = "") {
     name,
     mime: mimeFor(localPath),
     size: stat.size,
-    url: `/api/files/preview?${params.toString()}`,
+    url: `/api/files?${params.toString()}`,
     path: localPath,
     source: "source-markdown",
   };

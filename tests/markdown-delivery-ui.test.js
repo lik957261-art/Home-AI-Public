@@ -20,7 +20,7 @@ assert.match(serverJs, /function compactArtifactsForMessage\(message, thread = n
 assert.match(serverJs, /HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT/);
 assert.match(serverJs, /function findSourceMarkdownForArtifact\(thread, value\)/);
 assert.match(serverJs, /source_md_\$\{crypto\.createHash\("sha1"\)/);
-assert.match(serverJs, /\/api\/files\/preview\?\$\{params\.toString\(\)\}/);
+assert.match(serverJs, /\/api\/files\?\$\{params\.toString\(\)\}/);
 
 assert.match(appJs, /function isMarkdownArtifact\(artifact\)/);
 assert.match(appJs, /function displayArtifacts\(artifacts\)/);
@@ -31,9 +31,15 @@ assert.match(appJs, /return "markdown"/);
 assert.match(appJs, /if \(kind === "markdown"\) return "MD"/);
 
 assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
-assert.match(fileViewer, /function markdownExportHtml\(\)/);
+assert.match(fileViewer, /url\.pathname === "\/api\/files\/preview"/);
+assert.match(fileViewer, /url\.pathname = "\/api\/files"/);
+assert.match(fileViewer, /function markdownExportHtml\(options = \{\}\)/);
 assert.match(fileViewer, /function shareGeneratedMarkdownFile\(format\)/);
 assert.match(fileViewer, /function printMarkdownAsPdf\(\)/);
+assert.match(fileViewer, /function openMarkdownPrintWindow\(\)/);
+assert.match(fileViewer, /window\.open\("about:blank", "_blank"\)/);
+assert.match(fileViewer, /markdownExportHtml\(\{ autoPrint: true \}\)/);
+assert.match(fileViewer, /URL\.createObjectURL\(blob\)/);
 assert.match(fileViewer, /Share raw \.md explicitly/);
 assert.match(fileViewer, /if \(isMarkdownDocument\(\)\) \{/);
 assert.match(fileViewer, /loadTextPreview\("Markdown preview", \{ markdown: true \}\)/);

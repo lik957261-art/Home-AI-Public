@@ -158,6 +158,40 @@ function main() {
   );
   assert.equal(sourceJob.outputDocuments[0].source, "source-markdown");
 
+  const workspaceJobRoot = path.join(outputRoot, "job_workspace_source");
+  const workspaceRoot = path.join(tempRoot, "drive", "users", "owner", "Hermes");
+  const workspaceSourceRoot = path.join(workspaceRoot, "qifan", "daily");
+  const workspaceDeliveryRoot = path.join(workspaceRoot, "交付", "qifan-daily");
+  const workspaceSourceMarkdown = path.join(workspaceSourceRoot, "2026-05-09_1104_qifan-daily.md");
+  const workspacePdf = path.join(workspaceDeliveryRoot, "2026-05-09_1104_qifan-daily.pdf");
+  fs.mkdirSync(workspaceJobRoot, { recursive: true });
+  fs.mkdirSync(workspaceSourceRoot, { recursive: true });
+  fs.mkdirSync(workspaceDeliveryRoot, { recursive: true });
+  fs.writeFileSync(workspaceSourceMarkdown, "# Qifan daily\n");
+  fs.writeFileSync(workspacePdf, "%PDF-1.7\n%%EOF\n");
+  fs.writeFileSync(path.join(workspaceJobRoot, "run.md"), [
+    "## Response",
+    `MEDIA:${workspacePdf}`,
+  ].join("\n"));
+  jobsDoc.jobs.push({
+    id: "job_workspace_source",
+    name: "Workspace source Markdown job",
+    enabled: true,
+    owner_principal_id: "owner",
+    schedule: { kind: "cron", expr: "0 10 * * *", display: "0 10 * * *" },
+    repeat: { times: null, completed: 0 },
+  });
+  fs.writeFileSync(jobsPath, JSON.stringify(jobsDoc));
+  const workspaceSourceInference = runBridge(Object.assign({}, baseEnv, {
+    HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT: "0",
+  }));
+  const workspaceSourceJob = workspaceSourceInference.jobs.find((job) => job.id === "job_workspace_source");
+  assert.ok(workspaceSourceJob);
+  assert.deepEqual(
+    workspaceSourceJob.outputDocuments.map((item) => item.name),
+    ["2026-05-09_1104_qifan-daily.md", "2026-05-09_1104_qifan-daily.pdf"],
+  );
+
   const xJobRoot = path.join(outputRoot, "job_x");
   const xSourceRoot = path.join(tempRoot, "x", "Briefs");
   const xSourceMarkdown = path.join(xSourceRoot, "20260509_080054_12h_x-brief.md");

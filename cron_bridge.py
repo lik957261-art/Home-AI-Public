@@ -330,6 +330,43 @@ def source_markdown_name_candidates(delivery_path: Path) -> list[str]:
     return names
 
 
+def workspace_root_from_delivery_path(delivery_path: Path) -> Path | None:
+    parts = delivery_path.parts
+    for index, part in enumerate(parts):
+        if part == "交付" and index > 0:
+            return Path(*parts[:index])
+    return None
+
+
+def find_exact_markdown_under_root(root: Path, names: list[str]) -> Path | None:
+    targets = {name for name in names if name.endswith(".md")}
+    if not targets:
+        return None
+    queue = [root]
+    scanned = 0
+    while queue and scanned < 3000:
+        current = queue.pop(0)
+        try:
+            entries = list(current.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if scanned >= 3000:
+                break
+            if entry.name.startswith(".") or entry.name in {"node_modules", "__pycache__"}:
+                continue
+            scanned += 1
+            try:
+                if entry.is_dir():
+                    queue.append(entry)
+                    continue
+                if entry.is_file() and entry.name in targets:
+                    return entry
+            except OSError:
+                continue
+    return None
+
+
 def source_markdown_for_delivery(run_path: Path, delivery_path: Path) -> Path | None:
     if delivery_path.suffix.lower() == ".md" and delivery_path.is_file():
         return delivery_path
@@ -351,6 +388,11 @@ def source_markdown_for_delivery(run_path: Path, delivery_path: Path) -> Path | 
                 return candidate
         except OSError:
             continue
+    workspace_root = workspace_root_from_delivery_path(delivery_path)
+    if workspace_root and workspace_root.is_dir():
+        candidate = find_exact_markdown_under_root(workspace_root, names)
+        if candidate:
+            return candidate
     return None
 
 
@@ -451,8 +493,8 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
             "url": f"/api/automations/output?{urlencode({'jobId': clean_job_id, 'file': path.name})}",
         })
     docs.sort(key=lambda item: (
-        document_source_rank(item),
         -document_timestamp_score(item),
+        document_source_rank(item),
         str(item.get("name") or ""),
     ))
     return docs[:limit]
