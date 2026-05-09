@@ -1127,9 +1127,31 @@ function composerReasoningLabel() {
   return `\u63a8\u7406 ${compact}`;
 }
 
+function messageUsesHighPermissionGateway(message = {}) {
+  const securityLevel = String(message.gatewaySecurityLevel || message.gateway_security_level || "").trim();
+  return Boolean(
+    message.gatewayMaintenance
+    || message.gateway_maintenance
+    || /^owner[-_]maintenance$/i.test(securityLevel)
+  );
+}
+
+function activeRunGatewayPermissionLabel() {
+  const active = [...composerStatusMessages()].reverse().find((message) => (
+    message?.role === "assistant"
+    && ["queued", "running"].includes(message.status)
+  ));
+  if (!active) return null;
+  return messageUsesHighPermissionGateway(active)
+    ? { label: "Gateway 权限 高（运行中）", tone: "active" }
+    : { label: "Gateway 权限 低（运行中）" };
+}
+
 function composerGatewayPermissionLabel() {
   if (isChatSearchMode()) return null;
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
+  const activeLabel = activeRunGatewayPermissionLabel();
+  if (activeLabel) return activeLabel;
   if (ownerElevationComposerAvailable() && ownerElevationOnceTagInfo(getComposerText())) {
     return { label: "Gateway 权限 高（本次）", tone: "active" };
   }
@@ -4175,12 +4197,9 @@ handleForegroundPushMessage = function handleForegroundPushMessageWithBusinessTo
   ) {
     requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 80 });
   }
-  if (messageType === "test") return;
-  if (["task_completed", "task_failed", "created_by_other", "pre_due_30m", "pre_due_60m", "daily_digest", "owner_daily_report", "automation_completed"].includes(messageType)) {
-    const title = String(payload.title || "\u901a\u77e5").trim();
-    const body = String(payload.body || "").replace(/\s+/g, " ").trim();
-    showPushToast(body ? `${title}: ${body}` : title, "success");
-  }
+  // Do not duplicate real Web Push notifications with an in-app toast.
+  // The system notification is the user-visible delivery surface; this handler
+  // only refreshes current views when the push relates to the open thread.
 };
 
 async function handlePushButton() {

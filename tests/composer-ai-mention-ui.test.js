@@ -39,9 +39,15 @@ assert.match(appJs, /if \(member\.ownerElevationOnce\) clearOwnerElevationOnce\(
 assert.equal(appJs.includes('showPushToast("本次高权限已授权"'), false);
 assert.match(appJs, /const ownerElevationOnceTag = ownerElevationComposerAvailable\(\) \? ownerElevationOnceTagInfo\(text\) : null/);
 assert.match(appJs, /function composerGatewayPermissionLabel\(\)/);
+assert.match(appJs, /function activeRunGatewayPermissionLabel\(\)/);
+assert.match(appJs, /function messageUsesHighPermissionGateway\(message = \{\}\)/);
+assert.match(appJs, /Gateway 权限 高（运行中）/);
+assert.match(appJs, /Gateway 权限 低（运行中）/);
 assert.match(appJs, /Gateway 权限 高（本次）/);
 assert.match(appJs, /Gateway 权限 高（限时）/);
 assert.match(appJs, /Gateway 权限 低/);
+assert.equal(appJs.includes('showPushToast(body ? `${title}: ${body}` : title, "success")'), false);
+assert.match(appJs, /Do not duplicate real Web Push notifications with an in-app toast/);
 assert.match(appJs, /function applyReasoningInfo\(info = \{\}\)/);
 assert.match(appJs, /state\.assistantLabel = String\(info\.assistantLabel/);
 assert.match(appJs, /function renderUsage\(usage, message = \{\}\)/);
