@@ -672,6 +672,37 @@ function artifactKind(artifact) {
   return "file";
 }
 
+function artifactDisplayName(artifact) {
+  return String(artifact?.name || artifact?.id || "document").trim();
+}
+
+function artifactStem(artifact) {
+  return artifactDisplayName(artifact).replace(/\.[^.]+$/, "").toLowerCase();
+}
+
+function artifactDisplayRank(artifact) {
+  const kind = artifactKind(artifact);
+  if (kind === "markdown") return 0;
+  if (kind === "text") return 1;
+  if (kind === "pdf" || kind === "word") return 2;
+  return 3;
+}
+
+function displayArtifacts(artifacts) {
+  const items = Array.isArray(artifacts) ? artifacts.filter(Boolean) : [];
+  const markdownStems = new Set(items.filter(isMarkdownArtifact).map(artifactStem).filter(Boolean));
+  return items
+    .filter((artifact) => {
+      const kind = artifactKind(artifact);
+      if ((kind === "pdf" || kind === "word") && markdownStems.has(artifactStem(artifact))) return false;
+      return true;
+    })
+    .sort((a, b) => (
+      artifactDisplayRank(a) - artifactDisplayRank(b)
+      || artifactDisplayName(a).localeCompare(artifactDisplayName(b))
+    ));
+}
+
 function currentViewerReturnUrl() {
   const params = new URLSearchParams();
   const workspaceId = state.selectedWorkspaceId || "owner";
@@ -8902,7 +8933,7 @@ function wireDirectoryProjectLinks(root) {
 }
 
 function renderArtifacts(artifacts) {
-  return `<div class="artifacts">${artifacts.map((artifact) => `<div class="artifact-row">
+  return `<div class="artifacts">${displayArtifacts(artifacts).map((artifact) => `<div class="artifact-row">
     <a class="artifact-card doc-${escapeHtml(artifactKind(artifact))}" href="${escapeHtml(artifactHref(artifact))}" target="_blank" rel="noopener" data-task-doc>
       <div class="artifact-icon">${escapeHtml(iconForArtifact(artifact))}</div>
       <div>

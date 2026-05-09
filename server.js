@@ -190,6 +190,11 @@ const MAX_EVENT_PREVIEW_CHARS = 1600;
 const MAX_STORED_EVENTS_PER_THREAD = 80;
 const MAX_UPLOAD_BYTES = Number(process.env.HERMES_WEB_MAX_UPLOAD_BYTES || "104857600");
 const MAX_FILE_PREVIEW_CHARS = Number(process.env.HERMES_WEB_MAX_FILE_PREVIEW_CHARS || "180000");
+const SOURCE_MARKDOWN_SEARCH_LIMIT = Number(
+  process.env.HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT
+  || process.env.HERMES_WEB_SOURCE_MARKDOWN_SEARCH_LIMIT
+  || "2000",
+);
 const TODO_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_TODO_BRIDGE_TIMEOUT_MS || "15000");
 const CRON_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_CRON_BRIDGE_TIMEOUT_MS || "15000");
 const CRON_BRIDGE_STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_CRON_BRIDGE_STDOUT_LIMIT_BYTES || process.env.HERMES_WEB_CRON_BRIDGE_STDOUT_LIMIT_BYTES || "50000000");
@@ -311,6 +316,7 @@ let gatewayUsageTelemetryProvider = null;
 let lastStateBackupAt = 0;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
+const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
 const runConcurrencyPolicy = createRunConcurrencyPolicy({
@@ -4294,6 +4300,158 @@ function compactArtifactForMessage(value) {
   };
 }
 
+function compactArtifactPathKey(value) {
+  const localPath = normalizeLocalPath(value);
+  if (!localPath) return "";
+  return path.resolve(localPath).toLowerCase();
+}
+
+function compactArtifactStemKey(value) {
+  return path.basename(String(value || "")).replace(/\.[^.]+$/, "").toLowerCase();
+}
+
+function publicMarkdownPreviewArtifact(thread, rawPath, baseId = "") {
+  if (!thread) return null;
+  const displayPath = String(rawPath || "").trim();
+  const localPath = normalizeLocalPath(displayPath);
+  if (!localPath || path.extname(localPath).toLowerCase() !== ".md") return null;
+  let stat;
+  try {
+    stat = fs.statSync(localPath);
+  } catch (_) {
+    return null;
+  }
+  if (!stat.isFile() || !isPathAllowedForThread(thread, localPath, displayPath || localPath)) return null;
+  const name = path.basename(localPath);
+  const params = new URLSearchParams({ threadId: thread.id, path: displayPath || localPath });
+  return {
+    id: `source_md_${crypto.createHash("sha1").update(`${baseId}\0${localPath}`).digest("hex").slice(0, 16)}`,
+    name,
+    mime: mimeFor(localPath),
+    size: stat.size,
+    url: `/api/files/preview?${params.toString()}`,
+    path: localPath,
+    source: "source-markdown",
+  };
+}
+
+function sourceMarkdownSearchRoots(thread) {
+  if (!thread) return [];
+  const roots = [];
+  const project = findProject(thread.workspaceId, thread.projectId);
+  const subproject = findSubproject(project, thread.subprojectId);
+  if (subproject?.root) roots.push(subproject.root);
+  if (project?.root) roots.push(project.root);
+  const effectiveProject = effectiveProjectForThread(thread);
+  if (effectiveProject?.root) roots.push(effectiveProject.root);
+  return dedupe(roots.map(normalizeLocalPath).filter((root) => root && fs.existsSync(root)));
+}
+
+function findMarkdownByStemUnderRoot(root, stem) {
+  const target = String(stem || "").toLowerCase();
+  if (!target || !root || !fs.existsSync(root)) return "";
+  const queue = [root];
+  let scanned = 0;
+  let best = null;
+  while (queue.length && scanned < SOURCE_MARKDOWN_SEARCH_LIMIT) {
+    const dir = queue.shift();
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const entry of entries) {
+      if (scanned >= SOURCE_MARKDOWN_SEARCH_LIMIT) break;
+      if (!entry.name || entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const entryPath = path.join(dir, entry.name);
+      scanned += 1;
+      if (entry.isDirectory()) {
+        queue.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== ".md") continue;
+      if (compactArtifactStemKey(entry.name) !== target) continue;
+      let stat;
+      try {
+        stat = fs.statSync(entryPath);
+      } catch (_) {
+        continue;
+      }
+      if (!best || stat.mtimeMs > best.mtimeMs) best = { path: entryPath, mtimeMs: stat.mtimeMs };
+    }
+  }
+  return best?.path || "";
+}
+
+function findSourceMarkdownForArtifact(thread, value) {
+  const stem = compactArtifactStemKey(value?.name || value?.path || "");
+  if (!thread || !stem) return "";
+  const key = [thread.workspaceId, thread.projectId, thread.subprojectId || "", stem].join("\0");
+  if (sourceMarkdownSearchCache.has(key)) return sourceMarkdownSearchCache.get(key) || "";
+  let found = "";
+  for (const root of sourceMarkdownSearchRoots(thread)) {
+    found = findMarkdownByStemUnderRoot(root, stem);
+    if (found) break;
+  }
+  if (found) sourceMarkdownSearchCache.set(key, found);
+  return found || "";
+}
+
+function companionMarkdownPathForArtifact(thread, value) {
+  if (!value || typeof value !== "object") return "";
+  const kind = mimeFor(value.path || value.name || "");
+  const name = String(value.name || value.path || "");
+  const ext = path.extname(name).toLowerCase();
+  if (![".pdf", ".doc", ".docx"].includes(ext) && !/(pdf|word|officedocument)/i.test(kind)) return "";
+  const localPath = normalizeLocalPath(value.path || "");
+  if (!localPath) return "";
+  const parsed = path.parse(localPath);
+  const candidate = path.join(parsed.dir, `${parsed.name}.md`);
+  if (fs.existsSync(candidate)) return candidate;
+  return findSourceMarkdownForArtifact(thread, value);
+}
+
+function findThreadForMessage(message) {
+  const messageId = String(message?.id || "");
+  if (!messageId) return null;
+  return (state.threads || []).find((thread) => (thread.messages || []).some((item) => item?.id === messageId)) || null;
+}
+
+function compactArtifactsForMessage(message, thread = null) {
+  const baseArtifacts = Array.isArray(message?.artifacts) ? message.artifacts.map(compactArtifactForMessage).filter(Boolean) : [];
+  const resolvedThread = thread || findThreadForMessage(message);
+  if (!resolvedThread) return baseArtifacts;
+
+  const seenPaths = new Set(baseArtifacts.map((artifact) => compactArtifactPathKey(artifact.path)).filter(Boolean));
+  const seenMarkdownStems = new Set(baseArtifacts
+    .filter((artifact) => path.extname(artifact.name || artifact.path || "").toLowerCase() === ".md")
+    .map((artifact) => compactArtifactStemKey(artifact.name || artifact.path))
+    .filter(Boolean));
+  const markdownArtifacts = [];
+  const addMarkdown = (rawPath, baseId = "") => {
+    const artifact = publicMarkdownPreviewArtifact(resolvedThread, rawPath, baseId);
+    if (!artifact) return;
+    const pathKey = compactArtifactPathKey(artifact.path);
+    const stemKey = compactArtifactStemKey(artifact.name || artifact.path);
+    if ((pathKey && seenPaths.has(pathKey)) || (stemKey && seenMarkdownStems.has(stemKey))) return;
+    if (pathKey) seenPaths.add(pathKey);
+    if (stemKey) seenMarkdownStems.add(stemKey);
+    markdownArtifacts.push(artifact);
+  };
+
+  for (const rawPath of extractArtifactPaths(message?.content || "")) {
+    if (path.extname(normalizeLocalPath(rawPath) || rawPath).toLowerCase() === ".md") {
+      addMarkdown(rawPath, message.id || "");
+    }
+  }
+  for (const artifact of baseArtifacts) {
+    const candidate = companionMarkdownPathForArtifact(resolvedThread, artifact);
+    if (candidate) addMarkdown(candidate, artifact.id || message.id || "");
+  }
+  return [...markdownArtifacts, ...baseArtifacts];
+}
+
 function buildUserMessageContent(text, artifacts) {
   const lines = [];
   if (String(text || "").trim()) lines.push(String(text).trim());
@@ -4836,12 +4994,13 @@ function compactThread(thread) {
     updatedAt: thread.updatedAt,
     taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
     chatGroup: publicChatGroup(thread),
-    messages: (thread.messages || []).map(compactMessage),
+    messages: (thread.messages || []).map((message) => compactMessage(message, thread)),
     events: (thread.events || []).slice(-MAX_STORED_EVENTS_PER_THREAD),
   };
 }
 
-function compactMessage(message) {
+function compactMessage(message, thread = null) {
+  thread = thread || findThreadForMessage(message);
   return {
     id: message.id,
     role: message.role,
@@ -4871,7 +5030,7 @@ function compactMessage(message) {
     revokedByLabel: message.revokedByLabel || "",
     usage: message.usage || null,
     error: message.error || null,
-    artifacts: Array.isArray(message.artifacts) ? message.artifacts.map(compactArtifactForMessage).filter(Boolean) : [],
+    artifacts: compactArtifactsForMessage(message, thread),
     directoryAliases: Array.isArray(message.directoryAliases) ? message.directoryAliases : [],
     directoryRoute: message.directoryRoute || null,
     reasoningEffort: message.reasoningEffort || "",

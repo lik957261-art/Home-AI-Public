@@ -290,6 +290,30 @@ def delivery_document(clean_job_id: str, run_path: Path, index: int, path: Path,
     }
 
 
+def run_output_document(clean_job_id: str, path: Path, path_stat: os.stat_result) -> dict[str, Any] | None:
+    if path.suffix.lower() != ".md" or not path.is_file():
+        return None
+    return {
+        "name": path.name,
+        "mime": mime_for_output(path),
+        "size": path_stat.st_size,
+        "updatedAt": datetime.fromtimestamp(path_stat.st_mtime).astimezone().isoformat(),
+        "url": f"/api/automations/output?{urlencode({'jobId': clean_job_id, 'file': path.name})}",
+        "source": "run-output",
+    }
+
+
+def document_source_rank(doc: dict[str, Any]) -> int:
+    source = str(doc.get("source") or "").strip()
+    name = str(doc.get("name") or "")
+    suffix = Path(name).suffix.lower()
+    if source == "run-output":
+        return 0
+    if suffix == ".md":
+        return 1
+    return 2
+
+
 def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
     clean_job_id = re.sub(r"[^A-Za-z0-9_-]", "", str(job_id or ""))
     if not clean_job_id:
@@ -313,6 +337,9 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
         entries = entries[:scan_limit]
     for path, path_stat in entries:
         if path.suffix.lower() == ".md":
+            run_doc = run_output_document(clean_job_id, path, path_stat)
+            if run_doc:
+                docs.append(run_doc)
             for index, delivery_path in enumerate(deliverable_paths_from_run(path)):
                 doc = delivery_document(clean_job_id, path, index, delivery_path, run_stat=path_stat)
                 if doc:
@@ -328,7 +355,7 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
             "url": f"/api/automations/output?{urlencode({'jobId': clean_job_id, 'file': path.name})}",
         })
     docs.sort(key=lambda item: (
-        0 if Path(str(item.get("name") or "")).suffix.lower() == ".md" else 1,
+        document_source_rank(item),
         -document_timestamp_score(item),
         str(item.get("name") or ""),
     ))

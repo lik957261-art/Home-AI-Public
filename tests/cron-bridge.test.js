@@ -103,8 +103,10 @@ function main() {
   assert.ok(mdJob);
   assert.deepEqual(
     mdJob.outputDocuments.map((item) => item.name),
-    ["delivery.md", "delivery.pdf"],
+    ["run.md", "delivery.md", "delivery.pdf"],
   );
+  assert.equal(mdJob.outputDocuments[0].source, "run-output");
+  assert.match(mdJob.outputDocuments[0].url, /\/api\/automations\/output\?/);
 
   fs.rmSync(tempRoot, { recursive: true, force: true });
   console.log("cron-bridge tests passed");
