@@ -45,6 +45,10 @@ assert.match(appJs, /localWorkspaceSection[\s\S]+workspaceCreateForm[\s\S]+deplo
 assert.match(appJs, /data-update-available/);
 
 assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
+assert.match(fileViewer, /class="markdown-table-wrap"/);
+assert.match(fileViewer, /data-label="\$\{escapeHtml\(label\)\}"/);
+assert.match(fileViewer, /td::before[\s\S]+content: attr\(data-label\)/);
+assert.match(fileViewer, /@media \(max-width: 640px\)/);
 assert.match(fileViewer, /url\.pathname === "\/api\/files\/preview"/);
 assert.match(fileViewer, /url\.pathname = "\/api\/files"/);
 assert.match(fileViewer, /function markdownExportHtml\(options = \{\}\)/);
