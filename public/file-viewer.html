@@ -664,6 +664,7 @@
         <button type="button" data-markdown-share="word">Word-compatible document</button>
         <button type="button" data-markdown-share="print">Print / save as PDF</button>
         <button type="button" data-markdown-share="copy">Copy rendered text</button>
+        <button type="button" data-markdown-share="group">转发到群</button>
         <button type="button" data-markdown-share="raw">Share raw .md explicitly</button>
         <button class="subtle" type="button" data-markdown-share="close">Cancel</button>
       </div>
@@ -1258,6 +1259,78 @@
       return cachedPreviewText;
     }
 
+    function authHeaders(extra = {}) {
+      return Object.assign({}, extra, key ? { "X-Hermes-Web-Key": key } : {});
+    }
+
+    async function apiJson(url, options = {}) {
+      const headers = authHeaders(Object.assign({ "Content-Type": "application/json" }, options.headers || {}));
+      const res = await fetch(url, Object.assign({}, options, { headers }));
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
+      return body;
+    }
+
+    function workspaceIdForForward() {
+      const direct = String(params.get("workspaceId") || "").trim();
+      if (direct) return direct;
+      const candidates = [returnUrl, src, document.referrer];
+      for (const candidate of candidates) {
+        try {
+          const url = new URL(candidate || "", location.origin);
+          if (url.origin !== location.origin) continue;
+          const workspaceId = String(url.searchParams.get("workspaceId") || "").trim();
+          if (workspaceId) return workspaceId;
+        } catch (_) {}
+      }
+      return localStorage.getItem("hermesWebWorkspace") || "owner";
+    }
+
+    function bytesToBase64(bytes) {
+      let binary = "";
+      const chunkSize = 0x8000;
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+      }
+      return btoa(binary);
+    }
+
+    async function forwardMarkdownToGroup() {
+      const text = await ensureMarkdownPreviewText();
+      if (!text.trim()) throw new Error("Markdown preview is empty.");
+      const workspaceId = workspaceIdForForward();
+      setTransientStatus("正在转发到群...");
+      const singleWindow = await apiJson("/api/single-window", {
+        method: "POST",
+        body: JSON.stringify({ workspaceId, groupChat: true }),
+      });
+      const threadId = singleWindow.thread?.id || "";
+      if (!threadId) throw new Error("Group chat thread is unavailable.");
+      const filename = String(name || "").toLowerCase().endsWith(".md") ? name : markdownBaseName("md");
+      const dataBase64 = bytesToBase64(new TextEncoder().encode(text));
+      const upload = await apiJson(`/api/threads/${encodeURIComponent(threadId)}/uploads`, {
+        method: "POST",
+        body: JSON.stringify({
+          filename,
+          type: "text/markdown; charset=utf-8",
+          dataBase64,
+        }),
+      });
+      if (!upload.artifact) throw new Error("Markdown upload failed.");
+      await apiJson(`/api/threads/${encodeURIComponent(threadId)}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          text: `转发 Markdown：${filename}`,
+          artifacts: [upload.artifact],
+          workspaceId,
+          singleWindowMode: "chat",
+          taskGroupId: "group-chat",
+          messageKind: "plain",
+        }),
+      });
+      setTransientStatus("已转发到群。");
+    }
+
     function markdownExportHtml(options = {}) {
       const autoPrintScript = options.autoPrint ? `<script>
 window.addEventListener("load", function () {
@@ -1376,6 +1449,7 @@ window.addEventListener("load", function () {
         else if (action === "word") await shareGeneratedMarkdownFile("word");
         else if (action === "print") await printMarkdownAsPdf();
         else if (action === "copy") await copyMarkdownText();
+        else if (action === "group") await forwardMarkdownToGroup();
         else if (action === "raw") await shareOriginalFile();
         hideMarkdownShareSheet();
       } catch (err) {

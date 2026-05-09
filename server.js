@@ -4701,6 +4701,22 @@ function publicArtifactFromClient(value) {
   };
 }
 
+function attachUploadedArtifactsToMessage(thread, message) {
+  const artifactIds = new Set((message?.artifacts || [])
+    .map((artifact) => String(artifact?.id || ""))
+    .filter(Boolean));
+  if (!thread || !message || !artifactIds.size) return;
+  for (const artifact of state.artifacts || []) {
+    if (!artifactIds.has(String(artifact.id || ""))) continue;
+    if (String(artifact.threadId || "") !== String(thread.id || "")) continue;
+    artifact.messageId = message.id;
+    artifact.workspaceId = thread.workspaceId;
+    artifact.projectId = thread.projectId;
+    artifact.subprojectId = thread.subprojectId || "";
+    artifact.updatedAt = nowIso();
+  }
+}
+
 function compactArtifactForMessage(value) {
   if (!value || typeof value !== "object") return null;
   const id = String(value.id || "");
@@ -8643,6 +8659,7 @@ async function handleApi(req, res) {
       reasoningEffort,
       singleWindowMode,
     };
+    attachUploadedArtifactsToMessage(thread, userMessage);
     const assistantMessage = {
       id: makeId("msg"),
       role: "assistant",

@@ -750,6 +750,8 @@ function artifactHref(artifact) {
     size: String(artifact?.size || 0),
     return: currentViewerReturnUrl(),
   });
+  if (state.selectedWorkspaceId) query.set("workspaceId", state.selectedWorkspaceId);
+  if (state.currentThreadId) query.set("threadId", state.currentThreadId);
   if (kind === "pdf") return `/pdf-viewer.html?${query.toString()}`;
   return `/file-viewer.html?${query.toString()}`;
 }
