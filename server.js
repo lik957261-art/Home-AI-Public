@@ -79,6 +79,7 @@ const GATEWAY_POOL_HEALTH_TIMEOUT_MS = Number(process.env.HERMES_WEB_GATEWAY_POO
 const RUN_START_TIMEOUT_MS = Number(process.env.HERMES_WEB_RUN_START_TIMEOUT_MS || "90000");
 const RUN_LIVENESS_CHECK_AFTER_MS = Number(process.env.HERMES_WEB_RUN_LIVENESS_CHECK_AFTER_MS || "120000");
 const RUN_LIVENESS_CHECK_INTERVAL_MS = Number(process.env.HERMES_WEB_RUN_LIVENESS_CHECK_INTERVAL_MS || "45000");
+const RUN_LIVENESS_STALE_AFTER_MS = Number(process.env.HERMES_WEB_RUN_LIVENESS_STALE_AFTER_MS || "0");
 const RUN_CONCURRENCY_MAX_GLOBAL = Number(process.env.HERMES_WEB_MAX_ACTIVE_RUNS || "0");
 const RUN_CONCURRENCY_MAX_PER_WORKSPACE = Number(process.env.HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE || "0");
 const DISABLE_AUTH = /^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_DISABLE_AUTH || "");
@@ -6504,9 +6505,20 @@ async function checkActiveStreamLiveness(publicRunId) {
       apiKey: target.apiKey,
       signal: AbortSignal.timeout(Math.max(1000, HERMES_API_TIMEOUT_MS)),
     });
+    stream.livenessMisses = 0;
+    stream.lastLivenessWarningAt = 0;
   } catch (err) {
     if (err.status === 404) {
-      abortActiveStreamAsFailed(publicRunId, `Hermes Gateway no longer has run ${stream.realRunId}; the Web task was marked stale and the queue was released.`);
+      stream.livenessMisses = (stream.livenessMisses || 0) + 1;
+      const elapsedMs = now - stream.lastEventAt;
+      if (RUN_LIVENESS_STALE_AFTER_MS > 0 && elapsedMs >= RUN_LIVENESS_STALE_AFTER_MS) {
+        abortActiveStreamAsFailed(publicRunId, `Hermes Gateway no longer reports run ${stream.realRunId} after ${Math.round(elapsedMs / 1000)} seconds without response events; the Web task was marked stale and the queue was released.`);
+        return;
+      }
+      if (!stream.lastLivenessWarningAt || now - stream.lastLivenessWarningAt >= 300000) {
+        stream.lastLivenessWarningAt = now;
+        console.warn(`Hermes Mobile run liveness check got 404 for ${stream.realRunId}; keeping the active stream open because long-running Gateway tools can be absent from /v1/runs.`);
+      }
     }
   }
 }
@@ -6527,6 +6539,8 @@ function streamResponse(runId, threadId, messageId, body, options = {}) {
     startedAt: Date.now(),
     lastEventAt: Date.now(),
     livenessTimer: null,
+    livenessMisses: 0,
+    lastLivenessWarningAt: 0,
     failureReason: "",
   };
   if (RUN_LIVENESS_CHECK_INTERVAL_MS > 0) {
