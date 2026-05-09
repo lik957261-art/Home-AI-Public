@@ -4969,6 +4969,28 @@ button.directory-alias-chip {
   max-width: min(58vw, 260px);
 }
 
+.composer.keyboard-context-mode .composer-context {
+  position: fixed;
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: calc(var(--keyboard-context-inset, 0px) + 7px);
+  z-index: 120;
+  max-width: none;
+  min-height: 36px;
+  padding: 6px 8px;
+  margin: 0;
+  background: rgba(255, 253, 248, 0.9);
+  border: 1px solid rgba(63, 127, 114, 0.16);
+  border-radius: 999px;
+  box-shadow: 0 12px 30px rgba(31, 43, 51, 0.14);
+  backdrop-filter: blur(18px);
+}
+
+.composer.keyboard-context-mode .composer-context-chip {
+  min-height: 24px;
+  background: rgba(255, 255, 255, 0.46);
+}
+
 .composer .group-mention-option {
   width: 100%;
   min-height: 36px;
@@ -5645,6 +5667,18 @@ button.directory-alias-chip {
 
   .composer-context-chip.directory {
     max-width: 64vw;
+  }
+
+  .composer.keyboard-context-mode .composer-context {
+    left: 8px;
+    right: 8px;
+    bottom: calc(var(--keyboard-context-inset, 0px) + 6px);
+    min-height: 34px;
+    padding: 5px 7px;
+  }
+
+  .composer.keyboard-context-mode .composer-context-chip {
+    min-height: 23px;
   }
 
   .composer.reasoning-visible {

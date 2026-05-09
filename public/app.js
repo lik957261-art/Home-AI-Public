@@ -92,6 +92,8 @@ const state = {
   events: null,
   pendingArtifacts: [],
   composerFocused: false,
+  keyboardContextMode: false,
+  keyboardInsetPx: 0,
   renderScheduled: false,
   shouldStickToBottom: true,
   preservedBottomOffset: 0,
@@ -983,6 +985,29 @@ function composerRunCounts() {
   return counts;
 }
 
+function keyboardVisualInsetPx() {
+  const viewport = window.visualViewport;
+  if (!viewport) return 0;
+  const layoutHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  if (!layoutHeight || !viewport.height) return 0;
+  return Math.max(0, Math.round(layoutHeight - viewport.height - viewport.offsetTop));
+}
+
+function updateKeyboardContextMetrics() {
+  const inset = keyboardVisualInsetPx();
+  state.keyboardInsetPx = inset;
+  state.keyboardContextMode = Boolean(state.composerFocused && isMobileLayout() && inset > 80);
+  document.documentElement.style.setProperty("--keyboard-context-inset", `${inset}px`);
+  $("composer")?.classList.toggle("keyboard-context-mode", state.keyboardContextMode);
+}
+
+function refreshComposerContextSoon(delay = 0) {
+  window.setTimeout(() => {
+    updateKeyboardContextMetrics();
+    renderComposerContext();
+  }, Math.max(0, delay));
+}
+
 function composerContextItems(counts = composerRunCounts()) {
   if (isChatSearchMode()) return [];
   const items = [];
@@ -1024,10 +1049,12 @@ function renderComposerContext() {
   const bar = $("composerContext");
   const composer = $("composer");
   if (!bar || !composer) return;
+  updateKeyboardContextMetrics();
   const counts = composerRunCounts();
   const items = composerContextItems(counts);
   const visible = shouldShowComposerContext(items, counts);
   composer.classList.toggle("context-visible", visible);
+  composer.classList.toggle("keyboard-context-mode", visible && state.keyboardContextMode);
   if (!visible) {
     bar.hidden = true;
     bar.innerHTML = "";
@@ -10071,12 +10098,18 @@ function wireUi() {
   $("messageInput").addEventListener("paste", pastePlainText);
   $("messageInput").addEventListener("focus", () => {
     state.composerFocused = true;
-    renderComposerContext();
+    refreshComposerContextSoon(0);
+    refreshComposerContextSoon(160);
+    refreshComposerContextSoon(360);
   });
   $("messageInput").addEventListener("blur", () => {
     state.composerFocused = false;
-    window.setTimeout(renderComposerContext, 80);
+    refreshComposerContextSoon(80);
   });
+  const refreshKeyboardContext = () => refreshComposerContextSoon(0);
+  window.visualViewport?.addEventListener("resize", refreshKeyboardContext);
+  window.visualViewport?.addEventListener("scroll", refreshKeyboardContext);
+  window.addEventListener("resize", refreshKeyboardContext);
   document.addEventListener("pointerdown", (event) => {
     if (!state.groupMentionOpen) return;
     if ($("composer")?.contains(event.target)) return;
