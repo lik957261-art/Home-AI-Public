@@ -1237,6 +1237,18 @@ function findArtifactReference(artifact) {
   return null;
 }
 
+function findArtifactReferenceById(artifactId) {
+  const id = String(artifactId || "");
+  if (!id) return null;
+  for (const thread of state.threads || []) {
+    for (const message of thread.messages || []) {
+      const artifact = (message.artifacts || []).find((item) => String(item?.id || "") === id);
+      if (artifact) return { thread, message, artifact };
+    }
+  }
+  return null;
+}
+
 function resolveArtifactPathFromMessage(artifact, message) {
   const name = String(artifact?.name || "").trim();
   const candidates = extractArtifactPaths(message?.content || "")
@@ -7076,6 +7088,13 @@ function isPathAllowed(filePath) {
 
 function isPathAllowedForThread(thread, localPath, originalPath = "") {
   if (securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(originalPath)) return false;
+  const threadUploadRoot = thread?.id ? path.join(DATA_DIR, "uploads", thread.id) : "";
+  if (threadUploadRoot && (
+    pathInsideAnyRoot(localPath, [threadUploadRoot])
+    || pathInsideAnyRoot(originalPath || localPath, [threadUploadRoot])
+  )) {
+    return true;
+  }
   const policy = policyForThread(thread);
   if (policy.access_mode === "unrestricted" || policy.principal_id === "owner") {
     const ownerRoots = dedupe([
@@ -7406,13 +7425,26 @@ function resolveFileForBrowserRequest(query, auth = null) {
 
 function resolveArtifactForRequest(artifactId, auth = null) {
   let artifact = state.artifacts.find((item) => String(item.id || "") === String(artifactId || ""));
+  let reference = null;
   if (!artifact) {
-    return { status: 404, error: "Artifact not found" };
+    reference = findArtifactReferenceById(artifactId);
+    if (!reference) {
+      return { status: 404, error: "Artifact not found" };
+    }
+    artifact = {
+      ...reference.artifact,
+      id: String(artifactId || ""),
+      threadId: reference.thread.id,
+      messageId: reference.message.id,
+      workspaceId: reference.thread.workspaceId,
+      projectId: reference.thread.projectId,
+      subprojectId: reference.thread.subprojectId || "",
+    };
   }
   let thread = null;
   let localPath = artifact.path ? normalizeLocalPath(artifact.path) : "";
   if (!localPath || !fs.existsSync(localPath)) {
-    const reference = findArtifactReference(artifact);
+    reference = reference || findArtifactReference(artifact);
     const recoveredPath = reference ? resolveArtifactPathFromMessage(artifact, reference.message) : null;
     if (!reference || !recoveredPath) {
       return { status: 404, error: "Artifact not found" };
