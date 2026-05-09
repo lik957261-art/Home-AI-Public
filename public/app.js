@@ -26,6 +26,10 @@ const state = {
   serverClientVersion: "",
   defaultReasoningEffort: "medium",
   defaultReasoningSource: "gateway-default",
+  assistantLabel: "AI",
+  defaultModel: "",
+  modelProvider: "",
+  reasoningOptions: [],
   gatewayPool: null,
   concurrency: null,
   displayConfig: {
@@ -168,13 +172,6 @@ const TASK_REASONING_OPTIONS = [
   { value: "high", label: "High" },
   { value: "xhigh", label: "XHigh" },
 ];
-const AI_MENTION_OPTIONS = Object.freeze([
-  Object.assign({}, VIRTUAL_GROUP_AI_MEMBER, { mentionText: "@AI", description: "\u9ed8\u8ba4\u63a8\u7406", reasoningEffort: "" }),
-  { workspaceId: "AI-low", label: "AI \u4f4e", virtual: true, mentionText: "@AI \u4f4e", description: "\u4f4e\u63a8\u7406", reasoningEffort: "low" },
-  { workspaceId: "AI-medium", label: "AI \u4e2d", virtual: true, mentionText: "@AI \u4e2d", description: "\u4e2d\u63a8\u7406", reasoningEffort: "medium" },
-  { workspaceId: "AI-high", label: "AI \u9ad8", virtual: true, mentionText: "@AI \u9ad8", description: "\u9ad8\u63a8\u7406", reasoningEffort: "high" },
-  { workspaceId: "AI-xhigh", label: "AI \u6781\u9ad8", virtual: true, mentionText: "@AI \u6781\u9ad8", description: "\u6781\u9ad8\u63a8\u7406", reasoningEffort: "xhigh" },
-]);
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
@@ -892,7 +889,7 @@ function groupChatMemberLabels(thread = state.currentThread) {
     const workspace = state.workspaces.find((item) => item.id === workspaceId);
     return workspace?.label || workspaceId;
   }).filter(Boolean);
-  return [...new Set([...labels, VIRTUAL_GROUP_AI_MEMBER.label])];
+  return [...new Set([...labels, assistantDisplayLabel()])];
 }
 
 function groupChatMentionMembers(thread = state.currentThread, options = {}) {
@@ -909,32 +906,124 @@ function groupChatMentionMembers(thread = state.currentThread, options = {}) {
     }))
     .filter((member) => member.workspaceId && member.workspaceId !== state.selectedWorkspaceId);
   if (options.includeAi === false) return realMembers;
-  return [VIRTUAL_GROUP_AI_MEMBER, ...realMembers];
+  return [virtualAssistantMember(), ...realMembers];
 }
 
 function normalizeMentionSearch(value) {
   return String(value || "").trim().replace(/\s+/g, "").toLowerCase();
 }
 
+function fallbackReasoningCompactLabel(value) {
+  const effort = String(value || "").trim().toLowerCase();
+  if (effort === "low") return "\u4f4e";
+  if (effort === "medium") return "\u4e2d";
+  if (effort === "high") return "\u9ad8";
+  if (effort === "xhigh") return "XHI";
+  if (effort === "none") return "\u5173";
+  return "\u4e2d";
+}
+
+function normalizeReasoningOptions(items) {
+  const source = Array.isArray(items) && items.length
+    ? items
+    : TASK_REASONING_OPTIONS.filter((item) => item.value);
+  const seen = new Set();
+  return source
+    .map((item) => {
+      const value = String(item?.value || "").trim().toLowerCase();
+      if (!value || seen.has(value)) return null;
+      seen.add(value);
+      const label = String(item?.label || item?.value || "").trim() || value;
+      return {
+        value,
+        label,
+        shortLabel: String(item?.shortLabel || item?.short_label || fallbackReasoningCompactLabel(value)).trim(),
+      };
+    })
+    .filter(Boolean);
+}
+
+function configuredReasoningOptions() {
+  return normalizeReasoningOptions(state.reasoningOptions);
+}
+
+function assistantDisplayLabel() {
+  return String(state.assistantLabel || state.modelProvider || state.defaultModel || VIRTUAL_GROUP_AI_MEMBER.label || "AI").trim() || "AI";
+}
+
+function virtualAssistantMember() {
+  const label = assistantDisplayLabel();
+  return Object.assign({}, VIRTUAL_GROUP_AI_MEMBER, {
+    label,
+    mentionText: `@${label}`,
+    description: [state.defaultModel, defaultReasoningLabel()].filter(Boolean).join(" / ") || "\u9ed8\u8ba4\u63a8\u7406",
+  });
+}
+
+function composerAiMentionOptions() {
+  const label = assistantDisplayLabel();
+  const modelLabel = state.defaultModel || label;
+  const options = [{
+    workspaceId: "assistant-default",
+    label,
+    virtual: true,
+    mentionText: `@${label}`,
+    description: [modelLabel, `\u9ed8\u8ba4 ${defaultReasoningLabel()}`].filter(Boolean).join(" / "),
+    reasoningEffort: "",
+  }];
+  for (const option of configuredReasoningOptions()) {
+    const shortLabel = option.shortLabel || option.label || option.value;
+    options.push({
+      workspaceId: `assistant-${option.value}`,
+      label: `${label} ${shortLabel}`,
+      virtual: true,
+      mentionText: `@${label} ${shortLabel}`,
+      description: [modelLabel, reasoningEffortLabel(option.value)].filter(Boolean).join(" / "),
+      reasoningEffort: option.value,
+    });
+  }
+  return options;
+}
+
+function assistantMentionAliases() {
+  return new Set([
+    "ai",
+    assistantDisplayLabel(),
+    state.defaultModel,
+    state.modelProvider,
+    "chatgpt",
+  ].map(normalizeMentionSearch).filter(Boolean));
+}
+
 function reasoningEffortFromAiAlias(value) {
-  const alias = normalizeMentionSearch(value).replace(/[-_:：]/g, "");
+  const alias = normalizeMentionSearch(value).replace(/[-_:\uFF1A]/g, "");
   if (!alias) return "";
+  for (const option of configuredReasoningOptions()) {
+    const aliases = [
+      option.value,
+      option.label,
+      option.shortLabel,
+    ].map((item) => normalizeMentionSearch(item).replace(/[-_:\uFF1A]/g, "")).filter(Boolean);
+    if (aliases.includes(alias)) return option.value;
+  }
   if (alias === "low" || alias === "\u4f4e" || alias === "\u4f4e\u63a8\u7406") return "low";
   if (alias === "medium" || alias === "med" || alias === "mid" || alias === "standard" || alias === "\u4e2d" || alias === "\u4e2d\u63a8\u7406" || alias === "\u9ed8\u8ba4" || alias === "\u6807\u51c6" || alias === "\u6a19\u6e96") return "medium";
   if (alias === "high" || alias === "\u9ad8" || alias === "\u9ad8\u63a8\u7406") return "high";
-  if (alias === "xhigh" || alias === "highest" || alias === "max" || alias === "maximum" || alias === "\u6781\u9ad8" || alias === "\u6975\u9ad8" || alias === "\u6700\u9ad8" || alias === "\u6700\u9ad8\u63a8\u7406") return "xhigh";
+  if (alias === "xhi" || alias === "xhigh" || alias === "highest" || alias === "max" || alias === "maximum" || alias === "\u6781\u9ad8" || alias === "\u6975\u9ad8" || alias === "\u6700\u9ad8" || alias === "\u6700\u9ad8\u63a8\u7406") return "xhigh";
   return "";
 }
 
 function composerAiMentionInfo(text) {
   const normalized = String(text || "").replace(/\u00a0/g, " ");
-  const pattern = /(^|[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?，。；：！？、])[@\uff20]\s*ai(?:\s*[-_:：]?\s*(x-?high|highest|max(?:imum)?|low|medium|med|mid|standard|high|\u4f4e\u63a8\u7406|\u4f4e|\u4e2d\u63a8\u7406|\u9ed8\u8ba4|\u6807\u51c6|\u6a19\u6e96|\u4e2d|\u6700\u9ad8\u63a8\u7406|\u6700\u9ad8|\u6781\u9ad8|\u6975\u9ad8|\u9ad8\u63a8\u7406|\u9ad8))?(?=$|[\s)\]}\u3000\uff09\uff3d\u3011\uff0c,.;:!?，。；：！？、])/ig;
+  const aliases = assistantMentionAliases();
+  const pattern = /(^|[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F\u3001])[@\uff20]\s*([A-Za-z0-9_.\-\u4e00-\u9fff]+)(?:\s*[-_:\uFF1A]?\s*([A-Za-z0-9_.\-\u4e00-\u9fff]+))?(?=$|[\s)\]}\u3000\uff09\uff3d\u3011\uff0c,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F\u3001])/ig;
   let mentionsAi = false;
   let reasoningEffort = "";
   let match;
   while ((match = pattern.exec(normalized)) !== null) {
+    if (!aliases.has(normalizeMentionSearch(match[2]))) continue;
     mentionsAi = true;
-    const effort = reasoningEffortFromAiAlias(match[2] || "");
+    const effort = reasoningEffortFromAiAlias(match[3] || "");
     if (effort) reasoningEffort = effort;
   }
   return { mentionsAi, reasoningEffort };
@@ -1327,7 +1416,8 @@ function setSingleWindowMode(mode) {
 
 function reasoningEffortLabel(value) {
   const effort = String(value || "").trim().toLowerCase();
-  return TASK_REASONING_OPTIONS.find((item) => item.value === effort)?.label
+  return configuredReasoningOptions().find((item) => item.value === effort)?.label
+    || TASK_REASONING_OPTIONS.find((item) => item.value === effort)?.label
     || (effort ? effort.charAt(0).toUpperCase() + effort.slice(1) : "Medium");
 }
 
@@ -1336,27 +1426,21 @@ function defaultReasoningLabel() {
 }
 
 function defaultReasoningCompactLabel() {
-  const effort = String(state.defaultReasoningEffort || "medium").trim().toLowerCase();
-  if (effort === "low") return "\u4f4e";
-  if (effort === "medium") return "\u4e2d";
-  if (effort === "high") return "\u9ad8";
-  if (effort === "xhigh") return "\u6781\u9ad8";
-  if (effort === "none") return "\u5173";
-  return "\u4e2d";
+  return fallbackReasoningCompactLabel(state.defaultReasoningEffort || "medium");
 }
 
 function taskReasoningCompactLabel(item) {
   if (!item?.value) return defaultReasoningCompactLabel();
-  if (item.value === "low") return "\u4f4e";
-  if (item.value === "medium") return "\u4e2d";
-  if (item.value === "high") return "\u9ad8";
-  if (item.value === "xhigh") return "\u6781\u9ad8";
-  return item.label || item.value;
+  const effort = String(item.value || "").trim().toLowerCase();
+  return configuredReasoningOptions().find((option) => option.value === effort)?.shortLabel
+    || fallbackReasoningCompactLabel(effort)
+    || item.label
+    || item.value;
 }
 
 function validTaskReasoningEffort(value) {
-  const next = String(value || "");
-  return TASK_REASONING_OPTIONS.some((item) => item.value === next) ? next : "";
+  const next = String(value || "").trim().toLowerCase();
+  return configuredReasoningOptions().some((item) => item.value === next) ? next : "";
 }
 
 function currentTaskGroup() {
@@ -3036,6 +3120,22 @@ function restoreVisibleAppScroll() {
   });
 }
 
+function applyReasoningInfo(info = {}) {
+  if (!info || typeof info !== "object") return;
+  const options = normalizeReasoningOptions(info.efforts || info.options || []);
+  state.reasoningOptions = options;
+  const defaultEffort = String(info.defaultEffort || "").trim().toLowerCase();
+  state.defaultReasoningEffort = options.some((item) => item.value === defaultEffort)
+    ? defaultEffort
+    : (state.defaultReasoningEffort || "medium");
+  state.defaultReasoningSource = String(info.source || state.defaultReasoningSource || "");
+  state.assistantLabel = String(info.assistantLabel || info.model?.label || state.assistantLabel || "AI").trim() || "AI";
+  state.defaultModel = String(info.model?.default || info.defaultModel || state.defaultModel || "").trim();
+  state.modelProvider = String(info.model?.provider || info.provider || state.modelProvider || "").trim();
+  updateTaskReasoningControl();
+  renderComposerContext();
+}
+
 async function loadStatus() {
   const status = await api("/api/status").catch((err) => ({ ok: false, error: err.message }));
   $("connectionState").textContent = status.ok ? "Hermes OK" : `Hermes unavailable: ${status.error || "unknown"}`;
@@ -3051,12 +3151,7 @@ async function loadStatus() {
       ownerRootFallbackLabel: String(status.display.ownerRootFallbackLabel || state.displayConfig.ownerRootFallbackLabel || "Hermes Owner"),
     };
   }
-  if (status.reasoning?.defaultEffort) {
-    state.defaultReasoningEffort = String(status.reasoning.defaultEffort || "medium").toLowerCase();
-    state.defaultReasoningSource = status.reasoning.source || "";
-    updateTaskReasoningControl();
-    renderComposerContext();
-  }
+  if (status.reasoning) applyReasoningInfo(status.reasoning);
   if (status.push) {
     state.pushStatus = status.push;
     updatePushButton();
@@ -3162,6 +3257,7 @@ async function checkClientVersion(reason = "manual") {
   if (reason) query.set("reason", reason);
   const info = await api(`/api/client-version?${query.toString()}`);
   handleClientVersion(info, "poll");
+  if (info.reasoning) applyReasoningInfo(info.reasoning);
   return info;
 }
 
@@ -8004,7 +8100,7 @@ function renderMessage(message) {
   const kindLabel = isGroupChatView() && message.role === "user" && message.messageKind === "ai" ? " · AI" : "";
   const status = !revoked && message.status && message.status !== "done" ? ` - ${message.status}` : "";
   const timeLabel = messageDisplayTimeLabel(message);
-  const usage = !revoked && message.usage ? renderUsage(message.usage) : "";
+  const usage = !revoked && message.usage ? renderUsage(message.usage, message) : "";
   const footer = renderMessageFooter(message, usage);
   const error = !revoked && message.error ? `<div class="error-box">${escapeHtml(message.error)}</div>` : "";
   const artifacts = !revoked && Array.isArray(message.artifacts) && message.artifacts.length ? renderArtifacts(message.artifacts) : "";
@@ -8830,7 +8926,62 @@ function iconForMime(mime) {
   return "FILE";
 }
 
-function renderUsage(usage) {
+function uniqueUsageLabels(values) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function normalizeUsageModelCalls(usage = {}) {
+  const rows = [
+    usage.api_call_model_routes,
+    usage.api_call_models,
+    usage.apiCallModelRoutes,
+  ].find(Array.isArray) || [];
+  return rows
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({
+      model: String(item.model || item.model_name || item.response_model || "").trim(),
+      reasoningEffort: String(item.reasoning_effort || item.reasoningEffort || item.effort || "").trim(),
+    }));
+}
+
+function usageModelLabel(usage = {}, message = {}, apiCallRows = []) {
+  const modelRows = normalizeUsageModelCalls(usage);
+  const direct = String(
+    usage.model
+    || usage.model_name
+    || usage.response_model
+    || message.model
+    || message.modelName
+    || "",
+  ).trim();
+  const models = uniqueUsageLabels([
+    direct,
+    ...apiCallRows.map((item) => item.model),
+    ...modelRows.map((item) => item.model),
+  ]);
+  return models.length ? models.join(", ") : (state.defaultModel || state.assistantLabel || "");
+}
+
+function usageReasoningLabel(usage = {}, message = {}, apiCallRows = []) {
+  const modelRows = normalizeUsageModelCalls(usage);
+  const direct = String(
+    usage.reasoning_effort
+    || usage.reasoningEffort
+    || usage.reasoning
+    || message.reasoningEffort
+    || message.reasoning_effort
+    || "",
+  ).trim();
+  const efforts = uniqueUsageLabels([
+    direct,
+    ...apiCallRows.map((item) => item.reasoningEffort),
+    ...modelRows.map((item) => item.reasoningEffort),
+  ]);
+  const labels = efforts.length ? efforts : [state.defaultReasoningEffort || "medium"];
+  return labels.map((item) => reasoningEffortLabel(item)).join(", ");
+}
+
+function renderUsage(usage, message = {}) {
   const normalized = normalizeUsage(usage);
   const total = normalized.total || 0;
   if (!total) return "";
@@ -8841,6 +8992,8 @@ function renderUsage(usage) {
     : (apiCallRows.length ? apiCallRows.length : null);
   const apiCost = normalizeUsageCost(usage);
   const rows = [
+    ["Model", usageModelLabel(usage, message, apiCallRows)],
+    ["Reasoning", usageReasoningLabel(usage, message, apiCallRows)],
     normalized.uncachedInput !== null ? ["Uncached input", normalized.uncachedInput] : null,
     ["Cached input", normalized.cachedInput !== null ? normalized.cachedInput : "Not reported"],
     ["Input total", normalized.input],
@@ -8934,9 +9087,11 @@ function normalizeUsageApiCalls(usage = {}) {
     usage.api_calls_detail,
     usage.apiCalls,
   ].find(Array.isArray) || [];
+  const modelRows = normalizeUsageModelCalls(usage);
   return rows
     .filter((item) => item && typeof item === "object")
-    .map((item) => {
+    .map((item, index) => {
+      const modelRow = modelRows[index] || {};
       const input = numericUsageValue(item.input_tokens, item.prompt_tokens, item.input, item.prompt) || 0;
       const cachedInput = numericUsageValue(
         item.cache_read_tokens,
@@ -8946,8 +9101,8 @@ function normalizeUsageApiCalls(usage = {}) {
       ) || 0;
       const output = numericUsageValue(item.output_tokens, item.completion_tokens, item.output, item.completion) || 0;
       return {
-        model: String(item.model || "").trim(),
-        reasoningEffort: String(item.reasoning_effort || item.reasoningEffort || "").trim(),
+        model: String(item.model || item.model_name || modelRow.model || "").trim(),
+        reasoningEffort: String(item.reasoning_effort || item.reasoningEffort || modelRow.reasoningEffort || "").trim(),
         input,
         cachedInput,
         output,
@@ -9724,7 +9879,7 @@ function composerMentionAvailable() {
 
 function composerMentionMembers() {
   const groupMembers = isGroupChatView() ? groupChatMentionMembers(state.currentThread, { includeAi: false }) : [];
-  return [...AI_MENTION_OPTIONS, ...groupMembers];
+  return [...composerAiMentionOptions(), ...groupMembers];
 }
 
 function activeGroupMentionToken() {

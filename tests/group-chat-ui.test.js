@@ -12,7 +12,7 @@ const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "
 assert.match(appJs, /VIRTUAL_GROUP_AI_MEMBER/);
 assert.match(appJs, /function groupChatMentionsAi\(text\)/);
 assert.match(appJs, /body\.messageKind = aiMention\.mentionsAi \? "ai" : "plain"/);
-assert.match(appJs, /return \[VIRTUAL_GROUP_AI_MEMBER, \.\.\.realMembers\]/);
+assert.match(appJs, /return \[virtualAssistantMember\(\), \.\.\.realMembers\]/);
 assert.match(appJs, /groupChatMentionMembers\(state\.currentThread, \{ includeAi: false \}\)/);
 
 assert.equal(indexHtml.includes("chatAiToggle"), false);

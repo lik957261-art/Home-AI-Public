@@ -237,7 +237,13 @@ const GENERIC_OWNER_TOPIC_PROJECT_IDS = new Set(normalizeStringList(
 const PRINCIPAL_LABEL_PREFIXES = normalizeStringList(
   process.env.HERMES_WEB_PRINCIPAL_LABEL_PREFIXES || (ENABLE_LEGACY_WEIXIN_COMPAT ? "weixin_" : ""),
 );
-const VALID_REASONING_EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
+const REASONING_EFFORT_OPTIONS = Object.freeze([
+  { value: "low", label: "Low", shortLabel: "\u4f4e" },
+  { value: "medium", label: "Medium", shortLabel: "\u4e2d" },
+  { value: "high", label: "High", shortLabel: "\u9ad8" },
+  { value: "xhigh", label: "XHigh", shortLabel: "XHI" },
+]);
+const VALID_REASONING_EFFORTS = new Set(REASONING_EFFORT_OPTIONS.map((item) => item.value));
 const MESSAGE_TIME_FIELDS = Object.freeze([
   "submittedAt",
   "queuedAt",
@@ -613,8 +619,25 @@ function assertRunConcurrencyCapacity(workspaceId) {
 
 function publicReasoningInfoForAuth(auth) {
   const info = defaultReasoningInfo();
-  if (isOwnerAuth(auth)) return info;
-  return { defaultEffort: info.defaultEffort || "medium" };
+  const shared = {
+    defaultEffort: info.defaultEffort || "medium",
+    efforts: REASONING_EFFORT_OPTIONS,
+    assistantLabel: info.assistantLabel || "AI",
+    model: {
+      default: info.defaultModel || "",
+      provider: info.provider || "",
+      label: info.assistantLabel || "AI",
+    },
+  };
+  if (isOwnerAuth(auth)) {
+    return Object.assign({}, shared, {
+      source: info.source || "",
+      model: Object.assign({}, shared.model, {
+        baseUrl: info.baseUrl || "",
+      }),
+    });
+  }
+  return shared;
 }
 
 function publicGatewayPoolStatusForAuth(auth, pool) {
@@ -1637,43 +1660,109 @@ function normalizeSingleWindowMode(value) {
   return String(value || "").trim().toLowerCase() === "chat" ? "chat" : "task";
 }
 
-function parseAgentReasoningEffortFromYaml(text) {
-  let inAgent = false;
-  let agentIndent = -1;
+function unquoteYamlScalar(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
+function assignRuntimeConfigYamlValue(result, section, key, value) {
+  const normalizedSection = String(section || "").trim().toLowerCase();
+  const normalizedKey = String(key || "").trim().toLowerCase().replace(/-/g, "_");
+  const scalar = unquoteYamlScalar(value);
+  if (!scalar) return;
+  if (normalizedSection === "agent" && normalizedKey === "reasoning_effort") result.reasoningEffort = scalar;
+  if (normalizedSection === "model" && normalizedKey === "default") result.defaultModel = scalar;
+  if (normalizedSection === "model" && normalizedKey === "provider") result.provider = scalar;
+  if (normalizedSection === "model" && normalizedKey === "base_url") result.baseUrl = scalar;
+}
+
+function parseAgentRuntimeConfigFromYaml(text) {
+  const result = { reasoningEffort: "", defaultModel: "", provider: "", baseUrl: "" };
+  let section = "";
+  let sectionIndent = -1;
   for (const rawLine of String(text || "").split(/\r?\n/)) {
     const noComment = rawLine.replace(/\s+#.*$/, "");
     if (!noComment.trim()) continue;
-    const agentMatch = noComment.match(/^(\s*)agent\s*:\s*$/);
-    if (agentMatch) {
-      inAgent = true;
-      agentIndent = agentMatch[1].length;
+    const dotted = noComment.match(/^\s*(agent|model)\.([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/i);
+    if (dotted) {
+      assignRuntimeConfigYamlValue(result, dotted[1], dotted[2], dotted[3]);
       continue;
     }
-    const dotted = noComment.match(/^\s*agent\.reasoning_effort\s*:\s*["']?([^"'\s#]+)["']?\s*$/i);
-    if (dotted) return dotted[1];
-    if (inAgent) {
+    const topSection = noComment.match(/^(\s*)(agent|model)\s*:\s*$/i);
+    if (topSection) {
+      section = topSection[2].toLowerCase();
+      sectionIndent = topSection[1].length;
+      continue;
+    }
+    if (section) {
       const indent = (noComment.match(/^(\s*)/) || ["", ""])[1].length;
-      if (indent <= agentIndent) {
-        inAgent = false;
+      if (indent <= sectionIndent) {
+        section = "";
+        sectionIndent = -1;
       } else {
-        const effort = noComment.match(/^\s*reasoning_effort\s*:\s*["']?([^"'\s#]+)["']?\s*$/i);
-        if (effort) return effort[1];
+        const scalar = noComment.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/);
+        if (scalar) assignRuntimeConfigYamlValue(result, section, scalar[1], scalar[2]);
       }
     }
   }
-  return "";
+  return result;
 }
 
-function defaultReasoningInfo() {
-  const envEffort = normalizeReasoningEffort(process.env.HERMES_WEB_DEFAULT_REASONING_EFFORT || "");
-  if (envEffort) {
-    return { defaultEffort: envEffort, source: "env:HERMES_WEB_DEFAULT_REASONING_EFFORT" };
-  }
-  const configPaths = HERMES_CONFIG_PATHS.filter((item) => (
-    !isUncPath(item)
-    || EXPLICIT_HERMES_CONFIG_PATHS.has(String(item || "").trim())
+function parseAgentReasoningEffortFromYaml(text) {
+  return parseAgentRuntimeConfigFromYaml(text).reasoningEffort;
+}
+
+function configPathReadableForRuntimeInfo(configPath) {
+  const text = String(configPath || "").trim();
+  return Boolean(text && (
+    !isUncPath(text)
+    || EXPLICIT_HERMES_CONFIG_PATHS.has(text)
     || ALLOW_WSL_REASONING_CONFIG_LOOKUP
   ));
+}
+
+function gatewayPoolConfigPathCandidates() {
+  const candidates = [];
+  try {
+    const loaded = gatewayPool().load();
+    for (const worker of loaded.workers || []) {
+      for (const dbPath of [worker.telemetryStateDbPath, worker.telemetryResponseStoreDbPath]) {
+        if (dbPath) candidates.push(path.join(path.dirname(dbPath), "config.yaml"));
+      }
+      for (const root of GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS) {
+        if (worker.profile) candidates.push(path.join(root, worker.profile, "config.yaml"));
+        if (worker.telemetryProfile && worker.telemetryProfile !== worker.profile) {
+          candidates.push(path.join(root, worker.telemetryProfile, "config.yaml"));
+        }
+      }
+    }
+  } catch (_) {}
+  return candidates;
+}
+
+function runtimeConfigPathCandidates() {
+  const base = HERMES_CONFIG_PATHS.filter(configPathReadableForRuntimeInfo);
+  return dedupe([...gatewayPoolConfigPathCandidates(), ...base]);
+}
+
+function assistantLabelForRuntimeConfig(info = {}) {
+  const provider = String(info.provider || "").trim();
+  const baseUrl = String(info.baseUrl || "").trim();
+  const model = String(info.defaultModel || "").trim();
+  if (/openai-codex/i.test(provider) || /chatgpt\.com\/backend-api\/codex/i.test(baseUrl)) return "ChatGPT";
+  if (/claude/i.test(provider) || /^claude/i.test(model)) return "Claude";
+  if (/gemini/i.test(provider) || /^gemini/i.test(model)) return "Gemini";
+  if (/qwen/i.test(provider) || /^qwen/i.test(model)) return "Qwen";
+  if (/deepseek/i.test(provider) || /^deepseek/i.test(model)) return "DeepSeek";
+  if (provider) return provider;
+  if (model) return model;
+  return "AI";
+}
+
+function runtimeModelConfigInfo() {
+  const configPaths = runtimeConfigPathCandidates();
   const parts = configPaths.map((item) => {
     try {
       const stat = fs.statSync(item);
@@ -1683,25 +1772,42 @@ function defaultReasoningInfo() {
     }
   }).join("|");
   if (defaultReasoningCache.value && defaultReasoningCache.cacheKey === parts) return defaultReasoningCache.value;
+  const envEffort = normalizeReasoningEffort(process.env.HERMES_WEB_DEFAULT_REASONING_EFFORT || "");
   for (const configPath of configPaths) {
     try {
       if (!configPath || !fs.existsSync(configPath)) continue;
-      const raw = parseAgentReasoningEffortFromYaml(fs.readFileSync(configPath, "utf8"));
-      const effort = normalizeReasoningEffort(raw);
-      if (effort) {
-        defaultReasoningCache = {
-          cacheKey: parts,
-          value: { defaultEffort: effort, source: configPath },
+      const parsed = parseAgentRuntimeConfigFromYaml(fs.readFileSync(configPath, "utf8"));
+      const effort = normalizeReasoningEffort(envEffort || parsed.reasoningEffort);
+      if (effort || parsed.defaultModel || parsed.provider || parsed.baseUrl) {
+        const value = {
+          defaultEffort: effort || "medium",
+          defaultModel: parsed.defaultModel || "",
+          provider: parsed.provider || "",
+          baseUrl: parsed.baseUrl || "",
+          assistantLabel: assistantLabelForRuntimeConfig(parsed),
+          source: configPath,
+          efforts: REASONING_EFFORT_OPTIONS,
         };
-        return defaultReasoningCache.value;
+        defaultReasoningCache = { cacheKey: parts, value };
+        return value;
       }
     } catch (_) {}
   }
-  defaultReasoningCache = {
-    cacheKey: parts || "no-config",
-    value: { defaultEffort: "medium", source: "gateway-default" },
+  const fallback = {
+    defaultEffort: envEffort || "medium",
+    defaultModel: "",
+    provider: "",
+    baseUrl: "",
+    assistantLabel: "AI",
+    source: envEffort ? "env:HERMES_WEB_DEFAULT_REASONING_EFFORT" : "gateway-default",
+    efforts: REASONING_EFFORT_OPTIONS,
   };
-  return defaultReasoningCache.value;
+  defaultReasoningCache = { cacheKey: parts || "no-config", value: fallback };
+  return fallback;
+}
+
+function defaultReasoningInfo() {
+  return runtimeModelConfigInfo();
 }
 
 function readClientVersion() {
