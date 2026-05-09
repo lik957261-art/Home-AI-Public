@@ -3241,8 +3241,22 @@ async function checkAppUpdate(reason = "login") {
   }
 }
 
+function isSelfUpdateUnsupported(result) {
+  const message = String(result?.warning || result?.error || "");
+  return result?.repository?.available === false || /not a git checkout/i.test(message);
+}
+
+function appUpdateToastKind(result) {
+  if (!result) return "";
+  if (result.ok && (result.updated || result.upToDate)) return "success";
+  if (isSelfUpdateUnsupported(result)) return "";
+  if (result.error || result.warning || result.repository?.clean === false) return "error";
+  return "";
+}
+
 function appUpdateMessage(result) {
   if (!result) return "Update status is unavailable.";
+  if (isSelfUpdateUnsupported(result)) return "当前安装方式不支持应用内更新。";
   if (result.error) return result.error;
   if (result.warning) return result.warning;
   if (result.updated) return result.message || "Updated.";
@@ -3257,7 +3271,7 @@ async function applyAppUpdateFromBadge() {
   if (!state.appUpdate?.updateAvailable) {
     await checkAppUpdate("manual");
     if (!state.appUpdate?.updateAvailable) {
-      showPushToast(appUpdateMessage(state.appUpdate), state.appUpdate?.warning ? "error" : "");
+      showPushToast(appUpdateMessage(state.appUpdate), appUpdateToastKind(state.appUpdate));
       return;
     }
   }
@@ -3267,7 +3281,7 @@ async function applyAppUpdateFromBadge() {
     const result = await api("/api/app-update/apply", { method: "POST", body: JSON.stringify({}) });
     state.appUpdate = result;
     renderClientVersion();
-    showPushToast(appUpdateMessage(result), result.ok ? "success" : "error");
+    showPushToast(appUpdateMessage(result), appUpdateToastKind(result));
     if (result.updated) {
       await checkClientVersion("update-applied").catch(() => {});
     }

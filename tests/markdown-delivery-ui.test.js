@@ -35,6 +35,9 @@ assert.match(appJs, /return "markdown"/);
 assert.match(appJs, /if \(kind === "markdown"\) return "MD"/);
 assert.match(appJs, /function checkAppUpdate\(reason = "login"\)/);
 assert.match(appJs, /function applyAppUpdateFromBadge\(\)/);
+assert.match(appJs, /function isSelfUpdateUnsupported\(result\)/);
+assert.match(appJs, /function appUpdateToastKind\(result\)/);
+assert.match(appJs, /当前安装方式不支持应用内更新。/);
 assert.match(appJs, /data-update-available/);
 
 assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
