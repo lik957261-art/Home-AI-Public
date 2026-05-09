@@ -33,10 +33,21 @@ function testNormalizeWorker() {
     securityLevel: "unspecified",
     allowedWorkspaceIds: [],
     allowMaintenance: false,
+    skillProfile: "",
+    skillWorkspaceIds: [],
     telemetryProfile: "worker1",
     telemetryStateDbPath: "",
     telemetryResponseStoreDbPath: "",
   });
+  const skillWorker = normalizeWorker({
+    profile: "lowgw5",
+    port: 18755,
+    security_level: "low",
+    skill_profile: "workspace:weixin_wuping",
+    skill_workspace_ids: "weixin_wuping,weixin_test",
+  });
+  assert.equal(skillWorker.skillProfile, "workspace:weixin_wuping");
+  assert.deepEqual(skillWorker.skillWorkspaceIds, ["weixin_wuping", "weixin_test"]);
   assert.equal(normalizeSecurityLevel("low-privilege"), "user");
   assert.equal(normalizeSecurityLevel("admin"), "owner-maintenance");
   assert.equal(normalizeWorker({ enabled: false, port: 1 }), null);
@@ -51,6 +62,26 @@ function testOrderingHonorsHints() {
   assert.deepEqual(orderedWorkers(workers, 1, {}).map((w) => w.name), ["b", "c", "a"]);
   assert.deepEqual(orderedWorkers(workers, 0, { worker_tags: ["fast"] }).map((w) => w.name), ["a", "c"]);
   assert.deepEqual(orderedWorkers(workers, 0, { worker_profile: "worker2" }).map((w) => w.name), ["b"]);
+}
+
+function testOrderingHonorsSkillWorkspaceHints() {
+  const workers = [
+    normalizeWorker({ name: "owner", profile: "lowgw1", port: 18751, securityLevel: "user", skillWorkspaceIds: ["owner"] }),
+    normalizeWorker({ name: "wuping", profile: "lowgw5", port: 18755, securityLevel: "user", skillWorkspaceIds: ["weixin_wuping"] }),
+    normalizeWorker({ name: "shared", profile: "lowgw10", port: 18760, securityLevel: "user", skillWorkspaceIds: ["*"] }),
+  ];
+  assert.deepEqual(
+    orderedWorkers(workers, 0, { securityLevel: "user", skillWorkspaceId: "owner", requireSkillProfile: true }).map((w) => w.name),
+    ["owner", "shared"],
+  );
+  assert.deepEqual(
+    orderedWorkers(workers, 0, { securityLevel: "user", skillWorkspaceId: "weixin_wuping", requireSkillProfile: true }).map((w) => w.name),
+    ["wuping", "shared"],
+  );
+  assert.deepEqual(
+    orderedWorkers(workers, 0, { securityLevel: "user", skillWorkspaceId: "unknown", requireSkillProfile: true }).map((w) => w.name),
+    ["shared"],
+  );
 }
 
 async function testChooseHealthyWorkerAndLookupSecretByUrl() {
@@ -81,6 +112,61 @@ async function testChooseHealthyWorkerAndLookupSecretByUrl() {
   assert.equal(chosen.apiKey, "good-key");
   assert.deepEqual(auth, ["Bearer bad-key", "Bearer good-key"]);
   assert.equal(provider.targetForGatewayUrl("http://127.0.0.1:8652/").apiKey, "good-key");
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
+async function testChooseHonorsSkillWorkspaceIds() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "owner", profile: "lowgw1", port: 18751, securityLevel: "user", allowedWorkspaceIds: ["*"], skillWorkspaceIds: ["owner"] },
+      { name: "wuping", profile: "lowgw5", port: 18755, securityLevel: "user", allowedWorkspaceIds: ["*"], skillWorkspaceIds: ["weixin_wuping"] },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    fetchImpl: async () => jsonResponse({ status: "ok" }),
+  });
+  const chosen = await provider.chooseTarget({
+    securityLevel: "user",
+    workspaceId: "weixin_wuping",
+    skillWorkspaceId: "weixin_wuping",
+  });
+  assert.equal(chosen.name, "wuping");
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
+async function testSkillRoutingStaysCompatibleWithoutManifestFields() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "legacy", profile: "worker1", port: 18751, securityLevel: "user", allowedWorkspaceIds: ["*"] },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    fetchImpl: async () => jsonResponse({ status: "ok" }),
+  });
+  const chosen = await provider.chooseTarget({
+    securityLevel: "user",
+    workspaceId: "owner",
+    skillWorkspaceId: "owner",
+  });
+  assert.equal(chosen.name, "legacy");
+  await assert.rejects(() => provider.chooseTarget({
+    securityLevel: "user",
+    workspaceId: "owner",
+    skillWorkspaceId: "owner",
+    requireSkillProfile: true,
+  }), {
+    code: "gateway_user_worker_unavailable",
+  });
   fs.rmSync(manifest.dir, { recursive: true, force: true });
 }
 
@@ -124,7 +210,10 @@ async function testUserRunsFailClosedWithoutUserWorker() {
 (async () => {
   testNormalizeWorker();
   testOrderingHonorsHints();
+  testOrderingHonorsSkillWorkspaceHints();
   await testChooseHealthyWorkerAndLookupSecretByUrl();
+  await testChooseHonorsSkillWorkspaceIds();
+  await testSkillRoutingStaysCompatibleWithoutManifestFields();
   await testFallsBackWhenManifestMissing();
   await testUserRunsFailClosedWithoutUserWorker();
   console.log("gateway-pool-provider tests passed");

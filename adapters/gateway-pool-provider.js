@@ -56,6 +56,15 @@ function normalizeWorker(raw, index = 0) {
     securityLevel: normalizeSecurityLevel(raw.securityLevel || raw.security_level || raw.level),
     allowedWorkspaceIds: normalizeWorkspaceIds(raw.allowedWorkspaceIds || raw.allowed_workspace_ids || raw.workspaceIds || raw.workspace_ids),
     allowMaintenance: Boolean(raw.allowMaintenance || raw.allow_maintenance),
+    skillProfile: String(raw.skillProfile || raw.skill_profile || raw.skillSet || raw.skill_set || "").trim(),
+    skillWorkspaceIds: normalizeWorkspaceIds(
+      raw.skillWorkspaceIds
+      || raw.skill_workspace_ids
+      || raw.skillWorkspaces
+      || raw.skill_workspaces
+      || raw.skillWorkspaceId
+      || raw.skill_workspace_id,
+    ),
     telemetryProfile: String(raw.telemetryProfile || raw.telemetry_profile || raw.telemetryStateProfile || raw.telemetry_state_profile || profile).trim(),
     telemetryStateDbPath: String(raw.telemetryStateDbPath || raw.telemetry_state_db_path || raw.stateDbPath || raw.state_db_path || "").trim(),
     telemetryResponseStoreDbPath: String(
@@ -94,6 +103,8 @@ function publicWorker(worker, health = null) {
     securityLevel: worker.securityLevel,
     allowedWorkspaceIds: worker.allowedWorkspaceIds,
     allowMaintenance: Boolean(worker.allowMaintenance),
+    skillProfile: worker.skillProfile || "",
+    skillWorkspaceIds: worker.skillWorkspaceIds || [],
     healthy: health == null ? null : Boolean(health),
   };
 }
@@ -114,6 +125,17 @@ function satisfiesFilter(worker, hints = {}) {
   const workspaceId = String(hints.workspaceId || hints.workspace_id || "").trim();
   if (workspaceId && Array.isArray(worker.allowedWorkspaceIds) && worker.allowedWorkspaceIds.length) {
     if (!worker.allowedWorkspaceIds.includes("*") && !worker.allowedWorkspaceIds.includes(workspaceId)) return false;
+  }
+  const skillProfile = String(hints.skillProfile || hints.skill_profile || "").trim();
+  const requireSkillProfile = Boolean(hints.requireSkillProfile || hints.require_skill_profile);
+  if (skillProfile && worker.skillProfile !== skillProfile) return false;
+  const skillWorkspaceId = String(hints.skillWorkspaceId || hints.skill_workspace_id || "").trim();
+  if (skillWorkspaceId) {
+    if (!Array.isArray(worker.skillWorkspaceIds) || !worker.skillWorkspaceIds.length) {
+      if (requireSkillProfile) return false;
+    } else if (!worker.skillWorkspaceIds.includes("*") && !worker.skillWorkspaceIds.includes(skillWorkspaceId)) {
+      return false;
+    }
   }
   const maintenance = Boolean(hints.maintenance || hints.allowMaintenance || hints.allow_maintenance);
   if (maintenance && !worker.allowMaintenance && worker.securityLevel !== "owner-maintenance") return false;
@@ -232,6 +254,25 @@ function createGatewayPoolProvider(options = {}) {
   async function chooseTarget(hints = {}) {
     const loaded = load();
     const requestedSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
+    const skillRoutingRequested = Boolean(
+      hints.skillProfile
+      || hints.skill_profile
+      || hints.skillWorkspaceId
+      || hints.skill_workspace_id,
+    );
+    const skillRoutingConfigured = loaded.workers.some((worker) => (
+      worker.skillProfile
+      || (Array.isArray(worker.skillWorkspaceIds) && worker.skillWorkspaceIds.length)
+    ));
+    const effectiveHints = Object.assign({}, hints);
+    if (skillRoutingRequested && !skillRoutingConfigured && !hints.requireSkillProfile && !hints.require_skill_profile) {
+      delete effectiveHints.skillProfile;
+      delete effectiveHints.skill_profile;
+      delete effectiveHints.skillWorkspaceId;
+      delete effectiveHints.skill_workspace_id;
+    } else if (skillRoutingRequested && skillRoutingConfigured) {
+      effectiveHints.requireSkillProfile = true;
+    }
     if (!loaded.enabled) {
       if (requestedSecurityLevel === "user") {
         const err = new Error("No user-level Hermes Gateway worker pool is available");
@@ -244,7 +285,7 @@ function createGatewayPoolProvider(options = {}) {
         reason: loaded.error ? `manifest_error:${loaded.error.message || loaded.error}` : "pool_unavailable",
       });
     }
-    const candidates = orderedWorkers(loaded.workers, nextIndex, hints);
+    const candidates = orderedWorkers(loaded.workers, nextIndex, effectiveHints);
     if (!candidates.length) {
       if (requestedSecurityLevel === "user") {
         const err = new Error("No matching user-level Hermes Gateway worker is available");

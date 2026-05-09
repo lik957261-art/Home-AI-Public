@@ -77,6 +77,8 @@ Gateway Pool mode expects a manifest such as:
       "enabled": true,
       "securityLevel": "user",
       "allowedWorkspaceIds": ["*"],
+      "skillProfile": "workspace:owner",
+      "skillWorkspaceIds": ["owner"],
       "telemetryStateDbPath": "/var/lib/hermes-gateway/profiles/lowgw1/state.db",
       "telemetryResponseStoreDbPath": "/var/lib/hermes-gateway/profiles/lowgw1/response_store.db"
     },
@@ -94,7 +96,7 @@ Gateway Pool mode expects a manifest such as:
 }
 ```
 
-Each worker should run an official Hermes Gateway process for its profile. Worker profiles may share official Hermes skills/memories through deployment-supported links or shared storage. Hermes Mobile does not edit those stores directly; it only submits Gateway runs.
+Each worker should run an official Hermes Gateway process for its profile. Worker profiles may share official Hermes skills/memories through deployment-supported links or shared storage. When deployments need account-level Skill isolation, use `skillProfile` plus `skillWorkspaceIds` in the manifest and point that worker profile at the corresponding official Hermes Skill store. Hermes Mobile does not edit those stores directly; it only submits Gateway runs.
 
 ## Scheduler Contract
 
@@ -105,6 +107,7 @@ The scheduler:
 - Honors exact hints such as `worker_profile`, `worker_profiles`, `worker_name`, and `worker_names`.
 - Honors optional preferred hints such as `preferred_worker_profiles` and `preferred_worker_names`.
 - Honors optional `provider`, `worker_tags`, `securityLevel`, `allowedWorkspaceIds`, and `allowMaintenance` filters.
+- Honors optional Skill profile routing hints. In `auto` mode, legacy manifests without `skillProfile` / `skillWorkspaceIds` keep old worker selection; once a manifest declares Skill routing fields, ordinary user runs must match the current `actorWorkspaceId` through `skillWorkspaceIds`. In `on` mode, missing Skill routing fields fail closed for ordinary user runs.
 - Health checks `/health` with the worker's API key.
 - Picks healthy workers round-robin.
 - For ordinary user runs, requires a healthy `securityLevel=user` worker and fails closed with `503` if none is available.
@@ -169,6 +172,7 @@ Official Hermes should remain clean enough to upgrade directly from upstream. If
 - `HERMES_WEB_GATEWAY_POOL_ENABLED=auto|true|false`
 - `HERMES_WEB_GATEWAY_POOL_MANIFEST=<path-to-worker-pool.json>`
 - `HERMES_WEB_GATEWAY_POOL_HEALTH_TIMEOUT_MS=5000`
+- `HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING=auto|on|off`
 - `HERMES_MOBILE_GATEWAY_USAGE_TELEMETRY_ENABLED=auto|true|false`
 - `HERMES_MOBILE_GATEWAY_TELEMETRY_PROFILES_ROOTS=<read-only-profile-root-list>`
 - `HERMES_WEB_MAX_ACTIVE_RUNS=<global-active-run-limit-or-0>`

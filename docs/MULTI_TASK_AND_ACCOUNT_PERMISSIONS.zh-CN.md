@@ -78,6 +78,20 @@ Owner-maintenance worker 必须同时满足：
 - 部署启用了 Owner maintenance routing。
 - worker manifest 声明 `allowMaintenance=true`。
 
+## Skill Profile 路由
+
+Hermes 的 Skill 发现、创建和更新仍由官方 Gateway profile 负责。Hermes Mobile 不复制或改写官方 Gateway 的 Skill 机制，而是在创建 run 前选择合适的 Gateway profile：
+
+- Owner 普通聊天/任务可以路由到带完整 Owner Skill 集合的低权限 profile。
+- 普通 workspace 用户应路由到只挂载该 workspace 私有 Skill 和管理员批准共享 Skill 的低权限 profile。
+- 不同 workspace 的私有 Skill 不应混在同一个 Gateway profile 中，除非部署明确接受共享 Skill 集合。
+- `skillProfile` 是给管理员和诊断使用的非秘密标签。
+- `skillWorkspaceIds` 声明该 worker 的 Skill 集合服务哪些 workspace；`["*"]` 只适合真正共享且无用户私有 Skill 的 profile。
+
+Hermes Mobile 的默认模式是 `HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING=auto`：旧 manifest 没有 `skillProfile` / `skillWorkspaceIds` 时继续保持兼容；一旦 manifest 声明这些字段，普通聊天/任务会按当前 `actorWorkspaceId` 匹配 `skillWorkspaceIds`。生产或强隔离部署应设置为 `on`，这样缺少匹配 Skill profile 的普通 run 会 fail closed，而不是落到不确定的共享 Skill 集合。
+
+这使 public release 可以保持通用：安装者可以先用单 Gateway 或传统 worker pool 起步；需要多账户 Skill 隔离时，只调整运行时 manifest 和每个 Gateway profile 的 Skill 根目录，不需要修改官方 Hermes 源码。
+
 ## 多账户模型
 
 Hermes Mobile 的账户模型由两个层次组成：

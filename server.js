@@ -30,6 +30,15 @@ const { createWorkspaceProjectProvider } = require("./adapters/workspace-project
 const { createTodoProvider } = require("./adapters/todo-provider");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 
+function normalizeAutoMode(value) {
+  const text = String(value || "").trim();
+  if (!text) return "auto";
+  if (/^(1|true|yes|on)$/i.test(text)) return "on";
+  if (/^(0|false|no|off)$/i.test(text)) return "off";
+  if (/^auto$/i.test(text)) return "auto";
+  return "auto";
+}
+
 const TOOL_ROOT = __dirname;
 const REPO_ROOT = path.resolve(process.env.HERMES_WEB_REPO_ROOT || process.env.HERMES_MOBILE_ROOT || TOOL_ROOT);
 const PUBLIC_ROOT = path.join(TOOL_ROOT, "public");
@@ -47,6 +56,11 @@ const HERMES_API_BASE = stripTrailingSlash(
 );
 const HERMES_API_TIMEOUT_MS = Number(process.env.HERMES_WEB_HERMES_API_TIMEOUT_MS || "8000");
 const GATEWAY_POOL_ENABLED = process.env.HERMES_WEB_GATEWAY_POOL_ENABLED || "auto";
+const GATEWAY_SKILL_PROFILE_ROUTING = normalizeAutoMode(
+  process.env.HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING
+  || process.env.HERMES_WEB_GATEWAY_SKILL_PROFILE_ROUTING
+  || "auto",
+);
 const GATEWAY_USAGE_TELEMETRY_ENABLED = (
   process.env.HERMES_MOBILE_GATEWAY_USAGE_TELEMETRY_ENABLED
   || process.env.HERMES_WEB_GATEWAY_USAGE_TELEMETRY_ENABLED
@@ -641,6 +655,18 @@ function gatewayRoutingForModelRun(auth, text, options = {}) {
   err.code = classification.category;
   err.operatorRequired = true;
   throw err;
+}
+
+function gatewaySkillRoutingForWorkspace(workspaceId, routing = {}) {
+  if (GATEWAY_SKILL_PROFILE_ROUTING === "off") return {};
+  const securityLevel = String(routing.securityLevel || routing.security_level || "user").trim();
+  const maintenance = Boolean(routing.maintenance || routing.allowMaintenance || routing.allow_maintenance);
+  if (maintenance || /^owner[-_]maintenance$/i.test(securityLevel)) return {};
+  const skillWorkspaceId = String(workspaceId || "").trim();
+  if (!skillWorkspaceId) return {};
+  const hints = { skillWorkspaceId };
+  if (GATEWAY_SKILL_PROFILE_ROUTING === "on") hints.requireSkillProfile = true;
+  return hints;
 }
 
 function ownerSetupStatus() {
@@ -5707,13 +5733,16 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     body.access_policy_context = sanitizePolicy(Object.assign({}, policy, options.access_policy_context));
   }
 
-  const gatewayTarget = await chooseGatewayRunTarget(Object.assign({}, options.gatewayRouting || {}, {
+  const gatewayRouting = Object.assign({}, options.gatewayRouting || {}, {
     purpose: "user_run",
     workspaceId: actorWorkspaceId,
     taskGroupId: userMessage.taskGroupId || "",
     model: body.model || "",
     reasoning_effort: body.reasoning_effort || "",
-  }));
+  });
+  Object.assign(gatewayRouting, gatewaySkillRoutingForWorkspace(actorWorkspaceId, gatewayRouting));
+
+  const gatewayTarget = await chooseGatewayRunTarget(gatewayRouting);
   const startedAt = nowIso();
   const gatewayUrl = gatewayTarget.apiBase;
   assistantMessage.runId = taskId;
