@@ -100,6 +100,8 @@ const state = {
   events: null,
   pendingArtifacts: [],
   composerFocused: false,
+  composerComposing: false,
+  composerSendAfterComposition: false,
   keyboardContextMode: false,
   keyboardContextTopPx: 0,
   keyboardViewportActive: false,
@@ -8174,14 +8176,18 @@ function setComposerEnabled(enabled) {
 function setComposerEditorEnabled(enabled) {
   const input = $("messageInput");
   if (!input) return;
-  input.setAttribute("contenteditable", enabled ? "plaintext-only" : "false");
+  if ("disabled" in input) input.disabled = !enabled;
+  else input.setAttribute("contenteditable", enabled ? "plaintext-only" : "false");
   input.dataset.disabled = enabled ? "" : "true";
   input.setAttribute("aria-disabled", enabled ? "false" : "true");
 }
 
 function setComposerPlaceholder(text) {
   const input = $("messageInput");
-  if (input) input.dataset.placeholder = text || "";
+  if (input) {
+    input.dataset.placeholder = text || "";
+    if ("placeholder" in input) input.placeholder = text || "";
+  }
 }
 
 function composerPlaceholder(fallback) {
@@ -10039,6 +10045,11 @@ function connectEvents() {
 
 async function sendMessage(event) {
   event?.preventDefault?.();
+  if (state.composerComposing) {
+    state.composerSendAfterComposition = true;
+    $("messageInput")?.blur();
+    return;
+  }
   if (isChatSearchMode()) {
     performChatSearch();
     return;
@@ -10538,19 +10549,22 @@ function ownerElevationConfirmMessage(err) {
 
 function getComposerText() {
   const input = $("messageInput");
+  if (input && "value" in input) return String(input.value || "").replace(/\u00a0/g, " ");
   return String(input?.innerText || "").replace(/\u00a0/g, " ");
 }
 
 function setComposerText(text) {
   const input = $("messageInput");
   if (!input) return;
-  input.textContent = text || "";
+  if ("value" in input) input.value = text || "";
+  else input.textContent = text || "";
   autoSizeComposerEditor(input);
   updateComposerAction();
 }
 
 function composerCaretOffset() {
   const input = $("messageInput");
+  if (input && typeof input.selectionStart === "number") return input.selectionStart;
   const selection = window.getSelection?.();
   if (!input || !selection || !selection.rangeCount) return getComposerText().length;
   const range = selection.getRangeAt(0);
@@ -10565,6 +10579,10 @@ function setComposerCaretOffset(offset) {
   const input = $("messageInput");
   if (!input) return;
   const target = Math.max(0, Number(offset) || 0);
+  if (typeof input.setSelectionRange === "function") {
+    input.setSelectionRange(target, target);
+    return;
+  }
   const walker = document.createTreeWalker(input, NodeFilter.SHOW_TEXT);
   let remaining = target;
   let node = walker.nextNode();
@@ -10740,6 +10758,14 @@ function autoSizeComposerEditor(el) {
 function pastePlainText(event) {
   event.preventDefault();
   const text = event.clipboardData?.getData("text/plain") || "";
+  const input = $("messageInput");
+  if (input && typeof input.setRangeText === "function") {
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    input.setRangeText(text, start, end, "end");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
   document.execCommand("insertText", false, text);
 }
 
@@ -11101,6 +11127,18 @@ function wireUi() {
   });
   $("messageInput").addEventListener("keydown", handleComposerKeydown);
   $("messageInput").addEventListener("paste", pastePlainText);
+  $("messageInput").addEventListener("compositionstart", () => {
+    state.composerComposing = true;
+  });
+  $("messageInput").addEventListener("compositionend", () => {
+    state.composerComposing = false;
+    updateComposerAction();
+    updateGroupMentionMenu();
+    if (state.composerSendAfterComposition) {
+      state.composerSendAfterComposition = false;
+      setTimeout(() => void sendMessage(), 0);
+    }
+  });
   $("messageInput").addEventListener("focus", () => {
     state.composerFocused = true;
     refreshKeyboardViewportDuringFocus();

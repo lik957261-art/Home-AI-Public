@@ -5538,6 +5538,9 @@ button.directory-alias-chip {
   overflow-wrap: anywhere;
   -webkit-user-select: text;
   user-select: text;
+  resize: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .composer-editor:empty::before {

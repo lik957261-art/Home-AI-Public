@@ -58,6 +58,12 @@ assert.match(appJs, /function selectedComposerReasoningEffort\(text = getCompose
 assert.match(appJs, /const aiMention = composerAiMentionInfo\(text\)/);
 assert.match(appJs, /const reasoningEffort = selectedComposerReasoningEffort\(text\)/);
 assert.match(appJs, /if \(reasoningEffort\) body\.reasoning_effort = reasoningEffort/);
+assert.match(indexHtml, /<textarea id="messageInput"/);
+assert.match(appJs, /if \(input && "value" in input\) return String\(input\.value/);
+assert.match(appJs, /input\.setRangeText\(text, start, end, "end"\)/);
+assert.match(appJs, /state\.composerComposing = true/);
+assert.match(appJs, /state\.composerSendAfterComposition = true/);
+assert.match(stylesCss, /resize: none/);
 
 assert.equal(indexHtml.includes("taskReasoningSelect"), false);
 assert.equal(stylesCss.includes("taskReasoningSelect"), false);
