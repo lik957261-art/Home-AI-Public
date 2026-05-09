@@ -41,6 +41,11 @@ MEDIA_PATH_PATTERN = re.compile(
     r"/(?:mnt/[a-z]|home/[^/]+)/[^\r\n]+?\.(?:pdf|docx|doc|md))"
     r"(?=$|[\s)>\"'，,。；;])"
 )
+ABSOLUTE_PATH_PATTERN = re.compile(
+    r"(?i)(\\\\wsl(?:\.localhost|\$)\\[^\r\n`]+|"
+    r"[a-z]:\\[^\r\n`]+|"
+    r"/(?:mnt/[a-z]|home/[^/]+)/[^\r\n`]+)"
+)
 
 PATH_PATTERNS = [
     re.compile(r"(?i)\\\\wsl(?:\.localhost|\$)\\[^\s]+"),
@@ -244,10 +249,25 @@ def normalize_delivery_path(raw: str) -> Path | None:
     return Path(value)
 
 
-def media_paths_from_run(path: Path) -> list[Path]:
+def run_text(path: Path) -> str:
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
+        return ""
+
+
+def response_text_from_run(path: Path) -> str:
+    text = run_text(path)
+    marker = "\n## Response"
+    index = text.rfind(marker)
+    if index < 0:
+        return text
+    return text[index:]
+
+
+def media_paths_from_run(path: Path) -> list[Path]:
+    text = response_text_from_run(path)
+    if not text:
         return []
     values: list[str] = []
     for match in MEDIA_LINE_PATTERN.finditer(text):
@@ -269,11 +289,103 @@ def media_paths_from_run(path: Path) -> list[Path]:
     return docs
 
 
+def markdown_source_directories_from_run(path: Path) -> list[Path]:
+    text = run_text(path)
+    if not text:
+        return []
+    roots: list[Path] = []
+    seen: set[str] = set()
+    for line in text.splitlines():
+        if not re.search(r"(?i)(markdown|\.md|源文件|source)", line):
+            continue
+        if not re.search(r"(?i)(源文件|目录|directory|dir|folder|path|路径)", line):
+            continue
+        for match in ABSOLUTE_PATH_PATTERN.finditer(line):
+            raw = match.group(1).strip().strip("`'\"<>")
+            raw = re.sub(r"[\s)>\"'，,。；;]+$", "", raw).strip()
+            candidate = normalize_delivery_path(raw)
+            if not candidate:
+                continue
+            if candidate.suffix:
+                candidate = candidate.parent
+            try:
+                if not candidate.is_dir():
+                    continue
+            except OSError:
+                continue
+            key = os.path.normcase(os.path.abspath(str(candidate)))
+            if key in seen:
+                continue
+            seen.add(key)
+            roots.append(candidate)
+    return roots
+
+
+def source_markdown_name_candidates(delivery_path: Path) -> list[str]:
+    names = [delivery_path.with_suffix(".md").name]
+    match = re.match(r"(?i)^x-brief-(\d{4})-(\d{2})-(\d{2})-(\d{6})$", delivery_path.stem)
+    if match:
+        prefix = f"{match.group(1)}{match.group(2)}{match.group(3)}_{match.group(4)}_"
+        names.append(prefix)
+    return names
+
+
+def source_markdown_for_delivery(run_path: Path, delivery_path: Path) -> Path | None:
+    if delivery_path.suffix.lower() == ".md" and delivery_path.is_file():
+        return delivery_path
+    candidates = [delivery_path.with_suffix(".md")]
+    roots = markdown_source_directories_from_run(run_path)
+    names = source_markdown_name_candidates(delivery_path)
+    for root in roots:
+        for name in names:
+            if name.endswith(".md"):
+                candidates.append(root / name)
+            else:
+                try:
+                    candidates.extend(sorted(root.glob(f"{name}*.md")))
+                except OSError:
+                    pass
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
+def deliverable_items_from_run(path: Path) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add_item(candidate: Path, source: str) -> None:
+        if candidate.suffix.lower() not in MEDIA_DOCUMENT_EXTENSIONS:
+            return
+        try:
+            if not candidate.is_file():
+                return
+        except OSError:
+            return
+        key = os.path.normcase(os.path.abspath(str(candidate)))
+        if key in seen:
+            return
+        seen.add(key)
+        items.append({"path": candidate, "source": source})
+
+    for delivery_path in media_paths_from_run(path):
+        source_md = source_markdown_for_delivery(path, delivery_path)
+        if source_md:
+            add_item(source_md, "source-markdown")
+        if delivery_path.suffix.lower() != ".md":
+            add_item(delivery_path, "delivery")
+    return items
+
+
 def deliverable_paths_from_run(path: Path) -> list[Path]:
-    return [item for item in media_paths_from_run(path) if item.suffix.lower() in MEDIA_DOCUMENT_EXTENSIONS and item.is_file()]
+    return [item["path"] for item in deliverable_items_from_run(path)]
 
 
-def delivery_document(clean_job_id: str, run_path: Path, index: int, path: Path, *, run_stat: os.stat_result | None = None) -> dict[str, Any] | None:
+def delivery_document(clean_job_id: str, run_path: Path, index: int, path: Path, *, source: str = "delivery", run_stat: os.stat_result | None = None) -> dict[str, Any] | None:
     if path.suffix.lower() not in MEDIA_DOCUMENT_EXTENSIONS or not path.is_file():
         return None
     stat = path.stat()
@@ -284,22 +396,9 @@ def delivery_document(clean_job_id: str, run_path: Path, index: int, path: Path,
         "size": stat.st_size,
         "updatedAt": datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(),
         "url": f"/api/automations/deliverable?{urlencode({'jobId': clean_job_id, 'run': run_path.name, 'index': str(index)})}",
-        "source": "delivery",
+        "source": source,
         "runOutput": run_path.name,
         "runOutputUpdatedAt": datetime.fromtimestamp(run_stat.st_mtime).astimezone().isoformat(),
-    }
-
-
-def run_output_document(clean_job_id: str, path: Path, path_stat: os.stat_result) -> dict[str, Any] | None:
-    if path.suffix.lower() != ".md" or not path.is_file():
-        return None
-    return {
-        "name": path.name,
-        "mime": mime_for_output(path),
-        "size": path_stat.st_size,
-        "updatedAt": datetime.fromtimestamp(path_stat.st_mtime).astimezone().isoformat(),
-        "url": f"/api/automations/output?{urlencode({'jobId': clean_job_id, 'file': path.name})}",
-        "source": "run-output",
     }
 
 
@@ -307,7 +406,7 @@ def document_source_rank(doc: dict[str, Any]) -> int:
     source = str(doc.get("source") or "").strip()
     name = str(doc.get("name") or "")
     suffix = Path(name).suffix.lower()
-    if source == "run-output":
+    if source == "source-markdown":
         return 0
     if suffix == ".md":
         return 1
@@ -337,11 +436,8 @@ def output_documents(job_id: str, limit: int = 30) -> list[dict[str, Any]]:
         entries = entries[:scan_limit]
     for path, path_stat in entries:
         if path.suffix.lower() == ".md":
-            run_doc = run_output_document(clean_job_id, path, path_stat)
-            if run_doc:
-                docs.append(run_doc)
-            for index, delivery_path in enumerate(deliverable_paths_from_run(path)):
-                doc = delivery_document(clean_job_id, path, index, delivery_path, run_stat=path_stat)
+            for index, item in enumerate(deliverable_items_from_run(path)):
+                doc = delivery_document(clean_job_id, path, index, item["path"], source=item.get("source") or "delivery", run_stat=path_stat)
                 if doc:
                     docs.append(doc)
             continue

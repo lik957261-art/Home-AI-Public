@@ -41,8 +41,9 @@ assert.match(fileViewer, /if \(src && !isMarkdownDocument\(\)\) window\.setTimeo
 
 assert.ok(adapterJs.includes("const aMarkdown = /\\.md$/i.test(a) ? 0 : 1;"));
 assert.match(cronBridge, /MEDIA_DOCUMENT_EXTENSIONS = \{"\.md"\} \| EXPORT_DOCUMENT_EXTENSIONS/);
-assert.match(cronBridge, /def run_output_document\(clean_job_id: str, path: Path, path_stat: os\.stat_result\)/);
-assert.match(cronBridge, /"source": "run-output"/);
+assert.match(cronBridge, /def deliverable_items_from_run\(path: Path\)/);
+assert.match(cronBridge, /def source_markdown_for_delivery\(run_path: Path, delivery_path: Path\)/);
+assert.match(cronBridge, /"source-markdown"/);
 assert.match(cronBridge, /document_source_rank\(item\)/);
 
 console.log("markdown delivery UI tests passed");

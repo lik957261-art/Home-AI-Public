@@ -103,10 +103,97 @@ function main() {
   assert.ok(mdJob);
   assert.deepEqual(
     mdJob.outputDocuments.map((item) => item.name),
-    ["run.md", "delivery.md", "delivery.pdf"],
+    ["delivery.md", "delivery.pdf"],
   );
-  assert.equal(mdJob.outputDocuments[0].source, "run-output");
-  assert.match(mdJob.outputDocuments[0].url, /\/api\/automations\/output\?/);
+  assert.equal(mdJob.outputDocuments[0].source, "source-markdown");
+  assert.match(mdJob.outputDocuments[0].url, /\/api\/automations\/deliverable\?/);
+
+  const sourceJobRoot = path.join(outputRoot, "job_source");
+  const sourceRoot = path.join(tempRoot, "source-docs");
+  const sourceMarkdown = path.join(sourceRoot, "daily-report.md");
+  const sourcePdf = path.join(tempRoot, "delivery", "daily-report.pdf");
+  fs.mkdirSync(sourceJobRoot, { recursive: true });
+  fs.mkdirSync(path.dirname(sourcePdf), { recursive: true });
+  fs.mkdirSync(sourceRoot, { recursive: true });
+  fs.writeFileSync(sourceMarkdown, "# Source report\n");
+  fs.writeFileSync(sourcePdf, "%PDF-1.7\n%%EOF\n");
+  fs.writeFileSync(path.join(sourceJobRoot, "run.md"), [
+    "Markdown 源文件目录：" + sourceRoot,
+    "## Response",
+    `MEDIA:${sourcePdf}`,
+  ].join("\n"));
+  jobsDoc.jobs.push({
+    id: "job_source",
+    name: "Source Markdown inference job",
+    enabled: true,
+    owner_principal_id: "owner",
+    schedule: { kind: "cron", expr: "0 10 * * *", display: "0 10 * * *" },
+    repeat: { times: null, completed: 0 },
+  });
+
+  const silentJobRoot = path.join(outputRoot, "job_silent");
+  fs.mkdirSync(silentJobRoot, { recursive: true });
+  fs.writeFileSync(path.join(silentJobRoot, "run.md"), [
+    "## Response",
+    "[SILENT]",
+  ].join("\n"));
+  jobsDoc.jobs.push({
+    id: "job_silent",
+    name: "Silent run job",
+    enabled: true,
+    owner_principal_id: "owner",
+    schedule: { kind: "cron", expr: "0 11 * * *", display: "0 11 * * *" },
+    repeat: { times: null, completed: 0 },
+  });
+  fs.writeFileSync(jobsPath, JSON.stringify(jobsDoc));
+
+  const sourceInference = runBridge(Object.assign({}, baseEnv, {
+    HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT: "0",
+  }));
+  const sourceJob = sourceInference.jobs.find((job) => job.id === "job_source");
+  assert.ok(sourceJob);
+  assert.deepEqual(
+    sourceJob.outputDocuments.map((item) => item.name),
+    ["daily-report.md", "daily-report.pdf"],
+  );
+  assert.equal(sourceJob.outputDocuments[0].source, "source-markdown");
+
+  const xJobRoot = path.join(outputRoot, "job_x");
+  const xSourceRoot = path.join(tempRoot, "x", "Briefs");
+  const xSourceMarkdown = path.join(xSourceRoot, "20260509_080054_12h_x-brief.md");
+  const xPdf = path.join(tempRoot, "x", "delivery", "x-brief-2026-05-09-080054.pdf");
+  fs.mkdirSync(xJobRoot, { recursive: true });
+  fs.mkdirSync(path.dirname(xPdf), { recursive: true });
+  fs.mkdirSync(xSourceRoot, { recursive: true });
+  fs.writeFileSync(xSourceMarkdown, "# X brief\n");
+  fs.writeFileSync(xPdf, "%PDF-1.7\n%%EOF\n");
+  fs.writeFileSync(path.join(xJobRoot, "run.md"), [
+    "X 项目 Markdown 源文件：" + xSourceRoot,
+    "## Response",
+    `MEDIA:${xPdf}`,
+  ].join("\n"));
+  jobsDoc.jobs.push({
+    id: "job_x",
+    name: "X brief source inference job",
+    enabled: true,
+    owner_principal_id: "owner",
+    schedule: { kind: "cron", expr: "0 12 * * *", display: "0 12 * * *" },
+    repeat: { times: null, completed: 0 },
+  });
+  fs.writeFileSync(jobsPath, JSON.stringify(jobsDoc));
+  const xInference = runBridge(Object.assign({}, baseEnv, {
+    HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT: "0",
+  }));
+  const xJob = xInference.jobs.find((job) => job.id === "job_x");
+  assert.ok(xJob);
+  assert.deepEqual(
+    xJob.outputDocuments.map((item) => item.name),
+    ["20260509_080054_12h_x-brief.md", "x-brief-2026-05-09-080054.pdf"],
+  );
+
+  const silentJob = sourceInference.jobs.find((job) => job.id === "job_silent");
+  assert.ok(silentJob);
+  assert.deepEqual(silentJob.outputDocuments, []);
 
   fs.rmSync(tempRoot, { recursive: true, force: true });
   console.log("cron-bridge tests passed");
