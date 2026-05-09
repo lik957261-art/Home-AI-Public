@@ -98,6 +98,9 @@ const state = {
   renderScheduled: false,
   shouldStickToBottom: true,
   preservedBottomOffset: 0,
+  conversationPinnedToBottom: true,
+  suppressConversationPinUntil: 0,
+  conversationBottomStickTimer: 0,
   routeScrollTaskGroupId: "",
   routeScrollMessageId: "",
   searchTimer: null,
@@ -2371,9 +2374,53 @@ function wireTaskSwipeActions(root) {
   });
 }
 
-function isNearBottom() {
-  const el = $("conversation");
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+function conversationBottomOffset(el = $("conversation")) {
+  if (!el) return 0;
+  return Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
+}
+
+function isNearBottom(threshold = 96) {
+  return conversationBottomOffset() < threshold;
+}
+
+function shouldStickConversationOnViewportChange() {
+  if (isChatSearchMode()) return false;
+  return isSingleWindowChatView() || isTaskDetailView();
+}
+
+function scrollConversationToBottom() {
+  const conversation = $("conversation");
+  if (!conversation) return;
+  conversation.scrollTop = conversation.scrollHeight;
+  state.conversationPinnedToBottom = true;
+}
+
+function scheduleConversationBottomStick() {
+  window.clearTimeout(state.conversationBottomStickTimer);
+  state.suppressConversationPinUntil = Date.now() + 700;
+  const stick = () => {
+    if (!shouldStickConversationOnViewportChange()) return;
+    scrollConversationToBottom();
+    scheduleMessageScrollButtonVisibility($("conversation"));
+  };
+  requestAnimationFrame(() => {
+    stick();
+    requestAnimationFrame(stick);
+  });
+  state.conversationBottomStickTimer = window.setTimeout(stick, 260);
+}
+
+function handleConversationScrollState() {
+  if (Date.now() < state.suppressConversationPinUntil) return;
+  state.conversationPinnedToBottom = isNearBottom();
+}
+
+function handleViewportLayoutChange() {
+  refreshComposerContextSoon(0);
+  scheduleMessageScrollButtonVisibility($("conversation"));
+  if (!shouldStickConversationOnViewportChange()) return;
+  if (!state.conversationPinnedToBottom && !isNearBottom(160)) return;
+  scheduleConversationBottomStick();
 }
 
 function messageElementById(messageId) {
@@ -7455,8 +7502,10 @@ function renderCurrentThread(options = {}) {
     requestAnimationFrame(() => scrollToCurrentChatSearchMatch(conversation));
   } else if (options.stickToBottom) {
     conversation.scrollTop = conversation.scrollHeight;
+    state.conversationPinnedToBottom = true;
   } else {
     conversation.scrollTop = Math.max(0, conversation.scrollHeight - bottomOffset);
+    state.conversationPinnedToBottom = isNearBottom();
   }
 }
 
@@ -7527,8 +7576,10 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   }
   if (options.stickToBottom) {
     conversation.scrollTop = state.currentTaskGroupId ? conversation.scrollHeight : 0;
+    state.conversationPinnedToBottom = Boolean(state.currentTaskGroupId);
   } else {
     conversation.scrollTop = Math.max(0, conversation.scrollHeight - bottomOffset);
+    state.conversationPinnedToBottom = isNearBottom();
   }
 }
 
@@ -10095,11 +10146,13 @@ function wireUi() {
     state.composerFocused = false;
     refreshComposerContextSoon(80);
   });
-  const refreshKeyboardContext = () => refreshComposerContextSoon(0);
-  navigator.virtualKeyboard?.addEventListener("geometrychange", refreshKeyboardContext);
-  window.visualViewport?.addEventListener("resize", refreshKeyboardContext);
-  window.visualViewport?.addEventListener("scroll", refreshKeyboardContext);
-  window.addEventListener("resize", refreshKeyboardContext);
+  $("conversation")?.addEventListener("scroll", handleConversationScrollState, { passive: true });
+  navigator.virtualKeyboard?.addEventListener("geometrychange", handleViewportLayoutChange);
+  window.visualViewport?.addEventListener("resize", handleViewportLayoutChange);
+  window.visualViewport?.addEventListener("scroll", handleViewportLayoutChange);
+  window.addEventListener("resize", handleViewportLayoutChange);
+  window.addEventListener("orientationchange", handleViewportLayoutChange);
+  window.screen?.orientation?.addEventListener?.("change", handleViewportLayoutChange);
   document.addEventListener("pointerdown", (event) => {
     if (!state.groupMentionOpen) return;
     if ($("composer")?.contains(event.target)) return;
