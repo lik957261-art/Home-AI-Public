@@ -95,6 +95,7 @@ const state = {
   composerFocused: false,
   keyboardContextMode: false,
   keyboardContextTopPx: 0,
+  keyboardViewportActive: false,
   renderScheduled: false,
   shouldStickToBottom: true,
   preservedBottomOffset: 0,
@@ -1001,6 +1002,51 @@ function nativeKeyboardGeometry() {
   const top = Number.isFinite(rect.y) ? rect.y : rect.top;
   if (!Number.isFinite(top) || top <= 0) return null;
   return { top, height: rect.height };
+}
+
+function visualViewportKeyboardMetrics() {
+  const viewport = window.visualViewport;
+  if (!viewport) return null;
+  const layoutHeight = Math.max(
+    window.innerHeight || 0,
+    document.documentElement?.clientHeight || 0,
+    0,
+  );
+  const height = Math.round(viewport.height || 0);
+  if (!layoutHeight || !height) return null;
+  const offsetTop = Math.max(0, Math.round(viewport.offsetTop || 0));
+  const bottomInset = Math.max(0, Math.round(layoutHeight - height - offsetTop));
+  const keyboardLikely = bottomInset > 80 || height < layoutHeight * 0.82;
+  return { height, offsetTop, bottomInset, keyboardLikely };
+}
+
+function updateKeyboardViewportMetrics() {
+  const root = document.documentElement;
+  const metrics = visualViewportKeyboardMetrics();
+  const active = Boolean(state.composerFocused && isMobileLayout() && metrics?.keyboardLikely);
+  state.keyboardViewportActive = active;
+  root.classList.toggle("keyboard-viewport-active", active);
+  if (active) {
+    root.style.setProperty("--app-viewport-height", `${Math.max(240, metrics.height)}px`);
+    root.style.setProperty("--app-viewport-offset-top", `${metrics.offsetTop}px`);
+    root.style.setProperty("--keyboard-bottom-inset", `${metrics.bottomInset}px`);
+  } else {
+    root.style.removeProperty("--app-viewport-height");
+    root.style.removeProperty("--app-viewport-offset-top");
+    root.style.removeProperty("--keyboard-bottom-inset");
+  }
+  return active;
+}
+
+function refreshKeyboardViewportSoon(delay = 0) {
+  window.setTimeout(() => {
+    const active = updateKeyboardViewportMetrics();
+    if (active) scheduleConversationBottomStick();
+  }, Math.max(0, delay));
+}
+
+function refreshKeyboardViewportDuringFocus() {
+  [0, 80, 180, 360, 700, 1100].forEach(refreshKeyboardViewportSoon);
 }
 
 function updateKeyboardContextMetrics() {
@@ -2416,6 +2462,7 @@ function handleConversationScrollState() {
 }
 
 function handleViewportLayoutChange() {
+  updateKeyboardViewportMetrics();
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));
   if (!shouldStickConversationOnViewportChange()) return;
@@ -10138,12 +10185,15 @@ function wireUi() {
   $("messageInput").addEventListener("paste", pastePlainText);
   $("messageInput").addEventListener("focus", () => {
     state.composerFocused = true;
+    refreshKeyboardViewportDuringFocus();
     refreshComposerContextSoon(0);
     refreshComposerContextSoon(160);
     refreshComposerContextSoon(360);
   });
   $("messageInput").addEventListener("blur", () => {
     state.composerFocused = false;
+    refreshKeyboardViewportSoon(80);
+    refreshKeyboardViewportSoon(260);
     refreshComposerContextSoon(80);
   });
   $("conversation")?.addEventListener("scroll", handleConversationScrollState, { passive: true });

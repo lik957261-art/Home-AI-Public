@@ -18,8 +18,7 @@ assert.match(appJs, /window\.addEventListener\("orientationchange", handleViewpo
 assert.match(appJs, /window\.screen\?\.orientation\?\.addEventListener\?\.\("change", handleViewportLayoutChange\)/);
 assert.match(appJs, /if \(!state\.conversationPinnedToBottom && !isNearBottom\(160\)\) return;/);
 
-assert.match(indexHtml, /data-client-version="20260509-1425"/);
-assert.match(serviceWorker, /20260509-orientation-bottom/);
-assert.match(serviceWorker, /app\.js\?v=20260509-1425/);
+assert.match(indexHtml, /data-client-version="20260509-1445"/);
+assert.match(serviceWorker, /app\.js\?v=20260509-1445/);
 
 console.log("viewport scroll UI tests passed");
