@@ -1,7 +1,11 @@
 "use strict";
 
 const assert = require("node:assert");
-const { createSecurityBoundaryProvider, normalizeComparablePath } = require("../adapters/security-boundary-provider");
+const {
+  classifySharedSkillWriteIntent,
+  createSecurityBoundaryProvider,
+  normalizeComparablePath,
+} = require("../adapters/security-boundary-provider");
 
 function run() {
   assert.strictEqual(normalizeComparablePath("D:\\HermesUsers\\Alice\\Repo"), "d:/hermesusers/alice/repo");
@@ -57,6 +61,16 @@ function run() {
   assert.strictEqual(policy.allow_shell, false);
   assert.strictEqual(policy.can_delegate_codex, false);
   assert.ok(policy.blocked_toolsets.includes("codex"));
+
+  assert.strictEqual(
+    classifySharedSkillWriteIntent("create a shared skill for all users")?.category,
+    "shared_skill_write",
+  );
+  assert.strictEqual(
+    provider.classifySharedSkillWriteIntent("\u521b\u5efa\u4e00\u4e2a\u6240\u6709\u7528\u6237\u90fd\u80fd\u7528\u7684\u901a\u7528 skill")?.elevationScope,
+    "shared_skill_write",
+  );
+  assert.strictEqual(classifySharedSkillWriteIntent("\u67e5\u4e00\u4e0b\u7a7f\u642d skill \u600e\u4e48\u7528"), null);
 
   assert.deepStrictEqual(provider.classifyMaintenanceIntent("请修一下 Hermes Mobile server.js 的排序问题")?.category, "product_maintenance");
   assert.strictEqual(provider.classifyMaintenanceIntent("帮我分析健康报告"), null);

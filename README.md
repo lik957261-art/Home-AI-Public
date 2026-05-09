@@ -45,6 +45,15 @@ npm run export:public -- --out workspace\public-export\hermes-mobile-public-smok
 
 The export command excludes runtime/private workspace paths, rewrites the README wording for a public repository, writes a small export report, and reruns the privacy scan against the exported tree. By default it refuses a dirty source tree so the report's source commit matches the exported content. Review the exported README and update public release notes before any public push.
 
+For Gateway Pool deployments that use multiple workers for one Skill profile,
+link those Gateway profile `skills` directories to one shared store before
+cutover. This keeps official Hermes Skill creation and updates visible to every
+worker in the same `skillProfile`:
+
+```powershell
+node scripts\link-skill-profile-store.js --shared "<shared-skills-dir>" --profile "<gateway-profile-a>\skills" --profile "<gateway-profile-b>\skills" --apply
+```
+
 Start the listener:
 
 ```powershell

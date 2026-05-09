@@ -2491,11 +2491,20 @@ async function api(path, options = {}) {
   }
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
+    let body = null;
     try {
-      const body = await res.json();
+      body = await res.json();
       if (body.error) message = body.error;
     } catch (_) {}
-    throw new Error(message);
+    const err = new Error(message);
+    err.status = res.status;
+    if (body && typeof body === "object") {
+      err.code = body.code || "";
+      err.operatorRequired = Boolean(body.operatorRequired);
+      err.elevationRequired = Boolean(body.elevationRequired);
+      err.elevationScope = body.elevationScope || body.code || "";
+    }
+    throw err;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -8711,6 +8720,9 @@ async function sendMessage(event) {
   closeGroupMentionMenu();
   setComposerText("");
   $("sendMessage").disabled = true;
+  let requestBody = null;
+  let createsNewTask = false;
+  let consumedPendingDirectory = false;
   try {
     const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
     if (state.viewMode === "single") {
@@ -8730,36 +8742,44 @@ async function sendMessage(event) {
       body.taskGroupId = quotedReply.taskGroupId;
       body.replyToMessageId = quotedReply.messageId;
     }
-    const createsNewTask = state.viewMode === "tasks" && !body.taskGroupId;
-    const consumedPendingDirectory = Boolean(state.pendingTaskDirectory?.projectId);
+    createsNewTask = state.viewMode === "tasks" && !body.taskGroupId;
+    consumedPendingDirectory = Boolean(state.pendingTaskDirectory?.projectId);
     if (createsNewTask) {
       const directory = state.pendingTaskDirectory;
       if (directory?.projectId) body.directory = directory;
     }
+    requestBody = body;
     const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
       method: "POST",
       body: JSON.stringify(body),
     });
-    state.pendingArtifacts = [];
-    if (createsNewTask) {
-      state.pendingTaskDirectory = null;
-      if (consumedPendingDirectory) state.taskDirectoryFilter = null;
-    }
-    if (state.viewMode === "tasks") state.pendingTaskReasoningEffort = "";
-    if (state.viewMode === "tasks") state.pendingTaskReasoningExplicit = false;
-    if (isGroupChatView()) state.groupAiMode = false;
-    clearQuotedReply({ render: false });
-    renderPendingArtifacts();
-    state.currentThread = mergeCurrentThread(result.thread);
-    if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
-      const latestUser = [...(state.currentThread?.messages || [])].reverse().find((message) => message.role === "user");
-      state.currentTaskGroupId = latestUser?.taskGroupId || "";
-    }
-    renderThreads();
-    renderCurrentThread({ stickToBottom: true });
-    suppressComposerAutoFocus(1200);
-    blurComposerInput();
+    handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
   } catch (err) {
+    if (shouldOfferOwnerElevation(err) && requestBody) {
+      const ok = window.confirm("这次操作需要写入共享或系统级 Skill。批准后只会将这一条消息路由到 Owner maintenance Gateway。是否批准？");
+      if (ok) {
+        try {
+          const elevatedBody = Object.assign({}, requestBody, {
+            maintenanceMode: true,
+            maintenance_mode: true,
+            elevationScope: err.elevationScope || err.code || "shared_skill_write",
+          });
+          const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
+            method: "POST",
+            body: JSON.stringify(elevatedBody),
+          });
+          handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
+          return;
+        } catch (elevatedErr) {
+          setComposerText(text);
+          showError(elevatedErr);
+          return;
+        }
+      }
+      setComposerText(text);
+      return;
+    }
+    setComposerText(text);
     showError(err);
   } finally {
     $("sendMessage").disabled = false;
@@ -9095,6 +9115,32 @@ function wireRightSwipeGuard() {
 
 function showError(err) {
   $("connectionState").textContent = err.message || String(err);
+}
+
+function handleSendMessageResult(result, createsNewTask, consumedPendingDirectory) {
+  state.pendingArtifacts = [];
+  if (createsNewTask) {
+    state.pendingTaskDirectory = null;
+    if (consumedPendingDirectory) state.taskDirectoryFilter = null;
+  }
+  if (state.viewMode === "tasks") state.pendingTaskReasoningEffort = "";
+  if (state.viewMode === "tasks") state.pendingTaskReasoningExplicit = false;
+  if (isGroupChatView()) state.groupAiMode = false;
+  clearQuotedReply({ render: false });
+  renderPendingArtifacts();
+  state.currentThread = mergeCurrentThread(result.thread);
+  if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
+    const latestUser = [...(state.currentThread?.messages || [])].reverse().find((message) => message.role === "user");
+    state.currentTaskGroupId = latestUser?.taskGroupId || "";
+  }
+  renderThreads();
+  renderCurrentThread({ stickToBottom: true });
+  suppressComposerAutoFocus(1200);
+  blurComposerInput();
+}
+
+function shouldOfferOwnerElevation(err) {
+  return Boolean(err?.elevationRequired && state.auth?.isOwner);
 }
 
 function getComposerText() {

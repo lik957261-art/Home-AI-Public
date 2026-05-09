@@ -640,7 +640,8 @@ function publicConcurrencyForAuth(auth) {
 }
 
 function gatewayRoutingForModelRun(auth, text, options = {}) {
-  const classification = securityBoundaryProvider.classifyMaintenanceIntent(text);
+  const classification = securityBoundaryProvider.classifyMaintenanceIntent(text)
+    || securityBoundaryProvider.classifySharedSkillWriteIntent(text);
   const explicitMaintenance = Boolean(options.maintenanceMode || options.maintenance_mode);
   if (!classification) return { securityLevel: "user", maintenance: false };
   if (isOwnerAuth(auth) && explicitMaintenance && OWNER_MAINTENANCE_RUNS_ENABLED) {
@@ -654,7 +655,20 @@ function gatewayRoutingForModelRun(auth, text, options = {}) {
   err.status = isOwnerAuth(auth) ? 409 : 403;
   err.code = classification.category;
   err.operatorRequired = true;
+  err.elevationRequired = Boolean(isOwnerAuth(auth) && classification.elevationRequired);
+  err.elevationScope = classification.elevationScope || classification.category;
   throw err;
+}
+
+function sharedSkillElevationInstructions(options = {}) {
+  const scope = String(options.elevationScope || options.elevation_scope || "").trim();
+  if (scope !== "shared_skill_write") return "";
+  return [
+    "APPROVED OWNER ELEVATION: this run is allowed to create or update a shared/system Skill only.",
+    "If a Skill should be available to all workspaces, place it in the shared Skill namespace, for example `shared/<skill-id>/SKILL.md`, through the current official Hermes Skill store.",
+    "Do not modify unrelated Skills, runtime secrets, product source, worker manifests, or user-private workspace files.",
+    "If the requested Skill is actually private to one workspace, do not use this elevated shared scope.",
+  ].join("\n");
 }
 
 function gatewaySkillRoutingForWorkspace(workspaceId, routing = {}) {
@@ -7812,6 +7826,8 @@ async function handleApi(req, res) {
           error: err.message || String(err),
           code: err.code || "gateway_security_boundary",
           operatorRequired: Boolean(err.operatorRequired),
+          elevationRequired: Boolean(err.elevationRequired),
+          elevationScope: err.elevationScope || "",
         });
         return;
       }
@@ -7929,7 +7945,11 @@ async function handleApi(req, res) {
       singleWindowMode,
       actorWorkspaceId,
       gatewayRouting,
-      instructions: [body.instructions || "", followUpInstructions].filter(Boolean).join("\n\n"),
+      instructions: [
+        body.instructions || "",
+        sharedSkillElevationInstructions(body),
+        followUpInstructions,
+      ].filter(Boolean).join("\n\n"),
     };
     if (body.model) runOptions.model = body.model;
     if (body.reasoning && typeof body.reasoning === "object") runOptions.reasoning = body.reasoning;

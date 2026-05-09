@@ -91,6 +91,28 @@ function envFlag(value) {
   return /^(1|true|yes|on)$/i.test(String(valueFrom(value) || "").trim());
 }
 
+function classifySharedSkillWriteIntent(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  const mentionsSkill = /SKILL\.md|skills?|\u6280\u80fd/i.test(raw);
+  if (!mentionsSkill) return null;
+  const hasWriteAction = (
+    /create|write|update|modify|edit|install|publish|share|generate|copy/i.test(raw)
+    || /[\u521b\u65b0]\u5efa|\u5199\u5165|\u66f4\u65b0|\u4fee\u6539|\u7f16\u8f91|\u5b89\u88c5|\u53d1\u5e03|\u5171\u4eab|\u751f\u6210|\u590d\u5236/.test(raw)
+  );
+  const hasSharedScope = (
+    /shared?|common|global|system|public|all\s+users?|all\s+workspaces?|everyone/i.test(raw)
+    || /\u901a\u7528|\u5171\u4eab|\u516c\u7528|\u516c\u5171|\u5168\u5c40|\u7cfb\u7edf\u7ea7|\u6240\u6709\u7528\u6237|\u5168\u90e8\u7528\u6237|\u6240\u6709\u5de5\u4f5c\u533a|\u5168\u90e8\u5de5\u4f5c\u533a|\u5168\u5458|\u5927\u5bb6\u90fd\u80fd\u7528|\u7ed9\u6240\u6709\u4eba\u7528/.test(raw)
+  );
+  if (!hasWriteAction || !hasSharedScope) return null;
+  return {
+    category: "shared_skill_write",
+    elevationRequired: true,
+    elevationScope: "shared_skill_write",
+    message: "This looks like a shared/system Skill write. Confirm elevation to route this one run to an Owner maintenance Gateway.",
+  };
+}
+
 function createSecurityBoundaryProvider(options = {}) {
   const allowUnrestricted = () => envFlag(options.allowUnrestricted);
   const allowDeveloperToolsets = () => envFlag(options.allowDeveloperToolsets);
@@ -209,6 +231,7 @@ function createSecurityBoundaryProvider(options = {}) {
     allowedExceptionRoots,
     assertRootNotProtected,
     classifyMaintenanceIntent,
+    classifySharedSkillWriteIntent,
     filterRoots,
     hardenAccessPolicy,
     isProtectedPath,
@@ -221,6 +244,7 @@ function createSecurityBoundaryProvider(options = {}) {
 }
 
 module.exports = {
+  classifySharedSkillWriteIntent,
   createSecurityBoundaryProvider,
   normalizeComparablePath,
   pathInside,

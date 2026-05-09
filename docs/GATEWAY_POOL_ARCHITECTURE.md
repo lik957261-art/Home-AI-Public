@@ -98,6 +98,16 @@ Gateway Pool mode expects a manifest such as:
 
 Each worker should run an official Hermes Gateway process for its profile. Worker profiles may share official Hermes skills/memories through deployment-supported links or shared storage. When deployments need account-level Skill isolation, use `skillProfile` plus `skillWorkspaceIds` in the manifest and point that worker profile at the corresponding official Hermes Skill store. Hermes Mobile does not edit those stores directly; it only submits Gateway runs.
 
+Workers that declare the same `skillProfile` must resolve their profile `skills`
+directory to the same writable Skill store. This is required for Skill creation
+and updates to be consistent across low-privilege and maintenance Gateways. For
+example, an Owner run may create a Skill through a low-privilege `owner-full`
+worker and later use that Skill through an Owner maintenance worker; both
+profiles must see the same filesystem store. The helper
+`scripts/link-skill-profile-store.js` can merge existing profile Skill
+directories, back them up, and replace them with links to a shared store without
+modifying official Hermes Gateway source.
+
 ## Scheduler Contract
 
 The scheduler:
@@ -113,6 +123,14 @@ The scheduler:
 - For ordinary user runs, requires a healthy `securityLevel=user` worker and fails closed with `503` if none is available.
 - For explicit Owner maintenance runs, may select `securityLevel=owner-maintenance` workers only when the request is marked as maintenance and the deployment enables Owner maintenance routing.
 - Falls back to the configured default Gateway only for non-user fallback paths. Owner-maintenance workers must not be used as ordinary user-run fallback.
+
+Shared/system Skill writes are treated as an Owner elevation case, not as
+ordinary user routing. If an Owner is currently using a low-privilege Gateway
+and asks to create, update, or publish a Skill for all users/workspaces, Hermes
+Mobile returns an elevation-required response. After the Owner explicitly
+approves, only that one run is marked as maintenance and routed to an
+`owner-maintenance` worker. If the run is already in Owner maintenance mode, no
+second approval is required.
 
 The worker API key is read from the manifest for requests only. It must not be written to messages, SQLite rows, state snapshots, browser payloads, logs, or docs.
 
