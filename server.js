@@ -4449,10 +4449,11 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     "You are serving a Hermes Mobile app request.",
     "Use the selected account/workspace/project as the operational boundary.",
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
+    securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
     "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
     "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
     createDeliveryBoundaryInstructions(deliveryBoundaryOptions),
-  ];
+  ].filter(Boolean);
   if (taskDirectory?.path) {
     lines.push(`Attached task directory: ${taskDirectory.label || "Directory"} => ${taskDirectory.path}.`);
     lines.push("Base this task on the cleaned/normalized data in the attached directory first; use broader allowed roots only when the user request clearly requires it.");
