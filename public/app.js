@@ -2264,11 +2264,82 @@ async function deleteTaskGroup(taskGroupId, options = {}) {
   renderCurrentThread({ stickToBottom: true });
 }
 
+function selectTaskRenameInput(input) {
+  if (!input) return;
+  try {
+    input.focus({ preventScroll: true });
+  } catch (_) {
+    input.focus();
+  }
+  try {
+    input.setSelectionRange(0, input.value.length);
+  } catch (_) {
+    input.select();
+  }
+  input.select();
+}
+
+function openTaskRenameDialog(currentTitle) {
+  const overlay = $("taskRenameOverlay");
+  if (!overlay) return Promise.resolve(window.prompt("修改任务名", currentTitle));
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeydown);
+      overlay.removeEventListener("click", onBackdropClick);
+      overlay.classList.add("hidden");
+      overlay.innerHTML = "";
+      resolve(value);
+    };
+    const onKeydown = (event) => {
+      if (event.key === "Escape") finish(null);
+    };
+    const onBackdropClick = (event) => {
+      if (event.target === overlay) finish(null);
+    };
+    overlay.innerHTML = `<form class="access-key-sheet task-rename-sheet" data-task-rename-form>
+      <div class="access-key-header">
+        <div>
+          <div id="taskRenameTitle" class="access-key-title">修改任务名</div>
+          <div class="access-key-subtitle">输入后保存为任务列表标题</div>
+        </div>
+        <button class="icon-button" type="button" data-task-rename-cancel aria-label="关闭">&#10005;</button>
+      </div>
+      <label class="task-rename-field">
+        <span>任务名</span>
+        <input id="taskRenameInput" type="text" value="${escapeHtml(currentTitle)}" autocomplete="off" autocapitalize="sentences">
+      </label>
+      <div class="task-rename-actions">
+        <button type="button" data-task-rename-cancel>取消</button>
+        <button class="primary" type="submit">保存</button>
+      </div>
+    </form>`;
+    overlay.classList.remove("hidden");
+    overlay.addEventListener("click", onBackdropClick);
+    document.addEventListener("keydown", onKeydown);
+    const form = overlay.querySelector("[data-task-rename-form]");
+    const input = overlay.querySelector("#taskRenameInput");
+    form?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      finish(input?.value ?? "");
+    });
+    overlay.querySelectorAll("[data-task-rename-cancel]").forEach((button) => {
+      button.addEventListener("click", () => finish(null));
+    });
+    requestAnimationFrame(() => {
+      selectTaskRenameInput(input);
+      window.setTimeout(() => selectTaskRenameInput(input), 80);
+    });
+  });
+}
+
 async function renameTaskGroup(taskGroupId) {
   if (!state.currentThreadId || !taskGroupId) return;
   const group = taskListGroupsForThread(state.currentThread).find((item) => item.id === taskGroupId);
   const currentTitle = String(group?.title || "").trim() || taskPrompt(group) || "";
-  const nextTitle = window.prompt("修改任务名", currentTitle);
+  const nextTitle = await openTaskRenameDialog(currentTitle);
   if (nextTitle === null) return;
   const title = nextTitle.trim();
   if (!title) {
