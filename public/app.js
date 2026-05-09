@@ -3174,6 +3174,7 @@ function renderSettingsOverlay() {
 
 function openSettings() {
   closeTopMoreMenu();
+  closeSidebar();
   state.settingsOpen = true;
   renderSettingsOverlay();
 }
