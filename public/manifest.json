@@ -1,10 +1,10 @@
 {
-  "id": "/?source=pwa",
+  "id": "/hermes-mobile/",
   "name": "Hermes Mobile",
   "short_name": "Hermes",
   "description": "Mobile workspace for Hermes chat, tasks, directories, todos, and automations.",
-  "start_url": "/?source=pwa",
-  "scope": "/",
+  "start_url": "/hermes-mobile/?source=pwa",
+  "scope": "/hermes-mobile/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait",
@@ -29,25 +29,25 @@
     {
       "name": "聊天",
       "short_name": "聊天",
-      "url": "/?view=single&singleWindowMode=chat&source=pwa-shortcut",
+      "url": "/hermes-mobile/?view=single&singleWindowMode=chat&source=pwa-shortcut",
       "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260508.png", "sizes": "192x192" }]
     },
     {
       "name": "任务",
       "short_name": "任务",
-      "url": "/?view=tasks&source=pwa-shortcut",
+      "url": "/hermes-mobile/?view=tasks&source=pwa-shortcut",
       "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260508.png", "sizes": "192x192" }]
     },
     {
       "name": "目录",
       "short_name": "目录",
-      "url": "/?view=projects&source=pwa-shortcut",
+      "url": "/hermes-mobile/?view=projects&source=pwa-shortcut",
       "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260508.png", "sizes": "192x192" }]
     },
     {
       "name": "待办",
       "short_name": "待办",
-      "url": "/?view=todos&source=pwa-shortcut",
+      "url": "/hermes-mobile/?view=todos&source=pwa-shortcut",
       "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260508.png", "sizes": "192x192" }]
     }
   ]

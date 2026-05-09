@@ -3211,7 +3211,8 @@ function textFilePreview(filePath) {
 
 function serveStatic(req, res) {
   const url = getUrl(req);
-  const rel = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
+  const pathname = url.pathname === "/hermes-mobile" ? "/hermes-mobile/" : url.pathname;
+  const rel = decodeURIComponent((pathname === "/" || pathname === "/hermes-mobile/") ? "/index.html" : pathname);
   const target = path.normalize(path.join(PUBLIC_ROOT, rel));
   if (!target.startsWith(PUBLIC_ROOT)) {
     res.writeHead(403);

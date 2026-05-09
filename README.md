@@ -59,6 +59,9 @@ the browser can enable the Service Worker, then use the top-right menu's install
 entry or the browser's native install/add-to-home-screen command. The PWA caches
 only the application shell and static assets; API data, artifacts, secrets, and
 workspace files remain network/runtime data.
+The install identity is path-scoped to `/hermes-mobile/` so deployments that
+also expose another app on the same HTTPS host, such as a Codex Mobile console
+on another port or legacy root scope, do not collide with Hermes Mobile's PWA.
 
 Start the listener:
 

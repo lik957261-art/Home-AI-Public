@@ -1,12 +1,13 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260509-pwa-shell";
+const HERMES_SW_VERSION = "20260509-pwa-path-scope";
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
 const HERMES_APP_SHELL_URLS = [
   "/",
+  "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260509-1015",
-  "/app.js?v=20260509-1015",
+  "/styles.css?v=20260509-1030",
+  "/app.js?v=20260509-1030",
   "/fixed-viewport.js?v=20260505-1135",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260508.png",
