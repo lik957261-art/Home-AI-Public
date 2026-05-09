@@ -1,13 +1,13 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260509-font-size";
+const HERMES_SW_VERSION = "20260509-font-size-nav";
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
 const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260509-1110",
-  "/app.js?v=20260509-1110",
+  "/styles.css?v=20260509-1120",
+  "/app.js?v=20260509-1120",
   "/fixed-viewport.js?v=20260505-1135",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

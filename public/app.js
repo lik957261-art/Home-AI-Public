@@ -1425,11 +1425,6 @@ function updateTopMoreControls() {
     manageGroupMembers.hidden = !chatView || !isGroupChatView();
     manageGroupMembers.disabled = !chatView || !isGroupChatView() || !state.currentThread;
   }
-  const openSettingsButton = $("topOpenSettings");
-  if (openSettingsButton) {
-    openSettingsButton.hidden = false;
-    openSettingsButton.disabled = false;
-  }
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
   wrap.classList.toggle("hidden", !hasVisibleAction);
@@ -9865,7 +9860,7 @@ function wireUi() {
   $("topManageGroupMembers")?.addEventListener("click", () => {
     openGroupChatMembers().catch(showError);
   });
-  $("topOpenSettings")?.addEventListener("click", openSettings);
+  $("topSettingsButton")?.addEventListener("click", openSettings);
   document.addEventListener("click", closeTopMoreMenu);
   document.addEventListener("click", () => closeTaskCardMenus());
   document.addEventListener("click", () => closeDirectoryEntryMenus());

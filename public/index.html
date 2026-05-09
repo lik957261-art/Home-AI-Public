@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260509-1110">
+<html lang="en" data-client-version="20260509-1120">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260509-1110">
+  <meta name="hermes-web-client-version" content="20260509-1120">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f3efe7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -25,7 +25,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260509-1110">
+  <link rel="stylesheet" href="/styles.css?v=20260509-1120">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -73,7 +73,7 @@
       <div class="side-title">
         <div class="side-heading">
           <div class="eyebrow">Hermes</div>
-      <div id="clientVersion" class="client-version">v20260509-1110</div>
+      <div id="clientVersion" class="client-version">v20260509-1120</div>
           <button id="searchButton" class="push-button" type="button" aria-label="Search" title="Search">⌕</button>
           <button id="pushToggle" class="push-button" type="button" hidden aria-label="启用通知" title="启用通知">🔔</button>
         </div>
@@ -159,6 +159,7 @@
         <div class="top-actions">
           <span id="connectionState" class="connection">Starting</span>
           <button id="interruptRun" class="danger-button" type="button" disabled>Stop</button>
+          <button id="topSettingsButton" class="top-more-button top-settings-button" type="button" aria-label="设置" title="设置">⚙</button>
           <div id="topMoreWrap" class="top-more-wrap hidden">
             <button id="topMoreButton" class="top-more-button" type="button" aria-label="More actions" aria-expanded="false">...</button>
             <div id="topMoreMenu" class="top-more-menu" hidden>
@@ -172,7 +173,6 @@
               <button id="topSearchChat" class="top-more-action" type="button" hidden>搜索</button>
               <button id="topToggleGroupChat" class="top-more-action" type="button" hidden>&#20999;&#25442;&#21040;&#32676;</button>
               <button id="topManageGroupMembers" class="top-more-action" type="button" hidden>&#25104;&#21592;</button>
-              <button id="topOpenSettings" class="top-more-action" type="button" hidden>设置</button>
               <button id="topToggleTaskView" class="top-more-action" type="button">信息流</button>
               <button id="topToggleSingleMode" class="top-more-action" type="button" hidden>任务流</button>
               <button id="topClearDirectoryFilter" class="top-more-action" type="button" hidden>清除目录筛选</button>
@@ -215,6 +215,6 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260509-1110"></script>
+  <script src="/app.js?v=20260509-1120"></script>
 </body>
 </html>
