@@ -4327,7 +4327,7 @@ async function testRuntimeConfigManager() {
   }
 }
 
-function renderAccessKeyManager() {
+function renderAccessKeyManagerLegacy() {
   const overlay = $("accessKeyOverlay");
   if (!overlay) return;
   overlay.classList.toggle("hidden", !state.accessKeyManagerOpen);
@@ -4500,6 +4500,254 @@ function renderAccessKeyManager() {
   });
 }
 
+function renderAccessKeyManager() {
+  const overlay = $("accessKeyOverlay");
+  if (!overlay) return;
+  overlay.classList.toggle("hidden", !state.accessKeyManagerOpen);
+  if (!state.accessKeyManagerOpen) {
+    overlay.innerHTML = "";
+    return;
+  }
+  const isOwnerAccessManager = Boolean(state.accessKeysAuth?.isOwner || state.auth?.isOwner);
+  const allWorkspaces = Array.isArray(state.workspaces) ? state.workspaces : [];
+  const localWorkspaces = isOwnerAccessManager
+    ? allWorkspaces.filter((workspace) => workspace.source === "local-workspace")
+    : [];
+  const deploymentWorkspaces = isOwnerAccessManager
+    ? allWorkspaces.filter((workspace) => workspace.id !== "owner" && workspace.source !== "local-workspace")
+    : [];
+  const accessKeys = Array.isArray(state.accessKeys) ? state.accessKeys : [];
+  const accessKeyByWorkspaceId = new Map(
+    accessKeys.map((item) => [String(item.workspaceId || ""), item]).filter(([workspaceId]) => workspaceId),
+  );
+  const workspaceIds = new Set(allWorkspaces.map((workspace) => String(workspace.id || "")).filter(Boolean));
+
+  const generatedAccessKeyBlock = (target = {}) => {
+    if (!state.generatedAccessKey) return "";
+    const generatedKind = state.generatedAccessKey.kind || "workspace";
+    const targetKind = target.kind || "workspace";
+    const generatedWorkspaceId = String(state.generatedAccessKey.workspaceId || "");
+    const targetWorkspaceId = String(target.workspaceId || "");
+    if (generatedKind !== targetKind) return "";
+    if (targetKind === "workspace" && targetWorkspaceId && generatedWorkspaceId !== targetWorkspaceId) return "";
+    return `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(generatedWorkspaceId)}">
+        <div class="access-key-result-label">${escapeHtml(state.generatedAccessKey.label || "New Access Key")}</div>
+        <div class="access-key-value-row">
+          <code>${escapeHtml(state.generatedAccessKey.key || "")}</code>
+          <button type="button" data-copy-access-key>复制</button>
+        </div>
+        <div class="access-key-note">明文 key 只显示一次。${state.accessKeyRequiresLogin ? "复制后需要重新登录。" : ""}</div>
+        ${state.accessKeyRequiresLogin ? `<button class="access-key-login-button" type="button" data-relogin-after-access-key>重新登录</button>` : ""}
+      </section>`;
+  };
+
+  const workspaceRootLabel = (workspace) => workspace?.localConfig?.defaultWorkspace || workspace?.defaultWorkspace || "";
+  const workspaceToolsets = (workspace) => workspace?.localConfig?.allowedToolsets || workspace?.bindings?.allowedToolsets || [];
+  const workspaceKeyRecord = (workspace) => {
+    const workspaceId = String(workspace?.id || "");
+    return accessKeyByWorkspaceId.get(workspaceId) || {
+      workspaceId,
+      workspaceLabel: workspace?.label || workspaceId,
+      hasKey: Boolean(workspace?.accessKeyStatus?.hasKey),
+      updatedAt: workspace?.accessKeyStatus?.updatedAt || "",
+    };
+  };
+  const renderWorkspaceKeyCard = (workspace, options = {}) => {
+    const workspaceId = String(workspace?.id || "");
+    if (!workspaceId) return "";
+    const editable = Boolean(options.editable);
+    const keyRecord = workspaceKeyRecord(workspace);
+    const root = workspaceRootLabel(workspace);
+    const toolsets = workspaceToolsets(workspace);
+    const updated = keyRecord.updatedAt ? formatTime(keyRecord.updatedAt) : "";
+    const keyLabel = keyRecord.hasKey ? "已生成" : "未生成";
+    return `<article class="owner-workspace-card ${editable ? "local" : "deployment"}">
+      <div class="owner-workspace-card-head">
+        <div class="owner-workspace-main">
+          <div class="owner-workspace-title">${escapeHtml(workspace?.label || workspaceId)}</div>
+          <div class="owner-workspace-id">${escapeHtml(workspaceId)}</div>
+        </div>
+        <span class="owner-workspace-badge">${editable ? "本地账号" : "部署账号"}</span>
+      </div>
+      <dl class="owner-workspace-facts">
+        <div><dt>Key</dt><dd>${escapeHtml(keyLabel)}${updated ? ` · ${escapeHtml(updated)}` : ""}</dd></div>
+        ${root ? `<div><dt>根目录</dt><dd>${escapeHtml(root)}</dd></div>` : ""}
+        ${toolsets.length ? `<div><dt>接口</dt><dd>${escapeHtml(toolsets.join(", "))}</dd></div>` : ""}
+      </dl>
+      <div class="owner-workspace-actions">
+        ${editable ? `<button type="button" data-edit-workspace="${escapeHtml(workspaceId)}">编辑</button>` : ""}
+        <button type="button" data-generate-workspace-key="${escapeHtml(workspaceId)}">${keyRecord.hasKey ? "更换 Key" : "生成 Key"}</button>
+        ${keyRecord.hasKey ? `<button type="button" data-revoke-workspace-key="${escapeHtml(workspaceId)}">撤销</button>` : ""}
+        ${editable ? `<button class="danger" type="button" data-delete-workspace="${escapeHtml(workspaceId)}">删除</button>` : ""}
+      </div>
+      ${generatedAccessKeyBlock({ kind: "workspace", workspaceId })}
+    </article>`;
+  };
+  const renderWorkspaceSection = (title, workspaces, options = {}) => {
+    if (!workspaces.length) return "";
+    return `<section class="access-key-section">
+      <div class="access-key-section-head">
+        <div class="access-key-section-title">${escapeHtml(title)}</div>
+        <div class="access-key-section-count">${escapeHtml(workspaces.length)}</div>
+      </div>
+      <div class="owner-workspace-grid">
+        ${workspaces.map((workspace) => renderWorkspaceKeyCard(workspace, options)).join("")}
+      </div>
+    </section>`;
+  };
+
+  const generatedKind = state.generatedAccessKey?.kind || "workspace";
+  const generatedWorkspaceId = String(state.generatedAccessKey?.workspaceId || "");
+  const generatedInRow = Boolean(generatedKind === "workspace" && generatedWorkspaceId && workspaceIds.has(generatedWorkspaceId));
+  const generatedInOwner = Boolean(generatedKind === "owner" && isOwnerAccessManager);
+  const fallbackGenerated = state.generatedAccessKey && !generatedInRow && !generatedInOwner
+    ? generatedAccessKeyBlock({ kind: generatedKind })
+    : "";
+  const orphanAccessKeys = isOwnerAccessManager
+    ? accessKeys.filter((item) => item.workspaceId && !workspaceIds.has(String(item.workspaceId)))
+    : [];
+  const orphanKeySection = orphanAccessKeys.length ? `<section class="access-key-section">
+    <div class="access-key-section-head">
+      <div class="access-key-section-title">其他 Key 记录</div>
+      <div class="access-key-section-count">${escapeHtml(orphanAccessKeys.length)}</div>
+    </div>
+    <div class="access-key-list">
+      ${orphanAccessKeys.map((item) => {
+    const updated = item.updatedAt ? formatTime(item.updatedAt) : "";
+    return `<article class="access-key-row">
+        <div class="access-key-row-main">
+          <div class="access-key-row-title">${escapeHtml(item.workspaceLabel || item.workspaceId)}</div>
+          <div class="access-key-row-meta">${escapeHtml(item.workspaceId || "")}${updated ? ` · ${escapeHtml(updated)}` : ""}</div>
+        </div>
+        <div class="access-key-row-state">${item.hasKey ? "已生成" : "未生成"}</div>
+        <button type="button" data-generate-workspace-key="${escapeHtml(item.workspaceId || "")}">${item.hasKey ? "更换 Key" : "生成 Key"}</button>
+        ${item.hasKey ? `<button type="button" data-revoke-workspace-key="${escapeHtml(item.workspaceId || "")}">撤销</button>` : ""}
+        ${generatedAccessKeyBlock({ kind: "workspace", workspaceId: item.workspaceId || "" })}
+      </article>`;
+  }).join("")}
+    </div>
+  </section>` : "";
+
+  const loadingBlock = state.accessKeysLoading
+    ? `<div class="access-key-empty">正在读取账号和 Key...</div>`
+    : "";
+  const errorBlock = state.accessKeysError
+    ? `<div class="access-key-empty error">${escapeHtml(state.accessKeysError)}</div>`
+    : "";
+  const ownerKeySection = isOwnerAccessManager ? `<section class="access-key-section owner-key-section">
+    <div class="access-key-section-head">
+      <div class="access-key-section-title">Owner Key</div>
+      <div class="access-key-section-count">${escapeHtml(state.accessKeysAuth?.source || "configured")}</div>
+    </div>
+    <article class="access-key-web owner-key-card">
+      <div>
+        <div class="access-key-row-title">Hermes Mobile Owner Key</div>
+        <div class="access-key-row-meta">管理员入口 Key</div>
+      </div>
+      <button type="button" data-rotate-web-key${state.accessKeysAuth?.canRotateGlobal === false ? " disabled" : ""}>更换</button>
+      ${generatedAccessKeyBlock({ kind: "owner" })}
+    </article>
+  </section>` : "";
+  const workspaceCreateForm = isOwnerAccessManager ? `<details class="access-key-section access-key-create-section" data-workspace-config-section>
+    <summary class="access-key-section-summary">
+      <span>新建 / 编辑本地账号</span>
+      <span>本地工作区</span>
+    </summary>
+    <section class="access-key-create-workspace">
+      <div class="access-key-row-title">创建 / 配置用户工作区</div>
+      <div class="workspace-create-help">先填用户名，显示名、根目录和访问目录会自动预填。</div>
+      <div class="access-key-create-grid">
+        <label>
+          <span>用户名</span>
+          <input id="newWorkspaceId" type="text" autocomplete="off" placeholder="zhangsan / 张三">
+        </label>
+        <label>
+          <span>显示名</span>
+          <input id="newWorkspaceLabel" type="text" autocomplete="off" placeholder="自动生成">
+        </label>
+        <label class="workspace-create-full">
+          <span>根目录</span>
+          <input id="newWorkspaceRoot" type="text" autocomplete="off" placeholder="自动生成，可修改">
+        </label>
+      </div>
+      <div id="newWorkspaceDefaultsHint" class="workspace-create-hint"></div>
+      <label class="workspace-create-field">
+        <span>允许访问目录</span>
+        <textarea id="newWorkspaceAllowedRoots" rows="3" placeholder="默认使用根目录；每行一个"></textarea>
+      </label>
+      <label class="workspace-create-field">
+        <span>额外接口 / toolsets</span>
+        <input id="newWorkspaceToolsets" type="text" autocomplete="off" placeholder="可留空，逗号分隔">
+      </label>
+      <button type="button" data-create-workspace>保存工作区</button>
+    </section>
+  </details>` : "";
+  const workspaceAdminList = isOwnerAccessManager
+    ? `${renderWorkspaceSection("本地用户", localWorkspaces, { editable: true })}
+       ${renderWorkspaceSection("部署账号", deploymentWorkspaces, { editable: false })}
+       ${!localWorkspaces.length && !deploymentWorkspaces.length ? `<section class="access-key-section"><div class="access-key-empty">还没有可管理的账号。</div></section>` : ""}
+       ${orphanKeySection}`
+    : `<section class="access-key-section"><div class="access-key-list">${accessKeys.map((item) => {
+      const updated = item.updatedAt ? formatTime(item.updatedAt) : "";
+      return `<article class="access-key-row">
+        <div class="access-key-row-main">
+          <div class="access-key-row-title">${escapeHtml(item.workspaceLabel || item.workspaceId)}</div>
+          <div class="access-key-row-meta">${escapeHtml(item.workspaceId || "")}${updated ? ` · ${escapeHtml(updated)}` : ""}</div>
+        </div>
+        <div class="access-key-row-state">${item.hasKey ? "已生成" : "未生成"}</div>
+        <button type="button" data-generate-workspace-key="${escapeHtml(item.workspaceId || "")}">${item.hasKey ? "更换 Key" : "生成 Key"}</button>
+        ${item.hasKey ? `<button type="button" data-revoke-workspace-key="${escapeHtml(item.workspaceId || "")}">撤销</button>` : ""}
+        ${generatedAccessKeyBlock({ kind: "workspace", workspaceId: item.workspaceId || "" })}
+      </article>`;
+    }).join("")}</div></section>`;
+  const subtitle = isOwnerAccessManager
+    ? "账号、根目录、接口和登录 Key"
+    : "只能查看并更换当前账号的 Hermes Mobile 登录 Key。";
+
+  overlay.innerHTML = `
+    <div class="access-key-sheet owner-admin-sheet">
+      <header class="access-key-header">
+        <div>
+          <div id="accessKeyTitle" class="access-key-title">${isOwnerAccessManager ? "Owner 管理" : "Access Key"}</div>
+          <div class="access-key-subtitle">${escapeHtml(subtitle)}</div>
+        </div>
+        <button class="access-key-close" type="button" data-close-access-keys>完成</button>
+      </header>
+      ${loadingBlock}
+      ${errorBlock}
+      ${ownerKeySection}
+      ${workspaceAdminList}
+      ${workspaceCreateForm}
+      ${fallbackGenerated}
+    </div>`;
+
+  overlay.querySelector("[data-close-access-keys]")?.addEventListener("click", closeAccessKeyManager);
+  overlay.querySelector("[data-rotate-web-key]")?.addEventListener("click", () => rotateWebAccessKey().catch(showError));
+  overlay.querySelector("[data-create-workspace]")?.addEventListener("click", () => createWorkspaceFromAccessKeyManager().catch(showError));
+  wireWorkspaceCreateDefaults(overlay);
+  overlay.querySelector("[data-copy-access-key]")?.addEventListener("click", () => copyTextToClipboard(state.generatedAccessKey?.key || "").catch(showError));
+  overlay.querySelector("[data-relogin-after-access-key]")?.addEventListener("click", () => finishAccessKeyRelogin());
+  const generatedNode = overlay.querySelector("[data-generated-access-key]");
+  if (generatedNode && state.generatedAccessKey?.focus) {
+    state.generatedAccessKey.focus = false;
+    window.requestAnimationFrame(() => {
+      generatedNode.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }
+  overlay.querySelectorAll("[data-edit-workspace]").forEach((button) => {
+    button.addEventListener("click", () => fillWorkspaceConfigForm(button.dataset.editWorkspace || ""));
+  });
+  overlay.querySelectorAll("[data-delete-workspace]").forEach((button) => {
+    button.addEventListener("click", () => deleteWorkspaceFromAccessKeyManager(button.dataset.deleteWorkspace || "").catch(showError));
+  });
+  overlay.querySelectorAll("[data-generate-workspace-key]").forEach((button) => {
+    button.addEventListener("click", () => generateWorkspaceAccessKey(button.dataset.generateWorkspaceKey).catch(showError));
+  });
+  overlay.querySelectorAll("[data-revoke-workspace-key]").forEach((button) => {
+    button.addEventListener("click", () => revokeWorkspaceAccessKey(button.dataset.revokeWorkspaceKey || "").catch(showError));
+  });
+}
+
 async function loadAccessKeyManager(options = {}) {
   state.accessKeyWorkspaceId = options.workspaceId || state.accessKeyWorkspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "";
   state.accessKeysLoading = true;
@@ -4541,6 +4789,8 @@ async function openAccessKeyManager(options = {}) {
 function fillWorkspaceConfigForm(workspaceId) {
   const workspace = (state.workspaces || []).find((item) => item.id === workspaceId);
   if (!workspace) return;
+  const configSection = $("accessKeyOverlay")?.querySelector("[data-workspace-config-section]");
+  if (configSection) configSection.open = true;
   const localConfig = workspace.localConfig || {};
   const inputs = workspaceCreateInputs();
   if (inputs.id) {
@@ -4565,7 +4815,10 @@ function fillWorkspaceConfigForm(workspaceId) {
   }
   const hint = $("newWorkspaceDefaultsHint");
   if (hint) hint.textContent = workspace.id ? `ID: ${workspace.id}` : "";
-  $("newWorkspaceLabel")?.focus();
+  window.requestAnimationFrame(() => {
+    configSection?.scrollIntoView({ block: "start", behavior: "smooth" });
+    $("newWorkspaceLabel")?.focus();
+  });
 }
 
 async function createWorkspaceFromAccessKeyManager() {

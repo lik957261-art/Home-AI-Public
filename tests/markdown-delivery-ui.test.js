@@ -38,6 +38,9 @@ assert.match(appJs, /function applyAppUpdateFromBadge\(\)/);
 assert.match(appJs, /function isSelfUpdateUnsupported\(result\)/);
 assert.match(appJs, /function appUpdateToastKind\(result\)/);
 assert.match(appJs, /当前安装方式不支持应用内更新。/);
+assert.match(appJs, /owner-admin-sheet/);
+assert.match(appJs, /owner-workspace-card/);
+assert.match(appJs, /data-workspace-config-section/);
 assert.match(appJs, /data-update-available/);
 
 assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
