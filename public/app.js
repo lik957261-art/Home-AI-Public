@@ -1569,8 +1569,9 @@ function updateTopMoreControls() {
   }
   const manageGroupMembers = $("topManageGroupMembers");
   if (manageGroupMembers) {
-    manageGroupMembers.hidden = !chatView || !isGroupChatView();
-    manageGroupMembers.disabled = !chatView || !isGroupChatView() || !state.currentThread;
+    const canManageGroupMembers = Boolean(state.auth?.isOwner && chatView && isGroupChatView());
+    manageGroupMembers.hidden = !canManageGroupMembers;
+    manageGroupMembers.disabled = !canManageGroupMembers || !state.currentThread;
   }
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
@@ -6812,6 +6813,7 @@ function renderGroupChatManager() {
 
 async function openGroupChatMembers() {
   closeTopMoreMenu();
+  if (!state.auth?.isOwner) return;
   if (!isGroupChatView()) await toggleGroupChat();
   if (!isGroupChatView()) return;
   state.groupChatManagerOpen = true;
