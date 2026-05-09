@@ -41,8 +41,9 @@ assert.match(appJs, /const ownerElevationOnceTag = ownerElevationComposerAvailab
 assert.match(appJs, /function composerGatewayPermissionLabel\(\)/);
 assert.match(appJs, /function activeRunGatewayPermissionLabel\(\)/);
 assert.match(appJs, /function messageUsesHighPermissionGateway\(message = \{\}\)/);
-assert.match(appJs, /Gateway 权限 高（运行中）/);
-assert.match(appJs, /Gateway 权限 低（运行中）/);
+assert.doesNotMatch(appJs, /Gateway 权限 高（运行中）/);
+assert.doesNotMatch(appJs, /Gateway 权限 低（运行中）/);
+assert.match(appJs, /\? \{ label: "Gateway 权限 高", tone: "active" \}/);
 assert.match(appJs, /Gateway 权限 高（本次）/);
 assert.match(appJs, /Gateway 权限 高（限时）/);
 assert.match(appJs, /Gateway 权限 低/);
@@ -57,6 +58,12 @@ assert.match(appJs, /function selectedComposerReasoningEffort\(text = getCompose
 assert.match(appJs, /const aiMention = composerAiMentionInfo\(text\)/);
 assert.match(appJs, /const reasoningEffort = selectedComposerReasoningEffort\(text\)/);
 assert.match(appJs, /if \(reasoningEffort\) body\.reasoning_effort = reasoningEffort/);
+assert.match(indexHtml, /<textarea id="messageInput"/);
+assert.match(appJs, /if \(input && "value" in input\) return String\(input\.value/);
+assert.match(appJs, /input\.setRangeText\(text, start, end, "end"\)/);
+assert.match(appJs, /state\.composerComposing = true/);
+assert.match(appJs, /state\.composerSendAfterComposition = true/);
+assert.match(stylesCss, /resize: none/);
 
 assert.equal(indexHtml.includes("taskReasoningSelect"), false);
 assert.equal(stylesCss.includes("taskReasoningSelect"), false);

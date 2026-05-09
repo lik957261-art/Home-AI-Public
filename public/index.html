@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260509-2255">
+<html lang="en" data-client-version="20260509-2315">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260509-2230">
+  <meta name="hermes-web-client-version" content="20260509-2315">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f3efe7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -25,7 +25,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260509-2255">
+  <link rel="stylesheet" href="/styles.css?v=20260509-2315">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -199,7 +199,7 @@
         <div id="groupMentionMenu" class="group-mention-menu" hidden></div>
         <div id="composerContext" class="composer-context" aria-live="polite" hidden></div>
         <button id="attachFile" class="secondary-button" type="button" disabled aria-label="添加文件" title="添加文件">+</button>
-        <div id="messageInput" class="composer-editor" contenteditable="false" role="textbox" aria-multiline="true" aria-disabled="true" data-placeholder="Message Hermes..." inputmode="text" enterkeyhint="send" autocorrect="off" autocapitalize="sentences" spellcheck="false"></div>
+        <textarea id="messageInput" class="composer-editor" rows="1" disabled aria-label="Message Hermes" aria-multiline="true" data-placeholder="Message Hermes..." placeholder="Message Hermes..." inputmode="text" enterkeyhint="send" autocorrect="off" autocapitalize="sentences" spellcheck="false"></textarea>
         <button id="chatSearchPrev" class="composer-search-nav" type="button" aria-label="Previous match" title="Previous match" hidden disabled>&uarr;</button>
         <button id="chatSearchNext" class="composer-search-nav" type="button" aria-label="Next match" title="Next match" hidden disabled>&darr;</button>
         <span id="chatSearchStatus" class="composer-search-status" aria-live="polite" hidden></span>
@@ -209,6 +209,6 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260509-2255"></script>
+  <script src="/app.js?v=20260509-2315"></script>
 </body>
 </html>
