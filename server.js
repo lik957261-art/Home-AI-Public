@@ -5416,6 +5416,7 @@ function compactThread(thread) {
 
 function compactMessage(message, thread = null) {
   thread = thread || findThreadForMessage(message);
+  const gatewayRouting = message.runOptions?.gatewayRouting || {};
   return {
     id: message.id,
     role: message.role,
@@ -5452,6 +5453,9 @@ function compactMessage(message, thread = null) {
     gatewayName: message.gatewayName || "",
     gatewayProfile: message.gatewayProfile || "",
     gatewaySource: message.gatewaySource || "",
+    gatewaySecurityLevel: gatewayRouting.securityLevel || gatewayRouting.security_level || "",
+    gatewayMaintenance: Boolean(gatewayRouting.maintenance || gatewayRouting.allowMaintenance || gatewayRouting.allow_maintenance),
+    gatewayMaintenanceCategory: gatewayRouting.maintenanceCategory || gatewayRouting.maintenance_category || "",
     truncated: typeof message.content === "string" && message.content.length > MAX_API_TEXT_CHARS,
   };
 }

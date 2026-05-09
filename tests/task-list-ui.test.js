@@ -35,5 +35,8 @@ assert.match(serverJs, /function grantOwnerElevationOnce\(auth\)/);
 assert.match(serverJs, /function consumeOwnerElevationOnce\(auth, token\)/);
 assert.match(serverJs, /consumeOwnerElevationOnce\(auth, onceToken\) \|\| isOwnerElevationActive\(auth\)/);
 assert.match(serverJs, /isOwnerElevationActive\(auth\)/);
+assert.match(serverJs, /gatewaySecurityLevel: gatewayRouting\.securityLevel/);
+assert.match(serverJs, /gatewayMaintenance: Boolean\(gatewayRouting\.maintenance/);
+assert.match(serverJs, /gatewayMaintenanceCategory: gatewayRouting\.maintenanceCategory/);
 
 console.log("task list UI tests passed");

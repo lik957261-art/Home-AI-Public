@@ -1127,9 +1127,31 @@ function composerReasoningLabel() {
   return `\u63a8\u7406 ${compact}`;
 }
 
+function messageUsesHighPermissionGateway(message = {}) {
+  const securityLevel = String(message.gatewaySecurityLevel || message.gateway_security_level || "").trim();
+  return Boolean(
+    message.gatewayMaintenance
+    || message.gateway_maintenance
+    || /^owner[-_]maintenance$/i.test(securityLevel)
+  );
+}
+
+function activeRunGatewayPermissionLabel() {
+  const active = [...composerStatusMessages()].reverse().find((message) => (
+    message?.role === "assistant"
+    && ["queued", "running"].includes(message.status)
+  ));
+  if (!active) return null;
+  return messageUsesHighPermissionGateway(active)
+    ? { label: "Gateway 权限 高（运行中）", tone: "active" }
+    : { label: "Gateway 权限 低（运行中）" };
+}
+
 function composerGatewayPermissionLabel() {
   if (isChatSearchMode()) return null;
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
+  const activeLabel = activeRunGatewayPermissionLabel();
+  if (activeLabel) return activeLabel;
   if (ownerElevationComposerAvailable() && ownerElevationOnceTagInfo(getComposerText())) {
     return { label: "Gateway 权限 高（本次）", tone: "active" };
   }
