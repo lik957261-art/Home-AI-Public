@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add a mandatory low-permission Gateway pre-flight Skill for Hermes Mobile
+  permission-boundary checks before filesystem, Skill, automation, account,
+  integration, or delivery-path operations.
+
 ## 1.0.0 - 2026-05-09
 
 - First public release of Hermes Mobile.

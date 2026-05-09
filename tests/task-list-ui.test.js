@@ -8,6 +8,7 @@ const repoRoot = path.resolve(__dirname, "..");
 const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
+const serverJs = fs.readFileSync(path.join(repoRoot, "server.js"), "utf8");
 
 assert.match(appJs, /function taskGroupsForThread\(thread\)/);
 assert.match(appJs, /return \[\.\.\.groups\.values\(\)\]\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\);/);
@@ -22,5 +23,17 @@ assert.match(appJs, /input\.setSelectionRange\(0, input\.value\.length\)/);
 assert.match(appJs, /input\.select\(\)/);
 assert.match(appJs, /const nextTitle = await openTaskRenameDialog\(currentTitle\)/);
 assert.match(stylesCss, /\.task-rename-sheet/);
+assert.match(appJs, /function renderOwnerElevationPanel\(\)/);
+assert.match(appJs, /\/api\/owner-elevation/);
+assert.match(appJs, /body\.maintenanceMode = true/);
+assert.match(appJs, /owner_high_privilege/);
+assert.match(stylesCss, /\.workspace-permission-panel/);
+assert.match(serverJs, /function publicOwnerElevationStatus\(auth\)/);
+assert.match(serverJs, /url\.pathname === "\/api\/owner-elevation"/);
+assert.match(serverJs, /url\.pathname === "\/api\/owner-elevation\/once"/);
+assert.match(serverJs, /function grantOwnerElevationOnce\(auth\)/);
+assert.match(serverJs, /function consumeOwnerElevationOnce\(auth, token\)/);
+assert.match(serverJs, /consumeOwnerElevationOnce\(auth, onceToken\) \|\| isOwnerElevationActive\(auth\)/);
+assert.match(serverJs, /isOwnerElevationActive\(auth\)/);
 
 console.log("task list UI tests passed");

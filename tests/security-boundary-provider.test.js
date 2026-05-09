@@ -1,11 +1,14 @@
 "use strict";
 
 const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   classifyAutomationAdminWriteIntent,
   classifySharedSkillWriteIntent,
   createSecurityBoundaryProvider,
   normalizeComparablePath,
+  permissionBoundarySkillInstructions,
 } = require("../adapters/security-boundary-provider");
 
 function run() {
@@ -109,6 +112,19 @@ function run() {
     "shared_skill_write",
   );
   assert.strictEqual(classifySharedSkillWriteIntent("\u67e5\u4e00\u4e0b\u7a7f\u642d skill \u600e\u4e48\u7528"), null);
+
+  const permissionInstructions = permissionBoundarySkillInstructions({
+    access_mode: "restricted",
+    allowed_roots: ["/workspace/a"],
+  });
+  assert.match(permissionInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
+  assert.match(permissionInstructions, /access_policy_context/);
+  assert.match(provider.permissionBoundarySkillInstructions({ access_mode: "restricted" }), /mandatory pre-flight/);
+  assert.strictEqual(permissionBoundarySkillInstructions({ access_mode: "unrestricted" }), "");
+
+  const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");
+  assert.ok(fs.existsSync(skillPath));
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Do not search a broad drive/);
 
   assert.deepStrictEqual(provider.classifyMaintenanceIntent("请修一下 Hermes Mobile server.js 的排序问题")?.category, "product_maintenance");
   assert.strictEqual(provider.classifyMaintenanceIntent("帮我分析健康报告"), null);

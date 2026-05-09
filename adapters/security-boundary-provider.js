@@ -129,6 +129,18 @@ const DEVELOPER_TOOLSETS = Object.freeze([
 ]);
 
 const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|cron|cronjob|mcp)(?:$|[-_])/i;
+const PERMISSION_BOUNDARY_SKILL = "productivity/hermes-mobile-permission-boundary-check";
+
+function permissionBoundarySkillInstructions(policy = {}) {
+  const accessMode = String(policy?.access_mode || policy?.accessMode || "").trim().toLowerCase();
+  if (accessMode === "unrestricted") return "";
+  return [
+    `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as a mandatory pre-flight check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
+    "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
+    "If the request needs a path, Skill store, account, toolset, or external integration outside this run's access_policy_context, stop before tool calls and say that the request is outside the current permission scope.",
+    "Do not search broad drives, create placeholder Skills/files, or promise that work will run later when a missing out-of-scope path appears.",
+  ].join("\n");
+}
 
 function classifySharedSkillWriteIntent(text) {
   const raw = String(text || "").trim();
@@ -315,6 +327,7 @@ function createSecurityBoundaryProvider(options = {}) {
     isProtectedPath,
     normalizeComparablePath,
     pathInside,
+    permissionBoundarySkillInstructions,
     protectedFiles,
     protectedRoots,
     rootConflictsWithProtected,
@@ -326,5 +339,6 @@ module.exports = {
   classifySharedSkillWriteIntent,
   createSecurityBoundaryProvider,
   normalizeComparablePath,
+  permissionBoundarySkillInstructions,
   pathInside,
 };
