@@ -41,8 +41,9 @@ assert.match(appJs, /const ownerElevationOnceTag = ownerElevationComposerAvailab
 assert.match(appJs, /function composerGatewayPermissionLabel\(\)/);
 assert.match(appJs, /function activeRunGatewayPermissionLabel\(\)/);
 assert.match(appJs, /function messageUsesHighPermissionGateway\(message = \{\}\)/);
-assert.match(appJs, /Gateway 权限 高（运行中）/);
-assert.match(appJs, /Gateway 权限 低（运行中）/);
+assert.doesNotMatch(appJs, /Gateway 权限 高（运行中）/);
+assert.doesNotMatch(appJs, /Gateway 权限 低（运行中）/);
+assert.match(appJs, /\? \{ label: "Gateway 权限 高", tone: "active" \}/);
 assert.match(appJs, /Gateway 权限 高（本次）/);
 assert.match(appJs, /Gateway 权限 高（限时）/);
 assert.match(appJs, /Gateway 权限 低/);

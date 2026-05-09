@@ -1145,8 +1145,8 @@ function activeRunGatewayPermissionLabel() {
   ));
   if (!active) return null;
   return messageUsesHighPermissionGateway(active)
-    ? { label: "Gateway 权限 高（运行中）", tone: "active" }
-    : { label: "Gateway 权限 低（运行中）" };
+    ? { label: "Gateway 权限 高", tone: "active" }
+    : { label: "Gateway 权限 低" };
 }
 
 function composerGatewayPermissionLabel() {
