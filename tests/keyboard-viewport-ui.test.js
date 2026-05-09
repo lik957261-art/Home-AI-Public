@@ -15,19 +15,22 @@ assert.match(appJs, /function visualViewportKeyboardMetrics\(\)/);
 assert.match(appJs, /function updateKeyboardViewportMetrics\(\)/);
 assert.match(appJs, /root\.classList\.toggle\("keyboard-viewport-active", active\)/);
 assert.match(appJs, /--app-viewport-height/);
+assert.match(appJs, /window\.scrollTo\(0, 0\)/);
 assert.match(appJs, /function refreshKeyboardViewportDuringFocus\(\)/);
 assert.match(appJs, /\[0, 80, 180, 360, 700, 1100\]\.forEach\(refreshKeyboardViewportSoon\)/);
 assert.match(appJs, /refreshKeyboardViewportDuringFocus\(\)/);
 assert.match(appJs, /refreshKeyboardViewportSoon\(260\)/);
 
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.app/);
+assert.match(stylesCss, /position: fixed/);
+assert.match(stylesCss, /top: var\(--app-viewport-offset-top, 0\)/);
 assert.match(stylesCss, /height: var\(--app-viewport-height, 100dvh\)/);
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.bottom-nav/);
 assert.match(stylesCss, /display: none/);
 
-assert.match(indexHtml, /data-client-version="20260509-1445"/);
-assert.match(serviceWorker, /20260509-keyboard-viewport/);
-assert.match(serviceWorker, /styles\.css\?v=20260509-1445/);
-assert.match(serviceWorker, /app\.js\?v=20260509-1445/);
+assert.match(indexHtml, /data-client-version="20260509-1455"/);
+assert.match(serviceWorker, /20260509-keyboard-fixed-viewport/);
+assert.match(serviceWorker, /styles\.css\?v=20260509-1455/);
+assert.match(serviceWorker, /app\.js\?v=20260509-1455/);
 
 console.log("keyboard viewport UI tests passed");

@@ -1030,6 +1030,11 @@ function updateKeyboardViewportMetrics() {
     root.style.setProperty("--app-viewport-height", `${Math.max(240, metrics.height)}px`);
     root.style.setProperty("--app-viewport-offset-top", `${metrics.offsetTop}px`);
     root.style.setProperty("--keyboard-bottom-inset", `${metrics.bottomInset}px`);
+    if (window.scrollX || window.scrollY || document.documentElement.scrollTop || document.body.scrollTop) {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
   } else {
     root.style.removeProperty("--app-viewport-height");
     root.style.removeProperty("--app-viewport-offset-top");
