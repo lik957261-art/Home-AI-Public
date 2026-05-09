@@ -110,10 +110,10 @@ function copyTree(source, target, apply, actions, stats, mode) {
         walk(src);
       } else if (entry.isFile()) {
         let copy = false;
+        const srcStat = fs.statSync(src);
         if (!fs.existsSync(dst)) {
           copy = true;
         } else {
-          const srcStat = fs.statSync(src);
           const dstStat = fs.statSync(dst);
           copy = srcStat.mtimeMs > dstStat.mtimeMs + 1;
         }
@@ -121,7 +121,10 @@ function copyTree(source, target, apply, actions, stats, mode) {
           ensureDir(path.dirname(dst), apply, actions);
           actions.push({ action: mode, source: src, target: dst });
           stats.filesCopied += 1;
-          if (apply) fs.copyFileSync(src, dst);
+          if (apply) {
+            fs.copyFileSync(src, dst);
+            fs.utimesSync(dst, srcStat.atime, srcStat.mtime);
+          }
         }
       }
     }
