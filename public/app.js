@@ -186,10 +186,10 @@ const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
 const GROUP_REVOKE_LABEL = "\u64a4\u56de";
-const SHARE_IMAGE_WIDTH = 1080;
-const SHARE_IMAGE_SCALE = 2;
-const SHARE_IMAGE_MAX_PIXELS = 32000000;
-const SHARE_IMAGE_MAX_DIMENSION = 16384;
+const SHARE_IMAGE_WIDTH = 1440;
+const SHARE_IMAGE_SCALE = 3;
+const SHARE_IMAGE_MAX_PIXELS = 48000000;
+const SHARE_IMAGE_MAX_DIMENSION = 24000;
 
 function isSingleWindowConversationTaskGroupId(value) {
   const id = String(value || "");
@@ -664,6 +664,7 @@ function artifactKind(artifact) {
   const name = String(artifact?.name || artifact?.id || "").toLowerCase();
   const mime = String(artifact?.mime || "").toLowerCase();
   if (mime.includes("pdf") || name.endsWith(".pdf")) return "pdf";
+  if (mime.includes("html") || name.endsWith(".html") || name.endsWith(".htm")) return "html";
   if (
     mime.includes("word") ||
     mime.includes("officedocument.wordprocessingml") ||
@@ -758,6 +759,7 @@ function artifactHref(artifact) {
   });
   if (state.selectedWorkspaceId) query.set("workspaceId", state.selectedWorkspaceId);
   if (state.currentThreadId) query.set("threadId", state.currentThreadId);
+  if (kind === "html") return url;
   if (kind === "pdf") return `/pdf-viewer.html?${query.toString()}`;
   return `/file-viewer.html?${query.toString()}`;
 }
@@ -5427,66 +5429,66 @@ function fillRoundRect(ctx, x, y, width, height, radius, fillStyle) {
 
 function layoutShareImage(ctx, message, text) {
   const width = SHARE_IMAGE_WIDTH;
-  const margin = 72;
+  const margin = 96;
   const contentWidth = width - margin * 2;
   const items = [];
-  let y = 54;
+  let y = 72;
   const title = messageShareTitle(message);
   const meta = [messageDisplayTimeLabel(message), state.currentThread?.title || ""].filter(Boolean).join(" - ");
 
-  setShareImageFont(ctx, 30, 800);
-  items.push({ type: "brand", x: margin, y, text: "Hermes Mobile", size: 30, weight: 800 });
-  y += 46;
-  setShareImageFont(ctx, 46, 760);
+  setShareImageFont(ctx, 36, 800);
+  items.push({ type: "brand", x: margin, y, text: "Hermes Mobile", size: 36, weight: 800 });
+  y += 58;
+  setShareImageFont(ctx, 62, 760);
   const titleLines = wrapCanvasText(ctx, title, contentWidth);
-  items.push({ type: "text", x: margin, y, lines: titleLines, size: 46, weight: 760, lineHeight: 58, color: "#142027" });
-  y += titleLines.length * 58 + 12;
+  items.push({ type: "text", x: margin, y, lines: titleLines, size: 62, weight: 760, lineHeight: 76, color: "#142027" });
+  y += titleLines.length * 76 + 18;
   if (meta) {
-    setShareImageFont(ctx, 26, 500);
+    setShareImageFont(ctx, 34, 500);
     const metaLines = wrapCanvasText(ctx, meta, contentWidth);
-    items.push({ type: "text", x: margin, y, lines: metaLines, size: 26, weight: 500, lineHeight: 36, color: "#6f6a5f" });
-    y += metaLines.length * 36 + 24;
+    items.push({ type: "text", x: margin, y, lines: metaLines, size: 34, weight: 500, lineHeight: 46, color: "#6f6a5f" });
+    y += metaLines.length * 46 + 32;
   }
   items.push({ type: "rule", x: margin, y, width: contentWidth });
-  y += 38;
+  y += 48;
 
   for (const block of shareImageBlocksFromText(text)) {
     if (block.type === "heading") {
-      const size = block.level <= 1 ? 52 : 48;
-      const lineHeight = block.level <= 1 ? 66 : 60;
+      const size = block.level <= 1 ? 64 : block.level === 2 ? 58 : 54;
+      const lineHeight = block.level <= 1 ? 84 : block.level === 2 ? 78 : 74;
       setShareImageFont(ctx, size, 780);
       const lines = wrapCanvasText(ctx, block.text, contentWidth);
       items.push({ type: "text", x: margin, y, lines, size, weight: 780, lineHeight, color: "#182833" });
-      y += lines.length * lineHeight + 20;
+      y += lines.length * lineHeight + 28;
     } else if (block.type === "list") {
-      setShareImageFont(ctx, 40, 500);
-      const markerWidth = 48;
+      setShareImageFont(ctx, 52, 500);
+      const markerWidth = 66;
       const lines = wrapCanvasText(ctx, block.text, contentWidth - markerWidth);
-      items.push({ type: "list", x: margin, y, marker: block.marker || "-", lines, size: 40, weight: 500, lineHeight: 62, markerWidth, color: "#182833" });
-      y += lines.length * 62 + 10;
+      items.push({ type: "list", x: margin, y, marker: block.marker || "-", lines, size: 52, weight: 500, lineHeight: 80, markerWidth, color: "#182833" });
+      y += lines.length * 80 + 14;
     } else if (block.type === "quote") {
-      setShareImageFont(ctx, 38, 500);
-      const lines = wrapCanvasText(ctx, block.text, contentWidth - 54);
-      const height = lines.length * 58 + 32;
-      items.push({ type: "quote", x: margin, y, width: contentWidth, height, lines, size: 38, weight: 500, lineHeight: 58, color: "#374742" });
-      y += height + 20;
+      setShareImageFont(ctx, 48, 500);
+      const lines = wrapCanvasText(ctx, block.text, contentWidth - 68);
+      const height = lines.length * 74 + 42;
+      items.push({ type: "quote", x: margin, y, width: contentWidth, height, lines, size: 48, weight: 500, lineHeight: 74, color: "#374742" });
+      y += height + 28;
     } else if (block.type === "code") {
-      setShareImageFont(ctx, 31, 500, "\"Cascadia Mono\", Consolas, monospace");
-      const lines = wrapCanvasText(ctx, block.text, contentWidth - 44);
-      const height = lines.length * 46 + 34;
-      items.push({ type: "code", x: margin, y, width: contentWidth, height, lines, size: 31, weight: 500, lineHeight: 46, color: "#22302d" });
-      y += height + 20;
+      setShareImageFont(ctx, 40, 500, "\"Cascadia Mono\", Consolas, monospace");
+      const lines = wrapCanvasText(ctx, block.text, contentWidth - 56);
+      const height = lines.length * 58 + 44;
+      items.push({ type: "code", x: margin, y, width: contentWidth, height, lines, size: 40, weight: 500, lineHeight: 58, color: "#22302d" });
+      y += height + 28;
     } else {
-      setShareImageFont(ctx, 42, 500);
+      setShareImageFont(ctx, 54, 500);
       const lines = wrapCanvasText(ctx, block.text, contentWidth);
-      items.push({ type: "text", x: margin, y, lines, size: 42, weight: 500, lineHeight: 66, color: "#182833" });
-      y += lines.length * 66 + 22;
+      items.push({ type: "text", x: margin, y, lines, size: 54, weight: 500, lineHeight: 84, color: "#182833" });
+      y += lines.length * 84 + 30;
     }
   }
 
-  y += 24;
-  items.push({ type: "footer", x: margin, y, text: "Shared from Hermes Mobile", size: 24, weight: 500 });
-  y += 58;
+  y += 32;
+  items.push({ type: "footer", x: margin, y, text: "Shared from Hermes Mobile", size: 30, weight: 500 });
+  y += 72;
   return { width, height: Math.max(640, Math.ceil(y)), items };
 }
 
@@ -9600,6 +9602,7 @@ function iconForArtifact(artifact) {
   if (kind === "pdf") return "PDF";
   if (kind === "word") return "DOC";
   if (kind === "markdown") return "MD";
+  if (kind === "html") return "HTML";
   if (kind === "text") return "TXT";
   return iconForMime(artifact?.mime);
 }

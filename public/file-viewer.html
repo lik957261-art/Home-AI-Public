@@ -731,6 +731,7 @@
       const type = String(mime || "").toLowerCase();
       if (type.includes("word") || lower.endsWith(".doc") || lower.endsWith(".docx")) return "DOC";
       if (type.includes("image") || /\.(png|jpe?g|webp|gif)$/i.test(lower)) return "IMG";
+      if (type.includes("html") || /\.(html?|xhtml)$/i.test(lower)) return "HTML";
       if (type.includes("markdown") || lower.endsWith(".md")) return "MD";
       if (type.includes("text") || /\.(txt|md|csv|json)$/i.test(lower)) return "TXT";
       return "FILE";
@@ -1558,6 +1559,10 @@ window.addEventListener("load", function () {
 
     if (src && kind === "IMG") {
       enableImageDocumentMode();
+    }
+
+    if (src && kind === "HTML") {
+      location.replace(originalUrlFor(src));
     }
 
     if (src && kind === "DOC" && String(name).toLowerCase().endsWith(".docx")) {
