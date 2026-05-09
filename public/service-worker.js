@@ -1,13 +1,15 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260509-font-size-nav";
+const HERMES_SW_VERSION = "20260509-refresh-cache";
+const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
+const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
 const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260509-1120",
-  "/app.js?v=20260509-1120",
+  "/styles.css?v=20260509-1130",
+  "/app.js?v=20260509-1130",
   "/fixed-viewport.js?v=20260505-1135",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",
@@ -19,12 +21,11 @@ const HERMES_APP_SHELL_URLS = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
-    try {
-      const cache = await caches.open(HERMES_APP_SHELL_CACHE);
-      await cache.addAll(HERMES_APP_SHELL_URLS);
-    } catch (_) {
-      // A failed cache warmup must not block an app update.
-    }
+    const cache = await caches.open(HERMES_APP_SHELL_CACHE);
+    await Promise.allSettled(HERMES_APP_SHELL_URLS.map(async (url) => {
+      const response = await fetch(url, { cache: "no-store" });
+      if (response && response.ok) await cache.put(url, response);
+    }));
     await self.skipWaiting();
   })());
 });
@@ -33,14 +34,23 @@ self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     try {
       const keys = await caches.keys();
-      await Promise.all(keys
-        .filter((key) => key.startsWith("hermes-mobile-shell-") && key !== HERMES_APP_SHELL_CACHE)
+      const shellKeys = keys.filter((key) => key.startsWith(HERMES_CACHE_PREFIX));
+      const removable = shellKeys
+        .filter((key) => key !== HERMES_APP_SHELL_CACHE)
+        .slice(0, Math.max(0, shellKeys.length - HERMES_MAX_SHELL_CACHES));
+      await Promise.all(removable
         .map((key) => caches.delete(key)));
     } catch (_) {
       // Cache cleanup is best-effort.
     }
     await self.clients.claim();
   })());
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "HERMES_SKIP_WAITING") {
+    event.waitUntil(self.skipWaiting());
+  }
 });
 
 function isApiOrEventRequest(url) {
@@ -51,6 +61,16 @@ function isCacheableStaticRequest(url) {
   return /\.(?:css|js|json|png|svg|ico|html|wasm)$/i.test(url.pathname)
     || url.pathname === "/"
     || url.pathname === "/index.html";
+}
+
+function isCriticalStaticRequest(url) {
+  return /\.(?:css|js)$/i.test(url.pathname);
+}
+
+async function matchCachedStatic(request) {
+  return (await caches.match(request))
+    || (await caches.match(request, { ignoreSearch: true }))
+    || null;
 }
 
 async function networkFirst(request, fallbackUrl = "/") {
@@ -69,9 +89,24 @@ async function networkFirst(request, fallbackUrl = "/") {
   }
 }
 
+async function networkFirstStatic(request) {
+  const cache = await caches.open(HERMES_APP_SHELL_CACHE);
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+    return response;
+  } catch (_) {
+    return (await matchCachedStatic(request))
+      || new Response("Hermes Mobile static asset is unavailable.", {
+        status: 503,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+  }
+}
+
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(HERMES_APP_SHELL_CACHE);
-  const cached = await caches.match(request);
+  const cached = await matchCachedStatic(request);
   const refresh = fetch(request).then((response) => {
     if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
     return response;
@@ -87,6 +122,10 @@ self.addEventListener("fetch", (event) => {
   if (isApiOrEventRequest(url)) return;
   if (request.mode === "navigate") {
     event.respondWith(networkFirst(request, "/"));
+    return;
+  }
+  if (isCriticalStaticRequest(url)) {
+    event.respondWith(networkFirstStatic(request));
     return;
   }
   if (isCacheableStaticRequest(url)) {

@@ -2917,17 +2917,49 @@ function startClientRefreshChecks() {
   }, 60000);
 }
 
+function waitForServiceWorkerControllerChange(timeoutMs = 3500) {
+  if (!("serviceWorker" in navigator)) return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      navigator.serviceWorker.removeEventListener("controllerchange", finish);
+      resolve();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", finish);
+    window.setTimeout(finish, timeoutMs);
+  });
+}
+
+function reloadWithoutBfcache() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("_hmv", String(Date.now()));
+  window.location.replace(url.href);
+}
+
 function reloadForClientUpdate() {
-  const reload = () => window.location.reload();
   showBootSplash("正在更新客户端");
   if (!("serviceWorker" in navigator)) {
-    reload();
+    reloadWithoutBfcache();
     return;
   }
   navigator.serviceWorker.getRegistration("/")
-    .then((registration) => registration?.update?.())
+    .then(async (registration) => {
+      if (!registration) return;
+      await registration.update?.();
+      const worker = registration.waiting || registration.installing;
+      if (worker) {
+        try {
+          worker.postMessage({ type: "HERMES_SKIP_WAITING" });
+        } catch (_) {
+          // Continue with a timed reload if the worker cannot receive the message.
+        }
+      }
+      await waitForServiceWorkerControllerChange();
+    })
     .catch(() => {})
-    .finally(reload);
+    .finally(reloadWithoutBfcache);
 }
 
 function isStandalonePwa() {
