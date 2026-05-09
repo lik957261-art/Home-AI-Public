@@ -6,7 +6,7 @@ const path = require("node:path");
 const os = require("node:os");
 const crypto = require("node:crypto");
 const zlib = require("node:zlib");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const webpush = require("web-push");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
 const { createAuthProvider } = require("./adapters/auth-provider");
@@ -43,6 +43,10 @@ const TOOL_ROOT = __dirname;
 const REPO_ROOT = path.resolve(process.env.HERMES_WEB_REPO_ROOT || process.env.HERMES_MOBILE_ROOT || TOOL_ROOT);
 const PUBLIC_ROOT = path.join(TOOL_ROOT, "public");
 const INDEX_HTML_PATH = path.join(PUBLIC_ROOT, "index.html");
+const UPDATE_REMOTE_NAME = process.env.HERMES_MOBILE_UPDATE_REMOTE || process.env.HERMES_WEB_UPDATE_REMOTE || "origin";
+const UPDATE_BRANCH = process.env.HERMES_MOBILE_UPDATE_BRANCH || process.env.HERMES_WEB_UPDATE_BRANCH || "main";
+const UPDATE_VERSION_URL = process.env.HERMES_MOBILE_UPDATE_VERSION_URL || process.env.HERMES_WEB_UPDATE_VERSION_URL || "";
+const UPDATE_CHECK_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_UPDATE_CHECK_TIMEOUT_MS || process.env.HERMES_WEB_UPDATE_CHECK_TIMEOUT_MS || "6000");
 const DEFAULT_TODO_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "todo_bridge.py");
 const DEFAULT_CRON_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "cron_bridge.py");
 const DEFAULT_DIRECTORY_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "directory_bridge.py");
@@ -1843,6 +1847,167 @@ function clientVersionInfo(clientVersion = "") {
     refreshRequired: Boolean(reported && current && current !== "unknown" && current !== reported),
     checkedAt: nowIso(),
   };
+}
+
+function compareClientVersions(a, b) {
+  const left = normalizeClientVersion(a);
+  const right = normalizeClientVersion(b);
+  if (left === right) return 0;
+  const parse = (value) => {
+    const match = value.match(/^(\d{8})-(\d{4})$/);
+    return match ? Number(`${match[1]}${match[2]}`) : NaN;
+  };
+  const leftNumber = parse(left);
+  const rightNumber = parse(right);
+  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) return leftNumber - rightNumber;
+  return left.localeCompare(right);
+}
+
+function runGitSync(args, options = {}) {
+  const result = spawnSync("git", args, {
+    cwd: options.cwd || REPO_ROOT,
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: options.timeoutMs || UPDATE_CHECK_TIMEOUT_MS,
+  });
+  return {
+    ok: result.status === 0,
+    status: result.status,
+    stdout: String(result.stdout || "").trim(),
+    stderr: compactText(String(result.stderr || result.error?.message || "").trim(), 600),
+  };
+}
+
+function gitRemoteRawIndexUrl(remoteUrl, branch = UPDATE_BRANCH) {
+  const raw = String(remoteUrl || "").trim();
+  if (!raw) return "";
+  let owner = "";
+  let repo = "";
+  let match = raw.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/i);
+  if (match) {
+    owner = match[1];
+    repo = match[2];
+  } else {
+    try {
+      const url = new URL(raw);
+      if (!/github\.com$/i.test(url.hostname)) return "";
+      const parts = url.pathname.replace(/^\/+/, "").replace(/\.git$/i, "").split("/");
+      owner = parts[0] || "";
+      repo = parts[1] || "";
+    } catch (_) {
+      return "";
+    }
+  }
+  if (!owner || !repo) return "";
+  return `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/public/index.html`;
+}
+
+async function fetchTextWithTimeout(url, timeoutMs = UPDATE_CHECK_TIMEOUT_MS) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(Math.max(1000, timeoutMs)), cache: "no-store" });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.text();
+}
+
+function parseClientVersionFromHtml(html) {
+  const explicit = String(html || "").match(/\bdata-client-version=["']([^"']+)["']/i)
+    || String(html || "").match(/<meta\s+name=["']hermes-web-client-version["']\s+content=["']([^"']+)["'][^>]*>/i)
+    || String(html || "").match(/\/app\.js\?v=([A-Za-z0-9._-]+)/i);
+  return normalizeClientVersion(explicit?.[1] || "");
+}
+
+function gitRepositoryStatus() {
+  const inside = runGitSync(["rev-parse", "--is-inside-work-tree"]);
+  if (!inside.ok || inside.stdout !== "true") {
+    return { available: false, clean: false, reason: "Current app directory is not a git checkout." };
+  }
+  const head = runGitSync(["rev-parse", "HEAD"]);
+  const branch = runGitSync(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const remote = runGitSync(["remote", "get-url", UPDATE_REMOTE_NAME]);
+  const dirty = runGitSync(["status", "--porcelain", "--untracked-files=normal"]);
+  const clean = dirty.ok && !dirty.stdout;
+  return {
+    available: true,
+    clean,
+    dirty: dirty.stdout ? compactText(dirty.stdout, 600) : "",
+    head: head.ok ? head.stdout : "",
+    branch: branch.ok ? branch.stdout : "",
+    remoteConfigured: remote.ok,
+    remoteName: UPDATE_REMOTE_NAME,
+    remoteUrl: remote.ok ? remote.stdout : "",
+    updateBranch: UPDATE_BRANCH,
+  };
+}
+
+async function appUpdateStatus() {
+  const currentVersion = readClientVersion();
+  const repo = gitRepositoryStatus();
+  let latestVersion = "";
+  let latestCommit = "";
+  let checkError = "";
+  if (repo.available) {
+    const versionUrl = UPDATE_VERSION_URL || gitRemoteRawIndexUrl(repo.remoteUrl, UPDATE_BRANCH);
+    if (versionUrl) {
+      try {
+        latestVersion = parseClientVersionFromHtml(await fetchTextWithTimeout(versionUrl));
+      } catch (err) {
+        checkError = `Version check failed: ${err.message || String(err)}`;
+      }
+    } else {
+      checkError = "No GitHub raw version URL is configured.";
+    }
+    const remoteHead = runGitSync(["ls-remote", UPDATE_REMOTE_NAME, `refs/heads/${UPDATE_BRANCH}`]);
+    if (remoteHead.ok) latestCommit = String(remoteHead.stdout.split(/\s+/)[0] || "");
+    else if (!checkError) checkError = remoteHead.stderr || "GitHub branch check failed.";
+  }
+  const updateAvailable = Boolean(latestVersion && compareClientVersions(latestVersion, currentVersion) > 0)
+    || Boolean(latestCommit && repo.head && latestCommit !== repo.head);
+  return {
+    ok: true,
+    currentVersion,
+    latestVersion,
+    updateAvailable,
+    latestCommit,
+    currentCommit: repo.head || "",
+    repository: {
+      available: repo.available,
+      clean: repo.clean,
+      dirty: repo.dirty || "",
+      branch: repo.branch || "",
+      remoteName: repo.remoteName || UPDATE_REMOTE_NAME,
+      updateBranch: UPDATE_BRANCH,
+    },
+    canFastForward: Boolean(repo.available && repo.clean && updateAvailable),
+    warning: checkError || repo.reason || "",
+    checkedAt: nowIso(),
+  };
+}
+
+async function applyAppUpdate() {
+  const status = await appUpdateStatus();
+  if (!status.repository.available) return Object.assign({}, status, { ok: false, error: status.warning || "App directory is not a git checkout." });
+  if (!status.repository.clean) return Object.assign({}, status, { ok: false, error: "Working tree is not clean; update was not applied." });
+  const fetchResult = runGitSync(["fetch", UPDATE_REMOTE_NAME, UPDATE_BRANCH], { timeoutMs: 30000 });
+  if (!fetchResult.ok) return Object.assign({}, status, { ok: false, error: fetchResult.stderr || "git fetch failed." });
+  const remoteRef = `${UPDATE_REMOTE_NAME}/${UPDATE_BRANCH}`;
+  const localHead = runGitSync(["rev-parse", "HEAD"]);
+  const remoteHead = runGitSync(["rev-parse", remoteRef]);
+  if (!remoteHead.ok) return Object.assign({}, status, { ok: false, error: `Cannot resolve ${remoteRef}.` });
+  if (localHead.ok && localHead.stdout === remoteHead.stdout) {
+    return Object.assign({}, status, { ok: true, updated: false, upToDate: true, latestCommit: remoteHead.stdout });
+  }
+  const ancestor = runGitSync(["merge-base", "--is-ancestor", "HEAD", remoteRef]);
+  if (!ancestor.ok) {
+    return Object.assign({}, status, { ok: false, error: "Remote branch is not a fast-forward from the current checkout." });
+  }
+  const merge = runGitSync(["merge", "--ff-only", remoteRef], { timeoutMs: 30000 });
+  if (!merge.ok) return Object.assign({}, status, { ok: false, error: merge.stderr || "git fast-forward failed." });
+  clientVersionCache = { mtimeMs: 0, version: "" };
+  return Object.assign({}, await appUpdateStatus(), {
+    ok: true,
+    updated: true,
+    restartRequired: true,
+    message: "Updated by git fast-forward. Restart Hermes Mobile if server code changed.",
+  });
 }
 
 function requestClientVersion(req) {
@@ -7207,6 +7372,27 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/app-update/status" && req.method === "GET") {
+    if (!requireOwner(req, res)) return;
+    try {
+      sendJson(res, 200, await appUpdateStatus());
+    } catch (err) {
+      sendJson(res, 200, { ok: false, updateAvailable: false, warning: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/app-update/apply" && req.method === "POST") {
+    if (!requireOwner(req, res)) return;
+    try {
+      const result = await applyAppUpdate();
+      sendJson(res, result.ok ? 200 : 409, result);
+    } catch (err) {
+      sendJson(res, 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
   if (url.pathname === "/api/status" && req.method === "GET") {
     bootTrace("request api/status enter");
     const status = await getHermesStatus();
@@ -7560,7 +7746,7 @@ async function handleApi(req, res) {
     const bypassCache = boolParam(url.searchParams.get("refresh") || url.searchParams.get("fresh"));
     let result;
     try {
-      result = await runCronListBridgeCached({ includeDisabled, bypassCache });
+      result = await runCronListBridgeCached({ includeDisabled, bypassCache, ownerPrincipalId });
     } catch (err) {
       sendJson(res, 200, {
         data: [],

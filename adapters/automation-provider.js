@@ -58,7 +58,8 @@ function createAutomationProvider(options = {}) {
   async function listJobs(args = {}) {
     const includeDisabled = Boolean(args.includeDisabled);
     const bypassCache = Boolean(args.bypassCache) || cacheTtlMs <= 0;
-    const cacheKey = includeDisabled ? "includeDisabled" : "enabledOnly";
+    const ownerPrincipalId = String(args.ownerPrincipalId || args.owner_principal_id || "").trim();
+    const cacheKey = `${includeDisabled ? "includeDisabled" : "enabledOnly"}:${ownerPrincipalId || "*"}`;
     const now = Date.now();
     const cached = listCache.get(cacheKey);
 
@@ -78,6 +79,7 @@ function createAutomationProvider(options = {}) {
       action: "list",
       include_disabled: includeDisabled,
       limit: positiveNumber(args.limit, 0),
+      owner_principal_id: ownerPrincipalId,
     }).then((result) => {
       listCache.set(cacheKey, { loadedAt: Date.now(), result });
       return result;

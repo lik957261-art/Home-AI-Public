@@ -189,7 +189,7 @@ function main() {
   assert.ok(workspaceSourceJob);
   assert.deepEqual(
     workspaceSourceJob.outputDocuments.map((item) => item.name),
-    ["2026-05-09_1104_qifan-daily.md", "2026-05-09_1104_qifan-daily.pdf"],
+    ["2026-05-09_1104_qifan-daily.pdf"],
   );
 
   const xJobRoot = path.join(outputRoot, "job_x");

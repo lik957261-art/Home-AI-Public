@@ -21,6 +21,10 @@ assert.match(serverJs, /HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT/);
 assert.match(serverJs, /function findSourceMarkdownForArtifact\(thread, value\)/);
 assert.match(serverJs, /source_md_\$\{crypto\.createHash\("sha1"\)/);
 assert.match(serverJs, /\/api\/files\?\$\{params\.toString\(\)\}/);
+assert.match(serverJs, /\/api\/app-update\/status/);
+assert.match(serverJs, /\/api\/app-update\/apply/);
+assert.match(serverJs, /gitRepositoryStatus/);
+assert.match(serverJs, /merge", "--ff-only"/);
 
 assert.match(appJs, /function isMarkdownArtifact\(artifact\)/);
 assert.match(appJs, /function displayArtifacts\(artifacts\)/);
@@ -29,6 +33,9 @@ assert.match(appJs, /markdownStems\.has\(artifactStem\(artifact\)\)/);
 assert.match(appJs, /displayArtifacts\(artifacts\)\.map/);
 assert.match(appJs, /return "markdown"/);
 assert.match(appJs, /if \(kind === "markdown"\) return "MD"/);
+assert.match(appJs, /function checkAppUpdate\(reason = "login"\)/);
+assert.match(appJs, /function applyAppUpdateFromBadge\(\)/);
+assert.match(appJs, /data-update-available/);
 
 assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
 assert.match(fileViewer, /url\.pathname === "\/api\/files\/preview"/);

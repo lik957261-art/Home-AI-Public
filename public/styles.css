@@ -348,10 +348,24 @@ button {
 
 .client-version {
   flex: 0 0 auto;
+  min-width: 36px;
+  height: 26px;
+  padding: 0 6px;
   color: rgba(111, 119, 121, 0.88);
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
   font-size: 10px;
   font-weight: 760;
   letter-spacing: 0.04em;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+.client-version.update-available {
+  color: #0f6c5b;
+  background: rgba(207, 244, 232, 0.82);
+  border: 1px solid rgba(31, 111, 98, 0.2);
 }
 
 .eyebrow,

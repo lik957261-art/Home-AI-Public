@@ -24,6 +24,9 @@ const state = {
   setupError: "",
   clientVersion: CLIENT_VERSION,
   serverClientVersion: "",
+  appUpdate: null,
+  appUpdateChecking: false,
+  appUpdateApplying: false,
   defaultReasoningEffort: "medium",
   defaultReasoningSource: "gateway-default",
   assistantLabel: "AI",
@@ -3019,6 +3022,7 @@ async function bootstrap() {
   renderClientVersion();
   await loadStatus();
   await checkClientVersion("bootstrap").catch(() => {});
+  checkAppUpdate("login").catch(() => {});
   await loadPushStatus().catch(() => updatePushButton());
   await loadWorkspaces();
   if (!applyInitialRouteFromUrl()) applyDefaultLaunchView();
@@ -3209,8 +3213,70 @@ function renderClientVersion() {
   const badge = $("clientVersion");
   if (!badge) return;
   const version = normalizeClientVersion(state.clientVersion);
-  badge.textContent = version ? `v${compactClientVersion(version)}` : "";
-  badge.title = version ? `Client version ${version}` : "";
+  const update = state.appUpdate || {};
+  const updateAvailable = Boolean(update.updateAvailable);
+  badge.textContent = updateAvailable ? "更新" : (version ? `v${compactClientVersion(version)}` : "");
+  badge.title = updateAvailable
+    ? `Update available: ${update.latestVersion || update.latestCommit || "latest"}`
+    : (version ? `Client version ${version}` : "");
+  badge.classList.toggle("update-available", updateAvailable);
+  badge.toggleAttribute("data-update-available", updateAvailable);
+}
+
+async function checkAppUpdate(reason = "login") {
+  if (!state.auth?.isOwner || state.appUpdateChecking) return null;
+  state.appUpdateChecking = true;
+  try {
+    const query = new URLSearchParams({ reason });
+    const result = await api(`/api/app-update/status?${query.toString()}`);
+    state.appUpdate = result;
+    renderClientVersion();
+    return result;
+  } catch (err) {
+    state.appUpdate = { ok: false, updateAvailable: false, warning: err.message || String(err) };
+    renderClientVersion();
+    return null;
+  } finally {
+    state.appUpdateChecking = false;
+  }
+}
+
+function appUpdateMessage(result) {
+  if (!result) return "Update status is unavailable.";
+  if (result.error) return result.error;
+  if (result.warning) return result.warning;
+  if (result.updated) return result.message || "Updated.";
+  if (result.upToDate) return "Already up to date.";
+  if (!result.updateAvailable) return "No update is available.";
+  if (result.repository && result.repository.clean === false) return "Working tree is not clean; update was not applied.";
+  return "Update is not available for this installation.";
+}
+
+async function applyAppUpdateFromBadge() {
+  if (!state.auth?.isOwner || state.appUpdateApplying) return;
+  if (!state.appUpdate?.updateAvailable) {
+    await checkAppUpdate("manual");
+    if (!state.appUpdate?.updateAvailable) {
+      showPushToast(appUpdateMessage(state.appUpdate), state.appUpdate?.warning ? "error" : "");
+      return;
+    }
+  }
+  state.appUpdateApplying = true;
+  renderClientVersion();
+  try {
+    const result = await api("/api/app-update/apply", { method: "POST", body: JSON.stringify({}) });
+    state.appUpdate = result;
+    renderClientVersion();
+    showPushToast(appUpdateMessage(result), result.ok ? "success" : "error");
+    if (result.updated) {
+      await checkClientVersion("update-applied").catch(() => {});
+    }
+  } catch (err) {
+    showPushToast(err.message || "Update failed.", "error");
+  } finally {
+    state.appUpdateApplying = false;
+    renderClientVersion();
+  }
 }
 
 function gatewayPoolSummary(pool = state.gatewayPool) {
@@ -10355,6 +10421,7 @@ function wireUi() {
     openGroupChatMembers().catch(showError);
   });
   $("topSettingsButton")?.addEventListener("click", openSettings);
+  $("clientVersion")?.addEventListener("click", applyAppUpdateFromBadge);
   document.addEventListener("click", closeTopMoreMenu);
   document.addEventListener("click", () => closeTaskCardMenus());
   document.addEventListener("click", () => closeDirectoryEntryMenus());

@@ -79,6 +79,7 @@ async function run() {
     action: "list",
     include_disabled: true,
     limit: 0,
+    owner_principal_id: "",
   });
 
   const secondList = await provider.listJobs({ includeDisabled: true, limit: 0 });
@@ -95,6 +96,7 @@ async function run() {
     action: "list",
     include_disabled: false,
     limit: 25,
+    owner_principal_id: "",
   });
 
   await provider.createJob({

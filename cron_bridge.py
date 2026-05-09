@@ -338,20 +338,28 @@ def workspace_root_from_delivery_path(delivery_path: Path) -> Path | None:
     return None
 
 
-def find_exact_markdown_under_root(root: Path, names: list[str]) -> Path | None:
-    targets = {name for name in names if name.endswith(".md")}
-    if not targets:
-        return None
+def markdown_index_under_root(root: Path) -> dict[str, Path]:
+    try:
+        key = os.path.normcase(os.path.abspath(str(root)))
+    except OSError:
+        key = str(root)
+    cached = WORKSPACE_MARKDOWN_INDEX_CACHE.get(key)
+    if cached is not None:
+        return cached
+    index: dict[str, Path] = {}
+    if not root.is_dir():
+        WORKSPACE_MARKDOWN_INDEX_CACHE[key] = index
+        return index
     queue = [root]
     scanned = 0
-    while queue and scanned < 3000:
+    while queue and scanned < WORKSPACE_MARKDOWN_SCAN_LIMIT:
         current = queue.pop(0)
         try:
             entries = list(current.iterdir())
         except OSError:
             continue
         for entry in entries:
-            if scanned >= 3000:
+            if scanned >= WORKSPACE_MARKDOWN_SCAN_LIMIT:
                 break
             if entry.name.startswith(".") or entry.name in {"node_modules", "__pycache__"}:
                 continue
@@ -360,10 +368,71 @@ def find_exact_markdown_under_root(root: Path, names: list[str]) -> Path | None:
                 if entry.is_dir():
                     queue.append(entry)
                     continue
-                if entry.is_file() and entry.name in targets:
-                    return entry
+                if entry.is_file() and entry.suffix.lower() == ".md":
+                    index.setdefault(entry.name, entry)
             except OSError:
                 continue
+    WORKSPACE_MARKDOWN_INDEX_CACHE[key] = index
+    return index
+
+
+def shallow_markdown_candidates_under_root(root: Path, names: list[str]) -> list[Path]:
+    targets = [name for name in names if name.endswith(".md")]
+    if not targets:
+        return []
+    candidates = [root / name for name in targets]
+    scanned = 0
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return candidates
+    for child in children:
+        if scanned >= 200:
+            break
+        if child.name.startswith(".") or child.name in {"node_modules", "__pycache__", "交付"}:
+            continue
+        try:
+            if not child.is_dir():
+                continue
+        except OSError:
+            continue
+        scanned += 1
+        candidates.extend(child / name for name in targets)
+        try:
+            grandchildren = list(child.iterdir())
+        except OSError:
+            continue
+        for grandchild in grandchildren:
+            if scanned >= 200:
+                break
+            if grandchild.name.startswith(".") or grandchild.name in {"node_modules", "__pycache__"}:
+                continue
+            try:
+                if grandchild.is_dir():
+                    scanned += 1
+                    candidates.extend(grandchild / name for name in targets)
+            except OSError:
+                continue
+    return candidates
+
+
+def find_exact_markdown_under_root(root: Path, names: list[str]) -> Path | None:
+    targets = [name for name in names if name.endswith(".md")]
+    if not targets:
+        return None
+    for candidate in shallow_markdown_candidates_under_root(root, targets):
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    if not ENABLE_DEEP_WORKSPACE_MARKDOWN_SCAN:
+        return None
+    index = markdown_index_under_root(root)
+    for name in targets:
+        candidate = index.get(name)
+        if candidate:
+            return candidate
     return None
 
 
@@ -388,11 +457,6 @@ def source_markdown_for_delivery(run_path: Path, delivery_path: Path) -> Path | 
                 return candidate
         except OSError:
             continue
-    workspace_root = workspace_root_from_delivery_path(delivery_path)
-    if workspace_root and workspace_root.is_dir():
-        candidate = find_exact_markdown_under_root(workspace_root, names)
-        if candidate:
-            return candidate
     return None
 
 
@@ -1090,8 +1154,11 @@ def main() -> None:
         json_response({"ok": False, "error": f"Unsupported cron bridge action: {action}"}, 2)
 
     include_disabled = bool(request.get("include_disabled") or request.get("includeDisabled"))
+    owner_principal_id = request.get("owner_principal_id") or request.get("ownerPrincipalId")
     limit = int(request.get("limit") or 200)
     jobs, source, warning = load_jobs_file()
+    if owner_principal_id:
+        jobs = [job for job in jobs if job_matches_owner(job, owner_principal_id)]
     public_jobs = [public_job(job) for job in jobs]
     if not include_disabled:
         public_jobs = [job for job in public_jobs if job.get("enabled")]
