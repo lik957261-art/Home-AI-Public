@@ -4873,14 +4873,6 @@ button.directory-alias-chip {
   grid-template-columns: 44px minmax(0, 1fr) 58px auto;
 }
 
-.composer.group-chat-composer {
-  grid-template-columns: 44px minmax(0, 1fr) 44px auto;
-}
-
-.composer.group-chat-composer #sendMessage {
-  grid-column: 4;
-}
-
 .group-mention-menu {
   position: absolute;
   left: 66px;
@@ -5080,31 +5072,6 @@ button.directory-alias-chip {
 }
 
 #taskReasoningSelect[hidden] {
-  display: none;
-}
-
-.composer .chat-ai-toggle {
-  grid-column: 3;
-  min-width: 44px;
-  min-height: 38px;
-  padding: 0 10px;
-  color: rgba(92, 95, 94, 0.78);
-  background: rgba(255, 253, 248, 0.64);
-  border: 1px solid rgba(102, 108, 106, 0.18);
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 820;
-  box-shadow: none;
-}
-
-.composer .chat-ai-toggle.active {
-  color: #0f5f4d;
-  background: #d8efe6;
-  border-color: rgba(31, 111, 98, 0.28);
-  box-shadow: 0 8px 18px rgba(31, 111, 98, 0.08);
-}
-
-.composer .chat-ai-toggle[hidden] {
   display: none;
 }
 
@@ -5687,10 +5654,6 @@ button.directory-alias-chip {
     grid-template-columns: 44px minmax(0, 1fr) 54px auto;
   }
 
-  .composer.group-chat-composer {
-    grid-template-columns: 44px minmax(0, 1fr) 40px auto;
-  }
-
   .group-mention-menu {
     left: 58px;
     right: 62px;
@@ -5713,13 +5676,6 @@ button.directory-alias-chip {
     min-height: 36px;
     padding: 0 15px 0 7px;
     font-size: 11px;
-  }
-
-  .chat-ai-toggle {
-    min-width: 40px;
-    min-height: 36px;
-    padding: 0 8px;
-    font-size: 12px;
   }
 
   .composer-editor {

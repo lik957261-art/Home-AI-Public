@@ -6,6 +6,7 @@ const CLIENT_VERSION = document.documentElement?.dataset?.clientVersion
 
 const GENERIC_OWNER_TOPIC_ROUTE_PREFIXES = ["owner-"];
 const GENERIC_OWNER_TOPIC_ROUTE_IDS = new Set(["hermes-sync-folder"]);
+const VIRTUAL_GROUP_AI_MEMBER = Object.freeze({ workspaceId: "AI", label: "AI", virtual: true });
 const FONT_SIZE_OPTIONS = Object.freeze([
   { id: "small", label: "小", scale: 0.92 },
   { id: "standard", label: "标准", scale: 1 },
@@ -112,7 +113,6 @@ const state = {
   suppressComposerFocusUntil: 0,
   attachFilePickerActivationAt: 0,
   groupChatOpen: localStorage.getItem("hermesWebGroupChatOpen") === "1",
-  groupAiMode: false,
   groupChatManagerOpen: false,
   groupChatMemberDraft: [],
   groupMentionOpen: false,
@@ -877,11 +877,11 @@ function isGroupChatView() {
 
 function groupChatMemberLabels(thread = state.currentThread) {
   const members = Array.isArray(thread?.chatGroup?.members) ? thread.chatGroup.members : [];
-  if (members.length) return members.map((item) => item.label || item.workspaceId).filter(Boolean);
-  return threadGroupMemberIds(thread).map((workspaceId) => {
+  const labels = members.length ? members.map((item) => item.label || item.workspaceId).filter(Boolean) : threadGroupMemberIds(thread).map((workspaceId) => {
     const workspace = state.workspaces.find((item) => item.id === workspaceId);
     return workspace?.label || workspaceId;
   }).filter(Boolean);
+  return [...new Set([...labels, VIRTUAL_GROUP_AI_MEMBER.label])];
 }
 
 function groupChatMentionMembers(thread = state.currentThread) {
@@ -891,16 +891,22 @@ function groupChatMentionMembers(thread = state.currentThread) {
       const workspace = state.workspaces.find((item) => item.id === workspaceId);
       return { workspaceId, label: workspace?.label || workspaceId };
     });
-  return members
+  const realMembers = members
     .map((member) => ({
       workspaceId: String(member.workspaceId || "").trim(),
       label: String(member.label || member.workspaceId || "").trim(),
     }))
     .filter((member) => member.workspaceId && member.workspaceId !== state.selectedWorkspaceId);
+  return [VIRTUAL_GROUP_AI_MEMBER, ...realMembers];
 }
 
 function normalizeMentionSearch(value) {
   return String(value || "").trim().replace(/\s+/g, "").toLowerCase();
+}
+
+function groupChatMentionsAi(text) {
+  const normalized = String(text || "").replace(/\u00a0/g, " ");
+  return /(^|[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?，。；：！？、])[@\uff20]\s*ai(?=$|[\s)\]}\u3000\uff09\uff3d\u3011\uff0c,.;:!?，。；：！？、])/i.test(normalized);
 }
 
 function isMinimalWindowView() {
@@ -941,7 +947,7 @@ function composerPermissionLabel() {
 
 function composerTargetLabel() {
   if (isChatSearchMode()) return "";
-  if (isGroupChatView()) return state.groupAiMode ? "\u7fa4\u804a\u00b7AI" : "\u7fa4\u804a";
+  if (isGroupChatView()) return "\u7fa4\u804a";
   if (isSingleWindowChatView()) return "\u804a\u5929";
   if (isSingleWindowView()) return "\u4efb\u52a1\u6d41";
   if (state.viewMode === "tasks") return state.currentTaskGroupId ? "\u4efb\u52a1\u56de\u590d" : "\u65b0\u4efb\u52a1";
@@ -1179,29 +1185,18 @@ function updateComposerAction() {
   const attach = $("attachFile");
   const input = $("messageInput");
   const reasoningSelect = $("taskReasoningSelect");
-  const aiToggle = $("chatAiToggle");
   const prevSearch = $("chatSearchPrev");
   const nextSearch = $("chatSearchNext");
   const searchMode = isChatSearchMode();
   composer?.classList.toggle("chat-search-composer", searchMode);
   input?.classList.toggle("chat-search-editor", searchMode);
-  composer?.classList.toggle("group-chat-composer", !searchMode && isGroupChatView());
   if (searchMode || !isGroupChatView()) closeGroupMentionMenu();
-  if (aiToggle) {
-    const showAiToggle = !searchMode && isGroupChatView();
-    aiToggle.hidden = !showAiToggle;
-    aiToggle.disabled = !showAiToggle || isComposerStopMode();
-    aiToggle.classList.toggle("active", Boolean(state.groupAiMode && showAiToggle));
-    aiToggle.setAttribute("aria-pressed", state.groupAiMode && showAiToggle ? "true" : "false");
-  }
   if (input) {
     input.setAttribute("enterkeyhint", searchMode ? "search" : "send");
     input.setAttribute("aria-label", searchMode ? "Search chat" : "Message Hermes");
   }
   if (searchMode) {
     composer?.classList.remove("reasoning-visible");
-    composer?.classList.remove("group-chat-composer");
-    if (aiToggle) aiToggle.hidden = true;
     if (reasoningSelect) {
       reasoningSelect.hidden = true;
       reasoningSelect.disabled = true;
@@ -1250,7 +1245,6 @@ function setSingleWindowMode(mode) {
   state.singleWindowMode = normalizeSingleWindowMode(mode);
   localStorage.setItem("hermesWebSingleWindowMode", state.singleWindowMode);
   if (state.singleWindowMode === "chat") clearQuotedReply({ render: false });
-  if (state.singleWindowMode !== "chat") state.groupAiMode = false;
 }
 
 function reasoningEffortLabel(value) {
@@ -6714,7 +6708,6 @@ async function loadSingleWindow(options = {}) {
   state.currentThread = mergeCurrentThread(result.thread);
   if (groupChat && !selectedWorkspaceInThreadGroup(state.currentThread)) {
     state.groupChatOpen = false;
-    state.groupAiMode = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
   }
   state.currentThreadId = state.currentThread.id;
@@ -6734,7 +6727,6 @@ async function toggleGroupChat() {
   state.currentTaskGroupId = "";
   if (state.groupChatOpen && isGroupChatView()) {
     state.groupChatOpen = false;
-    state.groupAiMode = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
     await loadSingleWindow({ groupChat: false });
     return;
@@ -9154,7 +9146,7 @@ async function sendMessage(event) {
           ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
           : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
       }
-      if (isGroupChatView()) body.messageKind = state.groupAiMode ? "ai" : "plain";
+      if (isGroupChatView()) body.messageKind = groupChatMentionsAi(text) ? "ai" : "plain";
     }
     if (state.viewMode === "tasks" && state.currentTaskGroupId) body.taskGroupId = state.currentTaskGroupId;
     const reasoningEffort = state.viewMode === "tasks" ? selectedTaskReasoningEffort() : "";
@@ -9547,7 +9539,6 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   }
   if (state.viewMode === "tasks") state.pendingTaskReasoningEffort = "";
   if (state.viewMode === "tasks") state.pendingTaskReasoningExplicit = false;
-  if (isGroupChatView()) state.groupAiMode = false;
   clearQuotedReply({ render: false });
   renderPendingArtifacts();
   state.currentThread = mergeCurrentThread(result.thread);
@@ -10082,12 +10073,6 @@ function wireUi() {
     event.preventDefault();
     event.stopPropagation();
     chooseGroupMention(Number(option.dataset.groupMentionIndex || 0));
-  });
-  $("chatAiToggle")?.addEventListener("click", () => {
-    if (!isGroupChatView()) return;
-    state.groupAiMode = !state.groupAiMode;
-    updateComposerAction();
-    focusComposerSoon();
   });
   $("interruptRun").addEventListener("click", interruptRun);
   $("messageInput").addEventListener("input", (event) => {
