@@ -37,6 +37,16 @@ try {
   assert.equal(full.ok, true);
   assert.equal(full.skill.path, "productivity/demo-skill");
 
+  writeSkill(tempRoot, ".archive/old/demo-skill");
+  const archiveIgnored = runSkillBridge(tempRoot, "demo-skill");
+  assert.equal(archiveIgnored.ok, true);
+  assert.equal(archiveIgnored.skill.path, "productivity/demo-skill");
+
+  writeSkill(tempRoot, ".archive/old/archived-only");
+  const archivedOnly = runSkillBridge(tempRoot, "archived-only");
+  assert.equal(archivedOnly.ok, false);
+  assert.equal(archivedOnly.skill, "archived-only");
+
   writeSkill(tempRoot, "writing/demo-skill");
   const ambiguous = runSkillBridge(tempRoot, "demo-skill");
   assert.equal(ambiguous.ok, false);

@@ -543,9 +543,7 @@ function taskSkills(group) {
   while ((match = skillRootPattern.exec(text))) addSkill(match[1]);
   const skillFilePattern = /`?([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+)\/SKILL\.md`?/gi;
   while ((match = skillFilePattern.exec(text))) addSkill(match[1]);
-  const namedSkillPattern = /`([A-Za-z0-9][A-Za-z0-9_.-]{2,})`\s+Skill\b/gi;
-  while ((match = namedSkillPattern.exec(text))) addSkill(match[1]);
-  const labeledSkillPattern = /(?:Skill|\u6280\u80fd)\s*[:：]\s*`?([A-Za-z0-9][A-Za-z0-9_.\/-]{2,})`?/gi;
+  const labeledSkillPattern = /(?:Skill|\u6280\u80fd)\s*[:：]\s*`?([A-Za-z0-9][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_.-]+)+)`?/gi;
   while ((match = labeledSkillPattern.exec(text))) addSkill(match[1]);
   return [...byId.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -8082,7 +8080,7 @@ function renderCurrentThread(options = {}) {
 
 function renderTaskWindow(thread, conversation, options, bottomOffset) {
   const allGroups = taskListGroupsForThread(thread);
-  const displayGroups = allGroups.slice().reverse();
+  const displayGroups = allGroups.slice();
   const search = currentSearchText().toLowerCase();
   const groups = displayGroups.filter((group) => {
     if (!taskMatchesDirectoryFilter(group)) return false;

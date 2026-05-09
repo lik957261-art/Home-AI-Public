@@ -8,7 +8,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 
 HERMES_HOME = Path(os.environ.get("HERMES_HOME") or os.environ.get("HERMES_WEB_HERMES_HOME") or (Path.home() / ".hermes"))
@@ -18,6 +18,16 @@ SKILL_ROOTS = [
 ]
 SKILL_ROOTS = [root for root in SKILL_ROOTS if root]
 MAX_SKILL_CHARS = 60000
+SKILL_SEARCH_EXCLUDED_DIRS = {
+    ".archive",
+    ".git",
+    ".hub",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "node_modules",
+}
 
 
 def read_request() -> dict[str, Any]:
@@ -58,43 +68,105 @@ def relative_skill_path(root: Path, file_path: Path) -> str:
     return skill_dir.relative_to(root_resolved).as_posix()
 
 
-def resolve_skill_file(skill_path: str) -> tuple[Path, str] | None:
-    for root in SKILL_ROOTS:
-        candidate = (root / skill_path / "SKILL.md").resolve()
+def is_excluded_search_dir(name: str) -> bool:
+    normalized = str(name or "").strip()
+    if normalized in SKILL_SEARCH_EXCLUDED_DIRS:
+        return True
+    return normalized.endswith(".egg-info") or normalized.endswith(".dist-info")
+
+
+def direct_skill_candidate(root: Path, skill_path: str) -> tuple[str, Path] | None:
+    candidate = (root / skill_path / "SKILL.md").resolve()
+    try:
+        candidate.relative_to(root.resolve())
+    except ValueError:
+        return None
+    if not candidate.is_file():
+        return None
+    return relative_skill_path(root, candidate), candidate
+
+
+def shallow_named_skill_candidates(root: Path, skill_path: str) -> Iterable[tuple[str, Path]]:
+    direct = direct_skill_candidate(root, skill_path)
+    if direct:
+        yield direct
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return
+    for child in children:
+        if not child.is_dir() or is_excluded_search_dir(child.name):
+            continue
+        candidate = direct_skill_candidate(child, skill_path)
+        if not candidate:
+            continue
+        resolved_path = f"{child.name}/{candidate[0]}"
+        yield resolved_path, candidate[1]
+
+
+def walked_named_skill_candidates(root: Path, skill_path: str) -> Iterable[tuple[str, Path]]:
+    root_resolved = root.resolve()
+    for current, dirnames, filenames in os.walk(root_resolved):
+        dirnames[:] = [name for name in dirnames if not is_excluded_search_dir(name)]
+        if "SKILL.md" not in filenames:
+            continue
+        current_path = Path(current)
+        if current_path.name != skill_path:
+            continue
+        candidate = current_path / "SKILL.md"
         try:
-            candidate.relative_to(root.resolve())
+            resolved_path = relative_skill_path(root_resolved, candidate)
         except ValueError:
             continue
-        if candidate.is_file():
-            return candidate, relative_skill_path(root, candidate)
-    if "/" in skill_path:
-        return None
-    matches: list[tuple[str, Path]] = []
-    for root in SKILL_ROOTS:
-        root_resolved = root.resolve()
-        if not root_resolved.is_dir():
-            continue
-        for candidate in root_resolved.glob(f"**/{skill_path}/SKILL.md"):
-            try:
-                resolved_path = relative_skill_path(root_resolved, candidate)
-            except ValueError:
-                continue
-            matches.append((resolved_path, candidate.resolve()))
+        yield resolved_path, candidate.resolve()
+
+
+def dedupe_skill_matches(matches: Iterable[tuple[str, Path]]) -> dict[str, Path]:
     deduped: dict[str, Path] = {}
     for resolved_path, candidate in sorted(matches, key=lambda item: item[0]):
         deduped.setdefault(resolved_path, candidate)
-    if len(deduped) == 1:
-        resolved_path, candidate = next(iter(deduped.items()))
+    return deduped
+
+
+def resolve_unique_skill_match(skill_path: str, matches: dict[str, Path]) -> tuple[Path, str] | None:
+    if len(matches) == 1:
+        resolved_path, candidate = next(iter(matches.items()))
         return candidate, resolved_path
-    if len(deduped) > 1:
+    if len(matches) > 1:
         json_response({
             "ok": False,
             "status": 409,
             "error": "Skill path is ambiguous",
             "skill": skill_path,
-            "matches": list(deduped.keys())[:20],
+            "matches": list(matches.keys())[:20],
         }, 2)
     return None
+
+
+def resolve_skill_file(skill_path: str) -> tuple[Path, str] | None:
+    for root in SKILL_ROOTS:
+        direct = direct_skill_candidate(root, skill_path)
+        if direct:
+            resolved_path, candidate = direct
+            return candidate, resolved_path
+    if "/" in skill_path:
+        return None
+    shallow_matches: list[tuple[str, Path]] = []
+    for root in SKILL_ROOTS:
+        root_resolved = root.resolve()
+        if not root_resolved.is_dir():
+            continue
+        shallow_matches.extend(shallow_named_skill_candidates(root_resolved, skill_path))
+    shallow = resolve_unique_skill_match(skill_path, dedupe_skill_matches(shallow_matches))
+    if shallow:
+        return shallow
+    walked_matches: list[tuple[str, Path]] = []
+    for root in SKILL_ROOTS:
+        root_resolved = root.resolve()
+        if not root_resolved.is_dir():
+            continue
+        walked_matches.extend(walked_named_skill_candidates(root_resolved, skill_path))
+    return resolve_unique_skill_match(skill_path, dedupe_skill_matches(walked_matches))
 
 
 def main() -> None:
