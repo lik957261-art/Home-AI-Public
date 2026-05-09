@@ -5402,7 +5402,7 @@ function wrapCanvasText(ctx, text, maxWidth) {
   return lines;
 }
 
-function setShareImageFont(ctx, size, weight = 400, family = "\"Microsoft YaHei UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Segoe UI\", sans-serif") {
+function setShareImageFont(ctx, size, weight = 400, family = "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Aptos\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Segoe UI\", sans-serif") {
   ctx.font = `${weight} ${size}px ${family}`;
 }
 
