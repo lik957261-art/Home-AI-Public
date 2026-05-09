@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>PDF Preview</title>
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background: #f5efe4;
+      overflow: hidden;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .pdf-scroll {
+      width: 100vw;
+      height: 100dvh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      background: #f5efe4;
+    }
+
+    .pages {
+      width: 100vw;
+      min-height: 100dvh;
+      background: #f5efe4;
+      touch-action: pan-y;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: auto;
+      margin: 0;
+      background: #f7f1e7;
+      touch-action: pan-y;
+      pointer-events: auto;
+    }
+
+    .status,
+    .back-button,
+    .share-button {
+      position: fixed;
+      z-index: 2;
+      font: 700 14px/1.2 "Aptos", "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: #f8fafc;
+      background: rgba(15, 23, 42, 0.88);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+      backdrop-filter: blur(14px);
+    }
+
+    .status {
+      left: 50%;
+      top: calc(14px + env(safe-area-inset-top));
+      transform: translateX(-50%);
+      max-width: min(76vw, 420px);
+      padding: 10px 14px;
+      border-radius: 999px;
+      text-align: center;
+    }
+
+    .back-button {
+      display: none;
+      left: max(8px, env(safe-area-inset-left));
+      top: calc(8px + env(safe-area-inset-top));
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 13px;
+      text-decoration: none;
+      font-size: 25px;
+      line-height: 1;
+    }
+
+    .share-button {
+      right: max(8px, env(safe-area-inset-right));
+      top: calc(8px + env(safe-area-inset-top));
+      min-width: 42px;
+      min-height: 34px;
+      padding: 0 12px 3px;
+      color: rgba(248, 250, 252, 0.92);
+      background: rgba(15, 23, 42, 0.50);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      font-size: 21px;
+      line-height: 1;
+    }
+
+    .viewer-toast {
+      position: fixed;
+      z-index: 3;
+      left: 50%;
+      bottom: calc(18px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      max-width: min(360px, calc(100vw - 28px));
+      padding: 8px 12px;
+      color: #f8fafc;
+      background: rgba(15, 23, 42, 0.72);
+      border-radius: 999px;
+      backdrop-filter: blur(14px);
+      font: 700 13px/1.25 "Aptos", "Segoe UI", "Microsoft YaHei", sans-serif;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .fallback {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #26312f;
+      font: 16px/1.5 "Aptos", "Segoe UI", "Microsoft YaHei", sans-serif;
+      text-align: center;
+    }
+
+    .fallback a {
+      color: #1f6f62;
+    }
+
+    .pdf-page-error {
+      box-sizing: border-box;
+      width: 100vw;
+      min-height: 180px;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #8b3f38;
+      background: #fffaf1;
+      border-bottom: 1px solid rgba(38, 49, 47, 0.10);
+      font: 700 14px/1.4 "Aptos", "Segoe UI", "Microsoft YaHei", sans-serif;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <a id="backButton" class="back-button" href="javascript:history.back()" aria-label="Back">&#8249;</a>
+  <button id="shareButton" class="share-button" type="button" aria-label="用其他应用打开" title="用其他应用打开">...</button>
+  <main id="pdfScroll" class="pdf-scroll">
+    <div id="pages" class="pages" aria-label="PDF pages"></div>
+    <div id="fallback" class="fallback hidden"></div>
+  </main>
+  <div id="status" class="status">Loading PDF...</div>
+  <div id="toast" class="viewer-toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="/fixed-viewport.js?v=20260505-1135"></script>
+  <script type="module">
+    import * as pdfjsLib from "/vendor/pdfjs/pdf.min.js";
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.js";
+
+    const pages = document.getElementById("pages");
+    const status = document.getElementById("status");
+    const toast = document.getElementById("toast");
+    const fallback = document.getElementById("fallback");
+    const params = new URLSearchParams(location.search);
+    const raw = params.get("src") || "";
+    const name = params.get("name") || "document.pdf";
+    const key = localStorage.getItem("hermesWebKey") || "";
+    const returnUrl = params.get("return") || "";
+    let pdfDocument = null;
+    let renderSerial = 0;
+    let resizeTimer = 0;
+    let toastTimer = 0;
+    let cachedPdfBlob = null;
+    let pdfBlobPromise = null;
+    let renderObjectUrl = "";
+    let handlingViewerBack = false;
+    const isAndroid = /Android/i.test(navigator.userAgent || "");
+
+    function setStatus(message) {
+      status.textContent = message;
+      status.classList.toggle("hidden", !message);
+    }
+
+    function setTransientStatus(message) {
+      window.clearTimeout(toastTimer);
+      toast.textContent = message || "";
+      toast.classList.toggle("hidden", !message);
+      if (message) {
+        toastTimer = window.setTimeout(() => {
+          toast.textContent = "";
+          toast.classList.add("hidden");
+        }, 2000);
+      }
+    }
+
+    function showFallback(message, href = "") {
+      pages.replaceChildren();
+      status.classList.add("hidden");
+      fallback.classList.remove("hidden");
+      fallback.textContent = message;
+      if (href) {
+        const br = document.createElement("br");
+        const link = document.createElement("a");
+        link.href = href;
+        link.target = "_self";
+        link.rel = "noopener";
+        link.textContent = "Open PDF directly";
+        fallback.append(br, link);
+      }
+    }
+
+    function sameOriginUrl(value) {
+      try {
+        const url = new URL(value, location.origin);
+        if (url.origin !== location.origin) return null;
+        return url;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function downloadUrlFor(value) {
+      const url = sameOriginUrl(value);
+      if (!url) return value || "#";
+      url.searchParams.set("download", "1");
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+
+    function absoluteUrlFor(value) {
+      try {
+        return new URL(value || "#", location.href).href;
+      } catch (_) {
+        return value || "";
+      }
+    }
+
+    function safeReturnUrl() {
+      const value = String(returnUrl || "").trim();
+      if (!value) return "";
+      try {
+        const url = new URL(value, location.origin);
+        if (url.origin !== location.origin) return "";
+        return `${url.pathname}${url.search}${url.hash}`;
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function safeReferrerUrl() {
+      const value = String(document.referrer || "").trim();
+      if (!value) return "";
+      try {
+        const url = new URL(value, location.origin);
+        if (url.origin !== location.origin) return "";
+        return `${url.pathname}${url.search}${url.hash}`;
+      } catch (_) {
+        return "";
+      }
+    }
+
+    function inferredReturnUrlFromSource() {
+      const url = sameOriginUrl(raw);
+      if (!url) return "";
+      if (url.pathname === "/api/automations/output" || url.pathname === "/api/automations/deliverable") {
+        const workspaceId = String(url.searchParams.get("workspaceId") || "owner").trim() || "owner";
+        const jobId = String(url.searchParams.get("jobId") || "").trim();
+        const params = new URLSearchParams({ view: "automation", workspaceId });
+        if (jobId) params.set("automationId", jobId);
+        return `/?${params.toString()}`;
+      }
+      return "";
+    }
+
+    function isAutomationReturn(value) {
+      const rawValue = String(value || "").trim();
+      if (!rawValue) return false;
+      try {
+        const url = new URL(rawValue, location.origin);
+        return url.origin === location.origin && url.searchParams.get("view") === "automation";
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function fallbackReturnUrl() {
+      const explicit = safeReturnUrl();
+      const inferred = inferredReturnUrlFromSource();
+      if (inferred && !isAutomationReturn(explicit)) return inferred;
+      return explicit || inferred || safeReferrerUrl() || "/";
+    }
+
+    function navigateBack(event) {
+      event?.preventDefault?.();
+      location.assign(fallbackReturnUrl());
+    }
+
+    function pushViewerBackGuard() {
+      try {
+        history.pushState({ hermesViewerBackGuard: true }, "", location.href);
+      } catch (_) {}
+    }
+
+    function wireViewerBackGuard() {
+      try {
+        history.replaceState(Object.assign({}, history.state || {}, { hermesViewerBase: true }), "", location.href);
+        pushViewerBackGuard();
+      } catch (_) {}
+      window.addEventListener("popstate", () => {
+        if (handlingViewerBack) return;
+        handlingViewerBack = true;
+        const target = fallbackReturnUrl();
+        if (target && target !== `${location.pathname}${location.search}${location.hash}`) {
+          location.assign(target);
+          return;
+        }
+        pushViewerBackGuard();
+        handlingViewerBack = false;
+      });
+    }
+
+    function wireViewerBackSwipe(surface) {
+      if (!surface || surface.dataset.viewerBackSwipeBound) return;
+      surface.dataset.viewerBackSwipeBound = "1";
+      let swipe = null;
+      surface.addEventListener("touchstart", (event) => {
+        if (event.touches.length !== 1 || event.target?.closest?.("button, a, input, select, textarea, [contenteditable='true']")) {
+          swipe = null;
+          return;
+        }
+        swipe = {
+          startX: event.touches[0].clientX,
+          startY: event.touches[0].clientY,
+          lastX: event.touches[0].clientX,
+          dragging: false,
+        };
+      }, { passive: true });
+      surface.addEventListener("touchmove", (event) => {
+        if (!swipe || event.touches.length !== 1) return;
+        const point = event.touches[0];
+        const dx = point.clientX - swipe.startX;
+        const dy = point.clientY - swipe.startY;
+        if (dx <= 0 || (!swipe.dragging && (Math.abs(dx) < 16 || Math.abs(dx) < Math.abs(dy) * 1.2))) return;
+        swipe.dragging = true;
+        swipe.lastX = point.clientX;
+        event.preventDefault();
+        event.stopPropagation();
+      }, { passive: false });
+      const finish = () => {
+        const current = swipe;
+        swipe = null;
+        if (!current?.dragging) return;
+        if ((current.lastX || current.startX) - current.startX > 64) navigateBack();
+      };
+      surface.addEventListener("touchend", finish, { passive: true });
+      surface.addEventListener("touchcancel", () => {
+        swipe = null;
+      }, { passive: true });
+    }
+
+    async function fetchPdfBlob() {
+      const downloadUrl = downloadUrlFor(raw);
+      if (!downloadUrl || downloadUrl === "#") throw new Error("No PDF URL is available.");
+      const headers = key ? { "X-Hermes-Web-Key": key } : {};
+      const res = await fetch(downloadUrl, { headers });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.blob();
+    }
+
+    function preparePdfBlob() {
+      if (!pdfBlobPromise) {
+        pdfBlobPromise = fetchPdfBlob()
+          .then((blob) => {
+            cachedPdfBlob = blob;
+            return blob;
+          })
+          .catch((err) => {
+            pdfBlobPromise = null;
+            throw err;
+          });
+      }
+      return pdfBlobPromise;
+    }
+
+    function isUserCancelledShare(err) {
+      return String(err?.name || "").toLowerCase() === "aborterror";
+    }
+
+    function canShareFiles(files) {
+      return Boolean(navigator.share && (!navigator.canShare || navigator.canShare({ files })));
+    }
+
+    async function sharePdf() {
+      if (!raw) return;
+      const downloadUrl = downloadUrlFor(raw);
+      const shareUrl = absoluteUrlFor(downloadUrl);
+      try {
+        if (cachedPdfBlob) {
+          const file = new File([cachedPdfBlob], name, { type: cachedPdfBlob.type || "application/pdf" });
+          if (canShareFiles([file])) {
+            await navigator.share({ files: [file], title: name });
+            setTransientStatus("");
+            return;
+          }
+        } else {
+          preparePdfBlob().catch(() => {});
+        }
+        if (navigator.share && shareUrl) {
+          await navigator.share({ title: name, url: shareUrl });
+          setTransientStatus("");
+          return;
+        }
+        if (!cachedPdfBlob) {
+          setTransientStatus("PDF 还在准备，已先打开原文件。");
+          location.href = downloadUrl;
+          return;
+        }
+        const cachedFile = new File([cachedPdfBlob], name, { type: cachedPdfBlob.type || "application/pdf" });
+        if (canShareFiles([cachedFile])) {
+          await navigator.share({ files: [cachedFile], title: name });
+          setTransientStatus("");
+          return;
+        }
+        const cachedUrl = URL.createObjectURL(cachedPdfBlob);
+        window.open(cachedUrl, "_blank", "noopener");
+        window.setTimeout(() => URL.revokeObjectURL(cachedUrl), 30000);
+        setTransientStatus("此浏览器不支持系统分享，已尝试打开 PDF。");
+        return;
+      } catch (err) {
+        if (isUserCancelledShare(err)) return;
+        setTransientStatus("系统分享不可用，已打开原文件。");
+        location.href = downloadUrl;
+        return;
+      }
+      setTransientStatus("准备 PDF...");
+      try {
+        const blob = await fetchPdfBlob();
+        const file = new File([blob], name, { type: blob.type || "application/pdf" });
+        if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+          await navigator.share({ files: [file], title: name });
+          setTransientStatus("");
+          return;
+        }
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, "_blank", "noopener");
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+        setTransientStatus("此浏览器不支持系统分享，已尝试打开 PDF。");
+      } catch (err) {
+        setTransientStatus(err.message || "无法分享此 PDF。");
+      }
+    }
+
+    function viewportWidth() {
+      return Math.max(320, Math.floor(window.visualViewport?.width || document.documentElement.clientWidth || window.innerWidth || 0));
+    }
+
+    function renderMetricsForPage(page, width) {
+      const unitViewport = page.getViewport({ scale: 1 });
+      const cssScale = width / unitViewport.width;
+      const cssViewport = page.getViewport({ scale: cssScale });
+      const targetPixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), isAndroid ? 2 : 3);
+      const maxPixels = isAndroid ? 5000000 : 12000000;
+      let outputScale = targetPixelRatio;
+      const pixels = cssViewport.width * cssViewport.height * outputScale * outputScale;
+      if (pixels > maxPixels) {
+        outputScale *= Math.sqrt(maxPixels / pixels);
+      }
+      return { cssViewport, outputScale };
+    }
+
+    async function loadPdfDocument(pdfUrl) {
+      const options = { url: String(pdfUrl), withCredentials: true, disableWorker: isAndroid };
+      return pdfjsLib.getDocument(options).promise;
+    }
+
+    async function renderPdf() {
+      if (!pdfDocument) return;
+      const serial = ++renderSerial;
+      const width = viewportWidth();
+      const fragment = document.createDocumentFragment();
+
+      setStatus("Rendering PDF...");
+      for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+        if (serial !== renderSerial) return;
+        try {
+          const page = await pdfDocument.getPage(pageNumber);
+          const { cssViewport, outputScale } = renderMetricsForPage(page, width);
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d", { alpha: false });
+          if (!context) throw new Error("Canvas is not available.");
+
+          canvas.width = Math.ceil(cssViewport.width * outputScale);
+          canvas.height = Math.ceil(cssViewport.height * outputScale);
+          canvas.style.width = `${Math.ceil(cssViewport.width)}px`;
+          canvas.style.height = `${Math.ceil(cssViewport.height)}px`;
+          canvas.dataset.pixelRatio = outputScale.toFixed(2);
+          fragment.append(canvas);
+
+          context.fillStyle = "#fffaf1";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          const transform = outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0];
+          await page.render({ canvasContext: context, viewport: cssViewport, transform, background: "#fffaf1" }).promise;
+        } catch (err) {
+          const errorBox = document.createElement("div");
+          errorBox.className = "pdf-page-error";
+          errorBox.textContent = `Page ${pageNumber} preview failed.`;
+          fragment.append(errorBox);
+        }
+      }
+
+      if (serial !== renderSerial) return;
+      pages.replaceChildren(fragment);
+      setStatus("");
+    }
+
+    async function loadPdf() {
+      try {
+        const blob = await preparePdfBlob();
+        if (renderObjectUrl) URL.revokeObjectURL(renderObjectUrl);
+        renderObjectUrl = URL.createObjectURL(blob);
+        pdfDocument = await loadPdfDocument(renderObjectUrl);
+        await renderPdf();
+      } catch (err) {
+        showFallback("PDF preview failed.", raw);
+      }
+    }
+
+    window.addEventListener("resize", () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => renderPdf(), 180);
+    });
+
+    document.getElementById("backButton").href = fallbackReturnUrl();
+    document.getElementById("backButton").addEventListener("click", navigateBack);
+    document.getElementById("shareButton").addEventListener("click", sharePdf);
+    wireViewerBackGuard();
+    wireViewerBackSwipe(document.getElementById("pdfScroll"));
+    window.addEventListener("beforeunload", () => {
+      if (renderObjectUrl) URL.revokeObjectURL(renderObjectUrl);
+    });
+
+    loadPdf();
+  </script>
+</body>
+</html>

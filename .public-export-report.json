@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-09T12:26:20.231Z",
+  "sourceCommit": "bafc54981dffd7a8c81bc1cc81a7e490397ff5a3",
+  "sourceDirty": false,
+  "sourceDirtyAllowed": false,
+  "fileCount": 144,
+  "excludes": {
+    "exact": [
+      ".env",
+      "AGENTS.md"
+    ],
+    "prefixes": [
+      ".agent-context/",
+      "__pycache__/",
+      "logs/",
+      "node_modules/",
+      "outbox/",
+      "temp/",
+      "tmp/",
+      "uploads/",
+      "workspace/"
+    ]
+  }
+}

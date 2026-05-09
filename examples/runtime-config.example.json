@@ -1,0 +1,6 @@
+{
+  "gatewayUrl": "http://127.0.0.1:8642",
+  "apiKeyPath": "workspace/hermes-web/secrets/hermes-api-key.secret",
+  "webPushSubject": "mailto:hermes-mobile@example.invalid",
+  "vapidPath": "workspace/hermes-web/secrets/web-push-vapid.json"
+}
