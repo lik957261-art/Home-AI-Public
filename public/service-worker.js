@@ -1,20 +1,20 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260509-pwa-path-scope";
+const HERMES_SW_VERSION = "20260509-hermes-icon";
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
 const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260509-1030",
-  "/app.js?v=20260509-1030",
+  "/styles.css?v=20260509-1045",
+  "/app.js?v=20260509-1045",
   "/fixed-viewport.js?v=20260505-1135",
   "/manifest-20260509.json",
-  "/icons/hermes-mobile-icon-192-20260508.png",
-  "/icons/hermes-mobile-icon-512-20260508.png",
-  "/icons/hermes-mobile-badge-72-20260508.png",
-  "/icons/favicon-32-20260508.png",
-  "/icons/apple-touch-icon-180-20260508.png",
+  "/icons/hermes-mobile-icon-192-20260509.png",
+  "/icons/hermes-mobile-icon-512-20260509.png",
+  "/icons/hermes-mobile-badge-72-20260509.png",
+  "/icons/favicon-32-20260509.png",
+  "/icons/apple-touch-icon-180-20260509.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -172,8 +172,8 @@ self.addEventListener("push", (event) => {
   notificationData.url = routeUrlForNotificationData(notificationData);
   const options = {
     body: data.body || "",
-    icon: data.icon || "/icons/hermes-mobile-icon-192-20260508.png",
-    badge: data.badge || "/icons/hermes-mobile-badge-72-20260508.png",
+    icon: data.icon || "/icons/hermes-mobile-icon-192-20260509.png",
+    badge: data.badge || "/icons/hermes-mobile-badge-72-20260509.png",
     tag: data.tag || data.data?.taskGroupId || "hermes-task",
     renotify: data.renotify !== false,
     requireInteraction: Boolean(data.requireInteraction || data.data?.requireInteraction || data.data?.messageType === "test"),

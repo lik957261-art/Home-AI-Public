@@ -13,13 +13,13 @@
   "categories": ["productivity", "utilities"],
   "icons": [
     {
-      "src": "/icons/hermes-mobile-icon-192-20260508.png",
+      "src": "/icons/hermes-mobile-icon-192-20260509.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/hermes-mobile-icon-512-20260508.png",
+      "src": "/icons/hermes-mobile-icon-512-20260509.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -30,25 +30,25 @@
       "name": "聊天",
       "short_name": "聊天",
       "url": "/hermes-mobile/?view=single&singleWindowMode=chat&source=pwa-shortcut",
-      "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260508.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260509.png", "sizes": "192x192" }]
     },
     {
       "name": "任务",
       "short_name": "任务",
       "url": "/hermes-mobile/?view=tasks&source=pwa-shortcut",
-      "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260508.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260509.png", "sizes": "192x192" }]
     },
     {
       "name": "目录",
       "short_name": "目录",
       "url": "/hermes-mobile/?view=projects&source=pwa-shortcut",
-      "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260508.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260509.png", "sizes": "192x192" }]
     },
     {
       "name": "待办",
       "short_name": "待办",
       "url": "/hermes-mobile/?view=todos&source=pwa-shortcut",
-      "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260508.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/hermes-mobile-icon-192-20260509.png", "sizes": "192x192" }]
     }
   ]
 }
