@@ -995,9 +995,11 @@ function keyboardVisualInsetPx() {
 
 function updateKeyboardContextMetrics() {
   const inset = keyboardVisualInsetPx();
+  const bottom = inset > 80 ? Math.max(6, Math.round(inset * 0.7)) : 6;
   state.keyboardInsetPx = inset;
   state.keyboardContextMode = Boolean(state.composerFocused && isMobileLayout() && inset > 80);
   document.documentElement.style.setProperty("--keyboard-context-inset", `${inset}px`);
+  document.documentElement.style.setProperty("--keyboard-context-bottom", `${bottom}px`);
   $("composer")?.classList.toggle("keyboard-context-mode", state.keyboardContextMode);
 }
 

@@ -4973,7 +4973,7 @@ button.directory-alias-chip {
   position: fixed;
   left: max(10px, env(safe-area-inset-left));
   right: max(10px, env(safe-area-inset-right));
-  bottom: 7px;
+  bottom: var(--keyboard-context-bottom, 7px);
   z-index: 120;
   max-width: none;
   min-height: 36px;
@@ -5672,7 +5672,7 @@ button.directory-alias-chip {
   .composer.keyboard-context-mode .composer-context {
     left: 8px;
     right: 8px;
-    bottom: 6px;
+    bottom: var(--keyboard-context-bottom, 6px);
     min-height: 34px;
     padding: 5px 7px;
   }
