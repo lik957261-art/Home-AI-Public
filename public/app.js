@@ -91,6 +91,7 @@ const state = {
   selectedSubprojectId: localStorage.getItem("hermesWebSubproject") || "",
   events: null,
   pendingArtifacts: [],
+  composerFocused: false,
   renderScheduled: false,
   shouldStickToBottom: true,
   preservedBottomOffset: 0,
@@ -925,6 +926,120 @@ function activeComposerRunIds() {
   return [];
 }
 
+function composerWorkspaceLabel() {
+  const workspace = currentWorkspace();
+  return String(workspace?.label || workspace?.id || state.selectedWorkspaceId || "").trim();
+}
+
+function composerPermissionLabel() {
+  if (state.auth?.isOwner) return "Owner";
+  if (state.auth?.workspaceId) return "\u4f4e\u6743\u9650";
+  return "\u672a\u767b\u5f55";
+}
+
+function composerTargetLabel() {
+  if (isChatSearchMode()) return "";
+  if (isGroupChatView()) return state.groupAiMode ? "\u7fa4\u804a\u00b7AI" : "\u7fa4\u804a";
+  if (isSingleWindowChatView()) return "\u804a\u5929";
+  if (isSingleWindowView()) return "\u4efb\u52a1\u6d41";
+  if (state.viewMode === "tasks") return state.currentTaskGroupId ? "\u4efb\u52a1\u56de\u590d" : "\u65b0\u4efb\u52a1";
+  return "";
+}
+
+function composerReasoningLabel() {
+  if (isChatSearchMode()) return "";
+  if (state.viewMode !== "single" && state.viewMode !== "tasks") return "";
+  const explicit = state.viewMode === "tasks" ? selectedTaskReasoningEffort() : "";
+  const compact = explicit ? taskReasoningCompactLabel({ value: explicit }) : defaultReasoningCompactLabel();
+  return `\u63a8\u7406 ${compact}`;
+}
+
+function composerDirectoryLabel() {
+  if (state.pendingTaskDirectory?.projectId) {
+    return String(state.pendingTaskDirectory.label || state.pendingTaskDirectory.projectId || "").trim();
+  }
+  if (isTaskListView() && state.taskDirectoryFilter?.projectId) {
+    return taskDirectoryFilterLabel(state.taskDirectoryFilter);
+  }
+  return "";
+}
+
+function composerStatusMessages() {
+  if (isTaskDetailView()) return currentTaskGroup()?.messages || [];
+  if (isTaskWindowView()) return state.currentThread?.messages || [];
+  if (isSingleWindowChatView()) return chatMessagesForThread(state.currentThread);
+  if (isSingleWindowView()) return state.currentThread?.messages || [];
+  return [];
+}
+
+function composerRunCounts() {
+  const counts = { queued: 0, running: 0 };
+  composerStatusMessages().forEach((message) => {
+    if (message?.status === "running") counts.running += 1;
+    if (message?.status === "queued") counts.queued += 1;
+  });
+  const activeFallback = activeComposerRunIds().length;
+  if (!counts.running && activeFallback) counts.running = activeFallback;
+  return counts;
+}
+
+function composerContextItems(counts = composerRunCounts()) {
+  if (isChatSearchMode()) return [];
+  const items = [];
+  const workspaceLabel = composerWorkspaceLabel();
+  if (workspaceLabel) {
+    items.push({ label: `${workspaceLabel} \u00b7 ${composerPermissionLabel()}`, tone: "primary" });
+  }
+  const targetLabel = composerTargetLabel();
+  if (targetLabel) items.push({ label: targetLabel });
+  const reasoningLabel = composerReasoningLabel();
+  if (reasoningLabel) items.push({ label: reasoningLabel });
+  const directoryLabel = composerDirectoryLabel();
+  if (directoryLabel) items.push({ label: `\u76ee\u5f55 ${directoryLabel}`, tone: "directory" });
+  if (state.pendingArtifacts.length) {
+    items.push({ label: `\u9644\u4ef6 ${state.pendingArtifacts.length}`, tone: "active" });
+  }
+  if (state.quotedReply) items.push({ label: "\u5f15\u7528\u56de\u590d", tone: "active" });
+  if (counts.running) items.push({ label: `\u8fd0\u884c\u4e2d ${counts.running}`, tone: "active" });
+  if (counts.queued) items.push({ label: `\u6392\u961f ${counts.queued}`, tone: "active" });
+  return items.slice(0, 8);
+}
+
+function shouldShowComposerContext(items, counts) {
+  if (!items.length || isChatSearchMode()) return false;
+  if (state.viewMode !== "single" && state.viewMode !== "tasks") return false;
+  return Boolean(
+    state.composerFocused
+    || composerHasDraft()
+    || state.pendingArtifacts.length
+    || state.quotedReply
+    || state.pendingTaskDirectory?.projectId
+    || (isTaskListView() && state.taskDirectoryFilter?.projectId)
+    || counts.running
+    || counts.queued
+  );
+}
+
+function renderComposerContext() {
+  const bar = $("composerContext");
+  const composer = $("composer");
+  if (!bar || !composer) return;
+  const counts = composerRunCounts();
+  const items = composerContextItems(counts);
+  const visible = shouldShowComposerContext(items, counts);
+  composer.classList.toggle("context-visible", visible);
+  if (!visible) {
+    bar.hidden = true;
+    bar.innerHTML = "";
+    return;
+  }
+  bar.hidden = false;
+  bar.innerHTML = items.map((item) => {
+    const tone = item.tone ? ` ${item.tone}` : "";
+    return `<span class="composer-context-chip${tone}" title="${escapeHtml(item.label)}"><span>${escapeHtml(item.label)}</span></span>`;
+  }).join("");
+}
+
 function normalizeRunEvent(event = {}, fallbackRunId = "") {
   return {
     event: String(event.event || event.type || "event"),
@@ -1073,6 +1188,7 @@ function updateComposerAction() {
     button.classList.remove("stop-mode");
     button.disabled = !draft;
     updateChatSearchStatus();
+    renderComposerContext();
     return;
   }
   if (prevSearch) {
@@ -1094,6 +1210,7 @@ function updateComposerAction() {
   button.textContent = stopMode ? "Stop" : "Send";
   button.classList.toggle("stop-mode", stopMode);
   if (stopMode) button.disabled = false;
+  renderComposerContext();
 }
 
 function normalizeSingleWindowMode(value) {
@@ -1176,6 +1293,7 @@ function updateTaskReasoningControl() {
     select.addEventListener("change", () => {
       state.pendingTaskReasoningEffort = select.value || "";
       state.pendingTaskReasoningExplicit = true;
+      renderComposerContext();
     });
     select.dataset.boundTaskReasoning = "1";
   }
@@ -2809,6 +2927,7 @@ async function loadStatus() {
     state.defaultReasoningEffort = String(status.reasoning.defaultEffort || "medium").toLowerCase();
     state.defaultReasoningSource = status.reasoning.source || "";
     updateTaskReasoningControl();
+    renderComposerContext();
   }
   if (status.push) {
     state.pushStatus = status.push;
@@ -3511,6 +3630,7 @@ async function loadWorkspaces() {
   select.innerHTML = state.workspaces.map((ws) => `<option value="${escapeHtml(ws.id)}">${escapeHtml(ws.label || ws.id)}</option>`).join("");
   select.value = state.selectedWorkspaceId;
   renderWorkspaceAccessPanel();
+  renderComposerContext();
 }
 
 async function loadProjects() {
@@ -9949,6 +10069,14 @@ function wireUi() {
   });
   $("messageInput").addEventListener("keydown", handleComposerKeydown);
   $("messageInput").addEventListener("paste", pastePlainText);
+  $("messageInput").addEventListener("focus", () => {
+    state.composerFocused = true;
+    renderComposerContext();
+  });
+  $("messageInput").addEventListener("blur", () => {
+    state.composerFocused = false;
+    window.setTimeout(renderComposerContext, 80);
+  });
   document.addEventListener("pointerdown", (event) => {
     if (!state.groupMentionOpen) return;
     if ($("composer")?.contains(event.target)) return;

@@ -4904,6 +4904,71 @@ button.directory-alias-chip {
   display: none;
 }
 
+.composer-context {
+  grid-column: 1 / -1;
+  order: -3;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 1px 1px;
+  margin-bottom: -2px;
+  overflow-x: auto;
+  color: rgba(38, 64, 60, 0.74);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.composer-context[hidden] {
+  display: none;
+}
+
+.composer-context::-webkit-scrollbar {
+  display: none;
+}
+
+.composer-context-chip {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: min(44vw, 190px);
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  color: rgba(40, 76, 69, 0.74);
+  background: rgba(255, 253, 248, 0.58);
+  border: 1px solid rgba(63, 127, 114, 0.12);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 720;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.composer-context-chip > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-context-chip.primary {
+  color: #0f5f4d;
+  background: rgba(216, 239, 230, 0.42);
+  border-color: rgba(31, 111, 98, 0.16);
+}
+
+.composer-context-chip.active {
+  color: #8b6a2c;
+  background: rgba(255, 245, 224, 0.58);
+  border-color: rgba(169, 122, 49, 0.14);
+}
+
+.composer-context-chip.directory {
+  max-width: min(58vw, 260px);
+}
+
 .composer .group-mention-option {
   width: 100%;
   min-height: 36px;
@@ -5563,6 +5628,23 @@ button.directory-alias-chip {
     grid-template-columns: 44px minmax(0, 1fr) auto;
     padding: 7px 8px 6px;
     gap: 6px;
+  }
+
+  .composer-context {
+    gap: 4px;
+    padding-bottom: 0;
+    margin-bottom: -1px;
+  }
+
+  .composer-context-chip {
+    max-width: 48vw;
+    min-height: 21px;
+    padding: 0 6px;
+    font-size: 10.5px;
+  }
+
+  .composer-context-chip.directory {
+    max-width: 64vw;
   }
 
   .composer.reasoning-visible {
