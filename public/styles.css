@@ -4312,6 +4312,7 @@ button.directory-alias-chip {
 
 .directory-entry-name {
   min-width: 0;
+  font-size: 15px;
   font-weight: 760;
   overflow: hidden;
   white-space: nowrap;
@@ -4483,7 +4484,7 @@ button.directory-alias-chip {
 
 .todo-card-title {
   min-width: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 760;
   overflow-wrap: anywhere;
 }
@@ -4730,7 +4731,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(63, 127, 114, 0.16);
   border-radius: 14px;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 500;
 }
 
 .automation-loading-spinner {
@@ -4811,8 +4812,8 @@ button.directory-alias-chip {
 
 .automation-card-title {
   min-width: 0;
-  font-size: 16px;
-  font-weight: 760;
+  font-size: 15px;
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 
@@ -4831,7 +4832,7 @@ button.directory-alias-chip {
   background: var(--accent-soft);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 500;
 }
 
 .automation-card .automation-state {
@@ -4850,7 +4851,7 @@ button.directory-alias-chip {
 .automation-state-time {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 500;
 }
 
 .automation-state-dot {
@@ -4894,7 +4895,7 @@ button.directory-alias-chip {
 .automation-detail-id {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -4935,7 +4936,7 @@ button.directory-alias-chip {
 
 .automation-run-times span {
   font-size: 14px;
-  font-weight: 760;
+  font-weight: 500;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -5102,13 +5103,13 @@ button.directory-alias-chip {
 .automation-doc-label {
   color: var(--gold);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 500;
 }
 
 .automation-doc-name {
   min-width: 0;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 500;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
@@ -6108,11 +6109,7 @@ button.directory-alias-chip {
 :root[data-font-size] .message-prose li,
 :root[data-font-size] .message-prose td,
 :root[data-font-size] .message-prose th,
-:root[data-font-size] .task-prompt,
-:root[data-font-size] .directory-entry-name,
-:root[data-font-size] .todo-card-title,
-:root[data-font-size] .automation-card-title,
-:root[data-font-size] .automation-doc-name {
+:root[data-font-size] .task-prompt {
   font-size: calc(16.8px * var(--app-font-scale));
 }
 
@@ -6126,11 +6123,19 @@ button.directory-alias-chip {
 
 :root[data-font-size] .message-prose h3,
 :root[data-font-size] .task-title-line,
+:root[data-font-size] .directory-entry-name,
+:root[data-font-size] .todo-card-title,
+:root[data-font-size] .automation-card-title,
+:root[data-font-size] .automation-doc-name,
 :root[data-font-size] .directory-breadcrumb button,
 :root[data-font-size] .todo-create-toggle,
 :root[data-font-size] .access-key-title,
 :root[data-font-size] .settings-row-title {
   font-size: calc(15px * var(--app-font-scale));
+}
+
+:root[data-font-size] .automation-doc-preview.compact .automation-doc-name {
+  font-size: calc(13px * var(--app-font-scale));
 }
 
 :root[data-font-size] .message-prose pre,

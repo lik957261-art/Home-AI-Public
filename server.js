@@ -102,6 +102,8 @@ const WEIXIN_INGRESS_DEFAULT_WORKSPACE = String(
 ).trim();
 const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
 const OWNER_DEFAULT_WORKSPACE = path.resolve(process.env.HERMES_WEB_OWNER_DEFAULT_WORKSPACE || path.join(DATA_DIR, "drive"));
+const WORKSPACE_UPLOAD_DIR_NAME = ".hermes-mobile";
+const WORKSPACE_UPLOAD_SUBDIR = "uploads";
 const AUTH_KEY_PATH = path.resolve(process.env.HERMES_WEB_AUTH_KEY_PATH || path.join(REPO_ROOT, ".hermes_web_secret_key"));
 const WEB_PUSH_VAPID_PATH = path.resolve(
   process.env.HERMES_WEB_VAPID_PATH || process.env.WEB_PUSH_VAPID_PATH || path.join(DATA_DIR, "web-push-vapid.json"),
@@ -489,6 +491,7 @@ bootTrace("after loadState");
 
 const workspaceBindingsProvider = createWorkspaceBindingsProvider({
   interfaceToolsetsJson: () => process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "",
+  ownerExternalAccessPolicy: () => ownerExternalAccessPolicy(),
   ownerExternalInterfaceBindings: () => ownerExternalInterfaceBindings(),
 });
 bootTrace("workspace bindings ready");
@@ -3917,8 +3920,41 @@ function loadCatalog() {
   return catalog;
 }
 
+function mergeDefaultExternalAccessPolicy(policy) {
+  const source = policy && typeof policy === "object" ? policy : {};
+  const additions = workspaceBindingsProvider.accessPolicyAdditions(source);
+  return Object.assign({}, source, {
+    allowed_toolsets: dedupe([
+      ...(source.allowed_toolsets || []),
+      ...(additions.allowed_toolsets || []),
+    ]),
+    connector_profiles: Object.assign(
+      {},
+      source.connector_profiles || {},
+      additions.connector_profiles || {},
+    ),
+  });
+}
+
+function mergeAccessPolicyOverride(basePolicy, overridePolicy) {
+  const base = basePolicy && typeof basePolicy === "object" ? basePolicy : {};
+  const override = overridePolicy && typeof overridePolicy === "object" ? overridePolicy : {};
+  const merged = Object.assign({}, base, override);
+  merged.allowed_toolsets = dedupe([
+    ...(base.allowed_toolsets || []),
+    ...(override.allowed_toolsets || []),
+  ]);
+  merged.connector_profiles = Object.assign(
+    {},
+    base.connector_profiles || {},
+    override.connector_profiles || {},
+  );
+  return merged;
+}
+
 function buildAccessPolicy(route, user, project, hardeningOptions = {}) {
-  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.build(route, user, project), hardeningOptions);
+  const policy = mergeDefaultExternalAccessPolicy(accessPolicyProvider.build(route, user, project));
+  return securityBoundaryProvider.hardenAccessPolicy(policy, hardeningOptions);
 }
 
 function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
@@ -4291,6 +4327,10 @@ function ownerExternalInterfaceBindings() {
   return externalIntegrationProvider.ownerInterfaceBindings();
 }
 
+function ownerExternalAccessPolicy() {
+  return externalIntegrationProvider.ownerAccessPolicy();
+}
+
 function publicWorkspaceAccessKeyStatus(workspace) {
   return authProvider.publicWorkspaceAccessKeyStatus(workspace);
 }
@@ -4641,6 +4681,29 @@ function projectForTaskDirectoryAttachment(thread, attachment) {
   });
 }
 
+function formatAccessPolicyInstructionSummary(policy = {}) {
+  const lines = [
+    "Current run access policy summary (authoritative; supersedes older permission statements in conversation_history):",
+  ];
+  const principal = String(policy.principal_id || policy.principalId || "").trim();
+  const accessMode = String(policy.access_mode || policy.accessMode || "restricted").trim() || "restricted";
+  const roots = dedupe([
+    policy.default_workspace || policy.defaultWorkspace || "",
+    ...(policy.allowed_roots || policy.allowedRoots || []),
+  ].filter(Boolean));
+  const toolsets = dedupe(policy.allowed_toolsets || policy.allowedToolsets || []);
+  const connectorProfiles = policy.connector_profiles && typeof policy.connector_profiles === "object"
+    ? Object.keys(policy.connector_profiles).sort()
+    : [];
+  if (principal) lines.push(`- Principal: ${principal}`);
+  lines.push(`- Access mode: ${accessMode}`);
+  if (roots.length) lines.push(`- Allowed roots: ${roots.join("; ")}`);
+  if (toolsets.length) lines.push(`- Enabled toolsets: ${toolsets.join(", ")}`);
+  if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
+  else lines.push("- External connector profiles: none");
+  return lines.join("\n");
+}
+
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
   const singleWindowMode = normalizeSingleWindowMode(options.singleWindowMode || options.single_window_mode || "");
   const groupChatDeliveryRoot = String(options.groupChatDeliveryRoot || options.group_chat_delivery_root || "").trim();
@@ -4651,6 +4714,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     "You are serving a Hermes Mobile app request.",
     "Use the selected account/workspace/project as the operational boundary.",
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
+    formatAccessPolicyInstructionSummary(policy),
     securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
     "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
     "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
@@ -4713,8 +4777,67 @@ function uniqueChildPath(parentPath, filename) {
   return candidate;
 }
 
-function registerUploadArtifact(thread, message, filePath, originalName) {
+function workspaceDefaultRoot(workspaceId) {
+  const workspace = findWorkspace(workspaceId || "owner");
+  const root = String(workspace?.defaultWorkspace || workspace?.policy?.default_workspace || "").trim();
+  const localRoot = normalizeLocalPath(root) || root;
+  if (!localRoot || securityBoundaryProvider.rootConflictsWithProtected(localRoot) || securityBoundaryProvider.rootConflictsWithProtected(root)) return "";
+  return localRoot;
+}
+
+function threadUploadRoot(thread) {
+  return thread?.id ? path.join(DATA_DIR, WORKSPACE_UPLOAD_SUBDIR, thread.id) : "";
+}
+
+function workspaceUploadRoot(workspaceId, threadId) {
+  const root = workspaceDefaultRoot(workspaceId);
+  const safeThreadId = safeDirectoryName(threadId || "thread");
+  if (!root || !safeThreadId) return "";
+  const uploadRoot = path.resolve(path.join(root, WORKSPACE_UPLOAD_DIR_NAME, WORKSPACE_UPLOAD_SUBDIR, safeThreadId));
+  if (!pathInsideAnyRoot(uploadRoot, [path.resolve(root)])) return "";
+  return uploadRoot;
+}
+
+function uploadWorkspaceAllowedForThread(thread, workspaceId) {
+  const id = String(workspaceId || "").trim();
+  if (!thread || !id) return false;
+  return id === String(thread.workspaceId || "") || chatGroupMemberWorkspaceIds(thread).includes(id);
+}
+
+function uploadWorkspaceIdForRequest(auth, thread, body = {}) {
+  const requested = String(body.workspaceId || body.actorWorkspaceId || body.actor_workspace_id || "").trim();
+  if (requested && authCanAccessWorkspace(auth, requested) && uploadWorkspaceAllowedForThread(thread, requested)) return requested;
+  const authWorkspaceId = String(auth?.workspaceId || "").trim();
+  if (authWorkspaceId && uploadWorkspaceAllowedForThread(thread, authWorkspaceId)) return authWorkspaceId;
+  return String(thread?.workspaceId || "owner").trim() || "owner";
+}
+
+function uploadRootsForThread(thread) {
+  if (!thread?.id) return [];
+  const workspaceIds = dedupe([
+    thread.workspaceId,
+    ...chatGroupMemberWorkspaceIds(thread),
+  ].filter(Boolean));
+  return dedupe([
+    threadUploadRoot(thread),
+    ...workspaceIds.map((workspaceId) => workspaceUploadRoot(workspaceId, thread.id)),
+  ].filter(Boolean));
+}
+
+function workspaceUploadDirectoryForRequest(auth, thread, body = {}) {
+  const workspaceId = uploadWorkspaceIdForRequest(auth, thread, body);
+  const uploadDir = workspaceUploadRoot(workspaceId, thread?.id);
+  if (!uploadDir) {
+    const err = new Error("Workspace upload directory is not available");
+    err.status = 400;
+    throw err;
+  }
+  return { workspaceId, uploadDir };
+}
+
+function registerUploadArtifact(thread, message, filePath, originalName, options = {}) {
   const stat = fs.statSync(filePath);
+  const workspaceId = String(options.workspaceId || message?.actorWorkspaceId || thread.workspaceId || "").trim();
   const artifact = {
     id: makeId("artifact"),
     path: filePath,
@@ -4724,7 +4847,7 @@ function registerUploadArtifact(thread, message, filePath, originalName) {
     size: stat.size,
     createdAt: nowIso(),
     updatedAt: nowIso(),
-    workspaceId: thread.workspaceId,
+    workspaceId: workspaceId || thread.workspaceId,
     projectId: thread.projectId,
     subprojectId: thread.subprojectId || "",
     threadId: thread.id,
@@ -4738,6 +4861,7 @@ function registerUploadArtifact(thread, message, filePath, originalName) {
     size: artifact.size,
     url: `/api/artifacts/${encodeURIComponent(artifact.id)}`,
     path: artifact.path,
+    workspaceId: artifact.workspaceId,
   };
 }
 
@@ -4764,7 +4888,7 @@ function attachUploadedArtifactsToMessage(thread, message) {
     if (!artifactIds.has(String(artifact.id || ""))) continue;
     if (String(artifact.threadId || "") !== String(thread.id || "")) continue;
     artifact.messageId = message.id;
-    artifact.workspaceId = thread.workspaceId;
+    artifact.workspaceId = message.actorWorkspaceId || artifact.workspaceId || thread.workspaceId;
     artifact.projectId = thread.projectId;
     artifact.subprojectId = thread.subprojectId || "";
     artifact.updatedAt = nowIso();
@@ -6477,6 +6601,9 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     policy.cache_roots = dedupe([...(policy.cache_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
   }
   policy = sanitizePolicy(policy, policyHardeningOptions);
+  const runPolicy = options.access_policy_context && typeof options.access_policy_context === "object"
+    ? sanitizePolicy(mergeAccessPolicyOverride(policy, options.access_policy_context), policyHardeningOptions)
+    : policy;
   const taskId = makePublicTaskId("web");
   const body = {
     input: userMessage.content,
@@ -6487,7 +6614,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     instructions: [
       buildHermesInstructions(
         policyThread,
-        policy,
+        runPolicy,
         project,
         userMessage.content,
         taskDirectory,
@@ -6495,14 +6622,11 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
       ),
       options.instructions || "",
     ].filter(Boolean).join("\n\n"),
-    access_policy_context: policy,
+    access_policy_context: runPolicy,
   };
   if (options.model) body.model = options.model;
   if (options.reasoning_effort) body.reasoning_effort = options.reasoning_effort;
   if (options.reasoning && typeof options.reasoning === "object") body.reasoning = options.reasoning;
-  if (options.access_policy_context && typeof options.access_policy_context === "object") {
-    body.access_policy_context = sanitizePolicy(Object.assign({}, policy, options.access_policy_context), policyHardeningOptions);
-  }
 
   const gatewayRouting = Object.assign({}, requestedGatewayRouting, {
     purpose: "user_run",
@@ -7130,10 +7254,10 @@ function isPathAllowed(filePath) {
 
 function isPathAllowedForThread(thread, localPath, originalPath = "") {
   if (securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(originalPath)) return false;
-  const threadUploadRoot = thread?.id ? path.join(DATA_DIR, "uploads", thread.id) : "";
-  if (threadUploadRoot && (
-    pathInsideAnyRoot(localPath, [threadUploadRoot])
-    || pathInsideAnyRoot(originalPath || localPath, [threadUploadRoot])
+  const uploadRoots = uploadRootsForThread(thread);
+  if (uploadRoots.length && (
+    pathInsideAnyRoot(localPath, uploadRoots)
+    || pathInsideAnyRoot(originalPath || localPath, uploadRoots)
   )) {
     return true;
   }
@@ -8565,6 +8689,7 @@ async function handleApi(req, res) {
 
   const upload = url.pathname.match(/^\/api\/threads\/([^/]+)\/uploads$/);
   if (upload && req.method === "POST") {
+    const auth = authenticateRequest(req);
     const thread = findThreadForRequest(req, decodeURIComponent(upload[1]));
     if (!thread) {
       sendJson(res, 404, { error: "Thread not found" });
@@ -8582,11 +8707,18 @@ async function handleApi(req, res) {
       sendJson(res, 400, { error: "Invalid or too-large upload" });
       return;
     }
-    const uploadDir = path.join(DATA_DIR, "uploads", thread.id);
+    let uploadTarget;
+    try {
+      uploadTarget = workspaceUploadDirectoryForRequest(auth, thread, body);
+    } catch (err) {
+      sendJson(res, err.status || 500, { error: err.message || String(err) });
+      return;
+    }
+    const uploadDir = uploadTarget.uploadDir;
     fs.mkdirSync(uploadDir, { recursive: true });
     const filePath = path.join(uploadDir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
     fs.writeFileSync(filePath, buffer);
-    const artifact = registerUploadArtifact(thread, null, filePath, filename);
+    const artifact = registerUploadArtifact(thread, null, filePath, filename, { workspaceId: uploadTarget.workspaceId });
     saveState();
     sendJson(res, 201, { artifact });
     return;

@@ -56,6 +56,47 @@ function Start-LowGateways {
   if ($LASTEXITCODE -ne 0) { throw "Low gateway pool start failed with exit code $LASTEXITCODE" }
 }
 
+function Provision-OwnerExternalConnectors {
+  $provisionScript = Join-Path $GatewayWorkerRoot "provision-worker-external-connectors.ps1"
+  $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
+  if (-not (Test-Path -LiteralPath $provisionScript)) {
+    Write-GatewayPoolLog "Owner external connector provisioning skipped; provision script missing."
+    return
+  }
+  if (-not (Test-Path -LiteralPath $runAsWorker)) {
+    Write-GatewayPoolLog "Owner external connector provisioning skipped; worker runner missing."
+    return
+  }
+  $args = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $provisionScript,
+    "-WorkerRunAsScript", $runAsWorker,
+    "-WorkerDirectory", $GatewayWorkerRoot
+  )
+  $hasCredential = $false
+  if ($env:HERMES_WEB_GOOGLE_TOKEN_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_GOOGLE_TOKEN_PATH)) {
+    $args += @("-GoogleTokenPath", $env:HERMES_WEB_GOOGLE_TOKEN_PATH)
+    $hasCredential = $true
+  }
+  if ($env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH)) {
+    $args += @("-GoogleClientSecretPath", $env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH)
+    $hasCredential = $true
+  }
+  if ($env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH)) {
+    $args += @("-OutlookGraphTokenPath", $env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH)
+    $hasCredential = $true
+  }
+  if (-not $hasCredential) {
+    Write-GatewayPoolLog "Owner external connector provisioning skipped; no credential paths are available."
+    return
+  }
+  Write-GatewayPoolLog "Provisioning owner external connector credentials into owner low gateway profiles."
+  $output = & powershell.exe @args 2>&1
+  foreach ($line in $output) { Write-GatewayPoolLog ("external-connectors: {0}" -f $line) }
+  if ($LASTEXITCODE -ne 0) { throw "Owner external connector provisioning failed with exit code $LASTEXITCODE" }
+}
+
 function Start-OwnerMaintenanceGateways {
   if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Missing gateway pool manifest: $ManifestPath" }
   $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
@@ -89,6 +130,7 @@ function Start-OwnerMaintenanceGateways {
 }
 
 Write-GatewayPoolLog "Gateway pool startup begin."
+Provision-OwnerExternalConnectors
 Start-LowGateways
 Start-OwnerMaintenanceGateways | Out-Null
 

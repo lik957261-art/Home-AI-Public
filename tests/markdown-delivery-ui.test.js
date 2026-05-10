@@ -22,7 +22,10 @@ assert.match(serverJs, /function attachUploadedArtifactsToMessage\(thread, messa
 assert.match(serverJs, /artifact\.messageId = message\.id/);
 assert.match(serverJs, /function findArtifactReferenceById\(artifactId\)/);
 assert.match(serverJs, /reference = findArtifactReferenceById\(artifactId\)/);
-assert.match(serverJs, /const threadUploadRoot = thread\?\.id \? path\.join\(DATA_DIR, "uploads", thread\.id\) : ""/);
+assert.match(serverJs, /const WORKSPACE_UPLOAD_DIR_NAME = "\.hermes-mobile"/);
+assert.match(serverJs, /function workspaceUploadDirectoryForRequest\(auth, thread, body = \{\}\)/);
+assert.match(serverJs, /const uploadDir = uploadTarget\.uploadDir/);
+assert.match(serverJs, /registerUploadArtifact\(thread, null, filePath, filename, \{ workspaceId: uploadTarget\.workspaceId \}\)/);
 assert.match(serverJs, /HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT/);
 assert.match(serverJs, /function findSourceMarkdownForArtifact\(thread, value\)/);
 assert.match(serverJs, /source_md_\$\{crypto\.createHash\("sha1"\)/);
@@ -35,6 +38,7 @@ assert.match(serverJs, /merge", "--ff-only"/);
 assert.match(appJs, /function isMarkdownArtifact\(artifact\)/);
 assert.match(appJs, /function displayArtifacts\(artifacts\)/);
 assert.match(appJs, /query\.set\("workspaceId", state\.selectedWorkspaceId\)/);
+assert.match(appJs, /workspaceId: state\.selectedWorkspaceId \|\| "owner"/);
 assert.match(appJs, /query\.set\("threadId", state\.currentThreadId\)/);
 assert.match(appJs, /const markdownDocuments = artifacts\.filter\(isMarkdownArtifact\)/);
 assert.match(appJs, /markdownStems\.has\(artifactStem\(artifact\)\)/);
@@ -57,6 +61,25 @@ assert.match(appJs, /data-update-available/);
 
 assert.match(stylesCss, /\.group-mention-menu[\s\S]+max-height: min\(360px/);
 assert.match(stylesCss, /@media \(max-width: 760px\)[\s\S]+\.group-mention-menu[\s\S]+max-height: min\(340px/);
+assert.match(stylesCss, /\.automation-card-title \{[\s\S]*?font-weight: 700;/);
+assert.match(stylesCss, /\.automation-doc-name \{[\s\S]*?font-weight: 500;/);
+assert.match(stylesCss, /\.automation-doc-label \{[\s\S]*?font-weight: 500;/);
+assert.match(stylesCss, /\.automation-state-time \{[\s\S]*?font-weight: 500;/);
+assert.match(stylesCss, /\.directory-entry-name \{[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /\.todo-card-title \{[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /\.automation-card-title \{[\s\S]*?font-size: 15px;/);
+assert.match(
+  stylesCss,
+  /:root\[data-font-size\] \.message-prose h3,[\s\S]*?:root\[data-font-size\] \.task-title-line,[\s\S]*?:root\[data-font-size\] \.directory-entry-name,[\s\S]*?:root\[data-font-size\] \.todo-card-title,[\s\S]*?:root\[data-font-size\] \.automation-card-title,[\s\S]*?:root\[data-font-size\] \.automation-doc-name,[\s\S]*?font-size: calc\(15px \* var\(--app-font-scale\)\);/
+);
+assert.doesNotMatch(
+  stylesCss,
+  /:root\[data-font-size\] \.message-body,[\s\S]*?:root\[data-font-size\] \.(?:directory-entry-name|todo-card-title|automation-card-title|automation-doc-name),[\s\S]*?font-size: calc\(16\.8px \* var\(--app-font-scale\)\);/
+);
+assert.match(
+  stylesCss,
+  /:root\[data-font-size\] \.automation-doc-preview\.compact \.automation-doc-name \{[\s\S]*?font-size: calc\(13px \* var\(--app-font-scale\)\);/
+);
 
 assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
 assert.match(fileViewer, /class="markdown-table-wrap"/);

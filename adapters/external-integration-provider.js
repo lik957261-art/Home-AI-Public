@@ -72,7 +72,43 @@ function createExternalIntegrationProvider(options = {}) {
     });
   }
 
+  function ownerAccessPolicy() {
+    const bindings = ownerInterfaceBindings();
+    const allowedToolsets = [];
+    const connectorProfiles = {};
+    const addProfile = (name) => {
+      const key = String(name || "").trim();
+      if (key) connectorProfiles[key] = "owner";
+    };
+    for (const binding of bindings) {
+      const id = String(binding?.id || "").trim();
+      if (id === "owner_google") {
+        addProfile("google");
+        addProfile("gmail");
+        allowedToolsets.push("google_workspace");
+      } else if (id === "owner_outlook") {
+        addProfile("outlook");
+        addProfile("hotmail");
+        addProfile("email");
+        allowedToolsets.push("hermes-email");
+      } else if (id === "owner_alimail") {
+        addProfile("alimail");
+        addProfile("email");
+        allowedToolsets.push("hermes-email");
+      } else if (id === "owner_hotmail") {
+        addProfile("hotmail");
+        addProfile("email");
+        allowedToolsets.push("hermes-email");
+      }
+    }
+    return {
+      allowed_toolsets: [...new Set(allowedToolsets)],
+      connector_profiles: connectorProfiles,
+    };
+  }
+
   return {
+    ownerAccessPolicy,
     ownerInterfaceBindings,
   };
 }
