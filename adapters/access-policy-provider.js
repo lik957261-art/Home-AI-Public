@@ -4,6 +4,8 @@ function defaultDedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
+const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze(["todo", "kanban"]);
+
 function createAccessPolicyProvider(options = {}) {
   const dedupe = options.dedupe || defaultDedupe;
   const uploadCacheRoot = () => String(
@@ -67,6 +69,10 @@ function createAccessPolicyProvider(options = {}) {
       reason: "hermes_web",
     };
     const policy = sanitize(Object.assign({}, merged, source));
+    policy.allowed_toolsets = dedupe([
+      ...(policy.allowed_toolsets || []),
+      ...DEFAULT_LOW_PERMISSION_TOOLSETS,
+    ]);
     if (project && project.root) {
       policy.default_workspace = project.root;
     }

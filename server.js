@@ -319,7 +319,7 @@ const AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS = Number(process.env.HERMES_WE
 const AUTOMATION_PUSH_INITIAL_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_INITIAL_LOOKBACK_MS || String(24 * 60 * 60 * 1000));
 const MAX_STATE_BACKUPS = Number(process.env.HERMES_WEB_MAX_STATE_BACKUPS || "80");
 const STATE_BACKUP_MIN_INTERVAL_MS = Number(process.env.HERMES_WEB_STATE_BACKUP_MIN_INTERVAL_MS || String(10 * 60 * 1000));
-const ENABLE_DIRECT_TODO_CREATE = /^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_DIRECT_TODO_CREATE || "");
+const DIRECT_TODO_CREATE_SETTING = String(process.env.HERMES_MOBILE_DIRECT_KANBAN_CREATE || process.env.HERMES_WEB_DIRECT_TODO_CREATE || "").trim();
 const BOOT_TRACE_PATH = process.env.HERMES_MOBILE_BOOT_TRACE_PATH || process.env.HERMES_WEB_BOOT_TRACE_PATH || "";
 
 function bootTrace(label) {
@@ -2452,6 +2452,12 @@ function useKanbanTodoBackend() {
   return ["kanban", "hermes_kanban"].includes(TODO_BACKEND);
 }
 
+function directTodoCreateEnabled() {
+  if (/^(0|false|no|off)$/i.test(DIRECT_TODO_CREATE_SETTING)) return false;
+  if (/^(1|true|yes|on)$/i.test(DIRECT_TODO_CREATE_SETTING)) return true;
+  return useKanbanTodoBackend();
+}
+
 function useLocalAutomationBackend() {
   return backendIsLocal(AUTOMATION_BACKEND, ["bridge", "cron", "hermes", "hermes_cron"]);
 }
@@ -3434,7 +3440,7 @@ function parseTodoDueFromText(text, now = new Date()) {
 
 function detectDirectTodoCreateIntent(text, workspaceId) {
   const rawText = String(text || "").trim();
-  if (!rawText || !/待办/.test(rawText)) return null;
+  if (!rawText || !/(待办|看板|卡片|kanban|todo|to-do)/i.test(rawText)) return null;
   if (!/(新增|新建|创建|开启|添加|加|安排|提醒)/.test(rawText)) return null;
   const due = parseTodoDueFromText(rawText);
   if (!due?.dueTime) return null;
@@ -3446,7 +3452,8 @@ function detectDirectTodoCreateIntent(text, workspaceId) {
   }
   content = content
     .replace(due.raw, " ")
-    .replace(/(?:请|帮我|给我|我想|我要|需要)?\s*(?:新增|新建|创建|开启|添加|加|安排|提醒)\s*(?:一个|一条)?\s*待办(?:事项)?/g, " ")
+    .replace(/(?:请|帮我|给我|我想|我要|需要)?\s*(?:新增|新建|创建|开启|添加|加|安排|提醒)\s*(?:一个|一条|一张)?\s*(?:待办(?:事项)?|看板(?:卡片)?|卡片|kanban|todo|to-do)/ig, " ")
+    .replace(/(?:待办(?:事项)?|看板(?:卡片)?|卡片|kanban|todo|to-do)/ig, " ")
     .replace(/[，,。；;：:]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -3487,7 +3494,7 @@ function parseWebTodoDueFromText(text, now = new Date()) {
 
 function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
   const rawText = String(text || "").trim();
-  if (!rawText || !/(\u5f85\u529e|todo|to-do)/i.test(rawText)) return null;
+  if (!rawText || !/(\u5f85\u529e|\u770b\u677f|\u5361\u7247|kanban|todo|to-do)/i.test(rawText)) return null;
   if (!/(\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/.test(rawText)) return null;
   const due = parseWebTodoDueFromText(rawText);
   if (!due?.dueTime) return null;
@@ -3499,10 +3506,10 @@ function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
   }
   content = content
     .replace(due.raw, " ")
-    .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)\s*(?:\u4e00\u4e2a|\u4e00\u6761)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|todo|to-do)/ig, " ")
+    .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)\s*(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
     .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/ig, " ")
-    .replace(/(?:\u4e00\u4e2a|\u4e00\u6761)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|todo|to-do)/ig, " ")
-    .replace(/(?:\u5f85\u529e(?:\u4e8b\u9879)?|todo|to-do)/ig, " ")
+    .replace(/(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
+    .replace(/(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
     .replace(/\u7684/g, " ")
     .replace(/[\uff0c,.\u3002\uff1b;\uff1a:]/g, " ")
     .replace(/\s+/g, " ")
@@ -4871,6 +4878,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
     formatAccessPolicyInstructionSummary(policy),
     securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
+    "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
     "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
     "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
     createDeliveryBoundaryInstructions(deliveryBoundaryOptions),
@@ -9276,7 +9284,7 @@ async function handleApi(req, res) {
       sendJson(res, 201, { ok: true, thread: compactResponseThread() });
       return;
     }
-    const directTodoIntent = ENABLE_DIRECT_TODO_CREATE
+    const directTodoIntent = directTodoCreateEnabled()
       ? (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId)
         || detectDirectTodoCreateIntent(text, thread.workspaceId))
       : null;
@@ -9300,8 +9308,8 @@ async function handleApi(req, res) {
       const finishedAt = nowIso();
       assistantMessage.status = result?.ok ? "done" : "failed";
       assistantMessage.content = result?.ok
-        ? `已新增待办：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
-        : `新增待办失败：${result?.error || "Todo operation failed"}`;
+        ? `已新增看板卡片：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
+        : `新增看板卡片失败：${result?.error || "Kanban card operation failed"}`;
       assistantMessage.error = result?.ok ? null : (result?.error || "Todo operation failed");
       assistantMessage.completedAt = result?.ok ? finishedAt : "";
       assistantMessage.failedAt = result?.ok ? "" : finishedAt;

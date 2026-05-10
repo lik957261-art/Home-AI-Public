@@ -77,6 +77,8 @@ function run() {
   });
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("web"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("file"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("todo"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("kanban"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("terminal"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("code_execution"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("cronjob"));
@@ -119,6 +121,7 @@ function run() {
   });
   assert.match(permissionInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
   assert.match(permissionInstructions, /access_policy_context/);
+  assert.match(permissionInstructions, /Kanban\/Todo operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
   assert.match(provider.permissionBoundarySkillInstructions({ access_mode: "restricted" }), /mandatory pre-flight/);
   assert.strictEqual(permissionBoundarySkillInstructions({ access_mode: "unrestricted" }), "");
@@ -126,6 +129,7 @@ function run() {
   const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");
   assert.ok(fs.existsSync(skillPath));
   assert.match(fs.readFileSync(skillPath, "utf8"), /Do not search a broad drive/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Do not run a raw `hermes kanban` CLI command/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /HERMES_PERMISSION_APPROVAL_REQUIRED/);
 
   assert.deepStrictEqual(provider.classifyMaintenanceIntent("请修一下 Hermes Mobile server.js 的排序问题")?.category, "product_maintenance");
