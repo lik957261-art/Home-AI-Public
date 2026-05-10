@@ -15,6 +15,10 @@ const FONT_SIZE_OPTIONS = Object.freeze([
   { id: "xxlarge", label: "超大", scale: 1.32 },
 ]);
 const DEFAULT_FONT_SIZE = "standard";
+const CHAT_MESSAGE_INITIAL_LIMIT = 60;
+const CHAT_MESSAGE_PAGE_LIMIT = 40;
+const CHAT_MESSAGE_SEARCH_LIMIT = 120;
+const CHAT_HISTORY_LOAD_TOP_PX = 220;
 
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
@@ -125,8 +129,11 @@ const state = {
   chatSearchQuery: "",
   chatSearchMatches: [],
   chatSearchIndex: 0,
+  chatSearchLoading: false,
+  chatSearchTotalMatches: 0,
   chatSearchScrollPending: false,
   chatSearchRefocus: false,
+  olderChatMessagesLoading: false,
   suppressComposerFocusUntil: 0,
   attachFilePickerActivationAt: 0,
   topNavActivationAt: 0,
@@ -436,6 +443,57 @@ function activeChatTaskGroupId() {
 function chatMessagesForThread(thread, taskGroupId = activeChatTaskGroupId()) {
   const groupId = String(taskGroupId || SINGLE_WINDOW_CHAT_TASK_GROUP_ID);
   return (thread?.messages || []).filter((message) => String(message?.taskGroupId || "") === groupId);
+}
+
+function sortedThreadMessages(messages) {
+  return (messages || []).slice().sort((a, b) => {
+    const timeCompare = String(messageTimelineTimestamp(a) || "").localeCompare(String(messageTimelineTimestamp(b) || ""));
+    if (timeCompare) return timeCompare;
+    return String(a?.id || "").localeCompare(String(b?.id || ""));
+  });
+}
+
+function chatMessagePageParams(extra = {}) {
+  const params = new URLSearchParams();
+  params.set("messageMode", "chat");
+  params.set("limit", String(extra.limit || CHAT_MESSAGE_PAGE_LIMIT));
+  params.set("groupChat", isGroupChatView() ? "1" : "0");
+  if (extra.before) params.set("before", extra.before);
+  if (extra.search) params.set("search", extra.search);
+  return params;
+}
+
+function mergeMessagesPage(existingPage = null, incomingPage = null, messages = []) {
+  const merged = Object.assign({}, existingPage || {}, incomingPage || {});
+  const sameScope = !existingPage || !incomingPage
+    || (
+      String(existingPage.mode || "") === String(incomingPage.mode || "")
+      && String(existingPage.taskGroupId || "") === String(incomingPage.taskGroupId || "")
+    );
+  merged.loaded = messages.length;
+  merged.oldestMessageId = messages[0]?.id || "";
+  merged.newestMessageId = messages[messages.length - 1]?.id || "";
+  if ((sameScope && existingPage?.hasMoreBefore === false) || incomingPage?.hasMoreBefore === false) {
+    merged.hasMoreBefore = false;
+  }
+  return merged;
+}
+
+function mergeCurrentThreadMessages(messages = [], page = null) {
+  if (!state.currentThread || !Array.isArray(messages) || !messages.length) return;
+  const current = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));
+  for (const message of messages) {
+    current.set(message.id, mergeServerMessage(current.get(message.id), message));
+  }
+  const mergedMessages = sortedThreadMessages([...current.values()]);
+  state.currentThread.messages = mergedMessages;
+  if (page) {
+    state.currentThread.messagesPage = mergeMessagesPage(state.currentThread.messagesPage, page, chatMessagesForThread(state.currentThread));
+  }
+}
+
+function oldestLoadedChatMessageId(thread = state.currentThread) {
+  return chatMessagesForThread(thread)[0]?.id || "";
 }
 
 function activeChatRunIds(thread = state.currentThread) {
@@ -1861,18 +1919,21 @@ function syncChatSearchMatches() {
   if (!chatSearchAvailable()) {
     state.chatSearchMatches = [];
     state.chatSearchIndex = 0;
+    state.chatSearchTotalMatches = 0;
     return [];
   }
   const query = currentChatSearchQuery().toLowerCase();
   if (!query) {
     state.chatSearchMatches = [];
     state.chatSearchIndex = 0;
+    state.chatSearchTotalMatches = 0;
     return [];
   }
   const matches = chatMessagesForThread(state.currentThread)
     .filter((message) => message?.id && chatSearchContentForMessage(message).includes(query))
     .map((message) => message.id);
   state.chatSearchMatches = matches;
+  state.chatSearchTotalMatches = Math.max(state.chatSearchTotalMatches || 0, matches.length);
   if (!matches.length) {
     state.chatSearchIndex = 0;
   } else if (state.chatSearchIndex < 0 || state.chatSearchIndex >= matches.length) {
@@ -1914,6 +1975,8 @@ function closeChatSearch(options = {}) {
   state.chatSearchQuery = "";
   state.chatSearchMatches = [];
   state.chatSearchIndex = 0;
+  state.chatSearchLoading = false;
+  state.chatSearchTotalMatches = 0;
   state.chatSearchScrollPending = false;
   state.chatSearchRefocus = false;
   if (options.render !== false) {
@@ -1929,6 +1992,10 @@ function updateChatSearchDraft(value) {
 }
 
 function performChatSearch() {
+  performChatSearchAsync().catch(showError);
+}
+
+async function performChatSearchAsync() {
   if (!isChatSearchMode()) return;
   const draft = currentChatSearchDraft();
   state.chatSearchDraft = draft;
@@ -1940,6 +2007,20 @@ function performChatSearch() {
   state.chatSearchQuery = draft;
   state.chatSearchIndex = 0;
   state.chatSearchDraftChangedSinceSearch = false;
+  state.chatSearchLoading = Boolean(draft);
+  if (state.chatSearchLoading) renderCurrentThread({ stickToBottom: false });
+  try {
+    if (draft && state.currentThreadId) {
+      const params = chatMessagePageParams({ search: draft, limit: CHAT_MESSAGE_SEARCH_LIMIT });
+      const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages?${params}`);
+      mergeCurrentThreadMessages(result.messages || [], null);
+      state.chatSearchTotalMatches = Number(result.page?.totalMatches || 0) || 0;
+    } else {
+      state.chatSearchTotalMatches = 0;
+    }
+  } finally {
+    state.chatSearchLoading = false;
+  }
   syncChatSearchMatches();
   state.chatSearchRefocus = true;
   state.chatSearchScrollPending = Boolean(draft && state.chatSearchMatches.length);
@@ -2016,7 +2097,14 @@ function updateChatSearchStatus() {
   const total = state.chatSearchMatches.length;
   if (status) {
     status.hidden = changed;
-    status.textContent = total && !changed ? `${state.chatSearchIndex + 1}/${total}` : "0/0";
+    if (state.chatSearchLoading) {
+      status.textContent = "searching";
+    } else if (total && !changed) {
+      const fullTotal = Math.max(total, Number(state.chatSearchTotalMatches || 0) || 0);
+      status.textContent = fullTotal > total ? `${state.chatSearchIndex + 1}/${total}+` : `${state.chatSearchIndex + 1}/${total}`;
+    } else {
+      status.textContent = "0/0";
+    }
   }
   setNav(!changed && total > 1, !changed && total > 1);
 }
@@ -2728,6 +2816,36 @@ function scheduleConversationBottomStick() {
 function handleConversationScrollState() {
   if (Date.now() < state.suppressConversationPinUntil) return;
   state.conversationPinnedToBottom = isNearBottom();
+  maybeLoadOlderChatMessages();
+}
+
+function maybeLoadOlderChatMessages() {
+  const conversation = $("conversation");
+  if (!conversation || !isSingleWindowChatView() || isChatSearchMode()) return;
+  if (state.olderChatMessagesLoading) return;
+  const page = state.currentThread?.messagesPage || {};
+  if (page.hasMoreBefore === false) return;
+  if (!oldestLoadedChatMessageId()) return;
+  if (conversation.scrollTop > CHAT_HISTORY_LOAD_TOP_PX) return;
+  loadOlderChatMessages().catch(showError);
+}
+
+async function loadOlderChatMessages() {
+  if (!state.currentThreadId || !isSingleWindowChatView() || state.olderChatMessagesLoading) return;
+  const before = oldestLoadedChatMessageId();
+  if (!before) return;
+  const page = state.currentThread?.messagesPage || {};
+  if (page.hasMoreBefore === false) return;
+  state.olderChatMessagesLoading = true;
+  renderCurrentThread({ stickToBottom: false });
+  try {
+    const params = chatMessagePageParams({ before, limit: CHAT_MESSAGE_PAGE_LIMIT });
+    const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages?${params}`);
+    mergeCurrentThreadMessages(result.messages || [], result.page || null);
+  } finally {
+    state.olderChatMessagesLoading = false;
+    renderCurrentThread({ stickToBottom: false });
+  }
 }
 
 function handleViewportLayoutChange() {
@@ -7621,6 +7739,8 @@ function mergeServerMessage(existing, incoming) {
 function mergeCurrentThread(incomingThread) {
   if (!incomingThread) return state.currentThread;
   if (!state.currentThread || state.currentThread.id !== incomingThread.id) return incomingThread;
+  const existingPage = state.currentThread.messagesPage || null;
+  const incomingPage = incomingThread.messagesPage || null;
   const existingMessages = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));
   const incomingIds = new Set();
   const messages = (incomingThread.messages || []).map((message) => {
@@ -7630,7 +7750,14 @@ function mergeCurrentThread(incomingThread) {
   for (const message of state.currentThread.messages || []) {
     if (!incomingIds.has(message.id)) messages.push(message);
   }
-  return Object.assign({}, state.currentThread, incomingThread, { messages });
+  const sortedMessages = sortedThreadMessages(messages);
+  const chatMessages = incomingPage?.mode === "chat" || existingPage?.mode === "chat"
+    ? sortedMessages.filter((message) => String(message?.taskGroupId || "") === String((incomingPage || existingPage)?.taskGroupId || activeChatTaskGroupId()))
+    : sortedMessages;
+  const messagesPage = incomingPage || existingPage
+    ? mergeMessagesPage(existingPage, incomingPage, chatMessages)
+    : null;
+  return Object.assign({}, state.currentThread, incomingThread, { messages: sortedMessages, messagesPage });
 }
 
 async function loadSingleWindow(options = {}) {
@@ -7641,7 +7768,12 @@ async function loadSingleWindow(options = {}) {
   );
   const result = await api("/api/single-window", {
     method: "POST",
-    body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, groupChat }),
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      groupChat,
+      messageMode: state.singleWindowMode === "chat" ? "chat" : "",
+      messageLimit: CHAT_MESSAGE_INITIAL_LIMIT,
+    }),
   });
   state.currentThread = mergeCurrentThread(result.thread);
   if (groupChat && !selectedWorkspaceInThreadGroup(state.currentThread)) {
@@ -8500,6 +8632,24 @@ function renderGroupMemberStrip(thread) {
   </div>`;
 }
 
+function renderChatHistoryPager(thread) {
+  if (!isSingleWindowChatView()) return "";
+  const page = thread?.messagesPage || {};
+  const hasMore = page.hasMoreBefore !== false && Boolean(page.oldestMessageId || page.total > chatMessagesForThread(thread).length);
+  if (!hasMore && !state.olderChatMessagesLoading) return "";
+  return `<div class="chat-history-pager">
+    <button type="button" data-load-older-chat ${state.olderChatMessagesLoading ? "disabled" : ""}>
+      ${state.olderChatMessagesLoading ? "Loading..." : "Load earlier messages"}
+    </button>
+  </div>`;
+}
+
+function wireChatHistoryPager(root) {
+  root?.querySelector?.("[data-load-older-chat]")?.addEventListener("click", () => {
+    loadOlderChatMessages().catch(showError);
+  });
+}
+
 function renderCurrentThread(options = {}) {
   if (isSkillDetailView()) {
     renderSkillDetailPanel();
@@ -8563,7 +8713,9 @@ function renderCurrentThread(options = {}) {
   }
   const progressPanel = renderRunProgressPanel(thread, activeRuns);
   const groupStrip = groupChat ? renderGroupMemberStrip(thread) : "";
-  conversation.innerHTML = `${groupStrip}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  const historyPager = renderChatHistoryPager(thread);
+  conversation.innerHTML = `${groupStrip}${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  wireChatHistoryPager(conversation);
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);
   wireQuoteButtons(conversation);
@@ -10240,7 +10392,10 @@ async function refreshCurrentThreadFromServer(options = {}) {
     ? Boolean(options.stickToBottom)
     : isNearBottom();
   try {
-    const result = await api(`/api/threads/${encodeURIComponent(threadId)}`);
+    const params = isSingleWindowChatView()
+      ? `?${chatMessagePageParams({ limit: CHAT_MESSAGE_INITIAL_LIMIT })}`
+      : "";
+    const result = await api(`/api/threads/${encodeURIComponent(threadId)}${params}`);
     if ((state.currentThreadId || state.currentThread?.id || "") !== threadId) return;
     state.currentThread = mergeCurrentThread(result.thread);
     state.currentThreadId = state.currentThread?.id || threadId;
@@ -10431,6 +10586,7 @@ async function sendMessage(event) {
         body.taskGroupId = isGroupChatView()
           ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
           : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+        body.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT;
       }
       if (isGroupChatView()) body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
     }

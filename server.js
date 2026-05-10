@@ -195,6 +195,9 @@ const CHAT_CONTEXT_MAX_MESSAGES = Math.max(0, Number(process.env.HERMES_WEB_CHAT
 const CHAT_CONTEXT_MAX_CHARS = Math.max(1000, Number(process.env.HERMES_WEB_CHAT_CONTEXT_MAX_CHARS || "20000") || 20000);
 const MAX_MESSAGE_CHARS = 240_000;
 const MAX_API_TEXT_CHARS = 80_000;
+const THREAD_MESSAGE_INITIAL_LIMIT = Math.max(10, Number(process.env.HERMES_MOBILE_THREAD_MESSAGE_INITIAL_LIMIT || process.env.HERMES_WEB_THREAD_MESSAGE_INITIAL_LIMIT || "60") || 60);
+const THREAD_MESSAGE_PAGE_LIMIT = Math.max(10, Number(process.env.HERMES_MOBILE_THREAD_MESSAGE_PAGE_LIMIT || process.env.HERMES_WEB_THREAD_MESSAGE_PAGE_LIMIT || "40") || 40);
+const THREAD_MESSAGE_SEARCH_LIMIT = Math.max(10, Number(process.env.HERMES_MOBILE_THREAD_MESSAGE_SEARCH_LIMIT || process.env.HERMES_WEB_THREAD_MESSAGE_SEARCH_LIMIT || "120") || 120);
 const MAX_EVENT_PREVIEW_CHARS = 1600;
 const MAX_STORED_EVENTS_PER_THREAD = 80;
 const MAX_UPLOAD_BYTES = Number(process.env.HERMES_WEB_MAX_UPLOAD_BYTES || "104857600");
@@ -5739,7 +5742,104 @@ function singleWindowProjectTaskSummaries(workspaceId, project, subproject, sear
   return out;
 }
 
-function compactThread(thread) {
+function clampPositiveInteger(value, fallback, maxValue = 500) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(maxValue, Math.max(1, Math.floor(parsed)));
+}
+
+function messagesForThreadMode(thread, options = {}) {
+  const messages = Array.isArray(thread?.messages) ? thread.messages : [];
+  const mode = String(options.mode || options.messageMode || "").trim().toLowerCase();
+  if (mode !== "chat") return messages;
+  const taskGroupId = messagePageTaskGroupId(options);
+  return messages.filter((message) => String(message?.taskGroupId || "") === taskGroupId);
+}
+
+function messagePageTaskGroupId(options = {}) {
+  return String(
+    options.taskGroupId
+    || options.task_group_id
+    || (options.groupChat ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID : SINGLE_WINDOW_CHAT_TASK_GROUP_ID),
+  ).trim() || SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+}
+
+function threadMessagesPage(thread, options = {}) {
+  const limit = clampPositiveInteger(options.limit, THREAD_MESSAGE_INITIAL_LIMIT, 300);
+  const allMessages = messagesForThreadMode(thread, options);
+  const beforeId = String(options.before || options.beforeMessageId || options.before_message_id || "").trim();
+  const beforeIndex = beforeId ? allMessages.findIndex((message) => String(message?.id || "") === beforeId) : -1;
+  const end = beforeIndex >= 0 ? beforeIndex : allMessages.length;
+  const start = Math.max(0, end - limit);
+  const messages = allMessages.slice(start, end);
+  return {
+    messages,
+    page: {
+      mode: String(options.mode || options.messageMode || "all"),
+      taskGroupId: String(options.mode || options.messageMode || "").trim().toLowerCase() === "chat" ? messagePageTaskGroupId(options) : "",
+      total: allMessages.length,
+      limit,
+      loaded: messages.length,
+      hasMoreBefore: start > 0,
+      oldestMessageId: messages[0]?.id || "",
+      newestMessageId: messages[messages.length - 1]?.id || "",
+      before: beforeId,
+    },
+  };
+}
+
+function messageSearchText(message = {}) {
+  const artifacts = Array.isArray(message.artifacts)
+    ? message.artifacts.map((artifact) => [
+      artifact?.name,
+      artifact?.path,
+      artifact?.mime,
+    ].filter(Boolean).join(" ")).join("\n")
+    : "";
+  return [
+    message.role,
+    message.content,
+    message.error,
+    artifacts,
+  ].filter(Boolean).join("\n").toLowerCase();
+}
+
+function searchThreadMessages(thread, options = {}) {
+  const query = String(options.search || options.q || "").trim().toLowerCase();
+  const limit = clampPositiveInteger(options.limit, THREAD_MESSAGE_SEARCH_LIMIT, 300);
+  if (!query) {
+    return {
+      messages: [],
+      page: {
+        mode: String(options.mode || options.messageMode || "chat"),
+        search: "",
+        totalMatches: 0,
+        limit,
+        hasMoreMatches: false,
+      },
+    };
+  }
+  const allMessages = messagesForThreadMode(thread, options);
+  const matches = allMessages.filter((message) => messageSearchText(message).includes(query));
+  return {
+    messages: matches.slice(0, limit),
+    page: {
+      mode: String(options.mode || options.messageMode || "chat"),
+      taskGroupId: messagePageTaskGroupId(options),
+      search: query,
+      total: allMessages.length,
+      totalMatches: matches.length,
+      limit,
+      hasMoreMatches: matches.length > limit,
+      oldestMessageId: matches[0]?.id || "",
+      newestMessageId: matches[Math.min(matches.length, limit) - 1]?.id || "",
+    },
+  };
+}
+
+function compactThread(thread, options = {}) {
+  const messagePage = options.messagePage || null;
+  const messages = Array.isArray(options.messages) ? options.messages : (thread.messages || []);
   return {
     id: thread.id,
     title: thread.title,
@@ -5755,9 +5855,15 @@ function compactThread(thread) {
     updatedAt: thread.updatedAt,
     taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
     chatGroup: publicChatGroup(thread),
-    messages: (thread.messages || []).map((message) => compactMessage(message, thread)),
+    messages: messages.map((message) => compactMessage(message, thread)),
+    messagesPage: messagePage,
     events: (thread.events || []).slice(-MAX_STORED_EVENTS_PER_THREAD),
   };
+}
+
+function compactThreadWithMessagePage(thread, options = {}) {
+  const page = threadMessagesPage(thread, options);
+  return compactThread(thread, { messages: page.messages, messagePage: page.page });
 }
 
 function compactMessage(message, thread = null) {
@@ -8799,7 +8905,15 @@ async function handleApi(req, res) {
       return;
     }
     broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-    sendJson(res, 200, { thread: compactThread(thread) });
+    const wantsChatPage = String(body.messageMode || body.message_mode || "").trim().toLowerCase() === "chat";
+    const responseThread = wantsChatPage
+      ? compactThreadWithMessagePage(thread, {
+        mode: "chat",
+        groupChat: groupRequested,
+        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+      })
+      : compactThread(thread);
+    sendJson(res, 200, { thread: responseThread });
     return;
   }
 
@@ -8888,7 +9002,43 @@ async function handleApi(req, res) {
       sendJson(res, 404, { error: "Thread not found" });
       return;
     }
+    const messageMode = String(url.searchParams.get("messageMode") || url.searchParams.get("message_mode") || "").trim().toLowerCase();
+    if (messageMode === "chat") {
+      sendJson(res, 200, {
+        thread: compactThreadWithMessagePage(thread, {
+          mode: "chat",
+          groupChat: boolParam(url.searchParams.get("groupChat") || url.searchParams.get("group_chat")),
+          limit: url.searchParams.get("messageLimit") || url.searchParams.get("message_limit") || THREAD_MESSAGE_INITIAL_LIMIT,
+        }),
+      });
+      return;
+    }
     sendJson(res, 200, { thread: compactThread(thread) });
+    return;
+  }
+
+  const threadMessagesRead = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages$/);
+  if (threadMessagesRead && req.method === "GET") {
+    const thread = findThreadForRequest(req, decodeURIComponent(threadMessagesRead[1]));
+    if (!thread) {
+      sendJson(res, 404, { error: "Thread not found" });
+      return;
+    }
+    const messageMode = String(url.searchParams.get("messageMode") || url.searchParams.get("message_mode") || "chat").trim().toLowerCase();
+    const options = {
+      mode: messageMode,
+      groupChat: boolParam(url.searchParams.get("groupChat") || url.searchParams.get("group_chat")),
+      before: url.searchParams.get("before") || "",
+      limit: url.searchParams.get("limit") || THREAD_MESSAGE_PAGE_LIMIT,
+      search: url.searchParams.get("search") || url.searchParams.get("q") || "",
+    };
+    const page = String(options.search || "").trim()
+      ? searchThreadMessages(thread, Object.assign({}, options, { limit: url.searchParams.get("limit") || THREAD_MESSAGE_SEARCH_LIMIT }))
+      : threadMessagesPage(thread, options);
+    sendJson(res, 200, {
+      messages: page.messages.map((message) => compactMessage(message, thread)),
+      page: page.page,
+    });
     return;
   }
 
@@ -9015,6 +9165,16 @@ async function handleApi(req, res) {
       sendJson(res, 403, { error: "Group chat is not enabled for this thread" });
       return;
     }
+    const compactResponseThread = () => (
+      thread.singleWindow && singleWindowMode === "chat"
+        ? compactThreadWithMessagePage(thread, {
+          mode: "chat",
+          taskGroupId,
+          groupChat: taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+          limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+        })
+        : compactThread(thread)
+    );
     let actorWorkspaceId = thread.workspaceId;
     const requestedActorWorkspaceId = String(body.workspaceId || body.actorWorkspaceId || body.actor_workspace_id || "").trim();
     if (requestedActorWorkspaceId && authCanAccessWorkspace(auth, requestedActorWorkspaceId)) {
@@ -9098,7 +9258,7 @@ async function handleApi(req, res) {
       broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
       broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
       notifyGroupChatMentions(thread, userMessage);
-      sendJson(res, 201, { ok: true, thread: compactThread(thread) });
+      sendJson(res, 201, { ok: true, thread: compactResponseThread() });
       return;
     }
     const directTodoIntent = ENABLE_DIRECT_TODO_CREATE
@@ -9144,7 +9304,7 @@ async function handleApi(req, res) {
         if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
         notifyTodoCreated(result, workspacePrincipal(thread.workspaceId));
       }
-      sendJson(res, result?.ok ? 201 : 400, { ok: Boolean(result?.ok), todo: result?.ok ? publicTodo(result) : null, result, thread: compactThread(thread) });
+      sendJson(res, result?.ok ? 201 : 400, { ok: Boolean(result?.ok), todo: result?.ok ? publicTodo(result) : null, result, thread: compactResponseThread() });
       return;
     }
     const followUpInstructions = thread.singleWindow && requestedTaskGroupId
@@ -9193,12 +9353,12 @@ async function handleApi(req, res) {
     broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
     if (isGroupChatMessage) notifyGroupChatMentions(thread, userMessage);
     if (queueBehindActiveChatRun) {
-      sendJson(res, 202, { run: { status: "queued", taskGroupId, engine: "responses" }, thread: compactThread(thread) });
+      sendJson(res, 202, { run: { status: "queued", taskGroupId, engine: "responses" }, thread: compactResponseThread() });
       return;
     }
     try {
       const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
-      sendJson(res, 202, { run, thread: compactThread(thread) });
+      sendJson(res, 202, { run, thread: compactResponseThread() });
     } catch (err) {
       const failedAt = nowIso();
       assistantMessage.status = "failed";
@@ -9209,7 +9369,7 @@ async function handleApi(req, res) {
       thread.updatedAt = failedAt;
       saveState();
       broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-      sendJson(res, err.status || 502, { error: assistantMessage.error, thread: compactThread(thread) });
+      sendJson(res, err.status || 502, { error: assistantMessage.error, thread: compactResponseThread() });
     }
     return;
   }

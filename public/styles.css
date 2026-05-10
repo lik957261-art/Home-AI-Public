@@ -6469,3 +6469,23 @@ button.directory-alias-chip {
 :root[data-font-size] .bottom-nav {
   min-height: calc(78px * var(--app-font-scale));
 }
+
+.chat-history-pager {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 14px;
+}
+
+.chat-history-pager button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chat-history-pager button:disabled {
+  opacity: 0.65;
+}

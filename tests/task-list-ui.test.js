@@ -98,5 +98,17 @@ assert.match(stylesCss, /\.todo-kanban-tab/);
 assert.match(stylesCss, /\.todo-kanban-current/);
 assert.match(stylesCss, /\.todo-kanban-lane/);
 assert.match(stylesCss, /\.todo-kanban-card/);
+assert.match(serverJs, /THREAD_MESSAGE_INITIAL_LIMIT/);
+assert.match(serverJs, /function threadMessagesPage\(thread, options = \{\}\)/);
+assert.match(serverJs, /function searchThreadMessages\(thread, options = \{\}\)/);
+assert.match(serverJs, /compactThreadWithMessagePage\(thread/);
+assert.match(serverJs, /threadMessagesRead && req\.method === "GET"/);
+assert.match(appJs, /const CHAT_MESSAGE_INITIAL_LIMIT = 60/);
+assert.match(appJs, /function loadOlderChatMessages\(\)/);
+assert.match(appJs, /maybeLoadOlderChatMessages\(\)/);
+assert.match(appJs, /\/messages\?\$\{params\}/);
+assert.match(appJs, /function renderChatHistoryPager\(thread\)/);
+assert.match(appJs, /body\.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT/);
+assert.match(stylesCss, /\.chat-history-pager/);
 
 console.log("task list UI tests passed");
