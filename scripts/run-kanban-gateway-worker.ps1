@@ -4,6 +4,7 @@ param(
   [string]$DistroName = "HermesGatewayWorker",
   [string]$Profile = "lowgw1",
   [string]$HermesHome = "/home/hermes/.hermes",
+  [string]$WorkerUserName = "HermesMobileWorker",
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]]$KanbanArgs = @()
 )
@@ -62,8 +63,19 @@ exit `$LASTEXITCODE
 $encoding = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($generatedChild, $generatedText, $encoding)
 
+function Current-UserName {
+  $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+  $name = [string]$identity.Name
+  if ($name -match '\\([^\\]+)$') { return $Matches[1] }
+  return $name
+}
+
 try {
-  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $generatedChild
+  if ((Current-UserName) -ieq $WorkerUserName) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $generatedChild
+  } else {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $generatedChild
+  }
   if ($LASTEXITCODE -ne 0) {
     throw "Kanban worker command failed with exit code $LASTEXITCODE"
   }

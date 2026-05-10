@@ -6891,12 +6891,26 @@ async function hermesRequest(apiPath, options = {}) {
 
 async function getHermesStatus() {
   const status = await singleGatewayRunner().status();
+  let poolStatus = null;
   try {
-    status.gatewayPool = await gatewayPool().status();
+    poolStatus = await gatewayPool().status();
+    status.gatewayPool = poolStatus;
   } catch (err) {
     status.gatewayPool = { enabled: false, error: err.message || String(err) };
   }
+  if (!status.ok && gatewayPoolStatusHealthy(poolStatus)) {
+    status.fallbackError = status.error || "";
+    status.error = null;
+    status.health = status.health || { status: "ok", platform: "gateway-pool" };
+    status.ok = true;
+  }
   return status;
+}
+
+function gatewayPoolStatusHealthy(poolStatus) {
+  if (!poolStatus?.enabled) return false;
+  const workers = Array.isArray(poolStatus.workers) ? poolStatus.workers : [];
+  return workers.some((worker) => worker?.healthy === true);
 }
 
 function buildConversationHistory(thread, latestUserMessageId) {

@@ -77,6 +77,8 @@ assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, la
 assert.match(serverJs, /Group-chat shared attachments authorized for this run/);
 assert.match(serverJs, /groupChatAttachmentCopies/);
 assert.match(serverJs, /shared-attachments/);
+assert.match(serverJs, /function gatewayPoolStatusHealthy\(poolStatus\)/);
+assert.match(serverJs, /status\.fallbackError = status\.error \|\| ""/);
 assert.match(indexHtml, /id="topSearchChat"/);
 assert.match(appJs, /\$\("topSearchChat"\)\?\.addEventListener\("click"/);
 assert.equal(indexHtml.includes("searchButton"), false);
