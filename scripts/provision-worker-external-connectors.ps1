@@ -92,6 +92,126 @@ profiles="$profilesText"
 owner_secret_root="/home/$WorkerLinuxUser/.hermes/external-connectors/owner"
 python="/opt/hermes-gateway-runtime/venv/bin/python"
 
+patch_google_workspace_skill() {
+  profile_dir="`$1"
+  scripts_dir="`$profile_dir/skills/productivity/google-workspace/scripts"
+  if [ ! -d "`$scripts_dir" ]; then
+    return 0
+  fi
+
+  cat > "`$scripts_dir/_hermes_home.py" <<'PY'
+"""Resolve HERMES_HOME for standalone skill scripts.
+
+Profile-local Skill copies run with process HERMES_HOME set to the shared
+Hermes home.  For connector credentials, prefer the enclosing profile
+directory when this file lives under ``~/.hermes/profiles/<profile>/skills``.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+
+def _profile_home_from_script() -> Path | None:
+    current = Path(__file__).resolve()
+    parts = current.parts
+    for idx, part in enumerate(parts):
+        if part == "profiles" and idx + 1 < len(parts):
+            candidate = Path(*parts[:idx + 2])
+            if (candidate / "skills").exists() or (candidate / "config.yaml").exists():
+                return candidate
+    return None
+
+
+def get_hermes_home() -> Path:
+    explicit = os.environ.get("HERMES_GOOGLE_PROFILE_HOME", "").strip()
+    if explicit:
+        return Path(explicit)
+    inferred = _profile_home_from_script()
+    if inferred is not None:
+        return inferred
+    val = os.environ.get("HERMES_HOME", "").strip()
+    return Path(val) if val else Path.home() / ".hermes"
+
+
+def display_hermes_home() -> str:
+    home = get_hermes_home()
+    try:
+        return "~/" + str(home.relative_to(Path.home()))
+    except ValueError:
+        return str(home)
+PY
+
+  cat > "`$scripts_dir/_google_runtime.py" <<'PY'
+"""Run Google Workspace scripts with the Gateway runtime Python when needed."""
+
+from __future__ import annotations
+
+import importlib.util
+import os
+from pathlib import Path
+import sys
+
+
+REQUIRED_MODULES = ("googleapiclient", "google.oauth2", "google_auth_oauthlib")
+
+
+def _module_missing(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is None
+    except ModuleNotFoundError:
+        return True
+
+
+def ensure_google_runtime_python() -> None:
+    missing = [name for name in REQUIRED_MODULES if _module_missing(name)]
+    if not missing:
+        return
+    if os.environ.get("HERMES_GOOGLE_RUNTIME_REEXEC") == "1":
+        return
+    runtime_python = Path(os.environ.get("HERMES_GOOGLE_RUNTIME_PYTHON", "/opt/hermes-gateway-runtime/venv/bin/python"))
+    if not runtime_python.exists():
+        return
+    try:
+        current = Path(sys.executable).resolve()
+        target = runtime_python.resolve()
+    except Exception:
+        current = Path(sys.executable)
+        target = runtime_python
+    if current == target:
+        return
+    env = os.environ.copy()
+    env["HERMES_GOOGLE_RUNTIME_REEXEC"] = "1"
+    os.execve(str(runtime_python), [str(runtime_python), *sys.argv], env)
+PY
+
+  for script_name in google_api.py setup.py; do
+    script_path="`$scripts_dir/`$script_name"
+    if [ -f "`$script_path" ] && ! grep -q "ensure_google_runtime_python" "`$script_path"; then
+      "`$python" - "`$script_path" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+if "from _google_runtime import ensure_google_runtime_python" in text:
+    raise SystemExit(0)
+marker = "from _hermes_home import "
+line_start = text.find(marker)
+if line_start < 0:
+    raise SystemExit(f"Cannot find _hermes_home import in {path}")
+line_end = text.find("\n", line_start)
+insert = "\nfrom _google_runtime import ensure_google_runtime_python\nensure_google_runtime_python()\n"
+text = text[:line_end + 1] + insert + text[line_end + 1:]
+path.write_text(text)
+PY
+    fi
+  done
+  chown -R "`$worker_user:`$worker_user" "`$scripts_dir"
+  chmod 755 "`$scripts_dir" || true
+}
+
 if [ "`$mode" = "install" ]; then
   mkdir -p "`$owner_secret_root/microsoft-graph-outlook-mail"
   if [ -f "`$staging/google_token.json" ]; then
@@ -122,6 +242,7 @@ if [ "`$mode" = "install" ]; then
       ln -sfn "`$owner_secret_root/microsoft-graph-outlook-mail/token.json" "`$profile_dir/microsoft-graph-outlook-mail/token.json"
       chown -h "`$worker_user:`$worker_user" "`$profile_dir/microsoft-graph-outlook-mail/token.json" || true
     fi
+    patch_google_workspace_skill "`$profile_dir"
   done
 fi
 
@@ -145,6 +266,13 @@ for profile in `$profiles; do
       echo "missing:`$rel"
     fi
   done
+  google_setup="`$profile_dir/skills/productivity/google-workspace/scripts/setup.py"
+  if [ -f "`$google_setup" ]; then
+    runuser -u "`$worker_user" -- env HOME="/home/`$worker_user" HERMES_HOME="/home/`$worker_user/.hermes" HERMES_GOOGLE_PROFILE_HOME="`$profile_dir" python3 "`$google_setup" --check >/tmp/hermes-google-check-`$profile.out 2>&1
+    echo "google_workspace_setup_check=ok"
+  else
+    echo "google_workspace_setup_check=missing"
+  fi
 done
 "@
 

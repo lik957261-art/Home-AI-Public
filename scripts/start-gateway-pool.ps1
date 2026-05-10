@@ -61,11 +61,29 @@ function Resolve-ConnectorPath {
   return Join-Path $officialHermesHome $RelativePath
 }
 
+function Ensure-LowGatewayProfileEnv {
+  $scriptPath = Join-Path $GatewayWorkerRoot "start-low-gateways.sh"
+  if (-not (Test-Path -LiteralPath $scriptPath)) { return }
+  $text = Get-Content -Raw -LiteralPath $scriptPath
+  if ($text -match "HERMES_GOOGLE_PROFILE_HOME") { return }
+  $needle = 'HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
+  $replacement = 'HERMES_PROFILE="$profile" HERMES_GOOGLE_PROFILE_HOME="/home/hermes/.hermes/profiles/$profile" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
+  if (-not $text.Contains($needle)) {
+    Write-GatewayPoolLog "Low gateway profile env patch skipped; start script shape is unknown."
+    return
+  }
+  $updated = $text.Replace($needle, $replacement)
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($scriptPath, $updated, $encoding)
+  Write-GatewayPoolLog "Low gateway profile env patched for profile-local connector credentials."
+}
+
 function Start-LowGateways {
   $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
   if (-not (Test-Path -LiteralPath $runAsWorker)) { throw "Missing worker runner: $runAsWorker" }
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
+  Ensure-LowGatewayProfileEnv
   Write-GatewayPoolLog "Starting low gateway pool."
   $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $child 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
