@@ -636,7 +636,7 @@ function taskSkills(group) {
 
 function renderTaskSkillChips(skills, options = {}) {
   if (!skills?.length) return "";
-  return `<div class="task-skills${options.compact ? " compact" : ""}" aria-label="Task skills">
+  return `<div class="task-skills${options.compact ? " compact" : ""}" aria-label="Topic skills">
     ${skills.map((skill) => {
       const title = skill.namespace ? `${skill.namespace}/${skill.label}` : skill.label;
       return `<button class="task-skill-chip" type="button" title="${escapeHtml(title)}" aria-label="${escapeHtml(`Skill ${title}`)}" data-skill-path="${escapeHtml(skill.path)}" data-skill-label="${escapeHtml(skill.label)}" data-skill-namespace="${escapeHtml(skill.namespace || "")}">
@@ -1201,7 +1201,7 @@ function composerTargetLabel() {
   if (isGroupChatView()) return "\u7fa4\u804a";
   if (isSingleWindowChatView()) return "\u804a\u5929";
   if (isSingleWindowView()) return "\u4efb\u52a1\u6d41";
-  if (state.viewMode === "tasks") return state.currentTaskGroupId ? "\u4efb\u52a1\u56de\u590d" : "\u65b0\u4efb\u52a1";
+  if (state.viewMode === "tasks") return state.currentTaskGroupId ? "话题回复" : "新话题";
   return "";
 }
 
@@ -1466,8 +1466,8 @@ function runEventTitle(event) {
   if (name === "response.output_item.added") return tool ? `开始 ${tool}` : "开始处理";
   if (name === "response.output_item.done") return tool ? `完成 ${tool}` : "阶段完成";
   if (name === "response.output_text.done") return "生成回复";
-  if (name === "response.completed" || name === "run.completed") return "任务完成";
-  if (name === "response.failed" || name === "run.failed") return "任务失败";
+  if (name === "response.completed" || name === "run.completed") return "处理完成";
+  if (name === "response.failed" || name === "run.failed") return "处理失败";
   return tool ? `${tool} · ${name.replace(/^response\./, "")}` : name.replace(/^response\./, "");
 }
 
@@ -1794,7 +1794,7 @@ function updateTopMoreControls() {
   const toggleTaskView = $("topToggleTaskView");
   if (toggleTaskView) {
     toggleTaskView.hidden = !(isTaskListView() || taskStream);
-    toggleTaskView.textContent = taskStream ? "任务列表" : "任务流";
+    toggleTaskView.textContent = taskStream ? "话题列表" : "话题流";
   }
   const toggleSingleMode = $("topToggleSingleMode");
   if (toggleSingleMode) {
@@ -2410,7 +2410,7 @@ async function deleteTaskGroup(taskGroupId, options = {}) {
   if (!state.currentThreadId || !taskGroupId) return;
   const group = taskListGroupsForThread(state.currentThread).find((item) => item.id === taskGroupId);
   const label = taskDisplayId(group) || taskGroupId;
-  if (options.confirm !== false && !window.confirm(`Delete task ${label}? Files on disk will not be deleted.`)) return;
+  if (options.confirm !== false && !window.confirm(`Delete topic ${label}? Files on disk will not be deleted.`)) return;
   const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/tasks/${encodeURIComponent(taskGroupId)}`, {
     method: "DELETE",
   });
@@ -2437,7 +2437,7 @@ function selectTaskRenameInput(input) {
 
 function openTaskRenameDialog(currentTitle) {
   const overlay = $("taskRenameOverlay");
-  if (!overlay) return Promise.resolve(window.prompt("修改任务名", currentTitle));
+  if (!overlay) return Promise.resolve(window.prompt("修改话题名", currentTitle));
   return new Promise((resolve) => {
     let settled = false;
     const finish = (value) => {
@@ -2458,13 +2458,13 @@ function openTaskRenameDialog(currentTitle) {
     overlay.innerHTML = `<form class="access-key-sheet task-rename-sheet" data-task-rename-form>
       <div class="access-key-header">
         <div>
-          <div id="taskRenameTitle" class="access-key-title">修改任务名</div>
-          <div class="access-key-subtitle">输入后保存为任务列表标题</div>
+          <div id="taskRenameTitle" class="access-key-title">修改话题名</div>
+          <div class="access-key-subtitle">输入后保存为话题列表标题</div>
         </div>
         <button class="icon-button" type="button" data-task-rename-cancel aria-label="关闭">&#10005;</button>
       </div>
       <label class="task-rename-field">
-        <span>任务名</span>
+        <span>话题名</span>
         <input id="taskRenameInput" type="text" value="${escapeHtml(currentTitle)}" autocomplete="off" autocapitalize="sentences">
       </label>
       <div class="task-rename-actions">
@@ -2499,7 +2499,7 @@ async function renameTaskGroup(taskGroupId) {
   if (nextTitle === null) return;
   const title = nextTitle.trim();
   if (!title) {
-    window.alert("任务名不能为空");
+    window.alert("话题名不能为空");
     return;
   }
   const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/tasks/${encodeURIComponent(taskGroupId)}`, {
@@ -3684,8 +3684,8 @@ function renderOwnerElevationPanel() {
   const selectedDuration = state.ownerElevationDurationMinutes;
   const label = active ? "高权限运行" : "普通权限";
   const meta = active
-    ? `后续 Owner 任务会路由到 maintenance Gateway，${ownerElevationRemainingLabel()}。`
-    : "后续 Owner 任务默认走普通低权限 Gateway。";
+    ? `后续 Owner 请求会路由到 maintenance Gateway，${ownerElevationRemainingLabel()}。`
+    : "后续 Owner 请求默认走普通低权限 Gateway。";
   const options = durationOptions.map((minutes) => (
     `<option value="${escapeHtml(minutes)}"${minutes === selectedDuration ? " selected" : ""}>${escapeHtml(minutes)} 分钟</option>`
   )).join("");
@@ -3768,7 +3768,7 @@ async function activateOwnerElevation(durationMinutes = ownerElevationSelectedDu
   if (options.confirm !== false) {
     const ok = await openOwnerElevationApprovalDialog({
       title: "Owner Approval",
-      message: `Approve high-privilege Gateway routing for ${minutes} minutes? Owner tasks during this window will use the maintenance Gateway.`,
+      message: `Approve high-privilege Gateway routing for ${minutes} minutes? Owner requests during this window will use the maintenance Gateway.`,
     });
     if (!ok) return false;
   }
@@ -4100,7 +4100,7 @@ function renderSettingsOverlay() {
       </div>
       <div class="settings-preview">
         <div class="settings-preview-title">Hermes Mobile</div>
-        <div class="settings-preview-body">聊天、任务、目录、待办和自动化页面会使用这个字体大小。</div>
+        <div class="settings-preview-body">聊天、话题、目录、看板和自动化页面会使用这个字体大小。</div>
       </div>
     </section>
   </section>`;
@@ -6465,7 +6465,7 @@ function renderDirectoryRootProjectMenu(project) {
   return `<div class="directory-entry-menu-wrap">
     <button class="directory-entry-menu-button" type="button" data-directory-entry-menu aria-label="更多操作" title="更多操作" aria-expanded="false">&#8942;</button>
     <div class="directory-entry-menu" hidden>
-      ${canStartTask ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-project="${escapeHtml(project.id || "")}">开启任务</button>` : ""}
+      ${canStartTask ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-project="${escapeHtml(project.id || "")}">开启话题</button>` : ""}
       ${canShare ? `<button class="directory-entry-menu-item" type="button" data-share-root-project="${escapeHtml(project.id || "")}">共享</button>` : ""}
       ${canDelete ? `<button class="directory-entry-menu-item danger" type="button" data-delete-directory-path="${escapeHtml(project.root || "")}" data-delete-directory-name="${escapeHtml(directoryRootProjectLabel(project))}" data-delete-directory-type="directory">删除</button>` : ""}
     </div>
@@ -6572,7 +6572,7 @@ function renderDirectoryEntryMenu(entry) {
   const itemName = escapeHtml(entry.name || "item");
   const itemType = escapeHtml(entry.type || "file");
   const taskAction = entry.type === "directory"
-    ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-path="${itemPath}" data-start-directory-task-label="${itemName}">开启任务</button>`
+    ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-path="${itemPath}" data-start-directory-task-label="${itemName}">开启话题</button>`
     : "";
   const deleteAction = `<button class="directory-entry-menu-item danger" type="button" data-delete-directory-path="${itemPath}" data-delete-directory-name="${itemName}" data-delete-directory-type="${itemType}">删除</button>`;
   if (!taskAction && !deleteAction) return "";
@@ -7104,8 +7104,8 @@ function applyViewMode() {
   $("directoryEntry")?.parentElement?.classList.add("hidden");
   $("newThread").classList.toggle("hidden", single || tasks || automation || directory || todos);
   $("newThread").disabled = single || tasks || automation || directory || todos;
-  $("newThread").textContent = todos ? "新建待办事项" : "新建任务";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search task stream") : tasks ? "Search tasks" : todos ? "Search todos" : automation ? "Search automations" : "Search directories";
+  $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : todos ? "Search Kanban" : automation ? "Search automations" : "Search directories";
   updateSearchButton();
 }
 
@@ -8015,7 +8015,7 @@ function todoDueLabel(todo) {
 }
 
 function todoTitle(todo) {
-  return compactDisplayText(todo?.content || todo?.id || "Todo", 120);
+  return compactDisplayText(todo?.content || todo?.id || "Kanban card", 120);
 }
 
 function todoMatchesOpen(todo) {
@@ -8066,7 +8066,7 @@ function renderTodos() {
 function renderTodoPanel() {
   const conversation = $("conversation");
   const selected = state.todos.find((todo) => todo.id === state.selectedTodoId) || null;
-  $("threadTitle").textContent = selected ? "待办详情" : "待办事项";
+  $("threadTitle").textContent = selected ? "看板详情" : "看板";
   $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
   updateNavigationControls();
@@ -8089,11 +8089,11 @@ function renderTodoPanel() {
 function renderTodoCreatePanel() {
   if (!state.todoCreateOpen) {
     return "";
-    return `<button class="todo-create-toggle" type="button" data-open-todo-create>新增待办</button>`;
+    return `<button class="todo-create-toggle" type="button" data-open-todo-create>新增卡片</button>`;
   }
   return `<form id="todoCreateForm" class="todo-create">
     <div class="todo-create-grid">
-      <input id="todoContent" class="todo-input todo-content-input" type="text" placeholder="待办内容">
+      <input id="todoContent" class="todo-input todo-content-input" type="text" placeholder="卡片内容">
       <input id="todoDue" class="todo-input" type="datetime-local">
       <select id="todoAssignee" class="todo-input">${renderTodoAssigneeOptions()}</select>
       <select id="todoRecurrence" class="todo-input">
@@ -8106,7 +8106,7 @@ function renderTodoCreatePanel() {
       <input id="todoRecurrenceDays" class="todo-input" type="text" placeholder="每周日期，例如 Mon/Wed/Fri">
       <div class="todo-create-buttons">
         <button class="secondary-small" type="button" data-close-todo-create>收起</button>
-        <button class="primary-small" type="submit">添加待办</button>
+        <button class="primary-small" type="submit">添加卡片</button>
       </div>
     </div>
   </form>`;
@@ -8190,11 +8190,11 @@ function renderTodoSections(openTodos, closedTodos) {
   return `
     <div class="todo-section">
       <div class="todo-section-title">未完成 · ${openTodos.length}</div>
-      <div class="todo-card-list">${openTodos.map(renderTodoCard).join("") || `<div class="empty-state small">No open todos.</div>`}</div>
+      <div class="todo-card-list">${openTodos.map(renderTodoCard).join("") || `<div class="empty-state small">No open cards.</div>`}</div>
     </div>
     <div class="todo-section todo-section-muted">
       <div class="todo-section-title">已完成 / 已取消 · ${closedTodos.length}</div>
-      <div class="todo-card-list">${closedTodos.slice(0, 30).map(renderTodoCard).join("") || `<div class="empty-state small">No completed todos.</div>`}</div>
+      <div class="todo-card-list">${closedTodos.slice(0, 30).map(renderTodoCard).join("") || `<div class="empty-state small">No completed cards.</div>`}</div>
     </div>
   `;
 }
@@ -8202,7 +8202,7 @@ function renderTodoSections(openTodos, closedTodos) {
 function renderTodoCard(todo) {
   const status = todoStatusLabel(todo);
   return `<article class="todo-card task-swipe-row ${escapeHtml(status)}" data-swipe-row data-swipe-kind="todo" data-swipe-id="${escapeHtml(todo.id)}">
-    <button class="task-swipe-delete" type="button" data-delete-swipe="${escapeHtml(todo.id)}" aria-label="删除待办">删除</button>
+    <button class="task-swipe-delete" type="button" data-delete-swipe="${escapeHtml(todo.id)}" aria-label="删除看板卡片">删除</button>
     <div class="task-swipe-content" data-swipe-content>
       <button class="todo-card-main" type="button" data-todo-id="${escapeHtml(todo.id)}">
       <span class="todo-card-title">${escapeHtml(todo.content || todo.id)}</span>
@@ -8252,7 +8252,7 @@ function renderTodoDetail(todo) {
     <div class="todo-detail-head">
       <div>
         <div class="todo-detail-id">${escapeHtml(todo.id)}</div>
-        <h2>${escapeHtml(todo.content || "Todo")}</h2>
+        <h2>${escapeHtml(todo.content || "Kanban card")}</h2>
       </div>
       <span class="todo-state status-${escapeHtml(kanbanStatus)}">${escapeHtml(statusText)}</span>
     </div>
@@ -8352,7 +8352,7 @@ function wireTodoPanel(root) {
 async function createTodoFromForm(root) {
   const content = root.querySelector("#todoContent")?.value?.trim() || "";
   const dueValue = root.querySelector("#todoDue")?.value || "";
-  if (!content || !dueValue) throw new Error("Todo content and due time are required");
+  if (!content || !dueValue) throw new Error("Kanban card content and due time are required");
   const dueTime = dueValue.replace("T", " ");
   await api("/api/todos", {
     method: "POST",
@@ -8381,7 +8381,7 @@ async function completeTodo(todoId) {
 
 async function cancelTodo(todoId) {
   if (!todoId) return;
-  if (!window.confirm(`取消待办 ${todoId}？`)) return;
+  if (!window.confirm(`取消看板卡片 ${todoId}？`)) return;
   await api(`/api/todos/${encodeURIComponent(todoId)}/cancel`, {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
@@ -8396,7 +8396,7 @@ async function blockTodo(todoId) {
     method: "POST",
     body: JSON.stringify({
       workspaceId: state.selectedWorkspaceId,
-      reason: "Blocked from Hermes Mobile todo view.",
+      reason: "Blocked from Hermes Mobile Kanban view.",
     }),
   });
   await loadTodos();
@@ -8417,7 +8417,7 @@ async function unblockTodo(todoId) {
 
 async function deleteTodo(todoId) {
   if (!todoId) return;
-  if (!window.confirm(`删除待办 ${todoId}？`)) return;
+  if (!window.confirm(`删除看板卡片 ${todoId}？`)) return;
   await api(`/api/todos/${encodeURIComponent(todoId)}/delete`, {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
@@ -8603,16 +8603,16 @@ function renderThreads() {
     return;
   }
   if (!state.threads.length) {
-    list.innerHTML = `<div class="empty-state small">${state.viewMode === "single" ? (state.singleWindowMode === "chat" ? "聊天为空。" : "任务流为空。") : "No threads in this project."}</div>`;
+    list.innerHTML = `<div class="empty-state small">${state.viewMode === "single" ? (state.singleWindowMode === "chat" ? "聊天为空。" : "话题流为空。") : "No threads in this project."}</div>`;
     return;
   }
   list.innerHTML = state.threads.map((thread) => {
     const active = thread.id === state.currentThreadId ? " active" : "";
     if (thread.singleWindowTask) {
       return `<button class="thread-card project-task-card${active}" type="button" data-project-task-thread="${escapeHtml(thread.sourceThreadId || "")}" data-project-task-group="${escapeHtml(thread.taskGroupId || "")}">
-        <div class="thread-card-title">${escapeHtml(thread.title || thread.taskGroupId || "Task")}</div>
+        <div class="thread-card-title">${escapeHtml(thread.title || thread.taskGroupId || "Topic")}</div>
         <div class="thread-card-preview">${escapeHtml(thread.preview || "No messages yet")}</div>
-        <div class="thread-card-meta">${escapeHtml(`task | ${thread.status || "idle"} | ${formatTime(thread.updatedAt)}`)}</div>
+        <div class="thread-card-meta">${escapeHtml(`topic | ${thread.status || "idle"} | ${formatTime(thread.updatedAt)}`)}</div>
       </button>`;
     }
     return `<button class="thread-card${active}" type="button" data-thread="${escapeHtml(thread.id)}">
@@ -8697,7 +8697,7 @@ function renderCurrentThread(options = {}) {
   const infoStream = isSingleWindowView();
   const groupChat = isGroupChatView();
   $("threadTitle").textContent = infoStream
-    ? (state.singleWindowMode === "chat" ? (groupChat ? "群聊" : "聊天") : "任务流")
+    ? (state.singleWindowMode === "chat" ? (groupChat ? "群聊" : "聊天") : "话题流")
     : (thread.title || thread.id);
   const project = state.projects.find((item) => item.id === thread.projectId);
   const subproject = (project?.children || []).find((item) => item.id === thread.subprojectId);
@@ -8761,15 +8761,15 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     state.currentTaskGroupId = "";
   }
   if (!state.currentTaskGroupId) {
-    $("threadTitle").textContent = "任务列表";
+    $("threadTitle").textContent = "话题列表";
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !allActiveRuns.length;
-    configureComposer({ enabled: true, placeholder: "New task..." });
+    configureComposer({ enabled: true, placeholder: "New topic..." });
     const filterBanner = renderTaskDirectoryFilterBanner();
     const progressPanel = renderRunProgressPanel(thread, allActiveRuns);
     conversation.innerHTML = groups.length
       ? `${filterBanner}${progressPanel}<div class="task-grid">${groups.map(renderTaskCard).join("")}</div>`
-      : `${filterBanner}${progressPanel}<div class="empty-state">${state.taskDirectoryFilter ? "No tasks in this directory." : "No tasks yet. Send a message to create one."}</div>`;
+      : `${filterBanner}${progressPanel}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {
         openTaskGroupFromList(button.dataset.openTask);
@@ -9109,7 +9109,7 @@ function renderTaskDetailToolbar(group) {
       ${skillChips}
     </div>
     <div class="task-more-wrap">
-      <button class="task-more-button" type="button" data-task-more aria-label="Task menu" aria-expanded="false">...</button>
+      <button class="task-more-button" type="button" data-task-more aria-label="Topic menu" aria-expanded="false">...</button>
       <div class="task-more-menu" hidden>
         <button class="task-more-delete" type="button" data-delete-current-task>Delete</button>
       </div>
@@ -9144,20 +9144,20 @@ function renderTaskCard(group) {
   </span>` : "";
   const skillChips = renderTaskSkillChips(skills, { compact: true });
   return `<article class="task-card task-card-collapsed task-swipe-row" data-task-swipe-card data-task-id="${escapeHtml(group.id)}">
-    <button class="task-swipe-delete" type="button" data-delete-task="${escapeHtml(group.id)}" aria-label="Delete task">&#21024;&#38500;</button>
+    <button class="task-swipe-delete" type="button" data-delete-task="${escapeHtml(group.id)}" aria-label="Delete topic">&#21024;&#38500;</button>
     <div class="task-swipe-content" data-task-swipe-content>
       <div class="task-card-menu-wrap">
         <button class="task-card-menu-button" type="button" data-task-card-menu="${escapeHtml(group.id)}" aria-label="更多操作" title="更多操作" aria-expanded="false">&#8942;</button>
         <div class="task-card-menu" hidden>
-          <button class="task-card-menu-item" type="button" data-rename-task="${escapeHtml(group.id)}">修改任务名</button>
+          <button class="task-card-menu-item" type="button" data-rename-task="${escapeHtml(group.id)}">修改话题名</button>
         </div>
       </div>
       <button class="task-card-main" type="button" data-open-task="${escapeHtml(group.id)}">
-        <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled task")}</span>
+        <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled topic")}</span>
         <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}</span>
       </button>
       <div class="task-card-assets">
-        <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Task documents">
+        <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Topic documents">
           ${artifactChips}
         </div>
         ${skillChips}
@@ -9176,7 +9176,7 @@ function quotePreviewForMessage(message, group = null) {
   return compactDisplayText(message?.content || "", 92)
     || taskSummary(group)
     || taskTitle(group)
-    || "Quoted task";
+    || "Quoted topic";
 }
 
 function renderMessageQuoteAction(message) {
@@ -9316,8 +9316,8 @@ function renderQuotedReply() {
   panel.dataset.messageId = quote.messageId || "";
   panel.dataset.taskGroupId = quote.taskGroupId || "";
   panel.innerHTML = `
-    <div class="quoted-reply-text" title="Task ID: ${escapeHtml(quote.label || "task")}">
-      <strong>Task ID: ${escapeHtml(quote.shortLabel || shortTaskDisplayId(quote.label) || "task")}</strong>
+    <div class="quoted-reply-text" title="Topic ID: ${escapeHtml(quote.label || "topic")}">
+      <strong>Topic ID: ${escapeHtml(quote.shortLabel || shortTaskDisplayId(quote.label) || "topic")}</strong>
       <span>${escapeHtml(quote.preview || "")}</span>
     </div>
     <button class="quoted-reply-clear" type="button" aria-label="Clear quoted reply">×</button>
