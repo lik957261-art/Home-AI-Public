@@ -40,6 +40,12 @@ function normalizeAutoMode(value) {
   return "auto";
 }
 
+function nonNegativeMilliseconds(value, fallback) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  return fallback;
+}
+
 const TOOL_ROOT = __dirname;
 const REPO_ROOT = path.resolve(process.env.HERMES_WEB_REPO_ROOT || process.env.HERMES_MOBILE_ROOT || TOOL_ROOT);
 const PUBLIC_ROOT = path.join(TOOL_ROOT, "public");
@@ -243,11 +249,26 @@ const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH
 const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
 const TODO_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_TODO_PUSH_ENABLED || "1");
 const TODO_WEB_PUSH_INTERVAL_MS = Number(process.env.HERMES_WEB_TODO_PUSH_INTERVAL_MS || "60000");
+const WEB_PUSH_START_DELAY_MS = nonNegativeMilliseconds(
+  process.env.HERMES_MOBILE_WEB_PUSH_START_DELAY_MS
+  || process.env.HERMES_WEB_WEB_PUSH_START_DELAY_MS,
+  120000,
+);
+const TODO_WEB_PUSH_START_DELAY_MS = nonNegativeMilliseconds(
+  process.env.HERMES_MOBILE_TODO_PUSH_START_DELAY_MS
+  || process.env.HERMES_WEB_TODO_PUSH_START_DELAY_MS,
+  WEB_PUSH_START_DELAY_MS,
+);
 const TODO_WEB_PUSH_RECENT_CREATE_MINUTES = Number(process.env.HERMES_WEB_TODO_PUSH_RECENT_CREATE_MINUTES || "30");
 const TODO_WEB_PUSH_RECEIPT_RETRY_MINUTES = Number(process.env.HERMES_WEB_TODO_PUSH_RECEIPT_RETRY_MINUTES || "3");
 const TODO_WEB_PUSH_RECEIPT_RETRY_LIMIT = Number(process.env.HERMES_WEB_TODO_PUSH_RECEIPT_RETRY_LIMIT || "3");
 const AUTOMATION_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_AUTOMATION_PUSH_ENABLED || "1");
 const AUTOMATION_WEB_PUSH_INTERVAL_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_INTERVAL_MS || "60000");
+const AUTOMATION_WEB_PUSH_START_DELAY_MS = nonNegativeMilliseconds(
+  process.env.HERMES_MOBILE_AUTOMATION_PUSH_START_DELAY_MS
+  || process.env.HERMES_WEB_AUTOMATION_PUSH_START_DELAY_MS,
+  WEB_PUSH_START_DELAY_MS,
+);
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
@@ -6512,8 +6533,15 @@ function startTodoWebPushDispatcher() {
         todoWebPushRunning = false;
       });
   };
-  setTimeout(tick, 8000);
-  setInterval(tick, interval);
+  scheduleBackgroundWebPushDispatcher(tick, interval, TODO_WEB_PUSH_START_DELAY_MS);
+}
+
+function scheduleBackgroundWebPushDispatcher(tick, interval, initialDelay) {
+  const startDelay = Math.max(0, Number(initialDelay) || 0);
+  setTimeout(() => {
+    tick();
+    setInterval(tick, interval);
+  }, startDelay);
 }
 
 function automationOwnerPrincipal(job) {
@@ -6758,8 +6786,7 @@ function startAutomationWebPushDispatcher() {
         automationWebPushRunning = false;
       });
   };
-  setTimeout(tick, 12000);
-  setInterval(tick, interval);
+  scheduleBackgroundWebPushDispatcher(tick, interval, AUTOMATION_WEB_PUSH_START_DELAY_MS);
 }
 
 function notifyTodoCreated(result, sourcePrincipal = "") {

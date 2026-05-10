@@ -12,6 +12,11 @@ param(
     [string]$BridgeHermesHome = "",
     [string]$BridgeTodoPluginName = "",
     [string]$BridgeCronOutputRoot = "",
+    [string]$OwnerKeyPath = "C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret",
+    [int]$HealthStatusTimeoutSec = 5,
+    [int]$ReadyWaitSeconds = 90,
+    [int]$MinGatewayPoolWorkers = 1,
+    [string]$GatewayPoolPorts = "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18651,18652",
     [switch]$CheckOnly,
     [switch]$ReplaceExisting
 )
@@ -94,6 +99,78 @@ function Test-HermesMobileHttpHealth {
     try {
         $response = Invoke-WebRequest -UseBasicParsing -Uri ("http://127.0.0.1:{0}/" -f $ListenPort) -TimeoutSec 3 -ErrorAction Stop
         return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500)
+    } catch {
+        return $false
+    }
+}
+
+function Get-HermesMobileOwnerHeaders {
+    param([string]$KeyPath)
+    $headers = @{}
+    if ($KeyPath -and (Test-Path -LiteralPath $KeyPath)) {
+        $key = (Get-Content -LiteralPath $KeyPath -Raw -ErrorAction Stop).Trim()
+        if ($key) {
+            $headers["X-Hermes-Web-Key"] = $key
+        }
+    }
+    return $headers
+}
+
+function Test-HermesMobileAuthenticatedHealth {
+    param(
+        [int]$ListenPort,
+        [string]$KeyPath,
+        [int]$TimeoutSec
+    )
+    try {
+        $headers = Get-HermesMobileOwnerHeaders -KeyPath $KeyPath
+        $uri = "http://127.0.0.1:{0}/api/client-version?clientVersion=startup-health" -f $ListenPort
+        $response = Invoke-WebRequest -UseBasicParsing -Uri $uri -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
+        if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) { return $false }
+        $status = $response.Content | ConvertFrom-Json
+        return ($null -ne $status.refreshRequired -or $null -ne $status.clientVersion)
+    } catch {
+        return $false
+    }
+}
+
+function Test-GatewayPoolPortHealth {
+    param(
+        [string]$PortSpec,
+        [int]$MinimumGatewayWorkers
+    )
+    if ($MinimumGatewayWorkers -le 0) { return $true }
+    $ports = @()
+    foreach ($item in ($PortSpec -split ",")) {
+        $text = $item.Trim()
+        if (-not $text) { continue }
+        $portValue = 0
+        if ([int]::TryParse($text, [ref]$portValue) -and $portValue -gt 0) {
+            $ports += $portValue
+        }
+    }
+    if ($ports.Count -eq 0) { return $false }
+    $healthy = 0
+    foreach ($gatewayPort in $ports) {
+        try {
+            $connection = Get-NetTCPConnection -LocalPort $gatewayPort -State Listen -ErrorAction Stop | Select-Object -First 1
+            if ($connection) { $healthy += 1 }
+        } catch {}
+    }
+    return ($healthy -ge $MinimumGatewayWorkers)
+}
+
+function Test-HermesMobileReadyHealth {
+    param(
+        [int]$ListenPort,
+        [string]$KeyPath,
+        [int]$TimeoutSec,
+        [int]$MinimumGatewayWorkers,
+        [string]$GatewayPorts
+    )
+    try {
+        if (-not (Test-HermesMobileAuthenticatedHealth -ListenPort $ListenPort -KeyPath $KeyPath -TimeoutSec $TimeoutSec)) { return $false }
+        return (Test-GatewayPoolPortHealth -PortSpec $GatewayPorts -MinimumGatewayWorkers $MinimumGatewayWorkers)
     } catch {
         return $false
     }
@@ -209,18 +286,26 @@ $listener = Get-ListenerProcess -ListenPort $Port
 if ($listener) {
     $ownerName = Get-ProcessOwnerName -ProcessInfo $listener
     if (($ownerName -ieq $targetOwner) -and -not $ReplaceExisting) {
-        if (Test-HermesMobileHttpHealth -ListenPort $Port) {
-            Write-WorkerHostLog "Worker listener already running and HTTP healthy on port $Port; PID $($listener.ProcessId)."
+        if (Test-HermesMobileReadyHealth -ListenPort $Port -KeyPath $OwnerKeyPath -TimeoutSec $HealthStatusTimeoutSec -MinimumGatewayWorkers $MinGatewayPoolWorkers -GatewayPorts $GatewayPoolPorts) {
+            Write-WorkerHostLog "Worker listener already running and authenticated API plus Gateway Pool ports are healthy on port $Port; PID $($listener.ProcessId)."
             return
         }
-        throw "Port $Port is owned by $targetOwner, but Hermes Mobile HTTP health failed. Use -ReplaceExisting for a controlled restart."
+        $serverPath = Join-Path $WorkingDirectory "server.js"
+        if (Test-CommandLineContainsPath -CommandLine $listener.CommandLine -Path $serverPath) {
+            Write-WorkerHostLog "Restarting unhealthy worker listener on port $Port after authenticated API or Gateway Pool port health failed; PID $($listener.ProcessId)."
+            Stop-Process -Id $listener.ProcessId -Force
+            Start-Sleep -Seconds 2
+        } else {
+            throw "Port $Port is owned by $targetOwner, but Hermes Mobile authenticated API or Gateway Pool port health failed and the process command line does not match $serverPath."
+        }
+    } elseif ($listener) {
+        if (-not $ReplaceExisting) {
+            throw "Port $Port is already owned by PID $($listener.ProcessId) ($ownerName). Use -ReplaceExisting for a controlled cutover."
+        }
+        Write-WorkerHostLog "Stopping existing listener on port $Port; PID $($listener.ProcessId), owner $ownerName."
+        Stop-Process -Id $listener.ProcessId -Force
+        Start-Sleep -Seconds 2
     }
-    if (-not $ReplaceExisting) {
-        throw "Port $Port is already owned by PID $($listener.ProcessId) ($ownerName). Use -ReplaceExisting for a controlled cutover."
-    }
-    Write-WorkerHostLog "Stopping existing listener on port $Port; PID $($listener.ProcessId), owner $ownerName."
-    Stop-Process -Id $listener.ProcessId -Force
-    Start-Sleep -Seconds 2
 }
 
 $credential = Import-Clixml -LiteralPath $CredentialPath
@@ -268,19 +353,19 @@ if ($CheckOnly) {
     return
 }
 
-$deadline = (Get-Date).AddSeconds(20)
+$deadline = (Get-Date).AddSeconds($ReadyWaitSeconds)
 while ((Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 400
     $listener = Get-ListenerProcess -ListenPort $Port
     if (-not $listener) { continue }
     $ownerName = Get-ProcessOwnerName -ProcessInfo $listener
     if ($ownerName -ieq $targetOwner) {
-        if (Test-HermesMobileHttpHealth -ListenPort $Port) {
-            Write-WorkerHostLog "Worker listener OK on port $Port; PID $($listener.ProcessId)."
+        if (Test-HermesMobileReadyHealth -ListenPort $Port -KeyPath $OwnerKeyPath -TimeoutSec $HealthStatusTimeoutSec -MinimumGatewayWorkers $MinGatewayPoolWorkers -GatewayPorts $GatewayPoolPorts) {
+            Write-WorkerHostLog "Worker listener authenticated API and Gateway Pool ports OK on port $Port; PID $($listener.ProcessId)."
             return
         }
-        Write-WorkerHostLog "Worker listener on port $Port is owned by $targetOwner but HTTP health is not ready yet; PID $($listener.ProcessId)."
+        Write-WorkerHostLog "Worker listener on port $Port is owned by $targetOwner but authenticated API or Gateway Pool port health is not ready yet; PID $($listener.ProcessId)."
     }
 }
 
-throw "Hermes Mobile worker listener did not open a responsive HTTP endpoint on port $Port as $targetOwner."
+throw "Hermes Mobile worker listener did not open a healthy authenticated API endpoint with ready Gateway Pool ports on port $Port as $targetOwner."

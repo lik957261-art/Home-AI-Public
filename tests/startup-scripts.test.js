@@ -11,6 +11,7 @@ function read(relativePath) {
 }
 
 const startHermesWeb = read("start-hermes-web.ps1");
+const server = read("server.js");
 const startWorkerHost = read(path.join("scripts", "start-worker-host.ps1"));
 const startGatewayPool = read(path.join("scripts", "start-gateway-pool.ps1"));
 const provisionWorkerExternalConnectors = read(path.join("scripts", "provision-worker-external-connectors.ps1"));
@@ -24,8 +25,23 @@ assert.match(startHermesWeb, /did not open a responsive Hermes Mobile HTTP endpo
 assert.match(startHermesWeb, /HTTP health failed/);
 
 assert.match(startWorkerHost, /function Test-HermesMobileHttpHealth/);
-assert.match(startWorkerHost, /Worker listener already running and HTTP healthy/);
-assert.match(startWorkerHost, /did not open a responsive HTTP endpoint/);
+assert.match(startWorkerHost, /function Test-HermesMobileAuthenticatedHealth/);
+assert.match(startWorkerHost, /function Test-GatewayPoolPortHealth/);
+assert.match(startWorkerHost, /X-Hermes-Web-Key/);
+assert.match(startWorkerHost, /api\/client-version\?clientVersion=startup-health/);
+assert.match(startWorkerHost, /Worker listener already running and authenticated API plus Gateway Pool ports are healthy/);
+assert.match(startWorkerHost, /Restarting unhealthy worker listener/);
+assert.match(startWorkerHost, /healthy authenticated API endpoint with ready Gateway Pool ports/);
+assert.match(startWorkerHost, /MinGatewayPoolWorkers/);
+assert.match(startWorkerHost, /GatewayPoolPorts/);
+
+assert.match(server, /HERMES_MOBILE_WEB_PUSH_START_DELAY_MS/);
+assert.match(server, /HERMES_WEB_TODO_PUSH_START_DELAY_MS/);
+assert.match(server, /HERMES_WEB_AUTOMATION_PUSH_START_DELAY_MS/);
+assert.match(server, /120000/);
+assert.match(server, /function scheduleBackgroundWebPushDispatcher/);
+assert.doesNotMatch(server, /setTimeout\(tick, 8000\)/);
+assert.doesNotMatch(server, /setTimeout\(tick, 12000\)/);
 
 assert.match(startGatewayPool, /function Start-LowGateways/);
 assert.match(startGatewayPool, /function Provision-OwnerExternalConnectors/);
