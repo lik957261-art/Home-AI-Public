@@ -51,6 +51,7 @@ async function run() {
   assert.equal(listed.data[0].id, "td_1");
   assert.deepEqual(calls.at(-1), {
     action: "list",
+    workspace_id: "workspace_a",
     source_principal: "principal:workspace_a",
     scope: "all",
     include_completed: true,
@@ -70,6 +71,7 @@ async function run() {
   });
   assert.deepEqual(calls.at(-1), {
     action: "add",
+    workspace_id: "workspace_b",
     source_principal: "principal:workspace_b",
     assignee: "user_b",
     content: "Read report",
@@ -92,6 +94,7 @@ async function run() {
   });
   assert.deepEqual(calls.at(-1), {
     action: "postpone",
+    workspace_id: "workspace_b",
     source_principal: "principal:workspace_b",
     todo_id: "td_9",
     assignee: "user_b",

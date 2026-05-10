@@ -126,8 +126,9 @@ snapshots for rollback.
 
 ## Optional Features
 
-- **Todo:** defaults to local JSON under `HERMES_WEB_DATA_DIR`; bridge/plugin
-  backends are opt-in compatibility adapters.
+- **Todo / Kanban:** defaults to local JSON under `HERMES_WEB_DATA_DIR`;
+  `HERMES_WEB_TODO_BACKEND=kanban` maps the mobile Todo tab to official Hermes
+  Kanban boards while preserving the `/api/todos` compatibility surface.
 - **Automation:** defaults to local JSON under `HERMES_WEB_DATA_DIR`; native
   Hermes CRON bridge integration is optional.
 - **Web Push:** configure VAPID key file path and subject from the Owner runtime
@@ -215,6 +216,7 @@ Mobile's PWA.
 - [Weixin ingress sidecar](docs/WEIXIN_INGRESS.md)
 - [SQLite service layer](docs/SERVICE_LAYER_SQLITE.md)
 - [Process isolation](docs/PROCESS_ISOLATION.md)
+- [Kanban-backed Todo integration](docs/KANBAN_TODO_INTEGRATION.md)
 - [Local workspace root migration](docs/LOCAL_WORKSPACE_ROOT_MIGRATION.md)
 - [Public export checklist](docs/PUBLIC_EXPORT_CHECKLIST.md)
 - [Security policy](SECURITY.md)

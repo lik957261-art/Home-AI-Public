@@ -19,6 +19,7 @@ const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-p
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
+const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createRunConcurrencyPolicy } = require("./adapters/run-concurrency-policy");
@@ -204,6 +205,7 @@ const SOURCE_MARKDOWN_SEARCH_LIMIT = Number(
   || "2000",
 );
 const TODO_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_TODO_BRIDGE_TIMEOUT_MS || "15000");
+const KANBAN_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_KANBAN_BRIDGE_TIMEOUT_MS || process.env.HERMES_WEB_KANBAN_BRIDGE_TIMEOUT_MS || "20000");
 const CRON_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_CRON_BRIDGE_TIMEOUT_MS || "15000");
 const CRON_BRIDGE_STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_CRON_BRIDGE_STDOUT_LIMIT_BYTES || process.env.HERMES_WEB_CRON_BRIDGE_STDOUT_LIMIT_BYTES || "50000000");
 const CRON_LIST_CACHE_TTL_MS = Number(process.env.HERMES_WEB_CRON_LIST_CACHE_TTL_MS || "12000");
@@ -214,6 +216,10 @@ const SKILL_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_SKILL_BRIDGE_TIMEO
 const CRON_OUTPUT_ROOT = stripTrailingSlash(process.env.HERMES_WEB_CRON_OUTPUT_ROOT || `${WSL_HERMES_HOME}/cron/output`);
 const CRON_RUN_LOG_ROOT = stripTrailingSlash(process.env.HERMES_WEB_RUN_LOG_ROOT || `${WSL_HERMES_HOME}/run-logs`);
 const TODO_BACKEND = String(process.env.HERMES_WEB_TODO_BACKEND || "local").trim().toLowerCase();
+const KANBAN_COMMAND = String(process.env.HERMES_MOBILE_KANBAN_COMMAND || process.env.HERMES_WEB_KANBAN_COMMAND || "hermes").trim() || "hermes";
+const KANBAN_COMMAND_ARGS = String(process.env.HERMES_MOBILE_KANBAN_COMMAND_ARGS || process.env.HERMES_WEB_KANBAN_COMMAND_ARGS || "").trim();
+const KANBAN_TODO_META_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_TODO_META_PATH || process.env.HERMES_WEB_KANBAN_TODO_META_PATH || path.join(DATA_DIR, "kanban-todo-meta.json"));
+const KANBAN_WORKSPACE_PATH_STYLE = String(process.env.HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE || process.env.HERMES_WEB_KANBAN_WORKSPACE_PATH_STYLE || "").trim().toLowerCase();
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -2436,7 +2442,11 @@ function backendIsLocal(value, bridgeNames = []) {
 }
 
 function useLocalTodoBackend() {
-  return backendIsLocal(TODO_BACKEND, ["bridge", "plugin", "hermes", "hermes_todos"]);
+  return backendIsLocal(TODO_BACKEND, ["bridge", "plugin", "hermes", "hermes_todos", "kanban", "hermes_kanban"]);
+}
+
+function useKanbanTodoBackend() {
+  return ["kanban", "hermes_kanban"].includes(TODO_BACKEND);
 }
 
 function useLocalAutomationBackend() {
@@ -2775,6 +2785,7 @@ async function runLocalTodoBridge(payload = {}) {
 }
 
 function runTodoBridge(payload) {
+  if (useKanbanTodoBackend()) return kanbanTodoBridge.run(payload);
   if (useLocalTodoBackend()) return runLocalTodoBridge(payload);
   if (BRIDGE_HOST_URL) return runBridgeHost("todo", payload, TODO_BRIDGE_TIMEOUT_MS);
   return new Promise((resolve, reject) => {
@@ -2839,7 +2850,7 @@ const todoProvider = createTodoProvider({
   publicTodo,
   sourceName: () => useLocalTodoBackend()
     ? (useSqliteServiceStore() ? "sqlite_todos" : "local_todos")
-    : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos"),
+    : (useKanbanTodoBackend() ? "hermes_kanban" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos")),
 });
 
 function localAutomationStore() {
@@ -3309,6 +3320,26 @@ const skillDetailProvider = createSkillDetailProvider({
   },
 });
 
+const kanbanTodoBridge = createKanbanTodoBridge({
+  command: KANBAN_COMMAND,
+  baseArgs: KANBAN_COMMAND_ARGS,
+  timeoutMs: KANBAN_BRIDGE_TIMEOUT_MS,
+  metadataPath: KANBAN_TODO_META_PATH,
+  boardForWorkspace: (workspaceId, principalId) => `workspace-${workspaceId || principalId || "default"}`,
+  boardNameForWorkspace: (workspaceId, principalId) => {
+    const workspace = findWorkspace(workspaceId || principalId || "owner");
+    return workspace?.label ? `Hermes Mobile ${workspace.label}` : `Hermes Mobile ${workspaceId || principalId || "default"}`;
+  },
+  workspacePathForWorkspace: (workspaceId) => {
+    const root = workspaceDefaultRoot(workspaceId);
+    if (!root) return "";
+    const commandLooksWsl = /^(?:wsl|wsl\.exe)$/i.test(path.basename(KANBAN_COMMAND));
+    if (KANBAN_WORKSPACE_PATH_STYLE === "native") return root;
+    if (KANBAN_WORKSPACE_PATH_STYLE === "wsl" || commandLooksWsl) return windowsPathToWsl(root);
+    return root;
+  },
+});
+
 function workspacePrincipal(workspaceId) {
   const workspace = findWorkspace(workspaceId || "owner");
   return String(workspace?.policy?.principal_id || workspace?.id || "owner");
@@ -3494,6 +3525,9 @@ function publicTodo(row) {
     recurrenceDays: String(row.recurrence_days || ""),
     recurrenceSeriesId: String(row.recurrence_series_id || ""),
     recurrenceTemplate: Boolean(row.recurrence_template),
+    source: String(row.source || ""),
+    kanbanBoard: String(row.kanban_board || row.kanbanBoard || ""),
+    kanbanStatus: String(row.kanban_status || row.kanbanStatus || ""),
     createdAt: String(row.created_at || ""),
     updatedAt: String(row.updated_at || ""),
     completedAt: String(row.completed_at || ""),

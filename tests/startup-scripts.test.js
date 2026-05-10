@@ -14,6 +14,9 @@ const startHermesWeb = read("start-hermes-web.ps1");
 const startWorkerHost = read(path.join("scripts", "start-worker-host.ps1"));
 const startGatewayPool = read(path.join("scripts", "start-gateway-pool.ps1"));
 const provisionWorkerExternalConnectors = read(path.join("scripts", "provision-worker-external-connectors.ps1"));
+const runKanbanGatewayWorker = read(path.join("scripts", "run-kanban-gateway-worker.ps1"));
+const runKanbanGatewayWorkerChild = read(path.join("scripts", "run-kanban-gateway-worker-child.ps1"));
+const runKanbanGatewayWorkerShell = read(path.join("scripts", "run-kanban-gateway-worker.sh"));
 
 assert.match(startHermesWeb, /function Test-HermesWebHttpHealth/);
 assert.match(startHermesWeb, /did not open a responsive Hermes Mobile HTTP endpoint/);
@@ -51,5 +54,32 @@ assert.match(provisionWorkerExternalConnectors, /google_workspace_setup_check=ok
 assert.match(provisionWorkerExternalConnectors, /\[owner-secret-root\]/);
 assert.doesNotMatch(provisionWorkerExternalConnectors, /Get-Content\s+-Raw\s+\$GoogleTokenPath/i);
 assert.doesNotMatch(provisionWorkerExternalConnectors, /Write-Host .*token/i);
+
+assert.match(runKanbanGatewayWorker, /ValueFromRemainingArguments/);
+assert.match(runKanbanGatewayWorker, /PositionalBinding\s*=\s*\$false/);
+assert.match(runKanbanGatewayWorker, /HermesGatewayWorker/);
+assert.match(runKanbanGatewayWorker, /run-as-worker\.ps1/);
+assert.match(runKanbanGatewayWorker, /PayloadBase64/);
+assert.match(runKanbanGatewayWorker, /kanbanArgs = \$KanbanArgs/);
+assert.match(runKanbanGatewayWorker, /kanban-runner/);
+assert.match(runKanbanGatewayWorker, /Copy-Item -LiteralPath \$sourceShellScript/);
+assert.match(runKanbanGatewayWorker, /run-kanban-gateway-worker-child-\$stamp\.ps1/);
+assert.match(runKanbanGatewayWorker, /run-kanban-gateway-worker-\$stamp\.sh/);
+assert.match(runKanbanGatewayWorker, /run-kanban-command-\$stamp\.ps1/);
+assert.match(runKanbanGatewayWorker, /Remove-Item -LiteralPath \$childScript/);
+assert.match(runKanbanGatewayWorker, /Remove-Item -LiteralPath \$shellScript/);
+assert.doesNotMatch(runKanbanGatewayWorker, /-ChildArgs/);
+
+assert.match(runKanbanGatewayWorkerChild, /Convert-ToWslPath/);
+assert.match(runKanbanGatewayWorkerChild, /wsl\.exe -d \$distroName -u root/);
+assert.match(runKanbanGatewayWorkerChild, /PayloadBase64/);
+
+assert.match(runKanbanGatewayWorkerShell, /runuser/);
+assert.match(runKanbanGatewayWorkerShell, /-u",\s*"hermes"/);
+assert.match(runKanbanGatewayWorkerShell, /PYTHONPATH=\/opt\/hermes-gateway-runtime\/official-clean/);
+assert.match(runKanbanGatewayWorkerShell, /hermes_cli\.main/);
+assert.match(runKanbanGatewayWorkerShell, /kanban_args/);
+assert.match(runKanbanGatewayWorkerShell, /capture_output=True/);
+assert.match(runKanbanGatewayWorkerShell, /ensure_ascii=True/);
 
 console.log("startup scripts tests passed");

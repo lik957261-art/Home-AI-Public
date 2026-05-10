@@ -39,6 +39,7 @@ function createTodoProvider(options = {}) {
     const workspaceId = args.workspaceId || "owner";
     const result = await runBridge({
       action: "list",
+      workspace_id: workspaceId,
       source_principal: workspacePrincipal(workspaceId),
       scope: args.scope || "mine",
       include_completed: Boolean(args.includeCompleted),
@@ -65,6 +66,7 @@ function createTodoProvider(options = {}) {
     const suppressExternalNotice = args.suppressExternalNotice ?? args.suppress_external_notice ?? args.suppressWeixinNotice;
     return runBridge({
       action: "add",
+      workspace_id: workspaceId,
       source_principal: workspacePrincipal(workspaceId),
       assignee: args.assignee || "",
       content: args.content || "",
@@ -82,6 +84,7 @@ function createTodoProvider(options = {}) {
     const workspaceId = args.workspaceId || "owner";
     return runBridge({
       action: args.action || "",
+      workspace_id: workspaceId,
       source_principal: workspacePrincipal(workspaceId),
       todo_id: args.todoId || args.todo_id || "",
       assignee: args.assignee || "",
