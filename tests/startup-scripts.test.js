@@ -40,6 +40,9 @@ assert.match(startGatewayPool, /microsoft-graph-outlook-mail\\token\.json/);
 assert.match(startGatewayPool, /Provision-OwnerExternalConnectors\s*\r?\nStart-LowGateways/);
 assert.match(startGatewayPool, /\$env:API_SERVER_KEY = \$apiKey/);
 assert.match(startGatewayPool, /\$env:WSLENV = "API_SERVER_KEY\/u"/);
+assert.match(startGatewayPool, /PYTHONPATH=\$officialCleanRoot/);
+assert.match(startGatewayPool, /\$officialPython -m hermes_cli\.main/);
+assert.doesNotMatch(startGatewayPool, /\/home\/\$OfficialUser\/\.local\/bin\/hermes/);
 assert.match(startGatewayPool, /Gateway pool startup OK; healthy ports/);
 assert.doesNotMatch(startGatewayPool, /Write-GatewayPoolLog .*apiKey/i);
 

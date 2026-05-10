@@ -145,11 +145,18 @@ function Start-OwnerMaintenanceGateways {
   $apiKey = [string]($workers | Where-Object { $_.api_key } | Select-Object -First 1).api_key
   if (-not $apiKey) { throw "Owner-maintenance gateway API key missing from manifest." }
 
-  $commands = @("mkdir -p /home/$OfficialUser/.hermes/logs")
+  $runtimeRoot = "/opt/hermes-gateway-runtime"
+  $officialCleanRoot = "$runtimeRoot/official-clean"
+  $officialPython = "$runtimeRoot/venv/bin/python"
+  $commands = @(
+    "test -x $officialPython",
+    "test -d $officialCleanRoot",
+    "mkdir -p /home/$OfficialUser/.hermes/logs"
+  )
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
     $commands += "mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs"
-    $commands += "setsid -f env HERMES_ACCEPT_HOOKS=1 /home/$OfficialUser/.local/bin/hermes -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1"
+    $commands += "setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1"
   }
   $bash = $commands -join "; "
 
