@@ -90,6 +90,7 @@ function createTodoProvider(options = {}) {
       assignee: args.assignee || "",
       recurrence_scope: args.recurrenceScope || args.recurrence_scope || "one",
       due_time: args.dueTime || args.due_time || "",
+      reason: args.reason || "",
     });
   }
 

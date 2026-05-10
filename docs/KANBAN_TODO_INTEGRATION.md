@@ -40,8 +40,9 @@ process `PATH`, leave `HERMES_MOBILE_KANBAN_COMMAND=hermes`.
 
 - Each Hermes Mobile workspace maps to an official Hermes Kanban board named
   `workspace-<workspaceId>`.
-- The existing Todo tab creates unassigned Kanban tasks so human reminder items
-  are visible but are not automatically dispatched to a worker profile.
+- The existing Todo tab creates official Kanban tasks on that board and passes
+  the selected Mobile assignee through `--assignee`, so board views can show the
+  same execution owner as the official Kanban CLI/dashboard.
 - The Kanban task body carries a small Hermes Mobile metadata comment with due
   time, human assignee label, recurrence, and reminder settings.
 - Hermes Mobile stores a runtime-only metadata sidecar for due/reminder fields
@@ -50,6 +51,12 @@ process `PATH`, leave `HERMES_MOBILE_KANBAN_COMMAND=hermes`.
 - Cancelling or deleting a mobile Todo archives the Kanban task.
 - Postponing a mobile Todo updates the Hermes Mobile metadata sidecar and adds a
   Kanban comment for auditability.
+- The mobile Todo page renders official Kanban statuses as lanes:
+  `triage`, `todo`, `ready`, `running`, `blocked`, `done`, and `archived`.
+  It also shows non-secret board, assignee, tenant, priority, workspace kind,
+  skills, and timestamp fields returned by the official Kanban row.
+- Blocked tasks can be unblocked from the mobile detail page; open tasks can be
+  marked blocked from the same surface when human intervention is needed.
 
 ## Boundaries
 

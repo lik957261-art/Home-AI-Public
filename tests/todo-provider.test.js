@@ -91,6 +91,7 @@ async function run() {
     assignee: "user_b",
     recurrenceScope: "series",
     dueTime: "2026-05-08 09:00",
+    reason: "later",
   });
   assert.deepEqual(calls.at(-1), {
     action: "postpone",
@@ -100,6 +101,7 @@ async function run() {
     assignee: "user_b",
     recurrence_scope: "series",
     due_time: "2026-05-08 09:00",
+    reason: "later",
   });
 
   await provider.pendingPushes({

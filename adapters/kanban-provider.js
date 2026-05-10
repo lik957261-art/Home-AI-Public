@@ -158,6 +158,40 @@ function textFromTask(task, key) {
   return String(task[key] || task.task?.[key] || "").trim();
 }
 
+function arrayFromTask(task, key) {
+  if (!task || typeof task !== "object") return [];
+  const value = task[key] || task.task?.[key];
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  if (typeof value === "string") {
+    return value.split(/[,\n]/).map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function dateStringFromTask(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const millis = value > 10_000_000_000 ? value : value * 1000;
+    const date = new Date(millis);
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  }
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^\d+(?:\.\d+)?$/.test(text)) return dateStringFromTask(Number(text));
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? text : date.toISOString();
+}
+
+function workspaceKindFromTask(task) {
+  const explicit = textFromTask(task, "workspace_kind") || textFromTask(task, "workspaceKind");
+  if (explicit) return explicit;
+  const workspace = textFromTask(task, "workspace");
+  if (/^dir:/i.test(workspace)) return "dir";
+  if (/^worktree:/i.test(workspace) || workspace === "worktree") return "worktree";
+  if (workspace) return "scratch";
+  return "";
+}
+
 function parseEmbeddedMeta(body) {
   const text = String(body || "");
   const start = text.indexOf(META_START);
@@ -351,6 +385,16 @@ function createKanbanTodoBridge(options = {}) {
       status,
       kanban_status: kanbanStatus || "todo",
       kanban_board: meta.board || boardForPayload(payload),
+      kanban_assignee: String(textFromTask(task, "assignee") || task.assignee || meta.assignee || ""),
+      kanban_priority: Number(task.priority ?? task.task?.priority ?? meta.priority ?? 0) || 0,
+      kanban_tenant: String(textFromTask(task, "tenant") || task.tenant || meta.tenant || payload.source_principal || ""),
+      kanban_workspace_kind: String(meta.workspaceKind || workspaceKindFromTask(task)),
+      kanban_created_by: String(textFromTask(task, "created_by") || textFromTask(task, "createdBy") || meta.createdBy || payload.source_principal || ""),
+      kanban_started_at: dateStringFromTask(task.started_at || task.startedAt || meta.startedAt || meta.started_at || ""),
+      kanban_completed_at: dateStringFromTask(task.completed_at || task.completedAt || meta.completedAt || meta.completed_at || ""),
+      kanban_result: String(textFromTask(task, "result") || task.result || meta.result || ""),
+      kanban_max_retries: Number(task.max_retries ?? task.task?.max_retries ?? meta.maxRetries ?? meta.max_retries ?? 0) || 0,
+      kanban_skills: arrayFromTask(task, "skills").slice(0, 8),
       assignee_principal_id: String(meta.assignee || task.assignee || payload.source_principal || ""),
       assignee_label: String(meta.assigneeLabel || meta.assignee_label || meta.assignee || task.assignee || payload.source_principal || ""),
       created_by_principal: String(meta.createdBy || meta.created_by_principal || payload.source_principal || ""),
@@ -363,9 +407,9 @@ function createKanbanTodoBridge(options = {}) {
       recurrence_days: String(meta.recurrenceDays || meta.recurrence_days || ""),
       recurrence_series_id: String(meta.recurrenceSeriesId || meta.recurrence_series_id || ""),
       recurrence_template: bool(meta.recurrenceTemplate || meta.recurrence_template),
-      created_at: String(meta.createdAt || meta.created_at || task.created_at || task.createdAt || ""),
-      updated_at: String(meta.updatedAt || meta.updated_at || task.updated_at || task.updatedAt || ""),
-      completed_at: completedAt || (kanbanStatus === "done" ? String(task.updated_at || task.updatedAt || "") : ""),
+      created_at: dateStringFromTask(meta.createdAt || meta.created_at || task.created_at || task.createdAt || ""),
+      updated_at: dateStringFromTask(meta.updatedAt || meta.updated_at || task.updated_at || task.updatedAt || ""),
+      completed_at: completedAt || (kanbanStatus === "done" ? dateStringFromTask(task.completed_at || task.completedAt || task.updated_at || task.updatedAt || "") : ""),
       cancelled_at: cancelledAt,
       source: "kanban",
       ok: true,
@@ -437,6 +481,8 @@ function createKanbanTodoBridge(options = {}) {
       bodyWithMeta(content, meta),
       "--created-by",
       source,
+      "--assignee",
+      assignee,
       "--tenant",
       source,
       "--idempotency-key",
@@ -507,6 +553,21 @@ function createKanbanTodoBridge(options = {}) {
       return rowFromTask({ id: todoId, title: meta.content || todoId, status: "todo" }, store.todos[todoId], payload);
     }
 
+    if (action === "block") {
+      const reason = String(payload.reason || "Blocked from Hermes Mobile todo view.").trim();
+      await kanban(["--board", board, "block", todoId, reason]);
+      store.todos[todoId] = Object.assign({}, meta, { updatedAt: now });
+      saveMetadataStore(store);
+      return rowFromTask({ id: todoId, title: meta.content || todoId, status: "blocked" }, store.todos[todoId], payload);
+    }
+
+    if (action === "unblock") {
+      await kanban(["--board", board, "unblock", todoId]);
+      store.todos[todoId] = Object.assign({}, meta, { updatedAt: now });
+      saveMetadataStore(store);
+      return rowFromTask({ id: todoId, title: meta.content || todoId, status: "todo" }, store.todos[todoId], payload);
+    }
+
     return { ok: false, error: `unknown action: ${action}` };
   }
 
@@ -558,7 +619,7 @@ function createKanbanTodoBridge(options = {}) {
       const action = String(payload.action || "").trim().toLowerCase();
       if (action === "list") return await list(payload);
       if (action === "add") return await add(payload);
-      if (["complete", "cancel", "postpone", "delete"].includes(action)) return await mutate(payload);
+      if (["complete", "cancel", "postpone", "delete", "block", "unblock"].includes(action)) return await mutate(payload);
       if (action === "web_pending_pushes") return pendingPushes(payload);
       if (action === "web_mark_push") return markWebPush(payload);
       return { ok: false, error: `unknown action: ${action}` };

@@ -34,13 +34,25 @@ async function run() {
           stdout: JSON.stringify({
             tasks: [
               { id: "t_created", title: "Read chapter", status: "todo", skills: [] },
-              { id: "t_done", title: "Closed", status: "done", skills: [] },
+              {
+                id: "t_done",
+                title: "Closed",
+                status: "done",
+                assignee: "weixin_stephen",
+                priority: 3,
+                tenant: "weixin_stephen",
+                workspace: "dir:/workspaces/weixin_stephen",
+                created_by: "weixin_stephen",
+                created_at: 1778400000,
+                skills: ["kanban-worker"],
+              },
             ],
           }),
           stderr: "",
         };
       }
-      if (joined.includes(" complete ") || joined.includes(" archive ") || joined.includes(" comment ")) {
+      if (joined.includes(" complete ") || joined.includes(" archive ") || joined.includes(" comment ")
+        || joined.includes(" block ") || joined.includes(" unblock ")) {
         return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
       }
       return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
@@ -66,6 +78,7 @@ async function run() {
   assert.ok(createCall);
   assert.deepEqual(createCall[1].slice(0, 4), ["-p", "owner", "kanban", "--board"]);
   assert.ok(createCall[1].includes("--created-by"));
+  assert.ok(createCall[1].includes("--assignee"));
   assert.ok(createCall[1].includes("dir:/workspaces/weixin_stephen"));
 
   const listed = await provider.run({
@@ -87,6 +100,39 @@ async function run() {
   });
   assert.equal(completed.ok, true);
   assert.equal(completed.status, "completed");
+
+  const listedWithClosed = await provider.run({
+    action: "list",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    include_completed: true,
+  });
+  const closed = listedWithClosed.todos.find((todo) => todo.id === "t_done");
+  assert.equal(closed.kanban_assignee, "weixin_stephen");
+  assert.equal(closed.kanban_priority, 3);
+  assert.equal(closed.kanban_tenant, "weixin_stephen");
+  assert.equal(closed.kanban_workspace_kind, "dir");
+  assert.deepEqual(closed.kanban_skills, ["kanban-worker"]);
+  assert.match(closed.created_at, /^2026-/);
+
+  const blocked = await provider.run({
+    action: "block",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+    reason: "need input",
+  });
+  assert.equal(blocked.ok, true);
+  assert.equal(blocked.kanban_status, "blocked");
+
+  const unblocked = await provider.run({
+    action: "unblock",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+  });
+  assert.equal(unblocked.ok, true);
+  assert.equal(unblocked.kanban_status, "todo");
 
   const pushed = await provider.run({
     action: "web_pending_pushes",

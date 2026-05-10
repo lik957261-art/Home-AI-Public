@@ -47,6 +47,8 @@ const state = {
   threads: [],
   todos: [],
   todoAssignees: [],
+  todoSource: "",
+  todoKanbanBoard: "",
   selectedTodoId: "",
   todoCreateOpen: false,
   automations: [],
@@ -185,6 +187,16 @@ const TASK_REASONING_OPTIONS = [
   { value: "high", label: "High" },
   { value: "xhigh", label: "Xhigh" },
 ];
+const KANBAN_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
+const KANBAN_STATUS_META = Object.freeze({
+  triage: { label: "\u5f85\u5206\u62e3", shortLabel: "Triage" },
+  todo: { label: "\u5f85\u529e", shortLabel: "Todo" },
+  ready: { label: "\u5c31\u7eea", shortLabel: "Ready" },
+  running: { label: "\u8fd0\u884c\u4e2d", shortLabel: "Running" },
+  blocked: { label: "\u963b\u585e", shortLabel: "Blocked" },
+  done: { label: "\u5b8c\u6210", shortLabel: "Done" },
+  archived: { label: "\u5f52\u6863", shortLabel: "Archived" },
+});
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
@@ -7813,6 +7825,8 @@ async function loadTodos() {
   const result = await api(`/api/todos?${params}`);
   state.todos = result.data || [];
   state.todoAssignees = result.assignees || [];
+  state.todoSource = result.source || result.result?.source || "";
+  state.todoKanbanBoard = result.result?.board || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "";
   state.currentThread = null;
   state.currentThreadId = "";
   state.currentTaskGroupId = "";
@@ -7834,6 +7848,45 @@ function todoStatusText(todo) {
   if (status === "completed") return "已完成";
   if (status === "cancelled") return "已取消";
   return "未完成";
+}
+
+function normalizedKanbanStatus(todo) {
+  const status = String(todo?.kanbanStatus || todo?.kanban_status || "").trim().toLowerCase();
+  if (KANBAN_STATUS_ORDER.includes(status)) return status;
+  const compatible = String(todo?.status || "").trim().toLowerCase();
+  if (compatible === "completed") return "done";
+  if (compatible === "cancelled") return "archived";
+  return "todo";
+}
+
+function kanbanStatusMeta(todoOrStatus) {
+  const status = typeof todoOrStatus === "string" ? todoOrStatus : normalizedKanbanStatus(todoOrStatus);
+  return KANBAN_STATUS_META[status] || { label: status || "Todo", shortLabel: status || "todo" };
+}
+
+function kanbanStatusText(todo) {
+  const status = normalizedKanbanStatus(todo);
+  const meta = kanbanStatusMeta(status);
+  return `${meta.label} / ${meta.shortLabel}`;
+}
+
+function isKanbanTodoSource() {
+  return state.todoSource === "hermes_kanban"
+    || state.todoSource === "kanban"
+    || state.todos.some((todo) => todo?.source === "kanban" || todo?.kanbanBoard || todo?.kanbanStatus);
+}
+
+function todoBoardLabel() {
+  return state.todoKanbanBoard || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "default";
+}
+
+function todoPriorityLabel(todo) {
+  const priority = Number(todo?.kanbanPriority || 0);
+  return Number.isFinite(priority) && priority > 0 ? `P${priority}` : "";
+}
+
+function todoTimestampLabel(value) {
+  return formatTime(value) || String(value || "");
 }
 
 function todoDueLabel(todo) {
@@ -7886,13 +7939,15 @@ function renderTodoList() {
   list.innerHTML = state.todos.map((todo) => {
     const active = todo.id === state.selectedTodoId ? " active" : "";
     const status = todoStatusLabel(todo);
+    const statusText = isKanbanTodoSource() ? kanbanStatusText(todo) : status;
+    const sourceLabel = todo.kanbanBoard ? `${todo.kanbanBoard} · ` : "";
     return `<div class="task-swipe-row todo-list-swipe" data-swipe-row data-swipe-kind="todo" data-swipe-id="${escapeHtml(todo.id)}">
       <button class="task-swipe-delete" type="button" data-delete-swipe="${escapeHtml(todo.id)}" aria-label="删除待办">删除</button>
       <div class="task-swipe-content" data-swipe-content>
         <button class="thread-card todo-list-card${active} ${escapeHtml(status)}" type="button" data-todo-id="${escapeHtml(todo.id)}">
       <div class="thread-card-title">${escapeHtml(todoTitle(todo))}</div>
       <div class="thread-card-preview">${escapeHtml(todo.assigneeLabel || todo.assignee || "")} · ${escapeHtml(todoDueLabel(todo))}</div>
-      <div class="thread-card-meta">${escapeHtml(status)}${todo.recurrenceLabel ? ` | ${todo.recurrenceLabel}` : ""}</div>
+      <div class="thread-card-meta">${escapeHtml(sourceLabel)}${escapeHtml(statusText)}${todo.recurrenceLabel ? ` | ${escapeHtml(todo.recurrenceLabel)}` : ""}</div>
         </button>
       </div>
     </div>`;
@@ -7922,10 +7977,13 @@ function renderTodoPanel() {
   updateNavigationControls();
   const openTodos = state.todos.filter(todoMatchesOpen);
   const closedTodos = state.todos.filter((todo) => !todoMatchesOpen(todo));
+  const todoBody = selected
+    ? renderTodoDetail(selected)
+    : (isKanbanTodoSource() ? renderTodoKanbanBoard(state.todos) : renderTodoSections(openTodos, closedTodos));
   conversation.innerHTML = `
     <section class="todo-shell">
       ${selected ? "" : renderTodoCreatePanel()}
-      ${selected ? renderTodoDetail(selected) : renderTodoSections(openTodos, closedTodos)}
+      ${todoBody}
     </section>
   `;
   wireTodoPanel(conversation);
@@ -7959,6 +8017,70 @@ function renderTodoCreatePanel() {
   </form>`;
 }
 
+function renderTodoKanbanBoard(todos) {
+  const grouped = new Map(KANBAN_STATUS_ORDER.map((status) => [status, []]));
+  for (const todo of todos || []) {
+    const status = normalizedKanbanStatus(todo);
+    if (!grouped.has(status)) grouped.set(status, []);
+    grouped.get(status).push(todo);
+  }
+  const activeCount = (todos || []).filter(todoMatchesOpen).length;
+  const doneCount = (todos || []).filter((todo) => normalizedKanbanStatus(todo) === "done").length;
+  const board = todoBoardLabel();
+  const lanes = KANBAN_STATUS_ORDER.map((status) => {
+    const meta = kanbanStatusMeta(status);
+    const items = grouped.get(status) || [];
+    return `<section class="todo-kanban-lane status-${escapeHtml(status)}" aria-label="${escapeHtml(meta.shortLabel)}">
+      <header class="todo-kanban-lane-header">
+        <div>
+          <div class="todo-kanban-lane-title">${escapeHtml(meta.label)}</div>
+          <div class="todo-kanban-lane-code">${escapeHtml(meta.shortLabel)}</div>
+        </div>
+        <span>${items.length}</span>
+      </header>
+      <div class="todo-kanban-cards">${items.map(renderTodoKanbanCard).join("") || `<div class="empty-state small">No items.</div>`}</div>
+    </section>`;
+  }).join("");
+  return `
+    <section class="todo-kanban-summary">
+      <div>
+        <div class="todo-kanban-kicker">Official Hermes Kanban</div>
+        <h2>${escapeHtml(board)}</h2>
+      </div>
+      <div class="todo-kanban-counts">
+        <span>${activeCount} open</span>
+        <span>${doneCount} done</span>
+      </div>
+    </section>
+    <div class="todo-kanban-board" role="list">${lanes}</div>
+  `;
+}
+
+function renderTodoKanbanCard(todo) {
+  const status = normalizedKanbanStatus(todo);
+  const meta = kanbanStatusMeta(status);
+  const assignee = todo.kanbanAssignee || todo.assigneeLabel || todo.assignee || "";
+  const priority = todoPriorityLabel(todo);
+  const tenant = todo.kanbanTenant || "";
+  const due = todoDueLabel(todo);
+  const skills = Array.isArray(todo.kanbanSkills) ? todo.kanbanSkills.slice(0, 3) : [];
+  const chips = [
+    priority,
+    assignee ? `@${assignee}` : "",
+    tenant && tenant !== assignee ? tenant : "",
+    todo.kanbanWorkspaceKind || "",
+  ].filter(Boolean);
+  return `<article class="todo-kanban-card status-${escapeHtml(status)}" role="listitem">
+    <button class="todo-kanban-card-button" type="button" data-todo-id="${escapeHtml(todo.id)}">
+      <span class="todo-kanban-card-status">${escapeHtml(meta.shortLabel)}</span>
+      <span class="todo-kanban-card-title">${escapeHtml(todo.content || todo.id)}</span>
+      <span class="todo-kanban-card-meta">${escapeHtml(due)}</span>
+      ${chips.length ? `<span class="todo-kanban-card-chips">${chips.map((chip) => `<span>${escapeHtml(chip)}</span>`).join("")}</span>` : ""}
+      ${skills.length ? `<span class="todo-kanban-card-skills">${skills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</span>` : ""}
+    </button>
+  </article>`;
+}
+
 function renderTodoSections(openTodos, closedTodos) {
   return `
     <div class="todo-section">
@@ -7986,24 +8108,56 @@ function renderTodoCard(todo) {
   </article>`;
 }
 
+function renderTodoDetailGridItem(label, value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(text)}</span></div>`;
+}
+
 function renderTodoDetail(todo) {
   const open = todoMatchesOpen(todo);
+  const kanban = isKanbanTodoSource();
+  const kanbanStatus = normalizedKanbanStatus(todo);
+  const blocked = kanbanStatus === "blocked";
+  const statusText = kanban ? kanbanStatusText(todo) : todoStatusText(todo);
+  const gridItems = [
+    renderTodoDetailGridItem("负责人", todo.assigneeLabel || todo.assignee || ""),
+    renderTodoDetailGridItem("截止", todoDueLabel(todo)),
+    renderTodoDetailGridItem("提醒", `${String(todo.reminderLeadMinutes || 0)} 分钟前`),
+    renderTodoDetailGridItem("重复", todo.recurrenceLabel || todo.recurrence || "不重复"),
+    kanban ? renderTodoDetailGridItem("看板", todo.kanbanBoard || todoBoardLabel()) : "",
+    kanban ? renderTodoDetailGridItem("状态", kanbanStatusText(todo)) : "",
+    kanban ? renderTodoDetailGridItem("官方执行者", todo.kanbanAssignee || "") : "",
+    kanban ? renderTodoDetailGridItem("租户", todo.kanbanTenant || "") : "",
+    kanban ? renderTodoDetailGridItem("优先级", todoPriorityLabel(todo)) : "",
+    kanban ? renderTodoDetailGridItem("工作区", todo.kanbanWorkspaceKind || "") : "",
+    kanban ? renderTodoDetailGridItem("创建者", todo.kanbanCreatedBy || "") : "",
+    renderTodoDetailGridItem("创建", todoTimestampLabel(todo.createdAt)),
+    renderTodoDetailGridItem("更新", todoTimestampLabel(todo.updatedAt)),
+    kanban ? renderTodoDetailGridItem("开始", todoTimestampLabel(todo.kanbanStartedAt)) : "",
+    kanban ? renderTodoDetailGridItem("完成", todoTimestampLabel(todo.kanbanCompletedAt || todo.completedAt)) : "",
+  ].filter(Boolean).join("");
+  const skillRows = kanban && Array.isArray(todo.kanbanSkills) && todo.kanbanSkills.length
+    ? `<div class="todo-detail-skills">${todo.kanbanSkills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</div>`
+    : "";
+  const resultBlock = kanban && todo.kanbanResult
+    ? `<section class="todo-detail-result"><strong>Kanban result</strong><p>${escapeHtml(todo.kanbanResult)}</p></section>`
+    : "";
   return `<article class="todo-detail-card ${escapeHtml(todoStatusLabel(todo))}">
     <div class="todo-detail-head">
       <div>
         <div class="todo-detail-id">${escapeHtml(todo.id)}</div>
         <h2>${escapeHtml(todo.content || "Todo")}</h2>
       </div>
-      <span class="todo-state">${escapeHtml(todoStatusText(todo))}</span>
+      <span class="todo-state status-${escapeHtml(kanbanStatus)}">${escapeHtml(statusText)}</span>
     </div>
-    <div class="todo-detail-grid">
-      <div><strong>负责人</strong><span>${escapeHtml(todo.assigneeLabel || todo.assignee || "")}</span></div>
-      <div><strong>截止</strong><span>${escapeHtml(todoDueLabel(todo))}</span></div>
-      <div><strong>提醒</strong><span>${escapeHtml(String(todo.reminderLeadMinutes || 0))} 分钟前</span></div>
-      <div><strong>重复</strong><span>${escapeHtml(todo.recurrenceLabel || todo.recurrence || "不重复")}</span></div>
-    </div>
+    <div class="todo-detail-grid">${gridItems}</div>
+    ${skillRows}
+    ${resultBlock}
     ${open ? `<div class="todo-detail-actions">
       <button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>
+      ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
+      ${kanban && blocked ? `<button type="button" data-unblock-todo="${escapeHtml(todo.id)}">解除阻塞</button>` : ""}
       <button type="button" data-cancel-todo="${escapeHtml(todo.id)}">取消</button>
     </div>
     <div class="todo-postpone-panel">
@@ -8053,6 +8207,18 @@ function wireTodoPanel(root) {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       cancelTodo(button.dataset.cancelTodo).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-block-todo]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      blockTodo(button.dataset.blockTodo).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-unblock-todo]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      unblockTodo(button.dataset.unblockTodo).catch(showError);
     });
   });
   root.querySelectorAll("[data-postpone-todo]").forEach((button) => {
@@ -8108,6 +8274,31 @@ async function cancelTodo(todoId) {
   });
   state.selectedTodoId = "";
   await loadTodos();
+}
+
+async function blockTodo(todoId) {
+  if (!todoId) return;
+  await api(`/api/todos/${encodeURIComponent(todoId)}/block`, {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      reason: "Blocked from Hermes Mobile todo view.",
+    }),
+  });
+  await loadTodos();
+  state.selectedTodoId = todoId;
+  renderTodos();
+}
+
+async function unblockTodo(todoId) {
+  if (!todoId) return;
+  await api(`/api/todos/${encodeURIComponent(todoId)}/unblock`, {
+    method: "POST",
+    body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
+  });
+  await loadTodos();
+  state.selectedTodoId = todoId;
+  renderTodos();
 }
 
 async function deleteTodo(todoId) {

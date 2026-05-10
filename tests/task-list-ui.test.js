@@ -77,5 +77,17 @@ assert.match(appJs, /\$\("topSearchChat"\)\?\.addEventListener\("click"/);
 assert.equal(indexHtml.includes("searchButton"), false);
 assert.equal(appJs.includes("$('searchButton')"), false);
 assert.equal(appJs.includes('$("#searchButton")'), false);
+assert.match(appJs, /const KANBAN_STATUS_ORDER = Object\.freeze\(\["triage", "todo", "ready", "running", "blocked", "done", "archived"\]\)/);
+assert.match(appJs, /function renderTodoKanbanBoard\(todos\)/);
+assert.match(appJs, /function renderTodoKanbanCard\(todo\)/);
+assert.match(appJs, /function normalizedKanbanStatus\(todo\)/);
+assert.match(appJs, /data-block-todo/);
+assert.match(appJs, /data-unblock-todo/);
+assert.match(appJs, /\/api\/todos\/\$\{encodeURIComponent\(todoId\)\}\/block/);
+assert.match(serverJs, /complete\|cancel\|postpone\|delete\|block\|unblock/);
+assert.match(serverJs, /kanbanAssignee: String\(row\.kanban_assignee/);
+assert.match(stylesCss, /\.todo-kanban-board/);
+assert.match(stylesCss, /\.todo-kanban-lane/);
+assert.match(stylesCss, /\.todo-kanban-card/);
 
 console.log("task list UI tests passed");

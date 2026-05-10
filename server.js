@@ -3528,6 +3528,18 @@ function publicTodo(row) {
     source: String(row.source || ""),
     kanbanBoard: String(row.kanban_board || row.kanbanBoard || ""),
     kanbanStatus: String(row.kanban_status || row.kanbanStatus || ""),
+    kanbanAssignee: String(row.kanban_assignee || row.kanbanAssignee || ""),
+    kanbanPriority: Number(row.kanban_priority || row.kanbanPriority || 0),
+    kanbanTenant: String(row.kanban_tenant || row.kanbanTenant || ""),
+    kanbanWorkspaceKind: String(row.kanban_workspace_kind || row.kanbanWorkspaceKind || ""),
+    kanbanCreatedBy: String(row.kanban_created_by || row.kanbanCreatedBy || ""),
+    kanbanStartedAt: String(row.kanban_started_at || row.kanbanStartedAt || ""),
+    kanbanCompletedAt: String(row.kanban_completed_at || row.kanbanCompletedAt || ""),
+    kanbanResult: String(row.kanban_result || row.kanbanResult || ""),
+    kanbanMaxRetries: Number(row.kanban_max_retries || row.kanbanMaxRetries || 0),
+    kanbanSkills: Array.isArray(row.kanban_skills || row.kanbanSkills)
+      ? (row.kanban_skills || row.kanbanSkills).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
+      : [],
     createdAt: String(row.created_at || ""),
     updatedAt: String(row.updated_at || ""),
     completedAt: String(row.completed_at || ""),
@@ -8748,7 +8760,7 @@ async function handleApi(req, res) {
     return;
   }
 
-  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete)$/);
+  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock)$/);
   if (todoAction && req.method === "POST") {
     const body = await readBody(req).catch(() => ({}));
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
@@ -8761,6 +8773,7 @@ async function handleApi(req, res) {
       assignee: body.assignee || "",
       recurrenceScope: body.recurrenceScope || body.recurrence_scope || "one",
       dueTime: body.dueTime || body.due_time || "",
+      reason: body.reason || "",
     });
     if (!result.ok) {
       todoErrorResponse(res, result);
