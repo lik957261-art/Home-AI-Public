@@ -34,8 +34,8 @@ function testFiltersCommonToolsetsAndShowsSpecialInterfaces() {
 function testOwnerGetsExternalBindingsAndAccessPolicyAdditions() {
   const provider = createWorkspaceBindingsProvider({
     ownerExternalAccessPolicy: () => ({
-      allowed_toolsets: ["hermes-email"],
-      connector_profiles: { email: "owner", hotmail: "owner" },
+      allowed_toolsets: ["google_workspace", "hermes-email"],
+      connector_profiles: { google: "owner", gmail: "owner", email: "owner", hotmail: "owner" },
     }),
     ownerExternalInterfaceBindings: () => [{ id: "github", label: "GitHub", category: "Connector" }],
   });
@@ -46,8 +46,8 @@ function testOwnerGetsExternalBindingsAndAccessPolicyAdditions() {
 
   assert.deepEqual(bindings.interfaces, [{ id: "github", label: "GitHub", category: "Connector" }]);
   assert.deepEqual(provider.accessPolicyAdditions({ id: "owner", policy: { allowed_toolsets: ["web"] } }), {
-    allowed_toolsets: ["web", "hermes-email"],
-    connector_profiles: { email: "owner", hotmail: "owner" },
+    allowed_toolsets: ["web", "google_workspace", "hermes-email"],
+    connector_profiles: { google: "owner", gmail: "owner", email: "owner", hotmail: "owner" },
   });
 }
 
@@ -81,8 +81,42 @@ function testQqmailToolsetsAreShownAndGrantedAsOwnMailConnector() {
   });
 }
 
+function testConnectorProfilesGrantOwnExternalToolsets() {
+  const provider = createWorkspaceBindingsProvider();
+
+  assert.deepEqual(provider.accessPolicyAdditions({
+    id: "workspace_google",
+    policy: {
+      allowed_toolsets: ["web"],
+      connector_profiles: { google: "workspace_google", gmail: "workspace_google" },
+    },
+  }), {
+    allowed_toolsets: ["web", "google_workspace"],
+    connector_profiles: {
+      google: "workspace_google",
+      gmail: "workspace_google",
+    },
+  });
+
+  assert.deepEqual(provider.accessPolicyAdditions({
+    id: "workspace_mail",
+    policy: {
+      allowed_toolsets: ["web"],
+      connector_profiles: { email: "workspace_mail", qqmail: "workspace_mail_qqmail" },
+    },
+  }), {
+    allowed_toolsets: ["web", "hermes-email", "workspace_mail_qqmail"],
+    connector_profiles: {
+      email: "workspace_mail",
+      mail: "workspace_mail_qqmail",
+      qqmail: "workspace_mail_qqmail",
+    },
+  });
+}
+
 testFiltersCommonToolsetsAndShowsSpecialInterfaces();
 testOwnerGetsExternalBindingsAndAccessPolicyAdditions();
 testCustomChannelProvider();
 testQqmailToolsetsAreShownAndGrantedAsOwnMailConnector();
+testConnectorProfilesGrantOwnExternalToolsets();
 console.log("workspace-bindings-provider tests passed");

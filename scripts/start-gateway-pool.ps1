@@ -3,6 +3,9 @@ param(
   [string]$ManifestPath = "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json",
   [string]$OfficialDistro = "Ubuntu-24.04",
   [string]$OfficialUser = "xuxin",
+  [string]$GoogleTokenPath = "",
+  [string]$GoogleClientSecretPath = "",
+  [string]$OutlookGraphTokenPath = "",
   [int]$HealthTimeoutSeconds = 45
 )
 
@@ -45,6 +48,19 @@ function Wait-HealthPorts {
   }
 }
 
+function Resolve-ConnectorPath {
+  param(
+    [string]$ExplicitPath,
+    [string]$EnvName,
+    [string]$RelativePath
+  )
+  if ($ExplicitPath) { return $ExplicitPath }
+  $envValue = [Environment]::GetEnvironmentVariable($EnvName)
+  if ($envValue) { return $envValue }
+  $officialHermesHome = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes"
+  return Join-Path $officialHermesHome $RelativePath
+}
+
 function Start-LowGateways {
   $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
@@ -75,16 +91,19 @@ function Provision-OwnerExternalConnectors {
     "-WorkerDirectory", $GatewayWorkerRoot
   )
   $hasCredential = $false
-  if ($env:HERMES_WEB_GOOGLE_TOKEN_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_GOOGLE_TOKEN_PATH)) {
-    $args += @("-GoogleTokenPath", $env:HERMES_WEB_GOOGLE_TOKEN_PATH)
+  $resolvedGoogleTokenPath = Resolve-ConnectorPath -ExplicitPath $GoogleTokenPath -EnvName "HERMES_WEB_GOOGLE_TOKEN_PATH" -RelativePath "google_token.json"
+  $resolvedGoogleClientSecretPath = Resolve-ConnectorPath -ExplicitPath $GoogleClientSecretPath -EnvName "HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH" -RelativePath "google_client_secret.json"
+  $resolvedOutlookGraphTokenPath = Resolve-ConnectorPath -ExplicitPath $OutlookGraphTokenPath -EnvName "HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH" -RelativePath "microsoft-graph-outlook-mail\token.json"
+  if ($resolvedGoogleTokenPath -and (Test-Path -LiteralPath $resolvedGoogleTokenPath)) {
+    $args += @("-GoogleTokenPath", $resolvedGoogleTokenPath)
     $hasCredential = $true
   }
-  if ($env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH)) {
-    $args += @("-GoogleClientSecretPath", $env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH)
+  if ($resolvedGoogleClientSecretPath -and (Test-Path -LiteralPath $resolvedGoogleClientSecretPath)) {
+    $args += @("-GoogleClientSecretPath", $resolvedGoogleClientSecretPath)
     $hasCredential = $true
   }
-  if ($env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH)) {
-    $args += @("-OutlookGraphTokenPath", $env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH)
+  if ($resolvedOutlookGraphTokenPath -and (Test-Path -LiteralPath $resolvedOutlookGraphTokenPath)) {
+    $args += @("-OutlookGraphTokenPath", $resolvedOutlookGraphTokenPath)
     $hasCredential = $true
   }
   if (-not $hasCredential) {

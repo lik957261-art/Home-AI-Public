@@ -1015,6 +1015,7 @@ function localWorkspaceDefaults(input = {}, previous = {}) {
     defaultWorkspace,
     allowedRoots: safeAllowedRoots.length ? safeAllowedRoots : [defaultWorkspace],
     allowedToolsets: normalizeStringList(input.allowedToolsets || input.allowed_toolsets || previous.allowedToolsets || []),
+    connectorProfiles: normalizeStringMap(input.connectorProfiles || input.connector_profiles || previous.connectorProfiles || {}),
   };
 }
 
@@ -1035,6 +1036,7 @@ function normalizeLocalWorkspaceRecord(record) {
     allowedRoots: safeAllowedRoots,
     aliases: normalizeStringList(source.aliases),
     allowedToolsets: normalizeStringList(source.allowedToolsets || source.allowed_toolsets),
+    connectorProfiles: normalizeStringMap(source.connectorProfiles || source.connector_profiles),
     createdAt: String(source.createdAt || ""),
     updatedAt: String(source.updatedAt || source.createdAt || ""),
     createdBy: String(source.createdBy || "owner"),
@@ -1108,6 +1110,7 @@ function upsertLocalWorkspace(input, actor = "owner") {
     defaultWorkspace: defaults.defaultWorkspace,
     allowedRoots: defaults.allowedRoots,
     allowedToolsets: defaults.allowedToolsets,
+    connectorProfiles: defaults.connectorProfiles,
     createdAt: previous.createdAt || now,
     updatedAt: now,
     createdBy: previous.createdBy || actor || "owner",
@@ -1628,6 +1631,17 @@ function normalizeStringList(value) {
     ? value
     : (typeof value === "string" ? value.split(",") : (value ? [value] : []));
   return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean));
+}
+
+function normalizeStringMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out = {};
+  for (const [key, rawValue] of Object.entries(value)) {
+    const normalizedKey = String(key || "").trim();
+    const normalizedValue = String(rawValue || "").trim();
+    if (normalizedKey && normalizedValue) out[normalizedKey] = normalizedValue;
+  }
+  return out;
 }
 
 function stripPrincipalLabelPrefixes(value) {
@@ -4458,6 +4472,7 @@ function publicWorkspace(workspace) {
       defaultWorkspace: String(workspace.defaultWorkspace || policy.default_workspace || ""),
       allowedRoots: Array.isArray(policy.allowed_roots) ? securityBoundaryProvider.filterRoots(policy.allowed_roots) : [],
       allowedToolsets: Array.isArray(policy.allowed_toolsets) ? policy.allowed_toolsets : [],
+      connectorProfiles: policy.connector_profiles && typeof policy.connector_profiles === "object" ? policy.connector_profiles : {},
     } : null,
   };
 }
