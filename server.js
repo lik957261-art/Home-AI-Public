@@ -52,6 +52,7 @@ const DEFAULT_CRON_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "cron_bridge.py");
 const DEFAULT_DIRECTORY_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "directory_bridge.py");
 const DEFAULT_SKILL_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "skill_bridge.py");
 const LOCAL_CONFIG_ROOT = path.resolve(process.env.HERMES_WEB_CONFIG_DIR || path.join(REPO_ROOT, "config"));
+const PERMISSION_APPROVAL_MARKER = "HERMES_PERMISSION_APPROVAL_REQUIRED";
 
 const HOST = process.env.HERMES_WEB_HOST || "0.0.0.0";
 const PORT = Number(process.env.HERMES_WEB_PORT || "8797");
@@ -817,6 +818,84 @@ function ownerElevationInstructions(options = {}) {
     ].join("\n");
   }
   return "";
+}
+
+function sanitizeElevationScope(value) {
+  const scope = String(value || "").trim();
+  if (/^[A-Za-z][A-Za-z0-9_-]{0,80}$/.test(scope)) return scope;
+  return "owner_high_privilege";
+}
+
+function parsePermissionApprovalMarker(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  for (const line of lines) {
+    const markerIndex = line.indexOf(PERMISSION_APPROVAL_MARKER);
+    if (markerIndex < 0) continue;
+    const trailing = line.slice(markerIndex + PERMISSION_APPROVAL_MARKER.length).trim();
+    let parsed = {};
+    if (trailing.startsWith("{")) {
+      try {
+        parsed = JSON.parse(trailing);
+      } catch (_) {
+        parsed = {};
+      }
+    }
+    return {
+      elevationRequired: true,
+      elevationScope: sanitizeElevationScope(parsed.scope || parsed.elevationScope || "owner_high_privilege"),
+      elevationReason: compactText(parsed.reason || parsed.message || "Model permission boundary requested Owner approval.", 240),
+      elevationSource: "model_permission_boundary",
+    };
+  }
+  return null;
+}
+
+function stripPermissionApprovalMarkers(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .filter((line) => !line.includes(PERMISSION_APPROVAL_MARKER))
+    .join("\n")
+    .trim();
+}
+
+function inferPermissionApprovalRequest(text) {
+  const raw = String(text || "");
+  if (!raw.trim()) return null;
+  const permissionDenied = (
+    /outside\s+(?:the\s+)?current\s+(?:workspace\/Gateway\s+)?permission\s+scope/i.test(raw)
+    || /permission\s+boundary|access_policy_context|current\s+Gateway\s+permission/i.test(raw)
+    || /当前.*权限|权限范围|权限边界|超出.*权限|不在.*权限|无法访问.*路径/.test(raw)
+  );
+  const elevationHint = (
+    /Owner|approval|approve|elevation|maintenance|high[-_\s]?privilege/i.test(raw)
+    || /提权|高权限|批准|授权|Owner/.test(raw)
+  );
+  if (!permissionDenied || !elevationHint) return null;
+  return {
+    elevationRequired: true,
+    elevationScope: "owner_high_privilege",
+    elevationReason: compactText(raw.replace(/\s+/g, " ").trim(), 240),
+    elevationSource: "model_permission_boundary_heuristic",
+  };
+}
+
+function modelPermissionApprovalRequest(text, message = {}) {
+  const routing = message.runOptions?.gatewayRouting || {};
+  if (routing.maintenance || routing.allowMaintenance || routing.allow_maintenance) return null;
+  const markerRequest = parsePermissionApprovalMarker(text);
+  return markerRequest || inferPermissionApprovalRequest(text);
+}
+
+function precedingUserMessageForAssistant(thread, assistantMessage) {
+  const messages = Array.isArray(thread?.messages) ? thread.messages : [];
+  const index = messages.findIndex((item) => String(item.id || "") === String(assistantMessage?.id || ""));
+  for (let i = (index >= 0 ? index - 1 : messages.length - 1); i >= 0; i -= 1) {
+    const candidate = messages[i];
+    if (!candidate || candidate.role !== "user") continue;
+    if (assistantMessage?.taskGroupId && candidate.taskGroupId !== assistantMessage.taskGroupId) continue;
+    return candidate;
+  }
+  return null;
 }
 
 function gatewaySkillRoutingForWorkspace(workspaceId, routing = {}) {
@@ -5650,6 +5729,10 @@ function compactMessage(message, thread = null) {
     gatewaySecurityLevel: gatewayRouting.securityLevel || gatewayRouting.security_level || "",
     gatewayMaintenance: Boolean(gatewayRouting.maintenance || gatewayRouting.allowMaintenance || gatewayRouting.allow_maintenance),
     gatewayMaintenanceCategory: gatewayRouting.maintenanceCategory || gatewayRouting.maintenance_category || "",
+    elevationRequired: Boolean(message.elevationRequired),
+    elevationScope: message.elevationScope || "",
+    elevationReason: message.elevationReason || "",
+    elevationSource: message.elevationSource || "",
     truncated: typeof message.content === "string" && message.content.length > MAX_API_TEXT_CHARS,
   };
 }
@@ -7038,14 +7121,27 @@ function applyHermesRunEvent(event) {
 
   if (eventName === "run.completed" || eventName === "response.completed") {
     const output = extractCompletedOutput(event) || String(message.content || "");
+    const approvalRequest = modelPermissionApprovalRequest(output, message);
+    const visibleOutput = approvalRequest ? stripPermissionApprovalMarkers(output) : output;
     const completedAt = nowIso();
-    message.content = compactFullContent(output);
+    message.content = compactFullContent(visibleOutput || output);
     message.status = "done";
     message.usage = supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message);
-    if (!message.firstFeedbackAt && output) message.firstFeedbackAt = completedAt;
+    if (approvalRequest) {
+      message.elevationRequired = true;
+      message.elevationScope = approvalRequest.elevationScope;
+      message.elevationReason = approvalRequest.elevationReason;
+      message.elevationSource = approvalRequest.elevationSource;
+    } else {
+      message.elevationRequired = false;
+      message.elevationScope = "";
+      message.elevationReason = "";
+      message.elevationSource = "";
+    }
+    if (!message.firstFeedbackAt && (visibleOutput || output)) message.firstFeedbackAt = completedAt;
     message.completedAt = completedAt;
     message.updatedAt = completedAt;
-    message.artifacts = registerArtifactsFromText(thread, message, output);
+    message.artifacts = registerArtifactsFromText(thread, message, visibleOutput || output);
     enqueueExternalDeliveryForTerminalMessage(thread, message, "done");
     removeThreadActiveRun(thread, runId, "idle");
     thread.updatedAt = completedAt;
@@ -9005,6 +9101,113 @@ async function handleApi(req, res) {
       saveState();
       broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
       sendJson(res, err.status || 502, { error: assistantMessage.error, thread: compactThread(thread) });
+    }
+    return;
+  }
+
+  const messageOwnerElevation = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages\/([^/]+)\/owner-elevation$/);
+  if (messageOwnerElevation && req.method === "POST") {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    const thread = findThreadForRequest(req, decodeURIComponent(messageOwnerElevation[1]));
+    if (!thread) {
+      sendJson(res, 404, { error: "Thread not found" });
+      return;
+    }
+    const messageId = decodeURIComponent(messageOwnerElevation[2]);
+    const message = (thread.messages || []).find((item) => String(item.id || "") === messageId);
+    if (!message || message.role !== "assistant") {
+      sendJson(res, 404, { error: "Assistant message not found" });
+      return;
+    }
+    if (!message.elevationRequired) {
+      sendJson(res, 409, { error: "This message is not waiting for Owner elevation approval" });
+      return;
+    }
+    const body = await readBody(req).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    const userMessage = precedingUserMessageForAssistant(thread, message);
+    if (!userMessage) {
+      sendJson(res, 400, { error: "Original user message was not found" });
+      return;
+    }
+    const actorWorkspaceId = "owner";
+    const concurrencyError = runConcurrencyError(actorWorkspaceId);
+    if (concurrencyError) {
+      sendJson(res, concurrencyError.status || 429, {
+        error: concurrencyError.message,
+        code: concurrencyError.code,
+        concurrency: concurrencyError.snapshot || runConcurrencySnapshot(),
+      });
+      return;
+    }
+    let assistantMessage = null;
+    try {
+      const elevationScope = sanitizeElevationScope(body.elevationScope || body.elevation_scope || message.elevationScope || "owner_high_privilege");
+      const gatewayRouting = gatewayRoutingForModelRun(ownerAuth, userMessage.content, {
+        actorWorkspaceId,
+        maintenanceMode: true,
+        ownerElevationOnceToken: body.ownerElevationOnceToken || body.owner_elevation_once_token || "",
+        elevationScope,
+      });
+      const createdAt = nowIso();
+      assistantMessage = {
+        id: makeId("msg"),
+        role: "assistant",
+        content: "",
+        status: "queued",
+        runId: null,
+        createdAt,
+        updatedAt: createdAt,
+        queuedAt: createdAt,
+        artifacts: [],
+        taskGroupId: userMessage.taskGroupId || message.taskGroupId || "",
+        messageKind: "ai",
+        senderWorkspaceId: "hermes",
+        senderPrincipalId: "hermes",
+        senderLabel: "Hermes",
+        actorWorkspaceId,
+        reasoningEffort: userMessage.reasoningEffort || message.reasoningEffort || "",
+        singleWindowMode: userMessage.singleWindowMode || message.singleWindowMode || "",
+        elevatedFromMessageId: message.id,
+      };
+      const runOptions = {
+        reasoning_effort: assistantMessage.reasoningEffort,
+        singleWindowMode: assistantMessage.singleWindowMode,
+        actorWorkspaceId,
+        gatewayRouting,
+        instructions: ownerElevationInstructions({ elevationScope }),
+      };
+      assistantMessage.runOptions = runOptions;
+      thread.messages.push(assistantMessage);
+      thread.status = "queued";
+      thread.updatedAt = createdAt;
+      saveState();
+      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+      const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
+      sendJson(res, 202, { ok: true, run, thread: compactThread(thread) });
+    } catch (err) {
+      if (assistantMessage) {
+        const failedAt = nowIso();
+        assistantMessage.status = "failed";
+        assistantMessage.error = err.message || String(err);
+        assistantMessage.failedAt = failedAt;
+        assistantMessage.updatedAt = failedAt;
+        removeThreadActiveRun(thread, assistantMessage.runId, "failed");
+        thread.updatedAt = failedAt;
+        saveState();
+        broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+      }
+      sendJson(res, err.status || 502, {
+        error: err.message || String(err),
+        code: err.code || "owner_elevation_retry_failed",
+        elevationRequired: Boolean(err.elevationRequired),
+        elevationScope: err.elevationScope || "",
+        thread: compactThread(thread),
+      });
     }
     return;
   }

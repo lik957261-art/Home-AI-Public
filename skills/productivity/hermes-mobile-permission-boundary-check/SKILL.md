@@ -28,6 +28,18 @@ Before any tool call, broad search, file write, Skill write, automation edit, ac
 3. **Must fail closed**: the request asks for secrets, unrelated private data, product source/runtime modification, worker manifests, raw keys/tokens, or anything not appropriate for a model run.
 4. **Clarify**: the target path, account, workspace, Skill namespace, or desired write is ambiguous.
 
+## Owner Approval Marker
+
+If and only if the decision is **Needs elevation**, start the final response with exactly this machine-readable marker on its own first line:
+
+```text
+HERMES_PERMISSION_APPROVAL_REQUIRED {"scope":"owner_high_privilege","reason":"short reason"}
+```
+
+Then explain briefly that the request is outside the current workspace/Gateway permission scope and no changes were made.
+
+Do not emit this marker for **Must fail closed**, clarification questions, or a normal missing-file failure inside the allowed roots.
+
 ## Restricted-Run Rules
 
 In a restricted run:

@@ -145,6 +145,8 @@ const state = {
   ownerElevationDurationMinutes: Number(localStorage.getItem("hermesOwnerElevationMinutes") || "15") || 15,
   ownerElevationOnceToken: "",
   ownerElevationOnceExpiresAt: "",
+  ownerElevationPromptedMessageIds: new Set(),
+  ownerElevationRetryingMessageIds: new Set(),
   pwaInstallPrompt: null,
   pwaInstallOpen: false,
   pwaInstalled: false,
@@ -9956,6 +9958,8 @@ function upsertMessage(message) {
   if (index >= 0) messages[index] = mergeServerMessage(messages[index], message);
   else messages.push(message);
   state.currentThread.messages = messages;
+  const mergedMessage = index >= 0 ? messages[index] : message;
+  offerOwnerElevationForMessage(mergedMessage).catch(showError);
   if (state.viewMode === "tasks") renderThreads();
   scheduleRenderCurrentThread();
 }
@@ -10612,6 +10616,54 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
 
 function shouldOfferOwnerElevation(err) {
   return Boolean(err?.elevationRequired && state.auth?.isOwner);
+}
+
+function shouldOfferOwnerElevationForMessage(message) {
+  if (!message?.elevationRequired) return false;
+  if (!state.auth?.isOwner || state.selectedWorkspaceId !== "owner") return false;
+  const status = String(message.status || "");
+  if (status === "queued" || status === "running") return false;
+  if (!state.currentThreadId && !state.currentThread?.id) return false;
+  if (state.ownerElevationRetryingMessageIds.has(message.id)) return false;
+  return true;
+}
+
+async function offerOwnerElevationForMessage(message) {
+  if (!shouldOfferOwnerElevationForMessage(message)) return false;
+  const messageId = String(message.id || "");
+  if (!messageId || state.ownerElevationPromptedMessageIds.has(messageId)) return false;
+  state.ownerElevationPromptedMessageIds.add(messageId);
+  const ok = window.confirm(ownerElevationConfirmMessage(message));
+  if (!ok) return false;
+  state.ownerElevationRetryingMessageIds.add(messageId);
+  let ownerElevationOnceRequested = false;
+  try {
+    let onceToken = "";
+    if (!ownerElevationActive()) {
+      await activateOwnerElevationOnce({ confirm: false });
+      onceToken = state.ownerElevationOnceToken;
+      ownerElevationOnceRequested = true;
+    }
+    const threadId = state.currentThreadId || state.currentThread?.id || "";
+    const result = await api(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/owner-elevation`, {
+      method: "POST",
+      body: JSON.stringify({
+        elevationScope: message.elevationScope || "owner_high_privilege",
+        ownerElevationOnceToken: onceToken,
+      }),
+    });
+    if (result.thread) {
+      state.currentThread = mergeCurrentThread(result.thread);
+      state.currentThreadId = state.currentThread?.id || threadId;
+      upsertThreadSummary(summarizeThread(state.currentThread));
+      renderCurrentThread({ stickToBottom: true });
+    }
+    showPushToast("已批准高权限重跑", "success");
+    return true;
+  } finally {
+    if (ownerElevationOnceRequested) clearOwnerElevationOnce();
+    state.ownerElevationRetryingMessageIds.delete(messageId);
+  }
 }
 
 function ownerElevationConfirmMessage(err) {

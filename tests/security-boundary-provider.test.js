@@ -119,12 +119,14 @@ function run() {
   });
   assert.match(permissionInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
   assert.match(permissionInstructions, /access_policy_context/);
+  assert.match(permissionInstructions, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
   assert.match(provider.permissionBoundarySkillInstructions({ access_mode: "restricted" }), /mandatory pre-flight/);
   assert.strictEqual(permissionBoundarySkillInstructions({ access_mode: "unrestricted" }), "");
 
   const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");
   assert.ok(fs.existsSync(skillPath));
   assert.match(fs.readFileSync(skillPath, "utf8"), /Do not search a broad drive/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /HERMES_PERMISSION_APPROVAL_REQUIRED/);
 
   assert.deepStrictEqual(provider.classifyMaintenanceIntent("请修一下 Hermes Mobile server.js 的排序问题")?.category, "product_maintenance");
   assert.strictEqual(provider.classifyMaintenanceIntent("帮我分析健康报告"), null);
