@@ -9036,8 +9036,10 @@ async function handleApi(req, res) {
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
     const groupRequested = Boolean(body.groupChat || body.group_chat);
-    const groupThread = groupRequested ? findGroupChatThreadForWorkspace(workspaceId) : null;
-    const thread = groupThread && threadAccessibleToAuth(auth, groupThread)
+    const availableGroupThread = findGroupChatThreadForWorkspace(workspaceId);
+    const groupChatAvailable = Boolean(availableGroupThread && threadAccessibleToAuth(auth, availableGroupThread));
+    const groupThread = groupRequested && groupChatAvailable ? availableGroupThread : null;
+    const thread = groupThread
       ? groupThread
       : ensureSingleWindowThread(workspaceId, { allowGroupThread: false });
     if (!thread) {
@@ -9055,7 +9057,11 @@ async function handleApi(req, res) {
         limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
       })
       : compactThread(thread);
-    sendJson(res, 200, { thread: responseThread });
+    sendJson(res, 200, {
+      thread: responseThread,
+      groupChatAvailable,
+      groupChatThreadId: groupChatAvailable ? availableGroupThread.id : "",
+    });
     return;
   }
 

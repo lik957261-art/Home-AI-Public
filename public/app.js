@@ -140,6 +140,7 @@ const state = {
   attachFilePickerActivationAt: 0,
   topNavActivationAt: 0,
   groupChatOpen: localStorage.getItem("hermesWebGroupChatOpen") === "1",
+  groupChatAvailable: false,
   groupChatManagerOpen: false,
   groupChatMemberDraft: [],
   groupMentionOpen: false,
@@ -1010,7 +1011,11 @@ function isGroupChatView() {
 }
 
 function groupChatSelectable(thread = state.currentThread) {
-  return Boolean(thread?.singleWindow && (selectedWorkspaceInThreadGroup(thread) || state.auth?.isOwner));
+  return Boolean(thread?.singleWindow && (
+    selectedWorkspaceInThreadGroup(thread)
+    || state.groupChatAvailable
+    || state.auth?.isOwner
+  ));
 }
 
 function chatScopeTaskGroupId(scope) {
@@ -7848,6 +7853,7 @@ async function loadSingleWindow(options = {}) {
     }),
   });
   state.currentThread = mergeCurrentThread(result.thread);
+  state.groupChatAvailable = Boolean(result.groupChatAvailable || selectedWorkspaceInThreadGroup(state.currentThread));
   if (groupChat && !selectedWorkspaceInThreadGroup(state.currentThread)) {
     state.groupChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
@@ -11535,6 +11541,7 @@ function wireUi() {
     clearQuotedReply({ render: false });
     clearTaskDirectoryFilter({ render: false });
     state.selectedWorkspaceId = event.target.value;
+    state.groupChatAvailable = false;
     localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
     renderWorkspaceAccessPanel();
     state.directoryThreadId = "";
