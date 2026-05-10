@@ -33,10 +33,13 @@ assert.match(appJs, /const exactProject = candidates\.find\(\(candidate\) =>\s+c
 assert.match(appJs, /const rootProject = candidates\.find\(\(candidate\) =>\s+candidate\.projectId === requestedProjectId && !candidate\.subprojectId\)/);
 assert.match(stylesCss, /\.task-rename-sheet/);
 assert.match(appJs, /function renderOwnerElevationPanel\(\)/);
+assert.match(appJs, /function openOwnerElevationApprovalDialog\(options = \{\}\)/);
 assert.match(appJs, /\/api\/owner-elevation/);
 assert.match(appJs, /body\.maintenanceMode = true/);
 assert.match(appJs, /owner_high_privilege/);
 assert.match(stylesCss, /\.workspace-permission-panel/);
+assert.match(stylesCss, /\.owner-elevation-approval-actions/);
+assert.match(indexHtml, /id="ownerElevationApprovalOverlay"/);
 assert.match(serverJs, /function publicOwnerElevationStatus\(auth\)/);
 assert.match(serverJs, /url\.pathname === "\/api\/owner-elevation"/);
 assert.match(serverJs, /url\.pathname === "\/api\/owner-elevation\/once"/);
@@ -53,7 +56,14 @@ assert.match(serverJs, /gatewayMaintenance: Boolean\(gatewayRouting\.maintenance
 assert.match(serverJs, /gatewayMaintenanceCategory: gatewayRouting\.maintenanceCategory/);
 assert.match(appJs, /function offerOwnerElevationForMessage\(message\)/);
 assert.match(appJs, /ownerElevationPromptedMessageIds/);
+assert.match(appJs, /await openOwnerElevationApprovalDialog/);
+assert.doesNotMatch(appJs, /window\.confirm\(ownerElevationConfirmMessage/);
 assert.match(appJs, /\/messages\/\$\{encodeURIComponent\(messageId\)\}\/owner-elevation/);
+assert.match(appJs, /function canDeleteDirectoryRootProject\(project\)/);
+assert.match(appJs, /data-delete-directory-path="\$\{escapeHtml\(project\.root \|\| ""\)\}"/);
+assert.match(serverJs, /function isDeletableWorkspaceRootChild\(thread, localPath, displayPath = ""\)/);
+assert.match(serverJs, /function pathDirectChildOfRoot\(candidate, root\)/);
+assert.equal(serverJs.includes("Workspace users can delete empty folders only"), false);
 assert.match(serverJs, /function taskDirectoryAttachmentCandidatesForMessage\(thread, message\)/);
 assert.match(serverJs, /the attached task directory is the frozen working directory/);
 assert.match(serverJs, /singleWindowMode === "chat" \|\| taskDirectory\?\.path \? "" : semanticProjectRoutingInstructions/);

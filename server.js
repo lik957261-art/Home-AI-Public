@@ -4490,6 +4490,18 @@ function pathInsideAnyRoot(candidate, roots) {
   });
 }
 
+function pathRelativePartsUnderRoot(candidate, root) {
+  const normalized = comparablePath(candidate);
+  const r = comparablePath(root);
+  if (!normalized || !r || normalized === r || !normalized.startsWith(`${r}/`)) return null;
+  return normalized.slice(r.length + 1).split("/").filter(Boolean);
+}
+
+function pathDirectChildOfRoot(candidate, root) {
+  const parts = pathRelativePartsUnderRoot(candidate, root);
+  return Boolean(parts && parts.length === 1);
+}
+
 function comparablePath(value) {
   let p = String(value || "").trim().replaceAll("\\", "/");
   p = p.replace(/^\/\/wsl(?:\.localhost|\$)?\/[^/]+/i, "");
@@ -7541,6 +7553,41 @@ function isProtectedDirectoryRoot(thread, localPath, displayPath = "") {
   });
 }
 
+function directoryRootProjectForPathSync(thread, localPath, displayPath = "") {
+  const localKey = comparablePath(localPath);
+  const displayKey = comparablePath(displayPath);
+  return allProjectsForWorkspaceSync(thread.workspaceId).find((project) => {
+    const key = comparablePath(project?.root);
+    return key && (key === localKey || key === displayKey);
+  }) || null;
+}
+
+function isDeletableWorkspaceRootChild(thread, localPath, displayPath = "") {
+  const policy = policyForThread(thread);
+  const defaultWorkspace = policy.default_workspace || "";
+  if (!defaultWorkspace) return false;
+  const project = directoryRootProjectForPathSync(thread, localPath, displayPath);
+  if (project) {
+    const source = String(project.source || "");
+    if (source !== "workspace-directory" && source !== "workspace-directory-wsl") return false;
+    if (project.shared || project.hidden || project.singleWindow) return false;
+    if (["general", "sync", "download"].includes(String(project.id || ""))) return false;
+  }
+  const candidates = [displayPath, localPath, normalizeLocalPath(localPath)].filter(Boolean);
+  const hardProtected = [
+    policy.default_workspace,
+    policy.sync_root,
+    policy.download_root,
+    ...(policy.delivery_roots || []),
+    ...(policy.cache_roots || []),
+    ...sharedDirectoryRoots(thread.workspaceId),
+  ].filter(Boolean);
+  if (candidates.some((candidate) => hardProtected.some((root) => comparablePath(candidate) === comparablePath(root)))) {
+    return false;
+  }
+  return candidates.some((candidate) => pathDirectChildOfRoot(candidate, defaultWorkspace));
+}
+
 function isOwnWritableDirectoryPath(thread, localPath, displayPath = "") {
   const policy = policyForThread(thread);
   if (policy.access_mode === "unrestricted" || policy.principal_id === "owner") return true;
@@ -9782,7 +9829,9 @@ async function handleApi(req, res) {
         sendJson(res, 403, { error: "Shared directory is read-only" });
         return;
       }
-      if (isDirectory && isProtectedDirectoryRoot(thread, "", resolved.displayPath)) {
+      if (isDirectory
+        && isProtectedDirectoryRoot(thread, "", resolved.displayPath)
+        && !isDeletableWorkspaceRootChild(thread, "", resolved.displayPath)) {
         sendJson(res, 400, { error: "Cannot delete a project/workspace root directory" });
         return;
       }
@@ -9815,7 +9864,9 @@ async function handleApi(req, res) {
       sendJson(res, 403, { error: "Shared directory is read-only" });
       return;
     }
-    if (stat.isDirectory() && isProtectedDirectoryRoot(thread, resolved.localPath, resolved.displayPath)) {
+    if (stat.isDirectory()
+      && isProtectedDirectoryRoot(thread, resolved.localPath, resolved.displayPath)
+      && !isDeletableWorkspaceRootChild(thread, resolved.localPath, resolved.displayPath)) {
       sendJson(res, 400, { error: "Cannot delete a project/workspace root directory" });
       return;
     }
