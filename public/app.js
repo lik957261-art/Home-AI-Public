@@ -145,6 +145,8 @@ const state = {
   ownerElevationDurationMinutes: Number(localStorage.getItem("hermesOwnerElevationMinutes") || "15") || 15,
   ownerElevationOnceToken: "",
   ownerElevationOnceExpiresAt: "",
+  ownerElevationPromptedMessageIds: new Set(),
+  ownerElevationRetryingMessageIds: new Set(),
   pwaInstallPrompt: null,
   pwaInstallOpen: false,
   pwaInstalled: false,
@@ -3587,11 +3589,54 @@ function wireOwnerElevationPanel(root) {
   root.querySelector("[data-owner-elevation-revoke]")?.addEventListener("click", () => revokeOwnerElevation().catch(showError));
 }
 
+function openOwnerElevationApprovalDialog(options = {}) {
+  const overlay = $("ownerElevationApprovalOverlay");
+  if (!overlay) return Promise.resolve(false);
+  const title = String(options.title || "Owner Approval");
+  const message = String(options.message || "This request needs Owner approval.");
+  const detail = String(options.detail || "").trim();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeydown);
+      overlay.classList.add("hidden");
+      overlay.innerHTML = "";
+      resolve(Boolean(value));
+    };
+    const onKeydown = (event) => {
+      if (event.key === "Escape") finish(false);
+    };
+    overlay.innerHTML = `<section class="access-key-sheet owner-elevation-approval-sheet">
+      <header class="access-key-header">
+        <div>
+          <div id="ownerElevationApprovalTitle" class="access-key-title">${escapeHtml(title)}</div>
+          <div class="access-key-subtitle">High-privilege Gateway approval</div>
+        </div>
+      </header>
+      <div class="owner-elevation-approval-body">${escapeHtml(message).replace(/\n/g, "<br>")}</div>
+      ${detail ? `<div class="owner-elevation-approval-detail">${escapeHtml(detail)}</div>` : ""}
+      <div class="owner-elevation-approval-actions">
+        <button class="owner-elevation-cancel" type="button" data-owner-elevation-approval-cancel>Cancel</button>
+        <button class="owner-elevation-approve" type="button" data-owner-elevation-approval-approve>Approve</button>
+      </div>
+    </section>`;
+    overlay.classList.remove("hidden");
+    overlay.querySelector("[data-owner-elevation-approval-approve]")?.addEventListener("click", () => finish(true));
+    overlay.querySelector("[data-owner-elevation-approval-cancel]")?.addEventListener("click", () => finish(false));
+    document.addEventListener("keydown", onKeydown);
+  });
+}
+
 async function activateOwnerElevation(durationMinutes = ownerElevationSelectedDuration(), options = {}) {
   if (!state.auth?.isOwner) throw new Error("Owner access is required");
   const minutes = Number(durationMinutes) || ownerElevationSelectedDuration();
   if (options.confirm !== false) {
-    const ok = window.confirm(`授权 ${minutes} 分钟高权限运行？授权期间 Owner 后续任务会路由到 maintenance Gateway。`);
+    const ok = await openOwnerElevationApprovalDialog({
+      title: "Owner Approval",
+      message: `Approve high-privilege Gateway routing for ${minutes} minutes? Owner tasks during this window will use the maintenance Gateway.`,
+    });
     if (!ok) return false;
   }
   const result = await api("/api/owner-elevation", {
@@ -3630,7 +3675,10 @@ async function activateOwnerElevationOnce(options = {}) {
     throw new Error("Owner access is required");
   }
   if (options.confirm !== false) {
-    const ok = window.confirm("授权当前这一条消息高权限运行？发送后不会保留高权限状态。");
+    const ok = await openOwnerElevationApprovalDialog({
+      title: "Owner Approval",
+      message: "Approve high-privilege Gateway routing for this message only? The approval is consumed after this send.",
+    });
     if (!ok) return false;
   }
   const result = await api("/api/owner-elevation/once", { method: "POST", body: JSON.stringify({}) });
@@ -6269,15 +6317,24 @@ function isShareableRootProject(project) {
     || source === "workspace-directory-wsl";
 }
 
+function canDeleteDirectoryRootProject(project) {
+  if (!project?.root || project.hidden || project.singleWindow || project.shared) return false;
+  if (["general", "sync", "download"].includes(String(project.id || ""))) return false;
+  const source = String(project.source || "");
+  return source === "workspace-directory" || source === "workspace-directory-wsl";
+}
+
 function renderDirectoryRootProjectMenu(project) {
   const canStartTask = Boolean(project?.root && !project.hidden && !project.singleWindow && !["general", "sync", "download"].includes(String(project.id || "")));
   const canShare = isShareableRootProject(project);
-  if (!canStartTask && !canShare) return "";
+  const canDelete = canDeleteDirectoryRootProject(project);
+  if (!canStartTask && !canShare && !canDelete) return "";
   return `<div class="directory-entry-menu-wrap">
     <button class="directory-entry-menu-button" type="button" data-directory-entry-menu aria-label="更多操作" title="更多操作" aria-expanded="false">&#8942;</button>
     <div class="directory-entry-menu" hidden>
       ${canStartTask ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-project="${escapeHtml(project.id || "")}">开启任务</button>` : ""}
       ${canShare ? `<button class="directory-entry-menu-item" type="button" data-share-root-project="${escapeHtml(project.id || "")}">共享</button>` : ""}
+      ${canDelete ? `<button class="directory-entry-menu-item danger" type="button" data-delete-directory-path="${escapeHtml(project.root || "")}" data-delete-directory-name="${escapeHtml(directoryRootProjectLabel(project))}" data-delete-directory-type="directory">删除</button>` : ""}
     </div>
   </div>`;
 }
@@ -6384,11 +6441,13 @@ function renderDirectoryEntryMenu(entry) {
   const taskAction = entry.type === "directory"
     ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-path="${itemPath}" data-start-directory-task-label="${itemName}">开启任务</button>`
     : "";
+  const deleteAction = `<button class="directory-entry-menu-item danger" type="button" data-delete-directory-path="${itemPath}" data-delete-directory-name="${itemName}" data-delete-directory-type="${itemType}">删除</button>`;
+  if (!taskAction && !deleteAction) return "";
   return `<div class="directory-entry-menu-wrap">
     <button class="directory-entry-menu-button" type="button" data-directory-entry-menu aria-label="更多操作" title="更多操作" aria-expanded="false">&#8942;</button>
     <div class="directory-entry-menu" hidden>
       ${taskAction}
-      <button class="directory-entry-menu-item danger" type="button" data-delete-directory-path="${itemPath}" data-delete-directory-name="${itemName}" data-delete-directory-type="${itemType}">删除</button>
+      ${deleteAction}
     </div>
   </div>`;
 }
@@ -6489,9 +6548,17 @@ async function uploadDirectoryFiles(files) {
   await loadDirectoryView();
 }
 
+function deletedDirectoryWasRootListProject(pathText) {
+  const target = comparableDirectoryPath(pathText);
+  if (!target) return false;
+  return (state.projects || []).some((project) =>
+    canDeleteDirectoryRootProject(project) && comparableDirectoryPath(project.root) === target);
+}
+
 async function deleteDirectoryEntry(button) {
   const path = button?.dataset?.deleteDirectoryPath || "";
   if (!path) return;
+  const wasRootListProject = deletedDirectoryWasRootListProject(path);
   const name = button.dataset.deleteDirectoryName || "item";
   const type = button.dataset.deleteDirectoryType || "file";
   const message = type === "directory"
@@ -6503,6 +6570,7 @@ async function deleteDirectoryEntry(button) {
     method: "POST",
     body: JSON.stringify({ threadId, path }),
   });
+  if (!directoryActivePath() || wasRootListProject) await loadProjects();
   await loadDirectoryView();
 }
 
@@ -9956,6 +10024,8 @@ function upsertMessage(message) {
   if (index >= 0) messages[index] = mergeServerMessage(messages[index], message);
   else messages.push(message);
   state.currentThread.messages = messages;
+  const mergedMessage = index >= 0 ? messages[index] : message;
+  offerOwnerElevationForMessage(mergedMessage).catch(showError);
   if (state.viewMode === "tasks") renderThreads();
   scheduleRenderCurrentThread();
 }
@@ -10219,7 +10289,11 @@ async function sendMessage(event) {
   } catch (err) {
     if (shouldOfferOwnerElevation(err) && requestBody) {
       const prompt = ownerElevationConfirmMessage(err);
-      const ok = window.confirm(prompt);
+      const ok = await openOwnerElevationApprovalDialog({
+        title: "Owner Approval",
+        message: prompt,
+        detail: err.elevationReason || "",
+      });
       if (ok) {
         try {
           let onceToken = "";
@@ -10612,6 +10686,58 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
 
 function shouldOfferOwnerElevation(err) {
   return Boolean(err?.elevationRequired && state.auth?.isOwner);
+}
+
+function shouldOfferOwnerElevationForMessage(message) {
+  if (!message?.elevationRequired) return false;
+  if (!state.auth?.isOwner || state.selectedWorkspaceId !== "owner") return false;
+  const status = String(message.status || "");
+  if (status === "queued" || status === "running") return false;
+  if (!state.currentThreadId && !state.currentThread?.id) return false;
+  if (state.ownerElevationRetryingMessageIds.has(message.id)) return false;
+  return true;
+}
+
+async function offerOwnerElevationForMessage(message) {
+  if (!shouldOfferOwnerElevationForMessage(message)) return false;
+  const messageId = String(message.id || "");
+  if (!messageId || state.ownerElevationPromptedMessageIds.has(messageId)) return false;
+  state.ownerElevationPromptedMessageIds.add(messageId);
+  const ok = await openOwnerElevationApprovalDialog({
+    title: "Owner Approval",
+    message: ownerElevationConfirmMessage(message),
+    detail: message.elevationReason || "",
+  });
+  if (!ok) return false;
+  state.ownerElevationRetryingMessageIds.add(messageId);
+  let ownerElevationOnceRequested = false;
+  try {
+    let onceToken = "";
+    if (!ownerElevationActive()) {
+      await activateOwnerElevationOnce({ confirm: false });
+      onceToken = state.ownerElevationOnceToken;
+      ownerElevationOnceRequested = true;
+    }
+    const threadId = state.currentThreadId || state.currentThread?.id || "";
+    const result = await api(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/owner-elevation`, {
+      method: "POST",
+      body: JSON.stringify({
+        elevationScope: message.elevationScope || "owner_high_privilege",
+        ownerElevationOnceToken: onceToken,
+      }),
+    });
+    if (result.thread) {
+      state.currentThread = mergeCurrentThread(result.thread);
+      state.currentThreadId = state.currentThread?.id || threadId;
+      upsertThreadSummary(summarizeThread(state.currentThread));
+      renderCurrentThread({ stickToBottom: true });
+    }
+    showPushToast("已批准高权限重跑", "success");
+    return true;
+  } finally {
+    if (ownerElevationOnceRequested) clearOwnerElevationOnce();
+    state.ownerElevationRetryingMessageIds.delete(messageId);
+  }
 }
 
 function ownerElevationConfirmMessage(err) {

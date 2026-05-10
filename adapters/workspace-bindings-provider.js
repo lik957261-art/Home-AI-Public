@@ -31,6 +31,16 @@ function connectorProfilesForToolsets(toolsets) {
     const id = String(toolset || "").trim();
     const normalized = id.toLowerCase().replace(/[-\s]+/g, "_");
     if (!id) continue;
+    if (normalized === "google_workspace" || normalized === "google" || normalized === "gmail") {
+      profiles.google = id;
+      profiles.gmail = id;
+    }
+    if (normalized === "hermes_email" || normalized === "email" || normalized === "outlook" || normalized === "hotmail" || normalized === "alimail") {
+      profiles.email = id;
+      if (normalized === "outlook") profiles.outlook = id;
+      if (normalized === "hotmail") profiles.hotmail = id;
+      if (normalized === "alimail") profiles.alimail = id;
+    }
     if (normalized === "qqmail" || normalized.endsWith("_qqmail") || normalized === "qq_mail" || normalized.endsWith("_qq_mail")) {
       profiles.mail = id;
       profiles.qqmail = id;
@@ -39,12 +49,32 @@ function connectorProfilesForToolsets(toolsets) {
   return profiles;
 }
 
+function toolsetsForConnectorProfiles(profiles) {
+  const out = [];
+  const entries = profiles && typeof profiles === "object" ? Object.entries(profiles) : [];
+  for (const [rawKey, rawValue] of entries) {
+    const key = String(rawKey || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+    const value = String(rawValue || "").trim();
+    const normalizedValue = value.toLowerCase().replace(/[-\s]+/g, "_");
+    if (!key) continue;
+    if (key === "google" || key === "gmail") out.push("google_workspace");
+    if (key === "email" || key === "outlook" || key === "hotmail" || key === "alimail") out.push("hermes-email");
+    if (key === "mail" || key === "qqmail") {
+      if (normalizedValue.includes("qqmail") || normalizedValue.includes("qq_mail")) out.push(value);
+      else out.push("hermes-email");
+    }
+  }
+  return defaultDedupe(out);
+}
+
 const DEFAULT_INTERFACE_TOOLSETS = {
   web: { label: "Web", category: "接口" },
   vision: { label: "视觉", category: "接口" },
   image_gen: { label: "图片生成", category: "接口" },
   messaging: { label: "消息发送", category: "接口" },
   todo: { label: "待办", category: "接口" },
+  google_workspace: { label: "Google", category: "外部接口", detail: "Workspace" },
+  "hermes-email": { label: "邮箱", category: "外部接口", detail: "Email" },
   cronjob: { label: "自动化", category: "接口" },
   weixin_reminders: { label: "微信提醒", category: "接口" },
   weixin_todos: { label: "微信待办", category: "接口" },
@@ -131,7 +161,15 @@ function createWorkspaceBindingsProvider(options = {}) {
     const policy = workspace?.policy || workspace || {};
     const principalId = String(workspace?.id || policy.principal_id || "").trim();
     const allowedToolsets = dedupe(policy.allowed_toolsets || []);
-    const connectorProfiles = Object.assign({}, connectorProfilesForToolsets(allowedToolsets));
+    const sourceConnectorProfiles = policy.connector_profiles && typeof policy.connector_profiles === "object"
+      ? policy.connector_profiles
+      : {};
+    allowedToolsets.push(...toolsetsForConnectorProfiles(sourceConnectorProfiles));
+    const connectorProfiles = Object.assign(
+      {},
+      connectorProfilesForToolsets(allowedToolsets),
+      Object.fromEntries(Object.entries(sourceConnectorProfiles).map(([key, value]) => [String(key), String(value)])),
+    );
     if (principalId === "owner") {
       const ownerPolicy = ownerExternalAccessPolicy();
       for (const [key, value] of Object.entries(ownerPolicy.connector_profiles || {})) {

@@ -205,10 +205,12 @@ async function main() {
       defaultWorkspace: "C:\\DemoRoot",
       allowedRoots: ["C:\\DemoRoot", "D:\\Shared"],
       allowedToolsets: ["mail", "calendar"],
+      connectorProfiles: { google: "demo-admin-user", gmail: "demo-admin-user" },
     }));
     assert.equal(created.workspace.id, "demo-admin-user");
     assert.equal(created.workspace.source, "local-workspace");
     assert.deepEqual(created.workspace.localConfig.allowedRoots, ["C:\\DemoRoot", "D:\\Shared"]);
+    assert.deepEqual(created.workspace.localConfig.connectorProfiles, { google: "demo-admin-user", gmail: "demo-admin-user" });
 
     const generated = await request(baseUrl, "/api/access-keys/workspace", jsonOptions("POST", ownerKey, {
       workspaceId: "demo-admin-user",
@@ -265,9 +267,11 @@ async function main() {
       defaultWorkspace: "C:\\DemoRoot2",
       allowedRoots: ["C:\\DemoRoot2"],
       allowedToolsets: ["mail"],
+      connectorProfiles: { email: "demo-admin-user" },
     }));
     assert.equal(patched.workspace.label, "Demo Admin Edited");
-    assert.deepEqual(patched.workspace.localConfig.allowedToolsets, ["mail"]);
+    assert.deepEqual(patched.workspace.localConfig.allowedToolsets, ["mail", "hermes-email"]);
+    assert.deepEqual(patched.workspace.localConfig.connectorProfiles, { email: "demo-admin-user" });
 
     const revoked = await request(baseUrl, "/api/access-keys/workspace/demo-admin-user", jsonOptions("DELETE", ownerKey, {}));
     assert.equal(revoked.result.revoked, true);

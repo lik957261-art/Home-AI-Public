@@ -3,6 +3,9 @@ param(
   [string]$ManifestPath = "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json",
   [string]$OfficialDistro = "Ubuntu-24.04",
   [string]$OfficialUser = "xuxin",
+  [string]$GoogleTokenPath = "",
+  [string]$GoogleClientSecretPath = "",
+  [string]$OutlookGraphTokenPath = "",
   [int]$HealthTimeoutSeconds = 45
 )
 
@@ -45,11 +48,42 @@ function Wait-HealthPorts {
   }
 }
 
+function Resolve-ConnectorPath {
+  param(
+    [string]$ExplicitPath,
+    [string]$EnvName,
+    [string]$RelativePath
+  )
+  if ($ExplicitPath) { return $ExplicitPath }
+  $envValue = [Environment]::GetEnvironmentVariable($EnvName)
+  if ($envValue) { return $envValue }
+  $officialHermesHome = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes"
+  return Join-Path $officialHermesHome $RelativePath
+}
+
+function Ensure-LowGatewayProfileEnv {
+  $scriptPath = Join-Path $GatewayWorkerRoot "start-low-gateways.sh"
+  if (-not (Test-Path -LiteralPath $scriptPath)) { return }
+  $text = Get-Content -Raw -LiteralPath $scriptPath
+  if ($text -match "HERMES_GOOGLE_PROFILE_HOME") { return }
+  $needle = 'HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
+  $replacement = 'HERMES_PROFILE="$profile" HERMES_GOOGLE_PROFILE_HOME="/home/hermes/.hermes/profiles/$profile" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
+  if (-not $text.Contains($needle)) {
+    Write-GatewayPoolLog "Low gateway profile env patch skipped; start script shape is unknown."
+    return
+  }
+  $updated = $text.Replace($needle, $replacement)
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($scriptPath, $updated, $encoding)
+  Write-GatewayPoolLog "Low gateway profile env patched for profile-local connector credentials."
+}
+
 function Start-LowGateways {
   $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
   if (-not (Test-Path -LiteralPath $runAsWorker)) { throw "Missing worker runner: $runAsWorker" }
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
+  Ensure-LowGatewayProfileEnv
   Write-GatewayPoolLog "Starting low gateway pool."
   $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $child 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
@@ -75,16 +109,19 @@ function Provision-OwnerExternalConnectors {
     "-WorkerDirectory", $GatewayWorkerRoot
   )
   $hasCredential = $false
-  if ($env:HERMES_WEB_GOOGLE_TOKEN_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_GOOGLE_TOKEN_PATH)) {
-    $args += @("-GoogleTokenPath", $env:HERMES_WEB_GOOGLE_TOKEN_PATH)
+  $resolvedGoogleTokenPath = Resolve-ConnectorPath -ExplicitPath $GoogleTokenPath -EnvName "HERMES_WEB_GOOGLE_TOKEN_PATH" -RelativePath "google_token.json"
+  $resolvedGoogleClientSecretPath = Resolve-ConnectorPath -ExplicitPath $GoogleClientSecretPath -EnvName "HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH" -RelativePath "google_client_secret.json"
+  $resolvedOutlookGraphTokenPath = Resolve-ConnectorPath -ExplicitPath $OutlookGraphTokenPath -EnvName "HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH" -RelativePath "microsoft-graph-outlook-mail\token.json"
+  if ($resolvedGoogleTokenPath -and (Test-Path -LiteralPath $resolvedGoogleTokenPath)) {
+    $args += @("-GoogleTokenPath", $resolvedGoogleTokenPath)
     $hasCredential = $true
   }
-  if ($env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH)) {
-    $args += @("-GoogleClientSecretPath", $env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH)
+  if ($resolvedGoogleClientSecretPath -and (Test-Path -LiteralPath $resolvedGoogleClientSecretPath)) {
+    $args += @("-GoogleClientSecretPath", $resolvedGoogleClientSecretPath)
     $hasCredential = $true
   }
-  if ($env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH -and (Test-Path -LiteralPath $env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH)) {
-    $args += @("-OutlookGraphTokenPath", $env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH)
+  if ($resolvedOutlookGraphTokenPath -and (Test-Path -LiteralPath $resolvedOutlookGraphTokenPath)) {
+    $args += @("-OutlookGraphTokenPath", $resolvedOutlookGraphTokenPath)
     $hasCredential = $true
   }
   if (-not $hasCredential) {

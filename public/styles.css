@@ -3448,6 +3448,51 @@ button.directory-alias-chip {
   width: min(520px, 100%);
 }
 
+.owner-elevation-approval-sheet {
+  width: min(520px, 100%);
+}
+
+.owner-elevation-approval-body {
+  color: var(--text);
+  font-size: calc(15px * var(--app-font-scale));
+  line-height: 1.48;
+}
+
+.owner-elevation-approval-detail {
+  padding: 10px;
+  color: var(--muted);
+  background: rgba(31, 43, 51, 0.04);
+  border: 1px solid rgba(31, 43, 51, 0.08);
+  border-radius: 8px;
+  font-size: calc(12px * var(--app-font-scale));
+  line-height: 1.42;
+}
+
+.owner-elevation-approval-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.owner-elevation-approval-actions button {
+  min-height: 42px;
+  border-radius: 10px;
+  font-size: calc(14px * var(--app-font-scale));
+  font-weight: 820;
+}
+
+.owner-elevation-cancel {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(31, 43, 51, 0.12);
+}
+
+.owner-elevation-approve {
+  color: #fffaf1;
+  background: var(--accent);
+  border: 1px solid rgba(31, 111, 98, 0.22);
+}
+
 .pwa-install-panel {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);

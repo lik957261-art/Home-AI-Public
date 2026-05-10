@@ -19,6 +19,13 @@ function defaultStringList(value) {
   return [...new Set(raw.map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
+function defaultStringMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value)
+    .map(([key, rawValue]) => [String(key || "").trim(), String(rawValue || "").trim()])
+    .filter(([key, rawValue]) => key && rawValue));
+}
+
 function listFrom(value) {
   return typeof value === "function" ? value() : value;
 }
@@ -32,6 +39,7 @@ function createWorkspaceProjectProvider(options = {}) {
   if (typeof projectsForWorkspace !== "function") throw new TypeError("projectsForWorkspace is required");
 
   const normalizeStringList = options.normalizeStringList || defaultStringList;
+  const normalizeStringMap = options.normalizeStringMap || defaultStringMap;
   const cacheTtlMs = Number(options.cacheTtlMs ?? 5000);
   let catalogCache = { loadedAt: 0, value: null };
 
@@ -123,6 +131,7 @@ function createWorkspaceProjectProvider(options = {}) {
       sync_root: String(record?.syncRoot || record?.sync_root || "").trim(),
       download_root: String(record?.downloadRoot || record?.download_root || "").trim(),
       allowed_toolsets: normalizeStringList(record?.allowedToolsets || record?.allowed_toolsets),
+      connector_profiles: normalizeStringMap(record?.connectorProfiles || record?.connector_profiles),
     };
     const workspace = workspaceFromRoute(route, user);
     workspace.source = "local-workspace";

@@ -130,6 +130,7 @@ const DEVELOPER_TOOLSETS = Object.freeze([
 
 const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|cron|cronjob|mcp)(?:$|[-_])/i;
 const PERMISSION_BOUNDARY_SKILL = "productivity/hermes-mobile-permission-boundary-check";
+const PERMISSION_APPROVAL_MARKER = "HERMES_PERMISSION_APPROVAL_REQUIRED";
 
 function permissionBoundarySkillInstructions(policy = {}) {
   const accessMode = String(policy?.access_mode || policy?.accessMode || "").trim().toLowerCase();
@@ -138,6 +139,8 @@ function permissionBoundarySkillInstructions(policy = {}) {
     `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as a mandatory pre-flight check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "If the request needs a path, Skill store, account, toolset, or external integration outside this run's access_policy_context, stop before tool calls and say that the request is outside the current permission scope.",
+    `When the pre-flight decision is Needs elevation, start the final response with exactly: ${PERMISSION_APPROVAL_MARKER} {"scope":"owner_high_privilege","reason":"short reason"}`,
+    "Do not use that marker for Must fail closed, clarification questions, or normal missing-file failures inside the allowed roots.",
     "Do not search broad drives, create placeholder Skills/files, or promise that work will run later when a missing out-of-scope path appears.",
   ].join("\n");
 }

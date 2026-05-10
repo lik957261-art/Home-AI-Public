@@ -62,6 +62,7 @@ function run() {
         principal_id: route.principal_id || user.principal_id || "owner",
         access_mode: route.access_mode || user.access_mode || "restricted",
         default_workspace: user.default_workspace || route.default_workspace || "",
+        connector_profiles: Object.assign({}, route.connector_profiles || {}, user.connector_profiles || {}),
       };
     },
     fallbackOwnerPolicy() {
@@ -80,6 +81,7 @@ function run() {
       label: "Local User",
       defaultWorkspace: "/workspace/local",
       allowedRoots: ["/workspace/local"],
+      connectorProfiles: { google: "local_user", gmail: "local_user" },
     }],
     projectsForWorkspace(workspace, projectEntries) {
       return [{
@@ -107,6 +109,7 @@ function run() {
   assert.equal(catalog.workspaces[2].id, "local_user");
   assert.equal(catalog.workspaces[2].source, "local-workspace");
   assert.equal(catalog.workspaces[2].policy.default_workspace, "/workspace/local");
+  assert.deepEqual(catalog.workspaces[2].policy.connector_profiles, { google: "local_user", gmail: "local_user" });
   assert.equal(catalog.projects.length, 3);
   assert.equal(reads, 3);
 
