@@ -491,6 +491,7 @@ bootTrace("after loadState");
 
 const workspaceBindingsProvider = createWorkspaceBindingsProvider({
   interfaceToolsetsJson: () => process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "",
+  ownerExternalAccessPolicy: () => ownerExternalAccessPolicy(),
   ownerExternalInterfaceBindings: () => ownerExternalInterfaceBindings(),
 });
 bootTrace("workspace bindings ready");
@@ -3919,8 +3920,25 @@ function loadCatalog() {
   return catalog;
 }
 
+function mergeDefaultExternalAccessPolicy(policy) {
+  const source = policy && typeof policy === "object" ? policy : {};
+  const additions = workspaceBindingsProvider.accessPolicyAdditions(source);
+  return Object.assign({}, source, {
+    allowed_toolsets: dedupe([
+      ...(source.allowed_toolsets || []),
+      ...(additions.allowed_toolsets || []),
+    ]),
+    connector_profiles: Object.assign(
+      {},
+      source.connector_profiles || {},
+      additions.connector_profiles || {},
+    ),
+  });
+}
+
 function buildAccessPolicy(route, user, project, hardeningOptions = {}) {
-  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.build(route, user, project), hardeningOptions);
+  const policy = mergeDefaultExternalAccessPolicy(accessPolicyProvider.build(route, user, project));
+  return securityBoundaryProvider.hardenAccessPolicy(policy, hardeningOptions);
 }
 
 function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
@@ -4291,6 +4309,10 @@ function publicChatGroup(thread) {
 
 function ownerExternalInterfaceBindings() {
   return externalIntegrationProvider.ownerInterfaceBindings();
+}
+
+function ownerExternalAccessPolicy() {
+  return externalIntegrationProvider.ownerAccessPolicy();
 }
 
 function publicWorkspaceAccessKeyStatus(workspace) {

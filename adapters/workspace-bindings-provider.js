@@ -25,6 +25,20 @@ function defaultInterfaceForToolset(toolset) {
   return null;
 }
 
+function connectorProfilesForToolsets(toolsets) {
+  const profiles = {};
+  for (const toolset of toolsets || []) {
+    const id = String(toolset || "").trim();
+    const normalized = id.toLowerCase().replace(/[-\s]+/g, "_");
+    if (!id) continue;
+    if (normalized === "qqmail" || normalized.endsWith("_qqmail") || normalized === "qq_mail" || normalized.endsWith("_qq_mail")) {
+      profiles.mail = id;
+      profiles.qqmail = id;
+    }
+  }
+  return profiles;
+}
+
 const DEFAULT_INTERFACE_TOOLSETS = {
   web: { label: "Web", category: "接口" },
   vision: { label: "视觉", category: "接口" },
@@ -68,6 +82,10 @@ function createWorkspaceBindingsProvider(options = {}) {
     if (typeof options.ownerExternalInterfaceBindings !== "function") return [];
     return options.ownerExternalInterfaceBindings() || [];
   };
+  const ownerExternalAccessPolicy = () => {
+    if (typeof options.ownerExternalAccessPolicy !== "function") return {};
+    return options.ownerExternalAccessPolicy() || {};
+  };
   const channelType = String(options.channelType || "weixin");
   const channelLabel = String(options.channelLabel || "微信");
 
@@ -109,12 +127,33 @@ function createWorkspaceBindingsProvider(options = {}) {
     };
   }
 
+  function accessPolicyAdditions(workspace) {
+    const policy = workspace?.policy || workspace || {};
+    const principalId = String(workspace?.id || policy.principal_id || "").trim();
+    const allowedToolsets = dedupe(policy.allowed_toolsets || []);
+    const connectorProfiles = Object.assign({}, connectorProfilesForToolsets(allowedToolsets));
+    if (principalId === "owner") {
+      const ownerPolicy = ownerExternalAccessPolicy();
+      for (const [key, value] of Object.entries(ownerPolicy.connector_profiles || {})) {
+        const profile = String(value || "").trim();
+        if (key && profile) connectorProfiles[String(key)] = profile;
+      }
+      allowedToolsets.push(...dedupe(ownerPolicy.allowed_toolsets || []));
+    }
+    return {
+      allowed_toolsets: dedupe(allowedToolsets),
+      connector_profiles: connectorProfiles,
+    };
+  }
+
   return {
+    accessPolicyAdditions,
     publicBindings,
   };
 }
 
 module.exports = {
   createWorkspaceBindingsProvider,
+  connectorProfilesForToolsets,
   defaultInterfaceForToolset,
 };

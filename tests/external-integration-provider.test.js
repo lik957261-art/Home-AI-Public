@@ -43,6 +43,17 @@ function run() {
     "owner_alimail",
     "owner_hotmail",
   ]);
+  assert.deepEqual(provider.ownerAccessPolicy(), {
+    allowed_toolsets: ["google_workspace", "hermes-email"],
+    connector_profiles: {
+      google: "owner",
+      gmail: "owner",
+      outlook: "owner",
+      hotmail: "owner",
+      email: "owner",
+      alimail: "owner",
+    },
+  });
 
   const missingGoogle = createExternalIntegrationProvider({
     envPaths: [envPath],
