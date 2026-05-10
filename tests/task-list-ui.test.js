@@ -81,12 +81,21 @@ assert.match(appJs, /const KANBAN_STATUS_ORDER = Object\.freeze\(\["triage", "to
 assert.match(appJs, /function renderTodoKanbanBoard\(todos\)/);
 assert.match(appJs, /function renderTodoKanbanCard\(todo\)/);
 assert.match(appJs, /function normalizedKanbanStatus\(todo\)/);
+assert.match(appJs, /todoKanbanStatus: localStorage\.getItem\("hermesTodoKanbanStatus"\) \|\| "todo"/);
+assert.match(appJs, /function currentTodoKanbanStatus\(grouped\)/);
+assert.match(appJs, /data-kanban-status="\$\{escapeHtml\(status\)\}"/);
+assert.match(appJs, /localStorage\.setItem\("hermesTodoKanbanStatus", status\)/);
+assert.match(appJs, /function renderTodoList\(\) \{\s+const list = \$\("threadList"\);\s+if \(!list\) return;\s+list\.innerHTML = "";\s+return;/);
+assert.match(appJs, /function renderAutomationList\(\) \{\s+const list = \$\("threadList"\);\s+if \(!list\) return;\s+list\.innerHTML = "";\s+return;/);
 assert.match(appJs, /data-block-todo/);
 assert.match(appJs, /data-unblock-todo/);
 assert.match(appJs, /\/api\/todos\/\$\{encodeURIComponent\(todoId\)\}\/block/);
 assert.match(serverJs, /complete\|cancel\|postpone\|delete\|block\|unblock/);
 assert.match(serverJs, /kanbanAssignee: String\(row\.kanban_assignee/);
 assert.match(stylesCss, /\.todo-kanban-board/);
+assert.match(stylesCss, /\.todo-kanban-switcher/);
+assert.match(stylesCss, /\.todo-kanban-tab/);
+assert.match(stylesCss, /\.todo-kanban-current/);
 assert.match(stylesCss, /\.todo-kanban-lane/);
 assert.match(stylesCss, /\.todo-kanban-card/);
 

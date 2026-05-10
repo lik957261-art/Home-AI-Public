@@ -4512,18 +4512,62 @@ button.directory-alias-chip {
   background: rgba(255, 255, 255, 0.58);
 }
 
-.todo-kanban-board {
+.todo-kanban-switcher {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 7px;
+}
+
+.todo-kanban-tab {
+  min-width: 0;
+  min-height: 42px;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 8px 10px;
+  color: var(--muted);
+  text-align: left;
+  border: 1px solid rgba(20, 32, 39, 0.1);
+  border-radius: 13px;
+  background: rgba(255, 252, 246, 0.74);
+}
+
+.todo-kanban-tab.active {
+  color: var(--accent-strong);
+  border-color: rgba(31, 111, 98, 0.32);
+  background: rgba(231, 244, 238, 0.74);
+  box-shadow: inset 0 0 0 1px rgba(31, 111, 98, 0.1);
+}
+
+.todo-kanban-tab-label {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 760;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-kanban-tab-count {
+  flex: 0 0 auto;
+  min-width: 24px;
+  padding: 3px 7px;
+  color: var(--accent);
+  text-align: center;
+  background: rgba(231, 244, 238, 0.72);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.todo-kanban-board {
+  display: grid;
   gap: 10px;
-  overflow-x: auto;
-  overflow-y: hidden;
   padding: 1px 2px 8px;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
 }
 
 .todo-kanban-lane {
-  flex: 0 0 min(326px, calc(100vw - 46px));
   min-width: 0;
   display: grid;
   align-content: start;
@@ -4532,7 +4576,10 @@ button.directory-alias-chip {
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(255, 252, 246, 0.62);
-  scroll-snap-align: start;
+}
+
+.todo-kanban-current {
+  width: 100%;
 }
 
 .todo-kanban-lane-header {

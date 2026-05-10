@@ -49,6 +49,7 @@ const state = {
   todoAssignees: [],
   todoSource: "",
   todoKanbanBoard: "",
+  todoKanbanStatus: localStorage.getItem("hermesTodoKanbanStatus") || "todo",
   selectedTodoId: "",
   todoCreateOpen: false,
   automations: [],
@@ -188,6 +189,7 @@ const TASK_REASONING_OPTIONS = [
   { value: "xhigh", label: "Xhigh" },
 ];
 const KANBAN_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
+const KANBAN_STATUS_FALLBACK_ORDER = Object.freeze(["running", "blocked", "ready", "todo", "triage", "done", "archived"]);
 const KANBAN_STATUS_META = Object.freeze({
   triage: { label: "\u5f85\u5206\u62e3", shortLabel: "Triage" },
   todo: { label: "\u5f85\u529e", shortLabel: "Todo" },
@@ -7219,36 +7221,8 @@ function renderAutomationLoading(message = "正在刷新 Hermes CRON") {
 function renderAutomationList() {
   const list = $("threadList");
   if (!list) return;
-  if (state.automationLoading && !state.automations.length) {
-    list.innerHTML = renderAutomationLoading("正在载入自动化");
-    return;
-  }
-  if (!state.automations.length) {
-    const warning = state.automationSource?.available === false ? "Hermes CRON is not reachable." : "No CRON jobs.";
-    list.innerHTML = `<div class="empty-state small">${escapeHtml(warning)}</div>`;
-    return;
-  }
-  const loading = state.automationLoading ? renderAutomationLoading("正在刷新") : "";
-  list.innerHTML = loading + state.automations.map((job) => {
-    const active = job.id === state.selectedAutomationId ? " active" : "";
-    const status = automationStatusLabel(job);
-    return `<div class="thread-card automation-list-card${active} ${escapeHtml(status)}">
-      <button class="thread-card-main" type="button" data-automation-id="${escapeHtml(job.id)}">
-        <div class="thread-card-title">${escapeHtml(automationTitle(job))}</div>
-      </button>
-    </div>`;
-  }).join("");
-  list.querySelectorAll("[data-automation-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const nextId = button.dataset.automationId || "";
-      if (state.selectedAutomationId !== nextId) state.automationOutputHistoryOpen = false;
-      state.selectedAutomationId = nextId;
-      state.automationEditOpen = false;
-      state.automationEditJobId = "";
-      if (isMobileLayout()) closeSidebar();
-      renderAutomationView();
-    });
-  });
+  list.innerHTML = "";
+  return;
 }
 
 function renderAutomationView() {
@@ -7870,6 +7844,16 @@ function kanbanStatusText(todo) {
   return `${meta.label} / ${meta.shortLabel}`;
 }
 
+function currentTodoKanbanStatus(grouped) {
+  const selected = String(state.todoKanbanStatus || "").trim().toLowerCase();
+  if (KANBAN_STATUS_ORDER.includes(selected)) return selected;
+  const fallback = KANBAN_STATUS_FALLBACK_ORDER.find((status) => (grouped?.get(status) || []).length)
+    || "todo";
+  state.todoKanbanStatus = fallback;
+  localStorage.setItem("hermesTodoKanbanStatus", fallback);
+  return fallback;
+}
+
 function isKanbanTodoSource() {
   return state.todoSource === "hermes_kanban"
     || state.todoSource === "kanban"
@@ -7932,34 +7916,8 @@ function todoDueInputValue(todo) {
 function renderTodoList() {
   const list = $("threadList");
   if (!list) return;
-  if (!state.todos.length) {
-    list.innerHTML = `<div class="empty-state small">No todos.</div>`;
-    return;
-  }
-  list.innerHTML = state.todos.map((todo) => {
-    const active = todo.id === state.selectedTodoId ? " active" : "";
-    const status = todoStatusLabel(todo);
-    const statusText = isKanbanTodoSource() ? kanbanStatusText(todo) : status;
-    const sourceLabel = todo.kanbanBoard ? `${todo.kanbanBoard} · ` : "";
-    return `<div class="task-swipe-row todo-list-swipe" data-swipe-row data-swipe-kind="todo" data-swipe-id="${escapeHtml(todo.id)}">
-      <button class="task-swipe-delete" type="button" data-delete-swipe="${escapeHtml(todo.id)}" aria-label="删除待办">删除</button>
-      <div class="task-swipe-content" data-swipe-content>
-        <button class="thread-card todo-list-card${active} ${escapeHtml(status)}" type="button" data-todo-id="${escapeHtml(todo.id)}">
-      <div class="thread-card-title">${escapeHtml(todoTitle(todo))}</div>
-      <div class="thread-card-preview">${escapeHtml(todo.assigneeLabel || todo.assignee || "")} · ${escapeHtml(todoDueLabel(todo))}</div>
-      <div class="thread-card-meta">${escapeHtml(sourceLabel)}${escapeHtml(statusText)}${todo.recurrenceLabel ? ` | ${escapeHtml(todo.recurrenceLabel)}` : ""}</div>
-        </button>
-      </div>
-    </div>`;
-  }).join("");
-  list.querySelectorAll("[data-todo-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedTodoId = button.dataset.todoId || "";
-      if (isMobileLayout()) closeSidebar();
-      renderTodos();
-    });
-  });
-  wireTaskSwipeActions(list);
+  list.innerHTML = "";
+  return;
 }
 
 function renderTodos() {
@@ -8027,19 +7985,17 @@ function renderTodoKanbanBoard(todos) {
   const activeCount = (todos || []).filter(todoMatchesOpen).length;
   const doneCount = (todos || []).filter((todo) => normalizedKanbanStatus(todo) === "done").length;
   const board = todoBoardLabel();
-  const lanes = KANBAN_STATUS_ORDER.map((status) => {
+  const selectedStatus = currentTodoKanbanStatus(grouped);
+  const selectedMeta = kanbanStatusMeta(selectedStatus);
+  const selectedItems = grouped.get(selectedStatus) || [];
+  const tabs = KANBAN_STATUS_ORDER.map((status) => {
     const meta = kanbanStatusMeta(status);
     const items = grouped.get(status) || [];
-    return `<section class="todo-kanban-lane status-${escapeHtml(status)}" aria-label="${escapeHtml(meta.shortLabel)}">
-      <header class="todo-kanban-lane-header">
-        <div>
-          <div class="todo-kanban-lane-title">${escapeHtml(meta.label)}</div>
-          <div class="todo-kanban-lane-code">${escapeHtml(meta.shortLabel)}</div>
-        </div>
-        <span>${items.length}</span>
-      </header>
-      <div class="todo-kanban-cards">${items.map(renderTodoKanbanCard).join("") || `<div class="empty-state small">No items.</div>`}</div>
-    </section>`;
+    const active = status === selectedStatus ? " active" : "";
+    return `<button class="todo-kanban-tab${active} status-${escapeHtml(status)}" type="button" data-kanban-status="${escapeHtml(status)}" aria-pressed="${active ? "true" : "false"}">
+      <span class="todo-kanban-tab-label">${escapeHtml(meta.label)}</span>
+      <span class="todo-kanban-tab-count">${items.length}</span>
+    </button>`;
   }).join("");
   return `
     <section class="todo-kanban-summary">
@@ -8052,7 +8008,19 @@ function renderTodoKanbanBoard(todos) {
         <span>${doneCount} done</span>
       </div>
     </section>
-    <div class="todo-kanban-board" role="list">${lanes}</div>
+    <div class="todo-kanban-board">
+      <nav class="todo-kanban-switcher" aria-label="Kanban status">${tabs}</nav>
+      <section class="todo-kanban-lane todo-kanban-current status-${escapeHtml(selectedStatus)}" aria-label="${escapeHtml(selectedMeta.shortLabel)}" role="list">
+        <header class="todo-kanban-lane-header">
+          <div>
+            <div class="todo-kanban-lane-title">${escapeHtml(selectedMeta.label)}</div>
+            <div class="todo-kanban-lane-code">${escapeHtml(selectedMeta.shortLabel)}</div>
+          </div>
+          <span>${selectedItems.length}</span>
+        </header>
+        <div class="todo-kanban-cards">${selectedItems.map(renderTodoKanbanCard).join("") || `<div class="empty-state small">No items.</div>`}</div>
+      </section>
+    </div>
   `;
 }
 
@@ -8186,6 +8154,15 @@ function wireTodoPanel(root) {
   root.querySelector("#todoCreateForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     createTodoFromForm(root).catch(showError);
+  });
+  root.querySelectorAll("[data-kanban-status]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const status = String(button.dataset.kanbanStatus || "").trim().toLowerCase();
+      if (!KANBAN_STATUS_ORDER.includes(status)) return;
+      state.todoKanbanStatus = status;
+      localStorage.setItem("hermesTodoKanbanStatus", status);
+      renderTodos();
+    });
   });
   root.querySelectorAll("[data-todo-id]").forEach((button) => {
     button.addEventListener("click", () => {
