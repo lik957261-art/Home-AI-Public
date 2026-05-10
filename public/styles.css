@@ -4312,6 +4312,7 @@ button.directory-alias-chip {
 
 .directory-entry-name {
   min-width: 0;
+  font-size: 15px;
   font-weight: 760;
   overflow: hidden;
   white-space: nowrap;
@@ -6109,7 +6110,6 @@ button.directory-alias-chip {
 :root[data-font-size] .message-prose td,
 :root[data-font-size] .message-prose th,
 :root[data-font-size] .task-prompt,
-:root[data-font-size] .directory-entry-name,
 :root[data-font-size] .todo-card-title,
 :root[data-font-size] .automation-card-title,
 :root[data-font-size] .automation-doc-name {
@@ -6126,6 +6126,7 @@ button.directory-alias-chip {
 
 :root[data-font-size] .message-prose h3,
 :root[data-font-size] .task-title-line,
+:root[data-font-size] .directory-entry-name,
 :root[data-font-size] .directory-breadcrumb button,
 :root[data-font-size] .todo-create-toggle,
 :root[data-font-size] .access-key-title,
