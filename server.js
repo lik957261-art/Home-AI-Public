@@ -9841,6 +9841,8 @@ async function handleApi(req, res) {
         sendJson(res, code, { error: /not empty/i.test(result?.error || "") ? "Directory is not empty" : (result?.error || "Delete failed") });
         return;
       }
+      invalidateCatalogCache();
+      dynamicProjectCache.delete(String(thread.workspaceId || ""));
       sendJson(res, 200, {
         ok: true,
         deleted: {
@@ -9876,6 +9878,8 @@ async function handleApi(req, res) {
       } else {
         fs.unlinkSync(resolved.localPath);
       }
+      invalidateCatalogCache();
+      dynamicProjectCache.delete(String(thread.workspaceId || ""));
       sendJson(res, 200, {
         ok: true,
         deleted: {

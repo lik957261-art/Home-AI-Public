@@ -6548,9 +6548,17 @@ async function uploadDirectoryFiles(files) {
   await loadDirectoryView();
 }
 
+function deletedDirectoryWasRootListProject(pathText) {
+  const target = comparableDirectoryPath(pathText);
+  if (!target) return false;
+  return (state.projects || []).some((project) =>
+    canDeleteDirectoryRootProject(project) && comparableDirectoryPath(project.root) === target);
+}
+
 async function deleteDirectoryEntry(button) {
   const path = button?.dataset?.deleteDirectoryPath || "";
   if (!path) return;
+  const wasRootListProject = deletedDirectoryWasRootListProject(path);
   const name = button.dataset.deleteDirectoryName || "item";
   const type = button.dataset.deleteDirectoryType || "file";
   const message = type === "directory"
@@ -6562,6 +6570,7 @@ async function deleteDirectoryEntry(button) {
     method: "POST",
     body: JSON.stringify({ threadId, path }),
   });
+  if (!directoryActivePath() || wasRootListProject) await loadProjects();
   await loadDirectoryView();
 }
 
