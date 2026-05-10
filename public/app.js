@@ -20,6 +20,7 @@ const CHAT_MESSAGE_PAGE_LIMIT = 40;
 const CHAT_MESSAGE_SEARCH_LIMIT = 120;
 const CHAT_HISTORY_LOAD_TOP_PX = 220;
 const TASK_MESSAGE_INITIAL_LIMIT = 300;
+const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
 
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
@@ -1037,7 +1038,7 @@ function latestChatScopeMessageTimeMs(thread, scope) {
 
 function chatScopeReadAt(scope) {
   const value = Number(localStorage.getItem(chatScopeReadStorageKey(scope)) || "0");
-  return Number.isFinite(value) && value > 0 ? value : 0;
+  return Number.isFinite(value) && value > 0 ? value : CHAT_SCOPE_SESSION_STARTED_AT;
 }
 
 function setChatScopeReadAt(scope, value) {
@@ -1047,11 +1048,8 @@ function setChatScopeReadAt(scope, value) {
 
 function ensureChatScopeReadBaselines(thread = state.currentThread) {
   if (!isSingleWindowChatView() || !thread) return;
-  for (const scope of ["chat", "group"]) {
-    if (localStorage.getItem(chatScopeReadStorageKey(scope))) continue;
-    const latest = latestChatScopeMessageTimeMs(thread, scope);
-    setChatScopeReadAt(scope, latest || Date.now());
-  }
+  // Missing read markers intentionally fall back to the page-load timestamp.
+  // That avoids counting old group messages while preserving badges for new SSE messages.
 }
 
 function markActiveChatScopeRead(thread = state.currentThread) {
