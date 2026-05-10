@@ -113,6 +113,8 @@ assert.match(serverJs, /groupChatThreadId/);
 assert.match(serverJs, /groupChatThread/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(80px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height/);
+assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 12px\)/);
+assert.match(appJs, /Math\.max\(96, rectHeight \+ 12, contentHeight \+ 12\)/);
 assert.match(stylesCss, /padding-bottom: var\(--mobile-bottom-nav-reserved-height\)/);
 assert.match(stylesCss, /height: var\(--mobile-bottom-nav-height\)/);
 assert.match(appJs, /function currentTodoKanbanStatus\(grouped\)/);

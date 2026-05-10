@@ -22,7 +22,7 @@
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
   --app-font-scale: 1;
   --mobile-bottom-nav-height: calc(80px + env(safe-area-inset-bottom));
-  --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 24px));
+  --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 12px));
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
 }
 

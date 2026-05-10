@@ -1454,7 +1454,7 @@ function updateMobileBottomNavReservation() {
   }
   const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
-  const reserve = Math.max(112, rectHeight + 24, contentHeight + 24);
+  const reserve = Math.max(96, rectHeight + 12, contentHeight + 12);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
 }
 
