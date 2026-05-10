@@ -5751,6 +5751,14 @@ function clampPositiveInteger(value, fallback, maxValue = 500) {
 function messagesForThreadMode(thread, options = {}) {
   const messages = Array.isArray(thread?.messages) ? thread.messages : [];
   const mode = String(options.mode || options.messageMode || "").trim().toLowerCase();
+  if (mode === "tasks" || mode === "task") {
+    const taskGroupId = String(options.taskGroupId || options.task_group_id || "").trim();
+    return messages.filter((message) => {
+      const groupId = String(message?.taskGroupId || "");
+      if (isSingleWindowConversationTaskGroupId(groupId)) return false;
+      return !taskGroupId || groupId === taskGroupId;
+    });
+  }
   if (mode !== "chat") return messages;
   const taskGroupId = messagePageTaskGroupId(options);
   return messages.filter((message) => String(message?.taskGroupId || "") === taskGroupId);
@@ -5767,6 +5775,7 @@ function messagePageTaskGroupId(options = {}) {
 function threadMessagesPage(thread, options = {}) {
   const limit = clampPositiveInteger(options.limit, THREAD_MESSAGE_INITIAL_LIMIT, 300);
   const allMessages = messagesForThreadMode(thread, options);
+  const mode = String(options.mode || options.messageMode || "all").trim().toLowerCase();
   const beforeId = String(options.before || options.beforeMessageId || options.before_message_id || "").trim();
   const beforeIndex = beforeId ? allMessages.findIndex((message) => String(message?.id || "") === beforeId) : -1;
   const end = beforeIndex >= 0 ? beforeIndex : allMessages.length;
@@ -5775,8 +5784,10 @@ function threadMessagesPage(thread, options = {}) {
   return {
     messages,
     page: {
-      mode: String(options.mode || options.messageMode || "all"),
-      taskGroupId: String(options.mode || options.messageMode || "").trim().toLowerCase() === "chat" ? messagePageTaskGroupId(options) : "",
+      mode: mode || "all",
+      taskGroupId: mode === "chat"
+        ? messagePageTaskGroupId(options)
+        : String(options.taskGroupId || options.task_group_id || "").trim(),
       total: allMessages.length,
       limit,
       loaded: messages.length,
@@ -8905,11 +8916,13 @@ async function handleApi(req, res) {
       return;
     }
     broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-    const wantsChatPage = String(body.messageMode || body.message_mode || "").trim().toLowerCase() === "chat";
-    const responseThread = wantsChatPage
+    const messageMode = String(body.messageMode || body.message_mode || "").trim().toLowerCase();
+    const wantsMessagePage = ["chat", "tasks", "task"].includes(messageMode);
+    const responseThread = wantsMessagePage
       ? compactThreadWithMessagePage(thread, {
-        mode: "chat",
+        mode: messageMode,
         groupChat: groupRequested,
+        taskGroupId: body.taskGroupId || body.task_group_id || "",
         limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
       })
       : compactThread(thread);
@@ -9003,11 +9016,12 @@ async function handleApi(req, res) {
       return;
     }
     const messageMode = String(url.searchParams.get("messageMode") || url.searchParams.get("message_mode") || "").trim().toLowerCase();
-    if (messageMode === "chat") {
+    if (["chat", "tasks", "task"].includes(messageMode)) {
       sendJson(res, 200, {
         thread: compactThreadWithMessagePage(thread, {
-          mode: "chat",
+          mode: messageMode,
           groupChat: boolParam(url.searchParams.get("groupChat") || url.searchParams.get("group_chat")),
+          taskGroupId: url.searchParams.get("taskGroupId") || url.searchParams.get("task_group_id") || "",
           limit: url.searchParams.get("messageLimit") || url.searchParams.get("message_limit") || THREAD_MESSAGE_INITIAL_LIMIT,
         }),
       });
@@ -9028,6 +9042,7 @@ async function handleApi(req, res) {
     const options = {
       mode: messageMode,
       groupChat: boolParam(url.searchParams.get("groupChat") || url.searchParams.get("group_chat")),
+      taskGroupId: url.searchParams.get("taskGroupId") || url.searchParams.get("task_group_id") || "",
       before: url.searchParams.get("before") || "",
       limit: url.searchParams.get("limit") || THREAD_MESSAGE_PAGE_LIMIT,
       search: url.searchParams.get("search") || url.searchParams.get("q") || "",

@@ -19,6 +19,7 @@ const CHAT_MESSAGE_INITIAL_LIMIT = 60;
 const CHAT_MESSAGE_PAGE_LIMIT = 40;
 const CHAT_MESSAGE_SEARCH_LIMIT = 120;
 const CHAT_HISTORY_LOAD_TOP_PX = 220;
+const TASK_MESSAGE_INITIAL_LIMIT = 300;
 
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
@@ -7766,13 +7767,17 @@ async function loadSingleWindow(options = {}) {
     && state.singleWindowMode === "chat"
     && state.groupChatOpen
   );
+  const messageMode = isSingleWindowChatView()
+    ? "chat"
+    : (state.viewMode === "tasks" || state.singleWindowMode === "task" ? "tasks" : "");
   const result = await api("/api/single-window", {
     method: "POST",
     body: JSON.stringify({
       workspaceId: state.selectedWorkspaceId,
       groupChat,
-      messageMode: state.singleWindowMode === "chat" ? "chat" : "",
-      messageLimit: CHAT_MESSAGE_INITIAL_LIMIT,
+      messageMode,
+      taskGroupId: messageMode === "tasks" ? state.currentTaskGroupId : "",
+      messageLimit: messageMode === "tasks" ? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT,
     }),
   });
   state.currentThread = mergeCurrentThread(result.thread);
@@ -10394,6 +10399,8 @@ async function refreshCurrentThreadFromServer(options = {}) {
   try {
     const params = isSingleWindowChatView()
       ? `?${chatMessagePageParams({ limit: CHAT_MESSAGE_INITIAL_LIMIT })}`
+      : isTaskWindowView()
+        ? `?messageMode=tasks&messageLimit=${TASK_MESSAGE_INITIAL_LIMIT}`
       : "";
     const result = await api(`/api/threads/${encodeURIComponent(threadId)}${params}`);
     if ((state.currentThreadId || state.currentThread?.id || "") !== threadId) return;
