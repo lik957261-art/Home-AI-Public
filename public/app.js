@@ -1008,6 +1008,10 @@ function isGroupChatView() {
   return isSingleWindowChatView() && state.groupChatOpen && selectedWorkspaceInThreadGroup(state.currentThread);
 }
 
+function groupChatSelectable(thread = state.currentThread) {
+  return Boolean(thread?.singleWindow && (selectedWorkspaceInThreadGroup(thread) || state.auth?.isOwner));
+}
+
 function groupChatMemberLabels(thread = state.currentThread) {
   const members = Array.isArray(thread?.chatGroup?.members) ? thread.chatGroup.members : [];
   const labels = members.length ? members.map((item) => item.label || item.workspaceId).filter(Boolean) : threadGroupMemberIds(thread).map((workspaceId) => {
@@ -1858,9 +1862,8 @@ function updateTopMoreControls() {
   }
   const toggleGroupChat = $("topToggleGroupChat");
   if (toggleGroupChat) {
-    toggleGroupChat.hidden = !chatView;
-    toggleGroupChat.disabled = !chatView || !state.currentThread;
-    toggleGroupChat.textContent = isGroupChatView() ? "\u5207\u56de\u804a\u5929" : "\u5207\u6362\u5230\u7fa4";
+    toggleGroupChat.hidden = true;
+    toggleGroupChat.disabled = true;
   }
   const manageGroupMembers = $("topManageGroupMembers");
   if (manageGroupMembers) {
@@ -7796,14 +7799,18 @@ async function loadSingleWindow(options = {}) {
   setComposerEnabled(true);
 }
 
-async function toggleGroupChat() {
+async function selectChatScope(scope) {
   closeTopMoreMenu();
   clearQuotedReply({ render: false });
   state.currentTaskGroupId = "";
-  if (state.groupChatOpen && isGroupChatView()) {
+  if (String(scope || "").trim().toLowerCase() !== "group") {
     state.groupChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
     await loadSingleWindow({ groupChat: false });
+    return;
+  }
+  if (isGroupChatView()) {
+    renderCurrentThread({ stickToBottom: false });
     return;
   }
   await loadSingleWindow({ groupChat: true });
@@ -7831,6 +7838,10 @@ async function toggleGroupChat() {
   localStorage.setItem("hermesWebGroupChatOpen", "1");
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
+}
+
+async function toggleGroupChat() {
+  await selectChatScope(isGroupChatView() ? "chat" : "group");
 }
 
 function renderGroupChatManager() {
@@ -8650,6 +8661,26 @@ function renderGroupMemberStrip(thread) {
   </div>`;
 }
 
+function renderChatScopeSwitcher(thread) {
+  if (!isSingleWindowChatView() || !thread) return "";
+  const groupSelected = isGroupChatView();
+  const canSelectGroup = groupSelected || groupChatSelectable(thread);
+  const memberCount = groupChatMemberLabels(thread).length;
+  const groupCount = memberCount ? `<span class="chat-scope-count">${escapeHtml(memberCount)}</span>` : "";
+  const manageMembers = state.auth?.isOwner && groupSelected
+    ? `<button class="chat-scope-action" type="button" data-open-group-members>${"\u6210\u5458"}</button>`
+    : "";
+  return `<div class="chat-scope-switcher" role="tablist" aria-label="Chat scope">
+    <button class="chat-scope-tab${groupSelected ? "" : " active"}" type="button" role="tab" aria-selected="${groupSelected ? "false" : "true"}" data-chat-scope="chat">
+      ${"\u804a\u5929"}
+    </button>
+    <button class="chat-scope-tab${groupSelected ? " active" : ""}" type="button" role="tab" aria-selected="${groupSelected ? "true" : "false"}" data-chat-scope="group" ${canSelectGroup ? "" : "disabled"}>
+      ${"\u7fa4\u804a"}${groupCount}
+    </button>
+    ${manageMembers}
+  </div>`;
+}
+
 function renderChatHistoryPager(thread) {
   if (!isSingleWindowChatView()) return "";
   const page = thread?.messagesPage || {};
@@ -8665,6 +8696,17 @@ function renderChatHistoryPager(thread) {
 function wireChatHistoryPager(root) {
   root?.querySelector?.("[data-load-older-chat]")?.addEventListener("click", () => {
     loadOlderChatMessages().catch(showError);
+  });
+}
+
+function wireChatScopeSwitcher(root) {
+  root?.querySelectorAll?.("[data-chat-scope]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectChatScope(button.dataset.chatScope).catch(showError);
+    });
+  });
+  root?.querySelector?.("[data-open-group-members]")?.addEventListener("click", () => {
+    openGroupChatMembers().catch(showError);
   });
 }
 
@@ -8730,9 +8772,11 @@ function renderCurrentThread(options = {}) {
     syncChatSearchMatches();
   }
   const progressPanel = renderRunProgressPanel(thread, activeRuns);
+  const chatScopeSwitcher = renderChatScopeSwitcher(thread);
   const groupStrip = groupChat ? renderGroupMemberStrip(thread) : "";
   const historyPager = renderChatHistoryPager(thread);
-  conversation.innerHTML = `${groupStrip}${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  conversation.innerHTML = `${chatScopeSwitcher}${groupStrip}${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  wireChatScopeSwitcher(conversation);
   wireChatHistoryPager(conversation);
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);
