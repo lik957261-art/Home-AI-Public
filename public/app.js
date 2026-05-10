@@ -1932,7 +1932,7 @@ function updateTopMoreControls() {
   }
   const manageGroupMembers = $("topManageGroupMembers");
   if (manageGroupMembers) {
-    const canManageGroupMembers = Boolean(state.auth?.isOwner && chatView && isGroupChatView());
+    const canManageGroupMembers = Boolean(state.auth?.isOwner && chatView && state.currentThread && groupChatSelectable(state.currentThread));
     manageGroupMembers.hidden = !canManageGroupMembers;
     manageGroupMembers.disabled = !canManageGroupMembers || !state.currentThread;
   }
@@ -7151,6 +7151,7 @@ function applyViewMode() {
   const directory = state.viewMode === "projects";
   const automation = state.viewMode === "automation";
   const todos = state.viewMode === "todos";
+  if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("automation-mode", automation);
   $("app")?.classList.toggle("projects-mode", directory);
@@ -8718,14 +8719,6 @@ function renderThreads() {
   });
 }
 
-function renderGroupMemberStrip(thread) {
-  const labels = groupChatMemberLabels(thread);
-  if (!labels.length) return "";
-  return `<div class="group-member-strip" aria-label="Group members">
-    ${labels.map((label) => `<span>${escapeHtml(label)}</span>`).join("")}
-  </div>`;
-}
-
 function renderChatScopeHeader(thread) {
   const header = $("chatScopeHeader");
   if (!header) return;
@@ -8737,27 +8730,23 @@ function renderChatScopeHeader(thread) {
   ensureChatScopeReadBaselines(thread);
   markActiveChatScopeRead(thread);
   const groupSelected = isGroupChatView();
-  const nextScope = groupSelected ? "chat" : "group";
-  const canSelectNext = nextScope === "chat" || groupChatSelectable(thread);
-  const unread = unreadChatScopeCount(thread, nextScope);
-  const unreadText = unread > 99 ? "99+" : String(unread);
-  const unreadBadge = unread
-    ? `<span class="chat-scope-header-badge">${escapeHtml(unreadText)}</span>`
-    : "";
-  const nextLabel = nextScope === "group" ? "\u7fa4\u804a" : "\u804a\u5929";
-  const nextAriaLabel = unread
-    ? `${nextLabel}\uff0c${unreadText}\u6761\u672a\u8bfb`
-    : nextLabel;
-  const manageMembers = state.auth?.isOwner && groupSelected
-    ? `<button class="chat-scope-header-button" type="button" data-open-group-members>${"\u6210\u5458"}</button>`
-    : "";
+  const canSelectGroup = groupSelected || groupChatSelectable(thread);
+  const scopeButton = (scope, label, selected, canSelect) => {
+    const unread = selected ? 0 : unreadChatScopeCount(thread, scope);
+    const unreadText = unread > 99 ? "99+" : String(unread);
+    const unreadBadge = unread
+      ? `<span class="chat-scope-header-badge">${escapeHtml(unreadText)}</span>`
+      : "";
+    const ariaLabel = unread ? `${label}\uff0c${unreadText}\u6761\u672a\u8bfb` : label;
+    return `<button class="chat-scope-header-button${selected ? " active" : ""}" type="button" role="tab" aria-selected="${selected ? "true" : "false"}" aria-label="${escapeHtml(ariaLabel)}" data-chat-scope="${escapeHtml(scope)}" ${canSelect ? "" : "disabled"}>
+      ${escapeHtml(label)}${unreadBadge}
+    </button>`;
+  };
   header.hidden = false;
-  header.innerHTML = `
-    <button class="chat-scope-header-button" type="button" data-chat-scope="${escapeHtml(nextScope)}" aria-label="${escapeHtml(nextAriaLabel)}" ${canSelectNext ? "" : "disabled"}>
-      ${nextLabel}${unreadBadge}
-    </button>
-    ${manageMembers}
-  `;
+  header.innerHTML = `<div class="chat-scope-segment" role="tablist" aria-label="${"\u804a\u5929\u5207\u6362"}">
+    ${scopeButton("chat", "\u804a\u5929", !groupSelected, true)}
+    ${scopeButton("group", "\u7fa4", groupSelected, canSelectGroup)}
+  </div>`;
   wireChatScopeHeader(header);
 }
 
@@ -8784,9 +8773,6 @@ function wireChatScopeHeader(root) {
     button.addEventListener("click", () => {
       selectChatScope(button.dataset.chatScope).catch(showError);
     });
-  });
-  root?.querySelector?.("[data-open-group-members]")?.addEventListener("click", () => {
-    openGroupChatMembers().catch(showError);
   });
 }
 
@@ -8836,6 +8822,7 @@ function renderCurrentThread(options = {}) {
     ? (state.singleWindowMode === "chat" ? (groupChat ? "群聊" : "聊天") : "话题流")
     : (thread.title || thread.id);
   renderChatScopeHeader(thread);
+  if (isSingleWindowChatView()) $("threadTitle").textContent = "";
   const project = state.projects.find((item) => item.id === thread.projectId);
   const subproject = (project?.children || []).find((item) => item.id === thread.subprojectId);
   const displayMessages = isSingleWindowChatView() ? chatMessagesForThread(thread) : (thread.messages || []);
@@ -8850,13 +8837,13 @@ function renderCurrentThread(options = {}) {
     ? groupChatMemberLabels(thread).join(" · ")
     : (scope ? `${scope} | session ${thread.hermesSessionId || ""}` : "");
   $("interruptRun").disabled = !activeRuns.length;
+  if (isSingleWindowChatView()) $("threadMeta").textContent = "";
   if (isSingleWindowChatView()) {
     syncChatSearchMatches();
   }
   const progressPanel = renderRunProgressPanel(thread, activeRuns);
-  const groupStrip = groupChat ? renderGroupMemberStrip(thread) : "";
   const historyPager = renderChatHistoryPager(thread);
-  conversation.innerHTML = `${groupStrip}${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  conversation.innerHTML = `${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
   wireChatHistoryPager(conversation);
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);

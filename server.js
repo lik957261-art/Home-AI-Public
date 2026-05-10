@@ -2460,6 +2460,76 @@ function groupChatDeliveryRootForThread(thread) {
   return path.join(GROUP_DELIVERIES_DIR, safeStorageSegment(thread?.id || "thread"));
 }
 
+function groupChatSharedAttachmentRootForThread(thread) {
+  return path.join(groupChatDeliveryRootForThread(thread), "shared-attachments");
+}
+
+function storedArtifactForMessageArtifact(artifact = {}) {
+  const id = String(artifact?.id || "").trim();
+  const stored = id ? (state.artifacts || []).find((item) => String(item.id || "") === id) : null;
+  return Object.assign({}, stored || {}, artifact || {});
+}
+
+function groupChatMessagesForRun(thread, latestUserMessage) {
+  if (!thread?.singleWindow || latestUserMessage?.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return [];
+  const messages = thread.messages || [];
+  const latestIndex = messages.findIndex((message) => String(message?.id || "") === String(latestUserMessage?.id || ""));
+  return messages
+    .slice(0, latestIndex >= 0 ? latestIndex + 1 : messages.length)
+    .filter((message) => message?.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID)
+    .filter((message) => !message.revokedAt);
+}
+
+function safeArtifactCopyName(artifact = {}, index = 0) {
+  const id = String(artifact.id || "").trim() || `artifact-${index + 1}`;
+  const name = safeFileName(artifact.name || artifact.path || id);
+  return `${safeStorageSegment(id)}-${name}`;
+}
+
+function ensureGroupChatSharedArtifactCopies(thread, latestUserMessage, deliveryRoot) {
+  if (!deliveryRoot || latestUserMessage?.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return [];
+  const messages = groupChatMessagesForRun(thread, latestUserMessage);
+  const copyRoot = path.join(deliveryRoot, "shared-attachments");
+  const copies = [];
+  const seen = new Set();
+  fs.mkdirSync(copyRoot, { recursive: true });
+  for (const message of messages) {
+    for (const messageArtifact of Array.isArray(message.artifacts) ? message.artifacts : []) {
+      const artifact = storedArtifactForMessageArtifact(messageArtifact);
+      const artifactId = String(artifact.id || messageArtifact.id || "").trim();
+      const rawPath = String(artifact.path || artifact.localPath || artifact.displayPath || "").trim();
+      const localPath = normalizeLocalPath(rawPath) || rawPath;
+      const key = artifactId || localPath.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      if (!localPath || securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(rawPath)) continue;
+      let stat = null;
+      try {
+        stat = fs.statSync(localPath);
+      } catch (_) {
+        continue;
+      }
+      if (!stat.isFile()) continue;
+      const copyPath = path.join(copyRoot, safeArtifactCopyName(artifact, copies.length));
+      try {
+        if (!samePath(localPath, copyPath)) fs.copyFileSync(localPath, copyPath);
+      } catch (_) {
+        continue;
+      }
+      copies.push({
+        id: artifactId,
+        name: artifact.name || path.basename(localPath),
+        originalPath: rawPath || localPath,
+        copyPath,
+        copyPathForModel: windowsPathToWsl(copyPath) || copyPath,
+        messageId: message.id || "",
+        senderWorkspaceId: message.senderWorkspaceId || "",
+      });
+    }
+  }
+  return copies;
+}
+
 function backendIsLocal(value, bridgeNames = []) {
   const backend = String(value || "").trim().toLowerCase();
   return !bridgeNames.includes(backend);
@@ -4890,6 +4960,7 @@ function formatAccessPolicyInstructionSummary(policy = {}) {
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
   const singleWindowMode = normalizeSingleWindowMode(options.singleWindowMode || options.single_window_mode || "");
   const groupChatDeliveryRoot = String(options.groupChatDeliveryRoot || options.group_chat_delivery_root || "").trim();
+  const groupChatAttachmentCopies = Array.isArray(options.groupChatAttachmentCopies) ? options.groupChatAttachmentCopies : [];
   const deliveryBoundaryOptions = groupChatDeliveryRoot
     ? { deliveryTarget: `the group delivery directory: ${groupChatDeliveryRoot}` }
     : {};
@@ -4918,6 +4989,12 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
       if (groupChatDeliveryRoot) {
         lines.push(`This is a group-chat AI request. Final user-facing document deliverables for this group turn should be Markdown by default and must be written under the group delivery directory: ${groupChatDeliveryRoot}.`);
         lines.push("Do not place group-chat deliverables only in the sender's private delivery directory. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
+      }
+      if (groupChatAttachmentCopies.length) {
+        lines.push("Group-chat shared attachments authorized for this run are available as readable copies below. If a shared attachment's original path is outside the current access policy or returns permission denied, read the accessible copy path instead:");
+        for (const item of groupChatAttachmentCopies.slice(0, 20)) {
+          lines.push(`- ${item.name || item.id || "attachment"}: ${item.copyPathForModel || item.copyPath} (original shared path: ${item.originalPath || ""})`);
+        }
       }
       lines.push("Do not inherit, emit, or display prior directory bindings or `目录别名：当前绑定目录=...` from older chat turns. Only an explicit directory attachment on the latest message is a current directory binding.");
     } else {
@@ -6902,6 +6979,9 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     ? groupChatDeliveryRootForThread(thread)
     : "";
   const groupChatDeliveryRootForModel = groupChatDeliveryRoot ? windowsPathToWsl(groupChatDeliveryRoot) : "";
+  const groupChatAttachmentCopies = groupChatDeliveryRoot
+    ? ensureGroupChatSharedArtifactCopies(thread, userMessage, groupChatDeliveryRoot)
+    : [];
   if (groupChatDeliveryRoot) {
     fs.mkdirSync(groupChatDeliveryRoot, { recursive: true });
     policy.allowed_roots = dedupe([...(policy.allowed_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
@@ -6926,7 +7006,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
         project,
         userMessage.content,
         taskDirectory,
-        Object.assign({}, options, { groupChatDeliveryRoot: groupChatDeliveryRootForModel }),
+        Object.assign({}, options, { groupChatDeliveryRoot: groupChatDeliveryRootForModel, groupChatAttachmentCopies }),
       ),
       options.instructions || "",
     ].filter(Boolean).join("\n\n"),
