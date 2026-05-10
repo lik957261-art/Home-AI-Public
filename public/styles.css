@@ -4415,7 +4415,7 @@ button.directory-alias-chip {
   color: var(--accent);
   background: rgba(255, 252, 246, 0.84);
   font-size: 15px;
-  font-weight: 820;
+  font-weight: 600;
   text-align: left;
 }
 
@@ -4463,53 +4463,9 @@ button.directory-alias-chip {
   padding: 0 3px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-}
-
-.todo-kanban-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid rgba(31, 111, 98, 0.16);
-  border-radius: 18px;
-  background: rgba(231, 244, 238, 0.48);
-}
-
-.todo-kanban-kicker {
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 760;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.todo-kanban-summary h2 {
-  margin: 3px 0 0;
-  color: var(--ink);
-  font-size: 18px;
-  line-height: 1.25;
-  letter-spacing: 0;
-}
-
-.todo-kanban-counts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 680;
-}
-
-.todo-kanban-counts span {
-  padding: 5px 8px;
-  border: 1px solid rgba(20, 32, 39, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.58);
 }
 
 .todo-kanban-switcher {
@@ -4543,7 +4499,7 @@ button.directory-alias-chip {
 .todo-kanban-tab-label {
   min-width: 0;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 560;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4558,7 +4514,7 @@ button.directory-alias-chip {
   background: rgba(231, 244, 238, 0.72);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 560;
 }
 
 .todo-kanban-board {
@@ -4593,14 +4549,14 @@ button.directory-alias-chip {
 .todo-kanban-lane-title {
   color: var(--ink);
   font-size: 15px;
-  font-weight: 780;
+  font-weight: 600;
   line-height: 1.2;
 }
 
 .todo-kanban-lane-code {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 680;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -4613,7 +4569,7 @@ button.directory-alias-chip {
   background: var(--accent-soft);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 560;
 }
 
 .todo-kanban-cards {
@@ -4649,14 +4605,14 @@ button.directory-alias-chip {
   background: rgba(231, 244, 238, 0.72);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 560;
 }
 
 .todo-kanban-card-title {
   min-width: 0;
   color: var(--ink);
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -4685,7 +4641,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(20, 32, 39, 0.07);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -4769,7 +4725,7 @@ button.directory-alias-chip {
 .todo-card-title {
   min-width: 0;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -4803,7 +4759,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 12px;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .todo-card-actions [data-cancel-todo],
@@ -4833,14 +4789,15 @@ button.directory-alias-chip {
 .todo-detail-id {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 500;
 }
 
 .todo-detail-head h2 {
   margin: 4px 0 0;
   font-size: 22px;
+  font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .todo-state {
@@ -4850,7 +4807,7 @@ button.directory-alias-chip {
   background: var(--accent-soft);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 560;
 }
 
 .todo-detail-grid {
@@ -4872,6 +4829,7 @@ button.directory-alias-chip {
 .todo-detail-grid strong {
   color: var(--gold);
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -4897,6 +4855,7 @@ button.directory-alias-chip {
 .todo-detail-result strong {
   color: var(--gold);
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }

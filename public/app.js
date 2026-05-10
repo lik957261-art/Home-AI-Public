@@ -8010,6 +8010,31 @@ function todoTimestampLabel(value) {
   return formatTime(value) || String(value || "");
 }
 
+function todoSortTimestamp(todo) {
+  const candidates = [
+    todo?.kanbanCompletedAt,
+    todo?.completedAt,
+    todo?.cancelledAt,
+    todo?.updatedAt,
+    todo?.createdAt,
+    todo?.dueAt,
+    todo?.dueLocal,
+  ];
+  for (const value of candidates) {
+    const parsed = Date.parse(String(value || "").replace(" ", "T"));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function sortArchivedKanbanCards(items) {
+  return [...(items || [])].sort((left, right) => {
+    const delta = todoSortTimestamp(right) - todoSortTimestamp(left);
+    if (delta) return delta;
+    return String(right?.id || "").localeCompare(String(left?.id || ""));
+  });
+}
+
 function todoDueLabel(todo) {
   return todo?.dueLocal || formatTime(todo?.dueAt) || "No due time";
 }
@@ -8119,9 +8144,7 @@ function renderTodoKanbanBoard(todos) {
     if (!grouped.has(status)) grouped.set(status, []);
     grouped.get(status).push(todo);
   }
-  const activeCount = (todos || []).filter(todoMatchesOpen).length;
-  const doneCount = (todos || []).filter((todo) => normalizedKanbanStatus(todo) === "done").length;
-  const board = todoBoardLabel();
+  grouped.set("archived", sortArchivedKanbanCards(grouped.get("archived") || []));
   const selectedStatus = currentTodoKanbanStatus(grouped);
   const selectedMeta = kanbanStatusMeta(selectedStatus);
   const selectedItems = grouped.get(selectedStatus) || [];
@@ -8135,16 +8158,6 @@ function renderTodoKanbanBoard(todos) {
     </button>`;
   }).join("");
   return `
-    <section class="todo-kanban-summary">
-      <div>
-        <div class="todo-kanban-kicker">Official Hermes Kanban</div>
-        <h2>${escapeHtml(board)}</h2>
-      </div>
-      <div class="todo-kanban-counts">
-        <span>${activeCount} open</span>
-        <span>${doneCount} done</span>
-      </div>
-    </section>
     <div class="todo-kanban-board">
       <nav class="todo-kanban-switcher" aria-label="Kanban status">${tabs}</nav>
       <section class="todo-kanban-lane todo-kanban-current status-${escapeHtml(selectedStatus)}" aria-label="${escapeHtml(selectedMeta.shortLabel)}" role="list">
