@@ -1781,11 +1781,6 @@ function updateTopMoreControls() {
     renameTask.hidden = !taskDetail;
     renameTask.disabled = !taskDetail || !state.currentTaskGroupId;
   }
-  const searchChat = $("topSearchChat");
-  if (searchChat) {
-    searchChat.hidden = !chatView;
-    searchChat.disabled = !chatView || !state.currentThread;
-  }
   const toggleGroupChat = $("topToggleGroupChat");
   if (toggleGroupChat) {
     toggleGroupChat.hidden = !chatView;
@@ -11171,9 +11166,6 @@ function wireUi() {
   $("topRenameTask")?.addEventListener("click", () => {
     closeTopMoreMenu();
     renameTaskGroup(state.currentTaskGroupId).catch(showError);
-  });
-  $("topSearchChat")?.addEventListener("click", () => {
-    openChatSearch();
   });
   $("topToggleGroupChat")?.addEventListener("click", () => {
     toggleGroupChat().catch(showError);

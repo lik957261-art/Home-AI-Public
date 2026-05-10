@@ -50,5 +50,7 @@ assert.match(serverJs, /gatewayMaintenanceCategory: gatewayRouting\.maintenanceC
 assert.match(serverJs, /function taskDirectoryAttachmentCandidatesForMessage\(thread, message\)/);
 assert.match(serverJs, /the attached task directory is the frozen working directory/);
 assert.match(serverJs, /singleWindowMode === "chat" \|\| taskDirectory\?\.path \? "" : semanticProjectRoutingInstructions/);
+assert.equal(indexHtml.includes("topSearchChat"), false);
+assert.equal(appJs.includes("topSearchChat"), false);
 
 console.log("task list UI tests passed");
