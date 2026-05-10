@@ -121,7 +121,7 @@ button {
   border-radius: 16px;
   box-shadow: 0 18px 42px rgba(31, 111, 98, 0.18);
   font-size: 26px;
-  font-weight: 860;
+  font-weight: 600;
 }
 
 .boot-splash-copy {
@@ -132,13 +132,13 @@ button {
 .boot-splash-title {
   color: var(--ink);
   font-size: 24px;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .boot-splash-text {
   color: var(--muted);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 560;
 }
 
 .boot-splash-bar {
@@ -223,7 +223,7 @@ button {
   background: var(--accent);
   border: 0;
   border-radius: 14px;
-  font-weight: 760;
+  font-weight: 600;
   box-shadow: 0 12px 26px rgba(31, 111, 98, 0.18);
 }
 
@@ -262,7 +262,7 @@ button {
 
 .setup-result-label {
   color: var(--ink);
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .setup-key-row {
@@ -356,7 +356,7 @@ button {
   border: 0;
   border-radius: 9px;
   font-size: 10px;
-  font-weight: 760;
+  font-weight: 600;
   letter-spacing: 0.04em;
   line-height: 1;
   touch-action: manipulation;
@@ -380,7 +380,7 @@ button {
 .field-label {
   text-transform: uppercase;
   letter-spacing: 0.11em;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .select {
@@ -399,7 +399,7 @@ button {
   padding: 8px 10px;
   color: var(--accent);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -423,7 +423,7 @@ button {
 
 .workspace-access-name {
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .workspace-access-key,
@@ -442,7 +442,7 @@ button {
 .workspace-access-label {
   margin-right: 5px;
   color: rgba(31, 111, 98, 0.82);
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .workspace-access-key-row {
@@ -461,7 +461,7 @@ button {
   color: var(--accent);
   background: rgba(232, 244, 235, 0.52);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .workspace-access-dir-list {
@@ -511,14 +511,14 @@ button {
 .workspace-permission-title {
   color: var(--accent);
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .workspace-permission-state {
   margin-top: 2px;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 840;
+  font-weight: 560;
 }
 
 .workspace-permission-badge {
@@ -529,7 +529,7 @@ button {
   color: #285f52;
   background: rgba(222, 243, 237, 0.58);
   font-size: 10px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .workspace-permission-panel.active .workspace-permission-badge {
@@ -566,7 +566,7 @@ button {
   padding: 0 8px;
   border-radius: 8px;
   font-size: 11px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .workspace-permission-select {
@@ -605,7 +605,7 @@ button {
   border: 0;
   border-radius: 12px;
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .section-toggle button.active {
@@ -631,7 +631,7 @@ button {
   background: transparent;
   border: 0;
   border-radius: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .mode-toggle button.active {
@@ -655,12 +655,12 @@ button {
   background: transparent;
   border: 0;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .bottom-tab.active {
   color: #087f5b;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .bottom-tab-icon {
@@ -855,7 +855,7 @@ button {
     rgba(122, 199, 167, 0.12);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
-  font-weight: 760;
+  font-weight: 600;
   box-shadow: 0 8px 18px rgba(31, 111, 98, 0.08);
 }
 
@@ -893,7 +893,7 @@ button {
 
 .icon-button.back-mode {
   font-size: 21px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .top-nav-button {
@@ -924,7 +924,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 12px;
   font-size: 18px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1;
   pointer-events: none;
 }
@@ -936,7 +936,7 @@ button {
 .danger-button {
   color: var(--danger);
   padding: 0 14px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .danger-button:disabled,
@@ -972,7 +972,7 @@ button {
   background: rgba(255, 250, 241, 0.72);
   border: 1px solid rgba(31, 111, 98, 0.22);
   border-radius: 14px;
-  font-weight: 760;
+  font-weight: 600;
   box-shadow: 0 8px 20px rgba(34, 28, 20, 0.08);
 }
 
@@ -995,7 +995,7 @@ button {
 
 .thread-card-title {
   font-size: 14px;
-  font-weight: 780;
+  font-weight: 600;
   line-height: 1.35;
 }
 
@@ -1083,7 +1083,7 @@ button {
   background: var(--danger);
   border: 0;
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
@@ -1174,7 +1174,7 @@ button {
   border-radius: 12px;
   box-shadow: 0 6px 16px rgba(34, 28, 20, 0.08);
   font-size: 18px;
-  font-weight: 820;
+  font-weight: 560;
   line-height: 1;
 }
 
@@ -1214,7 +1214,7 @@ button {
 .refresh-notice span {
   min-width: 0;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -1224,7 +1224,7 @@ button {
   padding: 0 12px;
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .refresh-notice-primary {
@@ -1254,7 +1254,7 @@ button {
   transform: translateX(-50%);
   backdrop-filter: blur(18px);
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1.4;
   text-align: center;
 }
@@ -1280,7 +1280,7 @@ button {
   border: 1px solid rgba(31, 111, 98, 0.14);
   border-radius: 10px;
   font-size: 14px;
-  font-weight: 720;
+  font-weight: 600;
   text-align: left;
 }
 
@@ -1322,7 +1322,7 @@ button {
   min-width: 40px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -1344,7 +1344,7 @@ button {
   border-radius: 9px;
   box-shadow: none;
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   line-height: 1;
 }
 
@@ -1446,7 +1446,7 @@ button {
   border-radius: 14px;
   box-shadow: 0 8px 20px rgba(34, 28, 20, 0.08);
   font-size: 22px;
-  font-weight: 850;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: 0.02em;
 }
@@ -1474,7 +1474,7 @@ button {
   background: transparent;
   border: 0;
   border-radius: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-more-delete:active {
@@ -1489,7 +1489,7 @@ button {
 .thread-title {
   max-width: 100%;
   font-size: 18px;
-  font-weight: 820;
+  font-weight: 560;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1535,7 +1535,7 @@ button {
   border: 1px solid rgba(31, 111, 98, 0.12);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1620,7 +1620,7 @@ button {
   margin-bottom: 7px;
   color: #1f6f62;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .run-progress-rows {
@@ -1659,7 +1659,7 @@ button {
 }
 
 .run-progress-main {
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .run-progress-time {
@@ -1725,7 +1725,7 @@ button {
   border-radius: 0;
   box-shadow: none;
   font-size: 13px;
-  font-weight: 720;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -1762,7 +1762,7 @@ button {
   border: 1px solid rgba(31, 111, 98, 0.11);
   border-radius: 7px;
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 600;
   line-height: 1;
   box-shadow: none;
 }
@@ -1792,7 +1792,7 @@ button {
   border: 1px solid rgba(31, 111, 98, 0.16);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1806,7 +1806,7 @@ button {
   border: 1px solid rgba(122, 91, 69, 0.18);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 600;
 }
 
 .message-revoke-button:disabled {
@@ -1864,7 +1864,7 @@ button {
 .message-prose h5 {
   margin-top: 3px;
   color: #174f48;
-  font-weight: 860;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -1900,12 +1900,12 @@ button {
 
 .message-prose li::marker {
   color: #1f6f62;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .message-prose strong {
   color: #102c28;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .message-prose em {
@@ -1982,7 +1982,7 @@ button {
 .message-prose th {
   color: #173c36;
   background: rgba(31, 111, 98, 0.08);
-  font-weight: 830;
+  font-weight: 560;
   text-align: left;
 }
 
@@ -2074,7 +2074,7 @@ button.directory-alias-chip {
   color: inherit;
   background: transparent;
   font: inherit;
-  font-weight: 760;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
 }
@@ -2089,7 +2089,7 @@ button.directory-alias-chip {
   background: linear-gradient(145deg, #2d8a79, #1f5f54);
   border-radius: 999px;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: 0.03em;
 }
 
@@ -2133,7 +2133,7 @@ button.directory-alias-chip {
   border-radius: 10px;
   font: inherit;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1;
   box-shadow: none;
 }
@@ -2174,7 +2174,7 @@ button.directory-alias-chip {
 }
 
 .artifact-name {
-  font-weight: 760;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2217,7 +2217,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(95, 83, 63, 0.12);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -2239,7 +2239,7 @@ button.directory-alias-chip {
   padding: 0 7px;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1;
   list-style: none;
 }
@@ -2283,7 +2283,7 @@ button.directory-alias-chip {
 
 .usage-row strong {
   color: var(--ink);
-  font-weight: 750;
+  font-weight: 600;
   text-align: right;
   white-space: nowrap;
 }
@@ -2296,7 +2296,7 @@ button.directory-alias-chip {
   padding: 7px 9px 4px;
   color: #285f55;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 560;
 }
 
 .usage-api-row {
@@ -2311,7 +2311,7 @@ button.directory-alias-chip {
 .usage-api-main {
   min-width: 0;
   color: var(--ink);
-  font-weight: 740;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2355,7 +2355,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.16);
   border-radius: 14px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .task-filter-label {
@@ -2388,7 +2388,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
   font: inherit;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-filter-banner button {
@@ -2399,7 +2399,7 @@ button.directory-alias-chip {
   background: rgba(255, 250, 241, 0.72);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-card {
@@ -2543,7 +2543,7 @@ button.directory-alias-chip {
   gap: 7px;
   color: var(--muted);
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-rename-field input {
@@ -2577,7 +2577,7 @@ button.directory-alias-chip {
   border-radius: 12px;
   color: var(--text);
   background: rgba(255, 255, 255, 0.68);
-  font-weight: 800;
+  font-weight: 560;
 }
 
 .task-rename-actions button.primary {
@@ -2609,7 +2609,7 @@ button.directory-alias-chip {
   white-space: nowrap;
   text-overflow: ellipsis;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-row-meta {
@@ -2685,7 +2685,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(179, 38, 30, 0.22);
   border-radius: 10px;
   font-size: 11px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .task-skill-icon {
@@ -2698,7 +2698,7 @@ button.directory-alias-chip {
   background: #b3261e;
   border-radius: 6px;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -2763,7 +2763,7 @@ button.directory-alias-chip {
 .skill-detail-eyebrow {
   color: var(--gold);
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 560;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2815,7 +2815,7 @@ button.directory-alias-chip {
   white-space: nowrap;
   text-overflow: ellipsis;
   text-align: center;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .task-doc-icon.doc-pdf {
@@ -2941,7 +2941,7 @@ button.directory-alias-chip {
 .task-id {
   min-width: 0;
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -2954,7 +2954,7 @@ button.directory-alias-chip {
   color: var(--accent);
   background: var(--accent-soft);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-state.running {
@@ -3023,7 +3023,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(164, 61, 53, 0.22);
   border-radius: 10px;
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-delete-card {
@@ -3119,7 +3119,7 @@ button.directory-alias-chip {
   border: 0;
   border-radius: 8px;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3154,7 +3154,7 @@ button.directory-alias-chip {
   border-radius: 8px;
   box-shadow: 0 8px 18px rgba(31, 43, 51, 0.04);
   font-size: 15px;
-  font-weight: 820;
+  font-weight: 560;
   line-height: 1;
 }
 
@@ -3176,7 +3176,7 @@ button.directory-alias-chip {
 .directory-eyebrow {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 560;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -3204,7 +3204,7 @@ button.directory-alias-chip {
   border: 0;
   border-radius: 10px;
   font-size: 24px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -3242,7 +3242,7 @@ button.directory-alias-chip {
   border-radius: 8px;
   text-align: left;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .directory-entry-menu-item:active {
@@ -3272,7 +3272,7 @@ button.directory-alias-chip {
 .shared-directory-title {
   color: var(--ink);
   font-size: 16px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .shared-directory-subtitle {
@@ -3294,7 +3294,7 @@ button.directory-alias-chip {
   background: rgba(255, 255, 255, 0.72);
   color: var(--accent);
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .shared-directory-unshare {
@@ -3348,7 +3348,7 @@ button.directory-alias-chip {
 .shared-directory-name {
   min-width: 0;
   color: var(--ink);
-  font-weight: 780;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3381,7 +3381,7 @@ button.directory-alias-chip {
   gap: 10px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .shared-directory-field select {
@@ -3391,7 +3391,7 @@ button.directory-alias-chip {
   background: rgba(255, 252, 246, 0.9);
   border: 1px solid var(--line);
   border-radius: 9px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .shared-directory-targets {
@@ -3407,7 +3407,7 @@ button.directory-alias-chip {
   gap: 7px;
   color: var(--ink);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .shared-directory-target input {
@@ -3478,7 +3478,7 @@ button.directory-alias-chip {
   min-height: 42px;
   border-radius: 10px;
   font-size: calc(14px * var(--app-font-scale));
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .owner-elevation-cancel {
@@ -3513,7 +3513,7 @@ button.directory-alias-chip {
   background: var(--accent);
   border-radius: 14px;
   font-size: 25px;
-  font-weight: 880;
+  font-weight: 600;
   box-shadow: 0 10px 24px rgba(31, 111, 98, 0.18);
 }
 
@@ -3525,7 +3525,7 @@ button.directory-alias-chip {
   border: 0;
   border-radius: 12px;
   font-size: 15px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .pwa-install-instructions {
@@ -3551,7 +3551,7 @@ button.directory-alias-chip {
 .settings-row-title {
   color: var(--ink);
   font-size: 14px;
-  font-weight: 840;
+  font-weight: 560;
 }
 
 .font-size-options {
@@ -3571,7 +3571,7 @@ button.directory-alias-chip {
   background: rgba(255, 252, 246, 0.82);
   border: 1px solid var(--line);
   border-radius: 11px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .font-size-option.active {
@@ -3604,7 +3604,7 @@ button.directory-alias-chip {
 .settings-preview-title {
   color: var(--ink);
   font-size: calc(16px * var(--app-font-scale));
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .settings-preview-body {
@@ -3636,7 +3636,7 @@ button.directory-alias-chip {
 .access-key-title {
   color: var(--ink);
   font-size: 18px;
-  font-weight: 860;
+  font-weight: 600;
 }
 
 .owner-admin-sheet {
@@ -3668,7 +3668,7 @@ button.directory-alias-chip {
   color: var(--ink);
   cursor: pointer;
   list-style: none;
-  font-weight: 840;
+  font-weight: 560;
 }
 
 .access-key-section-summary::-webkit-details-marker {
@@ -3691,7 +3691,7 @@ button.directory-alias-chip {
   min-width: 0;
   color: var(--ink);
   font-size: 15px;
-  font-weight: 860;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3710,7 +3710,7 @@ button.directory-alias-chip {
   background: rgba(31, 43, 51, 0.06);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .owner-workspace-grid {
@@ -3751,7 +3751,7 @@ button.directory-alias-chip {
   min-width: 0;
   color: var(--ink);
   font-size: 15px;
-  font-weight: 860;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3760,7 +3760,7 @@ button.directory-alias-chip {
 .owner-workspace-id {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -3786,13 +3786,13 @@ button.directory-alias-chip {
 
 .owner-workspace-facts dt {
   color: var(--muted);
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .owner-workspace-facts dd {
   min-width: 0;
   color: var(--ink);
-  font-weight: 720;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -3811,7 +3811,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 43, 51, 0.12);
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .owner-workspace-actions button.danger {
@@ -3856,7 +3856,7 @@ button.directory-alias-chip {
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid var(--line);
   border-radius: 12px;
-  font-weight: 720;
+  font-weight: 600;
 }
 
 .group-member-option input {
@@ -3877,7 +3877,7 @@ button.directory-alias-chip {
   background: #d8efe6;
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .access-key-subtitle,
@@ -3903,7 +3903,7 @@ button.directory-alias-chip {
   background: rgba(232, 244, 235, 0.9);
   color: var(--accent);
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .access-key-web button:disabled {
@@ -3935,7 +3935,7 @@ button.directory-alias-chip {
   min-width: 0;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3944,7 +3944,7 @@ button.directory-alias-chip {
 .access-key-row-state {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -3986,7 +3986,7 @@ button.directory-alias-chip {
   gap: 5px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .workspace-create-help,
@@ -4060,7 +4060,7 @@ button.directory-alias-chip {
   min-width: 0;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -4085,7 +4085,7 @@ button.directory-alias-chip {
   background: rgba(31, 43, 51, 0.06);
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .workspace-runtime-config-button {
@@ -4109,7 +4109,7 @@ button.directory-alias-chip {
 
 .workspace-gateway-title {
   color: var(--ink);
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .workspace-gateway-meta {
@@ -4134,7 +4134,7 @@ button.directory-alias-chip {
   gap: 6px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .runtime-config-subtitle {
@@ -4143,7 +4143,7 @@ button.directory-alias-chip {
   color: var(--accent);
   border-top: 1px solid var(--line);
   font-size: 13px;
-  font-weight: 840;
+  font-weight: 560;
 }
 
 .runtime-config-form input {
@@ -4181,7 +4181,7 @@ button.directory-alias-chip {
   background: rgba(232, 244, 235, 0.9);
   border: 1px solid rgba(31, 43, 51, 0.12);
   border-radius: 10px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .runtime-config-status {
@@ -4214,12 +4214,12 @@ button.directory-alias-chip {
   color: var(--accent);
   background: rgba(255, 255, 255, 0.72);
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .access-key-result-label {
   color: var(--ink);
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .access-key-value-row {
@@ -4327,7 +4327,7 @@ button.directory-alias-chip {
 
 .directory-entry.shared-root .directory-entry-name {
   color: #4f5d59;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .directory-entry.shared-root .directory-entry-icon {
@@ -4358,7 +4358,7 @@ button.directory-alias-chip {
 .directory-entry-name {
   min-width: 0;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -4374,7 +4374,7 @@ button.directory-alias-chip {
 
 .directory-entry-chevron {
   color: rgba(20, 32, 39, 0.36);
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .todo-list-card.open {
@@ -4947,7 +4947,7 @@ button.directory-alias-chip {
 .automation-create-label {
   color: var(--ink);
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .automation-create-input {
@@ -5034,7 +5034,7 @@ button.directory-alias-chip {
   padding: 0 3px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 560;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -5084,7 +5084,7 @@ button.directory-alias-chip {
 .automation-card-title {
   min-width: 0;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -5250,7 +5250,7 @@ button.directory-alias-chip {
 .automation-output-title {
   color: var(--muted);
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .automation-output-current {
@@ -5451,7 +5451,7 @@ button.directory-alias-chip {
   border: 1px solid var(--line);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .automation-preview,
@@ -5562,7 +5562,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(63, 127, 114, 0.12);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 720;
+  font-weight: 600;
   line-height: 1;
   box-shadow: none;
 }
@@ -5638,7 +5638,7 @@ button.directory-alias-chip {
 .group-mention-name {
   min-width: 0;
   overflow: hidden;
-  font-weight: 760;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5646,7 +5646,7 @@ button.directory-alias-chip {
 .group-mention-id {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: 560;
 }
 
 #attachFile {
