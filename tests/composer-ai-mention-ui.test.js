@@ -16,6 +16,7 @@ assert.match(serverJs, /function parseAgentRuntimeConfigFromYaml\(text\)/);
 assert.match(serverJs, /function runtimeModelConfigInfo\(\)/);
 assert.match(serverJs, /function assistantLabelForRuntimeConfig\(info = \{\}\)/);
 assert.match(serverJs, /model:\s*\{\s*default: info\.defaultModel/s);
+assert.match(serverJs, /return dedupe\(\[\.\.\.gatewayPoolConfigPathCandidates\(\), \.\.\.base\]\)\.filter\(configPathReadableForRuntimeInfo\);/);
 
 assert.equal(appJs.includes("AI_MENTION_OPTIONS"), false);
 assert.match(appJs, /function composerAiMentionOptions\(\)/);

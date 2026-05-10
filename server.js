@@ -2015,7 +2015,7 @@ function gatewayPoolConfigPathCandidates() {
 
 function runtimeConfigPathCandidates() {
   const base = HERMES_CONFIG_PATHS.filter(configPathReadableForRuntimeInfo);
-  return dedupe([...gatewayPoolConfigPathCandidates(), ...base]);
+  return dedupe([...gatewayPoolConfigPathCandidates(), ...base]).filter(configPathReadableForRuntimeInfo);
 }
 
 function assistantLabelForRuntimeConfig(info = {}) {
