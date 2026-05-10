@@ -14,6 +14,7 @@ const startHermesWeb = read("start-hermes-web.ps1");
 const startWorkerHost = read(path.join("scripts", "start-worker-host.ps1"));
 const startGatewayPool = read(path.join("scripts", "start-gateway-pool.ps1"));
 const provisionWorkerExternalConnectors = read(path.join("scripts", "provision-worker-external-connectors.ps1"));
+const repairWorkspaceAcl = read(path.join("scripts", "repair-workspace-acl.ps1"));
 const runKanbanGatewayWorker = read(path.join("scripts", "run-kanban-gateway-worker.ps1"));
 const runKanbanGatewayWorkerChild = read(path.join("scripts", "run-kanban-gateway-worker-child.ps1"));
 const runKanbanGatewayWorkerShell = read(path.join("scripts", "run-kanban-gateway-worker.sh"));
@@ -57,6 +58,12 @@ assert.match(provisionWorkerExternalConnectors, /google_workspace_setup_check=ok
 assert.match(provisionWorkerExternalConnectors, /\[owner-secret-root\]/);
 assert.doesNotMatch(provisionWorkerExternalConnectors, /Get-Content\s+-Raw\s+\$GoogleTokenPath/i);
 assert.doesNotMatch(provisionWorkerExternalConnectors, /Write-Host .*token/i);
+
+assert.match(repairWorkspaceAcl, /\[string\]\$WorkspaceRoot/);
+assert.match(repairWorkspaceAcl, /HermesMobileWorker/);
+assert.match(repairWorkspaceAcl, /\[switch\]\$CheckOnly/);
+assert.match(repairWorkspaceAcl, /icacls \$root \/grant \$grant/);
+assert.match(repairWorkspaceAcl, /missingWorkerRead/);
 
 assert.match(runKanbanGatewayWorker, /ValueFromRemainingArguments/);
 assert.match(runKanbanGatewayWorker, /PositionalBinding\s*=\s*\$false/);
