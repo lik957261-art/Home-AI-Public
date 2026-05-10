@@ -10270,7 +10270,7 @@ async function uploadFiles(files) {
       const dataBase64 = await fileToBase64(file);
       const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/uploads`, {
         method: "POST",
-        body: JSON.stringify({ filename: file.name, type: file.type, dataBase64 }),
+        body: JSON.stringify({ filename: file.name, type: file.type, dataBase64, workspaceId: state.selectedWorkspaceId || "owner" }),
       });
       if (result.artifact) state.pendingArtifacts.push(result.artifact);
     }

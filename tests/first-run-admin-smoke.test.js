@@ -182,6 +182,18 @@ async function main() {
     assert.equal(autoWorkspace.workspace.label, "Demo Prefill User");
     assert.equal(autoWorkspace.workspace.localConfig.defaultWorkspace, defaults.defaults.defaultWorkspace);
     assert.deepEqual(autoWorkspace.workspace.localConfig.allowedRoots, [defaults.defaults.defaultWorkspace]);
+    const autoSingle = await request(baseUrl, "/api/single-window", jsonOptions("POST", ownerKey, {
+      workspaceId: "demo-prefill-user",
+    }));
+    const uploaded = await request(baseUrl, `/api/threads/${encodeURIComponent(autoSingle.thread.id)}/uploads`, jsonOptions("POST", ownerKey, {
+      workspaceId: "demo-prefill-user",
+      filename: "photo.jpg",
+      dataBase64: Buffer.from("image-bytes").toString("base64"),
+    }));
+    const workspaceUploadRoot = path.join(defaults.defaults.defaultWorkspace, ".hermes-mobile", "uploads", autoSingle.thread.id);
+    assert.equal(uploaded.artifact.workspaceId, "demo-prefill-user");
+    assert.equal(uploaded.artifact.path.startsWith(`${workspaceUploadRoot}${path.sep}`), true);
+    assert.equal(fs.existsSync(uploaded.artifact.path), true);
     await request(baseUrl, "/api/workspaces/demo-prefill-user", {
       method: "DELETE",
       headers: { "X-Hermes-Web-Key": ownerKey },
