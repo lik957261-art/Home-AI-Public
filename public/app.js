@@ -106,6 +106,7 @@ const state = {
   keyboardContextTopPx: 0,
   keyboardViewportActive: false,
   renderScheduled: false,
+  streamingMessageRenderScheduled: new Set(),
   shouldStickToBottom: true,
   preservedBottomOffset: 0,
   conversationPinnedToBottom: true,
@@ -1780,11 +1781,6 @@ function updateTopMoreControls() {
     renameTask.hidden = !taskDetail;
     renameTask.disabled = !taskDetail || !state.currentTaskGroupId;
   }
-  const searchChat = $("topSearchChat");
-  if (searchChat) {
-    searchChat.hidden = !chatView;
-    searchChat.disabled = !chatView || !state.currentThread;
-  }
   const toggleGroupChat = $("topToggleGroupChat");
   if (toggleGroupChat) {
     toggleGroupChat.hidden = !chatView;
@@ -1796,6 +1792,11 @@ function updateTopMoreControls() {
     const canManageGroupMembers = Boolean(state.auth?.isOwner && chatView && isGroupChatView());
     manageGroupMembers.hidden = !canManageGroupMembers;
     manageGroupMembers.disabled = !canManageGroupMembers || !state.currentThread;
+  }
+  const searchChat = $("topSearchChat");
+  if (searchChat) {
+    searchChat.hidden = !chatView;
+    searchChat.disabled = !chatView || !state.currentThread;
   }
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
@@ -5402,7 +5403,7 @@ function wrapCanvasText(ctx, text, maxWidth) {
   return lines;
 }
 
-function setShareImageFont(ctx, size, weight = 400, family = "\"Microsoft YaHei UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Segoe UI\", sans-serif") {
+function setShareImageFont(ctx, size, weight = 400, family = "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Aptos\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Segoe UI\", sans-serif") {
   ctx.font = `${weight} ${size}px ${family}`;
 }
 
@@ -8441,12 +8442,18 @@ function messageDirectoryAliases(message) {
 function extractedTaskDirectoryAliases(group) {
   const aliases = [];
   for (const message of group?.messages || []) {
-    const extracted = extractDirectoryAliases(message.content || "");
-    for (const alias of extracted.aliases || []) {
-      aliases.push(Object.assign({ messageId: message.id, source: "extracted" }, alias));
-    }
-    aliases.push(...extractMediaDirectoryAliases(message.content || "", message.id));
+    aliases.push(...messageExtractedDirectoryAliases(message));
   }
+  return aliases;
+}
+
+function messageExtractedDirectoryAliases(message) {
+  const aliases = [];
+  const extracted = extractDirectoryAliases(message?.content || "");
+  for (const alias of extracted.aliases || []) {
+    aliases.push(Object.assign({ messageId: message?.id || "", source: "extracted" }, alias));
+  }
+  aliases.push(...extractMediaDirectoryAliases(message?.content || "", message?.id || ""));
   return aliases;
 }
 
@@ -8509,22 +8516,40 @@ function isTaskBindingDirectoryItem(item) {
   );
 }
 
-function taskPrimaryDirectoryAlias(group) {
-  const context = taskDirectoryContext(group);
-  const candidates = [
-    ...explicitTaskDirectoryAliases(group),
-    ...extractedTaskDirectoryAliases(group).filter((alias) =>
-      !alias.referenceKind && !isDeliveryDirectoryAlias(alias) && !isOperationalTaskDirectoryAlias(alias)),
-  ];
+function usableTaskBindingAliases(aliases) {
+  return (aliases || []).filter((alias) => (
+    alias
+    && !alias.referenceKind
+    && !isDeliveryDirectoryAlias(alias)
+    && !isGenericDefaultDirectoryAlias(alias)
+    && !isOperationalTaskDirectoryAlias(alias)
+  ));
+}
+
+function selectTaskBindingAlias(candidates, context) {
   const items = directoryAliasItemsForAliases(candidates, context, { includeGenericDefault: false });
   const bindingItems = items.filter(isTaskBindingDirectoryItem);
   const primary = bindingItems.find((item) => isContextAnchorDirectoryRoute(item.route)) || bindingItems[0] || null;
   if (primary) return aliasFromDirectoryItem(primary, { source: "bound" });
-  const fallback = candidates.find((alias) => {
-    if (!alias || isDeliveryDirectoryAlias(alias) || isGenericDefaultDirectoryAlias(alias) || isOperationalTaskDirectoryAlias(alias)) return false;
-    return Boolean(alias.label || alias.path);
-  });
+  const fallback = usableTaskBindingAliases(candidates).find((alias) => alias.label || alias.path);
   return fallback ? Object.assign({}, fallback, { source: "bound" }) : null;
+}
+
+function taskPrimaryDirectoryAlias(group) {
+  const context = taskDirectoryContext(group);
+  for (const message of group?.messages || []) {
+    const candidates = usableTaskBindingAliases([
+      ...messageDirectoryAliases(message).map((alias) => Object.assign({ messageId: message.id }, alias)),
+      ...messageExtractedDirectoryAliases(message),
+    ]);
+    const primary = selectTaskBindingAlias(candidates, context);
+    if (primary) return primary;
+  }
+  const candidates = [
+    ...explicitTaskDirectoryAliases(group),
+    ...usableTaskBindingAliases(extractedTaskDirectoryAliases(group)),
+  ];
+  return selectTaskBindingAlias(candidates, context);
 }
 
 function taskDirectoryAliases(group) {
@@ -8736,11 +8761,11 @@ function renderTaskCard(group) {
       </div>
       <button class="task-card-main" type="button" data-open-task="${escapeHtml(group.id)}">
         <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled task")}</span>
-        <span class="task-row-meta">${escapeHtml(`${taskStatus(group)} | ${formatTime(group.updatedAt)}`)}</span>
+        <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}</span>
       </button>
       <div class="task-card-assets">
-        <div class="task-docs${artifactChips || !skillChips ? "" : " empty"}" aria-label="Task documents">
-          ${artifactChips || (skillChips ? "" : `<span class="task-doc-empty">No doc</span>`)}
+        <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Task documents">
+          ${artifactChips}
         </div>
         ${skillChips}
         ${renderTaskDirectoryBadges(group, { empty: true })}
@@ -9397,6 +9422,14 @@ function resolveDirectoryProjectRoute(alias) {
   const requestedProjectId = String(alias?.projectId || "").trim();
   const requestedSubprojectId = String(alias?.subprojectId || "").trim();
   if (requestedProjectId) {
+    const exactProject = candidates.find((candidate) =>
+      candidate.projectId === requestedProjectId && String(candidate.subprojectId || "") === requestedSubprojectId);
+    if (exactProject) return exactProject;
+    if (!requestedSubprojectId) {
+      const rootProject = candidates.find((candidate) =>
+        candidate.projectId === requestedProjectId && !candidate.subprojectId);
+      if (rootProject) return rootProject;
+    }
     const projectMatches = candidates
       .filter((candidate) => candidate.projectId === requestedProjectId && (!requestedSubprojectId || candidate.subprojectId === requestedSubprojectId))
       .sort((a, b) => comparableDirectoryPath(b.root).length - comparableDirectoryPath(a.root).length);
@@ -9843,6 +9876,38 @@ function scheduleRenderCurrentThread() {
   });
 }
 
+function renderStreamingMessageContent(message) {
+  if (!message?.id || message.role !== "assistant") return false;
+  if (isChatSearchMode() && currentChatSearchQuery()) return false;
+  const article = messageElementById(message.id);
+  const body = article?.querySelector?.(".message-body");
+  const content = body?.querySelector?.(".text-content");
+  if (!article || !body || !content || message.revokedAt) return false;
+  const shouldStick = isNearBottom();
+  content.outerHTML = renderText(message.content || "", message);
+  if (shouldStick) {
+    const conversation = $("conversation");
+    conversation.scrollTop = conversation.scrollHeight;
+    state.conversationPinnedToBottom = true;
+  } else {
+    state.conversationPinnedToBottom = false;
+  }
+  scheduleMessageScrollButtonVisibility($("conversation"));
+  return true;
+}
+
+function scheduleStreamingMessageRender(message) {
+  if (!message?.id) return false;
+  const id = String(message.id);
+  if (state.streamingMessageRenderScheduled.has(id)) return true;
+  state.streamingMessageRenderScheduled.add(id);
+  requestAnimationFrame(() => {
+    state.streamingMessageRenderScheduled.delete(id);
+    if (!renderStreamingMessageContent(message)) scheduleRenderCurrentThread();
+  });
+  return true;
+}
+
 function threadMatchesSelection(thread) {
   if (!thread) return false;
   if (
@@ -9972,8 +10037,7 @@ function appendDelta(threadId, messageId, delta, payload = {}) {
   message.content = `${message.content || ""}${delta || ""}`;
   if (!message.firstFeedbackAt) message.firstFeedbackAt = payload.firstFeedbackAt || updatedAt;
   message.updatedAt = updatedAt;
-  if (state.viewMode === "tasks") renderThreads();
-  scheduleRenderCurrentThread();
+  if (!scheduleStreamingMessageRender(message)) scheduleRenderCurrentThread();
 }
 
 function applyEvent(payload) {
@@ -11039,7 +11103,6 @@ function wireUi() {
   $("directoryEntry").addEventListener("click", () => {
     openCurrentDirectoryEntry().catch(showError);
   });
-  $("searchButton").addEventListener("click", () => openSearchPrompt().catch(showError));
   $("topInstallPwa")?.addEventListener("click", openPwaInstall);
   $("newThread").addEventListener("click", () => createThread().catch(showError));
   $("pushToggle").addEventListener("click", () => handlePushButton().catch(showError));

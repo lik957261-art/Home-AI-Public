@@ -16,6 +16,7 @@ assert.match(serverJs, /function parseAgentRuntimeConfigFromYaml\(text\)/);
 assert.match(serverJs, /function runtimeModelConfigInfo\(\)/);
 assert.match(serverJs, /function assistantLabelForRuntimeConfig\(info = \{\}\)/);
 assert.match(serverJs, /model:\s*\{\s*default: info\.defaultModel/s);
+assert.match(serverJs, /return dedupe\(\[\.\.\.gatewayPoolConfigPathCandidates\(\), \.\.\.base\]\)\.filter\(configPathReadableForRuntimeInfo\);/);
 
 assert.equal(appJs.includes("AI_MENTION_OPTIONS"), false);
 assert.match(appJs, /function composerAiMentionOptions\(\)/);
@@ -69,6 +70,11 @@ assert.match(appJs, /const SHARE_IMAGE_SCALE = 3/);
 assert.match(appJs, /const SHARE_IMAGE_MAX_PIXELS = 48000000/);
 assert.match(appJs, /function shareImageRenderScale\(layout\)/);
 assert.match(appJs, /ctx\.scale\(scale, scale\)/);
+assert.match(appJs, /streamingMessageRenderScheduled: new Set\(\)/);
+assert.match(appJs, /function renderStreamingMessageContent\(message\)/);
+assert.match(appJs, /content\.outerHTML = renderText\(message\.content \|\| "", message\)/);
+assert.match(appJs, /function scheduleStreamingMessageRender\(message\)/);
+assert.match(appJs, /if \(!scheduleStreamingMessageRender\(message\)\) scheduleRenderCurrentThread\(\)/);
 
 assert.equal(indexHtml.includes("taskReasoningSelect"), false);
 assert.equal(stylesCss.includes("taskReasoningSelect"), false);

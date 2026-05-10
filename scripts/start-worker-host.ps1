@@ -89,6 +89,16 @@ function Test-BridgeHostHealth {
     }
 }
 
+function Test-HermesMobileHttpHealth {
+    param([int]$ListenPort)
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri ("http://127.0.0.1:{0}/" -f $ListenPort) -TimeoutSec 3 -ErrorAction Stop
+        return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500)
+    } catch {
+        return $false
+    }
+}
+
 function Set-BridgeHostEnvironment {
     param(
         [int]$ListenPort,
@@ -199,8 +209,11 @@ $listener = Get-ListenerProcess -ListenPort $Port
 if ($listener) {
     $ownerName = Get-ProcessOwnerName -ProcessInfo $listener
     if (($ownerName -ieq $targetOwner) -and -not $ReplaceExisting) {
-        Write-WorkerHostLog "Worker listener already running on port $Port; PID $($listener.ProcessId)."
-        return
+        if (Test-HermesMobileHttpHealth -ListenPort $Port) {
+            Write-WorkerHostLog "Worker listener already running and HTTP healthy on port $Port; PID $($listener.ProcessId)."
+            return
+        }
+        throw "Port $Port is owned by $targetOwner, but Hermes Mobile HTTP health failed. Use -ReplaceExisting for a controlled restart."
     }
     if (-not $ReplaceExisting) {
         throw "Port $Port is already owned by PID $($listener.ProcessId) ($ownerName). Use -ReplaceExisting for a controlled cutover."
@@ -262,9 +275,12 @@ while ((Get-Date) -lt $deadline) {
     if (-not $listener) { continue }
     $ownerName = Get-ProcessOwnerName -ProcessInfo $listener
     if ($ownerName -ieq $targetOwner) {
-        Write-WorkerHostLog "Worker listener OK on port $Port; PID $($listener.ProcessId)."
-        return
+        if (Test-HermesMobileHttpHealth -ListenPort $Port) {
+            Write-WorkerHostLog "Worker listener OK on port $Port; PID $($listener.ProcessId)."
+            return
+        }
+        Write-WorkerHostLog "Worker listener on port $Port is owned by $targetOwner but HTTP health is not ready yet; PID $($listener.ProcessId)."
     }
 }
 
-throw "Hermes Mobile worker listener did not open port $Port as $targetOwner."
+throw "Hermes Mobile worker listener did not open a responsive HTTP endpoint on port $Port as $targetOwner."

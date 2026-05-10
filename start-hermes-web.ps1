@@ -60,6 +60,15 @@ function Test-HermesWebProcess {
     }
 }
 
+function Test-HermesWebHttpHealth {
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri ("http://127.0.0.1:{0}/" -f $Port) -TimeoutSec 3 -ErrorAction Stop
+        return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500)
+    } catch {
+        return $false
+    }
+}
+
 function Start-HermesWebRegisteredTask {
     if ($ForceLocalStart -or -not (Test-CurrentUserIsLocalSystem)) { return $false }
 
@@ -84,11 +93,13 @@ function Start-HermesWebRegisteredTask {
         $listener = Get-HermesWebListener -ListenPort $Port
         if (-not $listener) { continue }
         if (Test-HermesWebProcess -ProcessId $listener.OwningProcess -ExpectedServerPath $serverPath) {
-            Write-Host "Hermes Mobile listener OK; PID $($listener.OwningProcess)"
-            return $true
+            if (Test-HermesWebHttpHealth) {
+                Write-Host "Hermes Mobile listener OK; PID $($listener.OwningProcess)"
+                return $true
+            }
         }
     }
-    throw "Registered user task '$StartupTaskPath$StartupTaskName' did not open Hermes Mobile port $Port."
+    throw "Registered user task '$StartupTaskPath$StartupTaskName' did not open a responsive Hermes Mobile HTTP endpoint on port $Port."
 }
 
 $env:HERMES_WEB_HOST = $HostAddress
@@ -120,8 +131,11 @@ if ($Detached) {
 
     $existing = Get-HermesWebListener -ListenPort $Port
     if ($existing) {
-        Write-Host "Hermes Mobile already listening on port $Port; PID $($existing.OwningProcess)"
-        return
+        if (Test-HermesWebHttpHealth) {
+            Write-Host "Hermes Mobile already listening on port $Port; PID $($existing.OwningProcess)"
+            return
+        }
+        throw "Hermes Mobile is listening on port $Port, but HTTP health failed; PID $($existing.OwningProcess)."
     }
 
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -138,13 +152,19 @@ if ($Detached) {
         -RedirectStandardError $stderrLog `
         -PassThru
 
-    Start-Sleep -Milliseconds 1200
-    $listener = Get-HermesWebListener -ListenPort $Port
-    if (-not $listener) {
+    $deadline = (Get-Date).AddSeconds(20)
+    $listener = $null
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 400
+        $listener = Get-HermesWebListener -ListenPort $Port
+        if ($listener -and (Test-HermesWebHttpHealth)) { break }
+        if ($process.HasExited) { break }
+    }
+    if (-not $listener -or -not (Test-HermesWebHttpHealth)) {
         if ($process.HasExited) {
             throw "Hermes Mobile detached start failed; PID $($process.Id) exited with code $($process.ExitCode). See $stderrLog"
         }
-        throw "Hermes Mobile detached start did not open port $Port yet; PID $($process.Id). See $stdoutLog and $stderrLog"
+        throw "Hermes Mobile detached start did not open a responsive HTTP endpoint on port $Port yet; PID $($process.Id). See $stdoutLog and $stderrLog"
     }
     Write-Host "Hermes Mobile detached listener OK; PID $($listener.OwningProcess)"
     Write-Host "Logs: $stdoutLog ; $stderrLog"
