@@ -4484,7 +4484,7 @@ button.directory-alias-chip {
 
 .todo-card-title {
   min-width: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 760;
   overflow-wrap: anywhere;
 }
@@ -4812,7 +4812,7 @@ button.directory-alias-chip {
 
 .automation-card-title {
   min-width: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -6109,10 +6109,7 @@ button.directory-alias-chip {
 :root[data-font-size] .message-prose li,
 :root[data-font-size] .message-prose td,
 :root[data-font-size] .message-prose th,
-:root[data-font-size] .task-prompt,
-:root[data-font-size] .todo-card-title,
-:root[data-font-size] .automation-card-title,
-:root[data-font-size] .automation-doc-name {
+:root[data-font-size] .task-prompt {
   font-size: calc(16.8px * var(--app-font-scale));
 }
 
@@ -6127,11 +6124,18 @@ button.directory-alias-chip {
 :root[data-font-size] .message-prose h3,
 :root[data-font-size] .task-title-line,
 :root[data-font-size] .directory-entry-name,
+:root[data-font-size] .todo-card-title,
+:root[data-font-size] .automation-card-title,
+:root[data-font-size] .automation-doc-name,
 :root[data-font-size] .directory-breadcrumb button,
 :root[data-font-size] .todo-create-toggle,
 :root[data-font-size] .access-key-title,
 :root[data-font-size] .settings-row-title {
   font-size: calc(15px * var(--app-font-scale));
+}
+
+:root[data-font-size] .automation-doc-preview.compact .automation-doc-name {
+  font-size: calc(13px * var(--app-font-scale));
 }
 
 :root[data-font-size] .message-prose pre,

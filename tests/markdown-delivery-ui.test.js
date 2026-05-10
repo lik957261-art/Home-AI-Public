@@ -66,13 +66,19 @@ assert.match(stylesCss, /\.automation-doc-name \{[\s\S]*?font-weight: 500;/);
 assert.match(stylesCss, /\.automation-doc-label \{[\s\S]*?font-weight: 500;/);
 assert.match(stylesCss, /\.automation-state-time \{[\s\S]*?font-weight: 500;/);
 assert.match(stylesCss, /\.directory-entry-name \{[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /\.todo-card-title \{[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /\.automation-card-title \{[\s\S]*?font-size: 15px;/);
 assert.match(
   stylesCss,
-  /:root\[data-font-size\] \.message-prose h3,[\s\S]*?:root\[data-font-size\] \.task-title-line,[\s\S]*?:root\[data-font-size\] \.directory-entry-name,[\s\S]*?font-size: calc\(15px \* var\(--app-font-scale\)\);/
+  /:root\[data-font-size\] \.message-prose h3,[\s\S]*?:root\[data-font-size\] \.task-title-line,[\s\S]*?:root\[data-font-size\] \.directory-entry-name,[\s\S]*?:root\[data-font-size\] \.todo-card-title,[\s\S]*?:root\[data-font-size\] \.automation-card-title,[\s\S]*?:root\[data-font-size\] \.automation-doc-name,[\s\S]*?font-size: calc\(15px \* var\(--app-font-scale\)\);/
 );
 assert.doesNotMatch(
   stylesCss,
-  /:root\[data-font-size\] \.message-body,[\s\S]*?:root\[data-font-size\] \.directory-entry-name,[\s\S]*?font-size: calc\(16\.8px \* var\(--app-font-scale\)\);/
+  /:root\[data-font-size\] \.message-body,[\s\S]*?:root\[data-font-size\] \.(?:directory-entry-name|todo-card-title|automation-card-title|automation-doc-name),[\s\S]*?font-size: calc\(16\.8px \* var\(--app-font-scale\)\);/
+);
+assert.match(
+  stylesCss,
+  /:root\[data-font-size\] \.automation-doc-preview\.compact \.automation-doc-name \{[\s\S]*?font-size: calc\(13px \* var\(--app-font-scale\)\);/
 );
 
 assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
