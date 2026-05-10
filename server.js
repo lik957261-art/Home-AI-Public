@@ -3936,6 +3936,22 @@ function mergeDefaultExternalAccessPolicy(policy) {
   });
 }
 
+function mergeAccessPolicyOverride(basePolicy, overridePolicy) {
+  const base = basePolicy && typeof basePolicy === "object" ? basePolicy : {};
+  const override = overridePolicy && typeof overridePolicy === "object" ? overridePolicy : {};
+  const merged = Object.assign({}, base, override);
+  merged.allowed_toolsets = dedupe([
+    ...(base.allowed_toolsets || []),
+    ...(override.allowed_toolsets || []),
+  ]);
+  merged.connector_profiles = Object.assign(
+    {},
+    base.connector_profiles || {},
+    override.connector_profiles || {},
+  );
+  return merged;
+}
+
 function buildAccessPolicy(route, user, project, hardeningOptions = {}) {
   const policy = mergeDefaultExternalAccessPolicy(accessPolicyProvider.build(route, user, project));
   return securityBoundaryProvider.hardenAccessPolicy(policy, hardeningOptions);
@@ -4665,6 +4681,29 @@ function projectForTaskDirectoryAttachment(thread, attachment) {
   });
 }
 
+function formatAccessPolicyInstructionSummary(policy = {}) {
+  const lines = [
+    "Current run access policy summary (authoritative; supersedes older permission statements in conversation_history):",
+  ];
+  const principal = String(policy.principal_id || policy.principalId || "").trim();
+  const accessMode = String(policy.access_mode || policy.accessMode || "restricted").trim() || "restricted";
+  const roots = dedupe([
+    policy.default_workspace || policy.defaultWorkspace || "",
+    ...(policy.allowed_roots || policy.allowedRoots || []),
+  ].filter(Boolean));
+  const toolsets = dedupe(policy.allowed_toolsets || policy.allowedToolsets || []);
+  const connectorProfiles = policy.connector_profiles && typeof policy.connector_profiles === "object"
+    ? Object.keys(policy.connector_profiles).sort()
+    : [];
+  if (principal) lines.push(`- Principal: ${principal}`);
+  lines.push(`- Access mode: ${accessMode}`);
+  if (roots.length) lines.push(`- Allowed roots: ${roots.join("; ")}`);
+  if (toolsets.length) lines.push(`- Enabled toolsets: ${toolsets.join(", ")}`);
+  if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
+  else lines.push("- External connector profiles: none");
+  return lines.join("\n");
+}
+
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
   const singleWindowMode = normalizeSingleWindowMode(options.singleWindowMode || options.single_window_mode || "");
   const groupChatDeliveryRoot = String(options.groupChatDeliveryRoot || options.group_chat_delivery_root || "").trim();
@@ -4675,6 +4714,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     "You are serving a Hermes Mobile app request.",
     "Use the selected account/workspace/project as the operational boundary.",
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
+    formatAccessPolicyInstructionSummary(policy),
     securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
     "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
     "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
@@ -6561,6 +6601,9 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     policy.cache_roots = dedupe([...(policy.cache_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
   }
   policy = sanitizePolicy(policy, policyHardeningOptions);
+  const runPolicy = options.access_policy_context && typeof options.access_policy_context === "object"
+    ? sanitizePolicy(mergeAccessPolicyOverride(policy, options.access_policy_context), policyHardeningOptions)
+    : policy;
   const taskId = makePublicTaskId("web");
   const body = {
     input: userMessage.content,
@@ -6571,7 +6614,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     instructions: [
       buildHermesInstructions(
         policyThread,
-        policy,
+        runPolicy,
         project,
         userMessage.content,
         taskDirectory,
@@ -6579,14 +6622,11 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
       ),
       options.instructions || "",
     ].filter(Boolean).join("\n\n"),
-    access_policy_context: policy,
+    access_policy_context: runPolicy,
   };
   if (options.model) body.model = options.model;
   if (options.reasoning_effort) body.reasoning_effort = options.reasoning_effort;
   if (options.reasoning && typeof options.reasoning === "object") body.reasoning = options.reasoning;
-  if (options.access_policy_context && typeof options.access_policy_context === "object") {
-    body.access_policy_context = sanitizePolicy(Object.assign({}, policy, options.access_policy_context), policyHardeningOptions);
-  }
 
   const gatewayRouting = Object.assign({}, requestedGatewayRouting, {
     purpose: "user_run",
