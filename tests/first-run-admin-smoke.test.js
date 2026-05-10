@@ -250,6 +250,8 @@ async function main() {
     assert.equal(workspacePrivateSingle.thread.chatGroup.enabled, false);
     assert.equal(workspacePrivateSingle.groupChatAvailable, true);
     assert.equal(workspacePrivateSingle.groupChatThreadId, ownerSingleBeforeGroup.thread.id);
+    assert.equal(workspacePrivateSingle.groupChatThread.id, ownerSingleBeforeGroup.thread.id);
+    assert.equal(workspacePrivateSingle.groupChatThread.chatGroup.enabled, true);
     const workspaceGroupSingle = await request(baseUrl, "/api/single-window", jsonOptions("POST", generated.key, {
       workspaceId: "demo-admin-user",
       groupChat: true,

@@ -15,8 +15,13 @@ assert.match(appJs, /body\.messageKind = aiMention\.mentionsAi \? "ai" : "plain"
 assert.match(appJs, /return \[virtualAssistantMember\(\), \.\.\.realMembers\]/);
 assert.match(appJs, /groupChatMentionMembers\(state\.currentThread, \{ includeAi: false \}\)/);
 assert.match(appJs, /groupChatAvailable: false/);
+assert.match(appJs, /groupChatThread: null/);
+assert.match(appJs, /function mergeChatScopeThread\(existingThread, incomingThread\)/);
+assert.match(appJs, /function chatScopeThread\(thread, scope\)/);
 assert.match(appJs, /state\.groupChatAvailable/);
+assert.match(appJs, /result\.groupChatThread/);
 assert.match(appJs, /state\.groupChatAvailable = Boolean\(result\.groupChatAvailable \|\| selectedWorkspaceInThreadGroup\(state\.currentThread\)\)/);
+assert.match(appJs, /function upsertCachedChatScopeMessage\(threadId, message, threadSummary = null\)/);
 assert.match(indexHtml, /id="chatScopeHeader"/);
 assert.match(appJs, /function renderChatScopeHeader\(thread\)/);
 assert.match(appJs, /function wireChatScopeHeader\(root\)/);

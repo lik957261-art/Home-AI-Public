@@ -139,8 +139,11 @@ const state = {
   suppressComposerFocusUntil: 0,
   attachFilePickerActivationAt: 0,
   topNavActivationAt: 0,
+  privateChatThread: null,
   groupChatOpen: localStorage.getItem("hermesWebGroupChatOpen") === "1",
   groupChatAvailable: false,
+  groupChatThread: null,
+  groupChatThreadId: "",
   groupChatManagerOpen: false,
   groupChatMemberDraft: [],
   groupMentionOpen: false,
@@ -1018,6 +1021,50 @@ function groupChatSelectable(thread = state.currentThread) {
   ));
 }
 
+function mergeChatScopeThread(existingThread, incomingThread) {
+  if (!incomingThread) return existingThread || null;
+  if (!existingThread || existingThread.id !== incomingThread.id) return incomingThread;
+  const existingPage = existingThread.messagesPage || null;
+  const incomingPage = incomingThread.messagesPage || null;
+  const existingMessages = new Map((existingThread.messages || []).map((message) => [message.id, message]));
+  const incomingIds = new Set();
+  const messages = (incomingThread.messages || []).map((message) => {
+    incomingIds.add(message.id);
+    return mergeServerMessage(existingMessages.get(message.id), message);
+  });
+  for (const message of existingThread.messages || []) {
+    if (!incomingIds.has(message.id)) messages.push(message);
+  }
+  const sortedMessages = sortedThreadMessages(messages);
+  const messagesPage = incomingPage || existingPage
+    ? mergeMessagesPage(existingPage, incomingPage, sortedMessages)
+    : null;
+  return Object.assign({}, existingThread, incomingThread, { messages: sortedMessages, messagesPage });
+}
+
+function rememberChatScopeThread(thread) {
+  if (!thread?.singleWindow) return;
+  if (selectedWorkspaceInThreadGroup(thread)) {
+    state.groupChatThread = mergeChatScopeThread(state.groupChatThread, thread);
+    state.groupChatThreadId = state.groupChatThread?.id || thread.id || "";
+    state.groupChatAvailable = true;
+    return;
+  }
+  if (thread.workspaceId === state.selectedWorkspaceId) {
+    state.privateChatThread = mergeChatScopeThread(state.privateChatThread, thread);
+  }
+}
+
+function chatScopeThread(thread, scope) {
+  const normalized = String(scope || "").trim().toLowerCase();
+  if (normalized === "group") {
+    if (thread?.id && thread.id === state.groupChatThread?.id) return thread;
+    return state.groupChatThread || (selectedWorkspaceInThreadGroup(thread) ? thread : null);
+  }
+  if (thread?.id && thread.id === state.privateChatThread?.id) return thread;
+  return state.privateChatThread || (!selectedWorkspaceInThreadGroup(thread) ? thread : null);
+}
+
 function chatScopeTaskGroupId(scope) {
   return String(scope || "").trim().toLowerCase() === "group"
     ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
@@ -1038,7 +1085,8 @@ function chatScopeMessageTimeMs(message) {
 }
 
 function latestChatScopeMessageTimeMs(thread, scope) {
-  return Math.max(0, ...chatMessagesForThread(thread, chatScopeTaskGroupId(scope)).map(chatScopeMessageTimeMs));
+  const sourceThread = chatScopeThread(thread, scope);
+  return Math.max(0, ...chatMessagesForThread(sourceThread, chatScopeTaskGroupId(scope)).map(chatScopeMessageTimeMs));
 }
 
 function chatScopeReadAt(scope) {
@@ -1071,10 +1119,11 @@ function isOwnChatScopeMessage(message) {
 }
 
 function unreadChatScopeCount(thread, scope) {
-  if (!isSingleWindowChatView() || !thread) return 0;
+  const sourceThread = chatScopeThread(thread, scope);
+  if (!isSingleWindowChatView() || !sourceThread) return 0;
   const readAt = chatScopeReadAt(scope);
   if (!readAt) return 0;
-  return chatMessagesForThread(thread, chatScopeTaskGroupId(scope))
+  return chatMessagesForThread(sourceThread, chatScopeTaskGroupId(scope))
     .filter((message) => chatScopeMessageTimeMs(message) > readAt)
     .filter((message) => !isOwnChatScopeMessage(message))
     .length;
@@ -1394,6 +1443,19 @@ function updateKeyboardViewportMetrics() {
     root.style.removeProperty("--keyboard-bottom-inset");
   }
   return active;
+}
+
+function updateMobileBottomNavReservation() {
+  const root = document.documentElement;
+  const nav = $("bottomNav");
+  if (!nav || !isMobileLayout()) {
+    root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    return;
+  }
+  const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
+  const contentHeight = Math.ceil(nav.scrollHeight || 0);
+  const reserve = Math.max(112, rectHeight + 24, contentHeight + 24);
+  root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
 }
 
 function refreshKeyboardViewportSoon(delay = 0) {
@@ -2922,6 +2984,7 @@ async function loadOlderChatMessages() {
 
 function handleViewportLayoutChange() {
   updateKeyboardViewportMetrics();
+  updateMobileBottomNavReservation();
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));
   if (!shouldStickConversationOnViewportChange()) return;
@@ -3327,6 +3390,7 @@ function showApp() {
   $("setup")?.classList.add("hidden");
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
+  updateMobileBottomNavReservation();
   restoreVisibleAppScroll();
 }
 
@@ -4130,6 +4194,7 @@ function applyFontSizePreference(value = state.fontSize) {
   state.fontSize = option.id;
   document.documentElement.dataset.fontSize = option.id;
   document.documentElement.style.setProperty("--app-font-scale", String(option.scale));
+  window.setTimeout(updateMobileBottomNavReservation, 0);
 }
 
 function setFontSizePreference(value) {
@@ -7853,7 +7918,12 @@ async function loadSingleWindow(options = {}) {
     }),
   });
   state.currentThread = mergeCurrentThread(result.thread);
+  if (result.groupChatThread) {
+    state.groupChatThread = mergeChatScopeThread(state.groupChatThread, result.groupChatThread);
+    state.groupChatThreadId = state.groupChatThread?.id || result.groupChatThreadId || "";
+  }
   state.groupChatAvailable = Boolean(result.groupChatAvailable || selectedWorkspaceInThreadGroup(state.currentThread));
+  rememberChatScopeThread(state.currentThread);
   if (groupChat && !selectedWorkspaceInThreadGroup(state.currentThread)) {
     state.groupChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
@@ -10483,6 +10553,32 @@ function upsertMessage(message) {
   scheduleRenderCurrentThread();
 }
 
+function upsertCachedChatScopeMessage(threadId, message, threadSummary = null) {
+  if (!threadId || !message) return false;
+  let touched = false;
+  const update = (thread) => {
+    const messages = thread.messages || [];
+    const index = messages.findIndex((item) => item.id === message.id);
+    if (index >= 0) messages[index] = mergeServerMessage(messages[index], message);
+    else messages.push(message);
+    touched = true;
+    return Object.assign({}, thread, threadSummary || {}, {
+      messages: sortedThreadMessages(messages),
+      updatedAt: threadSummary?.updatedAt || message.updatedAt || thread.updatedAt,
+    });
+  };
+  if (state.groupChatThread?.id === threadId) {
+    state.groupChatThread = update(state.groupChatThread);
+    state.groupChatAvailable = true;
+    state.groupChatThreadId = state.groupChatThread.id;
+  }
+  if (state.privateChatThread?.id === threadId) {
+    state.privateChatThread = update(state.privateChatThread);
+  }
+  if (touched && isSingleWindowChatView()) renderChatScopeHeader(state.currentThread);
+  return touched;
+}
+
 function currentThreadHasPendingMessages(thread = state.currentThread) {
   return Boolean(
     thread
@@ -10622,6 +10718,7 @@ function applyEvent(payload) {
     renderCurrentThread({ stickToBottom: false });
     return;
   }
+  if (payload.message) upsertCachedChatScopeMessage(payload.threadId, payload.message, payload.thread);
   if (payload.message && state.currentThread && payload.threadId === state.currentThread.id) {
     upsertMessage(payload.message);
     if (payload.thread) {
@@ -11541,6 +11638,9 @@ function wireUi() {
     clearQuotedReply({ render: false });
     clearTaskDirectoryFilter({ render: false });
     state.selectedWorkspaceId = event.target.value;
+    state.privateChatThread = null;
+    state.groupChatThread = null;
+    state.groupChatThreadId = "";
     state.groupChatAvailable = false;
     localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
     renderWorkspaceAccessPanel();

@@ -9057,10 +9057,18 @@ async function handleApi(req, res) {
         limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
       })
       : compactThread(thread);
+    const groupChatThread = groupChatAvailable
+      ? compactThreadWithMessagePage(availableGroupThread, {
+        mode: "chat",
+        groupChat: true,
+        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+      })
+      : null;
     sendJson(res, 200, {
       thread: responseThread,
       groupChatAvailable,
       groupChatThreadId: groupChatAvailable ? availableGroupThread.id : "",
+      groupChatThread,
     });
     return;
   }

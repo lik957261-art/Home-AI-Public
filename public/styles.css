@@ -21,7 +21,8 @@
   --radius: 18px;
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
   --app-font-scale: 1;
-  --mobile-bottom-nav-height: calc(72px + env(safe-area-inset-bottom));
+  --mobile-bottom-nav-height: calc(80px + env(safe-area-inset-bottom));
+  --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 24px));
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
 }
 
@@ -5893,7 +5894,7 @@ button.directory-alias-chip {
 @media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
-    padding-bottom: var(--mobile-bottom-nav-height);
+    padding-bottom: var(--mobile-bottom-nav-reserved-height);
   }
 
   :root.keyboard-viewport-active .app {
