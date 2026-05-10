@@ -1793,6 +1793,11 @@ function updateTopMoreControls() {
     manageGroupMembers.hidden = !canManageGroupMembers;
     manageGroupMembers.disabled = !canManageGroupMembers || !state.currentThread;
   }
+  const searchChat = $("topSearchChat");
+  if (searchChat) {
+    searchChat.hidden = !chatView;
+    searchChat.disabled = !chatView || !state.currentThread;
+  }
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
   wrap.classList.toggle("hidden", !hasVisibleAction);
@@ -11098,7 +11103,6 @@ function wireUi() {
   $("directoryEntry").addEventListener("click", () => {
     openCurrentDirectoryEntry().catch(showError);
   });
-  $("searchButton").addEventListener("click", () => openSearchPrompt().catch(showError));
   $("topInstallPwa")?.addEventListener("click", openPwaInstall);
   $("newThread").addEventListener("click", () => createThread().catch(showError));
   $("pushToggle").addEventListener("click", () => handlePushButton().catch(showError));
@@ -11166,6 +11170,9 @@ function wireUi() {
   $("topRenameTask")?.addEventListener("click", () => {
     closeTopMoreMenu();
     renameTaskGroup(state.currentTaskGroupId).catch(showError);
+  });
+  $("topSearchChat")?.addEventListener("click", () => {
+    openChatSearch();
   });
   $("topToggleGroupChat")?.addEventListener("click", () => {
     toggleGroupChat().catch(showError);
