@@ -1012,6 +1012,71 @@ function groupChatSelectable(thread = state.currentThread) {
   return Boolean(thread?.singleWindow && (selectedWorkspaceInThreadGroup(thread) || state.auth?.isOwner));
 }
 
+function chatScopeTaskGroupId(scope) {
+  return String(scope || "").trim().toLowerCase() === "group"
+    ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
+    : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+}
+
+function activeChatScope() {
+  return isGroupChatView() ? "group" : "chat";
+}
+
+function chatScopeReadStorageKey(scope) {
+  return `hermesChatScopeRead:${state.selectedWorkspaceId || "owner"}:${chatScopeTaskGroupId(scope)}`;
+}
+
+function chatScopeMessageTimeMs(message) {
+  const parsed = Date.parse(String(messageTimelineTimestamp(message) || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function latestChatScopeMessageTimeMs(thread, scope) {
+  return Math.max(0, ...chatMessagesForThread(thread, chatScopeTaskGroupId(scope)).map(chatScopeMessageTimeMs));
+}
+
+function chatScopeReadAt(scope) {
+  const value = Number(localStorage.getItem(chatScopeReadStorageKey(scope)) || "0");
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function setChatScopeReadAt(scope, value) {
+  const timestamp = Math.max(0, Number(value) || 0);
+  if (timestamp) localStorage.setItem(chatScopeReadStorageKey(scope), String(timestamp));
+}
+
+function ensureChatScopeReadBaselines(thread = state.currentThread) {
+  if (!isSingleWindowChatView() || !thread) return;
+  for (const scope of ["chat", "group"]) {
+    if (localStorage.getItem(chatScopeReadStorageKey(scope))) continue;
+    const latest = latestChatScopeMessageTimeMs(thread, scope);
+    setChatScopeReadAt(scope, latest || Date.now());
+  }
+}
+
+function markActiveChatScopeRead(thread = state.currentThread) {
+  if (!isSingleWindowChatView() || !thread) return;
+  const scope = activeChatScope();
+  const latest = latestChatScopeMessageTimeMs(thread, scope);
+  if (latest) setChatScopeReadAt(scope, latest);
+}
+
+function isOwnChatScopeMessage(message) {
+  if (message?.role !== "user") return false;
+  const ownerWorkspaceId = messageOwnerWorkspaceId(message, "");
+  return Boolean(ownerWorkspaceId && ownerWorkspaceId === state.selectedWorkspaceId);
+}
+
+function unreadChatScopeCount(thread, scope) {
+  if (!isSingleWindowChatView() || !thread) return 0;
+  const readAt = chatScopeReadAt(scope);
+  if (!readAt) return 0;
+  return chatMessagesForThread(thread, chatScopeTaskGroupId(scope))
+    .filter((message) => chatScopeMessageTimeMs(message) > readAt)
+    .filter((message) => !isOwnChatScopeMessage(message))
+    .length;
+}
+
 function groupChatMemberLabels(thread = state.currentThread) {
   const members = Array.isArray(thread?.chatGroup?.members) ? thread.chatGroup.members : [];
   const labels = members.length ? members.map((item) => item.label || item.workspaceId).filter(Boolean) : threadGroupMemberIds(thread).map((workspaceId) => {
@@ -8661,24 +8726,39 @@ function renderGroupMemberStrip(thread) {
   </div>`;
 }
 
-function renderChatScopeSwitcher(thread) {
-  if (!isSingleWindowChatView() || !thread) return "";
+function renderChatScopeHeader(thread) {
+  const header = $("chatScopeHeader");
+  if (!header) return;
+  if (!isSingleWindowChatView() || !thread) {
+    header.hidden = true;
+    header.innerHTML = "";
+    return;
+  }
+  ensureChatScopeReadBaselines(thread);
+  markActiveChatScopeRead(thread);
   const groupSelected = isGroupChatView();
-  const canSelectGroup = groupSelected || groupChatSelectable(thread);
-  const memberCount = groupChatMemberLabels(thread).length;
-  const groupCount = memberCount ? `<span class="chat-scope-count">${escapeHtml(memberCount)}</span>` : "";
-  const manageMembers = state.auth?.isOwner && groupSelected
-    ? `<button class="chat-scope-action" type="button" data-open-group-members>${"\u6210\u5458"}</button>`
+  const nextScope = groupSelected ? "chat" : "group";
+  const canSelectNext = nextScope === "chat" || groupChatSelectable(thread);
+  const unread = unreadChatScopeCount(thread, nextScope);
+  const unreadText = unread > 99 ? "99+" : String(unread);
+  const unreadBadge = unread
+    ? `<span class="chat-scope-header-badge">${escapeHtml(unreadText)}</span>`
     : "";
-  return `<div class="chat-scope-switcher" role="tablist" aria-label="Chat scope">
-    <button class="chat-scope-tab${groupSelected ? "" : " active"}" type="button" role="tab" aria-selected="${groupSelected ? "false" : "true"}" data-chat-scope="chat">
-      ${"\u804a\u5929"}
-    </button>
-    <button class="chat-scope-tab${groupSelected ? " active" : ""}" type="button" role="tab" aria-selected="${groupSelected ? "true" : "false"}" data-chat-scope="group" ${canSelectGroup ? "" : "disabled"}>
-      ${"\u7fa4\u804a"}${groupCount}
+  const nextLabel = nextScope === "group" ? "\u7fa4\u804a" : "\u804a\u5929";
+  const nextAriaLabel = unread
+    ? `${nextLabel}\uff0c${unreadText}\u6761\u672a\u8bfb`
+    : nextLabel;
+  const manageMembers = state.auth?.isOwner && groupSelected
+    ? `<button class="chat-scope-header-button" type="button" data-open-group-members>${"\u6210\u5458"}</button>`
+    : "";
+  header.hidden = false;
+  header.innerHTML = `
+    <button class="chat-scope-header-button" type="button" data-chat-scope="${escapeHtml(nextScope)}" aria-label="${escapeHtml(nextAriaLabel)}" ${canSelectNext ? "" : "disabled"}>
+      ${nextLabel}${unreadBadge}
     </button>
     ${manageMembers}
-  </div>`;
+  `;
+  wireChatScopeHeader(header);
 }
 
 function renderChatHistoryPager(thread) {
@@ -8699,7 +8779,7 @@ function wireChatHistoryPager(root) {
   });
 }
 
-function wireChatScopeSwitcher(root) {
+function wireChatScopeHeader(root) {
   root?.querySelectorAll?.("[data-chat-scope]").forEach((button) => {
     button.addEventListener("click", () => {
       selectChatScope(button.dataset.chatScope).catch(showError);
@@ -8711,6 +8791,7 @@ function wireChatScopeSwitcher(root) {
 }
 
 function renderCurrentThread(options = {}) {
+  renderChatScopeHeader(null);
   if (isSkillDetailView()) {
     renderSkillDetailPanel();
     return;
@@ -8754,6 +8835,7 @@ function renderCurrentThread(options = {}) {
   $("threadTitle").textContent = infoStream
     ? (state.singleWindowMode === "chat" ? (groupChat ? "群聊" : "聊天") : "话题流")
     : (thread.title || thread.id);
+  renderChatScopeHeader(thread);
   const project = state.projects.find((item) => item.id === thread.projectId);
   const subproject = (project?.children || []).find((item) => item.id === thread.subprojectId);
   const displayMessages = isSingleWindowChatView() ? chatMessagesForThread(thread) : (thread.messages || []);
@@ -8772,11 +8854,9 @@ function renderCurrentThread(options = {}) {
     syncChatSearchMatches();
   }
   const progressPanel = renderRunProgressPanel(thread, activeRuns);
-  const chatScopeSwitcher = renderChatScopeSwitcher(thread);
   const groupStrip = groupChat ? renderGroupMemberStrip(thread) : "";
   const historyPager = renderChatHistoryPager(thread);
-  conversation.innerHTML = `${chatScopeSwitcher}${groupStrip}${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
-  wireChatScopeSwitcher(conversation);
+  conversation.innerHTML = `${groupStrip}${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
   wireChatHistoryPager(conversation);
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);

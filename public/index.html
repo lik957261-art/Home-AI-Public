@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260510-2255">
+<html lang="en" data-client-version="20260510-2310">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260510-2255">
+  <meta name="hermes-web-client-version" content="20260510-2310">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f3efe7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -25,7 +25,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260510-2255">
+  <link rel="stylesheet" href="/styles.css?v=20260510-2310">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -153,7 +153,10 @@
         <button id="openMenu" class="icon-button mobile-only top-nav-button" type="button" aria-label="Open menu"><span class="top-nav-button-glyph" aria-hidden="true">&#9776;</span></button>
         <div id="taskDetailToolbar" class="task-detail-toolbar" hidden></div>
         <div class="thread-title-wrap">
-          <div id="threadTitle" class="thread-title">Select or create a thread</div>
+          <div class="thread-title-line">
+            <div id="threadTitle" class="thread-title">Select or create a thread</div>
+            <div id="chatScopeHeader" class="chat-scope-header" hidden></div>
+          </div>
           <div id="threadMeta" class="thread-meta"></div>
         </div>
         <div class="top-actions">
@@ -209,6 +212,6 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260510-2255"></script>
+  <script src="/app.js?v=20260510-2310"></script>
 </body>
 </html>
