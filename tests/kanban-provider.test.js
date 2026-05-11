@@ -125,6 +125,19 @@ async function run() {
   assert.equal(blocked.ok, true);
   assert.equal(blocked.kanban_status, "blocked");
 
+  const commented = await provider.run({
+    action: "comment",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+    comment: "approve preview only",
+  });
+  assert.equal(commented.ok, true);
+  assert.equal(commented.action, "comment");
+  const commentCall = calls.find(([, args]) => args.includes("comment") && args.includes("approve preview only"));
+  assert.ok(commentCall);
+  assert.ok(commentCall[1].includes("--author"));
+
   const unblocked = await provider.run({
     action: "unblock",
     workspace_id: "weixin_stephen",

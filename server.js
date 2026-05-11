@@ -9006,7 +9006,7 @@ async function handleApi(req, res) {
     return;
   }
 
-  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock)$/);
+  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment)$/);
   if (todoAction && req.method === "POST") {
     const body = await readBody(req).catch(() => ({}));
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
@@ -9020,6 +9020,8 @@ async function handleApi(req, res) {
       recurrenceScope: body.recurrenceScope || body.recurrence_scope || "one",
       dueTime: body.dueTime || body.due_time || "",
       reason: body.reason || "",
+      comment: body.comment || body.text || "",
+      author: body.author || "",
     });
     if (!result.ok) {
       todoErrorResponse(res, result);

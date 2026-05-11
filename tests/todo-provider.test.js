@@ -104,6 +104,26 @@ async function run() {
     reason: "later",
   });
 
+  await provider.mutateTodo({
+    workspaceId: "workspace_b",
+    action: "comment",
+    todoId: "td_9",
+    comment: "approve preview only",
+    author: "xuxin",
+  });
+  assert.deepEqual(calls.at(-1), {
+    action: "comment",
+    workspace_id: "workspace_b",
+    source_principal: "principal:workspace_b",
+    todo_id: "td_9",
+    assignee: "",
+    recurrence_scope: "one",
+    due_time: "",
+    reason: "",
+    comment: "approve preview only",
+    author: "xuxin",
+  });
+
   await provider.pendingPushes({
     sourcePrincipal: "owner",
     principals: ["user_a"],

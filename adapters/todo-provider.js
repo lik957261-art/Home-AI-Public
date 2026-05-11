@@ -82,7 +82,7 @@ function createTodoProvider(options = {}) {
 
   function mutateTodo(args = {}) {
     const workspaceId = args.workspaceId || "owner";
-    return runBridge({
+    const payload = {
       action: args.action || "",
       workspace_id: workspaceId,
       source_principal: workspacePrincipal(workspaceId),
@@ -91,7 +91,12 @@ function createTodoProvider(options = {}) {
       recurrence_scope: args.recurrenceScope || args.recurrence_scope || "one",
       due_time: args.dueTime || args.due_time || "",
       reason: args.reason || "",
-    });
+    };
+    const comment = String(args.comment || args.text || "").trim();
+    if (comment) payload.comment = comment;
+    const author = String(args.author || "").trim();
+    if (author) payload.author = author;
+    return runBridge(payload);
   }
 
   function pendingPushes(args = {}) {

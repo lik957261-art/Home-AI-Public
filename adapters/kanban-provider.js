@@ -568,6 +568,23 @@ function createKanbanTodoBridge(options = {}) {
       return rowFromTask({ id: todoId, title: meta.content || todoId, status: "todo" }, store.todos[todoId], payload);
     }
 
+    if (action === "comment") {
+      const comment = String(payload.comment || payload.text || payload.reason || "").trim();
+      if (!comment) return { ok: false, error: "comment is required" };
+      const author = String(payload.author || payload.source_principal || "Hermes Mobile").trim() || "Hermes Mobile";
+      await kanban(["--board", board, "comment", todoId, comment, "--author", author]);
+      store.todos[todoId] = Object.assign({}, meta, {
+        lastComment: comment,
+        lastCommentAt: now,
+        updatedAt: now,
+      });
+      saveMetadataStore(store);
+      return Object.assign(
+        rowFromTask({ id: todoId, title: meta.content || todoId, status: meta.kanbanStatus || meta.kanban_status || "todo" }, store.todos[todoId], payload),
+        { action: "comment" },
+      );
+    }
+
     return { ok: false, error: `unknown action: ${action}` };
   }
 
@@ -619,7 +636,7 @@ function createKanbanTodoBridge(options = {}) {
       const action = String(payload.action || "").trim().toLowerCase();
       if (action === "list") return await list(payload);
       if (action === "add") return await add(payload);
-      if (["complete", "cancel", "postpone", "delete", "block", "unblock"].includes(action)) return await mutate(payload);
+      if (["complete", "cancel", "postpone", "delete", "block", "unblock", "comment"].includes(action)) return await mutate(payload);
       if (action === "web_pending_pushes") return pendingPushes(payload);
       if (action === "web_mark_push") return markWebPush(payload);
       return { ok: false, error: `unknown action: ${action}` };

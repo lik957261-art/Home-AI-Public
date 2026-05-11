@@ -8412,6 +8412,15 @@ function renderTodoDetail(todo) {
   const resultBlock = kanban && todo.kanbanResult
     ? `<section class="todo-detail-result"><strong>Kanban result</strong><p>${escapeHtml(todo.kanbanResult)}</p></section>`
     : "";
+  const commentPanel = kanban && open
+    ? `<form class="todo-comment-panel" data-todo-comment-form="${escapeHtml(todo.id)}">
+      <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写授权范围、限制条件或执行说明"></textarea>
+      <div class="todo-comment-actions">
+        <button type="submit" data-comment-todo="${escapeHtml(todo.id)}">添加评论</button>
+        ${blocked ? `<button type="button" data-comment-unblock-todo="${escapeHtml(todo.id)}">评论并解除阻塞</button>` : ""}
+      </div>
+    </form>`
+    : "";
   return `<article class="todo-detail-card ${escapeHtml(todoStatusLabel(todo))}">
     <div class="todo-detail-head">
       <div>
@@ -8423,6 +8432,7 @@ function renderTodoDetail(todo) {
     <div class="todo-detail-grid">${gridItems}</div>
     ${skillRows}
     ${resultBlock}
+    ${commentPanel}
     ${open ? `<div class="todo-detail-actions">
       <button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>
       ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
@@ -8497,6 +8507,22 @@ function wireTodoPanel(root) {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       unblockTodo(button.dataset.unblockTodo).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-todo-comment-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = form.dataset.todoCommentForm || form.querySelector("[data-comment-todo]")?.dataset?.commentTodo || "";
+      commentTodo(todoId, form.querySelector("#todoCommentText")?.value || "").catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-comment-unblock-todo]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const form = button.closest("[data-todo-comment-form]") || root;
+      commentAndUnblockTodo(button.dataset.commentUnblockTodo, form.querySelector("#todoCommentText")?.value || "").catch(showError);
     });
   });
   root.querySelectorAll("[data-postpone-todo]").forEach((button) => {
@@ -8576,6 +8602,44 @@ async function unblockTodo(todoId) {
   });
   await loadTodos();
   state.selectedTodoId = todoId;
+  renderTodos();
+}
+
+async function commentTodo(todoId, comment) {
+  if (!todoId) return;
+  const text = String(comment || "").trim();
+  if (!text) throw new Error("请先填写评论内容");
+  await api(`/api/todos/${encodeURIComponent(todoId)}/comment`, {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      comment: text,
+    }),
+  });
+  await loadTodos();
+  state.selectedTodoId = todoId;
+  showPushToast("评论已添加", "success");
+  renderTodos();
+}
+
+async function commentAndUnblockTodo(todoId, comment) {
+  if (!todoId) return;
+  const text = String(comment || "").trim();
+  if (!text) throw new Error("请先填写评论内容");
+  await api(`/api/todos/${encodeURIComponent(todoId)}/comment`, {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      comment: text,
+    }),
+  });
+  await api(`/api/todos/${encodeURIComponent(todoId)}/unblock`, {
+    method: "POST",
+    body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
+  });
+  await loadTodos();
+  state.selectedTodoId = todoId;
+  showPushToast("评论已添加，已解除阻塞", "success");
   renderTodos();
 }
 

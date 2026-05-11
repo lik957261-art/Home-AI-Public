@@ -4806,6 +4806,7 @@ button.directory-alias-chip {
 .todo-card-actions button,
 .todo-detail-actions button,
 .todo-postpone-panel button,
+.todo-comment-panel button,
 .todo-back-inline {
   min-height: 34px;
   padding: 0 11px;
@@ -4924,6 +4925,28 @@ button.directory-alias-chip {
 }
 
 .todo-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.todo-comment-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.todo-comment-textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.todo-comment-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
