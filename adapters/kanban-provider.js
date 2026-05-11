@@ -212,6 +212,7 @@ function bodyWithMeta(content, meta) {
     schema: "hermes-mobile-todo",
     assignee: meta.assignee || "",
     assigneeLabel: meta.assigneeLabel || "",
+    kanbanAssignee: meta.kanbanAssignee || "",
     createdBy: meta.createdBy || "",
     dueAt: meta.dueAt || "",
     dueLocal: meta.dueLocal || "",
@@ -332,6 +333,20 @@ function createKanbanTodoBridge(options = {}) {
     return String(options.workspacePathForWorkspace(payload.workspace_id || payload.workspaceId || "") || "").trim();
   }
 
+  function kanbanAssigneeForPayload(payload = {}, requestedAssignee = "") {
+    const explicit = String(payload.kanban_assignee || payload.kanbanAssignee || "").trim();
+    if (explicit) return explicit;
+    if (typeof options.assigneeForWorkspace === "function") {
+      const value = options.assigneeForWorkspace(
+        payload.workspace_id || payload.workspaceId || "",
+        payload.source_principal || "",
+        requestedAssignee,
+      );
+      if (value) return String(value).trim();
+    }
+    return String(requestedAssignee || payload.source_principal || "").trim();
+  }
+
   async function kanban(args, extra = {}) {
     const result = await runCommand(command, [...baseArgs, "kanban", ...args], {
       timeoutMs: extra.timeoutMs || timeoutMs,
@@ -385,7 +400,7 @@ function createKanbanTodoBridge(options = {}) {
       status,
       kanban_status: kanbanStatus || "todo",
       kanban_board: meta.board || boardForPayload(payload),
-      kanban_assignee: String(textFromTask(task, "assignee") || task.assignee || meta.assignee || ""),
+      kanban_assignee: String(textFromTask(task, "assignee") || task.assignee || meta.kanbanAssignee || meta.kanban_assignee || meta.assignee || ""),
       kanban_priority: Number(task.priority ?? task.task?.priority ?? meta.priority ?? 0) || 0,
       kanban_tenant: String(textFromTask(task, "tenant") || task.tenant || meta.tenant || payload.source_principal || ""),
       kanban_workspace_kind: String(meta.workspaceKind || workspaceKindFromTask(task)),
@@ -452,12 +467,14 @@ function createKanbanTodoBridge(options = {}) {
     const board = await ensureBoard(payload);
     const now = nowIso();
     const assignee = String(payload.assignee || source).trim() || source;
+    const kanbanAssignee = kanbanAssigneeForPayload(payload, assignee) || assignee;
     const meta = {
       workspaceId,
       board,
       content,
       assignee,
       assigneeLabel: String(payload.assignee_label || assignee),
+      kanbanAssignee,
       createdBy: source,
       dueAt,
       dueLocal: dueLocal(dueAt),
@@ -482,7 +499,7 @@ function createKanbanTodoBridge(options = {}) {
       "--created-by",
       source,
       "--assignee",
-      assignee,
+      kanbanAssignee,
       "--tenant",
       source,
       "--idempotency-key",
@@ -512,7 +529,7 @@ function createKanbanTodoBridge(options = {}) {
     const store = metadataStore();
     store.todos[id] = Object.assign({}, meta, { id });
     saveMetadataStore(store);
-    return rowFromTask({ id, title: content, status: "todo" }, store.todos[id], payload);
+    return rowFromTask({ id, title: content, status: "todo", assignee: kanbanAssignee }, store.todos[id], payload);
   }
 
   async function mutate(payload = {}) {
@@ -562,10 +579,15 @@ function createKanbanTodoBridge(options = {}) {
     }
 
     if (action === "unblock") {
+      const accountAssignee = String(meta.assignee || payload.assignee || payload.source_principal || "").trim();
+      const kanbanAssignee = kanbanAssigneeForPayload(payload, accountAssignee);
+      if (kanbanAssignee) {
+        await kanban(["--board", board, "reassign", todoId, kanbanAssignee, "--reason", "Hermes Mobile mapped workspace account to executable Gateway profile."]);
+      }
       await kanban(["--board", board, "unblock", todoId]);
-      store.todos[todoId] = Object.assign({}, meta, { updatedAt: now });
+      store.todos[todoId] = Object.assign({}, meta, { kanbanAssignee, updatedAt: now });
       saveMetadataStore(store);
-      return rowFromTask({ id: todoId, title: meta.content || todoId, status: "todo" }, store.todos[todoId], payload);
+      return rowFromTask({ id: todoId, title: meta.content || todoId, status: "todo", assignee: kanbanAssignee }, store.todos[todoId], payload);
     }
 
     if (action === "comment") {

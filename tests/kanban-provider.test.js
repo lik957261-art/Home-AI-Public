@@ -21,6 +21,7 @@ async function run() {
     boardForWorkspace: (workspaceId) => `board-${workspaceId}`,
     boardNameForWorkspace: (workspaceId) => `Board ${workspaceId}`,
     workspacePathForWorkspace: (workspaceId) => `/workspaces/${workspaceId}`,
+    assigneeForWorkspace: (workspaceId) => `exec-${workspaceId}`,
     async runCommand(command, args) {
       calls.push([command, args]);
       const joined = args.join(" ");
@@ -73,12 +74,14 @@ async function run() {
   assert.equal(created.id, "t_created");
   assert.equal(created.status, "open");
   assert.equal(created.kanban_board, "board-weixin-stephen");
+  assert.equal(created.kanban_assignee, "exec-weixin_stephen");
 
   const createCall = calls.find(([, args]) => args.includes("create") && args.includes("Read chapter"));
   assert.ok(createCall);
   assert.deepEqual(createCall[1].slice(0, 4), ["-p", "owner", "kanban", "--board"]);
   assert.ok(createCall[1].includes("--created-by"));
   assert.ok(createCall[1].includes("--assignee"));
+  assert.equal(createCall[1][createCall[1].indexOf("--assignee") + 1], "exec-weixin_stephen");
   assert.ok(createCall[1].includes("dir:/workspaces/weixin_stephen"));
 
   const listed = await provider.run({
@@ -146,6 +149,9 @@ async function run() {
   });
   assert.equal(unblocked.ok, true);
   assert.equal(unblocked.kanban_status, "todo");
+  const reassignCall = calls.find(([, args]) => args.includes("reassign") && args.includes("t_created"));
+  assert.ok(reassignCall);
+  assert.equal(reassignCall[1][reassignCall[1].indexOf("t_created") + 1], "exec-weixin_stephen");
 
   const pushed = await provider.run({
     action: "web_pending_pushes",

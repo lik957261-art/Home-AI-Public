@@ -105,7 +105,11 @@ assert.match(runKanbanGatewayWorkerChild, /PayloadBase64/);
 
 assert.match(runKanbanGatewayWorkerShell, /runuser/);
 assert.match(runKanbanGatewayWorkerShell, /-u",\s*"hermes"/);
-assert.match(runKanbanGatewayWorkerShell, /PYTHONPATH=\/opt\/hermes-gateway-runtime\/official-clean/);
+assert.match(runKanbanGatewayWorkerShell, /runtime_bin="\$\{HERMES_GATEWAY_RUNTIME_BIN:-\$runtime_root\/bin\}"/);
+assert.match(runKanbanGatewayWorkerShell, /hermes_shim="\$runtime_bin\/hermes"/);
+assert.match(runKanbanGatewayWorkerShell, /exec "\$runtime_python" -m hermes_cli\.main "\\\$@"/);
+assert.match(runKanbanGatewayWorkerShell, /PYTHONPATH=\{runtime_source\}/);
+assert.match(runKanbanGatewayWorkerShell, /PATH=\{runtime_bin\}:\{runtime_root\}\/venv\/bin:\/usr\/local\/bin:\/usr\/bin:\/bin/);
 assert.match(runKanbanGatewayWorkerShell, /hermes_cli\.main/);
 assert.match(runKanbanGatewayWorkerShell, /kanban_args/);
 assert.match(runKanbanGatewayWorkerShell, /capture_output=True/);

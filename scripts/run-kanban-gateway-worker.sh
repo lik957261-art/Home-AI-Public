@@ -7,13 +7,32 @@ if [ -z "$payload_b64" ]; then
   exit 2
 fi
 
-/opt/hermes-gateway-runtime/venv/bin/python - "$payload_b64" <<'PY'
+runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
+runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
+runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
+runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
+hermes_shim="$runtime_bin/hermes"
+
+mkdir -p "$runtime_bin"
+cat > "$hermes_shim" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export PYTHONPATH="$runtime_source\${PYTHONPATH:+:\$PYTHONPATH}"
+exec "$runtime_python" -m hermes_cli.main "\$@"
+EOF
+chmod 755 "$hermes_shim"
+
+"$runtime_python" - "$payload_b64" <<'PY'
 import base64
 import json
 import os
 import subprocess
 import sys
 
+runtime_root = os.environ.get("HERMES_GATEWAY_RUNTIME_ROOT") or "/opt/hermes-gateway-runtime"
+runtime_python = os.environ.get("HERMES_GATEWAY_RUNTIME_PYTHON") or f"{runtime_root}/venv/bin/python"
+runtime_source = os.environ.get("HERMES_GATEWAY_RUNTIME_SOURCE") or f"{runtime_root}/official-clean"
+runtime_bin = os.environ.get("HERMES_GATEWAY_RUNTIME_BIN") or f"{runtime_root}/bin"
 payload = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
 profile = str(payload.get("profile") or "lowgw1")
 hermes_home = str(payload.get("hermesHome") or "/home/hermes/.hermes")
@@ -26,7 +45,8 @@ env_parts = [
     "HOME=/home/hermes",
     f"HERMES_HOME={hermes_home}",
     f"HERMES_PROFILE={profile}",
-    "PYTHONPATH=/opt/hermes-gateway-runtime/official-clean",
+    f"PYTHONPATH={runtime_source}",
+    f"PATH={runtime_bin}:{runtime_root}/venv/bin:/usr/local/bin:/usr/bin:/bin",
 ]
 cmd = [
     "runuser",
@@ -35,7 +55,7 @@ cmd = [
     "--",
     "env",
     *env_parts,
-    "/opt/hermes-gateway-runtime/venv/bin/python",
+    runtime_python,
     "-m",
     "hermes_cli.main",
     "-p",

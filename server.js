@@ -3426,6 +3426,7 @@ const kanbanTodoBridge = createKanbanTodoBridge({
   timeoutMs: KANBAN_BRIDGE_TIMEOUT_MS,
   metadataPath: KANBAN_TODO_META_PATH,
   boardForWorkspace: (workspaceId, principalId) => `workspace-${workspaceId || principalId || "default"}`,
+  assigneeForWorkspace: kanbanExecutableProfileForWorkspace,
   boardNameForWorkspace: (workspaceId, principalId) => {
     const workspace = findWorkspace(workspaceId || principalId || "owner");
     return workspace?.label ? `Hermes Mobile ${workspace.label}` : `Hermes Mobile ${workspaceId || principalId || "default"}`;
@@ -3439,6 +3440,33 @@ const kanbanTodoBridge = createKanbanTodoBridge({
     return root;
   },
 });
+
+function workerAllowsWorkspace(worker, workspaceId) {
+  if (!worker || !workspaceId) return false;
+  const allowed = Array.isArray(worker.allowedWorkspaceIds) ? worker.allowedWorkspaceIds : [];
+  const skills = Array.isArray(worker.skillWorkspaceIds) ? worker.skillWorkspaceIds : [];
+  return allowed.includes("*")
+    || allowed.includes(workspaceId)
+    || skills.includes("*")
+    || skills.includes(workspaceId);
+}
+
+function kanbanExecutableProfileForWorkspace(workspaceId, principalId, requestedAssignee = "") {
+  const workspace = String(workspaceId || principalId || requestedAssignee || "owner").trim() || "owner";
+  try {
+    const loaded = gatewayPool().load();
+    const workers = Array.isArray(loaded?.workers) ? loaded.workers : [];
+    const candidates = workers
+      .filter((worker) => worker?.profile && worker.securityLevel === "user" && !worker.allowMaintenance)
+      .filter((worker) => workerAllowsWorkspace(worker, workspace));
+    const exactSkill = candidates.find((worker) => (worker.skillWorkspaceIds || []).includes(workspace));
+    const exactAllowed = candidates.find((worker) => (worker.allowedWorkspaceIds || []).includes(workspace));
+    const wildcard = candidates.find((worker) => (worker.skillWorkspaceIds || []).includes("*") || (worker.allowedWorkspaceIds || []).includes("*"));
+    return String((exactSkill || exactAllowed || wildcard || candidates[0])?.profile || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
 
 function workspacePrincipal(workspaceId) {
   const workspace = findWorkspace(workspaceId || "owner");
