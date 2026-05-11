@@ -174,6 +174,7 @@ assert.match(serverJs, /url\.pathname === "\/api\/kanban\/cards"/);
 assert.ok(serverJs.includes("\u770b\u677f"));
 assert.ok(serverJs.includes("\u5361\u7247"));
 assert.ok(serverJs.includes("kanban|board"));
+assert.match(serverJs, /新增\|新建\|创建\|增加\|添加/);
 assert.match(serverJs, /已新增看板卡片/);
 assert.match(serverJs, /Do not run raw `hermes kanban` CLI commands/);
 assert.match(serverJs, /function threadMessagesPage\(thread, options = \{\}\)/);

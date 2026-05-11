@@ -3650,7 +3650,7 @@ function detectDirectKanbanCreateRequest(text) {
   const rawText = String(text || "").trim();
   if (!rawText) return false;
   if (!/(看板|卡片|kanban|board)/i.test(rawText)) return false;
-  return /(\badd\b|\bcreate\b|\bnew\b|新增|新建|创建|添加|加入|放进|放入|安排|登记|记录)/i.test(rawText);
+  return /(\badd\b|\bcreate\b|\bnew\b|新增|新建|创建|增加|添加|加入|放进|放入|安排|登记|记录|补建|补录|生成)/i.test(rawText);
 }
 
 function directTodoCreateNeedsKanbanFields(todo) {
