@@ -214,6 +214,7 @@ function bodyWithMeta(content, meta) {
     assigneeLabel: meta.assigneeLabel || "",
     kanbanAssignee: meta.kanbanAssignee || "",
     createdBy: meta.createdBy || "",
+    description: meta.description || "",
     dueAt: meta.dueAt || "",
     dueLocal: meta.dueLocal || "",
     reminderLeadMinutes: meta.reminderLeadMinutes || 0,
@@ -221,7 +222,8 @@ function bodyWithMeta(content, meta) {
     recurrenceLabel: meta.recurrenceLabel || "",
     recurrenceDays: meta.recurrenceDays || "",
   };
-  return `${META_START}${JSON.stringify(publicMeta)}${META_END}\n\n${String(content || "").trim()}`;
+  const bodyParts = [String(meta.description || "").trim(), String(content || "").trim()].filter(Boolean);
+  return `${META_START}${JSON.stringify(publicMeta)}${META_END}\n\n${bodyParts.join("\n\n")}`;
 }
 
 function readJson(filePath, fallback) {
@@ -397,6 +399,7 @@ function createKanbanTodoBridge(options = {}) {
     return {
       id,
       content: String(meta.content || title || id),
+      description: String(meta.description || ""),
       status,
       kanban_status: kanbanStatus || "todo",
       kanban_board: meta.board || boardForPayload(payload),
@@ -475,6 +478,7 @@ function createKanbanTodoBridge(options = {}) {
       workspaceId,
       board,
       content,
+      description: String(payload.description || "").trim(),
       assignee,
       assigneeLabel: String(payload.assignee_label || assignee),
       kanbanAssignee,

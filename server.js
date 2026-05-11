@@ -19,6 +19,7 @@ const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-p
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
+const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
@@ -2546,7 +2547,7 @@ function useKanbanTodoBackend() {
 function directTodoCreateEnabled() {
   if (/^(0|false|no|off)$/i.test(DIRECT_TODO_CREATE_SETTING)) return false;
   if (/^(1|true|yes|on)$/i.test(DIRECT_TODO_CREATE_SETTING)) return true;
-  return useKanbanTodoBackend();
+  return false;
 }
 
 function useLocalAutomationBackend() {
@@ -2951,6 +2952,14 @@ const todoProvider = createTodoProvider({
   sourceName: () => useLocalTodoBackend()
     ? (useSqliteServiceStore() ? "sqlite_todos" : "local_todos")
     : (useKanbanTodoBackend() ? "hermes_kanban" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos")),
+});
+
+const kanbanCardProvider = createKanbanCardProvider({
+  runBridge: (payload) => kanbanTodoBridge.run(payload),
+  workspacePrincipal,
+  assigneesForWorkspace: todoAssigneesForWorkspace,
+  publicCard: publicTodo,
+  sourceName: () => "hermes_kanban",
 });
 
 function localAutomationStore() {
@@ -3637,6 +3646,13 @@ function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
   return { assignee, assigneeLabel, dueTime: due.dueTime, content };
 }
 
+function detectDirectKanbanCreateRequest(text) {
+  const rawText = String(text || "").trim();
+  if (!rawText) return false;
+  if (!/(看板|卡片|kanban|board)/i.test(rawText)) return false;
+  return /(\badd\b|\bcreate\b|\bnew\b|新增|新建|创建|添加|加入|放进|放入|安排|登记|记录)/i.test(rawText);
+}
+
 function directTodoCreateNeedsKanbanFields(todo) {
   if (!todo || typeof todo !== "object") return useKanbanTodoBackend();
   const source = String(todo.source || "").trim().toLowerCase();
@@ -3863,8 +3879,60 @@ async function interpretAutomationNaturalLanguage(text, workspace, ownerPrincipa
   return normalizeAutomationDraft(extractJsonObject(output), text);
 }
 
+function normalizeKanbanDraft(raw, sourceText, workspaceId) {
+  const draft = raw && typeof raw === "object" ? raw : {};
+  if (draft.needs_clarification || draft.needsClarification) {
+    throw new Error(compactText(draft.clarification || draft.question || "Kanban request needs clarification", 240));
+  }
+  const content = compactText(
+    draft.content || draft.title || draft.name || draft.card || draft.task || sourceText,
+    160,
+  );
+  if (!content) throw new Error("Hermes model did not produce Kanban card content");
+  return {
+    content,
+    description: compactText(draft.description || draft.details || draft.notes || "", 4000),
+    assignee: String(draft.assignee || draft.owner || workspaceId || "owner").trim() || "owner",
+    dueTime: String(draft.dueTime || draft.due_time || draft.due || draft.deadline || "").trim(),
+    reason: compactText(draft.reason || "Created from Hermes Mobile natural-language Kanban request.", 240),
+  };
+}
+
+async function interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId) {
+  const prompt = [
+    "You interpret a natural-language request into one Hermes Mobile Kanban card draft.",
+    "Return strict JSON only. Do not include Markdown fences or prose.",
+    "Use Asia/Shanghai local time. Current server time is " + nowIso() + ".",
+    "This is for a Kanban execution board, not a reminder todo list.",
+    "Infer a short actionable card content/title and an optional description.",
+    "Keep proper nouns such as Gmail, Hotmail, MINJI, Hermes in the original language.",
+    "If assignee is omitted, default to the workspace principal.",
+    "If due time is omitted or unclear, leave dueTime empty.",
+    "If required execution intent is missing, return {\"needs_clarification\":true,\"clarification\":\"...\"}.",
+    "Schema: {\"content\":\"short card title\",\"description\":\"optional details\",\"assignee\":\"workspace principal id or empty\",\"dueTime\":\"YYYY-MM-DD HH:mm or empty\",\"reason\":\"optional short note\"}",
+    `Workspace principal: ${ownerPrincipalId}. Workspace label: ${workspace?.label || workspace?.id || ""}.`,
+    "User request:",
+    text,
+  ].join("\n\n");
+  const output = await hermesModelText({
+    input: prompt,
+    stream: true,
+    store: false,
+    model: AUTOMATION_CREATE_MODEL,
+    reasoning_effort: "low",
+    conversation: `hermes_web_kanban_create_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+    instructions: "Extract exactly one Kanban card draft. Return JSON only.",
+    access_policy_context: sanitizePolicy(workspace?.policy || {}),
+  });
+  return normalizeKanbanDraft(extractJsonObject(output), text, ownerPrincipalId);
+}
+
 function todoErrorResponse(res, result, fallbackStatus = 400) {
   sendJson(res, fallbackStatus, { error: result?.error || "Todo operation failed", result });
+}
+
+function kanbanErrorResponse(res, result, fallbackStatus = 400) {
+  sendJson(res, fallbackStatus, { error: result?.error || "Kanban operation failed", result });
 }
 
 function mimeFor(file) {
@@ -9031,6 +9099,35 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/kanban/cards" && req.method === "GET") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const result = await kanbanCardProvider.listCards({
+      workspaceId,
+      scope: url.searchParams.get("scope") || "mine",
+      includeCompleted: boolParam(url.searchParams.get("includeCompleted")),
+      assignee: url.searchParams.get("assignee") || "",
+      limit: Number(url.searchParams.get("limit") || "120"),
+      search: url.searchParams.get("search") || "",
+    });
+    if (!result.ok) {
+      kanbanErrorResponse(res, result.result || result);
+      return;
+    }
+    sendJson(res, 200, {
+      data: result.data,
+      assignees: result.assignees,
+      source: result.source,
+      board: result.board,
+      result: result.result,
+    });
+    return;
+  }
+
   if (url.pathname === "/api/todos" && req.method === "POST") {
     const body = await readBody(req);
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
@@ -9053,6 +9150,40 @@ async function handleApi(req, res) {
     broadcast({ type: "todos.updated", workspaceId });
     notifyTodoCreated(result, workspacePrincipal(workspaceId));
     sendJson(res, 201, { todo: publicTodo(result), result });
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req);
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    const result = await kanbanCardProvider.addCard({
+      workspaceId,
+      assignee: body.assignee || "",
+      assigneeLabel: todoAssigneeLabel(workspaceId, body.assignee || ""),
+      content: body.content || body.title || "",
+      description: body.description || "",
+      dueTime: body.dueTime || body.due_time || "",
+      reason: body.reason || "",
+      idempotencyKey: body.idempotencyKey || body.idempotency_key || "",
+    });
+    if (!result?.ok) {
+      kanbanErrorResponse(res, result);
+      return;
+    }
+    const card = publicTodo(result);
+    const verification = verifyDirectTodoCreateResult(card);
+    if (!verification.ok) {
+      kanbanErrorResponse(res, { ok: false, error: verification.error, result }, 502);
+      return;
+    }
+    broadcast({ type: "kanban.updated", workspaceId, cardId: card.id, action: "add" });
+    broadcast({ type: "todos.updated", workspaceId, todoId: card.id, action: "add" });
+    sendJson(res, 201, { card, result, verification });
     return;
   }
 
@@ -9092,6 +9223,37 @@ async function handleApi(req, res) {
       return;
     }
     broadcast({ type: "todos.updated", workspaceId, todoId: result.id, action });
+    sendJson(res, 200, { ok: true, result });
+    return;
+  }
+
+  const kanbanAction = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment)$/);
+  if (kanbanAction && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req).catch(() => ({}));
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const action = kanbanAction[2];
+    const result = await kanbanCardProvider.mutateCard({
+      action,
+      workspaceId,
+      cardId: decodeURIComponent(kanbanAction[1]),
+      assignee: body.assignee || "",
+      dueTime: body.dueTime || body.due_time || "",
+      reason: body.reason || "",
+      comment: body.comment || body.text || "",
+      author: body.author || "",
+    });
+    if (!result?.ok) {
+      kanbanErrorResponse(res, result);
+      return;
+    }
+    const cardId = String(result.id || decodeURIComponent(kanbanAction[1]));
+    broadcast({ type: "kanban.updated", workspaceId, cardId, action });
+    broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action });
     sendJson(res, 200, { ok: true, result });
     return;
   }
@@ -9485,6 +9647,85 @@ async function handleApi(req, res) {
       sendJson(res, 201, { ok: true, thread: compactResponseThread() });
       return;
     }
+    const directKanbanCreate = useKanbanTodoBackend() && detectDirectKanbanCreateRequest(text);
+    if (directKanbanCreate) {
+      let result = null;
+      let kanbanDraft = null;
+      try {
+        kanbanDraft = await interpretKanbanNaturalLanguage(text, findWorkspace(thread.workspaceId), workspacePrincipal(thread.workspaceId));
+        result = await kanbanCardProvider.addCard({
+          workspaceId: thread.workspaceId,
+          assignee: kanbanDraft.assignee,
+          assigneeLabel: todoAssigneeLabel(thread.workspaceId, kanbanDraft.assignee),
+          content: kanbanDraft.content,
+          description: kanbanDraft.description,
+          dueTime: kanbanDraft.dueTime,
+          reason: kanbanDraft.reason,
+        });
+      } catch (err) {
+        result = { ok: false, error: err.message || String(err) };
+      }
+      let createdCard = null;
+      let directKanbanVerification = { ok: true, error: "" };
+      if (result?.ok) {
+        createdCard = publicTodo(result);
+        directKanbanVerification = verifyDirectTodoCreateResult(createdCard);
+        if (!directKanbanVerification.ok) {
+          result = {
+            ...(result && typeof result === "object" ? result : {}),
+            ok: false,
+            error: directKanbanVerification.error || "Kanban creation verification failed.",
+          };
+          createdCard = null;
+        }
+      }
+      if (!result?.ok) {
+        directKanbanVerification = {
+          ok: false,
+          error: String(result?.error || directKanbanVerification.error || ""),
+        };
+      }
+      const finishedAt = nowIso();
+      assistantMessage.status = result?.ok ? "done" : "failed";
+      assistantMessage.content = result?.ok
+        ? `已新增看板卡片：${todoAssigneeLabel(thread.workspaceId, kanbanDraft?.assignee || "")} | ${kanbanDraft?.dueTime || "no due time"} | ${kanbanDraft?.content || ""}`
+        : `新增看板卡片失败：${result?.error || "Kanban card operation failed"}`;
+      assistantMessage.error = result?.ok ? null : (result?.error || "Kanban operation failed");
+      if (result?.ok && createdCard) {
+        assistantMessage.content = formatDirectTodoCreateSuccessMessage({
+          assigneeLabel: todoAssigneeLabel(thread.workspaceId, kanbanDraft?.assignee || ""),
+          dueTime: kanbanDraft?.dueTime || "",
+          content: kanbanDraft?.content || "",
+        }, createdCard);
+      }
+      assistantMessage.completedAt = result?.ok ? finishedAt : "";
+      assistantMessage.failedAt = result?.ok ? "" : finishedAt;
+      assistantMessage.updatedAt = finishedAt;
+      thread.messages.push(userMessage, assistantMessage);
+      thread.status = "idle";
+      thread.updatedAt = finishedAt;
+      saveState();
+      broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
+      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+      if (result?.ok) {
+        const assigneeWorkspaceId = workspaceIdForPrincipal(kanbanDraft?.assignee || "");
+        broadcast({ type: "kanban.updated", workspaceId: thread.workspaceId });
+        broadcast({ type: "todos.updated", workspaceId: thread.workspaceId });
+        if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) {
+          broadcast({ type: "kanban.updated", workspaceId: assigneeWorkspaceId });
+          broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
+        }
+      }
+      sendJson(res, result?.ok ? 201 : 400, {
+        ok: Boolean(result?.ok),
+        card: result?.ok ? createdCard : null,
+        result,
+        verification: directKanbanVerification,
+        thread: compactResponseThread(),
+      });
+      return;
+    }
     const directTodoIntent = directTodoCreateEnabled()
       ? (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId)
         || detectDirectTodoCreateIntent(text, thread.workspaceId))
@@ -9529,12 +9770,9 @@ async function handleApi(req, res) {
       const finishedAt = nowIso();
       assistantMessage.status = result?.ok ? "done" : "failed";
       assistantMessage.content = result?.ok
-        ? `已新增看板卡片：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
-        : `新增看板卡片失败：${result?.error || "Kanban card operation failed"}`;
+        ? `已新增待办：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
+        : `新增待办失败：${result?.error || "Todo operation failed"}`;
       assistantMessage.error = result?.ok ? null : (result?.error || "Todo operation failed");
-      if (result?.ok && createdTodo) {
-        assistantMessage.content = formatDirectTodoCreateSuccessMessage(directTodoIntent, createdTodo);
-      }
       assistantMessage.completedAt = result?.ok ? finishedAt : "";
       assistantMessage.failedAt = result?.ok ? "" : finishedAt;
       assistantMessage.updatedAt = finishedAt;
