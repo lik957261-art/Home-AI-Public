@@ -8598,6 +8598,13 @@ function renderTodoDetail(todo) {
     ? `<div class="todo-detail-skills">${todo.kanbanSkills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</div>`
     : "";
   const resultBlock = kanban ? renderKanbanDetailReport(todo) : "";
+  const metaBlock = kanban
+    ? `<details class="todo-detail-meta">
+      <summary>卡片信息</summary>
+      ${gridItems ? `<div class="todo-detail-grid">${gridItems}</div>` : ""}
+      ${skillRows}
+    </details>`
+    : `<div class="todo-detail-grid">${gridItems}</div>${skillRows}`;
   const commentPanel = kanban && open
     ? `<form class="todo-comment-panel" data-todo-comment-form="${escapeHtml(todo.id)}">
       <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写授权范围、限制条件或执行说明"></textarea>
@@ -8615,9 +8622,8 @@ function renderTodoDetail(todo) {
       </div>
       <span class="todo-state status-${escapeHtml(kanbanStatus)}">${escapeHtml(statusText)}</span>
     </div>
-    <div class="todo-detail-grid">${gridItems}</div>
-    ${skillRows}
     ${resultBlock}
+    ${metaBlock}
     ${commentPanel}
     ${open ? `<div class="todo-detail-actions">
       <button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>
