@@ -65,17 +65,65 @@ function Ensure-LowGatewayProfileEnv {
   $scriptPath = Join-Path $GatewayWorkerRoot "start-low-gateways.sh"
   if (-not (Test-Path -LiteralPath $scriptPath)) { return }
   $text = Get-Content -Raw -LiteralPath $scriptPath
-  if ($text -match "HERMES_GOOGLE_PROFILE_HOME") { return }
-  $needle = 'HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
-  $replacement = 'HERMES_PROFILE="$profile" HERMES_GOOGLE_PROFILE_HOME="/home/hermes/.hermes/profiles/$profile" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
-  if (-not $text.Contains($needle)) {
-    Write-GatewayPoolLog "Low gateway profile env patch skipped; start script shape is unknown."
-    return
+  $updated = $text
+  if ($updated -notmatch "configure-low-gateways\.sh") {
+    $bootstrapNeedle = "cd /home/hermes"
+    $bootstrap = @'
+cd /home/hermes
+configure_low_gateway_script="/mnt/c/ProgramData/HermesMobile/gateway-worker/configure-low-gateways.sh"
+if [ ! -f "$configure_low_gateway_script" ]; then
+  echo "missing low gateway configure script: $configure_low_gateway_script" >&2
+  exit 1
+fi
+bash "$configure_low_gateway_script"
+'@
+    if (-not $updated.Contains($bootstrapNeedle)) {
+      Write-GatewayPoolLog "Low gateway configure patch skipped; start script shape is unknown."
+      return
+    }
+    $updated = $updated.Replace($bootstrapNeedle, $bootstrap)
   }
-  $updated = $text.Replace($needle, $replacement)
+  if ($updated -notmatch "HERMES_GOOGLE_PROFILE_HOME") {
+    $needle = 'HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
+    $replacement = 'HERMES_PROFILE="$profile" HERMES_GOOGLE_PROFILE_HOME="/home/hermes/.hermes/profiles/$profile" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
+    if (-not $updated.Contains($needle)) {
+      Write-GatewayPoolLog "Low gateway profile env patch skipped; start script shape is unknown."
+      return
+    }
+    $updated = $updated.Replace($needle, $replacement)
+  }
+  if ($updated -notmatch "/opt/hermes-gateway-runtime/bin/hermes") {
+    $bootstrapNeedle = 'low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"'
+    $bootstrap = @'
+runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
+runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
+runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
+runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
+install -d -m 755 "$runtime_bin"
+cat > "$runtime_bin/hermes" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export PYTHONPATH="$runtime_source\${PYTHONPATH:+:\$PYTHONPATH}"
+exec "$runtime_python" -m hermes_cli.main "\$@"
+EOF
+chmod 755 "$runtime_bin/hermes"
+
+low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+'@
+    if (-not $updated.Contains($bootstrapNeedle)) {
+      Write-GatewayPoolLog "Low gateway hermes shim patch skipped; start script shape is unknown."
+      return
+    }
+    $updated = $updated.Replace($bootstrapNeedle, $bootstrap + $bootstrapNeedle)
+  }
+  if ($updated -notmatch 'PATH="\$low_gateway_path"') {
+    $updated = $updated.Replace('HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"', 'PATH="$low_gateway_path" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"')
+  }
+  if ($updated -eq $text) { return }
   $encoding = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($scriptPath, $updated, $encoding)
-  Write-GatewayPoolLog "Low gateway profile env patched for profile-local connector credentials."
+  Write-GatewayPoolLog "Low gateway start script patched for shared auth, profile env, and Kanban hermes shim."
 }
 
 function Start-LowGateways {
@@ -88,6 +136,32 @@ function Start-LowGateways {
   $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $child 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway pool start failed with exit code $LASTEXITCODE" }
+}
+
+function Check-LowGatewayCodexAuth {
+  $checkScript = Join-Path $GatewayWorkerRoot "check-worker-codex-auth.ps1"
+  if (-not (Test-Path -LiteralPath $checkScript)) {
+    Write-GatewayPoolLog "Low gateway Codex auth check skipped; check script missing."
+    return
+  }
+  $args = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $checkScript,
+    "-WorkerRunAsScript", (Join-Path $GatewayWorkerRoot "run-as-worker.ps1"),
+    "-WorkerDirectory", $GatewayWorkerRoot
+  )
+  $requireUnique = [Environment]::GetEnvironmentVariable("HERMES_LOW_GATEWAY_REQUIRE_UNIQUE_CODEX_AUTH")
+  if ($requireUnique -match "^(1|true|yes|on)$") { $args += "-RequireUniqueRefreshTokens" }
+  Write-GatewayPoolLog "Checking low gateway Codex auth fingerprints."
+  $output = & powershell.exe @args 2>&1
+  foreach ($line in $output) { Write-GatewayPoolLog ("codex-auth: {0}" -f $line) }
+  if ($LASTEXITCODE -ne 0) {
+    if ($requireUnique -match "^(1|true|yes|on)$") {
+      throw "Low gateway Codex auth check failed with exit code $LASTEXITCODE"
+    }
+    Write-GatewayPoolLog "Low gateway Codex auth check reported warnings; continuing because strict uniqueness is not enabled."
+  }
 }
 
 function Provision-OwnerExternalConnectors {
@@ -145,11 +219,24 @@ function Start-OwnerMaintenanceGateways {
   $apiKey = [string]($workers | Where-Object { $_.api_key } | Select-Object -First 1).api_key
   if (-not $apiKey) { throw "Owner-maintenance gateway API key missing from manifest." }
 
-  $commands = @("mkdir -p /home/$OfficialUser/.hermes/logs")
+  $runtimeRoot = "/opt/hermes-gateway-runtime"
+  $officialCleanRoot = "$runtimeRoot/official-clean"
+  $officialPython = "$runtimeRoot/venv/bin/python"
+  $sharedAuthPath = "/home/$OfficialUser/.hermes/auth.json"
+  $sharedAuthLockPath = "/home/$OfficialUser/.hermes/auth.lock"
+  $commands = @(
+    "test -x $officialPython",
+    "test -d $officialCleanRoot",
+    "mkdir -p /home/$OfficialUser/.hermes/logs",
+    "test -s $sharedAuthPath"
+  )
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
     $commands += "mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs"
-    $commands += "setsid -f env HERMES_ACCEPT_HOOKS=1 /home/$OfficialUser/.local/bin/hermes -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1"
+    $commands += "rm -f /home/$OfficialUser/.hermes/profiles/$profile/auth.json /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
+    $commands += "ln -sfn $sharedAuthPath /home/$OfficialUser/.hermes/profiles/$profile/auth.json"
+    $commands += "ln -sfn $sharedAuthLockPath /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
+    $commands += "setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1"
   }
   $bash = $commands -join "; "
 
@@ -169,6 +256,7 @@ function Start-OwnerMaintenanceGateways {
 Write-GatewayPoolLog "Gateway pool startup begin."
 Provision-OwnerExternalConnectors
 Start-LowGateways
+Check-LowGatewayCodexAuth
 Start-OwnerMaintenanceGateways | Out-Null
 
 $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json

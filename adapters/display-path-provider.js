@@ -43,9 +43,7 @@ function createDisplayPathProvider(options = {}) {
 
   function sharedProjectDisplayLabel(project) {
     const label = project?.label || project?.id || "Project";
-    if (!project?.shared) return label;
-    const ownerLabel = sharedProjectRootOwnerLabel(project) || sharedProjectOwnerLabel(project);
-    return ownerLabel ? `${ownerLabel} · ${label}` : label;
+    return label;
   }
 
   function directoryRouteDisplayLabel(project, child = null) {

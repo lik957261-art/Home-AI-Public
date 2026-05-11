@@ -230,6 +230,7 @@ async function main() {
       groupChat: true,
     }));
     assert.equal(groupSingle.thread.id, ownerSingleBeforeGroup.thread.id);
+    assert.equal(groupSingle.groupChatAvailable, true);
     const ownerPrivateAfterGroup = await request(baseUrl, "/api/single-window", jsonOptions("POST", ownerKey, {
       workspaceId: "owner",
       groupChat: false,
@@ -242,6 +243,21 @@ async function main() {
     });
     assert.equal(workspaceWorkspaces.auth.isOwner, false);
     assert.deepEqual(workspaceWorkspaces.data.map((item) => item.id), ["demo-admin-user"]);
+    const workspacePrivateSingle = await request(baseUrl, "/api/single-window", jsonOptions("POST", generated.key, {
+      workspaceId: "demo-admin-user",
+      groupChat: false,
+    }));
+    assert.equal(workspacePrivateSingle.thread.chatGroup.enabled, false);
+    assert.equal(workspacePrivateSingle.groupChatAvailable, true);
+    assert.equal(workspacePrivateSingle.groupChatThreadId, ownerSingleBeforeGroup.thread.id);
+    assert.equal(workspacePrivateSingle.groupChatThread.id, ownerSingleBeforeGroup.thread.id);
+    assert.equal(workspacePrivateSingle.groupChatThread.chatGroup.enabled, true);
+    const workspaceGroupSingle = await request(baseUrl, "/api/single-window", jsonOptions("POST", generated.key, {
+      workspaceId: "demo-admin-user",
+      groupChat: true,
+    }));
+    assert.equal(workspaceGroupSingle.thread.id, ownerSingleBeforeGroup.thread.id);
+    assert.equal(workspaceGroupSingle.thread.chatGroup.enabled, true);
     await expectHttpStatus(baseUrl, "/api/access-keys", {
       headers: { "X-Hermes-Web-Key": generated.key },
     }, 403);
@@ -270,7 +286,21 @@ async function main() {
       connectorProfiles: { email: "demo-admin-user" },
     }));
     assert.equal(patched.workspace.label, "Demo Admin Edited");
-    assert.deepEqual(patched.workspace.localConfig.allowedToolsets, ["mail", "hermes-email"]);
+    assert.deepEqual(patched.workspace.localConfig.allowedToolsets, [
+      "mail",
+      "web",
+      "file",
+      "vision",
+      "image_gen",
+      "skills",
+      "todo",
+      "kanban",
+      "cronjob",
+      "memory",
+      "session_search",
+      "clarify",
+      "hermes-email",
+    ]);
     assert.deepEqual(patched.workspace.localConfig.connectorProfiles, { email: "demo-admin-user" });
 
     const revoked = await request(baseUrl, "/api/access-keys/workspace/demo-admin-user", jsonOptions("DELETE", ownerKey, {}));

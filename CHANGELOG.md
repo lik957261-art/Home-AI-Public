@@ -2,54 +2,52 @@
 
 ## Unreleased
 
-- 暂无未发布变更。
+- Add a mandatory low-permission Gateway pre-flight Skill for Hermes Mobile
+  permission-boundary checks before filesystem, Skill, automation, account,
+  integration, or delivery-path operations.
 
-## 2026-05-10 Public Update
+## 2026-05-11 Public Update
 
-本次 public export 对应私库源提交
-`28cd114fa6f6478c6cc7e23fed717ba58bd3111e`，主要修复低权限 Gateway 在同账号
-外部连接器、Google Workspace 工具运行时和重启恢复方面的问题。
+Public export source commit:
+`84e1ca14e92bebe06394bc30f0b719d979682b91`
 
-### 权限边界
+### 本次公开更新包含的主要内容
 
-- 低权限 Gateway 的运行策略现在会保留同一 workspace 已授权的外部连接器能力，
-  包括 Google Workspace、Gmail、Outlook/Hotmail 等 profile/toolset 映射。
-- 该授权只覆盖“当前账号自己的外部连接能力”。它不会授予其他账号的邮箱、网盘、
-  自动化、Access Key、Owner 管理接口或维护型 Gateway profile。
-- 普通低权限运行仍会过滤开发者/维护类能力，例如 terminal、代码执行、delegation、
-  git、cron 管理、source 访问和宽泛 MCP 能力。
-- 新增的权限边界 Skill 会要求模型在执行文件、Skill、自动化、账号、外部连接器、
-  交付路径等操作前进行自检；如果当前权限不足，应提示需要 Owner 授权或直接拒绝，
-  而不是继续尝试并产生误导性结果。
+- 官方 Hermes Kanban 已接入 Hermes Mobile Todo / 看板层，新增 `adapters/kanban-provider.js`，并补充移动端状态切换式看板 UI。
+- 单窗口聊天历史改为分页加载，聊天/群聊切换移到页头，修复群可见性、未读计数与多机移动端底部占位问题。
+- 低权限 Gateway 恢复 Web Search、自动化任务、工作区文件读取、本人 Skill 修改，以及 Hermes Mobile 看板执行链路。
+- Gateway Pool 的 Codex OAuth 认证从“多 profile 复制同一份 token”改为“同一运行时内共享同一 auth store 与 auth.lock”。
 
-### 外部连接器与 Google Workspace
+### Gateway Codex 认证共享修复
 
-- workspace 绑定现在会从 `connector_profiles` 推断外部连接能力，也会从已配置
-  toolset 反推 connector profile，避免 App 侧显示已授权但 Gateway 侧拿不到能力。
-- 低权限 Gateway Pool 启动时会自动 provision Owner 同账号外部连接器到对应 profile，
-  并重新建立必要的 profile-local 链接。
-- Google Workspace Skill 的脚本现在优先读取 `HERMES_GOOGLE_PROFILE_HOME` 指向
-  的 profile 本地目录，避免回退到共享 Hermes home 后误报 token 缺失或读错凭据。
-- 当系统 Python 没有 Google API 依赖时，Google Workspace Skill 会切换到 Gateway
-  runtime Python，避免因为基础环境缺依赖导致已授权账号仍不可用。
+- 修复 Gateway Pool 错误复制 `auth.json` 导致的 Codex refresh token 重用冲突。
+- 低权限 `lowgw1..10` 改为共享同一套低权限运行时 `auth.json` 与 `auth.lock`，不再为每个 profile 保留独立复制副本。
+- Owner maintenance `officialclean1..2` 也改为在 Owner 运行时内部共享同一套 `auth.json` 与 `auth.lock`。
+- 这样做的目标是“一次登录，按运行时安全共享”，而不是“多 profile 复制同一个 token”。
 
-### 重启与部署恢复
+### 启动链路修复
 
-- `scripts/start-gateway-pool.ps1` 会在启动低权限 Gateway 前补齐 profile 环境变量，
-  包括 `HERMES_PROFILE` 和 `HERMES_GOOGLE_PROFILE_HOME`。
-- `scripts/provision-worker-external-connectors.ps1` 的检查模式会验证每个低权限 profile
-  的 Google Workspace setup 是否可用，便于部署者在重启后发现凭据或依赖问题。
-- 这部分逻辑不修改官方 Hermes Gateway 源码；它只作用于 Hermes Mobile 的 Gateway
-  Pool 启动、profile provisioning 和 public Skill/runtime 脚本。
+- `configure-low-gateways.sh` 现在默认生成共享 auth 布局。
+- `start-gateway-pool.ps1` 现在确保生产的 `start-low-gateways.sh` 会在拉起 worker 前执行 `configure-low-gateways.sh`。
+- 如果共享根 auth 比现有 lowgw profile auth 更旧，迁移脚本会自动提升最新的那一份，用于完成首次切换。
+
+### 诊断能力改进
+
+- `check-worker-codex-auth.ps1` 现在区分：
+  - `shared-refresh`：多个 profile 指向同一真实 auth 文件，属于预期共享。
+  - `copied-refresh`：多个 profile refresh token 相同但真实路径不同，属于危险副本。
 
 ### 验证
 
-- 私库源树执行过 `npm run productization:check`。
-- public export 过程执行了隐私扫描，确认没有导出 `.env`、runtime state、日志、
-  uploads、raw key/token、push endpoint 或本地私有配置。
-- 生产环境完成过低权限 profile Google Drive 只读 smoke，验证同账号 Google 工具
-  可在 profile-local 凭据下启动。
-
+- public repo 通过：
+  - `npm run check`
+  - `node scripts/privacy-scan.js --root . --all-files`
+  - `git diff --check`
+- private/production 已验证：
+  - `npm run productization:check`
+  - `lowgw1..10` 共用同一低权限 auth store
+  - `officialclean1..2` 共用同一 Owner-maintenance auth store
+  - `lowgw3`、`lowgw6`、`officialclean1` 直连响应 smoke 成功
 ## 1.0.0 - 2026-05-09
 
 - First public release of Hermes Mobile.

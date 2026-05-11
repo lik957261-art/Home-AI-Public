@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260510-1430">
+<html lang="en" data-client-version="20260511-1715">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260510-1430">
+  <meta name="hermes-web-client-version" content="20260511-1715">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f3efe7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -25,7 +25,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260510-1430">
+  <link rel="stylesheet" href="/styles.css?v=20260511-1715">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -85,16 +85,16 @@
       <div id="workspaceAccessPanel" class="workspace-access-panel" hidden></div>
 
       <div class="section-toggle" role="group" aria-label="Management section">
-        <button id="taskManagementMode" type="button">任务</button>
+        <button id="taskManagementMode" type="button">话题</button>
         <button id="projectsMode" type="button">目录</button>
-        <button id="todosMode" type="button">待办</button>
+        <button id="todosMode" type="button">看板</button>
         <button id="automationMode" type="button">自动化</button>
       </div>
 
-      <div id="taskModeControls" class="mode-toggle task-mode-toggle" role="group" aria-label="Task mode">
-        <button id="tasksMode" type="button">任务列表</button>
+      <div id="taskModeControls" class="mode-toggle task-mode-toggle" role="group" aria-label="Topic mode">
+        <button id="tasksMode" type="button">话题列表</button>
         <button id="singleMode" type="button" hidden>聊天</button>
-        <button id="singleTaskMode" type="button">任务流</button>
+        <button id="singleTaskMode" type="button">话题流</button>
       </div>
 
       <div id="routeFields" class="route-fields">
@@ -115,7 +115,7 @@
       </div>
 
       <div id="threadList" class="thread-list"></div>
-      <button id="newThread" class="sidebar-action-button primary-small" type="button">新建任务</button>
+      <button id="newThread" class="sidebar-action-button primary-small" type="button">新建话题</button>
     </aside>
     <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
     <div id="edgeSwipeZone" class="edge-swipe-zone disabled" aria-hidden="true"></div>
@@ -130,17 +130,17 @@
         <span class="bottom-tab-icon nav-chat-icon" aria-hidden="true"></span>
         <span class="bottom-tab-label">&#32842;&#22825;</span>
       </button>
-      <button id="bottomTasksMode" class="bottom-tab" type="button" aria-label="任务">
+      <button id="bottomTasksMode" class="bottom-tab" type="button" aria-label="话题">
         <span class="bottom-tab-icon nav-task-icon" aria-hidden="true"></span>
-        <span class="bottom-tab-label">任务</span>
+        <span class="bottom-tab-label">话题</span>
       </button>
       <button id="bottomProjectsMode" class="bottom-tab" type="button" aria-label="目录">
         <span class="bottom-tab-icon nav-directory-icon" aria-hidden="true"></span>
         <span class="bottom-tab-label">目录</span>
       </button>
-      <button id="bottomTodosMode" class="bottom-tab" type="button" aria-label="待办">
+      <button id="bottomTodosMode" class="bottom-tab" type="button" aria-label="看板">
         <span class="bottom-tab-icon nav-todo-icon" aria-hidden="true"></span>
-        <span class="bottom-tab-label">待办</span>
+        <span class="bottom-tab-label">看板</span>
       </button>
       <button id="bottomAutomationMode" class="bottom-tab" type="button" aria-label="自动化">
         <span class="bottom-tab-icon nav-automation-icon" aria-hidden="true"></span>
@@ -153,7 +153,10 @@
         <button id="openMenu" class="icon-button mobile-only top-nav-button" type="button" aria-label="Open menu"><span class="top-nav-button-glyph" aria-hidden="true">&#9776;</span></button>
         <div id="taskDetailToolbar" class="task-detail-toolbar" hidden></div>
         <div class="thread-title-wrap">
-          <div id="threadTitle" class="thread-title">Select or create a thread</div>
+          <div class="thread-title-line">
+            <div id="threadTitle" class="thread-title">Select or create a thread</div>
+            <div id="chatScopeHeader" class="chat-scope-header" hidden></div>
+          </div>
           <div id="threadMeta" class="thread-meta"></div>
         </div>
         <div class="top-actions">
@@ -165,15 +168,15 @@
               <button id="topEditAutomation" class="top-more-action" type="button" hidden>&#20462;&#25913;</button>
               <button id="topToggleAutomationPause" class="top-more-action" type="button" hidden>&#26242;&#20572;</button>
               <button id="topDeleteAutomation" class="top-more-action top-more-danger" type="button" hidden>&#21024;&#38500;</button>
-              <button id="topNewTodo" class="top-more-action" type="button" hidden>新建待办</button>
+              <button id="topNewTodo" class="top-more-action" type="button" hidden>新建卡片</button>
               <button id="topNewAutomation" class="top-more-action" type="button" hidden>新建自动化</button>
               <button id="topDeleteTodo" class="top-more-action top-more-danger" type="button" hidden>删除</button>
-              <button id="topRenameTask" class="top-more-action" type="button" hidden>修改任务名</button>
+              <button id="topRenameTask" class="top-more-action" type="button" hidden>修改话题名</button>
               <button id="topSearchChat" class="top-more-action" type="button" hidden>搜索</button>
               <button id="topToggleGroupChat" class="top-more-action" type="button" hidden>&#20999;&#25442;&#21040;&#32676;</button>
               <button id="topManageGroupMembers" class="top-more-action" type="button" hidden>&#25104;&#21592;</button>
               <button id="topToggleTaskView" class="top-more-action" type="button">信息流</button>
-              <button id="topToggleSingleMode" class="top-more-action" type="button" hidden>任务流</button>
+              <button id="topToggleSingleMode" class="top-more-action" type="button" hidden>话题流</button>
               <button id="topClearDirectoryFilter" class="top-more-action" type="button" hidden>清除目录筛选</button>
               <button id="topManageAccessKeys" class="top-more-action" type="button" hidden>Access Key</button>
               <button id="topInstallPwa" class="top-more-action" type="button" hidden>安装应用</button>
@@ -209,6 +212,6 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260510-1430"></script>
+  <script src="/app.js?v=20260511-1715"></script>
 </body>
 </html>

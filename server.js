@@ -19,6 +19,7 @@ const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-p
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
+const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createRunConcurrencyPolicy } = require("./adapters/run-concurrency-policy");
@@ -37,6 +38,12 @@ function normalizeAutoMode(value) {
   if (/^(0|false|no|off)$/i.test(text)) return "off";
   if (/^auto$/i.test(text)) return "auto";
   return "auto";
+}
+
+function nonNegativeMilliseconds(value, fallback) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  return fallback;
 }
 
 const TOOL_ROOT = __dirname;
@@ -194,6 +201,9 @@ const CHAT_CONTEXT_MAX_MESSAGES = Math.max(0, Number(process.env.HERMES_WEB_CHAT
 const CHAT_CONTEXT_MAX_CHARS = Math.max(1000, Number(process.env.HERMES_WEB_CHAT_CONTEXT_MAX_CHARS || "20000") || 20000);
 const MAX_MESSAGE_CHARS = 240_000;
 const MAX_API_TEXT_CHARS = 80_000;
+const THREAD_MESSAGE_INITIAL_LIMIT = Math.max(10, Number(process.env.HERMES_MOBILE_THREAD_MESSAGE_INITIAL_LIMIT || process.env.HERMES_WEB_THREAD_MESSAGE_INITIAL_LIMIT || "60") || 60);
+const THREAD_MESSAGE_PAGE_LIMIT = Math.max(10, Number(process.env.HERMES_MOBILE_THREAD_MESSAGE_PAGE_LIMIT || process.env.HERMES_WEB_THREAD_MESSAGE_PAGE_LIMIT || "40") || 40);
+const THREAD_MESSAGE_SEARCH_LIMIT = Math.max(10, Number(process.env.HERMES_MOBILE_THREAD_MESSAGE_SEARCH_LIMIT || process.env.HERMES_WEB_THREAD_MESSAGE_SEARCH_LIMIT || "120") || 120);
 const MAX_EVENT_PREVIEW_CHARS = 1600;
 const MAX_STORED_EVENTS_PER_THREAD = 80;
 const MAX_UPLOAD_BYTES = Number(process.env.HERMES_WEB_MAX_UPLOAD_BYTES || "104857600");
@@ -204,6 +214,7 @@ const SOURCE_MARKDOWN_SEARCH_LIMIT = Number(
   || "2000",
 );
 const TODO_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_TODO_BRIDGE_TIMEOUT_MS || "15000");
+const KANBAN_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_KANBAN_BRIDGE_TIMEOUT_MS || process.env.HERMES_WEB_KANBAN_BRIDGE_TIMEOUT_MS || "20000");
 const CRON_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_CRON_BRIDGE_TIMEOUT_MS || "15000");
 const CRON_BRIDGE_STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_CRON_BRIDGE_STDOUT_LIMIT_BYTES || process.env.HERMES_WEB_CRON_BRIDGE_STDOUT_LIMIT_BYTES || "50000000");
 const CRON_LIST_CACHE_TTL_MS = Number(process.env.HERMES_WEB_CRON_LIST_CACHE_TTL_MS || "12000");
@@ -214,6 +225,10 @@ const SKILL_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_SKILL_BRIDGE_TIMEO
 const CRON_OUTPUT_ROOT = stripTrailingSlash(process.env.HERMES_WEB_CRON_OUTPUT_ROOT || `${WSL_HERMES_HOME}/cron/output`);
 const CRON_RUN_LOG_ROOT = stripTrailingSlash(process.env.HERMES_WEB_RUN_LOG_ROOT || `${WSL_HERMES_HOME}/run-logs`);
 const TODO_BACKEND = String(process.env.HERMES_WEB_TODO_BACKEND || "local").trim().toLowerCase();
+const KANBAN_COMMAND = String(process.env.HERMES_MOBILE_KANBAN_COMMAND || process.env.HERMES_WEB_KANBAN_COMMAND || "hermes").trim() || "hermes";
+const KANBAN_COMMAND_ARGS = String(process.env.HERMES_MOBILE_KANBAN_COMMAND_ARGS || process.env.HERMES_WEB_KANBAN_COMMAND_ARGS || "").trim();
+const KANBAN_TODO_META_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_TODO_META_PATH || process.env.HERMES_WEB_KANBAN_TODO_META_PATH || path.join(DATA_DIR, "kanban-todo-meta.json"));
+const KANBAN_WORKSPACE_PATH_STYLE = String(process.env.HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE || process.env.HERMES_WEB_KANBAN_WORKSPACE_PATH_STYLE || "").trim().toLowerCase();
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -234,11 +249,26 @@ const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH
 const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
 const TODO_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_TODO_PUSH_ENABLED || "1");
 const TODO_WEB_PUSH_INTERVAL_MS = Number(process.env.HERMES_WEB_TODO_PUSH_INTERVAL_MS || "60000");
+const WEB_PUSH_START_DELAY_MS = nonNegativeMilliseconds(
+  process.env.HERMES_MOBILE_WEB_PUSH_START_DELAY_MS
+  || process.env.HERMES_WEB_WEB_PUSH_START_DELAY_MS,
+  120000,
+);
+const TODO_WEB_PUSH_START_DELAY_MS = nonNegativeMilliseconds(
+  process.env.HERMES_MOBILE_TODO_PUSH_START_DELAY_MS
+  || process.env.HERMES_WEB_TODO_PUSH_START_DELAY_MS,
+  WEB_PUSH_START_DELAY_MS,
+);
 const TODO_WEB_PUSH_RECENT_CREATE_MINUTES = Number(process.env.HERMES_WEB_TODO_PUSH_RECENT_CREATE_MINUTES || "30");
 const TODO_WEB_PUSH_RECEIPT_RETRY_MINUTES = Number(process.env.HERMES_WEB_TODO_PUSH_RECEIPT_RETRY_MINUTES || "3");
 const TODO_WEB_PUSH_RECEIPT_RETRY_LIMIT = Number(process.env.HERMES_WEB_TODO_PUSH_RECEIPT_RETRY_LIMIT || "3");
 const AUTOMATION_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_AUTOMATION_PUSH_ENABLED || "1");
 const AUTOMATION_WEB_PUSH_INTERVAL_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_INTERVAL_MS || "60000");
+const AUTOMATION_WEB_PUSH_START_DELAY_MS = nonNegativeMilliseconds(
+  process.env.HERMES_MOBILE_AUTOMATION_PUSH_START_DELAY_MS
+  || process.env.HERMES_WEB_AUTOMATION_PUSH_START_DELAY_MS,
+  WEB_PUSH_START_DELAY_MS,
+);
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
@@ -310,7 +340,7 @@ const AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS = Number(process.env.HERMES_WE
 const AUTOMATION_PUSH_INITIAL_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_INITIAL_LOOKBACK_MS || String(24 * 60 * 60 * 1000));
 const MAX_STATE_BACKUPS = Number(process.env.HERMES_WEB_MAX_STATE_BACKUPS || "80");
 const STATE_BACKUP_MIN_INTERVAL_MS = Number(process.env.HERMES_WEB_STATE_BACKUP_MIN_INTERVAL_MS || String(10 * 60 * 1000));
-const ENABLE_DIRECT_TODO_CREATE = /^(1|true|yes|on)$/i.test(process.env.HERMES_WEB_DIRECT_TODO_CREATE || "");
+const DIRECT_TODO_CREATE_SETTING = String(process.env.HERMES_MOBILE_DIRECT_KANBAN_CREATE || process.env.HERMES_WEB_DIRECT_TODO_CREATE || "").trim();
 const BOOT_TRACE_PATH = process.env.HERMES_MOBILE_BOOT_TRACE_PATH || process.env.HERMES_WEB_BOOT_TRACE_PATH || "";
 
 function bootTrace(label) {
@@ -2430,13 +2460,93 @@ function groupChatDeliveryRootForThread(thread) {
   return path.join(GROUP_DELIVERIES_DIR, safeStorageSegment(thread?.id || "thread"));
 }
 
+function groupChatSharedAttachmentRootForThread(thread) {
+  return path.join(groupChatDeliveryRootForThread(thread), "shared-attachments");
+}
+
+function storedArtifactForMessageArtifact(artifact = {}) {
+  const id = String(artifact?.id || "").trim();
+  const stored = id ? (state.artifacts || []).find((item) => String(item.id || "") === id) : null;
+  return Object.assign({}, stored || {}, artifact || {});
+}
+
+function groupChatMessagesForRun(thread, latestUserMessage) {
+  if (!thread?.singleWindow || latestUserMessage?.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return [];
+  const messages = thread.messages || [];
+  const latestIndex = messages.findIndex((message) => String(message?.id || "") === String(latestUserMessage?.id || ""));
+  return messages
+    .slice(0, latestIndex >= 0 ? latestIndex + 1 : messages.length)
+    .filter((message) => message?.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID)
+    .filter((message) => !message.revokedAt);
+}
+
+function safeArtifactCopyName(artifact = {}, index = 0) {
+  const id = String(artifact.id || "").trim() || `artifact-${index + 1}`;
+  const name = safeFileName(artifact.name || artifact.path || id);
+  return `${safeStorageSegment(id)}-${name}`;
+}
+
+function ensureGroupChatSharedArtifactCopies(thread, latestUserMessage, deliveryRoot) {
+  if (!deliveryRoot || latestUserMessage?.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return [];
+  const messages = groupChatMessagesForRun(thread, latestUserMessage);
+  const copyRoot = path.join(deliveryRoot, "shared-attachments");
+  const copies = [];
+  const seen = new Set();
+  fs.mkdirSync(copyRoot, { recursive: true });
+  for (const message of messages) {
+    for (const messageArtifact of Array.isArray(message.artifacts) ? message.artifacts : []) {
+      const artifact = storedArtifactForMessageArtifact(messageArtifact);
+      const artifactId = String(artifact.id || messageArtifact.id || "").trim();
+      const rawPath = String(artifact.path || artifact.localPath || artifact.displayPath || "").trim();
+      const localPath = normalizeLocalPath(rawPath) || rawPath;
+      const key = artifactId || localPath.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      if (!localPath || securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(rawPath)) continue;
+      let stat = null;
+      try {
+        stat = fs.statSync(localPath);
+      } catch (_) {
+        continue;
+      }
+      if (!stat.isFile()) continue;
+      const copyPath = path.join(copyRoot, safeArtifactCopyName(artifact, copies.length));
+      try {
+        if (!samePath(localPath, copyPath)) fs.copyFileSync(localPath, copyPath);
+      } catch (_) {
+        continue;
+      }
+      copies.push({
+        id: artifactId,
+        name: artifact.name || path.basename(localPath),
+        originalPath: rawPath || localPath,
+        copyPath,
+        copyPathForModel: windowsPathToWsl(copyPath) || copyPath,
+        messageId: message.id || "",
+        senderWorkspaceId: message.senderWorkspaceId || "",
+      });
+    }
+  }
+  return copies;
+}
+
 function backendIsLocal(value, bridgeNames = []) {
   const backend = String(value || "").trim().toLowerCase();
   return !bridgeNames.includes(backend);
 }
 
 function useLocalTodoBackend() {
-  return backendIsLocal(TODO_BACKEND, ["bridge", "plugin", "hermes", "hermes_todos"]);
+  return backendIsLocal(TODO_BACKEND, ["bridge", "plugin", "hermes", "hermes_todos", "kanban", "hermes_kanban"]);
+}
+
+function useKanbanTodoBackend() {
+  return ["kanban", "hermes_kanban"].includes(TODO_BACKEND);
+}
+
+function directTodoCreateEnabled() {
+  if (/^(0|false|no|off)$/i.test(DIRECT_TODO_CREATE_SETTING)) return false;
+  if (/^(1|true|yes|on)$/i.test(DIRECT_TODO_CREATE_SETTING)) return true;
+  return useKanbanTodoBackend();
 }
 
 function useLocalAutomationBackend() {
@@ -2775,6 +2885,7 @@ async function runLocalTodoBridge(payload = {}) {
 }
 
 function runTodoBridge(payload) {
+  if (useKanbanTodoBackend()) return kanbanTodoBridge.run(payload);
   if (useLocalTodoBackend()) return runLocalTodoBridge(payload);
   if (BRIDGE_HOST_URL) return runBridgeHost("todo", payload, TODO_BRIDGE_TIMEOUT_MS);
   return new Promise((resolve, reject) => {
@@ -2839,7 +2950,7 @@ const todoProvider = createTodoProvider({
   publicTodo,
   sourceName: () => useLocalTodoBackend()
     ? (useSqliteServiceStore() ? "sqlite_todos" : "local_todos")
-    : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos"),
+    : (useKanbanTodoBackend() ? "hermes_kanban" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos")),
 });
 
 function localAutomationStore() {
@@ -3309,6 +3420,54 @@ const skillDetailProvider = createSkillDetailProvider({
   },
 });
 
+const kanbanTodoBridge = createKanbanTodoBridge({
+  command: KANBAN_COMMAND,
+  baseArgs: KANBAN_COMMAND_ARGS,
+  timeoutMs: KANBAN_BRIDGE_TIMEOUT_MS,
+  metadataPath: KANBAN_TODO_META_PATH,
+  boardForWorkspace: (workspaceId, principalId) => `workspace-${workspaceId || principalId || "default"}`,
+  assigneeForWorkspace: kanbanExecutableProfileForWorkspace,
+  boardNameForWorkspace: (workspaceId, principalId) => {
+    const workspace = findWorkspace(workspaceId || principalId || "owner");
+    return workspace?.label ? `Hermes Mobile ${workspace.label}` : `Hermes Mobile ${workspaceId || principalId || "default"}`;
+  },
+  workspacePathForWorkspace: (workspaceId) => {
+    const root = workspaceDefaultRoot(workspaceId);
+    if (!root) return "";
+    const commandLooksWsl = /^(?:wsl|wsl\.exe)$/i.test(path.basename(KANBAN_COMMAND));
+    if (KANBAN_WORKSPACE_PATH_STYLE === "native") return root;
+    if (KANBAN_WORKSPACE_PATH_STYLE === "wsl" || commandLooksWsl) return windowsPathToWsl(root);
+    return root;
+  },
+});
+
+function workerAllowsWorkspace(worker, workspaceId) {
+  if (!worker || !workspaceId) return false;
+  const allowed = Array.isArray(worker.allowedWorkspaceIds) ? worker.allowedWorkspaceIds : [];
+  const skills = Array.isArray(worker.skillWorkspaceIds) ? worker.skillWorkspaceIds : [];
+  return allowed.includes("*")
+    || allowed.includes(workspaceId)
+    || skills.includes("*")
+    || skills.includes(workspaceId);
+}
+
+function kanbanExecutableProfileForWorkspace(workspaceId, principalId, requestedAssignee = "") {
+  const workspace = String(workspaceId || principalId || requestedAssignee || "owner").trim() || "owner";
+  try {
+    const loaded = gatewayPool().load();
+    const workers = Array.isArray(loaded?.workers) ? loaded.workers : [];
+    const candidates = workers
+      .filter((worker) => worker?.profile && worker.securityLevel === "user" && !worker.allowMaintenance)
+      .filter((worker) => workerAllowsWorkspace(worker, workspace));
+    const exactSkill = candidates.find((worker) => (worker.skillWorkspaceIds || []).includes(workspace));
+    const exactAllowed = candidates.find((worker) => (worker.allowedWorkspaceIds || []).includes(workspace));
+    const wildcard = candidates.find((worker) => (worker.skillWorkspaceIds || []).includes("*") || (worker.allowedWorkspaceIds || []).includes("*"));
+    return String((exactSkill || exactAllowed || wildcard || candidates[0])?.profile || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
+
 function workspacePrincipal(workspaceId) {
   const workspace = findWorkspace(workspaceId || "owner");
   return String(workspace?.policy?.principal_id || workspace?.id || "owner");
@@ -3400,7 +3559,7 @@ function parseTodoDueFromText(text, now = new Date()) {
 
 function detectDirectTodoCreateIntent(text, workspaceId) {
   const rawText = String(text || "").trim();
-  if (!rawText || !/待办/.test(rawText)) return null;
+  if (!rawText || !/(待办|看板|卡片|kanban|todo|to-do)/i.test(rawText)) return null;
   if (!/(新增|新建|创建|开启|添加|加|安排|提醒)/.test(rawText)) return null;
   const due = parseTodoDueFromText(rawText);
   if (!due?.dueTime) return null;
@@ -3412,7 +3571,8 @@ function detectDirectTodoCreateIntent(text, workspaceId) {
   }
   content = content
     .replace(due.raw, " ")
-    .replace(/(?:请|帮我|给我|我想|我要|需要)?\s*(?:新增|新建|创建|开启|添加|加|安排|提醒)\s*(?:一个|一条)?\s*待办(?:事项)?/g, " ")
+    .replace(/(?:请|帮我|给我|我想|我要|需要)?\s*(?:新增|新建|创建|开启|添加|加|安排|提醒)\s*(?:一个|一条|一张)?\s*(?:待办(?:事项)?|看板(?:卡片)?|卡片|kanban|todo|to-do)/ig, " ")
+    .replace(/(?:待办(?:事项)?|看板(?:卡片)?|卡片|kanban|todo|to-do)/ig, " ")
     .replace(/[，,。；;：:]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -3453,7 +3613,7 @@ function parseWebTodoDueFromText(text, now = new Date()) {
 
 function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
   const rawText = String(text || "").trim();
-  if (!rawText || !/(\u5f85\u529e|todo|to-do)/i.test(rawText)) return null;
+  if (!rawText || !/(\u5f85\u529e|\u770b\u677f|\u5361\u7247|kanban|todo|to-do)/i.test(rawText)) return null;
   if (!/(\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/.test(rawText)) return null;
   const due = parseWebTodoDueFromText(rawText);
   if (!due?.dueTime) return null;
@@ -3465,16 +3625,52 @@ function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
   }
   content = content
     .replace(due.raw, " ")
-    .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)\s*(?:\u4e00\u4e2a|\u4e00\u6761)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|todo|to-do)/ig, " ")
+    .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)\s*(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
     .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/ig, " ")
-    .replace(/(?:\u4e00\u4e2a|\u4e00\u6761)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|todo|to-do)/ig, " ")
-    .replace(/(?:\u5f85\u529e(?:\u4e8b\u9879)?|todo|to-do)/ig, " ")
+    .replace(/(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
+    .replace(/(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
     .replace(/\u7684/g, " ")
     .replace(/[\uff0c,.\u3002\uff1b;\uff1a:]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!content) return null;
   return { assignee, assigneeLabel, dueTime: due.dueTime, content };
+}
+
+function directTodoCreateNeedsKanbanFields(todo) {
+  if (!todo || typeof todo !== "object") return useKanbanTodoBackend();
+  const source = String(todo.source || "").trim().toLowerCase();
+  if (source === "kanban" || source === "hermes_kanban") return true;
+  return useKanbanTodoBackend();
+}
+
+function verifyDirectTodoCreateResult(todo) {
+  const id = String(todo?.id || "").trim();
+  if (!id) {
+    return { ok: false, error: "Todo created but no visible card id returned." };
+  }
+  if (directTodoCreateNeedsKanbanFields(todo)) {
+    const board = String(todo?.kanbanBoard || "").trim();
+    const status = String(todo?.kanbanStatus || "").trim();
+    if (!board || !status) {
+      return { ok: false, error: "Kanban card creation returned without board/status metadata." };
+    }
+  }
+  return { ok: true, error: "" };
+}
+
+function formatDirectTodoCreateSuccessMessage(intent, todo) {
+  const assigneeLabel = String(intent?.assigneeLabel || "").trim() || "owner";
+  const dueTime = String(intent?.dueTime || "").trim() || "no due time";
+  const content = String(intent?.content || "").trim() || String(todo?.content || "").trim() || "todo";
+  const id = String(todo?.id || "").trim();
+  const source = String(todo?.source || "").trim() || "unknown";
+  const board = String(todo?.kanbanBoard || "").trim();
+  const status = String(todo?.kanbanStatus || "").trim();
+  const details = [`ID: ${id}`, `Source: ${source}`];
+  if (board) details.push(`Board: ${board}`);
+  if (status) details.push(`Status: ${status}`);
+  return `\u5df2\u65b0\u589e\u770b\u677f\u5361\u7247\uff1a${assigneeLabel} | ${dueTime} | ${content}\n${details.join(" | ")}`;
 }
 
 function publicTodo(row) {
@@ -3494,6 +3690,21 @@ function publicTodo(row) {
     recurrenceDays: String(row.recurrence_days || ""),
     recurrenceSeriesId: String(row.recurrence_series_id || ""),
     recurrenceTemplate: Boolean(row.recurrence_template),
+    source: String(row.source || ""),
+    kanbanBoard: String(row.kanban_board || row.kanbanBoard || ""),
+    kanbanStatus: String(row.kanban_status || row.kanbanStatus || ""),
+    kanbanAssignee: String(row.kanban_assignee || row.kanbanAssignee || ""),
+    kanbanPriority: Number(row.kanban_priority || row.kanbanPriority || 0),
+    kanbanTenant: String(row.kanban_tenant || row.kanbanTenant || ""),
+    kanbanWorkspaceKind: String(row.kanban_workspace_kind || row.kanbanWorkspaceKind || ""),
+    kanbanCreatedBy: String(row.kanban_created_by || row.kanbanCreatedBy || ""),
+    kanbanStartedAt: String(row.kanban_started_at || row.kanbanStartedAt || ""),
+    kanbanCompletedAt: String(row.kanban_completed_at || row.kanbanCompletedAt || ""),
+    kanbanResult: String(row.kanban_result || row.kanbanResult || ""),
+    kanbanMaxRetries: Number(row.kanban_max_retries || row.kanbanMaxRetries || 0),
+    kanbanSkills: Array.isArray(row.kanban_skills || row.kanbanSkills)
+      ? (row.kanban_skills || row.kanbanSkills).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
+      : [],
     createdAt: String(row.created_at || ""),
     updatedAt: String(row.updated_at || ""),
     completedAt: String(row.completed_at || ""),
@@ -4813,6 +5024,7 @@ function formatAccessPolicyInstructionSummary(policy = {}) {
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
   const singleWindowMode = normalizeSingleWindowMode(options.singleWindowMode || options.single_window_mode || "");
   const groupChatDeliveryRoot = String(options.groupChatDeliveryRoot || options.group_chat_delivery_root || "").trim();
+  const groupChatAttachmentCopies = Array.isArray(options.groupChatAttachmentCopies) ? options.groupChatAttachmentCopies : [];
   const deliveryBoundaryOptions = groupChatDeliveryRoot
     ? { deliveryTarget: `the group delivery directory: ${groupChatDeliveryRoot}` }
     : {};
@@ -4822,6 +5034,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
     formatAccessPolicyInstructionSummary(policy),
     securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
+    "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
     "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
     "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
     createDeliveryBoundaryInstructions(deliveryBoundaryOptions),
@@ -4840,6 +5053,12 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
       if (groupChatDeliveryRoot) {
         lines.push(`This is a group-chat AI request. Final user-facing document deliverables for this group turn should be Markdown by default and must be written under the group delivery directory: ${groupChatDeliveryRoot}.`);
         lines.push("Do not place group-chat deliverables only in the sender's private delivery directory. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
+      }
+      if (groupChatAttachmentCopies.length) {
+        lines.push("Group-chat shared attachments authorized for this run are available as readable copies below. If a shared attachment's original path is outside the current access policy or returns permission denied, read the accessible copy path instead:");
+        for (const item of groupChatAttachmentCopies.slice(0, 20)) {
+          lines.push(`- ${item.name || item.id || "attachment"}: ${item.copyPathForModel || item.copyPath} (original shared path: ${item.originalPath || ""})`);
+        }
       }
       lines.push("Do not inherit, emit, or display prior directory bindings or `目录别名：当前绑定目录=...` from older chat turns. Only an explicit directory attachment on the latest message is a current directory binding.");
     } else {
@@ -5693,7 +5912,115 @@ function singleWindowProjectTaskSummaries(workspaceId, project, subproject, sear
   return out;
 }
 
-function compactThread(thread) {
+function clampPositiveInteger(value, fallback, maxValue = 500) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(maxValue, Math.max(1, Math.floor(parsed)));
+}
+
+function messagesForThreadMode(thread, options = {}) {
+  const messages = Array.isArray(thread?.messages) ? thread.messages : [];
+  const mode = String(options.mode || options.messageMode || "").trim().toLowerCase();
+  if (mode === "tasks" || mode === "task") {
+    const taskGroupId = String(options.taskGroupId || options.task_group_id || "").trim();
+    return messages.filter((message) => {
+      const groupId = String(message?.taskGroupId || "");
+      if (isSingleWindowConversationTaskGroupId(groupId)) return false;
+      return !taskGroupId || groupId === taskGroupId;
+    });
+  }
+  if (mode !== "chat") return messages;
+  const taskGroupId = messagePageTaskGroupId(options);
+  return messages.filter((message) => String(message?.taskGroupId || "") === taskGroupId);
+}
+
+function messagePageTaskGroupId(options = {}) {
+  return String(
+    options.taskGroupId
+    || options.task_group_id
+    || (options.groupChat ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID : SINGLE_WINDOW_CHAT_TASK_GROUP_ID),
+  ).trim() || SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+}
+
+function threadMessagesPage(thread, options = {}) {
+  const limit = clampPositiveInteger(options.limit, THREAD_MESSAGE_INITIAL_LIMIT, 300);
+  const allMessages = messagesForThreadMode(thread, options);
+  const mode = String(options.mode || options.messageMode || "all").trim().toLowerCase();
+  const beforeId = String(options.before || options.beforeMessageId || options.before_message_id || "").trim();
+  const beforeIndex = beforeId ? allMessages.findIndex((message) => String(message?.id || "") === beforeId) : -1;
+  const end = beforeIndex >= 0 ? beforeIndex : allMessages.length;
+  const start = Math.max(0, end - limit);
+  const messages = allMessages.slice(start, end);
+  return {
+    messages,
+    page: {
+      mode: mode || "all",
+      taskGroupId: mode === "chat"
+        ? messagePageTaskGroupId(options)
+        : String(options.taskGroupId || options.task_group_id || "").trim(),
+      total: allMessages.length,
+      limit,
+      loaded: messages.length,
+      hasMoreBefore: start > 0,
+      oldestMessageId: messages[0]?.id || "",
+      newestMessageId: messages[messages.length - 1]?.id || "",
+      before: beforeId,
+    },
+  };
+}
+
+function messageSearchText(message = {}) {
+  const artifacts = Array.isArray(message.artifacts)
+    ? message.artifacts.map((artifact) => [
+      artifact?.name,
+      artifact?.path,
+      artifact?.mime,
+    ].filter(Boolean).join(" ")).join("\n")
+    : "";
+  return [
+    message.role,
+    message.content,
+    message.error,
+    artifacts,
+  ].filter(Boolean).join("\n").toLowerCase();
+}
+
+function searchThreadMessages(thread, options = {}) {
+  const query = String(options.search || options.q || "").trim().toLowerCase();
+  const limit = clampPositiveInteger(options.limit, THREAD_MESSAGE_SEARCH_LIMIT, 300);
+  if (!query) {
+    return {
+      messages: [],
+      page: {
+        mode: String(options.mode || options.messageMode || "chat"),
+        search: "",
+        totalMatches: 0,
+        limit,
+        hasMoreMatches: false,
+      },
+    };
+  }
+  const allMessages = messagesForThreadMode(thread, options);
+  const matches = allMessages.filter((message) => messageSearchText(message).includes(query));
+  return {
+    messages: matches.slice(0, limit),
+    page: {
+      mode: String(options.mode || options.messageMode || "chat"),
+      taskGroupId: messagePageTaskGroupId(options),
+      search: query,
+      total: allMessages.length,
+      totalMatches: matches.length,
+      limit,
+      hasMoreMatches: matches.length > limit,
+      oldestMessageId: matches[0]?.id || "",
+      newestMessageId: matches[Math.min(matches.length, limit) - 1]?.id || "",
+    },
+  };
+}
+
+function compactThread(thread, options = {}) {
+  const messagePage = options.messagePage || null;
+  const messages = Array.isArray(options.messages) ? options.messages : (thread.messages || []);
   return {
     id: thread.id,
     title: thread.title,
@@ -5709,9 +6036,15 @@ function compactThread(thread) {
     updatedAt: thread.updatedAt,
     taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
     chatGroup: publicChatGroup(thread),
-    messages: (thread.messages || []).map((message) => compactMessage(message, thread)),
+    messages: messages.map((message) => compactMessage(message, thread)),
+    messagesPage: messagePage,
     events: (thread.events || []).slice(-MAX_STORED_EVENTS_PER_THREAD),
   };
+}
+
+function compactThreadWithMessagePage(thread, options = {}) {
+  const page = threadMessagesPage(thread, options);
+  return compactThread(thread, { messages: page.messages, messagePage: page.page });
 }
 
 function compactMessage(message, thread = null) {
@@ -6341,8 +6674,15 @@ function startTodoWebPushDispatcher() {
         todoWebPushRunning = false;
       });
   };
-  setTimeout(tick, 8000);
-  setInterval(tick, interval);
+  scheduleBackgroundWebPushDispatcher(tick, interval, TODO_WEB_PUSH_START_DELAY_MS);
+}
+
+function scheduleBackgroundWebPushDispatcher(tick, interval, initialDelay) {
+  const startDelay = Math.max(0, Number(initialDelay) || 0);
+  setTimeout(() => {
+    tick();
+    setInterval(tick, interval);
+  }, startDelay);
 }
 
 function automationOwnerPrincipal(job) {
@@ -6587,8 +6927,7 @@ function startAutomationWebPushDispatcher() {
         automationWebPushRunning = false;
       });
   };
-  setTimeout(tick, 12000);
-  setInterval(tick, interval);
+  scheduleBackgroundWebPushDispatcher(tick, interval, AUTOMATION_WEB_PUSH_START_DELAY_MS);
 }
 
 function notifyTodoCreated(result, sourcePrincipal = "") {
@@ -6616,12 +6955,26 @@ async function hermesRequest(apiPath, options = {}) {
 
 async function getHermesStatus() {
   const status = await singleGatewayRunner().status();
+  let poolStatus = null;
   try {
-    status.gatewayPool = await gatewayPool().status();
+    poolStatus = await gatewayPool().status();
+    status.gatewayPool = poolStatus;
   } catch (err) {
     status.gatewayPool = { enabled: false, error: err.message || String(err) };
   }
+  if (!status.ok && gatewayPoolStatusHealthy(poolStatus)) {
+    status.fallbackError = status.error || "";
+    status.error = null;
+    status.health = status.health || { status: "ok", platform: "gateway-pool" };
+    status.ok = true;
+  }
   return status;
+}
+
+function gatewayPoolStatusHealthy(poolStatus) {
+  if (!poolStatus?.enabled) return false;
+  const workers = Array.isArray(poolStatus.workers) ? poolStatus.workers : [];
+  return workers.some((worker) => worker?.healthy === true);
 }
 
 function buildConversationHistory(thread, latestUserMessageId) {
@@ -6704,6 +7057,9 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     ? groupChatDeliveryRootForThread(thread)
     : "";
   const groupChatDeliveryRootForModel = groupChatDeliveryRoot ? windowsPathToWsl(groupChatDeliveryRoot) : "";
+  const groupChatAttachmentCopies = groupChatDeliveryRoot
+    ? ensureGroupChatSharedArtifactCopies(thread, userMessage, groupChatDeliveryRoot)
+    : [];
   if (groupChatDeliveryRoot) {
     fs.mkdirSync(groupChatDeliveryRoot, { recursive: true });
     policy.allowed_roots = dedupe([...(policy.allowed_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
@@ -6728,7 +7084,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
         project,
         userMessage.content,
         taskDirectory,
-        Object.assign({}, options, { groupChatDeliveryRoot: groupChatDeliveryRootForModel }),
+        Object.assign({}, options, { groupChatDeliveryRoot: groupChatDeliveryRootForModel, groupChatAttachmentCopies }),
       ),
       options.instructions || "",
     ].filter(Boolean).join("\n\n"),
@@ -8714,7 +9070,7 @@ async function handleApi(req, res) {
     return;
   }
 
-  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete)$/);
+  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment)$/);
   if (todoAction && req.method === "POST") {
     const body = await readBody(req).catch(() => ({}));
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
@@ -8727,6 +9083,9 @@ async function handleApi(req, res) {
       assignee: body.assignee || "",
       recurrenceScope: body.recurrenceScope || body.recurrence_scope || "one",
       dueTime: body.dueTime || body.due_time || "",
+      reason: body.reason || "",
+      comment: body.comment || body.text || "",
+      author: body.author || "",
     });
     if (!result.ok) {
       todoErrorResponse(res, result);
@@ -8743,8 +9102,10 @@ async function handleApi(req, res) {
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
     const groupRequested = Boolean(body.groupChat || body.group_chat);
-    const groupThread = groupRequested ? findGroupChatThreadForWorkspace(workspaceId) : null;
-    const thread = groupThread && threadAccessibleToAuth(auth, groupThread)
+    const availableGroupThread = findGroupChatThreadForWorkspace(workspaceId);
+    const groupChatAvailable = Boolean(availableGroupThread && threadAccessibleToAuth(auth, availableGroupThread));
+    const groupThread = groupRequested && groupChatAvailable ? availableGroupThread : null;
+    const thread = groupThread
       ? groupThread
       : ensureSingleWindowThread(workspaceId, { allowGroupThread: false });
     if (!thread) {
@@ -8752,7 +9113,29 @@ async function handleApi(req, res) {
       return;
     }
     broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-    sendJson(res, 200, { thread: compactThread(thread) });
+    const messageMode = String(body.messageMode || body.message_mode || "").trim().toLowerCase();
+    const wantsMessagePage = ["chat", "tasks", "task"].includes(messageMode);
+    const responseThread = wantsMessagePage
+      ? compactThreadWithMessagePage(thread, {
+        mode: messageMode,
+        groupChat: groupRequested,
+        taskGroupId: body.taskGroupId || body.task_group_id || "",
+        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+      })
+      : compactThread(thread);
+    const groupChatThread = groupChatAvailable
+      ? compactThreadWithMessagePage(availableGroupThread, {
+        mode: "chat",
+        groupChat: true,
+        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+      })
+      : null;
+    sendJson(res, 200, {
+      thread: responseThread,
+      groupChatAvailable,
+      groupChatThreadId: groupChatAvailable ? availableGroupThread.id : "",
+      groupChatThread,
+    });
     return;
   }
 
@@ -8841,7 +9224,45 @@ async function handleApi(req, res) {
       sendJson(res, 404, { error: "Thread not found" });
       return;
     }
+    const messageMode = String(url.searchParams.get("messageMode") || url.searchParams.get("message_mode") || "").trim().toLowerCase();
+    if (["chat", "tasks", "task"].includes(messageMode)) {
+      sendJson(res, 200, {
+        thread: compactThreadWithMessagePage(thread, {
+          mode: messageMode,
+          groupChat: boolParam(url.searchParams.get("groupChat") || url.searchParams.get("group_chat")),
+          taskGroupId: url.searchParams.get("taskGroupId") || url.searchParams.get("task_group_id") || "",
+          limit: url.searchParams.get("messageLimit") || url.searchParams.get("message_limit") || THREAD_MESSAGE_INITIAL_LIMIT,
+        }),
+      });
+      return;
+    }
     sendJson(res, 200, { thread: compactThread(thread) });
+    return;
+  }
+
+  const threadMessagesRead = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages$/);
+  if (threadMessagesRead && req.method === "GET") {
+    const thread = findThreadForRequest(req, decodeURIComponent(threadMessagesRead[1]));
+    if (!thread) {
+      sendJson(res, 404, { error: "Thread not found" });
+      return;
+    }
+    const messageMode = String(url.searchParams.get("messageMode") || url.searchParams.get("message_mode") || "chat").trim().toLowerCase();
+    const options = {
+      mode: messageMode,
+      groupChat: boolParam(url.searchParams.get("groupChat") || url.searchParams.get("group_chat")),
+      taskGroupId: url.searchParams.get("taskGroupId") || url.searchParams.get("task_group_id") || "",
+      before: url.searchParams.get("before") || "",
+      limit: url.searchParams.get("limit") || THREAD_MESSAGE_PAGE_LIMIT,
+      search: url.searchParams.get("search") || url.searchParams.get("q") || "",
+    };
+    const page = String(options.search || "").trim()
+      ? searchThreadMessages(thread, Object.assign({}, options, { limit: url.searchParams.get("limit") || THREAD_MESSAGE_SEARCH_LIMIT }))
+      : threadMessagesPage(thread, options);
+    sendJson(res, 200, {
+      messages: page.messages.map((message) => compactMessage(message, thread)),
+      page: page.page,
+    });
     return;
   }
 
@@ -8968,6 +9389,16 @@ async function handleApi(req, res) {
       sendJson(res, 403, { error: "Group chat is not enabled for this thread" });
       return;
     }
+    const compactResponseThread = () => (
+      thread.singleWindow && singleWindowMode === "chat"
+        ? compactThreadWithMessagePage(thread, {
+          mode: "chat",
+          taskGroupId,
+          groupChat: taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+          limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+        })
+        : compactThread(thread)
+    );
     let actorWorkspaceId = thread.workspaceId;
     const requestedActorWorkspaceId = String(body.workspaceId || body.actorWorkspaceId || body.actor_workspace_id || "").trim();
     if (requestedActorWorkspaceId && authCanAccessWorkspace(auth, requestedActorWorkspaceId)) {
@@ -9051,10 +9482,10 @@ async function handleApi(req, res) {
       broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
       broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
       notifyGroupChatMentions(thread, userMessage);
-      sendJson(res, 201, { ok: true, thread: compactThread(thread) });
+      sendJson(res, 201, { ok: true, thread: compactResponseThread() });
       return;
     }
-    const directTodoIntent = ENABLE_DIRECT_TODO_CREATE
+    const directTodoIntent = directTodoCreateEnabled()
       ? (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId)
         || detectDirectTodoCreateIntent(text, thread.workspaceId))
       : null;
@@ -9075,12 +9506,35 @@ async function handleApi(req, res) {
       } catch (err) {
         result = { ok: false, error: err.message || String(err) };
       }
+      let createdTodo = null;
+      let directTodoVerification = { ok: true, error: "" };
+      if (result?.ok) {
+        createdTodo = publicTodo(result);
+        directTodoVerification = verifyDirectTodoCreateResult(createdTodo);
+        if (!directTodoVerification.ok) {
+          result = {
+            ...(result && typeof result === "object" ? result : {}),
+            ok: false,
+            error: directTodoVerification.error || "Todo creation verification failed.",
+          };
+          createdTodo = null;
+        }
+      }
+      if (!result?.ok) {
+        directTodoVerification = {
+          ok: false,
+          error: String(result?.error || directTodoVerification.error || ""),
+        };
+      }
       const finishedAt = nowIso();
       assistantMessage.status = result?.ok ? "done" : "failed";
       assistantMessage.content = result?.ok
-        ? `已新增待办：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
-        : `新增待办失败：${result?.error || "Todo operation failed"}`;
+        ? `已新增看板卡片：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
+        : `新增看板卡片失败：${result?.error || "Kanban card operation failed"}`;
       assistantMessage.error = result?.ok ? null : (result?.error || "Todo operation failed");
+      if (result?.ok && createdTodo) {
+        assistantMessage.content = formatDirectTodoCreateSuccessMessage(directTodoIntent, createdTodo);
+      }
       assistantMessage.completedAt = result?.ok ? finishedAt : "";
       assistantMessage.failedAt = result?.ok ? "" : finishedAt;
       assistantMessage.updatedAt = finishedAt;
@@ -9097,7 +9551,13 @@ async function handleApi(req, res) {
         if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
         notifyTodoCreated(result, workspacePrincipal(thread.workspaceId));
       }
-      sendJson(res, result?.ok ? 201 : 400, { ok: Boolean(result?.ok), todo: result?.ok ? publicTodo(result) : null, result, thread: compactThread(thread) });
+      sendJson(res, result?.ok ? 201 : 400, {
+        ok: Boolean(result?.ok),
+        todo: result?.ok ? createdTodo : null,
+        result,
+        verification: directTodoVerification,
+        thread: compactResponseThread(),
+      });
       return;
     }
     const followUpInstructions = thread.singleWindow && requestedTaskGroupId
@@ -9146,12 +9606,12 @@ async function handleApi(req, res) {
     broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
     if (isGroupChatMessage) notifyGroupChatMentions(thread, userMessage);
     if (queueBehindActiveChatRun) {
-      sendJson(res, 202, { run: { status: "queued", taskGroupId, engine: "responses" }, thread: compactThread(thread) });
+      sendJson(res, 202, { run: { status: "queued", taskGroupId, engine: "responses" }, thread: compactResponseThread() });
       return;
     }
     try {
       const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
-      sendJson(res, 202, { run, thread: compactThread(thread) });
+      sendJson(res, 202, { run, thread: compactResponseThread() });
     } catch (err) {
       const failedAt = nowIso();
       assistantMessage.status = "failed";
@@ -9162,7 +9622,7 @@ async function handleApi(req, res) {
       thread.updatedAt = failedAt;
       saveState();
       broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-      sendJson(res, err.status || 502, { error: assistantMessage.error, thread: compactThread(thread) });
+      sendJson(res, err.status || 502, { error: assistantMessage.error, thread: compactResponseThread() });
     }
     return;
   }

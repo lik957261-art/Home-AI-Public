@@ -21,6 +21,8 @@
   --radius: 18px;
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
   --app-font-scale: 1;
+  --mobile-bottom-nav-height: calc(80px + env(safe-area-inset-bottom));
+  --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 12px));
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
 }
 
@@ -121,7 +123,7 @@ button {
   border-radius: 16px;
   box-shadow: 0 18px 42px rgba(31, 111, 98, 0.18);
   font-size: 26px;
-  font-weight: 860;
+  font-weight: 600;
 }
 
 .boot-splash-copy {
@@ -132,13 +134,13 @@ button {
 .boot-splash-title {
   color: var(--ink);
   font-size: 24px;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .boot-splash-text {
   color: var(--muted);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 560;
 }
 
 .boot-splash-bar {
@@ -223,7 +225,7 @@ button {
   background: var(--accent);
   border: 0;
   border-radius: 14px;
-  font-weight: 760;
+  font-weight: 600;
   box-shadow: 0 12px 26px rgba(31, 111, 98, 0.18);
 }
 
@@ -262,7 +264,7 @@ button {
 
 .setup-result-label {
   color: var(--ink);
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .setup-key-row {
@@ -356,7 +358,7 @@ button {
   border: 0;
   border-radius: 9px;
   font-size: 10px;
-  font-weight: 760;
+  font-weight: 600;
   letter-spacing: 0.04em;
   line-height: 1;
   touch-action: manipulation;
@@ -380,7 +382,7 @@ button {
 .field-label {
   text-transform: uppercase;
   letter-spacing: 0.11em;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .select {
@@ -399,7 +401,7 @@ button {
   padding: 8px 10px;
   color: var(--accent);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -423,7 +425,7 @@ button {
 
 .workspace-access-name {
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .workspace-access-key,
@@ -442,7 +444,7 @@ button {
 .workspace-access-label {
   margin-right: 5px;
   color: rgba(31, 111, 98, 0.82);
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .workspace-access-key-row {
@@ -461,7 +463,7 @@ button {
   color: var(--accent);
   background: rgba(232, 244, 235, 0.52);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .workspace-access-dir-list {
@@ -511,14 +513,14 @@ button {
 .workspace-permission-title {
   color: var(--accent);
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .workspace-permission-state {
   margin-top: 2px;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 840;
+  font-weight: 560;
 }
 
 .workspace-permission-badge {
@@ -529,7 +531,7 @@ button {
   color: #285f52;
   background: rgba(222, 243, 237, 0.58);
   font-size: 10px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .workspace-permission-panel.active .workspace-permission-badge {
@@ -566,7 +568,7 @@ button {
   padding: 0 8px;
   border-radius: 8px;
   font-size: 11px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .workspace-permission-select {
@@ -605,7 +607,7 @@ button {
   border: 0;
   border-radius: 12px;
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .section-toggle button.active {
@@ -631,7 +633,7 @@ button {
   background: transparent;
   border: 0;
   border-radius: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .mode-toggle button.active {
@@ -655,12 +657,12 @@ button {
   background: transparent;
   border: 0;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .bottom-tab.active {
   color: #087f5b;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .bottom-tab-icon {
@@ -855,7 +857,7 @@ button {
     rgba(122, 199, 167, 0.12);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
-  font-weight: 760;
+  font-weight: 600;
   box-shadow: 0 8px 18px rgba(31, 111, 98, 0.08);
 }
 
@@ -893,7 +895,7 @@ button {
 
 .icon-button.back-mode {
   font-size: 21px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .top-nav-button {
@@ -924,7 +926,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 12px;
   font-size: 18px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1;
   pointer-events: none;
 }
@@ -936,7 +938,7 @@ button {
 .danger-button {
   color: var(--danger);
   padding: 0 14px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .danger-button:disabled,
@@ -972,7 +974,7 @@ button {
   background: rgba(255, 250, 241, 0.72);
   border: 1px solid rgba(31, 111, 98, 0.22);
   border-radius: 14px;
-  font-weight: 760;
+  font-weight: 600;
   box-shadow: 0 8px 20px rgba(34, 28, 20, 0.08);
 }
 
@@ -995,7 +997,7 @@ button {
 
 .thread-card-title {
   font-size: 14px;
-  font-weight: 780;
+  font-weight: 600;
   line-height: 1.35;
 }
 
@@ -1083,7 +1085,7 @@ button {
   background: var(--danger);
   border: 0;
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
@@ -1174,7 +1176,7 @@ button {
   border-radius: 12px;
   box-shadow: 0 6px 16px rgba(34, 28, 20, 0.08);
   font-size: 18px;
-  font-weight: 820;
+  font-weight: 560;
   line-height: 1;
 }
 
@@ -1214,7 +1216,7 @@ button {
 .refresh-notice span {
   min-width: 0;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -1224,7 +1226,7 @@ button {
   padding: 0 12px;
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .refresh-notice-primary {
@@ -1254,7 +1256,7 @@ button {
   transform: translateX(-50%);
   backdrop-filter: blur(18px);
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1.4;
   text-align: center;
 }
@@ -1280,7 +1282,7 @@ button {
   border: 1px solid rgba(31, 111, 98, 0.14);
   border-radius: 10px;
   font-size: 14px;
-  font-weight: 720;
+  font-weight: 600;
   text-align: left;
 }
 
@@ -1322,7 +1324,7 @@ button {
   min-width: 40px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -1344,7 +1346,7 @@ button {
   border-radius: 9px;
   box-shadow: none;
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   line-height: 1;
 }
 
@@ -1446,7 +1448,7 @@ button {
   border-radius: 14px;
   box-shadow: 0 8px 20px rgba(34, 28, 20, 0.08);
   font-size: 22px;
-  font-weight: 850;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: 0.02em;
 }
@@ -1474,7 +1476,7 @@ button {
   background: transparent;
   border: 0;
   border-radius: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-more-delete:active {
@@ -1486,10 +1488,19 @@ button {
   min-width: 0;
 }
 
+.thread-title-line {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+}
+
 .thread-title {
+  flex: 0 1 auto;
   max-width: 100%;
   font-size: 18px;
-  font-weight: 820;
+  font-weight: 560;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1517,28 +1528,72 @@ button {
   pointer-events: none;
 }
 
-.group-member-strip {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 0 0 10px;
-  margin: -4px 0 8px;
-  -webkit-overflow-scrolling: touch;
+.chat-scope-header {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.group-member-strip span {
-  flex: 0 0 auto;
-  max-width: 160px;
-  padding: 5px 9px;
-  color: #315d56;
+.chat-scope-header[hidden] {
+  display: none;
+}
+
+.chat-scope-segment {
+  display: inline-flex;
+  min-height: 30px;
+  padding: 3px;
+  align-items: stretch;
+  gap: 3px;
   background: rgba(255, 252, 246, 0.68);
-  border: 1px solid rgba(31, 111, 98, 0.12);
-  border-radius: 999px;
+  border: 1px solid rgba(31, 43, 51, 0.10);
+  border-radius: 9px;
+  box-shadow: 0 6px 14px rgba(31, 43, 51, 0.06);
+}
+
+.chat-scope-header-button {
+  position: relative;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
   font-size: 12px;
-  font-weight: 720;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
+  box-shadow: none;
+}
+
+.chat-scope-header-button.active {
+  color: #fffaf1;
+  background: var(--accent);
+  box-shadow: 0 6px 12px rgba(31, 111, 98, 0.14);
+}
+
+.chat-scope-header-button:disabled {
+  color: rgba(111, 121, 120, 0.48);
+  background: transparent;
+  box-shadow: none;
+}
+
+.chat-scope-header-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  color: #fffaf1;
+  background: #d94841;
+  border: 1px solid rgba(255, 250, 241, 0.92);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
 }
 
 .scroll-feedback-dragging {
@@ -1620,7 +1675,7 @@ button {
   margin-bottom: 7px;
   color: #1f6f62;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .run-progress-rows {
@@ -1659,7 +1714,7 @@ button {
 }
 
 .run-progress-main {
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .run-progress-time {
@@ -1725,7 +1780,7 @@ button {
   border-radius: 0;
   box-shadow: none;
   font-size: 13px;
-  font-weight: 720;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -1762,7 +1817,7 @@ button {
   border: 1px solid rgba(31, 111, 98, 0.11);
   border-radius: 7px;
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 600;
   line-height: 1;
   box-shadow: none;
 }
@@ -1792,7 +1847,7 @@ button {
   border: 1px solid rgba(31, 111, 98, 0.16);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1806,7 +1861,7 @@ button {
   border: 1px solid rgba(122, 91, 69, 0.18);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 600;
 }
 
 .message-revoke-button:disabled {
@@ -1864,7 +1919,7 @@ button {
 .message-prose h5 {
   margin-top: 3px;
   color: #174f48;
-  font-weight: 860;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -1900,12 +1955,12 @@ button {
 
 .message-prose li::marker {
   color: #1f6f62;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .message-prose strong {
   color: #102c28;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .message-prose em {
@@ -1982,7 +2037,7 @@ button {
 .message-prose th {
   color: #173c36;
   background: rgba(31, 111, 98, 0.08);
-  font-weight: 830;
+  font-weight: 560;
   text-align: left;
 }
 
@@ -2074,7 +2129,7 @@ button.directory-alias-chip {
   color: inherit;
   background: transparent;
   font: inherit;
-  font-weight: 760;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
 }
@@ -2089,7 +2144,7 @@ button.directory-alias-chip {
   background: linear-gradient(145deg, #2d8a79, #1f5f54);
   border-radius: 999px;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: 0.03em;
 }
 
@@ -2133,7 +2188,7 @@ button.directory-alias-chip {
   border-radius: 10px;
   font: inherit;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1;
   box-shadow: none;
 }
@@ -2174,7 +2229,7 @@ button.directory-alias-chip {
 }
 
 .artifact-name {
-  font-weight: 760;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2217,7 +2272,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(95, 83, 63, 0.12);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -2239,7 +2294,7 @@ button.directory-alias-chip {
   padding: 0 7px;
   color: var(--muted);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1;
   list-style: none;
 }
@@ -2283,7 +2338,7 @@ button.directory-alias-chip {
 
 .usage-row strong {
   color: var(--ink);
-  font-weight: 750;
+  font-weight: 600;
   text-align: right;
   white-space: nowrap;
 }
@@ -2296,7 +2351,7 @@ button.directory-alias-chip {
   padding: 7px 9px 4px;
   color: #285f55;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 560;
 }
 
 .usage-api-row {
@@ -2311,7 +2366,7 @@ button.directory-alias-chip {
 .usage-api-main {
   min-width: 0;
   color: var(--ink);
-  font-weight: 740;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2355,7 +2410,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.16);
   border-radius: 14px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .task-filter-label {
@@ -2388,7 +2443,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
   font: inherit;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-filter-banner button {
@@ -2399,7 +2454,7 @@ button.directory-alias-chip {
   background: rgba(255, 250, 241, 0.72);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-card {
@@ -2543,7 +2598,7 @@ button.directory-alias-chip {
   gap: 7px;
   color: var(--muted);
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-rename-field input {
@@ -2577,7 +2632,7 @@ button.directory-alias-chip {
   border-radius: 12px;
   color: var(--text);
   background: rgba(255, 255, 255, 0.68);
-  font-weight: 800;
+  font-weight: 560;
 }
 
 .task-rename-actions button.primary {
@@ -2609,7 +2664,7 @@ button.directory-alias-chip {
   white-space: nowrap;
   text-overflow: ellipsis;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-row-meta {
@@ -2685,7 +2740,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(179, 38, 30, 0.22);
   border-radius: 10px;
   font-size: 11px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .task-skill-icon {
@@ -2698,7 +2753,7 @@ button.directory-alias-chip {
   background: #b3261e;
   border-radius: 6px;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -2763,7 +2818,7 @@ button.directory-alias-chip {
 .skill-detail-eyebrow {
   color: var(--gold);
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 560;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2815,7 +2870,7 @@ button.directory-alias-chip {
   white-space: nowrap;
   text-overflow: ellipsis;
   text-align: center;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .task-doc-icon.doc-pdf {
@@ -2941,7 +2996,7 @@ button.directory-alias-chip {
 .task-id {
   min-width: 0;
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -2954,7 +3009,7 @@ button.directory-alias-chip {
   color: var(--accent);
   background: var(--accent-soft);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-state.running {
@@ -3023,7 +3078,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(164, 61, 53, 0.22);
   border-radius: 10px;
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .task-delete-card {
@@ -3119,7 +3174,7 @@ button.directory-alias-chip {
   border: 0;
   border-radius: 8px;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3154,7 +3209,7 @@ button.directory-alias-chip {
   border-radius: 8px;
   box-shadow: 0 8px 18px rgba(31, 43, 51, 0.04);
   font-size: 15px;
-  font-weight: 820;
+  font-weight: 560;
   line-height: 1;
 }
 
@@ -3176,7 +3231,7 @@ button.directory-alias-chip {
 .directory-eyebrow {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 820;
+  font-weight: 560;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -3204,7 +3259,7 @@ button.directory-alias-chip {
   border: 0;
   border-radius: 10px;
   font-size: 24px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -3242,7 +3297,7 @@ button.directory-alias-chip {
   border-radius: 8px;
   text-align: left;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .directory-entry-menu-item:active {
@@ -3272,7 +3327,7 @@ button.directory-alias-chip {
 .shared-directory-title {
   color: var(--ink);
   font-size: 16px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .shared-directory-subtitle {
@@ -3294,7 +3349,7 @@ button.directory-alias-chip {
   background: rgba(255, 255, 255, 0.72);
   color: var(--accent);
   font-size: 13px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .shared-directory-unshare {
@@ -3348,7 +3403,7 @@ button.directory-alias-chip {
 .shared-directory-name {
   min-width: 0;
   color: var(--ink);
-  font-weight: 780;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3381,7 +3436,7 @@ button.directory-alias-chip {
   gap: 10px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .shared-directory-field select {
@@ -3391,7 +3446,7 @@ button.directory-alias-chip {
   background: rgba(255, 252, 246, 0.9);
   border: 1px solid var(--line);
   border-radius: 9px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .shared-directory-targets {
@@ -3407,7 +3462,7 @@ button.directory-alias-chip {
   gap: 7px;
   color: var(--ink);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .shared-directory-target input {
@@ -3478,7 +3533,7 @@ button.directory-alias-chip {
   min-height: 42px;
   border-radius: 10px;
   font-size: calc(14px * var(--app-font-scale));
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .owner-elevation-cancel {
@@ -3513,7 +3568,7 @@ button.directory-alias-chip {
   background: var(--accent);
   border-radius: 14px;
   font-size: 25px;
-  font-weight: 880;
+  font-weight: 600;
   box-shadow: 0 10px 24px rgba(31, 111, 98, 0.18);
 }
 
@@ -3525,7 +3580,7 @@ button.directory-alias-chip {
   border: 0;
   border-radius: 12px;
   font-size: 15px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .pwa-install-instructions {
@@ -3551,7 +3606,7 @@ button.directory-alias-chip {
 .settings-row-title {
   color: var(--ink);
   font-size: 14px;
-  font-weight: 840;
+  font-weight: 560;
 }
 
 .font-size-options {
@@ -3571,7 +3626,7 @@ button.directory-alias-chip {
   background: rgba(255, 252, 246, 0.82);
   border: 1px solid var(--line);
   border-radius: 11px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .font-size-option.active {
@@ -3604,7 +3659,7 @@ button.directory-alias-chip {
 .settings-preview-title {
   color: var(--ink);
   font-size: calc(16px * var(--app-font-scale));
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .settings-preview-body {
@@ -3636,7 +3691,7 @@ button.directory-alias-chip {
 .access-key-title {
   color: var(--ink);
   font-size: 18px;
-  font-weight: 860;
+  font-weight: 600;
 }
 
 .owner-admin-sheet {
@@ -3668,7 +3723,7 @@ button.directory-alias-chip {
   color: var(--ink);
   cursor: pointer;
   list-style: none;
-  font-weight: 840;
+  font-weight: 560;
 }
 
 .access-key-section-summary::-webkit-details-marker {
@@ -3691,7 +3746,7 @@ button.directory-alias-chip {
   min-width: 0;
   color: var(--ink);
   font-size: 15px;
-  font-weight: 860;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3710,7 +3765,7 @@ button.directory-alias-chip {
   background: rgba(31, 43, 51, 0.06);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .owner-workspace-grid {
@@ -3751,7 +3806,7 @@ button.directory-alias-chip {
   min-width: 0;
   color: var(--ink);
   font-size: 15px;
-  font-weight: 860;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3760,7 +3815,7 @@ button.directory-alias-chip {
 .owner-workspace-id {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 720;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -3786,13 +3841,13 @@ button.directory-alias-chip {
 
 .owner-workspace-facts dt {
   color: var(--muted);
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .owner-workspace-facts dd {
   min-width: 0;
   color: var(--ink);
-  font-weight: 720;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -3811,7 +3866,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 43, 51, 0.12);
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .owner-workspace-actions button.danger {
@@ -3856,7 +3911,7 @@ button.directory-alias-chip {
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid var(--line);
   border-radius: 12px;
-  font-weight: 720;
+  font-weight: 600;
 }
 
 .group-member-option input {
@@ -3877,7 +3932,7 @@ button.directory-alias-chip {
   background: #d8efe6;
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .access-key-subtitle,
@@ -3903,7 +3958,7 @@ button.directory-alias-chip {
   background: rgba(232, 244, 235, 0.9);
   color: var(--accent);
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .access-key-web button:disabled {
@@ -3935,7 +3990,7 @@ button.directory-alias-chip {
   min-width: 0;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3944,7 +3999,7 @@ button.directory-alias-chip {
 .access-key-row-state {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -3986,7 +4041,7 @@ button.directory-alias-chip {
   gap: 5px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .workspace-create-help,
@@ -4060,7 +4115,7 @@ button.directory-alias-chip {
   min-width: 0;
   color: var(--ink);
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -4085,7 +4140,7 @@ button.directory-alias-chip {
   background: rgba(31, 43, 51, 0.06);
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .workspace-runtime-config-button {
@@ -4109,7 +4164,7 @@ button.directory-alias-chip {
 
 .workspace-gateway-title {
   color: var(--ink);
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .workspace-gateway-meta {
@@ -4134,7 +4189,7 @@ button.directory-alias-chip {
   gap: 6px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 780;
+  font-weight: 600;
 }
 
 .runtime-config-subtitle {
@@ -4143,7 +4198,7 @@ button.directory-alias-chip {
   color: var(--accent);
   border-top: 1px solid var(--line);
   font-size: 13px;
-  font-weight: 840;
+  font-weight: 560;
 }
 
 .runtime-config-form input {
@@ -4181,7 +4236,7 @@ button.directory-alias-chip {
   background: rgba(232, 244, 235, 0.9);
   border: 1px solid rgba(31, 43, 51, 0.12);
   border-radius: 10px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .runtime-config-status {
@@ -4214,12 +4269,12 @@ button.directory-alias-chip {
   color: var(--accent);
   background: rgba(255, 255, 255, 0.72);
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .access-key-result-label {
   color: var(--ink);
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .access-key-value-row {
@@ -4321,22 +4376,7 @@ button.directory-alias-chip {
 }
 
 .directory-entry.shared-root {
-  background: linear-gradient(90deg, rgba(93, 84, 72, 0.10), rgba(255, 252, 246, 0.74));
-  border-color: rgba(93, 84, 72, 0.16);
-}
-
-.directory-entry.shared-root .directory-entry-name {
-  color: #4f5d59;
-  font-weight: 820;
-}
-
-.directory-entry.shared-root .directory-entry-icon {
-  filter: grayscale(0.18) sepia(0.28) saturate(0.58) hue-rotate(338deg) brightness(0.92) contrast(0.96);
-  opacity: 0.88;
-}
-
-.directory-entry.shared-root .directory-entry-chevron {
-  color: rgba(93, 84, 72, 0.46);
+  background: transparent;
 }
 
 .directory-entry.pdf .directory-entry-icon {
@@ -4357,11 +4397,37 @@ button.directory-alias-chip {
 
 .directory-entry-name {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.directory-entry-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.directory-shared-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.08);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .directory-entry-meta {
@@ -4374,7 +4440,7 @@ button.directory-alias-chip {
 
 .directory-entry-chevron {
   color: rgba(20, 32, 39, 0.36);
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .todo-list-card.open {
@@ -4415,7 +4481,7 @@ button.directory-alias-chip {
   color: var(--accent);
   background: rgba(255, 252, 246, 0.84);
   font-size: 15px;
-  font-weight: 820;
+  font-weight: 600;
   text-align: left;
 }
 
@@ -4463,9 +4529,204 @@ button.directory-alias-chip {
   padding: 0 3px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.todo-kanban-switcher {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 7px;
+}
+
+.todo-kanban-tab {
+  min-width: 0;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 8px 10px;
+  color: var(--muted);
+  text-align: left;
+  border: 1px solid rgba(20, 32, 39, 0.1);
+  border-radius: 13px;
+  background: rgba(255, 252, 246, 0.74);
+}
+
+.todo-kanban-tab.active {
+  color: var(--accent-strong);
+  border-color: rgba(31, 111, 98, 0.32);
+  background: rgba(231, 244, 238, 0.74);
+  box-shadow: inset 0 0 0 1px rgba(31, 111, 98, 0.1);
+}
+
+.todo-kanban-tab-label {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 560;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-kanban-tab-count {
+  flex: 0 0 auto;
+  min-width: 24px;
+  padding: 3px 7px;
+  color: var(--accent);
+  text-align: center;
+  background: rgba(231, 244, 238, 0.72);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.todo-kanban-board {
+  display: grid;
+  gap: 10px;
+  padding: 1px 2px 8px;
+}
+
+.todo-kanban-lane {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 252, 246, 0.62);
+}
+
+.todo-kanban-current {
+  width: 100%;
+}
+
+.todo-kanban-lane-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+}
+
+.todo-kanban-lane-title {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.todo-kanban-lane-code {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.todo-kanban-lane-header > span {
+  min-width: 26px;
+  padding: 4px 7px;
+  color: var(--accent);
+  text-align: center;
+  background: var(--accent-soft);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.todo-kanban-cards {
+  display: grid;
+  gap: 8px;
+}
+
+.todo-kanban-card {
+  min-width: 0;
+}
+
+.todo-kanban-card-button {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  color: inherit;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(20, 32, 39, 0.1);
+  border-radius: 14px;
+}
+
+.todo-kanban-card-button:active {
+  transform: translateY(1px);
+}
+
+.todo-kanban-card-status {
+  justify-self: start;
+  padding: 3px 7px;
+  color: var(--accent);
+  background: rgba(231, 244, 238, 0.72);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.todo-kanban-card-title {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.todo-kanban-card-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.todo-kanban-card-chips,
+.todo-kanban-card-skills,
+.todo-detail-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.todo-kanban-card-chips span,
+.todo-kanban-card-skills span,
+.todo-detail-skills span {
+  max-width: 100%;
+  padding: 4px 7px;
+  color: var(--muted);
+  background: rgba(20, 32, 39, 0.045);
+  border: 1px solid rgba(20, 32, 39, 0.07);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.todo-kanban-card.status-running .todo-kanban-card-status,
+.todo-state.status-running {
+  color: #9b6a1e;
+  background: rgba(202, 151, 67, 0.13);
+}
+
+.todo-kanban-card.status-blocked .todo-kanban-card-status,
+.todo-state.status-blocked {
+  color: var(--danger);
+  background: rgba(164, 61, 53, 0.08);
+}
+
+.todo-kanban-card.status-done .todo-kanban-card-button,
+.todo-kanban-card.status-archived .todo-kanban-card-button {
+  background: rgba(255, 255, 255, 0.46);
+  opacity: 0.78;
 }
 
 .todo-card-list {
@@ -4530,7 +4791,7 @@ button.directory-alias-chip {
 .todo-card-title {
   min-width: 0;
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -4556,6 +4817,7 @@ button.directory-alias-chip {
 .todo-card-actions button,
 .todo-detail-actions button,
 .todo-postpone-panel button,
+.todo-comment-panel button,
 .todo-back-inline {
   min-height: 34px;
   padding: 0 11px;
@@ -4564,7 +4826,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 12px;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .todo-card-actions [data-cancel-todo],
@@ -4594,14 +4856,15 @@ button.directory-alias-chip {
 .todo-detail-id {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 500;
 }
 
 .todo-detail-head h2 {
   margin: 4px 0 0;
   font-size: 22px;
+  font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .todo-state {
@@ -4611,7 +4874,7 @@ button.directory-alias-chip {
   background: var(--accent-soft);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 560;
 }
 
 .todo-detail-grid {
@@ -4633,6 +4896,7 @@ button.directory-alias-chip {
 .todo-detail-grid strong {
   color: var(--gold);
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -4642,7 +4906,58 @@ button.directory-alias-chip {
   overflow-wrap: anywhere;
 }
 
+.todo-detail-skills {
+  padding: 0 2px;
+}
+
+.todo-detail-result {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.todo-detail-result strong {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.todo-detail-result p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .todo-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.todo-comment-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.todo-comment-textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.todo-comment-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -4721,7 +5036,7 @@ button.directory-alias-chip {
 .automation-create-label {
   color: var(--ink);
   font-size: 14px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .automation-create-input {
@@ -4808,7 +5123,7 @@ button.directory-alias-chip {
   padding: 0 3px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 560;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -4858,7 +5173,7 @@ button.directory-alias-chip {
 .automation-card-title {
   min-width: 0;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -5024,7 +5339,7 @@ button.directory-alias-chip {
 .automation-output-title {
   color: var(--muted);
   font-size: 13px;
-  font-weight: 820;
+  font-weight: 560;
 }
 
 .automation-output-current {
@@ -5225,7 +5540,7 @@ button.directory-alias-chip {
   border: 1px solid var(--line);
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .automation-preview,
@@ -5336,7 +5651,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(63, 127, 114, 0.12);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 720;
+  font-weight: 600;
   line-height: 1;
   box-shadow: none;
 }
@@ -5392,7 +5707,7 @@ button.directory-alias-chip {
   min-height: 36px;
   padding: 7px 9px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   color: var(--ink);
@@ -5412,15 +5727,9 @@ button.directory-alias-chip {
 .group-mention-name {
   min-width: 0;
   overflow: hidden;
-  font-weight: 760;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.group-mention-id {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 680;
 }
 
 #attachFile {
@@ -5613,7 +5922,7 @@ button.directory-alias-chip {
 @media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
-    padding-bottom: calc(58px + env(safe-area-inset-bottom));
+    padding-bottom: var(--mobile-bottom-nav-reserved-height);
   }
 
   :root.keyboard-viewport-active .app {
@@ -5638,7 +5947,7 @@ button.directory-alias-chip {
     right: 0;
     bottom: 0;
     z-index: 10;
-    height: calc(58px + env(safe-area-inset-bottom));
+    height: var(--mobile-bottom-nav-height);
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: start;
@@ -5790,11 +6099,25 @@ button.directory-alias-chip {
     pointer-events: none;
   }
 
+  .centered-top-title-mode .thread-title-line {
+    width: 100%;
+    justify-content: center;
+  }
+
   .centered-top-title-mode .thread-title,
   .centered-top-title-mode .thread-meta {
     text-align: center;
     margin-right: auto;
     margin-left: auto;
+  }
+
+  .centered-top-title-mode .thread-title-line .thread-title {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .centered-top-title-mode .chat-scope-header {
+    pointer-events: auto;
   }
 
   .conversation {
@@ -6201,4 +6524,24 @@ button.directory-alias-chip {
 
 :root[data-font-size] .bottom-nav {
   min-height: calc(78px * var(--app-font-scale));
+}
+
+.chat-history-pager {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 14px;
+}
+
+.chat-history-pager button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chat-history-pager button:disabled {
+  opacity: 0.65;
 }

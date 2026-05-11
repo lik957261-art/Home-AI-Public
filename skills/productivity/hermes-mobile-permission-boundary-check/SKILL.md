@@ -44,10 +44,19 @@ Do not emit this marker for **Must fail closed**, clarification questions, or a 
 
 In a restricted run:
 
+- Public Web Search and public web extraction are **Allowed** when the run has the `web` toolset. Do not request Owner elevation just to search or extract public web information.
+- File reads and writes inside the current run's allowed roots are **Allowed** when the run has the `file` toolset. Do not request Owner elevation just to read a workspace rule file or write a workspace deliverable/history file inside scope.
+- OCR, document-image extraction, and visual analysis of files inside the current run's allowed roots are **Allowed** when the run has the `vision` toolset. Do not request Owner elevation just to OCR or inspect an in-scope image, PDF, or document.
+- Image generation and image editing requested by the current account are **Allowed** when the run has the `image_gen` toolset and the output stays inside allowed roots or delivery roots.
+- The current account/workspace's own documented Program API reads and writes are **Allowed** when the endpoint, credential, and scope are documented in a file inside an allowed root and the operation affects only that same account/workspace. Examples include a wardrobe rule file that grants same-owner `sync:read`, `items:read`, or `history:write`. Do not use terminal/code unless those developer toolsets are explicitly allowed; use the available web/http capability or fail with a normal missing-tool error.
+- The current account/workspace's own profile-local Skill read, creation, and update operations are **Allowed** when the run has the `skills` toolset. Keep writes inside the current profile-local Skill store and the current workspace/account scope.
+- The current account/workspace's own Kanban/Todo list, card creation, card status changes, block/unblock, and reminder metadata are **Allowed** when the run has the `todo` or `kanban` toolset. This is normal low-permission work and does not require Owner elevation.
+- Use Hermes Mobile's Todo/Kanban integration for those operations. Do not run a raw `hermes kanban` CLI command or write directly under `~/.hermes/kanban`, because that can create cards in the wrong local profile/storage namespace.
+- The current account/workspace's own Automation/CRON list, job creation, update, pause, resume, and manual run operations are **Allowed** when the run has the `cronjob` toolset. Cross-account automation management still needs Owner elevation.
 - Do not read, summarize, search, create, modify, copy, move, or delete files outside the allowed roots.
 - Do not search a broad drive such as `C:\`, `/mnt/c`, `/home`, or `/volume1` to compensate for a missing permission root.
 - Do not create placeholder files, placeholder Skills, or "future" results when an exact path is outside scope or not found.
-- Do not modify shared/system Skills, another workspace's Skills, product source code, runtime config, worker profiles, Access Keys, secrets, tokens, or Gateway manifests.
+- Do not modify shared/system Skills, Owner full Skill stores, another workspace's or another account's Skills, product source code, runtime config, worker profiles, Access Keys, secrets, tokens, or Gateway manifests.
 - Do not edit another account's automation, Todo, mail, chat, connector, or integration state unless the access policy explicitly allows that account/scope.
 - Do not use a blocked developer toolset indirectly through another tool.
 

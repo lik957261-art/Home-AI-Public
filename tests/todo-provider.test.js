@@ -51,6 +51,7 @@ async function run() {
   assert.equal(listed.data[0].id, "td_1");
   assert.deepEqual(calls.at(-1), {
     action: "list",
+    workspace_id: "workspace_a",
     source_principal: "principal:workspace_a",
     scope: "all",
     include_completed: true,
@@ -70,6 +71,7 @@ async function run() {
   });
   assert.deepEqual(calls.at(-1), {
     action: "add",
+    workspace_id: "workspace_b",
     source_principal: "principal:workspace_b",
     assignee: "user_b",
     content: "Read report",
@@ -89,14 +91,37 @@ async function run() {
     assignee: "user_b",
     recurrenceScope: "series",
     dueTime: "2026-05-08 09:00",
+    reason: "later",
   });
   assert.deepEqual(calls.at(-1), {
     action: "postpone",
+    workspace_id: "workspace_b",
     source_principal: "principal:workspace_b",
     todo_id: "td_9",
     assignee: "user_b",
     recurrence_scope: "series",
     due_time: "2026-05-08 09:00",
+    reason: "later",
+  });
+
+  await provider.mutateTodo({
+    workspaceId: "workspace_b",
+    action: "comment",
+    todoId: "td_9",
+    comment: "approve preview only",
+    author: "xuxin",
+  });
+  assert.deepEqual(calls.at(-1), {
+    action: "comment",
+    workspace_id: "workspace_b",
+    source_principal: "principal:workspace_b",
+    todo_id: "td_9",
+    assignee: "",
+    recurrence_scope: "one",
+    due_time: "",
+    reason: "",
+    comment: "approve preview only",
+    author: "xuxin",
   });
 
   await provider.pendingPushes({

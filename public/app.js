@@ -15,6 +15,14 @@ const FONT_SIZE_OPTIONS = Object.freeze([
   { id: "xxlarge", label: "超大", scale: 1.32 },
 ]);
 const DEFAULT_FONT_SIZE = "standard";
+const CHAT_MESSAGE_INITIAL_LIMIT = 60;
+const CHAT_MESSAGE_PAGE_LIMIT = 40;
+const CHAT_MESSAGE_SEARCH_LIMIT = 120;
+const CHAT_HISTORY_LOAD_TOP_PX = 220;
+const TASK_MESSAGE_INITIAL_LIMIT = 300;
+const TODO_AUTO_REFRESH_INTERVAL_MS = 8000;
+const TODO_LIST_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
+const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
 
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
@@ -47,6 +55,11 @@ const state = {
   threads: [],
   todos: [],
   todoAssignees: [],
+  todoSource: "",
+  todoKanbanBoard: "",
+  todoKanbanStatus: localStorage.getItem("hermesTodoKanbanStatus") || "todo",
+  todoCompletedLoaded: false,
+  todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoCreateOpen: false,
   automations: [],
@@ -122,12 +135,20 @@ const state = {
   chatSearchQuery: "",
   chatSearchMatches: [],
   chatSearchIndex: 0,
+  chatSearchLoading: false,
+  chatSearchTotalMatches: 0,
   chatSearchScrollPending: false,
   chatSearchRefocus: false,
+  olderChatMessagesLoading: false,
   suppressComposerFocusUntil: 0,
+  suppressTransientActivationUntil: 0,
   attachFilePickerActivationAt: 0,
   topNavActivationAt: 0,
+  privateChatThread: null,
   groupChatOpen: localStorage.getItem("hermesWebGroupChatOpen") === "1",
+  groupChatAvailable: false,
+  groupChatThread: null,
+  groupChatThreadId: "",
   groupChatManagerOpen: false,
   groupChatMemberDraft: [],
   groupMentionOpen: false,
@@ -185,6 +206,17 @@ const TASK_REASONING_OPTIONS = [
   { value: "high", label: "High" },
   { value: "xhigh", label: "Xhigh" },
 ];
+const KANBAN_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
+const KANBAN_STATUS_FALLBACK_ORDER = Object.freeze(["running", "blocked", "ready", "todo", "triage", "done", "archived"]);
+const KANBAN_STATUS_META = Object.freeze({
+  triage: { label: "\u5f85\u5206\u62e3", shortLabel: "Triage" },
+  todo: { label: "\u5f85\u529e", shortLabel: "Todo" },
+  ready: { label: "\u5c31\u7eea", shortLabel: "Ready" },
+  running: { label: "\u8fd0\u884c\u4e2d", shortLabel: "Running" },
+  blocked: { label: "\u963b\u585e", shortLabel: "Blocked" },
+  done: { label: "\u5b8c\u6210", shortLabel: "Done" },
+  archived: { label: "\u5f52\u6863", shortLabel: "Archived" },
+});
 const SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const GROUP_MESSAGE_REVOKED_TEXT = "\u6d88\u606f\u5df2\u64a4\u56de";
@@ -424,6 +456,57 @@ function chatMessagesForThread(thread, taskGroupId = activeChatTaskGroupId()) {
   return (thread?.messages || []).filter((message) => String(message?.taskGroupId || "") === groupId);
 }
 
+function sortedThreadMessages(messages) {
+  return (messages || []).slice().sort((a, b) => {
+    const timeCompare = String(messageTimelineTimestamp(a) || "").localeCompare(String(messageTimelineTimestamp(b) || ""));
+    if (timeCompare) return timeCompare;
+    return String(a?.id || "").localeCompare(String(b?.id || ""));
+  });
+}
+
+function chatMessagePageParams(extra = {}) {
+  const params = new URLSearchParams();
+  params.set("messageMode", "chat");
+  params.set("limit", String(extra.limit || CHAT_MESSAGE_PAGE_LIMIT));
+  params.set("groupChat", isGroupChatView() ? "1" : "0");
+  if (extra.before) params.set("before", extra.before);
+  if (extra.search) params.set("search", extra.search);
+  return params;
+}
+
+function mergeMessagesPage(existingPage = null, incomingPage = null, messages = []) {
+  const merged = Object.assign({}, existingPage || {}, incomingPage || {});
+  const sameScope = !existingPage || !incomingPage
+    || (
+      String(existingPage.mode || "") === String(incomingPage.mode || "")
+      && String(existingPage.taskGroupId || "") === String(incomingPage.taskGroupId || "")
+    );
+  merged.loaded = messages.length;
+  merged.oldestMessageId = messages[0]?.id || "";
+  merged.newestMessageId = messages[messages.length - 1]?.id || "";
+  if ((sameScope && existingPage?.hasMoreBefore === false) || incomingPage?.hasMoreBefore === false) {
+    merged.hasMoreBefore = false;
+  }
+  return merged;
+}
+
+function mergeCurrentThreadMessages(messages = [], page = null) {
+  if (!state.currentThread || !Array.isArray(messages) || !messages.length) return;
+  const current = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));
+  for (const message of messages) {
+    current.set(message.id, mergeServerMessage(current.get(message.id), message));
+  }
+  const mergedMessages = sortedThreadMessages([...current.values()]);
+  state.currentThread.messages = mergedMessages;
+  if (page) {
+    state.currentThread.messagesPage = mergeMessagesPage(state.currentThread.messagesPage, page, chatMessagesForThread(state.currentThread));
+  }
+}
+
+function oldestLoadedChatMessageId(thread = state.currentThread) {
+  return chatMessagesForThread(thread)[0]?.id || "";
+}
+
 function activeChatRunIds(thread = state.currentThread) {
   return chatMessagesForThread(thread)
     .filter((message) => ["queued", "running"].includes(message.status))
@@ -563,7 +646,7 @@ function taskSkills(group) {
 
 function renderTaskSkillChips(skills, options = {}) {
   if (!skills?.length) return "";
-  return `<div class="task-skills${options.compact ? " compact" : ""}" aria-label="Task skills">
+  return `<div class="task-skills${options.compact ? " compact" : ""}" aria-label="Topic skills">
     ${skills.map((skill) => {
       const title = skill.namespace ? `${skill.namespace}/${skill.label}` : skill.label;
       return `<button class="task-skill-chip" type="button" title="${escapeHtml(title)}" aria-label="${escapeHtml(`Skill ${title}`)}" data-skill-path="${escapeHtml(skill.path)}" data-skill-label="${escapeHtml(skill.label)}" data-skill-namespace="${escapeHtml(skill.namespace || "")}">
@@ -865,11 +948,13 @@ function blurComposerInput() {
 function handleAppBackgrounded() {
   suppressComposerAutoFocus(1800);
   blurComposerInput();
+  clearTodoAutoRefresh();
 }
 
 function handleAppForegrounded() {
   suppressComposerAutoFocus(900);
   blurComposerInput();
+  if (state.viewMode === "todos") scheduleTodoAutoRefresh();
 }
 
 function focusComposerSoon(options = {}) {
@@ -933,6 +1018,122 @@ function selectedWorkspaceInThreadGroup(thread = state.currentThread) {
 
 function isGroupChatView() {
   return isSingleWindowChatView() && state.groupChatOpen && selectedWorkspaceInThreadGroup(state.currentThread);
+}
+
+function groupChatSelectable(thread = state.currentThread) {
+  return Boolean(thread?.singleWindow && (
+    selectedWorkspaceInThreadGroup(thread)
+    || state.groupChatAvailable
+    || state.auth?.isOwner
+  ));
+}
+
+function mergeChatScopeThread(existingThread, incomingThread) {
+  if (!incomingThread) return existingThread || null;
+  if (!existingThread || existingThread.id !== incomingThread.id) return incomingThread;
+  const existingPage = existingThread.messagesPage || null;
+  const incomingPage = incomingThread.messagesPage || null;
+  const existingMessages = new Map((existingThread.messages || []).map((message) => [message.id, message]));
+  const incomingIds = new Set();
+  const messages = (incomingThread.messages || []).map((message) => {
+    incomingIds.add(message.id);
+    return mergeServerMessage(existingMessages.get(message.id), message);
+  });
+  for (const message of existingThread.messages || []) {
+    if (!incomingIds.has(message.id)) messages.push(message);
+  }
+  const sortedMessages = sortedThreadMessages(messages);
+  const messagesPage = incomingPage || existingPage
+    ? mergeMessagesPage(existingPage, incomingPage, sortedMessages)
+    : null;
+  return Object.assign({}, existingThread, incomingThread, { messages: sortedMessages, messagesPage });
+}
+
+function rememberChatScopeThread(thread) {
+  if (!thread?.singleWindow) return;
+  if (selectedWorkspaceInThreadGroup(thread)) {
+    state.groupChatThread = mergeChatScopeThread(state.groupChatThread, thread);
+    state.groupChatThreadId = state.groupChatThread?.id || thread.id || "";
+    state.groupChatAvailable = true;
+    return;
+  }
+  if (thread.workspaceId === state.selectedWorkspaceId) {
+    state.privateChatThread = mergeChatScopeThread(state.privateChatThread, thread);
+  }
+}
+
+function chatScopeThread(thread, scope) {
+  const normalized = String(scope || "").trim().toLowerCase();
+  if (normalized === "group") {
+    if (thread?.id && thread.id === state.groupChatThread?.id) return thread;
+    return state.groupChatThread || (selectedWorkspaceInThreadGroup(thread) ? thread : null);
+  }
+  if (thread?.id && thread.id === state.privateChatThread?.id) return thread;
+  return state.privateChatThread || (!selectedWorkspaceInThreadGroup(thread) ? thread : null);
+}
+
+function chatScopeTaskGroupId(scope) {
+  return String(scope || "").trim().toLowerCase() === "group"
+    ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
+    : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+}
+
+function activeChatScope() {
+  return isGroupChatView() ? "group" : "chat";
+}
+
+function chatScopeReadStorageKey(scope) {
+  return `hermesChatScopeRead:${state.selectedWorkspaceId || "owner"}:${chatScopeTaskGroupId(scope)}`;
+}
+
+function chatScopeMessageTimeMs(message) {
+  const parsed = Date.parse(String(messageTimelineTimestamp(message) || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function latestChatScopeMessageTimeMs(thread, scope) {
+  const sourceThread = chatScopeThread(thread, scope);
+  return Math.max(0, ...chatMessagesForThread(sourceThread, chatScopeTaskGroupId(scope)).map(chatScopeMessageTimeMs));
+}
+
+function chatScopeReadAt(scope) {
+  const value = Number(localStorage.getItem(chatScopeReadStorageKey(scope)) || "0");
+  return Number.isFinite(value) && value > 0 ? value : CHAT_SCOPE_SESSION_STARTED_AT;
+}
+
+function setChatScopeReadAt(scope, value) {
+  const timestamp = Math.max(0, Number(value) || 0);
+  if (timestamp) localStorage.setItem(chatScopeReadStorageKey(scope), String(timestamp));
+}
+
+function ensureChatScopeReadBaselines(thread = state.currentThread) {
+  if (!isSingleWindowChatView() || !thread) return;
+  // Missing read markers intentionally fall back to the page-load timestamp.
+  // That avoids counting old group messages while preserving badges for new SSE messages.
+}
+
+function markActiveChatScopeRead(thread = state.currentThread) {
+  if (!isSingleWindowChatView() || !thread) return;
+  const scope = activeChatScope();
+  const latest = latestChatScopeMessageTimeMs(thread, scope);
+  if (latest) setChatScopeReadAt(scope, latest);
+}
+
+function isOwnChatScopeMessage(message) {
+  if (message?.role !== "user") return false;
+  const ownerWorkspaceId = messageOwnerWorkspaceId(message, "");
+  return Boolean(ownerWorkspaceId && ownerWorkspaceId === state.selectedWorkspaceId);
+}
+
+function unreadChatScopeCount(thread, scope) {
+  const sourceThread = chatScopeThread(thread, scope);
+  if (!isSingleWindowChatView() || !sourceThread) return 0;
+  const readAt = chatScopeReadAt(scope);
+  if (!readAt) return 0;
+  return chatMessagesForThread(sourceThread, chatScopeTaskGroupId(scope))
+    .filter((message) => chatScopeMessageTimeMs(message) > readAt)
+    .filter((message) => !isOwnChatScopeMessage(message))
+    .length;
 }
 
 function groupChatMemberLabels(thread = state.currentThread) {
@@ -1128,7 +1329,7 @@ function composerTargetLabel() {
   if (isGroupChatView()) return "\u7fa4\u804a";
   if (isSingleWindowChatView()) return "\u804a\u5929";
   if (isSingleWindowView()) return "\u4efb\u52a1\u6d41";
-  if (state.viewMode === "tasks") return state.currentTaskGroupId ? "\u4efb\u52a1\u56de\u590d" : "\u65b0\u4efb\u52a1";
+  if (state.viewMode === "tasks") return state.currentTaskGroupId ? "话题回复" : "新话题";
   return "";
 }
 
@@ -1249,6 +1450,19 @@ function updateKeyboardViewportMetrics() {
     root.style.removeProperty("--keyboard-bottom-inset");
   }
   return active;
+}
+
+function updateMobileBottomNavReservation() {
+  const root = document.documentElement;
+  const nav = $("bottomNav");
+  if (!nav || !isMobileLayout()) {
+    root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    return;
+  }
+  const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
+  const contentHeight = Math.ceil(nav.scrollHeight || 0);
+  const reserve = Math.max(96, rectHeight + 12, contentHeight + 12);
+  root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
 }
 
 function refreshKeyboardViewportSoon(delay = 0) {
@@ -1393,8 +1607,8 @@ function runEventTitle(event) {
   if (name === "response.output_item.added") return tool ? `开始 ${tool}` : "开始处理";
   if (name === "response.output_item.done") return tool ? `完成 ${tool}` : "阶段完成";
   if (name === "response.output_text.done") return "生成回复";
-  if (name === "response.completed" || name === "run.completed") return "任务完成";
-  if (name === "response.failed" || name === "run.failed") return "任务失败";
+  if (name === "response.completed" || name === "run.completed") return "处理完成";
+  if (name === "response.failed" || name === "run.failed") return "处理失败";
   return tool ? `${tool} · ${name.replace(/^response\./, "")}` : name.replace(/^response\./, "");
 }
 
@@ -1721,7 +1935,7 @@ function updateTopMoreControls() {
   const toggleTaskView = $("topToggleTaskView");
   if (toggleTaskView) {
     toggleTaskView.hidden = !(isTaskListView() || taskStream);
-    toggleTaskView.textContent = taskStream ? "任务列表" : "任务流";
+    toggleTaskView.textContent = taskStream ? "话题列表" : "话题流";
   }
   const toggleSingleMode = $("topToggleSingleMode");
   if (toggleSingleMode) {
@@ -1785,13 +1999,12 @@ function updateTopMoreControls() {
   }
   const toggleGroupChat = $("topToggleGroupChat");
   if (toggleGroupChat) {
-    toggleGroupChat.hidden = !chatView;
-    toggleGroupChat.disabled = !chatView || !state.currentThread;
-    toggleGroupChat.textContent = isGroupChatView() ? "\u5207\u56de\u804a\u5929" : "\u5207\u6362\u5230\u7fa4";
+    toggleGroupChat.hidden = true;
+    toggleGroupChat.disabled = true;
   }
   const manageGroupMembers = $("topManageGroupMembers");
   if (manageGroupMembers) {
-    const canManageGroupMembers = Boolean(state.auth?.isOwner && chatView && isGroupChatView());
+    const canManageGroupMembers = Boolean(state.auth?.isOwner && chatView && state.currentThread && groupChatSelectable(state.currentThread));
     manageGroupMembers.hidden = !canManageGroupMembers;
     manageGroupMembers.disabled = !canManageGroupMembers || !state.currentThread;
   }
@@ -1847,18 +2060,21 @@ function syncChatSearchMatches() {
   if (!chatSearchAvailable()) {
     state.chatSearchMatches = [];
     state.chatSearchIndex = 0;
+    state.chatSearchTotalMatches = 0;
     return [];
   }
   const query = currentChatSearchQuery().toLowerCase();
   if (!query) {
     state.chatSearchMatches = [];
     state.chatSearchIndex = 0;
+    state.chatSearchTotalMatches = 0;
     return [];
   }
   const matches = chatMessagesForThread(state.currentThread)
     .filter((message) => message?.id && chatSearchContentForMessage(message).includes(query))
     .map((message) => message.id);
   state.chatSearchMatches = matches;
+  state.chatSearchTotalMatches = Math.max(state.chatSearchTotalMatches || 0, matches.length);
   if (!matches.length) {
     state.chatSearchIndex = 0;
   } else if (state.chatSearchIndex < 0 || state.chatSearchIndex >= matches.length) {
@@ -1900,6 +2116,8 @@ function closeChatSearch(options = {}) {
   state.chatSearchQuery = "";
   state.chatSearchMatches = [];
   state.chatSearchIndex = 0;
+  state.chatSearchLoading = false;
+  state.chatSearchTotalMatches = 0;
   state.chatSearchScrollPending = false;
   state.chatSearchRefocus = false;
   if (options.render !== false) {
@@ -1915,6 +2133,10 @@ function updateChatSearchDraft(value) {
 }
 
 function performChatSearch() {
+  performChatSearchAsync().catch(showError);
+}
+
+async function performChatSearchAsync() {
   if (!isChatSearchMode()) return;
   const draft = currentChatSearchDraft();
   state.chatSearchDraft = draft;
@@ -1926,6 +2148,20 @@ function performChatSearch() {
   state.chatSearchQuery = draft;
   state.chatSearchIndex = 0;
   state.chatSearchDraftChangedSinceSearch = false;
+  state.chatSearchLoading = Boolean(draft);
+  if (state.chatSearchLoading) renderCurrentThread({ stickToBottom: false });
+  try {
+    if (draft && state.currentThreadId) {
+      const params = chatMessagePageParams({ search: draft, limit: CHAT_MESSAGE_SEARCH_LIMIT });
+      const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages?${params}`);
+      mergeCurrentThreadMessages(result.messages || [], null);
+      state.chatSearchTotalMatches = Number(result.page?.totalMatches || 0) || 0;
+    } else {
+      state.chatSearchTotalMatches = 0;
+    }
+  } finally {
+    state.chatSearchLoading = false;
+  }
   syncChatSearchMatches();
   state.chatSearchRefocus = true;
   state.chatSearchScrollPending = Boolean(draft && state.chatSearchMatches.length);
@@ -2002,7 +2238,14 @@ function updateChatSearchStatus() {
   const total = state.chatSearchMatches.length;
   if (status) {
     status.hidden = changed;
-    status.textContent = total && !changed ? `${state.chatSearchIndex + 1}/${total}` : "0/0";
+    if (state.chatSearchLoading) {
+      status.textContent = "searching";
+    } else if (total && !changed) {
+      const fullTotal = Math.max(total, Number(state.chatSearchTotalMatches || 0) || 0);
+      status.textContent = fullTotal > total ? `${state.chatSearchIndex + 1}/${total}+` : `${state.chatSearchIndex + 1}/${total}`;
+    } else {
+      status.textContent = "0/0";
+    }
   }
   setNav(!changed && total > 1, !changed && total > 1);
 }
@@ -2307,7 +2550,7 @@ async function deleteTaskGroup(taskGroupId, options = {}) {
   if (!state.currentThreadId || !taskGroupId) return;
   const group = taskListGroupsForThread(state.currentThread).find((item) => item.id === taskGroupId);
   const label = taskDisplayId(group) || taskGroupId;
-  if (options.confirm !== false && !window.confirm(`Delete task ${label}? Files on disk will not be deleted.`)) return;
+  if (options.confirm !== false && !window.confirm(`Delete topic ${label}? Files on disk will not be deleted.`)) return;
   const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/tasks/${encodeURIComponent(taskGroupId)}`, {
     method: "DELETE",
   });
@@ -2334,7 +2577,7 @@ function selectTaskRenameInput(input) {
 
 function openTaskRenameDialog(currentTitle) {
   const overlay = $("taskRenameOverlay");
-  if (!overlay) return Promise.resolve(window.prompt("修改任务名", currentTitle));
+  if (!overlay) return Promise.resolve(window.prompt("修改话题名", currentTitle));
   return new Promise((resolve) => {
     let settled = false;
     const finish = (value) => {
@@ -2355,13 +2598,13 @@ function openTaskRenameDialog(currentTitle) {
     overlay.innerHTML = `<form class="access-key-sheet task-rename-sheet" data-task-rename-form>
       <div class="access-key-header">
         <div>
-          <div id="taskRenameTitle" class="access-key-title">修改任务名</div>
-          <div class="access-key-subtitle">输入后保存为任务列表标题</div>
+          <div id="taskRenameTitle" class="access-key-title">修改话题名</div>
+          <div class="access-key-subtitle">输入后保存为话题列表标题</div>
         </div>
         <button class="icon-button" type="button" data-task-rename-cancel aria-label="关闭">&#10005;</button>
       </div>
       <label class="task-rename-field">
-        <span>任务名</span>
+        <span>话题名</span>
         <input id="taskRenameInput" type="text" value="${escapeHtml(currentTitle)}" autocomplete="off" autocapitalize="sentences">
       </label>
       <div class="task-rename-actions">
@@ -2396,7 +2639,7 @@ async function renameTaskGroup(taskGroupId) {
   if (nextTitle === null) return;
   const title = nextTitle.trim();
   if (!title) {
-    window.alert("任务名不能为空");
+    window.alert("话题名不能为空");
     return;
   }
   const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/tasks/${encodeURIComponent(taskGroupId)}`, {
@@ -2714,10 +2957,41 @@ function scheduleConversationBottomStick() {
 function handleConversationScrollState() {
   if (Date.now() < state.suppressConversationPinUntil) return;
   state.conversationPinnedToBottom = isNearBottom();
+  maybeLoadOlderChatMessages();
+}
+
+function maybeLoadOlderChatMessages() {
+  const conversation = $("conversation");
+  if (!conversation || !isSingleWindowChatView() || isChatSearchMode()) return;
+  if (state.olderChatMessagesLoading) return;
+  const page = state.currentThread?.messagesPage || {};
+  if (page.hasMoreBefore === false) return;
+  if (!oldestLoadedChatMessageId()) return;
+  if (conversation.scrollTop > CHAT_HISTORY_LOAD_TOP_PX) return;
+  loadOlderChatMessages().catch(showError);
+}
+
+async function loadOlderChatMessages() {
+  if (!state.currentThreadId || !isSingleWindowChatView() || state.olderChatMessagesLoading) return;
+  const before = oldestLoadedChatMessageId();
+  if (!before) return;
+  const page = state.currentThread?.messagesPage || {};
+  if (page.hasMoreBefore === false) return;
+  state.olderChatMessagesLoading = true;
+  renderCurrentThread({ stickToBottom: false });
+  try {
+    const params = chatMessagePageParams({ before, limit: CHAT_MESSAGE_PAGE_LIMIT });
+    const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages?${params}`);
+    mergeCurrentThreadMessages(result.messages || [], result.page || null);
+  } finally {
+    state.olderChatMessagesLoading = false;
+    renderCurrentThread({ stickToBottom: false });
+  }
 }
 
 function handleViewportLayoutChange() {
   updateKeyboardViewportMetrics();
+  updateMobileBottomNavReservation();
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));
   if (!shouldStickConversationOnViewportChange()) return;
@@ -2821,6 +3095,22 @@ function eventClientPoint(event) {
     return { x: event.clientX, y: event.clientY };
   }
   return null;
+}
+
+function suppressTransientActivations(ms = 700) {
+  state.suppressTransientActivationUntil = Math.max(state.suppressTransientActivationUntil || 0, Date.now() + ms);
+}
+
+function transientActivationSuppressed() {
+  return Date.now() < (state.suppressTransientActivationUntil || 0);
+}
+
+function suppressTransientActivationEvent(event) {
+  if (!transientActivationSuppressed()) return false;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  event.stopImmediatePropagation?.();
+  return true;
 }
 
 function eventInAttachFileHitZone(event) {
@@ -3123,6 +3413,7 @@ function showApp() {
   $("setup")?.classList.add("hidden");
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
+  updateMobileBottomNavReservation();
   restoreVisibleAppScroll();
 }
 
@@ -3551,8 +3842,8 @@ function renderOwnerElevationPanel() {
   const selectedDuration = state.ownerElevationDurationMinutes;
   const label = active ? "高权限运行" : "普通权限";
   const meta = active
-    ? `后续 Owner 任务会路由到 maintenance Gateway，${ownerElevationRemainingLabel()}。`
-    : "后续 Owner 任务默认走普通低权限 Gateway。";
+    ? `后续 Owner 请求会路由到 maintenance Gateway，${ownerElevationRemainingLabel()}。`
+    : "后续 Owner 请求默认走普通低权限 Gateway。";
   const options = durationOptions.map((minutes) => (
     `<option value="${escapeHtml(minutes)}"${minutes === selectedDuration ? " selected" : ""}>${escapeHtml(minutes)} 分钟</option>`
   )).join("");
@@ -3635,7 +3926,7 @@ async function activateOwnerElevation(durationMinutes = ownerElevationSelectedDu
   if (options.confirm !== false) {
     const ok = await openOwnerElevationApprovalDialog({
       title: "Owner Approval",
-      message: `Approve high-privilege Gateway routing for ${minutes} minutes? Owner tasks during this window will use the maintenance Gateway.`,
+      message: `Approve high-privilege Gateway routing for ${minutes} minutes? Owner requests during this window will use the maintenance Gateway.`,
     });
     if (!ok) return false;
   }
@@ -3926,6 +4217,7 @@ function applyFontSizePreference(value = state.fontSize) {
   state.fontSize = option.id;
   document.documentElement.dataset.fontSize = option.id;
   document.documentElement.style.setProperty("--app-font-scale", String(option.scale));
+  window.setTimeout(updateMobileBottomNavReservation, 0);
 }
 
 function setFontSizePreference(value) {
@@ -3967,7 +4259,7 @@ function renderSettingsOverlay() {
       </div>
       <div class="settings-preview">
         <div class="settings-preview-title">Hermes Mobile</div>
-        <div class="settings-preview-body">聊天、任务、目录、待办和自动化页面会使用这个字体大小。</div>
+        <div class="settings-preview-body">聊天、话题、目录、看板和自动化页面会使用这个字体大小。</div>
       </div>
     </section>
   </section>`;
@@ -5735,10 +6027,7 @@ function sharedProjectRootOwnerLabel(project) {
 }
 
 function projectDisplayLabel(project) {
-  const label = project?.label || project?.id || "Project";
-  if (!isSharedProject(project)) return label;
-  const ownerLabel = sharedProjectRootOwnerLabel(project) || sharedProjectOwnerLabel(project);
-  return ownerLabel ? `${ownerLabel} · ${label}` : label;
+  return project?.label || project?.id || "Project";
 }
 
 function routeLabelParts(label) {
@@ -6280,8 +6569,9 @@ function orderDirectoryRootProjects(projects) {
   return (projects || [])
     .map((project, index) => ({ project, index }))
     .sort((a, b) => {
-      const sharedDelta = Number(isDirectorySharedRootProject(b.project)) - Number(isDirectorySharedRootProject(a.project));
-      return sharedDelta || a.index - b.index;
+      const labelDelta = String(directoryRootProjectLabel(a.project))
+        .localeCompare(String(directoryRootProjectLabel(b.project)), "zh-Hans-CN", { numeric: true, sensitivity: "base" });
+      return labelDelta || a.index - b.index;
     })
     .map((item) => item.project);
 }
@@ -6305,6 +6595,10 @@ function directoryRootProjectLabel(project) {
   if (project?.id === "sync") return "同步文件夹";
   if (project?.id === "download") return "下载";
   return projectDisplayLabel(project);
+}
+
+function renderDirectorySharedBadge(project) {
+  return isDirectorySharedRootProject(project) ? `<span class="directory-shared-badge">共享</span>` : "";
 }
 
 function isShareableRootProject(project) {
@@ -6332,7 +6626,7 @@ function renderDirectoryRootProjectMenu(project) {
   return `<div class="directory-entry-menu-wrap">
     <button class="directory-entry-menu-button" type="button" data-directory-entry-menu aria-label="更多操作" title="更多操作" aria-expanded="false">&#8942;</button>
     <div class="directory-entry-menu" hidden>
-      ${canStartTask ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-project="${escapeHtml(project.id || "")}">开启任务</button>` : ""}
+      ${canStartTask ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-project="${escapeHtml(project.id || "")}">开启话题</button>` : ""}
       ${canShare ? `<button class="directory-entry-menu-item" type="button" data-share-root-project="${escapeHtml(project.id || "")}">共享</button>` : ""}
       ${canDelete ? `<button class="directory-entry-menu-item danger" type="button" data-delete-directory-path="${escapeHtml(project.root || "")}" data-delete-directory-name="${escapeHtml(directoryRootProjectLabel(project))}" data-delete-directory-type="directory">删除</button>` : ""}
     </div>
@@ -6359,7 +6653,7 @@ function renderDirectoryProjectEntries() {
       <button class="directory-entry-main" type="button" data-open-project-directory="${escapeHtml(project.id || "")}">
         <span class="directory-entry-icon" aria-hidden="true"></span>
         <span class="directory-entry-text">
-          <span class="directory-entry-name">${escapeHtml(directoryRootProjectLabel(project))}</span>
+          <span class="directory-entry-name">${renderDirectorySharedBadge(project)}<span class="directory-entry-label">${escapeHtml(directoryRootProjectLabel(project))}</span></span>
         </span>
         <span class="directory-entry-chevron">›</span>
       </button>
@@ -6439,7 +6733,7 @@ function renderDirectoryEntryMenu(entry) {
   const itemName = escapeHtml(entry.name || "item");
   const itemType = escapeHtml(entry.type || "file");
   const taskAction = entry.type === "directory"
-    ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-path="${itemPath}" data-start-directory-task-label="${itemName}">开启任务</button>`
+    ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-path="${itemPath}" data-start-directory-task-label="${itemName}">开启话题</button>`
     : "";
   const deleteAction = `<button class="directory-entry-menu-item danger" type="button" data-delete-directory-path="${itemPath}" data-delete-directory-name="${itemName}" data-delete-directory-type="${itemType}">删除</button>`;
   if (!taskAction && !deleteAction) return "";
@@ -6950,6 +7244,7 @@ function applyViewMode() {
   const directory = state.viewMode === "projects";
   const automation = state.viewMode === "automation";
   const todos = state.viewMode === "todos";
+  if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("automation-mode", automation);
   $("app")?.classList.toggle("projects-mode", directory);
@@ -6971,13 +7266,14 @@ function applyViewMode() {
   $("directoryEntry")?.parentElement?.classList.add("hidden");
   $("newThread").classList.toggle("hidden", single || tasks || automation || directory || todos);
   $("newThread").disabled = single || tasks || automation || directory || todos;
-  $("newThread").textContent = todos ? "新建待办事项" : "新建任务";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search task stream") : tasks ? "Search tasks" : todos ? "Search todos" : automation ? "Search automations" : "Search directories";
+  $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : todos ? "Search Kanban" : automation ? "Search automations" : "Search directories";
   updateSearchButton();
 }
 
 async function loadSelectedView() {
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
+  if (state.viewMode !== "todos") clearTodoAutoRefresh();
   applyViewMode();
   if (state.viewMode !== "tasks") state.skillDetail = null;
   if (state.viewMode === "single" || state.viewMode === "tasks") {
@@ -7207,36 +7503,8 @@ function renderAutomationLoading(message = "正在刷新 Hermes CRON") {
 function renderAutomationList() {
   const list = $("threadList");
   if (!list) return;
-  if (state.automationLoading && !state.automations.length) {
-    list.innerHTML = renderAutomationLoading("正在载入自动化");
-    return;
-  }
-  if (!state.automations.length) {
-    const warning = state.automationSource?.available === false ? "Hermes CRON is not reachable." : "No CRON jobs.";
-    list.innerHTML = `<div class="empty-state small">${escapeHtml(warning)}</div>`;
-    return;
-  }
-  const loading = state.automationLoading ? renderAutomationLoading("正在刷新") : "";
-  list.innerHTML = loading + state.automations.map((job) => {
-    const active = job.id === state.selectedAutomationId ? " active" : "";
-    const status = automationStatusLabel(job);
-    return `<div class="thread-card automation-list-card${active} ${escapeHtml(status)}">
-      <button class="thread-card-main" type="button" data-automation-id="${escapeHtml(job.id)}">
-        <div class="thread-card-title">${escapeHtml(automationTitle(job))}</div>
-      </button>
-    </div>`;
-  }).join("");
-  list.querySelectorAll("[data-automation-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const nextId = button.dataset.automationId || "";
-      if (state.selectedAutomationId !== nextId) state.automationOutputHistoryOpen = false;
-      state.selectedAutomationId = nextId;
-      state.automationEditOpen = false;
-      state.automationEditJobId = "";
-      if (isMobileLayout()) closeSidebar();
-      renderAutomationView();
-    });
-  });
+  list.innerHTML = "";
+  return;
 }
 
 function renderAutomationView() {
@@ -7635,6 +7903,8 @@ function mergeServerMessage(existing, incoming) {
 function mergeCurrentThread(incomingThread) {
   if (!incomingThread) return state.currentThread;
   if (!state.currentThread || state.currentThread.id !== incomingThread.id) return incomingThread;
+  const existingPage = state.currentThread.messagesPage || null;
+  const incomingPage = incomingThread.messagesPage || null;
   const existingMessages = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));
   const incomingIds = new Set();
   const messages = (incomingThread.messages || []).map((message) => {
@@ -7644,7 +7914,14 @@ function mergeCurrentThread(incomingThread) {
   for (const message of state.currentThread.messages || []) {
     if (!incomingIds.has(message.id)) messages.push(message);
   }
-  return Object.assign({}, state.currentThread, incomingThread, { messages });
+  const sortedMessages = sortedThreadMessages(messages);
+  const chatMessages = incomingPage?.mode === "chat" || existingPage?.mode === "chat"
+    ? sortedMessages.filter((message) => String(message?.taskGroupId || "") === String((incomingPage || existingPage)?.taskGroupId || activeChatTaskGroupId()))
+    : sortedMessages;
+  const messagesPage = incomingPage || existingPage
+    ? mergeMessagesPage(existingPage, incomingPage, chatMessages)
+    : null;
+  return Object.assign({}, state.currentThread, incomingThread, { messages: sortedMessages, messagesPage });
 }
 
 async function loadSingleWindow(options = {}) {
@@ -7653,11 +7930,26 @@ async function loadSingleWindow(options = {}) {
     && state.singleWindowMode === "chat"
     && state.groupChatOpen
   );
+  const messageMode = isSingleWindowChatView()
+    ? "chat"
+    : (state.viewMode === "tasks" || state.singleWindowMode === "task" ? "tasks" : "");
   const result = await api("/api/single-window", {
     method: "POST",
-    body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, groupChat }),
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      groupChat,
+      messageMode,
+      taskGroupId: messageMode === "tasks" ? state.currentTaskGroupId : "",
+      messageLimit: messageMode === "tasks" ? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT,
+    }),
   });
   state.currentThread = mergeCurrentThread(result.thread);
+  if (result.groupChatThread) {
+    state.groupChatThread = mergeChatScopeThread(state.groupChatThread, result.groupChatThread);
+    state.groupChatThreadId = state.groupChatThread?.id || result.groupChatThreadId || "";
+  }
+  state.groupChatAvailable = Boolean(result.groupChatAvailable || selectedWorkspaceInThreadGroup(state.currentThread));
+  rememberChatScopeThread(state.currentThread);
   if (groupChat && !selectedWorkspaceInThreadGroup(state.currentThread)) {
     state.groupChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
@@ -7673,14 +7965,18 @@ async function loadSingleWindow(options = {}) {
   setComposerEnabled(true);
 }
 
-async function toggleGroupChat() {
+async function selectChatScope(scope) {
   closeTopMoreMenu();
   clearQuotedReply({ render: false });
   state.currentTaskGroupId = "";
-  if (state.groupChatOpen && isGroupChatView()) {
+  if (String(scope || "").trim().toLowerCase() !== "group") {
     state.groupChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
     await loadSingleWindow({ groupChat: false });
+    return;
+  }
+  if (isGroupChatView()) {
+    renderCurrentThread({ stickToBottom: false });
     return;
   }
   await loadSingleWindow({ groupChat: true });
@@ -7708,6 +8004,10 @@ async function toggleGroupChat() {
   localStorage.setItem("hermesWebGroupChatOpen", "1");
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
+}
+
+async function toggleGroupChat() {
+  await selectChatScope(isGroupChatView() ? "chat" : "group");
 }
 
 function renderGroupChatManager() {
@@ -7802,24 +8102,109 @@ async function loadThreads() {
   renderThreads();
 }
 
-async function loadTodos() {
+function kanbanStatusNeedsCompleted(status) {
+  return status === "done" || status === "archived";
+}
+
+function shouldLoadCompletedTodos(options = {}) {
+  if (Object.prototype.hasOwnProperty.call(options, "includeCompleted")) return Boolean(options.includeCompleted);
+  if (currentSearchText()) return true;
+  if (state.selectedTodoId) return true;
+  return kanbanStatusNeedsCompleted(String(state.todoKanbanStatus || "").trim().toLowerCase());
+}
+
+function clearTodoAutoRefresh() {
+  window.clearTimeout(state.todoAutoRefreshTimer);
+  state.todoAutoRefreshTimer = 0;
+}
+
+function scheduleTodoAutoRefresh() {
+  clearTodoAutoRefresh();
+  if (state.viewMode !== "todos") return;
+  if (document.visibilityState === "hidden") return;
+  state.todoAutoRefreshTimer = window.setTimeout(() => {
+    state.todoAutoRefreshTimer = 0;
+    if (state.viewMode !== "todos" || document.visibilityState === "hidden") return;
+    loadTodos({ preserveScroll: true, autoRefresh: true }).catch(() => scheduleTodoAutoRefresh());
+  }, TODO_AUTO_REFRESH_INTERVAL_MS);
+}
+
+function todoListCacheKey(workspaceId, includeCompleted) {
+  return `hermesTodoList:${workspaceId || "owner"}:${includeCompleted ? "all" : "open"}`;
+}
+
+function readTodoListCache(workspaceId, includeCompleted) {
+  try {
+    const raw = localStorage.getItem(todoListCacheKey(workspaceId, includeCompleted));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || Date.now() - Number(parsed.savedAt || 0) > TODO_LIST_CACHE_MAX_AGE_MS) return null;
+    if (!Array.isArray(parsed.todos)) return null;
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeTodoListCache(workspaceId, includeCompleted) {
+  try {
+    localStorage.setItem(todoListCacheKey(workspaceId, includeCompleted), JSON.stringify({
+      savedAt: Date.now(),
+      todos: state.todos,
+      assignees: state.todoAssignees,
+      source: state.todoSource,
+      board: state.todoKanbanBoard,
+    }));
+  } catch (_) {}
+}
+
+function clearTodoListCache(workspaceId = state.selectedWorkspaceId || "owner") {
+  try {
+    localStorage.removeItem(todoListCacheKey(workspaceId, false));
+    localStorage.removeItem(todoListCacheKey(workspaceId, true));
+  } catch (_) {}
+}
+
+function applyTodoListResult(result, includeCompleted) {
+  state.todos = result.data || result.todos || [];
+  state.todoAssignees = result.assignees || [];
+  state.todoSource = result.source || result.result?.source || "";
+  state.todoKanbanBoard = result.result?.board || result.board || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "";
+  state.todoCompletedLoaded = includeCompleted;
+}
+
+async function loadTodos(options = {}) {
+  const workspaceId = state.selectedWorkspaceId || "owner";
   const params = new URLSearchParams();
-  params.set("workspaceId", state.selectedWorkspaceId || "owner");
+  params.set("workspaceId", workspaceId);
   params.set("limit", "120");
-  params.set("includeCompleted", "1");
+  const includeCompleted = shouldLoadCompletedTodos(options);
+  if (includeCompleted) params.set("includeCompleted", "1");
   params.set("scope", "mine");
   const search = currentSearchText();
   if (search) params.set("search", search);
+  const conversation = $("conversation");
+  const restoreScrollTop = options.preserveScroll && conversation ? conversation.scrollTop : null;
+  const useCache = !options.autoRefresh && !options.skipCache && !search && state.viewMode === "todos" && !state.selectedTodoId;
+  const cached = useCache ? readTodoListCache(workspaceId, includeCompleted) : null;
+  if (cached && (!state.todos.length || options.preferCache)) {
+    applyTodoListResult(cached, includeCompleted);
+    updateSearchButton();
+    renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop });
+    setComposerEnabled(false);
+  }
   const result = await api(`/api/todos?${params}`);
-  state.todos = result.data || [];
-  state.todoAssignees = result.assignees || [];
+  if (options.autoRefresh && state.viewMode !== "todos") return;
+  applyTodoListResult(result, includeCompleted);
+  if (!search) writeTodoListCache(workspaceId, includeCompleted);
   state.currentThread = null;
   state.currentThreadId = "";
   state.currentTaskGroupId = "";
   if (state.selectedTodoId && !state.todos.some((todo) => todo.id === state.selectedTodoId)) state.selectedTodoId = "";
   updateSearchButton();
-  renderTodos();
+  renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop });
   setComposerEnabled(false);
+  scheduleTodoAutoRefresh();
 }
 
 function todoStatusLabel(todo) {
@@ -7836,12 +8221,86 @@ function todoStatusText(todo) {
   return "未完成";
 }
 
+function normalizedKanbanStatus(todo) {
+  const status = String(todo?.kanbanStatus || todo?.kanban_status || "").trim().toLowerCase();
+  if (KANBAN_STATUS_ORDER.includes(status)) return status;
+  const compatible = String(todo?.status || "").trim().toLowerCase();
+  if (compatible === "completed") return "done";
+  if (compatible === "cancelled") return "archived";
+  return "todo";
+}
+
+function kanbanStatusMeta(todoOrStatus) {
+  const status = typeof todoOrStatus === "string" ? todoOrStatus : normalizedKanbanStatus(todoOrStatus);
+  return KANBAN_STATUS_META[status] || { label: status || "Todo", shortLabel: status || "todo" };
+}
+
+function kanbanStatusText(todo) {
+  const status = normalizedKanbanStatus(todo);
+  const meta = kanbanStatusMeta(status);
+  return `${meta.label} / ${meta.shortLabel}`;
+}
+
+function currentTodoKanbanStatus(grouped) {
+  const selected = String(state.todoKanbanStatus || "").trim().toLowerCase();
+  if (KANBAN_STATUS_ORDER.includes(selected)) return selected;
+  const fallback = KANBAN_STATUS_FALLBACK_ORDER.find((status) => (grouped?.get(status) || []).length)
+    || "todo";
+  state.todoKanbanStatus = fallback;
+  localStorage.setItem("hermesTodoKanbanStatus", fallback);
+  return fallback;
+}
+
+function isKanbanTodoSource() {
+  return state.todoSource === "hermes_kanban"
+    || state.todoSource === "kanban"
+    || state.todos.some((todo) => todo?.source === "kanban" || todo?.kanbanBoard || todo?.kanbanStatus);
+}
+
+function todoBoardLabel() {
+  return state.todoKanbanBoard || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "default";
+}
+
+function todoPriorityLabel(todo) {
+  const priority = Number(todo?.kanbanPriority || 0);
+  return Number.isFinite(priority) && priority > 0 ? `P${priority}` : "";
+}
+
+function todoTimestampLabel(value) {
+  return formatTime(value) || String(value || "");
+}
+
+function todoSortTimestamp(todo) {
+  const candidates = [
+    todo?.kanbanCompletedAt,
+    todo?.completedAt,
+    todo?.cancelledAt,
+    todo?.updatedAt,
+    todo?.createdAt,
+    todo?.dueAt,
+    todo?.dueLocal,
+  ];
+  for (const value of candidates) {
+    const parsed = Date.parse(String(value || "").replace(" ", "T"));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function sortArchivedKanbanCards(items) {
+  return [...(items || [])].sort((left, right) => {
+    const delta = todoSortTimestamp(right) - todoSortTimestamp(left);
+    if (delta) return delta;
+    return String(right?.id || "").localeCompare(String(left?.id || ""));
+  });
+}
+
 function todoDueLabel(todo) {
   return todo?.dueLocal || formatTime(todo?.dueAt) || "No due time";
 }
 
 function todoTitle(todo) {
-  return compactDisplayText(todo?.content || todo?.id || "Todo", 120);
+  return compactDisplayText(todo?.content || todo?.id || "Kanban card", 120);
 }
 
 function todoMatchesOpen(todo) {
@@ -7879,68 +8338,51 @@ function todoDueInputValue(todo) {
 function renderTodoList() {
   const list = $("threadList");
   if (!list) return;
-  if (!state.todos.length) {
-    list.innerHTML = `<div class="empty-state small">No todos.</div>`;
-    return;
-  }
-  list.innerHTML = state.todos.map((todo) => {
-    const active = todo.id === state.selectedTodoId ? " active" : "";
-    const status = todoStatusLabel(todo);
-    return `<div class="task-swipe-row todo-list-swipe" data-swipe-row data-swipe-kind="todo" data-swipe-id="${escapeHtml(todo.id)}">
-      <button class="task-swipe-delete" type="button" data-delete-swipe="${escapeHtml(todo.id)}" aria-label="删除待办">删除</button>
-      <div class="task-swipe-content" data-swipe-content>
-        <button class="thread-card todo-list-card${active} ${escapeHtml(status)}" type="button" data-todo-id="${escapeHtml(todo.id)}">
-      <div class="thread-card-title">${escapeHtml(todoTitle(todo))}</div>
-      <div class="thread-card-preview">${escapeHtml(todo.assigneeLabel || todo.assignee || "")} · ${escapeHtml(todoDueLabel(todo))}</div>
-      <div class="thread-card-meta">${escapeHtml(status)}${todo.recurrenceLabel ? ` | ${todo.recurrenceLabel}` : ""}</div>
-        </button>
-      </div>
-    </div>`;
-  }).join("");
-  list.querySelectorAll("[data-todo-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedTodoId = button.dataset.todoId || "";
-      if (isMobileLayout()) closeSidebar();
-      renderTodos();
-    });
-  });
-  wireTaskSwipeActions(list);
+  list.innerHTML = "";
+  return;
 }
 
-function renderTodos() {
+function renderTodos(options = {}) {
   applyViewMode();
   renderTodoList();
-  renderTodoPanel();
+  renderTodoPanel(options);
 }
 
-function renderTodoPanel() {
+function renderTodoPanel(options = {}) {
   const conversation = $("conversation");
   const selected = state.todos.find((todo) => todo.id === state.selectedTodoId) || null;
-  $("threadTitle").textContent = selected ? "待办详情" : "待办事项";
+  $("threadTitle").textContent = selected ? "看板详情" : "看板";
   $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
   updateNavigationControls();
   const openTodos = state.todos.filter(todoMatchesOpen);
   const closedTodos = state.todos.filter((todo) => !todoMatchesOpen(todo));
+  const todoBody = selected
+    ? renderTodoDetail(selected)
+    : (isKanbanTodoSource() ? renderTodoKanbanBoard(state.todos) : renderTodoSections(openTodos, closedTodos));
   conversation.innerHTML = `
     <section class="todo-shell">
       ${selected ? "" : renderTodoCreatePanel()}
-      ${selected ? renderTodoDetail(selected) : renderTodoSections(openTodos, closedTodos)}
+      ${todoBody}
     </section>
   `;
   wireTodoPanel(conversation);
   ensureVerticalScrollAffordance(conversation);
-  conversation.scrollTop = 0;
+  if (options.preserveScroll && Number.isFinite(options.restoreScrollTop)) {
+    conversation.scrollTop = options.restoreScrollTop;
+  } else {
+    conversation.scrollTop = 0;
+  }
 }
 
 function renderTodoCreatePanel() {
   if (!state.todoCreateOpen) {
     return "";
-    return `<button class="todo-create-toggle" type="button" data-open-todo-create>新增待办</button>`;
+    return `<button class="todo-create-toggle" type="button" data-open-todo-create>新增卡片</button>`;
   }
   return `<form id="todoCreateForm" class="todo-create">
     <div class="todo-create-grid">
-      <input id="todoContent" class="todo-input todo-content-input" type="text" placeholder="待办内容">
+      <input id="todoContent" class="todo-input todo-content-input" type="text" placeholder="卡片内容">
       <input id="todoDue" class="todo-input" type="datetime-local">
       <select id="todoAssignee" class="todo-input">${renderTodoAssigneeOptions()}</select>
       <select id="todoRecurrence" class="todo-input">
@@ -7953,21 +8395,84 @@ function renderTodoCreatePanel() {
       <input id="todoRecurrenceDays" class="todo-input" type="text" placeholder="每周日期，例如 Mon/Wed/Fri">
       <div class="todo-create-buttons">
         <button class="secondary-small" type="button" data-close-todo-create>收起</button>
-        <button class="primary-small" type="submit">添加待办</button>
+        <button class="primary-small" type="submit">添加卡片</button>
       </div>
     </div>
   </form>`;
+}
+
+function renderTodoKanbanBoard(todos) {
+  const grouped = new Map(KANBAN_STATUS_ORDER.map((status) => [status, []]));
+  for (const todo of todos || []) {
+    const status = normalizedKanbanStatus(todo);
+    if (!grouped.has(status)) grouped.set(status, []);
+    grouped.get(status).push(todo);
+  }
+  grouped.set("archived", sortArchivedKanbanCards(grouped.get("archived") || []));
+  const selectedStatus = currentTodoKanbanStatus(grouped);
+  const selectedMeta = kanbanStatusMeta(selectedStatus);
+  const selectedItems = grouped.get(selectedStatus) || [];
+  const tabs = KANBAN_STATUS_ORDER.map((status) => {
+    const meta = kanbanStatusMeta(status);
+    const items = grouped.get(status) || [];
+    const active = status === selectedStatus ? " active" : "";
+    const count = !state.todoCompletedLoaded && kanbanStatusNeedsCompleted(status) ? "…" : String(items.length);
+    return `<button class="todo-kanban-tab${active} status-${escapeHtml(status)}" type="button" data-kanban-status="${escapeHtml(status)}" aria-pressed="${active ? "true" : "false"}">
+      <span class="todo-kanban-tab-label">${escapeHtml(meta.label)}</span>
+      <span class="todo-kanban-tab-count">${escapeHtml(count)}</span>
+    </button>`;
+  }).join("");
+  return `
+    <div class="todo-kanban-board">
+      <nav class="todo-kanban-switcher" aria-label="Kanban status">${tabs}</nav>
+      <section class="todo-kanban-lane todo-kanban-current status-${escapeHtml(selectedStatus)}" aria-label="${escapeHtml(selectedMeta.shortLabel)}" role="list">
+        <header class="todo-kanban-lane-header">
+          <div>
+            <div class="todo-kanban-lane-title">${escapeHtml(selectedMeta.label)}</div>
+            <div class="todo-kanban-lane-code">${escapeHtml(selectedMeta.shortLabel)}</div>
+          </div>
+          <span>${selectedItems.length}</span>
+        </header>
+        <div class="todo-kanban-cards">${selectedItems.map(renderTodoKanbanCard).join("") || `<div class="empty-state small">No items.</div>`}</div>
+      </section>
+    </div>
+  `;
+}
+
+function renderTodoKanbanCard(todo) {
+  const status = normalizedKanbanStatus(todo);
+  const meta = kanbanStatusMeta(status);
+  const assignee = todo.kanbanAssignee || todo.assigneeLabel || todo.assignee || "";
+  const priority = todoPriorityLabel(todo);
+  const tenant = todo.kanbanTenant || "";
+  const due = todoDueLabel(todo);
+  const skills = Array.isArray(todo.kanbanSkills) ? todo.kanbanSkills.slice(0, 3) : [];
+  const chips = [
+    priority,
+    assignee ? `@${assignee}` : "",
+    tenant && tenant !== assignee ? tenant : "",
+    todo.kanbanWorkspaceKind || "",
+  ].filter(Boolean);
+  return `<article class="todo-kanban-card status-${escapeHtml(status)}" role="listitem">
+    <button class="todo-kanban-card-button" type="button" data-todo-id="${escapeHtml(todo.id)}">
+      <span class="todo-kanban-card-status">${escapeHtml(meta.shortLabel)}</span>
+      <span class="todo-kanban-card-title">${escapeHtml(todo.content || todo.id)}</span>
+      <span class="todo-kanban-card-meta">${escapeHtml(due)}</span>
+      ${chips.length ? `<span class="todo-kanban-card-chips">${chips.map((chip) => `<span>${escapeHtml(chip)}</span>`).join("")}</span>` : ""}
+      ${skills.length ? `<span class="todo-kanban-card-skills">${skills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</span>` : ""}
+    </button>
+  </article>`;
 }
 
 function renderTodoSections(openTodos, closedTodos) {
   return `
     <div class="todo-section">
       <div class="todo-section-title">未完成 · ${openTodos.length}</div>
-      <div class="todo-card-list">${openTodos.map(renderTodoCard).join("") || `<div class="empty-state small">No open todos.</div>`}</div>
+      <div class="todo-card-list">${openTodos.map(renderTodoCard).join("") || `<div class="empty-state small">No open cards.</div>`}</div>
     </div>
     <div class="todo-section todo-section-muted">
       <div class="todo-section-title">已完成 / 已取消 · ${closedTodos.length}</div>
-      <div class="todo-card-list">${closedTodos.slice(0, 30).map(renderTodoCard).join("") || `<div class="empty-state small">No completed todos.</div>`}</div>
+      <div class="todo-card-list">${closedTodos.slice(0, 30).map(renderTodoCard).join("") || `<div class="empty-state small">No completed cards.</div>`}</div>
     </div>
   `;
 }
@@ -7975,7 +8480,7 @@ function renderTodoSections(openTodos, closedTodos) {
 function renderTodoCard(todo) {
   const status = todoStatusLabel(todo);
   return `<article class="todo-card task-swipe-row ${escapeHtml(status)}" data-swipe-row data-swipe-kind="todo" data-swipe-id="${escapeHtml(todo.id)}">
-    <button class="task-swipe-delete" type="button" data-delete-swipe="${escapeHtml(todo.id)}" aria-label="删除待办">删除</button>
+    <button class="task-swipe-delete" type="button" data-delete-swipe="${escapeHtml(todo.id)}" aria-label="删除看板卡片">删除</button>
     <div class="task-swipe-content" data-swipe-content>
       <button class="todo-card-main" type="button" data-todo-id="${escapeHtml(todo.id)}">
       <span class="todo-card-title">${escapeHtml(todo.content || todo.id)}</span>
@@ -7986,24 +8491,66 @@ function renderTodoCard(todo) {
   </article>`;
 }
 
+function renderTodoDetailGridItem(label, value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(text)}</span></div>`;
+}
+
 function renderTodoDetail(todo) {
   const open = todoMatchesOpen(todo);
+  const kanban = isKanbanTodoSource();
+  const kanbanStatus = normalizedKanbanStatus(todo);
+  const blocked = kanbanStatus === "blocked";
+  const statusText = kanban ? kanbanStatusText(todo) : todoStatusText(todo);
+  const gridItems = [
+    renderTodoDetailGridItem("负责人", todo.assigneeLabel || todo.assignee || ""),
+    renderTodoDetailGridItem("截止", todoDueLabel(todo)),
+    renderTodoDetailGridItem("提醒", `${String(todo.reminderLeadMinutes || 0)} 分钟前`),
+    renderTodoDetailGridItem("重复", todo.recurrenceLabel || todo.recurrence || "不重复"),
+    kanban ? renderTodoDetailGridItem("看板", todo.kanbanBoard || todoBoardLabel()) : "",
+    kanban ? renderTodoDetailGridItem("状态", kanbanStatusText(todo)) : "",
+    kanban ? renderTodoDetailGridItem("官方执行者", todo.kanbanAssignee || "") : "",
+    kanban ? renderTodoDetailGridItem("租户", todo.kanbanTenant || "") : "",
+    kanban ? renderTodoDetailGridItem("优先级", todoPriorityLabel(todo)) : "",
+    kanban ? renderTodoDetailGridItem("工作区", todo.kanbanWorkspaceKind || "") : "",
+    kanban ? renderTodoDetailGridItem("创建者", todo.kanbanCreatedBy || "") : "",
+    renderTodoDetailGridItem("创建", todoTimestampLabel(todo.createdAt)),
+    renderTodoDetailGridItem("更新", todoTimestampLabel(todo.updatedAt)),
+    kanban ? renderTodoDetailGridItem("开始", todoTimestampLabel(todo.kanbanStartedAt)) : "",
+    kanban ? renderTodoDetailGridItem("完成", todoTimestampLabel(todo.kanbanCompletedAt || todo.completedAt)) : "",
+  ].filter(Boolean).join("");
+  const skillRows = kanban && Array.isArray(todo.kanbanSkills) && todo.kanbanSkills.length
+    ? `<div class="todo-detail-skills">${todo.kanbanSkills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</div>`
+    : "";
+  const resultBlock = kanban && todo.kanbanResult
+    ? `<section class="todo-detail-result"><strong>Kanban result</strong><p>${escapeHtml(todo.kanbanResult)}</p></section>`
+    : "";
+  const commentPanel = kanban && open
+    ? `<form class="todo-comment-panel" data-todo-comment-form="${escapeHtml(todo.id)}">
+      <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写授权范围、限制条件或执行说明"></textarea>
+      <div class="todo-comment-actions">
+        <button type="submit" data-comment-todo="${escapeHtml(todo.id)}">添加评论</button>
+        ${blocked ? `<button type="button" data-comment-unblock-todo="${escapeHtml(todo.id)}">评论并解除阻塞</button>` : ""}
+      </div>
+    </form>`
+    : "";
   return `<article class="todo-detail-card ${escapeHtml(todoStatusLabel(todo))}">
     <div class="todo-detail-head">
       <div>
         <div class="todo-detail-id">${escapeHtml(todo.id)}</div>
-        <h2>${escapeHtml(todo.content || "Todo")}</h2>
+        <h2>${escapeHtml(todo.content || "Kanban card")}</h2>
       </div>
-      <span class="todo-state">${escapeHtml(todoStatusText(todo))}</span>
+      <span class="todo-state status-${escapeHtml(kanbanStatus)}">${escapeHtml(statusText)}</span>
     </div>
-    <div class="todo-detail-grid">
-      <div><strong>负责人</strong><span>${escapeHtml(todo.assigneeLabel || todo.assignee || "")}</span></div>
-      <div><strong>截止</strong><span>${escapeHtml(todoDueLabel(todo))}</span></div>
-      <div><strong>提醒</strong><span>${escapeHtml(String(todo.reminderLeadMinutes || 0))} 分钟前</span></div>
-      <div><strong>重复</strong><span>${escapeHtml(todo.recurrenceLabel || todo.recurrence || "不重复")}</span></div>
-    </div>
+    <div class="todo-detail-grid">${gridItems}</div>
+    ${skillRows}
+    ${resultBlock}
+    ${commentPanel}
     ${open ? `<div class="todo-detail-actions">
       <button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>
+      ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
+      ${kanban && blocked ? `<button type="button" data-unblock-todo="${escapeHtml(todo.id)}">解除阻塞</button>` : ""}
       <button type="button" data-cancel-todo="${escapeHtml(todo.id)}">取消</button>
     </div>
     <div class="todo-postpone-panel">
@@ -8033,6 +8580,19 @@ function wireTodoPanel(root) {
     event.preventDefault();
     createTodoFromForm(root).catch(showError);
   });
+  root.querySelectorAll("[data-kanban-status]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const status = String(button.dataset.kanbanStatus || "").trim().toLowerCase();
+      if (!KANBAN_STATUS_ORDER.includes(status)) return;
+      state.todoKanbanStatus = status;
+      localStorage.setItem("hermesTodoKanbanStatus", status);
+      if (kanbanStatusNeedsCompleted(status) && !state.todoCompletedLoaded) {
+        loadTodos({ includeCompleted: true }).catch(showError);
+        return;
+      }
+      renderTodos();
+    });
+  });
   root.querySelectorAll("[data-todo-id]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedTodoId = button.dataset.todoId || "";
@@ -8055,6 +8615,34 @@ function wireTodoPanel(root) {
       cancelTodo(button.dataset.cancelTodo).catch(showError);
     });
   });
+  root.querySelectorAll("[data-block-todo]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      blockTodo(button.dataset.blockTodo).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-unblock-todo]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      unblockTodo(button.dataset.unblockTodo).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-todo-comment-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = form.dataset.todoCommentForm || form.querySelector("[data-comment-todo]")?.dataset?.commentTodo || "";
+      commentTodo(todoId, form.querySelector("#todoCommentText")?.value || "").catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-comment-unblock-todo]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const form = button.closest("[data-todo-comment-form]") || root;
+      commentAndUnblockTodo(button.dataset.commentUnblockTodo, form.querySelector("#todoCommentText")?.value || "").catch(showError);
+    });
+  });
   root.querySelectorAll("[data-postpone-todo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -8072,7 +8660,9 @@ function wireTodoPanel(root) {
 async function createTodoFromForm(root) {
   const content = root.querySelector("#todoContent")?.value?.trim() || "";
   const dueValue = root.querySelector("#todoDue")?.value || "";
-  if (!content || !dueValue) throw new Error("Todo content and due time are required");
+  const kanban = isKanbanTodoSource();
+  if (!content) throw new Error("Kanban card content is required");
+  if (!kanban && !dueValue) throw new Error("Todo due time is required");
   const dueTime = dueValue.replace("T", " ");
   await api("/api/todos", {
     method: "POST",
@@ -8085,7 +8675,12 @@ async function createTodoFromForm(root) {
       recurrenceDays: root.querySelector("#todoRecurrenceDays")?.value || "",
     }),
   });
+  clearTodoListCache();
   state.todoCreateOpen = false;
+  if (kanban) {
+    state.todoKanbanStatus = "todo";
+    localStorage.setItem("hermesTodoKanbanStatus", "todo");
+  }
   await loadTodos();
 }
 
@@ -8095,28 +8690,98 @@ async function completeTodo(todoId) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   state.selectedTodoId = "";
   await loadTodos();
 }
 
 async function cancelTodo(todoId) {
   if (!todoId) return;
-  if (!window.confirm(`取消待办 ${todoId}？`)) return;
+  if (!window.confirm(`取消看板卡片 ${todoId}？`)) return;
   await api(`/api/todos/${encodeURIComponent(todoId)}/cancel`, {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   state.selectedTodoId = "";
   await loadTodos();
 }
 
+async function blockTodo(todoId) {
+  if (!todoId) return;
+  await api(`/api/todos/${encodeURIComponent(todoId)}/block`, {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      reason: "Blocked from Hermes Mobile Kanban view.",
+    }),
+  });
+  clearTodoListCache();
+  await loadTodos();
+  state.selectedTodoId = todoId;
+  renderTodos();
+}
+
+async function unblockTodo(todoId) {
+  if (!todoId) return;
+  await api(`/api/todos/${encodeURIComponent(todoId)}/unblock`, {
+    method: "POST",
+    body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
+  });
+  clearTodoListCache();
+  await loadTodos();
+  state.selectedTodoId = todoId;
+  renderTodos();
+}
+
+async function commentTodo(todoId, comment) {
+  if (!todoId) return;
+  const text = String(comment || "").trim();
+  if (!text) throw new Error("请先填写评论内容");
+  await api(`/api/todos/${encodeURIComponent(todoId)}/comment`, {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      comment: text,
+    }),
+  });
+  clearTodoListCache();
+  await loadTodos();
+  state.selectedTodoId = todoId;
+  showPushToast("评论已添加", "success");
+  renderTodos();
+}
+
+async function commentAndUnblockTodo(todoId, comment) {
+  if (!todoId) return;
+  const text = String(comment || "").trim();
+  if (!text) throw new Error("请先填写评论内容");
+  await api(`/api/todos/${encodeURIComponent(todoId)}/comment`, {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      comment: text,
+    }),
+  });
+  await api(`/api/todos/${encodeURIComponent(todoId)}/unblock`, {
+    method: "POST",
+    body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
+  });
+  clearTodoListCache();
+  await loadTodos();
+  state.selectedTodoId = todoId;
+  showPushToast("评论已添加，已解除阻塞", "success");
+  renderTodos();
+}
+
 async function deleteTodo(todoId) {
   if (!todoId) return;
-  if (!window.confirm(`删除待办 ${todoId}？`)) return;
+  if (!window.confirm(`删除看板卡片 ${todoId}？`)) return;
   await api(`/api/todos/${encodeURIComponent(todoId)}/delete`, {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   closeTopMoreMenu();
   state.selectedTodoId = "";
   await loadTodos();
@@ -8128,6 +8793,7 @@ async function deleteTodoDirect(todoId) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   if (state.selectedTodoId === todoId) state.selectedTodoId = "";
   await loadTodos();
 }
@@ -8139,6 +8805,7 @@ async function postponeTodo(todoId, dueTime) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, dueTime }),
   });
+  clearTodoListCache();
   await loadTodos();
 }
 
@@ -8298,16 +8965,16 @@ function renderThreads() {
     return;
   }
   if (!state.threads.length) {
-    list.innerHTML = `<div class="empty-state small">${state.viewMode === "single" ? (state.singleWindowMode === "chat" ? "聊天为空。" : "任务流为空。") : "No threads in this project."}</div>`;
+    list.innerHTML = `<div class="empty-state small">${state.viewMode === "single" ? (state.singleWindowMode === "chat" ? "聊天为空。" : "话题流为空。") : "No threads in this project."}</div>`;
     return;
   }
   list.innerHTML = state.threads.map((thread) => {
     const active = thread.id === state.currentThreadId ? " active" : "";
     if (thread.singleWindowTask) {
       return `<button class="thread-card project-task-card${active}" type="button" data-project-task-thread="${escapeHtml(thread.sourceThreadId || "")}" data-project-task-group="${escapeHtml(thread.taskGroupId || "")}">
-        <div class="thread-card-title">${escapeHtml(thread.title || thread.taskGroupId || "Task")}</div>
+        <div class="thread-card-title">${escapeHtml(thread.title || thread.taskGroupId || "Topic")}</div>
         <div class="thread-card-preview">${escapeHtml(thread.preview || "No messages yet")}</div>
-        <div class="thread-card-meta">${escapeHtml(`task | ${thread.status || "idle"} | ${formatTime(thread.updatedAt)}`)}</div>
+        <div class="thread-card-meta">${escapeHtml(`topic | ${thread.status || "idle"} | ${formatTime(thread.updatedAt)}`)}</div>
       </button>`;
     }
     return `<button class="thread-card${active}" type="button" data-thread="${escapeHtml(thread.id)}">
@@ -8324,15 +8991,65 @@ function renderThreads() {
   });
 }
 
-function renderGroupMemberStrip(thread) {
-  const labels = groupChatMemberLabels(thread);
-  if (!labels.length) return "";
-  return `<div class="group-member-strip" aria-label="Group members">
-    ${labels.map((label) => `<span>${escapeHtml(label)}</span>`).join("")}
+function renderChatScopeHeader(thread) {
+  const header = $("chatScopeHeader");
+  if (!header) return;
+  if (!isSingleWindowChatView() || !thread) {
+    header.hidden = true;
+    header.innerHTML = "";
+    return;
+  }
+  ensureChatScopeReadBaselines(thread);
+  markActiveChatScopeRead(thread);
+  const groupSelected = isGroupChatView();
+  const canSelectGroup = groupSelected || groupChatSelectable(thread);
+  const scopeButton = (scope, label, selected, canSelect) => {
+    const unread = selected ? 0 : unreadChatScopeCount(thread, scope);
+    const unreadText = unread > 99 ? "99+" : String(unread);
+    const unreadBadge = unread
+      ? `<span class="chat-scope-header-badge">${escapeHtml(unreadText)}</span>`
+      : "";
+    const ariaLabel = unread ? `${label}\uff0c${unreadText}\u6761\u672a\u8bfb` : label;
+    return `<button class="chat-scope-header-button${selected ? " active" : ""}" type="button" role="tab" aria-selected="${selected ? "true" : "false"}" aria-label="${escapeHtml(ariaLabel)}" data-chat-scope="${escapeHtml(scope)}" ${canSelect ? "" : "disabled"}>
+      ${escapeHtml(label)}${unreadBadge}
+    </button>`;
+  };
+  header.hidden = false;
+  header.innerHTML = `<div class="chat-scope-segment" role="tablist" aria-label="${"\u804a\u5929\u5207\u6362"}">
+    ${scopeButton("chat", "\u804a\u5929", !groupSelected, true)}
+    ${scopeButton("group", "\u7fa4", groupSelected, canSelectGroup)}
+  </div>`;
+  wireChatScopeHeader(header);
+}
+
+function renderChatHistoryPager(thread) {
+  if (!isSingleWindowChatView()) return "";
+  const page = thread?.messagesPage || {};
+  const hasMore = page.hasMoreBefore !== false && Boolean(page.oldestMessageId || page.total > chatMessagesForThread(thread).length);
+  if (!hasMore && !state.olderChatMessagesLoading) return "";
+  return `<div class="chat-history-pager">
+    <button type="button" data-load-older-chat ${state.olderChatMessagesLoading ? "disabled" : ""}>
+      ${state.olderChatMessagesLoading ? "Loading..." : "Load earlier messages"}
+    </button>
   </div>`;
 }
 
+function wireChatHistoryPager(root) {
+  root?.querySelector?.("[data-load-older-chat]")?.addEventListener("click", () => {
+    loadOlderChatMessages().catch(showError);
+  });
+}
+
+function wireChatScopeHeader(root) {
+  root?.querySelectorAll?.("[data-chat-scope]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectChatScope(button.dataset.chatScope).catch(showError);
+    });
+  });
+}
+
 function renderCurrentThread(options = {}) {
+  renderChatScopeHeader(null);
   if (isSkillDetailView()) {
     renderSkillDetailPanel();
     return;
@@ -8374,8 +9091,10 @@ function renderCurrentThread(options = {}) {
   const infoStream = isSingleWindowView();
   const groupChat = isGroupChatView();
   $("threadTitle").textContent = infoStream
-    ? (state.singleWindowMode === "chat" ? (groupChat ? "群聊" : "聊天") : "任务流")
+    ? (state.singleWindowMode === "chat" ? (groupChat ? "群聊" : "聊天") : "话题流")
     : (thread.title || thread.id);
+  renderChatScopeHeader(thread);
+  if (isSingleWindowChatView()) $("threadTitle").textContent = "";
   const project = state.projects.find((item) => item.id === thread.projectId);
   const subproject = (project?.children || []).find((item) => item.id === thread.subprojectId);
   const displayMessages = isSingleWindowChatView() ? chatMessagesForThread(thread) : (thread.messages || []);
@@ -8390,12 +9109,14 @@ function renderCurrentThread(options = {}) {
     ? groupChatMemberLabels(thread).join(" · ")
     : (scope ? `${scope} | session ${thread.hermesSessionId || ""}` : "");
   $("interruptRun").disabled = !activeRuns.length;
+  if (isSingleWindowChatView()) $("threadMeta").textContent = "";
   if (isSingleWindowChatView()) {
     syncChatSearchMatches();
   }
   const progressPanel = renderRunProgressPanel(thread, activeRuns);
-  const groupStrip = groupChat ? renderGroupMemberStrip(thread) : "";
-  conversation.innerHTML = `${groupStrip}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  const historyPager = renderChatHistoryPager(thread);
+  conversation.innerHTML = `${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  wireChatHistoryPager(conversation);
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);
   wireQuoteButtons(conversation);
@@ -8436,15 +9157,15 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     state.currentTaskGroupId = "";
   }
   if (!state.currentTaskGroupId) {
-    $("threadTitle").textContent = "任务列表";
+    $("threadTitle").textContent = "话题列表";
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !allActiveRuns.length;
-    configureComposer({ enabled: true, placeholder: "New task..." });
+    configureComposer({ enabled: true, placeholder: "New topic..." });
     const filterBanner = renderTaskDirectoryFilterBanner();
     const progressPanel = renderRunProgressPanel(thread, allActiveRuns);
     conversation.innerHTML = groups.length
       ? `${filterBanner}${progressPanel}<div class="task-grid">${groups.map(renderTaskCard).join("")}</div>`
-      : `${filterBanner}${progressPanel}<div class="empty-state">${state.taskDirectoryFilter ? "No tasks in this directory." : "No tasks yet. Send a message to create one."}</div>`;
+      : `${filterBanner}${progressPanel}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {
         openTaskGroupFromList(button.dataset.openTask);
@@ -8784,7 +9505,7 @@ function renderTaskDetailToolbar(group) {
       ${skillChips}
     </div>
     <div class="task-more-wrap">
-      <button class="task-more-button" type="button" data-task-more aria-label="Task menu" aria-expanded="false">...</button>
+      <button class="task-more-button" type="button" data-task-more aria-label="Topic menu" aria-expanded="false">...</button>
       <div class="task-more-menu" hidden>
         <button class="task-more-delete" type="button" data-delete-current-task>Delete</button>
       </div>
@@ -8819,20 +9540,20 @@ function renderTaskCard(group) {
   </span>` : "";
   const skillChips = renderTaskSkillChips(skills, { compact: true });
   return `<article class="task-card task-card-collapsed task-swipe-row" data-task-swipe-card data-task-id="${escapeHtml(group.id)}">
-    <button class="task-swipe-delete" type="button" data-delete-task="${escapeHtml(group.id)}" aria-label="Delete task">&#21024;&#38500;</button>
+    <button class="task-swipe-delete" type="button" data-delete-task="${escapeHtml(group.id)}" aria-label="Delete topic">&#21024;&#38500;</button>
     <div class="task-swipe-content" data-task-swipe-content>
       <div class="task-card-menu-wrap">
         <button class="task-card-menu-button" type="button" data-task-card-menu="${escapeHtml(group.id)}" aria-label="更多操作" title="更多操作" aria-expanded="false">&#8942;</button>
         <div class="task-card-menu" hidden>
-          <button class="task-card-menu-item" type="button" data-rename-task="${escapeHtml(group.id)}">修改任务名</button>
+          <button class="task-card-menu-item" type="button" data-rename-task="${escapeHtml(group.id)}">修改话题名</button>
         </div>
       </div>
       <button class="task-card-main" type="button" data-open-task="${escapeHtml(group.id)}">
-        <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled task")}</span>
+        <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled topic")}</span>
         <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}</span>
       </button>
       <div class="task-card-assets">
-        <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Task documents">
+        <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Topic documents">
           ${artifactChips}
         </div>
         ${skillChips}
@@ -8851,7 +9572,7 @@ function quotePreviewForMessage(message, group = null) {
   return compactDisplayText(message?.content || "", 92)
     || taskSummary(group)
     || taskTitle(group)
-    || "Quoted task";
+    || "Quoted topic";
 }
 
 function renderMessageQuoteAction(message) {
@@ -8991,8 +9712,8 @@ function renderQuotedReply() {
   panel.dataset.messageId = quote.messageId || "";
   panel.dataset.taskGroupId = quote.taskGroupId || "";
   panel.innerHTML = `
-    <div class="quoted-reply-text" title="Task ID: ${escapeHtml(quote.label || "task")}">
-      <strong>Task ID: ${escapeHtml(quote.shortLabel || shortTaskDisplayId(quote.label) || "task")}</strong>
+    <div class="quoted-reply-text" title="Topic ID: ${escapeHtml(quote.label || "topic")}">
+      <strong>Topic ID: ${escapeHtml(quote.shortLabel || shortTaskDisplayId(quote.label) || "topic")}</strong>
       <span>${escapeHtml(quote.preview || "")}</span>
     </div>
     <button class="quoted-reply-clear" type="button" aria-label="Clear quoted reply">×</button>
@@ -10030,6 +10751,32 @@ function upsertMessage(message) {
   scheduleRenderCurrentThread();
 }
 
+function upsertCachedChatScopeMessage(threadId, message, threadSummary = null) {
+  if (!threadId || !message) return false;
+  let touched = false;
+  const update = (thread) => {
+    const messages = thread.messages || [];
+    const index = messages.findIndex((item) => item.id === message.id);
+    if (index >= 0) messages[index] = mergeServerMessage(messages[index], message);
+    else messages.push(message);
+    touched = true;
+    return Object.assign({}, thread, threadSummary || {}, {
+      messages: sortedThreadMessages(messages),
+      updatedAt: threadSummary?.updatedAt || message.updatedAt || thread.updatedAt,
+    });
+  };
+  if (state.groupChatThread?.id === threadId) {
+    state.groupChatThread = update(state.groupChatThread);
+    state.groupChatAvailable = true;
+    state.groupChatThreadId = state.groupChatThread.id;
+  }
+  if (state.privateChatThread?.id === threadId) {
+    state.privateChatThread = update(state.privateChatThread);
+  }
+  if (touched && isSingleWindowChatView()) renderChatScopeHeader(state.currentThread);
+  return touched;
+}
+
 function currentThreadHasPendingMessages(thread = state.currentThread) {
   return Boolean(
     thread
@@ -10072,7 +10819,12 @@ async function refreshCurrentThreadFromServer(options = {}) {
     ? Boolean(options.stickToBottom)
     : isNearBottom();
   try {
-    const result = await api(`/api/threads/${encodeURIComponent(threadId)}`);
+    const params = isSingleWindowChatView()
+      ? `?${chatMessagePageParams({ limit: CHAT_MESSAGE_INITIAL_LIMIT })}`
+      : isTaskWindowView()
+        ? `?messageMode=tasks&messageLimit=${TASK_MESSAGE_INITIAL_LIMIT}`
+      : "";
+    const result = await api(`/api/threads/${encodeURIComponent(threadId)}${params}`);
     if ((state.currentThreadId || state.currentThread?.id || "") !== threadId) return;
     state.currentThread = mergeCurrentThread(result.thread);
     state.currentThreadId = state.currentThread?.id || threadId;
@@ -10164,6 +10916,7 @@ function applyEvent(payload) {
     renderCurrentThread({ stickToBottom: false });
     return;
   }
+  if (payload.message) upsertCachedChatScopeMessage(payload.threadId, payload.message, payload.thread);
   if (payload.message && state.currentThread && payload.threadId === state.currentThread.id) {
     upsertMessage(payload.message);
     if (payload.thread) {
@@ -10237,7 +10990,7 @@ async function sendMessage(event) {
   }
   if (ownerElevationOnceTag) {
     clearOwnerElevationOnce();
-    const ok = await activateOwnerElevationOnce();
+    const ok = await activateOwnerElevationOnce({ confirm: false });
     if (!ok) return;
     ownerElevationOnceRequested = true;
   }
@@ -10263,6 +11016,7 @@ async function sendMessage(event) {
         body.taskGroupId = isGroupChatView()
           ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
           : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+        body.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT;
       }
       if (isGroupChatView()) body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
     }
@@ -10921,7 +11675,6 @@ function renderGroupMentionMenu() {
   menu.innerHTML = options.map((member, index) => `
     <button class="group-mention-option${index === state.groupMentionIndex ? " active" : ""}" type="button" data-group-mention-index="${index}">
       <span class="group-mention-name">${escapeHtml(member.mentionText || `@${member.label}`)}</span>
-      <span class="group-mention-id">${escapeHtml(member.description || member.workspaceId)}</span>
     </button>`).join("");
 }
 
@@ -11082,6 +11835,10 @@ function wireUi() {
     clearQuotedReply({ render: false });
     clearTaskDirectoryFilter({ render: false });
     state.selectedWorkspaceId = event.target.value;
+    state.privateChatThread = null;
+    state.groupChatThread = null;
+    state.groupChatThreadId = "";
+    state.groupChatAvailable = false;
     localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
     renderWorkspaceAccessPanel();
     state.directoryThreadId = "";
@@ -11320,8 +12077,19 @@ function wireUi() {
     if (!option) return;
     event.preventDefault();
     event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    suppressTransientActivations(700);
     void chooseGroupMention(Number(option.dataset.groupMentionIndex || 0));
   });
+  $("groupMentionMenu")?.addEventListener("pointerup", (event) => {
+    if (transientActivationSuppressed()) suppressTransientActivationEvent(event);
+  }, { capture: true });
+  $("groupMentionMenu")?.addEventListener("touchend", (event) => {
+    if (transientActivationSuppressed()) suppressTransientActivationEvent(event);
+  }, { capture: true, passive: false });
+  $("groupMentionMenu")?.addEventListener("click", (event) => {
+    if (transientActivationSuppressed()) suppressTransientActivationEvent(event);
+  }, { capture: true });
   $("interruptRun").addEventListener("click", interruptRun);
   $("messageInput").addEventListener("input", (event) => {
     autoSizeComposerEditor(event.target);
@@ -11370,12 +12138,17 @@ function wireUi() {
     if ($("composer")?.contains(event.target)) return;
     closeGroupMentionMenu();
   });
+  document.addEventListener("click", (event) => {
+    suppressTransientActivationEvent(event);
+  }, { capture: true });
   document.addEventListener("pointerup", (event) => {
+    if (suppressTransientActivationEvent(event)) return;
     if (event.pointerType === "mouse") return;
     if (handleTopNavActivation(event, { fromHitZone: true })) return;
     handleAttachFileActivation(event, { fromHitZone: true });
   }, { capture: true });
   document.addEventListener("touchend", (event) => {
+    if (suppressTransientActivationEvent(event)) return;
     if (window.PointerEvent) return;
     if (handleTopNavActivation(event, { fromHitZone: true })) return;
     handleAttachFileActivation(event, { fromHitZone: true });

@@ -39,6 +39,7 @@ function createTodoProvider(options = {}) {
     const workspaceId = args.workspaceId || "owner";
     const result = await runBridge({
       action: "list",
+      workspace_id: workspaceId,
       source_principal: workspacePrincipal(workspaceId),
       scope: args.scope || "mine",
       include_completed: Boolean(args.includeCompleted),
@@ -65,6 +66,7 @@ function createTodoProvider(options = {}) {
     const suppressExternalNotice = args.suppressExternalNotice ?? args.suppress_external_notice ?? args.suppressWeixinNotice;
     return runBridge({
       action: "add",
+      workspace_id: workspaceId,
       source_principal: workspacePrincipal(workspaceId),
       assignee: args.assignee || "",
       content: args.content || "",
@@ -80,14 +82,21 @@ function createTodoProvider(options = {}) {
 
   function mutateTodo(args = {}) {
     const workspaceId = args.workspaceId || "owner";
-    return runBridge({
+    const payload = {
       action: args.action || "",
+      workspace_id: workspaceId,
       source_principal: workspacePrincipal(workspaceId),
       todo_id: args.todoId || args.todo_id || "",
       assignee: args.assignee || "",
       recurrence_scope: args.recurrenceScope || args.recurrence_scope || "one",
       due_time: args.dueTime || args.due_time || "",
-    });
+      reason: args.reason || "",
+    };
+    const comment = String(args.comment || args.text || "").trim();
+    if (comment) payload.comment = comment;
+    const author = String(args.author || "").trim();
+    if (author) payload.author = author;
+    return runBridge(payload);
   }
 
   function pendingPushes(args = {}) {

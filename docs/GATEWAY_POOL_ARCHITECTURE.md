@@ -112,10 +112,15 @@ Low-privilege `securityLevel=user` workers must also expose a narrow
 `api_server` platform toolset. Manifest labels decide which worker may be
 selected, but labels alone are not a capability boundary. A user worker profile
 should explicitly omit developer/cross-boundary toolsets such as `terminal`,
-`process`, `code_execution`, `delegation`, `cronjob`, `git`, `source`, `codex`,
+`process`, `code_execution`, `delegation`, `git`, `source`, `codex`,
 and broad MCP exposure. Owner-maintenance profiles may retain those toolsets,
 but only workers labeled `securityLevel=owner-maintenance` and selected through
 an explicit Owner elevation path should use them.
+
+The low-privilege `skills` toolset is allowed only for the current
+account/workspace's profile-local Skill store selected by `skillProfile`. It is
+not permission to write the shared/global Skill store, the Owner full Skill
+store, or another account's Skill store.
 
 ## Scheduler Contract
 

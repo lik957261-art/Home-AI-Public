@@ -61,7 +61,7 @@ assert.match(appJs, /data-update-available/);
 
 assert.match(stylesCss, /\.group-mention-menu[\s\S]+max-height: min\(360px/);
 assert.match(stylesCss, /@media \(max-width: 760px\)[\s\S]+\.group-mention-menu[\s\S]+max-height: min\(340px/);
-assert.match(stylesCss, /\.automation-card-title \{[\s\S]*?font-weight: 700;/);
+assert.match(stylesCss, /\.automation-card-title \{[\s\S]*?font-weight: 600;/);
 assert.match(stylesCss, /\.automation-doc-name \{[\s\S]*?font-weight: 500;/);
 assert.match(stylesCss, /\.automation-doc-label \{[\s\S]*?font-weight: 500;/);
 assert.match(stylesCss, /\.automation-state-time \{[\s\S]*?font-weight: 500;/);
