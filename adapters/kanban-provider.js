@@ -463,7 +463,6 @@ function createKanbanTodoBridge(options = {}) {
     const workspaceId = String(payload.workspace_id || payload.workspaceId || source).trim() || source;
     const dueAt = parseDue(payload.due_time);
     if (!content) return { ok: false, error: "Todo content is required" };
-    if (!dueAt) return { ok: false, error: "Todo due time is required" };
     const board = await ensureBoard(payload);
     const now = nowIso();
     const assignee = String(payload.assignee || source).trim() || source;
@@ -476,8 +475,8 @@ function createKanbanTodoBridge(options = {}) {
       assigneeLabel: String(payload.assignee_label || assignee),
       kanbanAssignee,
       createdBy: source,
-      dueAt,
-      dueLocal: dueLocal(dueAt),
+      dueAt: dueAt || "",
+      dueLocal: dueAt ? dueLocal(dueAt) : "",
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
       reminderLeadMinutes: Number(payload.reminder_lead_minutes || 0) || 0,
       recurrence: String(payload.recurrence || "none"),

@@ -95,6 +95,17 @@ async function run() {
   assert.equal(listed.todos[0].id, "t_created");
   assert.equal(listed.todos[0].due_local.startsWith("2026-05-10"), true);
 
+  const createdWithoutDue = await provider.run({
+    action: "add",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    assignee: "weixin_stephen",
+    content: "No due Kanban card",
+  });
+  assert.equal(createdWithoutDue.ok, true);
+  assert.equal(createdWithoutDue.due_at, "");
+  assert.equal(createdWithoutDue.due_local, "");
+
   const completed = await provider.run({
     action: "complete",
     workspace_id: "weixin_stephen",

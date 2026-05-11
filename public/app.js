@@ -8542,7 +8542,9 @@ function wireTodoPanel(root) {
 async function createTodoFromForm(root) {
   const content = root.querySelector("#todoContent")?.value?.trim() || "";
   const dueValue = root.querySelector("#todoDue")?.value || "";
-  if (!content || !dueValue) throw new Error("Kanban card content and due time are required");
+  const kanban = isKanbanTodoSource();
+  if (!content) throw new Error("Kanban card content is required");
+  if (!kanban && !dueValue) throw new Error("Todo due time is required");
   const dueTime = dueValue.replace("T", " ");
   await api("/api/todos", {
     method: "POST",
@@ -8556,6 +8558,10 @@ async function createTodoFromForm(root) {
     }),
   });
   state.todoCreateOpen = false;
+  if (kanban) {
+    state.todoKanbanStatus = "todo";
+    localStorage.setItem("hermesTodoKanbanStatus", "todo");
+  }
   await loadTodos();
 }
 
