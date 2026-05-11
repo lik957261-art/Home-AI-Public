@@ -286,7 +286,21 @@ async function main() {
       connectorProfiles: { email: "demo-admin-user" },
     }));
     assert.equal(patched.workspace.label, "Demo Admin Edited");
-    assert.deepEqual(patched.workspace.localConfig.allowedToolsets, ["mail", "web", "file", "skills", "todo", "kanban", "cronjob", "hermes-email"]);
+    assert.deepEqual(patched.workspace.localConfig.allowedToolsets, [
+      "mail",
+      "web",
+      "file",
+      "vision",
+      "image_gen",
+      "skills",
+      "todo",
+      "kanban",
+      "cronjob",
+      "memory",
+      "session_search",
+      "clarify",
+      "hermes-email",
+    ]);
     assert.deepEqual(patched.workspace.localConfig.connectorProfiles, { email: "demo-admin-user" });
 
     const revoked = await request(baseUrl, "/api/access-keys/workspace/demo-admin-user", jsonOptions("DELETE", ownerKey, {}));

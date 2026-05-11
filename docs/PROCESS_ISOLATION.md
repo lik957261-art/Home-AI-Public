@@ -105,10 +105,11 @@ automation-management tools. Hermes Mobile also sends an explicit safe
 `allowed_toolsets` list per ordinary run, but the profile toolset should be a
 second boundary. The low-permission `file` capability is limited by
 `access_policy_context` roots; it must not expose source checkouts, runtime
-state, worker manifests, or secret files. If the profile exposes `skills`, it
-should resolve to the current account/workspace's profile-local Skill store plus
-approved shared Skills only, not to another account's store or an Owner full
-store.
+state, worker manifests, or secret files. The low-permission `vision` capability
+is limited to OCR, document-image extraction, and visual analysis of in-scope
+files. If the profile exposes `skills`, it should resolve to the current
+account/workspace's profile-local Skill store plus approved shared Skills only,
+not to another account's store or an Owner full store.
 
 ## macOS
 

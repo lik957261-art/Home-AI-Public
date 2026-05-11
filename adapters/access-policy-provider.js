@@ -4,7 +4,19 @@ function defaultDedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
-const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze(["web", "file", "skills", "todo", "kanban", "cronjob"]);
+const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze([
+  "web",
+  "file",
+  "vision",
+  "image_gen",
+  "skills",
+  "todo",
+  "kanban",
+  "cronjob",
+  "memory",
+  "session_search",
+  "clarify",
+]);
 
 function createAccessPolicyProvider(options = {}) {
   const dedupe = options.dedupe || defaultDedupe;

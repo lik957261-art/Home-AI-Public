@@ -77,10 +77,15 @@ function run() {
   });
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("web"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("file"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("vision"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("image_gen"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("skills"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("todo"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("kanban"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("cronjob"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("memory"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("session_search"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("clarify"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("terminal"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("code_execution"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("cron"));
@@ -125,6 +130,8 @@ function run() {
   assert.match(permissionInstructions, /access_policy_context/);
   assert.match(permissionInstructions, /Web Search is ordinary low-permission work/);
   assert.match(permissionInstructions, /File reads and writes inside the current allowed roots are ordinary low-permission work/);
+  assert.match(permissionInstructions, /OCR, document-image extraction, and visual analysis/);
+  assert.match(permissionInstructions, /Image generation or image editing requested by the current account/);
   assert.match(permissionInstructions, /documented Program API operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /profile-local Skill read\/create\/update operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /Kanban\/Todo operations are ordinary low-permission work/);
@@ -137,6 +144,8 @@ function run() {
   assert.ok(fs.existsSync(skillPath));
   assert.match(fs.readFileSync(skillPath, "utf8"), /Public Web Search and public web extraction are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /File reads and writes inside the current run's allowed roots are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /OCR, document-image extraction, and visual analysis of files inside the current run's allowed roots are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Image generation and image editing requested by the current account are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /documented Program API reads and writes are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /profile-local Skill read, creation, and update operations are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Automation\/CRON list, job creation, update, pause, resume, and manual run operations are \*\*Allowed\*\*/);
