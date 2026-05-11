@@ -65,17 +65,48 @@ function Ensure-LowGatewayProfileEnv {
   $scriptPath = Join-Path $GatewayWorkerRoot "start-low-gateways.sh"
   if (-not (Test-Path -LiteralPath $scriptPath)) { return }
   $text = Get-Content -Raw -LiteralPath $scriptPath
-  if ($text -match "HERMES_GOOGLE_PROFILE_HOME") { return }
-  $needle = 'HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
-  $replacement = 'HERMES_PROFILE="$profile" HERMES_GOOGLE_PROFILE_HOME="/home/hermes/.hermes/profiles/$profile" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
-  if (-not $text.Contains($needle)) {
-    Write-GatewayPoolLog "Low gateway profile env patch skipped; start script shape is unknown."
-    return
+  $updated = $text
+  if ($updated -notmatch "HERMES_GOOGLE_PROFILE_HOME") {
+    $needle = 'HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
+    $replacement = 'HERMES_PROFILE="$profile" HERMES_GOOGLE_PROFILE_HOME="/home/hermes/.hermes/profiles/$profile" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
+    if (-not $updated.Contains($needle)) {
+      Write-GatewayPoolLog "Low gateway profile env patch skipped; start script shape is unknown."
+      return
+    }
+    $updated = $updated.Replace($needle, $replacement)
   }
-  $updated = $text.Replace($needle, $replacement)
+  if ($updated -notmatch "/opt/hermes-gateway-runtime/bin/hermes") {
+    $bootstrapNeedle = 'low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"'
+    $bootstrap = @'
+runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
+runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
+runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
+runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
+install -d -m 755 "$runtime_bin"
+cat > "$runtime_bin/hermes" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export PYTHONPATH="$runtime_source\${PYTHONPATH:+:\$PYTHONPATH}"
+exec "$runtime_python" -m hermes_cli.main "\$@"
+EOF
+chmod 755 "$runtime_bin/hermes"
+
+low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+'@
+    if (-not $updated.Contains($bootstrapNeedle)) {
+      Write-GatewayPoolLog "Low gateway hermes shim patch skipped; start script shape is unknown."
+      return
+    }
+    $updated = $updated.Replace($bootstrapNeedle, $bootstrap + $bootstrapNeedle)
+  }
+  if ($updated -notmatch 'PATH="\$low_gateway_path"') {
+    $updated = $updated.Replace('HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"', 'PATH="$low_gateway_path" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"')
+  }
+  if ($updated -eq $text) { return }
   $encoding = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($scriptPath, $updated, $encoding)
-  Write-GatewayPoolLog "Low gateway profile env patched for profile-local connector credentials."
+  Write-GatewayPoolLog "Low gateway profile env patched for profile-local credentials and Kanban hermes shim."
 }
 
 function Start-LowGateways {
