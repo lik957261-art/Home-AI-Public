@@ -4,7 +4,7 @@ function defaultDedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
-const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze(["web", "todo", "kanban"]);
+const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze(["web", "todo", "kanban", "cronjob"]);
 
 function createAccessPolicyProvider(options = {}) {
   const dedupe = options.dedupe || defaultDedupe;

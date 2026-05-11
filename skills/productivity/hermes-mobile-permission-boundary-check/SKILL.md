@@ -47,6 +47,7 @@ In a restricted run:
 - Public Web Search and public web extraction are **Allowed** when the run has the `web` toolset. Do not request Owner elevation just to search or extract public web information.
 - The current account/workspace's own Kanban/Todo list, card creation, card status changes, block/unblock, and reminder metadata are **Allowed** when the run has the `todo` or `kanban` toolset. This is normal low-permission work and does not require Owner elevation.
 - Use Hermes Mobile's Todo/Kanban integration for those operations. Do not run a raw `hermes kanban` CLI command or write directly under `~/.hermes/kanban`, because that can create cards in the wrong local profile/storage namespace.
+- The current account/workspace's own Automation/CRON list, job creation, update, pause, resume, and manual run operations are **Allowed** when the run has the `cronjob` toolset. Cross-account automation management still needs Owner elevation.
 - Do not read, summarize, search, create, modify, copy, move, or delete files outside the allowed roots.
 - Do not search a broad drive such as `C:\`, `/mnt/c`, `/home`, or `/volume1` to compensate for a missing permission root.
 - Do not create placeholder files, placeholder Skills, or "future" results when an exact path is outside scope or not found.

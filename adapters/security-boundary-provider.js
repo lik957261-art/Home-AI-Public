@@ -99,6 +99,7 @@ const SAFE_RESTRICTED_TOOLSETS = Object.freeze([
   "skills",
   "todo",
   "kanban",
+  "cronjob",
   "memory",
   "session_search",
   "clarify",
@@ -125,11 +126,10 @@ const DEVELOPER_TOOLSETS = Object.freeze([
   "delegate",
   "delegate_task",
   "cron",
-  "cronjob",
   "mcp",
 ]);
 
-const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|cron|cronjob|mcp)(?:$|[-_])/i;
+const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|cron|mcp)(?:$|[-_])/i;
 const PERMISSION_BOUNDARY_SKILL = "productivity/hermes-mobile-permission-boundary-check";
 const PERMISSION_APPROVAL_MARKER = "HERMES_PERMISSION_APPROVAL_REQUIRED";
 
@@ -141,6 +141,7 @@ function permissionBoundarySkillInstructions(policy = {}) {
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "Web Search is ordinary low-permission work when the run has the web toolset; do not ask for Owner elevation just to search or extract public web information.",
     "The current account's own Kanban/Todo operations are ordinary low-permission work when the run has the todo or kanban toolset; use that Mobile integration instead of shelling out to a raw hermes kanban CLI.",
+    "The current account's own Automation/CRON job operations are ordinary low-permission work when the run has the cronjob toolset; cross-account automation management still needs Owner elevation.",
     "If the request needs a path, Skill store, account, toolset, or external integration outside this run's access_policy_context, stop before tool calls and say that the request is outside the current permission scope.",
     `When the pre-flight decision is Needs elevation, start the final response with exactly: ${PERMISSION_APPROVAL_MARKER} {"scope":"owner_high_privilege","reason":"short reason"}`,
     "Do not use that marker for Must fail closed, clarification questions, or normal missing-file failures inside the allowed roots.",

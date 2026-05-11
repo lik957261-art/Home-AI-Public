@@ -154,8 +154,8 @@ Public release 应包含以下行为：
 
 - 强制普通 run 的 `can_delegate_codex=false`。
 - 强制普通 run 的 `allow_shell=false`。
-- 从 `allowed_toolsets` 中过滤 `codex`、`shell`、`terminal`、`cmd`、`powershell`、`bash`、`git`、`developer`、`source`、`process`、`code_execution`、`delegation`、`cronjob`、`mcp` 等开发或跨边界工具集。
-- 当普通 run 的 policy 没有显式 `allowed_toolsets` 时，Hermes Mobile 必须写入自己的安全白名单，而不能依赖 Gateway 的默认 restricted toolsets。默认白名单只应包含普通任务能力，例如 `web`、`file`、`vision`、`image_gen`、`skills`、`todo`、`memory`、`session_search`、`clarify`。
+- 从 `allowed_toolsets` 中过滤 `codex`、`shell`、`terminal`、`cmd`、`powershell`、`bash`、`git`、`developer`、`source`、`process`、`code_execution`、`delegation`、`mcp` 等开发或跨边界工具集。
+- 当普通 run 的 policy 没有显式 `allowed_toolsets` 时，Hermes Mobile 必须写入自己的安全白名单，而不能依赖 Gateway 的默认 restricted toolsets。默认白名单只应包含普通任务能力，例如 `web`、`file`、`vision`、`image_gen`、`skills`、`todo`、`kanban`、`cronjob`、`memory`、`session_search`、`clarify`。`cronjob` 只表示当前账号/工作区自己的自动化任务能力；跨账号自动化管理仍需 Owner 提权。
 - 将这些工具集加入 `blocked_toolsets`。
 - 过滤受保护路径，包括源代码目录、运行配置、密钥文件、SQLite/JSON 状态、worker manifest、Hermes home、token 文件和 operator-only 目录。
 

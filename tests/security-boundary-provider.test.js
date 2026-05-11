@@ -54,19 +54,19 @@ function run() {
       "/Users/alice/HermesDrive",
       "/home/example/.hermes/run-logs",
     ],
-    allowed_toolsets: ["web", "git", "shell", "todo"],
+    allowed_toolsets: ["web", "git", "shell", "todo", "cronjob"],
     allow_shell: true,
     can_delegate_codex: true,
   });
 
   assert.strictEqual(policy.access_mode, "restricted");
   assert.deepStrictEqual(policy.allowed_roots, ["/Users/alice/HermesDrive", "/home/example/.hermes/run-logs"]);
-  assert.deepStrictEqual(policy.allowed_toolsets, ["web", "todo"]);
+  assert.deepStrictEqual(policy.allowed_toolsets, ["web", "todo", "cronjob"]);
   assert.strictEqual(policy.allow_shell, false);
   assert.strictEqual(policy.can_delegate_codex, false);
   assert.ok(policy.blocked_toolsets.includes("codex"));
   assert.ok(policy.blocked_toolsets.includes("code_execution"));
-  assert.ok(policy.blocked_toolsets.includes("cronjob"));
+  assert.ok(!policy.blocked_toolsets.includes("cronjob"));
   assert.ok(!policy.allowed_toolsets.includes("terminal"));
   assert.ok(!policy.allowed_toolsets.includes("code_execution"));
 
@@ -79,9 +79,10 @@ function run() {
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("file"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("todo"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("kanban"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("cronjob"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("terminal"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("code_execution"));
-  assert.ok(!defaultToolPolicy.allowed_toolsets.includes("cronjob"));
+  assert.ok(!defaultToolPolicy.allowed_toolsets.includes("cron"));
 
   const maintenancePolicy = provider.hardenAccessPolicy({
     principal_id: "owner",
@@ -123,6 +124,7 @@ function run() {
   assert.match(permissionInstructions, /access_policy_context/);
   assert.match(permissionInstructions, /Web Search is ordinary low-permission work/);
   assert.match(permissionInstructions, /Kanban\/Todo operations are ordinary low-permission work/);
+  assert.match(permissionInstructions, /Automation\/CRON job operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
   assert.match(provider.permissionBoundarySkillInstructions({ access_mode: "restricted" }), /mandatory pre-flight/);
   assert.strictEqual(permissionBoundarySkillInstructions({ access_mode: "unrestricted" }), "");
@@ -130,6 +132,7 @@ function run() {
   const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");
   assert.ok(fs.existsSync(skillPath));
   assert.match(fs.readFileSync(skillPath, "utf8"), /Public Web Search and public web extraction are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Automation\/CRON list, job creation, update, pause, resume, and manual run operations are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Do not search a broad drive/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Do not run a raw `hermes kanban` CLI command/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /HERMES_PERMISSION_APPROVAL_REQUIRED/);

@@ -35,7 +35,7 @@ function testRestrictedPolicyMergesRootsAndDelivery() {
   assert.deepEqual(policy.allowed_roots, ["/workspace/a", "/workspace/b", "/project/a", "/shared/a"]);
   assert.deepEqual(policy.delivery_roots, ["/delivery/a", "/sync/a", "/download/a"]);
   assert.deepEqual(policy.cache_roots, ["/cache/a", "/data/uploads"]);
-  assert.deepEqual(policy.allowed_toolsets, ["web", "todo", "kanban"]);
+  assert.deepEqual(policy.allowed_toolsets, ["web", "todo", "kanban", "cronjob"]);
   assert.equal(policy.source_platform, "web");
   assert.equal(policy.source_chat_id, "project-a");
   assert.equal(policy.source_chat_id_alt, "account-1");
@@ -69,7 +69,7 @@ function testRestrictedPolicyAddsWebSearchByDefault() {
     default_workspace: "/workspace/b",
   }, {}, null);
 
-  assert.deepEqual(policy.allowed_toolsets, ["web", "todo", "kanban"]);
+  assert.deepEqual(policy.allowed_toolsets, ["web", "todo", "kanban", "cronjob"]);
 }
 
 function testSanitizeTypes() {
