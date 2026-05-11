@@ -121,6 +121,32 @@ function Start-LowGateways {
   if ($LASTEXITCODE -ne 0) { throw "Low gateway pool start failed with exit code $LASTEXITCODE" }
 }
 
+function Check-LowGatewayCodexAuth {
+  $checkScript = Join-Path $GatewayWorkerRoot "check-worker-codex-auth.ps1"
+  if (-not (Test-Path -LiteralPath $checkScript)) {
+    Write-GatewayPoolLog "Low gateway Codex auth check skipped; check script missing."
+    return
+  }
+  $args = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $checkScript,
+    "-WorkerRunAsScript", (Join-Path $GatewayWorkerRoot "run-as-worker.ps1"),
+    "-WorkerDirectory", $GatewayWorkerRoot
+  )
+  $requireUnique = [Environment]::GetEnvironmentVariable("HERMES_LOW_GATEWAY_REQUIRE_UNIQUE_CODEX_AUTH")
+  if ($requireUnique -match "^(1|true|yes|on)$") { $args += "-RequireUniqueRefreshTokens" }
+  Write-GatewayPoolLog "Checking low gateway Codex auth fingerprints."
+  $output = & powershell.exe @args 2>&1
+  foreach ($line in $output) { Write-GatewayPoolLog ("codex-auth: {0}" -f $line) }
+  if ($LASTEXITCODE -ne 0) {
+    if ($requireUnique -match "^(1|true|yes|on)$") {
+      throw "Low gateway Codex auth check failed with exit code $LASTEXITCODE"
+    }
+    Write-GatewayPoolLog "Low gateway Codex auth check reported warnings; continuing because strict uniqueness is not enabled."
+  }
+}
+
 function Provision-OwnerExternalConnectors {
   $provisionScript = Join-Path $GatewayWorkerRoot "provision-worker-external-connectors.ps1"
   $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
@@ -206,6 +232,7 @@ function Start-OwnerMaintenanceGateways {
 
 Write-GatewayPoolLog "Gateway pool startup begin."
 Provision-OwnerExternalConnectors
+Check-LowGatewayCodexAuth
 Start-LowGateways
 Start-OwnerMaintenanceGateways | Out-Null
 

@@ -21,6 +21,8 @@ const runKanbanGatewayWorkerChild = read(path.join("scripts", "run-kanban-gatewa
 const runKanbanGatewayWorkerShell = read(path.join("scripts", "run-kanban-gateway-worker.sh"));
 const startCronTickSidecar = read(path.join("scripts", "start-cron-tick-sidecar.ps1"));
 const runCronTickSidecar = read(path.join("scripts", "run-cron-tick-sidecar.ps1"));
+const configureLowGateways = read(path.join("scripts", "configure-low-gateways.sh"));
+const checkWorkerCodexAuth = read(path.join("scripts", "check-worker-codex-auth.ps1"));
 
 assert.match(startHermesWeb, /function Test-HermesWebHttpHealth/);
 assert.match(startHermesWeb, /did not open a responsive Hermes Mobile HTTP endpoint/);
@@ -52,6 +54,7 @@ assert.doesNotMatch(server, /setTimeout\(tick, 8000\)/);
 assert.doesNotMatch(server, /setTimeout\(tick, 12000\)/);
 
 assert.match(startGatewayPool, /function Start-LowGateways/);
+assert.match(startGatewayPool, /function Check-LowGatewayCodexAuth/);
 assert.match(startGatewayPool, /function Provision-OwnerExternalConnectors/);
 assert.match(startGatewayPool, /function Start-OwnerMaintenanceGateways/);
 assert.match(startGatewayPool, /function Resolve-ConnectorPath/);
@@ -65,7 +68,11 @@ assert.match(startGatewayPool, /PATH="\$low_gateway_path"/);
 assert.match(startGatewayPool, /google_token\.json/);
 assert.match(startGatewayPool, /google_client_secret\.json/);
 assert.match(startGatewayPool, /microsoft-graph-outlook-mail\\token\.json/);
-assert.match(startGatewayPool, /Provision-OwnerExternalConnectors\s*\r?\nStart-LowGateways/);
+assert.match(startGatewayPool, /Provision-OwnerExternalConnectors\s*\r?\nCheck-LowGatewayCodexAuth/);
+assert.match(startGatewayPool, /HERMES_LOW_GATEWAY_REQUIRE_UNIQUE_CODEX_AUTH/);
+assert.match(startGatewayPool, /check-worker-codex-auth\.ps1/);
+assert.match(startGatewayPool, /codex-auth:/);
+assert.match(startGatewayPool, /Check-LowGatewayCodexAuth\s*\r?\nStart-LowGateways/);
 assert.match(startGatewayPool, /\$env:API_SERVER_KEY = \$apiKey/);
 assert.match(startGatewayPool, /\$env:WSLENV = "API_SERVER_KEY\/u"/);
 assert.match(startGatewayPool, /PYTHONPATH=\$officialCleanRoot/);
@@ -141,5 +148,19 @@ assert.match(runCronTickSidecar, /HERMES_HOME=\$HermesHome/);
 assert.match(runCronTickSidecar, /PYTHONPATH=\$pythonPath/);
 assert.match(runCronTickSidecar, /Select-Object -Last \$maxLines/);
 assert.doesNotMatch(runCronTickSidecar, /gateway", "run"/);
+
+assert.match(configureLowGateways, /profile_auth_seed_root/);
+assert.match(configureLowGateways, /profile_seed="\$profile_auth_seed_root\/\$\{profile\}\/auth\.json"/);
+assert.match(configureLowGateways, /Missing profile-local Codex auth/);
+assert.match(configureLowGateways, /HERMES_LOW_GATEWAY_ALLOW_SHARED_AUTH_SEED/);
+assert.doesNotMatch(configureLowGateways, /cp\s+\/home\/hermes\/\.hermes\/auth\.json\s+"\$profile_link\/auth\.json"/);
+
+assert.match(checkWorkerCodexAuth, /RequireUniqueRefreshTokens/);
+assert.match(checkWorkerCodexAuth, /WSLENV = "HERMES_CHECK_PROFILES\/u:HERMES_REQUIRE_UNIQUE_REFRESH_TOKENS\/u"/);
+assert.match(checkWorkerCodexAuth, /exit `\$LASTEXITCODE/);
+assert.match(checkWorkerCodexAuth, /duplicate-refresh/);
+assert.match(checkWorkerCodexAuth, /hashlib\.sha256\(refresh\.encode\(\)\)\.hexdigest\(\)\[:12\]/);
+assert.match(checkWorkerCodexAuth, /Worker child failed with exit code/);
+assert.doesNotMatch(checkWorkerCodexAuth, /print\(.*refresh_token/);
 
 console.log("startup scripts tests passed");
