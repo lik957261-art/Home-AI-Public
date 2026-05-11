@@ -13,17 +13,17 @@ function testSharedRootLabels() {
     shared: true,
     label: "Household",
     root: "/volume1/Hermes-Alice/Household",
-  }), "Hermes-Alice · Household");
+  }), "Household");
   assert.equal(provider.sharedProjectDisplayLabel({
     shared: true,
     label: "Family",
     root: "/mnt/c/Example/SynologyDrive/ChatGPT-Drive/Family",
-  }), "Hermes Owner · Family");
+  }), "Family");
   assert.equal(provider.sharedProjectDisplayLabel({
     shared: true,
     label: "Shared",
     createdByLabel: "Alice",
-  }), "Alice · Shared");
+  }), "Shared");
 }
 
 function testDirectoryAndFallbackLabels() {
@@ -36,7 +36,7 @@ function testDirectoryAndFallbackLabels() {
   assert.equal(provider.directoryRouteDisplayLabel(
     { shared: true, label: "Project", root: "/volume1/Hermes-A/Project" },
     { label: "Sub" },
-  ), "Hermes-A · Project / Sub");
+  ), "Project / Sub");
   assert.equal(provider.logicalUserPathFallback("D:\\Work\\Hermes-Drive\\Health\\Report.pdf"), "Health / Report.pdf");
   assert.equal(provider.logicalUserPathFallback("/srv/example/random/file.txt", "Fallback"), "Fallback");
 }

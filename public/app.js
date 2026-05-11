@@ -6010,10 +6010,7 @@ function sharedProjectRootOwnerLabel(project) {
 }
 
 function projectDisplayLabel(project) {
-  const label = project?.label || project?.id || "Project";
-  if (!isSharedProject(project)) return label;
-  const ownerLabel = sharedProjectRootOwnerLabel(project) || sharedProjectOwnerLabel(project);
-  return ownerLabel ? `${ownerLabel} · ${label}` : label;
+  return project?.label || project?.id || "Project";
 }
 
 function routeLabelParts(label) {
@@ -6555,8 +6552,9 @@ function orderDirectoryRootProjects(projects) {
   return (projects || [])
     .map((project, index) => ({ project, index }))
     .sort((a, b) => {
-      const sharedDelta = Number(isDirectorySharedRootProject(b.project)) - Number(isDirectorySharedRootProject(a.project));
-      return sharedDelta || a.index - b.index;
+      const labelDelta = String(directoryRootProjectLabel(a.project))
+        .localeCompare(String(directoryRootProjectLabel(b.project)), "zh-Hans-CN", { numeric: true, sensitivity: "base" });
+      return labelDelta || a.index - b.index;
     })
     .map((item) => item.project);
 }
@@ -6580,6 +6578,10 @@ function directoryRootProjectLabel(project) {
   if (project?.id === "sync") return "同步文件夹";
   if (project?.id === "download") return "下载";
   return projectDisplayLabel(project);
+}
+
+function renderDirectorySharedBadge(project) {
+  return isDirectorySharedRootProject(project) ? `<span class="directory-shared-badge">共享</span>` : "";
 }
 
 function isShareableRootProject(project) {
@@ -6634,7 +6636,7 @@ function renderDirectoryProjectEntries() {
       <button class="directory-entry-main" type="button" data-open-project-directory="${escapeHtml(project.id || "")}">
         <span class="directory-entry-icon" aria-hidden="true"></span>
         <span class="directory-entry-text">
-          <span class="directory-entry-name">${escapeHtml(directoryRootProjectLabel(project))}</span>
+          <span class="directory-entry-name">${renderDirectorySharedBadge(project)}<span class="directory-entry-label">${escapeHtml(directoryRootProjectLabel(project))}</span></span>
         </span>
         <span class="directory-entry-chevron">›</span>
       </button>

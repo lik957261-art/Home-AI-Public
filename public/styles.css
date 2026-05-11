@@ -4376,22 +4376,7 @@ button.directory-alias-chip {
 }
 
 .directory-entry.shared-root {
-  background: linear-gradient(90deg, rgba(93, 84, 72, 0.10), rgba(255, 252, 246, 0.74));
-  border-color: rgba(93, 84, 72, 0.16);
-}
-
-.directory-entry.shared-root .directory-entry-name {
-  color: #4f5d59;
-  font-weight: 560;
-}
-
-.directory-entry.shared-root .directory-entry-icon {
-  filter: grayscale(0.18) sepia(0.28) saturate(0.58) hue-rotate(338deg) brightness(0.92) contrast(0.96);
-  opacity: 0.88;
-}
-
-.directory-entry.shared-root .directory-entry-chevron {
-  color: rgba(93, 84, 72, 0.46);
+  background: transparent;
 }
 
 .directory-entry.pdf .directory-entry-icon {
@@ -4412,11 +4397,37 @@ button.directory-alias-chip {
 
 .directory-entry-name {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 15px;
   font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.directory-entry-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.directory-shared-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.08);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .directory-entry-meta {
