@@ -21,6 +21,7 @@ const CHAT_MESSAGE_SEARCH_LIMIT = 120;
 const CHAT_HISTORY_LOAD_TOP_PX = 220;
 const TASK_MESSAGE_INITIAL_LIMIT = 300;
 const TODO_AUTO_REFRESH_INTERVAL_MS = 8000;
+const TODO_LIST_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
 const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
 
 const state = {
@@ -8109,9 +8110,54 @@ function scheduleTodoAutoRefresh() {
   }, TODO_AUTO_REFRESH_INTERVAL_MS);
 }
 
+function todoListCacheKey(workspaceId, includeCompleted) {
+  return `hermesTodoList:${workspaceId || "owner"}:${includeCompleted ? "all" : "open"}`;
+}
+
+function readTodoListCache(workspaceId, includeCompleted) {
+  try {
+    const raw = localStorage.getItem(todoListCacheKey(workspaceId, includeCompleted));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || Date.now() - Number(parsed.savedAt || 0) > TODO_LIST_CACHE_MAX_AGE_MS) return null;
+    if (!Array.isArray(parsed.todos)) return null;
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeTodoListCache(workspaceId, includeCompleted) {
+  try {
+    localStorage.setItem(todoListCacheKey(workspaceId, includeCompleted), JSON.stringify({
+      savedAt: Date.now(),
+      todos: state.todos,
+      assignees: state.todoAssignees,
+      source: state.todoSource,
+      board: state.todoKanbanBoard,
+    }));
+  } catch (_) {}
+}
+
+function clearTodoListCache(workspaceId = state.selectedWorkspaceId || "owner") {
+  try {
+    localStorage.removeItem(todoListCacheKey(workspaceId, false));
+    localStorage.removeItem(todoListCacheKey(workspaceId, true));
+  } catch (_) {}
+}
+
+function applyTodoListResult(result, includeCompleted) {
+  state.todos = result.data || result.todos || [];
+  state.todoAssignees = result.assignees || [];
+  state.todoSource = result.source || result.result?.source || "";
+  state.todoKanbanBoard = result.result?.board || result.board || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "";
+  state.todoCompletedLoaded = includeCompleted;
+}
+
 async function loadTodos(options = {}) {
+  const workspaceId = state.selectedWorkspaceId || "owner";
   const params = new URLSearchParams();
-  params.set("workspaceId", state.selectedWorkspaceId || "owner");
+  params.set("workspaceId", workspaceId);
   params.set("limit", "120");
   const includeCompleted = shouldLoadCompletedTodos(options);
   if (includeCompleted) params.set("includeCompleted", "1");
@@ -8120,13 +8166,18 @@ async function loadTodos(options = {}) {
   if (search) params.set("search", search);
   const conversation = $("conversation");
   const restoreScrollTop = options.preserveScroll && conversation ? conversation.scrollTop : null;
+  const useCache = !options.autoRefresh && !options.skipCache && !search && state.viewMode === "todos" && !state.selectedTodoId;
+  const cached = useCache ? readTodoListCache(workspaceId, includeCompleted) : null;
+  if (cached && (!state.todos.length || options.preferCache)) {
+    applyTodoListResult(cached, includeCompleted);
+    updateSearchButton();
+    renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop });
+    setComposerEnabled(false);
+  }
   const result = await api(`/api/todos?${params}`);
   if (options.autoRefresh && state.viewMode !== "todos") return;
-  state.todos = result.data || [];
-  state.todoAssignees = result.assignees || [];
-  state.todoSource = result.source || result.result?.source || "";
-  state.todoKanbanBoard = result.result?.board || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "";
-  state.todoCompletedLoaded = includeCompleted;
+  applyTodoListResult(result, includeCompleted);
+  if (!search) writeTodoListCache(workspaceId, includeCompleted);
   state.currentThread = null;
   state.currentThreadId = "";
   state.currentTaskGroupId = "";
@@ -8605,6 +8656,7 @@ async function createTodoFromForm(root) {
       recurrenceDays: root.querySelector("#todoRecurrenceDays")?.value || "",
     }),
   });
+  clearTodoListCache();
   state.todoCreateOpen = false;
   if (kanban) {
     state.todoKanbanStatus = "todo";
@@ -8619,6 +8671,7 @@ async function completeTodo(todoId) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   state.selectedTodoId = "";
   await loadTodos();
 }
@@ -8630,6 +8683,7 @@ async function cancelTodo(todoId) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   state.selectedTodoId = "";
   await loadTodos();
 }
@@ -8643,6 +8697,7 @@ async function blockTodo(todoId) {
       reason: "Blocked from Hermes Mobile Kanban view.",
     }),
   });
+  clearTodoListCache();
   await loadTodos();
   state.selectedTodoId = todoId;
   renderTodos();
@@ -8654,6 +8709,7 @@ async function unblockTodo(todoId) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   await loadTodos();
   state.selectedTodoId = todoId;
   renderTodos();
@@ -8670,6 +8726,7 @@ async function commentTodo(todoId, comment) {
       comment: text,
     }),
   });
+  clearTodoListCache();
   await loadTodos();
   state.selectedTodoId = todoId;
   showPushToast("评论已添加", "success");
@@ -8691,6 +8748,7 @@ async function commentAndUnblockTodo(todoId, comment) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   await loadTodos();
   state.selectedTodoId = todoId;
   showPushToast("评论已添加，已解除阻塞", "success");
@@ -8704,6 +8762,7 @@ async function deleteTodo(todoId) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   closeTopMoreMenu();
   state.selectedTodoId = "";
   await loadTodos();
@@ -8715,6 +8774,7 @@ async function deleteTodoDirect(todoId) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
+  clearTodoListCache();
   if (state.selectedTodoId === todoId) state.selectedTodoId = "";
   await loadTodos();
 }
@@ -8726,6 +8786,7 @@ async function postponeTodo(todoId, dueTime) {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, dueTime }),
   });
+  clearTodoListCache();
   await loadTodos();
 }
 
