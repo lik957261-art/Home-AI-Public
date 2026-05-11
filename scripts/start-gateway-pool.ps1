@@ -66,6 +66,23 @@ function Ensure-LowGatewayProfileEnv {
   if (-not (Test-Path -LiteralPath $scriptPath)) { return }
   $text = Get-Content -Raw -LiteralPath $scriptPath
   $updated = $text
+  if ($updated -notmatch "configure-low-gateways\.sh") {
+    $bootstrapNeedle = "cd /home/hermes"
+    $bootstrap = @'
+cd /home/hermes
+configure_low_gateway_script="/mnt/c/ProgramData/HermesMobile/gateway-worker/configure-low-gateways.sh"
+if [ ! -f "$configure_low_gateway_script" ]; then
+  echo "missing low gateway configure script: $configure_low_gateway_script" >&2
+  exit 1
+fi
+bash "$configure_low_gateway_script"
+'@
+    if (-not $updated.Contains($bootstrapNeedle)) {
+      Write-GatewayPoolLog "Low gateway configure patch skipped; start script shape is unknown."
+      return
+    }
+    $updated = $updated.Replace($bootstrapNeedle, $bootstrap)
+  }
   if ($updated -notmatch "HERMES_GOOGLE_PROFILE_HOME") {
     $needle = 'HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
     $replacement = 'HERMES_PROFILE="$profile" HERMES_GOOGLE_PROFILE_HOME="/home/hermes/.hermes/profiles/$profile" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"'
@@ -106,7 +123,7 @@ low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/b
   if ($updated -eq $text) { return }
   $encoding = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($scriptPath, $updated, $encoding)
-  Write-GatewayPoolLog "Low gateway profile env patched for profile-local credentials and Kanban hermes shim."
+  Write-GatewayPoolLog "Low gateway start script patched for shared auth, profile env, and Kanban hermes shim."
 }
 
 function Start-LowGateways {
@@ -205,14 +222,20 @@ function Start-OwnerMaintenanceGateways {
   $runtimeRoot = "/opt/hermes-gateway-runtime"
   $officialCleanRoot = "$runtimeRoot/official-clean"
   $officialPython = "$runtimeRoot/venv/bin/python"
+  $sharedAuthPath = "/home/$OfficialUser/.hermes/auth.json"
+  $sharedAuthLockPath = "/home/$OfficialUser/.hermes/auth.lock"
   $commands = @(
     "test -x $officialPython",
     "test -d $officialCleanRoot",
-    "mkdir -p /home/$OfficialUser/.hermes/logs"
+    "mkdir -p /home/$OfficialUser/.hermes/logs",
+    "test -s $sharedAuthPath"
   )
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
     $commands += "mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs"
+    $commands += "rm -f /home/$OfficialUser/.hermes/profiles/$profile/auth.json /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
+    $commands += "ln -sfn $sharedAuthPath /home/$OfficialUser/.hermes/profiles/$profile/auth.json"
+    $commands += "ln -sfn $sharedAuthLockPath /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
     $commands += "setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1"
   }
   $bash = $commands -join "; "
@@ -232,8 +255,8 @@ function Start-OwnerMaintenanceGateways {
 
 Write-GatewayPoolLog "Gateway pool startup begin."
 Provision-OwnerExternalConnectors
-Check-LowGatewayCodexAuth
 Start-LowGateways
+Check-LowGatewayCodexAuth
 Start-OwnerMaintenanceGateways | Out-Null
 
 $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json

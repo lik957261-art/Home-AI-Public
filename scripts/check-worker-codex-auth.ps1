@@ -47,6 +47,7 @@ for profile in profiles:
     refresh = entry.get("refresh_token") or ""
     access = entry.get("access_token") or ""
     fingerprint = hashlib.sha256(refresh.encode()).hexdigest()[:12] if refresh else "no-refresh"
+    real_path = str(path.resolve())
     exp_text = "no-access-exp"
     try:
         claims = json.loads(base64.urlsafe_b64decode(access.split(".")[1] + "==="))
@@ -56,16 +57,29 @@ for profile in profiles:
     except Exception:
         pass
     status = entry.get("last_status")
-    print(f"{profile} refresh={fingerprint} status={status} access_exp={exp_text}")
+    print(f"{profile} refresh={fingerprint} status={status} access_exp={exp_text} auth_path={real_path}")
     if refresh:
-        seen.setdefault(fingerprint, []).append(profile)
+        seen.setdefault(fingerprint, []).append((profile, real_path))
     else:
         failed = True
 
-duplicates = {fp: names for fp, names in seen.items() if len(names) > 1}
-for fp, names in duplicates.items():
-    print(f"duplicate-refresh {fp} profiles={','.join(names)}")
-if require_unique and duplicates:
+copied_duplicates = {}
+for fp, entries in seen.items():
+    if len(entries) <= 1:
+        continue
+    path_groups = {}
+    for profile, real_path in entries:
+        path_groups.setdefault(real_path, []).append(profile)
+    if len(path_groups) == 1:
+        real_path, names = next(iter(path_groups.items()))
+        print(f"shared-refresh {fp} path={real_path} profiles={','.join(names)}")
+        continue
+    copied_duplicates[fp] = path_groups
+
+for fp, path_groups in copied_duplicates.items():
+    path_parts = [f"{real_path}:{','.join(names)}" for real_path, names in sorted(path_groups.items())]
+    print(f"copied-refresh {fp} copies={' | '.join(path_parts)}")
+if require_unique and copied_duplicates:
     failed = True
 
 sys.exit(1 if failed else 0)
