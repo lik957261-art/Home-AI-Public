@@ -124,6 +124,8 @@ function run() {
   assert.match(permissionInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
   assert.match(permissionInstructions, /access_policy_context/);
   assert.match(permissionInstructions, /Web Search is ordinary low-permission work/);
+  assert.match(permissionInstructions, /File reads and writes inside the current allowed roots are ordinary low-permission work/);
+  assert.match(permissionInstructions, /documented Program API operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /profile-local Skill read\/create\/update operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /Kanban\/Todo operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /Automation\/CRON job operations are ordinary low-permission work/);
@@ -134,6 +136,8 @@ function run() {
   const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");
   assert.ok(fs.existsSync(skillPath));
   assert.match(fs.readFileSync(skillPath, "utf8"), /Public Web Search and public web extraction are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /File reads and writes inside the current run's allowed roots are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /documented Program API reads and writes are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /profile-local Skill read, creation, and update operations are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Automation\/CRON list, job creation, update, pause, resume, and manual run operations are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Do not search a broad drive/);
