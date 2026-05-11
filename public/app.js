@@ -11477,7 +11477,6 @@ function renderGroupMentionMenu() {
   menu.innerHTML = options.map((member, index) => `
     <button class="group-mention-option${index === state.groupMentionIndex ? " active" : ""}" type="button" data-group-mention-index="${index}">
       <span class="group-mention-name">${escapeHtml(member.mentionText || `@${member.label}`)}</span>
-      <span class="group-mention-id">${escapeHtml(member.description || member.workspaceId)}</span>
     </button>`).join("");
 }
 

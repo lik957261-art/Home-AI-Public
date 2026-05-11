@@ -5673,7 +5673,7 @@ button.directory-alias-chip {
   min-height: 36px;
   padding: 7px 9px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   color: var(--ink);
@@ -5696,12 +5696,6 @@ button.directory-alias-chip {
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.group-mention-id {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 560;
 }
 
 #attachFile {
