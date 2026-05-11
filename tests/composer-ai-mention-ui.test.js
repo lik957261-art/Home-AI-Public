@@ -43,6 +43,7 @@ assert.match(appJs, /stripOwnerElevationOnceTags\(text\)/);
 assert.match(appJs, /if \(member\.ownerElevationOnce\) clearOwnerElevationOnce\(\);/);
 assert.equal(appJs.includes('showPushToast("本次高权限已授权"'), false);
 assert.match(appJs, /const ownerElevationOnceTag = ownerElevationComposerAvailable\(\) \? ownerElevationOnceTagInfo\(text\) : null/);
+assert.match(appJs, /const ok = await activateOwnerElevationOnce\(\{ confirm: false \}\)/);
 assert.match(appJs, /function composerGatewayPermissionLabel\(\)/);
 assert.match(appJs, /function activeRunGatewayPermissionLabel\(\)/);
 assert.match(appJs, /function messageUsesHighPermissionGateway\(message = \{\}\)/);

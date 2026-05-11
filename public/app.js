@@ -10862,7 +10862,7 @@ async function sendMessage(event) {
   }
   if (ownerElevationOnceTag) {
     clearOwnerElevationOnce();
-    const ok = await activateOwnerElevationOnce();
+    const ok = await activateOwnerElevationOnce({ confirm: false });
     if (!ok) return;
     ownerElevationOnceRequested = true;
   }

@@ -44,6 +44,7 @@ Do not emit this marker for **Must fail closed**, clarification questions, or a 
 
 In a restricted run:
 
+- Public Web Search and public web extraction are **Allowed** when the run has the `web` toolset. Do not request Owner elevation just to search or extract public web information.
 - The current account/workspace's own Kanban/Todo list, card creation, card status changes, block/unblock, and reminder metadata are **Allowed** when the run has the `todo` or `kanban` toolset. This is normal low-permission work and does not require Owner elevation.
 - Use Hermes Mobile's Todo/Kanban integration for those operations. Do not run a raw `hermes kanban` CLI command or write directly under `~/.hermes/kanban`, because that can create cards in the wrong local profile/storage namespace.
 - Do not read, summarize, search, create, modify, copy, move, or delete files outside the allowed roots.

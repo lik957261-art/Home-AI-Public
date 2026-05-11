@@ -61,6 +61,17 @@ function testOwnerPolicyStaysUnrestricted() {
   assert.deepEqual(policy.cache_roots, ["/data/uploads"]);
 }
 
+function testRestrictedPolicyAddsWebSearchByDefault() {
+  const provider = createAccessPolicyProvider();
+  const policy = provider.build({
+    principal_id: "bob",
+    access_mode: "restricted",
+    default_workspace: "/workspace/b",
+  }, {}, null);
+
+  assert.deepEqual(policy.allowed_toolsets, ["web", "todo", "kanban"]);
+}
+
 function testSanitizeTypes() {
   const provider = createAccessPolicyProvider();
   const policy = provider.sanitize({
@@ -82,5 +93,6 @@ function testSanitizeTypes() {
 
 testRestrictedPolicyMergesRootsAndDelivery();
 testOwnerPolicyStaysUnrestricted();
+testRestrictedPolicyAddsWebSearchByDefault();
 testSanitizeTypes();
 console.log("access-policy-provider tests passed");
