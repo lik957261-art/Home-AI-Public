@@ -8193,7 +8193,7 @@ async function loadTodos(options = {}) {
     renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop });
     setComposerEnabled(false);
   }
-  const result = await api(`/api/todos?${params}`);
+  const result = await api(`${boardCollectionApiPath()}?${params}`);
   if (options.autoRefresh && state.viewMode !== "todos") return;
   applyTodoListResult(result, includeCompleted);
   if (!search) writeTodoListCache(workspaceId, includeCompleted);
@@ -8252,9 +8252,15 @@ function currentTodoKanbanStatus(grouped) {
 }
 
 function isKanbanTodoSource() {
-  return state.todoSource === "hermes_kanban"
-    || state.todoSource === "kanban"
-    || state.todos.some((todo) => todo?.source === "kanban" || todo?.kanbanBoard || todo?.kanbanStatus);
+  return true;
+}
+
+function boardCollectionApiPath() {
+  return "/api/kanban/cards";
+}
+
+function boardActionApiPath(todoId, action = "") {
+  return `${boardCollectionApiPath()}/${encodeURIComponent(todoId)}/${action}`;
 }
 
 function todoBoardLabel() {
@@ -8664,7 +8670,7 @@ async function createTodoFromForm(root) {
   if (!content) throw new Error("Kanban card content is required");
   if (!kanban && !dueValue) throw new Error("Todo due time is required");
   const dueTime = dueValue.replace("T", " ");
-  await api("/api/todos", {
+  await api(boardCollectionApiPath(), {
     method: "POST",
     body: JSON.stringify({
       workspaceId: state.selectedWorkspaceId,
@@ -8686,7 +8692,7 @@ async function createTodoFromForm(root) {
 
 async function completeTodo(todoId) {
   if (!todoId) return;
-  await api(`/api/todos/${encodeURIComponent(todoId)}/complete`, {
+  await api(boardActionApiPath(todoId, "complete"), {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
@@ -8698,7 +8704,7 @@ async function completeTodo(todoId) {
 async function cancelTodo(todoId) {
   if (!todoId) return;
   if (!window.confirm(`取消看板卡片 ${todoId}？`)) return;
-  await api(`/api/todos/${encodeURIComponent(todoId)}/cancel`, {
+  await api(boardActionApiPath(todoId, "cancel"), {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
@@ -8709,7 +8715,7 @@ async function cancelTodo(todoId) {
 
 async function blockTodo(todoId) {
   if (!todoId) return;
-  await api(`/api/todos/${encodeURIComponent(todoId)}/block`, {
+  await api(boardActionApiPath(todoId, "block"), {
     method: "POST",
     body: JSON.stringify({
       workspaceId: state.selectedWorkspaceId,
@@ -8724,7 +8730,7 @@ async function blockTodo(todoId) {
 
 async function unblockTodo(todoId) {
   if (!todoId) return;
-  await api(`/api/todos/${encodeURIComponent(todoId)}/unblock`, {
+  await api(boardActionApiPath(todoId, "unblock"), {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
@@ -8738,7 +8744,7 @@ async function commentTodo(todoId, comment) {
   if (!todoId) return;
   const text = String(comment || "").trim();
   if (!text) throw new Error("请先填写评论内容");
-  await api(`/api/todos/${encodeURIComponent(todoId)}/comment`, {
+  await api(boardActionApiPath(todoId, "comment"), {
     method: "POST",
     body: JSON.stringify({
       workspaceId: state.selectedWorkspaceId,
@@ -8756,14 +8762,14 @@ async function commentAndUnblockTodo(todoId, comment) {
   if (!todoId) return;
   const text = String(comment || "").trim();
   if (!text) throw new Error("请先填写评论内容");
-  await api(`/api/todos/${encodeURIComponent(todoId)}/comment`, {
+  await api(boardActionApiPath(todoId, "comment"), {
     method: "POST",
     body: JSON.stringify({
       workspaceId: state.selectedWorkspaceId,
       comment: text,
     }),
   });
-  await api(`/api/todos/${encodeURIComponent(todoId)}/unblock`, {
+  await api(boardActionApiPath(todoId, "unblock"), {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
@@ -8777,7 +8783,7 @@ async function commentAndUnblockTodo(todoId, comment) {
 async function deleteTodo(todoId) {
   if (!todoId) return;
   if (!window.confirm(`删除看板卡片 ${todoId}？`)) return;
-  await api(`/api/todos/${encodeURIComponent(todoId)}/delete`, {
+  await api(boardActionApiPath(todoId, "delete"), {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
@@ -8789,7 +8795,7 @@ async function deleteTodo(todoId) {
 
 async function deleteTodoDirect(todoId) {
   if (!todoId) return;
-  await api(`/api/todos/${encodeURIComponent(todoId)}/delete`, {
+  await api(boardActionApiPath(todoId, "delete"), {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId }),
   });
@@ -8801,7 +8807,7 @@ async function deleteTodoDirect(todoId) {
 async function postponeTodo(todoId, dueTime) {
   if (!todoId) return;
   if (!dueTime) throw new Error("请选择新的截止时间");
-  await api(`/api/todos/${encodeURIComponent(todoId)}/postpone`, {
+  await api(boardActionApiPath(todoId, "postpone"), {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, dueTime }),
   });

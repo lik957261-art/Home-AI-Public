@@ -27,16 +27,17 @@ checkout.
 ## 2026-05-11 Public Update
 
 This public tree was refreshed from private source commit
-`84e1ca14e92bebe06394bc30f0b719d979682b91`. The notes below are written in
+`d30c269c5bf87f29479e0c0baf86799a60754a9a`. The notes below are written in
 Chinese for deployment operators.
 
 ### 本次更新范围
 
 - 这是一次累计公开更新，不是单个补丁。当前 public tree 对应 private
-  source commit `84e1ca14e92bebe06394bc30f0b719d979682b91`，覆盖上一版
+  source commit `d30c269c5bf87f29479e0c0baf86799a60754a9a`，覆盖上一版
   public commit `5eb6bee` 之后的一组产品化修复与功能更新。
 - 本次公开内容主要包括：
   - 官方 Hermes Kanban 接入与移动端看板 UI
+  - 看板卡片接口从提醒型 Todo 中独立出来
   - 单窗口聊天、群聊切换、未读提示与移动端布局修复
   - 低权限 Gateway 能力边界调整
   - Gateway Pool 的 Codex OAuth 共享认证修复
@@ -45,10 +46,19 @@ Chinese for deployment operators.
 
 - Todo 页现在可以通过 `HERMES_WEB_TODO_BACKEND=kanban` 适配官方 Hermes
   Kanban，同时继续保留 Hermes Mobile 既有的 `/api/todos` 兼容接口。
+- 看板页现在使用独立的 `/api/kanban/cards` 接口，新增
+  `adapters/kanban-card-provider.js`。这条链路专门面向执行看板卡片，不再把
+  “提醒型待办”强行映射成会被 worker 立即执行的 Kanban 卡。
 - 新增 `adapters/kanban-provider.js`，补充官方 Kanban 元数据、block/unblock、
   worker 路由、无 due time 卡片、评论入口，以及卡片删除和刷新逻辑。
 - 移动端看板从横向七列改成状态切换加单列卡片列表，更适合手机竖屏。
 - UI 文案已把原来的“待办”主标题切换为“看板”，并同步调整相关页面。
+- 单窗口聊天里的明确看板创建请求现在会先让模型抽取卡片草稿，再由 Hermes
+  Mobile 服务端写入 `/api/kanban/cards`。成功回复必须带有真实的 `t_...` 卡片
+  ID、board 和 Kanban status；如果仍出现 `pending` 这类旧 Todo 状态，说明请求
+  没有进入新的看板接口。
+- 中文触发词已覆盖 `新增`、`新建`、`创建`、`增加`、`添加`、`补建`、`补录`、
+  `生成` 等常见说法，避免“增加看板卡片”落回普通模型回复路径。
 
 ### 聊天 / 群聊 / 移动端界面
 
