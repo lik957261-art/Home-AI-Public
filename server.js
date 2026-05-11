@@ -3637,6 +3637,42 @@ function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
   return { assignee, assigneeLabel, dueTime: due.dueTime, content };
 }
 
+function directTodoCreateNeedsKanbanFields(todo) {
+  if (!todo || typeof todo !== "object") return useKanbanTodoBackend();
+  const source = String(todo.source || "").trim().toLowerCase();
+  if (source === "kanban" || source === "hermes_kanban") return true;
+  return useKanbanTodoBackend();
+}
+
+function verifyDirectTodoCreateResult(todo) {
+  const id = String(todo?.id || "").trim();
+  if (!id) {
+    return { ok: false, error: "Todo created but no visible card id returned." };
+  }
+  if (directTodoCreateNeedsKanbanFields(todo)) {
+    const board = String(todo?.kanbanBoard || "").trim();
+    const status = String(todo?.kanbanStatus || "").trim();
+    if (!board || !status) {
+      return { ok: false, error: "Kanban card creation returned without board/status metadata." };
+    }
+  }
+  return { ok: true, error: "" };
+}
+
+function formatDirectTodoCreateSuccessMessage(intent, todo) {
+  const assigneeLabel = String(intent?.assigneeLabel || "").trim() || "owner";
+  const dueTime = String(intent?.dueTime || "").trim() || "no due time";
+  const content = String(intent?.content || "").trim() || String(todo?.content || "").trim() || "todo";
+  const id = String(todo?.id || "").trim();
+  const source = String(todo?.source || "").trim() || "unknown";
+  const board = String(todo?.kanbanBoard || "").trim();
+  const status = String(todo?.kanbanStatus || "").trim();
+  const details = [`ID: ${id}`, `Source: ${source}`];
+  if (board) details.push(`Board: ${board}`);
+  if (status) details.push(`Status: ${status}`);
+  return `\u5df2\u65b0\u589e\u770b\u677f\u5361\u7247\uff1a${assigneeLabel} | ${dueTime} | ${content}\n${details.join(" | ")}`;
+}
+
 function publicTodo(row) {
   return {
     id: String(row.id || ""),
@@ -9470,12 +9506,35 @@ async function handleApi(req, res) {
       } catch (err) {
         result = { ok: false, error: err.message || String(err) };
       }
+      let createdTodo = null;
+      let directTodoVerification = { ok: true, error: "" };
+      if (result?.ok) {
+        createdTodo = publicTodo(result);
+        directTodoVerification = verifyDirectTodoCreateResult(createdTodo);
+        if (!directTodoVerification.ok) {
+          result = {
+            ...(result && typeof result === "object" ? result : {}),
+            ok: false,
+            error: directTodoVerification.error || "Todo creation verification failed.",
+          };
+          createdTodo = null;
+        }
+      }
+      if (!result?.ok) {
+        directTodoVerification = {
+          ok: false,
+          error: String(result?.error || directTodoVerification.error || ""),
+        };
+      }
       const finishedAt = nowIso();
       assistantMessage.status = result?.ok ? "done" : "failed";
       assistantMessage.content = result?.ok
         ? `已新增看板卡片：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
         : `新增看板卡片失败：${result?.error || "Kanban card operation failed"}`;
       assistantMessage.error = result?.ok ? null : (result?.error || "Todo operation failed");
+      if (result?.ok && createdTodo) {
+        assistantMessage.content = formatDirectTodoCreateSuccessMessage(directTodoIntent, createdTodo);
+      }
       assistantMessage.completedAt = result?.ok ? finishedAt : "";
       assistantMessage.failedAt = result?.ok ? "" : finishedAt;
       assistantMessage.updatedAt = finishedAt;
@@ -9492,7 +9551,13 @@ async function handleApi(req, res) {
         if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
         notifyTodoCreated(result, workspacePrincipal(thread.workspaceId));
       }
-      sendJson(res, result?.ok ? 201 : 400, { ok: Boolean(result?.ok), todo: result?.ok ? publicTodo(result) : null, result, thread: compactResponseThread() });
+      sendJson(res, result?.ok ? 201 : 400, {
+        ok: Boolean(result?.ok),
+        todo: result?.ok ? createdTodo : null,
+        result,
+        verification: directTodoVerification,
+        thread: compactResponseThread(),
+      });
       return;
     }
     const followUpInstructions = thread.singleWindow && requestedTaskGroupId

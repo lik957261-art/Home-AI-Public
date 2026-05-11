@@ -187,5 +187,10 @@ assert.match(appJs, /\/messages\?\$\{params\}/);
 assert.match(appJs, /function renderChatHistoryPager\(thread\)/);
 assert.match(appJs, /body\.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT/);
 assert.match(stylesCss, /\.chat-history-pager/);
+assert.match(serverJs, /function verifyDirectTodoCreateResult\(todo\)/);
+assert.match(serverJs, /Todo created but no visible card id returned\./);
+assert.match(serverJs, /function formatDirectTodoCreateSuccessMessage\(intent, todo\)/);
+assert.match(serverJs, /ID: \$\{id\}/);
+assert.match(serverJs, /verification: directTodoVerification/);
 
 console.log("task list UI tests passed");
