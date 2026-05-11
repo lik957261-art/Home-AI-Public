@@ -117,6 +117,11 @@ and broad MCP exposure. Owner-maintenance profiles may retain those toolsets,
 but only workers labeled `securityLevel=owner-maintenance` and selected through
 an explicit Owner elevation path should use them.
 
+The low-privilege `skills` toolset is allowed only for the current
+account/workspace's profile-local Skill store selected by `skillProfile`. It is
+not permission to write the shared/global Skill store, the Owner full Skill
+store, or another account's Skill store.
+
 ## Scheduler Contract
 
 The scheduler:

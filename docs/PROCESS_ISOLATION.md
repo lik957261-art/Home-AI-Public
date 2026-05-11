@@ -103,7 +103,9 @@ list. Do not rely on the Gateway's default API-server toolset for user workers,
 because a deployment default may include terminal, code execution, delegation, or
 automation-management tools. Hermes Mobile also sends an explicit safe
 `allowed_toolsets` list per ordinary run, but the profile toolset should be a
-second boundary.
+second boundary. If the profile exposes `skills`, it should resolve to the
+current account/workspace's profile-local Skill store plus approved shared
+Skills only, not to another account's store or an Owner full store.
 
 ## macOS
 

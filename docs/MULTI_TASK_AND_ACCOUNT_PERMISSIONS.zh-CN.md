@@ -88,6 +88,8 @@ Hermes 的 Skill 发现、创建和更新仍由官方 Gateway profile 负责。H
 - `skillProfile` 是给管理员和诊断使用的非秘密标签。
 - `skillWorkspaceIds` 声明该 worker 的 Skill 集合服务哪些 workspace；`["*"]` 只适合真正共享且无用户私有 Skill 的 profile。
 
+低权限 Gateway 可以读写当前账号/工作区自己的 profile-local Skill。这个能力只作用于当前 `skillProfile` 对应的 Skill store，不等同于写共享 Skill。共享、系统、Owner full 或其他账号的 Skill 变更仍属于 Owner 提权场景。
+
 Hermes Mobile 的默认模式是 `HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING=auto`：旧 manifest 没有 `skillProfile` / `skillWorkspaceIds` 时继续保持兼容；一旦 manifest 声明这些字段，普通聊天/任务会按当前 `actorWorkspaceId` 匹配 `skillWorkspaceIds`。生产或强隔离部署应设置为 `on`，这样缺少匹配 Skill profile 的普通 run 会 fail closed，而不是落到不确定的共享 Skill 集合。
 
 这使 public release 可以保持通用：安装者可以先用单 Gateway 或传统 worker pool 起步；需要多账户 Skill 隔离时，只调整运行时 manifest 和每个 Gateway profile 的 Skill 根目录，不需要修改官方 Hermes 源码。
@@ -155,7 +157,7 @@ Public release 应包含以下行为：
 - 强制普通 run 的 `can_delegate_codex=false`。
 - 强制普通 run 的 `allow_shell=false`。
 - 从 `allowed_toolsets` 中过滤 `codex`、`shell`、`terminal`、`cmd`、`powershell`、`bash`、`git`、`developer`、`source`、`process`、`code_execution`、`delegation`、`mcp` 等开发或跨边界工具集。
-- 当普通 run 的 policy 没有显式 `allowed_toolsets` 时，Hermes Mobile 必须写入自己的安全白名单，而不能依赖 Gateway 的默认 restricted toolsets。默认白名单只应包含普通任务能力，例如 `web`、`file`、`vision`、`image_gen`、`skills`、`todo`、`kanban`、`cronjob`、`memory`、`session_search`、`clarify`。`cronjob` 只表示当前账号/工作区自己的自动化任务能力；跨账号自动化管理仍需 Owner 提权。
+- 当普通 run 的 policy 没有显式 `allowed_toolsets` 时，Hermes Mobile 必须写入自己的安全白名单，而不能依赖 Gateway 的默认 restricted toolsets。默认白名单只应包含普通任务能力，例如 `web`、`file`、`vision`、`image_gen`、`skills`、`todo`、`kanban`、`cronjob`、`memory`、`session_search`、`clarify`。`skills` 只表示当前账号/工作区自己的 profile-local Skill 能力；共享/系统/跨账号 Skill 变更仍需 Owner 提权。`cronjob` 只表示当前账号/工作区自己的自动化任务能力；跨账号自动化管理仍需 Owner 提权。
 - 将这些工具集加入 `blocked_toolsets`。
 - 过滤受保护路径，包括源代码目录、运行配置、密钥文件、SQLite/JSON 状态、worker manifest、Hermes home、token 文件和 operator-only 目录。
 
