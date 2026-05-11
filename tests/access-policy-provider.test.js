@@ -38,6 +38,7 @@ function testRestrictedPolicyMergesRootsAndDelivery() {
   assert.deepEqual(policy.allowed_toolsets, [
     "web",
     "todo",
+    "weather",
     "file",
     "vision",
     "image_gen",
@@ -83,6 +84,7 @@ function testRestrictedPolicyAddsWebSearchByDefault() {
 
   assert.deepEqual(policy.allowed_toolsets, [
     "web",
+    "weather",
     "file",
     "vision",
     "image_gen",

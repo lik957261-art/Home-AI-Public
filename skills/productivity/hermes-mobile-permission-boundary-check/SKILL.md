@@ -45,6 +45,7 @@ Do not emit this marker for **Must fail closed**, clarification questions, or a 
 In a restricted run:
 
 - Public Web Search and public web extraction are **Allowed** when the run has the `web` toolset. Do not request Owner elevation just to search or extract public web information.
+- Weather lookup for the current account's user-facing request is **Allowed** when the run has the `weather` toolset. Do not request Owner elevation just to check forecast, temperature, rain, wind, air conditions, or weather-dependent planning.
 - File reads and writes inside the current run's allowed roots are **Allowed** when the run has the `file` toolset. Do not request Owner elevation just to read a workspace rule file or write a workspace deliverable/history file inside scope.
 - OCR, document-image extraction, and visual analysis of files inside the current run's allowed roots are **Allowed** when the run has the `vision` toolset. Do not request Owner elevation just to OCR or inspect an in-scope image, PDF, or document.
 - Image generation and image editing requested by the current account are **Allowed** when the run has the `image_gen` toolset and the output stays inside allowed roots or delivery roots.

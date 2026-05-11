@@ -69,6 +69,7 @@ function toolsetsForConnectorProfiles(profiles) {
 
 const DEFAULT_INTERFACE_TOOLSETS = {
   web: { label: "Web", category: "接口" },
+  weather: { label: "天气", category: "接口" },
   vision: { label: "视觉", category: "接口" },
   image_gen: { label: "图片生成", category: "接口" },
   messaging: { label: "消息发送", category: "接口" },
@@ -84,6 +85,7 @@ const DEFAULT_INTERFACE_TOOLSETS = {
 
 const DEFAULT_COMMON_TOOLSETS = [
   "web",
+  "weather",
   "vision",
   "image_gen",
   "messaging",

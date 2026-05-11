@@ -289,6 +289,7 @@ async function main() {
     assert.deepEqual(patched.workspace.localConfig.allowedToolsets, [
       "mail",
       "web",
+      "weather",
       "file",
       "vision",
       "image_gen",
