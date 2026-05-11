@@ -19,10 +19,18 @@ const repairWorkspaceAcl = read(path.join("scripts", "repair-workspace-acl.ps1")
 const runKanbanGatewayWorker = read(path.join("scripts", "run-kanban-gateway-worker.ps1"));
 const runKanbanGatewayWorkerChild = read(path.join("scripts", "run-kanban-gateway-worker-child.ps1"));
 const runKanbanGatewayWorkerShell = read(path.join("scripts", "run-kanban-gateway-worker.sh"));
+const startCronTickSidecar = read(path.join("scripts", "start-cron-tick-sidecar.ps1"));
+const runCronTickSidecar = read(path.join("scripts", "run-cron-tick-sidecar.ps1"));
 
 assert.match(startHermesWeb, /function Test-HermesWebHttpHealth/);
 assert.match(startHermesWeb, /did not open a responsive Hermes Mobile HTTP endpoint/);
 assert.match(startHermesWeb, /HTTP health failed/);
+assert.match(startHermesWeb, /function Start-CronTickSidecarIfNeeded/);
+assert.match(startHermesWeb, /HERMES_WEB_AUTOMATION_BACKEND/);
+assert.match(startHermesWeb, /hermes_cron/);
+assert.match(startHermesWeb, /start-cron-tick-sidecar\.ps1/);
+assert.match(startHermesWeb, /HERMES_MOBILE_CRON_TICK_SIDECAR/);
+assert.match(startHermesWeb, /Start-CronTickSidecarIfNeeded\s*\r?\n\s*\$existing = Get-HermesWebListener/s);
 
 assert.match(startWorkerHost, /function Test-HermesMobileHttpHealth/);
 assert.match(startWorkerHost, /function Test-HermesMobileAuthenticatedHealth/);
@@ -117,5 +125,21 @@ assert.match(runKanbanGatewayWorkerShell, /hermes_cli\.main/);
 assert.match(runKanbanGatewayWorkerShell, /kanban_args/);
 assert.match(runKanbanGatewayWorkerShell, /capture_output=True/);
 assert.match(runKanbanGatewayWorkerShell, /ensure_ascii=True/);
+
+assert.match(startCronTickSidecar, /function Get-CronTickSidecarProcess/);
+assert.match(startCronTickSidecar, /function Invoke-CronStatusCheck/);
+assert.match(startCronTickSidecar, /cron", "status"/);
+assert.match(startCronTickSidecar, /Start-Process/);
+assert.match(startCronTickSidecar, /run-cron-tick-sidecar\.ps1/);
+assert.match(startCronTickSidecar, /HERMES_WEB_HERMES_HOME/);
+assert.match(startCronTickSidecar, /HERMES_MOBILE_CRON_TICK_LOG_PATH/);
+
+assert.match(runCronTickSidecar, /cron", "tick"/);
+assert.match(runCronTickSidecar, /--accept-hooks/);
+assert.match(runCronTickSidecar, /HERMES_ACCEPT_HOOKS=1/);
+assert.match(runCronTickSidecar, /HERMES_HOME=\$HermesHome/);
+assert.match(runCronTickSidecar, /PYTHONPATH=\$pythonPath/);
+assert.match(runCronTickSidecar, /Select-Object -Last \$maxLines/);
+assert.doesNotMatch(runCronTickSidecar, /gateway", "run"/);
 
 console.log("startup scripts tests passed");

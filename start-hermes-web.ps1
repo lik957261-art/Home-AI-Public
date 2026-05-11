@@ -102,6 +102,54 @@ function Start-HermesWebRegisteredTask {
     throw "Registered user task '$StartupTaskPath$StartupTaskName' did not open a responsive Hermes Mobile HTTP endpoint on port $Port."
 }
 
+function Test-CronTickSidecarDisabled {
+    $value = [string]$env:HERMES_MOBILE_CRON_TICK_SIDECAR
+    return ($value -match '^(0|false|off|disabled|none)$')
+}
+
+function Test-CronTickSidecarRequired {
+    $value = [string]$env:HERMES_MOBILE_CRON_TICK_SIDECAR
+    return ($value -match '^(1|required|on|true)$')
+}
+
+function Start-CronTickSidecarIfNeeded {
+    if (Test-CronTickSidecarDisabled) { return }
+    if ([string]$env:HERMES_WEB_AUTOMATION_BACKEND -ne "hermes_cron") { return }
+
+    $sidecarStarter = Join-Path $scriptRoot "scripts\start-cron-tick-sidecar.ps1"
+    if (-not (Test-Path -LiteralPath $sidecarStarter)) {
+        $message = "Cron tick sidecar starter not found: $sidecarStarter"
+        if (Test-CronTickSidecarRequired) { throw $message }
+        Write-Warning $message
+        return
+    }
+
+    $arguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $sidecarStarter
+    )
+    if ($env:HERMES_WEB_WSL_DISTRO) {
+        $arguments += @("-DistroName", $env:HERMES_WEB_WSL_DISTRO)
+    }
+    if ($env:HERMES_WEB_WSL_USER) {
+        $arguments += @("-WslUser", $env:HERMES_WEB_WSL_USER)
+    }
+    if ($env:HERMES_WEB_HERMES_HOME) {
+        $arguments += @("-HermesHome", $env:HERMES_WEB_HERMES_HOME)
+    }
+    if ($env:HERMES_MOBILE_CRON_TICK_LOG_PATH) {
+        $arguments += @("-LogPath", $env:HERMES_MOBILE_CRON_TICK_LOG_PATH)
+    }
+
+    & powershell.exe @arguments
+    if ($LASTEXITCODE -ne 0) {
+        $message = "Cron tick sidecar start failed with exit code $LASTEXITCODE"
+        if (Test-CronTickSidecarRequired) { throw $message }
+        Write-Warning $message
+    }
+}
+
 $env:HERMES_WEB_HOST = $HostAddress
 $env:HERMES_WEB_PORT = [string]$Port
 $env:HERMES_WEB_HERMES_API_BASE = $HermesApiBase
@@ -128,6 +176,7 @@ if ($CheckOnly) {
 
 if ($Detached) {
     if (Start-HermesWebRegisteredTask) { return }
+    Start-CronTickSidecarIfNeeded
 
     $existing = Get-HermesWebListener -ListenPort $Port
     if ($existing) {
