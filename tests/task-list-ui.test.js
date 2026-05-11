@@ -154,6 +154,12 @@ assert.match(serverJs, /assigneeForWorkspace: kanbanExecutableProfileForWorkspac
 assert.match(serverJs, /const kanbanExecutableProfileCursor = new Map\(\)/);
 assert.match(serverJs, /function nextKanbanExecutableProfile\(workspace, workers\)/);
 assert.match(appJs, /评论并解除阻塞/);
+assert.match(appJs, /function renderKanbanDetailReport\(todo\)/);
+assert.match(appJs, /\/api\/kanban\/cards\/\$\{encodeURIComponent\(id\)\}\/detail/);
+assert.match(serverJs, /url\.pathname === "\/api\/kanban\/cards\/output"/);
+assert.match(serverJs, /publicKanbanCardDetail\(workspaceId, result\)/);
+assert.match(serverJs, /txt\|json\|csv\|html\?\|zip/);
+assert.match(stylesCss, /\.todo-detail-outputs/);
 assert.match(appJs, /const kanban = isKanbanTodoSource\(\);/);
 assert.match(appJs, /if \(!kanban && !dueValue\) throw new Error\("Todo due time is required"\)/);
 assert.match(appJs, /state\.todoKanbanStatus = "todo"/);

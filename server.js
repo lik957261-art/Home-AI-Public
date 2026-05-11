@@ -3774,6 +3774,126 @@ function publicTodo(row) {
   };
 }
 
+function kanbanOutputAccessThread(workspaceId) {
+  const workspace = String(workspaceId || "owner").trim() || "owner";
+  return {
+    id: `kanban-output-${workspace}`,
+    workspaceId: workspace,
+    projectId: "general",
+    subprojectId: "",
+    singleWindow: false,
+  };
+}
+
+function resolveKanbanOutputFile(workspaceId, rawPath, auth = null) {
+  const workspace = String(workspaceId || "owner").trim() || "owner";
+  if (auth && !authCanAccessWorkspace(auth, workspace)) return { status: 404, error: "File not found" };
+  const displayPath = String(rawPath || "").trim();
+  const localPath = normalizeLocalPath(displayPath);
+  if (!displayPath || !localPath) return { status: 404, error: "File not found" };
+  const thread = kanbanOutputAccessThread(workspace);
+  if (!isPathAllowedForThread(thread, localPath, displayPath)) return { status: 404, error: "File not found or not allowed" };
+  let stat;
+  try {
+    stat = fs.statSync(localPath);
+  } catch (_) {
+    return { status: 404, error: "File not found" };
+  }
+  if (!stat.isFile()) return { status: 400, error: "Path is not a file" };
+  return {
+    file: {
+      localPath,
+      displayPath: logicalUserPathFallback(displayPath, path.basename(localPath)),
+      name: path.basename(localPath),
+      mime: mimeFor(localPath),
+      size: stat.size,
+      updatedAt: stat.mtime.toISOString(),
+    },
+  };
+}
+
+function publicKanbanOutputFile(workspaceId, rawPath) {
+  const resolved = resolveKanbanOutputFile(workspaceId, rawPath, null);
+  if (!resolved.file) return null;
+  const params = new URLSearchParams({ workspaceId: String(workspaceId || "owner"), path: String(rawPath || "") });
+  return {
+    name: resolved.file.name,
+    path: String(rawPath || ""),
+    displayPath: resolved.file.displayPath,
+    mime: resolved.file.mime,
+    size: resolved.file.size,
+    updatedAt: resolved.file.updatedAt,
+    url: `/api/kanban/cards/output?${params.toString()}`,
+  };
+}
+
+function eventPreviewText(event) {
+  if (!event || typeof event !== "object") return "";
+  const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+  return compactText(payload.note || payload.summary || payload.error || event.message || event.kind || "", 360);
+}
+
+function publicKanbanCardDetail(workspaceId, detail = {}) {
+  const runs = Array.isArray(detail.runs) ? detail.runs : [];
+  const events = Array.isArray(detail.events) ? detail.events : [];
+  const comments = Array.isArray(detail.comments) ? detail.comments : [];
+  const latestRun = [...runs].reverse().find((run) => run && (run.summary || run.metadata));
+  const summary = compactText(
+    detail.latest_summary
+    || detail.latestSummary
+    || detail.task?.result
+    || latestRun?.summary
+    || "",
+    4000,
+  );
+  const outputPaths = new Set();
+  for (const run of runs) {
+    const outputs = run?.metadata?.outputs;
+    if (Array.isArray(outputs)) outputs.forEach((item) => outputPaths.add(String(item || "")));
+  }
+  for (const pathText of extractArtifactPaths(summary)) outputPaths.add(pathText);
+  for (const pathText of extractArtifactPaths(detail.log || "")) outputPaths.add(pathText);
+  const outputs = [...outputPaths].map((item) => publicKanbanOutputFile(workspaceId, item)).filter(Boolean);
+  return {
+    summary,
+    outputs,
+    comments: comments.slice(-12).map((comment) => ({
+      author: String(comment.author || comment.created_by || ""),
+      text: compactText(comment.text || comment.body || comment.comment || "", 800),
+      createdAt: dateStringFromTaskLike(comment.created_at || comment.createdAt || ""),
+    })),
+    events: events.slice(-20).map((event) => ({
+      kind: String(event.kind || ""),
+      preview: eventPreviewText(event),
+      createdAt: dateStringFromTaskLike(event.created_at || event.createdAt || ""),
+    })).filter((event) => event.kind || event.preview),
+    runs: runs.slice(-8).map((run) => ({
+      id: String(run.id || ""),
+      profile: String(run.profile || ""),
+      status: String(run.status || ""),
+      outcome: String(run.outcome || ""),
+      summary: compactText(run.summary || "", 1200),
+      startedAt: dateStringFromTaskLike(run.started_at || run.startedAt || ""),
+      endedAt: dateStringFromTaskLike(run.ended_at || run.endedAt || ""),
+    })),
+    logTail: compactText(detail.log || "", 4000),
+  };
+}
+
+function dateStringFromTaskLike(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const millis = value > 10_000_000_000 ? value : value * 1000;
+    const date = new Date(millis);
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  }
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^\d+(?:\.\d+)?$/.test(text)) return dateStringFromTaskLike(Number(text));
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? text : date.toISOString();
+}
+
 function boolParam(value) {
   return /^(1|true|yes|on)$/i.test(String(value || ""));
 }
@@ -7814,7 +7934,7 @@ function extractArtifactPaths(text) {
   for (const match of source.matchAll(/MEDIA:\s*([^\r\n]+)/g)) {
     addPathCandidate(out, match[1]);
   }
-  const filePattern = /((?:[A-Za-z]:\\|\/mnt\/[A-Za-z]\/|\\\\wsl(?:\.localhost|\$)?\\)[^\r\n<>"']+\.(?:pdf|png|jpe?g|webp|gif|mp4|mov|mp3|m4a|wav|docx|xlsx|pptx|md|txt))/gi;
+  const filePattern = /((?:[A-Za-z]:\\|\/mnt\/[A-Za-z]\/|\\\\wsl(?:\.localhost|\$)?\\)[^\r\n<>"'`]+?\.(?:pdf|png|jpe?g|webp|gif|mp4|mov|mp3|m4a|wav|docx|xlsx|pptx|md|txt|json|csv|html?|zip))/gi;
   for (const match of source.matchAll(filePattern)) {
     addPathCandidate(out, match[1]);
   }
@@ -9170,6 +9290,43 @@ async function handleApi(req, res) {
       source: result.source,
       board: result.board,
       result: result.result,
+    });
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards/output" && req.method === "GET") {
+    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const resolved = resolveKanbanOutputFile(workspaceId, url.searchParams.get("path") || "", authenticateRequest(req));
+    if (!resolved.file) {
+      sendJson(res, resolved.status || 404, { error: resolved.error || "Kanban output not found" });
+      return;
+    }
+    sendResolvedFile(res, resolved.file, url.searchParams);
+    return;
+  }
+
+  const kanbanCardDetail = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/detail$/);
+  if (kanbanCardDetail && req.method === "GET") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const result = await kanbanCardProvider.cardDetail({
+      workspaceId,
+      cardId: decodeURIComponent(kanbanCardDetail[1]),
+      logTail: Number(url.searchParams.get("logTail") || "12000"),
+    });
+    if (!result.ok) {
+      kanbanErrorResponse(res, result.result || result);
+      return;
+    }
+    sendJson(res, 200, {
+      ok: true,
+      detail: publicKanbanCardDetail(workspaceId, result),
+      result,
     });
     return;
   }

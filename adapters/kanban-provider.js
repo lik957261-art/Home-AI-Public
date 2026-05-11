@@ -222,7 +222,15 @@ function bodyWithMeta(content, meta) {
     recurrenceLabel: meta.recurrenceLabel || "",
     recurrenceDays: meta.recurrenceDays || "",
   };
-  const bodyParts = [String(meta.description || "").trim(), String(content || "").trim()].filter(Boolean);
+  const completionContract = [
+    "## Hermes Mobile completion contract",
+    "",
+    "- During execution, append Kanban comments or heartbeats for the plan, major progress, decisions, blockers, and risky operations.",
+    "- Before marking this card done, write a detailed Markdown receipt into the Kanban run summary/result.",
+    "- The receipt must include: outcome, actions performed, files or deliverables created, links/paths, verification evidence, risks, and follow-up items.",
+    "- If no external change was made, state that explicitly and explain why.",
+  ].join("\n");
+  const bodyParts = [String(meta.description || "").trim(), String(content || "").trim(), completionContract].filter(Boolean);
   return `${META_START}${JSON.stringify(publicMeta)}${META_END}\n\n${bodyParts.join("\n\n")}`;
 }
 
@@ -464,6 +472,29 @@ function createKanbanTodoBridge(options = {}) {
     return { ok: true, todos, source: "kanban", board };
   }
 
+  async function detail(payload = {}) {
+    const todoId = String(payload.todo_id || payload.todoId || "").trim();
+    if (!todoId) return { ok: false, error: "todo_id is required" };
+    const board = await ensureBoard(payload);
+    const show = await kanbanJson(["--board", board, "show", todoId, "--json"]);
+    const runs = await kanbanJson(["--board", board, "runs", todoId, "--json"]).catch(() => []);
+    const logResult = await kanban(["--board", board, "log", todoId, "--tail", String(positiveNumber(payload.log_tail, 12000))]).catch((err) => ({
+      stdout: "",
+      stderr: err.message || String(err),
+    }));
+    const task = show?.task && typeof show.task === "object" ? show.task : {};
+    return {
+      ok: true,
+      board,
+      task,
+      latest_summary: String(show?.latest_summary || task.latest_summary || task.summary || ""),
+      comments: Array.isArray(show?.comments) ? show.comments : [],
+      events: Array.isArray(show?.events) ? show.events : [],
+      runs: Array.isArray(runs) ? runs : (Array.isArray(runs?.runs) ? runs.runs : []),
+      log: String(logResult.stdout || "").slice(-12000),
+    };
+  }
+
   async function add(payload = {}) {
     const content = String(payload.content || "").trim();
     const source = String(payload.source_principal || "owner").trim() || "owner";
@@ -672,6 +703,7 @@ function createKanbanTodoBridge(options = {}) {
       if (["complete", "cancel", "postpone", "delete", "block", "unblock", "comment"].includes(action)) return await mutate(payload);
       if (action === "web_pending_pushes") return pendingPushes(payload);
       if (action === "web_mark_push") return markWebPush(payload);
+      if (action === "detail") return await detail(payload);
       return { ok: false, error: `unknown action: ${action}` };
     } catch (err) {
       return { ok: false, error: err.message || String(err), code: err.code || "" };

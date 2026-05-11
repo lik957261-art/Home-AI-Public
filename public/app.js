@@ -59,6 +59,7 @@ const state = {
   todoKanbanBoard: "",
   todoKanbanStatus: localStorage.getItem("hermesTodoKanbanStatus") || "todo",
   todoCompletedLoaded: false,
+  todoCardDetails: {},
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoCreateOpen: false,
@@ -8207,6 +8208,25 @@ async function loadTodos(options = {}) {
   scheduleTodoAutoRefresh();
 }
 
+async function loadKanbanCardDetail(todoId, options = {}) {
+  const id = String(todoId || "").trim();
+  if (!id || !isKanbanTodoSource()) return;
+  const existing = todoCardDetailState(id);
+  if (existing?.loading) return;
+  if (existing && !options.force) return;
+  state.todoCardDetails[id] = Object.assign({}, existing || {}, { loading: true, error: "" });
+  if (!options.silent) renderTodos({ preserveScroll: true });
+  try {
+    const params = new URLSearchParams();
+    params.set("workspaceId", state.selectedWorkspaceId || "owner");
+    const result = await api(`/api/kanban/cards/${encodeURIComponent(id)}/detail?${params.toString()}`);
+    state.todoCardDetails[id] = Object.assign({}, result.detail || {}, { loading: false, error: "" });
+  } catch (err) {
+    state.todoCardDetails[id] = Object.assign({}, existing || {}, { loading: false, error: err.message || String(err) });
+  }
+  renderTodos({ preserveScroll: true });
+}
+
 function todoStatusLabel(todo) {
   const status = String(todo?.status || "");
   if (status === "completed") return "done";
@@ -8374,6 +8394,9 @@ function renderTodoPanel(options = {}) {
   `;
   wireTodoPanel(conversation);
   ensureVerticalScrollAffordance(conversation);
+  if (selected && isKanbanTodoSource() && !todoCardDetailState(selected.id)) {
+    window.setTimeout(() => loadKanbanCardDetail(selected.id, { silent: true }).catch(showError), 0);
+  }
   if (options.preserveScroll && Number.isFinite(options.restoreScrollTop)) {
     conversation.scrollTop = options.restoreScrollTop;
   } else {
@@ -8503,6 +8526,51 @@ function renderTodoDetailGridItem(label, value) {
   return `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(text)}</span></div>`;
 }
 
+function todoCardDetailState(todoId) {
+  return state.todoCardDetails?.[todoId] || null;
+}
+
+function renderKanbanOutputLinks(outputs) {
+  const items = Array.isArray(outputs) ? outputs : [];
+  if (!items.length) return "";
+  return `<div class="todo-detail-outputs">
+    ${items.map((item) => `<a href="${escapeHtml(item.url || "#")}" target="_blank" rel="noopener">
+      <span>${escapeHtml(item.name || "output")}</span>
+      <small>${escapeHtml(item.displayPath || item.path || "")}</small>
+    </a>`).join("")}
+  </div>`;
+}
+
+function renderKanbanProcessRows(detail) {
+  const events = Array.isArray(detail?.events) ? detail.events.filter((event) => event.preview || event.kind).slice(-6) : [];
+  const runs = Array.isArray(detail?.runs) ? detail.runs.filter((run) => run.summary || run.status || run.outcome).slice(-3) : [];
+  const eventRows = events.map((event) => `<li><strong>${escapeHtml(event.kind || "event")}</strong><span>${escapeHtml(event.preview || "")}</span></li>`);
+  const runRows = runs.map((run) => `<li><strong>${escapeHtml([run.profile, run.outcome || run.status].filter(Boolean).join(" / ") || "run")}</strong><span>${escapeHtml(run.summary || "")}</span></li>`);
+  const rows = [...eventRows, ...runRows];
+  return rows.length ? `<ul class="todo-detail-process">${rows.join("")}</ul>` : "";
+}
+
+function renderKanbanDetailReport(todo) {
+  if (!isKanbanTodoSource()) return "";
+  const detail = todoCardDetailState(todo.id);
+  const summary = String(todo.kanbanResult || detail?.summary || "").trim();
+  const outputs = detail?.outputs || [];
+  const processRows = detail ? renderKanbanProcessRows(detail) : "";
+  const loading = detail?.loading;
+  const error = detail?.error || "";
+  return `<section class="todo-detail-result">
+    <div class="todo-detail-result-head">
+      <strong>回执 / 过程</strong>
+      <button type="button" data-load-kanban-detail="${escapeHtml(todo.id)}">${detail ? "刷新" : "加载"}</button>
+    </div>
+    ${loading ? `<p class="todo-detail-muted">正在加载官方看板过程...</p>` : ""}
+    ${error ? `<p class="todo-detail-error">${escapeHtml(error)}</p>` : ""}
+    ${summary ? `<pre>${escapeHtml(summary)}</pre>` : (!loading && !error ? `<p class="todo-detail-muted">暂无回执摘要。</p>` : "")}
+    ${renderKanbanOutputLinks(outputs)}
+    ${processRows}
+  </section>`;
+}
+
 function renderTodoDetail(todo) {
   const open = todoMatchesOpen(todo);
   const kanban = isKanbanTodoSource();
@@ -8529,9 +8597,7 @@ function renderTodoDetail(todo) {
   const skillRows = kanban && Array.isArray(todo.kanbanSkills) && todo.kanbanSkills.length
     ? `<div class="todo-detail-skills">${todo.kanbanSkills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</div>`
     : "";
-  const resultBlock = kanban && todo.kanbanResult
-    ? `<section class="todo-detail-result"><strong>Kanban result</strong><p>${escapeHtml(todo.kanbanResult)}</p></section>`
-    : "";
+  const resultBlock = kanban ? renderKanbanDetailReport(todo) : "";
   const commentPanel = kanban && open
     ? `<form class="todo-comment-panel" data-todo-comment-form="${escapeHtml(todo.id)}">
       <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写授权范围、限制条件或执行说明"></textarea>
@@ -8603,6 +8669,12 @@ function wireTodoPanel(root) {
     button.addEventListener("click", () => {
       state.selectedTodoId = button.dataset.todoId || "";
       renderTodos();
+      loadKanbanCardDetail(state.selectedTodoId).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-load-kanban-detail]").forEach((button) => {
+    button.addEventListener("click", () => {
+      loadKanbanCardDetail(button.dataset.loadKanbanDetail || "", { force: true }).catch(showError);
     });
   });
   root.querySelector("[data-clear-todo-selection]")?.addEventListener("click", () => {
