@@ -230,6 +230,9 @@ const KANBAN_COMMAND = String(process.env.HERMES_MOBILE_KANBAN_COMMAND || proces
 const KANBAN_COMMAND_ARGS = String(process.env.HERMES_MOBILE_KANBAN_COMMAND_ARGS || process.env.HERMES_WEB_KANBAN_COMMAND_ARGS || "").trim();
 const KANBAN_TODO_META_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_TODO_META_PATH || process.env.HERMES_WEB_KANBAN_TODO_META_PATH || path.join(DATA_DIR, "kanban-todo-meta.json"));
 const KANBAN_WORKSPACE_PATH_STYLE = String(process.env.HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE || process.env.HERMES_WEB_KANBAN_WORKSPACE_PATH_STYLE || "").trim().toLowerCase();
+const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
+const KANBAN_MULTI_AGENT_MAX_CARDS = 8;
+const KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_KANBAN_PLAN_TIMEOUT_MS || process.env.HERMES_WEB_KANBAN_PLAN_TIMEOUT_MS || "90000");
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -4091,6 +4094,236 @@ async function interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId)
     access_policy_context: sanitizePolicy(workspace?.policy || {}),
   });
   return normalizeKanbanDraft(extractJsonObject(output), text, ownerPrincipalId);
+}
+
+function kanbanPlanFallbackCards(sourceText) {
+  const topic = compactText(sourceText, 80) || "Kanban work";
+  return [
+    {
+      title: `Scope and acceptance: ${topic}`,
+      description: "Clarify the objective, inputs, constraints, deliverables, and acceptance criteria before execution.",
+      deliverables: ["Short execution brief", "Acceptance checklist"],
+      acceptance: ["Scope is specific enough for worker cards", "Unknown inputs or risks are listed"],
+      dependsOn: [],
+    },
+    {
+      title: `Execute primary work: ${topic}`,
+      description: "Perform the main implementation, research, cleanup, or production work described by the request.",
+      deliverables: ["Primary output files or changes", "Progress notes"],
+      acceptance: ["Main requested outcome is completed or blocked with evidence"],
+      dependsOn: [1],
+    },
+    {
+      title: `Verify and risk review: ${topic}`,
+      description: "Validate the output, record evidence, and identify risks, missing inputs, and follow-up work.",
+      deliverables: ["Verification notes", "Risk list"],
+      acceptance: ["Validation evidence is attached to the card receipt"],
+      dependsOn: [2],
+    },
+    {
+      title: `Integrate final receipt: ${topic}`,
+      description: "Read upstream card receipts and produce the final user-facing summary with deliverables and next steps.",
+      deliverables: ["Final receipt", "Consolidated deliverable links"],
+      acceptance: ["Final response references upstream outputs and unresolved risks"],
+      dependsOn: [1, 2, 3],
+    },
+  ];
+}
+
+function kanbanPlanDependencyRefs(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null || value === "") return [];
+  return String(value).split(/[,;\n]+/g);
+}
+
+function normalizeKanbanPlan(raw, sourceText, workspaceId) {
+  const draft = raw && typeof raw === "object" ? raw : {};
+  if (draft.needs_clarification || draft.needsClarification) {
+    throw new Error(compactText(draft.clarification || draft.question || "Kanban plan needs clarification", 240));
+  }
+  const rawCards = Array.isArray(draft.cards) && draft.cards.length
+    ? draft.cards
+    : kanbanPlanFallbackCards(sourceText);
+  const cards = rawCards.slice(0, KANBAN_MULTI_AGENT_MAX_CARDS).map((item, index) => {
+    const card = item && typeof item === "object" ? item : { title: String(item || "") };
+    const title = compactText(card.title || card.content || card.name || card.task || `Kanban card ${index + 1}`, 160);
+    return {
+      clientId: String(card.clientId || card.id || `card-${index + 1}`).trim() || `card-${index + 1}`,
+      title,
+      description: compactText(card.description || card.details || card.goal || "", 1200),
+      deliverables: arrayOfStrings(card.deliverables || card.outputs || card.artifacts, 6),
+      acceptance: arrayOfStrings(card.acceptance || card.acceptanceCriteria || card.validation || card.verify, 6),
+      assignee: String(card.assignee || "").trim(),
+      dependencyRefs: kanbanPlanDependencyRefs(card.dependsOn || card.depends_on || card.dependencies || card.blockedBy || card.after),
+    };
+  }).filter((card) => card.title);
+
+  if (!cards.length) throw new Error("Hermes model did not produce Kanban plan cards");
+
+  const byId = new Map(cards.map((card) => [card.clientId.toLowerCase(), card]));
+  const byTitle = new Map(cards.map((card) => [card.title.toLowerCase(), card]));
+  for (const [index, card] of cards.entries()) {
+    const deps = [];
+    for (const ref of card.dependencyRefs) {
+      const text = String(ref || "").trim();
+      if (!text) continue;
+      const numeric = text.match(/\d+/)?.[0];
+      const byNumber = numeric ? cards[Number(numeric) - 1] : null;
+      const resolved = byId.get(text.toLowerCase())
+        || byTitle.get(text.toLowerCase())
+        || byNumber
+        || cards.find((candidate) => candidate.title.toLowerCase().includes(text.toLowerCase()));
+      if (resolved && resolved !== card && cards.indexOf(resolved) < index) deps.push(resolved.clientId);
+    }
+    card.dependsOn = dedupe(deps);
+    delete card.dependencyRefs;
+  }
+
+  const initialRunnableIds = new Set();
+  for (const card of cards) {
+    if (card.dependsOn.length) continue;
+    if (initialRunnableIds.size >= KANBAN_MULTI_AGENT_MAX_PARALLEL) continue;
+    initialRunnableIds.add(card.clientId);
+  }
+  for (const card of cards) card.initialRunnable = initialRunnableIds.has(card.clientId);
+
+  return {
+    id: String(draft.id || `kanban-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`),
+    mode: "multi-agent",
+    workspaceId: String(workspaceId || "owner"),
+    sourceText: compactText(draft.sourceText || sourceText, 4000),
+    summary: compactText(draft.summary || draft.goal || sourceText, 500),
+    maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+    cards,
+  };
+}
+
+async function planKanbanMultiAgent(text, workspace, ownerPrincipalId) {
+  const sourceText = compactText(text, 8000);
+  if (!sourceText) throw new Error("Kanban plan text is required");
+  const prompt = [
+    "You are the Hermes Mobile Kanban planner.",
+    "Return strict JSON only. Do not include Markdown fences or prose.",
+    "The user is creating a multi-Agent execution plan for a Kanban board.",
+    `The maximum parallel worker count is fixed at ${KANBAN_MULTI_AGENT_MAX_PARALLEL}. Do not propose more than ${KANBAN_MULTI_AGENT_MAX_PARALLEL} first-wave runnable cards.`,
+    "Create 3 to 8 cards. Make cards independently executable when possible, but add dependencies for integration, verification, or sequential work.",
+    "Every card must have a short actionable title, a description, expected deliverables, acceptance criteria, and dependsOn as 1-based card numbers.",
+    "Add a final integration or verification card when the work has multiple outputs.",
+    "Schema: {\"summary\":\"...\",\"cards\":[{\"title\":\"...\",\"description\":\"...\",\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"dependsOn\":[1]}]}",
+    `Workspace principal: ${ownerPrincipalId}. Workspace label: ${workspace?.label || workspace?.id || ""}.`,
+    "User request:",
+    sourceText,
+  ].join("\n\n");
+  const output = await hermesModelText({
+    input: prompt,
+    stream: true,
+    store: false,
+    model: AUTOMATION_CREATE_MODEL,
+    reasoning_effort: "medium",
+    conversation: `hermes_web_kanban_plan_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+    instructions: "Plan a multi-Agent Kanban decomposition. Return JSON only.",
+    access_policy_context: sanitizePolicy(workspace?.policy || {}),
+  }, KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS);
+  try {
+    return normalizeKanbanPlan(extractJsonObject(output), sourceText, workspace?.id || ownerPrincipalId || "owner");
+  } catch (err) {
+    const fallback = normalizeKanbanPlan({
+      summary: sourceText,
+      cards: kanbanPlanFallbackCards(sourceText),
+    }, sourceText, workspace?.id || ownerPrincipalId || "owner");
+    fallback.warning = compactText(`Planner JSON fallback used: ${err.message || String(err)}`, 300);
+    return fallback;
+  }
+}
+
+function kanbanPlanCardDescription(plan, card) {
+  const dependencyLabels = kanbanPlanDependencyLabelsForServer(plan, card);
+  return [
+    `Multi-Agent plan: ${plan.summary || plan.sourceText || ""}`,
+    `Source request:\n${plan.sourceText || ""}`,
+    `Card goal:\n${card.description || card.title || ""}`,
+    card.deliverables?.length ? `Expected deliverables:\n- ${card.deliverables.join("\n- ")}` : "",
+    card.acceptance?.length ? `Acceptance criteria:\n- ${card.acceptance.join("\n- ")}` : "",
+    dependencyLabels.length ? `Dependencies:\n- ${dependencyLabels.join("\n- ")}` : "",
+    `Concurrency rule: Hermes Mobile may run at most ${KANBAN_MULTI_AGENT_MAX_PARALLEL} first-wave cards from this plan in parallel. Cards outside that wave are blocked until dependencies complete or the Owner unblocks them.`,
+  ].filter(Boolean).join("\n\n");
+}
+
+function kanbanPlanDependencyLabelsForServer(plan, card) {
+  const cards = Array.isArray(plan?.cards) ? plan.cards : [];
+  const byId = new Map(cards.map((item) => [String(item.clientId || ""), item]));
+  return (Array.isArray(card?.dependsOn) ? card.dependsOn : [])
+    .map((id) => byId.get(String(id || ""))?.title || String(id || "").trim())
+    .filter(Boolean);
+}
+
+async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
+  const plan = normalizeKanbanPlan(planInput, planInput?.sourceText || options.sourceText || "", workspaceId);
+  const created = [];
+  const byClientId = new Map();
+  const runnableIds = new Set(plan.cards.filter((card) => !card.dependsOn.length).slice(0, KANBAN_MULTI_AGENT_MAX_PARALLEL).map((card) => card.clientId));
+
+  for (const card of plan.cards) {
+    const assignee = card.assignee || options.assignee || "";
+    const result = await kanbanCardProvider.addCard({
+      workspaceId,
+      assignee,
+      assigneeLabel: todoAssigneeLabel(workspaceId, assignee),
+      content: card.title,
+      description: kanbanPlanCardDescription(plan, card),
+      dueTime: "",
+      reason: "Created from Hermes Mobile multi-Agent Kanban planner.",
+      idempotencyKey: `hm-plan-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
+    });
+    if (!result?.ok) {
+      return { ok: false, error: result?.error || "Kanban card creation failed", plan, cards: created, result };
+    }
+    const publicCard = publicTodo(result);
+    const verification = verifyDirectTodoCreateResult(publicCard);
+    if (!verification.ok) {
+      return { ok: false, error: verification.error, plan, cards: created, result };
+    }
+    byClientId.set(card.clientId, publicCard);
+    const dependencyLabels = kanbanPlanDependencyLabelsForServer(plan, card);
+    const shouldBlock = !runnableIds.has(card.clientId);
+    let blocked = false;
+    let blockError = "";
+    let blockReason = "";
+    if (shouldBlock) {
+      blockReason = dependencyLabels.length
+        ? `Waiting for planned upstream cards: ${dependencyLabels.join(" / ")}.`
+        : `Waiting for a free multi-Agent execution slot; Hermes Mobile max parallel is ${KANBAN_MULTI_AGENT_MAX_PARALLEL}.`;
+      const blockedResult = await kanbanCardProvider.mutateCard({
+        action: "block",
+        workspaceId,
+        cardId: publicCard.id,
+        reason: blockReason,
+        author: "Hermes Mobile",
+      });
+      blocked = Boolean(blockedResult?.ok);
+      blockError = blocked ? "" : (blockedResult?.error || "Failed to block planned card");
+    }
+    const createdEntry = {
+      clientId: card.clientId,
+      title: card.title,
+      card: publicCard,
+      blocked,
+      blockReason,
+      blockError,
+      dependsOn: card.dependsOn.map((id) => byClientId.get(id)?.id || id),
+    };
+    created.push(createdEntry);
+    if (shouldBlock && !blocked) {
+      return {
+        ok: false,
+        error: `Planned card ${publicCard.id} was created but could not be blocked: ${blockError}`,
+        plan,
+        cards: created,
+      };
+    }
+  }
+
+  return { ok: true, plan, cards: created, maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL };
 }
 
 function todoErrorResponse(res, result, fallbackStatus = 400) {
@@ -9340,6 +9573,54 @@ async function handleApi(req, res) {
       detail: publicKanbanCardDetail(workspaceId, result),
       result,
     });
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards/plan" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req);
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    const text = String(body.text || body.content || body.prompt || "").trim();
+    if (!text) {
+      sendJson(res, 400, { error: "Kanban plan text is required" });
+      return;
+    }
+    try {
+      const plan = await planKanbanMultiAgent(text, findWorkspace(workspaceId), workspacePrincipal(workspaceId));
+      sendJson(res, 200, { ok: true, plan, maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL });
+    } catch (err) {
+      sendJson(res, 502, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards/batch" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req);
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    try {
+      const result = await createKanbanPlanCards(workspaceId, body.plan || { cards: body.cards || [], sourceText: body.text || "" }, {
+        assignee: body.assignee || "",
+        sourceText: body.text || "",
+      });
+      if (!result.ok) {
+        kanbanErrorResponse(res, result, 502);
+        return;
+      }
+      broadcast({ type: "kanban.updated", workspaceId, action: "batch-add" });
+      broadcast({ type: "todos.updated", workspaceId, action: "batch-add" });
+      sendJson(res, 201, result);
+    } catch (err) {
+      sendJson(res, 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
     return;
   }
 

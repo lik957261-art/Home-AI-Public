@@ -63,6 +63,12 @@ const state = {
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoCreateOpen: false,
+  kanbanComposerText: localStorage.getItem("hermesKanbanComposerDraft") || "",
+  kanbanComposerMultiAgent: localStorage.getItem("hermesKanbanComposerMultiAgent") === "1",
+  kanbanComposerBusy: false,
+  kanbanComposerMessages: [],
+  kanbanPlanDraft: null,
+  kanbanPlanCreating: false,
   automations: [],
   automationSource: null,
   automationLoading: false,
@@ -207,6 +213,7 @@ const TASK_REASONING_OPTIONS = [
   { value: "high", label: "High" },
   { value: "xhigh", label: "Xhigh" },
 ];
+const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
 const KANBAN_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
 const KANBAN_STATUS_FALLBACK_ORDER = Object.freeze(["running", "blocked", "ready", "todo", "triage", "done", "archived"]);
 const KANBAN_STATUS_META = Object.freeze({
@@ -8405,8 +8412,8 @@ function renderTodoPanel(options = {}) {
 }
 
 function renderTodoCreatePanel() {
+  if (isKanbanTodoSource()) return "";
   if (!state.todoCreateOpen) {
-    return "";
     return `<button class="todo-create-toggle" type="button" data-open-todo-create>新增卡片</button>`;
   }
   return `<form id="todoCreateForm" class="todo-create">
@@ -8428,6 +8435,84 @@ function renderTodoCreatePanel() {
       </div>
     </div>
   </form>`;
+}
+
+function renderKanbanComposerMessage(message) {
+  const role = String(message?.role || "assistant");
+  const label = role === "user" ? "\u4f60" : "Hermes";
+  return `<article class="kanban-composer-message ${escapeHtml(role)}">
+    <strong>${escapeHtml(label)}</strong>
+    <p>${escapeHtml(message?.content || "").replace(/\n/g, "<br>")}</p>
+  </article>`;
+}
+
+function kanbanPlanDependencyLabels(card, plan) {
+  const cards = Array.isArray(plan?.cards) ? plan.cards : [];
+  const byId = new Map(cards.map((item, index) => [String(item.clientId || `card-${index + 1}`), item]));
+  return (Array.isArray(card?.dependsOn) ? card.dependsOn : [])
+    .map((id) => byId.get(String(id || ""))?.title || String(id || "").trim())
+    .filter(Boolean);
+}
+
+function renderKanbanPlanDraft(plan) {
+  const cards = Array.isArray(plan?.cards) ? plan.cards : [];
+  const disabled = state.kanbanPlanCreating ? " disabled" : "";
+  const cardItems = cards.map((card, index) => {
+    const deps = kanbanPlanDependencyLabels(card, plan);
+    const status = card.initialRunnable
+      ? "\u9996\u6279\u6267\u884c"
+      : deps.length
+        ? "\u7b49\u5f85\u4f9d\u8d56"
+        : "\u7b49\u5f85\u5e76\u884c\u4f4d";
+    const deliverables = Array.isArray(card.deliverables) ? card.deliverables.filter(Boolean).slice(0, 4) : [];
+    const acceptance = Array.isArray(card.acceptance) ? card.acceptance.filter(Boolean).slice(0, 4) : [];
+    return `<article class="kanban-plan-card">
+      <div class="kanban-plan-card-head">
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(card.title || `Card ${index + 1}`)}</strong>
+        <em>${escapeHtml(status)}</em>
+      </div>
+      ${card.description ? `<p>${escapeHtml(card.description)}</p>` : ""}
+      ${deps.length ? `<small>${escapeHtml("\u4f9d\u8d56\uff1a" + deps.join(" / "))}</small>` : ""}
+      ${deliverables.length ? `<ul>${deliverables.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+      ${acceptance.length ? `<small>${escapeHtml("\u9a8c\u6536\uff1a" + acceptance.join(" / "))}</small>` : ""}
+    </article>`;
+  }).join("");
+  return `<section class="kanban-plan-draft">
+    <div class="kanban-plan-draft-head">
+      <div>
+        <strong>\u591a Agent \u62c6\u89e3\u8349\u6848</strong>
+        <span>${escapeHtml(plan?.summary || "")}</span>
+      </div>
+      <small>\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}</small>
+    </div>
+    <div class="kanban-plan-card-list">${cardItems}</div>
+    <div class="kanban-plan-actions">
+      <button type="button" data-clear-kanban-plan${disabled}>\u6e05\u7a7a\u8349\u6848</button>
+      <button type="button" data-create-kanban-plan${disabled}>\u786e\u8ba4\u521b\u5efa ${cards.length} \u5f20\u5361\u7247</button>
+    </div>
+  </section>`;
+}
+
+function renderKanbanComposerPanel() {
+  if (!isKanbanTodoSource()) return "";
+  const busy = state.kanbanComposerBusy || state.kanbanPlanCreating;
+  const messages = state.kanbanComposerMessages.slice(-10).map(renderKanbanComposerMessage).join("");
+  const draft = state.kanbanPlanDraft ? renderKanbanPlanDraft(state.kanbanPlanDraft) : "";
+  return `<section class="kanban-composer-panel">
+    <form id="kanbanComposerForm" class="kanban-composer-form">
+      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="2" placeholder="\u8f93\u5165\u770b\u677f\u9700\u6c42\uff1b\u5173\u95ed\u591a Agent \u521b\u5efa\u5355\u5361\uff0c\u5f00\u542f\u540e\u5148\u62c6\u89e3\u8349\u6848">${escapeHtml(state.kanbanComposerText)}</textarea>
+      <div class="kanban-composer-toolbar">
+        <label class="kanban-multi-agent-toggle">
+          <input id="kanbanComposerMultiAgent" type="checkbox"${state.kanbanComposerMultiAgent ? " checked" : ""}${busy ? " disabled" : ""}>
+          <span>\u591a Agent</span>
+          <small>\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}</small>
+        </label>
+        <button type="submit"${busy ? " disabled" : ""}>${state.kanbanComposerMultiAgent ? "\u62c6\u89e3" : "\u521b\u5efa"}</button>
+      </div>
+    </form>
+    ${(messages || draft) ? `<div class="kanban-composer-thread">${messages}${draft}</div>` : ""}
+  </section>`;
 }
 
 function renderTodoKanbanBoard(todos) {
@@ -8454,6 +8539,7 @@ function renderTodoKanbanBoard(todos) {
   return `
     <div class="todo-kanban-board">
       <nav class="todo-kanban-switcher" aria-label="Kanban status">${tabs}</nav>
+      ${renderKanbanComposerPanel()}
       <section class="todo-kanban-lane todo-kanban-current status-${escapeHtml(selectedStatus)}" aria-label="${escapeHtml(selectedMeta.shortLabel)}" role="list">
         <header class="todo-kanban-lane-header">
           <div>
@@ -8667,6 +8753,28 @@ function wireTodoPanel(root) {
     event.preventDefault();
     createTodoFromForm(root).catch(showError);
   });
+  const kanbanComposerText = root.querySelector("#kanbanComposerText");
+  kanbanComposerText?.addEventListener("input", () => {
+    state.kanbanComposerText = kanbanComposerText.value || "";
+    if (state.kanbanComposerText) localStorage.setItem("hermesKanbanComposerDraft", state.kanbanComposerText);
+    else localStorage.removeItem("hermesKanbanComposerDraft");
+  });
+  root.querySelector("#kanbanComposerMultiAgent")?.addEventListener("change", (event) => {
+    state.kanbanComposerMultiAgent = Boolean(event.target?.checked);
+    localStorage.setItem("hermesKanbanComposerMultiAgent", state.kanbanComposerMultiAgent ? "1" : "0");
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  });
+  root.querySelector("#kanbanComposerForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitKanbanComposer(root).catch(showError);
+  });
+  root.querySelector("[data-clear-kanban-plan]")?.addEventListener("click", () => {
+    state.kanbanPlanDraft = null;
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  });
+  root.querySelector("[data-create-kanban-plan]")?.addEventListener("click", () => {
+    createKanbanPlanFromDraft().catch(showError);
+  });
   root.querySelectorAll("[data-kanban-status]").forEach((button) => {
     button.addEventListener("click", () => {
       const status = String(button.dataset.kanbanStatus || "").trim().toLowerCase();
@@ -8748,6 +8856,103 @@ function wireTodoPanel(root) {
     });
   });
   wireTaskSwipeActions(root);
+}
+
+function pushKanbanComposerMessage(role, content) {
+  state.kanbanComposerMessages.push({
+    id: `kanban-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    role,
+    content: String(content || ""),
+    at: new Date().toISOString(),
+  });
+  state.kanbanComposerMessages = state.kanbanComposerMessages.slice(-20);
+}
+
+function kanbanPlanSummaryText(plan) {
+  const cards = Array.isArray(plan?.cards) ? plan.cards : [];
+  const firstWave = cards.filter((card) => card.initialRunnable).length;
+  return `\u5df2\u751f\u6210 ${cards.length} \u5f20\u5361\u7247\u7684\u591a Agent \u62c6\u89e3\u8349\u6848\uff1b\u9996\u6279\u6267\u884c ${firstWave}\uff0c\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}\u3002`;
+}
+
+async function submitKanbanComposer(root) {
+  if (state.kanbanComposerBusy || state.kanbanPlanCreating) return;
+  const input = root.querySelector("#kanbanComposerText");
+  const text = String(input?.value || state.kanbanComposerText || "").trim();
+  if (!text) throw new Error("\u8bf7\u5148\u8f93\u5165\u770b\u677f\u9700\u6c42");
+  const multiAgent = Boolean(root.querySelector("#kanbanComposerMultiAgent")?.checked);
+  state.kanbanComposerText = "";
+  localStorage.removeItem("hermesKanbanComposerDraft");
+  state.kanbanComposerMultiAgent = multiAgent;
+  localStorage.setItem("hermesKanbanComposerMultiAgent", multiAgent ? "1" : "0");
+  state.kanbanComposerBusy = true;
+  state.kanbanPlanDraft = null;
+  pushKanbanComposerMessage("user", text);
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    if (multiAgent) {
+      const result = await api("/api/kanban/cards/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: state.selectedWorkspaceId,
+          text,
+          maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+        }),
+      });
+      state.kanbanPlanDraft = result.plan || null;
+      pushKanbanComposerMessage("assistant", kanbanPlanSummaryText(state.kanbanPlanDraft));
+    } else {
+      const result = await api(boardCollectionApiPath(), {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: state.selectedWorkspaceId,
+          assignee: defaultTodoAssignee(),
+          content: text,
+        }),
+      });
+      const card = result.card || result.todo || result.result || {};
+      pushKanbanComposerMessage("assistant", `\u5df2\u521b\u5efa\u770b\u677f\u5361\u7247\uff1a${card.id || ""} ${card.content || text}`.trim());
+      clearTodoListCache();
+      state.todoKanbanStatus = "todo";
+      localStorage.setItem("hermesTodoKanbanStatus", "todo");
+      await loadTodos({ skipCache: true });
+    }
+  } catch (err) {
+    pushKanbanComposerMessage("assistant", `\u770b\u677f\u64cd\u4f5c\u5931\u8d25\uff1a${err.message || String(err)}`);
+    throw err;
+  } finally {
+    state.kanbanComposerBusy = false;
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
+}
+
+async function createKanbanPlanFromDraft() {
+  if (!state.kanbanPlanDraft || state.kanbanPlanCreating) return;
+  state.kanbanPlanCreating = true;
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const result = await api("/api/kanban/cards/batch", {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: state.selectedWorkspaceId,
+        plan: state.kanbanPlanDraft,
+        maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+      }),
+    });
+    const cards = Array.isArray(result.cards) ? result.cards : [];
+    const blocked = cards.filter((item) => item.blocked).length;
+    pushKanbanComposerMessage("assistant", `\u5df2\u521b\u5efa ${cards.length} \u5f20\u591a Agent \u770b\u677f\u5361\u7247\uff1b${Math.max(0, cards.length - blocked)} \u5f20\u9996\u6279\u6267\u884c\uff0c${blocked} \u5f20\u7b49\u5f85\u4f9d\u8d56\u6216\u5e76\u884c\u4f4d\u3002`);
+    state.kanbanPlanDraft = null;
+    clearTodoListCache();
+    state.todoKanbanStatus = "todo";
+    localStorage.setItem("hermesTodoKanbanStatus", "todo");
+    await loadTodos({ skipCache: true });
+  } catch (err) {
+    pushKanbanComposerMessage("assistant", `\u6279\u91cf\u521b\u5efa\u5931\u8d25\uff1a${err.message || String(err)}`);
+    throw err;
+  } finally {
+    state.kanbanPlanCreating = false;
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
 }
 
 async function createTodoFromForm(root) {
@@ -8915,7 +9120,7 @@ async function postponeTodoQuick(todoId, minutes) {
 
 function focusTodoFormSoon() {
   setTimeout(() => {
-    $("todoContent")?.focus();
+    ($("kanbanComposerText") || $("todoContent"))?.focus();
   }, 40);
 }
 
