@@ -20,6 +20,7 @@ const CHAT_MESSAGE_PAGE_LIMIT = 40;
 const CHAT_MESSAGE_SEARCH_LIMIT = 120;
 const CHAT_HISTORY_LOAD_TOP_PX = 220;
 const TASK_MESSAGE_INITIAL_LIMIT = 300;
+const TODO_AUTO_REFRESH_INTERVAL_MS = 8000;
 const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
 
 const state = {
@@ -56,6 +57,8 @@ const state = {
   todoSource: "",
   todoKanbanBoard: "",
   todoKanbanStatus: localStorage.getItem("hermesTodoKanbanStatus") || "todo",
+  todoCompletedLoaded: false,
+  todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoCreateOpen: false,
   automations: [],
@@ -943,11 +946,13 @@ function blurComposerInput() {
 function handleAppBackgrounded() {
   suppressComposerAutoFocus(1800);
   blurComposerInput();
+  clearTodoAutoRefresh();
 }
 
 function handleAppForegrounded() {
   suppressComposerAutoFocus(900);
   blurComposerInput();
+  if (state.viewMode === "todos") scheduleTodoAutoRefresh();
 }
 
 function focusComposerSoon(options = {}) {
@@ -7248,6 +7253,7 @@ function applyViewMode() {
 
 async function loadSelectedView() {
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
+  if (state.viewMode !== "todos") clearTodoAutoRefresh();
   applyViewMode();
   if (state.viewMode !== "tasks") state.skillDetail = null;
   if (state.viewMode === "single" || state.viewMode === "tasks") {
@@ -8076,26 +8082,59 @@ async function loadThreads() {
   renderThreads();
 }
 
-async function loadTodos() {
+function kanbanStatusNeedsCompleted(status) {
+  return status === "done" || status === "archived";
+}
+
+function shouldLoadCompletedTodos(options = {}) {
+  if (Object.prototype.hasOwnProperty.call(options, "includeCompleted")) return Boolean(options.includeCompleted);
+  if (currentSearchText()) return true;
+  if (state.selectedTodoId) return true;
+  return kanbanStatusNeedsCompleted(String(state.todoKanbanStatus || "").trim().toLowerCase());
+}
+
+function clearTodoAutoRefresh() {
+  window.clearTimeout(state.todoAutoRefreshTimer);
+  state.todoAutoRefreshTimer = 0;
+}
+
+function scheduleTodoAutoRefresh() {
+  clearTodoAutoRefresh();
+  if (state.viewMode !== "todos") return;
+  if (document.visibilityState === "hidden") return;
+  state.todoAutoRefreshTimer = window.setTimeout(() => {
+    state.todoAutoRefreshTimer = 0;
+    if (state.viewMode !== "todos" || document.visibilityState === "hidden") return;
+    loadTodos({ preserveScroll: true, autoRefresh: true }).catch(() => scheduleTodoAutoRefresh());
+  }, TODO_AUTO_REFRESH_INTERVAL_MS);
+}
+
+async function loadTodos(options = {}) {
   const params = new URLSearchParams();
   params.set("workspaceId", state.selectedWorkspaceId || "owner");
   params.set("limit", "120");
-  params.set("includeCompleted", "1");
+  const includeCompleted = shouldLoadCompletedTodos(options);
+  if (includeCompleted) params.set("includeCompleted", "1");
   params.set("scope", "mine");
   const search = currentSearchText();
   if (search) params.set("search", search);
+  const conversation = $("conversation");
+  const restoreScrollTop = options.preserveScroll && conversation ? conversation.scrollTop : null;
   const result = await api(`/api/todos?${params}`);
+  if (options.autoRefresh && state.viewMode !== "todos") return;
   state.todos = result.data || [];
   state.todoAssignees = result.assignees || [];
   state.todoSource = result.source || result.result?.source || "";
   state.todoKanbanBoard = result.result?.board || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "";
+  state.todoCompletedLoaded = includeCompleted;
   state.currentThread = null;
   state.currentThreadId = "";
   state.currentTaskGroupId = "";
   if (state.selectedTodoId && !state.todos.some((todo) => todo.id === state.selectedTodoId)) state.selectedTodoId = "";
   updateSearchButton();
-  renderTodos();
+  renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop });
   setComposerEnabled(false);
+  scheduleTodoAutoRefresh();
 }
 
 function todoStatusLabel(todo) {
@@ -8233,13 +8272,13 @@ function renderTodoList() {
   return;
 }
 
-function renderTodos() {
+function renderTodos(options = {}) {
   applyViewMode();
   renderTodoList();
-  renderTodoPanel();
+  renderTodoPanel(options);
 }
 
-function renderTodoPanel() {
+function renderTodoPanel(options = {}) {
   const conversation = $("conversation");
   const selected = state.todos.find((todo) => todo.id === state.selectedTodoId) || null;
   $("threadTitle").textContent = selected ? "看板详情" : "看板";
@@ -8259,7 +8298,11 @@ function renderTodoPanel() {
   `;
   wireTodoPanel(conversation);
   ensureVerticalScrollAffordance(conversation);
-  conversation.scrollTop = 0;
+  if (options.preserveScroll && Number.isFinite(options.restoreScrollTop)) {
+    conversation.scrollTop = options.restoreScrollTop;
+  } else {
+    conversation.scrollTop = 0;
+  }
 }
 
 function renderTodoCreatePanel() {
@@ -8303,9 +8346,10 @@ function renderTodoKanbanBoard(todos) {
     const meta = kanbanStatusMeta(status);
     const items = grouped.get(status) || [];
     const active = status === selectedStatus ? " active" : "";
+    const count = !state.todoCompletedLoaded && kanbanStatusNeedsCompleted(status) ? "…" : String(items.length);
     return `<button class="todo-kanban-tab${active} status-${escapeHtml(status)}" type="button" data-kanban-status="${escapeHtml(status)}" aria-pressed="${active ? "true" : "false"}">
       <span class="todo-kanban-tab-label">${escapeHtml(meta.label)}</span>
-      <span class="todo-kanban-tab-count">${items.length}</span>
+      <span class="todo-kanban-tab-count">${escapeHtml(count)}</span>
     </button>`;
   }).join("");
   return `
@@ -8472,6 +8516,10 @@ function wireTodoPanel(root) {
       if (!KANBAN_STATUS_ORDER.includes(status)) return;
       state.todoKanbanStatus = status;
       localStorage.setItem("hermesTodoKanbanStatus", status);
+      if (kanbanStatusNeedsCompleted(status) && !state.todoCompletedLoaded) {
+        loadTodos({ includeCompleted: true }).catch(showError);
+        return;
+      }
       renderTodos();
     });
   });

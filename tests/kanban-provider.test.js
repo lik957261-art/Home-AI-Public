@@ -172,6 +172,25 @@ async function run() {
   assert.equal(pushed.ok, true);
   assert.deepEqual(pushed.events, []);
 
+  const deleted = await provider.run({
+    action: "delete",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+  });
+  assert.equal(deleted.ok, true);
+  assert.equal(deleted.action, "delete");
+  const listedAfterDelete = await provider.run({
+    action: "list",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    include_completed: true,
+  });
+  assert.equal(listedAfterDelete.ok, true);
+  assert.equal(listedAfterDelete.todos.some((todo) => todo.id === "t_created"), false);
+  const metadataAfterDelete = JSON.parse(fs.readFileSync(path.join(tempDir, "meta.json"), "utf8"));
+  assert.ok(metadataAfterDelete.todos.t_created.deletedAt);
+
   const fallbackProvider = createKanbanTodoBridge({
     command: "hermes",
     metadataPath: path.join(tempDir, "fallback-meta.json"),

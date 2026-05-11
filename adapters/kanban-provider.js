@@ -444,7 +444,11 @@ function createKanbanTodoBridge(options = {}) {
     if (!parsed) return { ok: false, error: "Hermes Kanban did not return JSON output" };
     const store = metadataStore();
     let todos = taskListFrom(parsed)
-      .map((task) => rowFromTask(task, store.todos[taskIdFrom(task)] || {}, payload))
+      .map((task) => {
+        const meta = store.todos[taskIdFrom(task)] || {};
+        if (meta.deletedAt || meta.deleted_at) return null;
+        return rowFromTask(task, meta, payload);
+      })
       .filter(Boolean);
     const assignee = String(payload.assignee || "").trim();
     if (assignee) todos = todos.filter((todo) => todo.assignee_principal_id === assignee);
@@ -551,7 +555,11 @@ function createKanbanTodoBridge(options = {}) {
 
     if (action === "cancel" || action === "delete") {
       await kanban(["--board", board, "archive", todoId]);
-      store.todos[todoId] = Object.assign({}, meta, { cancelledAt: now, updatedAt: now });
+      store.todos[todoId] = Object.assign({}, meta, {
+        cancelledAt: now,
+        updatedAt: now,
+        ...(action === "delete" ? { deletedAt: now } : {}),
+      });
       saveMetadataStore(store);
       return Object.assign(rowFromTask({ id: todoId, title: meta.content || todoId, status: "archived" }, store.todos[todoId], payload), { action });
     }
