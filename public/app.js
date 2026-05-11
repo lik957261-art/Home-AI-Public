@@ -141,6 +141,7 @@ const state = {
   chatSearchRefocus: false,
   olderChatMessagesLoading: false,
   suppressComposerFocusUntil: 0,
+  suppressTransientActivationUntil: 0,
   attachFilePickerActivationAt: 0,
   topNavActivationAt: 0,
   privateChatThread: null,
@@ -3094,6 +3095,22 @@ function eventClientPoint(event) {
     return { x: event.clientX, y: event.clientY };
   }
   return null;
+}
+
+function suppressTransientActivations(ms = 700) {
+  state.suppressTransientActivationUntil = Math.max(state.suppressTransientActivationUntil || 0, Date.now() + ms);
+}
+
+function transientActivationSuppressed() {
+  return Date.now() < (state.suppressTransientActivationUntil || 0);
+}
+
+function suppressTransientActivationEvent(event) {
+  if (!transientActivationSuppressed()) return false;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  event.stopImmediatePropagation?.();
+  return true;
 }
 
 function eventInAttachFileHitZone(event) {
@@ -12060,8 +12077,19 @@ function wireUi() {
     if (!option) return;
     event.preventDefault();
     event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    suppressTransientActivations(700);
     void chooseGroupMention(Number(option.dataset.groupMentionIndex || 0));
   });
+  $("groupMentionMenu")?.addEventListener("pointerup", (event) => {
+    if (transientActivationSuppressed()) suppressTransientActivationEvent(event);
+  }, { capture: true });
+  $("groupMentionMenu")?.addEventListener("touchend", (event) => {
+    if (transientActivationSuppressed()) suppressTransientActivationEvent(event);
+  }, { capture: true, passive: false });
+  $("groupMentionMenu")?.addEventListener("click", (event) => {
+    if (transientActivationSuppressed()) suppressTransientActivationEvent(event);
+  }, { capture: true });
   $("interruptRun").addEventListener("click", interruptRun);
   $("messageInput").addEventListener("input", (event) => {
     autoSizeComposerEditor(event.target);
@@ -12110,12 +12138,17 @@ function wireUi() {
     if ($("composer")?.contains(event.target)) return;
     closeGroupMentionMenu();
   });
+  document.addEventListener("click", (event) => {
+    suppressTransientActivationEvent(event);
+  }, { capture: true });
   document.addEventListener("pointerup", (event) => {
+    if (suppressTransientActivationEvent(event)) return;
     if (event.pointerType === "mouse") return;
     if (handleTopNavActivation(event, { fromHitZone: true })) return;
     handleAttachFileActivation(event, { fromHitZone: true });
   }, { capture: true });
   document.addEventListener("touchend", (event) => {
+    if (suppressTransientActivationEvent(event)) return;
     if (window.PointerEvent) return;
     if (handleTopNavActivation(event, { fromHitZone: true })) return;
     handleAttachFileActivation(event, { fromHitZone: true });
