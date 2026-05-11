@@ -8534,11 +8534,20 @@ function renderKanbanOutputLinks(outputs) {
   const items = Array.isArray(outputs) ? outputs : [];
   if (!items.length) return "";
   return `<div class="todo-detail-outputs">
-    ${items.map((item) => `<a href="${escapeHtml(item.url || "#")}" target="_blank" rel="noopener">
+    ${items.map((item) => `<a href="${escapeHtml(kanbanOutputHref(item))}" target="_self" rel="noopener">
       <span>${escapeHtml(item.name || "output")}</span>
       <small>${escapeHtml(item.displayPath || item.path || "")}</small>
     </a>`).join("")}
   </div>`;
+}
+
+function kanbanOutputHref(item) {
+  return artifactHref({
+    url: item?.url || "#",
+    name: item?.name || "output",
+    mime: item?.mime || "",
+    size: item?.size || 0,
+  });
 }
 
 function renderKanbanProcessRows(detail) {

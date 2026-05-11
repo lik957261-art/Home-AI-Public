@@ -9306,6 +9306,18 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/kanban/cards/output/preview" && req.method === "GET") {
+    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const resolved = resolveKanbanOutputFile(workspaceId, url.searchParams.get("path") || "", authenticateRequest(req));
+    if (!resolved.file) {
+      sendJson(res, resolved.status || 404, { error: resolved.error || "Kanban output not found" });
+      return;
+    }
+    sendResolvedFilePreview(res, resolved.file);
+    return;
+  }
+
   const kanbanCardDetail = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/detail$/);
   if (kanbanCardDetail && req.method === "GET") {
     if (!useKanbanTodoBackend()) {

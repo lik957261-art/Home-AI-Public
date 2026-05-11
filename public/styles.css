@@ -4937,9 +4937,12 @@ button.directory-alias-chip {
 }
 
 .todo-detail-result {
+  --kanban-receipt-body-size: 14px;
+  --kanban-receipt-line-height: 1.62;
+  --kanban-receipt-caption-size: 12px;
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.42);
@@ -4976,8 +4979,8 @@ button.directory-alias-chip {
 .todo-detail-result pre {
   margin: 0;
   color: var(--ink);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--kanban-receipt-body-size);
+  line-height: var(--kanban-receipt-line-height);
   overflow-wrap: anywhere;
 }
 
@@ -5001,10 +5004,12 @@ button.directory-alias-chip {
 
 .todo-detail-outputs a {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
-  padding: 8px;
+  padding: 9px;
   color: var(--accent);
+  font-size: var(--kanban-receipt-body-size);
+  line-height: 1.35;
   text-decoration: none;
   border: 1px solid rgba(31, 111, 98, 0.14);
   border-radius: 10px;
@@ -5013,7 +5018,7 @@ button.directory-alias-chip {
 
 .todo-detail-outputs small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--kanban-receipt-caption-size);
   overflow-wrap: anywhere;
 }
 
@@ -5034,8 +5039,8 @@ button.directory-alias-chip {
 
 .todo-detail-process span {
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: var(--kanban-receipt-caption-size);
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
@@ -6327,6 +6332,12 @@ button.directory-alias-chip {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .todo-detail-result {
+    --kanban-receipt-body-size: 15px;
+    --kanban-receipt-line-height: 1.68;
+    --kanban-receipt-caption-size: 12.5px;
+  }
+
   .todo-postpone-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -6506,6 +6517,21 @@ button.directory-alias-chip {
   #sendMessage {
     min-width: 54px;
     padding: 0 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .todo-detail-result {
+    --kanban-receipt-body-size: 14px;
+    --kanban-receipt-line-height: 1.64;
+    --kanban-receipt-caption-size: 12px;
+  }
+}
+
+@media (min-width: 900px) {
+  .todo-detail-result {
+    --kanban-receipt-body-size: 14.5px;
+    --kanban-receipt-line-height: 1.64;
   }
 }
 
