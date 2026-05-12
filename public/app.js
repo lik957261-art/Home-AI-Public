@@ -928,7 +928,7 @@ function sidebarBackToMenu() {
 }
 
 function isMobileLayout() {
-  return window.matchMedia("(max-width: 760px)").matches;
+  return window.matchMedia("(max-width: 1099px)").matches;
 }
 
 function isCurrentSingleWindowLoaded() {
@@ -1891,6 +1891,7 @@ function updateNavigationControls() {
   const skillDetail = isSkillDetailView();
   const taskList = isTaskListView();
   const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
+  const mainBack = taskDetail || todoDetail || automationDetail || skillDetail || directoryBack;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
@@ -1906,15 +1907,15 @@ function updateNavigationControls() {
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);
+  app?.classList.toggle("main-back-visible", mainBack);
   if (taskToolbar) {
     taskToolbar.hidden = !taskDetail;
     if (!taskDetail) taskToolbar.innerHTML = "";
   }
   if (menuButton) {
-    const detailBack = taskDetail || todoDetail || automationDetail || skillDetail;
-    menuButton.classList.toggle("back-mode", detailBack);
-    menuButton.setAttribute("aria-label", detailBack ? "Back to list" : "Open menu");
-    menuButton.innerHTML = `<span class="top-nav-button-glyph" aria-hidden="true">${detailBack ? "&#10094;" : "&#9776;"}</span>`;
+    menuButton.classList.toggle("back-mode", mainBack);
+    menuButton.setAttribute("aria-label", mainBack ? "Back" : "Open menu");
+    menuButton.innerHTML = `<span class="top-nav-button-glyph" aria-hidden="true">${mainBack ? "&#10094;" : "&#9776;"}</span>`;
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
@@ -3000,6 +3001,7 @@ async function loadOlderChatMessages() {
 function handleViewportLayoutChange() {
   updateKeyboardViewportMetrics();
   updateMobileBottomNavReservation();
+  updateNavigationControls();
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));
   if (!shouldStickConversationOnViewportChange()) return;
@@ -3163,6 +3165,10 @@ function activateTopNavButton() {
   }
   if (isAutomationDetailView()) {
     openAutomationList();
+    return;
+  }
+  if (state.viewMode === "projects" && directoryActivePath()) {
+    navigateDirectoryUp({ animateEntry: true }).catch(showError);
     return;
   }
   openSidebar();
@@ -7256,6 +7262,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("automation-mode", automation);
   $("app")?.classList.toggle("projects-mode", directory);
+  $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("bottomTasksMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
@@ -12180,6 +12187,14 @@ function wireUi() {
       state.currentTaskGroupId = "";
       await loadSelectedView();
     }
+  });
+  $("chatManagementMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    state.viewMode = "single";
+    setSingleWindowMode("chat");
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    await loadSelectedView();
   });
   $("bottomTasksMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });

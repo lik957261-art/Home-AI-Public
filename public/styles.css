@@ -591,7 +591,7 @@ button {
 
 .section-toggle {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -6246,7 +6246,11 @@ button.directory-alias-chip {
   display: none;
 }
 
-@media (max-width: 760px) {
+.main-back-visible .top-nav-button {
+  display: grid;
+}
+
+@media (max-width: 1099px) {
   .app {
     grid-template-columns: 1fr;
     padding-bottom: var(--mobile-bottom-nav-reserved-height);
