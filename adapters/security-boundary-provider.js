@@ -93,10 +93,13 @@ function envFlag(value) {
 
 const SAFE_RESTRICTED_TOOLSETS = Object.freeze([
   "web",
+  "search",
   "http",
   "weather",
+  "browser",
   "file",
   "vision",
+  "video",
   "image_gen",
   "messaging",
   "tts",
@@ -129,11 +132,15 @@ const DEVELOPER_TOOLSETS = Object.freeze([
   "delegation",
   "delegate",
   "delegate_task",
+  "computer_use",
+  "homeassistant",
+  "rl",
+  "moa",
   "cron",
   "mcp",
 ]);
 
-const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|cron|mcp)(?:$|[-_])/i;
+const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|computer[-_]?use|homeassistant|rl|moa|cron|mcp)(?:$|[-_])/i;
 const PERMISSION_BOUNDARY_SKILL = "productivity/hermes-mobile-permission-boundary-check";
 const PERMISSION_APPROVAL_MARKER = "HERMES_PERMISSION_APPROVAL_REQUIRED";
 
@@ -144,10 +151,13 @@ function permissionBoundarySkillInstructions(policy = {}) {
     `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as a mandatory pre-flight check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "Web Search is ordinary low-permission work when the run has the web toolset; do not ask for Owner elevation just to search or extract public web information.",
+    "Search-only public web lookup is ordinary low-permission work when the run has the search toolset.",
     "Scoped HTTP requests to the current account/workspace's documented Program APIs are ordinary low-permission work when the run has the http toolset; call `http_request` instead of looking for `web_request` or using terminal/code for authenticated manifest, bundle, or writeback calls.",
     "Weather lookup for the current account's user-facing request is ordinary low-permission work when the run has the weather toolset; do not ask for Owner elevation just to check forecast, temperature, rain, wind, or weather-dependent planning.",
+    "Browser automation for public web pages or explicitly current-account web tasks is ordinary low-permission work when the run has the browser toolset, provided it uses an isolated worker browser/session and does not operate unrelated accounts, payments, orders, or privacy commitments.",
     "File reads and writes inside the current allowed roots are ordinary low-permission work when the run has the file toolset; do not ask for Owner elevation just to read or write an in-scope workspace file.",
     "OCR, document-image extraction, and visual analysis of files inside the current allowed roots are ordinary low-permission work when the run has the vision toolset; do not ask for Owner elevation just to OCR an in-scope image, PDF, or document.",
+    "Video analysis of public video URLs or files inside the current allowed roots is ordinary low-permission work when the run has the video toolset.",
     "Image generation or image editing requested by the current account is ordinary low-permission work when the run has the image_gen toolset; use `image_generate`, `image_edit`, or `image_erase` when present, and write outputs only inside allowed roots or delivery roots.",
     "Messaging requested by the current account is ordinary low-permission work when the run has the messaging toolset and the recipient/channel is the current conversation, current workspace delivery channel, or an explicitly in-scope recipient.",
     "Text-to-speech requested by the current account is ordinary low-permission work when the run has the tts toolset and audio outputs stay inside allowed roots or delivery roots.",

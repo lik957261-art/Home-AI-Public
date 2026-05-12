@@ -1,0 +1,8 @@
+name: hermes-mobile-web
+version: 1.0.0
+description: "Hermes Mobile fallback public web search and extraction tools for low-permission Gateway profiles."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - web
+  - search

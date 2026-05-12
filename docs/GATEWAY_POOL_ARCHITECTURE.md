@@ -108,14 +108,20 @@ profiles must see the same filesystem store. The helper
 directories, back them up, and replace them with links to a shared store without
 modifying official Hermes Gateway source.
 
-Low-privilege `securityLevel=user` workers must also expose a narrow
-`api_server` platform toolset. Manifest labels decide which worker may be
+Low-privilege `securityLevel=user` workers must also expose an ordinary-user
+`api_server` platform toolset. This is not a tiny whitelist: public web/search,
+scoped HTTP, weather, isolated browser automation, in-scope files, vision,
+video, image generation/editing, messaging, TTS, profile-local Skills, Todo,
+Kanban, Cron, memory, session search, and clarification are ordinary
+low-permission capabilities when the target stays inside the current account,
+workspace, and allowed roots. Manifest labels decide which worker may be
 selected, but labels alone are not a capability boundary. A user worker profile
-should explicitly omit developer/cross-boundary toolsets such as `terminal`,
-`process`, `code_execution`, `delegation`, `git`, `source`, `codex`,
-and broad MCP exposure. Owner-maintenance profiles may retain those toolsets,
-but only workers labeled `securityLevel=owner-maintenance` and selected through
-an explicit Owner elevation path should use them.
+must explicitly omit developer/system/cross-boundary toolsets such as
+`terminal`, `process`, `code_execution`, `delegation`, `git`, `source`,
+`codex`, `computer_use`, `homeassistant`, RL/MOA fanout, and broad MCP
+exposure. Owner-maintenance profiles may retain those toolsets, but only
+workers labeled `securityLevel=owner-maintenance` and selected through an
+explicit Owner elevation path should use them.
 
 The low-privilege `skills` toolset is allowed only for the current
 account/workspace's profile-local Skill store selected by `skillProfile`. It is

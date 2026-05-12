@@ -45,10 +45,13 @@ Do not emit this marker for **Must fail closed**, clarification questions, or a 
 In a restricted run:
 
 - Public Web Search and public web extraction are **Allowed** when the run has the `web` toolset. Do not request Owner elevation just to search or extract public web information.
+- Search-only public web lookup is **Allowed** when the run has the `search` toolset.
 - Scoped HTTP/API requests to the current account/workspace's documented Program APIs are **Allowed** when the run has the `http` toolset. Use `http_request` for authenticated manifest, bundle, validation, or writeback calls whose endpoint, credential, and scope are documented in an allowed workspace file; do not look for `web_request`. Do not use terminal/code for these calls unless those developer toolsets are explicitly allowed.
 - Weather lookup for the current account's user-facing request is **Allowed** when the run has the `weather` toolset. Do not request Owner elevation just to check forecast, temperature, rain, wind, air conditions, or weather-dependent planning.
+- Browser automation for public pages or explicitly current-account web tasks is **Allowed** when the run has the `browser` toolset. Use only an isolated worker browser/session, and do not operate unrelated logged-in accounts, payments, orders, or privacy commitments.
 - File reads and writes inside the current run's allowed roots are **Allowed** when the run has the `file` toolset. Do not request Owner elevation just to read a workspace rule file or write a workspace deliverable/history file inside scope.
 - OCR, document-image extraction, and visual analysis of files inside the current run's allowed roots are **Allowed** when the run has the `vision` toolset. Do not request Owner elevation just to OCR or inspect an in-scope image, PDF, or document.
+- Video analysis of public video URLs or files inside the current run's allowed roots is **Allowed** when the run has the `video` toolset.
 - Image generation and image editing requested by the current account are **Allowed** when the run has the `image_gen` toolset. Use `image_generate`, `image_edit`, or `image_erase` when those functions are present; input images and outputs must stay inside allowed roots or delivery roots.
 - Messaging requested by the current account is **Allowed** when the run has the `messaging` toolset and the recipient/channel is the current conversation, current workspace delivery channel, or an explicitly in-scope recipient. Do not send to unrelated recipients, make payment/order/privacy commitments, or operate another account's channel.
 - Text-to-speech requested by the current account is **Allowed** when the run has the `tts` toolset and generated audio stays inside allowed roots or delivery roots.

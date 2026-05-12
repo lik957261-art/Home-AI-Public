@@ -19,6 +19,8 @@ shared_auth_seed_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_SEED_PATH:-$profile_auth
 mobile_app_root="${HERMES_MOBILE_APP_ROOT:-/mnt/c/ProgramData/HermesMobile/app}"
 weather_plugin_source="${HERMES_MOBILE_WEATHER_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-weather}"
 weather_plugin_target="$worker_home_dir/plugins/hermes-mobile-weather"
+web_plugin_source="${HERMES_MOBILE_WEB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-web}"
+web_plugin_target="$worker_home_dir/plugins/hermes-mobile-web"
 http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-http}"
 http_plugin_target="$worker_home_dir/plugins/hermes-mobile-http"
 image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-image}"
@@ -186,6 +188,7 @@ fi
 
 missing_auth_profiles=()
 weather_plugin_enabled=0
+web_plugin_enabled=0
 http_plugin_enabled=0
 image_plugin_enabled=0
 
@@ -196,6 +199,15 @@ if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/_
   weather_plugin_enabled=1
 else
   echo "Weather plugin source not found: $weather_plugin_source" >&2
+fi
+
+if [ -f "$web_plugin_source/plugin.yaml" ] && [ -f "$web_plugin_source/__init__.py" ]; then
+  rm -rf "$web_plugin_target"
+  cp -a "$web_plugin_source" "$web_plugin_target"
+  chown -R "$worker_user:$worker_user" "$web_plugin_target"
+  web_plugin_enabled=1
+else
+  echo "Web plugin source not found: $web_plugin_source" >&2
 fi
 
 if [ -f "$http_plugin_source/plugin.yaml" ] && [ -f "$http_plugin_source/__init__.py" ]; then
@@ -232,6 +244,9 @@ if [ "$weather_plugin_enabled" = "1" ]; then
   weather_api_toolset_block="    - weather"
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-weather"$'\n'
 fi
+if [ "$web_plugin_enabled" = "1" ]; then
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-web"$'\n'
+fi
 if [ "$http_plugin_enabled" = "1" ]; then
   http_toolset_block="  - http"
   http_api_toolset_block="    - http"
@@ -253,8 +268,11 @@ model:
   base_url: https://chatgpt.com/backend-api/codex
 toolsets:
   - web
+  - search
+  - browser
   - file
   - vision
+  - video
   - image_gen
   - messaging
   - tts
@@ -270,13 +288,17 @@ ${http_toolset_block}
 platform_toolsets:
   api_server:
     - web
+    - search
+    - browser
     - file
     - vision
+    - video
     - image_gen
     - messaging
     - tts
     - skills
     - todo
+    - kanban
     - cronjob
     - memory
     - session_search
@@ -310,6 +332,12 @@ for idx in $(seq 1 "$low_gateway_count"); do
     cp -a "$weather_plugin_target" "$profile_dir/plugins/hermes-mobile-weather"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-weather"
   fi
+  if [ "$web_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-web"
+    cp -a "$web_plugin_target" "$profile_dir/plugins/hermes-mobile-web"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-web"
+  fi
   if [ "$http_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-http"
@@ -332,6 +360,9 @@ for idx in $(seq 1 "$low_gateway_count"); do
     weather_api_toolset_block="    - weather"
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-weather"$'\n'
   fi
+  if [ "$web_plugin_enabled" = "1" ]; then
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-web"$'\n'
+  fi
   if [ "$http_plugin_enabled" = "1" ]; then
     http_toolset_block="  - http"
     http_api_toolset_block="    - http"
@@ -352,8 +383,11 @@ model:
   base_url: https://chatgpt.com/backend-api/codex
 toolsets:
   - web
+  - search
+  - browser
   - file
   - vision
+  - video
   - image_gen
   - messaging
   - tts
@@ -369,13 +403,17 @@ ${http_toolset_block}
 platform_toolsets:
   api_server:
     - web
+    - search
+    - browser
     - file
     - vision
+    - video
     - image_gen
     - messaging
     - tts
     - skills
     - todo
+    - kanban
     - cronjob
     - memory
     - session_search
