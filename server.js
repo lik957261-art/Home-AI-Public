@@ -287,6 +287,11 @@ const WEIXIN_DELIVERY_RETRY_MAX_MS = Math.max(WEIXIN_DELIVERY_RETRY_BASE_MS, Num
   || process.env.HERMES_WEB_WEIXIN_DELIVERY_RETRY_MAX_MS
   || "600000",
 ) || 600000);
+const WEIXIN_INGRESS_ATTACHMENT_CONTEXT_WINDOW_MS = Math.max(0, Number(
+  process.env.HERMES_MOBILE_WEIXIN_ATTACHMENT_CONTEXT_WINDOW_MS
+  || process.env.HERMES_WEB_WEIXIN_ATTACHMENT_CONTEXT_WINDOW_MS
+  || "30000",
+) || 30000);
 const AUTOMATION_WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_AUTOMATION_PUSH_ENABLED || "1");
 const AUTOMATION_WEB_PUSH_INTERVAL_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_INTERVAL_MS || "60000");
 const AUTOMATION_WEB_PUSH_START_DELAY_MS = nonNegativeMilliseconds(
@@ -6353,13 +6358,68 @@ function weixinIngressMessageContent(event) {
   return lines.join("\n\n").trim();
 }
 
-function weixinIngressInstructions(event) {
-  return [
+function weixinIngressIsAttachmentOnlyEvent(event) {
+  return !String(event?.text || "").trim() && Array.isArray(event?.attachments) && event.attachments.length > 0;
+}
+
+function weixinPendingAttachmentMessagesForEvent(thread, event, nowMs = Date.now()) {
+  const messages = [];
+  const windowMs = WEIXIN_INGRESS_ATTACHMENT_CONTEXT_WINDOW_MS;
+  if (!thread || !event || windowMs <= 0) return messages;
+  for (const message of [...(thread.messages || [])].reverse()) {
+    const ingress = normalizeExternalIngress(message?.externalIngress || null);
+    if (!ingress || ingress.source !== "weixin") continue;
+    if (ingress.status !== "waiting_instruction") continue;
+    if (!weixinDeliveryMatchesInboundEvent(ingress, event, ingress.workspaceId || thread.workspaceId || "")) continue;
+    const createdMs = weixinDeliveryTimeMs(message.submittedAt || message.createdAt || ingress.createdAt || ingress.updatedAt || "");
+    if (createdMs && nowMs - createdMs > windowMs) continue;
+    if (!String(message.content || "").includes("MEDIA:")) continue;
+    messages.unshift(message);
+  }
+  return messages;
+}
+
+function consumeWeixinPendingAttachmentMessages(thread, event, consumedAt = nowIso()) {
+  const pending = weixinPendingAttachmentMessagesForEvent(thread, event, weixinDeliveryTimeMs(consumedAt) || Date.now());
+  for (const message of pending) {
+    message.externalIngress = normalizeExternalIngress(Object.assign({}, message.externalIngress || {}, {
+      status: "consumed_by_instruction",
+      consumedAt,
+      consumedByEventId: event?.eventId || "",
+      updatedAt: consumedAt,
+    }));
+    message.updatedAt = consumedAt;
+  }
+  return pending;
+}
+
+function weixinPendingAttachmentInstructionLines(messages) {
+  const lines = [];
+  for (const message of messages || []) {
+    const content = String(message?.content || "");
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("MEDIA:")) lines.push(`- ${trimmed.slice("MEDIA:".length).trim()}`);
+    }
+  }
+  return lines;
+}
+
+function weixinIngressInstructions(event, pendingAttachmentMessages = []) {
+  const lines = [
     "This request arrived from Hermes Mobile's Weixin ingress sidecar.",
     "Hermes Mobile owns outbound delivery back to the origin chat. Do not call send_message, Weixin, or other external chat delivery tools unless the user explicitly asks to send something to a third party.",
     "Produce the final reply for Hermes Mobile to deliver. If you create user-facing files, include MEDIA:/absolute/path lines in the final answer.",
     `Ingress route: account=${event.accountId || "unknown"}, chat=${event.chatId || event.userId || "unknown"}.`,
-  ].join("\n");
+  ];
+  const pendingLines = weixinPendingAttachmentInstructionLines(pendingAttachmentMessages);
+  if (pendingLines.length) {
+    lines.push(
+      "The same Weixin route sent the following attachment-only message(s) immediately before this text. Treat these media files as attached to the latest user instruction, not as separate completed tasks:",
+      ...pendingLines.slice(0, 20),
+    );
+  }
+  return lines.join("\n");
 }
 
 function findExistingWeixinIngressEvent(eventId) {
@@ -7310,29 +7370,70 @@ async function startWeixinIngressEvent(body) {
     };
   }
   const awakenedOutbound = wakeWeixinOutboundDeliveriesForInboundEvent(event, workspaceId);
-  const maintenanceIntent = securityBoundaryProvider.classifyMaintenanceIntent(weixinIngressMessageContent(event));
-  if (maintenanceIntent) {
-    const err = new Error(maintenanceIntent.message);
-    err.status = 403;
-    err.result = { code: maintenanceIntent.category, operatorRequired: true };
-    throw err;
+  const attachmentOnly = weixinIngressIsAttachmentOnlyEvent(event);
+  if (!attachmentOnly) {
+    const maintenanceIntent = securityBoundaryProvider.classifyMaintenanceIntent(weixinIngressMessageContent(event));
+    if (maintenanceIntent) {
+      const err = new Error(maintenanceIntent.message);
+      err.status = 403;
+      err.result = { code: maintenanceIntent.category, operatorRequired: true };
+      throw err;
+    }
   }
   const thread = weixinIngressThreadForEvent(event, workspaceId);
   const taskGroupId = SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+  const createdAt = nowIso();
+  const senderInfo = senderInfoForWorkspace(workspaceId);
+  const ingressStatus = attachmentOnly ? "waiting_instruction" : "received";
+  const ingressMeta = normalizeExternalIngress(Object.assign({}, event, {
+    threadKey: weixinIngressProvider.threadKey(event),
+    workspaceId,
+    status: ingressStatus,
+    createdAt,
+    updatedAt: createdAt,
+  }));
+  if (attachmentOnly) {
+    const userMessage = {
+      id: makeId("msg"),
+      role: "user",
+      content: weixinIngressMessageContent(event),
+      status: "done",
+      createdAt,
+      updatedAt: createdAt,
+      submittedAt: createdAt,
+      artifacts: [],
+      taskGroupId,
+      messageKind: "ai",
+      senderWorkspaceId: senderInfo.senderWorkspaceId,
+      senderPrincipalId: senderInfo.senderPrincipalId,
+      senderLabel: event.senderLabel || senderInfo.senderLabel,
+      actorWorkspaceId: workspaceId,
+      externalIngress: ingressMeta,
+      singleWindowMode: "chat",
+      awaitingInstruction: true,
+    };
+    thread.messages.push(userMessage);
+    thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
+    thread.updatedAt = createdAt;
+    saveState();
+    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
+    return {
+      ok: true,
+      duplicate: false,
+      awaitingInstruction: true,
+      eventId: event.eventId,
+      awakenedOutbound,
+      run: { status: "waiting_instruction", taskGroupId },
+      thread: compactThread(thread),
+    };
+  }
+  const pendingAttachmentMessages = consumeWeixinPendingAttachmentMessages(thread, event, createdAt);
   const queueBehindActiveRun = taskGroupHasRunningRun(thread, taskGroupId);
   if (!queueBehindActiveRun) {
     const concurrencyError = runConcurrencyError(workspaceId);
     if (concurrencyError) throw concurrencyError;
   }
-  const createdAt = nowIso();
-  const senderInfo = senderInfoForWorkspace(workspaceId);
-  const ingressMeta = normalizeExternalIngress(Object.assign({}, event, {
-    threadKey: weixinIngressProvider.threadKey(event),
-    workspaceId,
-    status: "received",
-    createdAt,
-    updatedAt: createdAt,
-  }));
   const userMessage = {
     id: makeId("msg"),
     role: "user",
@@ -7383,7 +7484,7 @@ async function startWeixinIngressEvent(body) {
   const runOptions = {
     singleWindowMode: "chat",
     actorWorkspaceId: workspaceId,
-    instructions: weixinIngressInstructions(event),
+    instructions: weixinIngressInstructions(event, pendingAttachmentMessages),
     gatewayRouting: {
       source: "weixin",
       workspaceId,
