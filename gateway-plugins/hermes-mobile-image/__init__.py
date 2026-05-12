@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import json
 import mimetypes
 import os
@@ -107,6 +108,16 @@ IMAGE_ERASE_SCHEMA = {
         "required": ["input_image_path", "target"],
     },
 }
+
+
+def _schema_alias(schema: dict[str, Any], name: str) -> dict[str, Any]:
+    aliased = copy.deepcopy(schema)
+    aliased["name"] = name
+    return aliased
+
+
+CHATGPT_IMAGE_EDIT_SCHEMA = _schema_alias(IMAGE_EDIT_SCHEMA, "chatgpt_image_edit")
+CHATGPT_IMAGE_ERASE_SCHEMA = _schema_alias(IMAGE_ERASE_SCHEMA, "chatgpt_image_erase")
 
 
 def _json(payload: dict[str, Any]) -> str:
@@ -383,6 +394,25 @@ def _image_erase_handler(args: dict[str, Any], **_: Any) -> str:
     return _run_edit(args, prompt=prompt, tool_name="image_erase")
 
 
+def _chatgpt_image_edit_handler(args: dict[str, Any], **_: Any) -> str:
+    return _run_edit(args, prompt=str(args.get("prompt") or ""), tool_name="chatgpt_image_edit")
+
+
+def _chatgpt_image_erase_handler(args: dict[str, Any], **_: Any) -> str:
+    target = str(args.get("target") or "").strip()
+    if not target:
+        return _json({"ok": False, "error": "target_required"})
+    preserve = str(args.get("preserve") or "").strip()
+    prompt = (
+        f"Edit this image by removing {target}. Reconstruct the background naturally. "
+        "Preserve composition, perspective, lighting, colors, faces, clothing, subject identity, "
+        "and every area not directly related to the removal."
+    )
+    if preserve:
+        prompt += f" Must preserve: {preserve}."
+    return _run_edit(args, prompt=prompt, tool_name="chatgpt_image_erase")
+
+
 def register(ctx) -> None:
     ctx.register_tool(
         name="image_edit",
@@ -398,5 +428,21 @@ def register(ctx) -> None:
         schema=IMAGE_ERASE_SCHEMA,
         handler=_image_erase_handler,
         description="Scoped ChatGPT Image 2 object/background erasure for Hermes Mobile workspace images.",
+        emoji="image",
+    )
+    ctx.register_tool(
+        name="chatgpt_image_edit",
+        toolset="image_gen",
+        schema=CHATGPT_IMAGE_EDIT_SCHEMA,
+        handler=_chatgpt_image_edit_handler,
+        description="Stable Hermes Mobile alias for scoped ChatGPT Image 2 image editing.",
+        emoji="image",
+    )
+    ctx.register_tool(
+        name="chatgpt_image_erase",
+        toolset="image_gen",
+        schema=CHATGPT_IMAGE_ERASE_SCHEMA,
+        handler=_chatgpt_image_erase_handler,
+        description="Stable Hermes Mobile alias for scoped ChatGPT Image 2 object/background erasure.",
         emoji="image",
     )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import html
 import ipaddress
 import json
@@ -60,6 +61,16 @@ WEB_EXTRACT_SCHEMA = {
         "required": ["urls"],
     },
 }
+
+
+def _schema_alias(schema: dict[str, Any], name: str) -> dict[str, Any]:
+    aliased = copy.deepcopy(schema)
+    aliased["name"] = name
+    return aliased
+
+
+MOBILE_WEB_SEARCH_SCHEMA = _schema_alias(WEB_SEARCH_SCHEMA, "mobile_web_search")
+MOBILE_WEB_EXTRACT_SCHEMA = _schema_alias(WEB_EXTRACT_SCHEMA, "mobile_web_extract")
 
 
 def _json(payload: dict[str, Any]) -> str:
@@ -316,5 +327,22 @@ def register(ctx) -> None:
         handler=_web_extract_handler,
         is_async=True,
         description="Public URL text extraction with official backend preference and no-key fallback.",
+        emoji="web",
+    )
+    ctx.register_tool(
+        name="mobile_web_search",
+        toolset="web",
+        schema=MOBILE_WEB_SEARCH_SCHEMA,
+        handler=_web_search_handler,
+        description="Stable Hermes Mobile public web search alias with official backend preference and no-key fallback.",
+        emoji="search",
+    )
+    ctx.register_tool(
+        name="mobile_web_extract",
+        toolset="web",
+        schema=MOBILE_WEB_EXTRACT_SCHEMA,
+        handler=_web_extract_handler,
+        is_async=True,
+        description="Stable Hermes Mobile public URL extraction alias with official backend preference and no-key fallback.",
         emoji="web",
     )

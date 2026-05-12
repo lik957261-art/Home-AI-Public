@@ -41,6 +41,7 @@ EOF
 chmod 755 "$runtime_bin/hermes"
 
 low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
+runtime_hermes="$runtime_bin/hermes"
 api_key_file="$worker_home_dir/api-server-key.secret"
 if [ ! -s "$api_key_file" ]; then
   echo "missing low gateway API key file: $api_key_file" >&2
@@ -65,7 +66,7 @@ for idx in $(seq 1 "$low_gateway_count"); do
     PATH="$low_gateway_path" \
     HERMES_ACCEPT_HOOKS=1 \
     API_SERVER_KEY="$api_key" \
-    "$runtime_python" -m hermes_cli.main -p "$profile" gateway run --replace --accept-hooks > "$log" 2>&1
+    "$runtime_hermes" -p "$profile" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2
   pgrep -u "$worker_user" -f "${profile} gateway run" | head -1 > "$pidfile" || true
 done

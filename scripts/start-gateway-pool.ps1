@@ -109,6 +109,7 @@ EOF
 chmod 755 "$runtime_bin/hermes"
 
 low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
+runtime_hermes="$runtime_bin/hermes"
 
 '@
     if (-not $updated.Contains($bootstrapNeedle)) {
@@ -119,6 +120,24 @@ low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/b
   }
   if ($updated -notmatch 'PATH="\$low_gateway_path"') {
     $updated = $updated.Replace('HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"', 'PATH="$low_gateway_path" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"')
+  }
+  if ($updated -notmatch 'runtime_hermes="\$runtime_bin/hermes"') {
+    $needle = 'low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"'
+    $replacement = @'
+low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
+runtime_hermes="$runtime_bin/hermes"
+'@
+    if ($updated.Contains($needle)) {
+      $updated = $updated.Replace($needle, $replacement.TrimEnd())
+    } else {
+      Write-GatewayPoolLog "Low gateway runtime hermes shim variable patch skipped; start script shape is unknown."
+    }
+  }
+  if ($updated -match '"\$runtime_python" -m hermes_cli\.main -p "\$profile" gateway run') {
+    $updated = $updated.Replace('"$runtime_python" -m hermes_cli.main -p "$profile" gateway run', '"$runtime_hermes" -p "$profile" gateway run')
+  }
+  if ($updated -match 'gateway run --replace --accept-hooks > "\$log" 2>&1(?! < /dev/null)') {
+    $updated = $updated -replace '(gateway run --replace --accept-hooks > "\$log" 2>&1)(?! < /dev/null)', '$1 < /dev/null'
   }
   if ($updated -eq $text) { return }
   $encoding = New-Object System.Text.UTF8Encoding($false)
@@ -176,6 +195,24 @@ if ($LASTEXITCODE -ne 0) {
   $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $stopChild 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw-stop: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway stop failed with exit code $LASTEXITCODE" }
+
+  $legacyStopScript = @'
+set -euo pipefail
+
+if command -v pkill >/dev/null 2>&1; then
+  pkill -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+fi
+sleep 1
+
+if command -v pkill >/dev/null 2>&1; then
+  pkill -9 -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+fi
+'@
+
+  Write-GatewayPoolLog "Stopping legacy official-distro low gateway processes before pool start."
+  $legacyOutput = & wsl.exe -d $OfficialDistro -u root -- bash -lc $legacyStopScript 2>&1
+  foreach ($line in $legacyOutput) { Write-GatewayPoolLog ("legacy-lowgw-stop: {0}" -f $line) }
+  if ($LASTEXITCODE -ne 0) { throw "Legacy official-distro low gateway stop failed with exit code $LASTEXITCODE" }
 }
 
 function Start-LowGateways {

@@ -845,6 +845,7 @@ function ownerElevationInstructions(options = {}) {
     return [
       "APPROVED OWNER HIGH-PRIVILEGE RUN: this run is routed to an Owner maintenance Gateway because the Owner explicitly authorized high-privilege execution in Hermes Mobile.",
       "Use elevated tools only for the latest user request. Do not make unrelated changes, expose raw secrets, print keys/tokens, or modify worker manifests/runtime configuration unless the user explicitly requested that exact maintenance action.",
+      "Image editing, object removal, background cleanup, P image requests, and erase/inpainting requests inside the current workspace are ordinary user work, not maintenance work. Even in an elevated run, use ChatGPT Image 2 image editing tools when available; do not use local PIL/OpenCV/rembg/SAM/ffmpeg/terminal/code image repair unless the user explicitly asks for local image processing.",
       "If the requested target is ambiguous, stop and ask for clarification instead of guessing.",
     ].join("\n");
   }
@@ -5595,12 +5596,13 @@ function policyHasToolset(policy = {}, toolset = "") {
 
 function callableFunctionHintsForToolsets(toolsets = []) {
   const hintsByToolset = {
-    web: ["web_search", "web_extract"],
+    web: ["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"],
+    search: ["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"],
     http: ["http_request"],
     weather: ["weather"],
     file: ["read_file", "write_file", "patch", "search_files"],
     vision: ["vision_analyze"],
-    image_gen: ["image_generate", "image_edit", "image_erase"],
+    image_gen: ["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"],
     messaging: ["send_message"],
     tts: ["text_to_speech"],
     skills: ["skills_list", "skill_view", "skill_manage"],
@@ -5616,6 +5618,17 @@ function callableFunctionHintsForToolsets(toolsets = []) {
     .map((name) => `${name} -> ${hintsByToolset[name].join(", ")}`);
 }
 
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260512-image-edit-http-web-v3";
+
+function gatewayConversationId(thread, userMessage, runPolicy = {}) {
+  const base = thread.singleWindow
+    ? `${thread.hermesSessionId}_${userMessage.taskGroupId || userMessage.id}`
+    : thread.hermesSessionId;
+  const toolsets = dedupe(runPolicy.allowed_toolsets || runPolicy.allowedToolsets || []);
+  const schemaSensitive = toolsets.some((name) => ["web", "search", "http", "weather", "image_gen"].includes(name));
+  return schemaSensitive ? `${base}_${GATEWAY_TOOL_SCHEMA_EPOCH}` : base;
+}
+
 function currentToolSchemaOverrideInstructions(policy = {}) {
   const lines = [];
   if (policyHasToolset(policy, "http")) {
@@ -5625,12 +5638,19 @@ function currentToolSchemaOverrideInstructions(policy = {}) {
       "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls."
     );
   }
+  if (policyHasToolset(policy, "web") || policyHasToolset(policy, "search")) {
+    lines.push(
+      "Current tool schema override: the `web`/`search` toolsets are enabled for this run. Prefer callable function names `mobile_web_search` and `mobile_web_extract`; compatibility names `web_search` and `web_extract` may also be present.",
+      "For public web lookup, use `mobile_web_search` when available. For public URL text extraction, use `mobile_web_extract` when available."
+    );
+  }
   if (policyHasToolset(policy, "image_gen")) {
     lines.push(
-      "Current tool schema override: the `image_gen` toolset is enabled for this run, and its callable function names are `image_generate`, `image_edit`, and `image_erase`.",
-      "For existing-image retouching, object removal, background cleanup, P image requests, or erase/inpainting requests, use `image_edit` or `image_erase`; `image_generate` is only for creating a new image.",
-      "Ignore older assistant statements in conversation_history that claimed image editing, image erasing, `image_edit`, or `image_erase` tools were unavailable; those statements described earlier runs and are stale.",
-      "Before reporting that image editing or image erasing is unavailable, check the current run's actual callable functions. If `image_edit` or `image_erase` is available, use it for allowed current-account image edits."
+      "Current tool schema override: the `image_gen` toolset is enabled for this run, and its callable function names include `image_generate`, `chatgpt_image_edit`, and `chatgpt_image_erase`; compatibility names `image_edit` and `image_erase` may also be present.",
+      "For existing-image retouching, object removal, background cleanup, P image requests, or erase/inpainting requests, prefer `chatgpt_image_edit` or `chatgpt_image_erase` when available; `image_edit` and `image_erase` are compatibility names, and `image_generate` is only for creating a new image.",
+      "Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing from the current callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation.",
+      "Ignore older assistant statements in conversation_history that claimed image editing, image erasing, `chatgpt_image_edit`, `chatgpt_image_erase`, `image_edit`, or `image_erase` tools were unavailable; those statements described earlier runs and are stale.",
+      "Before reporting that image editing or image erasing is unavailable, check the current run's actual callable functions. If `chatgpt_image_edit`, `chatgpt_image_erase`, `image_edit`, or `image_erase` is available, use it for allowed current-account image edits."
     );
   }
   return lines.join("\n");
@@ -6134,6 +6154,27 @@ function enqueueExternalDeliveryForTerminalMessage(thread, message, terminalStat
     return next;
   }
   const content = String(message.content || "").trim();
+  if (message?.elevationRequired || isStaleHttpToolAvailabilityClaim(content) || isStaleImageToolAvailabilityClaim(content)) {
+    const next = normalizeExternalDelivery(Object.assign({}, existing, {
+      deliveryId,
+      status: "skipped",
+      terminalStatus,
+      content: "",
+      error: message?.elevationRequired
+        ? "internal_owner_elevation_request_not_external_delivered"
+        : "internal_tool_schema_failure_not_external_delivered",
+      artifacts: [],
+      threadId: thread.id,
+      messageId: message.id,
+      taskGroupId: message.taskGroupId || "",
+      taskId: message.taskId || message.runId || "",
+      workspaceId: thread.workspaceId,
+      queuedAt: existing.queuedAt || updatedAt,
+      updatedAt,
+    }));
+    message.externalDelivery = next;
+    return next;
+  }
   const next = normalizeExternalDelivery(Object.assign({}, existing, {
     deliveryId,
     status: "pending",
@@ -7614,9 +7655,21 @@ function isStaleHttpToolAvailabilityClaim(text) {
 function isStaleImageToolAvailabilityClaim(text) {
   const content = String(text || "");
   if (!content.trim()) return false;
-  const mentionsImageTool = /image_generate|image_edit|image_erase|image\s*(?:tool|function|edit|erase|editing|retouch|inpainting)|ChatGPT\s*Image|P\s*\u56fe|\u4fee\u56fe|\u56fe\u7247\u7f16\u8f91|\u56fe\u50cf\u7f16\u8f91|\u5c40\u90e8\u64e6\u9664|\u64e6\u9664\u5de5\u5177/i.test(content);
+  const mentionsImageTool = /image_generate|chatgpt_image_edit|chatgpt_image_erase|image_edit|image_erase|image\s*(?:tool|function|edit|erase|editing|retouch|inpainting)|ChatGPT\s*Image|P\s*\u56fe|\u4fee\u56fe|\u56fe\u7247\u7f16\u8f91|\u56fe\u50cf\u7f16\u8f91|\u5c40\u90e8\u64e6\u9664|\u64e6\u9664\u5de5\u5177/i.test(content);
   if (!mentionsImageTool) return false;
   return isToolUnavailableClaimText(content);
+}
+
+function isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message = {}) {
+  if (!approvalRequest?.elevationRequired) return false;
+  const scope = String(approvalRequest.elevationScope || "").trim();
+  if (scope && scope !== "owner_high_privilege") return false;
+  const text = String(output || "");
+  const runPolicy = message?.runOptions?.access_policy_context || message?.runOptions?.accessPolicyContext || {};
+  return (
+    (policyHasToolset(runPolicy, "image_gen") && isStaleImageToolAvailabilityClaim(text))
+    || (policyHasToolset(runPolicy, "http") && isStaleHttpToolAvailabilityClaim(text))
+  );
 }
 
 function conversationHistoryContentForMessage(msg, policy = {}) {
@@ -7629,7 +7682,7 @@ function conversationHistoryContentForMessage(msg, policy = {}) {
   } else if (msg?.role === "assistant" && policyHasToolset(policy, "image_gen") && isStaleImageToolAvailabilityClaim(content)) {
     content = [
       "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
-      "The current run policy enables the `image_gen` toolset; current callable functions supersede older assistant statements about `image_edit`, `image_erase`, or image editing availability.",
+      "The current run policy enables the `image_gen` toolset; current callable functions supersede older assistant statements about `chatgpt_image_edit`, `chatgpt_image_erase`, `image_edit`, `image_erase`, or image editing availability.",
     ].join(" ");
   }
   return content;
@@ -7733,7 +7786,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     input: userMessage.content,
     stream: true,
     store: true,
-    conversation: thread.singleWindow ? `${thread.hermesSessionId}_${userMessage.taskGroupId || userMessage.id}` : thread.hermesSessionId,
+    conversation: gatewayConversationId(thread, userMessage, runPolicy),
     conversation_history: buildConversationHistory(thread, userMessage.id, runPolicy),
     instructions: [
       buildHermesInstructions(
@@ -7751,6 +7804,11 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
   if (options.model) body.model = options.model;
   if (options.reasoning_effort) body.reasoning_effort = options.reasoning_effort;
   if (options.reasoning && typeof options.reasoning === "object") body.reasoning = options.reasoning;
+  assistantMessage.runOptions = Object.assign({}, assistantMessage.runOptions || {}, {
+    access_policy_context: runPolicy,
+    gatewayConversation: body.conversation,
+    toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
+  });
 
   const gatewayRouting = Object.assign({}, requestedGatewayRouting, {
     purpose: "user_run",
@@ -8163,16 +8221,17 @@ function applyHermesRunEvent(event) {
   if (eventName === "run.completed" || eventName === "response.completed") {
     const output = extractCompletedOutput(event) || String(message.content || "");
     const approvalRequest = modelPermissionApprovalRequest(output, message);
+    const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
     const visibleOutput = approvalRequest ? stripPermissionApprovalMarkers(output) : output;
     const completedAt = nowIso();
     message.content = compactFullContent(visibleOutput || output);
     message.status = "done";
     message.usage = supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message);
-    if (approvalRequest) {
+    if (validApprovalRequest) {
       message.elevationRequired = true;
-      message.elevationScope = approvalRequest.elevationScope;
-      message.elevationReason = approvalRequest.elevationReason;
-      message.elevationSource = approvalRequest.elevationSource;
+      message.elevationScope = validApprovalRequest.elevationScope;
+      message.elevationReason = validApprovalRequest.elevationReason;
+      message.elevationSource = validApprovalRequest.elevationSource;
     } else {
       message.elevationRequired = false;
       message.elevationScope = "";
