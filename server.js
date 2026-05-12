@@ -4987,6 +4987,23 @@ function isExternalIngressThread(thread) {
   return Boolean(thread?.externalIngress?.source);
 }
 
+function isWeixinSingleWindowThread(thread) {
+  return Boolean(thread?.singleWindow && thread?.externalIngress?.source === "weixin");
+}
+
+function publicExternalIngress(thread) {
+  const ingress = normalizeExternalIngress(thread?.externalIngress || null);
+  if (!ingress) return null;
+  return {
+    source: ingress.source,
+    type: ingress.source,
+    workspaceId: ingress.workspaceId || thread.workspaceId || "",
+    senderLabel: ingress.senderLabel || "",
+    status: ingress.status || "",
+    updatedAt: ingress.updatedAt || "",
+  };
+}
+
 function latestMessageTimestamp(messages) {
   return (messages || []).reduce((latest, message) => {
     const value = message?.completedAt || message?.failedAt || message?.cancelledAt || message?.updatedAt || message?.createdAt || "";
@@ -5027,6 +5044,160 @@ function createSingleWindowThread(workspaceId, overrides = {}) {
   }, overrides));
 }
 
+function weixinThreadSeed(workspaceId, source = {}) {
+  const now = nowIso();
+  let threadKey = String(source.threadKey || source.thread_key || "").trim();
+  if (!threadKey && (source.accountId || source.account_id || source.chatId || source.chat_id || source.userId || source.user_id)) {
+    try {
+      threadKey = weixinIngressProvider.threadKey(source);
+    } catch (_) {
+      threadKey = "";
+    }
+  }
+  return normalizeExternalIngress({
+    source: "weixin",
+    threadKey,
+    eventId: source.eventId || source.event_id || "",
+    accountId: source.accountId || source.account_id || "",
+    chatId: source.chatId || source.chat_id || "",
+    userId: source.userId || source.user_id || "",
+    principalId: source.principalId || source.principal_id || "",
+    workspaceId,
+    senderLabel: source.senderLabel || source.sender_label || "",
+    status: source.status || "window",
+    createdAt: source.createdAt || source.created_at || now,
+    updatedAt: source.updatedAt || source.updated_at || now,
+  });
+}
+
+function findWeixinSingleWindowThreadForWorkspace(workspaceId) {
+  const id = String(workspaceId || "").trim();
+  if (!id) return null;
+  return (state.threads || [])
+    .filter((thread) => (
+      thread?.workspaceId === id
+      && isWeixinSingleWindowThread(thread)
+      && !isGroupChatThread(thread)
+    ))
+    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
+}
+
+function createWeixinSingleWindowThread(workspaceId, seed = {}) {
+  return createSingleWindowThread(workspaceId, {
+    title: "Weixin",
+    hermesSessionId: `web_weixin_${makeId("session")}`,
+    externalIngress: weixinThreadSeed(workspaceId, seed),
+  });
+}
+
+function messageBelongsToWeixinWindow(message) {
+  return Boolean(
+    message?.externalIngress?.source === "weixin"
+    || message?.externalDelivery?.source === "weixin"
+    || message?.runOptions?.gatewayRouting?.source === "weixin"
+  );
+}
+
+function updateThreadChronology(thread) {
+  const latest = latestMessageTimestamp(thread.messages);
+  if (latest) thread.updatedAt = latest;
+  const earliest = (thread.messages || [])
+    .map((message) => message.createdAt || "")
+    .filter(Boolean)
+    .sort()[0];
+  if (earliest && String(earliest) < String(thread.createdAt || "")) {
+    thread.createdAt = earliest;
+  }
+}
+
+function migrateWeixinMessagesToDedicatedThread(workspaceId, targetThread = null) {
+  const id = String(workspaceId || "").trim();
+  if (!id) return null;
+  let target = targetThread || findWeixinSingleWindowThreadForWorkspace(id);
+  let changed = false;
+  for (const sourceThread of state.threads || []) {
+    if (
+      !sourceThread?.singleWindow
+      || sourceThread.workspaceId !== id
+      || isGroupChatThread(sourceThread)
+      || isWeixinSingleWindowThread(sourceThread)
+    ) {
+      continue;
+    }
+    const hasActiveRun = (sourceThread.activeRunIds || []).length
+      || (sourceThread.messages || []).some((message) => ["queued", "running"].includes(message?.status));
+    if (hasActiveRun) continue;
+    const moveMessages = (sourceThread.messages || []).filter(messageBelongsToWeixinWindow);
+    if (!moveMessages.length) continue;
+    if (!target) {
+      target = createWeixinSingleWindowThread(id, moveMessages[0]?.externalIngress || moveMessages[0]?.externalDelivery || {});
+      state.threads.unshift(target);
+    }
+    const moveIds = new Set(moveMessages.map((message) => String(message?.id || "")).filter(Boolean));
+    const existingIds = new Set((target.messages || []).map((message) => String(message?.id || "")));
+    const movedMessages = [];
+    const keptMessages = [];
+    for (const message of sourceThread.messages || []) {
+      const messageId = String(message?.id || "");
+      if (!moveIds.has(messageId)) {
+        keptMessages.push(message);
+        continue;
+      }
+      if (messageId && existingIds.has(messageId)) continue;
+      const moved = Object.assign({}, message, {
+        taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+        singleWindowMode: "chat",
+      });
+      if (moved.externalDelivery) {
+        moved.externalDelivery = normalizeExternalDelivery(Object.assign({}, moved.externalDelivery, {
+          threadId: target.id,
+          taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+          updatedAt: moved.externalDelivery.updatedAt || moved.updatedAt || nowIso(),
+        }));
+      }
+      movedMessages.push(moved);
+      if (messageId) existingIds.add(messageId);
+    }
+    target.messages = sortMessagesChronologically([...(target.messages || []), ...movedMessages]);
+    updateThreadChronology(target);
+    sourceThread.messages = keptMessages;
+    updateThreadChronology(sourceThread);
+    for (const artifact of state.artifacts || []) {
+      if (moveIds.has(String(artifact.messageId || ""))) artifact.threadId = target.id;
+    }
+    changed = true;
+  }
+  if (changed) {
+    saveState(state, { reason: "weixin-single-window-split", forceBackup: true });
+  }
+  return target;
+}
+
+function ensureWeixinSingleWindowThread(workspaceId, seed = {}) {
+  const workspace = findWorkspace(workspaceId);
+  const project = findProject(workspaceId, SINGLE_WINDOW_PROJECT_ID);
+  if (!workspace || !project) return null;
+  let thread = findWeixinSingleWindowThreadForWorkspace(workspaceId);
+  let changed = false;
+  if (!thread) {
+    thread = createWeixinSingleWindowThread(workspaceId, seed);
+    state.threads.unshift(thread);
+    changed = true;
+  }
+  const nextIngress = weixinThreadSeed(workspaceId, Object.assign({}, thread.externalIngress || {}, seed || {}, {
+    createdAt: thread.externalIngress?.createdAt || thread.createdAt,
+    updatedAt: nowIso(),
+  }));
+  if (JSON.stringify(nextIngress) !== JSON.stringify(thread.externalIngress || null)) {
+    thread.externalIngress = nextIngress;
+    changed = true;
+  }
+  const migrated = migrateWeixinMessagesToDedicatedThread(workspaceId, thread);
+  if (migrated && migrated.id === thread.id) thread = migrated;
+  if (changed) saveState();
+  return thread;
+}
+
 function taskGroupHasActiveRun(group) {
   return (group?.messages || []).some((message) => (
     message?.status === "queued"
@@ -5053,6 +5224,7 @@ function migratePrivateSingleWindowGroups(workspaceId) {
     && thread.workspaceId === id
     && !isGroupChatThread(thread)
     && isExternalIngressThread(thread)
+    && !isWeixinSingleWindowThread(thread)
   ));
   let changed = false;
   for (const groupThread of groupThreads) {
@@ -5185,6 +5357,7 @@ function ensureSingleWindowThread(workspaceId, options = {}) {
   if (!workspace || !project) return null;
   const allowGroupThread = Boolean(options.allowGroupThread);
   if (!allowGroupThread) {
+    migrateWeixinMessagesToDedicatedThread(workspaceId);
     const migrated = migratePrivateSingleWindowGroups(workspaceId);
     if (migrated) return migrated;
   }
@@ -6173,7 +6346,7 @@ function findExistingWeixinIngressEvent(eventId) {
 }
 
 function weixinIngressThreadForEvent(event, workspaceId) {
-  return ensureSingleWindowThread(workspaceId);
+  return ensureWeixinSingleWindowThread(workspaceId, event);
 }
 
 function enqueueExternalDeliveryForTerminalMessage(thread, message, terminalStatus) {
@@ -6522,9 +6695,10 @@ async function createWeixinFileForwardDelivery(auth, body = {}) {
   }
   const target = resolveWeixinForwardTarget(body, auth, workspaceId);
   const requestedThreadId = String(body.threadId || body.thread_id || "").trim();
-  let thread = requestedThreadId ? findThreadForAuth(auth, requestedThreadId) : null;
-  if (!thread && resolved.thread && threadAccessibleToAuth(auth, resolved.thread)) thread = resolved.thread;
-  if (!thread || !thread.singleWindow) thread = ensureSingleWindowThread(workspaceId);
+  const requestedThread = requestedThreadId ? findThreadForAuth(auth, requestedThreadId) : null;
+  const thread = requestedThread && isWeixinSingleWindowThread(requestedThread)
+    ? requestedThread
+    : ensureWeixinSingleWindowThread(workspaceId, target);
   const createdAt = nowIso();
   const message = {
     id: makeId("msg"),
@@ -6535,9 +6709,7 @@ async function createWeixinFileForwardDelivery(auth, body = {}) {
     updatedAt: createdAt,
     completedAt: createdAt,
     artifacts: [],
-    taskGroupId: isSingleWindowConversationTaskGroupId(body.taskGroupId || body.task_group_id)
-      ? String(body.taskGroupId || body.task_group_id)
-      : SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+    taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
     messageKind: "plain",
     senderWorkspaceId: "hermes",
     senderPrincipalId: "hermes",
@@ -6792,6 +6964,7 @@ function threadSummary(thread) {
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
     chatGroup: publicChatGroup(thread),
+    externalIngress: publicExternalIngress(thread),
     preview: last ? compactText(last.content, 180) : "",
   };
 }
@@ -7061,6 +7234,7 @@ function compactThread(thread, options = {}) {
     updatedAt: thread.updatedAt,
     taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
     chatGroup: publicChatGroup(thread),
+    externalIngress: publicExternalIngress(thread),
     messages: messages.map((message) => compactMessage(message, thread)),
     messagesPage: messagePage,
     events: (thread.events || []).slice(-MAX_STORED_EVENTS_PER_THREAD),
@@ -7346,8 +7520,10 @@ function taskDetailUrl(thread, message) {
 function terminalNotificationRoute(thread, message) {
   const workspaceId = thread?.workspaceId || "owner";
   if (thread?.singleWindow && message?.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID) {
+    const params = { view: "single", workspaceId };
+    if (isWeixinSingleWindowThread(thread)) params.weixinChat = "1";
     return {
-      url: appRouteUrl({ view: "single", workspaceId }),
+      url: appRouteUrl(params),
       viewMode: "single",
     };
   }
@@ -10419,24 +10595,34 @@ async function handleApi(req, res) {
     const auth = authenticateRequest(req);
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
-    const groupRequested = Boolean(body.groupChat || body.group_chat);
+    const weixinRequested = Boolean(body.weixinChat || body.weixin_chat);
+    let weixinThread = weixinRequested
+      ? ensureWeixinSingleWindowThread(workspaceId)
+      : findWeixinSingleWindowThreadForWorkspace(workspaceId);
+    const groupRequested = !weixinRequested && Boolean(body.groupChat || body.group_chat);
     const availableGroupThread = findGroupChatThreadForWorkspace(workspaceId);
     const groupChatAvailable = Boolean(availableGroupThread && threadAccessibleToAuth(auth, availableGroupThread));
     const groupThread = groupRequested && groupChatAvailable ? availableGroupThread : null;
-    const thread = groupThread
-      ? groupThread
-      : ensureSingleWindowThread(workspaceId, { allowGroupThread: false });
+    const thread = weixinRequested
+      ? weixinThread
+      : (groupThread || ensureSingleWindowThread(workspaceId, { allowGroupThread: false }));
     if (!thread) {
       sendJson(res, 400, { error: "Unknown workspace or single-window project" });
       return;
     }
+    if (!weixinRequested) weixinThread = findWeixinSingleWindowThreadForWorkspace(workspaceId);
+    const weixinTargets = weixinForwardTargetsForWorkspace(workspaceId, auth);
+    const weixinChatAvailable = Boolean(
+      (weixinThread && threadAccessibleToAuth(auth, weixinThread))
+      || weixinTargets.length
+    );
     broadcast({ type: "thread.updated", thread: threadSummary(thread) });
     const messageMode = String(body.messageMode || body.message_mode || "").trim().toLowerCase();
     const wantsMessagePage = ["chat", "tasks", "task"].includes(messageMode);
     const responseThread = wantsMessagePage
       ? compactThreadWithMessagePage(thread, {
         mode: messageMode,
-        groupChat: groupRequested,
+        groupChat: groupRequested && !weixinRequested,
         taskGroupId: body.taskGroupId || body.task_group_id || "",
         limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
       })
@@ -10448,11 +10634,21 @@ async function handleApi(req, res) {
         limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
       })
       : null;
+    const weixinChatThread = weixinThread && threadAccessibleToAuth(auth, weixinThread)
+      ? compactThreadWithMessagePage(weixinThread, {
+        mode: "chat",
+        groupChat: false,
+        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+      })
+      : null;
     sendJson(res, 200, {
       thread: responseThread,
       groupChatAvailable,
       groupChatThreadId: groupChatAvailable ? availableGroupThread.id : "",
       groupChatThread,
+      weixinChatAvailable,
+      weixinChatThreadId: weixinChatThread ? weixinThread.id : "",
+      weixinChatThread,
     });
     return;
   }
