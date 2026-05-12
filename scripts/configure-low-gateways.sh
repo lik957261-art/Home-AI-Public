@@ -13,6 +13,9 @@ shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$worker_home_dir/auth.j
 shared_auth_lock_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_LOCK_PATH:-$worker_home_dir/auth.lock}"
 shared_auth_source_profile="${HERMES_LOW_GATEWAY_SHARED_AUTH_SOURCE_PROFILE:-}"
 shared_auth_seed_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_SEED_PATH:-$profile_auth_seed_root/shared/auth.json}"
+mobile_app_root="${HERMES_MOBILE_APP_ROOT:-/mnt/c/ProgramData/HermesMobile/app}"
+weather_plugin_source="${HERMES_MOBILE_WEATHER_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-weather}"
+weather_plugin_target="$worker_home_dir/plugins/hermes-mobile-weather"
 
 shared_auth_enabled=0
 case "${shared_auth_mode,,}" in
@@ -29,6 +32,7 @@ install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir"
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/logs"
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/profiles"
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/skills"
+install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/plugins"
 mkdir -p "$telemetry_profiles_root"
 
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$(dirname "$shared_auth_path")"
@@ -76,6 +80,16 @@ if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ] && [ -s "$sh
 fi
 
 missing_auth_profiles=()
+weather_plugin_enabled=0
+
+if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/__init__.py" ]; then
+  rm -rf "$weather_plugin_target"
+  cp -a "$weather_plugin_source" "$weather_plugin_target"
+  chown -R "$worker_user:$worker_user" "$weather_plugin_target"
+  weather_plugin_enabled=1
+else
+  echo "Weather plugin source not found: $weather_plugin_source" >&2
+fi
 
 if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ]; then
   echo "Missing shared low Gateway Codex auth at $shared_auth_path" >&2
@@ -93,6 +107,13 @@ for idx in $(seq 1 "$low_gateway_count"); do
   mkdir -p "$profile_dir"
   chmod 700 "$profile_dir" || true
   ln -s "$profile_dir" "$profile_link"
+  weather_toolset_block=""
+  weather_plugin_block="  enabled: []"
+  if [ "$weather_plugin_enabled" = "1" ]; then
+    weather_toolset_block="  - weather"
+    weather_plugin_block="  enabled:
+    - hermes-mobile-weather"
+  fi
   cat > "$profile_link/config.yaml" <<YAML
 model:
   default: gpt-5.5
@@ -100,6 +121,7 @@ model:
   base_url: https://chatgpt.com/backend-api/codex
 toolsets:
   - hermes-cli
+${weather_toolset_block}
 agent:
   max_turns: 60
   reasoning_effort: medium
@@ -114,7 +136,7 @@ platforms:
       host: 127.0.0.1
       port: ${port}
 plugins:
-  enabled: []
+${weather_plugin_block}
 worker_pool:
   enabled: false
 cron:

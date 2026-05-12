@@ -23,6 +23,8 @@ const startCronTickSidecar = read(path.join("scripts", "start-cron-tick-sidecar.
 const runCronTickSidecar = read(path.join("scripts", "run-cron-tick-sidecar.ps1"));
 const configureLowGateways = read(path.join("scripts", "configure-low-gateways.sh"));
 const checkWorkerCodexAuth = read(path.join("scripts", "check-worker-codex-auth.ps1"));
+const weatherPluginManifest = read(path.join("gateway-plugins", "hermes-mobile-weather", "plugin.yaml"));
+const weatherPlugin = read(path.join("gateway-plugins", "hermes-mobile-weather", "__init__.py"));
 
 assert.match(startHermesWeb, /function Test-HermesWebHttpHealth/);
 assert.match(startHermesWeb, /did not open a responsive Hermes Mobile HTTP endpoint/);
@@ -156,6 +158,11 @@ assert.match(configureLowGateways, /profile_seed="\$profile_auth_seed_root\/\$\{
 assert.match(configureLowGateways, /shared_auth_mode/);
 assert.match(configureLowGateways, /shared_auth_path/);
 assert.match(configureLowGateways, /HERMES_LOW_GATEWAY_SHARED_AUTH_SOURCE_PROFILE/);
+assert.match(configureLowGateways, /HERMES_MOBILE_WEATHER_PLUGIN_SOURCE/);
+assert.match(configureLowGateways, /gateway-plugins\/hermes-mobile-weather/);
+assert.match(configureLowGateways, /weather_plugin_enabled=1/);
+assert.match(configureLowGateways, /- weather/);
+assert.match(configureLowGateways, /hermes-mobile-weather/);
 assert.match(configureLowGateways, /Missing shared low Gateway Codex auth/);
 assert.match(configureLowGateways, /HERMES_LOW_GATEWAY_ALLOW_SHARED_AUTH_SEED/);
 assert.match(configureLowGateways, /ln -s "\$shared_auth_path" "\$profile_link\/auth\.json"/);
@@ -171,5 +178,12 @@ assert.match(checkWorkerCodexAuth, /auth_path=/);
 assert.match(checkWorkerCodexAuth, /hashlib\.sha256\(refresh\.encode\(\)\)\.hexdigest\(\)\[:12\]/);
 assert.match(checkWorkerCodexAuth, /Worker child failed with exit code/);
 assert.doesNotMatch(checkWorkerCodexAuth, /print\(.*refresh_token/);
+
+assert.match(weatherPluginManifest, /name: hermes-mobile-weather/);
+assert.match(weatherPluginManifest, /provides_tools:\s*\r?\n\s+- weather/);
+assert.match(weatherPlugin, /WEATHER_SCHEMA/);
+assert.match(weatherPlugin, /"name": "weather"/);
+assert.match(weatherPlugin, /toolset="weather"/);
+assert.match(weatherPlugin, /open-meteo/);
 
 console.log("startup scripts tests passed");

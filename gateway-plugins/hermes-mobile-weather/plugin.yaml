@@ -1,0 +1,7 @@
+name: hermes-mobile-weather
+version: 1.0.0
+description: "Hermes Mobile weather lookup tool for low-permission Gateway profiles."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - weather
