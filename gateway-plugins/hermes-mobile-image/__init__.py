@@ -266,7 +266,6 @@ def _collect_image_b64(client: Any, *, prompt: str, input_image: Path, quality: 
         "type": "image_generation",
         "model": API_MODEL,
         "action": "edit",
-        "input_fidelity": "high",
         "quality": quality,
         "output_format": "png",
         "background": "opaque",

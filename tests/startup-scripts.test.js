@@ -366,6 +366,7 @@ assert.match(imagePlugin, /CHATGPT_IMAGE_EDIT_SCHEMA = _schema_alias\(IMAGE_EDIT
 assert.match(imagePlugin, /CHATGPT_IMAGE_ERASE_SCHEMA = _schema_alias\(IMAGE_ERASE_SCHEMA, "chatgpt_image_erase"\)/);
 assert.match(imagePlugin, /toolset="image_gen"/);
 assert.match(imagePlugin, /gpt-image-2/);
+assert.doesNotMatch(imagePlugin, /"input_fidelity"/);
 assert.match(imagePlugin, /HERMES_MOBILE_IMAGE_ALLOWED_ROOTS/);
 assert.match(imagePlugin, /output_path_crosses_workspace_scope/);
 
