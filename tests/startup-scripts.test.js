@@ -14,6 +14,9 @@ const startHermesWeb = read("start-hermes-web.ps1");
 const server = read("server.js");
 const startWorkerHost = read(path.join("scripts", "start-worker-host.ps1"));
 const startGatewayPool = read(path.join("scripts", "start-gateway-pool.ps1"));
+const runAsWorker = read(path.join("scripts", "run-as-worker.ps1"));
+const startLowGatewaysChild = read(path.join("scripts", "start-low-gateways-child.ps1"));
+const startLowGatewaysShell = read(path.join("scripts", "start-low-gateways.sh"));
 const provisionWorkerExternalConnectors = read(path.join("scripts", "provision-worker-external-connectors.ps1"));
 const repairWorkspaceAcl = read(path.join("scripts", "repair-workspace-acl.ps1"));
 const runKanbanGatewayWorker = read(path.join("scripts", "run-kanban-gateway-worker.ps1"));
@@ -97,6 +100,28 @@ assert.match(startGatewayPool, /ln -sfn \$sharedAuthPath/);
 assert.doesNotMatch(startGatewayPool, /\/home\/\$OfficialUser\/\.local\/bin\/hermes/);
 assert.match(startGatewayPool, /Gateway pool startup OK; healthy ports/);
 assert.doesNotMatch(startGatewayPool, /Write-GatewayPoolLog .*apiKey/i);
+
+assert.match(runAsWorker, /\[Parameter\(Mandatory = \$true\)\]/);
+assert.match(runAsWorker, /worker-credential\.xml/);
+assert.match(runAsWorker, /Import-Clixml/);
+assert.match(runAsWorker, /ProcessStartInfo/);
+assert.match(runAsWorker, /\$psi\.LoadUserProfile = \$true/);
+assert.match(runAsWorker, /worker_exit=/);
+assert.doesNotMatch(runAsWorker, /Write-Host .*Password/i);
+
+assert.match(startLowGatewaysChild, /HermesGatewayWorker/);
+assert.match(startLowGatewaysChild, /start-low-gateways\.sh/);
+assert.match(startLowGatewaysChild, /wsl\.exe -d \$distroName -u root/);
+
+assert.match(startLowGatewaysShell, /configure-low-gateways\.sh/);
+assert.match(startLowGatewaysShell, /HERMES_GATEWAY_RUNTIME_ROOT/);
+assert.match(startLowGatewaysShell, /HERMES_GATEWAY_RUNTIME_BIN/);
+assert.match(startLowGatewaysShell, /HERMES_PROFILE="\$profile"/);
+assert.match(startLowGatewaysShell, /HERMES_GOOGLE_PROFILE_HOME/);
+assert.match(startLowGatewaysShell, /PATH="\$low_gateway_path"/);
+assert.match(startLowGatewaysShell, /API_SERVER_KEY="\$api_key"/);
+assert.match(startLowGatewaysShell, /LOW_GATEWAYS_STARTED/);
+assert.doesNotMatch(startLowGatewaysShell, /xuxin/);
 
 assert.match(provisionWorkerExternalConnectors, /external-connectors\/owner/);
 assert.match(provisionWorkerExternalConnectors, /google_token\.json/);

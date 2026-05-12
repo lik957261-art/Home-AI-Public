@@ -216,6 +216,7 @@ Mobile's PWA.
 - [Weixin ingress sidecar](docs/WEIXIN_INGRESS.md)
 - [SQLite service layer](docs/SERVICE_LAYER_SQLITE.md)
 - [Process isolation](docs/PROCESS_ISOLATION.md)
+- [Agent Windows production deployment](docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md)
 - [Kanban-backed Todo integration](docs/KANBAN_TODO_INTEGRATION.md)
 - [Local workspace root migration](docs/LOCAL_WORKSPACE_ROOT_MIGRATION.md)
 - [Public export checklist](docs/PUBLIC_EXPORT_CHECKLIST.md)

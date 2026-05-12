@@ -21,6 +21,8 @@ function testPathFilters() {
   assert.equal(shouldExport("node_modules/pkg/index.js"), false);
   assert.equal(shouldExport("AGENTS.md"), false);
   assert.equal(shouldExport(".agent-context/HANDOFF.md"), false);
+  assert.equal(shouldExport("docs/LOW_GATEWAY_RUNTIME_INCIDENT_2026-05-12.zh-CN.md"), false);
+  assert.equal(shouldExport("docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md"), true);
 }
 
 function testReadmeTransform() {
@@ -54,6 +56,8 @@ function testCreatesCleanExport() {
     assert.equal(fs.existsSync(path.join(outDir, "workspace")), false);
     assert.equal(fs.existsSync(path.join(outDir, ".agent-context")), false);
     assert.equal(fs.existsSync(path.join(outDir, "AGENTS.md")), false);
+    assert.equal(fs.existsSync(path.join(outDir, "docs", "LOW_GATEWAY_RUNTIME_INCIDENT_2026-05-12.zh-CN.md")), false);
+    assert.equal(fs.existsSync(path.join(outDir, "docs", "AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md")), true);
     const readme = fs.readFileSync(path.join(outDir, "README.md"), "utf8");
     assert.doesNotMatch(readme, /internal productization checkout/);
   } finally {
