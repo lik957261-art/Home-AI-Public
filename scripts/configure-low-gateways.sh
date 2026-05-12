@@ -16,6 +16,8 @@ shared_auth_seed_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_SEED_PATH:-$profile_auth
 mobile_app_root="${HERMES_MOBILE_APP_ROOT:-/mnt/c/ProgramData/HermesMobile/app}"
 weather_plugin_source="${HERMES_MOBILE_WEATHER_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-weather}"
 weather_plugin_target="$worker_home_dir/plugins/hermes-mobile-weather"
+http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-http}"
+http_plugin_target="$worker_home_dir/plugins/hermes-mobile-http"
 
 shared_auth_enabled=0
 case "${shared_auth_mode,,}" in
@@ -83,6 +85,7 @@ fi
 
 missing_auth_profiles=()
 weather_plugin_enabled=0
+http_plugin_enabled=0
 
 if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/__init__.py" ]; then
   rm -rf "$weather_plugin_target"
@@ -91,6 +94,15 @@ if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/_
   weather_plugin_enabled=1
 else
   echo "Weather plugin source not found: $weather_plugin_source" >&2
+fi
+
+if [ -f "$http_plugin_source/plugin.yaml" ] && [ -f "$http_plugin_source/__init__.py" ]; then
+  rm -rf "$http_plugin_target"
+  cp -a "$http_plugin_source" "$http_plugin_target"
+  chown -R "$worker_user:$worker_user" "$http_plugin_target"
+  http_plugin_enabled=1
+else
+  echo "HTTP plugin source not found: $http_plugin_source" >&2
 fi
 
 if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ]; then
@@ -115,14 +127,31 @@ for idx in $(seq 1 "$low_gateway_count"); do
     cp -a "$weather_plugin_target" "$profile_dir/plugins/hermes-mobile-weather"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-weather"
   fi
+  if [ "$http_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-http"
+    cp -a "$http_plugin_target" "$profile_dir/plugins/hermes-mobile-http"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-http"
+  fi
   weather_toolset_block=""
   weather_api_toolset_block=""
-  weather_plugin_block="  enabled: []"
+  http_toolset_block=""
+  http_api_toolset_block=""
+  plugin_enabled_lines=""
   if [ "$weather_plugin_enabled" = "1" ]; then
     weather_toolset_block="  - weather"
     weather_api_toolset_block="    - weather"
-    weather_plugin_block="  enabled:
-    - hermes-mobile-weather"
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-weather"$'\n'
+  fi
+  if [ "$http_plugin_enabled" = "1" ]; then
+    http_toolset_block="  - http"
+    http_api_toolset_block="    - http"
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-http"$'\n'
+  fi
+  plugin_block="  enabled: []"
+  if [ -n "$plugin_enabled_lines" ]; then
+    plugin_block="  enabled:
+${plugin_enabled_lines%$'\n'}"
   fi
   cat > "$profile_link/config.yaml" <<YAML
 model:
@@ -144,6 +173,7 @@ toolsets:
   - session_search
   - clarify
 ${weather_toolset_block}
+${http_toolset_block}
 platform_toolsets:
   api_server:
     - web
@@ -159,6 +189,7 @@ platform_toolsets:
     - session_search
     - clarify
 ${weather_api_toolset_block}
+${http_api_toolset_block}
 agent:
   max_turns: 60
   reasoning_effort: medium
@@ -173,7 +204,7 @@ platforms:
       host: 127.0.0.1
       port: ${port}
 plugins:
-${weather_plugin_block}
+${plugin_block}
 worker_pool:
   enabled: false
 cron:

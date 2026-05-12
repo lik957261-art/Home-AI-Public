@@ -93,6 +93,7 @@ function envFlag(value) {
 
 const SAFE_RESTRICTED_TOOLSETS = Object.freeze([
   "web",
+  "http",
   "weather",
   "file",
   "vision",
@@ -143,6 +144,7 @@ function permissionBoundarySkillInstructions(policy = {}) {
     `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as a mandatory pre-flight check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "Web Search is ordinary low-permission work when the run has the web toolset; do not ask for Owner elevation just to search or extract public web information.",
+    "Scoped HTTP requests to the current account/workspace's documented Program APIs are ordinary low-permission work when the run has the http toolset; use the scoped HTTP tool instead of terminal/code for authenticated manifest, bundle, or writeback calls.",
     "Weather lookup for the current account's user-facing request is ordinary low-permission work when the run has the weather toolset; do not ask for Owner elevation just to check forecast, temperature, rain, wind, or weather-dependent planning.",
     "File reads and writes inside the current allowed roots are ordinary low-permission work when the run has the file toolset; do not ask for Owner elevation just to read or write an in-scope workspace file.",
     "OCR, document-image extraction, and visual analysis of files inside the current allowed roots are ordinary low-permission work when the run has the vision toolset; do not ask for Owner elevation just to OCR an in-scope image, PDF, or document.",
