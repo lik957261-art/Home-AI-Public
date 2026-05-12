@@ -135,6 +135,9 @@ ${weather_toolset_block}
 platform_toolsets:
   api_server:
     - hermes-api-server
+    - messaging
+    - tts
+    - clarify
 ${weather_api_toolset_block}
 agent:
   max_turns: 60

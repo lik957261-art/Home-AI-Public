@@ -10,6 +10,8 @@ const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze([
   "file",
   "vision",
   "image_gen",
+  "messaging",
+  "tts",
   "skills",
   "todo",
   "kanban",
