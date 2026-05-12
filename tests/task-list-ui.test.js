@@ -121,6 +121,12 @@ assert.match(serverJs, /const caption = String\(body\.caption \?\? body\.text \?
 assert.doesNotMatch(serverJs, /Weixin file forwarding:/);
 assert.match(serverJs, /function materializeWeixinForwardFile\(file, workspaceId\)/);
 assert.match(serverJs, /function renderMarkdownForwardPdf\(markdownPath, workspaceId, title\)/);
+assert.match(serverJs, /function renderMarkdownForwardDocument\(markdown\)/);
+assert.match(serverJs, /function renderMarkdownForwardTable\(lines, startIndex\)/);
+assert.match(serverJs, /document-kicker/);
+assert.match(serverJs, /markdown-table-wrap/);
+assert.match(serverJs, /Weixin readable PDF/);
+assert.doesNotMatch(serverJs, /<pre>\$\{escapeHtmlForDocument\(markdown \|\| ""\)\}<\/pre>/);
 assert.match(serverJs, /const forwardFile = materializeWeixinForwardFile\(resolved\.file, workspaceId\)/);
 assert.match(serverJs, /pathToFileURL\(htmlPath\)\.href/);
 assert.match(serverJs, /WEIXIN_FORWARD_MARKDOWN_MAX_BYTES/);
