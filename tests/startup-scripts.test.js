@@ -220,6 +220,8 @@ assert.match(weixinMobileIngressBridge, /class MobileIngressWeixinAdapter/);
 assert.match(weixinMobileIngressBridge, /post_inbound_event/);
 assert.match(weixinMobileIngressBridge, /\/api\/ingress\/weixin\/events/);
 assert.match(weixinMobileIngressBridge, /\/api\/ingress\/weixin\/outbound/);
+assert.match(weixinMobileIngressBridge, /inbound post ignored unmatched route/);
+assert.doesNotMatch(weixinMobileIngressBridge, /入口暂不可用|Gateway 处理/);
 assert.match(weixinMobileIngressBridge, /workspace_id="owner" if principal_id == "owner" else principal_id/);
 assert.doesNotMatch(weixinMobileIngressBridge, /gateway run --replace/);
 

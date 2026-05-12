@@ -481,10 +481,12 @@ class MobileIngressBridge:
                 try:
                     await self._mobile_ingress_bridge.post_inbound_event(self, event)
                 except Exception as exc:
-                    log(f"inbound post failed account={getattr(self, '_account_id', '')}: {exc}")
-                    chat_id = str(getattr(event.source, "chat_id", "") or getattr(event.source, "user_id", "") or "")
-                    if chat_id:
-                        await self.send(chat_id, f"Hermes Mobile 微信入口暂不可用，消息没有交给旧 Gateway 处理。错误：{exc}")
+                    text = str(exc)
+                    account_id = getattr(self, "_account_id", "")
+                    if "Mobile ingress HTTP 404" in text and "No workspace route matched this Weixin ingress event" in text:
+                        log(f"inbound post ignored unmatched route account={account_id}")
+                        return
+                    log(f"inbound post failed account={account_id}: {exc}")
 
         config = load_gateway_config()
         platform_config = config.platforms.get(Platform.WEIXIN)

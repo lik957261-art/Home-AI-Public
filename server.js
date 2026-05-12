@@ -6114,9 +6114,26 @@ function enqueueExternalDeliveryForTerminalMessage(thread, message, terminalStat
   if (["sent", "skipped"].includes(existing.status)) return existing;
   const updatedAt = nowIso();
   const deliveryId = existing.deliveryId || weixinIngressProvider.deliveryId(thread.id, message.id);
-  const content = terminalStatus === "failed"
-    ? `Task failed: ${message.error || message.content || "Hermes run failed"}`
-    : String(message.content || "").trim();
+  if (terminalStatus === "failed") {
+    const next = normalizeExternalDelivery(Object.assign({}, existing, {
+      deliveryId,
+      status: "skipped",
+      terminalStatus,
+      content: "",
+      error: compactText(message.error || message.content || "Hermes run failed", 1000),
+      artifacts: [],
+      threadId: thread.id,
+      messageId: message.id,
+      taskGroupId: message.taskGroupId || "",
+      taskId: message.taskId || message.runId || "",
+      workspaceId: thread.workspaceId,
+      queuedAt: existing.queuedAt || updatedAt,
+      updatedAt,
+    }));
+    message.externalDelivery = next;
+    return next;
+  }
+  const content = String(message.content || "").trim();
   const next = normalizeExternalDelivery(Object.assign({}, existing, {
     deliveryId,
     status: "pending",
@@ -6219,9 +6236,12 @@ async function startWeixinIngressEvent(body) {
   }
   const workspaceId = weixinIngressProvider.resolveWorkspaceId(event);
   if (!workspaceId || !findWorkspace(workspaceId)) {
-    const err = new Error("No workspace route matched this Weixin ingress event");
-    err.status = 404;
-    throw err;
+    return {
+      ok: true,
+      skipped: true,
+      reason: "unmatched_workspace_route",
+      eventId: event.eventId,
+    };
   }
   const maintenanceIntent = securityBoundaryProvider.classifyMaintenanceIntent(weixinIngressMessageContent(event));
   if (maintenanceIntent) {
