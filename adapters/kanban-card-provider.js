@@ -78,6 +78,17 @@ function createKanbanCardProvider(options = {}) {
       due_time: args.dueTime || args.due_time || "",
       reason: args.reason || "",
       idempotency_key: args.idempotencyKey || args.idempotency_key || "",
+      case_id: args.caseId || args.case_id || "",
+      case_mode: args.caseMode || args.case_mode || "",
+      case_source_text: args.caseSourceText || args.case_source_text || "",
+      case_summary: args.caseSummary || args.case_summary || "",
+      case_card_id: args.caseCardId || args.case_card_id || "",
+      case_card_index: args.caseCardIndex ?? args.case_card_index ?? 0,
+      case_card_count: args.caseCardCount ?? args.case_card_count ?? 0,
+      case_depends_on: args.caseDependsOn || args.case_depends_on || [],
+      case_deliverables: args.caseDeliverables || args.case_deliverables || [],
+      case_acceptance: args.caseAcceptance || args.case_acceptance || [],
+      case_card_goal: args.caseCardGoal || args.case_card_goal || "",
     });
   }
 

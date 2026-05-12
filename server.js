@@ -3784,6 +3784,23 @@ function publicTodo(row) {
     kanbanSkills: Array.isArray(row.kanban_skills || row.kanbanSkills)
       ? (row.kanban_skills || row.kanbanSkills).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
       : [],
+    kanbanCaseId: String(row.kanban_case_id || row.kanbanCaseId || ""),
+    kanbanCaseMode: String(row.kanban_case_mode || row.kanbanCaseMode || ""),
+    kanbanCaseSourceText: String(row.kanban_case_source_text || row.kanbanCaseSourceText || ""),
+    kanbanCaseSummary: String(row.kanban_case_summary || row.kanbanCaseSummary || ""),
+    kanbanCaseCardId: String(row.kanban_case_card_id || row.kanbanCaseCardId || ""),
+    kanbanCaseCardIndex: Number(row.kanban_case_card_index || row.kanbanCaseCardIndex || 0),
+    kanbanCaseCardCount: Number(row.kanban_case_card_count || row.kanbanCaseCardCount || 0),
+    kanbanCaseDependsOn: Array.isArray(row.kanban_case_depends_on || row.kanbanCaseDependsOn)
+      ? (row.kanban_case_depends_on || row.kanbanCaseDependsOn).map((item) => String(item || "")).filter(Boolean).slice(0, 12)
+      : [],
+    kanbanCaseDeliverables: Array.isArray(row.kanban_case_deliverables || row.kanbanCaseDeliverables)
+      ? (row.kanban_case_deliverables || row.kanbanCaseDeliverables).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
+      : [],
+    kanbanCaseAcceptance: Array.isArray(row.kanban_case_acceptance || row.kanbanCaseAcceptance)
+      ? (row.kanban_case_acceptance || row.kanbanCaseAcceptance).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
+      : [],
+    kanbanCaseCardGoal: String(row.kanban_case_card_goal || row.kanbanCaseCardGoal || ""),
     createdAt: String(row.created_at || ""),
     updatedAt: String(row.updated_at || ""),
     completedAt: String(row.completed_at || ""),
@@ -4271,13 +4288,28 @@ function kanbanPlanDependencyLabelsForServer(plan, card) {
     .filter(Boolean);
 }
 
+function kanbanSingleCardCasePayload(content, description = "", sourceText = "") {
+  const title = compactText(content || sourceText || "Kanban card", 180);
+  const source = compactText(sourceText || description || content || "", 2000);
+  return {
+    caseId: `kanban-single-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
+    caseMode: "single-card",
+    caseSourceText: source,
+    caseSummary: title,
+    caseCardId: "single",
+    caseCardIndex: 1,
+    caseCardCount: 1,
+    caseCardGoal: compactText(description || content || "", 1200),
+  };
+}
+
 async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
   const plan = normalizeKanbanPlan(planInput, planInput?.sourceText || options.sourceText || "", workspaceId);
   const created = [];
   const byClientId = new Map();
   const runnableIds = new Set(plan.cards.filter((card) => !card.dependsOn.length).slice(0, KANBAN_MULTI_AGENT_MAX_PARALLEL).map((card) => card.clientId));
 
-  for (const card of plan.cards) {
+  for (const [cardIndex, card] of plan.cards.entries()) {
     const assignee = card.assignee || options.assignee || "";
     const result = await kanbanCardProvider.addCard({
       workspaceId,
@@ -4288,6 +4320,17 @@ async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
       dueTime: "",
       reason: "Created from Hermes Mobile multi-Agent Kanban planner.",
       idempotencyKey: `hm-plan-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
+      caseId: plan.id,
+      caseMode: plan.mode,
+      caseSourceText: compactText(plan.sourceText, 2000),
+      caseSummary: compactText(plan.summary, 500),
+      caseCardId: card.clientId,
+      caseCardIndex: cardIndex + 1,
+      caseCardCount: plan.cards.length,
+      caseDependsOn: card.dependsOn,
+      caseDeliverables: card.deliverables,
+      caseAcceptance: card.acceptance,
+      caseCardGoal: card.description || card.title,
     });
     if (!result?.ok) {
       return { ok: false, error: result?.error || "Kanban card creation failed", plan, cards: created, result };
@@ -9916,6 +9959,19 @@ async function handleApi(req, res) {
       dueTime: body.dueTime || body.due_time || "",
       reason: body.reason || "",
       idempotencyKey: body.idempotencyKey || body.idempotency_key || "",
+      ...(body.caseId || body.case_id ? {
+        caseId: body.caseId || body.case_id || "",
+        caseMode: body.caseMode || body.case_mode || "",
+        caseSourceText: body.caseSourceText || body.case_source_text || "",
+        caseSummary: body.caseSummary || body.case_summary || "",
+        caseCardId: body.caseCardId || body.case_card_id || "",
+        caseCardIndex: body.caseCardIndex ?? body.case_card_index ?? 0,
+        caseCardCount: body.caseCardCount ?? body.case_card_count ?? 0,
+        caseDependsOn: body.caseDependsOn || body.case_depends_on || [],
+        caseDeliverables: body.caseDeliverables || body.case_deliverables || [],
+        caseAcceptance: body.caseAcceptance || body.case_acceptance || [],
+        caseCardGoal: body.caseCardGoal || body.case_card_goal || "",
+      } : kanbanSingleCardCasePayload(body.content || body.title || "", body.description || "", body.sourceText || body.source_text || "")),
     });
     if (!result?.ok) {
       kanbanErrorResponse(res, result);
@@ -10407,6 +10463,7 @@ async function handleApi(req, res) {
           description: kanbanDraft.description,
           dueTime: kanbanDraft.dueTime,
           reason: kanbanDraft.reason,
+          ...kanbanSingleCardCasePayload(kanbanDraft.content, kanbanDraft.description, text),
         });
       } catch (err) {
         result = { ok: false, error: err.message || String(err) };

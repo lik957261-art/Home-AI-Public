@@ -4861,6 +4861,149 @@ button.directory-alias-chip {
   gap: 8px;
 }
 
+.kanban-archive-stories {
+  display: grid;
+  gap: 10px;
+}
+
+.kanban-archive-case {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(20, 32, 39, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.kanban-archive-case-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kanban-archive-case-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.kanban-archive-case-head span,
+.kanban-archive-case-head small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.kanban-archive-case-head h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.kanban-archive-story-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kanban-archive-story-grid section {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid rgba(20, 32, 39, 0.075);
+  border-radius: 12px;
+  background: rgba(255, 252, 246, 0.56);
+}
+
+.kanban-archive-story-grid strong {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kanban-archive-story-grid p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.kanban-archive-card-chain {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kanban-archive-card-chain button {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 3px 8px;
+  align-items: start;
+  padding: 8px 9px;
+  color: inherit;
+  text-align: left;
+  border: 1px solid rgba(20, 32, 39, 0.075);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.kanban-archive-card-chain button span {
+  grid-row: span 2;
+  min-width: 26px;
+  padding: 3px 5px;
+  color: var(--accent);
+  text-align: center;
+  background: var(--accent-soft);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.kanban-archive-card-chain button strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.kanban-archive-card-chain button small,
+.kanban-archive-more {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.kanban-archive-more {
+  padding: 0 8px;
+}
+
+@media (max-width: 720px) {
+  .kanban-archive-story-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kanban-archive-case-head {
+    display: grid;
+  }
+}
+
 .todo-kanban-card {
   min-width: 0;
 }

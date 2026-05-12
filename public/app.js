@@ -8335,6 +8335,193 @@ function sortArchivedKanbanCards(items) {
   });
 }
 
+function stableDisplayHash(value) {
+  let hash = 2166136261;
+  const text = String(value || "");
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function arrayFromKanbanField(value, limit = 8) {
+  const raw = Array.isArray(value) ? value : value ? [value] : [];
+  return raw.map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
+}
+
+function kanbanDescriptionSection(description, heading) {
+  const text = String(description || "");
+  const marker = `${heading}:\n`;
+  const start = text.indexOf(marker);
+  if (start < 0) return "";
+  const rest = text.slice(start + marker.length);
+  const next = rest.search(/\n\n(?:Multi-Agent plan|Source request|Card goal|Expected deliverables|Acceptance criteria|Dependencies|Concurrency rule):/);
+  return (next >= 0 ? rest.slice(0, next) : rest).trim();
+}
+
+function kanbanDescriptionList(description, heading, limit = 8) {
+  return kanbanDescriptionSection(description, heading)
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function parsedKanbanPlanDescription(todo) {
+  const description = String(todo?.description || "");
+  if (!description) return {};
+  const summary = description.match(/(?:^|\n)Multi-Agent plan:\s*([^\n]+)/)?.[1]?.trim() || "";
+  return {
+    summary,
+    sourceText: kanbanDescriptionSection(description, "Source request"),
+    cardGoal: kanbanDescriptionSection(description, "Card goal"),
+    deliverables: kanbanDescriptionList(description, "Expected deliverables", 8),
+    acceptance: kanbanDescriptionList(description, "Acceptance criteria", 8),
+    dependsOn: kanbanDescriptionList(description, "Dependencies", 12),
+  };
+}
+
+function kanbanCardCaseInfo(todo) {
+  const parsed = parsedKanbanPlanDescription(todo);
+  const sourceText = String(todo?.kanbanCaseSourceText || parsed.sourceText || "").trim();
+  const summary = String(todo?.kanbanCaseSummary || parsed.summary || sourceText || todo?.content || todo?.id || "").trim();
+  const explicitCaseId = String(todo?.kanbanCaseId || "").trim();
+  const inferredCaseId = sourceText
+    ? `parsed-plan-${stableDisplayHash(`${summary}\0${sourceText}`)}`
+    : `single-card-${todo?.id || stableDisplayHash(summary)}`;
+  return {
+    id: explicitCaseId || inferredCaseId,
+    mode: String(todo?.kanbanCaseMode || (sourceText ? "multi-agent" : "single-card")),
+    sourceText,
+    summary,
+    cardId: String(todo?.kanbanCaseCardId || todo?.id || ""),
+    cardIndex: Number(todo?.kanbanCaseCardIndex || 0) || 0,
+    cardCount: Number(todo?.kanbanCaseCardCount || 0) || 0,
+    cardGoal: String(todo?.kanbanCaseCardGoal || parsed.cardGoal || todo?.description || "").trim(),
+    dependsOn: arrayFromKanbanField(todo?.kanbanCaseDependsOn, 12).length
+      ? arrayFromKanbanField(todo?.kanbanCaseDependsOn, 12)
+      : parsed.dependsOn,
+    deliverables: arrayFromKanbanField(todo?.kanbanCaseDeliverables, 8).length
+      ? arrayFromKanbanField(todo?.kanbanCaseDeliverables, 8)
+      : parsed.deliverables,
+    acceptance: arrayFromKanbanField(todo?.kanbanCaseAcceptance, 8).length
+      ? arrayFromKanbanField(todo?.kanbanCaseAcceptance, 8)
+      : parsed.acceptance,
+  };
+}
+
+function kanbanArchiveCases(items) {
+  const groups = new Map();
+  for (const todo of items || []) {
+    const info = kanbanCardCaseInfo(todo);
+    if (!groups.has(info.id)) {
+      groups.set(info.id, {
+        id: info.id,
+        mode: info.mode,
+        title: info.summary || todoTitle(todo),
+        sourceText: info.sourceText,
+        cards: [],
+        latest: 0,
+      });
+    }
+    const group = groups.get(info.id);
+    if (!group.sourceText && info.sourceText) group.sourceText = info.sourceText;
+    if ((!group.title || group.title === group.id) && info.summary) group.title = info.summary;
+    group.cards.push({ todo, info });
+    group.latest = Math.max(group.latest, todoSortTimestamp(todo));
+  }
+  return [...groups.values()].map((group) => {
+    group.cards.sort((left, right) => {
+      const leftIndex = left.info.cardIndex || 999;
+      const rightIndex = right.info.cardIndex || 999;
+      if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+      return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
+    });
+    return group;
+  }).sort((left, right) => {
+    const delta = right.latest - left.latest;
+    if (delta) return delta;
+    return String(right.id).localeCompare(String(left.id));
+  });
+}
+
+function kanbanArchiveStatusSummary(group) {
+  const counts = new Map();
+  for (const item of group.cards) {
+    const status = normalizedKanbanStatus(item.todo);
+    counts.set(status, (counts.get(status) || 0) + 1);
+  }
+  return KANBAN_STATUS_ORDER
+    .filter((status) => counts.has(status))
+    .map((status) => `${kanbanStatusMeta(status).shortLabel} ${counts.get(status)}`)
+    .join(" / ");
+}
+
+function kanbanArchiveConclusion(group) {
+  const result = group.cards
+    .map((item) => String(item.todo?.kanbanResult || "").trim())
+    .find(Boolean);
+  if (result) return compactDisplayText(result, 320);
+  const completed = group.cards.filter((item) => normalizedKanbanStatus(item.todo) === "done").length;
+  const archived = group.cards.filter((item) => normalizedKanbanStatus(item.todo) === "archived").length;
+  if (completed || archived) return `Done ${completed} / Archived ${archived}`;
+  return "\u672a\u5199\u5165\u7ed3\u679c\u56de\u6267";
+}
+
+function renderKanbanArchiveCase(group) {
+  const cards = group.cards || [];
+  const first = cards[0]?.todo || {};
+  const requirement = compactDisplayText(group.sourceText || group.title || first.content || "", 320);
+  const conclusion = kanbanArchiveConclusion(group);
+  const statusSummary = kanbanArchiveStatusSummary(group);
+  const latest = group.latest ? todoTimestampLabel(new Date(group.latest).toISOString()) : "";
+  const modeLabel = group.mode === "multi-agent" ? "\u591a Agent" : "\u5355\u5361";
+  const cardRows = cards.slice(0, 8).map(({ todo, info }, index) => {
+    const status = kanbanStatusMeta(normalizedKanbanStatus(todo)).shortLabel;
+    const goal = compactDisplayText(info.cardGoal || todo.description || todo.content || "", 160);
+    const sequence = info.cardIndex || index + 1;
+    return `<li>
+      <button type="button" data-todo-id="${escapeHtml(todo.id)}">
+        <span>${escapeHtml(String(sequence))}</span>
+        <strong>${escapeHtml(todo.content || todo.id)}</strong>
+        <small>${escapeHtml([status, goal].filter(Boolean).join(" | "))}</small>
+      </button>
+    </li>`;
+  }).join("");
+  const more = cards.length > 8 ? `<li class="kanban-archive-more">+${cards.length - 8}</li>` : "";
+  return `<article class="kanban-archive-case">
+    <header class="kanban-archive-case-head">
+      <div>
+        <span>${escapeHtml(["\u5f52\u6863\u4e8b\u9879", modeLabel, statusSummary].filter(Boolean).join(" | "))}</span>
+        <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
+      </div>
+      <small>${escapeHtml(latest)}</small>
+    </header>
+    <div class="kanban-archive-story-grid">
+      <section>
+        <strong>\u9700\u6c42</strong>
+        <p>${escapeHtml(requirement || "\u672a\u8bb0\u5f55\u539f\u59cb\u9700\u6c42")}</p>
+      </section>
+      <section>
+        <strong>\u62c6\u89e3</strong>
+        <p>${escapeHtml(`${cards.length} \u5f20\u5361\u7247${statusSummary ? ` | ${statusSummary}` : ""}`)}</p>
+      </section>
+      <section>
+        <strong>\u7ed3\u8bba</strong>
+        <p>${escapeHtml(conclusion)}</p>
+      </section>
+    </div>
+    <ol class="kanban-archive-card-chain">${cardRows}${more}</ol>
+  </article>`;
+}
+
+function renderKanbanArchiveStories(items) {
+  const cases = kanbanArchiveCases(items);
+  if (!cases.length) return `<div class="empty-state small">No archived cases.</div>`;
+  return `<div class="kanban-archive-stories">${cases.map(renderKanbanArchiveCase).join("")}</div>`;
+}
+
 function todoDueLabel(todo) {
   return todo?.dueLocal || formatTime(todo?.dueAt) || "No due time";
 }
@@ -8555,7 +8742,7 @@ function renderTodoKanbanBoard(todos) {
           </div>
           <span>${selectedItems.length}</span>
         </header>
-        <div class="todo-kanban-cards">${selectedItems.map(renderTodoKanbanCard).join("") || `<div class="empty-state small">No items.</div>`}</div>
+        <div class="todo-kanban-cards">${selectedStatus === "archived" ? renderKanbanArchiveStories(selectedItems) : (selectedItems.map(renderTodoKanbanCard).join("") || `<div class="empty-state small">No items.</div>`)}</div>
       </section>
     </div>
   `;

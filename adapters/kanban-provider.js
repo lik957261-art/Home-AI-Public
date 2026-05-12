@@ -168,6 +168,11 @@ function arrayFromTask(task, key) {
   return [];
 }
 
+function arrayFromValue(value, limit = 12) {
+  const raw = Array.isArray(value) ? value : value ? [value] : [];
+  return raw.map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
+}
+
 function dateStringFromTask(value) {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -221,6 +226,17 @@ function bodyWithMeta(content, meta) {
     recurrence: meta.recurrence || "none",
     recurrenceLabel: meta.recurrenceLabel || "",
     recurrenceDays: meta.recurrenceDays || "",
+    caseId: meta.caseId || "",
+    caseMode: meta.caseMode || "",
+    caseSourceText: meta.caseSourceText || "",
+    caseSummary: meta.caseSummary || "",
+    caseCardId: meta.caseCardId || "",
+    caseCardIndex: Number(meta.caseCardIndex || 0) || 0,
+    caseCardCount: Number(meta.caseCardCount || 0) || 0,
+    caseDependsOn: arrayFromValue(meta.caseDependsOn, 12),
+    caseDeliverables: arrayFromValue(meta.caseDeliverables, 8),
+    caseAcceptance: arrayFromValue(meta.caseAcceptance, 8),
+    caseCardGoal: meta.caseCardGoal || "",
   };
   const completionContract = [
     "## Hermes Mobile completion contract",
@@ -433,6 +449,17 @@ function createKanbanTodoBridge(options = {}) {
       recurrence_days: String(meta.recurrenceDays || meta.recurrence_days || ""),
       recurrence_series_id: String(meta.recurrenceSeriesId || meta.recurrence_series_id || ""),
       recurrence_template: bool(meta.recurrenceTemplate || meta.recurrence_template),
+      kanban_case_id: String(meta.caseId || meta.case_id || ""),
+      kanban_case_mode: String(meta.caseMode || meta.case_mode || ""),
+      kanban_case_source_text: String(meta.caseSourceText || meta.case_source_text || ""),
+      kanban_case_summary: String(meta.caseSummary || meta.case_summary || ""),
+      kanban_case_card_id: String(meta.caseCardId || meta.case_card_id || ""),
+      kanban_case_card_index: Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 0,
+      kanban_case_card_count: Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || 0,
+      kanban_case_depends_on: arrayFromValue(meta.caseDependsOn || meta.case_depends_on, 12),
+      kanban_case_deliverables: arrayFromValue(meta.caseDeliverables || meta.case_deliverables, 8),
+      kanban_case_acceptance: arrayFromValue(meta.caseAcceptance || meta.case_acceptance, 8),
+      kanban_case_card_goal: String(meta.caseCardGoal || meta.case_card_goal || ""),
       created_at: dateStringFromTask(meta.createdAt || meta.created_at || task.created_at || task.createdAt || ""),
       updated_at: dateStringFromTask(meta.updatedAt || meta.updated_at || task.updated_at || task.updatedAt || ""),
       completed_at: completedAt || (kanbanStatus === "done" ? dateStringFromTask(task.completed_at || task.completedAt || task.updated_at || task.updatedAt || "") : ""),
@@ -521,6 +548,17 @@ function createKanbanTodoBridge(options = {}) {
       recurrence: String(payload.recurrence || "none"),
       recurrenceLabel: String(payload.recurrence || "none"),
       recurrenceDays: String(payload.recurrence_days || ""),
+      caseId: String(payload.case_id || payload.caseId || "").trim(),
+      caseMode: String(payload.case_mode || payload.caseMode || "").trim(),
+      caseSourceText: String(payload.case_source_text || payload.caseSourceText || "").trim(),
+      caseSummary: String(payload.case_summary || payload.caseSummary || "").trim(),
+      caseCardId: String(payload.case_card_id || payload.caseCardId || "").trim(),
+      caseCardIndex: Number(payload.case_card_index ?? payload.caseCardIndex ?? 0) || 0,
+      caseCardCount: Number(payload.case_card_count ?? payload.caseCardCount ?? 0) || 0,
+      caseDependsOn: arrayFromValue(payload.case_depends_on || payload.caseDependsOn, 12),
+      caseDeliverables: arrayFromValue(payload.case_deliverables || payload.caseDeliverables, 8),
+      caseAcceptance: arrayFromValue(payload.case_acceptance || payload.caseAcceptance, 8),
+      caseCardGoal: String(payload.case_card_goal || payload.caseCardGoal || "").trim(),
       createdAt: now,
       updatedAt: now,
     };

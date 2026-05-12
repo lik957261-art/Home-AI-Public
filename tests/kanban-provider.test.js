@@ -69,12 +69,29 @@ async function run() {
     due_time: "2026-05-10 18:00",
     reminder_lead_minutes: 15,
     recurrence: "none",
+    case_id: "case-one",
+    case_mode: "multi-agent",
+    case_source_text: "Original request",
+    case_summary: "Requirement to conclusion",
+    case_card_id: "card-1",
+    case_card_index: 1,
+    case_card_count: 2,
+    case_depends_on: [],
+    case_deliverables: ["Draft"],
+    case_acceptance: ["Readable archive story"],
+    case_card_goal: "Scope the work",
   });
   assert.equal(created.ok, true);
   assert.equal(created.id, "t_created");
   assert.equal(created.status, "open");
   assert.equal(created.kanban_board, "board-weixin-stephen");
   assert.equal(created.kanban_assignee, "exec-weixin_stephen");
+  assert.equal(created.kanban_case_id, "case-one");
+  assert.equal(created.kanban_case_summary, "Requirement to conclusion");
+  assert.equal(created.kanban_case_card_index, 1);
+  assert.deepEqual(created.kanban_case_deliverables, ["Draft"]);
+  assert.deepEqual(created.kanban_case_acceptance, ["Readable archive story"]);
+  assert.equal(created.kanban_case_card_goal, "Scope the work");
 
   const createCall = calls.find(([, args]) => args.includes("create") && args.includes("Read chapter"));
   assert.ok(createCall);
