@@ -1,0 +1,7 @@
+name: hermes-mobile-http
+version: 1.0.0
+description: "Hermes Mobile scoped HTTP request tool for documented workspace Program APIs."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - http

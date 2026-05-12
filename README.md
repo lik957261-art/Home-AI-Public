@@ -24,123 +24,47 @@ checkout.
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
-## 2026-05-11 Public Update
+## 2026-05-12 Public Update
 
-This public tree was refreshed from private source commit
-`d30c269c5bf87f29479e0c0baf86799a60754a9a`. The notes below are written in
-Chinese for deployment operators.
+本次 public tree 对应 private source commit
+`12e0f987dadcb43cd13d7ab43957fe42b1ba3a16`。这是一次累计公开更新，重点是让
+Windows + WSL + official Hermes Gateway Pool 部署可以由另一个 Agent 按公开文档完成。
 
-### 本次更新范围
+### 主要变化
 
-- 这是一次累计公开更新，不是单个补丁。当前 public tree 对应 private
-  source commit `d30c269c5bf87f29479e0c0baf86799a60754a9a`，覆盖上一版
-  public commit `5eb6bee` 之后的一组产品化修复与功能更新。
-- 本次公开内容主要包括：
-  - 官方 Hermes Kanban 接入与移动端看板 UI
-  - 看板卡片接口从提醒型 Todo 中独立出来
-  - 单窗口聊天、群聊切换、未读提示与移动端布局修复
-  - 低权限 Gateway 能力边界调整
-  - Gateway Pool 的 Codex OAuth 共享认证修复
+- 低权限 Gateway 现在公开包含真实的 `weather` 和受限 `http_request` 插件，不再只停留在权限摘要层。
+- Gateway Pool 启动链路补齐 worker base config、旧 lowgw 进程替换、shared-auth 同文件系统布局、profile SQLite 健康修复。
+- Windows public 部署补齐必要脚本：
+  - `scripts/run-as-worker.ps1`
+  - `scripts/start-low-gateways-child.ps1`
+  - `scripts/start-low-gateways.sh`
+  - `scripts/configure-low-gateways.sh`
+  - `scripts/start-gateway-pool.ps1`
+- 新增 [Agent Windows production deployment](docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md)，供 Codex/Agent 按步骤部署：
+  - 创建 `HermesMobileWorker`。
+  - 准备 `C:\ProgramData\HermesMobile\app` / `data` / `gateway-worker`。
+  - 安装 runtime package。
+  - 启动 WSL `HermesGatewayWorker` lowgw pool。
+  - 启动 Hermes Mobile listener。
+  - 检查 `/api/status`、真实 callable schema、auth realpath、SQLite integrity。
+- 看板卡片详情支持回执/过程、Markdown HTML preview、响应式回执字体和更均衡的 Worker 分配。
+- Weixin / Mobile ingress 启动脚本同步到 public，但仍要求部署方自己提供账号、密钥和唯一 poller 边界。
 
-### 官方 Kanban / 看板
+### 部署边界
 
-- Todo 页现在可以通过 `HERMES_WEB_TODO_BACKEND=kanban` 适配官方 Hermes
-  Kanban，同时继续保留 Hermes Mobile 既有的 `/api/todos` 兼容接口。
-- 看板页现在使用独立的 `/api/kanban/cards` 接口，新增
-  `adapters/kanban-card-provider.js`。这条链路专门面向执行看板卡片，不再把
-  “提醒型待办”强行映射成会被 worker 立即执行的 Kanban 卡。
-- 新增 `adapters/kanban-provider.js`，补充官方 Kanban 元数据、block/unblock、
-  worker 路由、无 due time 卡片、评论入口，以及卡片删除和刷新逻辑。
-- 移动端看板从横向七列改成状态切换加单列卡片列表，更适合手机竖屏。
-- UI 文案已把原来的“待办”主标题切换为“看板”，并同步调整相关页面。
-- 单窗口聊天里的明确看板创建请求现在会先让模型抽取卡片草稿，再由 Hermes
-  Mobile 服务端写入 `/api/kanban/cards`。成功回复必须带有真实的 `t_...` 卡片
-  ID、board 和 Kanban status；如果仍出现 `pending` 这类旧 Todo 状态，说明请求
-  没有进入新的看板接口。
-- 中文触发词已覆盖 `新增`、`新建`、`创建`、`增加`、`添加`、`补建`、`补录`、
-  `生成` 等常见说法，避免“增加看板卡片”落回普通模型回复路径。
+public 源码可以复刻 Hermes Mobile 自己负责的用户、脚本、目录和进程形态；不会也不应该复刻任何生产私有状态。部署方仍需提供：
 
-### 聊天 / 群聊 / 移动端界面
+- official Hermes clean runtime。
+- WSL distro。
+- Codex/OAuth auth 或安全 seed。
+- Gateway API keys。
+- Owner Access Key。
+- Web Push VAPID。
+- 外部连接器 token。
+- workspace/user 数据。
 
-- 单窗口聊天历史加入分页，减少首屏一次性加载的消息量，缓解聊天页和相关任务页变慢。
-- 聊天与群聊改为页头直接切换，群成员管理移入三点菜单，减少移动端顶部占位。
-- 修复群聊未读基线、顶部未读计数、群可见性，以及多账号加入群后看不到群的问题。
-- 修复 iPhone、Fold 系列等设备的底部输入框与导航栏占位冲突，并收紧底部保留空间。
-- Mention 菜单去掉重复模型显示，改成更短的标签展示，并修复 touch-through 误触发。
+本次 public export 不包含私有事故复盘、`.agent-context`、runtime DB、logs、uploads、backups、Access Keys、OAuth/Codex auth、push endpoints 或含 API key 的 worker manifests。
 
-### 低权限 Gateway 能力边界
-
-- 低权限 Gateway 恢复和放开了一组原本应可用的能力，包括：
-  - Web Search
-  - 自动化任务工具集
-  - 工作区文件读取能力
-  - 自己账号下的 Skill 修改能力
-  - Kanban 通过 Hermes Mobile 的执行链路
-- 这些调整仍然保留高低权限边界；变化是把“本账号、当前工作区、当前产品流”
-  范围内应可用的能力恢复到低权限层，而不是把 Owner maintenance 权限下放。
-
-### Gateway Codex 认证共享修复
-
-- 修复 Gateway Pool 中 OpenAI Codex OAuth 的错误用法。之前如果把同一份
-  `auth.json` 复制到多个 low Gateway profile，单次刷新会导致别的 profile
-  继续拿旧 refresh token，进而出现 `refresh token was already consumed`
-  之类的失败。
-- 现在低权限 `lowgw1..10` 不再各自保留复制出来的 `auth.json` 副本，而是共享同一套
-  低权限运行时 auth store，包括同一个 `auth.json` 与同一个 `auth.lock`。
-- Owner 高权限 maintenance profile 也改成同样的思路，但仍然保持在 Owner 自己的
-  运行时里共享同一套 Owner auth store，而不是和低权限 worker 混在一起。
-- 这次修复的重点是“共享同一份 auth store 与同一把 lock”，不是“复制同一个 token
-  到多个 profile”。前者是单一会话的并发安全共享，后者会制造 refresh token
-  重用冲突。
-
-### 启动与运维调整
-
-- `scripts/configure-low-gateways.sh` 现在默认按共享根 auth 模式配置低权限 Gateway。
-- 如果共享根 auth 比现有某个 lowgw profile 的 auth 更旧，脚本会自动提升最新的那一份
-  lowgw auth 到共享根 auth，用于完成首次切换，避免再次要求多个 profile 分别登录。
-- `scripts/start-gateway-pool.ps1` 现在会确保生产的 `start-low-gateways.sh`
-  在真正拉起 low Gateway 前先执行 `configure-low-gateways.sh`。
-- `scripts/check-worker-codex-auth.ps1` 现在会区分：
-  - `shared-refresh`：多个 profile 指向同一个真实 auth 文件路径，这是预期共享。
-  - `copied-refresh`：多个 profile 的 refresh token 一样，但落在不同真实文件路径，
-    这是危险的复制冲突。
-
-### 权限边界没有放松
-
-- 这次只是修复认证存储方式，不是把高低权限合并。
-- 低权限和高权限仍然各自保留独立的 profile home、Skill、workspace 路由、toolset、
-  connector 注入和运行边界。
-- 改变的是 OAuth 凭据存储模型，不是 Hermes Mobile 的权限模型。
-
-### 部署与验证
-
-- 部署方不应该再把同一份 `auth.json` 手工复制到多个 Gateway profile 目录中。
-- 如果需要检查当前生产是否仍有危险副本，可以运行：
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-worker-codex-auth.ps1
-```
-
-- 低权限 Gateway 正常共享时，检查结果应显示 `shared-refresh`，并且所有
-  `lowgw1..10` 的 `auth_path` 都指向同一个真实 auth 文件路径。
-- 这次修复不要求修改官方 Hermes 源码；所有变更都在 Hermes Mobile 的启动脚本、
-  运行时编排和检查脚本层完成。
-- 私库源树验证通过：
-  - `npm run check`
-  - `npm run productization:check`
-  - `git diff --check`
-- 生产 Gateway Pool 重启后验证通过：
-  - `lowgw1..10` 均指向同一个低权限共享 auth 文件
-  - `officialclean1..2` 均指向同一个 Owner-maintenance 共享 auth 文件
-  - 低权限直连 smoke：`lowgw3`、`lowgw6` 完成成功
-  - 高权限直连 smoke：`officialclean1` 完成成功
-
-### 已知边界
-
-- 本次没有把 low tier 与 owner-maintenance tier 合并成跨运行时的一套共享 auth。
-  当前仍然是“低权限一套、高权限一套”，这样可以保持两个运行时边界清晰。
-- public 仓只包含产品源码与公共脚本，不包含任何运行时 token、密钥、Access Key、
-  push endpoint、日志、数据库、用户文件或部署目录状态。
 ## Requirements
 
 - Node.js `>=22`
@@ -333,6 +257,7 @@ Mobile's PWA.
 - [Weixin ingress sidecar](docs/WEIXIN_INGRESS.md)
 - [SQLite service layer](docs/SERVICE_LAYER_SQLITE.md)
 - [Process isolation](docs/PROCESS_ISOLATION.md)
+- [Agent Windows production deployment](docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md)
 - [Kanban-backed Todo integration](docs/KANBAN_TODO_INTEGRATION.md)
 - [Local workspace root migration](docs/LOCAL_WORKSPACE_ROOT_MIGRATION.md)
 - [Public export checklist](docs/PUBLIC_EXPORT_CHECKLIST.md)

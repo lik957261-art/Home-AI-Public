@@ -92,7 +92,7 @@ bash "$configure_low_gateway_script"
     }
     $updated = $updated.Replace($needle, $replacement)
   }
-  if ($updated -notmatch "/opt/hermes-gateway-runtime/bin/hermes") {
+  if ($updated -notmatch "HERMES_GATEWAY_RUNTIME_BIN") {
     $bootstrapNeedle = 'low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"'
     $bootstrap = @'
 runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
@@ -126,12 +126,65 @@ low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/b
   Write-GatewayPoolLog "Low gateway start script patched for shared auth, profile env, and Kanban hermes shim."
 }
 
+function Stop-LowGateways {
+  $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
+  if (-not (Test-Path -LiteralPath $runAsWorker)) { throw "Missing worker runner: $runAsWorker" }
+
+  $stopShell = Join-Path $GatewayWorkerRoot "stop-low-gateways.sh"
+  $stopChild = Join-Path $GatewayWorkerRoot "stop-low-gateways-child.ps1"
+  $stopShellText = @'
+#!/usr/bin/env bash
+set -euo pipefail
+
+low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
+
+if command -v pkill >/dev/null 2>&1; then
+  pkill -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+fi
+sleep 1
+
+for idx in $(seq 1 "$low_gateway_count"); do
+  profile="lowgw${idx}"
+  port=$((18750 + idx))
+  pidfile="/home/hermes/.hermes/${profile}-gateway-${port}.pid"
+  if [ -s "$pidfile" ]; then
+    pid="$(cat "$pidfile" 2>/dev/null || true)"
+    if [ -n "$pid" ]; then
+      kill "$pid" 2>/dev/null || true
+    fi
+    rm -f "$pidfile" || true
+  fi
+done
+sleep 1
+
+if command -v pkill >/dev/null 2>&1; then
+  pkill -9 -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+fi
+'@
+  $stopChildText = @'
+$ErrorActionPreference = "Stop"
+wsl.exe -d HermesGatewayWorker -u root -- bash /mnt/c/ProgramData/HermesMobile/gateway-worker/stop-low-gateways.sh
+if ($LASTEXITCODE -ne 0) {
+  throw "Low gateway stop failed with exit code $LASTEXITCODE"
+}
+'@
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($stopShell, $stopShellText, $encoding)
+  [System.IO.File]::WriteAllText($stopChild, $stopChildText, $encoding)
+
+  Write-GatewayPoolLog "Stopping existing low gateway processes before pool start."
+  $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $stopChild 2>&1
+  foreach ($line in $output) { Write-GatewayPoolLog ("lowgw-stop: {0}" -f $line) }
+  if ($LASTEXITCODE -ne 0) { throw "Low gateway stop failed with exit code $LASTEXITCODE" }
+}
+
 function Start-LowGateways {
   $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
   if (-not (Test-Path -LiteralPath $runAsWorker)) { throw "Missing worker runner: $runAsWorker" }
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
   Ensure-LowGatewayProfileEnv
+  Stop-LowGateways
   Write-GatewayPoolLog "Starting low gateway pool."
   $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $child 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }

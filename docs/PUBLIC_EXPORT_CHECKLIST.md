@@ -23,6 +23,7 @@ Create a public repository only from a clean export, not from deployment runtime
 - deployment-only paths such as operator home directories, WSL UNC paths, NAS paths, or Tailscale-only hostnames
 - non-public repository clone URLs
 - worker-pool manifests containing API keys
+- private incident reports that include deployment-specific message ids, profile paths, or machine-local recovery details
 
 ## Export Shape
 

@@ -768,6 +768,9 @@
       if (url.pathname === "/api/automations/deliverable") {
         return `/api/automations/deliverable/preview?${url.searchParams.toString()}`;
       }
+      if (url.pathname === "/api/kanban/cards/output") {
+        return `/api/kanban/cards/output/preview?${url.searchParams.toString()}`;
+      }
       const artifact = url.pathname.match(/^\/api\/artifacts\/([^/]+)$/);
       if (artifact) {
         return `/api/files/preview?artifactId=${encodeURIComponent(decodeURIComponent(artifact[1]))}`;

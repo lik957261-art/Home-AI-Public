@@ -96,8 +96,20 @@ function createKanbanCardProvider(options = {}) {
     });
   }
 
+  function cardDetail(args = {}) {
+    const workspaceId = args.workspaceId || "owner";
+    return runBridge({
+      action: "detail",
+      workspace_id: workspaceId,
+      source_principal: workspacePrincipal(workspaceId),
+      todo_id: args.cardId || args.todoId || args.todo_id || "",
+      log_tail: positiveNumber(args.logTail || args.log_tail, 12000),
+    });
+  }
+
   return {
     addCard,
+    cardDetail,
     listCards,
     mutateCard,
     publicCard,

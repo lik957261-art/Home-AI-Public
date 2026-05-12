@@ -54,14 +54,14 @@ function run() {
       "/Users/alice/HermesDrive",
       "/home/example/.hermes/run-logs",
     ],
-    allowed_toolsets: ["web", "git", "shell", "todo", "cronjob"],
+    allowed_toolsets: ["web", "git", "shell", "todo", "cronjob", "http", "weather", "messaging", "tts"],
     allow_shell: true,
     can_delegate_codex: true,
   });
 
   assert.strictEqual(policy.access_mode, "restricted");
   assert.deepStrictEqual(policy.allowed_roots, ["/Users/alice/HermesDrive", "/home/example/.hermes/run-logs"]);
-  assert.deepStrictEqual(policy.allowed_toolsets, ["web", "todo", "cronjob"]);
+  assert.deepStrictEqual(policy.allowed_toolsets, ["web", "todo", "cronjob", "http", "weather", "messaging", "tts"]);
   assert.strictEqual(policy.allow_shell, false);
   assert.strictEqual(policy.can_delegate_codex, false);
   assert.ok(policy.blocked_toolsets.includes("codex"));
@@ -76,9 +76,13 @@ function run() {
     allowed_roots: ["/Users/alice/HermesDrive"],
   });
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("web"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("http"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("weather"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("file"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("vision"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("image_gen"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("messaging"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("tts"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("skills"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("todo"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("kanban"));
@@ -129,9 +133,13 @@ function run() {
   assert.match(permissionInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
   assert.match(permissionInstructions, /access_policy_context/);
   assert.match(permissionInstructions, /Web Search is ordinary low-permission work/);
+  assert.match(permissionInstructions, /Scoped HTTP requests .* ordinary low-permission work/);
+  assert.match(permissionInstructions, /Weather lookup .* ordinary low-permission work/);
   assert.match(permissionInstructions, /File reads and writes inside the current allowed roots are ordinary low-permission work/);
   assert.match(permissionInstructions, /OCR, document-image extraction, and visual analysis/);
   assert.match(permissionInstructions, /Image generation or image editing requested by the current account/);
+  assert.match(permissionInstructions, /Messaging requested by the current account is ordinary low-permission work/);
+  assert.match(permissionInstructions, /Text-to-speech requested by the current account is ordinary low-permission work/);
   assert.match(permissionInstructions, /documented Program API operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /profile-local Skill read\/create\/update operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /Kanban\/Todo operations are ordinary low-permission work/);
@@ -143,9 +151,13 @@ function run() {
   const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");
   assert.ok(fs.existsSync(skillPath));
   assert.match(fs.readFileSync(skillPath, "utf8"), /Public Web Search and public web extraction are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Scoped HTTP\/API requests .* are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Weather lookup .* is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /File reads and writes inside the current run's allowed roots are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /OCR, document-image extraction, and visual analysis of files inside the current run's allowed roots are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Image generation and image editing requested by the current account are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Messaging requested by the current account is \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Text-to-speech requested by the current account is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /documented Program API reads and writes are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /profile-local Skill read, creation, and update operations are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Automation\/CRON list, job creation, update, pause, resume, and manual run operations are \*\*Allowed\*\*/);

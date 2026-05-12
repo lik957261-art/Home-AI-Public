@@ -289,9 +289,13 @@ async function main() {
     assert.deepEqual(patched.workspace.localConfig.allowedToolsets, [
       "mail",
       "web",
+      "http",
+      "weather",
       "file",
       "vision",
       "image_gen",
+      "messaging",
+      "tts",
       "skills",
       "todo",
       "kanban",

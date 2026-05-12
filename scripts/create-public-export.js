@@ -10,6 +10,7 @@ const REPO_ROOT = path.resolve(__dirname, "..");
 const EXCLUDED_EXACT = new Set([
   ".env",
   "AGENTS.md",
+  "docs/LOW_GATEWAY_RUNTIME_INCIDENT_2026-05-12.zh-CN.md",
 ]);
 
 const EXCLUDED_PREFIXES = [

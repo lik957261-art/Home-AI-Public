@@ -230,6 +230,9 @@ const KANBAN_COMMAND = String(process.env.HERMES_MOBILE_KANBAN_COMMAND || proces
 const KANBAN_COMMAND_ARGS = String(process.env.HERMES_MOBILE_KANBAN_COMMAND_ARGS || process.env.HERMES_WEB_KANBAN_COMMAND_ARGS || "").trim();
 const KANBAN_TODO_META_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_TODO_META_PATH || process.env.HERMES_WEB_KANBAN_TODO_META_PATH || path.join(DATA_DIR, "kanban-todo-meta.json"));
 const KANBAN_WORKSPACE_PATH_STYLE = String(process.env.HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE || process.env.HERMES_WEB_KANBAN_WORKSPACE_PATH_STYLE || "").trim().toLowerCase();
+const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
+const KANBAN_MULTI_AGENT_MAX_CARDS = 8;
+const KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_KANBAN_PLAN_TIMEOUT_MS || process.env.HERMES_WEB_KANBAN_PLAN_TIMEOUT_MS || "90000");
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -3460,6 +3463,49 @@ function workerAllowsWorkspace(worker, workspaceId) {
     || skills.includes(workspaceId);
 }
 
+const kanbanExecutableProfileCursor = new Map();
+
+function workerProfileId(worker) {
+  return String(worker?.profile || worker?.id || worker?.name || "").trim();
+}
+
+function kanbanProfileAssignmentCounts(workspace, profiles) {
+  const profileSet = new Set((Array.isArray(profiles) ? profiles : []).map(String).filter(Boolean));
+  const counts = new Map([...profileSet].map((profile) => [profile, 0]));
+  if (!KANBAN_TODO_META_PATH || !profileSet.size) return counts;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(KANBAN_TODO_META_PATH, "utf8"));
+    const todos = parsed?.todos && typeof parsed.todos === "object" ? Object.values(parsed.todos) : [];
+    for (const meta of todos) {
+      if (String(meta?.workspaceId || meta?.workspace_id || "") !== workspace) continue;
+      if (meta?.deletedAt || meta?.deleted_at || meta?.cancelledAt || meta?.cancelled_at || meta?.completedAt || meta?.completed_at) continue;
+      const profile = String(meta?.kanbanAssignee || meta?.kanban_assignee || "").trim();
+      if (profileSet.has(profile)) counts.set(profile, (counts.get(profile) || 0) + 1);
+    }
+  } catch (_) {
+    // Missing or corrupt metadata should not block Kanban card creation.
+  }
+  return counts;
+}
+
+function nextKanbanExecutableProfile(workspace, workers) {
+  const pool = (Array.isArray(workers) ? workers : []).filter((worker) => workerProfileId(worker));
+  if (!pool.length) return "";
+  const counts = kanbanProfileAssignmentCounts(workspace, pool.map(workerProfileId));
+  const lowestCount = Math.min(...pool.map((worker) => counts.get(workerProfileId(worker)) || 0));
+  const leastLoaded = pool.filter((worker) => (counts.get(workerProfileId(worker)) || 0) === lowestCount);
+  const key = [
+    String(workspace || "default").trim() || "default",
+    leastLoaded.map(workerProfileId).join(","),
+  ].join("|");
+  const previous = kanbanExecutableProfileCursor.get(key) || "";
+  const previousIndex = leastLoaded.findIndex((worker) => workerProfileId(worker) === previous);
+  const nextIndex = (previousIndex + 1) % leastLoaded.length;
+  const profile = workerProfileId(leastLoaded[nextIndex]);
+  kanbanExecutableProfileCursor.set(key, profile);
+  return profile;
+}
+
 function kanbanExecutableProfileForWorkspace(workspaceId, principalId, requestedAssignee = "") {
   const workspace = String(workspaceId || principalId || requestedAssignee || "owner").trim() || "owner";
   try {
@@ -3468,10 +3514,13 @@ function kanbanExecutableProfileForWorkspace(workspaceId, principalId, requested
     const candidates = workers
       .filter((worker) => worker?.profile && worker.securityLevel === "user" && !worker.allowMaintenance)
       .filter((worker) => workerAllowsWorkspace(worker, workspace));
-    const exactSkill = candidates.find((worker) => (worker.skillWorkspaceIds || []).includes(workspace));
-    const exactAllowed = candidates.find((worker) => (worker.allowedWorkspaceIds || []).includes(workspace));
-    const wildcard = candidates.find((worker) => (worker.skillWorkspaceIds || []).includes("*") || (worker.allowedWorkspaceIds || []).includes("*"));
-    return String((exactSkill || exactAllowed || wildcard || candidates[0])?.profile || "").trim();
+    const explicit = String(requestedAssignee || "").trim();
+    const explicitWorker = candidates.find((worker) => workerProfileId(worker) === explicit);
+    if (explicitWorker) return workerProfileId(explicitWorker);
+    const exactSkill = candidates.filter((worker) => (worker.skillWorkspaceIds || []).includes(workspace));
+    const exactAllowed = candidates.filter((worker) => (worker.allowedWorkspaceIds || []).includes(workspace));
+    const wildcard = candidates.filter((worker) => (worker.skillWorkspaceIds || []).includes("*") || (worker.allowedWorkspaceIds || []).includes("*"));
+    return nextKanbanExecutableProfile(workspace, exactSkill.length ? exactSkill : (exactAllowed.length ? exactAllowed : (wildcard.length ? wildcard : candidates)));
   } catch (_) {
     return "";
   }
@@ -3728,6 +3777,126 @@ function publicTodo(row) {
   };
 }
 
+function kanbanOutputAccessThread(workspaceId) {
+  const workspace = String(workspaceId || "owner").trim() || "owner";
+  return {
+    id: `kanban-output-${workspace}`,
+    workspaceId: workspace,
+    projectId: "general",
+    subprojectId: "",
+    singleWindow: false,
+  };
+}
+
+function resolveKanbanOutputFile(workspaceId, rawPath, auth = null) {
+  const workspace = String(workspaceId || "owner").trim() || "owner";
+  if (auth && !authCanAccessWorkspace(auth, workspace)) return { status: 404, error: "File not found" };
+  const displayPath = String(rawPath || "").trim();
+  const localPath = normalizeLocalPath(displayPath);
+  if (!displayPath || !localPath) return { status: 404, error: "File not found" };
+  const thread = kanbanOutputAccessThread(workspace);
+  if (!isPathAllowedForThread(thread, localPath, displayPath)) return { status: 404, error: "File not found or not allowed" };
+  let stat;
+  try {
+    stat = fs.statSync(localPath);
+  } catch (_) {
+    return { status: 404, error: "File not found" };
+  }
+  if (!stat.isFile()) return { status: 400, error: "Path is not a file" };
+  return {
+    file: {
+      localPath,
+      displayPath: logicalUserPathFallback(displayPath, path.basename(localPath)),
+      name: path.basename(localPath),
+      mime: mimeFor(localPath),
+      size: stat.size,
+      updatedAt: stat.mtime.toISOString(),
+    },
+  };
+}
+
+function publicKanbanOutputFile(workspaceId, rawPath) {
+  const resolved = resolveKanbanOutputFile(workspaceId, rawPath, null);
+  if (!resolved.file) return null;
+  const params = new URLSearchParams({ workspaceId: String(workspaceId || "owner"), path: String(rawPath || "") });
+  return {
+    name: resolved.file.name,
+    path: String(rawPath || ""),
+    displayPath: resolved.file.displayPath,
+    mime: resolved.file.mime,
+    size: resolved.file.size,
+    updatedAt: resolved.file.updatedAt,
+    url: `/api/kanban/cards/output?${params.toString()}`,
+  };
+}
+
+function eventPreviewText(event) {
+  if (!event || typeof event !== "object") return "";
+  const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+  return compactText(payload.note || payload.summary || payload.error || event.message || event.kind || "", 360);
+}
+
+function publicKanbanCardDetail(workspaceId, detail = {}) {
+  const runs = Array.isArray(detail.runs) ? detail.runs : [];
+  const events = Array.isArray(detail.events) ? detail.events : [];
+  const comments = Array.isArray(detail.comments) ? detail.comments : [];
+  const latestRun = [...runs].reverse().find((run) => run && (run.summary || run.metadata));
+  const summary = compactText(
+    detail.latest_summary
+    || detail.latestSummary
+    || detail.task?.result
+    || latestRun?.summary
+    || "",
+    4000,
+  );
+  const outputPaths = new Set();
+  for (const run of runs) {
+    const outputs = run?.metadata?.outputs;
+    if (Array.isArray(outputs)) outputs.forEach((item) => outputPaths.add(String(item || "")));
+  }
+  for (const pathText of extractArtifactPaths(summary)) outputPaths.add(pathText);
+  for (const pathText of extractArtifactPaths(detail.log || "")) outputPaths.add(pathText);
+  const outputs = [...outputPaths].map((item) => publicKanbanOutputFile(workspaceId, item)).filter(Boolean);
+  return {
+    summary,
+    outputs,
+    comments: comments.slice(-12).map((comment) => ({
+      author: String(comment.author || comment.created_by || ""),
+      text: compactText(comment.text || comment.body || comment.comment || "", 800),
+      createdAt: dateStringFromTaskLike(comment.created_at || comment.createdAt || ""),
+    })),
+    events: events.slice(-20).map((event) => ({
+      kind: String(event.kind || ""),
+      preview: eventPreviewText(event),
+      createdAt: dateStringFromTaskLike(event.created_at || event.createdAt || ""),
+    })).filter((event) => event.kind || event.preview),
+    runs: runs.slice(-8).map((run) => ({
+      id: String(run.id || ""),
+      profile: String(run.profile || ""),
+      status: String(run.status || ""),
+      outcome: String(run.outcome || ""),
+      summary: compactText(run.summary || "", 1200),
+      startedAt: dateStringFromTaskLike(run.started_at || run.startedAt || ""),
+      endedAt: dateStringFromTaskLike(run.ended_at || run.endedAt || ""),
+    })),
+    logTail: compactText(detail.log || "", 4000),
+  };
+}
+
+function dateStringFromTaskLike(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const millis = value > 10_000_000_000 ? value : value * 1000;
+    const date = new Date(millis);
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  }
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^\d+(?:\.\d+)?$/.test(text)) return dateStringFromTaskLike(Number(text));
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? text : date.toISOString();
+}
+
 function boolParam(value) {
   return /^(1|true|yes|on)$/i.test(String(value || ""));
 }
@@ -3925,6 +4094,236 @@ async function interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId)
     access_policy_context: sanitizePolicy(workspace?.policy || {}),
   });
   return normalizeKanbanDraft(extractJsonObject(output), text, ownerPrincipalId);
+}
+
+function kanbanPlanFallbackCards(sourceText) {
+  const topic = compactText(sourceText, 80) || "Kanban work";
+  return [
+    {
+      title: `Scope and acceptance: ${topic}`,
+      description: "Clarify the objective, inputs, constraints, deliverables, and acceptance criteria before execution.",
+      deliverables: ["Short execution brief", "Acceptance checklist"],
+      acceptance: ["Scope is specific enough for worker cards", "Unknown inputs or risks are listed"],
+      dependsOn: [],
+    },
+    {
+      title: `Execute primary work: ${topic}`,
+      description: "Perform the main implementation, research, cleanup, or production work described by the request.",
+      deliverables: ["Primary output files or changes", "Progress notes"],
+      acceptance: ["Main requested outcome is completed or blocked with evidence"],
+      dependsOn: [1],
+    },
+    {
+      title: `Verify and risk review: ${topic}`,
+      description: "Validate the output, record evidence, and identify risks, missing inputs, and follow-up work.",
+      deliverables: ["Verification notes", "Risk list"],
+      acceptance: ["Validation evidence is attached to the card receipt"],
+      dependsOn: [2],
+    },
+    {
+      title: `Integrate final receipt: ${topic}`,
+      description: "Read upstream card receipts and produce the final user-facing summary with deliverables and next steps.",
+      deliverables: ["Final receipt", "Consolidated deliverable links"],
+      acceptance: ["Final response references upstream outputs and unresolved risks"],
+      dependsOn: [1, 2, 3],
+    },
+  ];
+}
+
+function kanbanPlanDependencyRefs(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null || value === "") return [];
+  return String(value).split(/[,;\n]+/g);
+}
+
+function normalizeKanbanPlan(raw, sourceText, workspaceId) {
+  const draft = raw && typeof raw === "object" ? raw : {};
+  if (draft.needs_clarification || draft.needsClarification) {
+    throw new Error(compactText(draft.clarification || draft.question || "Kanban plan needs clarification", 240));
+  }
+  const rawCards = Array.isArray(draft.cards) && draft.cards.length
+    ? draft.cards
+    : kanbanPlanFallbackCards(sourceText);
+  const cards = rawCards.slice(0, KANBAN_MULTI_AGENT_MAX_CARDS).map((item, index) => {
+    const card = item && typeof item === "object" ? item : { title: String(item || "") };
+    const title = compactText(card.title || card.content || card.name || card.task || `Kanban card ${index + 1}`, 160);
+    return {
+      clientId: String(card.clientId || card.id || `card-${index + 1}`).trim() || `card-${index + 1}`,
+      title,
+      description: compactText(card.description || card.details || card.goal || "", 1200),
+      deliverables: arrayOfStrings(card.deliverables || card.outputs || card.artifacts, 6),
+      acceptance: arrayOfStrings(card.acceptance || card.acceptanceCriteria || card.validation || card.verify, 6),
+      assignee: String(card.assignee || "").trim(),
+      dependencyRefs: kanbanPlanDependencyRefs(card.dependsOn || card.depends_on || card.dependencies || card.blockedBy || card.after),
+    };
+  }).filter((card) => card.title);
+
+  if (!cards.length) throw new Error("Hermes model did not produce Kanban plan cards");
+
+  const byId = new Map(cards.map((card) => [card.clientId.toLowerCase(), card]));
+  const byTitle = new Map(cards.map((card) => [card.title.toLowerCase(), card]));
+  for (const [index, card] of cards.entries()) {
+    const deps = [];
+    for (const ref of card.dependencyRefs) {
+      const text = String(ref || "").trim();
+      if (!text) continue;
+      const numeric = text.match(/\d+/)?.[0];
+      const byNumber = numeric ? cards[Number(numeric) - 1] : null;
+      const resolved = byId.get(text.toLowerCase())
+        || byTitle.get(text.toLowerCase())
+        || byNumber
+        || cards.find((candidate) => candidate.title.toLowerCase().includes(text.toLowerCase()));
+      if (resolved && resolved !== card && cards.indexOf(resolved) < index) deps.push(resolved.clientId);
+    }
+    card.dependsOn = dedupe(deps);
+    delete card.dependencyRefs;
+  }
+
+  const initialRunnableIds = new Set();
+  for (const card of cards) {
+    if (card.dependsOn.length) continue;
+    if (initialRunnableIds.size >= KANBAN_MULTI_AGENT_MAX_PARALLEL) continue;
+    initialRunnableIds.add(card.clientId);
+  }
+  for (const card of cards) card.initialRunnable = initialRunnableIds.has(card.clientId);
+
+  return {
+    id: String(draft.id || `kanban-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`),
+    mode: "multi-agent",
+    workspaceId: String(workspaceId || "owner"),
+    sourceText: compactText(draft.sourceText || sourceText, 4000),
+    summary: compactText(draft.summary || draft.goal || sourceText, 500),
+    maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+    cards,
+  };
+}
+
+async function planKanbanMultiAgent(text, workspace, ownerPrincipalId) {
+  const sourceText = compactText(text, 8000);
+  if (!sourceText) throw new Error("Kanban plan text is required");
+  const prompt = [
+    "You are the Hermes Mobile Kanban planner.",
+    "Return strict JSON only. Do not include Markdown fences or prose.",
+    "The user is creating a multi-Agent execution plan for a Kanban board.",
+    `The maximum parallel worker count is fixed at ${KANBAN_MULTI_AGENT_MAX_PARALLEL}. Do not propose more than ${KANBAN_MULTI_AGENT_MAX_PARALLEL} first-wave runnable cards.`,
+    "Create 3 to 8 cards. Make cards independently executable when possible, but add dependencies for integration, verification, or sequential work.",
+    "Every card must have a short actionable title, a description, expected deliverables, acceptance criteria, and dependsOn as 1-based card numbers.",
+    "Add a final integration or verification card when the work has multiple outputs.",
+    "Schema: {\"summary\":\"...\",\"cards\":[{\"title\":\"...\",\"description\":\"...\",\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"dependsOn\":[1]}]}",
+    `Workspace principal: ${ownerPrincipalId}. Workspace label: ${workspace?.label || workspace?.id || ""}.`,
+    "User request:",
+    sourceText,
+  ].join("\n\n");
+  const output = await hermesModelText({
+    input: prompt,
+    stream: true,
+    store: false,
+    model: AUTOMATION_CREATE_MODEL,
+    reasoning_effort: "medium",
+    conversation: `hermes_web_kanban_plan_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+    instructions: "Plan a multi-Agent Kanban decomposition. Return JSON only.",
+    access_policy_context: sanitizePolicy(workspace?.policy || {}),
+  }, KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS);
+  try {
+    return normalizeKanbanPlan(extractJsonObject(output), sourceText, workspace?.id || ownerPrincipalId || "owner");
+  } catch (err) {
+    const fallback = normalizeKanbanPlan({
+      summary: sourceText,
+      cards: kanbanPlanFallbackCards(sourceText),
+    }, sourceText, workspace?.id || ownerPrincipalId || "owner");
+    fallback.warning = compactText(`Planner JSON fallback used: ${err.message || String(err)}`, 300);
+    return fallback;
+  }
+}
+
+function kanbanPlanCardDescription(plan, card) {
+  const dependencyLabels = kanbanPlanDependencyLabelsForServer(plan, card);
+  return [
+    `Multi-Agent plan: ${plan.summary || plan.sourceText || ""}`,
+    `Source request:\n${plan.sourceText || ""}`,
+    `Card goal:\n${card.description || card.title || ""}`,
+    card.deliverables?.length ? `Expected deliverables:\n- ${card.deliverables.join("\n- ")}` : "",
+    card.acceptance?.length ? `Acceptance criteria:\n- ${card.acceptance.join("\n- ")}` : "",
+    dependencyLabels.length ? `Dependencies:\n- ${dependencyLabels.join("\n- ")}` : "",
+    `Concurrency rule: Hermes Mobile may run at most ${KANBAN_MULTI_AGENT_MAX_PARALLEL} first-wave cards from this plan in parallel. Cards outside that wave are blocked until dependencies complete or the Owner unblocks them.`,
+  ].filter(Boolean).join("\n\n");
+}
+
+function kanbanPlanDependencyLabelsForServer(plan, card) {
+  const cards = Array.isArray(plan?.cards) ? plan.cards : [];
+  const byId = new Map(cards.map((item) => [String(item.clientId || ""), item]));
+  return (Array.isArray(card?.dependsOn) ? card.dependsOn : [])
+    .map((id) => byId.get(String(id || ""))?.title || String(id || "").trim())
+    .filter(Boolean);
+}
+
+async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
+  const plan = normalizeKanbanPlan(planInput, planInput?.sourceText || options.sourceText || "", workspaceId);
+  const created = [];
+  const byClientId = new Map();
+  const runnableIds = new Set(plan.cards.filter((card) => !card.dependsOn.length).slice(0, KANBAN_MULTI_AGENT_MAX_PARALLEL).map((card) => card.clientId));
+
+  for (const card of plan.cards) {
+    const assignee = card.assignee || options.assignee || "";
+    const result = await kanbanCardProvider.addCard({
+      workspaceId,
+      assignee,
+      assigneeLabel: todoAssigneeLabel(workspaceId, assignee),
+      content: card.title,
+      description: kanbanPlanCardDescription(plan, card),
+      dueTime: "",
+      reason: "Created from Hermes Mobile multi-Agent Kanban planner.",
+      idempotencyKey: `hm-plan-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
+    });
+    if (!result?.ok) {
+      return { ok: false, error: result?.error || "Kanban card creation failed", plan, cards: created, result };
+    }
+    const publicCard = publicTodo(result);
+    const verification = verifyDirectTodoCreateResult(publicCard);
+    if (!verification.ok) {
+      return { ok: false, error: verification.error, plan, cards: created, result };
+    }
+    byClientId.set(card.clientId, publicCard);
+    const dependencyLabels = kanbanPlanDependencyLabelsForServer(plan, card);
+    const shouldBlock = !runnableIds.has(card.clientId);
+    let blocked = false;
+    let blockError = "";
+    let blockReason = "";
+    if (shouldBlock) {
+      blockReason = dependencyLabels.length
+        ? `Waiting for planned upstream cards: ${dependencyLabels.join(" / ")}.`
+        : `Waiting for a free multi-Agent execution slot; Hermes Mobile max parallel is ${KANBAN_MULTI_AGENT_MAX_PARALLEL}.`;
+      const blockedResult = await kanbanCardProvider.mutateCard({
+        action: "block",
+        workspaceId,
+        cardId: publicCard.id,
+        reason: blockReason,
+        author: "Hermes Mobile",
+      });
+      blocked = Boolean(blockedResult?.ok);
+      blockError = blocked ? "" : (blockedResult?.error || "Failed to block planned card");
+    }
+    const createdEntry = {
+      clientId: card.clientId,
+      title: card.title,
+      card: publicCard,
+      blocked,
+      blockReason,
+      blockError,
+      dependsOn: card.dependsOn.map((id) => byClientId.get(id)?.id || id),
+    };
+    created.push(createdEntry);
+    if (shouldBlock && !blocked) {
+      return {
+        ok: false,
+        error: `Planned card ${publicCard.id} was created but could not be blocked: ${blockError}`,
+        plan,
+        cards: created,
+      };
+    }
+  }
+
+  return { ok: true, plan, cards: created, maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL };
 }
 
 function todoErrorResponse(res, result, fallbackStatus = 400) {
@@ -5084,9 +5483,52 @@ function formatAccessPolicyInstructionSummary(policy = {}) {
   lines.push(`- Access mode: ${accessMode}`);
   if (roots.length) lines.push(`- Allowed roots: ${roots.join("; ")}`);
   if (toolsets.length) lines.push(`- Enabled toolsets: ${toolsets.join(", ")}`);
+  const callableHints = callableFunctionHintsForToolsets(toolsets);
+  if (callableHints.length) {
+    lines.push(`- Callable function names for enabled toolsets: ${callableHints.join("; ")}`);
+    if (toolsets.includes("http")) lines.push("- For HTTP/API Program calls, use `http_request`; do not look for or mention a `web_request` function.");
+  }
   if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
   else lines.push("- External connector profiles: none");
   return lines.join("\n");
+}
+
+function policyHasToolset(policy = {}, toolset = "") {
+  const target = String(toolset || "").trim();
+  if (!target) return false;
+  return dedupe(policy.allowed_toolsets || policy.allowedToolsets || []).includes(target);
+}
+
+function callableFunctionHintsForToolsets(toolsets = []) {
+  const hintsByToolset = {
+    web: ["web_search", "web_extract"],
+    http: ["http_request"],
+    weather: ["weather"],
+    file: ["read_file", "write_file", "patch", "search_files"],
+    vision: ["vision_analyze"],
+    image_gen: ["image_generate"],
+    messaging: ["send_message"],
+    tts: ["text_to_speech"],
+    skills: ["skills_list", "skill_view", "skill_manage"],
+    todo: ["todo"],
+    kanban: ["kanban_show", "kanban_complete", "kanban_block", "kanban_heartbeat", "kanban_comment", "kanban_create", "kanban_link"],
+    cronjob: ["cronjob"],
+    memory: ["memory"],
+    session_search: ["session_search"],
+    clarify: ["clarify"],
+  };
+  return dedupe(toolsets)
+    .filter((name) => Array.isArray(hintsByToolset[name]) && hintsByToolset[name].length)
+    .map((name) => `${name} -> ${hintsByToolset[name].join(", ")}`);
+}
+
+function currentToolSchemaOverrideInstructions(policy = {}) {
+  if (!policyHasToolset(policy, "http")) return "";
+  return [
+    "Current tool schema override: the `http` toolset is enabled for this run, and its callable function name is `http_request`.",
+    "Ignore older assistant statements in conversation_history that claimed `http_request`, `web_request`, HTTP tools, or API Program tools were unavailable; those statements described earlier runs and are stale.",
+    "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls.",
+  ].join("\n");
 }
 
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
@@ -5101,6 +5543,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     "Use the selected account/workspace/project as the operational boundary.",
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
     formatAccessPolicyInstructionSummary(policy),
+    currentToolSchemaOverrideInstructions(policy),
     securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
     "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
     "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
@@ -7045,7 +7488,26 @@ function gatewayPoolStatusHealthy(poolStatus) {
   return workers.some((worker) => worker?.healthy === true);
 }
 
-function buildConversationHistory(thread, latestUserMessageId) {
+function isStaleHttpToolAvailabilityClaim(text) {
+  const content = String(text || "");
+  if (!content.trim()) return false;
+  const mentionsHttpTool = /http_request|web_request|http\s*tool|http\s*function|HTTP\s*(?:工具|函数|方法)|HTTP\/API|API\s*Program/i.test(content);
+  if (!mentionsHttpTool) return false;
+  return /没有|仍没有|未看到|看不到|未挂载|没挂载|缺少|不可用|无法调用|不能调用|不能执行|not available|unavailable|missing|no callable|no\s+.*tool/i.test(content);
+}
+
+function conversationHistoryContentForMessage(msg, policy = {}) {
+  let content = stripDirectoryAliasLinesForChatHistory(msg?.content || "");
+  if (msg?.role === "assistant" && policyHasToolset(policy, "http") && isStaleHttpToolAvailabilityClaim(content)) {
+    content = [
+      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+      "The current run policy enables the `http` toolset; current callable functions supersede older assistant statements about `http_request` or HTTP/API Program availability.",
+    ].join(" ");
+  }
+  return content;
+}
+
+function buildConversationHistory(thread, latestUserMessageId, policy = {}) {
   const allMessages = thread.messages || [];
   const latestIndex = allMessages.findIndex((msg) => msg.id === latestUserMessageId);
   const latest = latestIndex >= 0 ? allMessages[latestIndex] : null;
@@ -7056,11 +7518,11 @@ function buildConversationHistory(thread, latestUserMessageId) {
     .filter((msg) => (msg.role === "user" || msg.role === "assistant") && msg.status !== "running")
     .filter((msg) => String(msg.content || "").trim());
   if (thread.singleWindow && isSingleWindowConversationTaskGroupId(latest?.taskGroupId)) {
-    return compactConversationHistory(messages, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS);
+    return compactConversationHistory(messages, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS, policy);
   }
   return messages.slice(-MAX_HISTORY_MESSAGES).map((msg) => ({
     role: msg.role,
-    content: compactText(msg.content, MAX_API_TEXT_CHARS),
+    content: compactText(conversationHistoryContentForMessage(msg, policy), MAX_API_TEXT_CHARS),
   }));
 }
 
@@ -7072,14 +7534,14 @@ function stripDirectoryAliasLinesForChatHistory(text) {
     .trim();
 }
 
-function compactConversationHistory(messages, maxMessages, maxChars) {
+function compactConversationHistory(messages, maxMessages, maxChars, policy = {}) {
   const recent = messages.slice(-Math.max(0, maxMessages));
   const result = [];
   let remainingChars = Math.max(0, maxChars);
   for (let index = recent.length - 1; index >= 0; index -= 1) {
     if (remainingChars <= 0) break;
     const msg = recent[index];
-    let content = stripDirectoryAliasLinesForChatHistory(msg.content);
+    let content = conversationHistoryContentForMessage(msg, policy);
     if (!content) continue;
     if (msg.role === "user" && msg.senderLabel) {
       content = `${msg.senderLabel}: ${content}`;
@@ -7144,7 +7606,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     stream: true,
     store: true,
     conversation: thread.singleWindow ? `${thread.hermesSessionId}_${userMessage.taskGroupId || userMessage.id}` : thread.hermesSessionId,
-    conversation_history: buildConversationHistory(thread, userMessage.id),
+    conversation_history: buildConversationHistory(thread, userMessage.id, runPolicy),
     instructions: [
       buildHermesInstructions(
         policyThread,
@@ -7768,7 +8230,7 @@ function extractArtifactPaths(text) {
   for (const match of source.matchAll(/MEDIA:\s*([^\r\n]+)/g)) {
     addPathCandidate(out, match[1]);
   }
-  const filePattern = /((?:[A-Za-z]:\\|\/mnt\/[A-Za-z]\/|\\\\wsl(?:\.localhost|\$)?\\)[^\r\n<>"']+\.(?:pdf|png|jpe?g|webp|gif|mp4|mov|mp3|m4a|wav|docx|xlsx|pptx|md|txt))/gi;
+  const filePattern = /((?:[A-Za-z]:\\|\/mnt\/[A-Za-z]\/|\\\\wsl(?:\.localhost|\$)?\\)[^\r\n<>"'`]+?\.(?:pdf|png|jpe?g|webp|gif|mp4|mov|mp3|m4a|wav|docx|xlsx|pptx|md|txt|json|csv|html?|zip))/gi;
   for (const match of source.matchAll(filePattern)) {
     addPathCandidate(out, match[1]);
   }
@@ -9125,6 +9587,103 @@ async function handleApi(req, res) {
       board: result.board,
       result: result.result,
     });
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards/output" && req.method === "GET") {
+    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const resolved = resolveKanbanOutputFile(workspaceId, url.searchParams.get("path") || "", authenticateRequest(req));
+    if (!resolved.file) {
+      sendJson(res, resolved.status || 404, { error: resolved.error || "Kanban output not found" });
+      return;
+    }
+    sendResolvedFile(res, resolved.file, url.searchParams);
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards/output/preview" && req.method === "GET") {
+    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const resolved = resolveKanbanOutputFile(workspaceId, url.searchParams.get("path") || "", authenticateRequest(req));
+    if (!resolved.file) {
+      sendJson(res, resolved.status || 404, { error: resolved.error || "Kanban output not found" });
+      return;
+    }
+    sendResolvedFilePreview(res, resolved.file);
+    return;
+  }
+
+  const kanbanCardDetail = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/detail$/);
+  if (kanbanCardDetail && req.method === "GET") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const result = await kanbanCardProvider.cardDetail({
+      workspaceId,
+      cardId: decodeURIComponent(kanbanCardDetail[1]),
+      logTail: Number(url.searchParams.get("logTail") || "12000"),
+    });
+    if (!result.ok) {
+      kanbanErrorResponse(res, result.result || result);
+      return;
+    }
+    sendJson(res, 200, {
+      ok: true,
+      detail: publicKanbanCardDetail(workspaceId, result),
+      result,
+    });
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards/plan" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req);
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    const text = String(body.text || body.content || body.prompt || "").trim();
+    if (!text) {
+      sendJson(res, 400, { error: "Kanban plan text is required" });
+      return;
+    }
+    try {
+      const plan = await planKanbanMultiAgent(text, findWorkspace(workspaceId), workspacePrincipal(workspaceId));
+      sendJson(res, 200, { ok: true, plan, maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL });
+    } catch (err) {
+      sendJson(res, 502, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards/batch" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req);
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    try {
+      const result = await createKanbanPlanCards(workspaceId, body.plan || { cards: body.cards || [], sourceText: body.text || "" }, {
+        assignee: body.assignee || "",
+        sourceText: body.text || "",
+      });
+      if (!result.ok) {
+        kanbanErrorResponse(res, result, 502);
+        return;
+      }
+      broadcast({ type: "kanban.updated", workspaceId, action: "batch-add" });
+      broadcast({ type: "todos.updated", workspaceId, action: "batch-add" });
+      sendJson(res, 201, result);
+    } catch (err) {
+      sendJson(res, 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
     return;
   }
 
