@@ -40,6 +40,95 @@ install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/skills"
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/plugins"
 mkdir -p "$telemetry_profiles_root"
 
+sqlite_integrity_ok() {
+  local db_path="$1"
+  if [ ! -e "$db_path" ]; then
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "WARNING: python3 not found; skipping low Gateway sqlite integrity check for $db_path" >&2
+    return 0
+  fi
+  python3 - "$db_path" <<'PY'
+import sqlite3
+import sys
+
+path = sys.argv[1]
+try:
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+    rows = conn.execute("PRAGMA integrity_check").fetchall()
+    conn.close()
+except Exception as exc:
+    print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+if len(rows) == 1 and rows[0][0] == "ok":
+    sys.exit(0)
+
+first = rows[0][0] if rows else "no integrity_check result"
+print(first, file=sys.stderr)
+sys.exit(1)
+PY
+}
+
+file_size_or_zero() {
+  local file_path="$1"
+  if [ ! -e "$file_path" ]; then
+    echo 0
+    return 0
+  fi
+  stat -c %s "$file_path" 2>/dev/null || echo 0
+}
+
+quarantine_sqlite_files() {
+  local db_path="$1"
+  local backup_dir="$2"
+  local include_db="$3"
+  mkdir -p "$backup_dir"
+  if [ "$include_db" = "1" ] && [ -e "$db_path" ]; then
+    mv "$db_path" "$backup_dir/"
+  fi
+  for suffix in "-wal" "-shm"; do
+    local sidecar="${db_path}${suffix}"
+    if [ -e "$sidecar" ]; then
+      mv "$sidecar" "$backup_dir/"
+    fi
+  done
+  chown -R "$worker_user:$worker_user" "$backup_dir" || true
+}
+
+repair_low_gateway_sqlite() {
+  local profile="$1"
+  local profile_dir="$2"
+  local db_name="$3"
+  local db_path="${profile_dir}/${db_name}"
+  if [ ! -e "$db_path" ]; then
+    return 0
+  fi
+
+  local stamp
+  stamp="$(date +%Y%m%d-%H%M%S)"
+
+  if ! sqlite_integrity_ok "$db_path"; then
+    local backup_dir="${profile_dir}/sqlite-quarantine-${stamp}/${db_name}"
+    echo "WARNING: quarantining malformed low Gateway sqlite DB for ${profile}: ${db_name}" >&2
+    quarantine_sqlite_files "$db_path" "$backup_dir" 1
+    return 0
+  fi
+
+  local wal_path="${db_path}-wal"
+  local shm_path="${db_path}-shm"
+  local wal_size
+  local shm_size
+  wal_size="$(file_size_or_zero "$wal_path")"
+  shm_size="$(file_size_or_zero "$shm_path")"
+  if [ -e "$shm_path" ] && [ "$shm_size" -gt 0 ] && [ "$shm_size" -lt 32768 ] && [ "$wal_size" -eq 0 ]; then
+    local backup_dir="${profile_dir}/sqlite-sidecar-quarantine-${stamp}/${db_name}"
+    echo "WARNING: quarantining invalid low Gateway sqlite sidecars for ${profile}: ${db_name}" >&2
+    quarantine_sqlite_files "$db_path" "$backup_dir" 0
+  fi
+}
+
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$(dirname "$shared_auth_path")"
 
 if [ "$shared_auth_path" != "$legacy_shared_auth_path" ] && [ ! -s "$shared_auth_path" ] && [ -s "$legacy_shared_auth_path" ]; then
@@ -197,6 +286,8 @@ for idx in $(seq 1 "$low_gateway_count"); do
   rm -rf "$profile_link"
   mkdir -p "$profile_dir"
   chmod 700 "$profile_dir" || true
+  repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
+  repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
   ln -s "$profile_dir" "$profile_link"
   if [ "$weather_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
