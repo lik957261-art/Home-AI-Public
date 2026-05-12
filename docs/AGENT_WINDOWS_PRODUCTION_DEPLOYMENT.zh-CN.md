@@ -324,6 +324,14 @@ $env:HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING = "on"
 
 如果新 workspace 找不到所属 lowgw，不要把所有 worker 改成全员共享；应补 manifest/profile 映射，或者明确决定该 workspace 使用某个受控共享 profile。
 
+参考生产分配约定：
+
+- Owner 普通低权限 worker：`lowgw1..lowgw4` 和 `lowgw10`，`securityLevel=user`，`skillProfile=owner-full`，`skillWorkspaceIds=["owner"]`。
+- 普通 workspace/account worker：`lowgw5..lowgw9`，每个 worker 绑定一个或一组明确 workspace，使用 `skillProfile=workspace:<workspaceId>`。
+- Owner maintenance worker：不放在普通 `lowgw` 池里，使用独立 profile，例如 `officialclean1..2`，`securityLevel=owner-maintenance`，`allowMaintenance=true`。
+
+这只是参考拓扑，不是硬编码要求。部署可以调整数量，但必须保留隔离原则：Owner 普通、普通用户、Owner maintenance 不应混在同一个无差别共享 profile 中。
+
 Owner maintenance workers 只在部署者明确需要时启用：
 
 - `securityLevel=owner-maintenance`
