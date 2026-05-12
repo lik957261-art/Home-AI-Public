@@ -130,13 +130,33 @@ model:
   provider: openai-codex
   base_url: https://chatgpt.com/backend-api/codex
 toolsets:
-  - hermes-cli
+  - web
+  - file
+  - vision
+  - image_gen
+  - messaging
+  - tts
+  - skills
+  - todo
+  - kanban
+  - cronjob
+  - memory
+  - session_search
+  - clarify
 ${weather_toolset_block}
 platform_toolsets:
   api_server:
-    - hermes-api-server
+    - web
+    - file
+    - vision
+    - image_gen
     - messaging
     - tts
+    - skills
+    - todo
+    - cronjob
+    - memory
+    - session_search
     - clarify
 ${weather_api_toolset_block}
 agent:
