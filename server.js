@@ -5483,9 +5483,37 @@ function formatAccessPolicyInstructionSummary(policy = {}) {
   lines.push(`- Access mode: ${accessMode}`);
   if (roots.length) lines.push(`- Allowed roots: ${roots.join("; ")}`);
   if (toolsets.length) lines.push(`- Enabled toolsets: ${toolsets.join(", ")}`);
+  const callableHints = callableFunctionHintsForToolsets(toolsets);
+  if (callableHints.length) {
+    lines.push(`- Callable function names for enabled toolsets: ${callableHints.join("; ")}`);
+    if (toolsets.includes("http")) lines.push("- For HTTP/API Program calls, use `http_request`; do not look for or mention a `web_request` function.");
+  }
   if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
   else lines.push("- External connector profiles: none");
   return lines.join("\n");
+}
+
+function callableFunctionHintsForToolsets(toolsets = []) {
+  const hintsByToolset = {
+    web: ["web_search", "web_extract"],
+    http: ["http_request"],
+    weather: ["weather"],
+    file: ["read_file", "write_file", "patch", "search_files"],
+    vision: ["vision_analyze"],
+    image_gen: ["image_generate"],
+    messaging: ["send_message"],
+    tts: ["text_to_speech"],
+    skills: ["skills_list", "skill_view", "skill_manage"],
+    todo: ["todo"],
+    kanban: ["kanban_show", "kanban_complete", "kanban_block", "kanban_heartbeat", "kanban_comment", "kanban_create", "kanban_link"],
+    cronjob: ["cronjob"],
+    memory: ["memory"],
+    session_search: ["session_search"],
+    clarify: ["clarify"],
+  };
+  return dedupe(toolsets)
+    .filter((name) => Array.isArray(hintsByToolset[name]) && hintsByToolset[name].length)
+    .map((name) => `${name} -> ${hintsByToolset[name].join(", ")}`);
 }
 
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {

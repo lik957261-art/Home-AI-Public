@@ -74,6 +74,10 @@ assert.ok((directoryDeleteBlock.match(/dynamicProjectCache\.delete\(String\(thre
 assert.match(serverJs, /function taskDirectoryAttachmentCandidatesForMessage\(thread, message\)/);
 assert.match(serverJs, /the attached task directory is the frozen working directory/);
 assert.match(serverJs, /singleWindowMode === "chat" \|\| taskDirectory\?\.path \? "" : semanticProjectRoutingInstructions/);
+assert.match(serverJs, /function callableFunctionHintsForToolsets\(toolsets = \[\]\)/);
+assert.match(serverJs, /http: \["http_request"\]/);
+assert.match(serverJs, /For HTTP\/API Program calls, use `http_request`; do not look for or mention a `web_request` function\./);
+assert.match(serverJs, /Callable function names for enabled toolsets/);
 assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
 assert.match(serverJs, /Group-chat shared attachments authorized for this run/);
 assert.match(serverJs, /groupChatAttachmentCopies/);
