@@ -26,9 +26,9 @@ checkout.
 
 ## 2026-05-12 Public Update
 
-本次 public tree 对应 private source commit
-`f317609b94d36449c53118977abf247a4ab250a0`。这是一次累计公开更新，重点是让
-Windows + WSL + official Hermes Gateway Pool 部署可以由另一个 Agent 按公开文档完成。
+本次 public tree 的具体 private source commit 由 `.public-export-report.json`
+记录。这是一次累计公开更新，重点是让 Windows + WSL + official Hermes Gateway
+Pool 部署可以由另一个 Agent 按公开文档完成。
 
 ### 主要变化
 
