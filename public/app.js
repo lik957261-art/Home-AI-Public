@@ -880,6 +880,7 @@ function renderArtifactDirectoryButton(artifact, options = {}) {
 }
 
 function renderArtifactWeixinButton(artifact) {
+  if (isWeixinChatView()) return "";
   if (!artifact?.id) return "";
   return `<button class="artifact-weixin-button" type="button" data-forward-artifact-weixin="${escapeHtml(artifact.id)}" aria-label="转发到微信" title="转发到微信">微</button>`;
 }
@@ -10224,6 +10225,7 @@ function renderMessageRevokeAction(message) {
 }
 
 function renderExternalDeliveryStatus(message) {
+  if (isWeixinChatView()) return "";
   const delivery = message?.externalDelivery || null;
   if (!delivery || delivery.source !== "weixin") return "";
   if (delivery.terminalStatus !== "manual_forward") return "";
