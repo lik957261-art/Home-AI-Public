@@ -12,6 +12,10 @@ param(
     [string]$BridgeHermesHome = "",
     [string]$BridgeTodoPluginName = "",
     [string]$BridgeCronOutputRoot = "",
+    [string]$WeixinFrontGateway = "",
+    [string]$WeixinFrontGatewayScript = "C:\ProgramData\HermesMobile\app\scripts\start-weixin-front-gateway.ps1",
+    [string]$WeixinFrontGatewayWslUser = "",
+    [string]$WeixinFrontGatewayHermesHome = "",
     [string]$OwnerKeyPath = "C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret",
     [int]$HealthStatusTimeoutSec = 5,
     [int]$ReadyWaitSeconds = 90,
@@ -258,6 +262,55 @@ function Start-BridgeHost {
     throw "Bridge host did not become healthy on port $ListenPort."
 }
 
+function Test-WeixinFrontGatewayDisabled {
+    $value = [string]$WeixinFrontGateway
+    if (-not $value) { $value = [string]$env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY }
+    if (-not $value) { return $true }
+    return ($value -match '^(0|false|off|disabled|none)$')
+}
+
+function Test-WeixinFrontGatewayRequired {
+    $value = [string]$WeixinFrontGateway
+    if (-not $value) { $value = [string]$env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY }
+    return ($value -match '^(required|require|strict)$')
+}
+
+function Start-WeixinFrontGatewayIfNeeded {
+    if (Test-WeixinFrontGatewayDisabled) { return }
+    if (-not (Test-Path -LiteralPath $WeixinFrontGatewayScript)) {
+        $message = "Weixin front gateway starter not found: $WeixinFrontGatewayScript"
+        if (Test-WeixinFrontGatewayRequired) { throw $message }
+        Write-WorkerHostLog $message
+        return
+    }
+    $resolvedWslUser = $WeixinFrontGatewayWslUser
+    if (-not $resolvedWslUser) { $resolvedWslUser = $BridgeWslUser }
+    if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_WEB_WSL_USER }
+    if (-not $resolvedWslUser) { $resolvedWslUser = "xuxin" }
+    $resolvedHermesHome = $WeixinFrontGatewayHermesHome
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = $BridgeHermesHome }
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_WEB_HERMES_HOME }
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = "/home/$resolvedWslUser/.hermes" }
+    $args = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $WeixinFrontGatewayScript,
+        "-DistroName", "Ubuntu-24.04",
+        "-WslUser", $resolvedWslUser,
+        "-HermesHome", $resolvedHermesHome
+    )
+    if ($CheckOnly) { $args += "-CheckOnly" }
+    Write-WorkerHostLog "Ensuring Weixin front gateway through $WeixinFrontGatewayScript."
+    $output = & powershell.exe @args 2>&1 | ForEach-Object { $_.ToString() }
+    $exitCode = $LASTEXITCODE
+    foreach ($line in $output) { Write-WorkerHostLog ("weixin-front-gateway: {0}" -f $line) }
+    if ($exitCode -ne 0) {
+        $message = "Weixin front gateway start/check failed with exit code $exitCode."
+        if (Test-WeixinFrontGatewayRequired) { throw $message }
+        Write-WorkerHostLog $message
+    }
+}
+
 if (-not (Test-Path -LiteralPath $CredentialPath)) {
     throw "Worker credential file not found: $CredentialPath"
 }
@@ -277,6 +330,7 @@ Set-BridgeHostEnvironment -ListenPort $BridgeHostPort -KeyPath $BridgeHostKeyPat
 if ($LASTEXITCODE -ne 0) {
     throw "Hermes Mobile bridge host syntax check failed."
 }
+Start-WeixinFrontGatewayIfNeeded
 if (-not $CheckOnly) {
     Start-BridgeHost -ScriptPath $BridgeHostScript -ListenPort $BridgeHostPort -KeyPath $BridgeHostKeyPath -Replace:$ReplaceExisting
 }
