@@ -11,6 +11,95 @@
 
 如果部署 Agent 没有 Windows 管理员权限，或无法在 WSL 内取得 root/sudo bootstrap 权限，不要宣称已经完成生产 Worker Pool 部署；最多只能完成 Quick Start 的最小 single-Gateway listener，并应明确回报“Worker Pool 未部署”。
 
+## 现场部署踩坑清单
+
+这些问题会表现为“好像部署成功了”，但最终普通权限没有 worker、`/api/status` 没有 Gateway Pool，或 worker 全部不可用。部署 Agent 必须逐项核对。
+
+### 管理员权限必须属于 Agent 进程本身
+
+只打开一个管理员 PowerShell 不够。如果 Codex/Desktop 本身仍然是普通权限，Agent 执行的命令仍然没有管理员 token。执行生产路径前先检查：
+
+```powershell
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$isAdmin
+```
+
+如果输出 `False`，不要继续执行 Worker Pool 部署。应让 Agent 宿主进程以管理员身份启动，或让操作者在管理员 shell 中执行 Windows 侧命令。
+
+### WSL distro 按 Windows 用户隔离
+
+操作者账号能看到的 WSL distro，不等于 `HermesMobileWorker` 账号也能看到。Gateway Pool 的低权限 worker 会通过 `run-as-worker.ps1` 进入 worker 账号上下文，因此 `wsl.exe -d HermesGatewayWorker` 是在 worker 账号下解析。
+
+如果 `start-gateway-pool.ps1` 日志出现 `WSL_E_DISTRO_NOT_FOUND`，需要把准备好的 distro export/import 到 `HermesMobileWorker` 可见的 WSL 注册表上下文，或用等效方式为 `HermesMobileWorker` 注册名为 `HermesGatewayWorker` 的 distro。典型模式：
+
+```powershell
+wsl.exe --export <prepared-distro> C:\ProgramData\HermesMobile\wsl\HermesGatewayWorker.tar
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\HermesMobile\gateway-worker\run-as-worker.ps1 `
+  -ChildScript C:\ProgramData\HermesMobile\gateway-worker\import-hermes-gateway-worker.ps1
+```
+
+子脚本应在 worker 账号下执行 `wsl.exe --import HermesGatewayWorker ...`，然后验证 official runtime 和低权限 Linux 用户，例如：
+
+```powershell
+wsl.exe -d HermesGatewayWorker -u root -- test -x /opt/hermes-gateway-runtime/venv/bin/python
+wsl.exe -d HermesGatewayWorker -u root -- id hermes
+```
+
+### Worker 账号不一定继承操作者 PATH
+
+操作者 shell 能运行 `node`，不代表 `HermesMobileWorker` 也能运行。若生产 listener 启动后立刻退出，且 `hermes-web.out.log` / `hermes-web.err.log` 为空，应优先检查 worker 账号的 Node 路径。
+
+处理方式是给 worker 账号安装系统级 Node，或把已知可用的 Node runtime 放进 runtime package，并显式传入：
+
+```powershell
+& "C:\ProgramData\HermesMobile\app\start-hermes-web.ps1" -Detached -ForceLocalStart `
+  -NodeExe "C:\ProgramData\HermesMobile\app\bin\node.exe"
+```
+
+### JSON manifest 必须是无 BOM UTF-8
+
+Windows PowerShell 5.1 的 `Set-Content -Encoding UTF8` 可能写入 BOM。如果 Gateway Pool manifest 带 BOM，`/api/status` 可能出现：
+
+```text
+gatewayPool.error = Unexpected token '﻿', "... is not valid JSON
+gatewayPool.enabled = false
+workerCount = 0
+```
+
+写 manifest 时使用无 BOM UTF-8：
+
+```powershell
+[System.IO.File]::WriteAllText(
+  "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json",
+  $json,
+  [System.Text.UTF8Encoding]::new($false)
+)
+```
+
+### 不要只用端口监听判断 Worker Pool 成功
+
+看到 `18751..18760` 端口在监听只是必要条件，不是成功条件。最终验证必须同时确认：
+
+- `Get-CimInstance Win32_Process` 显示 Hermes Mobile `node.exe` owner 是 `HermesMobileWorker`。
+- `/api/status` 返回 `ok=true`。
+- `/api/status.gatewayPool.enabled=true`。
+- `/api/status.gatewayPool.workerCount` 等于预期 worker 数。
+- `/api/status.gatewayPool.workers` 中每个 worker 都是 `healthy=true`，普通用户 worker 应是 `securityLevel=user`。
+- reasoning/model source 指向 lowgw profile config，不是操作者个人 Hermes home。
+
+### 防火墙网络 profile 可能是 Public
+
+Windows 笔记本的当前 Wi-Fi 网络可能是 `Public`。如果需要局域网访问，入站规则应覆盖当前 profile，通常用 `-Profile Any`：
+
+```powershell
+New-NetFirewallRule -DisplayName "Hermes Mobile 8797" `
+  -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8797 -Profile Any
+```
+
+### 不要把生成的私密运行态写进日志或 PR
+
+不要粘贴或提交 Owner key、低权限 Gateway API key、Codex OAuth token、VAPID private key、worker credential XML、runtime SQLite DB、WSL export 包，或包含真实 `api_key` 的 Gateway Pool manifest。公开文档和 PR 只记录路径、结构和验证形态。
+
 目标不是复制某台机器的私有数据，而是复刻 Hermes Mobile 自己负责的生产结构：
 
 - Windows 低权限服务用户。
