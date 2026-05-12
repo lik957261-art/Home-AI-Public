@@ -6176,6 +6176,15 @@ function publicWeixinOutboundDelivery(thread, message) {
   };
 }
 
+function userFacingWeixinRunError(err) {
+  const raw = String(err?.message || err || "").trim();
+  if (!raw) return "Hermes run failed before producing a reply.";
+  if (/terminated|cancelled|canceled|aborted/i.test(raw)) {
+    return "运行被终止，未生成回复。";
+  }
+  return raw;
+}
+
 function pendingWeixinOutboundDeliveries(filters = {}) {
   const status = String(filters.status || "pending").trim().toLowerCase();
   const accountId = String(filters.accountId || "").trim();
@@ -6341,7 +6350,7 @@ async function startWeixinIngressEvent(body) {
   } catch (err) {
     const failedAt = nowIso();
     assistantMessage.status = "failed";
-    assistantMessage.error = err.message || String(err);
+    assistantMessage.error = userFacingWeixinRunError(err);
     assistantMessage.failedAt = failedAt;
     assistantMessage.updatedAt = failedAt;
     enqueueExternalDeliveryForTerminalMessage(thread, assistantMessage, "failed");

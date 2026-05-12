@@ -94,6 +94,8 @@ assert.match(serverJs, /shared-attachments/);
 assert.match(serverJs, /reason: "unmatched_workspace_route"/);
 assert.match(serverJs, /terminalStatus === "failed"/);
 assert.match(serverJs, /status: "skipped"/);
+assert.match(serverJs, /function userFacingWeixinRunError\(err\)/);
+assert.match(serverJs, /运行被终止，未生成回复。/);
 assert.match(serverJs, /function gatewayPoolStatusHealthy\(poolStatus\)/);
 assert.match(serverJs, /status\.fallbackError = status\.error \|\| ""/);
 assert.match(indexHtml, /id="topSearchChat"/);
