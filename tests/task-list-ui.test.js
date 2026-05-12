@@ -78,6 +78,11 @@ assert.match(serverJs, /function callableFunctionHintsForToolsets\(toolsets = \[
 assert.match(serverJs, /http: \["http_request"\]/);
 assert.match(serverJs, /For HTTP\/API Program calls, use `http_request`; do not look for or mention a `web_request` function\./);
 assert.match(serverJs, /Callable function names for enabled toolsets/);
+assert.match(serverJs, /function currentToolSchemaOverrideInstructions\(policy = \{\}\)/);
+assert.match(serverJs, /Current tool schema override: the `http` toolset is enabled for this run/);
+assert.match(serverJs, /function isStaleHttpToolAvailabilityClaim\(text\)/);
+assert.match(serverJs, /Stale assistant tool-availability claim omitted by Hermes Mobile/);
+assert.match(serverJs, /conversation_history: buildConversationHistory\(thread, userMessage\.id, runPolicy\)/);
 assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
 assert.match(serverJs, /Group-chat shared attachments authorized for this run/);
 assert.match(serverJs, /groupChatAttachmentCopies/);

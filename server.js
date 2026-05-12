@@ -5493,6 +5493,12 @@ function formatAccessPolicyInstructionSummary(policy = {}) {
   return lines.join("\n");
 }
 
+function policyHasToolset(policy = {}, toolset = "") {
+  const target = String(toolset || "").trim();
+  if (!target) return false;
+  return dedupe(policy.allowed_toolsets || policy.allowedToolsets || []).includes(target);
+}
+
 function callableFunctionHintsForToolsets(toolsets = []) {
   const hintsByToolset = {
     web: ["web_search", "web_extract"],
@@ -5516,6 +5522,15 @@ function callableFunctionHintsForToolsets(toolsets = []) {
     .map((name) => `${name} -> ${hintsByToolset[name].join(", ")}`);
 }
 
+function currentToolSchemaOverrideInstructions(policy = {}) {
+  if (!policyHasToolset(policy, "http")) return "";
+  return [
+    "Current tool schema override: the `http` toolset is enabled for this run, and its callable function name is `http_request`.",
+    "Ignore older assistant statements in conversation_history that claimed `http_request`, `web_request`, HTTP tools, or API Program tools were unavailable; those statements described earlier runs and are stale.",
+    "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls.",
+  ].join("\n");
+}
+
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
   const singleWindowMode = normalizeSingleWindowMode(options.singleWindowMode || options.single_window_mode || "");
   const groupChatDeliveryRoot = String(options.groupChatDeliveryRoot || options.group_chat_delivery_root || "").trim();
@@ -5528,6 +5543,7 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
     "Use the selected account/workspace/project as the operational boundary.",
     "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
     formatAccessPolicyInstructionSummary(policy),
+    currentToolSchemaOverrideInstructions(policy),
     securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
     "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
     "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
@@ -7472,7 +7488,26 @@ function gatewayPoolStatusHealthy(poolStatus) {
   return workers.some((worker) => worker?.healthy === true);
 }
 
-function buildConversationHistory(thread, latestUserMessageId) {
+function isStaleHttpToolAvailabilityClaim(text) {
+  const content = String(text || "");
+  if (!content.trim()) return false;
+  const mentionsHttpTool = /http_request|web_request|http\s*tool|http\s*function|HTTP\s*(?:工具|函数|方法)|HTTP\/API|API\s*Program/i.test(content);
+  if (!mentionsHttpTool) return false;
+  return /没有|仍没有|未看到|看不到|未挂载|没挂载|缺少|不可用|无法调用|不能调用|不能执行|not available|unavailable|missing|no callable|no\s+.*tool/i.test(content);
+}
+
+function conversationHistoryContentForMessage(msg, policy = {}) {
+  let content = stripDirectoryAliasLinesForChatHistory(msg?.content || "");
+  if (msg?.role === "assistant" && policyHasToolset(policy, "http") && isStaleHttpToolAvailabilityClaim(content)) {
+    content = [
+      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+      "The current run policy enables the `http` toolset; current callable functions supersede older assistant statements about `http_request` or HTTP/API Program availability.",
+    ].join(" ");
+  }
+  return content;
+}
+
+function buildConversationHistory(thread, latestUserMessageId, policy = {}) {
   const allMessages = thread.messages || [];
   const latestIndex = allMessages.findIndex((msg) => msg.id === latestUserMessageId);
   const latest = latestIndex >= 0 ? allMessages[latestIndex] : null;
@@ -7483,11 +7518,11 @@ function buildConversationHistory(thread, latestUserMessageId) {
     .filter((msg) => (msg.role === "user" || msg.role === "assistant") && msg.status !== "running")
     .filter((msg) => String(msg.content || "").trim());
   if (thread.singleWindow && isSingleWindowConversationTaskGroupId(latest?.taskGroupId)) {
-    return compactConversationHistory(messages, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS);
+    return compactConversationHistory(messages, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS, policy);
   }
   return messages.slice(-MAX_HISTORY_MESSAGES).map((msg) => ({
     role: msg.role,
-    content: compactText(msg.content, MAX_API_TEXT_CHARS),
+    content: compactText(conversationHistoryContentForMessage(msg, policy), MAX_API_TEXT_CHARS),
   }));
 }
 
@@ -7499,14 +7534,14 @@ function stripDirectoryAliasLinesForChatHistory(text) {
     .trim();
 }
 
-function compactConversationHistory(messages, maxMessages, maxChars) {
+function compactConversationHistory(messages, maxMessages, maxChars, policy = {}) {
   const recent = messages.slice(-Math.max(0, maxMessages));
   const result = [];
   let remainingChars = Math.max(0, maxChars);
   for (let index = recent.length - 1; index >= 0; index -= 1) {
     if (remainingChars <= 0) break;
     const msg = recent[index];
-    let content = stripDirectoryAliasLinesForChatHistory(msg.content);
+    let content = conversationHistoryContentForMessage(msg, policy);
     if (!content) continue;
     if (msg.role === "user" && msg.senderLabel) {
       content = `${msg.senderLabel}: ${content}`;
@@ -7571,7 +7606,7 @@ async function startRunForThread(thread, userMessage, assistantMessage, options 
     stream: true,
     store: true,
     conversation: thread.singleWindow ? `${thread.hermesSessionId}_${userMessage.taskGroupId || userMessage.id}` : thread.hermesSessionId,
-    conversation_history: buildConversationHistory(thread, userMessage.id),
+    conversation_history: buildConversationHistory(thread, userMessage.id, runPolicy),
     instructions: [
       buildHermesInstructions(
         policyThread,
