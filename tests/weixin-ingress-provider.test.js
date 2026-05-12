@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const {
   createWeixinIngressProvider,
+  isInboundHeartbeatEvent,
   normalizeAck,
   normalizeInboundEvent,
   workspaceMatchesEvent,
@@ -53,6 +54,30 @@ function testNormalizeInboundEventRequiresContent() {
     () => normalizeInboundEvent({ account_id: "wx_main", chat_id: "chat_example_user" }),
     /must include text or attachments/,
   );
+}
+
+function testInboundHeartbeatEvent() {
+  assert.equal(isInboundHeartbeatEvent(normalizeInboundEvent({
+    account_id: "wx_main",
+    chat_id: "chat_example_user",
+    text: "#",
+  })), true);
+  assert.equal(isInboundHeartbeatEvent(normalizeInboundEvent({
+    account_id: "wx_main",
+    chat_id: "chat_example_user",
+    text: " # ",
+  })), true);
+  assert.equal(isInboundHeartbeatEvent(normalizeInboundEvent({
+    account_id: "wx_main",
+    chat_id: "chat_example_user",
+    text: "#心跳",
+  })), false);
+  assert.equal(isInboundHeartbeatEvent(normalizeInboundEvent({
+    account_id: "wx_main",
+    chat_id: "chat_example_user",
+    text: "#",
+    attachments: [{ name: "photo.png", path: "/tmp/photo.png" }],
+  })), false);
 }
 
 function testWorkspaceMatching() {
@@ -106,6 +131,7 @@ function testDeliveryAndThreadIdsAreStable() {
 
 testNormalizeInboundEventCreatesStableId();
 testNormalizeInboundEventRequiresContent();
+testInboundHeartbeatEvent();
 testWorkspaceMatching();
 testResolveWorkspacePriority();
 testNoImplicitFallbackWithoutConfig();

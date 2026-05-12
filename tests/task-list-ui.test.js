@@ -12,6 +12,7 @@ const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewe
 const pdfViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "pdf-viewer.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 const serverJs = fs.readFileSync(path.join(repoRoot, "server.js"), "utf8");
+const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-ingress-provider.js"), "utf8");
 
 assert.match(appJs, /function taskGroupsForThread\(thread\)/);
 assert.match(appJs, /return \[\.\.\.groups\.values\(\)\]\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\);/);
@@ -333,6 +334,12 @@ assert.match(serverJs, /&& !isExternalIngressThread\(thread\)/);
 assert.match(serverJs, /const externalIngressThreads = \(state\.threads \|\| \[\]\)\.filter/);
 assert.match(serverJs, /state\.threads = \(state\.threads \|\| \[\]\)\.filter\(\(thread\) => thread\.id !== externalThread\.id\)/);
 assert.match(serverJs, /function weixinIngressThreadForEvent\(event, workspaceId\) \{\s+return ensureWeixinSingleWindowThread\(workspaceId, event\);\s+\}/);
+assert.match(serverJs, /weixinIngressProvider\.isInboundHeartbeatEvent\(event\)/);
+assert.match(serverJs, /heartbeat: true/);
+assert.match(serverJs, /reason: workspaceId && findWorkspace\(workspaceId\) \? "weixin_ingress_heartbeat" : "unmatched_workspace_route"/);
+assert.ok(serverJs.indexOf("weixinIngressProvider.isInboundHeartbeatEvent(event)") < serverJs.indexOf("startRunForThread(thread, userMessage, assistantMessage, runOptions)"));
+assert.match(weixinIngressProviderJs, /function isInboundHeartbeatEvent\(event\)/);
+assert.match(weixinIngressProviderJs, /text === "#" \|\| text === "＃"/);
 assert.match(serverJs, /const taskGroupId = SINGLE_WINDOW_CHAT_TASK_GROUP_ID;/);
 assert.match(serverJs, /singleWindowMode === "chat" \? singleWindowChatTaskGroupId\(requestedTaskGroupId\) : \(requestedTaskGroupId \|\| makeId\("task"\)\)/);
 assert.match(serverJs, /singleWindowMode === "chat"\s+\? "The latest user message is a Hermes Mobile continuous-chat turn/);

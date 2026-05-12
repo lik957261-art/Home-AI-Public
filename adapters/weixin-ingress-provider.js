@@ -91,6 +91,12 @@ function normalizeInboundEvent(body = {}) {
   return event;
 }
 
+function isInboundHeartbeatEvent(event) {
+  const text = trimString(event?.text || "", 20);
+  const attachments = Array.isArray(event?.attachments) ? event.attachments : [];
+  return (text === "#" || text === "＃") && attachments.length === 0;
+}
+
 function keyName(value) {
   return String(value || "").replace(/[^A-Za-z0-9_]/g, "").toLowerCase();
 }
@@ -176,6 +182,7 @@ function createWeixinIngressProvider(options = {}) {
 
   return {
     deliveryId,
+    isInboundHeartbeatEvent,
     normalizeAck,
     normalizeInboundEvent,
     resolveWorkspaceId,
@@ -186,6 +193,7 @@ function createWeixinIngressProvider(options = {}) {
 
 module.exports = {
   createWeixinIngressProvider,
+  isInboundHeartbeatEvent,
   normalizeAck,
   normalizeInboundEvent,
   workspaceMatchesEvent,

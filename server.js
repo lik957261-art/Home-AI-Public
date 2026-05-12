@@ -7133,6 +7133,17 @@ function ackWeixinOutboundDelivery(deliveryId, ack) {
 
 async function startWeixinIngressEvent(body) {
   const event = weixinIngressProvider.normalizeInboundEvent(body);
+  if (weixinIngressProvider.isInboundHeartbeatEvent(event)) {
+    const workspaceId = weixinIngressProvider.resolveWorkspaceId(event);
+    return {
+      ok: true,
+      heartbeat: true,
+      eventId: event.eventId,
+      workspaceId: workspaceId || "",
+      skipped: !workspaceId || !findWorkspace(workspaceId),
+      reason: workspaceId && findWorkspace(workspaceId) ? "weixin_ingress_heartbeat" : "unmatched_workspace_route",
+    };
+  }
   const duplicate = findExistingWeixinIngressEvent(event.eventId);
   if (duplicate) {
     return {
