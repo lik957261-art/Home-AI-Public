@@ -17,12 +17,14 @@ import json
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 
 DEFAULT_MOBILE_BASE_URL = "http://127.0.0.1:8797"
@@ -77,6 +79,40 @@ def state_dir_from_env() -> Path:
     if raw:
         return Path(wsl_path(raw)).expanduser()
     return hermes_home() / DEFAULT_STATE_DIR
+
+
+def running_under_wsl() -> bool:
+    try:
+        text = Path("/proc/sys/kernel/osrelease").read_text(encoding="utf-8", errors="ignore").lower()
+        return "microsoft" in text or "wsl" in text
+    except Exception:
+        return False
+
+
+def windows_host_from_wsl() -> str:
+    try:
+        output = subprocess.check_output(
+            ["sh", "-lc", "ip route | awk '/default/{print $3; exit}'"],
+            text=True,
+            timeout=2,
+        ).strip()
+        return output
+    except Exception:
+        return ""
+
+
+def resolve_mobile_base_url(value: str) -> str:
+    raw = (value or DEFAULT_MOBILE_BASE_URL).strip().rstrip("/")
+    parsed = urlsplit(raw)
+    if not running_under_wsl() or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+        return raw
+    host = windows_host_from_wsl()
+    if not host:
+        return raw
+    netloc = host
+    if parsed.port:
+        netloc = f"{host}:{parsed.port}"
+    return urlunsplit((parsed.scheme or "http", netloc, parsed.path or "", parsed.query or "", parsed.fragment or "")).rstrip("/")
 
 
 def first_existing_path(*values: str) -> str:
@@ -237,7 +273,7 @@ class RouteBook:
 
 class MobileIngressBridge:
     def __init__(self, args: argparse.Namespace) -> None:
-        self.base_url = (args.base_url or os.environ.get("HERMES_MOBILE_BASE_URL") or DEFAULT_MOBILE_BASE_URL).rstrip("/")
+        self.base_url = resolve_mobile_base_url(args.base_url or os.environ.get("HERMES_MOBILE_BASE_URL") or DEFAULT_MOBILE_BASE_URL)
         self.key = ingress_key()
         if not self.key:
             raise SystemExit("missing Hermes Mobile Weixin ingress key")

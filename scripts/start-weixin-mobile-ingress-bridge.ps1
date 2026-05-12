@@ -101,6 +101,22 @@ ingress_key_path="`$(to_wsl_path "`$ingress_key_path")"
 route_map_path="`$(to_wsl_path "`$route_map_path")"
 bridge_script="`$(to_wsl_path "`$bridge_script")"
 
+resolve_mobile_base_url() {
+  local value="`$1"
+  case "`$value" in
+    http://127.0.0.1:*|http://localhost:*|https://127.0.0.1:*|https://localhost:*)
+      local host
+      host="`$(ip route | awk '/default/{print `$3; exit}' 2>/dev/null || true)"
+      if [ -n "`$host" ]; then
+        value="`$(printf '%s' "`$value" | sed -E "s#//(127[.]0[.]0[.]1|localhost)(:|/)#//`$host\2#")"
+      fi
+      ;;
+  esac
+  printf '%s' "`$value"
+}
+
+mobile_base_url="`$(resolve_mobile_base_url "`$mobile_base_url")"
+
 legacy_gateway_pid() {
   python3 - <<'PY'
 import re
@@ -161,6 +177,35 @@ stop_legacy_gateway() {
   fi
 }
 
+bridge_pid() {
+  local pid=""
+  if [ -f "`$state_dir/bridge.pid" ]; then
+    pid="`$(tr -cd '0-9' < "`$state_dir/bridge.pid" || true)"
+  fi
+  if [ -n "`$pid" ] && kill -0 "`$pid" 2>/dev/null; then
+    printf '%s' "`$pid"
+    return 0
+  fi
+  return 1
+}
+
+stop_bridge() {
+  local pid
+  pid="`$(bridge_pid || true)"
+  if [ -z "`$pid" ]; then
+    return 0
+  fi
+  echo "stopping existing Weixin Mobile ingress bridge pid=`$pid"
+  kill "`$pid" 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    sleep 1
+    if ! kill -0 "`$pid" 2>/dev/null; then
+      return 0
+    fi
+  done
+  kill -9 "`$pid" 2>/dev/null || true
+}
+
 bridge_check() {
   env \
     HOME="/home/$WslUser" \
@@ -211,6 +256,10 @@ test -f "`$bridge_script"
 test -f "`$ingress_key_path"
 
 stop_legacy_gateway
+
+if [ "`$replace_existing" = "1" ]; then
+  stop_bridge
+fi
 
 if bridge_check >/dev/null 2>&1; then
   start_dispatchers
