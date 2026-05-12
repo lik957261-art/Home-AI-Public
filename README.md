@@ -88,6 +88,11 @@ Use this runbook instead:
 
 - [Agent Windows production deployment](docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md)
 
+Before running the production path, review the runbook's field pitfalls section.
+It covers Agent elevation, per-user WSL distro registration, worker-account
+Node paths, BOM-free JSON manifests, firewall profiles, and final Worker Pool
+validation.
+
 This production path requires a Windows administrator shell and WSL bootstrap
 authority. In practice, the deploying Agent can satisfy the WSL requirement by
 running the target distro as `root` through `wsl -d <distro> -u root`, or by
