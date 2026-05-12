@@ -24,6 +24,47 @@ checkout.
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
+## 2026-05-12 Public Update
+
+本次 public tree 对应 private source commit
+`12e0f987dadcb43cd13d7ab43957fe42b1ba3a16`。这是一次累计公开更新，重点是让
+Windows + WSL + official Hermes Gateway Pool 部署可以由另一个 Agent 按公开文档完成。
+
+### 主要变化
+
+- 低权限 Gateway 现在公开包含真实的 `weather` 和受限 `http_request` 插件，不再只停留在权限摘要层。
+- Gateway Pool 启动链路补齐 worker base config、旧 lowgw 进程替换、shared-auth 同文件系统布局、profile SQLite 健康修复。
+- Windows public 部署补齐必要脚本：
+  - `scripts/run-as-worker.ps1`
+  - `scripts/start-low-gateways-child.ps1`
+  - `scripts/start-low-gateways.sh`
+  - `scripts/configure-low-gateways.sh`
+  - `scripts/start-gateway-pool.ps1`
+- 新增 [Agent Windows production deployment](docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md)，供 Codex/Agent 按步骤部署：
+  - 创建 `HermesMobileWorker`。
+  - 准备 `C:\ProgramData\HermesMobile\app` / `data` / `gateway-worker`。
+  - 安装 runtime package。
+  - 启动 WSL `HermesGatewayWorker` lowgw pool。
+  - 启动 Hermes Mobile listener。
+  - 检查 `/api/status`、真实 callable schema、auth realpath、SQLite integrity。
+- 看板卡片详情支持回执/过程、Markdown HTML preview、响应式回执字体和更均衡的 Worker 分配。
+- Weixin / Mobile ingress 启动脚本同步到 public，但仍要求部署方自己提供账号、密钥和唯一 poller 边界。
+
+### 部署边界
+
+public 源码可以复刻 Hermes Mobile 自己负责的用户、脚本、目录和进程形态；不会也不应该复刻任何生产私有状态。部署方仍需提供：
+
+- official Hermes clean runtime。
+- WSL distro。
+- Codex/OAuth auth 或安全 seed。
+- Gateway API keys。
+- Owner Access Key。
+- Web Push VAPID。
+- 外部连接器 token。
+- workspace/user 数据。
+
+本次 public export 不包含私有事故复盘、`.agent-context`、runtime DB、logs、uploads、backups、Access Keys、OAuth/Codex auth、push endpoints 或含 API key 的 worker manifests。
+
 ## Requirements
 
 - Node.js `>=22`
