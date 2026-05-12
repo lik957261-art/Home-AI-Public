@@ -23,6 +23,18 @@ const TASK_MESSAGE_INITIAL_LIMIT = 300;
 const TODO_AUTO_REFRESH_INTERVAL_MS = 8000;
 const TODO_LIST_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
 const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
+const KANBAN_STORY_STATUS = "story";
+const KANBAN_STORY_DEFAULT_VERSION = "20260513-story-tree";
+
+function initialTodoKanbanStatus() {
+  const stored = localStorage.getItem("hermesTodoKanbanStatus") || "";
+  const migrated = localStorage.getItem("hermesTodoKanbanStoryDefaultVersion") === KANBAN_STORY_DEFAULT_VERSION;
+  if (!migrated && (!stored || stored === "todo")) {
+    localStorage.setItem("hermesTodoKanbanStoryDefaultVersion", KANBAN_STORY_DEFAULT_VERSION);
+    return KANBAN_STORY_STATUS;
+  }
+  return stored || KANBAN_STORY_STATUS;
+}
 
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
@@ -57,7 +69,7 @@ const state = {
   todoAssignees: [],
   todoSource: "",
   todoKanbanBoard: "",
-  todoKanbanStatus: localStorage.getItem("hermesTodoKanbanStatus") || "todo",
+  todoKanbanStatus: initialTodoKanbanStatus(),
   todoCompletedLoaded: false,
   todoCardDetails: {},
   todoAutoRefreshTimer: 0,
@@ -219,8 +231,10 @@ const TASK_REASONING_OPTIONS = [
 ];
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
 const KANBAN_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
+const KANBAN_TAB_ORDER = Object.freeze([KANBAN_STORY_STATUS, ...KANBAN_STATUS_ORDER]);
 const KANBAN_STATUS_FALLBACK_ORDER = Object.freeze(["running", "blocked", "ready", "todo", "triage", "done", "archived"]);
 const KANBAN_STATUS_META = Object.freeze({
+  story: { label: "\u6545\u4e8b", shortLabel: "Story" },
   triage: { label: "\u5f85\u5206\u62e3", shortLabel: "Triage" },
   todo: { label: "\u5f85\u529e", shortLabel: "Todo" },
   ready: { label: "\u5c31\u7eea", shortLabel: "Ready" },
@@ -8253,7 +8267,7 @@ async function loadThreads() {
 }
 
 function kanbanStatusNeedsCompleted(status) {
-  return status === "done" || status === "archived";
+  return status === KANBAN_STORY_STATUS || status === "done" || status === "archived";
 }
 
 function shouldLoadCompletedTodos(options = {}) {
@@ -8412,9 +8426,10 @@ function kanbanStatusText(todo) {
 
 function currentTodoKanbanStatus(grouped) {
   const selected = String(state.todoKanbanStatus || "").trim().toLowerCase();
+  if (selected === KANBAN_STORY_STATUS) return KANBAN_STORY_STATUS;
   if (KANBAN_STATUS_ORDER.includes(selected)) return selected;
   const fallback = KANBAN_STATUS_FALLBACK_ORDER.find((status) => (grouped?.get(status) || []).length)
-    || "todo";
+    || KANBAN_STORY_STATUS;
   state.todoKanbanStatus = fallback;
   localStorage.setItem("hermesTodoKanbanStatus", fallback);
   return fallback;
@@ -8581,6 +8596,13 @@ function kanbanArchiveCases(items) {
   });
 }
 
+function kanbanStoryCases(items) {
+  return kanbanArchiveCases(items).filter((group) => (
+    group.mode !== "single-card"
+    || group.cards.length > 1
+  ));
+}
+
 function kanbanArchiveStatusSummary(group) {
   const counts = new Map();
   for (const item of group.cards) {
@@ -8612,15 +8634,24 @@ function renderKanbanArchiveCase(group) {
   const statusSummary = kanbanArchiveStatusSummary(group);
   const latest = group.latest ? todoTimestampLabel(new Date(group.latest).toISOString()) : "";
   const modeLabel = group.mode === "multi-agent" ? "\u591a Agent" : "\u5355\u5361";
+  const titleByCardId = new Map(cards.map(({ todo, info }, index) => [
+    info.cardId || `card-${info.cardIndex || index + 1}`,
+    todo.content || info.cardId || todo.id || "",
+  ]));
   const cardRows = cards.slice(0, 8).map(({ todo, info }, index) => {
     const status = kanbanStatusMeta(normalizedKanbanStatus(todo)).shortLabel;
     const goal = compactDisplayText(info.cardGoal || todo.description || todo.content || "", 160);
     const sequence = info.cardIndex || index + 1;
+    const dependencies = (info.dependsOn || [])
+      .map((id) => titleByCardId.get(id) || id)
+      .filter(Boolean)
+      .join(" / ");
+    const meta = [status, dependencies ? `\u4f9d\u8d56\uff1a${dependencies}` : "", goal].filter(Boolean).join(" | ");
     return `<li>
       <button type="button" data-todo-id="${escapeHtml(todo.id)}">
         <span>${escapeHtml(String(sequence))}</span>
         <strong>${escapeHtml(todo.content || todo.id)}</strong>
-        <small>${escapeHtml([status, goal].filter(Boolean).join(" | "))}</small>
+        <small>${escapeHtml(meta)}</small>
       </button>
     </li>`;
   }).join("");
@@ -8628,7 +8659,7 @@ function renderKanbanArchiveCase(group) {
   return `<article class="kanban-archive-case">
     <header class="kanban-archive-case-head">
       <div>
-        <span>${escapeHtml(["\u5f52\u6863\u4e8b\u9879", modeLabel, statusSummary].filter(Boolean).join(" | "))}</span>
+        <span>${escapeHtml(["\u4efb\u52a1\u6545\u4e8b", modeLabel, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
       </div>
       <small>${escapeHtml(latest)}</small>
@@ -8654,6 +8685,14 @@ function renderKanbanArchiveCase(group) {
 function renderKanbanArchiveStories(items) {
   const cases = kanbanArchiveCases(items);
   if (!cases.length) return `<div class="empty-state small">No archived cases.</div>`;
+  return `<div class="kanban-archive-stories">${cases.map(renderKanbanArchiveCase).join("")}</div>`;
+}
+
+function renderKanbanStoryTree(items) {
+  const cases = kanbanStoryCases(items);
+  if (!cases.length) {
+    return `<div class="empty-state small">\u6682\u65e0\u6545\u4e8b\u6811\u3002\u591a Agent \u62c6\u89e3\u7684\u4efb\u52a1\u4f1a\u5728\u8fd9\u91cc\u6309\u9700\u6c42\u3001\u62c6\u89e3\u3001\u7ed3\u8bba\u805a\u5408\u3002</div>`;
+  }
   return `<div class="kanban-archive-stories">${cases.map(renderKanbanArchiveCase).join("")}</div>`;
 }
 
@@ -8859,16 +8898,22 @@ function renderTodoKanbanBoard(todos) {
   const selectedStatus = currentTodoKanbanStatus(grouped);
   const selectedMeta = kanbanStatusMeta(selectedStatus);
   const selectedItems = grouped.get(selectedStatus) || [];
-  const tabs = KANBAN_STATUS_ORDER.map((status) => {
+  const storyCases = state.todoCompletedLoaded ? kanbanStoryCases(todos) : [];
+  const tabs = KANBAN_TAB_ORDER.map((status) => {
     const meta = kanbanStatusMeta(status);
     const items = grouped.get(status) || [];
     const active = status === selectedStatus ? " active" : "";
-    const count = !state.todoCompletedLoaded && kanbanStatusNeedsCompleted(status) ? "…" : String(items.length);
+    const count = status === KANBAN_STORY_STATUS
+      ? (state.todoCompletedLoaded ? String(storyCases.length) : "\u2026")
+      : (!state.todoCompletedLoaded && kanbanStatusNeedsCompleted(status) ? "\u2026" : String(items.length));
     return `<button class="todo-kanban-tab${active} status-${escapeHtml(status)}" type="button" data-kanban-status="${escapeHtml(status)}" aria-pressed="${active ? "true" : "false"}">
       <span class="todo-kanban-tab-label">${escapeHtml(meta.label)}</span>
       <span class="todo-kanban-tab-count">${escapeHtml(count)}</span>
     </button>`;
   }).join("");
+  const laneBody = selectedStatus === KANBAN_STORY_STATUS
+    ? renderKanbanStoryTree(todos)
+    : (selectedStatus === "archived" ? renderKanbanArchiveStories(selectedItems) : (selectedItems.map(renderTodoKanbanCard).join("") || `<div class="empty-state small">No items.</div>`));
   return `
     <div class="todo-kanban-board">
       <nav class="todo-kanban-switcher" aria-label="Kanban status">${tabs}</nav>
@@ -8879,9 +8924,9 @@ function renderTodoKanbanBoard(todos) {
             <div class="todo-kanban-lane-title">${escapeHtml(selectedMeta.label)}</div>
             <div class="todo-kanban-lane-code">${escapeHtml(selectedMeta.shortLabel)}</div>
           </div>
-          <span>${selectedItems.length}</span>
+          <span>${selectedStatus === KANBAN_STORY_STATUS ? storyCases.length : selectedItems.length}</span>
         </header>
-        <div class="todo-kanban-cards">${selectedStatus === "archived" ? renderKanbanArchiveStories(selectedItems) : (selectedItems.map(renderTodoKanbanCard).join("") || `<div class="empty-state small">No items.</div>`)}</div>
+        <div class="todo-kanban-cards">${laneBody}</div>
       </section>
     </div>
   `;
@@ -9111,7 +9156,7 @@ function wireTodoPanel(root) {
   root.querySelectorAll("[data-kanban-status]").forEach((button) => {
     button.addEventListener("click", () => {
       const status = String(button.dataset.kanbanStatus || "").trim().toLowerCase();
-      if (!KANBAN_STATUS_ORDER.includes(status)) return;
+      if (!KANBAN_TAB_ORDER.includes(status)) return;
       state.todoKanbanStatus = status;
       localStorage.setItem("hermesTodoKanbanStatus", status);
       if (kanbanStatusNeedsCompleted(status) && !state.todoCompletedLoaded) {
@@ -9277,8 +9322,8 @@ async function createKanbanPlanFromDraft() {
     pushKanbanComposerMessage("assistant", `\u5df2\u521b\u5efa ${cards.length} \u5f20\u591a Agent \u770b\u677f\u5361\u7247\uff1b${Math.max(0, cards.length - blocked)} \u5f20\u9996\u6279\u6267\u884c\uff0c${blocked} \u5f20\u7b49\u5f85\u4f9d\u8d56\u6216\u5e76\u884c\u4f4d\u3002`);
     state.kanbanPlanDraft = null;
     clearTodoListCache();
-    state.todoKanbanStatus = "todo";
-    localStorage.setItem("hermesTodoKanbanStatus", "todo");
+    state.todoKanbanStatus = KANBAN_STORY_STATUS;
+    localStorage.setItem("hermesTodoKanbanStatus", KANBAN_STORY_STATUS);
     state.todoCreateOpen = false;
     await loadTodos({ skipCache: true });
   } catch (err) {
