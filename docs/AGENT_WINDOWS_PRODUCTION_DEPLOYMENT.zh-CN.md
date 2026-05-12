@@ -277,6 +277,53 @@ C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json
 - `api_key` 与 `low-gateway-api-key.secret` 内容一致，但 manifest 文件本身必须当作 secret 保护。
 - `telemetryStateDbPath` / `telemetryResponseStoreDbPath` 指向对应 profile DB。
 
+## 6.1 多账号 worker / Skill profile 路由规则
+
+生产多账号部署不能把所有普通 lowgw 作为无差别共享池。普通 lowgw 可以共享物理机器和调度池，但每个 workspace/account 必须在 manifest 中有明确 profile 边界，否则 Skill、memory、connector credential、session state 和授权根目录会串。
+
+Hermes Mobile 普通 run 会按当前 `actorWorkspaceId` 生成 `skillWorkspaceId` 路由 hint。生产部署应设置：
+
+```powershell
+$env:HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING = "on"
+```
+
+`on` 表示缺少匹配 Skill profile 时 fail closed，不会退回到任意 worker。`auto` 仅用于兼容旧 manifest；只要 manifest 声明了 `skillProfile` / `skillWorkspaceIds`，也会按 workspace 匹配。
+
+每个普通 user worker 至少应声明：
+
+```json
+{
+  "id": "lowgw5",
+  "name": "lowgw5",
+  "profile": "lowgw5",
+  "host": "127.0.0.1",
+  "port": 18755,
+  "securityLevel": "user",
+  "allowedWorkspaceIds": ["weixin_wuping"],
+  "skillProfile": "workspace:weixin_wuping",
+  "skillWorkspaceIds": ["weixin_wuping"],
+  "api_key": "<same low gateway api key>"
+}
+```
+
+字段含义：
+
+- `allowedWorkspaceIds` 控制该 worker 可以服务哪些 workspace。
+- `skillProfile` 是给管理员和诊断使用的非秘密标签，表示该 worker 使用哪套 Skill/profile-local store。
+- `skillWorkspaceIds` 声明这套 Skill/profile-local store 对应哪些 workspace；新增 workspace 后必须新增或更新这里的绑定。
+- `["*"]` 只适合真正共享、没有用户私有 Skill/connector/memory 的 stateless profile。不要把 `["*"]` 当作生产多账号隔离的默认值。
+
+新增 workspace/account 后，部署 Agent 必须同步做这些事：
+
+1. 在 Hermes Mobile 中创建 workspace 和 Access Key。
+2. 在 Gateway Pool manifest 中为该 workspace 分配至少一个 `securityLevel=user` worker，或把该 workspace 加入一个明确批准共享的 worker 组。
+3. 为该 worker 设置对应的 `allowedWorkspaceIds`、`skillProfile`、`skillWorkspaceIds`。
+4. 准备该 profile 的 Skill store、connector credential 路径、memory/session/SQLite profile-local 状态目录。
+5. 重启 Gateway Pool，使新 manifest 和 profile 配置生效。
+6. 用该 workspace Access Key 发起一次低权限 smoke，确认实际路由到预期 `profile`，并且 session schema 中包含该账号应该有的工具。
+
+如果新 workspace 找不到所属 lowgw，不要把所有 worker 改成全员共享；应补 manifest/profile 映射，或者明确决定该 workspace 使用某个受控共享 profile。
+
 Owner maintenance workers 只在部署者明确需要时启用：
 
 - `securityLevel=owner-maintenance`
@@ -315,6 +362,7 @@ $env:HERMES_WEB_SERVICE_STORE = "sqlite"
 $env:HERMES_WEB_DB_PATH = "C:\ProgramData\HermesMobile\data\hermes-mobile.sqlite3"
 $env:HERMES_WEB_GATEWAY_POOL_ENABLED = "auto"
 $env:HERMES_WEB_GATEWAY_POOL_MANIFEST = "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json"
+$env:HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING = "on"
 $env:HERMES_WEB_MAX_ACTIVE_RUNS = "3"
 $env:HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE = "3"
 $env:HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS = "1"
@@ -389,6 +437,8 @@ Invoke-WebRequest -UseBasicParsing -Headers @{ "X-Hermes-Web-Key" = $key } http:
 - `health=ok`
 - Gateway Pool workers healthy。
 - lowgw ports `18751..18760` listening。
+- 每个已创建 workspace 都能在 `/api/status.gatewayPool.workers` 中找到匹配的 `securityLevel=user` worker，并且该 worker 的 `allowedWorkspaceIds` 或 `skillWorkspaceIds` 包含该 workspace。
+- 生产强隔离部署中，`HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING=on`，缺少 workspace/profile 映射时应 fail closed，而不是落到其他用户 worker。
 - lowgw profile config 包含 `weather` 和 `http`。
 - 实际 session schema 包含 `weather` 和 `http_request`。
 - `state.db` / `response_store.db` integrity 为 `ok`。
