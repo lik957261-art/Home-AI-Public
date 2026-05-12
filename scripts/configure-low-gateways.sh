@@ -21,6 +21,8 @@ weather_plugin_source="${HERMES_MOBILE_WEATHER_PLUGIN_SOURCE:-$mobile_app_root/g
 weather_plugin_target="$worker_home_dir/plugins/hermes-mobile-weather"
 http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-http}"
 http_plugin_target="$worker_home_dir/plugins/hermes-mobile-http"
+image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-image}"
+image_plugin_target="$worker_home_dir/plugins/hermes-mobile-image"
 
 shared_auth_enabled=0
 case "${shared_auth_mode,,}" in
@@ -185,6 +187,7 @@ fi
 missing_auth_profiles=()
 weather_plugin_enabled=0
 http_plugin_enabled=0
+image_plugin_enabled=0
 
 if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/__init__.py" ]; then
   rm -rf "$weather_plugin_target"
@@ -202,6 +205,15 @@ if [ -f "$http_plugin_source/plugin.yaml" ] && [ -f "$http_plugin_source/__init_
   http_plugin_enabled=1
 else
   echo "HTTP plugin source not found: $http_plugin_source" >&2
+fi
+
+if [ -f "$image_plugin_source/plugin.yaml" ] && [ -f "$image_plugin_source/__init__.py" ]; then
+  rm -rf "$image_plugin_target"
+  cp -a "$image_plugin_source" "$image_plugin_target"
+  chown -R "$worker_user:$worker_user" "$image_plugin_target"
+  image_plugin_enabled=1
+else
+  echo "Image plugin source not found: $image_plugin_source" >&2
 fi
 
 if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ]; then
@@ -224,6 +236,9 @@ if [ "$http_plugin_enabled" = "1" ]; then
   http_toolset_block="  - http"
   http_api_toolset_block="    - http"
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-http"$'\n'
+fi
+if [ "$image_plugin_enabled" = "1" ]; then
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
 fi
 plugin_block="  enabled: []"
 if [ -n "$plugin_enabled_lines" ]; then
@@ -301,6 +316,12 @@ for idx in $(seq 1 "$low_gateway_count"); do
     cp -a "$http_plugin_target" "$profile_dir/plugins/hermes-mobile-http"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-http"
   fi
+  if [ "$image_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-image"
+    cp -a "$image_plugin_target" "$profile_dir/plugins/hermes-mobile-image"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-image"
+  fi
   weather_toolset_block=""
   weather_api_toolset_block=""
   http_toolset_block=""
@@ -315,6 +336,9 @@ for idx in $(seq 1 "$low_gateway_count"); do
     http_toolset_block="  - http"
     http_api_toolset_block="    - http"
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-http"$'\n'
+  fi
+  if [ "$image_plugin_enabled" = "1" ]; then
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
   fi
   plugin_block="  enabled: []"
   if [ -n "$plugin_enabled_lines" ]; then

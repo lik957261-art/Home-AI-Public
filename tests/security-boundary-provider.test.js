@@ -138,6 +138,7 @@ function run() {
   assert.match(permissionInstructions, /File reads and writes inside the current allowed roots are ordinary low-permission work/);
   assert.match(permissionInstructions, /OCR, document-image extraction, and visual analysis/);
   assert.match(permissionInstructions, /Image generation or image editing requested by the current account/);
+  assert.match(permissionInstructions, /`image_generate`, `image_edit`, or `image_erase`/);
   assert.match(permissionInstructions, /Messaging requested by the current account is ordinary low-permission work/);
   assert.match(permissionInstructions, /Text-to-speech requested by the current account is ordinary low-permission work/);
   assert.match(permissionInstructions, /documented Program API operations are ordinary low-permission work/);
@@ -156,6 +157,7 @@ function run() {
   assert.match(fs.readFileSync(skillPath, "utf8"), /File reads and writes inside the current run's allowed roots are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /OCR, document-image extraction, and visual analysis of files inside the current run's allowed roots are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Image generation and image editing requested by the current account are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /`image_generate`, `image_edit`, or `image_erase`/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Messaging requested by the current account is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Text-to-speech requested by the current account is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /documented Program API reads and writes are \*\*Allowed\*\*/);

@@ -1,0 +1,7 @@
+name: hermes-mobile-image
+version: 1.0.0
+description: "Hermes Mobile ChatGPT Image editing tools for low-permission Gateway profiles."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - image_gen

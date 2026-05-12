@@ -324,6 +324,7 @@
 - 低网关 policy 和真实 schema 已对齐。
 - `weather` 是真实 callable。
 - `http_request` 是真实 callable。
+- `image_gen` 不只应停留在官方 `image_generate` 文生图能力；Hermes Mobile 低网关还需要 profile-local `hermes-mobile-image` 插件暴露 `image_edit` 和 `image_erase`，用于当前账号/工作区内图片编辑和擦除。
 - lowgw 共享 auth 位于 telemetry profiles 同文件系统。
 - Gateway Pool 重启会先停旧 lowgw。
 - Gateway Pool 启动会检查并隔离损坏的 lowgw profile SQLite DB/sidecar。
@@ -342,6 +343,7 @@
   - lowgw profile/config provisioning
   - Gateway Pool startup hardening
   - production runtime repair
+- 图像编辑/擦除也应保持在 Hermes Mobile profile-local plugin 层，不修改官方 Hermes `image_gen` 插件。官方插件当前只提供 `image_generate` provider；Mobile 插件负责把 ChatGPT Image 2 的编辑/擦除 callable 挂到低权限 profile。
 - 官方 Hermes 仍负责 agent loop、tool execution、sessions、response store、artifacts。
 - Hermes Mobile 负责调度、权限、低网关 profile 装配、运行前健康检查和生产恢复。
 
@@ -371,9 +373,9 @@
 | 现象 | 首要怀疑 | 证据位置 | 常见修复 |
 | --- | --- | --- | --- |
 | 权限摘要有工具，但模型说没有 callable | policy/schema 不一致或旧进程 | lowgw session tool list、profile config、base config | 修 `configure-low-gateways.sh` 并重启/替换旧 lowgw |
+| 有 `image_gen` 但只能文生图，不能擦除/编辑 | 只启用了官方 `image_generate`，缺少 Mobile image plugin | lowgw profile config、plugin enabled list、schema 中是否有 `image_edit`/`image_erase` | 部署 `gateway-plugins/hermes-mobile-image`，重跑 `configure-low-gateways.sh` 并重启 lowgw |
 | 刚部署后仍像旧行为 | 旧 lowgw 进程占端口 | 进程启动时间、端口、session schema | 先 stop `lowgw1..10` 再 start |
 | 1-2 秒 `run failed` | auth 或 Gateway 初始化失败 | lowgw logs | 查 auth realpath、refresh status |
 | `Invalid cross-device link` | auth 跨文件系统替换 | lowgw logs、auth symlink realpath | auth 放到 telemetry profiles 同文件系统 |
 | Mobile `terminated` 但 session 后续完成 | SSE/response store/Mobile 持久化失败 | lowgw session、agent.log、Mobile SQLite | 查 `response_store.db` integrity，必要时恢复 message |
 | `database disk image is malformed` | profile SQLite 损坏 | lowgw logs、`PRAGMA integrity_check` | 隔离 DB/sidecar，让 Gateway 重建 |
-
