@@ -7,6 +7,7 @@ const os = require("node:os");
 const crypto = require("node:crypto");
 const zlib = require("node:zlib");
 const { spawn, spawnSync } = require("node:child_process");
+const { pathToFileURL } = require("node:url");
 const webpush = require("web-push");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
 const { createAuthProvider } = require("./adapters/auth-provider");
@@ -213,6 +214,11 @@ const SOURCE_MARKDOWN_SEARCH_LIMIT = Number(
   process.env.HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT
   || process.env.HERMES_WEB_SOURCE_MARKDOWN_SEARCH_LIMIT
   || "2000",
+);
+const WEIXIN_FORWARD_MARKDOWN_MAX_BYTES = Number(
+  process.env.HERMES_MOBILE_WEIXIN_MARKDOWN_FORWARD_MAX_BYTES
+  || process.env.HERMES_WEB_WEIXIN_MARKDOWN_FORWARD_MAX_BYTES
+  || String(2 * 1024 * 1024),
 );
 const TODO_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_WEB_TODO_BRIDGE_TIMEOUT_MS || "15000");
 const KANBAN_BRIDGE_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_KANBAN_BRIDGE_TIMEOUT_MS || process.env.HERMES_WEB_KANBAN_BRIDGE_TIMEOUT_MS || "20000");
@@ -5942,6 +5948,15 @@ function safeFileName(value) {
   return name || "upload.bin";
 }
 
+function escapeHtmlForDocument(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function safeDirectoryName(value) {
   const name = safeFileName(value || "New Folder").replace(/[. ]+$/g, "").trim();
   if (!name || name === "." || name === "..") return "";
@@ -6565,6 +6580,129 @@ function fileResultFromResolvedForwardSource(resolved, workspaceId, fallbackErro
   return { status: resolved?.status || 404, error: resolved?.error || fallbackError || "File not found" };
 }
 
+function isMarkdownForwardFile(file) {
+  const name = String(file?.name || file?.displayPath || file?.localPath || "").toLowerCase();
+  const mime = String(file?.mime || "").toLowerCase();
+  return name.endsWith(".md") || mime.includes("markdown");
+}
+
+function weixinMarkdownForwardDir(workspaceId) {
+  const dir = path.join(DATA_DIR, "artifacts", "weixin-forward", safeFileName(workspaceId || "owner"), "markdown");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function chromiumExecutableCandidates() {
+  return [
+    process.env.HERMES_MOBILE_WEIXIN_MARKDOWN_PDF_BROWSER,
+    process.env.HERMES_WEB_WEIXIN_MARKDOWN_PDF_BROWSER,
+    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    "msedge.exe",
+    "chrome.exe",
+    "chromium",
+    "google-chrome",
+  ].filter(Boolean);
+}
+
+function markdownForwardHtml(title, sourcePath, markdown) {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+@page { size: 88mm 190mm; margin: 7mm 6mm; }
+html, body { margin: 0; padding: 0; color: #111; background: white; }
+body { font-family: "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", Arial, sans-serif; font-size: 12.5pt; line-height: 1.58; }
+h1 { font-size: 15pt; line-height: 1.25; margin: 0 0 5mm; }
+.source { color: #667085; font-size: 8.5pt; line-height: 1.35; margin: 0 0 5mm; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font: inherit; margin: 0; }
+</style>
+</head>
+<body>
+<h1>${escapeHtmlForDocument(title || "Markdown")}</h1>
+<div class="source">${escapeHtmlForDocument(sourcePath || "")}</div>
+<pre>${escapeHtmlForDocument(markdown || "")}</pre>
+</body>
+</html>`;
+}
+
+function findFirstExistingFile(paths) {
+  for (const candidate of paths || []) {
+    if (!candidate) continue;
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch (_) {
+      // Ignore inaccessible candidate paths.
+    }
+  }
+  return "";
+}
+
+function renderMarkdownForwardPdf(markdownPath, workspaceId, title) {
+  const source = normalizeLocalPath(markdownPath);
+  if (!source || !fs.existsSync(source) || !fs.statSync(source).isFile()) return null;
+  const stat = fs.statSync(source);
+  if (stat.size > WEIXIN_FORWARD_MARKDOWN_MAX_BYTES) return null;
+  const markdown = fs.readFileSync(source, "utf8");
+  const dir = weixinMarkdownForwardDir(workspaceId);
+  const stem = path.parse(safeFileName(title || source)).name || "markdown";
+  const id = `${Date.now()}-${makeId("md")}`;
+  const htmlPath = path.join(dir, `${id}-${stem}.html`);
+  const pdfPath = path.join(dir, `${id}-${stem}.pdf`);
+  fs.writeFileSync(htmlPath, markdownForwardHtml(stem, source, markdown), "utf8");
+  const browser = findFirstExistingFile(chromiumExecutableCandidates()) || chromiumExecutableCandidates().find((candidate) => !path.isAbsolute(candidate));
+  if (!browser) return null;
+  const result = spawnSync(browser, [
+    "--headless=new",
+    "--disable-gpu",
+    "--no-sandbox",
+    `--print-to-pdf=${pdfPath}`,
+    pathToFileURL(htmlPath).href,
+  ], {
+    windowsHide: true,
+    timeout: 30000,
+    stdio: "ignore",
+  });
+  if (result.error || result.status !== 0) return null;
+  if (!fs.existsSync(pdfPath) || fs.statSync(pdfPath).size < 500) return null;
+  return pdfPath;
+}
+
+function materializeMarkdownForwardText(markdownPath, workspaceId, title) {
+  const source = normalizeLocalPath(markdownPath);
+  if (!source || !fs.existsSync(source) || !fs.statSync(source).isFile()) return null;
+  const stat = fs.statSync(source);
+  const maxBytes = Math.max(1024, WEIXIN_FORWARD_MARKDOWN_MAX_BYTES);
+  if (stat.size > maxBytes) return null;
+  const dir = weixinMarkdownForwardDir(workspaceId);
+  const stem = path.parse(safeFileName(title || source)).name || "markdown";
+  const outPath = path.join(dir, `${Date.now()}-${makeId("md")}-${stem}.txt`);
+  fs.writeFileSync(outPath, fs.readFileSync(source, "utf8"), "utf8");
+  return outPath;
+}
+
+function materializeWeixinForwardFile(file, workspaceId) {
+  if (!isMarkdownForwardFile(file)) return file;
+  const source = normalizeLocalPath(file?.localPath || "");
+  const name = safeFileName(file?.name || path.basename(source || "markdown.md"));
+  const pdfPath = renderMarkdownForwardPdf(source, workspaceId, name);
+  const outPath = pdfPath || materializeMarkdownForwardText(source, workspaceId, name);
+  if (!outPath) return file;
+  const stat = fs.statSync(outPath);
+  return Object.assign({}, file, {
+    localPath: outPath,
+    displayPath: outPath,
+    name: `${path.parse(name).name || "markdown"}${path.extname(outPath).toLowerCase()}`,
+    mime: mimeFor(outPath),
+    size: stat.size,
+    updatedAt: nowIso(),
+    sourceMarkdownPath: source,
+  });
+}
+
 async function resolveFileFromSourceUrlForRequest(sourceUrl, auth) {
   const raw = String(sourceUrl || "").trim();
   if (!raw) return null;
@@ -6687,7 +6825,8 @@ async function createWeixinFileForwardDelivery(auth, body = {}) {
     err.status = resolved?.status || 404;
     throw err;
   }
-  const localPath = normalizeLocalPath(resolved.file.localPath || "");
+  const forwardFile = materializeWeixinForwardFile(resolved.file, workspaceId);
+  const localPath = normalizeLocalPath(forwardFile.localPath || "");
   if (!localPath || !fs.existsSync(localPath) || !fs.statSync(localPath).isFile()) {
     const err = new Error("File not found");
     err.status = 404;
@@ -6700,10 +6839,11 @@ async function createWeixinFileForwardDelivery(auth, body = {}) {
     ? requestedThread
     : ensureWeixinSingleWindowThread(workspaceId, target);
   const createdAt = nowIso();
+  const caption = String(body.caption ?? body.text ?? "").trim();
   const message = {
     id: makeId("msg"),
     role: "assistant",
-    content: compactText(String(body.caption || body.text || `Weixin file forwarding: ${path.basename(localPath)}`).trim(), 1000),
+    content: compactText(caption, 1000),
     status: "done",
     createdAt,
     updatedAt: createdAt,
@@ -6717,7 +6857,7 @@ async function createWeixinFileForwardDelivery(auth, body = {}) {
     actorWorkspaceId: workspaceId,
     singleWindowMode: "chat",
   };
-  const artifact = publicArtifactForWeixinForward(resolved.file, thread, message);
+  const artifact = publicArtifactForWeixinForward(forwardFile, thread, message);
   if (!artifact) {
     const err = new Error("File could not be registered for forwarding");
     err.status = 500;

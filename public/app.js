@@ -10226,13 +10226,11 @@ function renderMessageRevokeAction(message) {
 function renderExternalDeliveryStatus(message) {
   const delivery = message?.externalDelivery || null;
   if (!delivery || delivery.source !== "weixin") return "";
+  if (delivery.terminalStatus !== "manual_forward") return "";
   const status = String(delivery.status || "").toLowerCase();
+  if (status !== "sent") return "";
   const label = {
-    waiting: "\u5fae\u4fe1\u56de\u6267\u5f85\u751f\u6210",
-    pending: "\u5fae\u4fe1\u8f6c\u53d1\u5f85\u53d1\u9001",
-    sent: "\u5fae\u4fe1\u5df2\u53d1\u9001",
-    failed: "\u5fae\u4fe1\u53d1\u9001\u5931\u8d25",
-    skipped: "\u5fae\u4fe1\u8f6c\u53d1\u5df2\u8df3\u8fc7",
+    sent: "\u5fae\u4fe1\u5df2\u8f6c\u53d1",
   }[status] || "\u5fae\u4fe1\u8f6c\u53d1";
   const error = delivery.error ? `: ${delivery.error}` : "";
   return `<div class="external-delivery-status status-${escapeHtml(status || "unknown")}">${escapeHtml(label + error)}</div>`;
