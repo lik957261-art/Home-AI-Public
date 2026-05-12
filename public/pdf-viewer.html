@@ -95,6 +95,13 @@
       line-height: 1;
     }
 
+    .weixin-button {
+      right: calc(max(8px, env(safe-area-inset-right)) + 52px);
+      padding: 0 10px;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
     .viewer-toast {
       position: fixed;
       z-index: 3;
@@ -147,6 +154,7 @@
 </head>
 <body>
   <a id="backButton" class="back-button" href="javascript:history.back()" aria-label="Back">&#8249;</a>
+  <button id="weixinButton" class="share-button weixin-button" type="button" aria-label="转发到微信" title="转发到微信">微</button>
   <button id="shareButton" class="share-button" type="button" aria-label="用其他应用打开" title="用其他应用打开">...</button>
   <main id="pdfScroll" class="pdf-scroll">
     <div id="pages" class="pages" aria-label="PDF pages"></div>
@@ -393,6 +401,43 @@
       return Boolean(navigator.share && (!navigator.canShare || navigator.canShare({ files })));
     }
 
+    async function apiJson(url, options = {}) {
+      const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
+      if (key) headers["X-Hermes-Web-Key"] = key;
+      const res = await fetch(url, Object.assign({}, options, { headers }));
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
+      return body;
+    }
+
+    function workspaceIdForForward() {
+      const direct = String(params.get("workspaceId") || "").trim();
+      if (direct) return direct;
+      for (const candidate of [returnUrl, raw, document.referrer]) {
+        try {
+          const url = new URL(candidate || "", location.origin);
+          if (url.origin !== location.origin) continue;
+          const workspaceId = String(url.searchParams.get("workspaceId") || "").trim();
+          if (workspaceId) return workspaceId;
+        } catch (_) {}
+      }
+      return localStorage.getItem("hermesWebWorkspace") || "owner";
+    }
+
+    async function forwardPdfToWeixin() {
+      if (!raw) throw new Error("No PDF URL is available.");
+      setTransientStatus("\u6b63\u5728\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217...");
+      await apiJson("/api/weixin/forward-file", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: workspaceIdForForward(),
+          sourceUrl: raw,
+          caption: `PDF \u8f6c\u53d1\uff1a${name}`,
+        }),
+      });
+      setTransientStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217");
+    }
+
     async function sharePdf() {
       if (!raw) return;
       const downloadUrl = downloadUrlFor(raw);
@@ -536,6 +581,9 @@
     document.getElementById("backButton").href = fallbackReturnUrl();
     document.getElementById("backButton").addEventListener("click", navigateBack);
     document.getElementById("shareButton").addEventListener("click", sharePdf);
+    document.getElementById("weixinButton").addEventListener("click", () => {
+      forwardPdfToWeixin().catch((err) => setTransientStatus(err.message || "Weixin forwarding failed."));
+    });
     wireViewerBackGuard();
     wireViewerBackSwipe(document.getElementById("pdfScroll"));
     window.addEventListener("beforeunload", () => {

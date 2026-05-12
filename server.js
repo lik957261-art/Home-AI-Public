@@ -1441,6 +1441,11 @@ function findThreadForRequest(req, threadId) {
   return threadAccessibleToRequest(req, thread) ? thread : null;
 }
 
+function findThreadForAuth(auth, threadId) {
+  const thread = state.threads.find((item) => item.id === String(threadId || ""));
+  return threadAccessibleToAuth(auth, thread) ? thread : null;
+}
+
 function ensureDataDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.mkdirSync(OWNER_DEFAULT_WORKSPACE, { recursive: true });
@@ -6260,6 +6265,322 @@ function publicWeixinOutboundDelivery(thread, message) {
   };
 }
 
+function compactWeixinForwardTarget(target = {}) {
+  const source = target && typeof target === "object" ? target : {};
+  const accountId = String(source.accountId || source.account_id || "").trim();
+  const chatId = String(source.chatId || source.chat_id || "").trim();
+  const userId = String(source.userId || source.user_id || "").trim();
+  if (!accountId || !(chatId || userId)) return null;
+  return {
+    source: "weixin",
+    type: "weixin",
+    label: String(source.label || source.targetLabel || "Weixin").trim() || "Weixin",
+    accountId,
+    chatId,
+    userId,
+    workspaceId: String(source.workspaceId || source.workspace_id || "").trim(),
+    threadId: String(source.threadId || source.thread_id || "").trim(),
+    messageId: String(source.messageId || source.message_id || "").trim(),
+    outboundStatus: String(source.outboundStatus || source.outbound_status || "").trim(),
+    updatedAt: String(source.updatedAt || source.updated_at || "").trim(),
+  };
+}
+
+function weixinTargetFromWorkspace(workspace) {
+  if (!workspace) return null;
+  const policy = workspace.policy || {};
+  return compactWeixinForwardTarget({
+    label: workspace.label || workspace.id || "Weixin",
+    workspaceId: workspace.id,
+    accountId: workspace.accountId || policy.source_chat_id_alt || policy.adapter_account_id || policy.account_id || "",
+    chatId: workspace.chatId || policy.source_chat_id || policy.chat_id || "",
+    userId: workspace.userId || policy.source_user_id || policy.user_id || "",
+    outboundStatus: workspace.outboundStatus || policy.outbound_status || "",
+  });
+}
+
+function collectRecentWeixinForwardTargets(workspaceId, auth) {
+  const out = [];
+  for (const thread of state.threads || []) {
+    if (!threadAccessibleToAuth(auth, thread)) continue;
+    if (workspaceId && String(thread.workspaceId || "") !== workspaceId && !chatGroupMemberWorkspaceIds(thread).includes(workspaceId)) continue;
+    for (const message of thread.messages || []) {
+      const external = message.externalDelivery?.source === "weixin" ? message.externalDelivery : message.externalIngress;
+      if (!external || external.source !== "weixin") continue;
+      const target = compactWeixinForwardTarget({
+        label: workspaceLabel(workspaceId || thread.workspaceId),
+        workspaceId: workspaceId || thread.workspaceId,
+        threadId: thread.id,
+        messageId: message.id,
+        accountId: external.accountId,
+        chatId: external.chatId,
+        userId: external.userId,
+        updatedAt: external.updatedAt || message.updatedAt || thread.updatedAt,
+      });
+      if (target) out.push(target);
+    }
+  }
+  return out;
+}
+
+function weixinForwardTargetsForWorkspace(workspaceId, auth) {
+  const id = String(workspaceId || auth?.workspaceId || "owner").trim() || "owner";
+  const workspace = findWorkspace(id);
+  if (!workspace || !authCanAccessWorkspace(auth, id)) return [];
+  const targets = [
+    weixinTargetFromWorkspace(workspace),
+    ...collectRecentWeixinForwardTargets(id, auth),
+  ].filter(Boolean);
+  const byKey = new Map();
+  for (const target of targets) {
+    const key = [target.accountId, target.chatId, target.userId].join("\n");
+    const previous = byKey.get(key);
+    if (!previous || String(target.updatedAt || "") > String(previous.updatedAt || "")) byKey.set(key, target);
+  }
+  return [...byKey.values()]
+    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+}
+
+function resolveWeixinForwardTarget(body, auth, workspaceId) {
+  const explicit = compactWeixinForwardTarget(body?.target || body || {});
+  const targets = weixinForwardTargetsForWorkspace(workspaceId, auth);
+  if (explicit) {
+    if (isOwnerAuth(auth)) return Object.assign({}, targets[0] || {}, explicit, { workspaceId });
+    const allowed = targets.some((target) => (
+      target.accountId === explicit.accountId
+      && (target.chatId || "") === (explicit.chatId || "")
+      && (target.userId || "") === (explicit.userId || "")
+    ));
+    if (allowed) return Object.assign({}, explicit, { workspaceId });
+    const err = new Error("Weixin forwarding target is not allowed for this workspace");
+    err.status = 403;
+    throw err;
+  }
+  const target = targets[0];
+  if (!target) {
+    const err = new Error("No Weixin forwarding target is configured for this workspace");
+    err.status = 409;
+    err.code = "weixin_forward_target_unavailable";
+    throw err;
+  }
+  return Object.assign({}, target, { workspaceId });
+}
+
+function fileResultFromBridgeFileForForward(file, workspaceId) {
+  const buffer = bridgeFileBuffer(file);
+  if (!buffer.length) return { status: 404, error: "File not found" };
+  const safeName = safeFileName(file?.name || path.basename(file?.displayPath || "") || "file");
+  const dir = path.join(DATA_DIR, "artifacts", "weixin-forward", safeFileName(workspaceId || "owner"));
+  fs.mkdirSync(dir, { recursive: true });
+  const localPath = path.join(dir, `${Date.now()}-${makeId("file")}-${safeName}`);
+  fs.writeFileSync(localPath, buffer);
+  return {
+    file: {
+      localPath,
+      displayPath: file?.displayPath || localPath,
+      name: safeName,
+      mime: file?.mime || mimeFor(safeName),
+      size: buffer.length,
+      updatedAt: nowIso(),
+    },
+  };
+}
+
+function fileResultFromResolvedForwardSource(resolved, workspaceId, fallbackError) {
+  if (resolved?.file) return { file: resolved.file };
+  if (resolved?.bridgeFile) return fileResultFromBridgeFileForForward(resolved.bridgeFile, workspaceId);
+  return { status: resolved?.status || 404, error: resolved?.error || fallbackError || "File not found" };
+}
+
+async function resolveFileFromSourceUrlForRequest(sourceUrl, auth) {
+  const raw = String(sourceUrl || "").trim();
+  if (!raw) return null;
+  let parsed;
+  try {
+    parsed = new URL(raw, "http://hermes-mobile.local");
+  } catch (_) {
+    return { status: 400, error: "Invalid sourceUrl" };
+  }
+  const artifactMatch = parsed.pathname.match(/^\/api\/artifacts\/([^/]+)$/);
+  if (artifactMatch) {
+    const resolved = resolveArtifactForRequest(decodeURIComponent(artifactMatch[1]), auth);
+    if (!resolved.artifact) return { status: resolved.status || 404, error: resolved.error || "Artifact not found" };
+    const artifact = resolved.artifact;
+    return {
+      file: {
+        localPath: artifact.localPath || artifact.path,
+        displayPath: artifact.displayPath || artifact.path || "",
+        name: artifact.name || path.basename(artifact.localPath || artifact.path || "file"),
+        mime: artifact.mime || mimeFor(artifact.localPath || artifact.path || ""),
+        size: Number(artifact.size || 0) || 0,
+        artifact,
+      },
+      thread: resolved.thread,
+    };
+  }
+  if (parsed.pathname === "/api/files" || parsed.pathname === "/api/files/preview") {
+    return resolveFileForBrowserRequest(parsed.searchParams, auth);
+  }
+  if (parsed.pathname === "/api/automations/output" || parsed.pathname === "/api/automations/output/preview") {
+    const workspaceId = String(parsed.searchParams.get("workspaceId") || auth?.workspaceId || "owner").trim() || "owner";
+    const resolved = await resolveAuthorizedCronOutputFile(parsed.searchParams, auth);
+    return fileResultFromResolvedForwardSource(resolved, workspaceId, "Automation output not found");
+  }
+  if (parsed.pathname === "/api/automations/deliverable" || parsed.pathname === "/api/automations/deliverable/preview") {
+    const workspaceId = String(parsed.searchParams.get("workspaceId") || auth?.workspaceId || "owner").trim() || "owner";
+    const resolved = await resolveAuthorizedCronDeliverableFile(parsed.searchParams, auth);
+    return fileResultFromResolvedForwardSource(resolved, workspaceId, "Automation deliverable not found");
+  }
+  if (parsed.pathname === "/api/kanban/cards/output" || parsed.pathname === "/api/kanban/cards/output/preview") {
+    const workspaceId = String(parsed.searchParams.get("workspaceId") || auth?.workspaceId || "owner").trim() || "owner";
+    const resolved = resolveKanbanOutputFile(workspaceId, parsed.searchParams.get("path") || "", auth);
+    return fileResultFromResolvedForwardSource(resolved, workspaceId, "Kanban output not found");
+  }
+  return { status: 400, error: "Unsupported file source for Weixin forwarding" };
+}
+
+async function resolveWeixinForwardFile(body, auth) {
+  const source = body && typeof body === "object" ? body : {};
+  const artifactId = String(source.artifactId || source.artifact_id || "").trim();
+  if (artifactId) {
+    const resolved = resolveArtifactForRequest(artifactId, auth);
+    if (!resolved.artifact) return { status: resolved.status || 404, error: resolved.error || "Artifact not found" };
+    const artifact = resolved.artifact;
+    return {
+      file: {
+        localPath: artifact.localPath || artifact.path,
+        displayPath: artifact.displayPath || artifact.path || "",
+        name: artifact.name || path.basename(artifact.localPath || artifact.path || "file"),
+        mime: artifact.mime || mimeFor(artifact.localPath || artifact.path || ""),
+        size: Number(artifact.size || 0) || 0,
+        artifact,
+      },
+      thread: resolved.thread,
+    };
+  }
+  const sourceUrl = String(source.sourceUrl || source.source_url || source.url || "").trim();
+  if (sourceUrl) return resolveFileFromSourceUrlForRequest(sourceUrl, auth);
+  const threadId = String(source.threadId || source.thread_id || "").trim();
+  const displayPath = String(source.path || source.displayPath || source.display_path || "").trim();
+  if (threadId && displayPath) {
+    const params = new URLSearchParams({ threadId, path: displayPath });
+    return resolveFileForBrowserRequest(params, auth);
+  }
+  return { status: 400, error: "Missing artifactId, sourceUrl, or threadId/path" };
+}
+
+function publicArtifactForWeixinForward(file, thread, message) {
+  const localPath = normalizeLocalPath(file?.localPath || "");
+  if (!localPath || !fs.existsSync(localPath)) return null;
+  const stat = fs.statSync(localPath);
+  const existing = file?.artifact?.id
+    ? state.artifacts.find((item) => String(item.id || "") === String(file.artifact.id || ""))
+    : null;
+  const record = existing || {
+    id: makeId("artifact"),
+    path: localPath,
+    displayPath: String(file.displayPath || localPath),
+    name: safeFileName(file.name || localPath),
+    mime: file.mime || mimeFor(localPath),
+    size: stat.size,
+    createdAt: nowIso(),
+    workspaceId: thread.workspaceId,
+    projectId: thread.projectId,
+    subprojectId: thread.subprojectId || "",
+    threadId: thread.id,
+    messageId: message.id,
+  };
+  if (!existing) state.artifacts.push(record);
+  return {
+    id: record.id,
+    name: record.name || path.basename(localPath),
+    mime: record.mime || mimeFor(localPath),
+    size: stat.size,
+    url: `/api/artifacts/${encodeURIComponent(record.id)}`,
+    path: localPath,
+  };
+}
+
+async function createWeixinFileForwardDelivery(auth, body = {}) {
+  const workspaceId = String(body.workspaceId || body.workspace_id || auth?.workspaceId || "owner").trim() || "owner";
+  if (!authCanAccessWorkspace(auth, workspaceId)) {
+    const err = new Error("Workspace access is not allowed");
+    err.status = 403;
+    throw err;
+  }
+  const resolved = await resolveWeixinForwardFile(body, auth);
+  if (!resolved?.file) {
+    const err = new Error(resolved?.error || "File not found");
+    err.status = resolved?.status || 404;
+    throw err;
+  }
+  const localPath = normalizeLocalPath(resolved.file.localPath || "");
+  if (!localPath || !fs.existsSync(localPath) || !fs.statSync(localPath).isFile()) {
+    const err = new Error("File not found");
+    err.status = 404;
+    throw err;
+  }
+  const target = resolveWeixinForwardTarget(body, auth, workspaceId);
+  const requestedThreadId = String(body.threadId || body.thread_id || "").trim();
+  let thread = requestedThreadId ? findThreadForAuth(auth, requestedThreadId) : null;
+  if (!thread && resolved.thread && threadAccessibleToAuth(auth, resolved.thread)) thread = resolved.thread;
+  if (!thread || !thread.singleWindow) thread = ensureSingleWindowThread(workspaceId);
+  const createdAt = nowIso();
+  const message = {
+    id: makeId("msg"),
+    role: "assistant",
+    content: compactText(String(body.caption || body.text || `Weixin file forwarding: ${path.basename(localPath)}`).trim(), 1000),
+    status: "done",
+    createdAt,
+    updatedAt: createdAt,
+    completedAt: createdAt,
+    artifacts: [],
+    taskGroupId: isSingleWindowConversationTaskGroupId(body.taskGroupId || body.task_group_id)
+      ? String(body.taskGroupId || body.task_group_id)
+      : SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+    messageKind: "plain",
+    senderWorkspaceId: "hermes",
+    senderPrincipalId: "hermes",
+    senderLabel: "Hermes",
+    actorWorkspaceId: workspaceId,
+    singleWindowMode: "chat",
+  };
+  const artifact = publicArtifactForWeixinForward(resolved.file, thread, message);
+  if (!artifact) {
+    const err = new Error("File could not be registered for forwarding");
+    err.status = 500;
+    throw err;
+  }
+  message.artifacts = [artifact];
+  message.externalDelivery = normalizeExternalDelivery({
+    source: "weixin",
+    deliveryId: weixinIngressProvider.deliveryId(thread.id, message.id),
+    status: "pending",
+    accountId: target.accountId,
+    chatId: target.chatId,
+    userId: target.userId,
+    workspaceId,
+    content: message.content,
+    artifacts: message.artifacts,
+    terminalStatus: "manual_forward",
+    queuedAt: createdAt,
+    updatedAt: createdAt,
+  });
+  thread.messages.push(message);
+  thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
+  thread.updatedAt = createdAt;
+  saveState();
+  broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(message, thread), thread: threadSummary(thread) });
+  return {
+    ok: true,
+    target,
+    delivery: publicWeixinOutboundDelivery(thread, message),
+    message: compactMessage(message, thread),
+    thread: compactThread(thread),
+  };
+}
+
 function userFacingWeixinRunError(err) {
   const raw = String(err?.message || err || "").trim();
   if (!raw) return "Hermes run failed before producing a reply.";
@@ -6309,7 +6630,10 @@ function ackWeixinOutboundDelivery(deliveryId, ack) {
       message.updatedAt = ack.acknowledgedAt || nowIso();
       thread.updatedAt = message.updatedAt;
       saveState();
-      return publicWeixinOutboundDelivery(thread, message);
+      const publicDelivery = publicWeixinOutboundDelivery(thread, message);
+      broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(message, thread), thread: threadSummary(thread) });
+      return publicDelivery;
     }
   }
   return null;
@@ -6790,6 +7114,7 @@ function compactMessage(message, thread = null) {
     gatewaySecurityLevel: gatewayRouting.securityLevel || gatewayRouting.security_level || "",
     gatewayMaintenance: Boolean(gatewayRouting.maintenance || gatewayRouting.allowMaintenance || gatewayRouting.allow_maintenance),
     gatewayMaintenanceCategory: gatewayRouting.maintenanceCategory || gatewayRouting.maintenance_category || "",
+    externalDelivery: message.externalDelivery?.source === "weixin" && thread ? publicWeixinOutboundDelivery(thread, message) : null,
     elevationRequired: Boolean(message.elevationRequired),
     elevationScope: message.elevationScope || "",
     elevationReason: message.elevationReason || "",
@@ -9171,6 +9496,35 @@ async function handleApi(req, res) {
     status.clientVersion = clientVersionInfo(req.headers["x-hermes-web-client-version"] || "");
     bootTrace("request api/status before send");
     sendJson(res, 200, status);
+    return;
+  }
+
+  if (url.pathname === "/api/weixin/forward-targets" && req.method === "GET") {
+    const workspaceId = String(url.searchParams.get("workspaceId") || url.searchParams.get("workspace_id") || auth.workspaceId || "owner").trim() || "owner";
+    if (!authCanAccessWorkspace(auth, workspaceId)) {
+      sendJson(res, 403, { error: "Workspace access is not allowed" });
+      return;
+    }
+    sendJson(res, 200, { ok: true, data: weixinForwardTargetsForWorkspace(workspaceId, auth) });
+    return;
+  }
+
+  if (url.pathname === "/api/weixin/forward-file" && req.method === "POST") {
+    const body = await readBody(req).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const result = await createWeixinFileForwardDelivery(auth, body);
+      sendJson(res, 202, result);
+    } catch (err) {
+      sendJson(res, err.status || 500, {
+        ok: false,
+        error: err.message || String(err),
+        code: err.code || "weixin_forward_failed",
+      });
+    }
     return;
   }
 

@@ -874,6 +874,11 @@ function renderArtifactDirectoryButton(artifact, options = {}) {
   return `<button class="artifact-directory-button${options.compact ? " compact" : ""}" type="button" data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(label)}" aria-label="打开交付目录" title="打开交付目录">...</button>`;
 }
 
+function renderArtifactWeixinButton(artifact) {
+  if (!artifact?.id) return "";
+  return `<button class="artifact-weixin-button" type="button" data-forward-artifact-weixin="${escapeHtml(artifact.id)}" aria-label="转发到微信" title="转发到微信">微</button>`;
+}
+
 function openTaskList() {
   clearQuotedReply({ render: false });
   state.skillDetail = null;
@@ -3263,6 +3268,40 @@ function wireMessageReplyActionButtons(root) {
         await shareMessageImage(button.dataset.shareMessageImage || "");
       } catch (err) {
         if (err?.name !== "AbortError") showError(err);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+}
+
+async function forwardArtifactToWeixin(button) {
+  const artifactId = String(button?.dataset?.forwardArtifactWeixin || "").trim();
+  if (!artifactId) return;
+  const result = await api("/api/weixin/forward-file", {
+    method: "POST",
+    body: JSON.stringify({
+      artifactId,
+      threadId: state.currentThreadId || "",
+      workspaceId: state.selectedWorkspaceId || "owner",
+    }),
+  });
+  if (result?.message) upsertMessage(result.message);
+  showPushToast("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217", "success");
+}
+
+function wireArtifactWeixinButtons(root) {
+  root?.querySelectorAll?.("[data-forward-artifact-weixin]").forEach((button) => {
+    if (button.dataset.boundForwardArtifactWeixin) return;
+    button.dataset.boundForwardArtifactWeixin = "1";
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      try {
+        await forwardArtifactToWeixin(button);
+      } catch (err) {
+        showError(err);
       } finally {
         button.disabled = false;
       }
@@ -9615,6 +9654,7 @@ function renderCurrentThread(options = {}) {
   wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
   wireMessageReplyActionButtons(conversation);
+  wireArtifactWeixinButtons(conversation);
   wireUsagePanels(conversation);
   wireChatSearchControls(conversation);
   ensureVerticalScrollAffordance(conversation);
@@ -9688,6 +9728,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
   wireMessageReplyActionButtons(conversation);
+  wireArtifactWeixinButtons(conversation);
   wireUsagePanels(conversation);
   updateNavigationControls();
   ensureVerticalScrollAffordance(conversation);
@@ -10085,6 +10126,21 @@ function renderMessageRevokeAction(message) {
   return `<button class="message-revoke-button" type="button" data-revoke-message="${escapeHtml(message.id || "")}" title="${escapeHtml(GROUP_REVOKE_LABEL)}">${escapeHtml(GROUP_REVOKE_LABEL)}</button>`;
 }
 
+function renderExternalDeliveryStatus(message) {
+  const delivery = message?.externalDelivery || null;
+  if (!delivery || delivery.source !== "weixin") return "";
+  const status = String(delivery.status || "").toLowerCase();
+  const label = {
+    waiting: "\u5fae\u4fe1\u56de\u6267\u5f85\u751f\u6210",
+    pending: "\u5fae\u4fe1\u8f6c\u53d1\u5f85\u53d1\u9001",
+    sent: "\u5fae\u4fe1\u5df2\u53d1\u9001",
+    failed: "\u5fae\u4fe1\u53d1\u9001\u5931\u8d25",
+    skipped: "\u5fae\u4fe1\u8f6c\u53d1\u5df2\u8df3\u8fc7",
+  }[status] || "\u5fae\u4fe1\u8f6c\u53d1";
+  const error = delivery.error ? `: ${delivery.error}` : "";
+  return `<div class="external-delivery-status status-${escapeHtml(status || "unknown")}">${escapeHtml(label + error)}</div>`;
+}
+
 function renderMessage(message) {
   const revoked = Boolean(message.revokedAt);
   const roleLabel = isGroupChatView() && message.role === "user"
@@ -10097,6 +10153,7 @@ function renderMessage(message) {
   const footer = renderMessageFooter(message, usage);
   const error = !revoked && message.error ? `<div class="error-box">${escapeHtml(message.error)}</div>` : "";
   const artifacts = !revoked && Array.isArray(message.artifacts) && message.artifacts.length ? renderArtifacts(message.artifacts) : "";
+  const externalDelivery = !revoked ? renderExternalDeliveryStatus(message) : "";
   const searchClass = chatSearchClassForMessage(message);
   const body = revoked ? `<div class="message-revoked-text">${escapeHtml(GROUP_MESSAGE_REVOKED_TEXT)}</div>` : renderText(message.content || "", message);
   return `<article class="message ${escapeHtml(message.role || "assistant")}${searchClass}${revoked ? " revoked" : ""}" data-message-id="${escapeHtml(message.id || "")}">
@@ -10110,7 +10167,7 @@ function renderMessage(message) {
         <span>${escapeHtml(timeLabel)}</span>
       </div>
     </div>
-    <div class="message-body">${body}${error}${artifacts}${footer}</div>
+    <div class="message-body">${body}${error}${artifacts}${externalDelivery}${footer}</div>
   </article>`;
 }
 
@@ -10908,6 +10965,7 @@ function renderArtifacts(artifacts) {
       </div>
     </a>
     ${renderArtifactDirectoryButton(artifact)}
+    ${renderArtifactWeixinButton(artifact)}
   </div>`).join("")}</div>`;
 }
 

@@ -115,7 +115,9 @@
       color: #fffaf1;
       text-decoration: none;
       background: linear-gradient(145deg, var(--accent), #155b50);
+      border: 0;
       border-radius: 18px;
+      font: inherit;
       font-weight: 820;
       box-shadow: 0 15px 30px rgba(31, 119, 104, 0.20);
     }
@@ -665,6 +667,7 @@
         <button type="button" data-markdown-share="print">Print / save as PDF</button>
         <button type="button" data-markdown-share="copy">Copy rendered text</button>
         <button type="button" data-markdown-share="group">转发到群</button>
+        <button type="button" data-markdown-share="weixin">转发到微信</button>
         <button type="button" data-markdown-share="raw">Share raw .md explicitly</button>
         <button class="subtle" type="button" data-markdown-share="close">Cancel</button>
       </div>
@@ -694,6 +697,7 @@
       <div class="actions">
         <a id="open" class="button" href="#" target="_blank" rel="noopener">Open Original</a>
         <a id="download" class="button secondary" href="#" download>Download</a>
+        <button id="forwardWeixin" class="button secondary" type="button">转发微信</button>
       </div>
       <div class="note">
         This page keeps Hermes Mobile navigation available. Word/DOCX files are previewed inside Hermes Mobile; use Open Original only when you need the native viewer.
@@ -1335,6 +1339,21 @@
       setTransientStatus("已转发到群。");
     }
 
+    async function forwardFileToWeixin() {
+      if (!src) throw new Error("No file URL is available.");
+      const workspaceId = workspaceIdForForward();
+      setTransientStatus("\u6b63\u5728\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217...");
+      await apiJson("/api/weixin/forward-file", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId,
+          sourceUrl: src,
+          caption: `\u6587\u4ef6\u8f6c\u53d1\uff1a${name}`,
+        }),
+      });
+      setTransientStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217");
+    }
+
     function markdownExportHtml(options = {}) {
       const autoPrintScript = options.autoPrint ? `<script>
 window.addEventListener("load", function () {
@@ -1454,6 +1473,7 @@ window.addEventListener("load", function () {
         else if (action === "print") await printMarkdownAsPdf();
         else if (action === "copy") await copyMarkdownText();
         else if (action === "group") await forwardMarkdownToGroup();
+        else if (action === "weixin") await forwardFileToWeixin();
         else if (action === "raw") await shareOriginalFile();
         hideMarkdownShareSheet();
       } catch (err) {
@@ -1558,6 +1578,9 @@ window.addEventListener("load", function () {
     document.getElementById("download").setAttribute("download", name);
     document.getElementById("download").addEventListener("click", downloadFile);
     document.getElementById("share").addEventListener("click", shareFile);
+    document.getElementById("forwardWeixin").addEventListener("click", () => {
+      forwardFileToWeixin().catch((err) => setTransientStatus(err.message || "Weixin forwarding failed."));
+    });
     if (src && !isMarkdownDocument()) window.setTimeout(() => prepareShareBlob().catch(() => {}), 500);
 
     if (src && kind === "IMG") {
