@@ -4585,6 +4585,14 @@ button.directory-alias-chip {
   flex-wrap: wrap;
 }
 
+.kanban-composer-buttons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .kanban-multi-agent-toggle {
   min-width: 0;
   display: inline-flex;

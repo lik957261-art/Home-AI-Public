@@ -2005,6 +2005,7 @@ function updateTopMoreControls() {
   if (newTodo) {
     newTodo.hidden = !todoList;
     newTodo.disabled = !todoList;
+    newTodo.textContent = "\u65b0\u589e\u4efb\u52a1";
   }
   const newAutomation = $("topNewAutomation");
   if (newAutomation) {
@@ -8827,16 +8828,20 @@ function renderKanbanComposerPanel() {
   const busy = state.kanbanComposerBusy || state.kanbanPlanCreating;
   const messages = state.kanbanComposerMessages.slice(-10).map(renderKanbanComposerMessage).join("");
   const draft = state.kanbanPlanDraft ? renderKanbanPlanDraft(state.kanbanPlanDraft) : "";
+  if (!state.todoCreateOpen && !busy) return "";
   return `<section class="kanban-composer-panel">
     <form id="kanbanComposerForm" class="kanban-composer-form">
-      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="2" placeholder="\u8f93\u5165\u770b\u677f\u9700\u6c42\uff1b\u5173\u95ed\u591a Agent \u521b\u5efa\u5355\u5361\uff0c\u5f00\u542f\u540e\u5148\u62c6\u89e3\u8349\u6848">${escapeHtml(state.kanbanComposerText)}</textarea>
+      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="2" placeholder="\u8f93\u5165\u4efb\u52a1\u9700\u6c42">${escapeHtml(state.kanbanComposerText)}</textarea>
       <div class="kanban-composer-toolbar">
         <label class="kanban-multi-agent-toggle">
           <input id="kanbanComposerMultiAgent" type="checkbox"${state.kanbanComposerMultiAgent ? " checked" : ""}${busy ? " disabled" : ""}>
           <span>\u591a Agent</span>
           <small>\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}</small>
         </label>
-        <button type="submit"${busy ? " disabled" : ""}>${state.kanbanComposerMultiAgent ? "\u62c6\u89e3" : "\u521b\u5efa"}</button>
+        <span class="kanban-composer-buttons">
+          <button type="button" data-close-todo-create${busy ? " disabled" : ""}>\u6536\u8d77</button>
+          <button type="submit"${busy ? " disabled" : ""}>${state.kanbanComposerMultiAgent ? "\u62c6\u89e3\u4efb\u52a1" : "\u521b\u5efa\u4efb\u52a1"}</button>
+        </span>
       </div>
     </form>
     ${(messages || draft) ? `<div class="kanban-composer-thread">${messages}${draft}</div>` : ""}
@@ -9206,7 +9211,7 @@ async function submitKanbanComposer(root) {
   if (state.kanbanComposerBusy || state.kanbanPlanCreating) return;
   const input = root.querySelector("#kanbanComposerText");
   const text = String(input?.value || state.kanbanComposerText || "").trim();
-  if (!text) throw new Error("\u8bf7\u5148\u8f93\u5165\u770b\u677f\u9700\u6c42");
+  if (!text) throw new Error("\u8bf7\u5148\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
   const multiAgent = Boolean(root.querySelector("#kanbanComposerMultiAgent")?.checked);
   state.kanbanComposerText = "";
   localStorage.removeItem("hermesKanbanComposerDraft");
@@ -9242,6 +9247,7 @@ async function submitKanbanComposer(root) {
       clearTodoListCache();
       state.todoKanbanStatus = "todo";
       localStorage.setItem("hermesTodoKanbanStatus", "todo");
+      state.todoCreateOpen = false;
       await loadTodos({ skipCache: true });
     }
   } catch (err) {
@@ -9273,6 +9279,7 @@ async function createKanbanPlanFromDraft() {
     clearTodoListCache();
     state.todoKanbanStatus = "todo";
     localStorage.setItem("hermesTodoKanbanStatus", "todo");
+    state.todoCreateOpen = false;
     await loadTodos({ skipCache: true });
   } catch (err) {
     pushKanbanComposerMessage("assistant", `\u6279\u91cf\u521b\u5efa\u5931\u8d25\uff1a${err.message || String(err)}`);
@@ -12700,6 +12707,7 @@ function wireUi() {
     openSharedDirectoryManager().catch(showError);
   });
   $("topNewTodo")?.addEventListener("click", () => {
+    closeTopMoreMenu();
     openTodoCreate();
   });
   $("topNewAutomation")?.addEventListener("click", () => {
