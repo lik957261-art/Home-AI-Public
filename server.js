@@ -5600,7 +5600,7 @@ function callableFunctionHintsForToolsets(toolsets = []) {
     weather: ["weather"],
     file: ["read_file", "write_file", "patch", "search_files"],
     vision: ["vision_analyze"],
-    image_gen: ["image_generate"],
+    image_gen: ["image_generate", "image_edit", "image_erase"],
     messaging: ["send_message"],
     tts: ["text_to_speech"],
     skills: ["skills_list", "skill_view", "skill_manage"],
@@ -5617,12 +5617,23 @@ function callableFunctionHintsForToolsets(toolsets = []) {
 }
 
 function currentToolSchemaOverrideInstructions(policy = {}) {
-  if (!policyHasToolset(policy, "http")) return "";
-  return [
-    "Current tool schema override: the `http` toolset is enabled for this run, and its callable function name is `http_request`.",
-    "Ignore older assistant statements in conversation_history that claimed `http_request`, `web_request`, HTTP tools, or API Program tools were unavailable; those statements described earlier runs and are stale.",
-    "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls.",
-  ].join("\n");
+  const lines = [];
+  if (policyHasToolset(policy, "http")) {
+    lines.push(
+      "Current tool schema override: the `http` toolset is enabled for this run, and its callable function name is `http_request`.",
+      "Ignore older assistant statements in conversation_history that claimed `http_request`, `web_request`, HTTP tools, or API Program tools were unavailable; those statements described earlier runs and are stale.",
+      "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls."
+    );
+  }
+  if (policyHasToolset(policy, "image_gen")) {
+    lines.push(
+      "Current tool schema override: the `image_gen` toolset is enabled for this run, and its callable function names are `image_generate`, `image_edit`, and `image_erase`.",
+      "For existing-image retouching, object removal, background cleanup, P image requests, or erase/inpainting requests, use `image_edit` or `image_erase`; `image_generate` is only for creating a new image.",
+      "Ignore older assistant statements in conversation_history that claimed image editing, image erasing, `image_edit`, or `image_erase` tools were unavailable; those statements described earlier runs and are stale.",
+      "Before reporting that image editing or image erasing is unavailable, check the current run's actual callable functions. If `image_edit` or `image_erase` is available, use it for allowed current-account image edits."
+    );
+  }
+  return lines.join("\n");
 }
 
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
@@ -7554,12 +7565,29 @@ function gatewayPoolStatusHealthy(poolStatus) {
   return workers.some((worker) => worker?.healthy === true);
 }
 
+function isToolUnavailableClaimText(text) {
+  const content = String(text || "");
+  if (!content.trim()) return false;
+  return (
+    /not available|unavailable|missing|no callable|no\s+.*tool|cannot call|can't call|unable to call|not exposed/i.test(content)
+    || /\u6ca1\u6709|\u4ecd\u6ca1\u6709|\u672a\u770b\u5230|\u770b\u4e0d\u5230|\u672a\u6302\u8f7d|\u6ca1\u6302\u8f7d|\u7f3a\u5c11|\u4e0d\u53ef\u7528|\u65e0\u6cd5\u8c03\u7528|\u4e0d\u80fd\u8c03\u7528|\u4e0d\u80fd\u6267\u884c/.test(content)
+  );
+}
+
 function isStaleHttpToolAvailabilityClaim(text) {
   const content = String(text || "");
   if (!content.trim()) return false;
   const mentionsHttpTool = /http_request|web_request|http\s*tool|http\s*function|HTTP\s*(?:工具|函数|方法)|HTTP\/API|API\s*Program/i.test(content);
   if (!mentionsHttpTool) return false;
-  return /没有|仍没有|未看到|看不到|未挂载|没挂载|缺少|不可用|无法调用|不能调用|不能执行|not available|unavailable|missing|no callable|no\s+.*tool/i.test(content);
+  return isToolUnavailableClaimText(content);
+}
+
+function isStaleImageToolAvailabilityClaim(text) {
+  const content = String(text || "");
+  if (!content.trim()) return false;
+  const mentionsImageTool = /image_generate|image_edit|image_erase|image\s*(?:tool|function|edit|erase|editing|retouch|inpainting)|ChatGPT\s*Image|P\s*\u56fe|\u4fee\u56fe|\u56fe\u7247\u7f16\u8f91|\u56fe\u50cf\u7f16\u8f91|\u5c40\u90e8\u64e6\u9664|\u64e6\u9664\u5de5\u5177/i.test(content);
+  if (!mentionsImageTool) return false;
+  return isToolUnavailableClaimText(content);
 }
 
 function conversationHistoryContentForMessage(msg, policy = {}) {
@@ -7568,6 +7596,11 @@ function conversationHistoryContentForMessage(msg, policy = {}) {
     content = [
       "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
       "The current run policy enables the `http` toolset; current callable functions supersede older assistant statements about `http_request` or HTTP/API Program availability.",
+    ].join(" ");
+  } else if (msg?.role === "assistant" && policyHasToolset(policy, "image_gen") && isStaleImageToolAvailabilityClaim(content)) {
+    content = [
+      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+      "The current run policy enables the `image_gen` toolset; current callable functions supersede older assistant statements about `image_edit`, `image_erase`, or image editing availability.",
     ].join(" ");
   }
   return content;

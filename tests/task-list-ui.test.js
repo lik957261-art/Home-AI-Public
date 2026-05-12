@@ -76,11 +76,15 @@ assert.match(serverJs, /the attached task directory is the frozen working direct
 assert.match(serverJs, /singleWindowMode === "chat" \|\| taskDirectory\?\.path \? "" : semanticProjectRoutingInstructions/);
 assert.match(serverJs, /function callableFunctionHintsForToolsets\(toolsets = \[\]\)/);
 assert.match(serverJs, /http: \["http_request"\]/);
+assert.match(serverJs, /image_gen: \["image_generate", "image_edit", "image_erase"\]/);
 assert.match(serverJs, /For HTTP\/API Program calls, use `http_request`; do not look for or mention a `web_request` function\./);
 assert.match(serverJs, /Callable function names for enabled toolsets/);
 assert.match(serverJs, /function currentToolSchemaOverrideInstructions\(policy = \{\}\)/);
 assert.match(serverJs, /Current tool schema override: the `http` toolset is enabled for this run/);
+assert.match(serverJs, /Current tool schema override: the `image_gen` toolset is enabled for this run/);
+assert.match(serverJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(serverJs, /function isStaleHttpToolAvailabilityClaim\(text\)/);
+assert.match(serverJs, /function isStaleImageToolAvailabilityClaim\(text\)/);
 assert.match(serverJs, /Stale assistant tool-availability claim omitted by Hermes Mobile/);
 assert.match(serverJs, /conversation_history: buildConversationHistory\(thread, userMessage\.id, runPolicy\)/);
 assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
