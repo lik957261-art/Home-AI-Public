@@ -111,6 +111,73 @@ if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ]; then
   exit 2
 fi
 
+weather_toolset_block=""
+weather_api_toolset_block=""
+http_toolset_block=""
+http_api_toolset_block=""
+plugin_enabled_lines=""
+if [ "$weather_plugin_enabled" = "1" ]; then
+  weather_toolset_block="  - weather"
+  weather_api_toolset_block="    - weather"
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-weather"$'\n'
+fi
+if [ "$http_plugin_enabled" = "1" ]; then
+  http_toolset_block="  - http"
+  http_api_toolset_block="    - http"
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-http"$'\n'
+fi
+plugin_block="  enabled: []"
+if [ -n "$plugin_enabled_lines" ]; then
+  plugin_block="  enabled:
+${plugin_enabled_lines%$'\n'}"
+fi
+
+cat > "$worker_home_dir/config.yaml" <<YAML
+model:
+  default: gpt-5.5
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
+toolsets:
+  - web
+  - file
+  - vision
+  - image_gen
+  - messaging
+  - tts
+  - skills
+  - todo
+  - kanban
+  - cronjob
+  - memory
+  - session_search
+  - clarify
+${weather_toolset_block}
+${http_toolset_block}
+platform_toolsets:
+  api_server:
+    - web
+    - file
+    - vision
+    - image_gen
+    - messaging
+    - tts
+    - skills
+    - todo
+    - cronjob
+    - memory
+    - session_search
+    - clarify
+${weather_api_toolset_block}
+${http_api_toolset_block}
+agent:
+  max_turns: 60
+  reasoning_effort: medium
+plugins:
+${plugin_block}
+YAML
+chmod 600 "$worker_home_dir/config.yaml" || true
+chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" || true
+
 for idx in $(seq 1 "$low_gateway_count"); do
   profile="lowgw${idx}"
   port=$((18750 + idx))
