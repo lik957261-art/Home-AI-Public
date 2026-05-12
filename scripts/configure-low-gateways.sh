@@ -70,7 +70,9 @@ fi
 
 if [ "$shared_auth_enabled" = "1" ] && [ -n "$newest_profile_auth" ]; then
   shared_auth_mtime="$(stat -c %Y "$shared_auth_path" 2>/dev/null || echo 0)"
-  if [ "$newest_profile_auth_mtime" -gt "$shared_auth_mtime" ]; then
+  newest_profile_auth_real="$(readlink -f "$newest_profile_auth" 2>/dev/null || echo "$newest_profile_auth")"
+  shared_auth_real="$(readlink -f "$shared_auth_path" 2>/dev/null || echo "$shared_auth_path")"
+  if [ "$newest_profile_auth_real" != "$shared_auth_real" ] && [ "$newest_profile_auth_mtime" -gt "$shared_auth_mtime" ]; then
     install -m 600 -o "$worker_user" -g "$worker_user" "$newest_profile_auth" "$shared_auth_path"
   fi
 fi

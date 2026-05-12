@@ -163,6 +163,8 @@ assert.match(configureLowGateways, /gateway-plugins\/hermes-mobile-weather/);
 assert.match(configureLowGateways, /weather_plugin_enabled=1/);
 assert.match(configureLowGateways, /- weather/);
 assert.match(configureLowGateways, /hermes-mobile-weather/);
+assert.match(configureLowGateways, /newest_profile_auth_real/);
+assert.match(configureLowGateways, /shared_auth_real/);
 assert.match(configureLowGateways, /Missing shared low Gateway Codex auth/);
 assert.match(configureLowGateways, /HERMES_LOW_GATEWAY_ALLOW_SHARED_AUTH_SEED/);
 assert.match(configureLowGateways, /ln -s "\$shared_auth_path" "\$profile_link\/auth\.json"/);
