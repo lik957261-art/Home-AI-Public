@@ -26,9 +26,9 @@ checkout.
 
 ## 2026-05-12 Public Update
 
-本次 public tree 对应 private source commit
-`12e0f987dadcb43cd13d7ab43957fe42b1ba3a16`。这是一次累计公开更新，重点是让
-Windows + WSL + official Hermes Gateway Pool 部署可以由另一个 Agent 按公开文档完成。
+本次 public tree 的具体 private source commit 由 `.public-export-report.json`
+记录。这是一次累计公开更新，重点是让 Windows + WSL + official Hermes Gateway
+Pool 部署可以由另一个 Agent 按公开文档完成。
 
 ### 主要变化
 
@@ -76,7 +76,40 @@ Hermes Mobile schedules and monitors Hermes Gateway runs. It does not call
 OpenAI/Codex providers directly for user tasks and does not reimplement Hermes
 agent semantics.
 
+## Deployment Path Selection For Agents
+
+If an Agent/Codex is deploying Hermes Mobile for production on Windows and the
+operator expects worker processes, Gateway Pool scheduling, low-permission
+profiles, `weather`, `http_request`, Kanban execution, and the same process
+shape as the reference deployment, do **not** follow Quick Start as the primary
+deployment path.
+
+Use this runbook instead:
+
+- [Agent Windows production deployment](docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md)
+
+This production path requires a Windows administrator shell and WSL bootstrap
+authority. In practice, the deploying Agent can satisfy the WSL requirement by
+running the target distro as `root` through `wsl -d <distro> -u root`, or by
+using an existing Linux user with `sudo`. The deployment flow should create or
+configure the low-permission Linux worker user itself; the operator does not
+need to pre-create that user. The Windows administrator step is still needed to
+create/configure the Windows worker account, ProgramData runtime directories,
+ACLs, credentials, and host startup processes. If Windows admin or WSL
+root/sudo access is unavailable, deploy only the minimal single-Gateway path and
+report that Worker Pool production deployment is not complete.
+
+Quick Start below is only for a minimal single-Gateway listener or local smoke
+test. It does not create `HermesMobileWorker`, does not prepare the
+`gateway-worker` directory, does not start `lowgw1..10`, and does not build a
+Gateway Pool manifest. A clean install that only follows Quick Start can log in
+to Hermes Mobile but will not have production workers.
+
 ## Quick Start
+
+Quick Start is the minimal single-Gateway path. Use it for local development,
+UI checks, or a deployment that already has one reachable Hermes Gateway. Do
+not use it when the requirement is a production worker pool.
 
 Install dependencies:
 
