@@ -11,6 +11,113 @@
 
 如果部署 Agent 没有 Windows 管理员权限，或无法在 WSL 内取得 root/sudo bootstrap 权限，不要宣称已经完成生产 Worker Pool 部署；最多只能完成 Quick Start 的最小 single-Gateway listener，并应明确回报“Worker Pool 未部署”。
 
+## Production deployment pitfalls observed in the field
+
+These are deployment failures that look like partial success unless the Agent
+checks the exact runtime identity and `/api/status` payload.
+
+### Windows elevation must belong to the Agent process
+
+Opening an elevated PowerShell is not enough if Codex/Desktop is still running
+without an administrator token. Before running the production path, verify:
+
+```powershell
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$isAdmin
+```
+
+If this prints `False`, do not run the Worker Pool path. Restart the Agent host
+itself as administrator, or have the operator run the Windows-only commands in
+an elevated shell.
+
+### WSL distributions are per Windows user
+
+The WSL distro visible to the operator account is not necessarily visible to
+`HermesMobileWorker`. Gateway Pool scripts run child work through
+`run-as-worker.ps1`, so `wsl.exe -d HermesGatewayWorker` is resolved in the
+worker account context.
+
+If `start-gateway-pool.ps1` logs `WSL_E_DISTRO_NOT_FOUND`, export/import the
+prepared distro for the worker account, or otherwise register a distro named
+`HermesGatewayWorker` for `HermesMobileWorker`. A safe pattern is:
+
+```powershell
+wsl.exe --export <prepared-distro> C:\ProgramData\HermesMobile\wsl\HermesGatewayWorker.tar
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\ProgramData\HermesMobile\gateway-worker\run-as-worker.ps1 `
+  -ChildScript C:\ProgramData\HermesMobile\gateway-worker\import-hermes-gateway-worker.ps1
+```
+
+The child import script should run `wsl.exe --import HermesGatewayWorker ...`
+and then validate `/opt/hermes-gateway-runtime/venv/bin/python` and the
+low-permission Linux user, for example `id hermes`.
+
+### Worker processes may not inherit the operator PATH
+
+`HermesMobileWorker` may not have `node.exe` on `PATH`, even when the operator
+shell can run `node`. If the production listener launcher exits immediately and
+`hermes-web.out.log` / `hermes-web.err.log` are empty, make the launcher use an
+explicit Node path. Either install Node system-wide for the worker account or
+copy a known Node runtime into the runtime package and launch with:
+
+```powershell
+& "C:\ProgramData\HermesMobile\app\start-hermes-web.ps1" -Detached -ForceLocalStart `
+  -NodeExe "C:\ProgramData\HermesMobile\app\bin\node.exe"
+```
+
+### JSON manifests must be UTF-8 without BOM
+
+Windows PowerShell `Set-Content -Encoding UTF8` may write a BOM. If the
+Gateway Pool manifest has a BOM, `/api/status` can show:
+
+```text
+gatewayPool.error = Unexpected token '﻿', "... is not valid JSON
+gatewayPool.enabled = false
+workerCount = 0
+```
+
+Write the manifest with a BOM-free UTF-8 encoder:
+
+```powershell
+[System.IO.File]::WriteAllText(
+  "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json",
+  $json,
+  [System.Text.UTF8Encoding]::new($false)
+)
+```
+
+### Do not accept port health alone as Worker Pool success
+
+Seeing `18751..18760` listening is necessary but not sufficient. Final
+validation must confirm all of the following:
+
+- `Get-CimInstance Win32_Process` shows the Hermes Mobile `node.exe` owner is
+  `HermesMobileWorker`.
+- `/api/status` returns `ok=true`.
+- `/api/status.gatewayPool.enabled=true`.
+- `/api/status.gatewayPool.workerCount` equals the expected worker count.
+- Every worker in `/api/status.gatewayPool.workers` has `healthy=true` and
+  `securityLevel=user` for ordinary user runs.
+- The reasoning/model source points at a lowgw profile config, not the
+  operator's personal Hermes home.
+
+### Firewall profile may be Public
+
+On Windows laptops, the active Wi-Fi network can be `Public`. For LAN access,
+the inbound rule should normally use `-Profile Any` or explicitly include the
+active profile:
+
+```powershell
+New-NetFirewallRule -DisplayName "Hermes Mobile 8797" `
+  -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8797 -Profile Any
+```
+
+### Keep generated secrets out of logs and PRs
+
+Do not paste or commit the Owner key, low Gateway API key, Codex OAuth tokens,
+VAPID private key, worker credential XML, runtime SQLite DBs, WSL exports, or
+Gateway Pool manifests containing real `api_key` values. In public docs and PRs,
+refer only to paths and validation shapes.
+
 目标不是复制某台机器的私有数据，而是复刻 Hermes Mobile 自己负责的生产结构：
 
 - Windows 低权限服务用户。
