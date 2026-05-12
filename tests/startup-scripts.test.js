@@ -22,6 +22,8 @@ const runKanbanGatewayWorkerShell = read(path.join("scripts", "run-kanban-gatewa
 const startCronTickSidecar = read(path.join("scripts", "start-cron-tick-sidecar.ps1"));
 const runCronTickSidecar = read(path.join("scripts", "run-cron-tick-sidecar.ps1"));
 const startWeixinFrontGateway = read(path.join("scripts", "start-weixin-front-gateway.ps1"));
+const startWeixinMobileIngressBridge = read(path.join("scripts", "start-weixin-mobile-ingress-bridge.ps1"));
+const weixinMobileIngressBridge = read(path.join("scripts", "weixin-mobile-ingress-bridge.py"));
 const configureLowGateways = read(path.join("scripts", "configure-low-gateways.sh"));
 const checkWorkerCodexAuth = read(path.join("scripts", "check-worker-codex-auth.ps1"));
 const weatherPluginManifest = read(path.join("gateway-plugins", "hermes-mobile-weather", "plugin.yaml"));
@@ -48,7 +50,7 @@ assert.match(startWorkerHost, /healthy authenticated API endpoint with ready Gat
 assert.match(startWorkerHost, /MinGatewayPoolWorkers/);
 assert.match(startWorkerHost, /GatewayPoolPorts/);
 assert.match(startWorkerHost, /WeixinFrontGateway/);
-assert.match(startWorkerHost, /start-weixin-front-gateway\.ps1/);
+assert.match(startWorkerHost, /start-weixin-mobile-ingress-bridge\.ps1/);
 assert.match(startWorkerHost, /function Start-WeixinFrontGatewayIfNeeded/);
 assert.match(startWorkerHost, /Start-WeixinFrontGatewayIfNeeded\s*\r?\nif \(-not \$CheckOnly\)/);
 
@@ -168,6 +170,23 @@ assert.match(startWeixinFrontGateway, /ensure-weixin-todo-dispatcher\.sh/);
 assert.match(startWeixinFrontGateway, /ensure-weixin-delivery-queue-dispatcher\.sh/);
 assert.match(startWeixinFrontGateway, /WEIXIN_FRONT_GATEWAY_OK/);
 assert.doesNotMatch(startWeixinFrontGateway, /Hermes Gateway WSL/);
+
+assert.match(startWeixinMobileIngressBridge, /weixin-mobile-ingress-bridge\.py/);
+assert.match(startWeixinMobileIngressBridge, /HERMES_MOBILE_WEIXIN_INGRESS_KEY_FILE/);
+assert.match(startWeixinMobileIngressBridge, /legacy_gateway_pid/);
+assert.match(startWeixinMobileIngressBridge, /stop_legacy_gateway/);
+assert.match(startWeixinMobileIngressBridge, /WEIXIN_MOBILE_INGRESS_BRIDGE_OK/);
+assert.match(startWeixinMobileIngressBridge, /ensure-weixin-reminder-dispatcher\.sh/);
+assert.match(startWeixinMobileIngressBridge, /ensure-weixin-todo-dispatcher\.sh/);
+assert.match(startWeixinMobileIngressBridge, /ensure-weixin-delivery-queue-dispatcher\.sh/);
+assert.doesNotMatch(startWeixinMobileIngressBridge, /hermes_cli\.main gateway run --replace/);
+assert.match(weixinMobileIngressBridge, /class MobileIngressBridge/);
+assert.match(weixinMobileIngressBridge, /class MobileIngressWeixinAdapter/);
+assert.match(weixinMobileIngressBridge, /post_inbound_event/);
+assert.match(weixinMobileIngressBridge, /\/api\/ingress\/weixin\/events/);
+assert.match(weixinMobileIngressBridge, /\/api\/ingress\/weixin\/outbound/);
+assert.match(weixinMobileIngressBridge, /workspace_id="owner" if principal_id == "owner" else principal_id/);
+assert.doesNotMatch(weixinMobileIngressBridge, /gateway run --replace/);
 
 assert.match(configureLowGateways, /profile_auth_seed_root/);
 assert.match(configureLowGateways, /profile_seed="\$profile_auth_seed_root\/\$\{profile\}\/auth\.json"/);

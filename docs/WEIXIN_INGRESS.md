@@ -96,5 +96,15 @@ python scripts\weixin-ingress-sidecar.py --base http://127.0.0.1:8797 --key-file
 python scripts\weixin-ingress-sidecar.py --base http://127.0.0.1:8797 --key-file <ingress-key-file> ack --delivery-id <id> --status sent
 ```
 
-Deployment-specific iLink polling and sending should wrap this boundary rather
-than modifying `server.js` or official Hermes Gateway source.
+Production can use `scripts\weixin-mobile-ingress-bridge.py` through
+`scripts\start-weixin-mobile-ingress-bridge.ps1` for the native iLink
+transport. That bridge imports the official Weixin adapter for polling,
+downloads inbound media, posts normalized events to Mobile ingress, polls
+Mobile outbound delivery, and acknowledges the result after sending through
+iLink. It must replace the legacy direct `hermes gateway run --replace`
+Weixin poller for the same account; the starter fails its health check when
+that legacy direct poller is still running.
+
+Deployment-specific iLink wrappers may still be used, but they should wrap
+this Mobile ingress boundary rather than modifying `server.js` or official
+Hermes Gateway source.

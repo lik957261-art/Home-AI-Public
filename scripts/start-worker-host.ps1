@@ -13,7 +13,7 @@ param(
     [string]$BridgeTodoPluginName = "",
     [string]$BridgeCronOutputRoot = "",
     [string]$WeixinFrontGateway = "",
-    [string]$WeixinFrontGatewayScript = "C:\ProgramData\HermesMobile\app\scripts\start-weixin-front-gateway.ps1",
+    [string]$WeixinFrontGatewayScript = "C:\ProgramData\HermesMobile\app\scripts\start-weixin-mobile-ingress-bridge.ps1",
     [string]$WeixinFrontGatewayWslUser = "",
     [string]$WeixinFrontGatewayHermesHome = "",
     [string]$OwnerKeyPath = "C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret",
