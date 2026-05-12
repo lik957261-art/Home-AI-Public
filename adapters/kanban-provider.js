@@ -9,6 +9,7 @@ const { StringDecoder } = require("node:string_decoder");
 const META_START = "<!-- hermes-mobile-todo ";
 const META_END = " -->";
 const OPEN_KANBAN_STATUSES = new Set(["", "triage", "todo", "ready", "running", "blocked"]);
+const DONE_KANBAN_STATUSES = new Set(["done"]);
 
 function bool(value) {
   return /^(1|true|yes|on)$/i.test(String(value || ""));
@@ -469,6 +470,73 @@ function createKanbanTodoBridge(options = {}) {
     };
   }
 
+  function syncMetadataFromRows(store, rows, payload = {}) {
+    let changed = false;
+    const workspaceId = String(payload.workspace_id || payload.workspaceId || "").trim();
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const id = String(row?.id || "").trim();
+      if (!id) continue;
+      const previous = store.todos[id] || {};
+      const next = Object.assign({}, previous, {
+        id,
+        content: String(row.content || previous.content || id),
+        workspaceId: workspaceId || previous.workspaceId || "",
+        board: String(row.kanban_board || previous.board || boardForPayload(payload)),
+        assignee: String(row.assignee_principal_id || previous.assignee || payload.source_principal || ""),
+        assigneeLabel: String(row.assignee_label || previous.assigneeLabel || previous.assignee || ""),
+        kanbanAssignee: String(row.kanban_assignee || previous.kanbanAssignee || ""),
+        kanbanStatus: String(row.kanban_status || previous.kanbanStatus || "").trim().toLowerCase(),
+        caseId: String(row.kanban_case_id || previous.caseId || ""),
+        caseMode: String(row.kanban_case_mode || previous.caseMode || ""),
+        caseSourceText: String(row.kanban_case_source_text || previous.caseSourceText || ""),
+        caseSummary: String(row.kanban_case_summary || previous.caseSummary || ""),
+        caseCardId: String(row.kanban_case_card_id || previous.caseCardId || ""),
+        caseCardIndex: Number(row.kanban_case_card_index ?? previous.caseCardIndex ?? 0) || 0,
+        caseCardCount: Number(row.kanban_case_card_count ?? previous.caseCardCount ?? 0) || 0,
+        caseDependsOn: arrayFromValue(row.kanban_case_depends_on || previous.caseDependsOn, 12),
+        caseDeliverables: arrayFromValue(row.kanban_case_deliverables || previous.caseDeliverables, 8),
+        caseAcceptance: arrayFromValue(row.kanban_case_acceptance || previous.caseAcceptance, 8),
+        caseCardGoal: String(row.kanban_case_card_goal || previous.caseCardGoal || ""),
+        updatedAt: String(row.updated_at || previous.updatedAt || ""),
+      });
+      if (row.status === "completed" || DONE_KANBAN_STATUSES.has(String(row.kanban_status || "").trim().toLowerCase())) {
+        next.completedAt = String(row.completed_at || previous.completedAt || nowIso());
+      }
+      if (String(row.kanban_status || "").trim().toLowerCase() === "blocked") {
+        next.blockedAt = previous.blockedAt || String(row.updated_at || previous.updatedAt || nowIso());
+      } else if (previous.blockedAt || previous.blockReason) {
+        next.blockedAt = "";
+        next.blockReason = "";
+      }
+      if (JSON.stringify(previous) !== JSON.stringify(next)) {
+        store.todos[id] = next;
+        changed = true;
+      }
+    }
+    if (changed) saveMetadataStore(store);
+    return changed;
+  }
+
+  function dependencyComplete(row) {
+    if (!row) return false;
+    const status = String(row.status || "").trim().toLowerCase();
+    const kanbanStatus = String(row.kanban_status || row.kanbanStatus || "").trim().toLowerCase();
+    return status === "completed" || DONE_KANBAN_STATUSES.has(kanbanStatus);
+  }
+
+  function dependencyLookup(rows = []) {
+    const byId = new Map();
+    const byCaseCard = new Map();
+    for (const row of rows) {
+      const id = String(row?.id || "").trim();
+      if (id) byId.set(id, row);
+      const caseId = String(row?.kanban_case_id || row?.kanbanCaseId || "").trim();
+      const caseCardId = String(row?.kanban_case_card_id || row?.kanbanCaseCardId || "").trim();
+      if (caseId && caseCardId) byCaseCard.set(`${caseId}\0${caseCardId}`, row);
+    }
+    return { byId, byCaseCard };
+  }
+
   async function list(payload = {}) {
     const board = await ensureBoard(payload);
     const includeCompleted = Boolean(payload.include_completed);
@@ -488,6 +556,7 @@ function createKanbanTodoBridge(options = {}) {
         return rowFromTask(task, meta, payload);
       })
       .filter(Boolean);
+    syncMetadataFromRows(store, todos, payload);
     const assignee = String(payload.assignee || "").trim();
     if (assignee) todos = todos.filter((todo) => todo.assignee_principal_id === assignee);
     if (!includeCompleted) todos = todos.filter((todo) => todo.status === "open" && OPEN_KANBAN_STATUSES.has(todo.kanban_status));
@@ -497,6 +566,49 @@ function createKanbanTodoBridge(options = {}) {
       return String(left).localeCompare(String(right));
     }).slice(0, positiveNumber(payload.limit, 80));
     return { ok: true, todos, source: "kanban", board };
+  }
+
+  async function reconcileDependencyBlocks(payload = {}) {
+    const listed = await list(Object.assign({}, payload, {
+      include_completed: true,
+      limit: positiveNumber(payload.limit, 500),
+    }));
+    if (!listed?.ok) return listed;
+    const rows = Array.isArray(listed.todos) ? listed.todos : [];
+    const { byId, byCaseCard } = dependencyLookup(rows);
+    const released = [];
+    const errors = [];
+    for (const row of rows) {
+      if (String(row.kanban_status || "").trim().toLowerCase() !== "blocked") continue;
+      const caseId = String(row.kanban_case_id || "").trim();
+      const dependsOn = arrayFromValue(row.kanban_case_depends_on, 12);
+      if (!caseId || !dependsOn.length) continue;
+      const dependencyRows = dependsOn.map((dependencyId) => (
+        byCaseCard.get(`${caseId}\0${dependencyId}`) || byId.get(String(dependencyId || "").trim()) || null
+      ));
+      if (dependencyRows.some((dependency) => !dependencyComplete(dependency))) continue;
+      const reason = "All planned upstream cards completed; Hermes Mobile released dependency block.";
+      const result = await mutate(Object.assign({}, payload, {
+        action: "unblock",
+        todo_id: row.id,
+        reason,
+        comment: reason,
+        author: "Hermes Mobile",
+      }));
+      if (result?.ok) {
+        released.push({
+          id: row.id,
+          content: row.content || "",
+          caseId,
+          caseCardId: row.kanban_case_card_id || "",
+          dependsOn,
+          status: result.kanban_status || result.status || "",
+        });
+      } else {
+        errors.push({ id: row.id, error: result?.error || "unblock failed" });
+      }
+    }
+    return { ok: errors.length === 0, checked: rows.length, released, errors, source: "kanban", board: listed.board };
   }
 
   async function detail(payload = {}) {
@@ -621,7 +733,7 @@ function createKanbanTodoBridge(options = {}) {
       await kanban(["--board", board, "complete", todoId, "--result", "Completed from Hermes Mobile todo view."]).catch(async (err) => {
         if (!/json|unknown option/i.test(String(err.message || ""))) throw err;
       });
-      store.todos[todoId] = Object.assign({}, meta, { completedAt: now, updatedAt: now });
+      store.todos[todoId] = Object.assign({}, meta, { completedAt: now, updatedAt: now, kanbanStatus: "done", blockedAt: "", blockReason: "" });
       saveMetadataStore(store);
       return rowFromTask({ id: todoId, title: meta.content || todoId, status: "done" }, store.todos[todoId], payload);
     }
@@ -631,6 +743,9 @@ function createKanbanTodoBridge(options = {}) {
       store.todos[todoId] = Object.assign({}, meta, {
         cancelledAt: now,
         updatedAt: now,
+        kanbanStatus: "archived",
+        blockedAt: "",
+        blockReason: "",
         ...(action === "delete" ? { deletedAt: now } : {}),
       });
       saveMetadataStore(store);
@@ -653,7 +768,12 @@ function createKanbanTodoBridge(options = {}) {
     if (action === "block") {
       const reason = String(payload.reason || "Blocked from Hermes Mobile todo view.").trim();
       await kanban(["--board", board, "block", todoId, reason]);
-      store.todos[todoId] = Object.assign({}, meta, { updatedAt: now });
+      store.todos[todoId] = Object.assign({}, meta, {
+        updatedAt: now,
+        kanbanStatus: "blocked",
+        blockedAt: meta.blockedAt || now,
+        blockReason: reason,
+      });
       saveMetadataStore(store);
       return rowFromTask({ id: todoId, title: meta.content || todoId, status: "blocked" }, store.todos[todoId], payload);
     }
@@ -665,7 +785,18 @@ function createKanbanTodoBridge(options = {}) {
         await kanban(["--board", board, "reassign", todoId, kanbanAssignee, "--reason", "Hermes Mobile mapped workspace account to executable Gateway profile."]);
       }
       await kanban(["--board", board, "unblock", todoId]);
-      store.todos[todoId] = Object.assign({}, meta, { kanbanAssignee, updatedAt: now });
+      const comment = String(payload.comment || payload.reason || "").trim();
+      if (comment) {
+        const author = String(payload.author || payload.source_principal || "Hermes Mobile").trim() || "Hermes Mobile";
+        await kanban(["--board", board, "comment", todoId, comment, "--author", author]).catch(() => null);
+      }
+      store.todos[todoId] = Object.assign({}, meta, {
+        kanbanAssignee,
+        updatedAt: now,
+        kanbanStatus: "todo",
+        blockedAt: "",
+        blockReason: "",
+      });
       saveMetadataStore(store);
       return rowFromTask({ id: todoId, title: meta.content || todoId, status: "todo", assignee: kanbanAssignee }, store.todos[todoId], payload);
     }
@@ -694,11 +825,33 @@ function createKanbanTodoBridge(options = {}) {
     const store = metadataStore();
     const principals = new Set(Array.isArray(payload.principals) ? payload.principals.map(String) : []);
     const now = Date.now();
+    const rawBlockedDelay = Number(payload.blocked_notification_delay_minutes ?? payload.blockedNotificationDelayMinutes);
+    const blockedDelayMinutes = Number.isFinite(rawBlockedDelay) && rawBlockedDelay >= 0 ? rawBlockedDelay : 10;
+    const blockedDelayMs = blockedDelayMinutes * 60 * 1000;
     const events = [];
     for (const [id, meta] of Object.entries(store.todos)) {
       if (meta.completedAt || meta.cancelledAt) continue;
       const principalId = String(meta.assignee || meta.createdBy || "");
       if (principals.size && !principals.has(principalId)) continue;
+      if (String(meta.kanbanStatus || meta.kanban_status || "").trim().toLowerCase() === "blocked") {
+        const blockedAt = Date.parse(meta.blockedAt || meta.updatedAt || "");
+        if (Number.isFinite(blockedAt) && now - blockedAt >= blockedDelayMs) {
+          const markKey = `kanban-todo:${id}:blocked:${meta.blockedAt || meta.updatedAt || ""}`;
+          if (!store.pushMarks[markKey]) {
+            const reason = String(meta.blockReason || "").trim();
+            events.push({
+              markKey,
+              todoId: id,
+              principalId,
+              workspaceId: meta.workspaceId || principalId,
+              messageType: "blocked",
+              title: "\u770b\u677f\u5361\u7247\u5df2\u963b\u585e",
+              body: `${meta.content || id}${reason ? `\n${reason}` : ""}`,
+              tag: `hermes-kanban-todo-${id}-blocked`,
+            });
+          }
+        }
+      }
       const dueAt = Date.parse(meta.dueAt || "");
       if (!Number.isFinite(dueAt) || dueAt > now) continue;
       const markKey = `kanban-todo:${id}:due:${meta.dueAt || ""}`;
@@ -739,6 +892,7 @@ function createKanbanTodoBridge(options = {}) {
       if (action === "list") return await list(payload);
       if (action === "add") return await add(payload);
       if (["complete", "cancel", "postpone", "delete", "block", "unblock", "comment"].includes(action)) return await mutate(payload);
+      if (action === "reconcile_dependency_blocks") return await reconcileDependencyBlocks(payload);
       if (action === "web_pending_pushes") return pendingPushes(payload);
       if (action === "web_mark_push") return markWebPush(payload);
       if (action === "detail") return await detail(payload);

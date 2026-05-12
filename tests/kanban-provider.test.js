@@ -123,29 +123,6 @@ async function run() {
   assert.equal(createdWithoutDue.due_at, "");
   assert.equal(createdWithoutDue.due_local, "");
 
-  const completed = await provider.run({
-    action: "complete",
-    workspace_id: "weixin_stephen",
-    source_principal: "weixin_stephen",
-    todo_id: "t_created",
-  });
-  assert.equal(completed.ok, true);
-  assert.equal(completed.status, "completed");
-
-  const listedWithClosed = await provider.run({
-    action: "list",
-    workspace_id: "weixin_stephen",
-    source_principal: "weixin_stephen",
-    include_completed: true,
-  });
-  const closed = listedWithClosed.todos.find((todo) => todo.id === "t_done");
-  assert.equal(closed.kanban_assignee, "weixin_stephen");
-  assert.equal(closed.kanban_priority, 3);
-  assert.equal(closed.kanban_tenant, "weixin_stephen");
-  assert.equal(closed.kanban_workspace_kind, "dir");
-  assert.deepEqual(closed.kanban_skills, ["kanban-worker"]);
-  assert.match(closed.created_at, /^2026-/);
-
   const blocked = await provider.run({
     action: "block",
     workspace_id: "weixin_stephen",
@@ -155,6 +132,18 @@ async function run() {
   });
   assert.equal(blocked.ok, true);
   assert.equal(blocked.kanban_status, "blocked");
+
+  const blockedPush = await provider.run({
+    action: "web_pending_pushes",
+    principals: ["weixin_stephen"],
+    blocked_notification_delay_minutes: 0,
+    limit: 10,
+  });
+  assert.equal(blockedPush.ok, true);
+  assert.equal(blockedPush.events.length, 1);
+  assert.equal(blockedPush.events[0].messageType, "blocked");
+  assert.equal(blockedPush.events[0].todoId, "t_created");
+  assert.match(blockedPush.events[0].body, /need input/);
 
   const commented = await provider.run({
     action: "comment",
@@ -180,6 +169,29 @@ async function run() {
   const reassignCall = calls.find(([, args]) => args.includes("reassign") && args.includes("t_created"));
   assert.ok(reassignCall);
   assert.equal(reassignCall[1][reassignCall[1].indexOf("t_created") + 1], "exec-weixin_stephen");
+
+  const completed = await provider.run({
+    action: "complete",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+  });
+  assert.equal(completed.ok, true);
+  assert.equal(completed.status, "completed");
+
+  const listedWithClosed = await provider.run({
+    action: "list",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    include_completed: true,
+  });
+  const closed = listedWithClosed.todos.find((todo) => todo.id === "t_done");
+  assert.equal(closed.kanban_assignee, "weixin_stephen");
+  assert.equal(closed.kanban_priority, 3);
+  assert.equal(closed.kanban_tenant, "weixin_stephen");
+  assert.equal(closed.kanban_workspace_kind, "dir");
+  assert.deepEqual(closed.kanban_skills, ["kanban-worker"]);
+  assert.match(closed.created_at, /^2026-/);
 
   const pushed = await provider.run({
     action: "web_pending_pushes",
@@ -238,6 +250,70 @@ async function run() {
   });
   assert.equal(fallbackCreated.ok, true);
   assert.equal(fallbackCreated.id, "t_fallback");
+
+  const reconcileCalls = [];
+  const meta = (value) => `<!-- hermes-mobile-todo ${JSON.stringify(value)} -->`;
+  const reconcileTasks = [
+    {
+      id: "t_upstream",
+      title: "Upstream",
+      status: "done",
+      body: meta({
+        content: "Upstream",
+        assignee: "owner",
+        caseId: "case-auto",
+        caseCardId: "card-1",
+        caseCardIndex: 1,
+        caseCardCount: 2,
+      }),
+      completed_at: 1778600000,
+      updated_at: 1778600000,
+    },
+    {
+      id: "t_downstream",
+      title: "Downstream",
+      status: "blocked",
+      body: meta({
+        content: "Downstream",
+        assignee: "owner",
+        caseId: "case-auto",
+        caseCardId: "card-2",
+        caseCardIndex: 2,
+        caseCardCount: 2,
+        caseDependsOn: ["card-1"],
+      }),
+      updated_at: 1778600100,
+    },
+  ];
+  const reconcileProvider = createKanbanTodoBridge({
+    command: "hermes",
+    metadataPath: path.join(tempDir, "reconcile-meta.json"),
+    boardForWorkspace: () => "reconcile-board",
+    assigneeForWorkspace: () => "exec-owner",
+    async runCommand(command, args) {
+      reconcileCalls.push(args);
+      const joined = args.join(" ");
+      if (joined.includes("boards create")) return { code: 0, stdout: "", stderr: "" };
+      if (joined.includes(" list ")) return { code: 0, stdout: JSON.stringify({ tasks: reconcileTasks }), stderr: "" };
+      if (joined.includes(" unblock ")) {
+        reconcileTasks[1].status = "todo";
+        return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+      }
+      if (joined.includes(" reassign ") || joined.includes(" comment ")) return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+      return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+    },
+  });
+  const reconciled = await reconcileProvider.run({
+    action: "reconcile_dependency_blocks",
+    workspace_id: "owner",
+    source_principal: "owner",
+    limit: 20,
+  });
+  assert.equal(reconciled.ok, true);
+  assert.equal(reconciled.released.length, 1);
+  assert.equal(reconciled.released[0].id, "t_downstream");
+  assert.ok(reconcileCalls.some((args) => args.includes("unblock") && args.includes("t_downstream")));
+  assert.ok(reconcileCalls.some((args) => args.includes("comment") && args.includes("All planned upstream cards completed; Hermes Mobile released dependency block.")));
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 }

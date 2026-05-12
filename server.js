@@ -236,6 +236,8 @@ const KANBAN_COMMAND = String(process.env.HERMES_MOBILE_KANBAN_COMMAND || proces
 const KANBAN_COMMAND_ARGS = String(process.env.HERMES_MOBILE_KANBAN_COMMAND_ARGS || process.env.HERMES_WEB_KANBAN_COMMAND_ARGS || "").trim();
 const KANBAN_TODO_META_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_TODO_META_PATH || process.env.HERMES_WEB_KANBAN_TODO_META_PATH || path.join(DATA_DIR, "kanban-todo-meta.json"));
 const KANBAN_WORKSPACE_PATH_STYLE = String(process.env.HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE || process.env.HERMES_WEB_KANBAN_WORKSPACE_PATH_STYLE || "").trim().toLowerCase();
+const KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS = Math.max(5000, Number(process.env.HERMES_MOBILE_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || process.env.HERMES_WEB_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || "30000") || 30000);
+const KANBAN_BLOCKED_PUSH_DELAY_MINUTES = Math.max(0, Number(process.env.HERMES_MOBILE_KANBAN_BLOCKED_PUSH_DELAY_MINUTES || process.env.HERMES_WEB_KANBAN_BLOCKED_PUSH_DELAY_MINUTES || "10") || 0);
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
 const KANBAN_MULTI_AGENT_MAX_CARDS = 8;
 const KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_KANBAN_PLAN_TIMEOUT_MS || process.env.HERMES_WEB_KANBAN_PLAN_TIMEOUT_MS || "90000");
@@ -3009,6 +3011,7 @@ const kanbanCardProvider = createKanbanCardProvider({
   publicCard: publicTodo,
   sourceName: () => "hermes_kanban",
 });
+const kanbanDependencyReconcileLastRun = new Map();
 
 function localAutomationStore() {
   const raw = readJsonStore(LOCAL_AUTOMATION_STORE_PATH, {});
@@ -4412,6 +4415,31 @@ async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
   }
 
   return { ok: true, plan, cards: created, maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL };
+}
+
+async function maybeReconcileKanbanDependencyBlocks(workspaceId, options = {}) {
+  if (!useKanbanTodoBackend()) return { ok: true, skipped: true, reason: "kanban_backend_disabled" };
+  const id = String(workspaceId || "owner").trim() || "owner";
+  const now = Date.now();
+  const last = kanbanDependencyReconcileLastRun.get(id) || 0;
+  if (!options.force && now - last < KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS) {
+    return { ok: true, skipped: true, reason: "recent", workspaceId: id };
+  }
+  kanbanDependencyReconcileLastRun.set(id, now);
+  const result = await kanbanCardProvider.reconcileDependencyBlocks({
+    workspaceId: id,
+    limit: options.limit || 500,
+  });
+  const released = Array.isArray(result?.released) ? result.released : [];
+  for (const item of released) {
+    const cardId = String(item?.id || "");
+    broadcast({ type: "kanban.updated", workspaceId: id, cardId, action: "dependency-unblocked" });
+    broadcast({ type: "todos.updated", workspaceId: id, todoId: cardId, action: "dependency-unblocked" });
+  }
+  if (released.length) {
+    console.info(`Hermes Kanban dependency reconcile released ${released.length} card(s) for workspace ${id}.`);
+  }
+  return Object.assign({ workspaceId: id }, result || {});
 }
 
 function todoErrorResponse(res, result, fallbackStatus = 400) {
@@ -8406,8 +8434,19 @@ async function deliverTodoWebPushEvent(event) {
 async function runTodoWebPushTick(options = {}) {
   if (!TODO_WEB_PUSH_ENABLED) return { ok: true, enabled: false, events: [], deliveries: [] };
   const principals = activePushPrincipals();
+  const reconcileResults = [];
+  if (useKanbanTodoBackend()) {
+    const workspaceIds = dedupe((principals.length ? principals : ["owner"]).map((principalId) => workspaceIdForPrincipal(principalId))).slice(0, 20);
+    for (const workspaceId of workspaceIds) {
+      try {
+        reconcileResults.push(await maybeReconcileKanbanDependencyBlocks(workspaceId, { limit: 500 }));
+      } catch (err) {
+        reconcileResults.push({ ok: false, workspaceId, error: err.message || String(err) });
+      }
+    }
+  }
   if (!webPushConfig || !principals.length) {
-    return { ok: true, enabled: Boolean(webPushConfig), principals, events: [], deliveries: [] };
+    return { ok: true, enabled: Boolean(webPushConfig), principals, reconcileResults, events: [], deliveries: [] };
   }
   const pending = await todoProvider.pendingPushes({
     sourcePrincipal: "owner",
@@ -8417,6 +8456,7 @@ async function runTodoWebPushTick(options = {}) {
     confirmedMarkKeys: confirmedTodoPushMarkKeys(),
     retryWithoutReceiptMinutes: TODO_WEB_PUSH_RECEIPT_RETRY_MINUTES,
     retryLimit: TODO_WEB_PUSH_RECEIPT_RETRY_LIMIT,
+    blockedNotificationDelayMinutes: KANBAN_BLOCKED_PUSH_DELAY_MINUTES,
   });
   const events = Array.isArray(pending.events) ? pending.events : [];
   if (options.dryRun) {
@@ -8425,6 +8465,7 @@ async function runTodoWebPushTick(options = {}) {
       enabled: true,
       principals,
       events: events.map((event) => Object.assign({}, event, { payload: todoPushPayload(event) })),
+      reconcileResults,
       deliveries: [],
     };
   }
@@ -8441,7 +8482,7 @@ async function runTodoWebPushTick(options = {}) {
       });
     }
   }
-  return { ok: true, enabled: true, principals, events, deliveries };
+  return { ok: true, enabled: true, principals, reconcileResults, events, deliveries };
 }
 
 function startTodoWebPushDispatcher() {
@@ -10881,6 +10922,10 @@ async function handleApi(req, res) {
   if (url.pathname === "/api/todos" && req.method === "GET") {
     const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
     if (!workspaceId) return;
+    let maintenance = null;
+    if (useKanbanTodoBackend()) {
+      maintenance = await maybeReconcileKanbanDependencyBlocks(workspaceId).catch((err) => ({ ok: false, error: err.message || String(err) }));
+    }
     const result = await todoProvider.listTodos({
       workspaceId,
       scope: url.searchParams.get("scope") || "mine",
@@ -10897,6 +10942,7 @@ async function handleApi(req, res) {
       data: result.data,
       assignees: result.assignees,
       source: result.source,
+      maintenance,
     });
     return;
   }
@@ -10908,6 +10954,7 @@ async function handleApi(req, res) {
     }
     const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
     if (!workspaceId) return;
+    const maintenance = await maybeReconcileKanbanDependencyBlocks(workspaceId).catch((err) => ({ ok: false, error: err.message || String(err) }));
     const result = await kanbanCardProvider.listCards({
       workspaceId,
       scope: url.searchParams.get("scope") || "mine",
@@ -10926,6 +10973,7 @@ async function handleApi(req, res) {
       source: result.source,
       board: result.board,
       result: result.result,
+      maintenance,
     });
     return;
   }

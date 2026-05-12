@@ -100,7 +100,7 @@ function createTodoProvider(options = {}) {
   }
 
   function pendingPushes(args = {}) {
-    return runBridge({
+    const payload = {
       action: "web_pending_pushes",
       source_principal: args.sourcePrincipal || args.source_principal || "owner",
       principals: Array.isArray(args.principals) ? args.principals : [],
@@ -109,7 +109,10 @@ function createTodoProvider(options = {}) {
       confirmed_mark_keys: Array.isArray(args.confirmedMarkKeys) ? args.confirmedMarkKeys : [],
       retry_without_receipt_minutes: positiveNumber(args.retryWithoutReceiptMinutes ?? args.retry_without_receipt_minutes, 3),
       retry_limit: positiveNumber(args.retryLimit ?? args.retry_limit, 3),
-    });
+    };
+    const blockedDelay = Number(args.blockedNotificationDelayMinutes ?? args.blocked_notification_delay_minutes);
+    if (Number.isFinite(blockedDelay)) payload.blocked_notification_delay_minutes = blockedDelay;
+    return runBridge(payload);
   }
 
   function markWebPush(args = {}) {

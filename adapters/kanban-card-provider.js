@@ -118,12 +118,23 @@ function createKanbanCardProvider(options = {}) {
     });
   }
 
+  function reconcileDependencyBlocks(args = {}) {
+    const workspaceId = args.workspaceId || "owner";
+    return runBridge({
+      action: "reconcile_dependency_blocks",
+      workspace_id: workspaceId,
+      source_principal: workspacePrincipal(workspaceId),
+      limit: positiveNumber(args.limit, 500),
+    });
+  }
+
   return {
     addCard,
     cardDetail,
     listCards,
     mutateCard,
     publicCard,
+    reconcileDependencyBlocks,
   };
 }
 
