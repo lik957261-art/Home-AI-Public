@@ -338,6 +338,12 @@ function isSingleWindowConversationTaskGroupId(value) {
   return id === SINGLE_WINDOW_CHAT_TASK_GROUP_ID || id === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
 }
 
+function singleWindowChatTaskGroupId(requestedTaskGroupId = "") {
+  return String(requestedTaskGroupId || "").trim() === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
+    ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
+    : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+}
+
 const AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS = new Set([".md", ".pdf", ".doc", ".docx", ".xlsx", ".pptx"]);
 const AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS || String(30 * 60 * 1000));
 const AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS = Number(process.env.HERMES_WEB_AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS || String(30 * 60 * 1000));
@@ -1813,6 +1819,13 @@ function normalizeThreadMessages(thread, messages, options = {}) {
       if (next.status === "cancelled" && !next.cancelledAt) next.cancelledAt = next.updatedAt;
     }
     if (next.taskGroupId) next.taskGroupId = sanitizeTaskGroupId(next.taskGroupId);
+    if (thread.singleWindow) {
+      const rawSingleWindowMode = String(next.singleWindowMode || next.single_window_mode || "").trim();
+      const weixinIngressMessage = next.externalIngress?.source === "weixin" || next.externalDelivery?.source === "weixin";
+      const conversationMessage = isSingleWindowConversationTaskGroupId(next.taskGroupId) || weixinIngressMessage;
+      next.singleWindowMode = normalizeSingleWindowMode(rawSingleWindowMode || (conversationMessage ? "chat" : "task"));
+      if (next.singleWindowMode === "chat") next.taskGroupId = singleWindowChatTaskGroupId(next.taskGroupId);
+    }
     if (
       thread.singleWindow
       && next.messageKind === "plain"
@@ -4932,6 +4945,21 @@ function latestMessageTimestamp(messages) {
   }, "");
 }
 
+function messageChronologyRank(message) {
+  if (message?.role === "user") return 0;
+  if (message?.role === "assistant") return 1;
+  return 2;
+}
+
+function sortMessagesChronologically(messages) {
+  return [...(messages || [])].sort((a, b) => (
+    String(a?.createdAt || "").localeCompare(String(b?.createdAt || ""))
+    || messageChronologyRank(a) - messageChronologyRank(b)
+    || String(a?.submittedAt || a?.queuedAt || "").localeCompare(String(b?.submittedAt || b?.queuedAt || ""))
+    || String(a?.id || "").localeCompare(String(b?.id || ""))
+  ));
+}
+
 function createSingleWindowThread(workspaceId, overrides = {}) {
   const now = nowIso();
   return normalizeThread(Object.assign({
@@ -4971,6 +4999,12 @@ function migratePrivateSingleWindowGroups(workspaceId) {
     && isGroupChatThread(thread)
     && (thread.workspaceId === id || chatGroupMemberWorkspaceIds(thread).includes(id))
   ));
+  const externalIngressThreads = (state.threads || []).filter((thread) => (
+    thread?.singleWindow
+    && thread.workspaceId === id
+    && !isGroupChatThread(thread)
+    && isExternalIngressThread(thread)
+  ));
   let changed = false;
   for (const groupThread of groupThreads) {
     const moveMessageIds = new Set();
@@ -5008,8 +5042,7 @@ function migratePrivateSingleWindowGroups(workspaceId) {
         keptMessages.push(message);
       }
     }
-    privateThread.messages = [...(privateThread.messages || []), ...movedMessages]
-      .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+    privateThread.messages = sortMessagesChronologically([...(privateThread.messages || []), ...movedMessages]);
     privateThread.taskGroupMeta = Object.assign(
       {},
       normalizeTaskGroupMeta(privateThread.taskGroupMeta),
@@ -5034,6 +5067,61 @@ function migratePrivateSingleWindowGroups(workspaceId) {
         artifact.threadId = privateThread.id;
       }
     }
+    changed = true;
+  }
+  for (const externalThread of externalIngressThreads) {
+    const hasActiveRun = (externalThread.activeRunIds || []).length
+      || (externalThread.messages || []).some((message) => ["queued", "running"].includes(message?.status));
+    if (hasActiveRun) continue;
+    const sourceMessages = externalThread.messages || [];
+    if (!sourceMessages.length) {
+      state.threads = (state.threads || []).filter((thread) => thread.id !== externalThread.id);
+      changed = true;
+      continue;
+    }
+    if (!privateThread) {
+      privateThread = createSingleWindowThread(id);
+      state.threads.unshift(privateThread);
+    }
+    const existingMessageIds = new Set((privateThread.messages || []).map((message) => String(message.id || "")));
+    const movedMessages = [];
+    const movedMessageIds = new Set();
+    for (const message of sourceMessages) {
+      const messageId = String(message?.id || "");
+      if (messageId && existingMessageIds.has(messageId)) continue;
+      const moved = Object.assign({}, message, {
+        taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+        singleWindowMode: "chat",
+      });
+      if (moved.externalDelivery) {
+        moved.externalDelivery = normalizeExternalDelivery(Object.assign({}, moved.externalDelivery, {
+          threadId: privateThread.id,
+          taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+          updatedAt: moved.externalDelivery.updatedAt || moved.updatedAt || nowIso(),
+        }));
+      }
+      movedMessages.push(moved);
+      if (messageId) {
+        existingMessageIds.add(messageId);
+        movedMessageIds.add(messageId);
+      }
+    }
+    if (movedMessages.length) {
+      privateThread.messages = sortMessagesChronologically([...(privateThread.messages || []), ...movedMessages]);
+      const privateLatest = latestMessageTimestamp(privateThread.messages);
+      if (privateLatest) privateThread.updatedAt = privateLatest;
+      const privateEarliest = (privateThread.messages || [])
+        .map((message) => message.createdAt || "")
+        .filter(Boolean)
+        .sort()[0];
+      if (privateEarliest && String(privateEarliest) < String(privateThread.createdAt || "")) {
+        privateThread.createdAt = privateEarliest;
+      }
+      for (const artifact of state.artifacts || []) {
+        if (movedMessageIds.has(String(artifact.messageId || ""))) artifact.threadId = privateThread.id;
+      }
+    }
+    state.threads = (state.threads || []).filter((thread) => thread.id !== externalThread.id);
     changed = true;
   }
   if (changed) {
@@ -10073,7 +10161,7 @@ async function handleApi(req, res) {
     }
     const requestedTaskGroupId = bodyTaskGroupId || quotedTaskGroupId;
     const taskGroupId = thread.singleWindow
-      ? (requestedTaskGroupId || (singleWindowMode === "chat" ? SINGLE_WINDOW_CHAT_TASK_GROUP_ID : makeId("task")))
+      ? (singleWindowMode === "chat" ? singleWindowChatTaskGroupId(requestedTaskGroupId) : (requestedTaskGroupId || makeId("task")))
       : "";
     if (thread.singleWindow && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID && singleWindowMode !== "chat") {
       sendJson(res, 400, { error: "Group chat messages must use chat mode" });
@@ -10335,10 +10423,12 @@ async function handleApi(req, res) {
       });
       return;
     }
-    const followUpInstructions = thread.singleWindow && requestedTaskGroupId
+    const followUpInstructions = thread.singleWindow
       ? singleWindowMode === "chat"
         ? "The latest user message is a Hermes Mobile continuous-chat turn. Treat it as part of the supplied same-task conversation_history."
-        : "The latest user message is an explicit Web quote/reply to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task."
+        : (requestedTaskGroupId
+          ? "The latest user message is an explicit Web quote/reply to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task."
+          : "")
       : "";
     const runOptions = {
       reasoning_effort: reasoningEffort,
