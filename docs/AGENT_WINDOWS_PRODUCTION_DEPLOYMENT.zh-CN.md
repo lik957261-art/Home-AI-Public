@@ -283,6 +283,17 @@ Owner maintenance workers 只在部署者明确需要时启用：
 - `allowMaintenance=true`
 - 只能由 Owner elevation 路由使用。
 
+Owner maintenance 不是只在 manifest 中加 worker 就够了。它需要两个条件同时满足：
+
+- manifest 中有 enabled owner-maintenance worker，例如 `securityLevel=owner-maintenance` 且 `allowMaintenance=true`。
+- listener 环境显式设置 `HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS=1` 或 `HERMES_WEB_ALLOW_OWNER_MAINTENANCE_RUNS=1`。
+
+如果只配置了 Owner Access Key 和普通 lowgw workers，但没有设置该环境变量，Owner 可以登录，普通权限也可以运行，但侧边栏高权限按钮会显示：
+
+```text
+Owner maintenance runs are disabled by server configuration
+```
+
 Agent 可以按模板生成 manifest，但不得把真实 API key 打印到回复里。
 
 ## 7. 配置 listener 环境
@@ -306,9 +317,12 @@ $env:HERMES_WEB_GATEWAY_POOL_ENABLED = "auto"
 $env:HERMES_WEB_GATEWAY_POOL_MANIFEST = "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json"
 $env:HERMES_WEB_MAX_ACTIVE_RUNS = "3"
 $env:HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE = "3"
+$env:HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS = "1"
 $env:HERMES_MOBILE_GATEWAY_USAGE_TELEMETRY_ENABLED = "auto"
 $env:HERMES_MOBILE_GATEWAY_TELEMETRY_PROFILES_ROOTS = "C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles"
 ```
+
+只有在 manifest 确实包含 owner-maintenance workers，并且这些 workers 能健康启动时，才设置 `HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS=1`。如果部署目标只需要普通 lowgw，不需要高权限维护通道，应保持默认关闭，并在交付说明里明确“Owner maintenance 未启用”。
 
 不要在 listener 环境里放 operator 的 WSL UNC token/config 路径。外部连接器能力应由 Gateway profile-local credentials 提供。
 
@@ -378,6 +392,19 @@ Invoke-WebRequest -UseBasicParsing -Headers @{ "X-Hermes-Web-Key" = $key } http:
 - lowgw profile config 包含 `weather` 和 `http`。
 - 实际 session schema 包含 `weather` 和 `http_request`。
 - `state.db` / `response_store.db` integrity 为 `ok`。
+
+如果要求同构高权限维护能力，还必须确认：
+
+- `/api/status.ownerElevation.available=true`
+- Gateway Pool 中存在 healthy 的 `owner-maintenance` worker。
+- owner-maintenance ports 例如 `18651..18652` listening。
+- 高权限运行按钮不再显示 `Owner maintenance runs are disabled by server configuration`。
+
+管理员首次设置流程说明：
+
+- 如果启动前没有 `HERMES_WEB_KEY`，且 `HERMES_WEB_AUTH_KEY_PATH` 指向的 Owner key 文件不存在，浏览器首次访问会进入 Owner setup。
+- 如果部署脚本已经生成了 `C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret`，或设置了 `HERMES_WEB_KEY`，setup 会被跳过，使用该 Owner key 直接登录。这是预配置生产部署的正常行为。
+- 不要把 Owner key 内容写进 README、日志、PR 或回复正文；只记录文件路径。
 
 ## 11. 回滚
 
