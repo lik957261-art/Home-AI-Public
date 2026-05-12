@@ -2,6 +2,15 @@
 
 本文面向另一个 Codex / Agent，用于把 public Hermes Mobile 源码部署成与参考生产拓扑一致的 Windows + WSL + official Hermes Gateway Pool 运行形态。
 
+如果用户要求“部署成可用生产环境”或“带 Worker / Gateway Pool / 低权限 worker”，不要只执行根 README 的 Quick Start。Quick Start 只启动最小 single-Gateway listener，不会创建 `HermesMobileWorker`，不会准备 `gateway-worker`，不会启动 `lowgw1..10`，也不会生成 Gateway Pool manifest。
+
+本 runbook 需要两个 bootstrap 权限前提：
+
+- Windows 管理员 PowerShell：用于创建/配置 `HermesMobileWorker`、设置 `C:\ProgramData\HermesMobile` 运行目录、ACL、凭据和宿主启动进程。
+- WSL bootstrap 权限：部署 Agent 可以通过 `wsl -d <distro> -u root` 进入目标 distro，或使用已有可 `sudo` 的 Linux 用户。低权限 Linux worker 用户、profile 目录、启动脚本、依赖和 official Hermes runtime 边界应由部署流程创建/配置，不要求用户提前手工建好。
+
+如果部署 Agent 没有 Windows 管理员权限，或无法在 WSL 内取得 root/sudo bootstrap 权限，不要宣称已经完成生产 Worker Pool 部署；最多只能完成 Quick Start 的最小 single-Gateway listener，并应明确回报“Worker Pool 未部署”。
+
 目标不是复制某台机器的私有数据，而是复刻 Hermes Mobile 自己负责的生产结构：
 
 - Windows 低权限服务用户。
