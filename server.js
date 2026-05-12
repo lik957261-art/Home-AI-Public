@@ -4921,6 +4921,10 @@ function isGroupChatThread(thread) {
   return Boolean(normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner").enabled);
 }
 
+function isExternalIngressThread(thread) {
+  return Boolean(thread?.externalIngress?.source);
+}
+
 function latestMessageTimestamp(messages) {
   return (messages || []).reduce((latest, message) => {
     const value = message?.completedAt || message?.failedAt || message?.cancelledAt || message?.updatedAt || message?.createdAt || "";
@@ -4960,6 +4964,7 @@ function migratePrivateSingleWindowGroups(workspaceId) {
     thread.workspaceId === id
     && thread.singleWindow
     && !isGroupChatThread(thread)
+    && !isExternalIngressThread(thread)
   )) || null;
   const groupThreads = (state.threads || []).filter((thread) => (
     thread?.singleWindow
@@ -5050,6 +5055,7 @@ function ensureSingleWindowThread(workspaceId, options = {}) {
     item.workspaceId === workspaceId
     && item.singleWindow
     && (allowGroupThread || !isGroupChatThread(item))
+    && (allowGroupThread || !isExternalIngressThread(item))
   ));
   if (thread) return thread;
   thread = createSingleWindowThread(workspaceId);
@@ -6000,35 +6006,7 @@ function findExistingWeixinIngressEvent(eventId) {
 }
 
 function weixinIngressThreadForEvent(event, workspaceId) {
-  const threadKey = weixinIngressProvider.threadKey(event);
-  let thread = (state.threads || []).find((item) => (
-    item.externalIngress?.source === "weixin" && item.externalIngress.threadKey === threadKey
-  ));
-  if (thread) return thread;
-  const now = nowIso();
-  thread = normalizeThread({
-    id: makeId("thread"),
-    title: `Weixin - ${workspaceLabel(workspaceId)}`,
-    workspaceId,
-    projectId: SINGLE_WINDOW_PROJECT_ID,
-    subprojectId: "",
-    singleWindow: true,
-    hermesSessionId: `weixin_${hashId(`${event.accountId}|${event.chatId || event.userId || event.principalId}`)}`,
-    status: "idle",
-    externalIngress: Object.assign({}, event, {
-      threadKey,
-      workspaceId,
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-    }),
-    createdAt: now,
-    updatedAt: now,
-    messages: [],
-    events: [],
-  });
-  state.threads.unshift(thread);
-  return thread;
+  return ensureSingleWindowThread(workspaceId);
 }
 
 function enqueueExternalDeliveryForTerminalMessage(thread, message, terminalStatus) {
@@ -6154,7 +6132,7 @@ async function startWeixinIngressEvent(body) {
     throw err;
   }
   const thread = weixinIngressThreadForEvent(event, workspaceId);
-  const taskGroupId = "weixin-chat";
+  const taskGroupId = SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
   const queueBehindActiveRun = taskGroupHasRunningRun(thread, taskGroupId);
   if (!queueBehindActiveRun) {
     const concurrencyError = runConcurrencyError(workspaceId);
