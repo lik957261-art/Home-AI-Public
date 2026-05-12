@@ -109,10 +109,18 @@ for idx in $(seq 1 "$low_gateway_count"); do
   mkdir -p "$profile_dir"
   chmod 700 "$profile_dir" || true
   ln -s "$profile_dir" "$profile_link"
+  if [ "$weather_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-weather"
+    cp -a "$weather_plugin_target" "$profile_dir/plugins/hermes-mobile-weather"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-weather"
+  fi
   weather_toolset_block=""
+  weather_api_toolset_block=""
   weather_plugin_block="  enabled: []"
   if [ "$weather_plugin_enabled" = "1" ]; then
     weather_toolset_block="  - weather"
+    weather_api_toolset_block="    - weather"
     weather_plugin_block="  enabled:
     - hermes-mobile-weather"
   fi
@@ -124,6 +132,10 @@ model:
 toolsets:
   - hermes-cli
 ${weather_toolset_block}
+platform_toolsets:
+  api_server:
+    - hermes-api-server
+${weather_api_toolset_block}
 agent:
   max_turns: 60
   reasoning_effort: medium
