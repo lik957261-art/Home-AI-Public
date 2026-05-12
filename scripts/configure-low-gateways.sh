@@ -9,8 +9,11 @@ telemetry_profiles_root="${HERMES_LOW_GATEWAY_TELEMETRY_PROFILES_ROOT:-$gateway_
 profile_auth_seed_root="${HERMES_LOW_GATEWAY_PROFILE_AUTH_ROOT:-$gateway_worker_root/profile-auth}"
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
 shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
-shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$worker_home_dir/auth.json}"
-shared_auth_lock_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_LOCK_PATH:-$worker_home_dir/auth.lock}"
+shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$telemetry_profiles_root/shared-auth}"
+shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$shared_auth_default_root/auth.json}"
+shared_auth_lock_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_LOCK_PATH:-$shared_auth_default_root/auth.lock}"
+legacy_shared_auth_path="$worker_home_dir/auth.json"
+legacy_shared_auth_lock_path="$worker_home_dir/auth.lock"
 shared_auth_source_profile="${HERMES_LOW_GATEWAY_SHARED_AUTH_SOURCE_PROFILE:-}"
 shared_auth_seed_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_SEED_PATH:-$profile_auth_seed_root/shared/auth.json}"
 mobile_app_root="${HERMES_MOBILE_APP_ROOT:-/mnt/c/ProgramData/HermesMobile/app}"
@@ -38,6 +41,13 @@ install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/plugins"
 mkdir -p "$telemetry_profiles_root"
 
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$(dirname "$shared_auth_path")"
+
+if [ "$shared_auth_path" != "$legacy_shared_auth_path" ] && [ ! -s "$shared_auth_path" ] && [ -s "$legacy_shared_auth_path" ]; then
+  install -m 600 -o "$worker_user" -g "$worker_user" "$legacy_shared_auth_path" "$shared_auth_path"
+fi
+if [ "$shared_auth_lock_path" != "$legacy_shared_auth_lock_path" ] && [ ! -e "$shared_auth_lock_path" ] && [ -e "$legacy_shared_auth_lock_path" ]; then
+  install -m 600 -o "$worker_user" -g "$worker_user" "$legacy_shared_auth_lock_path" "$shared_auth_lock_path" || true
+fi
 
 if [ ! -s "$shared_auth_path" ] && [ -s "$gateway_worker_root/secrets/auth.json" ]; then
   install -m 600 -o "$worker_user" -g "$worker_user" "$gateway_worker_root/secrets/auth.json" "$shared_auth_path"
