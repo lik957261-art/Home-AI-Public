@@ -3969,6 +3969,10 @@ function publicKanbanCardDetail(workspaceId, detail = {}) {
     const outputs = run?.metadata?.outputs;
     if (Array.isArray(outputs)) outputs.forEach((item) => outputPaths.add(String(item || "")));
   }
+  for (const comment of comments) {
+    const commentText = [comment?.text, comment?.body, comment?.comment].filter(Boolean).join("\n");
+    for (const pathText of extractArtifactPaths(commentText)) outputPaths.add(pathText);
+  }
   for (const pathText of extractArtifactPaths(summary)) outputPaths.add(pathText);
   for (const pathText of extractArtifactPaths(detail.log || "")) outputPaths.add(pathText);
   const outputs = [...outputPaths].map((item) => publicKanbanOutputFile(workspaceId, item)).filter(Boolean);
@@ -4794,6 +4798,9 @@ async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, 
     "You are evaluating a child's book-reading retelling submission for a Hermes Mobile reading plan.",
     "Return Markdown only, concise but specific. Do not include JSON or code fences.",
     "Use the current transcript as primary evidence. Use previous session feedback only as context for continuity.",
+    "Include a score out of 100. Break the score down by fluency, grammar, vocabulary, comprehension, organization, and continuity. Base the score on the transcript; do not claim acoustic pronunciation evidence unless it is supported by transcription notes.",
+    "Include these sections: 本次评分（100分）, 本次理解, 复述质量, 英语表达与语法, 词汇与句型, 与前次相比, 下一次建议, 家长可观察点.",
+    "If this is the final session in the reading plan, also include sections: 整本书总结 and 总分（100分）.",
     "Include these sections: 本次理解, 复述质量, 表达与逻辑, 与前次相比, 下一次建议, 家长可观察点.",
     `Reading story: ${currentCard?.kanbanCaseSummary || ""}`,
     `Current card: ${currentCard?.content || cardId}`,
@@ -4816,7 +4823,101 @@ async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, 
   return compactText(output || "", 12000);
 }
 
-function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, notes = "") {
+function normalizeKanbanReadingQuiz(raw = {}) {
+  const questions = (Array.isArray(raw.questions) ? raw.questions : [])
+    .map((item, index) => {
+      const choices = (Array.isArray(item?.choices) ? item.choices : [])
+        .map((choice) => compactText(choice, 260))
+        .filter(Boolean)
+        .slice(0, 4);
+      const answerIndex = Number(item?.answerIndex ?? item?.answer_index ?? item?.correctIndex ?? item?.correct_index);
+      return {
+        id: compactText(item?.id || `q${index + 1}`, 40),
+        prompt: compactText(item?.prompt || item?.question || "", 600),
+        choices,
+        answerIndex: Number.isInteger(answerIndex) && answerIndex >= 0 && answerIndex < choices.length ? answerIndex : -1,
+        explanation: compactText(item?.explanation || "", 600),
+        skill: compactText(item?.skill || item?.category || "", 80),
+      };
+    })
+    .filter((item) => item.prompt && item.choices.length >= 2 && item.answerIndex >= 0)
+    .slice(0, 10);
+  if (questions.length !== 10) throw new Error(`Reading quiz generation returned ${questions.length} valid questions; expected 10`);
+  return {
+    title: compactText(raw.title || "Reading practice quiz", 160),
+    passingScore: 100,
+    questions,
+  };
+}
+
+function publicKanbanReadingQuiz(quiz = {}) {
+  return {
+    title: String(quiz.title || "Reading practice quiz"),
+    passingScore: 100,
+    questions: (Array.isArray(quiz.questions) ? quiz.questions : []).map((item, index) => ({
+      id: String(item.id || `q${index + 1}`),
+      prompt: String(item.prompt || ""),
+      choices: Array.isArray(item.choices) ? item.choices.map((choice) => String(choice || "")) : [],
+      skill: String(item.skill || ""),
+    })),
+  };
+}
+
+async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes = "") {
+  const prompt = [
+    "Generate a practice quiz for a child's book-reading retelling session.",
+    "Return JSON only. No Markdown, no comments, no code fences.",
+    "The quiz must contain exactly 10 single-answer multiple-choice questions.",
+    "Questions should target today's weaknesses and the next improvement direction from the analysis.",
+    "Cover comprehension, English grammar, vocabulary, sentence structure, sequencing, and oral-retelling clarity.",
+    "Use this exact schema: {\"title\":\"...\",\"questions\":[{\"id\":\"q1\",\"skill\":\"grammar|vocabulary|comprehension|fluency|sequence\",\"prompt\":\"...\",\"choices\":[\"...\",\"...\",\"...\",\"...\"],\"answerIndex\":0,\"explanation\":\"...\"}]}",
+    "Each question must have 4 choices and one 0-based answerIndex.",
+    "Do not reveal answer keys in prompt text or choices.",
+    `Current card: ${currentCard?.content || cardId}`,
+    `Session: ${currentCard?.kanbanCaseCardIndex || ""}/${currentCard?.kanbanCaseCardCount || ""}`,
+    currentCard?.kanbanCaseSourceText ? `Original requirement:\n${currentCard.kanbanCaseSourceText}` : "",
+    notes ? `Parent notes:\n${compactText(notes, 2000)}` : "",
+    `Analysis:\n${compactText(analysis, 6000)}`,
+    `Transcript:\n${compactText(transcription.text, 8000)}`,
+  ].filter(Boolean).join("\n\n");
+  const output = await hermesModelText({
+    input: prompt,
+    stream: false,
+    store: false,
+    model: AUTOMATION_CREATE_MODEL,
+    reasoning_effort: "medium",
+    conversation: `hermes_web_reading_quiz_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+    instructions: "Generate exactly 10 multiple-choice quiz questions as JSON.",
+    access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+  }, KANBAN_READING_ANALYSIS_TIMEOUT_MS);
+  return normalizeKanbanReadingQuiz(extractJsonObject(output || ""));
+}
+
+function readingQuizUrl(workspaceId, cardId) {
+  const params = new URLSearchParams({
+    view: "todos",
+    workspaceId: String(workspaceId || "owner"),
+    todoId: String(cardId || ""),
+    readingQuiz: "1",
+  });
+  return `/?${params.toString()}`;
+}
+
+function readingSubmissionStatePath(workspaceId, cardId, currentCard = null) {
+  return path.join(readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId), "latest-reading-submission.json");
+}
+
+function readKanbanReadingSubmissionState(workspaceId, cardId, currentCard = null) {
+  return readJsonStore(readingSubmissionStatePath(workspaceId, cardId, currentCard), null);
+}
+
+function writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, state) {
+  const payload = Object.assign({ schemaVersion: 1, updatedAt: nowIso() }, state || {});
+  writeJsonStore(readingSubmissionStatePath(workspaceId, cardId, currentCard), payload);
+  return payload;
+}
+
+function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes = "") {
   const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId);
   const stem = safeFileName(`${currentCard?.kanbanCaseCardIndex || "session"}-${currentCard?.content || cardId}`).replace(/\.[^.]+$/, "");
   const mdPath = path.join(dir, `${Date.now()}-${stem}-reading-analysis.md`);
@@ -4835,10 +4936,22 @@ function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio,
     "",
     analysis || "No analysis was generated.",
     "",
+    "## Practice Quiz",
+    "",
+    `Quiz link: ${readingQuizUrl(workspaceId, cardId)}`,
+    "",
+    "Complete all 10 questions correctly in Hermes Mobile to finish this reading card.",
+    "",
     "## Transcript",
     "",
     transcription.text,
   );
+  if (quiz?.questions?.length) {
+    lines.push("", "## Quiz Question Preview", "");
+    for (const [index, question] of quiz.questions.entries()) {
+      lines.push(`${index + 1}. ${question.prompt}`);
+    }
+  }
   const markdown = lines.join("\n");
   fs.writeFileSync(mdPath, markdown, "utf8");
   return mdPath;
@@ -4851,19 +4964,133 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
   const transcription = await transcribeKanbanReadingAudio(audio.path);
   const notes = compactText(body.notes || body.comment || "", 2000);
   const analysis = await analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, context.prior, transcription, notes);
-  const analysisPath = writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, notes);
+  const quiz = await generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes);
+  const analysisPath = writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes);
+  const quizUrl = readingQuizUrl(workspaceId, cardId);
+  const submissionState = writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, {
+    status: "quiz_pending",
+    workspaceId,
+    cardId,
+    cardTitle: currentCard.content || cardId,
+    analysisPath,
+    audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size },
+    transcription: { text: transcription.text, language: transcription.language || "" },
+    analysis,
+    quiz,
+    quizUrl,
+    attempts: [],
+    submittedAt: nowIso(),
+  });
+  const commented = await kanbanCardProvider.mutateCard({
+    action: "comment",
+    workspaceId,
+    cardId,
+    comment: [
+      "Reading retelling audio uploaded and analyzed.",
+      "The full Markdown analysis is attached; complete the 10-question quiz with all answers correct to finish this card.",
+      `Quiz: ${quizUrl}`,
+      `MEDIA: ${analysisPath}`,
+    ].join("\n"),
+    author: "Hermes Mobile",
+  }).catch(() => null);
+  if (!commented?.ok) return { ok: false, error: commented?.error || "Reading submission comment failed", analysisPath };
+  return {
+    ok: true,
+    card: publicTodo(commented),
+    audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size },
+    transcription: { text: transcription.text, language: transcription.language || "" },
+    analysis,
+    analysisPath,
+    quiz: publicKanbanReadingQuiz(quiz),
+    quizUrl,
+    status: submissionState.status,
+  };
+}
+
+async function getKanbanReadingQuiz(workspaceId, cardId) {
+  const context = await readingContextForCard(workspaceId, cardId);
+  const currentCard = context.current || { id: cardId, content: cardId };
+  const state = readKanbanReadingSubmissionState(workspaceId, cardId, currentCard);
+  if (!state?.quiz) return { ok: false, status: 404, error: "Reading quiz is not available yet" };
+  return {
+    ok: true,
+    quiz: publicKanbanReadingQuiz(state.quiz),
+    quizUrl: state.quizUrl || readingQuizUrl(workspaceId, cardId),
+    analysisPath: state.analysisPath || "",
+    status: state.status || "quiz_pending",
+    attempts: Array.isArray(state.attempts) ? state.attempts.map((attempt) => ({
+      submittedAt: attempt.submittedAt || "",
+      score: Number(attempt.score || 0),
+      passed: Boolean(attempt.passed),
+    })).slice(-5) : [],
+  };
+}
+
+async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
+  const context = await readingContextForCard(workspaceId, cardId);
+  const currentCard = context.current || { id: cardId, content: cardId };
+  const state = readKanbanReadingSubmissionState(workspaceId, cardId, currentCard);
+  if (!state?.quiz) return { ok: false, status: 404, error: "Reading quiz is not available yet" };
+  if (String(state.status || "") === "completed") {
+    return { ok: true, passed: true, score: 100, status: "completed", quiz: publicKanbanReadingQuiz(state.quiz) };
+  }
+  const answers = Array.isArray(body.answers)
+    ? body.answers
+    : (body.answers && typeof body.answers === "object" ? state.quiz.questions.map((question) => body.answers[question.id]) : []);
+  const results = state.quiz.questions.map((question, index) => {
+    const answerIndex = Number(answers[index]);
+    const correct = Number.isInteger(answerIndex) && answerIndex === Number(question.answerIndex);
+    return {
+      id: question.id || `q${index + 1}`,
+      correct,
+      answerIndex: Number.isInteger(answerIndex) ? answerIndex : -1,
+      correctIndex: Number(question.answerIndex),
+      explanation: question.explanation || "",
+    };
+  });
+  const correctCount = results.filter((item) => item.correct).length;
+  const score = Math.round((correctCount / Math.max(1, results.length)) * 100);
+  const passed = correctCount === 10 && results.length === 10;
+  const attempt = {
+    submittedAt: nowIso(),
+    score,
+    correctCount,
+    total: results.length,
+    passed,
+    results,
+  };
+  const nextState = Object.assign({}, state, {
+    status: passed ? "completed" : "quiz_pending",
+    attempts: [...(Array.isArray(state.attempts) ? state.attempts : []), attempt].slice(-20),
+    completedAt: passed ? nowIso() : state.completedAt || "",
+  });
+  writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, nextState);
+  if (!passed) {
+    return {
+      ok: true,
+      passed: false,
+      score,
+      correctCount,
+      total: results.length,
+      results: results.map((item) => ({
+        id: item.id,
+        correct: item.correct,
+        explanation: item.correct ? "" : item.explanation,
+      })),
+      quiz: publicKanbanReadingQuiz(state.quiz),
+    };
+  }
   const resultText = [
-    "Reading retelling analysis completed.",
+    "Reading retelling quiz passed.",
+    "Quiz score: 100/100.",
     "",
-    analysis || "No analysis was generated.",
-    "",
-    `MEDIA: ${analysisPath}`,
+    `MEDIA: ${state.analysisPath}`,
   ].join("\n");
   await kanbanCardProvider.mutateCard({
     action: "comment",
     workspaceId,
     cardId,
-    comment: "Reading retelling audio uploaded and analyzed. Full transcript and evaluation were saved to the attached analysis file.",
+    comment: "Reading quiz passed with 10/10 correct answers. Completing this reading card.",
     author: "Hermes Mobile",
   }).catch(() => null);
   const completed = await kanbanCardProvider.mutateCard({
@@ -4873,17 +5100,16 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
     result: resultText,
     author: "Hermes Mobile",
   });
-  if (!completed?.ok) {
-    return { ok: false, error: completed?.error || "Reading card completion failed", audio, transcription, analysis, analysisPath };
-  }
+  if (!completed?.ok) return { ok: false, error: completed?.error || "Reading card completion failed", score };
   await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
   return {
     ok: true,
+    passed: true,
+    score,
+    correctCount,
+    total: results.length,
     card: publicTodo(completed),
-    audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size },
-    transcription: { text: transcription.text, language: transcription.language || "" },
-    analysis,
-    analysisPath,
+    status: "completed",
   };
 }
 
@@ -11812,6 +12038,36 @@ async function handleApi(req, res) {
       clearKanbanCardListCache(workspaceId);
       broadcast({ type: "kanban.updated", workspaceId, cardId, action: "reading-submission" });
       broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "reading-submission" });
+      sendJson(res, 200, result);
+    } catch (err) {
+      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
+  const kanbanReadingQuiz = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/reading-quiz$/);
+  if (kanbanReadingQuiz && (req.method === "GET" || req.method === "POST")) {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = req.method === "POST" ? await readBody(req).catch(() => ({})) : {};
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const cardId = decodeURIComponent(kanbanReadingQuiz[1]);
+    try {
+      const result = req.method === "POST"
+        ? await submitKanbanReadingQuiz(workspaceId, cardId, body)
+        : await getKanbanReadingQuiz(workspaceId, cardId);
+      if (!result.ok) {
+        sendJson(res, result.status || 400, { ok: false, error: result.error || "Reading quiz failed" });
+        return;
+      }
+      if (req.method === "POST" && result.passed) {
+        clearKanbanCardListCache(workspaceId);
+        broadcast({ type: "kanban.updated", workspaceId, cardId, action: "reading-quiz-passed" });
+        broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "reading-quiz-passed" });
+      }
       sendJson(res, 200, result);
     } catch (err) {
       sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });

@@ -4704,6 +4704,48 @@ button.directory-alias-chip {
   padding: 9px;
 }
 
+.todo-reading-quiz-panel {
+  border-color: rgba(62, 95, 146, 0.2);
+  background: rgba(238, 244, 255, 0.42);
+}
+
+.reading-quiz-question {
+  display: grid;
+  gap: 10px;
+}
+
+.reading-quiz-question > strong {
+  font-size: 16px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.reading-quiz-question > small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.reading-quiz-choices {
+  display: grid;
+  gap: 8px;
+}
+
+.reading-quiz-choice {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.6);
+  line-height: 1.42;
+}
+
+.reading-quiz-choice input {
+  margin-top: 3px;
+}
+
 .kanban-composer-toolbar,
 .kanban-plan-actions {
   display: flex;

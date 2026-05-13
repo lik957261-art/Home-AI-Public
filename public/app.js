@@ -113,6 +113,11 @@ const state = {
   todoRevisionSubmitting: {},
   todoReadingSubmissionDrafts: {},
   todoReadingSubmitting: {},
+  todoReadingQuizzes: {},
+  todoReadingQuizAnswers: {},
+  todoReadingQuizStep: {},
+  todoReadingQuizSubmitting: {},
+  pendingReadingQuizTodoId: "",
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoCreateOpen: false,
@@ -3713,6 +3718,7 @@ function applyRouteParams(params) {
   const subprojectId = String(params.get("subprojectId") || "").trim();
   const directoryPath = String(params.get("directoryPath") || "").trim();
   const directoryRoot = String(params.get("directoryRoot") || "").trim();
+  const readingQuizRequested = ["1", "true", "yes"].includes(String(params.get("readingQuiz") || params.get("reading_quiz") || "").trim().toLowerCase());
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
   const routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
@@ -3733,7 +3739,12 @@ function applyRouteParams(params) {
     state.selectedAutomationId = automationId;
     state.automationOutputHistoryOpen = false;
   }
-  if (routeView === "todos" && todoId) state.selectedTodoId = todoId;
+  if (routeView === "todos" && todoId) {
+    state.selectedTodoId = todoId;
+    state.pendingReadingQuizTodoId = readingQuizRequested ? todoId : "";
+  } else if (routeView) {
+    state.pendingReadingQuizTodoId = "";
+  }
   if (routeView === "projects") {
     state.directoryReturnRoute = null;
     state.sharedDirectoryManagerOpen = false;
@@ -3774,7 +3785,7 @@ function applyRouteParams(params) {
       localStorage.setItem("hermesWebWeixinChatOpen", "0");
     }
   }
-  return Boolean(routeView || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested);
+  return Boolean(routeView || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested);
 }
 
 function applyRouteFromUrl(value) {
@@ -7485,6 +7496,11 @@ async function loadSelectedView() {
     await loadSingleWindow();
   } else if (state.viewMode === "todos") {
     await loadTodos({ preferCache: true });
+    if (state.pendingReadingQuizTodoId && state.pendingReadingQuizTodoId === state.selectedTodoId) {
+      const todoId = state.pendingReadingQuizTodoId;
+      state.pendingReadingQuizTodoId = "";
+      await loadReadingQuiz(todoId);
+    }
   } else if (state.viewMode === "automation") {
     await loadAutomations();
   } else if (state.viewMode === "projects") {
@@ -9689,6 +9705,7 @@ function renderKanbanDetailReport(todo) {
   const detail = todoCardDetailState(todo.id);
   const summary = kanbanDisplayResultText(todo, todo.kanbanResult || detail?.summary || "");
   const readingCard = isKanbanReadingCard(todo);
+  if (readingCard && kanbanCardOutputs(todo).length) return "";
   const processRows = detail && !readingCard ? renderKanbanProcessRows(detail) : "";
   const loading = detail?.loading;
   const error = detail?.error || "";
@@ -9713,8 +9730,83 @@ function isKanbanReadingCard(todo) {
   return String(todo?.kanbanCaseMode || "").trim() === "reading-plan";
 }
 
+function readingQuizState(todoId) {
+  return state.todoReadingQuizzes?.[todoId] || null;
+}
+
+function renderKanbanReadingQuizPanel(todo) {
+  if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return "";
+  const quizState = readingQuizState(todo.id);
+  const submitting = Boolean(state.todoReadingQuizSubmitting?.[todo.id]);
+  if (!quizState) {
+    return `<section class="todo-comment-panel todo-reading-quiz-panel">
+      <div class="todo-detail-deliverables-head">
+        <strong>练习考卷</strong>
+        <span>10 题全对后完成</span>
+      </div>
+      <button type="button" data-load-reading-quiz="${escapeHtml(todo.id)}">打开考卷</button>
+    </section>`;
+  }
+  if (quizState.loading) {
+    return `<section class="todo-comment-panel todo-reading-quiz-panel"><p class="todo-detail-muted">正在加载考卷...</p></section>`;
+  }
+  if (quizState.error) {
+    return `<section class="todo-comment-panel todo-reading-quiz-panel">
+      <p class="todo-detail-error">${escapeHtml(quizState.error)}</p>
+      <button type="button" data-load-reading-quiz="${escapeHtml(todo.id)}">重新加载考卷</button>
+    </section>`;
+  }
+  const quiz = quizState.quiz || {};
+  const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+  if (!questions.length) return "";
+  const answers = state.todoReadingQuizAnswers?.[todo.id] || [];
+  const step = Math.max(0, Math.min(questions.length - 1, Number(state.todoReadingQuizStep?.[todo.id] || 0)));
+  const question = questions[step] || questions[0];
+  const selected = Number(answers[step]);
+  const result = quizState.result || null;
+  const choices = (question.choices || []).map((choice, index) => {
+    const id = `readingQuiz_${todo.id}_${step}_${index}`.replace(/[^\w-]/g, "_");
+    return `<label class="reading-quiz-choice" for="${escapeHtml(id)}">
+      <input id="${escapeHtml(id)}" type="radio" name="readingQuizChoice_${escapeHtml(todo.id)}" value="${index}" data-reading-quiz-choice="${escapeHtml(todo.id)}" data-question-index="${step}"${selected === index ? " checked" : ""}${submitting ? " disabled" : ""}>
+      <span>${escapeHtml(choice)}</span>
+    </label>`;
+  }).join("");
+  const canPrev = step > 0;
+  const canNext = step < questions.length - 1;
+  const answeredCount = answers.filter((value) => Number.isInteger(Number(value))).length;
+  const status = result
+    ? (result.passed ? "已全对，卡片已完成。" : `本次 ${result.correctCount || 0}/${result.total || 10}，请修改错误题后再提交。`)
+    : `已答 ${answeredCount}/${questions.length}`;
+  const wrong = result && !result.passed && Array.isArray(result.results)
+    ? result.results
+      .map((item, index) => item.correct ? "" : `${index + 1}. ${item.explanation || "需要重新检查。"} `)
+      .filter(Boolean)
+      .join("\n")
+    : "";
+  return `<form class="todo-comment-panel todo-reading-quiz-panel" data-reading-quiz-form="${escapeHtml(todo.id)}">
+    <div class="todo-detail-deliverables-head">
+      <strong>${escapeHtml(quiz.title || "练习考卷")}</strong>
+      <span>${step + 1}/${questions.length}</span>
+    </div>
+    <p class="todo-detail-muted">${escapeHtml(status)}</p>
+    <article class="reading-quiz-question">
+      <small>${escapeHtml(question.skill || "")}</small>
+      <strong>${escapeHtml(question.prompt || "")}</strong>
+      <div class="reading-quiz-choices">${choices}</div>
+    </article>
+    ${wrong ? `<pre class="todo-detail-muted">${escapeHtml(wrong)}</pre>` : ""}
+    <div class="todo-comment-actions">
+      <button type="button" data-reading-quiz-prev="${escapeHtml(todo.id)}"${canPrev && !submitting ? "" : " disabled"}>上一题</button>
+      <button type="button" data-reading-quiz-next="${escapeHtml(todo.id)}"${canNext && Number.isInteger(selected) && !submitting ? "" : " disabled"}>下一题</button>
+      <button type="submit"${answeredCount === questions.length && !submitting ? "" : " disabled"}>${submitting ? "正在判卷..." : "提交考卷"}</button>
+    </div>
+  </form>`;
+}
+
 function renderKanbanReadingSubmissionPanel(todo) {
   if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return "";
+  const quizState = readingQuizState(todo.id);
+  if (quizState?.quiz || kanbanCardOutputs(todo).length) return "";
   if (!readingCardAcceptsSubmission(todo)) {
     const status = normalizedKanbanStatus(todo);
     const due = todo?.dueLocal || todo?.dueAt || "";
@@ -9769,6 +9861,7 @@ function renderTodoDetail(todo) {
     : "";
   const coverBlock = kanban ? renderKanbanCaseCover(kanbanCaseCover(todo)) : "";
   const deliveryBlock = kanban ? renderKanbanDeliveryFiles(todo) : "";
+  const readingQuizBlock = kanban ? renderKanbanReadingQuizPanel(todo) : "";
   const resultBlock = kanban ? renderKanbanDetailReport(todo) : "";
   const readingPanel = kanban ? renderKanbanReadingSubmissionPanel(todo) : "";
   const metaBlock = kanban
@@ -9807,6 +9900,7 @@ function renderTodoDetail(todo) {
     </div>
     ${coverBlock}
     ${deliveryBlock}
+    ${readingQuizBlock}
     ${resultBlock}
     ${readingPanel}
     ${metaBlock}
@@ -9980,6 +10074,50 @@ function wireTodoPanel(root) {
       const file = form.querySelector("#readingSubmissionAudio")?.files?.[0] || null;
       const notes = form.querySelector("#todoReadingSubmissionNotes")?.value || "";
       submitReadingSubmission(todoId, file, notes).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-load-reading-quiz]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      loadReadingQuiz(button.dataset.loadReadingQuiz || "").catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-reading-quiz-choice]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const todoId = input.dataset.readingQuizChoice || "";
+      const index = Number(input.dataset.questionIndex || 0);
+      if (!todoId || !Number.isFinite(index)) return;
+      if (!Array.isArray(state.todoReadingQuizAnswers[todoId])) state.todoReadingQuizAnswers[todoId] = [];
+      state.todoReadingQuizAnswers[todoId][index] = Number(input.value);
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  });
+  root.querySelectorAll("[data-reading-quiz-prev]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = button.dataset.readingQuizPrev || "";
+      state.todoReadingQuizStep[todoId] = Math.max(0, Number(state.todoReadingQuizStep[todoId] || 0) - 1);
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  });
+  root.querySelectorAll("[data-reading-quiz-next]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = button.dataset.readingQuizNext || "";
+      const quiz = state.todoReadingQuizzes[todoId]?.quiz || {};
+      const total = Array.isArray(quiz.questions) ? quiz.questions.length : 10;
+      state.todoReadingQuizStep[todoId] = Math.min(total - 1, Number(state.todoReadingQuizStep[todoId] || 0) + 1);
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  });
+  root.querySelectorAll("[data-reading-quiz-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      submitReadingQuiz(form.dataset.readingQuizForm || "").catch(showError);
     });
   });
   root.querySelectorAll("[data-comment-unblock-todo]").forEach((button) => {
@@ -10311,7 +10449,7 @@ async function submitReadingSubmission(todoId, file, notes = "") {
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     const dataBase64 = await fileToBase64(file);
-    await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-submission`, {
+    const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-submission`, {
       method: "POST",
       body: JSON.stringify({
         workspaceId: state.selectedWorkspaceId,
@@ -10321,6 +10459,11 @@ async function submitReadingSubmission(todoId, file, notes = "") {
         notes,
       }),
     });
+    if (result?.quiz) {
+      state.todoReadingQuizzes[todoId] = { quiz: result.quiz, quizUrl: result.quizUrl || "", status: result.status || "quiz_pending" };
+      state.todoReadingQuizAnswers[todoId] = [];
+      state.todoReadingQuizStep[todoId] = 0;
+    }
     clearTodoListCache();
     state.todoKanbanStatus = KANBAN_STORY_STATUS;
     localStorage.setItem("hermesTodoKanbanStatus", KANBAN_STORY_STATUS);
@@ -10329,9 +10472,53 @@ async function submitReadingSubmission(todoId, file, notes = "") {
     delete state.todoReadingSubmissionDrafts[todoId];
     delete state.todoCardDetails[todoId];
     await loadKanbanCardDetail(todoId, { force: true, silent: true });
-    showPushToast("阅读录音已分析，卡片已完成", "success");
+    showPushToast("阅读分析和考卷已生成；10 题全对后完成卡片。", "success");
   } finally {
     delete state.todoReadingSubmitting[todoId];
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
+}
+
+async function loadReadingQuiz(todoId) {
+  if (!todoId) return;
+  state.todoReadingQuizzes[todoId] = Object.assign({}, state.todoReadingQuizzes[todoId] || {}, { loading: true, error: "" });
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const params = new URLSearchParams({ workspaceId: state.selectedWorkspaceId || "owner" });
+    const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-quiz?${params.toString()}`);
+    state.todoReadingQuizzes[todoId] = { quiz: result.quiz, quizUrl: result.quizUrl || "", status: result.status || "" };
+    if (!Array.isArray(state.todoReadingQuizAnswers[todoId])) state.todoReadingQuizAnswers[todoId] = [];
+    if (!Number.isFinite(Number(state.todoReadingQuizStep[todoId]))) state.todoReadingQuizStep[todoId] = 0;
+  } catch (err) {
+    state.todoReadingQuizzes[todoId] = { loading: false, error: err.message || String(err) };
+  }
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+}
+
+async function submitReadingQuiz(todoId) {
+  if (!todoId || state.todoReadingQuizSubmitting?.[todoId]) return;
+  const answers = state.todoReadingQuizAnswers[todoId] || [];
+  state.todoReadingQuizSubmitting[todoId] = true;
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-quiz`, {
+      method: "POST",
+      body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, answers }),
+    });
+    state.todoReadingQuizzes[todoId] = Object.assign({}, state.todoReadingQuizzes[todoId] || {}, { result, status: result.status || "" });
+    if (result.passed) {
+      clearTodoListCache();
+      delete state.todoCardDetails[todoId];
+      await loadTodos({ skipCache: true, includeCompleted: true });
+      state.selectedTodoId = todoId;
+      showPushToast("考卷 10/10，全对，阅读卡片已完成。", "success");
+    } else {
+      const wrongIndex = Array.isArray(result.results) ? result.results.findIndex((item) => !item.correct) : -1;
+      if (wrongIndex >= 0) state.todoReadingQuizStep[todoId] = wrongIndex;
+      showPushToast(`考卷 ${result.correctCount || 0}/${result.total || 10}，请订正后再提交。`, "error");
+    }
+  } finally {
+    delete state.todoReadingQuizSubmitting[todoId];
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
 }
