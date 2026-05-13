@@ -6621,6 +6621,7 @@ function formatAccessPolicyInstructionSummary(policy = {}) {
     lines.push(`- Callable function names for enabled toolsets: ${callableHints.join("; ")}`);
     if (toolsets.includes("http")) lines.push("- For HTTP/API Program calls, use `http_request`; do not look for or mention a `web_request` function.");
     if (toolsets.includes("file")) lines.push("- For Word DOCX text extraction, use `docx_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
+    if (toolsets.includes("file")) lines.push("- For MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC voice notes or reading-retelling audio, use `audio_transcribe`; do not route audio-only files through `video_analyze` or ask the user to convert audio to video.");
   }
   if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
   else lines.push("- External connector profiles: none");
@@ -6639,7 +6640,7 @@ function callableFunctionHintsForToolsets(toolsets = []) {
     search: ["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"],
     http: ["http_request"],
     weather: ["weather"],
-    file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text"],
+    file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text", "audio_transcribe"],
     vision: ["vision_analyze"],
     image_gen: ["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"],
     messaging: ["send_message"],
@@ -6657,7 +6658,7 @@ function callableFunctionHintsForToolsets(toolsets = []) {
     .map((name) => `${name} -> ${hintsByToolset[name].join(", ")}`);
 }
 
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260513-docx-file-v1";
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 
 function gatewayConversationId(thread, userMessage, runPolicy = {}) {
   const base = thread.singleWindow
@@ -6679,9 +6680,11 @@ function currentToolSchemaOverrideInstructions(policy = {}) {
   }
   if (policyHasToolset(policy, "file")) {
     lines.push(
-      "Current tool schema override: the `file` toolset is enabled for this run, and Word DOCX text extraction is available as `docx_extract_text` when the file is inside the current allowed roots.",
+      "Current tool schema override: the `file` toolset is enabled for this run. Word DOCX text extraction is available as `docx_extract_text`, and audio transcription for MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC files is available as `audio_transcribe`, when the file is inside the current allowed roots.",
       "For .docx/.docm/.dotx/.dotm files, use `docx_extract_text` if `read_file` cannot decode the Office Open XML package directly.",
-      "Do not request Owner elevation merely because an ordinary current-workspace DOCX extraction tool is missing from an older callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation."
+      "For audio-only files such as .mp3/.m4a/.wav/.aac/.ogg/.opus/.amr/.flac, use `audio_transcribe`; `video_analyze` is for video files and should not be used as an audio transcription substitute.",
+      "Do not ask the user to convert an ordinary current-workspace audio file into a blank video just to work around a missing audio transcription function.",
+      "Do not request Owner elevation merely because an ordinary current-workspace DOCX extraction or audio transcription tool is missing from an older callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation."
     );
   }
   if (policyHasToolset(policy, "web") || policyHasToolset(policy, "search")) {
@@ -9604,6 +9607,14 @@ function isStaleDocxToolAvailabilityClaim(text) {
   return isToolUnavailableClaimText(content);
 }
 
+function isStaleAudioToolAvailabilityClaim(text) {
+  const content = String(text || "");
+  if (!content.trim()) return false;
+  const mentionsAudioTool = /audio_transcribe|audio\s*(?:tool|function|transcrib|transcription|ASR)|voice\s*(?:note|memo|recording)|Whisper|faster[-_ ]?whisper|speech[-_ ]?to[-_ ]?text|mp3|m4a|wav|aac|ogg|opus|amr|flac|video_analyze.*(?:mp3|audio)|(?:mp3|audio).*video_analyze|\u97f3\u9891|\u5f55\u97f3|\u8bed\u97f3|\u8f6c\u5199|\u542c\u5199|\u97f3\u9891\u8f6c\u6587\u5b57|\u590d\u8ff0\u5f55\u97f3/i.test(content);
+  if (!mentionsAudioTool) return false;
+  return isToolUnavailableClaimText(content);
+}
+
 function isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message = {}) {
   if (!approvalRequest?.elevationRequired) return false;
   const scope = String(approvalRequest.elevationScope || "").trim();
@@ -9614,6 +9625,7 @@ function isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message =
     (policyHasToolset(runPolicy, "image_gen") && isStaleImageToolAvailabilityClaim(text))
     || (policyHasToolset(runPolicy, "http") && isStaleHttpToolAvailabilityClaim(text))
     || (policyHasToolset(runPolicy, "file") && isStaleDocxToolAvailabilityClaim(text))
+    || (policyHasToolset(runPolicy, "file") && isStaleAudioToolAvailabilityClaim(text))
   );
 }
 
@@ -9633,6 +9645,11 @@ function conversationHistoryContentForMessage(msg, policy = {}) {
     content = [
       "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
       "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `docx_extract_text`, DOCX extraction, or Word parser availability.",
+    ].join(" ");
+  } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleAudioToolAvailabilityClaim(content)) {
+    content = [
+      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+      "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `audio_transcribe`, MP3/audio transcription, or video_analyze-as-audio-workaround availability.",
     ].join(" ");
   }
   return content;

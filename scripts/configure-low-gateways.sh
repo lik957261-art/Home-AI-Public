@@ -25,6 +25,8 @@ http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway
 http_plugin_target="$worker_home_dir/plugins/hermes-mobile-http"
 docx_plugin_source="${HERMES_MOBILE_DOCX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-docx}"
 docx_plugin_target="$worker_home_dir/plugins/hermes-mobile-docx"
+audio_plugin_source="${HERMES_MOBILE_AUDIO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-audio}"
+audio_plugin_target="$worker_home_dir/plugins/hermes-mobile-audio"
 image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-image}"
 image_plugin_target="$worker_home_dir/plugins/hermes-mobile-image"
 owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
@@ -206,6 +208,7 @@ weather_plugin_enabled=0
 web_plugin_enabled=0
 http_plugin_enabled=0
 docx_plugin_enabled=0
+audio_plugin_enabled=0
 image_plugin_enabled=0
 
 if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/__init__.py" ]; then
@@ -244,6 +247,15 @@ else
   echo "DOCX plugin source not found: $docx_plugin_source" >&2
 fi
 
+if [ -f "$audio_plugin_source/plugin.yaml" ] && [ -f "$audio_plugin_source/__init__.py" ]; then
+  rm -rf "$audio_plugin_target"
+  cp -a "$audio_plugin_source" "$audio_plugin_target"
+  chown -R "$worker_user:$worker_user" "$audio_plugin_target"
+  audio_plugin_enabled=1
+else
+  echo "Audio plugin source not found: $audio_plugin_source" >&2
+fi
+
 if [ -f "$image_plugin_source/plugin.yaml" ] && [ -f "$image_plugin_source/__init__.py" ]; then
   rm -rf "$image_plugin_target"
   cp -a "$image_plugin_source" "$image_plugin_target"
@@ -279,6 +291,9 @@ if [ "$http_plugin_enabled" = "1" ]; then
 fi
 if [ "$docx_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
+fi
+if [ "$audio_plugin_enabled" = "1" ]; then
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-audio"$'\n'
 fi
 if [ "$image_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
@@ -378,6 +393,12 @@ for idx in $(seq 1 "$low_gateway_count"); do
     cp -a "$docx_plugin_target" "$profile_dir/plugins/hermes-mobile-docx"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-docx"
   fi
+  if [ "$audio_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-audio"
+    cp -a "$audio_plugin_target" "$profile_dir/plugins/hermes-mobile-audio"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-audio"
+  fi
   if [ "$image_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-image"
@@ -404,6 +425,9 @@ for idx in $(seq 1 "$low_gateway_count"); do
   fi
   if [ "$docx_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
+  fi
+  if [ "$audio_plugin_enabled" = "1" ]; then
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-audio"$'\n'
   fi
   if [ "$image_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'

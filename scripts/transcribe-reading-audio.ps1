@@ -4,7 +4,7 @@ param(
   [string]$DistroName = "HermesGatewayWorker",
   [string]$WorkerLinuxUser = "hermes",
   [string]$Model = "base",
-  [string]$Language = "zh",
+  [string]$Language = "auto",
   [int]$TimeoutSeconds = 240
 )
 
@@ -45,7 +45,12 @@ except Exception as exc:
 
 audio_path = os.environ.get("HERMES_READING_AUDIO_PATH", "")
 model_name = os.environ.get("HERMES_READING_STT_MODEL", "base") or "base"
-language = os.environ.get("HERMES_READING_LANGUAGE", "zh") or "zh"
+language_raw = (os.environ.get("HERMES_READING_LANGUAGE", "auto") or "auto").strip()
+language = None if language_raw.lower() in {"", "auto", "detect", "none", "null"} else language_raw
+if language in {"zh-CN", "zh_CN", "cn", "chinese"}:
+    language = "zh"
+elif language in {"en-US", "en_GB", "en-GB", "english"}:
+    language = "en"
 
 if not audio_path or not os.path.exists(audio_path):
     print(json.dumps({"ok": False, "error": "audio file not found in worker distro"}, ensure_ascii=False))
@@ -53,7 +58,10 @@ if not audio_path or not os.path.exists(audio_path):
 
 started = time.time()
 model = WhisperModel(model_name, device="cpu", compute_type="int8")
-segments, info = model.transcribe(audio_path, language=language, vad_filter=True)
+kwargs = {"vad_filter": True}
+if language:
+    kwargs["language"] = language
+segments, info = model.transcribe(audio_path, **kwargs)
 rows = []
 parts = []
 for segment in segments:
@@ -67,7 +75,7 @@ print(json.dumps({
     "ok": True,
     "text": "\n".join(parts),
     "segments": rows,
-    "language": getattr(info, "language", language),
+    "language": getattr(info, "language", language or ""),
     "duration": round(float(getattr(info, "duration", 0.0) or 0.0), 2),
     "elapsedSeconds": round(time.time() - started, 2),
     "model": model_name,
