@@ -8366,7 +8366,8 @@ async function loadTodos(options = {}) {
   state.currentTaskGroupId = "";
   if (state.selectedTodoId && !state.todos.some((todo) => todo.id === state.selectedTodoId)) state.selectedTodoId = "";
   updateSearchButton();
-  renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop });
+  const finalRestoreScrollTop = options.preserveScroll && conversation ? conversation.scrollTop : restoreScrollTop;
+  renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop: finalRestoreScrollTop });
   setComposerEnabled(false);
   scheduleTodoAutoRefresh();
 }
@@ -8752,6 +8753,7 @@ function renderTodos(options = {}) {
 
 function renderTodoPanel(options = {}) {
   const conversation = $("conversation");
+  const previousScrollTop = conversation ? conversation.scrollTop : 0;
   const selected = state.todos.find((todo) => todo.id === state.selectedTodoId) || null;
   $("threadTitle").textContent = selected ? "看板详情" : "看板";
   $("threadMeta").textContent = "";
@@ -8773,8 +8775,9 @@ function renderTodoPanel(options = {}) {
   if (shouldAutoLoadKanbanDetail(selected)) {
     window.setTimeout(() => loadKanbanCardDetail(selected.id).catch(showError), 0);
   }
-  if (options.preserveScroll && Number.isFinite(options.restoreScrollTop)) {
-    conversation.scrollTop = options.restoreScrollTop;
+  if (options.preserveScroll) {
+    const nextScrollTop = Number.isFinite(options.restoreScrollTop) ? options.restoreScrollTop : previousScrollTop;
+    conversation.scrollTop = nextScrollTop;
   } else {
     conversation.scrollTop = 0;
   }
