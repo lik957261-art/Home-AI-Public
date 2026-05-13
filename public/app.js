@@ -8685,6 +8685,65 @@ function sortArchivedKanbanCards(items) {
   });
 }
 
+function cleanKanbanInternalResultLines(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*(?:MEDIA:|Audio file:|Analysis file:)\s*/i.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function cleanKanbanReadingResultText(text) {
+  let value = String(text || "").trim();
+  const aiMatch = value.match(/(?:^|\n)AI analysis:\s*/i);
+  if (aiMatch) {
+    value = value.slice((aiMatch.index || 0) + aiMatch[0].length);
+  } else {
+    const transcriptMatch = value.match(/(?:^|\n)Transcript:\s*/i);
+    if (transcriptMatch) value = value.slice(0, transcriptMatch.index || 0);
+  }
+  value = value.replace(/^\s*Reading (?:submission|retelling) analysis completed[^\n]*\.?\s*$/gmi, "");
+  return cleanKanbanInternalResultLines(value);
+}
+
+function kanbanDisplayResultText(todo, text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  return isKanbanReadingCard(todo)
+    ? cleanKanbanReadingResultText(raw)
+    : cleanKanbanInternalResultLines(raw);
+}
+
+function isReadingPlanWaitingCard(todo) {
+  if (!isKanbanReadingCard(todo)) return false;
+  if (normalizedKanbanStatus(todo) !== "blocked") return false;
+  const reason = String(todo?.kanbanBlockReason || "").toLowerCase();
+  if (reason.includes("previous reading session") || reason.includes("future reading")) return true;
+  return arrayFromKanbanField(todo?.kanbanCaseDependsOn, 12).length > 0 && !String(todo?.kanbanResult || "").trim();
+}
+
+function kanbanVisibleBoardTodos(todos) {
+  return (todos || []).filter((todo) => !isReadingPlanWaitingCard(todo));
+}
+
+function kanbanReadingCaseCurrentItem(group) {
+  const cards = Array.isArray(group?.cards) ? group.cards : [];
+  const visibleOpen = cards.find((item) => {
+    const status = normalizedKanbanStatus(item.todo);
+    return status !== "done" && status !== "archived" && !isReadingPlanWaitingCard(item.todo);
+  });
+  if (visibleOpen) return visibleOpen;
+  const anyOpen = cards.find((item) => {
+    const status = normalizedKanbanStatus(item.todo);
+    return status !== "done" && status !== "archived";
+  });
+  if (anyOpen) return anyOpen;
+  return [...cards].reverse().find((item) => ["done", "archived"].includes(normalizedKanbanStatus(item.todo)))
+    || cards[cards.length - 1]
+    || null;
+}
+
 function stableDisplayHash(value) {
   let hash = 2166136261;
   const text = String(value || "");
@@ -8829,7 +8888,7 @@ function kanbanArchiveConclusion(group) {
 
 function kanbanCardStoryFeedback(todo) {
   const detail = todoCardDetailState(todo?.id || "");
-  return String(todo?.kanbanResult || detail?.summary || "").trim();
+  return kanbanDisplayResultText(todo, todo?.kanbanResult || detail?.summary || "");
 }
 
 function kanbanCardNeedsStoryDetail(todo) {
@@ -8858,7 +8917,10 @@ function scheduleKanbanStoryDetailLoads(items) {
   const queued = state.kanbanStoryDetailQueued || {};
   const ids = [];
   for (const group of kanbanStoryCases(items).slice(0, 4)) {
-    for (const item of (group.cards || []).slice(0, 10)) {
+    const cardItems = group.mode === "reading-plan"
+      ? [kanbanReadingCaseCurrentItem(group)].filter(Boolean)
+      : (group.cards || []).slice(0, 10);
+    for (const item of cardItems) {
       const id = String(item?.todo?.id || "").trim();
       if (!id || queued[id] || !kanbanCardNeedsStoryDetail(item.todo)) continue;
       queued[id] = Date.now();
@@ -8875,7 +8937,63 @@ function scheduleKanbanStoryDetailLoads(items) {
   });
 }
 
+function renderKanbanReadingArchiveCase(group) {
+  const cards = group.cards || [];
+  const first = cards[0]?.todo || {};
+  const current = kanbanReadingCaseCurrentItem(group);
+  const currentTodo = current?.todo || first;
+  const cover = cards.map((item) => kanbanCaseCover(item.todo)).find(Boolean);
+  const requirement = compactDisplayText(group.sourceText || group.title || first.content || "", 320);
+  const statusSummary = kanbanArchiveStatusSummary(group);
+  const latest = group.latest ? todoTimestampLabel(new Date(group.latest).toISOString()) : "";
+  const completed = cards.filter((item) => ["done", "archived"].includes(normalizedKanbanStatus(item.todo))).length;
+  const progress = `${completed}/${cards.length} \u5df2\u5b8c\u6210${statusSummary ? ` | ${statusSummary}` : ""}`;
+  const conclusion = kanbanArchiveConclusion(group);
+  const currentStatus = currentTodo ? kanbanStatusMeta(normalizedKanbanStatus(currentTodo)).shortLabel : "";
+  const currentFeedback = currentTodo ? kanbanCardStoryFeedbackLine(currentTodo) : "";
+  const currentOutputCount = currentTodo ? kanbanCardOutputs(currentTodo).length : 0;
+  const currentMeta = [
+    currentStatus,
+    currentTodo?.dueLocal || currentTodo?.dueAt || "",
+    currentOutputCount ? `\u4ea4\u4ed8 ${currentOutputCount}` : "",
+  ].filter(Boolean).join(" | ");
+  const currentRow = currentTodo ? `<li>
+    <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
+      <span>${escapeHtml(String(current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
+      <strong>${escapeHtml(currentTodo.content || currentTodo.id)}</strong>
+      <small>${escapeHtml(currentMeta)}</small>
+      ${currentFeedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(currentFeedback)}</small>` : ""}
+    </button>
+  </li>` : "";
+  return `<article class="kanban-archive-case reading-plan-case">
+    <header class="kanban-archive-case-head">
+      <div>
+        <span>${escapeHtml(["\u9605\u8bfb\u8ba1\u5212", statusSummary].filter(Boolean).join(" | "))}</span>
+        <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
+      </div>
+      <small>${escapeHtml(latest)}</small>
+    </header>
+    ${cover ? renderKanbanCaseCover(cover, { compact: true }) : ""}
+    <div class="kanban-archive-story-grid">
+      <section>
+        <strong>\u9700\u6c42</strong>
+        <p>${escapeHtml(requirement || "\u672a\u8bb0\u5f55\u539f\u59cb\u9700\u6c42")}</p>
+      </section>
+      <section>
+        <strong>\u8fdb\u5ea6</strong>
+        <p>${escapeHtml(progress)}</p>
+      </section>
+      <section>
+        <strong>\u7ed3\u8bba</strong>
+        <p>${escapeHtml(conclusion)}</p>
+      </section>
+    </div>
+    <ol class="kanban-archive-card-chain">${currentRow}</ol>
+  </article>`;
+}
+
 function renderKanbanArchiveCase(group) {
+  if (group.mode === "reading-plan") return renderKanbanReadingArchiveCase(group);
   const cards = group.cards || [];
   const first = cards[0]?.todo || {};
   const cover = cards.map((item) => kanbanCaseCover(item.todo)).find(Boolean);
@@ -9305,7 +9423,8 @@ function renderKanbanCreatePage() {
 
 function renderTodoKanbanBoard(todos) {
   const grouped = new Map(KANBAN_STATUS_ORDER.map((status) => [status, []]));
-  for (const todo of todos || []) {
+  const boardTodos = kanbanVisibleBoardTodos(todos);
+  for (const todo of boardTodos) {
     const status = normalizedKanbanStatus(todo);
     if (!grouped.has(status)) grouped.set(status, []);
     grouped.get(status).push(todo);
@@ -9521,19 +9640,24 @@ function renderKanbanProcessRows(detail) {
 function renderKanbanDetailReport(todo) {
   if (!isKanbanTodoSource()) return "";
   const detail = todoCardDetailState(todo.id);
-  const summary = String(todo.kanbanResult || detail?.summary || "").trim();
-  const processRows = detail ? renderKanbanProcessRows(detail) : "";
+  const summary = kanbanDisplayResultText(todo, todo.kanbanResult || detail?.summary || "");
+  const readingCard = isKanbanReadingCard(todo);
+  const processRows = detail && !readingCard ? renderKanbanProcessRows(detail) : "";
   const loading = detail?.loading;
   const error = detail?.error || "";
   const actionLabel = loading ? "\u52a0\u8f7d\u4e2d" : (detail ? "\u5237\u65b0\u8fc7\u7a0b" : "\u52a0\u8f7d\u8fc7\u7a0b");
+  const title = readingCard ? "\u9605\u8bfb\u56de\u6267" : "\u56de\u6267 / \u8fc7\u7a0b";
+  const emptyText = readingCard && kanbanCardOutputs(todo).length
+    ? "\u5b8c\u6574\u5206\u6790\u5df2\u5728\u4e0a\u65b9\u4ea4\u4ed8\u6587\u4ef6\u4e2d\u3002"
+    : "\u6682\u65e0\u56de\u6267\u6458\u8981\u3002";
   return `<section class="todo-detail-result">
     <div class="todo-detail-result-head">
-      <strong>回执 / 过程</strong>
+      <strong>${escapeHtml(title)}</strong>
       <button type="button" data-load-kanban-detail="${escapeHtml(todo.id)}"${loading ? " disabled" : ""}>${actionLabel}</button>
     </div>
     ${loading ? `<p class="todo-detail-muted">正在加载官方看板过程...</p>` : ""}
     ${error ? `<p class="todo-detail-error">${escapeHtml(error)}</p>` : ""}
-    ${summary ? `<pre>${escapeHtml(summary)}</pre>` : (!loading && !error ? `<p class="todo-detail-muted">暂无回执摘要。</p>` : "")}
+    ${summary ? `<pre>${escapeHtml(summary)}</pre>` : (!loading && !error ? `<p class="todo-detail-muted">${escapeHtml(emptyText)}</p>` : "")}
     ${processRows}
   </section>`;
 }

@@ -3832,6 +3832,7 @@ function publicTodo(row) {
     kanbanCompletedAt: String(row.kanban_completed_at || row.kanbanCompletedAt || ""),
     kanbanResult,
     kanbanOutputs: publicKanbanOutputsFromText(workspaceId, kanbanResult),
+    kanbanBlockReason: String(row.kanban_block_reason || row.kanbanBlockReason || ""),
     kanbanMaxRetries: Number(row.kanban_max_retries || row.kanbanMaxRetries || 0),
     kanbanSkills: Array.isArray(row.kanban_skills || row.kanbanSkills)
       ? (row.kanban_skills || row.kanbanSkills).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
@@ -4617,7 +4618,7 @@ async function createKanbanReadingPlanCards(workspaceId, input = {}) {
       caseCardId: card.clientId,
       caseCardIndex: index + 1,
       caseCardCount: plan.cards.length,
-      caseDependsOn: [],
+      caseDependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
       caseDeliverables: card.deliverables,
       caseAcceptance: card.acceptance,
       caseCardGoal: card.description,
@@ -4625,7 +4626,41 @@ async function createKanbanReadingPlanCards(workspaceId, input = {}) {
     if (!result?.ok) {
       return { ok: false, error: result?.error || "Reading plan card creation failed", plan, cards: created, result };
     }
-    created.push({ clientId: card.clientId, day: card.day, dueTime: card.dueTime, card: publicTodo(result) });
+    let publicCard = publicTodo(result);
+    let blocked = false;
+    let blockError = "";
+    let blockReason = "";
+    if (index > 0) {
+      blockReason = "Waiting for previous reading session completion; Hermes Mobile shows only the current reading session.";
+      const blockedResult = await kanbanCardProvider.mutateCard({
+        action: "block",
+        workspaceId,
+        cardId: publicCard.id,
+        reason: blockReason,
+        author: "Hermes Mobile",
+      });
+      blocked = Boolean(blockedResult?.ok);
+      blockError = blocked ? "" : (blockedResult?.error || "Failed to block future reading session");
+      if (blocked) publicCard = publicTodo(blockedResult);
+    }
+    created.push({
+      clientId: card.clientId,
+      day: card.day,
+      dueTime: card.dueTime,
+      card: publicCard,
+      blocked,
+      blockReason,
+      blockError,
+      dependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
+    });
+    if (index > 0 && !blocked) {
+      return {
+        ok: false,
+        error: `Reading plan card ${publicCard.id} was created but could not be parked: ${blockError}`,
+        plan,
+        cards: created,
+      };
+    }
   }
   return { ok: true, plan, cards: created };
 }
@@ -4818,23 +4853,17 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
   const analysis = await analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, context.prior, transcription, notes);
   const analysisPath = writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, notes);
   const resultText = [
-    `Reading submission analysis completed for ${currentCard.content || cardId}.`,
-    `Audio file: ${audio.path}`,
-    `Analysis file: ${analysisPath}`,
+    "Reading retelling analysis completed.",
+    "",
+    analysis || "No analysis was generated.",
+    "",
     `MEDIA: ${analysisPath}`,
-    `MEDIA: ${audio.path}`,
-    "",
-    "Transcript:",
-    transcription.text,
-    "",
-    "AI analysis:",
-    analysis,
   ].join("\n");
   await kanbanCardProvider.mutateCard({
     action: "comment",
     workspaceId,
     cardId,
-    comment: `Reading submission uploaded and analyzed.\nAudio: ${audio.path}\nAnalysis: ${analysisPath}`,
+    comment: "Reading retelling audio uploaded and analyzed. Full transcript and evaluation were saved to the attached analysis file.",
     author: "Hermes Mobile",
   }).catch(() => null);
   const completed = await kanbanCardProvider.mutateCard({
@@ -4847,6 +4876,7 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
   if (!completed?.ok) {
     return { ok: false, error: completed?.error || "Reading card completion failed", audio, transcription, analysis, analysisPath };
   }
+  await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
   return {
     ok: true,
     card: publicTodo(completed),

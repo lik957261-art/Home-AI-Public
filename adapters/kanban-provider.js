@@ -448,6 +448,7 @@ function createKanbanTodoBridge(options = {}) {
       kanban_started_at: dateStringFromTask(task.started_at || task.startedAt || meta.startedAt || meta.started_at || ""),
       kanban_completed_at: dateStringFromTask(task.completed_at || task.completedAt || meta.completedAt || meta.completed_at || ""),
       kanban_result: String(textFromTask(task, "result") || task.result || meta.result || ""),
+      kanban_block_reason: String(meta.blockReason || meta.block_reason || ""),
       kanban_max_retries: Number(task.max_retries ?? task.task?.max_retries ?? meta.maxRetries ?? meta.max_retries ?? 0) || 0,
       kanban_skills: arrayFromTask(task, "skills").slice(0, 8),
       assignee_principal_id: String(meta.assignee || task.assignee || payload.source_principal || ""),
@@ -958,6 +959,7 @@ function createKanbanTodoBridge(options = {}) {
       const principalId = String(meta.assignee || meta.createdBy || "");
       if (principals.size && !principals.has(principalId)) continue;
       if (String(meta.kanbanStatus || meta.kanban_status || "").trim().toLowerCase() === "blocked") {
+        if (String(meta.caseMode || meta.case_mode || "").trim() === "reading-plan") continue;
         const blockedAt = Date.parse(meta.blockedAt || meta.updatedAt || "");
         if (Number.isFinite(blockedAt) && now - blockedAt >= blockedDelayMs) {
           const markKey = `kanban-todo:${id}:blocked:${meta.blockedAt || meta.updatedAt || ""}`;
