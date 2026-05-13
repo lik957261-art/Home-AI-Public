@@ -8723,24 +8723,71 @@ function isReadingPlanWaitingCard(todo) {
   return arrayFromKanbanField(todo?.kanbanCaseDependsOn, 12).length > 0 && !String(todo?.kanbanResult || "").trim();
 }
 
+function kanbanReadingCaseKey(todo) {
+  return String(todo?.kanbanCaseId || todo?.id || "").trim() || String(todo?.id || "");
+}
+
+function kanbanVisibleReadingTodoIds(todos) {
+  const groups = new Map();
+  for (const todo of todos || []) {
+    if (!isKanbanReadingCard(todo)) continue;
+    const key = kanbanReadingCaseKey(todo);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ todo, info: kanbanCardCaseInfo(todo) });
+  }
+  const visible = new Set();
+  for (const cards of groups.values()) {
+    const item = kanbanReadingCaseCurrentItem({ cards });
+    const id = String(item?.todo?.id || "");
+    if (id) visible.add(id);
+  }
+  return visible;
+}
+
 function kanbanVisibleBoardTodos(todos) {
-  return (todos || []).filter((todo) => !isReadingPlanWaitingCard(todo));
+  const visibleReadingIds = kanbanVisibleReadingTodoIds(todos);
+  return (todos || []).filter((todo) => (
+    !isKanbanReadingCard(todo)
+    || visibleReadingIds.has(String(todo?.id || ""))
+  ));
+}
+
+function kanbanReadingStartTime(todo) {
+  const value = String(todo?.dueAt || todo?.dueLocal || "").trim();
+  if (!value) return NaN;
+  const parsed = Date.parse(value.replace(" ", "T"));
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function readingCardAcceptsSubmission(todo) {
+  if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return false;
+  const status = normalizedKanbanStatus(todo);
+  if (status === "blocked" || status === "done" || status === "archived") return false;
+  if (status === "running") return true;
+  const startTime = kanbanReadingStartTime(todo);
+  return !Number.isFinite(startTime) || startTime <= Date.now();
 }
 
 function kanbanReadingCaseCurrentItem(group) {
-  const cards = Array.isArray(group?.cards) ? group.cards : [];
+  const cards = [...(Array.isArray(group?.cards) ? group.cards : [])].sort((left, right) => {
+    const leftIndex = left?.info?.cardIndex || left?.todo?.kanbanCaseCardIndex || 999;
+    const rightIndex = right?.info?.cardIndex || right?.todo?.kanbanCaseCardIndex || 999;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
+  });
   const visibleOpen = cards.find((item) => {
     const status = normalizedKanbanStatus(item.todo);
-    return status !== "done" && status !== "archived" && !isReadingPlanWaitingCard(item.todo);
+    return status !== "done" && status !== "archived" && readingCardAcceptsSubmission(item.todo);
   });
   if (visibleOpen) return visibleOpen;
-  const anyOpen = cards.find((item) => {
+  const completed = [...cards].reverse().find((item) => ["done", "archived"].includes(normalizedKanbanStatus(item.todo)));
+  if (completed) return completed;
+  return cards.find((item) => {
     const status = normalizedKanbanStatus(item.todo);
-    return status !== "done" && status !== "archived";
-  });
-  if (anyOpen) return anyOpen;
-  return [...cards].reverse().find((item) => ["done", "archived"].includes(normalizedKanbanStatus(item.todo)))
-    || cards[cards.length - 1]
+    return status !== "done" && status !== "archived" && !isReadingPlanWaitingCard(item.todo);
+  })
+    || cards.find((item) => normalizedKanbanStatus(item.todo) === "blocked")
+    || cards[0]
     || null;
 }
 
@@ -9668,6 +9715,16 @@ function isKanbanReadingCard(todo) {
 
 function renderKanbanReadingSubmissionPanel(todo) {
   if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return "";
+  if (!readingCardAcceptsSubmission(todo)) {
+    const status = normalizedKanbanStatus(todo);
+    const due = todo?.dueLocal || todo?.dueAt || "";
+    const reason = status === "blocked"
+      ? "\u7b49\u5f85\u524d\u4e00\u6b21\u9605\u8bfb\u5b8c\u6210\u540e\u81ea\u52a8\u89e3\u9501\u3002"
+      : (due ? `\u672c\u6b21\u9605\u8bfb\u5c06\u5728 ${due} \u5f00\u59cb\u3002` : "\u672c\u6b21\u9605\u8bfb\u5c1a\u672a\u5230\u53ef\u63d0\u4ea4\u72b6\u6001\u3002");
+    return `<section class="todo-comment-panel todo-reading-panel" data-reading-submission-waiting="${escapeHtml(todo.id)}">
+      <p class="todo-detail-muted">${escapeHtml(reason)}</p>
+    </section>`;
+  }
   const submitting = Boolean(state.todoReadingSubmitting?.[todo.id]);
   const notes = state.todoReadingSubmissionDrafts?.[todo.id] || "";
   return `<form class="todo-comment-panel todo-reading-panel" data-reading-submission-form="${escapeHtml(todo.id)}" ${submitting ? 'aria-busy="true"' : ""}>
