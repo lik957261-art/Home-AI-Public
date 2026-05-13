@@ -5334,10 +5334,49 @@ button.directory-alias-chip {
   padding: 0 2px;
 }
 
+.todo-detail-deliverables {
+  --kanban-receipt-body-size: 16px;
+  --kanban-receipt-caption-size: 13px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(31, 111, 98, 0.16);
+  border-radius: 16px;
+  background: rgba(238, 251, 247, 0.74);
+}
+
+.todo-detail-deliverables-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.todo-detail-deliverables-head strong {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.todo-detail-deliverables-head span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 7px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: rgba(31, 111, 98, 0.1);
+}
+
 .todo-detail-result {
-  --kanban-receipt-body-size: 14px;
-  --kanban-receipt-line-height: 1.62;
-  --kanban-receipt-caption-size: 12px;
+  --kanban-receipt-body-size: 16px;
+  --kanban-receipt-line-height: 1.68;
+  --kanban-receipt-caption-size: 13px;
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -5406,7 +5445,7 @@ button.directory-alias-chip {
   min-width: 0;
   padding: 9px;
   color: var(--accent);
-  font-size: var(--kanban-receipt-body-size);
+  font-size: var(--kanban-receipt-body-size, 16px);
   line-height: 1.35;
   text-decoration: none;
   border: 1px solid rgba(31, 111, 98, 0.14);
@@ -5416,7 +5455,7 @@ button.directory-alias-chip {
 
 .todo-detail-outputs small {
   color: var(--muted);
-  font-size: var(--kanban-receipt-caption-size);
+  font-size: var(--kanban-receipt-caption-size, 13px);
   overflow-wrap: anywhere;
 }
 
@@ -6734,10 +6773,14 @@ button.directory-alias-chip {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .todo-detail-result,
+  .todo-detail-deliverables {
+    --kanban-receipt-body-size: 16.5px;
+    --kanban-receipt-caption-size: 13px;
+  }
+
   .todo-detail-result {
-    --kanban-receipt-body-size: 15px;
-    --kanban-receipt-line-height: 1.68;
-    --kanban-receipt-caption-size: 12.5px;
+    --kanban-receipt-line-height: 1.72;
   }
 
   .todo-postpone-row {
@@ -6923,17 +6966,25 @@ button.directory-alias-chip {
 }
 
 @media (max-width: 380px) {
+  .todo-detail-result,
+  .todo-detail-deliverables {
+    --kanban-receipt-body-size: 15.5px;
+    --kanban-receipt-caption-size: 12.5px;
+  }
+
   .todo-detail-result {
-    --kanban-receipt-body-size: 14px;
-    --kanban-receipt-line-height: 1.64;
-    --kanban-receipt-caption-size: 12px;
+    --kanban-receipt-line-height: 1.7;
   }
 }
 
 @media (min-width: 900px) {
+  .todo-detail-result,
+  .todo-detail-deliverables {
+    --kanban-receipt-body-size: 16px;
+  }
+
   .todo-detail-result {
-    --kanban-receipt-body-size: 14.5px;
-    --kanban-receipt-line-height: 1.64;
+    --kanban-receipt-line-height: 1.68;
   }
 }
 

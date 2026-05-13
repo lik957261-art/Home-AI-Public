@@ -423,6 +423,7 @@ function createKanbanTodoBridge(options = {}) {
     const title = textFromTask(task, "title") || textFromTask(task, "name") || meta.content || id;
     return {
       id,
+      workspace_id: String(meta.workspaceId || meta.workspace_id || payload.workspace_id || payload.workspaceId || ""),
       content: String(meta.content || title || id),
       description: String(meta.description || ""),
       status,
@@ -616,11 +617,16 @@ function createKanbanTodoBridge(options = {}) {
     if (!todoId) return { ok: false, error: "todo_id is required" };
     const board = await ensureBoard(payload);
     const show = await kanbanJson(["--board", board, "show", todoId, "--json"]);
-    const runs = await kanbanJson(["--board", board, "runs", todoId, "--json"]).catch(() => []);
-    const logResult = await kanban(["--board", board, "log", todoId, "--tail", String(positiveNumber(payload.log_tail, 12000))]).catch((err) => ({
-      stdout: "",
-      stderr: err.message || String(err),
-    }));
+    const includeRuns = bool(payload.include_runs || payload.includeRuns);
+    const includeLog = bool(payload.include_log || payload.includeLog);
+    let runs = Array.isArray(show?.runs) ? show.runs : [];
+    if (includeRuns && !runs.length) runs = await kanbanJson(["--board", board, "runs", todoId, "--json"]).catch(() => []);
+    const logResult = includeLog
+      ? await kanban(["--board", board, "log", todoId, "--tail", String(positiveNumber(payload.log_tail, 12000))]).catch((err) => ({
+        stdout: "",
+        stderr: err.message || String(err),
+      }))
+      : { stdout: "", stderr: "" };
     const task = show?.task && typeof show.task === "object" ? show.task : {};
     return {
       ok: true,

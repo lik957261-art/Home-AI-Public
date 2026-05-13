@@ -3787,8 +3787,11 @@ function formatDirectTodoCreateSuccessMessage(intent, todo) {
 }
 
 function publicTodo(row) {
+  const workspaceId = String(row.workspace_id || row.workspaceId || "").trim();
+  const kanbanResult = String(row.kanban_result || row.kanbanResult || "");
   return {
     id: String(row.id || ""),
+    workspaceId,
     content: String(row.content || ""),
     status: String(row.status || ""),
     assignee: String(row.assignee_principal_id || row.assignee || ""),
@@ -3813,7 +3816,8 @@ function publicTodo(row) {
     kanbanCreatedBy: String(row.kanban_created_by || row.kanbanCreatedBy || ""),
     kanbanStartedAt: String(row.kanban_started_at || row.kanbanStartedAt || ""),
     kanbanCompletedAt: String(row.kanban_completed_at || row.kanbanCompletedAt || ""),
-    kanbanResult: String(row.kanban_result || row.kanbanResult || ""),
+    kanbanResult,
+    kanbanOutputs: publicKanbanOutputsFromText(workspaceId, kanbanResult),
     kanbanMaxRetries: Number(row.kanban_max_retries || row.kanbanMaxRetries || 0),
     kanbanSkills: Array.isArray(row.kanban_skills || row.kanbanSkills)
       ? (row.kanban_skills || row.kanbanSkills).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
@@ -3893,6 +3897,15 @@ function publicKanbanOutputFile(workspaceId, rawPath) {
     updatedAt: resolved.file.updatedAt,
     url: `/api/kanban/cards/output?${params.toString()}`,
   };
+}
+
+function publicKanbanOutputsFromText(workspaceId, text) {
+  const workspace = String(workspaceId || "").trim();
+  if (!workspace) return [];
+  return extractArtifactPaths(text)
+    .map((item) => publicKanbanOutputFile(workspace, item))
+    .filter(Boolean)
+    .slice(0, 12);
 }
 
 function eventPreviewText(event) {
