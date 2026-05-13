@@ -21,7 +21,7 @@ const CHAT_MESSAGE_SEARCH_LIMIT = 120;
 const CHAT_HISTORY_LOAD_TOP_PX = 220;
 const TASK_MESSAGE_INITIAL_LIMIT = 300;
 const TODO_AUTO_REFRESH_INTERVAL_MS = 8000;
-const TODO_LIST_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
+const TODO_LIST_CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
 const KANBAN_STORY_STATUS = "story";
 const KANBAN_STORY_DEFAULT_VERSION = "20260513-story-tree";
@@ -66,6 +66,7 @@ const state = {
   projects: [],
   threads: [],
   todos: [],
+  todoWorkspaceId: "",
   todoAssignees: [],
   todoSource: "",
   todoKanbanBoard: "",
@@ -7403,7 +7404,7 @@ async function loadSelectedView() {
   if (state.viewMode === "single" || state.viewMode === "tasks") {
     await loadSingleWindow();
   } else if (state.viewMode === "todos") {
-    await loadTodos();
+    await loadTodos({ preferCache: true });
   } else if (state.viewMode === "automation") {
     await loadAutomations();
   } else if (state.viewMode === "projects") {
@@ -8329,8 +8330,9 @@ function clearTodoListCache(workspaceId = state.selectedWorkspaceId || "owner") 
   } catch (_) {}
 }
 
-function applyTodoListResult(result, includeCompleted) {
+function applyTodoListResult(result, includeCompleted, workspaceId = state.selectedWorkspaceId || "owner") {
   state.todos = result.data || result.todos || [];
+  state.todoWorkspaceId = workspaceId || "owner";
   state.todoAssignees = result.assignees || [];
   state.todoSource = result.source || result.result?.source || "";
   state.todoKanbanBoard = result.result?.board || result.board || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "";
@@ -8345,21 +8347,26 @@ async function loadTodos(options = {}) {
   const includeCompleted = shouldLoadCompletedTodos(options);
   if (includeCompleted) params.set("includeCompleted", "1");
   params.set("scope", "mine");
+  if (options.freshServer) params.set("fresh", "1");
   const search = currentSearchText();
   if (search) params.set("search", search);
   const conversation = $("conversation");
   const restoreScrollTop = options.preserveScroll && conversation ? conversation.scrollTop : null;
   const useCache = !options.autoRefresh && !options.skipCache && !search && state.viewMode === "todos" && !state.selectedTodoId;
   const cached = useCache ? readTodoListCache(workspaceId, includeCompleted) : null;
-  if (cached && (!state.todos.length || options.preferCache)) {
-    applyTodoListResult(cached, includeCompleted);
+  if (cached) {
+    applyTodoListResult(cached, includeCompleted, workspaceId);
+    updateSearchButton();
+    renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop });
+    setComposerEnabled(false);
+  } else if (useCache && state.todos.length && state.todoWorkspaceId === workspaceId && state.todoCompletedLoaded === includeCompleted) {
     updateSearchButton();
     renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop });
     setComposerEnabled(false);
   }
   const result = await api(`${boardCollectionApiPath()}?${params}`);
   if (options.autoRefresh && state.viewMode !== "todos") return;
-  applyTodoListResult(result, includeCompleted);
+  applyTodoListResult(result, includeCompleted, workspaceId);
   if (!search) writeTodoListCache(workspaceId, includeCompleted);
   state.currentThread = null;
   state.currentThreadId = "";
@@ -8368,6 +8375,11 @@ async function loadTodos(options = {}) {
   updateSearchButton();
   const finalRestoreScrollTop = options.preserveScroll && conversation ? conversation.scrollTop : restoreScrollTop;
   renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop: finalRestoreScrollTop });
+  if (result?.cache?.hit && !options.freshServer && !options.autoRefresh && state.viewMode === "todos") {
+    window.setTimeout(() => {
+      if (state.viewMode === "todos") loadTodos({ preserveScroll: true, skipCache: true, freshServer: true }).catch(showError);
+    }, 0);
+  }
   setComposerEnabled(false);
   scheduleTodoAutoRefresh();
 }

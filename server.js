@@ -235,8 +235,10 @@ const TODO_BACKEND = String(process.env.HERMES_WEB_TODO_BACKEND || "local").trim
 const KANBAN_COMMAND = String(process.env.HERMES_MOBILE_KANBAN_COMMAND || process.env.HERMES_WEB_KANBAN_COMMAND || "hermes").trim() || "hermes";
 const KANBAN_COMMAND_ARGS = String(process.env.HERMES_MOBILE_KANBAN_COMMAND_ARGS || process.env.HERMES_WEB_KANBAN_COMMAND_ARGS || "").trim();
 const KANBAN_TODO_META_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_TODO_META_PATH || process.env.HERMES_WEB_KANBAN_TODO_META_PATH || path.join(DATA_DIR, "kanban-todo-meta.json"));
+const KANBAN_CARD_LIST_CACHE_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_CARD_LIST_CACHE_PATH || process.env.HERMES_WEB_KANBAN_CARD_LIST_CACHE_PATH || path.join(DATA_DIR, "kanban-card-list-cache.json"));
 const KANBAN_WORKSPACE_PATH_STYLE = String(process.env.HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE || process.env.HERMES_WEB_KANBAN_WORKSPACE_PATH_STYLE || "").trim().toLowerCase();
 const KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS = Math.max(5000, Number(process.env.HERMES_MOBILE_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || process.env.HERMES_WEB_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || "30000") || 30000);
+const KANBAN_CARD_LIST_CACHE_TTL_MS = Math.max(0, Number(process.env.HERMES_MOBILE_KANBAN_CARD_LIST_CACHE_TTL_MS || process.env.HERMES_WEB_KANBAN_CARD_LIST_CACHE_TTL_MS || String(30 * 60 * 1000)) || 0);
 const KANBAN_BLOCKED_PUSH_DELAY_MINUTES = Math.max(0, Number(process.env.HERMES_MOBILE_KANBAN_BLOCKED_PUSH_DELAY_MINUTES || process.env.HERMES_WEB_KANBAN_BLOCKED_PUSH_DELAY_MINUTES || "10") || 0);
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
 const KANBAN_MULTI_AGENT_MAX_CARDS = 8;
@@ -3012,6 +3014,8 @@ const kanbanCardProvider = createKanbanCardProvider({
   sourceName: () => "hermes_kanban",
 });
 const kanbanDependencyReconcileLastRun = new Map();
+const kanbanCardListCache = new Map();
+let kanbanCardListCacheStoreLoaded = false;
 
 function localAutomationStore() {
   const raw = readJsonStore(LOCAL_AUTOMATION_STORE_PATH, {});
@@ -4449,10 +4453,77 @@ async function maybeReconcileKanbanDependencyBlocks(workspaceId, options = {}) {
     broadcast({ type: "kanban.updated", workspaceId: id, cardId, action: "dependency-unblocked" });
     broadcast({ type: "todos.updated", workspaceId: id, todoId: cardId, action: "dependency-unblocked" });
   }
+  if (released.length) clearKanbanCardListCache(id);
   if (released.length) {
     console.info(`Hermes Kanban dependency reconcile released ${released.length} card(s) for workspace ${id}.`);
   }
   return Object.assign({ workspaceId: id }, result || {});
+}
+
+function kanbanCardListCacheKey(args = {}) {
+  return [
+    String(args.workspaceId || "owner"),
+    String(args.scope || "mine"),
+    args.includeCompleted ? "all" : "open",
+    String(args.assignee || ""),
+    String(args.limit || 120),
+    String(args.search || ""),
+  ].join("\0");
+}
+
+function readKanbanCardListCache(args = {}) {
+  if (!KANBAN_CARD_LIST_CACHE_TTL_MS) return null;
+  const key = kanbanCardListCacheKey(args);
+  if (!kanbanCardListCacheStoreLoaded) {
+    const store = readJsonStore(KANBAN_CARD_LIST_CACHE_PATH, { entries: {} });
+    const entries = store?.entries && typeof store.entries === "object" ? store.entries : {};
+    for (const [entryKey, entry] of Object.entries(entries)) {
+      if (entry && typeof entry === "object") kanbanCardListCache.set(entryKey, entry);
+    }
+    kanbanCardListCacheStoreLoaded = true;
+  }
+  const cached = kanbanCardListCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - Number(cached.savedAt || 0) > KANBAN_CARD_LIST_CACHE_TTL_MS) {
+    kanbanCardListCache.delete(key);
+    return null;
+  }
+  return Object.assign({}, cached.payload, {
+    cache: { hit: true, ageMs: Date.now() - Number(cached.savedAt || 0) },
+  });
+}
+
+function writeKanbanCardListCache(args = {}, payload = {}) {
+  if (!KANBAN_CARD_LIST_CACHE_TTL_MS) return;
+  const entry = {
+    savedAt: Date.now(),
+    payload,
+  };
+  kanbanCardListCache.set(kanbanCardListCacheKey(args), entry);
+  const entries = {};
+  const now = Date.now();
+  for (const [key, value] of kanbanCardListCache.entries()) {
+    if (now - Number(value?.savedAt || 0) <= KANBAN_CARD_LIST_CACHE_TTL_MS) entries[key] = value;
+  }
+  writeJsonStore(KANBAN_CARD_LIST_CACHE_PATH, { schemaVersion: 1, updatedAt: nowIso(), entries });
+}
+
+function clearKanbanCardListCache(workspaceId = "") {
+  const prefix = workspaceId ? `${String(workspaceId)}\0` : "";
+  for (const key of kanbanCardListCache.keys()) {
+    if (!prefix || key.startsWith(prefix)) kanbanCardListCache.delete(key);
+  }
+  if (fs.existsSync(KANBAN_CARD_LIST_CACHE_PATH)) {
+    const entries = {};
+    for (const [key, value] of kanbanCardListCache.entries()) entries[key] = value;
+    writeJsonStore(KANBAN_CARD_LIST_CACHE_PATH, { schemaVersion: 1, updatedAt: nowIso(), entries });
+  }
+}
+
+function scheduleKanbanDependencyReconcile(workspaceId) {
+  maybeReconcileKanbanDependencyBlocks(workspaceId)
+    .catch((err) => console.warn(`Hermes Kanban dependency reconcile failed for workspace ${workspaceId}: ${err.message || err}`));
+  return { ok: true, skipped: true, reason: "background" };
 }
 
 function todoErrorResponse(res, result, fallbackStatus = 400) {
@@ -10967,27 +11038,39 @@ async function handleApi(req, res) {
     }
     const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
     if (!workspaceId) return;
-    const maintenance = await maybeReconcileKanbanDependencyBlocks(workspaceId).catch((err) => ({ ok: false, error: err.message || String(err) }));
-    const result = await kanbanCardProvider.listCards({
+    const listArgs = {
       workspaceId,
       scope: url.searchParams.get("scope") || "mine",
       includeCompleted: boolParam(url.searchParams.get("includeCompleted")),
       assignee: url.searchParams.get("assignee") || "",
       limit: Number(url.searchParams.get("limit") || "120"),
       search: url.searchParams.get("search") || "",
-    });
+    };
+    const bypassCache = boolParam(url.searchParams.get("fresh")) || boolParam(url.searchParams.get("skipCache")) || boolParam(url.searchParams.get("noCache"));
+    if (!bypassCache) {
+      const cached = readKanbanCardListCache(listArgs);
+      if (cached) {
+        scheduleKanbanDependencyReconcile(workspaceId);
+        sendJson(res, 200, cached);
+        return;
+      }
+    }
+    const maintenance = scheduleKanbanDependencyReconcile(workspaceId);
+    const result = await kanbanCardProvider.listCards(listArgs);
     if (!result.ok) {
       kanbanErrorResponse(res, result.result || result);
       return;
     }
-    sendJson(res, 200, {
+    const payload = {
       data: result.data,
       assignees: result.assignees,
       source: result.source,
       board: result.board,
       result: result.result,
       maintenance,
-    });
+    };
+    writeKanbanCardListCache(listArgs, payload);
+    sendJson(res, 200, payload);
     return;
   }
 
@@ -11079,6 +11162,7 @@ async function handleApi(req, res) {
         kanbanErrorResponse(res, result, 502);
         return;
       }
+      clearKanbanCardListCache(workspaceId);
       broadcast({ type: "kanban.updated", workspaceId, action: "batch-add" });
       broadcast({ type: "todos.updated", workspaceId, action: "batch-add" });
       sendJson(res, 201, result);
@@ -11107,6 +11191,7 @@ async function handleApi(req, res) {
       todoErrorResponse(res, result);
       return;
     }
+    clearKanbanCardListCache(workspaceId);
     broadcast({ type: "todos.updated", workspaceId });
     notifyTodoCreated(result, workspacePrincipal(workspaceId));
     sendJson(res, 201, { todo: publicTodo(result), result });
@@ -11154,6 +11239,7 @@ async function handleApi(req, res) {
       kanbanErrorResponse(res, { ok: false, error: verification.error, result }, 502);
       return;
     }
+    clearKanbanCardListCache(workspaceId);
     broadcast({ type: "kanban.updated", workspaceId, cardId: card.id, action: "add" });
     broadcast({ type: "todos.updated", workspaceId, todoId: card.id, action: "add" });
     sendJson(res, 201, { card, result, verification });
@@ -11195,6 +11281,7 @@ async function handleApi(req, res) {
       todoErrorResponse(res, result);
       return;
     }
+    clearKanbanCardListCache(workspaceId);
     broadcast({ type: "todos.updated", workspaceId, todoId: result.id, action });
     sendJson(res, 200, { ok: true, result });
     return;
@@ -11225,6 +11312,7 @@ async function handleApi(req, res) {
       return;
     }
     const cardId = String(result.id || decodeURIComponent(kanbanAction[1]));
+    clearKanbanCardListCache(workspaceId);
     broadcast({ type: "kanban.updated", workspaceId, cardId, action });
     broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action });
     sendJson(res, 200, { ok: true, result });
