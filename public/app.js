@@ -8278,6 +8278,29 @@ function shouldLoadCompletedTodos(options = {}) {
   return kanbanStatusNeedsCompleted(String(state.todoKanbanStatus || "").trim().toLowerCase());
 }
 
+function kanbanComposerOpen() {
+  return state.viewMode === "todos" && isKanbanTodoSource() && state.todoCreateOpen && !state.selectedTodoId;
+}
+
+function kanbanComposerFocused() {
+  const active = document.activeElement;
+  return Boolean(active && (active.id === "kanbanComposerText" || active.closest?.("#kanbanComposerForm")));
+}
+
+function syncKanbanComposerDraftFromDom() {
+  const input = $("kanbanComposerText");
+  if (!input) return;
+  state.kanbanComposerText = input.value || "";
+  if (state.kanbanComposerText) localStorage.setItem("hermesKanbanComposerDraft", state.kanbanComposerText);
+  else localStorage.removeItem("hermesKanbanComposerDraft");
+}
+
+function todoRefreshShouldYieldToKanbanComposer(options = {}) {
+  if (!kanbanComposerOpen() || options.forceRender) return false;
+  if (options.autoRefresh || options.freshServer) return true;
+  return kanbanComposerFocused();
+}
+
 function clearTodoAutoRefresh() {
   window.clearTimeout(state.todoAutoRefreshTimer);
   state.todoAutoRefreshTimer = 0;
@@ -8290,6 +8313,10 @@ function scheduleTodoAutoRefresh() {
   state.todoAutoRefreshTimer = window.setTimeout(() => {
     state.todoAutoRefreshTimer = 0;
     if (state.viewMode !== "todos" || document.visibilityState === "hidden") return;
+    if (kanbanComposerOpen()) {
+      scheduleTodoAutoRefresh();
+      return;
+    }
     loadTodos({ preserveScroll: true, autoRefresh: true }).catch(() => scheduleTodoAutoRefresh());
   }, TODO_AUTO_REFRESH_INTERVAL_MS);
 }
@@ -8340,6 +8367,10 @@ function applyTodoListResult(result, includeCompleted, workspaceId = state.selec
 }
 
 async function loadTodos(options = {}) {
+  if (todoRefreshShouldYieldToKanbanComposer(options)) {
+    scheduleTodoAutoRefresh();
+    return;
+  }
   const workspaceId = state.selectedWorkspaceId || "owner";
   const params = new URLSearchParams();
   params.set("workspaceId", workspaceId);
@@ -8366,8 +8397,13 @@ async function loadTodos(options = {}) {
   }
   const result = await api(`${boardCollectionApiPath()}?${params}`);
   if (options.autoRefresh && state.viewMode !== "todos") return;
+  const yieldToComposer = todoRefreshShouldYieldToKanbanComposer(options);
   applyTodoListResult(result, includeCompleted, workspaceId);
   if (!search) writeTodoListCache(workspaceId, includeCompleted);
+  if (yieldToComposer) {
+    scheduleTodoAutoRefresh();
+    return;
+  }
   state.currentThread = null;
   state.currentThreadId = "";
   state.currentTaskGroupId = "";
@@ -8377,7 +8413,7 @@ async function loadTodos(options = {}) {
   renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop: finalRestoreScrollTop });
   if (result?.cache?.hit && !options.freshServer && !options.autoRefresh && state.viewMode === "todos") {
     window.setTimeout(() => {
-      if (state.viewMode === "todos") loadTodos({ preserveScroll: true, skipCache: true, freshServer: true }).catch(showError);
+      if (state.viewMode === "todos" && !kanbanComposerOpen()) loadTodos({ preserveScroll: true, skipCache: true, freshServer: true }).catch(showError);
     }, 0);
   }
   setComposerEnabled(false);
@@ -8766,6 +8802,12 @@ function renderTodos(options = {}) {
 function renderTodoPanel(options = {}) {
   const conversation = $("conversation");
   const previousScrollTop = conversation ? conversation.scrollTop : 0;
+  const active = document.activeElement;
+  const restoreKanbanComposerFocus = Boolean(active && active.id === "kanbanComposerText" && state.todoCreateOpen);
+  const kanbanComposerSelection = restoreKanbanComposerFocus
+    ? { start: active.selectionStart, end: active.selectionEnd }
+    : null;
+  if (restoreKanbanComposerFocus) syncKanbanComposerDraftFromDom();
   const selected = state.todos.find((todo) => todo.id === state.selectedTodoId) || null;
   $("threadTitle").textContent = selected ? "看板详情" : "看板";
   $("threadMeta").textContent = "";
@@ -8784,6 +8826,19 @@ function renderTodoPanel(options = {}) {
   `;
   wireTodoPanel(conversation);
   ensureVerticalScrollAffordance(conversation);
+  if (restoreKanbanComposerFocus) {
+    const input = $("kanbanComposerText");
+    if (input) {
+      try {
+        input.focus({ preventScroll: true });
+      } catch (_) {
+        input.focus();
+      }
+      if (kanbanComposerSelection && typeof input.setSelectionRange === "function") {
+        input.setSelectionRange(kanbanComposerSelection.start, kanbanComposerSelection.end);
+      }
+    }
+  }
   if (shouldAutoLoadKanbanDetail(selected)) {
     window.setTimeout(() => loadKanbanCardDetail(selected.id).catch(showError), 0);
   }
