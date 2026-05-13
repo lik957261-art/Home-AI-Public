@@ -4709,6 +4709,69 @@ button.directory-alias-chip {
   background: rgba(238, 244, 255, 0.42);
 }
 
+.todo-reading-workflow {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.todo-reading-workflow ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.todo-reading-workflow li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(248, 249, 247, 0.72);
+}
+
+.todo-reading-workflow li > span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.todo-reading-workflow li > strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.todo-reading-workflow li > small {
+  font-size: 12px;
+}
+
+.todo-reading-workflow li.done {
+  border-color: rgba(31, 111, 98, 0.24);
+  color: var(--green);
+  background: rgba(231, 244, 238, 0.5);
+}
+
+.todo-reading-workflow li.active {
+  border-color: rgba(62, 95, 146, 0.28);
+  color: #365f92;
+  background: rgba(238, 244, 255, 0.62);
+}
+
 .reading-quiz-question {
   display: grid;
   gap: 10px;

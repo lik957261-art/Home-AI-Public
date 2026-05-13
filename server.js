@@ -3803,7 +3803,7 @@ function formatDirectTodoCreateSuccessMessage(intent, todo) {
 function publicTodo(row) {
   const workspaceId = String(row.workspace_id || row.workspaceId || "").trim();
   const kanbanResult = String(row.kanban_result || row.kanbanResult || "");
-  return {
+  const payload = {
     id: String(row.id || ""),
     workspaceId,
     content: String(row.content || ""),
@@ -3865,6 +3865,10 @@ function publicTodo(row) {
     completedAt: String(row.completed_at || ""),
     cancelledAt: String(row.cancelled_at || ""),
   };
+  if (payload.kanbanCaseMode === "reading-plan") {
+    payload.readingSubmission = publicKanbanReadingSubmissionSummary(workspaceId, payload);
+  }
+  return payload;
 }
 
 function kanbanOutputAccessThread(workspaceId) {
@@ -3943,6 +3947,35 @@ function publicKanbanOutputsFromText(workspaceId, text) {
     .map((item) => publicKanbanOutputFile(workspace, item))
     .filter(Boolean)
     .slice(0, 12);
+}
+
+function publicKanbanReadingSubmissionSummary(workspaceId, card = {}) {
+  const mode = String(card?.kanbanCaseMode || card?.kanban_case_mode || "").trim();
+  if (mode !== "reading-plan") return null;
+  const cardId = String(card?.id || card?.cardId || "").trim();
+  if (!cardId) return null;
+  const currentCard = {
+    kanbanCaseId: String(card?.kanbanCaseId || card?.kanban_case_id || "").trim(),
+  };
+  const state = readKanbanReadingSubmissionState(workspaceId, cardId, currentCard);
+  if (!state || typeof state !== "object") return null;
+  const attempts = Array.isArray(state.attempts) ? state.attempts : [];
+  const lastAttempt = attempts.length ? attempts[attempts.length - 1] : null;
+  return {
+    status: String(state.status || "quiz_pending"),
+    submittedAt: String(state.submittedAt || ""),
+    completedAt: String(state.completedAt || ""),
+    quizAvailable: Boolean(state.quiz),
+    quizUrl: String(state.quizUrl || readingQuizUrl(workspaceId, cardId)),
+    analysisOutput: state.analysisPath ? publicKanbanOutputFile(workspaceId, state.analysisPath) : null,
+    lastAttempt: lastAttempt ? {
+      submittedAt: String(lastAttempt.submittedAt || ""),
+      score: Number(lastAttempt.score || 0),
+      correctCount: Number(lastAttempt.correctCount || 0),
+      total: Number(lastAttempt.total || 10),
+      passed: Boolean(lastAttempt.passed),
+    } : null,
+  };
 }
 
 function eventPreviewText(event) {
