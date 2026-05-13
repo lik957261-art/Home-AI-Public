@@ -31,6 +31,7 @@ const outlookGraphMcp = read(path.join("scripts", "python", "outlook_graph_mcp.p
 const configureLowGateways = read(path.join("scripts", "configure-low-gateways.sh"));
 const checkWorkerCodexAuth = read(path.join("scripts", "check-worker-codex-auth.ps1"));
 const gatewayToolSchemaSmoke = read(path.join("scripts", "gateway-tool-schema-smoke.js"));
+const transcribeReadingAudio = read(path.join("scripts", "transcribe-reading-audio.ps1"));
 const weatherPluginManifest = read(path.join("gateway-plugins", "hermes-mobile-weather", "plugin.yaml"));
 const weatherPlugin = read(path.join("gateway-plugins", "hermes-mobile-weather", "__init__.py"));
 const webPluginManifest = read(path.join("gateway-plugins", "hermes-mobile-web", "plugin.yaml"));
@@ -347,6 +348,12 @@ assert.match(gatewayToolSchemaSmoke, /http_request,weather,mobile_web_search,mob
 assert.match(gatewayToolSchemaSmoke, /missing tools in live session schema/);
 assert.match(gatewayToolSchemaSmoke, /C:\/ProgramData\/HermesMobile\/gateway-worker\/telemetry\/profiles/);
 assert.doesNotMatch(gatewayToolSchemaSmoke, /console\.log\(.*api[_-]?key/i);
+
+assert.match(transcribeReadingAudio, /HermesGatewayWorker/);
+assert.match(transcribeReadingAudio, /faster_whisper/);
+assert.match(transcribeReadingAudio, /PYTHONPATH="\/opt\/hermes-gateway-runtime\/official-clean"/);
+assert.match(transcribeReadingAudio, /HF_HUB_OFFLINE="1"/);
+assert.doesNotMatch(transcribeReadingAudio, /Write-Host .*token/i);
 
 assert.match(weatherPluginManifest, /name: hermes-mobile-weather/);
 assert.match(weatherPluginManifest, /provides_tools:\s*\r?\n\s+- weather/);

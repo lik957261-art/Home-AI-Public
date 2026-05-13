@@ -761,12 +761,13 @@ function createKanbanTodoBridge(options = {}) {
     const now = nowIso();
 
     if (action === "complete") {
-      await kanban(["--board", board, "complete", todoId, "--result", "Completed from Hermes Mobile todo view."]).catch(async (err) => {
+      const completionResult = String(payload.result || payload.comment || payload.reason || "Completed from Hermes Mobile todo view.").trim();
+      await kanban(["--board", board, "complete", todoId, "--result", completionResult]).catch(async (err) => {
         if (!/json|unknown option/i.test(String(err.message || ""))) throw err;
       });
-      store.todos[todoId] = Object.assign({}, meta, { completedAt: now, updatedAt: now, kanbanStatus: "done", blockedAt: "", blockReason: "" });
+      store.todos[todoId] = Object.assign({}, meta, { completedAt: now, updatedAt: now, kanbanStatus: "done", result: completionResult, blockedAt: "", blockReason: "" });
       saveMetadataStore(store);
-      return rowFromTask({ id: todoId, title: meta.content || todoId, status: "done" }, store.todos[todoId], payload);
+      return rowFromTask({ id: todoId, title: meta.content || todoId, status: "done", result: completionResult }, store.todos[todoId], payload);
     }
 
     if (action === "cancel" || action === "delete") {
@@ -969,8 +970,10 @@ function createKanbanTodoBridge(options = {}) {
         }
       }
       const dueAt = Date.parse(meta.dueAt || "");
-      if (!Number.isFinite(dueAt) || dueAt > now) continue;
-      const markKey = `kanban-todo:${id}:due:${meta.dueAt || ""}`;
+      const leadMinutes = Math.max(0, Number(meta.reminderLeadMinutes ?? meta.reminder_lead_minutes ?? 0) || 0);
+      const reminderAt = Number.isFinite(dueAt) ? dueAt - leadMinutes * 60 * 1000 : NaN;
+      if (!Number.isFinite(reminderAt) || reminderAt > now) continue;
+      const markKey = `kanban-todo:${id}:due:${meta.dueAt || ""}:lead:${leadMinutes}`;
       if (store.pushMarks[markKey]) continue;
       events.push({
         markKey,
@@ -978,8 +981,8 @@ function createKanbanTodoBridge(options = {}) {
         principalId,
         workspaceId: meta.workspaceId || principalId,
         messageType: "due",
-        title: "待办到期",
-        body: `${meta.content || id}\n截止：${meta.dueLocal || meta.dueAt || ""}`,
+        title: leadMinutes > 0 ? "待办提醒" : "待办到期",
+        body: `${meta.content || id}\n时间：${meta.dueLocal || meta.dueAt || ""}`,
         tag: `hermes-kanban-todo-${id}`,
       });
     }

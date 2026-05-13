@@ -243,6 +243,11 @@ const KANBAN_BLOCKED_PUSH_DELAY_MINUTES = Math.max(0, Number(process.env.HERMES_
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
 const KANBAN_MULTI_AGENT_MAX_CARDS = 8;
 const KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_KANBAN_PLAN_TIMEOUT_MS || process.env.HERMES_WEB_KANBAN_PLAN_TIMEOUT_MS || "90000");
+const KANBAN_READING_PLAN_MAX_SESSIONS = Math.max(1, Math.min(60, Number(process.env.HERMES_MOBILE_READING_PLAN_MAX_SESSIONS || process.env.HERMES_WEB_READING_PLAN_MAX_SESSIONS || "31") || 31));
+const KANBAN_READING_ANALYSIS_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_READING_ANALYSIS_TIMEOUT_MS || process.env.HERMES_WEB_READING_ANALYSIS_TIMEOUT_MS || "120000");
+const KANBAN_READING_TRANSCRIBE_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_READING_TRANSCRIBE_TIMEOUT_MS || process.env.HERMES_WEB_READING_TRANSCRIBE_TIMEOUT_MS || "240000");
+const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(process.env.HERMES_MOBILE_READING_TRANSCRIBE_SCRIPT || process.env.HERMES_WEB_READING_TRANSCRIBE_SCRIPT || path.join(__dirname, "scripts", "transcribe-reading-audio.ps1"));
+const KANBAN_READING_ARTIFACT_ROOT = path.resolve(process.env.HERMES_MOBILE_READING_ARTIFACT_ROOT || process.env.HERMES_WEB_READING_ARTIFACT_ROOT || path.join(DATA_DIR, "artifacts", "kanban-reading"));
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -355,6 +360,10 @@ const MIME_BY_EXT = {
   ".mp3": "audio/mpeg",
   ".m4a": "audio/mp4",
   ".wav": "audio/wav",
+  ".aac": "audio/aac",
+  ".ogg": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".amr": "audio/amr",
   ".md": "text/markdown; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
   ".doc": "application/msword",
@@ -4062,6 +4071,57 @@ async function hermesModelText(body, timeoutMs = AUTOMATION_CREATE_TIMEOUT_MS) {
   return text.trim();
 }
 
+function runProcessText(command, args = [], options = {}) {
+  return new Promise((resolve, reject) => {
+    const timeoutMs = Math.max(1000, Number(options.timeoutMs || 30000));
+    const maxOutputBytes = Math.max(8192, Number(options.maxOutputBytes || 2_000_000));
+    const child = spawn(command, args.map(String), {
+      cwd: options.cwd || undefined,
+      env: options.env || process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const append = (current, chunk) => (current + chunk.toString("utf8")).slice(-maxOutputBytes);
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill();
+      const err = new Error(`${command} timed out after ${timeoutMs}ms`);
+      err.code = "ETIMEDOUT";
+      err.stdout = stdout;
+      err.stderr = stderr;
+      reject(err);
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => { stdout = append(stdout, chunk); });
+    child.stderr.on("data", (chunk) => { stderr = append(stderr, chunk); });
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      err.stdout = stdout;
+      err.stderr = stderr;
+      reject(err);
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve({ stdout, stderr, code });
+        return;
+      }
+      const err = new Error(`${command} exited with code ${code}`);
+      err.code = code;
+      err.stdout = stdout;
+      err.stderr = stderr;
+      reject(err);
+    });
+  });
+}
+
 function arrayOfStrings(value, limit = 12) {
   const raw = Array.isArray(value) ? value : value ? [value] : [];
   return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean)).slice(0, limit);
@@ -4437,6 +4497,309 @@ async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
   }
 
   return { ok: true, plan, cards: created, maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL };
+}
+
+function normalizeReadingPlanTime(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{1,2})(?::|：)(\d{1,2})$/);
+  if (!match) return "21:00";
+  const hour = Math.max(0, Math.min(23, Number(match[1]) || 0));
+  const minute = Math.max(0, Math.min(59, Number(match[2]) || 0));
+  return `${pad2(hour)}:${pad2(minute)}`;
+}
+
+function normalizeReadingPlanStartDate(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(20\d{2})-(\d{1,2})-(\d{1,2})$/);
+  const now = new Date();
+  if (!match) return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  return `${match[1]}-${pad2(Number(match[2]))}-${pad2(Number(match[3]))}`;
+}
+
+function readingPlanDueTime(startDate, timeOfDay, dayOffset) {
+  const dateMatch = String(startDate || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+  const timeMatch = normalizeReadingPlanTime(timeOfDay).match(/^(\d{2}):(\d{2})$/);
+  const date = dateMatch
+    ? new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]), Number(timeMatch[1]), Number(timeMatch[2]), 0, 0)
+    : new Date();
+  date.setDate(date.getDate() + Math.max(0, Number(dayOffset) || 0));
+  return formatLocalDateTime(date);
+}
+
+function normalizeKanbanReadingPlan(raw = {}, workspaceId = "owner") {
+  const bookTitle = compactText(raw.bookTitle || raw.book_title || raw.title || "", 120);
+  if (!bookTitle) throw new Error("Reading plan bookTitle is required");
+  const readerName = compactText(raw.readerName || raw.reader_name || raw.reader || "孩子", 80);
+  const sessions = Math.max(1, Math.min(KANBAN_READING_PLAN_MAX_SESSIONS, Number(raw.sessions || raw.sessionCount || raw.session_count || 10) || 10));
+  const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date);
+  const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
+  const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 15) || 0));
+  const sourceText = compactText(raw.sourceText || raw.source_text || raw.text || raw.notes || "", 4000);
+  const summary = compactText(`${readerName}阅读《${bookTitle}》`, 180);
+  const id = String(raw.id || `reading-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
+  const cards = Array.from({ length: sessions }, (_, index) => {
+    const day = index + 1;
+    return {
+      clientId: `reading-session-${day}`,
+      title: `${readerName}阅读《${bookTitle}》第 ${day}/${sessions} 次：录音复述`,
+      day,
+      dueTime: readingPlanDueTime(startDate, timeOfDay, index),
+      description: compactText([
+        `阅读计划：${summary}`,
+        `第 ${day} 次，共 ${sessions} 次。`,
+        "当天阅读完成后，需要上传语音复述或总结录音。",
+        "Hermes Mobile 会先转写录音，再结合本故事前面已完成卡片的反馈生成评价与下一次指导；只有录音和 AI 分析都完成后，本卡片才会自动完成。",
+        sourceText ? `整体要求：\n${sourceText}` : "",
+      ].filter(Boolean).join("\n\n"), 1600),
+      deliverables: ["读后复述录音", "AI阅读评价", "下一次阅读指导"],
+      acceptance: ["已上传当天录音", "已生成转写和AI评价", "卡片完成结果包含分析文件"],
+    };
+  });
+  return {
+    id,
+    mode: "reading-plan",
+    workspaceId: String(workspaceId || "owner"),
+    bookTitle,
+    readerName,
+    sessions,
+    startDate,
+    timeOfDay,
+    reminderLeadMinutes,
+    sourceText,
+    summary,
+    cards,
+  };
+}
+
+async function createKanbanReadingPlanCards(workspaceId, input = {}) {
+  const plan = normalizeKanbanReadingPlan(input, workspaceId);
+  const created = [];
+  for (const [index, card] of plan.cards.entries()) {
+    const result = await kanbanCardProvider.addCard({
+      workspaceId,
+      assignee: input.assignee || workspacePrincipal(workspaceId),
+      assigneeLabel: todoAssigneeLabel(workspaceId, input.assignee || workspacePrincipal(workspaceId)),
+      content: card.title,
+      description: card.description,
+      dueTime: card.dueTime,
+      reminderLeadMinutes: plan.reminderLeadMinutes,
+      reason: "Created from Hermes Mobile reading plan.",
+      idempotencyKey: `hm-reading-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
+      caseId: plan.id,
+      caseMode: plan.mode,
+      caseSourceText: compactText(plan.sourceText, 2000),
+      caseSummary: plan.summary,
+      caseCardId: card.clientId,
+      caseCardIndex: index + 1,
+      caseCardCount: plan.cards.length,
+      caseDependsOn: [],
+      caseDeliverables: card.deliverables,
+      caseAcceptance: card.acceptance,
+      caseCardGoal: card.description,
+    });
+    if (!result?.ok) {
+      return { ok: false, error: result?.error || "Reading plan card creation failed", plan, cards: created, result };
+    }
+    created.push({ clientId: card.clientId, day: card.day, dueTime: card.dueTime, card: publicTodo(result) });
+  }
+  return { ok: true, plan, cards: created };
+}
+
+function isReadingAudioUpload(filename, mime) {
+  const ext = path.extname(String(filename || "")).toLowerCase();
+  return /^audio\//i.test(String(mime || "")) || [".mp3", ".m4a", ".wav", ".aac", ".ogg", ".opus", ".amr"].includes(ext);
+}
+
+function readingArtifactDirectory(workspaceId, caseId, cardId) {
+  const dir = path.join(
+    KANBAN_READING_ARTIFACT_ROOT,
+    safeStorageSegment(workspaceId || "owner"),
+    safeStorageSegment(caseId || "reading-plan"),
+    safeStorageSegment(cardId || "card"),
+  );
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function saveKanbanReadingAudioUpload(workspaceId, cardId, body = {}, currentCard = null) {
+  const filename = safeFileName(body.filename || "reading-audio.m4a");
+  const mime = String(body.type || body.mime || body.mimeType || body.mime_type || mimeFor(filename) || "").trim();
+  if (!isReadingAudioUpload(filename, mime)) {
+    const err = new Error("Reading submission must be an audio file");
+    err.status = 400;
+    throw err;
+  }
+  const data = String(body.dataBase64 || body.data_base64 || "");
+  if (!data) {
+    const err = new Error("Missing dataBase64");
+    err.status = 400;
+    throw err;
+  }
+  const buffer = Buffer.from(data, "base64");
+  if (!buffer.length || buffer.length > MAX_UPLOAD_BYTES) {
+    const err = new Error("Invalid or too-large upload");
+    err.status = 400;
+    throw err;
+  }
+  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId);
+  const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
+  fs.writeFileSync(filePath, buffer);
+  return { path: filePath, name: filename, mime, size: buffer.length };
+}
+
+async function transcribeKanbanReadingAudio(audioPath) {
+  if (!fs.existsSync(KANBAN_READING_TRANSCRIBE_SCRIPT)) {
+    throw new Error(`Reading audio transcription script is not installed: ${KANBAN_READING_TRANSCRIBE_SCRIPT}`);
+  }
+  const result = await runProcessText("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    KANBAN_READING_TRANSCRIBE_SCRIPT,
+    "-AudioPath",
+    audioPath,
+    "-TimeoutSeconds",
+    String(Math.ceil(KANBAN_READING_TRANSCRIBE_TIMEOUT_MS / 1000)),
+  ], {
+    timeoutMs: KANBAN_READING_TRANSCRIBE_TIMEOUT_MS + 15000,
+    maxOutputBytes: 4_000_000,
+  });
+  const parsed = extractJsonObject(result.stdout || "{}");
+  if (!parsed?.ok) throw new Error(compactText(parsed?.error || result.stderr || "Reading audio transcription failed", 800));
+  const text = compactText(parsed.text || "", 20000);
+  if (!text) throw new Error("Reading audio transcription returned empty text");
+  return Object.assign({}, parsed, { text });
+}
+
+async function readingContextForCard(workspaceId, cardId) {
+  const listed = await kanbanCardProvider.listCards({
+    workspaceId,
+    includeCompleted: true,
+    scope: "mine",
+    limit: 500,
+  });
+  const cards = Array.isArray(listed?.data) ? listed.data : [];
+  const current = cards.find((card) => String(card.id) === String(cardId)) || null;
+  const caseId = String(current?.kanbanCaseId || "").trim();
+  const siblings = caseId
+    ? cards
+      .filter((card) => String(card.kanbanCaseId || "") === caseId)
+      .sort((a, b) => (Number(a.kanbanCaseCardIndex || 0) - Number(b.kanbanCaseCardIndex || 0)) || String(a.id).localeCompare(String(b.id)))
+    : [];
+  const prior = siblings.filter((card) => Number(card.kanbanCaseCardIndex || 0) < Number(current?.kanbanCaseCardIndex || 0));
+  return { current, siblings, prior };
+}
+
+async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, priorCards, transcription, notes = "") {
+  const previousContext = (priorCards || [])
+    .filter((card) => String(card.kanbanResult || "").trim())
+    .map((card) => [
+      `Session ${card.kanbanCaseCardIndex || "?"}: ${card.content || card.id}`,
+      compactText(card.kanbanResult, 1200),
+    ].join("\n"))
+    .slice(-8)
+    .join("\n\n---\n\n");
+  const prompt = [
+    "You are evaluating a child's book-reading retelling submission for a Hermes Mobile reading plan.",
+    "Return Markdown only, concise but specific. Do not include JSON or code fences.",
+    "Use the current transcript as primary evidence. Use previous session feedback only as context for continuity.",
+    "Include these sections: 本次理解, 复述质量, 表达与逻辑, 与前次相比, 下一次建议, 家长可观察点.",
+    `Reading story: ${currentCard?.kanbanCaseSummary || ""}`,
+    `Current card: ${currentCard?.content || cardId}`,
+    `Session: ${currentCard?.kanbanCaseCardIndex || ""}/${currentCard?.kanbanCaseCardCount || ""}`,
+    currentCard?.kanbanCaseSourceText ? `Original requirement:\n${currentCard.kanbanCaseSourceText}` : "",
+    previousContext ? `Previous completed session context:\n${previousContext}` : "Previous completed session context: none yet.",
+    notes ? `Parent notes:\n${compactText(notes, 2000)}` : "",
+    `Transcript:\n${transcription.text}`,
+  ].filter(Boolean).join("\n\n");
+  const output = await hermesModelText({
+    input: prompt,
+    stream: true,
+    store: false,
+    model: AUTOMATION_CREATE_MODEL,
+    reasoning_effort: "medium",
+    conversation: `hermes_web_reading_analysis_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+    instructions: "Evaluate the reading retelling transcript. Return Markdown only.",
+    access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+  }, KANBAN_READING_ANALYSIS_TIMEOUT_MS);
+  return compactText(output || "", 12000);
+}
+
+function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, notes = "") {
+  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId);
+  const stem = safeFileName(`${currentCard?.kanbanCaseCardIndex || "session"}-${currentCard?.content || cardId}`).replace(/\.[^.]+$/, "");
+  const mdPath = path.join(dir, `${Date.now()}-${stem}-reading-analysis.md`);
+  const lines = [
+    `# ${currentCard?.content || "Reading submission analysis"}`,
+    "",
+    `- Card: ${cardId}`,
+    `- Story: ${currentCard?.kanbanCaseSummary || ""}`,
+    `- Audio: ${audio.path}`,
+    `- Submitted: ${nowIso()}`,
+  ];
+  if (notes) lines.push(`- Parent notes: ${notes}`);
+  lines.push(
+    "",
+    "## AI Evaluation",
+    "",
+    analysis || "No analysis was generated.",
+    "",
+    "## Transcript",
+    "",
+    transcription.text,
+  );
+  const markdown = lines.join("\n");
+  fs.writeFileSync(mdPath, markdown, "utf8");
+  return mdPath;
+}
+
+async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
+  const context = await readingContextForCard(workspaceId, cardId);
+  const currentCard = context.current || { id: cardId, content: cardId };
+  const audio = saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard);
+  const transcription = await transcribeKanbanReadingAudio(audio.path);
+  const notes = compactText(body.notes || body.comment || "", 2000);
+  const analysis = await analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, context.prior, transcription, notes);
+  const analysisPath = writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, notes);
+  const resultText = [
+    `Reading submission analysis completed for ${currentCard.content || cardId}.`,
+    `Audio file: ${audio.path}`,
+    `Analysis file: ${analysisPath}`,
+    `MEDIA: ${analysisPath}`,
+    `MEDIA: ${audio.path}`,
+    "",
+    "Transcript:",
+    transcription.text,
+    "",
+    "AI analysis:",
+    analysis,
+  ].join("\n");
+  await kanbanCardProvider.mutateCard({
+    action: "comment",
+    workspaceId,
+    cardId,
+    comment: `Reading submission uploaded and analyzed.\nAudio: ${audio.path}\nAnalysis: ${analysisPath}`,
+    author: "Hermes Mobile",
+  }).catch(() => null);
+  const completed = await kanbanCardProvider.mutateCard({
+    action: "complete",
+    workspaceId,
+    cardId,
+    result: resultText,
+    author: "Hermes Mobile",
+  });
+  if (!completed?.ok) {
+    return { ok: false, error: completed?.error || "Reading card completion failed", audio, transcription, analysis, analysisPath };
+  }
+  return {
+    ok: true,
+    card: publicTodo(completed),
+    audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size },
+    transcription: { text: transcription.text, language: transcription.language || "" },
+    analysis,
+    analysisPath,
+  };
 }
 
 async function maybeReconcileKanbanDependencyBlocks(workspaceId, options = {}) {
@@ -11177,6 +11540,30 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/kanban/cards/reading-plan" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req);
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    try {
+      const result = await createKanbanReadingPlanCards(workspaceId, body);
+      if (!result.ok) {
+        kanbanErrorResponse(res, result, 502);
+        return;
+      }
+      clearKanbanCardListCache(workspaceId);
+      broadcast({ type: "kanban.updated", workspaceId, action: "reading-plan-add" });
+      broadcast({ type: "todos.updated", workspaceId, action: "reading-plan-add" });
+      sendJson(res, 201, result);
+    } catch (err) {
+      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
   if (url.pathname === "/api/todos" && req.method === "POST") {
     const body = await readBody(req);
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
@@ -11218,6 +11605,7 @@ async function handleApi(req, res) {
       content: body.content || body.title || "",
       description: body.description || "",
       dueTime: body.dueTime || body.due_time || "",
+      reminderLeadMinutes: body.reminderLeadMinutes ?? body.reminder_lead_minutes ?? null,
       reason: body.reason || "",
       idempotencyKey: body.idempotencyKey || body.idempotency_key || "",
       ...(body.caseId || body.case_id ? {
@@ -11291,6 +11679,36 @@ async function handleApi(req, res) {
     clearKanbanCardListCache(workspaceId);
     broadcast({ type: "todos.updated", workspaceId, todoId: result.id, action });
     sendJson(res, 200, { ok: true, result });
+    return;
+  }
+
+  const kanbanReadingSubmission = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/reading-submission$/);
+  if (kanbanReadingSubmission && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req, Math.ceil(MAX_UPLOAD_BYTES * 1.4) + 8192).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
+    if (!workspaceId) return;
+    const cardId = decodeURIComponent(kanbanReadingSubmission[1]);
+    try {
+      const result = await submitKanbanReadingSubmission(workspaceId, cardId, body);
+      if (!result.ok) {
+        kanbanErrorResponse(res, result, 502);
+        return;
+      }
+      clearKanbanCardListCache(workspaceId);
+      broadcast({ type: "kanban.updated", workspaceId, cardId, action: "reading-submission" });
+      broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "reading-submission" });
+      sendJson(res, 200, result);
+    } catch (err) {
+      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
     return;
   }
 

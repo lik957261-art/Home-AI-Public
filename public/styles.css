@@ -4568,7 +4568,7 @@ button.directory-alias-chip {
 
 .kanban-create-mode {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -4605,6 +4605,35 @@ button.directory-alias-chip {
   font: inherit;
   font-size: 14px;
   line-height: 1.45;
+}
+
+.kanban-reading-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kanban-reading-fields label {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.kanban-reading-fields span,
+.todo-panel-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.todo-reading-panel {
+  border-color: rgba(31, 111, 98, 0.18);
+  background: rgba(231, 244, 238, 0.36);
+}
+
+.todo-reading-audio {
+  min-height: 42px;
+  padding: 9px;
 }
 
 .kanban-composer-toolbar,
@@ -6889,6 +6918,10 @@ button.directory-alias-chip {
   }
 
   .todo-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kanban-reading-fields {
     grid-template-columns: minmax(0, 1fr);
   }
 

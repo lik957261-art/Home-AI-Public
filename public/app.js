@@ -37,6 +37,38 @@ function initialTodoKanbanStatus() {
   return stored || KANBAN_STORY_STATUS;
 }
 
+function todayDateInputValue() {
+  const date = new Date();
+  const pad = (num) => String(num).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function initialKanbanComposerMode() {
+  const stored = localStorage.getItem("hermesKanbanComposerMode") || "";
+  if (["single", "multi", "reading"].includes(stored)) return stored;
+  return localStorage.getItem("hermesKanbanComposerMultiAgent") === "1" ? "multi" : "single";
+}
+
+function defaultKanbanReadingDraft() {
+  return {
+    readerName: "",
+    bookTitle: "",
+    sessions: "10",
+    startDate: todayDateInputValue(),
+    timeOfDay: "21:00",
+    reminderLeadMinutes: "15",
+  };
+}
+
+function initialKanbanReadingDraft() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("hermesKanbanReadingDraft") || "{}");
+    return Object.assign(defaultKanbanReadingDraft(), parsed && typeof parsed === "object" ? parsed : {});
+  } catch (_) {
+    return defaultKanbanReadingDraft();
+  }
+}
+
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
   auth: null,
@@ -78,11 +110,15 @@ const state = {
   todoCommentDrafts: {},
   todoRevisionDrafts: {},
   todoRevisionSubmitting: {},
+  todoReadingSubmissionDrafts: {},
+  todoReadingSubmitting: {},
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoCreateOpen: false,
   kanbanComposerText: localStorage.getItem("hermesKanbanComposerDraft") || "",
-  kanbanComposerMultiAgent: localStorage.getItem("hermesKanbanComposerMultiAgent") === "1",
+  kanbanComposerMode: initialKanbanComposerMode(),
+  kanbanComposerMultiAgent: initialKanbanComposerMode() === "multi",
+  kanbanReadingDraft: initialKanbanReadingDraft(),
   kanbanComposerBusy: false,
   kanbanComposerProgressKind: "",
   kanbanComposerProgressStartedAt: 0,
@@ -251,6 +287,12 @@ const KANBAN_CREATE_PROGRESS_STEPS = Object.freeze([
   "\u521b\u5efa\u5361\u7247",
   "\u8bbe\u7f6e\u4f9d\u8d56",
   "\u5237\u65b0\u770b\u677f",
+]);
+const KANBAN_READING_PROGRESS_STEPS = Object.freeze([
+  "整理阅读计划",
+  "生成每日任务",
+  "写入提醒时间",
+  "刷新故事树",
 ]);
 const KANBAN_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
 const KANBAN_TAB_ORDER = Object.freeze([KANBAN_STORY_STATUS, ...KANBAN_STATUS_ORDER]);
@@ -8322,6 +8364,7 @@ function kanbanComposerFocused() {
 }
 
 function kanbanComposerProgressSteps() {
+  if (state.kanbanComposerProgressKind === "reading") return KANBAN_READING_PROGRESS_STEPS;
   return state.kanbanComposerProgressKind === "create"
     ? KANBAN_CREATE_PROGRESS_STEPS
     : KANBAN_PLAN_PROGRESS_STEPS;
@@ -8361,6 +8404,31 @@ function syncKanbanComposerDraftFromDom() {
   state.kanbanComposerText = input.value || "";
   if (state.kanbanComposerText) localStorage.setItem("hermesKanbanComposerDraft", state.kanbanComposerText);
   else localStorage.removeItem("hermesKanbanComposerDraft");
+}
+
+function syncKanbanReadingDraftFromDom(root = document) {
+  const draft = Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
+  const fields = {
+    readerName: root.querySelector?.("#kanbanReadingReader")?.value,
+    bookTitle: root.querySelector?.("#kanbanReadingBook")?.value,
+    sessions: root.querySelector?.("#kanbanReadingSessions")?.value,
+    startDate: root.querySelector?.("#kanbanReadingStartDate")?.value,
+    timeOfDay: root.querySelector?.("#kanbanReadingTime")?.value,
+    reminderLeadMinutes: root.querySelector?.("#kanbanReadingReminder")?.value,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) draft[key] = value || "";
+  }
+  state.kanbanReadingDraft = draft;
+  localStorage.setItem("hermesKanbanReadingDraft", JSON.stringify(draft));
+}
+
+function saveKanbanComposerMode(mode) {
+  const next = ["single", "multi", "reading"].includes(mode) ? mode : "single";
+  state.kanbanComposerMode = next;
+  state.kanbanComposerMultiAgent = next === "multi";
+  localStorage.setItem("hermesKanbanComposerMode", next);
+  localStorage.setItem("hermesKanbanComposerMultiAgent", next === "multi" ? "1" : "0");
 }
 
 function todoRefreshShouldYieldToKanbanComposer(options = {}) {
@@ -8925,15 +8993,18 @@ function renderTodoPanel(options = {}) {
   const conversation = $("conversation");
   const previousScrollTop = conversation ? conversation.scrollTop : 0;
   const active = document.activeElement;
-  const restoreKanbanComposerFocus = Boolean(active && active.id === "kanbanComposerText" && state.todoCreateOpen);
-  const restoreTodoDraftFocus = Boolean(active && (active.id === "todoCommentText" || active.id === "todoRevisionText"));
+  const restoreKanbanComposerFocus = Boolean(active && state.todoCreateOpen && active.closest?.("#kanbanComposerForm"));
+  const restoreTodoDraftFocus = Boolean(active && (active.id === "todoCommentText" || active.id === "todoRevisionText" || active.id === "todoReadingSubmissionNotes"));
   const kanbanComposerSelection = restoreKanbanComposerFocus
-    ? { start: active.selectionStart, end: active.selectionEnd }
+    ? { id: active.id || "kanbanComposerText", start: active.selectionStart, end: active.selectionEnd }
     : null;
   const todoDraftFocus = restoreTodoDraftFocus
     ? { id: active.id, start: active.selectionStart, end: active.selectionEnd }
     : null;
-  if (restoreKanbanComposerFocus) syncKanbanComposerDraftFromDom();
+  if (restoreKanbanComposerFocus) {
+    syncKanbanComposerDraftFromDom();
+    syncKanbanReadingDraftFromDom(active.closest?.("#kanbanComposerForm") || document);
+  }
   if (restoreTodoDraftFocus) syncTodoDetailDraftFromDom(active);
   const selected = state.todos.find((todo) => todo.id === state.selectedTodoId) || null;
   const creating = kanbanComposerOpen();
@@ -8957,7 +9028,7 @@ function renderTodoPanel(options = {}) {
   wireTodoPanel(conversation);
   ensureVerticalScrollAffordance(conversation);
   if (restoreKanbanComposerFocus) {
-    const input = $("kanbanComposerText");
+    const input = $(kanbanComposerSelection?.id || "kanbanComposerText") || $("kanbanComposerText");
     if (input) {
       try {
         input.focus({ preventScroll: true });
@@ -8965,7 +9036,9 @@ function renderTodoPanel(options = {}) {
         input.focus();
       }
       if (kanbanComposerSelection && typeof input.setSelectionRange === "function") {
-        input.setSelectionRange(kanbanComposerSelection.start, kanbanComposerSelection.end);
+        try {
+          input.setSelectionRange(kanbanComposerSelection.start, kanbanComposerSelection.end);
+        } catch (_) {}
       }
     }
   }
@@ -9012,12 +9085,14 @@ function renderTodoCreatePanel() {
 
 function syncTodoDetailDraftFromDom(input = null) {
   const target = input || document.activeElement;
-  if (!target || (target.id !== "todoCommentText" && target.id !== "todoRevisionText")) return;
-  const form = target.closest?.("[data-todo-comment-form], [data-todo-revision-form]");
+  if (!target || !["todoCommentText", "todoRevisionText", "todoReadingSubmissionNotes"].includes(target.id)) return;
+  const form = target.closest?.("[data-todo-comment-form], [data-todo-revision-form], [data-reading-submission-form]");
   const commentId = form?.dataset?.todoCommentForm || "";
   const revisionId = form?.dataset?.todoRevisionForm || "";
+  const readingId = form?.dataset?.readingSubmissionForm || "";
   if (target.id === "todoCommentText" && commentId) state.todoCommentDrafts[commentId] = target.value || "";
   if (target.id === "todoRevisionText" && revisionId) state.todoRevisionDrafts[revisionId] = target.value || "";
+  if (target.id === "todoReadingSubmissionNotes" && readingId) state.todoReadingSubmissionDrafts[readingId] = target.value || "";
 }
 
 function restoreTodoDetailDraftFocus(focus = null) {
@@ -9100,7 +9175,9 @@ function renderKanbanComposerProgress() {
   const elapsed = state.kanbanComposerProgressStartedAt
     ? Math.max(1, Math.round((Date.now() - state.kanbanComposerProgressStartedAt) / 1000))
     : 0;
-  const title = state.kanbanComposerProgressKind === "create" ? "\u6b63\u5728\u521b\u5efa\u5e76\u542f\u52a8\u4efb\u52a1" : "\u6b63\u5728\u62c6\u89e3\u4efb\u52a1";
+  const title = state.kanbanComposerProgressKind === "reading"
+    ? "正在创建阅读计划"
+    : (state.kanbanComposerProgressKind === "create" ? "\u6b63\u5728\u521b\u5efa\u5e76\u542f\u52a8\u4efb\u52a1" : "\u6b63\u5728\u62c6\u89e3\u4efb\u52a1");
   return `<section class="kanban-create-progress" aria-live="polite">
     <div class="kanban-create-progress-head">
       <strong>${title}</strong>
@@ -9115,27 +9192,75 @@ function renderKanbanComposerProgress() {
   </section>`;
 }
 
+function kanbanComposerMode() {
+  if (["single", "multi", "reading"].includes(state.kanbanComposerMode)) return state.kanbanComposerMode;
+  return state.kanbanComposerMultiAgent ? "multi" : "single";
+}
+
+function renderKanbanReadingFields(disabled = false) {
+  const draft = Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
+  const attr = disabled ? " disabled" : "";
+  return `<div class="kanban-reading-fields">
+    <label>
+      <span>孩子</span>
+      <input id="kanbanReadingReader" class="todo-input" type="text" value="${escapeHtml(draft.readerName || "")}" placeholder="姓名"${attr}>
+    </label>
+    <label>
+      <span>书名</span>
+      <input id="kanbanReadingBook" class="todo-input" type="text" value="${escapeHtml(draft.bookTitle || "")}" placeholder="要读的书"${attr}>
+    </label>
+    <label>
+      <span>次数</span>
+      <input id="kanbanReadingSessions" class="todo-input" type="number" min="1" max="31" step="1" value="${escapeHtml(draft.sessions || "10")}"${attr}>
+    </label>
+    <label>
+      <span>开始日期</span>
+      <input id="kanbanReadingStartDate" class="todo-input" type="date" value="${escapeHtml(draft.startDate || todayDateInputValue())}"${attr}>
+    </label>
+    <label>
+      <span>每天时间</span>
+      <input id="kanbanReadingTime" class="todo-input" type="time" value="${escapeHtml(draft.timeOfDay || "21:00")}"${attr}>
+    </label>
+    <label>
+      <span>提前提醒</span>
+      <input id="kanbanReadingReminder" class="todo-input" type="number" min="0" max="1440" step="5" value="${escapeHtml(draft.reminderLeadMinutes || "15")}"${attr}>
+    </label>
+  </div>`;
+}
+
 function renderKanbanComposerPanel() {
   if (!isKanbanTodoSource()) return "";
   const busy = state.kanbanComposerBusy || state.kanbanPlanCreating;
   const messages = state.kanbanComposerMessages.slice(-10).map(renderKanbanComposerMessage).join("");
   const draft = state.kanbanPlanDraft ? renderKanbanPlanDraft(state.kanbanPlanDraft) : "";
   if (!state.todoCreateOpen && !busy) return "";
-  const singleActive = !state.kanbanComposerMultiAgent;
-  const multiActive = state.kanbanComposerMultiAgent;
+  const mode = kanbanComposerMode();
+  const singleActive = mode === "single";
+  const multiActive = mode === "multi";
+  const readingActive = mode === "reading";
   const modeButton = (mode, label, active) => `<button class="kanban-create-mode-button${active ? " active" : ""}" type="button" data-kanban-composer-mode="${mode}" aria-pressed="${active ? "true" : "false"}"${busy ? " disabled" : ""}>${label}</button>`;
-  const submitLabel = multiActive
+  const submitLabel = readingActive
+    ? "创建阅读计划"
+    : (multiActive
     ? (state.kanbanPlanDraft ? "\u91cd\u65b0\u62c6\u89e3" : "\u62c6\u89e3\u4efb\u52a1")
-    : "\u521b\u5efa\u4efb\u52a1";
+    : "\u521b\u5efa\u4efb\u52a1");
+  const placeholder = readingActive
+    ? "补充阅读范围、分段要求、评价重点，或留空"
+    : "\u8f93\u5165\u4efb\u52a1\u9700\u6c42";
+  const caption = readingActive
+    ? "每天一张卡片，上传录音后自动分析并完成"
+    : (multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo");
   return `<section class="kanban-composer-panel">
     <form id="kanbanComposerForm" class="kanban-composer-form">
       <div class="kanban-create-mode" role="group" aria-label="\u4efb\u52a1\u521b\u5efa\u65b9\u5f0f">
         ${modeButton("single", "\u5355\u4efb\u52a1", singleActive)}
         ${modeButton("multi", "\u62c6\u89e3", multiActive)}
+        ${modeButton("reading", "阅读计划", readingActive)}
       </div>
-      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="7" placeholder="\u8f93\u5165\u4efb\u52a1\u9700\u6c42"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
+      ${readingActive ? renderKanbanReadingFields(busy) : ""}
+      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="${readingActive ? "4" : "7"}" placeholder="${escapeHtml(placeholder)}"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
       <div class="kanban-composer-toolbar">
-        <span class="kanban-create-mode-caption">${multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo"}</span>
+        <span class="kanban-create-mode-caption">${escapeHtml(caption)}</span>
         <span class="kanban-composer-buttons">
           <button type="button" data-close-todo-create${busy ? " disabled" : ""}>\u8fd4\u56de\u770b\u677f</button>
           <button type="submit"${busy ? " disabled" : ""}>${submitLabel}</button>
@@ -9345,12 +9470,32 @@ function renderKanbanDetailReport(todo) {
   </section>`;
 }
 
+function isKanbanReadingCard(todo) {
+  return String(todo?.kanbanCaseMode || "").trim() === "reading-plan";
+}
+
+function renderKanbanReadingSubmissionPanel(todo) {
+  if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return "";
+  const submitting = Boolean(state.todoReadingSubmitting?.[todo.id]);
+  const notes = state.todoReadingSubmissionDrafts?.[todo.id] || "";
+  return `<form class="todo-comment-panel todo-reading-panel" data-reading-submission-form="${escapeHtml(todo.id)}" ${submitting ? 'aria-busy="true"' : ""}>
+    <label class="todo-panel-label" for="readingSubmissionAudio">上传复述录音</label>
+    <input id="readingSubmissionAudio" class="todo-input todo-reading-audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.amr"${submitting ? " disabled" : ""}>
+    <textarea id="todoReadingSubmissionNotes" class="todo-input todo-comment-textarea" rows="3" placeholder="补充当天阅读范围、孩子状态或家长观察，可留空" ${submitting ? "disabled" : ""}>${escapeHtml(notes)}</textarea>
+    <div class="todo-comment-actions">
+      <button type="submit" data-submit-reading="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${submitting ? "正在转写与分析..." : "提交录音并分析"}</button>
+    </div>
+    <p class="todo-detail-muted">${submitting ? "正在转写录音、结合前序卡片生成评价；完成后本卡片会自动进入完成状态。" : "录音提交后，Hermes 会生成转写、AI评价和下一次指导，再自动完成本卡片。"}</p>
+  </form>`;
+}
+
 function renderTodoDetail(todo) {
   const open = todoMatchesOpen(todo);
   const kanban = isKanbanTodoSource();
   const kanbanStatus = normalizedKanbanStatus(todo);
   const blocked = kanbanStatus === "blocked";
   const completed = kanban && (kanbanStatus === "done" || todo.status === "completed");
+  const readingCard = kanban && isKanbanReadingCard(todo);
   const statusText = kanban ? kanbanStatusText(todo) : todoStatusText(todo);
   const gridItems = [
     renderTodoDetailGridItem("负责人", todo.assigneeLabel || todo.assignee || ""),
@@ -9374,6 +9519,7 @@ function renderTodoDetail(todo) {
     : "";
   const deliveryBlock = kanban ? renderKanbanDeliveryFiles(todo) : "";
   const resultBlock = kanban ? renderKanbanDetailReport(todo) : "";
+  const readingPanel = kanban ? renderKanbanReadingSubmissionPanel(todo) : "";
   const metaBlock = kanban
     ? `<details class="todo-detail-meta">
       <summary>卡片信息</summary>
@@ -9410,11 +9556,12 @@ function renderTodoDetail(todo) {
     </div>
     ${deliveryBlock}
     ${resultBlock}
+    ${readingPanel}
     ${metaBlock}
     ${commentPanel}
     ${revisionPanel}
     ${open ? `<div class="todo-detail-actions">
-      <button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>
+      ${readingCard ? "" : `<button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>`}
       ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
       ${kanban && blocked ? `<button type="button" data-unblock-todo="${escapeHtml(todo.id)}">解除阻塞</button>` : ""}
       <button type="button" data-cancel-todo="${escapeHtml(todo.id)}">取消</button>
@@ -9455,12 +9602,15 @@ function wireTodoPanel(root) {
   root.querySelectorAll("[data-kanban-composer-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       const mode = String(button.dataset.kanbanComposerMode || "");
-      state.kanbanComposerMultiAgent = mode === "multi";
+      saveKanbanComposerMode(mode);
       state.kanbanPlanDraft = null;
-      localStorage.setItem("hermesKanbanComposerMultiAgent", state.kanbanComposerMultiAgent ? "1" : "0");
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
       focusTodoFormSoon();
     });
+  });
+  root.querySelectorAll("#kanbanReadingReader, #kanbanReadingBook, #kanbanReadingSessions, #kanbanReadingStartDate, #kanbanReadingTime, #kanbanReadingReminder").forEach((input) => {
+    input.addEventListener("input", () => syncKanbanReadingDraftFromDom(root));
+    input.addEventListener("change", () => syncKanbanReadingDraftFromDom(root));
   });
   root.querySelector("#kanbanComposerForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -9549,6 +9699,20 @@ function wireTodoPanel(root) {
       requestTodoRevision(todoId, form.querySelector("#todoRevisionText")?.value || "").catch(showError);
     });
   });
+  root.querySelectorAll("[data-reading-submission-form]").forEach((form) => {
+    form.querySelector("#todoReadingSubmissionNotes")?.addEventListener("input", (event) => {
+      const todoId = form.dataset.readingSubmissionForm || "";
+      if (todoId) state.todoReadingSubmissionDrafts[todoId] = event.target.value || "";
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = form.dataset.readingSubmissionForm || form.querySelector("[data-submit-reading]")?.dataset?.submitReading || "";
+      const file = form.querySelector("#readingSubmissionAudio")?.files?.[0] || null;
+      const notes = form.querySelector("#todoReadingSubmissionNotes")?.value || "";
+      submitReadingSubmission(todoId, file, notes).catch(showError);
+    });
+  });
   root.querySelectorAll("[data-comment-unblock-todo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -9591,19 +9755,43 @@ async function submitKanbanComposer(root) {
   if (state.kanbanComposerBusy || state.kanbanPlanCreating) return;
   const input = root.querySelector("#kanbanComposerText");
   const text = String(input?.value || state.kanbanComposerText || "").trim();
-  if (!text) throw new Error("\u8bf7\u5148\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
-  const multiAgent = Boolean(state.kanbanComposerMultiAgent);
+  const mode = kanbanComposerMode();
+  const multiAgent = mode === "multi";
+  const readingPlan = mode === "reading";
+  if (!text && !readingPlan) throw new Error("\u8bf7\u5148\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
+  if (readingPlan) syncKanbanReadingDraftFromDom(root);
+  if (readingPlan && !String(state.kanbanReadingDraft?.bookTitle || "").trim()) throw new Error("请先填写书名");
   state.kanbanComposerText = text;
-  localStorage.setItem("hermesKanbanComposerDraft", text);
-  state.kanbanComposerMultiAgent = multiAgent;
-  localStorage.setItem("hermesKanbanComposerMultiAgent", multiAgent ? "1" : "0");
+  if (text) localStorage.setItem("hermesKanbanComposerDraft", text);
+  else localStorage.removeItem("hermesKanbanComposerDraft");
+  saveKanbanComposerMode(mode);
   state.kanbanComposerBusy = true;
   state.kanbanPlanDraft = null;
-  pushKanbanComposerMessage("user", text);
-  beginKanbanComposerProgress(multiAgent ? "plan" : "create");
+  pushKanbanComposerMessage("user", readingPlan ? `${state.kanbanReadingDraft.bookTitle || ""}\n${text}`.trim() : text);
+  beginKanbanComposerProgress(readingPlan ? "reading" : (multiAgent ? "plan" : "create"));
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
-    if (multiAgent) {
+    if (readingPlan) {
+      const result = await api("/api/kanban/cards/reading-plan", {
+        method: "POST",
+        body: JSON.stringify(Object.assign({}, state.kanbanReadingDraft, {
+          workspaceId: state.selectedWorkspaceId,
+          sourceText: text,
+        })),
+      });
+      const cards = Array.isArray(result.cards) ? result.cards : [];
+      pushKanbanComposerMessage("assistant", `已创建阅读计划：${cards.length} 张每日任务；上传当天复述录音并完成分析后，卡片会自动完成。`);
+      state.kanbanComposerText = "";
+      state.kanbanReadingDraft = defaultKanbanReadingDraft();
+      localStorage.removeItem("hermesKanbanComposerDraft");
+      localStorage.removeItem("hermesKanbanReadingDraft");
+      finishKanbanComposerProgress();
+      clearTodoListCache();
+      state.todoKanbanStatus = KANBAN_STORY_STATUS;
+      localStorage.setItem("hermesTodoKanbanStatus", KANBAN_STORY_STATUS);
+      state.todoCreateOpen = false;
+      await loadTodos({ skipCache: true, includeCompleted: true });
+    } else if (multiAgent) {
       const result = await api("/api/kanban/cards/plan", {
         method: "POST",
         body: JSON.stringify({
@@ -9834,6 +10022,40 @@ async function requestTodoRevision(todoId, comment) {
   }
 }
 
+async function submitReadingSubmission(todoId, file, notes = "") {
+  if (!todoId) return;
+  if (state.todoReadingSubmitting?.[todoId]) return;
+  if (!file) throw new Error("请先选择复述录音文件");
+  state.todoReadingSubmissionDrafts[todoId] = notes || "";
+  state.todoReadingSubmitting[todoId] = true;
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const dataBase64 = await fileToBase64(file);
+    await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-submission`, {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: state.selectedWorkspaceId,
+        filename: file.name || "reading-audio.m4a",
+        type: file.type || "audio/mp4",
+        dataBase64,
+        notes,
+      }),
+    });
+    clearTodoListCache();
+    state.todoKanbanStatus = KANBAN_STORY_STATUS;
+    localStorage.setItem("hermesTodoKanbanStatus", KANBAN_STORY_STATUS);
+    await loadTodos({ skipCache: true, includeCompleted: true });
+    state.selectedTodoId = todoId;
+    delete state.todoReadingSubmissionDrafts[todoId];
+    delete state.todoCardDetails[todoId];
+    await loadKanbanCardDetail(todoId, { force: true, silent: true });
+    showPushToast("阅读录音已分析，卡片已完成", "success");
+  } finally {
+    delete state.todoReadingSubmitting[todoId];
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
+}
+
 async function deleteTodo(todoId) {
   if (!todoId) return;
   if (!window.confirm(`删除看板卡片 ${todoId}？`)) return;
@@ -9882,7 +10104,7 @@ async function postponeTodoQuick(todoId, minutes) {
 
 function focusTodoFormSoon() {
   setTimeout(() => {
-    ($("kanbanComposerText") || $("todoContent"))?.focus();
+    ($("kanbanReadingBook") || $("kanbanComposerText") || $("todoContent"))?.focus();
   }, 40);
 }
 
