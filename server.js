@@ -249,6 +249,7 @@ const KANBAN_READING_TRANSCRIBE_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_RE
 const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(process.env.HERMES_MOBILE_READING_TRANSCRIBE_SCRIPT || process.env.HERMES_WEB_READING_TRANSCRIBE_SCRIPT || path.join(__dirname, "scripts", "transcribe-reading-audio.ps1"));
 const KANBAN_READING_ARTIFACT_ROOT = path.resolve(process.env.HERMES_MOBILE_READING_ARTIFACT_ROOT || process.env.HERMES_WEB_READING_ARTIFACT_ROOT || path.join(DATA_DIR, "artifacts", "kanban-reading"));
 const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(process.env.HERMES_MOBILE_READING_COVER_MAX_BYTES || process.env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
+const KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1";
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -4832,6 +4833,10 @@ async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, 
     "Return Markdown only, concise but specific. Do not include JSON or code fences.",
     "Use the current transcript as primary evidence. Use previous session feedback only as context for continuity.",
     "Include a score out of 100. Break the score down by fluency, grammar, vocabulary, comprehension, organization, and continuity. Base the score on the transcript; do not claim acoustic pronunciation evidence unless it is supported by transcription notes.",
+    "Make the score actionable: list the main deductions, quote or paraphrase transcript evidence for each weakness, and explain which skill each deduction affects.",
+    "Include a dedicated quiz-target section with 3-5 concrete targets derived only from today's transcript and analysis. For each target include category, transcript evidence, why it affected the score, desired correction/practice pattern, and difficulty level.",
+    "Do not invent weaknesses, grammar mistakes, vocabulary gaps, or story details that are not supported by the transcript, parent notes, current card, or previous-session context.",
+    "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, comprehension, retelling quality, English grammar/expression, vocabulary/sentence patterns, comparison with previous sessions, next-session advice, and parent observation points.",
     "Include these sections: 本次评分（100分）, 本次理解, 复述质量, 英语表达与语法, 词汇与句型, 与前次相比, 下一次建议, 家长可观察点.",
     "If this is the final session in the reading plan, also include sections: 整本书总结 and 总分（100分）.",
     "Include these sections: 本次理解, 复述质量, 表达与逻辑, 与前次相比, 下一次建议, 家长可观察点.",
@@ -4901,9 +4906,13 @@ async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, trans
     "Generate a practice quiz for a child's book-reading retelling session.",
     "Return JSON only. No Markdown, no comments, no code fences.",
     "The quiz must contain exactly 10 single-answer multiple-choice questions.",
-    "Questions should target today's weaknesses and the next improvement direction from the analysis.",
-    "Cover comprehension, English grammar, vocabulary, sentence structure, sequencing, and oral-retelling clarity.",
-    "Use this exact schema: {\"title\":\"...\",\"questions\":[{\"id\":\"q1\",\"skill\":\"grammar|vocabulary|comprehension|fluency|sequence\",\"prompt\":\"...\",\"choices\":[\"...\",\"...\",\"...\",\"...\"],\"answerIndex\":0,\"explanation\":\"...\"}]}",
+    "This is a targeted remediation quiz, not a generic book quiz. Every question must be traceable to today's score deductions, weakness/error patterns, quiz targets, transcript evidence, or parent notes.",
+    "At least 7 of 10 questions must directly train weaknesses or mistakes found in today's transcript/analysis. Up to 2 questions may check today's story comprehension or sequence, and up to 1 question may train next-retelling structure.",
+    "Do not invent unrelated trivia, random grammar drills, or vocabulary that is not connected to the transcript, the analysis, or the current reading card.",
+    "Calibrate difficulty from the analysis score: below 70 should focus on basic comprehension, sequence, and simple sentence correction; 70-84 should use applied grammar/vocabulary choices and sentence ordering; 85 or above should use nuanced grammar, vocabulary precision, retelling structure, and inference. If no score is clear, use medium difficulty but still target explicit weaknesses.",
+    "The skill field must be a concise focus label, for example grammar: tense error from today's retelling, vocabulary: precise action verb, comprehension: missing event order, or organization: clearer retelling sequence.",
+    "Each explanation must say why the correct answer addresses the specific weakness or error from today's analysis.",
+    "Use this exact schema: {\"title\":\"...\",\"questions\":[{\"id\":\"q1\",\"skill\":\"specific weakness focus\",\"prompt\":\"...\",\"choices\":[\"...\",\"...\",\"...\",\"...\"],\"answerIndex\":0,\"explanation\":\"...\"}]}",
     "Each question must have 4 choices and one 0-based answerIndex.",
     "Do not reveal answer keys in prompt text or choices.",
     `Current card: ${currentCard?.content || cardId}`,
@@ -4976,6 +4985,35 @@ function findKanbanReadingSubmissionState(workspaceId, cardId, context = {}) {
   return { state: null, card: current, cardId: requestedId };
 }
 
+function kanbanReadingQuizNeedsRetarget(state = {}) {
+  if (!state?.quiz) return false;
+  if (String(state.quizTargetingVersion || "") === KANBAN_READING_QUIZ_TARGETING_VERSION) return false;
+  if (String(state.status || "") === "completed") return false;
+  if (!String(state?.transcription?.text || "").trim() || !String(state.analysis || "").trim()) return false;
+  const attempts = Array.isArray(state.attempts) ? state.attempts : [];
+  return attempts.length === 0;
+}
+
+async function ensureKanbanReadingQuizTargeted(workspaceId, cardId, currentCard, state = {}) {
+  if (!kanbanReadingQuizNeedsRetarget(state)) return { state, retargeted: false, error: "" };
+  try {
+    const transcription = Object.assign({}, state.transcription || {}, {
+      text: compactText(state?.transcription?.text || "", 20000),
+    });
+    const quiz = await generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, state.analysis, state.notes || "");
+    const nextState = writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, Object.assign({}, state, {
+      quiz,
+      quizTargetingVersion: KANBAN_READING_QUIZ_TARGETING_VERSION,
+      quizRetargetedAt: nowIso(),
+      quizUrl: state.quizUrl || readingQuizUrl(workspaceId, cardId),
+    }));
+    return { state: nextState, retargeted: true, error: "" };
+  } catch (err) {
+    console.warn("[reading-quiz] targeted quiz regeneration failed", { cardId, error: err?.message || String(err) });
+    return { state, retargeted: false, error: compactText(err?.message || String(err), 240) };
+  }
+}
+
 function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes = "") {
   const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId);
   const stem = safeFileName(`${currentCard?.kanbanCaseCardIndex || "session"}-${currentCard?.content || cardId}`).replace(/\.[^.]+$/, "");
@@ -5036,7 +5074,9 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
     transcription: { text: transcription.text, language: transcription.language || "" },
     analysis,
     quiz,
+    quizTargetingVersion: KANBAN_READING_QUIZ_TARGETING_VERSION,
     quizUrl,
+    notes,
     attempts: [],
     submittedAt: nowIso(),
   });
@@ -5069,12 +5109,17 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
 async function getKanbanReadingQuiz(workspaceId, cardId) {
   const context = await readingContextForCard(workspaceId, cardId);
   const lookup = findKanbanReadingSubmissionState(workspaceId, cardId, context);
-  const state = lookup.state;
+  let state = lookup.state;
   if (!state?.quiz) return { ok: false, status: 404, error: "Reading quiz is not available yet" };
+  const targeted = await ensureKanbanReadingQuizTargeted(workspaceId, lookup.cardId, lookup.card || context.current, state);
+  state = targeted.state;
   return {
     ok: true,
     canonicalCardId: lookup.cardId,
     quiz: publicKanbanReadingQuiz(state.quiz),
+    quizTargetingVersion: String(state.quizTargetingVersion || ""),
+    quizRetargeted: Boolean(targeted.retargeted),
+    quizRetargetError: targeted.error || "",
     quizUrl: state.quizUrl || readingQuizUrl(workspaceId, lookup.cardId),
     analysisPath: state.analysisPath || "",
     status: state.status || "quiz_pending",

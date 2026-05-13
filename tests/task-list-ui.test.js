@@ -292,6 +292,12 @@ assert.match(serverJs, /function generateKanbanReadingQuiz\(workspaceId, cardId,
 assert.match(serverJs, /function submitKanbanReadingQuiz\(workspaceId, cardId, body = \{\}\)/);
 assert.match(serverJs, /function publicKanbanReadingQuiz\(quiz = \{\}\)/);
 assert.match(serverJs, /function publicKanbanReadingSubmissionSummary\(workspaceId, card = \{\}\)/);
+assert.match(serverJs, /KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1"/);
+assert.match(serverJs, /dedicated quiz-target section with 3-5 concrete targets/);
+assert.match(serverJs, /At least 7 of 10 questions must directly train weaknesses/);
+assert.match(serverJs, /Calibrate difficulty from the analysis score/);
+assert.match(serverJs, /function ensureKanbanReadingQuizTargeted\(workspaceId, cardId, currentCard, state = \{\}\)/);
+assert.match(serverJs, /quizTargetingVersion: KANBAN_READING_QUIZ_TARGETING_VERSION/);
 assert.match(serverJs, /payload\.readingSubmission = publicKanbanReadingSubmissionSummary\(workspaceId, payload\)/);
 assert.match(serverJs, /function findKanbanReadingSubmissionState\(workspaceId, cardId, context = \{\}\)/);
 assert.match(serverJs, /kanbanRevisionOf/);
