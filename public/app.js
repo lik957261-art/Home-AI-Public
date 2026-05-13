@@ -9549,6 +9549,7 @@ function renderKanbanReadingSubmissionPanel(todo) {
   return `<form class="todo-comment-panel todo-reading-panel" data-reading-submission-form="${escapeHtml(todo.id)}" ${submitting ? 'aria-busy="true"' : ""}>
     <label class="todo-panel-label" for="readingSubmissionAudio">上传复述录音</label>
     <input id="readingSubmissionAudio" class="todo-input todo-reading-audio" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.amr"${submitting ? " disabled" : ""}>
+    <div class="todo-detail-muted todo-reading-audio-status" data-reading-audio-status>${submitting ? "录音已收到，正在转写与分析。" : "选择录音后会自动提交并开始分析；如果浏览器没有自动开始，请点提交录音并分析。"}</div>
     <textarea id="todoReadingSubmissionNotes" class="todo-input todo-comment-textarea" rows="3" placeholder="补充当天阅读范围、孩子状态或家长观察，可留空" ${submitting ? "disabled" : ""}>${escapeHtml(notes)}</textarea>
     <div class="todo-comment-actions">
       <button type="submit" data-submit-reading="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${submitting ? "正在转写与分析..." : "提交录音并分析"}</button>
@@ -9778,6 +9779,18 @@ function wireTodoPanel(root) {
     form.querySelector("#todoReadingSubmissionNotes")?.addEventListener("input", (event) => {
       const todoId = form.dataset.readingSubmissionForm || "";
       if (todoId) state.todoReadingSubmissionDrafts[todoId] = event.target.value || "";
+    });
+    form.querySelector("#readingSubmissionAudio")?.addEventListener("change", (event) => {
+      const todoId = form.dataset.readingSubmissionForm || form.querySelector("[data-submit-reading]")?.dataset?.submitReading || "";
+      const file = event.target?.files?.[0] || null;
+      const status = form.querySelector("[data-reading-audio-status]");
+      if (!file) {
+        if (status) status.textContent = "未选择录音文件。";
+        return;
+      }
+      if (status) status.textContent = `已选择 ${file.name || "录音文件"}，正在上传并分析...`;
+      const notes = form.querySelector("#todoReadingSubmissionNotes")?.value || "";
+      submitReadingSubmission(todoId, file, notes).catch(showError);
     });
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -10113,6 +10126,7 @@ async function submitReadingSubmission(todoId, file, notes = "") {
   if (!file) throw new Error("请先选择复述录音文件");
   state.todoReadingSubmissionDrafts[todoId] = notes || "";
   state.todoReadingSubmitting[todoId] = true;
+  showPushToast("阅读录音已开始上传，正在转写与分析");
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     const dataBase64 = await fileToBase64(file);
