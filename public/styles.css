@@ -5103,7 +5103,7 @@ button.directory-alias-chip {
 }
 
 .kanban-archive-card-chain button span {
-  grid-row: span 2;
+  grid-row: 1 / span 3;
   min-width: 26px;
   padding: 3px 5px;
   color: var(--accent);
@@ -5129,6 +5129,10 @@ button.directory-alias-chip {
   font-size: 12px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.kanban-archive-card-chain button .kanban-archive-card-feedback {
+  color: var(--text);
 }
 
 .kanban-archive-more {

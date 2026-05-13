@@ -25,6 +25,7 @@ const TODO_LIST_CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
 const KANBAN_STORY_STATUS = "story";
 const KANBAN_STORY_DEFAULT_VERSION = "20260513-story-tree";
+const KANBAN_STORY_DETAIL_LOAD_LIMIT = 6;
 
 function initialTodoKanbanStatus() {
   const stored = localStorage.getItem("hermesTodoKanbanStatus") || "";
@@ -73,6 +74,7 @@ const state = {
   todoKanbanStatus: initialTodoKanbanStatus(),
   todoCompletedLoaded: false,
   todoCardDetails: {},
+  kanbanStoryDetailQueued: {},
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoCreateOpen: false,
@@ -8729,14 +8731,63 @@ function kanbanArchiveStatusSummary(group) {
 }
 
 function kanbanArchiveConclusion(group) {
-  const result = group.cards
-    .map((item) => String(item.todo?.kanbanResult || "").trim())
+  const result = [...(group.cards || [])]
+    .sort((left, right) => todoSortTimestamp(right.todo) - todoSortTimestamp(left.todo))
+    .map((item) => kanbanCardStoryFeedback(item.todo))
     .find(Boolean);
   if (result) return compactDisplayText(result, 320);
   const completed = group.cards.filter((item) => normalizedKanbanStatus(item.todo) === "done").length;
   const archived = group.cards.filter((item) => normalizedKanbanStatus(item.todo) === "archived").length;
   if (completed || archived) return `Done ${completed} / Archived ${archived}`;
   return "\u672a\u5199\u5165\u7ed3\u679c\u56de\u6267";
+}
+
+function kanbanCardStoryFeedback(todo) {
+  const detail = todoCardDetailState(todo?.id || "");
+  return String(todo?.kanbanResult || detail?.summary || "").trim();
+}
+
+function kanbanCardNeedsStoryDetail(todo) {
+  if (!todo || !isKanbanTodoSource()) return false;
+  if (kanbanCardStoryFeedback(todo)) return false;
+  if (kanbanCardOutputs(todo).length) return false;
+  const detail = todoCardDetailState(todo.id);
+  if (detail?.loading || detail?.error || detail?.summary) return false;
+  const status = normalizedKanbanStatus(todo);
+  return status === "done" || status === "archived";
+}
+
+function kanbanCardStoryFeedbackLine(todo) {
+  const feedback = kanbanCardStoryFeedback(todo);
+  if (feedback) return compactDisplayText(feedback, 220);
+  const detail = todoCardDetailState(todo?.id || "");
+  if (detail?.loading) return "\u6267\u884c\u53cd\u9988\u52a0\u8f7d\u4e2d";
+  if (detail?.error) return `\u6267\u884c\u53cd\u9988\u52a0\u8f7d\u5931\u8d25\uff1a${compactDisplayText(detail.error, 80)}`;
+  if (kanbanCardNeedsStoryDetail(todo)) return "\u7b49\u5f85\u52a0\u8f7d\u6267\u884c\u53cd\u9988";
+  return "";
+}
+
+function scheduleKanbanStoryDetailLoads(items) {
+  if (!isKanbanTodoSource() || state.selectedTodoId || kanbanComposerOpen()) return;
+  if (String(state.todoKanbanStatus || "").trim().toLowerCase() !== KANBAN_STORY_STATUS) return;
+  const queued = state.kanbanStoryDetailQueued || {};
+  const ids = [];
+  for (const group of kanbanStoryCases(items).slice(0, 4)) {
+    for (const item of (group.cards || []).slice(0, 10)) {
+      const id = String(item?.todo?.id || "").trim();
+      if (!id || queued[id] || !kanbanCardNeedsStoryDetail(item.todo)) continue;
+      queued[id] = Date.now();
+      ids.push(id);
+      if (ids.length >= KANBAN_STORY_DETAIL_LOAD_LIMIT) break;
+    }
+    if (ids.length >= KANBAN_STORY_DETAIL_LOAD_LIMIT) break;
+  }
+  state.kanbanStoryDetailQueued = queued;
+  ids.forEach((id, index) => {
+    window.setTimeout(() => {
+      loadKanbanCardDetail(id, { silent: true }).catch(showError);
+    }, index * 120);
+  });
 }
 
 function renderKanbanArchiveCase(group) {
@@ -8755,16 +8806,21 @@ function renderKanbanArchiveCase(group) {
     const status = kanbanStatusMeta(normalizedKanbanStatus(todo)).shortLabel;
     const goal = compactDisplayText(info.cardGoal || todo.description || todo.content || "", 160);
     const sequence = info.cardIndex || index + 1;
+    const revisionLabel = todo.kanbanRevisionOf ? "\u4fee\u6539\u4efb\u52a1" : "";
     const dependencies = (info.dependsOn || [])
       .map((id) => titleByCardId.get(id) || id)
       .filter(Boolean)
       .join(" / ");
-    const meta = [status, dependencies ? `\u4f9d\u8d56\uff1a${dependencies}` : "", goal].filter(Boolean).join(" | ");
+    const outputCount = kanbanCardOutputs(todo).length;
+    const feedback = kanbanCardStoryFeedbackLine(todo);
+    const meta = [status, revisionLabel, dependencies ? `\u4f9d\u8d56\uff1a${dependencies}` : "", goal].filter(Boolean).join(" | ");
+    const feedbackLine = [feedback, outputCount ? `\u4ea4\u4ed8 ${outputCount}` : ""].filter(Boolean).join(" | ");
     return `<li>
       <button type="button" data-todo-id="${escapeHtml(todo.id)}">
         <span>${escapeHtml(String(sequence))}</span>
         <strong>${escapeHtml(todo.content || todo.id)}</strong>
         <small>${escapeHtml(meta)}</small>
+        ${feedbackLine ? `<small class="kanban-archive-card-feedback">${escapeHtml(feedbackLine)}</small>` : ""}
       </button>
     </li>`;
   }).join("");
@@ -8907,6 +8963,9 @@ function renderTodoPanel(options = {}) {
   }
   if (shouldAutoLoadKanbanDetail(selected)) {
     window.setTimeout(() => loadKanbanCardDetail(selected.id).catch(showError), 0);
+  }
+  if (!selected && !creating) {
+    window.setTimeout(() => scheduleKanbanStoryDetailLoads(state.todos), 0);
   }
   if (options.preserveScroll) {
     const nextScrollTop = Number.isFinite(options.restoreScrollTop) ? options.restoreScrollTop : previousScrollTop;
