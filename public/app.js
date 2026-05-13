@@ -75,6 +75,9 @@ const state = {
   todoCompletedLoaded: false,
   todoCardDetails: {},
   kanbanStoryDetailQueued: {},
+  todoCommentDrafts: {},
+  todoRevisionDrafts: {},
+  todoRevisionSubmitting: {},
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoCreateOpen: false,
@@ -8923,10 +8926,15 @@ function renderTodoPanel(options = {}) {
   const previousScrollTop = conversation ? conversation.scrollTop : 0;
   const active = document.activeElement;
   const restoreKanbanComposerFocus = Boolean(active && active.id === "kanbanComposerText" && state.todoCreateOpen);
+  const restoreTodoDraftFocus = Boolean(active && (active.id === "todoCommentText" || active.id === "todoRevisionText"));
   const kanbanComposerSelection = restoreKanbanComposerFocus
     ? { start: active.selectionStart, end: active.selectionEnd }
     : null;
+  const todoDraftFocus = restoreTodoDraftFocus
+    ? { id: active.id, start: active.selectionStart, end: active.selectionEnd }
+    : null;
   if (restoreKanbanComposerFocus) syncKanbanComposerDraftFromDom();
+  if (restoreTodoDraftFocus) syncTodoDetailDraftFromDom(active);
   const selected = state.todos.find((todo) => todo.id === state.selectedTodoId) || null;
   const creating = kanbanComposerOpen();
   $("threadTitle").textContent = creating ? "\u65b0\u589e\u4efb\u52a1" : (selected ? "看板详情" : "看板");
@@ -8961,6 +8969,7 @@ function renderTodoPanel(options = {}) {
       }
     }
   }
+  if (restoreTodoDraftFocus) restoreTodoDetailDraftFocus(todoDraftFocus);
   if (shouldAutoLoadKanbanDetail(selected)) {
     window.setTimeout(() => loadKanbanCardDetail(selected.id).catch(showError), 0);
   }
@@ -8999,6 +9008,32 @@ function renderTodoCreatePanel() {
       </div>
     </div>
   </form>`;
+}
+
+function syncTodoDetailDraftFromDom(input = null) {
+  const target = input || document.activeElement;
+  if (!target || (target.id !== "todoCommentText" && target.id !== "todoRevisionText")) return;
+  const form = target.closest?.("[data-todo-comment-form], [data-todo-revision-form]");
+  const commentId = form?.dataset?.todoCommentForm || "";
+  const revisionId = form?.dataset?.todoRevisionForm || "";
+  if (target.id === "todoCommentText" && commentId) state.todoCommentDrafts[commentId] = target.value || "";
+  if (target.id === "todoRevisionText" && revisionId) state.todoRevisionDrafts[revisionId] = target.value || "";
+}
+
+function restoreTodoDetailDraftFocus(focus = null) {
+  if (!focus?.id) return;
+  const input = $(focus.id);
+  if (!input) return;
+  try {
+    input.focus({ preventScroll: true });
+  } catch (_) {
+    input.focus();
+  }
+  if (typeof input.setSelectionRange === "function") {
+    const start = Number.isFinite(focus.start) ? focus.start : input.value.length;
+    const end = Number.isFinite(focus.end) ? focus.end : start;
+    input.setSelectionRange(start, end);
+  }
 }
 
 function renderKanbanComposerMessage(message) {
@@ -9348,7 +9383,7 @@ function renderTodoDetail(todo) {
     : `<div class="todo-detail-grid">${gridItems}</div>${skillRows}`;
   const commentPanel = kanban && open
     ? `<form class="todo-comment-panel" data-todo-comment-form="${escapeHtml(todo.id)}">
-      <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写授权范围、限制条件或执行说明"></textarea>
+      <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写授权范围、限制条件或执行说明">${escapeHtml(state.todoCommentDrafts?.[todo.id] || "")}</textarea>
       <div class="todo-comment-actions">
         <button type="submit" data-comment-todo="${escapeHtml(todo.id)}">添加评论</button>
         ${blocked ? `<button type="button" data-comment-unblock-todo="${escapeHtml(todo.id)}">评论并解除阻塞</button>` : ""}
@@ -9356,12 +9391,13 @@ function renderTodoDetail(todo) {
     </form>`
     : "";
   const revisionPanel = completed
-    ? `<form class="todo-comment-panel todo-revision-panel" data-todo-revision-form="${escapeHtml(todo.id)}">
+    ? `<form class="todo-comment-panel todo-revision-panel" data-todo-revision-form="${escapeHtml(todo.id)}" ${state.todoRevisionSubmitting?.[todo.id] ? 'aria-busy="true"' : ""}>
       <label class="todo-panel-label" for="todoRevisionText">要求修改</label>
-      <textarea id="todoRevisionText" class="todo-input todo-comment-textarea" rows="4" placeholder="写清楚需要修改的地方、验收要求或补充材料"></textarea>
+      <textarea id="todoRevisionText" class="todo-input todo-comment-textarea" rows="4" placeholder="写清楚需要修改的地方、验收要求或补充材料" ${state.todoRevisionSubmitting?.[todo.id] ? "disabled" : ""}>${escapeHtml(state.todoRevisionDrafts?.[todo.id] || "")}</textarea>
       <div class="todo-comment-actions">
-        <button type="submit" data-revise-todo="${escapeHtml(todo.id)}">创建修改任务</button>
+        <button type="submit" data-revise-todo="${escapeHtml(todo.id)}" ${state.todoRevisionSubmitting?.[todo.id] ? "disabled" : ""}>${state.todoRevisionSubmitting?.[todo.id] ? "正在创建..." : "创建修改任务"}</button>
       </div>
+      ${state.todoRevisionSubmitting?.[todo.id] ? `<p class="todo-detail-muted">正在创建修改任务，请勿重复提交。</p>` : ""}
     </form>`
     : "";
   return `<article class="todo-detail-card ${escapeHtml(todoStatusLabel(todo))}">
@@ -9490,6 +9526,10 @@ function wireTodoPanel(root) {
     });
   });
   root.querySelectorAll("[data-todo-comment-form]").forEach((form) => {
+    form.querySelector("#todoCommentText")?.addEventListener("input", (event) => {
+      const todoId = form.dataset.todoCommentForm || "";
+      if (todoId) state.todoCommentDrafts[todoId] = event.target.value || "";
+    });
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -9498,6 +9538,10 @@ function wireTodoPanel(root) {
     });
   });
   root.querySelectorAll("[data-todo-revision-form]").forEach((form) => {
+    form.querySelector("#todoRevisionText")?.addEventListener("input", (event) => {
+      const todoId = form.dataset.todoRevisionForm || "";
+      if (todoId) state.todoRevisionDrafts[todoId] = event.target.value || "";
+    });
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -9731,6 +9775,7 @@ async function commentTodo(todoId, comment) {
   clearTodoListCache();
   await loadTodos();
   state.selectedTodoId = todoId;
+  delete state.todoCommentDrafts[todoId];
   showPushToast("评论已添加", "success");
   renderTodos();
 }
@@ -9753,30 +9798,40 @@ async function commentAndUnblockTodo(todoId, comment) {
   clearTodoListCache();
   await loadTodos();
   state.selectedTodoId = todoId;
+  delete state.todoCommentDrafts[todoId];
   showPushToast("评论已添加，已解除阻塞", "success");
   renderTodos();
 }
 
 async function requestTodoRevision(todoId, comment) {
   if (!todoId) return;
+  if (state.todoRevisionSubmitting?.[todoId]) return;
   const text = String(comment || "").trim();
   if (!text) throw new Error("请先填写修改要求");
-  const response = await api(boardActionApiPath(todoId, "revise"), {
-    method: "POST",
-    body: JSON.stringify({
-      workspaceId: state.selectedWorkspaceId,
-      comment: text,
-    }),
-  });
-  const result = response.result || {};
-  const revisionId = result.revisionId || result.revisionCard?.id || result.id || "";
-  clearTodoListCache();
-  state.todoKanbanStatus = "todo";
-  localStorage.setItem("hermesTodoKanbanStatus", "todo");
-  await loadTodos({ skipCache: true });
-  state.selectedTodoId = revisionId || todoId;
-  showPushToast(revisionId ? `已创建修改任务 ${revisionId}` : "修改请求已提交", "success");
-  renderTodos();
+  state.todoRevisionDrafts[todoId] = text;
+  state.todoRevisionSubmitting[todoId] = true;
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const response = await api(boardActionApiPath(todoId, "revise"), {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: state.selectedWorkspaceId,
+        comment: text,
+      }),
+    });
+    const result = response.result || {};
+    const revisionId = result.revisionId || result.revisionCard?.id || result.id || "";
+    clearTodoListCache();
+    state.todoKanbanStatus = "todo";
+    localStorage.setItem("hermesTodoKanbanStatus", "todo");
+    await loadTodos({ skipCache: true });
+    state.selectedTodoId = revisionId || todoId;
+    delete state.todoRevisionDrafts[todoId];
+    showPushToast(revisionId ? `已创建修改任务 ${revisionId}` : "修改请求已提交", "success");
+  } finally {
+    delete state.todoRevisionSubmitting[todoId];
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
 }
 
 async function deleteTodo(todoId) {
