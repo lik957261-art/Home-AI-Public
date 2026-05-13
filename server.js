@@ -4950,6 +4950,32 @@ function writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, sta
   return payload;
 }
 
+function kanbanReadingCardTimestamp(card = {}) {
+  const parsed = Date.parse(card.updatedAt || card.completedAt || card.createdAt || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function findKanbanReadingSubmissionState(workspaceId, cardId, context = {}) {
+  const requestedId = String(cardId || "").trim();
+  const current = context.current || { id: requestedId, content: requestedId };
+  const siblings = Array.isArray(context.siblings) ? context.siblings : [];
+  const candidates = [];
+  if (current) candidates.push(current);
+  const revisions = siblings
+    .filter((card) => String(card?.kanbanRevisionOf || "").trim() === requestedId)
+    .sort((left, right) => kanbanReadingCardTimestamp(right) - kanbanReadingCardTimestamp(left));
+  candidates.push(...revisions);
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const candidateId = String(candidate?.id || requestedId).trim();
+    if (!candidateId || seen.has(candidateId)) continue;
+    seen.add(candidateId);
+    const state = readKanbanReadingSubmissionState(workspaceId, candidateId, candidate);
+    if (state?.quiz) return { state, card: candidate, cardId: candidateId };
+  }
+  return { state: null, card: current, cardId: requestedId };
+}
+
 function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes = "") {
   const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId);
   const stem = safeFileName(`${currentCard?.kanbanCaseCardIndex || "session"}-${currentCard?.content || cardId}`).replace(/\.[^.]+$/, "");
@@ -5042,13 +5068,14 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
 
 async function getKanbanReadingQuiz(workspaceId, cardId) {
   const context = await readingContextForCard(workspaceId, cardId);
-  const currentCard = context.current || { id: cardId, content: cardId };
-  const state = readKanbanReadingSubmissionState(workspaceId, cardId, currentCard);
+  const lookup = findKanbanReadingSubmissionState(workspaceId, cardId, context);
+  const state = lookup.state;
   if (!state?.quiz) return { ok: false, status: 404, error: "Reading quiz is not available yet" };
   return {
     ok: true,
+    canonicalCardId: lookup.cardId,
     quiz: publicKanbanReadingQuiz(state.quiz),
-    quizUrl: state.quizUrl || readingQuizUrl(workspaceId, cardId),
+    quizUrl: state.quizUrl || readingQuizUrl(workspaceId, lookup.cardId),
     analysisPath: state.analysisPath || "",
     status: state.status || "quiz_pending",
     attempts: Array.isArray(state.attempts) ? state.attempts.map((attempt) => ({
@@ -5061,11 +5088,12 @@ async function getKanbanReadingQuiz(workspaceId, cardId) {
 
 async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
   const context = await readingContextForCard(workspaceId, cardId);
-  const currentCard = context.current || { id: cardId, content: cardId };
-  const state = readKanbanReadingSubmissionState(workspaceId, cardId, currentCard);
+  const lookup = findKanbanReadingSubmissionState(workspaceId, cardId, context);
+  const currentCard = lookup.card || context.current || { id: lookup.cardId || cardId, content: cardId };
+  const state = lookup.state;
   if (!state?.quiz) return { ok: false, status: 404, error: "Reading quiz is not available yet" };
   if (String(state.status || "") === "completed") {
-    return { ok: true, passed: true, score: 100, status: "completed", quiz: publicKanbanReadingQuiz(state.quiz) };
+    return { ok: true, passed: true, score: 100, status: "completed", canonicalCardId: lookup.cardId, quiz: publicKanbanReadingQuiz(state.quiz) };
   }
   const answers = Array.isArray(body.answers)
     ? body.answers
@@ -5097,7 +5125,7 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
     attempts: [...(Array.isArray(state.attempts) ? state.attempts : []), attempt].slice(-20),
     completedAt: passed ? nowIso() : state.completedAt || "",
   });
-  writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, nextState);
+  writeKanbanReadingSubmissionState(workspaceId, lookup.cardId, currentCard, nextState);
   if (!passed) {
     return {
       ok: true,
@@ -5111,6 +5139,7 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
         explanation: item.correct ? "" : item.explanation,
       })),
       quiz: publicKanbanReadingQuiz(state.quiz),
+      canonicalCardId: lookup.cardId,
     };
   }
   const resultText = [
@@ -5122,14 +5151,14 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
   await kanbanCardProvider.mutateCard({
     action: "comment",
     workspaceId,
-    cardId,
+    cardId: lookup.cardId,
     comment: "Reading quiz passed with 10/10 correct answers. Completing this reading card.",
     author: "Hermes Mobile",
   }).catch(() => null);
   const completed = await kanbanCardProvider.mutateCard({
     action: "complete",
     workspaceId,
-    cardId,
+    cardId: lookup.cardId,
     result: resultText,
     author: "Hermes Mobile",
   });
@@ -5138,6 +5167,7 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
   return {
     ok: true,
     passed: true,
+    canonicalCardId: lookup.cardId,
     score,
     correctCount,
     total: results.length,

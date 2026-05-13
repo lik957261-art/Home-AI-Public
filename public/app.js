@@ -10602,9 +10602,14 @@ async function loadReadingQuiz(todoId) {
   try {
     const params = new URLSearchParams({ workspaceId: state.selectedWorkspaceId || "owner" });
     const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-quiz?${params.toString()}`);
-    state.todoReadingQuizzes[todoId] = { quiz: result.quiz, quizUrl: result.quizUrl || "", status: result.status || "" };
-    if (!Array.isArray(state.todoReadingQuizAnswers[todoId])) state.todoReadingQuizAnswers[todoId] = [];
-    if (!Number.isFinite(Number(state.todoReadingQuizStep[todoId]))) state.todoReadingQuizStep[todoId] = 0;
+    const canonicalId = String(result.canonicalCardId || todoId || "").trim() || todoId;
+    if (canonicalId !== todoId && state.todos.some((todo) => todo.id === canonicalId)) {
+      delete state.todoReadingQuizzes[todoId];
+      state.selectedTodoId = canonicalId;
+    }
+    state.todoReadingQuizzes[canonicalId] = { quiz: result.quiz, quizUrl: result.quizUrl || "", status: result.status || "" };
+    if (!Array.isArray(state.todoReadingQuizAnswers[canonicalId])) state.todoReadingQuizAnswers[canonicalId] = [];
+    if (!Number.isFinite(Number(state.todoReadingQuizStep[canonicalId]))) state.todoReadingQuizStep[canonicalId] = 0;
   } catch (err) {
     state.todoReadingQuizzes[todoId] = { loading: false, error: err.message || String(err) };
   }
@@ -10622,11 +10627,12 @@ async function submitReadingQuiz(todoId) {
       body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, answers }),
     });
     state.todoReadingQuizzes[todoId] = Object.assign({}, state.todoReadingQuizzes[todoId] || {}, { result, status: result.status || "" });
+    const canonicalId = String(result.canonicalCardId || todoId || "").trim() || todoId;
     if (result.passed) {
       clearTodoListCache();
       delete state.todoCardDetails[todoId];
       await loadTodos({ skipCache: true, includeCompleted: true });
-      state.selectedTodoId = todoId;
+      state.selectedTodoId = state.todos.some((todo) => todo.id === canonicalId) ? canonicalId : todoId;
       showPushToast("考卷 10/10，全对，阅读卡片已完成。", "success");
     } else {
       const wrongIndex = Array.isArray(result.results) ? result.results.findIndex((item) => !item.correct) : -1;
