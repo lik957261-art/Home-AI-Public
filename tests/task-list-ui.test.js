@@ -267,8 +267,18 @@ assert.match(appJs, /function kanbanReadingCaseKey\(todo\)/);
 assert.match(appJs, /function kanbanVisibleReadingTodoIds\(todos\)/);
 assert.match(appJs, /function kanbanVisibleBoardTodos\(todos\)/);
 assert.match(appJs, /function readingCardAcceptsSubmission\(todo\)/);
+assert.match(appJs, /function kanbanReadingRevisionOriginal\(group, item\)/);
+assert.match(appJs, /function kanbanReadingDisplayCardIndex\(group, item\)/);
+assert.match(appJs, /function kanbanReadingBaseCardItems\(group\)/);
 assert.match(appJs, /function kanbanReadingCaseCurrentItem\(group\)/);
+assert.match(appJs, /const pendingQuiz = cards\.find\(\(item\) => readingSubmissionHasAnalysis\(item\.todo\) && !readingSubmissionCompleted\(item\.todo\)\)/);
 assert.match(appJs, /function renderKanbanReadingArchiveCase\(group\)/);
+assert.match(appJs, /buttonText = readingSubmissionCompleted\(todo\) \? "查看答卷" : "开始答卷"/);
+const readingCompletionFn = appJs.slice(
+  appJs.indexOf("function readingSubmissionCompleted(todo)"),
+  appJs.indexOf("function renderKanbanReadingWorkflowPanel(todo)"),
+);
+assert.equal(readingCompletionFn.includes("normalizedKanbanStatus"), false);
 assert.match(appJs, /group\.mode === "reading-plan"/);
 assert.match(appJs, /kanbanDisplayResultText\(todo, todo\.kanbanResult \|\| detail\?\.summary \|\| ""\)/);
 assert.match(appJs, /detail && !readingCard \? renderKanbanProcessRows\(detail\) : ""/);
@@ -340,8 +350,8 @@ assert.ok(appJs.includes("New topic"));
 assert.ok(appJs.includes("\u770b\u677f\u8be6\u60c5"));
 assert.ok(appJs.includes("\u65b0\u589e\u5361\u7247"));
 assert.ok(appJs.includes("Topic ID"));
-assert.ok(indexHtml.includes("20260513-2315"));
-assert.ok(serviceWorkerJs.includes("20260513-reading-workflow"));
+assert.ok(indexHtml.includes("20260513-2335"));
+assert.ok(serviceWorkerJs.includes("20260513-reading-revision-flow"));
 assert.match(indexHtml, /id="chatManagementMode"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.addEventListener\("click"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.classList\.toggle\("active", single && state\.singleWindowMode === "chat"\)/);

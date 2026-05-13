@@ -8761,6 +8761,34 @@ function kanbanVisibleReadingTodoIds(todos) {
   return visible;
 }
 
+function kanbanReadingRevisionOriginal(group, item) {
+  const originalId = String(item?.todo?.kanbanRevisionOf || "").trim();
+  if (!originalId) return null;
+  return (group?.cards || []).find((candidate) => String(candidate?.todo?.id || "") === originalId) || null;
+}
+
+function isKanbanReadingRevision(itemOrTodo) {
+  const todo = itemOrTodo?.todo || itemOrTodo || {};
+  return Boolean(String(todo?.kanbanRevisionOf || "").trim());
+}
+
+function kanbanReadingDisplayCardIndex(group, item) {
+  const original = kanbanReadingRevisionOriginal(group, item);
+  const value = original?.info?.cardIndex || item?.info?.cardIndex || item?.todo?.kanbanCaseCardIndex || 0;
+  return Number(value || 0) || 0;
+}
+
+function kanbanReadingBaseCardItems(group) {
+  return (group?.cards || []).filter((item) => !isKanbanReadingRevision(item));
+}
+
+function kanbanReadingDisplayCardCount(group) {
+  const baseCount = kanbanReadingBaseCardItems(group).length;
+  if (baseCount) return baseCount;
+  const first = (group?.cards || [])[0];
+  return Number(first?.info?.cardCount || first?.todo?.kanbanCaseCardCount || 0) || 0;
+}
+
 function kanbanVisibleBoardTodos(todos) {
   const visibleReadingIds = kanbanVisibleReadingTodoIds(todos);
   return (todos || []).filter((todo) => (
@@ -8787,23 +8815,29 @@ function readingCardAcceptsSubmission(todo) {
 
 function kanbanReadingCaseCurrentItem(group) {
   const cards = [...(Array.isArray(group?.cards) ? group.cards : [])].sort((left, right) => {
-    const leftIndex = left?.info?.cardIndex || left?.todo?.kanbanCaseCardIndex || 999;
-    const rightIndex = right?.info?.cardIndex || right?.todo?.kanbanCaseCardIndex || 999;
+    const leftIndex = kanbanReadingDisplayCardIndex(group, left) || 999;
+    const rightIndex = kanbanReadingDisplayCardIndex(group, right) || 999;
     if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    if (isKanbanReadingRevision(left) !== isKanbanReadingRevision(right)) {
+      return isKanbanReadingRevision(left) ? 1 : -1;
+    }
     return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
   });
+  const pendingQuiz = cards.find((item) => readingSubmissionHasAnalysis(item.todo) && !readingSubmissionCompleted(item.todo));
+  if (pendingQuiz) return pendingQuiz;
   const visibleOpen = cards.find((item) => {
     const status = normalizedKanbanStatus(item.todo);
-    return status !== "done" && status !== "archived" && readingCardAcceptsSubmission(item.todo);
+    return !isKanbanReadingRevision(item) && status !== "done" && status !== "archived" && readingCardAcceptsSubmission(item.todo);
   });
   if (visibleOpen) return visibleOpen;
-  const completed = [...cards].reverse().find((item) => ["done", "archived"].includes(normalizedKanbanStatus(item.todo)));
-  if (completed) return completed;
-  return cards.find((item) => {
+  const nextBase = cards.find((item) => {
     const status = normalizedKanbanStatus(item.todo);
-    return status !== "done" && status !== "archived" && !isReadingPlanWaitingCard(item.todo);
-  })
-    || cards.find((item) => normalizedKanbanStatus(item.todo) === "blocked")
+    return !isKanbanReadingRevision(item) && status !== "done" && status !== "archived";
+  });
+  if (nextBase) return nextBase;
+  const completed = [...cards].reverse().find((item) => !isKanbanReadingRevision(item) && ["done", "archived"].includes(normalizedKanbanStatus(item.todo)));
+  if (completed) return completed;
+  return cards.find((item) => !isKanbanReadingRevision(item))
     || cards[0]
     || null;
 }
@@ -9003,6 +9037,7 @@ function scheduleKanbanStoryDetailLoads(items) {
 
 function renderKanbanReadingArchiveCase(group) {
   const cards = group.cards || [];
+  const baseCards = kanbanReadingBaseCardItems(group);
   const first = cards[0]?.todo || {};
   const current = kanbanReadingCaseCurrentItem(group);
   const currentTodo = current?.todo || first;
@@ -9010,8 +9045,9 @@ function renderKanbanReadingArchiveCase(group) {
   const requirement = compactDisplayText(group.sourceText || group.title || first.content || "", 320);
   const statusSummary = kanbanArchiveStatusSummary(group);
   const latest = group.latest ? todoTimestampLabel(new Date(group.latest).toISOString()) : "";
-  const completed = cards.filter((item) => ["done", "archived"].includes(normalizedKanbanStatus(item.todo))).length;
-  const progress = `${completed}/${cards.length} \u5df2\u5b8c\u6210${statusSummary ? ` | ${statusSummary}` : ""}`;
+  const completed = baseCards.filter((item) => ["done", "archived"].includes(normalizedKanbanStatus(item.todo))).length;
+  const total = kanbanReadingDisplayCardCount(group) || baseCards.length || cards.length;
+  const progress = `${completed}/${total} \u5df2\u5b8c\u6210${statusSummary ? ` | ${statusSummary}` : ""}`;
   const conclusion = kanbanArchiveConclusion(group);
   const currentStatus = currentTodo ? kanbanStatusMeta(normalizedKanbanStatus(currentTodo)).shortLabel : "";
   const currentFeedback = currentTodo ? kanbanCardStoryFeedbackLine(currentTodo) : "";
@@ -9023,7 +9059,7 @@ function renderKanbanReadingArchiveCase(group) {
   ].filter(Boolean).join(" | ");
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
-      <span>${escapeHtml(String(current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
+      <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
       <strong>${escapeHtml(currentTodo.content || currentTodo.id)}</strong>
       <small>${escapeHtml(currentMeta)}</small>
       ${currentFeedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(currentFeedback)}</small>` : ""}
@@ -9752,8 +9788,7 @@ function readingSubmissionHasAnalysis(todo) {
 function readingSubmissionCompleted(todo) {
   const summary = readingSubmissionSummary(todo);
   return String(summary?.status || "") === "completed"
-    || Boolean(summary?.lastAttempt?.passed)
-    || ["done", "archived"].includes(normalizedKanbanStatus(todo));
+    || Boolean(summary?.lastAttempt?.passed);
 }
 
 function renderKanbanReadingWorkflowPanel(todo) {
@@ -9797,7 +9832,7 @@ function readingQuizState(todoId) {
 }
 
 function renderKanbanReadingQuizPanel(todo) {
-  if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return "";
+  if (!isKanbanReadingCard(todo)) return "";
   const quizState = readingQuizState(todo.id);
   const submitting = Boolean(state.todoReadingQuizSubmitting?.[todo.id]);
   if (!quizState) {
@@ -9807,13 +9842,14 @@ function renderKanbanReadingQuizPanel(todo) {
     const attemptText = attempt && !attempt.passed
       ? `上次 ${attempt.correctCount || 0}/${attempt.total || 10}，继续订正。`
       : "分析已完成，下一步完成 10 题单选考卷。";
+    const buttonText = readingSubmissionCompleted(todo) ? "查看答卷" : "开始答卷";
     return `<section class="todo-comment-panel todo-reading-quiz-panel">
       <div class="todo-detail-deliverables-head">
         <strong>练习考卷</strong>
         <span>第 3 步</span>
       </div>
       <p class="todo-detail-muted">${escapeHtml(attemptText)}</p>
-      <button type="button" data-load-reading-quiz="${escapeHtml(todo.id)}">开始答卷</button>
+      <button type="button" data-load-reading-quiz="${escapeHtml(todo.id)}">${escapeHtml(buttonText)}</button>
     </section>`;
   }
   if (quizState.loading) {
@@ -9829,6 +9865,7 @@ function renderKanbanReadingQuizPanel(todo) {
   const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
   if (!questions.length) return "";
   const answers = state.todoReadingQuizAnswers?.[todo.id] || [];
+  const passed = readingSubmissionCompleted(todo);
   const step = Math.max(0, Math.min(questions.length - 1, Number(state.todoReadingQuizStep?.[todo.id] || 0)));
   const question = questions[step] || questions[0];
   const selected = Number(answers[step]);
@@ -9836,7 +9873,7 @@ function renderKanbanReadingQuizPanel(todo) {
   const choices = (question.choices || []).map((choice, index) => {
     const id = `readingQuiz_${todo.id}_${step}_${index}`.replace(/[^\w-]/g, "_");
     return `<label class="reading-quiz-choice" for="${escapeHtml(id)}">
-      <input id="${escapeHtml(id)}" type="radio" name="readingQuizChoice_${escapeHtml(todo.id)}" value="${index}" data-reading-quiz-choice="${escapeHtml(todo.id)}" data-question-index="${step}"${selected === index ? " checked" : ""}${submitting ? " disabled" : ""}>
+      <input id="${escapeHtml(id)}" type="radio" name="readingQuizChoice_${escapeHtml(todo.id)}" value="${index}" data-reading-quiz-choice="${escapeHtml(todo.id)}" data-question-index="${step}"${selected === index ? " checked" : ""}${submitting || passed ? " disabled" : ""}>
       <span>${escapeHtml(choice)}</span>
     </label>`;
   }).join("");
@@ -9845,7 +9882,7 @@ function renderKanbanReadingQuizPanel(todo) {
   const answeredCount = answers.filter((value) => Number.isInteger(Number(value))).length;
   const status = result
     ? (result.passed ? "已全对，卡片已完成。" : `本次 ${result.correctCount || 0}/${result.total || 10}，请修改错误题后再提交。`)
-    : `已答 ${answeredCount}/${questions.length}`;
+    : (passed ? "已通过，可查看题目。" : `已答 ${answeredCount}/${questions.length}`);
   const wrong = result && !result.passed && Array.isArray(result.results)
     ? result.results
       .map((item, index) => item.correct ? "" : `${index + 1}. ${item.explanation || "需要重新检查。"} `)
@@ -9866,8 +9903,8 @@ function renderKanbanReadingQuizPanel(todo) {
     ${wrong ? `<pre class="todo-detail-muted">${escapeHtml(wrong)}</pre>` : ""}
     <div class="todo-comment-actions">
       <button type="button" data-reading-quiz-prev="${escapeHtml(todo.id)}"${canPrev && !submitting ? "" : " disabled"}>上一题</button>
-      <button type="button" data-reading-quiz-next="${escapeHtml(todo.id)}"${canNext && Number.isInteger(selected) && !submitting ? "" : " disabled"}>下一题</button>
-      <button type="submit"${answeredCount === questions.length && !submitting ? "" : " disabled"}>${submitting ? "正在判卷..." : "提交考卷"}</button>
+      <button type="button" data-reading-quiz-next="${escapeHtml(todo.id)}"${canNext && (passed || Number.isInteger(selected)) && !submitting ? "" : " disabled"}>下一题</button>
+      <button type="submit"${!passed && answeredCount === questions.length && !submitting ? "" : " disabled"}>${passed ? "已通过" : (submitting ? "正在判卷..." : "提交考卷")}</button>
     </div>
   </form>`;
 }

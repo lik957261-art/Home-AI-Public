@@ -230,6 +230,21 @@ async function run() {
   assert.ok(calls.some(([, args]) => args.includes("create") && args.includes("修改：Read chapter")));
   assert.ok(calls.some(([, args]) => args.includes("comment") && args.includes("Manual revision requested: revise the final copy\nFollow-up card: t_created_4")));
 
+  const readingRevision = await provider.run({
+    action: "revise",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: reading.id,
+    comment: "redo the reading response",
+  });
+  assert.equal(readingRevision.ok, true);
+  assert.equal(readingRevision.action, "revise");
+  assert.equal(readingRevision.kanban_revision_of, reading.id);
+  assert.equal(readingRevision.kanban_case_mode, "reading-plan");
+  assert.equal(readingRevision.kanban_case_card_index, 2);
+  assert.equal(readingRevision.kanban_case_card_count, 10);
+  assert.deepEqual(readingRevision.kanban_case_depends_on, []);
+
   const listedWithClosed = await provider.run({
     action: "list",
     workspace_id: "weixin_stephen",
