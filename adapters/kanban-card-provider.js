@@ -83,6 +83,7 @@ function createKanbanCardProvider(options = {}) {
       case_mode: args.caseMode || args.case_mode || "",
       case_source_text: args.caseSourceText || args.case_source_text || "",
       case_summary: args.caseSummary || args.case_summary || "",
+      case_cover: args.caseCover || args.case_cover || null,
       case_card_id: args.caseCardId || args.case_card_id || "",
       case_card_index: args.caseCardIndex ?? args.case_card_index ?? 0,
       case_card_count: args.caseCardCount ?? args.case_card_count ?? 0,

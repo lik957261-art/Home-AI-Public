@@ -248,6 +248,7 @@ const KANBAN_READING_ANALYSIS_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_READ
 const KANBAN_READING_TRANSCRIBE_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_READING_TRANSCRIBE_TIMEOUT_MS || process.env.HERMES_WEB_READING_TRANSCRIBE_TIMEOUT_MS || "240000");
 const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(process.env.HERMES_MOBILE_READING_TRANSCRIBE_SCRIPT || process.env.HERMES_WEB_READING_TRANSCRIBE_SCRIPT || path.join(__dirname, "scripts", "transcribe-reading-audio.ps1"));
 const KANBAN_READING_ARTIFACT_ROOT = path.resolve(process.env.HERMES_MOBILE_READING_ARTIFACT_ROOT || process.env.HERMES_WEB_READING_ARTIFACT_ROOT || path.join(DATA_DIR, "artifacts", "kanban-reading"));
+const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(process.env.HERMES_MOBILE_READING_COVER_MAX_BYTES || process.env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -3839,6 +3840,7 @@ function publicTodo(row) {
     kanbanCaseMode: String(row.kanban_case_mode || row.kanbanCaseMode || ""),
     kanbanCaseSourceText: String(row.kanban_case_source_text || row.kanbanCaseSourceText || ""),
     kanbanCaseSummary: String(row.kanban_case_summary || row.kanbanCaseSummary || ""),
+    kanbanCaseCover: publicKanbanCoverFile(workspaceId, row.kanban_case_cover || row.kanbanCaseCover || null),
     kanbanCaseCardId: String(row.kanban_case_card_id || row.kanbanCaseCardId || ""),
     kanbanCaseCardIndex: Number(row.kanban_case_card_index || row.kanbanCaseCardIndex || 0),
     kanbanCaseCardCount: Number(row.kanban_case_card_count || row.kanbanCaseCardCount || 0),
@@ -3915,6 +3917,22 @@ function publicKanbanOutputFile(workspaceId, rawPath) {
     updatedAt: resolved.file.updatedAt,
     url: `/api/kanban/cards/output?${params.toString()}`,
   };
+}
+
+function publicKanbanCoverFile(workspaceId, rawCover) {
+  const cover = rawCover && typeof rawCover === "object" && !Array.isArray(rawCover)
+    ? rawCover
+    : { path: String(rawCover || "") };
+  const coverPath = String(cover.path || "").trim();
+  if (!coverPath) return null;
+  const file = publicKanbanOutputFile(workspaceId, coverPath);
+  if (!file) return null;
+  return Object.assign({}, file, {
+    role: "cover",
+    name: cover.name || file.name,
+    mime: cover.mime || file.mime,
+    size: Number(cover.size || file.size || 0) || 0,
+  });
 }
 
 function publicKanbanOutputsFromText(workspaceId, text) {
@@ -4573,14 +4591,20 @@ function normalizeKanbanReadingPlan(raw = {}, workspaceId = "owner") {
 
 async function createKanbanReadingPlanCards(workspaceId, input = {}) {
   const plan = normalizeKanbanReadingPlan(input, workspaceId);
+  const cover = saveKanbanReadingCoverUpload(workspaceId, plan.id, input.coverImage || input.cover_image || input.cover || null);
+  if (cover) plan.cover = publicKanbanCoverFile(workspaceId, cover) || cover;
   const created = [];
   for (const [index, card] of plan.cards.entries()) {
+    const description = compactText([
+      card.description,
+      cover ? "书籍封面已上传，可在 Hermes Mobile 阅读计划中预览。" : "",
+    ].filter(Boolean).join("\n\n"), 1800);
     const result = await kanbanCardProvider.addCard({
       workspaceId,
       assignee: input.assignee || workspacePrincipal(workspaceId),
       assigneeLabel: todoAssigneeLabel(workspaceId, input.assignee || workspacePrincipal(workspaceId)),
       content: card.title,
-      description: card.description,
+      description,
       dueTime: card.dueTime,
       reminderLeadMinutes: plan.reminderLeadMinutes,
       reason: "Created from Hermes Mobile reading plan.",
@@ -4589,6 +4613,7 @@ async function createKanbanReadingPlanCards(workspaceId, input = {}) {
       caseMode: plan.mode,
       caseSourceText: compactText(plan.sourceText, 2000),
       caseSummary: plan.summary,
+      caseCover: cover || null,
       caseCardId: card.clientId,
       caseCardIndex: index + 1,
       caseCardCount: plan.cards.length,
@@ -4619,6 +4644,36 @@ function readingArtifactDirectory(workspaceId, caseId, cardId) {
   );
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+function isReadingCoverImageUpload(filename, mime) {
+  const ext = path.extname(String(filename || "")).toLowerCase();
+  const allowedExt = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"];
+  const normalizedMime = String(mime || "").toLowerCase();
+  return allowedExt.includes(ext) && /^image\/(png|jpe?g|webp|gif|heic|heif)$/i.test(normalizedMime || mimeFor(filename));
+}
+
+function saveKanbanReadingCoverUpload(workspaceId, planId, rawCover = null) {
+  if (!rawCover || typeof rawCover !== "object" || Array.isArray(rawCover)) return null;
+  const data = String(rawCover.dataBase64 || rawCover.data_base64 || "");
+  if (!data) return null;
+  const filename = safeFileName(rawCover.filename || rawCover.name || "book-cover.jpg");
+  const mime = String(rawCover.type || rawCover.mime || rawCover.mimeType || rawCover.mime_type || mimeFor(filename) || "").trim();
+  if (!isReadingCoverImageUpload(filename, mime)) {
+    const err = new Error("Reading plan cover must be a PNG, JPEG, WebP, GIF, HEIC, or HEIF image");
+    err.status = 400;
+    throw err;
+  }
+  const buffer = Buffer.from(data, "base64");
+  if (!buffer.length || buffer.length > KANBAN_READING_COVER_MAX_BYTES) {
+    const err = new Error("Invalid or too-large reading plan cover image");
+    err.status = 400;
+    throw err;
+  }
+  const dir = readingArtifactDirectory(workspaceId, planId, "cover");
+  const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
+  fs.writeFileSync(filePath, buffer);
+  return { path: filePath, name: filename, mime, size: buffer.length };
 }
 
 function saveKanbanReadingAudioUpload(workspaceId, cardId, body = {}, currentCard = null) {
@@ -11545,7 +11600,7 @@ async function handleApi(req, res) {
       sendJson(res, 409, { error: "Kanban backend is not enabled" });
       return;
     }
-    const body = await readBody(req);
+    const body = await readBody(req, Math.ceil(KANBAN_READING_COVER_MAX_BYTES * 1.4) + 200000);
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
     try {

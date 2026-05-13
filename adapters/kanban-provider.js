@@ -236,6 +236,7 @@ function bodyWithMeta(content, meta) {
     caseMode: meta.caseMode || "",
     caseSourceText: meta.caseSourceText || "",
     caseSummary: meta.caseSummary || "",
+    caseCover: meta.caseCover || null,
     caseCardId: meta.caseCardId || "",
     caseCardIndex: Number(meta.caseCardIndex || 0) || 0,
     caseCardCount: Number(meta.caseCardCount || 0) || 0,
@@ -465,6 +466,7 @@ function createKanbanTodoBridge(options = {}) {
       kanban_case_mode: String(meta.caseMode || meta.case_mode || ""),
       kanban_case_source_text: String(meta.caseSourceText || meta.case_source_text || ""),
       kanban_case_summary: String(meta.caseSummary || meta.case_summary || ""),
+      kanban_case_cover: meta.caseCover || meta.case_cover || null,
       kanban_case_card_id: String(meta.caseCardId || meta.case_card_id || ""),
       kanban_case_card_index: Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 0,
       kanban_case_card_count: Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || 0,
@@ -506,6 +508,7 @@ function createKanbanTodoBridge(options = {}) {
         caseMode: String(row.kanban_case_mode || previous.caseMode || ""),
         caseSourceText: String(row.kanban_case_source_text || previous.caseSourceText || ""),
         caseSummary: String(row.kanban_case_summary || previous.caseSummary || ""),
+        caseCover: row.kanban_case_cover || previous.caseCover || null,
         caseCardId: String(row.kanban_case_card_id || previous.caseCardId || ""),
         caseCardIndex: Number(row.kanban_case_card_index ?? previous.caseCardIndex ?? 0) || 0,
         caseCardCount: Number(row.kanban_case_card_count ?? previous.caseCardCount ?? 0) || 0,
@@ -690,6 +693,7 @@ function createKanbanTodoBridge(options = {}) {
       caseMode: String(payload.case_mode || payload.caseMode || "").trim(),
       caseSourceText: String(payload.case_source_text || payload.caseSourceText || "").trim(),
       caseSummary: String(payload.case_summary || payload.caseSummary || "").trim(),
+      caseCover: payload.case_cover || payload.caseCover || null,
       caseCardId: String(payload.case_card_id || payload.caseCardId || "").trim(),
       caseCardIndex: Number(payload.case_card_index ?? payload.caseCardIndex ?? 0) || 0,
       caseCardCount: Number(payload.case_card_count ?? payload.caseCardCount ?? 0) || 0,
@@ -861,6 +865,7 @@ function createKanbanTodoBridge(options = {}) {
       const caseMode = String(meta.caseMode || meta.case_mode || "manual-revision").trim();
       const caseSourceText = String(meta.caseSourceText || meta.case_source_text || originalTitle).trim();
       const caseSummary = String(meta.caseSummary || meta.case_summary || `Manual revision for ${originalTitle}`).trim();
+      const caseCover = meta.caseCover || meta.case_cover || null;
       const originalCaseCardIndex = Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 1;
       const currentCaseCardCount = Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || originalCaseCardIndex;
       const caseCardIndex = currentCaseCardCount + 1;
@@ -883,6 +888,7 @@ function createKanbanTodoBridge(options = {}) {
         case_mode: caseMode,
         case_source_text: caseSourceText,
         case_summary: caseSummary,
+        case_cover: caseCover,
         case_card_id: `${originalCaseCardId}-revision-${revisionCount}`,
         case_card_index: caseCardIndex,
         case_card_count: caseCardCount,
@@ -914,6 +920,7 @@ function createKanbanTodoBridge(options = {}) {
         caseMode,
         caseSourceText,
         caseSummary,
+        caseCover,
         caseCardId: originalCaseCardId,
         caseCardIndex: Number(previousOriginal.caseCardIndex ?? previousOriginal.case_card_index ?? 0) || 1,
         caseCardCount,

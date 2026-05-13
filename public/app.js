@@ -53,6 +53,7 @@ function defaultKanbanReadingDraft() {
   return {
     readerName: "",
     bookTitle: "",
+    coverName: "",
     sessions: "10",
     startDate: todayDateInputValue(),
     timeOfDay: "21:00",
@@ -119,6 +120,9 @@ const state = {
   kanbanComposerMode: initialKanbanComposerMode(),
   kanbanComposerMultiAgent: initialKanbanComposerMode() === "multi",
   kanbanReadingDraft: initialKanbanReadingDraft(),
+  kanbanReadingCoverFile: null,
+  kanbanReadingCoverPreviewUrl: "",
+  kanbanCoverObjectUrls: {},
   kanbanComposerBusy: false,
   kanbanComposerProgressKind: "",
   kanbanComposerProgressStartedAt: 0,
@@ -8423,6 +8427,16 @@ function syncKanbanReadingDraftFromDom(root = document) {
   localStorage.setItem("hermesKanbanReadingDraft", JSON.stringify(draft));
 }
 
+function setKanbanReadingCoverFile(file) {
+  if (state.kanbanReadingCoverPreviewUrl) URL.revokeObjectURL(state.kanbanReadingCoverPreviewUrl);
+  state.kanbanReadingCoverFile = file || null;
+  state.kanbanReadingCoverPreviewUrl = file ? URL.createObjectURL(file) : "";
+  const draft = Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
+  draft.coverName = file?.name || "";
+  state.kanbanReadingDraft = draft;
+  localStorage.setItem("hermesKanbanReadingDraft", JSON.stringify(draft));
+}
+
 function saveKanbanComposerMode(mode) {
   const next = ["single", "multi", "reading"].includes(mode) ? mode : "single";
   state.kanbanComposerMode = next;
@@ -8864,6 +8878,7 @@ function scheduleKanbanStoryDetailLoads(items) {
 function renderKanbanArchiveCase(group) {
   const cards = group.cards || [];
   const first = cards[0]?.todo || {};
+  const cover = cards.map((item) => kanbanCaseCover(item.todo)).find(Boolean);
   const requirement = compactDisplayText(group.sourceText || group.title || first.content || "", 320);
   const conclusion = kanbanArchiveConclusion(group);
   const statusSummary = kanbanArchiveStatusSummary(group);
@@ -8904,6 +8919,7 @@ function renderKanbanArchiveCase(group) {
       </div>
       <small>${escapeHtml(latest)}</small>
     </header>
+    ${cover ? renderKanbanCaseCover(cover, { compact: true }) : ""}
     <div class="kanban-archive-story-grid">
       <section>
         <strong>\u9700\u6c42</strong>
@@ -9026,6 +9042,7 @@ function renderTodoPanel(options = {}) {
     </section>
   `;
   wireTodoPanel(conversation);
+  loadKanbanCoverImages(conversation).catch(() => {});
   ensureVerticalScrollAffordance(conversation);
   if (restoreKanbanComposerFocus) {
     const input = $(kanbanComposerSelection?.id || "kanbanComposerText") || $("kanbanComposerText");
@@ -9200,6 +9217,9 @@ function kanbanComposerMode() {
 function renderKanbanReadingFields(disabled = false) {
   const draft = Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
   const attr = disabled ? " disabled" : "";
+  const coverPreview = state.kanbanReadingCoverPreviewUrl
+    ? `<img src="${escapeHtml(state.kanbanReadingCoverPreviewUrl)}" alt="书籍封面预览">`
+    : `<span class="kanban-reading-cover-placeholder">${escapeHtml(draft.coverName || "可选上传书籍封面")}</span>`;
   return `<div class="kanban-reading-fields">
     <label>
       <span>孩子</span>
@@ -9224,6 +9244,11 @@ function renderKanbanReadingFields(disabled = false) {
     <label>
       <span>提前提醒</span>
       <input id="kanbanReadingReminder" class="todo-input" type="number" min="0" max="1440" step="5" value="${escapeHtml(draft.reminderLeadMinutes || "15")}"${attr}>
+    </label>
+    <label class="kanban-reading-cover-field">
+      <span>书籍封面</span>
+      <input id="kanbanReadingCover" class="todo-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif"${attr}>
+      <span class="kanban-reading-cover-preview">${coverPreview}</span>
     </label>
   </div>`;
 }
@@ -9441,6 +9466,49 @@ function kanbanOutputHref(item) {
   });
 }
 
+function kanbanCaseCover(todo) {
+  return todo?.kanbanCaseCover && typeof todo.kanbanCaseCover === "object" ? todo.kanbanCaseCover : null;
+}
+
+function renderKanbanCaseCover(cover, options = {}) {
+  if (!cover?.url) return "";
+  const compact = options.compact ? " compact" : "";
+  const title = cover.name || "book cover";
+  return `<a class="kanban-reading-cover${compact}" href="${escapeHtml(kanbanOutputHref(cover))}" target="_self" aria-label="${escapeHtml(`预览 ${title}`)}">
+    <span class="kanban-reading-cover-frame">
+      <img data-kanban-cover-img data-cover-url="${escapeHtml(cover.url)}" alt="${escapeHtml(title)}">
+    </span>
+    ${options.hideLabel ? "" : `<span>${escapeHtml(title)}</span>`}
+  </a>`;
+}
+
+async function loadKanbanCoverImages(root = document) {
+  const nodes = [...(root.querySelectorAll?.("img[data-kanban-cover-img][data-cover-url]") || [])];
+  for (const img of nodes) {
+    const url = String(img.dataset.coverUrl || "");
+    if (!url || img.dataset.coverLoaded === "1") continue;
+    if (state.kanbanCoverObjectUrls[url]) {
+      img.src = state.kanbanCoverObjectUrls[url];
+      img.dataset.coverLoaded = "1";
+      continue;
+    }
+    try {
+      const headers = {};
+      if (state.key) headers["X-Hermes-Web-Key"] = state.key;
+      const response = await fetch(url, { headers });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const objectUrl = URL.createObjectURL(await response.blob());
+      state.kanbanCoverObjectUrls[url] = objectUrl;
+      if (img.isConnected) {
+        img.src = objectUrl;
+        img.dataset.coverLoaded = "1";
+      }
+    } catch (_) {
+      img.dataset.coverLoaded = "error";
+    }
+  }
+}
+
 function renderKanbanProcessRows(detail) {
   const events = Array.isArray(detail?.events) ? detail.events.filter((event) => event.preview || event.kind).slice(-6) : [];
   const runs = Array.isArray(detail?.runs) ? detail.runs.filter((run) => run.summary || run.status || run.outcome).slice(-3) : [];
@@ -9517,6 +9585,7 @@ function renderTodoDetail(todo) {
   const skillRows = kanban && Array.isArray(todo.kanbanSkills) && todo.kanbanSkills.length
     ? `<div class="todo-detail-skills">${todo.kanbanSkills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</div>`
     : "";
+  const coverBlock = kanban ? renderKanbanCaseCover(kanbanCaseCover(todo)) : "";
   const deliveryBlock = kanban ? renderKanbanDeliveryFiles(todo) : "";
   const resultBlock = kanban ? renderKanbanDetailReport(todo) : "";
   const readingPanel = kanban ? renderKanbanReadingSubmissionPanel(todo) : "";
@@ -9554,6 +9623,7 @@ function renderTodoDetail(todo) {
       </div>
       <span class="todo-state status-${escapeHtml(kanbanStatus)}">${escapeHtml(statusText)}</span>
     </div>
+    ${coverBlock}
     ${deliveryBlock}
     ${resultBlock}
     ${readingPanel}
@@ -9611,6 +9681,11 @@ function wireTodoPanel(root) {
   root.querySelectorAll("#kanbanReadingReader, #kanbanReadingBook, #kanbanReadingSessions, #kanbanReadingStartDate, #kanbanReadingTime, #kanbanReadingReminder").forEach((input) => {
     input.addEventListener("input", () => syncKanbanReadingDraftFromDom(root));
     input.addEventListener("change", () => syncKanbanReadingDraftFromDom(root));
+  });
+  root.querySelector("#kanbanReadingCover")?.addEventListener("change", (event) => {
+    const file = event.target?.files?.[0] || null;
+    setKanbanReadingCoverFile(file);
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   });
   root.querySelector("#kanbanComposerForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -9772,17 +9847,27 @@ async function submitKanbanComposer(root) {
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     if (readingPlan) {
+      const coverFile = state.kanbanReadingCoverFile;
+      const coverImage = coverFile
+        ? {
+          filename: coverFile.name || "book-cover.jpg",
+          mime: coverFile.type || "",
+          dataBase64: await fileToBase64(coverFile),
+        }
+        : null;
       const result = await api("/api/kanban/cards/reading-plan", {
         method: "POST",
         body: JSON.stringify(Object.assign({}, state.kanbanReadingDraft, {
           workspaceId: state.selectedWorkspaceId,
           sourceText: text,
+          coverImage,
         })),
       });
       const cards = Array.isArray(result.cards) ? result.cards : [];
       pushKanbanComposerMessage("assistant", `已创建阅读计划：${cards.length} 张每日任务；上传当天复述录音并完成分析后，卡片会自动完成。`);
       state.kanbanComposerText = "";
       state.kanbanReadingDraft = defaultKanbanReadingDraft();
+      setKanbanReadingCoverFile(null);
       localStorage.removeItem("hermesKanbanComposerDraft");
       localStorage.removeItem("hermesKanbanReadingDraft");
       finishKanbanComposerProgress();
