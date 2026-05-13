@@ -4547,24 +4547,55 @@ button.directory-alias-chip {
 
 .kanban-composer-panel {
   display: grid;
-  gap: 9px;
-  padding: 10px;
+  gap: 12px;
+  padding: 12px;
   border: 1px solid rgba(20, 32, 39, 0.09);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.44);
 }
 
+.kanban-create-page {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
 .kanban-composer-form {
   display: grid;
+  gap: 10px;
+}
+
+.kanban-create-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.kanban-create-mode-button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  color: var(--muted);
+  background: rgba(255, 252, 246, 0.78);
+  border: 1px solid rgba(20, 32, 39, 0.1);
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.kanban-create-mode-button.active {
+  color: var(--accent-strong);
+  background: rgba(231, 244, 238, 0.78);
+  border-color: rgba(31, 111, 98, 0.32);
 }
 
 .kanban-composer-input {
   width: 100%;
   min-width: 0;
-  min-height: 54px;
-  max-height: 160px;
-  padding: 10px 11px;
+  min-height: 150px;
+  max-height: 280px;
+  padding: 12px;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.76);
   border: 1px solid var(--line-strong);
@@ -4593,23 +4624,16 @@ button.directory-alias-chip {
   flex-wrap: wrap;
 }
 
-.kanban-multi-agent-toggle {
+.kanban-create-mode-caption {
   min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--ink);
+  color: var(--muted);
   font-size: 13px;
   font-weight: 560;
 }
 
-.kanban-multi-agent-toggle input {
-  width: 17px;
-  height: 17px;
-  accent-color: var(--accent);
-}
-
-.kanban-multi-agent-toggle small,
 .kanban-plan-draft-head small,
 .kanban-plan-card small {
   color: var(--muted);
@@ -4633,6 +4657,86 @@ button.directory-alias-chip {
 .kanban-plan-actions [data-create-kanban-plan] {
   color: #fff;
   background: var(--accent);
+}
+
+.kanban-create-progress {
+  display: grid;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid rgba(31, 111, 98, 0.16);
+  border-radius: 14px;
+  background: rgba(231, 244, 238, 0.46);
+}
+
+.kanban-create-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kanban-create-progress-head strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kanban-create-progress-head span {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.kanban-create-progress ol {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+  list-style: none;
+}
+
+.kanban-create-progress li {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.kanban-create-progress li span {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  border: 1px solid rgba(20, 32, 39, 0.12);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.kanban-create-progress li.done,
+.kanban-create-progress li.active {
+  color: var(--ink);
+}
+
+.kanban-create-progress li.done span,
+.kanban-create-progress li.active span {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.kanban-create-progress li.active span {
+  box-shadow: 0 0 0 4px rgba(31, 111, 98, 0.12);
+}
+
+.kanban-create-progress li em {
+  min-width: 0;
+  font-style: normal;
+  overflow-wrap: anywhere;
 }
 
 .kanban-composer-thread {

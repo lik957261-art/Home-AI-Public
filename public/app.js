@@ -79,6 +79,10 @@ const state = {
   kanbanComposerText: localStorage.getItem("hermesKanbanComposerDraft") || "",
   kanbanComposerMultiAgent: localStorage.getItem("hermesKanbanComposerMultiAgent") === "1",
   kanbanComposerBusy: false,
+  kanbanComposerProgressKind: "",
+  kanbanComposerProgressStartedAt: 0,
+  kanbanComposerProgressStep: 0,
+  kanbanComposerProgressTimer: 0,
   kanbanComposerMessages: [],
   kanbanPlanDraft: null,
   kanbanPlanCreating: false,
@@ -231,6 +235,18 @@ const TASK_REASONING_OPTIONS = [
   { value: "xhigh", label: "Xhigh" },
 ];
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
+const KANBAN_PLAN_PROGRESS_STEPS = Object.freeze([
+  "\u6574\u7406\u9700\u6c42",
+  "\u5206\u6790\u4ea4\u4ed8\u76ee\u6807",
+  "\u62c6\u5206\u6267\u884c\u987a\u5e8f",
+  "\u751f\u6210\u5361\u7247\u8349\u6848",
+]);
+const KANBAN_CREATE_PROGRESS_STEPS = Object.freeze([
+  "\u6821\u9a8c\u8349\u6848",
+  "\u521b\u5efa\u5361\u7247",
+  "\u8bbe\u7f6e\u4f9d\u8d56",
+  "\u5237\u65b0\u770b\u677f",
+]);
 const KANBAN_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
 const KANBAN_TAB_ORDER = Object.freeze([KANBAN_STORY_STATUS, ...KANBAN_STATUS_ORDER]);
 const KANBAN_STATUS_FALLBACK_ORDER = Object.freeze(["running", "blocked", "ready", "todo", "triage", "done", "archived"]);
@@ -911,6 +927,7 @@ function openTaskList() {
 function openTodoList() {
   state.skillDetail = null;
   state.selectedTodoId = "";
+  state.todoCreateOpen = false;
   renderTodos();
 }
 
@@ -937,6 +954,11 @@ function sidebarBackToMenu() {
     return;
   }
   if (isTodoDetailView()) {
+    openTodoList();
+    closeSidebar();
+    return;
+  }
+  if (kanbanComposerOpen()) {
     openTodoList();
     closeSidebar();
     return;
@@ -1934,11 +1956,12 @@ function updateNavigationControls() {
   const taskToolbar = $("taskDetailToolbar");
   const taskDetail = isTaskDetailView();
   const todoDetail = isTodoDetailView();
+  const todoCreate = kanbanComposerOpen();
   const automationDetail = isAutomationDetailView();
   const skillDetail = isSkillDetailView();
   const taskList = isTaskListView();
   const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
-  const mainBack = taskDetail || todoDetail || automationDetail || skillDetail || directoryBack;
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || skillDetail || directoryBack;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
@@ -1950,6 +1973,7 @@ function updateNavigationControls() {
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
   app?.classList.toggle("todo-detail-mode", todoDetail);
+  app?.classList.toggle("todo-create-mode", todoCreate);
   app?.classList.toggle("automation-detail-mode", automationDetail);
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
@@ -1978,7 +2002,8 @@ function updateTopMoreControls() {
   const chatView = isSingleWindowView() && state.singleWindowMode === "chat";
   const taskStream = isSingleWindowView() && state.singleWindowMode === "task";
   const todoDetail = isTodoDetailView();
-  const todoList = state.viewMode === "todos" && !todoDetail;
+  const todoCreate = kanbanComposerOpen();
+  const todoList = state.viewMode === "todos" && !todoDetail && !todoCreate;
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
   const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || automationList || automationDetail;
@@ -3215,6 +3240,10 @@ function activateTopNavButton() {
     return;
   }
   if (isTodoDetailView()) {
+    openTodoList();
+    return;
+  }
+  if (kanbanComposerOpen()) {
     openTodoList();
     return;
   }
@@ -8287,6 +8316,40 @@ function kanbanComposerFocused() {
   return Boolean(active && (active.id === "kanbanComposerText" || active.closest?.("#kanbanComposerForm")));
 }
 
+function kanbanComposerProgressSteps() {
+  return state.kanbanComposerProgressKind === "create"
+    ? KANBAN_CREATE_PROGRESS_STEPS
+    : KANBAN_PLAN_PROGRESS_STEPS;
+}
+
+function clearKanbanComposerProgressTimer() {
+  window.clearInterval(state.kanbanComposerProgressTimer);
+  state.kanbanComposerProgressTimer = 0;
+}
+
+function beginKanbanComposerProgress(kind) {
+  clearKanbanComposerProgressTimer();
+  state.kanbanComposerProgressKind = kind || "plan";
+  state.kanbanComposerProgressStartedAt = Date.now();
+  state.kanbanComposerProgressStep = 0;
+  state.kanbanComposerProgressTimer = window.setInterval(() => {
+    if (!state.kanbanComposerBusy && !state.kanbanPlanCreating) {
+      clearKanbanComposerProgressTimer();
+      return;
+    }
+    const steps = kanbanComposerProgressSteps();
+    state.kanbanComposerProgressStep = Math.min(steps.length - 1, state.kanbanComposerProgressStep + 1);
+    if (kanbanComposerOpen()) renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }, 2200);
+}
+
+function finishKanbanComposerProgress() {
+  clearKanbanComposerProgressTimer();
+  state.kanbanComposerProgressKind = "";
+  state.kanbanComposerProgressStartedAt = 0;
+  state.kanbanComposerProgressStep = 0;
+}
+
 function syncKanbanComposerDraftFromDom() {
   const input = $("kanbanComposerText");
   if (!input) return;
@@ -8809,7 +8872,8 @@ function renderTodoPanel(options = {}) {
     : null;
   if (restoreKanbanComposerFocus) syncKanbanComposerDraftFromDom();
   const selected = state.todos.find((todo) => todo.id === state.selectedTodoId) || null;
-  $("threadTitle").textContent = selected ? "看板详情" : "看板";
+  const creating = kanbanComposerOpen();
+  $("threadTitle").textContent = creating ? "\u65b0\u589e\u4efb\u52a1" : (selected ? "看板详情" : "看板");
   $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
   updateNavigationControls();
@@ -8817,10 +8881,12 @@ function renderTodoPanel(options = {}) {
   const closedTodos = state.todos.filter((todo) => !todoMatchesOpen(todo));
   const todoBody = selected
     ? renderTodoDetail(selected)
-    : (isKanbanTodoSource() ? renderTodoKanbanBoard(state.todos) : renderTodoSections(openTodos, closedTodos));
+    : (creating
+      ? renderKanbanCreatePage()
+      : (isKanbanTodoSource() ? renderTodoKanbanBoard(state.todos) : renderTodoSections(openTodos, closedTodos)));
   conversation.innerHTML = `
     <section class="todo-shell">
-      ${selected ? "" : renderTodoCreatePanel()}
+      ${selected || creating ? "" : renderTodoCreatePanel()}
       ${todoBody}
     </section>
   `;
@@ -8928,8 +8994,30 @@ function renderKanbanPlanDraft(plan) {
     <div class="kanban-plan-card-list">${cardItems}</div>
     <div class="kanban-plan-actions">
       <button type="button" data-clear-kanban-plan${disabled}>\u6e05\u7a7a\u8349\u6848</button>
-      <button type="button" data-create-kanban-plan${disabled}>\u786e\u8ba4\u521b\u5efa ${cards.length} \u5f20\u5361\u7247</button>
+      <button type="button" data-create-kanban-plan${disabled}>\u786e\u8ba4\u6267\u884c ${cards.length} \u5f20\u4efb\u52a1</button>
     </div>
+  </section>`;
+}
+
+function renderKanbanComposerProgress() {
+  if (!state.kanbanComposerBusy && !state.kanbanPlanCreating) return "";
+  const steps = kanbanComposerProgressSteps();
+  const current = Math.max(0, Math.min(steps.length - 1, Number(state.kanbanComposerProgressStep || 0)));
+  const elapsed = state.kanbanComposerProgressStartedAt
+    ? Math.max(1, Math.round((Date.now() - state.kanbanComposerProgressStartedAt) / 1000))
+    : 0;
+  const title = state.kanbanComposerProgressKind === "create" ? "\u6b63\u5728\u521b\u5efa\u5e76\u542f\u52a8\u4efb\u52a1" : "\u6b63\u5728\u62c6\u89e3\u4efb\u52a1";
+  return `<section class="kanban-create-progress" aria-live="polite">
+    <div class="kanban-create-progress-head">
+      <strong>${title}</strong>
+      <span>${elapsed}s</span>
+    </div>
+    <ol>
+      ${steps.map((step, index) => {
+        const stateClass = index < current ? " done" : (index === current ? " active" : "");
+        return `<li class="${stateClass.trim()}"><span>${index + 1}</span><em>${escapeHtml(step)}</em></li>`;
+      }).join("")}
+    </ol>
   </section>`;
 }
 
@@ -8939,23 +9027,36 @@ function renderKanbanComposerPanel() {
   const messages = state.kanbanComposerMessages.slice(-10).map(renderKanbanComposerMessage).join("");
   const draft = state.kanbanPlanDraft ? renderKanbanPlanDraft(state.kanbanPlanDraft) : "";
   if (!state.todoCreateOpen && !busy) return "";
+  const singleActive = !state.kanbanComposerMultiAgent;
+  const multiActive = state.kanbanComposerMultiAgent;
+  const modeButton = (mode, label, active) => `<button class="kanban-create-mode-button${active ? " active" : ""}" type="button" data-kanban-composer-mode="${mode}" aria-pressed="${active ? "true" : "false"}"${busy ? " disabled" : ""}>${label}</button>`;
+  const submitLabel = multiActive
+    ? (state.kanbanPlanDraft ? "\u91cd\u65b0\u62c6\u89e3" : "\u62c6\u89e3\u4efb\u52a1")
+    : "\u521b\u5efa\u4efb\u52a1";
   return `<section class="kanban-composer-panel">
     <form id="kanbanComposerForm" class="kanban-composer-form">
-      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="2" placeholder="\u8f93\u5165\u4efb\u52a1\u9700\u6c42">${escapeHtml(state.kanbanComposerText)}</textarea>
+      <div class="kanban-create-mode" role="group" aria-label="\u4efb\u52a1\u521b\u5efa\u65b9\u5f0f">
+        ${modeButton("single", "\u5355\u4efb\u52a1", singleActive)}
+        ${modeButton("multi", "\u62c6\u89e3", multiActive)}
+      </div>
+      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="7" placeholder="\u8f93\u5165\u4efb\u52a1\u9700\u6c42"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
       <div class="kanban-composer-toolbar">
-        <label class="kanban-multi-agent-toggle">
-          <input id="kanbanComposerMultiAgent" type="checkbox"${state.kanbanComposerMultiAgent ? " checked" : ""}${busy ? " disabled" : ""}>
-          <span>\u591a Agent</span>
-          <small>\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}</small>
-        </label>
+        <span class="kanban-create-mode-caption">${multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo"}</span>
         <span class="kanban-composer-buttons">
-          <button type="button" data-close-todo-create${busy ? " disabled" : ""}>\u6536\u8d77</button>
-          <button type="submit"${busy ? " disabled" : ""}>${state.kanbanComposerMultiAgent ? "\u62c6\u89e3\u4efb\u52a1" : "\u521b\u5efa\u4efb\u52a1"}</button>
+          <button type="button" data-close-todo-create${busy ? " disabled" : ""}>\u8fd4\u56de\u770b\u677f</button>
+          <button type="submit"${busy ? " disabled" : ""}>${submitLabel}</button>
         </span>
       </div>
     </form>
+    ${renderKanbanComposerProgress()}
     ${(messages || draft) ? `<div class="kanban-composer-thread">${messages}${draft}</div>` : ""}
   </section>`;
+}
+
+function renderKanbanCreatePage() {
+  return `<div class="kanban-create-page">
+    ${renderKanbanComposerPanel()}
+  </div>`;
 }
 
 function renderTodoKanbanBoard(todos) {
@@ -8988,7 +9089,6 @@ function renderTodoKanbanBoard(todos) {
   return `
     <div class="todo-kanban-board">
       <nav class="todo-kanban-switcher" aria-label="Kanban status">${tabs}</nav>
-      ${renderKanbanComposerPanel()}
       <section class="todo-kanban-lane todo-kanban-current status-${escapeHtml(selectedStatus)}" aria-label="${escapeHtml(selectedMeta.shortLabel)}" role="list">
         <header class="todo-kanban-lane-header">
           <div>
@@ -9246,10 +9346,15 @@ function wireTodoPanel(root) {
     if (state.kanbanComposerText) localStorage.setItem("hermesKanbanComposerDraft", state.kanbanComposerText);
     else localStorage.removeItem("hermesKanbanComposerDraft");
   });
-  root.querySelector("#kanbanComposerMultiAgent")?.addEventListener("change", (event) => {
-    state.kanbanComposerMultiAgent = Boolean(event.target?.checked);
-    localStorage.setItem("hermesKanbanComposerMultiAgent", state.kanbanComposerMultiAgent ? "1" : "0");
-    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  root.querySelectorAll("[data-kanban-composer-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const mode = String(button.dataset.kanbanComposerMode || "");
+      state.kanbanComposerMultiAgent = mode === "multi";
+      state.kanbanPlanDraft = null;
+      localStorage.setItem("hermesKanbanComposerMultiAgent", state.kanbanComposerMultiAgent ? "1" : "0");
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+      focusTodoFormSoon();
+    });
   });
   root.querySelector("#kanbanComposerForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -9365,14 +9470,15 @@ async function submitKanbanComposer(root) {
   const input = root.querySelector("#kanbanComposerText");
   const text = String(input?.value || state.kanbanComposerText || "").trim();
   if (!text) throw new Error("\u8bf7\u5148\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
-  const multiAgent = Boolean(root.querySelector("#kanbanComposerMultiAgent")?.checked);
-  state.kanbanComposerText = "";
-  localStorage.removeItem("hermesKanbanComposerDraft");
+  const multiAgent = Boolean(state.kanbanComposerMultiAgent);
+  state.kanbanComposerText = text;
+  localStorage.setItem("hermesKanbanComposerDraft", text);
   state.kanbanComposerMultiAgent = multiAgent;
   localStorage.setItem("hermesKanbanComposerMultiAgent", multiAgent ? "1" : "0");
   state.kanbanComposerBusy = true;
   state.kanbanPlanDraft = null;
   pushKanbanComposerMessage("user", text);
+  beginKanbanComposerProgress(multiAgent ? "plan" : "create");
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     if (multiAgent) {
@@ -9386,6 +9492,8 @@ async function submitKanbanComposer(root) {
       });
       state.kanbanPlanDraft = result.plan || null;
       pushKanbanComposerMessage("assistant", kanbanPlanSummaryText(state.kanbanPlanDraft));
+      finishKanbanComposerProgress();
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     } else {
       const result = await api(boardCollectionApiPath(), {
         method: "POST",
@@ -9397,6 +9505,9 @@ async function submitKanbanComposer(root) {
       });
       const card = result.card || result.todo || result.result || {};
       pushKanbanComposerMessage("assistant", `\u5df2\u521b\u5efa\u770b\u677f\u5361\u7247\uff1a${card.id || ""} ${card.content || text}`.trim());
+      state.kanbanComposerText = "";
+      localStorage.removeItem("hermesKanbanComposerDraft");
+      finishKanbanComposerProgress();
       clearTodoListCache();
       state.todoKanbanStatus = "todo";
       localStorage.setItem("hermesTodoKanbanStatus", "todo");
@@ -9404,10 +9515,12 @@ async function submitKanbanComposer(root) {
       await loadTodos({ skipCache: true });
     }
   } catch (err) {
+    finishKanbanComposerProgress();
     pushKanbanComposerMessage("assistant", `\u770b\u677f\u64cd\u4f5c\u5931\u8d25\uff1a${err.message || String(err)}`);
     throw err;
   } finally {
     state.kanbanComposerBusy = false;
+    if (!state.kanbanPlanCreating) finishKanbanComposerProgress();
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
 }
@@ -9415,6 +9528,7 @@ async function submitKanbanComposer(root) {
 async function createKanbanPlanFromDraft() {
   if (!state.kanbanPlanDraft || state.kanbanPlanCreating) return;
   state.kanbanPlanCreating = true;
+  beginKanbanComposerProgress("create");
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     const result = await api("/api/kanban/cards/batch", {
@@ -9429,16 +9543,21 @@ async function createKanbanPlanFromDraft() {
     const blocked = cards.filter((item) => item.blocked).length;
     pushKanbanComposerMessage("assistant", `\u5df2\u521b\u5efa ${cards.length} \u5f20\u591a Agent \u770b\u677f\u5361\u7247\uff1b${Math.max(0, cards.length - blocked)} \u5f20\u9996\u6279\u6267\u884c\uff0c${blocked} \u5f20\u7b49\u5f85\u4f9d\u8d56\u6216\u5e76\u884c\u4f4d\u3002`);
     state.kanbanPlanDraft = null;
+    state.kanbanComposerText = "";
+    localStorage.removeItem("hermesKanbanComposerDraft");
+    finishKanbanComposerProgress();
     clearTodoListCache();
     state.todoKanbanStatus = KANBAN_STORY_STATUS;
     localStorage.setItem("hermesTodoKanbanStatus", KANBAN_STORY_STATUS);
     state.todoCreateOpen = false;
     await loadTodos({ skipCache: true });
   } catch (err) {
+    finishKanbanComposerProgress();
     pushKanbanComposerMessage("assistant", `\u6279\u91cf\u521b\u5efa\u5931\u8d25\uff1a${err.message || String(err)}`);
     throw err;
   } finally {
     state.kanbanPlanCreating = false;
+    if (!state.kanbanComposerBusy) finishKanbanComposerProgress();
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
 }
@@ -9615,6 +9734,11 @@ function focusTodoFormSoon() {
 function openTodoCreate() {
   closeTopMoreMenu();
   state.selectedTodoId = "";
+  if (!state.todoCreateOpen) {
+    state.kanbanComposerMessages = [];
+    state.kanbanPlanDraft = null;
+    finishKanbanComposerProgress();
+  }
   state.todoCreateOpen = true;
   renderTodos();
   focusTodoFormSoon();
@@ -9628,6 +9752,11 @@ async function createThread() {
   }
   if (state.viewMode === "todos") {
     state.selectedTodoId = "";
+    if (!state.todoCreateOpen) {
+      state.kanbanComposerMessages = [];
+      state.kanbanPlanDraft = null;
+      finishKanbanComposerProgress();
+    }
     state.todoCreateOpen = true;
     await loadTodos();
     if (isMobileLayout()) closeSidebar();
