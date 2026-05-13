@@ -867,7 +867,7 @@ function createKanbanTodoBridge(options = {}) {
       const caseSourceText = String(meta.caseSourceText || meta.case_source_text || originalTitle).trim();
       const caseSummary = String(meta.caseSummary || meta.case_summary || `Manual revision for ${originalTitle}`).trim();
       const caseCover = meta.caseCover || meta.case_cover || null;
-      const readingPlanRevision = caseMode === "reading-plan";
+      const readingPlanRevision = caseMode === "reading-plan" || caseMode === "study-plan";
       const originalCaseCardIndex = Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 1;
       const currentCaseCardCount = Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || originalCaseCardIndex;
       const caseCardIndex = readingPlanRevision ? originalCaseCardIndex : currentCaseCardCount + 1;
@@ -960,7 +960,7 @@ function createKanbanTodoBridge(options = {}) {
       const principalId = String(meta.assignee || meta.createdBy || "");
       if (principals.size && !principals.has(principalId)) continue;
       if (String(meta.kanbanStatus || meta.kanban_status || "").trim().toLowerCase() === "blocked") {
-        if (String(meta.caseMode || meta.case_mode || "").trim() === "reading-plan") continue;
+        if (["reading-plan", "study-plan"].includes(String(meta.caseMode || meta.case_mode || "").trim())) continue;
         const blockedAt = Date.parse(meta.blockedAt || meta.updatedAt || "");
         if (Number.isFinite(blockedAt) && now - blockedAt >= blockedDelayMs) {
           const markKey = `kanban-todo:${id}:blocked:${meta.blockedAt || meta.updatedAt || ""}`;

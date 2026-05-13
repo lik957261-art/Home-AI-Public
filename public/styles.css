@@ -4619,6 +4619,41 @@ button.directory-alias-chip {
   gap: 4px;
 }
 
+.kanban-reading-fields select {
+  min-width: 0;
+}
+
+.kanban-reading-fields input[type="hidden"] {
+  display: none;
+}
+
+.kanban-study-share-list {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.kanban-study-share-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.kanban-study-share-list input {
+  width: 18px;
+  height: 18px;
+}
+
+.kanban-study-share-list small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .kanban-reading-fields span,
 .todo-panel-label {
   color: var(--muted);

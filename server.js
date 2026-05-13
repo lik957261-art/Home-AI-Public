@@ -236,6 +236,7 @@ const KANBAN_COMMAND = String(process.env.HERMES_MOBILE_KANBAN_COMMAND || proces
 const KANBAN_COMMAND_ARGS = String(process.env.HERMES_MOBILE_KANBAN_COMMAND_ARGS || process.env.HERMES_WEB_KANBAN_COMMAND_ARGS || "").trim();
 const KANBAN_TODO_META_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_TODO_META_PATH || process.env.HERMES_WEB_KANBAN_TODO_META_PATH || path.join(DATA_DIR, "kanban-todo-meta.json"));
 const KANBAN_CARD_LIST_CACHE_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_CARD_LIST_CACHE_PATH || process.env.HERMES_WEB_KANBAN_CARD_LIST_CACHE_PATH || path.join(DATA_DIR, "kanban-card-list-cache.json"));
+const KANBAN_CASE_SHARE_PATH = path.resolve(process.env.HERMES_MOBILE_KANBAN_CASE_SHARE_PATH || process.env.HERMES_WEB_KANBAN_CASE_SHARE_PATH || path.join(DATA_DIR, "kanban-case-shares.json"));
 const KANBAN_WORKSPACE_PATH_STYLE = String(process.env.HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE || process.env.HERMES_WEB_KANBAN_WORKSPACE_PATH_STYLE || "").trim().toLowerCase();
 const KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS = Math.max(5000, Number(process.env.HERMES_MOBILE_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || process.env.HERMES_WEB_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || "30000") || 30000);
 const KANBAN_CARD_LIST_CACHE_TTL_MS = Math.max(0, Number(process.env.HERMES_MOBILE_KANBAN_CARD_LIST_CACHE_TTL_MS || process.env.HERMES_WEB_KANBAN_CARD_LIST_CACHE_TTL_MS || String(30 * 60 * 1000)) || 0);
@@ -250,6 +251,7 @@ const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(process.env.HERMES_MOBILE_
 const KANBAN_READING_ARTIFACT_ROOT = path.resolve(process.env.HERMES_MOBILE_READING_ARTIFACT_ROOT || process.env.HERMES_WEB_READING_ARTIFACT_ROOT || path.join(DATA_DIR, "artifacts", "kanban-reading"));
 const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(process.env.HERMES_MOBILE_READING_COVER_MAX_BYTES || process.env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
 const KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1";
+const KANBAN_STUDY_CASE_MODES = new Set(["reading-plan", "study-plan"]);
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -3801,6 +3803,245 @@ function formatDirectTodoCreateSuccessMessage(intent, todo) {
   return `\u5df2\u65b0\u589e\u770b\u677f\u5361\u7247\uff1a${assigneeLabel} | ${dueTime} | ${content}\n${details.join(" | ")}`;
 }
 
+function isKanbanStudyCaseMode(mode) {
+  return KANBAN_STUDY_CASE_MODES.has(String(mode || "").trim());
+}
+
+function normalizeWorkspaceIdList(value) {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[,\s;，、]+/);
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    const id = String(item || "").trim();
+    if (!id || seen.has(id) || !findWorkspace(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function kanbanCaseShareStore() {
+  const raw = readJsonStore(KANBAN_CASE_SHARE_PATH, { schemaVersion: 1, cases: {} });
+  return {
+    schemaVersion: 1,
+    cases: raw?.cases && typeof raw.cases === "object" && !Array.isArray(raw.cases) ? raw.cases : {},
+  };
+}
+
+function saveKanbanCaseShareStore(store) {
+  writeJsonStore(KANBAN_CASE_SHARE_PATH, Object.assign({ schemaVersion: 1 }, store || {}));
+}
+
+function kanbanCaseShareKey(ownerWorkspaceId, caseId) {
+  return `${String(ownerWorkspaceId || "owner").trim() || "owner"}::${String(caseId || "").trim()}`;
+}
+
+function readKanbanCaseShare(ownerWorkspaceId, caseId) {
+  const key = kanbanCaseShareKey(ownerWorkspaceId, caseId);
+  const share = kanbanCaseShareStore().cases[key];
+  return share && typeof share === "object" && !Array.isArray(share) ? share : null;
+}
+
+function upsertKanbanCaseShare(ownerWorkspaceId, caseId, input = {}) {
+  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
+  const id = String(caseId || "").trim();
+  if (!id) return null;
+  const performerWorkspaceIds = normalizeWorkspaceIdList(
+    input.performerWorkspaceIds
+    || input.performer_workspace_ids
+    || input.targetWorkspaceIds
+    || input.target_workspace_ids
+    || input.performerWorkspaceId
+    || input.performer_workspace_id
+    || input.targetWorkspaceId
+    || input.target_workspace_id
+    || "",
+  ).filter((workspaceId) => workspaceId !== owner);
+  const viewerWorkspaceIds = normalizeWorkspaceIdList(
+    input.viewerWorkspaceIds
+    || input.viewer_workspace_ids
+    || input.readonlyWorkspaceIds
+    || input.readonly_workspace_ids
+    || input.sharedViewerWorkspaceIds
+    || input.shared_viewer_workspace_ids
+    || "",
+  ).filter((workspaceId) => workspaceId !== owner && !performerWorkspaceIds.includes(workspaceId));
+  const managerWorkspaceIds = normalizeWorkspaceIdList(
+    input.managerWorkspaceIds
+    || input.manager_workspace_ids
+    || "",
+  ).filter((workspaceId) => workspaceId !== owner);
+  const store = kanbanCaseShareStore();
+  const key = kanbanCaseShareKey(owner, id);
+  const previous = store.cases[key] && typeof store.cases[key] === "object" ? store.cases[key] : {};
+  const share = {
+    schemaVersion: 1,
+    ownerWorkspaceId: owner,
+    caseId: id,
+    performerWorkspaceIds,
+    viewerWorkspaceIds,
+    managerWorkspaceIds,
+    updatedAt: nowIso(),
+    createdAt: previous.createdAt || nowIso(),
+  };
+  store.cases[key] = share;
+  saveKanbanCaseShareStore(store);
+  return share;
+}
+
+function kanbanCaseRoleForAuth(auth, ownerWorkspaceId, caseId) {
+  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
+  if (isOwnerAuth(auth) || authCanAccessWorkspace(auth, owner)) return "manager";
+  const actorWorkspaceId = String(auth?.workspaceId || "").trim();
+  if (!actorWorkspaceId) return "";
+  const share = readKanbanCaseShare(owner, caseId);
+  if (!share) return "";
+  if (normalizeWorkspaceIdList(share.managerWorkspaceIds).includes(actorWorkspaceId)) return "manager";
+  if (normalizeWorkspaceIdList(share.performerWorkspaceIds).includes(actorWorkspaceId)) return "performer";
+  if (normalizeWorkspaceIdList(share.viewerWorkspaceIds).includes(actorWorkspaceId)) return "viewer";
+  return "";
+}
+
+function kanbanActorPermissions(role) {
+  const normalized = String(role || "").trim();
+  if (normalized === "manager") {
+    return {
+      canView: true,
+      canManage: true,
+      canRevise: true,
+      canDelete: true,
+      canComment: true,
+      canSubmitStudy: true,
+      canAnswerQuiz: true,
+    };
+  }
+  if (normalized === "performer") {
+    return {
+      canView: true,
+      canManage: false,
+      canRevise: false,
+      canDelete: false,
+      canComment: false,
+      canSubmitStudy: true,
+      canAnswerQuiz: true,
+    };
+  }
+  if (normalized === "viewer") {
+    return {
+      canView: true,
+      canManage: false,
+      canRevise: false,
+      canDelete: false,
+      canComment: false,
+      canSubmitStudy: false,
+      canAnswerQuiz: false,
+    };
+  }
+  return {
+    canView: false,
+    canManage: false,
+    canRevise: false,
+    canDelete: false,
+    canComment: false,
+    canSubmitStudy: false,
+    canAnswerQuiz: false,
+  };
+}
+
+function annotateKanbanCardForAuth(card, auth) {
+  if (!card || typeof card !== "object") return card;
+  const workspaceId = String(card.workspaceId || card.workspace_id || "").trim() || "owner";
+  const caseId = String(card.kanbanCaseId || card.kanban_case_id || "").trim();
+  const role = caseId
+    ? kanbanCaseRoleForAuth(auth, workspaceId, caseId)
+    : (authCanAccessWorkspace(auth, workspaceId) ? "manager" : "");
+  if (!role) return card;
+  return Object.assign({}, card, {
+    kanbanActorRole: role,
+    kanbanActorPermissions: kanbanActorPermissions(role),
+    kanbanShareOwnerWorkspaceId: workspaceId,
+  });
+}
+
+function annotateKanbanCardsForAuth(cards, auth) {
+  return (Array.isArray(cards) ? cards : []).map((card) => annotateKanbanCardForAuth(card, auth));
+}
+
+function kanbanCaseSharesForActor(auth) {
+  const actorWorkspaceId = String(auth?.workspaceId || "").trim();
+  if (!actorWorkspaceId || isOwnerAuth(auth)) return [];
+  const cases = Object.values(kanbanCaseShareStore().cases || {});
+  return cases.filter((share) => {
+    if (!share || typeof share !== "object") return false;
+    return normalizeWorkspaceIdList(share.managerWorkspaceIds).includes(actorWorkspaceId)
+      || normalizeWorkspaceIdList(share.performerWorkspaceIds).includes(actorWorkspaceId)
+      || normalizeWorkspaceIdList(share.viewerWorkspaceIds).includes(actorWorkspaceId);
+  });
+}
+
+async function sharedKanbanCardsForAuth(auth, selectedWorkspaceId, listArgs = {}) {
+  const shares = kanbanCaseSharesForActor(auth).filter((share) => (
+    String(share.ownerWorkspaceId || "owner") !== String(selectedWorkspaceId || "owner")
+  ));
+  if (!shares.length) return [];
+  const byOwner = new Map();
+  for (const share of shares) {
+    const owner = String(share.ownerWorkspaceId || "owner").trim() || "owner";
+    if (!byOwner.has(owner)) byOwner.set(owner, new Set());
+    byOwner.get(owner).add(String(share.caseId || "").trim());
+  }
+  const out = [];
+  for (const [ownerWorkspaceId, caseIds] of byOwner.entries()) {
+    const result = await kanbanCardProvider.listCards(Object.assign({}, listArgs, {
+      workspaceId: ownerWorkspaceId,
+      includeCompleted: true,
+      limit: Math.max(Number(listArgs.limit || 120), 500),
+    })).catch((err) => ({ ok: false, error: err?.message || String(err) }));
+    if (!result?.ok) continue;
+    for (const card of result.data || []) {
+      if (caseIds.has(String(card.kanbanCaseId || "").trim())) {
+        out.push(annotateKanbanCardForAuth(card, auth));
+      }
+    }
+  }
+  return out;
+}
+
+function kanbanPermissionAllows(role, capability) {
+  const permissions = kanbanActorPermissions(role);
+  if (capability === "view") return permissions.canView;
+  if (capability === "submitStudy") return permissions.canSubmitStudy;
+  if (capability === "answerQuiz") return permissions.canAnswerQuiz;
+  if (capability === "comment") return permissions.canComment;
+  if (capability === "revise") return permissions.canRevise;
+  if (capability === "delete") return permissions.canDelete;
+  return permissions.canManage;
+}
+
+async function resolveKanbanCardAccess(req, res, workspaceId, cardId, capability = "view") {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  if (!findWorkspace(id)) {
+    sendJson(res, 400, { error: "Unknown workspace" });
+    return null;
+  }
+  const auth = authenticateRequest(req);
+  if (authCanAccessWorkspace(auth, id)) return { workspaceId: id, auth, role: "manager", context: null, card: null };
+  const context = await readingContextForCard(id, cardId).catch(() => null);
+  const card = context?.current || null;
+  if (!card) {
+    sendJson(res, 404, { error: "Kanban card not found" });
+    return null;
+  }
+  const role = kanbanCaseRoleForAuth(auth, id, card.kanbanCaseId);
+  if (!role || !kanbanPermissionAllows(role, capability)) {
+    sendJson(res, 403, { error: "Kanban card access is not allowed" });
+    return null;
+  }
+  return { workspaceId: id, auth, role, context, card };
+}
+
 function publicTodo(row) {
   const workspaceId = String(row.workspace_id || row.workspaceId || "").trim();
   const kanbanResult = String(row.kanban_result || row.kanbanResult || "");
@@ -3866,8 +4107,10 @@ function publicTodo(row) {
     completedAt: String(row.completed_at || ""),
     cancelledAt: String(row.cancelled_at || ""),
   };
-  if (payload.kanbanCaseMode === "reading-plan") {
+  if (isKanbanStudyCaseMode(payload.kanbanCaseMode)) {
     payload.readingSubmission = publicKanbanReadingSubmissionSummary(workspaceId, payload);
+    payload.studySubmission = payload.readingSubmission;
+    payload.kanbanStudyKind = payload.kanbanCaseMode === "reading-plan" ? "reading" : "study";
   }
   return payload;
 }
@@ -3883,9 +4126,26 @@ function kanbanOutputAccessThread(workspaceId) {
   };
 }
 
+function kanbanOutputCaseIdFromPath(workspaceId, rawPath) {
+  const localPath = normalizeLocalPath(rawPath);
+  if (!localPath) return "";
+  const root = path.resolve(KANBAN_READING_ARTIFACT_ROOT, safeStorageSegment(workspaceId || "owner"));
+  const relative = path.relative(root, localPath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return "";
+  return relative.split(/[\\/]+/)[0] || "";
+}
+
+function authCanAccessKanbanOutput(auth, workspaceId, rawPath) {
+  const workspace = String(workspaceId || "owner").trim() || "owner";
+  if (authCanAccessWorkspace(auth, workspace)) return true;
+  const caseId = kanbanOutputCaseIdFromPath(workspace, rawPath);
+  if (!caseId) return false;
+  return Boolean(kanbanCaseRoleForAuth(auth, workspace, caseId));
+}
+
 function resolveKanbanOutputFile(workspaceId, rawPath, auth = null) {
   const workspace = String(workspaceId || "owner").trim() || "owner";
-  if (auth && !authCanAccessWorkspace(auth, workspace)) return { status: 404, error: "File not found" };
+  if (auth && !authCanAccessKanbanOutput(auth, workspace, rawPath)) return { status: 404, error: "File not found" };
   const displayPath = String(rawPath || "").trim();
   const localPath = normalizeLocalPath(displayPath);
   if (!displayPath || !localPath) return { status: 404, error: "File not found" };
@@ -3952,7 +4212,7 @@ function publicKanbanOutputsFromText(workspaceId, text) {
 
 function publicKanbanReadingSubmissionSummary(workspaceId, card = {}) {
   const mode = String(card?.kanbanCaseMode || card?.kanban_case_mode || "").trim();
-  if (mode !== "reading-plan") return null;
+  if (!isKanbanStudyCaseMode(mode)) return null;
   const cardId = String(card?.id || card?.cardId || "").trim();
   if (!cardId) return null;
   const currentCard = {
@@ -4583,71 +4843,143 @@ function readingPlanDueTime(startDate, timeOfDay, dayOffset) {
   return formatLocalDateTime(date);
 }
 
-function normalizeKanbanReadingPlan(raw = {}, workspaceId = "owner") {
-  const bookTitle = compactText(raw.bookTitle || raw.book_title || raw.title || "", 120);
-  if (!bookTitle) throw new Error("Reading plan bookTitle is required");
-  const readerName = compactText(raw.readerName || raw.reader_name || raw.reader || "孩子", 80);
+function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
+  const requestedMode = String(raw.mode || raw.caseMode || raw.case_mode || raw.planMode || "").trim();
+  const mode = requestedMode === "study-plan" ? "study-plan" : "reading-plan";
+  const contentTitle = compactText(
+    raw.contentTitle
+    || raw.content_title
+    || raw.bookTitle
+    || raw.book_title
+    || raw.title
+    || "",
+    120,
+  );
+  if (!contentTitle) throw new Error(mode === "reading-plan" ? "Reading plan bookTitle is required" : "Study plan contentTitle is required");
+  const learnerName = compactText(
+    raw.learnerName
+    || raw.learner_name
+    || raw.readerName
+    || raw.reader_name
+    || raw.reader
+    || raw.targetName
+    || raw.target_name
+    || "学习者",
+    80,
+  );
+  const subject = compactText(raw.subject || raw.domain || (mode === "reading-plan" ? "英语阅读" : "学习"), 80);
+  const activity = compactText(raw.activity || raw.activityType || raw.activity_type || (mode === "reading-plan" ? "阅读复述" : "提交成果并考核"), 120);
+  const submissionLabel = compactText(raw.submissionLabel || raw.submission_label || (mode === "reading-plan" ? "复述录音" : "学习成果文件或文字"), 120);
   const sessions = Math.max(1, Math.min(KANBAN_READING_PLAN_MAX_SESSIONS, Number(raw.sessions || raw.sessionCount || raw.session_count || 10) || 10));
   const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date);
   const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
   const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 15) || 0));
   const sourceText = compactText(raw.sourceText || raw.source_text || raw.text || raw.notes || "", 4000);
-  const summary = compactText(`${readerName}阅读《${bookTitle}》`, 180);
-  const id = String(raw.id || `reading-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
+  const performerWorkspaceIds = normalizeWorkspaceIdList(
+    raw.performerWorkspaceIds
+    || raw.performer_workspace_ids
+    || raw.targetWorkspaceIds
+    || raw.target_workspace_ids
+    || raw.performerWorkspaceId
+    || raw.performer_workspace_id
+    || raw.targetWorkspaceId
+    || raw.target_workspace_id
+    || "",
+  ).filter((id) => id !== String(workspaceId || "owner"));
+  const viewerWorkspaceIds = normalizeWorkspaceIdList(
+    raw.viewerWorkspaceIds
+    || raw.viewer_workspace_ids
+    || raw.readonlyWorkspaceIds
+    || raw.readonly_workspace_ids
+    || "",
+  ).filter((id) => id !== String(workspaceId || "owner") && !performerWorkspaceIds.includes(id));
+  const summary = compactText(`${learnerName}：${subject} - ${contentTitle}`, 180);
+  const idPrefix = mode === "study-plan" ? "study-plan" : "reading-plan";
+  const id = String(raw.id || `${idPrefix}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
   const cards = Array.from({ length: sessions }, (_, index) => {
     const day = index + 1;
+    const title = mode === "reading-plan"
+      ? `${learnerName}阅读《${contentTitle}》第 ${day}/${sessions} 次：录音复述`
+      : `${learnerName}${subject}第 ${day}/${sessions} 次：提交成果`;
+    const description = compactText([
+      `学习计划：${summary}`,
+      `第 ${day} 次，共 ${sessions} 次。`,
+      `领域/科目：${subject}`,
+      `当天任务：${activity}`,
+      `提交要求：${submissionLabel}`,
+      mode === "reading-plan"
+        ? "当天阅读完成后，需要上传语音复述或总结录音。Hermes Mobile 会先转写录音，再结合前面已完成卡片的反馈生成评价、针对性单选考卷和下一次指导；答卷 10 题全对后，本卡片才会完成。"
+        : "当天学习完成后，提交成果文件、文字说明或录音。Hermes Mobile 会提取可读内容、生成评价、针对性单选考卷和下一次指导；答卷 10 题全对后，本卡片才会完成。",
+      sourceText ? `整体要求：\n${sourceText}` : "",
+    ].filter(Boolean).join("\n\n"), 1800);
     return {
-      clientId: `reading-session-${day}`,
-      title: `${readerName}阅读《${bookTitle}》第 ${day}/${sessions} 次：录音复述`,
+      clientId: `${mode === "study-plan" ? "study-session" : "reading-session"}-${day}`,
+      title,
       day,
       dueTime: readingPlanDueTime(startDate, timeOfDay, index),
-      description: compactText([
-        `阅读计划：${summary}`,
-        `第 ${day} 次，共 ${sessions} 次。`,
-        "当天阅读完成后，需要上传语音复述或总结录音。",
-        "Hermes Mobile 会先转写录音，再结合本故事前面已完成卡片的反馈生成评价与下一次指导；只有录音和 AI 分析都完成后，本卡片才会自动完成。",
-        sourceText ? `整体要求：\n${sourceText}` : "",
-      ].filter(Boolean).join("\n\n"), 1600),
-      deliverables: ["读后复述录音", "AI阅读评价", "下一次阅读指导"],
-      acceptance: ["已上传当天录音", "已生成转写和AI评价", "卡片完成结果包含分析文件"],
+      description,
+      deliverables: mode === "reading-plan"
+        ? ["读后复述录音", "AI阅读评价", "针对性单选考卷", "下一次阅读指导"]
+        : ["学习成果提交", "AI评价", "针对性单选考卷", "下一次学习指导"],
+      acceptance: mode === "reading-plan"
+        ? ["已上传当天录音", "已生成转写和AI评价", "10题单选考卷全对", "卡片完成结果包含分析文件"]
+        : ["已提交当天学习成果", "已生成AI评价", "10题单选考卷全对", "卡片完成结果包含分析文件"],
     };
   });
   return {
     id,
-    mode: "reading-plan",
+    mode,
     workspaceId: String(workspaceId || "owner"),
-    bookTitle,
-    readerName,
+    bookTitle: contentTitle,
+    contentTitle,
+    readerName: learnerName,
+    learnerName,
+    subject,
+    activity,
+    submissionLabel,
     sessions,
     startDate,
     timeOfDay,
     reminderLeadMinutes,
     sourceText,
     summary,
+    performerWorkspaceIds,
+    viewerWorkspaceIds,
     cards,
   };
 }
 
+function normalizeKanbanReadingPlan(raw = {}, workspaceId = "owner") {
+  return normalizeKanbanStudyPlan(Object.assign({ mode: "reading-plan" }, raw || {}), workspaceId);
+}
+
 async function createKanbanReadingPlanCards(workspaceId, input = {}) {
-  const plan = normalizeKanbanReadingPlan(input, workspaceId);
+  const plan = normalizeKanbanStudyPlan(input, workspaceId);
   const cover = saveKanbanReadingCoverUpload(workspaceId, plan.id, input.coverImage || input.cover_image || input.cover || null);
   if (cover) plan.cover = publicKanbanCoverFile(workspaceId, cover) || cover;
+  const share = upsertKanbanCaseShare(workspaceId, plan.id, {
+    performerWorkspaceIds: plan.performerWorkspaceIds,
+    viewerWorkspaceIds: plan.viewerWorkspaceIds,
+    managerWorkspaceIds: input.managerWorkspaceIds || input.manager_workspace_ids || [],
+  });
+  const performerAssignee = plan.performerWorkspaceIds[0] ? workspacePrincipal(plan.performerWorkspaceIds[0]) : "";
+  const requestedAssignee = input.assignee || performerAssignee || workspacePrincipal(workspaceId);
   const created = [];
   for (const [index, card] of plan.cards.entries()) {
     const description = compactText([
       card.description,
-      cover ? "书籍封面已上传，可在 Hermes Mobile 阅读计划中预览。" : "",
+      cover ? "封面图片已上传，可在 Hermes Mobile 学习计划中预览。" : "",
     ].filter(Boolean).join("\n\n"), 1800);
     const result = await kanbanCardProvider.addCard({
       workspaceId,
-      assignee: input.assignee || workspacePrincipal(workspaceId),
-      assigneeLabel: todoAssigneeLabel(workspaceId, input.assignee || workspacePrincipal(workspaceId)),
+      assignee: requestedAssignee,
+      assigneeLabel: todoAssigneeLabel(workspaceId, requestedAssignee),
       content: card.title,
       description,
       dueTime: card.dueTime,
       reminderLeadMinutes: plan.reminderLeadMinutes,
-      reason: "Created from Hermes Mobile reading plan.",
-      idempotencyKey: `hm-reading-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
+      reason: `Created from Hermes Mobile ${plan.mode === "study-plan" ? "study" : "reading"} plan.`,
+      idempotencyKey: `hm-${plan.mode}-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
       caseId: plan.id,
       caseMode: plan.mode,
       caseSourceText: compactText(plan.sourceText, 2000),
@@ -4662,14 +4994,14 @@ async function createKanbanReadingPlanCards(workspaceId, input = {}) {
       caseCardGoal: card.description,
     });
     if (!result?.ok) {
-      return { ok: false, error: result?.error || "Reading plan card creation failed", plan, cards: created, result };
+      return { ok: false, error: result?.error || "Study plan card creation failed", plan, cards: created, result };
     }
     let publicCard = publicTodo(result);
     let blocked = false;
     let blockError = "";
     let blockReason = "";
     if (index > 0) {
-      blockReason = "Waiting for previous reading session completion; Hermes Mobile shows only the current reading session.";
+      blockReason = "Waiting for previous study session completion; Hermes Mobile shows only the current study session.";
       const blockedResult = await kanbanCardProvider.mutateCard({
         action: "block",
         workspaceId,
@@ -4694,13 +5026,17 @@ async function createKanbanReadingPlanCards(workspaceId, input = {}) {
     if (index > 0 && !blocked) {
       return {
         ok: false,
-        error: `Reading plan card ${publicCard.id} was created but could not be parked: ${blockError}`,
+        error: `Study plan card ${publicCard.id} was created but could not be parked: ${blockError}`,
         plan,
         cards: created,
       };
     }
   }
-  return { ok: true, plan, cards: created };
+  return { ok: true, plan, cards: created, share };
+}
+
+async function createKanbanStudyPlanCards(workspaceId, input = {}) {
+  return createKanbanReadingPlanCards(workspaceId, Object.assign({ mode: "study-plan" }, input || {}));
 }
 
 function isReadingAudioUpload(filename, mime) {
@@ -4775,6 +5111,73 @@ function saveKanbanReadingAudioUpload(workspaceId, cardId, body = {}, currentCar
   return { path: filePath, name: filename, mime, size: buffer.length };
 }
 
+function isStudyTextUpload(filename, mime) {
+  const ext = path.extname(String(filename || "")).toLowerCase();
+  const type = String(mime || "").toLowerCase();
+  return /^text\//i.test(type)
+    || ["application/json", "application/csv"].includes(type)
+    || [".txt", ".md", ".markdown", ".csv", ".json", ".docx"].includes(ext);
+}
+
+function saveKanbanStudySubmissionUpload(workspaceId, cardId, body = {}, currentCard = null) {
+  const inlineText = compactText(body.submissionText || body.submission_text || body.text || "", 60000);
+  if (inlineText) {
+    const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId);
+    const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-study-submission.txt`);
+    fs.writeFileSync(filePath, inlineText, "utf8");
+    return {
+      path: filePath,
+      name: "study-submission.txt",
+      mime: "text/plain; charset=utf-8",
+      size: Buffer.byteLength(inlineText, "utf8"),
+      kind: "text",
+    };
+  }
+  const filename = safeFileName(body.filename || "study-submission");
+  const mime = String(body.type || body.mime || body.mimeType || body.mime_type || mimeFor(filename) || "").trim();
+  if (isReadingAudioUpload(filename, mime)) {
+    return Object.assign(saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard), { kind: "audio" });
+  }
+  if (!isStudyTextUpload(filename, mime)) {
+    const err = new Error("Study submission must be an audio file, plain text/Markdown/CSV/JSON, or DOCX file");
+    err.status = 400;
+    throw err;
+  }
+  const data = String(body.dataBase64 || body.data_base64 || "");
+  if (!data) {
+    const err = new Error("Missing dataBase64");
+    err.status = 400;
+    throw err;
+  }
+  const buffer = Buffer.from(data, "base64");
+  if (!buffer.length || buffer.length > MAX_UPLOAD_BYTES) {
+    const err = new Error("Invalid or too-large upload");
+    err.status = 400;
+    throw err;
+  }
+  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId);
+  const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
+  fs.writeFileSync(filePath, buffer);
+  return { path: filePath, name: filename, mime, size: buffer.length, kind: path.extname(filename).toLowerCase() === ".docx" ? "docx" : "text" };
+}
+
+async function extractKanbanStudySubmissionEvidence(upload) {
+  if (upload.kind === "audio" || isReadingAudioUpload(upload.name, upload.mime)) {
+    const transcription = await transcribeKanbanReadingAudio(upload.path);
+    return Object.assign({}, transcription, { sourceKind: "audio", sourcePath: upload.path });
+  }
+  if (upload.kind === "docx" || path.extname(upload.path).toLowerCase() === ".docx") {
+    const preview = extractDocxText(upload.path);
+    const text = compactText(preview.text || "", 30000);
+    if (!text) throw new Error("DOCX extraction returned empty text");
+    return { text, language: "", sourceKind: "docx", sourcePath: upload.path };
+  }
+  const preview = textFilePreview(upload.path);
+  const text = compactText(preview.text || "", 30000);
+  if (!text) throw new Error("Text extraction returned empty text");
+  return { text, language: "", sourceKind: "text", sourcePath: upload.path };
+}
+
 async function transcribeKanbanReadingAudio(audioPath) {
   if (!fs.existsSync(KANBAN_READING_TRANSCRIBE_SCRIPT)) {
     throw new Error(`Reading audio transcription script is not installed: ${KANBAN_READING_TRANSCRIBE_SCRIPT}`);
@@ -4820,6 +5223,7 @@ async function readingContextForCard(workspaceId, cardId) {
 }
 
 async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, priorCards, transcription, notes = "") {
+  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
   const previousContext = (priorCards || [])
     .filter((card) => String(card.kanbanResult || "").trim())
     .map((card) => [
@@ -4829,24 +5233,32 @@ async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, 
     .slice(-8)
     .join("\n\n---\n\n");
   const prompt = [
-    "You are evaluating a child's book-reading retelling submission for a Hermes Mobile reading plan.",
+    studyMode
+      ? "You are evaluating a child's study-plan submission for Hermes Mobile."
+      : "You are evaluating a child's book-reading retelling submission for a Hermes Mobile reading plan.",
     "Return Markdown only, concise but specific. Do not include JSON or code fences.",
-    "Use the current transcript as primary evidence. Use previous session feedback only as context for continuity.",
-    "Include a score out of 100. Break the score down by fluency, grammar, vocabulary, comprehension, organization, and continuity. Base the score on the transcript; do not claim acoustic pronunciation evidence unless it is supported by transcription notes.",
+    studyMode
+      ? "Use the current extracted submission text as primary evidence. Use previous session feedback only as context for continuity."
+      : "Use the current transcript as primary evidence. Use previous session feedback only as context for continuity.",
+    studyMode
+      ? "Include a score out of 100. Break the score down according to the subject/domain, accuracy, method, completeness, clarity, and continuity. Base the score only on the submitted evidence and parent notes."
+      : "Include a score out of 100. Break the score down by fluency, grammar, vocabulary, comprehension, organization, and continuity. Base the score on the transcript; do not claim acoustic pronunciation evidence unless it is supported by transcription notes.",
     "Make the score actionable: list the main deductions, quote or paraphrase transcript evidence for each weakness, and explain which skill each deduction affects.",
     "Include a dedicated quiz-target section with 3-5 concrete targets derived only from today's transcript and analysis. For each target include category, transcript evidence, why it affected the score, desired correction/practice pattern, and difficulty level.",
     "Do not invent weaknesses, grammar mistakes, vocabulary gaps, or story details that are not supported by the transcript, parent notes, current card, or previous-session context.",
-    "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, comprehension, retelling quality, English grammar/expression, vocabulary/sentence patterns, comparison with previous sessions, next-session advice, and parent observation points.",
+    studyMode
+      ? "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, subject accuracy, method/process quality, expression/clarity, comparison with previous sessions, next-session advice, and parent observation points."
+      : "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, comprehension, retelling quality, English grammar/expression, vocabulary/sentence patterns, comparison with previous sessions, next-session advice, and parent observation points.",
     "Include these sections: 本次评分（100分）, 本次理解, 复述质量, 英语表达与语法, 词汇与句型, 与前次相比, 下一次建议, 家长可观察点.",
     "If this is the final session in the reading plan, also include sections: 整本书总结 and 总分（100分）.",
     "Include these sections: 本次理解, 复述质量, 表达与逻辑, 与前次相比, 下一次建议, 家长可观察点.",
-    `Reading story: ${currentCard?.kanbanCaseSummary || ""}`,
+    `${studyMode ? "Study plan" : "Reading story"}: ${currentCard?.kanbanCaseSummary || ""}`,
     `Current card: ${currentCard?.content || cardId}`,
     `Session: ${currentCard?.kanbanCaseCardIndex || ""}/${currentCard?.kanbanCaseCardCount || ""}`,
     currentCard?.kanbanCaseSourceText ? `Original requirement:\n${currentCard.kanbanCaseSourceText}` : "",
     previousContext ? `Previous completed session context:\n${previousContext}` : "Previous completed session context: none yet.",
     notes ? `Parent notes:\n${compactText(notes, 2000)}` : "",
-    `Transcript:\n${transcription.text}`,
+    `${studyMode ? "Submission evidence" : "Transcript"}:\n${transcription.text}`,
   ].filter(Boolean).join("\n\n");
   const output = await hermesModelText({
     input: prompt,
@@ -4902,13 +5314,22 @@ function publicKanbanReadingQuiz(quiz = {}) {
 }
 
 async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes = "") {
+  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
   const prompt = [
-    "Generate a practice quiz for a child's book-reading retelling session.",
+    studyMode
+      ? "Generate a practice quiz for a child's study-plan session."
+      : "Generate a practice quiz for a child's book-reading retelling session.",
     "Return JSON only. No Markdown, no comments, no code fences.",
     "The quiz must contain exactly 10 single-answer multiple-choice questions.",
-    "This is a targeted remediation quiz, not a generic book quiz. Every question must be traceable to today's score deductions, weakness/error patterns, quiz targets, transcript evidence, or parent notes.",
-    "At least 7 of 10 questions must directly train weaknesses or mistakes found in today's transcript/analysis. Up to 2 questions may check today's story comprehension or sequence, and up to 1 question may train next-retelling structure.",
-    "Do not invent unrelated trivia, random grammar drills, or vocabulary that is not connected to the transcript, the analysis, or the current reading card.",
+    studyMode
+      ? "This is a targeted remediation quiz, not a generic subject quiz. Every question must be traceable to today's score deductions, weakness/error patterns, quiz targets, submitted evidence, or parent notes."
+      : "This is a targeted remediation quiz, not a generic book quiz. Every question must be traceable to today's score deductions, weakness/error patterns, quiz targets, transcript evidence, or parent notes.",
+    studyMode
+      ? "At least 7 of 10 questions must directly train weaknesses or mistakes found in today's submission/analysis. Up to 2 questions may check core subject understanding, and up to 1 question may train better study/reporting structure."
+      : "At least 7 of 10 questions must directly train weaknesses or mistakes found in today's transcript/analysis. Up to 2 questions may check today's story comprehension or sequence, and up to 1 question may train next-retelling structure.",
+    studyMode
+      ? "Do not invent unrelated trivia or random drills that are not connected to the submitted evidence, the analysis, or the current study card."
+      : "Do not invent unrelated trivia, random grammar drills, or vocabulary that is not connected to the transcript, the analysis, or the current reading card.",
     "Calibrate difficulty from the analysis score: below 70 should focus on basic comprehension, sequence, and simple sentence correction; 70-84 should use applied grammar/vocabulary choices and sentence ordering; 85 or above should use nuanced grammar, vocabulary precision, retelling structure, and inference. If no score is clear, use medium difficulty but still target explicit weaknesses.",
     "The skill field must be a concise focus label, for example grammar: tense error from today's retelling, vocabulary: precise action verb, comprehension: missing event order, or organization: clearer retelling sequence.",
     "Each explanation must say why the correct answer addresses the specific weakness or error from today's analysis.",
@@ -4920,7 +5341,7 @@ async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, trans
     currentCard?.kanbanCaseSourceText ? `Original requirement:\n${currentCard.kanbanCaseSourceText}` : "",
     notes ? `Parent notes:\n${compactText(notes, 2000)}` : "",
     `Analysis:\n${compactText(analysis, 6000)}`,
-    `Transcript:\n${compactText(transcription.text, 8000)}`,
+    `${studyMode ? "Submission evidence" : "Transcript"}:\n${compactText(transcription.text, 8000)}`,
   ].filter(Boolean).join("\n\n");
   const output = await hermesModelText({
     input: prompt,
@@ -5017,13 +5438,14 @@ async function ensureKanbanReadingQuizTargeted(workspaceId, cardId, currentCard,
 function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes = "") {
   const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId);
   const stem = safeFileName(`${currentCard?.kanbanCaseCardIndex || "session"}-${currentCard?.content || cardId}`).replace(/\.[^.]+$/, "");
-  const mdPath = path.join(dir, `${Date.now()}-${stem}-reading-analysis.md`);
+  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
+  const mdPath = path.join(dir, `${Date.now()}-${stem}-${studyMode ? "study" : "reading"}-analysis.md`);
   const lines = [
-    `# ${currentCard?.content || "Reading submission analysis"}`,
+    `# ${currentCard?.content || (studyMode ? "Study submission analysis" : "Reading submission analysis")}`,
     "",
     `- Card: ${cardId}`,
-    `- Story: ${currentCard?.kanbanCaseSummary || ""}`,
-    `- Audio: ${audio.path}`,
+    `- Plan: ${currentCard?.kanbanCaseSummary || ""}`,
+    `- Submission: ${audio.path}`,
     `- Submitted: ${nowIso()}`,
   ];
   if (notes) lines.push(`- Parent notes: ${notes}`);
@@ -5037,9 +5459,9 @@ function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio,
     "",
     `Quiz link: ${readingQuizUrl(workspaceId, cardId)}`,
     "",
-    "Complete all 10 questions correctly in Hermes Mobile to finish this reading card.",
+    `Complete all 10 questions correctly in Hermes Mobile to finish this ${studyMode ? "study" : "reading"} card.`,
     "",
-    "## Transcript",
+    studyMode ? "## Submission Evidence" : "## Transcript",
     "",
     transcription.text,
   );
@@ -5057,8 +5479,13 @@ function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio,
 async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
   const context = await readingContextForCard(workspaceId, cardId);
   const currentCard = context.current || { id: cardId, content: cardId };
-  const audio = saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard);
-  const transcription = await transcribeKanbanReadingAudio(audio.path);
+  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
+  const audio = studyMode
+    ? saveKanbanStudySubmissionUpload(workspaceId, cardId, body, currentCard)
+    : Object.assign(saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard), { kind: "audio" });
+  const transcription = studyMode
+    ? await extractKanbanStudySubmissionEvidence(audio)
+    : Object.assign(await transcribeKanbanReadingAudio(audio.path), { sourceKind: "audio", sourcePath: audio.path });
   const notes = compactText(body.notes || body.comment || "", 2000);
   const analysis = await analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, context.prior, transcription, notes);
   const quiz = await generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes);
@@ -5070,8 +5497,8 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
     cardId,
     cardTitle: currentCard.content || cardId,
     analysisPath,
-    audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size },
-    transcription: { text: transcription.text, language: transcription.language || "" },
+    audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size, kind: audio.kind || transcription.sourceKind || "" },
+    transcription: { text: transcription.text, language: transcription.language || "", sourceKind: transcription.sourceKind || "" },
     analysis,
     quiz,
     quizTargetingVersion: KANBAN_READING_QUIZ_TARGETING_VERSION,
@@ -5085,7 +5512,7 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
     workspaceId,
     cardId,
     comment: [
-      "Reading retelling audio uploaded and analyzed.",
+      studyMode ? "Study submission uploaded and analyzed." : "Reading retelling audio uploaded and analyzed.",
       "The full Markdown analysis is attached; complete the 10-question quiz with all answers correct to finish this card.",
       `Quiz: ${quizUrl}`,
       `MEDIA: ${analysisPath}`,
@@ -5096,8 +5523,8 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
   return {
     ok: true,
     card: publicTodo(commented),
-    audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size },
-    transcription: { text: transcription.text, language: transcription.language || "" },
+    audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size, kind: audio.kind || transcription.sourceKind || "" },
+    transcription: { text: transcription.text, language: transcription.language || "", sourceKind: transcription.sourceKind || "" },
     analysis,
     analysisPath,
     quiz: publicKanbanReadingQuiz(quiz),
@@ -5140,6 +5567,7 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
   if (String(state.status || "") === "completed") {
     return { ok: true, passed: true, score: 100, status: "completed", canonicalCardId: lookup.cardId, quiz: publicKanbanReadingQuiz(state.quiz) };
   }
+  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
   const answers = Array.isArray(body.answers)
     ? body.answers
     : (body.answers && typeof body.answers === "object" ? state.quiz.questions.map((question) => body.answers[question.id]) : []);
@@ -5188,7 +5616,7 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
     };
   }
   const resultText = [
-    "Reading retelling quiz passed.",
+    studyMode ? "Study submission quiz passed." : "Reading retelling quiz passed.",
     "Quiz score: 100/100.",
     "",
     `MEDIA: ${state.analysisPath}`,
@@ -5197,7 +5625,7 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
     action: "comment",
     workspaceId,
     cardId: lookup.cardId,
-    comment: "Reading quiz passed with 10/10 correct answers. Completing this reading card.",
+    comment: `${studyMode ? "Study" : "Reading"} quiz passed with 10/10 correct answers. Completing this card.`,
     author: "Hermes Mobile",
   }).catch(() => null);
   const completed = await kanbanCardProvider.mutateCard({
@@ -11872,12 +12300,14 @@ async function handleApi(req, res) {
       limit: Number(url.searchParams.get("limit") || "120"),
       search: url.searchParams.get("search") || "",
     };
+    const auth = authenticateRequest(req);
+    const sharedCases = kanbanCaseSharesForActor(auth);
     const bypassCache = boolParam(url.searchParams.get("fresh")) || boolParam(url.searchParams.get("skipCache")) || boolParam(url.searchParams.get("noCache"));
-    if (!bypassCache) {
+    if (!bypassCache && !sharedCases.length) {
       const cached = readKanbanCardListCache(listArgs);
       if (cached) {
         scheduleKanbanDependencyReconcile(workspaceId);
-        sendJson(res, 200, cached);
+        sendJson(res, 200, Object.assign({}, cached, { data: annotateKanbanCardsForAuth(cached.data, auth) }));
         return;
       }
     }
@@ -11887,22 +12317,28 @@ async function handleApi(req, res) {
       kanbanErrorResponse(res, result.result || result);
       return;
     }
+    const sharedData = await sharedKanbanCardsForAuth(auth, workspaceId, listArgs);
+    const data = annotateKanbanCardsForAuth(result.data, auth).concat(sharedData);
     const payload = {
-      data: result.data,
+      data,
       assignees: result.assignees,
       source: result.source,
       board: result.board,
       result: result.result,
       maintenance,
+      sharedCases: sharedData.length,
     };
-    writeKanbanCardListCache(listArgs, payload);
+    if (!sharedCases.length) writeKanbanCardListCache(listArgs, payload);
     sendJson(res, 200, payload);
     return;
   }
 
   if (url.pathname === "/api/kanban/cards/output" && req.method === "GET") {
-    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
+    const workspaceId = String(url.searchParams.get("workspaceId") || "owner").trim() || "owner";
+    if (!findWorkspace(workspaceId)) {
+      sendJson(res, 400, { error: "Unknown workspace" });
+      return;
+    }
     const resolved = resolveKanbanOutputFile(workspaceId, url.searchParams.get("path") || "", authenticateRequest(req));
     if (!resolved.file) {
       sendJson(res, resolved.status || 404, { error: resolved.error || "Kanban output not found" });
@@ -11913,8 +12349,11 @@ async function handleApi(req, res) {
   }
 
   if (url.pathname === "/api/kanban/cards/output/preview" && req.method === "GET") {
-    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
+    const workspaceId = String(url.searchParams.get("workspaceId") || "owner").trim() || "owner";
+    if (!findWorkspace(workspaceId)) {
+      sendJson(res, 400, { error: "Unknown workspace" });
+      return;
+    }
     const resolved = resolveKanbanOutputFile(workspaceId, url.searchParams.get("path") || "", authenticateRequest(req));
     if (!resolved.file) {
       sendJson(res, resolved.status || 404, { error: resolved.error || "Kanban output not found" });
@@ -11930,11 +12369,14 @@ async function handleApi(req, res) {
       sendJson(res, 409, { error: "Kanban backend is not enabled" });
       return;
     }
-    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
+    const requestedWorkspaceId = url.searchParams.get("workspaceId") || "owner";
+    const cardId = decodeURIComponent(kanbanCardDetail[1]);
+    const access = await resolveKanbanCardAccess(req, res, requestedWorkspaceId, cardId, "view");
+    if (!access) return;
+    const workspaceId = access.workspaceId;
     const result = await kanbanCardProvider.cardDetail({
       workspaceId,
-      cardId: decodeURIComponent(kanbanCardDetail[1]),
+      cardId,
       logTail: Number(url.searchParams.get("logTail") || "12000"),
     });
     if (!result.ok) {
@@ -12015,6 +12457,30 @@ async function handleApi(req, res) {
       clearKanbanCardListCache(workspaceId);
       broadcast({ type: "kanban.updated", workspaceId, action: "reading-plan-add" });
       broadcast({ type: "todos.updated", workspaceId, action: "reading-plan-add" });
+      sendJson(res, 201, result);
+    } catch (err) {
+      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/kanban/cards/study-plan" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req, Math.ceil(KANBAN_READING_COVER_MAX_BYTES * 1.4) + 200000);
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    try {
+      const result = await createKanbanStudyPlanCards(workspaceId, body);
+      if (!result.ok) {
+        kanbanErrorResponse(res, result, 502);
+        return;
+      }
+      clearKanbanCardListCache(workspaceId);
+      broadcast({ type: "kanban.updated", workspaceId, action: "study-plan-add" });
+      broadcast({ type: "todos.updated", workspaceId, action: "study-plan-add" });
       sendJson(res, 201, result);
     } catch (err) {
       sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
@@ -12140,7 +12606,7 @@ async function handleApi(req, res) {
     return;
   }
 
-  const kanbanReadingSubmission = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/reading-submission$/);
+  const kanbanReadingSubmission = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/(?:reading|study)-submission$/);
   if (kanbanReadingSubmission && req.method === "POST") {
     if (!useKanbanTodoBackend()) {
       sendJson(res, 409, { error: "Kanban backend is not enabled" });
@@ -12151,9 +12617,10 @@ async function handleApi(req, res) {
       sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
       return;
     }
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
     const cardId = decodeURIComponent(kanbanReadingSubmission[1]);
+    const access = await resolveKanbanCardAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner", cardId, "submitStudy");
+    if (!access) return;
+    const workspaceId = access.workspaceId;
     try {
       const result = await submitKanbanReadingSubmission(workspaceId, cardId, body);
       if (!result.ok) {
@@ -12163,6 +12630,7 @@ async function handleApi(req, res) {
       clearKanbanCardListCache(workspaceId);
       broadcast({ type: "kanban.updated", workspaceId, cardId, action: "reading-submission" });
       broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "reading-submission" });
+      if (result.card) result.card = annotateKanbanCardForAuth(result.card, access.auth);
       sendJson(res, 200, result);
     } catch (err) {
       sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
@@ -12170,16 +12638,23 @@ async function handleApi(req, res) {
     return;
   }
 
-  const kanbanReadingQuiz = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/reading-quiz$/);
+  const kanbanReadingQuiz = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/(?:reading|study)-quiz$/);
   if (kanbanReadingQuiz && (req.method === "GET" || req.method === "POST")) {
     if (!useKanbanTodoBackend()) {
       sendJson(res, 409, { error: "Kanban backend is not enabled" });
       return;
     }
     const body = req.method === "POST" ? await readBody(req).catch(() => ({})) : {};
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
     const cardId = decodeURIComponent(kanbanReadingQuiz[1]);
+    const access = await resolveKanbanCardAccess(
+      req,
+      res,
+      body.workspaceId || url.searchParams.get("workspaceId") || "owner",
+      cardId,
+      req.method === "POST" ? "answerQuiz" : "view",
+    );
+    if (!access) return;
+    const workspaceId = access.workspaceId;
     try {
       const result = req.method === "POST"
         ? await submitKanbanReadingQuiz(workspaceId, cardId, body)
@@ -12193,6 +12668,7 @@ async function handleApi(req, res) {
         broadcast({ type: "kanban.updated", workspaceId, cardId, action: "reading-quiz-passed" });
         broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "reading-quiz-passed" });
       }
+      if (result.card) result.card = annotateKanbanCardForAuth(result.card, access.auth);
       sendJson(res, 200, result);
     } catch (err) {
       sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
@@ -12207,13 +12683,18 @@ async function handleApi(req, res) {
       return;
     }
     const body = await readBody(req).catch(() => ({}));
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
     const action = kanbanAction[2];
+    const cardId = decodeURIComponent(kanbanAction[1]);
+    const capability = action === "comment"
+      ? "comment"
+      : (action === "revise" ? "revise" : (action === "delete" || action === "cancel" ? "delete" : "manage"));
+    const access = await resolveKanbanCardAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner", cardId, capability);
+    if (!access) return;
+    const workspaceId = access.workspaceId;
     const result = await kanbanCardProvider.mutateCard({
       action,
       workspaceId,
-      cardId: decodeURIComponent(kanbanAction[1]),
+      cardId,
       assignee: body.assignee || "",
       dueTime: body.dueTime || body.due_time || "",
       reason: body.reason || "",
@@ -12226,10 +12707,10 @@ async function handleApi(req, res) {
       kanbanErrorResponse(res, result);
       return;
     }
-    const cardId = String(result.id || decodeURIComponent(kanbanAction[1]));
+    const resultCardId = String(result.id || cardId);
     clearKanbanCardListCache(workspaceId);
-    broadcast({ type: "kanban.updated", workspaceId, cardId, action });
-    broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action });
+    broadcast({ type: "kanban.updated", workspaceId, cardId: resultCardId, action });
+    broadcast({ type: "todos.updated", workspaceId, todoId: resultCardId, action });
     sendJson(res, 200, { ok: true, result });
     return;
   }
