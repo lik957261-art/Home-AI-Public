@@ -6,6 +6,8 @@ param(
   [string]$GoogleTokenPath = "",
   [string]$GoogleClientSecretPath = "",
   [string]$OutlookGraphTokenPath = "",
+  [string]$OutlookGraphEnvPath = "",
+  [string]$OutlookGraphMcpPath = "",
   [int]$HealthTimeoutSeconds = 45
 )
 
@@ -276,6 +278,16 @@ function Provision-OwnerExternalConnectors {
   $resolvedGoogleTokenPath = Resolve-ConnectorPath -ExplicitPath $GoogleTokenPath -EnvName "HERMES_WEB_GOOGLE_TOKEN_PATH" -RelativePath "google_token.json"
   $resolvedGoogleClientSecretPath = Resolve-ConnectorPath -ExplicitPath $GoogleClientSecretPath -EnvName "HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH" -RelativePath "google_client_secret.json"
   $resolvedOutlookGraphTokenPath = Resolve-ConnectorPath -ExplicitPath $OutlookGraphTokenPath -EnvName "HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH" -RelativePath "microsoft-graph-outlook-mail\token.json"
+  $resolvedOutlookGraphEnvPath = Resolve-ConnectorPath -ExplicitPath $OutlookGraphEnvPath -EnvName "HERMES_WEB_OUTLOOK_GRAPH_ENV_PATH" -RelativePath ".env"
+  $resolvedOutlookGraphMcpPath = $OutlookGraphMcpPath
+  if (-not $resolvedOutlookGraphMcpPath) {
+    $candidate = Join-Path $GatewayWorkerRoot "outlook_graph_mcp.py"
+    if (Test-Path -LiteralPath $candidate) { $resolvedOutlookGraphMcpPath = $candidate }
+  }
+  if (-not $resolvedOutlookGraphMcpPath) {
+    $candidate = Join-Path $GatewayWorkerRoot "scripts\python\outlook_graph_mcp.py"
+    if (Test-Path -LiteralPath $candidate) { $resolvedOutlookGraphMcpPath = $candidate }
+  }
   if ($resolvedGoogleTokenPath -and (Test-Path -LiteralPath $resolvedGoogleTokenPath)) {
     $args += @("-GoogleTokenPath", $resolvedGoogleTokenPath)
     $hasCredential = $true
@@ -287,6 +299,12 @@ function Provision-OwnerExternalConnectors {
   if ($resolvedOutlookGraphTokenPath -and (Test-Path -LiteralPath $resolvedOutlookGraphTokenPath)) {
     $args += @("-OutlookGraphTokenPath", $resolvedOutlookGraphTokenPath)
     $hasCredential = $true
+  }
+  if ($resolvedOutlookGraphEnvPath -and (Test-Path -LiteralPath $resolvedOutlookGraphEnvPath)) {
+    $args += @("-OutlookGraphEnvPath", $resolvedOutlookGraphEnvPath)
+  }
+  if ($resolvedOutlookGraphMcpPath -and (Test-Path -LiteralPath $resolvedOutlookGraphMcpPath)) {
+    $args += @("-OutlookGraphMcpPath", $resolvedOutlookGraphMcpPath)
   }
   if (-not $hasCredential) {
     Write-GatewayPoolLog "Owner external connector provisioning skipped; no credential paths are available."

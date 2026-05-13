@@ -27,6 +27,7 @@ const runCronTickSidecar = read(path.join("scripts", "run-cron-tick-sidecar.ps1"
 const startWeixinFrontGateway = read(path.join("scripts", "start-weixin-front-gateway.ps1"));
 const startWeixinMobileIngressBridge = read(path.join("scripts", "start-weixin-mobile-ingress-bridge.ps1"));
 const weixinMobileIngressBridge = read(path.join("scripts", "weixin-mobile-ingress-bridge.py"));
+const outlookGraphMcp = read(path.join("scripts", "python", "outlook_graph_mcp.py"));
 const configureLowGateways = read(path.join("scripts", "configure-low-gateways.sh"));
 const checkWorkerCodexAuth = read(path.join("scripts", "check-worker-codex-auth.ps1"));
 const gatewayToolSchemaSmoke = read(path.join("scripts", "gateway-tool-schema-smoke.js"));
@@ -97,6 +98,10 @@ assert.match(startGatewayPool, /PATH="\$low_gateway_path"/);
 assert.match(startGatewayPool, /google_token\.json/);
 assert.match(startGatewayPool, /google_client_secret\.json/);
 assert.match(startGatewayPool, /microsoft-graph-outlook-mail\\token\.json/);
+assert.match(startGatewayPool, /HERMES_WEB_OUTLOOK_GRAPH_ENV_PATH/);
+assert.match(startGatewayPool, /outlook_graph_mcp\.py/);
+assert.match(startGatewayPool, /-OutlookGraphEnvPath/);
+assert.match(startGatewayPool, /-OutlookGraphMcpPath/);
 assert.match(startGatewayPool, /configure-low-gateways\.sh/);
 assert.match(startGatewayPool, /Provision-OwnerExternalConnectors\s*\r?\nStart-LowGateways/);
 assert.match(startGatewayPool, /HERMES_LOW_GATEWAY_REQUIRE_UNIQUE_CODEX_AUTH/);
@@ -138,9 +143,20 @@ assert.match(startLowGatewaysShell, /API_SERVER_KEY="\$api_key"/);
 assert.match(startLowGatewaysShell, /LOW_GATEWAYS_STARTED/);
 assert.doesNotMatch(startLowGatewaysShell, /xuxin/);
 
+assert.match(configureLowGateways, /HERMES_MOBILE_OWNER_CONNECTOR_PROFILES/);
+assert.match(configureLowGateways, /HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH/);
+assert.match(configureLowGateways, /is_owner_connector_profile/);
+assert.match(configureLowGateways, /outlook_graph:/);
+assert.match(configureLowGateways, /HERMES_HOME: \$profile_link/);
+assert.match(configureLowGateways, /platform_toolsets:[\s\S]*api_server:[\s\S]*\$\{outlook_api_toolset_block\}/);
+
 assert.match(provisionWorkerExternalConnectors, /external-connectors\/owner/);
 assert.match(provisionWorkerExternalConnectors, /google_token\.json/);
 assert.match(provisionWorkerExternalConnectors, /microsoft-graph-outlook-mail\/token\.json/);
+assert.match(provisionWorkerExternalConnectors, /Copy-FilteredOutlookEnvFile/);
+assert.match(provisionWorkerExternalConnectors, /outlook_graph\.env/);
+assert.match(provisionWorkerExternalConnectors, /outlook_graph_mcp\.py/);
+assert.match(provisionWorkerExternalConnectors, /MS_GRAPH_CLIENT_ID/);
 assert.match(provisionWorkerExternalConnectors, /patch_google_workspace_skill\(\)/);
 assert.match(provisionWorkerExternalConnectors, /HERMES_GOOGLE_RUNTIME_REEXEC/);
 assert.match(provisionWorkerExternalConnectors, /profiles.*<profile>.*skills/s);
@@ -149,6 +165,11 @@ assert.match(provisionWorkerExternalConnectors, /google_workspace_setup_check=ok
 assert.match(provisionWorkerExternalConnectors, /\[owner-secret-root\]/);
 assert.doesNotMatch(provisionWorkerExternalConnectors, /Get-Content\s+-Raw\s+\$GoogleTokenPath/i);
 assert.doesNotMatch(provisionWorkerExternalConnectors, /Write-Host .*token/i);
+
+assert.match(outlookGraphMcp, /FastMCP\("OutlookGraph"/);
+assert.match(outlookGraphMcp, /microsoft-graph-outlook-mail/);
+assert.match(outlookGraphMcp, /MS_GRAPH_CLIENT_ID/);
+assert.doesNotMatch(outlookGraphMcp, /client_secret\s*=\s*["'][^"']+["']/i);
 
 assert.match(repairWorkspaceAcl, /\[string\]\$WorkspaceRoot/);
 assert.match(repairWorkspaceAcl, /HermesMobileWorker/);

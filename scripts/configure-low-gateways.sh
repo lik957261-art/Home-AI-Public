@@ -25,6 +25,8 @@ http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway
 http_plugin_target="$worker_home_dir/plugins/hermes-mobile-http"
 image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-image}"
 image_plugin_target="$worker_home_dir/plugins/hermes-mobile-image"
+owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
+outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
 
 shared_auth_enabled=0
 case "${shared_auth_mode,,}" in
@@ -82,6 +84,17 @@ file_size_or_zero() {
     return 0
   fi
   stat -c %s "$file_path" 2>/dev/null || echo 0
+}
+
+is_owner_connector_profile() {
+  local candidate="$1"
+  local profile
+  for profile in $owner_connector_profiles; do
+    if [ "$profile" = "$candidate" ]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 quarantine_sqlite_files() {
@@ -376,6 +389,24 @@ for idx in $(seq 1 "$low_gateway_count"); do
     plugin_block="  enabled:
 ${plugin_enabled_lines%$'\n'}"
   fi
+  outlook_toolset_block=""
+  outlook_api_toolset_block=""
+  outlook_mcp_block=""
+  if is_owner_connector_profile "$profile" && [ -f "$outlook_graph_mcp_path" ]; then
+    outlook_toolset_block="  - outlook_graph"
+    outlook_api_toolset_block="    - outlook_graph"
+    outlook_mcp_block="mcp_servers:
+  outlook_graph:
+    command: /opt/hermes-gateway-runtime/venv/bin/python
+    args:
+      - $outlook_graph_mcp_path
+    env:
+      HERMES_HOME: $profile_link
+      PYTHONPATH: /opt/hermes-gateway-runtime/official-clean
+    enabled: true
+    timeout: 180
+    connect_timeout: 60"
+  fi
   cat > "$profile_link/config.yaml" <<YAML
 model:
   default: gpt-5.5
@@ -400,6 +431,7 @@ toolsets:
   - clarify
 ${weather_toolset_block}
 ${http_toolset_block}
+${outlook_toolset_block}
 platform_toolsets:
   api_server:
     - web
@@ -420,6 +452,7 @@ platform_toolsets:
     - clarify
 ${weather_api_toolset_block}
 ${http_api_toolset_block}
+${outlook_api_toolset_block}
 agent:
   max_turns: 60
   reasoning_effort: medium
@@ -439,6 +472,7 @@ worker_pool:
   enabled: false
 cron:
   enabled: false
+${outlook_mcp_block}
 YAML
 
   if [ "$shared_auth_enabled" = "1" ]; then
