@@ -9870,6 +9870,9 @@ function renderKanbanReadingQuizPanel(todo) {
   const question = questions[step] || questions[0];
   const selected = Number(answers[step]);
   const result = quizState.result || null;
+  const resultItems = result && Array.isArray(result.results) ? result.results : [];
+  const currentResult = resultItems[step] || null;
+  const currentWrong = result && !result.passed && currentResult && !currentResult.correct;
   const choices = (question.choices || []).map((choice, index) => {
     const id = `readingQuiz_${todo.id}_${step}_${index}`.replace(/[^\w-]/g, "_");
     return `<label class="reading-quiz-choice" for="${escapeHtml(id)}">
@@ -9883,11 +9886,11 @@ function renderKanbanReadingQuizPanel(todo) {
   const status = result
     ? (result.passed ? "已全对，卡片已完成。" : `本次 ${result.correctCount || 0}/${result.total || 10}，请修改错误题后再提交。`)
     : (passed ? "已通过，可查看题目。" : `已答 ${answeredCount}/${questions.length}`);
-  const wrong = result && !result.passed && Array.isArray(result.results)
-    ? result.results
-      .map((item, index) => item.correct ? "" : `${index + 1}. ${item.explanation || "需要重新检查。"} `)
-      .filter(Boolean)
-      .join("\n")
+  const wrongHint = currentWrong
+    ? `<div class="reading-quiz-feedback" role="status">
+      <strong>第 ${step + 1} 题需要修改</strong>
+      <p>${escapeHtml(currentResult.explanation || "这题需要重新检查，修改后再提交。")}</p>
+    </div>`
     : "";
   return `<form class="todo-comment-panel todo-reading-quiz-panel" data-reading-quiz-form="${escapeHtml(todo.id)}">
     <div class="todo-detail-deliverables-head">
@@ -9900,7 +9903,7 @@ function renderKanbanReadingQuizPanel(todo) {
       <strong>${escapeHtml(question.prompt || "")}</strong>
       <div class="reading-quiz-choices">${choices}</div>
     </article>
-    ${wrong ? `<pre class="todo-detail-muted">${escapeHtml(wrong)}</pre>` : ""}
+    ${wrongHint}
     <div class="todo-comment-actions">
       <button type="button" data-reading-quiz-prev="${escapeHtml(todo.id)}"${canPrev && !submitting ? "" : " disabled"}>上一题</button>
       <button type="button" data-reading-quiz-next="${escapeHtml(todo.id)}"${canNext && (passed || Number.isInteger(selected)) && !submitting ? "" : " disabled"}>下一题</button>
@@ -10202,6 +10205,9 @@ function wireTodoPanel(root) {
       if (!todoId || !Number.isFinite(index)) return;
       if (!Array.isArray(state.todoReadingQuizAnswers[todoId])) state.todoReadingQuizAnswers[todoId] = [];
       state.todoReadingQuizAnswers[todoId][index] = Number(input.value);
+      if (state.todoReadingQuizzes[todoId]?.result && !state.todoReadingQuizzes[todoId]?.result?.passed) {
+        state.todoReadingQuizzes[todoId] = Object.assign({}, state.todoReadingQuizzes[todoId], { result: null });
+      }
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
   });
