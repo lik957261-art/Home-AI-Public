@@ -3843,6 +3843,11 @@ function publicTodo(row) {
       ? (row.kanban_case_acceptance || row.kanbanCaseAcceptance).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
       : [],
     kanbanCaseCardGoal: String(row.kanban_case_card_goal || row.kanbanCaseCardGoal || ""),
+    kanbanRevisionOf: String(row.kanban_revision_of || row.kanbanRevisionOf || ""),
+    kanbanRevisionRequest: String(row.kanban_revision_request || row.kanbanRevisionRequest || ""),
+    kanbanRevisionRequestedAt: String(row.kanban_revision_requested_at || row.kanbanRevisionRequestedAt || ""),
+    kanbanRevisionRequestedBy: String(row.kanban_revision_requested_by || row.kanbanRevisionRequestedBy || ""),
+    kanbanRevisionCount: Number(row.kanban_revision_count || row.kanbanRevisionCount || 0),
     createdAt: String(row.created_at || ""),
     updatedAt: String(row.updated_at || ""),
     completedAt: String(row.completed_at || ""),
@@ -11260,7 +11265,7 @@ async function handleApi(req, res) {
     return;
   }
 
-  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment)$/);
+  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment|revise)$/);
   if (todoAction && req.method === "POST") {
     const body = await readBody(req).catch(() => ({}));
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
@@ -11275,6 +11280,8 @@ async function handleApi(req, res) {
       dueTime: body.dueTime || body.due_time || "",
       reason: body.reason || "",
       comment: body.comment || body.text || "",
+      content: body.content || body.title || "",
+      description: body.description || "",
       author: body.author || "",
     });
     if (!result.ok) {
@@ -11287,7 +11294,7 @@ async function handleApi(req, res) {
     return;
   }
 
-  const kanbanAction = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment)$/);
+  const kanbanAction = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment|revise)$/);
   if (kanbanAction && req.method === "POST") {
     if (!useKanbanTodoBackend()) {
       sendJson(res, 409, { error: "Kanban backend is not enabled" });
@@ -11305,6 +11312,8 @@ async function handleApi(req, res) {
       dueTime: body.dueTime || body.due_time || "",
       reason: body.reason || "",
       comment: body.comment || body.text || "",
+      content: body.content || body.title || "",
+      description: body.description || "",
       author: body.author || "",
     });
     if (!result?.ok) {

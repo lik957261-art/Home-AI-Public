@@ -103,6 +103,8 @@ function createKanbanCardProvider(options = {}) {
       due_time: args.dueTime || args.due_time || "",
       reason: args.reason || "",
       comment: args.comment || args.text || "",
+      content: args.content || args.title || "",
+      description: args.description || "",
       author: args.author || "",
     });
   }

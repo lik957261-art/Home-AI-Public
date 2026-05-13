@@ -14,6 +14,7 @@ async function run() {
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-kanban-provider-"));
   const calls = [];
+  let createCount = 0;
   const provider = createKanbanTodoBridge({
     command: "hermes",
     baseArgs: ["-p", "owner"],
@@ -27,7 +28,9 @@ async function run() {
       const joined = args.join(" ");
       if (joined.includes("boards create")) return { code: 0, stdout: "", stderr: "" };
       if (joined.includes(" create ")) {
-        return { code: 0, stdout: JSON.stringify({ task_id: "t_created" }), stderr: "" };
+        createCount += 1;
+        const taskId = createCount === 1 ? "t_created" : `t_created_${createCount}`;
+        return { code: 0, stdout: JSON.stringify({ task_id: taskId }), stderr: "" };
       }
       if (joined.includes(" list ")) {
         return {
@@ -140,10 +143,10 @@ async function run() {
     limit: 10,
   });
   assert.equal(blockedPush.ok, true);
-  assert.equal(blockedPush.events.length, 1);
-  assert.equal(blockedPush.events[0].messageType, "blocked");
-  assert.equal(blockedPush.events[0].todoId, "t_created");
-  assert.match(blockedPush.events[0].body, /need input/);
+  const blockedEvents = blockedPush.events.filter((event) => event.messageType === "blocked");
+  assert.equal(blockedEvents.length, 1);
+  assert.equal(blockedEvents[0].todoId, "t_created");
+  assert.match(blockedEvents[0].body, /need input/);
 
   const commented = await provider.run({
     action: "comment",
@@ -178,6 +181,23 @@ async function run() {
   });
   assert.equal(completed.ok, true);
   assert.equal(completed.status, "completed");
+
+  const revision = await provider.run({
+    action: "revise",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+    comment: "revise the final copy",
+  });
+  assert.equal(revision.ok, true);
+  assert.equal(revision.action, "revise");
+  assert.equal(revision.originalId, "t_created");
+  assert.equal(revision.revisionId, "t_created_3");
+  assert.equal(revision.status, "open");
+  assert.equal(revision.kanban_revision_of, "t_created");
+  assert.equal(revision.kanban_revision_request, "revise the final copy");
+  assert.ok(calls.some(([, args]) => args.includes("create") && args.includes("修改：Read chapter")));
+  assert.ok(calls.some(([, args]) => args.includes("comment") && args.includes("Manual revision requested: revise the final copy\nFollow-up card: t_created_3")));
 
   const listedWithClosed = await provider.run({
     action: "list",

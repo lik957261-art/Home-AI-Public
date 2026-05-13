@@ -174,6 +174,11 @@ function arrayFromValue(value, limit = 12) {
   return raw.map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
 }
 
+function compactValue(value, limit = 800) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > limit ? `${text.slice(0, Math.max(0, limit - 3))}...` : text;
+}
+
 function dateStringFromTask(value) {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -238,6 +243,11 @@ function bodyWithMeta(content, meta) {
     caseDeliverables: arrayFromValue(meta.caseDeliverables, 8),
     caseAcceptance: arrayFromValue(meta.caseAcceptance, 8),
     caseCardGoal: meta.caseCardGoal || "",
+    revisionOf: meta.revisionOf || "",
+    revisionRequest: meta.revisionRequest || "",
+    revisionRequestedAt: meta.revisionRequestedAt || "",
+    revisionRequestedBy: meta.revisionRequestedBy || "",
+    revisionCount: Number(meta.revisionCount || 0) || 0,
   };
   const completionContract = [
     "## Hermes Mobile completion contract",
@@ -462,6 +472,11 @@ function createKanbanTodoBridge(options = {}) {
       kanban_case_deliverables: arrayFromValue(meta.caseDeliverables || meta.case_deliverables, 8),
       kanban_case_acceptance: arrayFromValue(meta.caseAcceptance || meta.case_acceptance, 8),
       kanban_case_card_goal: String(meta.caseCardGoal || meta.case_card_goal || ""),
+      kanban_revision_of: String(meta.revisionOf || meta.revision_of || ""),
+      kanban_revision_request: String(meta.revisionRequest || meta.revision_request || ""),
+      kanban_revision_requested_at: String(meta.revisionRequestedAt || meta.revision_requested_at || ""),
+      kanban_revision_requested_by: String(meta.revisionRequestedBy || meta.revision_requested_by || ""),
+      kanban_revision_count: Number(meta.revisionCount ?? meta.revision_count ?? 0) || 0,
       created_at: dateStringFromTask(meta.createdAt || meta.created_at || task.created_at || task.createdAt || ""),
       updated_at: dateStringFromTask(meta.updatedAt || meta.updated_at || task.updated_at || task.updatedAt || ""),
       completed_at: completedAt || (kanbanStatus === "done" ? dateStringFromTask(task.completed_at || task.completedAt || task.updated_at || task.updatedAt || "") : ""),
@@ -498,6 +513,11 @@ function createKanbanTodoBridge(options = {}) {
         caseDeliverables: arrayFromValue(row.kanban_case_deliverables || previous.caseDeliverables, 8),
         caseAcceptance: arrayFromValue(row.kanban_case_acceptance || previous.caseAcceptance, 8),
         caseCardGoal: String(row.kanban_case_card_goal || previous.caseCardGoal || ""),
+        revisionOf: String(row.kanban_revision_of || previous.revisionOf || ""),
+        revisionRequest: String(row.kanban_revision_request || previous.revisionRequest || ""),
+        revisionRequestedAt: String(row.kanban_revision_requested_at || previous.revisionRequestedAt || ""),
+        revisionRequestedBy: String(row.kanban_revision_requested_by || previous.revisionRequestedBy || ""),
+        revisionCount: Number(row.kanban_revision_count ?? previous.revisionCount ?? 0) || 0,
         updatedAt: String(row.updated_at || previous.updatedAt || ""),
       });
       if (row.status === "completed" || DONE_KANBAN_STATUSES.has(String(row.kanban_status || "").trim().toLowerCase())) {
@@ -677,6 +697,11 @@ function createKanbanTodoBridge(options = {}) {
       caseDeliverables: arrayFromValue(payload.case_deliverables || payload.caseDeliverables, 8),
       caseAcceptance: arrayFromValue(payload.case_acceptance || payload.caseAcceptance, 8),
       caseCardGoal: String(payload.case_card_goal || payload.caseCardGoal || "").trim(),
+      revisionOf: String(payload.revision_of || payload.revisionOf || "").trim(),
+      revisionRequest: String(payload.revision_request || payload.revisionRequest || "").trim(),
+      revisionRequestedAt: String(payload.revision_requested_at || payload.revisionRequestedAt || "").trim(),
+      revisionRequestedBy: String(payload.revision_requested_by || payload.revisionRequestedBy || "").trim(),
+      revisionCount: Number(payload.revision_count ?? payload.revisionCount ?? 0) || 0,
       createdAt: now,
       updatedAt: now,
     };
@@ -824,6 +849,91 @@ function createKanbanTodoBridge(options = {}) {
       );
     }
 
+    if (action === "revise" || action === "request_changes") {
+      const revisionRequest = String(payload.comment || payload.text || payload.reason || "").trim();
+      if (!revisionRequest) return { ok: false, error: "revision request is required" };
+      const author = String(payload.author || payload.source_principal || "Hermes Mobile").trim() || "Hermes Mobile";
+      const originalTitle = String(meta.content || payload.content || todoId).trim() || todoId;
+      const revisionCount = (Number(meta.revisionCount ?? meta.revision_count ?? 0) || 0) + 1;
+      const originalCaseCardId = String(meta.caseCardId || meta.case_card_id || todoId).trim() || todoId;
+      const caseId = String(meta.caseId || meta.case_id || `manual-revision-${safeSlug(todoId, "card")}`).trim();
+      const caseMode = String(meta.caseMode || meta.case_mode || "manual-revision").trim();
+      const caseSourceText = String(meta.caseSourceText || meta.case_source_text || originalTitle).trim();
+      const caseSummary = String(meta.caseSummary || meta.case_summary || `Manual revision for ${originalTitle}`).trim();
+      const originalCaseCardIndex = Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 1;
+      const currentCaseCardCount = Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || originalCaseCardIndex;
+      const caseCardIndex = currentCaseCardCount + 1;
+      const caseCardCount = Math.max(caseCardIndex, currentCaseCardCount);
+      const revisionTitle = String(payload.title || payload.content || `修改：${originalTitle}`).trim();
+      const revisionDescription = [
+        `Original card: ${todoId}`,
+        `Revision request from ${author}:`,
+        revisionRequest,
+        meta.description ? `Original description:\n${meta.description}` : "",
+      ].filter(Boolean).join("\n\n");
+      const revision = await add(Object.assign({}, payload, {
+        action: "add",
+        todo_id: "",
+        content: revisionTitle,
+        description: revisionDescription,
+        assignee: payload.assignee || meta.assignee || payload.source_principal || "",
+        assignee_label: payload.assignee_label || meta.assigneeLabel || meta.assignee || payload.source_principal || "",
+        case_id: caseId,
+        case_mode: caseMode,
+        case_source_text: caseSourceText,
+        case_summary: caseSummary,
+        case_card_id: `${originalCaseCardId}-revision-${revisionCount}`,
+        case_card_index: caseCardIndex,
+        case_card_count: caseCardCount,
+        case_depends_on: [originalCaseCardId],
+        case_deliverables: arrayFromValue(meta.caseDeliverables || meta.case_deliverables, 8),
+        case_acceptance: arrayFromValue(meta.caseAcceptance || meta.case_acceptance, 7).concat(["Complete the requested modification and update the receipt."]).slice(0, 8),
+        case_card_goal: compactValue(revisionRequest, 240),
+        revision_of: todoId,
+        revision_request: revisionRequest,
+        revision_requested_at: now,
+        revision_requested_by: author,
+        revision_count: revisionCount,
+        idempotency_key: "",
+      }));
+      if (!revision?.ok) return revision;
+      await kanban([
+        "--board",
+        board,
+        "comment",
+        todoId,
+        `Manual revision requested: ${revisionRequest}\nFollow-up card: ${revision.id}`,
+        "--author",
+        author,
+      ]).catch(() => null);
+      const nextStore = metadataStore();
+      const previousOriginal = nextStore.todos[todoId] || meta;
+      nextStore.todos[todoId] = Object.assign({}, previousOriginal, {
+        caseId,
+        caseMode,
+        caseSourceText,
+        caseSummary,
+        caseCardId: originalCaseCardId,
+        caseCardIndex: Number(previousOriginal.caseCardIndex ?? previousOriginal.case_card_index ?? 0) || 1,
+        caseCardCount,
+        revisionRequest,
+        revisionRequestedAt: now,
+        revisionRequestedBy: author,
+        revisionCount,
+        revisionCardId: revision.id,
+        lastComment: revisionRequest,
+        lastCommentAt: now,
+        updatedAt: now,
+      });
+      saveMetadataStore(nextStore);
+      return Object.assign({}, revision, {
+        action: "revise",
+        originalId: todoId,
+        revisionId: revision.id,
+        revisionCard: revision,
+      });
+    }
+
     return { ok: false, error: `unknown action: ${action}` };
   }
 
@@ -897,7 +1007,7 @@ function createKanbanTodoBridge(options = {}) {
       const action = String(payload.action || "").trim().toLowerCase();
       if (action === "list") return await list(payload);
       if (action === "add") return await add(payload);
-      if (["complete", "cancel", "postpone", "delete", "block", "unblock", "comment"].includes(action)) return await mutate(payload);
+      if (["complete", "cancel", "postpone", "delete", "block", "unblock", "comment", "revise", "request_changes"].includes(action)) return await mutate(payload);
       if (action === "reconcile_dependency_blocks") return await reconcileDependencyBlocks(payload);
       if (action === "web_pending_pushes") return pendingPushes(payload);
       if (action === "web_mark_push") return markWebPush(payload);

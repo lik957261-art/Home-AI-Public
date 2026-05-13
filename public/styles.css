@@ -5600,6 +5600,17 @@ button.directory-alias-chip {
   background: rgba(255, 255, 255, 0.42);
 }
 
+.todo-revision-panel {
+  border-color: rgba(31, 111, 98, 0.24);
+  background: rgba(232, 245, 239, 0.52);
+}
+
+.todo-panel-label {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .todo-comment-textarea {
   width: 100%;
   min-height: 88px;

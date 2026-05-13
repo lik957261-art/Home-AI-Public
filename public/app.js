@@ -9256,6 +9256,7 @@ function renderTodoDetail(todo) {
   const kanban = isKanbanTodoSource();
   const kanbanStatus = normalizedKanbanStatus(todo);
   const blocked = kanbanStatus === "blocked";
+  const completed = kanban && (kanbanStatus === "done" || todo.status === "completed");
   const statusText = kanban ? kanbanStatusText(todo) : todoStatusText(todo);
   const gridItems = [
     renderTodoDetailGridItem("负责人", todo.assigneeLabel || todo.assignee || ""),
@@ -9295,6 +9296,15 @@ function renderTodoDetail(todo) {
       </div>
     </form>`
     : "";
+  const revisionPanel = completed
+    ? `<form class="todo-comment-panel todo-revision-panel" data-todo-revision-form="${escapeHtml(todo.id)}">
+      <label class="todo-panel-label" for="todoRevisionText">要求修改</label>
+      <textarea id="todoRevisionText" class="todo-input todo-comment-textarea" rows="4" placeholder="写清楚需要修改的地方、验收要求或补充材料"></textarea>
+      <div class="todo-comment-actions">
+        <button type="submit" data-revise-todo="${escapeHtml(todo.id)}">创建修改任务</button>
+      </div>
+    </form>`
+    : "";
   return `<article class="todo-detail-card ${escapeHtml(todoStatusLabel(todo))}">
     <div class="todo-detail-head">
       <div>
@@ -9307,6 +9317,7 @@ function renderTodoDetail(todo) {
     ${resultBlock}
     ${metaBlock}
     ${commentPanel}
+    ${revisionPanel}
     ${open ? `<div class="todo-detail-actions">
       <button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>
       ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
@@ -9425,6 +9436,14 @@ function wireTodoPanel(root) {
       event.stopPropagation();
       const todoId = form.dataset.todoCommentForm || form.querySelector("[data-comment-todo]")?.dataset?.commentTodo || "";
       commentTodo(todoId, form.querySelector("#todoCommentText")?.value || "").catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-todo-revision-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = form.dataset.todoRevisionForm || form.querySelector("[data-revise-todo]")?.dataset?.reviseTodo || "";
+      requestTodoRevision(todoId, form.querySelector("#todoRevisionText")?.value || "").catch(showError);
     });
   });
   root.querySelectorAll("[data-comment-unblock-todo]").forEach((button) => {
@@ -9676,6 +9695,28 @@ async function commentAndUnblockTodo(todoId, comment) {
   await loadTodos();
   state.selectedTodoId = todoId;
   showPushToast("评论已添加，已解除阻塞", "success");
+  renderTodos();
+}
+
+async function requestTodoRevision(todoId, comment) {
+  if (!todoId) return;
+  const text = String(comment || "").trim();
+  if (!text) throw new Error("请先填写修改要求");
+  const response = await api(boardActionApiPath(todoId, "revise"), {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId,
+      comment: text,
+    }),
+  });
+  const result = response.result || {};
+  const revisionId = result.revisionId || result.revisionCard?.id || result.id || "";
+  clearTodoListCache();
+  state.todoKanbanStatus = "todo";
+  localStorage.setItem("hermesTodoKanbanStatus", "todo");
+  await loadTodos({ skipCache: true });
+  state.selectedTodoId = revisionId || todoId;
+  showPushToast(revisionId ? `已创建修改任务 ${revisionId}` : "修改请求已提交", "success");
   renderTodos();
 }
 
