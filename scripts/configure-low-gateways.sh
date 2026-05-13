@@ -23,6 +23,8 @@ web_plugin_source="${HERMES_MOBILE_WEB_PLUGIN_SOURCE:-$mobile_app_root/gateway-p
 web_plugin_target="$worker_home_dir/plugins/hermes-mobile-web"
 http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-http}"
 http_plugin_target="$worker_home_dir/plugins/hermes-mobile-http"
+docx_plugin_source="${HERMES_MOBILE_DOCX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-docx}"
+docx_plugin_target="$worker_home_dir/plugins/hermes-mobile-docx"
 image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-image}"
 image_plugin_target="$worker_home_dir/plugins/hermes-mobile-image"
 owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
@@ -203,6 +205,7 @@ missing_auth_profiles=()
 weather_plugin_enabled=0
 web_plugin_enabled=0
 http_plugin_enabled=0
+docx_plugin_enabled=0
 image_plugin_enabled=0
 
 if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/__init__.py" ]; then
@@ -230,6 +233,15 @@ if [ -f "$http_plugin_source/plugin.yaml" ] && [ -f "$http_plugin_source/__init_
   http_plugin_enabled=1
 else
   echo "HTTP plugin source not found: $http_plugin_source" >&2
+fi
+
+if [ -f "$docx_plugin_source/plugin.yaml" ] && [ -f "$docx_plugin_source/__init__.py" ]; then
+  rm -rf "$docx_plugin_target"
+  cp -a "$docx_plugin_source" "$docx_plugin_target"
+  chown -R "$worker_user:$worker_user" "$docx_plugin_target"
+  docx_plugin_enabled=1
+else
+  echo "DOCX plugin source not found: $docx_plugin_source" >&2
 fi
 
 if [ -f "$image_plugin_source/plugin.yaml" ] && [ -f "$image_plugin_source/__init__.py" ]; then
@@ -264,6 +276,9 @@ if [ "$http_plugin_enabled" = "1" ]; then
   http_toolset_block="  - http"
   http_api_toolset_block="    - http"
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-http"$'\n'
+fi
+if [ "$docx_plugin_enabled" = "1" ]; then
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
 fi
 if [ "$image_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
@@ -357,6 +372,12 @@ for idx in $(seq 1 "$low_gateway_count"); do
     cp -a "$http_plugin_target" "$profile_dir/plugins/hermes-mobile-http"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-http"
   fi
+  if [ "$docx_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-docx"
+    cp -a "$docx_plugin_target" "$profile_dir/plugins/hermes-mobile-docx"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-docx"
+  fi
   if [ "$image_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-image"
@@ -380,6 +401,9 @@ for idx in $(seq 1 "$low_gateway_count"); do
     http_toolset_block="  - http"
     http_api_toolset_block="    - http"
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-http"$'\n'
+  fi
+  if [ "$docx_plugin_enabled" = "1" ]; then
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
   fi
   if [ "$image_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'

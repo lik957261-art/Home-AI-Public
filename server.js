@@ -6364,6 +6364,7 @@ function formatAccessPolicyInstructionSummary(policy = {}) {
   if (callableHints.length) {
     lines.push(`- Callable function names for enabled toolsets: ${callableHints.join("; ")}`);
     if (toolsets.includes("http")) lines.push("- For HTTP/API Program calls, use `http_request`; do not look for or mention a `web_request` function.");
+    if (toolsets.includes("file")) lines.push("- For Word DOCX text extraction, use `docx_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
   }
   if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
   else lines.push("- External connector profiles: none");
@@ -6382,7 +6383,7 @@ function callableFunctionHintsForToolsets(toolsets = []) {
     search: ["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"],
     http: ["http_request"],
     weather: ["weather"],
-    file: ["read_file", "write_file", "patch", "search_files"],
+    file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text"],
     vision: ["vision_analyze"],
     image_gen: ["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"],
     messaging: ["send_message"],
@@ -6400,14 +6401,14 @@ function callableFunctionHintsForToolsets(toolsets = []) {
     .map((name) => `${name} -> ${hintsByToolset[name].join(", ")}`);
 }
 
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260512-image-edit-http-web-v3";
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260513-docx-file-v1";
 
 function gatewayConversationId(thread, userMessage, runPolicy = {}) {
   const base = thread.singleWindow
     ? `${thread.hermesSessionId}_${userMessage.taskGroupId || userMessage.id}`
     : thread.hermesSessionId;
   const toolsets = dedupe(runPolicy.allowed_toolsets || runPolicy.allowedToolsets || []);
-  const schemaSensitive = toolsets.some((name) => ["web", "search", "http", "weather", "image_gen"].includes(name));
+  const schemaSensitive = toolsets.some((name) => ["web", "search", "http", "weather", "file", "image_gen"].includes(name));
   return schemaSensitive ? `${base}_${GATEWAY_TOOL_SCHEMA_EPOCH}` : base;
 }
 
@@ -6418,6 +6419,13 @@ function currentToolSchemaOverrideInstructions(policy = {}) {
       "Current tool schema override: the `http` toolset is enabled for this run, and its callable function name is `http_request`.",
       "Ignore older assistant statements in conversation_history that claimed `http_request`, `web_request`, HTTP tools, or API Program tools were unavailable; those statements described earlier runs and are stale.",
       "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls."
+    );
+  }
+  if (policyHasToolset(policy, "file")) {
+    lines.push(
+      "Current tool schema override: the `file` toolset is enabled for this run, and Word DOCX text extraction is available as `docx_extract_text` when the file is inside the current allowed roots.",
+      "For .docx/.docm/.dotx/.dotm files, use `docx_extract_text` if `read_file` cannot decode the Office Open XML package directly.",
+      "Do not request Owner elevation merely because an ordinary current-workspace DOCX extraction tool is missing from an older callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation."
     );
   }
   if (policyHasToolset(policy, "web") || policyHasToolset(policy, "search")) {
@@ -9332,6 +9340,14 @@ function isStaleImageToolAvailabilityClaim(text) {
   return isToolUnavailableClaimText(content);
 }
 
+function isStaleDocxToolAvailabilityClaim(text) {
+  const content = String(text || "");
+  if (!content.trim()) return false;
+  const mentionsDocxTool = /docx_extract_text|DOCX|docm|dotx|dotm|Word\s*(?:tool|function|parser|extract|unpack|document)|Office\s*Open\s*XML|Office\s*(?:tool|function|parser)|\u89e3\u5305|\u89e3\u6790\s*(?:Word|DOCX|docx)|Word\s*\u6587\u6863|\u6587\u6863\u89e3\u6790|\u89e3\u6790\u5de5\u5177/i.test(content);
+  if (!mentionsDocxTool) return false;
+  return isToolUnavailableClaimText(content);
+}
+
 function isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message = {}) {
   if (!approvalRequest?.elevationRequired) return false;
   const scope = String(approvalRequest.elevationScope || "").trim();
@@ -9341,6 +9357,7 @@ function isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message =
   return (
     (policyHasToolset(runPolicy, "image_gen") && isStaleImageToolAvailabilityClaim(text))
     || (policyHasToolset(runPolicy, "http") && isStaleHttpToolAvailabilityClaim(text))
+    || (policyHasToolset(runPolicy, "file") && isStaleDocxToolAvailabilityClaim(text))
   );
 }
 
@@ -9355,6 +9372,11 @@ function conversationHistoryContentForMessage(msg, policy = {}) {
     content = [
       "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
       "The current run policy enables the `image_gen` toolset; current callable functions supersede older assistant statements about `chatgpt_image_edit`, `chatgpt_image_erase`, `image_edit`, `image_erase`, or image editing availability.",
+    ].join(" ");
+  } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleDocxToolAvailabilityClaim(content)) {
+    content = [
+      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+      "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `docx_extract_text`, DOCX extraction, or Word parser availability.",
     ].join(" ");
   }
   return content;

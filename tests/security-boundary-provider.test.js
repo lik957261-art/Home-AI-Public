@@ -143,6 +143,8 @@ function run() {
   assert.match(permissionInstructions, /Weather lookup .* ordinary low-permission work/);
   assert.match(permissionInstructions, /Browser automation .* ordinary low-permission work/);
   assert.match(permissionInstructions, /File reads and writes inside the current allowed roots are ordinary low-permission work/);
+  assert.match(permissionInstructions, /DOCX\/Word OpenXML text extraction inside the current allowed roots is ordinary low-permission file analysis/);
+  assert.match(permissionInstructions, /`docx_extract_text`/);
   assert.match(permissionInstructions, /OCR, document-image extraction, and visual analysis/);
   assert.match(permissionInstructions, /Video analysis .* ordinary low-permission work/);
   assert.match(permissionInstructions, /Image generation or image editing requested by the current account/);
@@ -165,6 +167,8 @@ function run() {
   assert.match(fs.readFileSync(skillPath, "utf8"), /Weather lookup .* is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Browser automation .* is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /File reads and writes inside the current run's allowed roots are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /DOCX\/Word OpenXML text extraction inside the current run's allowed roots is \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Use `docx_extract_text` when `read_file` cannot decode a Word document package/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /OCR, document-image extraction, and visual analysis of files inside the current run's allowed roots are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Video analysis .* is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Image generation and image editing requested by the current account are \*\*Allowed\*\*/);

@@ -161,7 +161,7 @@ async function main() {
   if (!targets.length) throw new Error("No matching Gateway worker found for schema smoke.");
   const requiredTools = cleanList(argValue(
     "--require",
-    "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase",
+    "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_extract_text",
   ));
   const options = {
     telemetryRoot: argValue("--telemetry-root", "C:/ProgramData/HermesMobile/gateway-worker/telemetry/profiles"),
