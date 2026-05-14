@@ -5277,17 +5277,36 @@ button.directory-alias-chip {
 
 .kanban-archive-stories {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 
 .kanban-archive-case {
+  position: relative;
   min-width: 0;
   display: grid;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid rgba(20, 32, 39, 0.1);
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid rgba(20, 32, 39, 0.13);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 24px rgba(20, 32, 39, 0.055);
+}
+
+.kanban-archive-case::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: rgba(92, 103, 112, 0.58);
+}
+
+.kanban-archive-case.study-plan-case::before {
+  background: rgba(50, 132, 108, 0.72);
+}
+
+.kanban-archive-case.assessment-plan-case::before {
+  background: rgba(162, 117, 47, 0.72);
 }
 
 .kanban-archive-case-head {
@@ -5295,16 +5314,32 @@ button.directory-alias-chip {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+  padding: 12px 14px 11px 18px;
+  border-bottom: 1px solid rgba(20, 32, 39, 0.08);
+  background: rgba(249, 246, 238, 0.82);
 }
 
 .kanban-archive-case.story-collapsed > :not(.kanban-archive-case-head) {
   display: none;
 }
 
+.kanban-archive-case.story-collapsed .kanban-archive-case-head {
+  border-bottom: 0;
+}
+
+.kanban-archive-case > :not(.kanban-archive-case-head) {
+  margin-right: 12px;
+  margin-left: 18px;
+}
+
+.kanban-archive-case > :last-child:not(.kanban-archive-case-head) {
+  margin-bottom: 12px;
+}
+
 .kanban-archive-case-toggle {
   cursor: pointer;
-  border-radius: 14px;
-  padding: 2px 4px;
+  border-radius: 0;
   outline: none;
 }
 
