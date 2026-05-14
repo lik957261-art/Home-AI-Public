@@ -1,12 +1,14 @@
 "use strict";
 
 const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
+const FONT_SCALE_ORDER = ["small", "standard", "large", "xlarge"];
 const FONT_SCALE_CLASS = new Map([
   ["small", "hermes-markdown-font-small"],
   ["standard", "hermes-markdown-font-standard"],
   ["large", "hermes-markdown-font-large"],
   ["xlarge", "hermes-markdown-font-xlarge"],
 ]);
+const DEFAULT_BASE_FONT_SCALE = "standard";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -56,17 +58,31 @@ function sanitizeLinkHref(href) {
   }
 }
 
-function normalizeFontScale(fontScale) {
-  const scale = String(fontScale || "standard").toLowerCase();
-  return FONT_SCALE_CLASS.has(scale) ? scale : "standard";
+function normalizeFontScale(fontScale, fallback = DEFAULT_BASE_FONT_SCALE) {
+  const scale = String(fontScale || fallback).toLowerCase();
+  if (FONT_SCALE_CLASS.has(scale)) {
+    return scale;
+  }
+  const fallbackScale = String(fallback || DEFAULT_BASE_FONT_SCALE).toLowerCase();
+  return FONT_SCALE_CLASS.has(fallbackScale) ? fallbackScale : DEFAULT_BASE_FONT_SCALE;
+}
+
+function markdownFontScaleForBase(baseFontScale) {
+  const base = normalizeFontScale(baseFontScale, DEFAULT_BASE_FONT_SCALE);
+  const index = FONT_SCALE_ORDER.indexOf(base);
+  return FONT_SCALE_ORDER[Math.min(FONT_SCALE_ORDER.length - 1, Math.max(0, index) + 1)] || base;
+}
+
+function markdownFontScaleClass(fontScale) {
+  return FONT_SCALE_CLASS.get(normalizeFontScale(fontScale, markdownFontScaleForBase())) || FONT_SCALE_CLASS.get("large");
 }
 
 function renderMarkdownDocument(markdown, options = {}) {
-  const fontScale = normalizeFontScale(options.fontScale);
+  const fontScale = normalizeFontScale(options.fontScale, markdownFontScaleForBase(options.baseFontScale));
   const classes = [
     "hermes-markdown-doc",
     "hermes-markdown-mobile",
-    FONT_SCALE_CLASS.get(fontScale),
+    markdownFontScaleClass(fontScale),
   ];
   if (options.className) {
     classes.push(
@@ -170,6 +186,7 @@ function parseList(lines, startIndex, options) {
   const tag = ordered ? "ol" : "ul";
   const items = [];
   let index = startIndex;
+  let hasTask = false;
   const pattern = ordered ? /^\s*\d+[.)]\s+(.+)$/ : /^\s*[-*+]\s+(.+)$/;
 
   while (index < lines.length) {
@@ -182,6 +199,7 @@ function parseList(lines, startIndex, options) {
     const taskMatch = body.match(/^\[( |x|X)\]\s+(.+)$/);
     if (taskMatch) {
       const checked = taskMatch[1].toLowerCase() === "x";
+      hasTask = true;
       itemClass = ' class="hermes-markdown-task-item"';
       body = `<input class="hermes-markdown-task-checkbox" type="checkbox" disabled${checked ? " checked" : ""}> ${renderInline(taskMatch[2], options)}`;
     } else {
@@ -191,7 +209,7 @@ function parseList(lines, startIndex, options) {
     index += 1;
   }
 
-  const listClass = ordered ? "hermes-markdown-list" : "hermes-markdown-list hermes-markdown-task-list";
+  const listClass = ordered || !hasTask ? "hermes-markdown-list" : "hermes-markdown-list hermes-markdown-task-list";
   return {
     html: `<${tag} class="${listClass}">\n${items.join("\n")}\n</${tag}>`,
     nextIndex: index,
@@ -226,11 +244,11 @@ function parseTable(lines, startIndex, options) {
     .map((header, column) => tableCell("th", header, alignments[column], options))
     .join("");
   const rowsHtml = rows
-    .map((row) => `<tr>${headers.map((_, column) => tableCell("td", row[column] || "", alignments[column], options)).join("")}</tr>`)
+    .map((row) => `<tr>${headers.map((header, column) => tableCell("td", row[column] || "", alignments[column], options, header)).join("")}</tr>`)
     .join("\n");
 
   return {
-    html: `<div class="hermes-markdown-table-wrapper table-wrapper"><table class="hermes-markdown-table"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`,
+    html: `<div class="markdown-table-wrap hermes-markdown-table-wrapper table-wrapper"><table class="hermes-markdown-table"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`,
     nextIndex: index,
   };
 }
@@ -240,9 +258,10 @@ function splitTableRow(line) {
   return trimmed.split("|").map((cell) => cell.trim());
 }
 
-function tableCell(tag, value, align, options) {
+function tableCell(tag, value, align, options, label = "") {
   const alignAttr = align ? ` data-align="${align}"` : "";
-  return `<${tag}${alignAttr}>${renderInline(value, options)}</${tag}>`;
+  const labelAttr = tag === "td" && options.tableLabels !== false ? ` data-label="${escapeAttribute(label)}"` : "";
+  return `<${tag}${alignAttr}${labelAttr}>${renderInline(value, options)}</${tag}>`;
 }
 
 function renderInline(value, options = {}) {
@@ -273,6 +292,8 @@ function renderInline(value, options = {}) {
 
 module.exports = {
   escapeHtml,
+  markdownFontScaleForBase,
+  markdownFontScaleClass,
   renderMarkdownDocument,
   renderMarkdownToHtml,
   sanitizeLinkHref,

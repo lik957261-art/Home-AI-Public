@@ -4,11 +4,13 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
 const routeRegistry = require("../adapters/api-route-registry");
+const routeInventory = require("../adapters/api-route-inventory");
 const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
 const kanbanStory = require("../adapters/kanban-story-provider");
 const markdownRenderer = require("../adapters/markdown-renderer");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
+const publicApiRoutes = require("../server-routes/public-api-routes");
 
 function fileText(file) {
   return fs.readFileSync(file, "utf8");
@@ -16,6 +18,8 @@ function fileText(file) {
 
 function testRefactorModulesExportStableContracts() {
   assert.equal(typeof routeRegistry.createApiRouteRegistry, "function");
+  assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
+  assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof requestContext.buildRequestContext, "function");
   assert.equal(typeof resourceResolver.resolveResourceAccess, "function");
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
@@ -25,6 +29,8 @@ function testRefactorModulesExportStableContracts() {
 
 function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const server = fileText("server.js");
+  assert.match(server, /createPublicApiRoutes/);
+  assert.match(server, /publicApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /buildRequestContext/);
   assert.match(server, /req\.hermesRequestContext/);
   assert.match(server, /syncKanbanCaseShareStoreToSqlite/);
@@ -36,6 +42,7 @@ function testPackageRunsArchitectureContracts() {
   const pkg = JSON.parse(fileText("package.json"));
   for (const name of [
     "api-route-registry",
+    "api-route-inventory",
     "request-context-provider",
     "resource-access-resolver",
     "kanban-story-provider",
@@ -46,6 +53,8 @@ function testPackageRunsArchitectureContracts() {
   }
   for (const testFile of [
     "tests/api-route-registry.test.js",
+    "tests/api-route-inventory.test.js",
+    "tests/public-api-routes.test.js",
     "tests/request-context-provider.test.js",
     "tests/resource-access-resolver.test.js",
     "tests/kanban-story-provider.test.js",
@@ -54,6 +63,7 @@ function testPackageRunsArchitectureContracts() {
   ]) {
     assert.match(pkg.scripts.test, new RegExp(testFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+  assert.match(pkg.scripts.check, /server-routes[\\/]public-api-routes\.js/);
 }
 
 function testRefactorPlanTracksTwelveWorkPackages() {

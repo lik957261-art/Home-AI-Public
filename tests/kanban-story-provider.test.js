@@ -3,10 +3,13 @@
 const assert = require("node:assert/strict");
 const {
   actorRoleForKanbanCase,
+  buildPublicKanbanStoryTree,
   groupKanbanCaseCards,
   kanbanCaseCanActor,
   kanbanCaseKey,
   normalizeKanbanCaseRecord,
+  publicKanbanCaseDetail,
+  publicKanbanCaseListItem,
   publicKanbanCaseSummary,
 } = require("../adapters/kanban-story-provider");
 
@@ -177,10 +180,34 @@ function run() {
       status: "completed",
       updatedAt: "2026-05-14T18:00:00.000Z",
     },
+    {
+      id: "archived-1",
+      workspaceId: "owner",
+      kanbanCaseId: "archived-case",
+      kanbanCaseMode: "multi-agent",
+      kanbanCaseSummary: "Old archived story",
+      kanbanCaseCardId: "archive-a",
+      kanbanCaseCardIndex: 1,
+      kanbanCaseCardCount: 2,
+      kanbanStatus: "archived",
+      updatedAt: "2026-05-14T19:00:00.000Z",
+    },
+    {
+      id: "archived-2",
+      workspaceId: "owner",
+      kanbanCaseId: "archived-case",
+      kanbanCaseMode: "multi-agent",
+      kanbanCaseSummary: "Old archived story",
+      kanbanCaseCardId: "archive-b",
+      kanbanCaseCardIndex: 2,
+      kanbanCaseCardCount: 2,
+      kanbanStatus: "archived",
+      updatedAt: "2026-05-14T20:00:00.000Z",
+    },
   ];
 
   const groups = groupKanbanCaseCards(cards);
-  assert.equal(groups.length, 5);
+  assert.equal(groups.length, 6);
 
   const study = byCaseId(groups, "study-case");
   assert.equal(study.caseMode, "study-plan");
@@ -256,6 +283,10 @@ function run() {
   assert.equal(actorRoleForKanbanCase(single, "owner"), "manager");
   assert.equal(kanbanCaseCanActor(single, "other_workspace", "view"), false);
 
+  const archived = byCaseId(groups, "archived-case");
+  assert.equal(archived.archiveState, "archived");
+  assert.equal(archived.progress.archived, 2);
+
   const normalized = normalizeKanbanCaseRecord({
     id: "case-record",
     mode: "multi-agent",
@@ -273,6 +304,38 @@ function run() {
   assert.equal(normalized.cards.length, 0);
   assert.equal(normalized.progress.percent, 100);
   assert.equal(normalized.archiveState, "ready-to-archive");
+
+  const listItem = publicKanbanCaseListItem(assessment, "child");
+  assert.equal(listItem.collapsed, true);
+  assert.equal(listItem.detailLazy, true);
+  assert.equal(listItem.section, "completed");
+  assert.equal(listItem.detailSummary.doneCardCount, 2);
+  assert.deepEqual(listItem.detailSummary.doneCardIds, ["exam-2", "exam-1"]);
+  assert.equal(Object.prototype.hasOwnProperty.call(listItem, "cards"), false);
+  assert.equal(listItem.actorRole, "performer");
+
+  const detail = publicKanbanCaseDetail(assessment, "child");
+  assert.equal(detail.collapsed, false);
+  assert.equal(detail.detailLoaded, true);
+  assert.deepEqual(detail.cardSections.done.map((card) => card.id), ["exam-2", "exam-1"]);
+  assert.deepEqual(detail.cards.map((card) => card.id), ["exam-2", "exam-1"]);
+
+  const tree = buildPublicKanbanStoryTree(cards, "owner");
+  assert.equal(tree.defaultView, "collapsed-list");
+  assert.equal(tree.detailLoading, "lazy");
+  assert.equal(tree.counts.total, 6);
+  assert.equal(tree.counts.active, 3);
+  assert.equal(tree.counts.completed, 2);
+  assert.equal(tree.counts.archived, 1);
+  assert.deepEqual(tree.sections.completed.map((item) => item.caseId), [
+    "single-card-direct-card",
+    "assessment-case",
+  ]);
+  assert.deepEqual(tree.sections.archived.map((item) => item.caseId), ["archived-case"]);
+  assert.equal(tree.sections.archived[0].collapsed, true);
+  assert.equal(tree.sections.archived[0].archivedCollapsed, true);
+  assert.equal(tree.sections.archived[0].detailSummary.archivedCardCount, 2);
+  assert.equal(tree.list.every((item) => item.collapsed && item.detailLazy), true);
 
   console.log("kanban-story-provider tests passed.");
 }

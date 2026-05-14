@@ -37,6 +37,7 @@ const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindin
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
+const { createPublicApiRoutes } = require("./server-routes/public-api-routes");
 
 function normalizeAutoMode(value) {
   const text = String(value || "").trim();
@@ -449,6 +450,14 @@ const authProvider = createAuthProvider({
   listWorkspaces: () => loadCatalog().workspaces,
 });
 bootTrace("auth ready");
+const publicApiRoutes = createPublicApiRoutes({
+  authenticateRequest,
+  createInitialOwnerKey,
+  ownerSetupStatus,
+  readBody,
+  sendJson,
+});
+bootTrace("public api routes ready");
 const weixinIngressProvider = createWeixinIngressProvider({
   listWorkspaces: () => loadCatalog().workspaces,
   workspaceIdForPrincipal,
@@ -13438,47 +13447,7 @@ async function handleApi(req, res) {
   const url = getUrl(req);
   attachClientVersionHeaders(req, res);
 
-  if (url.pathname === "/api/public-config") {
-    sendJson(res, 200, Object.assign({ title: "Hermes Mobile" }, ownerSetupStatus()));
-    return;
-  }
-
-  if (url.pathname === "/api/setup/status" && req.method === "GET") {
-    sendJson(res, 200, ownerSetupStatus());
-    return;
-  }
-
-  if (url.pathname === "/api/setup/owner" && req.method === "POST") {
-    try {
-      await readBody(req).catch(() => ({}));
-      const result = createInitialOwnerKey();
-      res.writeHead(201, {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store",
-        "Set-Cookie": `hermes_web_key=${encodeURIComponent(result.key || "")}; Path=/; Max-Age=31536000; SameSite=Lax`,
-      });
-      res.end(JSON.stringify(Object.assign({ ok: true }, result, ownerSetupStatus())));
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err), setup: ownerSetupStatus() });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/login" && req.method === "POST") {
-    const body = await readBody(req);
-    const probe = { headers: Object.assign({}, req.headers, { "x-hermes-web-key": body.key || "" }), url: req.url };
-    const auth = authenticateRequest(probe);
-    if (!auth.ok) {
-      sendJson(res, 401, { error: "Invalid key" });
-      return;
-    }
-    res.writeHead(204, {
-      "Set-Cookie": `hermes_web_key=${encodeURIComponent(body.key || "")}; Path=/; Max-Age=31536000; SameSite=Lax`,
-      "Cache-Control": "no-store",
-    });
-    res.end();
-    return;
-  }
+  if ((await publicApiRoutes.handle(req, res, url)).handled) return;
 
   if (url.pathname === "/api/ingress/weixin/events" && req.method === "POST") {
     if (!requireWeixinIngress(req, res)) return;

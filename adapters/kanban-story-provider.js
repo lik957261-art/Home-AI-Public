@@ -732,6 +732,189 @@ function publicCardSummary(card = {}) {
   };
 }
 
+function compareCardsByRecentTimestamp(left = {}, right = {}) {
+  const delta = timestampValue(right) - timestampValue(left);
+  if (delta) return delta;
+  return String(right.id || right.caseCardId || "").localeCompare(String(left.id || left.caseCardId || ""));
+}
+
+function isPublicDoneCard(card = {}) {
+  return normalizeStatus(card) === "done" || isDoneStatus(card.status);
+}
+
+function isPublicArchivedCard(card = {}) {
+  return normalizeStatus(card) === "archived" || isArchivedStatus(card.status);
+}
+
+function caseCompletionTimestamp(record = {}) {
+  const normalized = normalizeKanbanCaseRecord(record);
+  const closedCards = normalized.visibleCards.filter((card) => isPublicDoneCard(card) || isPublicArchivedCard(card));
+  return Math.max(0, ...closedCards.map((card) => timestampValue(card)), Number(normalized.latest || 0) || 0);
+}
+
+function storySectionForCase(record = {}) {
+  const normalized = normalizeKanbanCaseRecord(record);
+  if (normalized.archiveState === "archived") return "archived";
+  if (normalized.progress.total > 0 && normalized.progress.open === 0) return "completed";
+  if (normalized.archiveState === "ready-to-archive") return "completed";
+  return "active";
+}
+
+function publicKanbanCaseListItem(record = {}, actor = null, options = {}) {
+  const normalized = normalizeKanbanCaseRecord(record, options);
+  const role = actorRoleForKanbanCase(normalized, actor);
+  const visibleCards = normalized.visibleCards;
+  const openCards = visibleCards
+    .filter((card) => !isPublicDoneCard(card) && !isPublicArchivedCard(card))
+    .sort((left, right) => compareCaseCards(left, right, new Map()));
+  const doneCards = visibleCards
+    .filter((card) => isPublicDoneCard(card))
+    .sort(compareCardsByRecentTimestamp);
+  const archivedCards = visibleCards
+    .filter((card) => isPublicArchivedCard(card))
+    .sort(compareCardsByRecentTimestamp);
+  const section = storySectionForCase(normalized);
+  const completedTimestamp = caseCompletionTimestamp(normalized);
+  const item = {
+    key: kanbanCaseKeyShallow(normalized),
+    caseId: normalized.caseId,
+    caseMode: normalized.caseMode,
+    ownerWorkspaceId: normalized.ownerWorkspaceId,
+    performerWorkspaceId: normalized.performerWorkspaceId,
+    viewerWorkspaceIds: normalized.viewerWorkspaceIds,
+    topicThreadId: normalized.topicThreadId,
+    topicTaskGroupId: normalized.topicTaskGroupId,
+    sharedDirectoryPath: normalized.sharedDirectoryPath,
+    caseDirectoryPath: normalized.caseDirectoryPath,
+    title: normalized.title,
+    summary: normalized.summary,
+    caseTemplate: normalized.caseTemplate,
+    cardCount: normalized.cardCount,
+    progress: normalized.progress,
+    archiveState: normalized.archiveState,
+    section,
+    collapsed: true,
+    archivedCollapsed: section === "archived",
+    detailLazy: true,
+    detailKey: kanbanCaseKeyShallow(normalized),
+    hasDetails: visibleCards.length > 0,
+    latestAt: normalized.latest ? new Date(normalized.latest).toISOString() : "",
+    completedAt: completedTimestamp ? new Date(completedTimestamp).toISOString() : "",
+    detailSummary: {
+      visibleCardCount: visibleCards.length,
+      hiddenRevisionCount: Math.max(0, normalized.cards.length - visibleCards.length),
+      openCardCount: openCards.length,
+      doneCardCount: doneCards.length,
+      archivedCardCount: archivedCards.length,
+      nextOpenCardId: openCards[0]?.id || "",
+      latestDoneCardId: doneCards[0]?.id || "",
+      latestArchivedCardId: archivedCards[0]?.id || "",
+      cardIds: visibleCards.map((card) => card.id).filter(Boolean),
+      doneCardIds: doneCards.map((card) => card.id).filter(Boolean),
+      archivedCardIds: archivedCards.map((card) => card.id).filter(Boolean),
+    },
+  };
+  if (role) {
+    item.actorRole = role;
+    item.actorPermissions = permissionsForRole(role);
+  }
+  return item;
+}
+
+function publicKanbanCaseDetail(record = {}, actor = null, options = {}) {
+  const normalized = normalizeKanbanCaseRecord(record, options);
+  const byId = new Map(normalized.cards.map((card) => [card.id, card]).filter(([id]) => id));
+  const activeCards = normalized.visibleCards
+    .filter((card) => !isPublicDoneCard(card) && !isPublicArchivedCard(card))
+    .sort((left, right) => compareCaseCards(left, right, byId));
+  const doneCards = normalized.visibleCards
+    .filter((card) => isPublicDoneCard(card))
+    .sort(compareCardsByRecentTimestamp);
+  const archivedCards = normalized.visibleCards
+    .filter((card) => isPublicArchivedCard(card))
+    .sort(compareCardsByRecentTimestamp);
+  const detail = publicKanbanCaseSummary(normalized, actor, options);
+  detail.collapsed = false;
+  detail.detailLoaded = true;
+  detail.detailKey = kanbanCaseKeyShallow(normalized);
+  detail.section = storySectionForCase(normalized);
+  detail.cards = [...activeCards, ...doneCards, ...archivedCards].map(publicCardSummary);
+  detail.cardSections = {
+    active: activeCards.map(publicCardSummary),
+    done: doneCards.map(publicCardSummary),
+    archived: archivedCards.map(publicCardSummary),
+  };
+  return detail;
+}
+
+function looksLikeKanbanCaseRecord(record = {}) {
+  if (!record || typeof record !== "object") return false;
+  const looksLikeCard = Boolean(
+    own(record, "content")
+    || own(record, "status")
+    || own(record, "kanbanStatus")
+    || own(record, "kanban_status")
+    || own(record, "caseCardId")
+    || own(record, "case_card_id")
+    || own(record, "kanbanCaseCardId")
+    || own(record, "kanban_case_card_id")
+  );
+  return Boolean(
+    Array.isArray(record.cards)
+    || Array.isArray(record.visibleCards)
+    || record.progress
+    || own(record, "archiveState")
+    || own(record, "archive_state")
+    || (!looksLikeCard && (
+      own(record, "caseId")
+      || own(record, "case_id")
+      || own(record, "kanbanCaseId")
+      || own(record, "kanban_case_id")
+    ))
+  );
+}
+
+function normalizeStoryCases(input = [], options = {}) {
+  if (!Array.isArray(input)) return [normalizeKanbanCaseRecord(input, options)];
+  if (!input.length) return [];
+  if (input.every(looksLikeKanbanCaseRecord)) {
+    return input.map((record) => normalizeKanbanCaseRecord(record, options));
+  }
+  return groupKanbanCaseCards(input, options);
+}
+
+function compareCaseListItems(left = {}, right = {}) {
+  if (left.section === "completed" && right.section === "completed") {
+    const delta = Date.parse(right.completedAt || "") - Date.parse(left.completedAt || "");
+    if (Number.isFinite(delta) && delta) return delta;
+  }
+  const delta = Date.parse(right.latestAt || "") - Date.parse(left.latestAt || "");
+  if (Number.isFinite(delta) && delta) return delta;
+  return String(left.key || "").localeCompare(String(right.key || ""));
+}
+
+function buildPublicKanbanStoryTree(input = [], actor = null, options = {}) {
+  const cases = normalizeStoryCases(input, options);
+  const items = cases.map((record) => publicKanbanCaseListItem(record, actor, options));
+  const sections = {
+    active: items.filter((item) => item.section === "active").sort(compareCaseListItems),
+    completed: items.filter((item) => item.section === "completed").sort(compareCaseListItems),
+    archived: items.filter((item) => item.section === "archived").sort(compareCaseListItems),
+  };
+  return {
+    defaultView: "collapsed-list",
+    detailLoading: "lazy",
+    list: [...sections.active, ...sections.completed, ...sections.archived],
+    sections,
+    counts: {
+      total: items.length,
+      active: sections.active.length,
+      completed: sections.completed.length,
+      archived: sections.archived.length,
+    },
+  };
+}
+
 function publicKanbanCaseSummary(record = {}, actor = null, options = {}) {
   const normalized = normalizeKanbanCaseRecord(record, options);
   const role = actorRoleForKanbanCase(normalized, actor);
@@ -764,9 +947,12 @@ function publicKanbanCaseSummary(record = {}, actor = null, options = {}) {
 
 module.exports = {
   actorRoleForKanbanCase,
+  buildPublicKanbanStoryTree,
   groupKanbanCaseCards,
   kanbanCaseCanActor,
   kanbanCaseKey,
   normalizeKanbanCaseRecord,
+  publicKanbanCaseDetail,
+  publicKanbanCaseListItem,
   publicKanbanCaseSummary,
 };

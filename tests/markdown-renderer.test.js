@@ -5,6 +5,7 @@ const {
   escapeHtml,
   renderMarkdownDocument,
   renderMarkdownToHtml,
+  markdownFontScaleForBase,
   sanitizeLinkHref,
 } = require("../adapters/markdown-renderer");
 
@@ -37,11 +38,12 @@ function testTable() {
 | Alpha | **2** |
 | Beta | 3 |
 `);
-  assert.equal(html.includes('class="hermes-markdown-table-wrapper table-wrapper"'), true);
+  assert.equal(html.includes('class="markdown-table-wrap hermes-markdown-table-wrapper table-wrapper"'), true);
   assert.equal(html.includes('<table class="hermes-markdown-table">'), true);
   assert.equal(html.includes("<th>Name</th>"), true);
   assert.equal(html.includes('<th data-align="right">Count</th>'), true);
-  assert.equal(html.includes("<td>Alpha</td>"), true);
+  assert.equal(html.includes('<td data-label="Name">Alpha</td>'), true);
+  assert.equal(html.includes('<td data-align="right" data-label="Count"><strong>2</strong></td>'), true);
   assert.equal(html.includes("<strong>2</strong>"), true);
 }
 
@@ -69,8 +71,15 @@ function testMobileDocumentWrapperAndFontScale() {
   assert.equal(html.includes("<h1>Title</h1>"), true);
 
   const fallback = renderMarkdownDocument("Text", { fontScale: "oversized" });
-  assert.equal(fallback.includes("hermes-markdown-font-standard"), true);
-  assert.equal(fallback.includes('data-font-scale="standard"'), true);
+  assert.equal(fallback.includes("hermes-markdown-font-large"), true);
+  assert.equal(fallback.includes('data-font-scale="large"'), true);
+
+  const defaultReader = renderMarkdownDocument("Text");
+  assert.equal(defaultReader.includes("hermes-markdown-font-large"), true);
+  assert.equal(defaultReader.includes('data-font-scale="large"'), true);
+  assert.equal(markdownFontScaleForBase("standard"), "large");
+  assert.equal(markdownFontScaleForBase("large"), "xlarge");
+  assert.equal(markdownFontScaleForBase("xlarge"), "xlarge");
 }
 
 function testCoreBlocks() {

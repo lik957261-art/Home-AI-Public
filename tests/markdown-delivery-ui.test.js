@@ -82,10 +82,19 @@ assert.match(
 );
 
 assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
-assert.match(fileViewer, /class="markdown-table-wrap"/);
+assert.match(fileViewer, /hermes-markdown-doc hermes-markdown-mobile/);
+assert.match(fileViewer, /viewerMarkdownFontScaleClass\(fontScale\)/);
+assert.match(fileViewer, /sanitizeMarkdownLinkHref\(href\)/);
+assert.match(fileViewer, /class="markdown-table-wrap hermes-markdown-table-wrapper table-wrapper"/);
+assert.match(fileViewer, /class="hermes-markdown-table"/);
+assert.match(fileViewer, /class="hermes-markdown-list task-list hermes-markdown-task-list"/);
+assert.match(fileViewer, /class="task-list-item hermes-markdown-task-item"/);
+assert.match(fileViewer, /class="hermes-markdown-code"/);
 assert.match(fileViewer, /data-label="\$\{escapeHtml\(label\)\}"/);
 assert.match(fileViewer, /td::before[\s\S]+content: attr\(data-label\)/);
 assert.match(fileViewer, /@media \(max-width: 640px\)/);
+assert.match(fileViewer, /--hermes-markdown-font-family: var\(--viewer-font-family\)/);
+assert.match(fileViewer, /font-size: calc\(18px \* var\(--viewer-markdown-font-scale\)\)/);
 assert.match(fileViewer, /url\.pathname === "\/api\/files\/preview"/);
 assert.match(fileViewer, /url\.pathname = "\/api\/files"/);
 assert.match(fileViewer, /function markdownExportHtml\(options = \{\}\)/);

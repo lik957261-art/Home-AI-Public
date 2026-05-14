@@ -16,6 +16,7 @@
       --viewer-font-scale: 1;
       --viewer-markdown-font-scale: 1.1;
       --viewer-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+      --hermes-markdown-font-family: var(--viewer-font-family);
     }
 
     * {
@@ -248,11 +249,12 @@
       font-size: calc(15px * var(--viewer-markdown-font-scale));
     }
 
-    .markdown-preview article {
+    .markdown-preview article,
+    .markdown-preview .hermes-markdown-doc {
       max-width: 860px;
       margin: 0 auto;
       color: #24292f;
-      font-family: var(--viewer-font-family);
+      font-family: var(--hermes-markdown-font-family);
       line-height: 1.72;
     }
 
@@ -308,19 +310,22 @@
       padding-left: 1.45em;
     }
 
-    .markdown-preview ul.task-list {
+    .markdown-preview ul.task-list,
+    .markdown-preview .hermes-markdown-task-list {
       padding-left: 0;
       list-style: none;
     }
 
-    .markdown-preview .task-list-item {
+    .markdown-preview .task-list-item,
+    .markdown-preview .hermes-markdown-task-item {
       display: grid;
       grid-template-columns: 1.25em minmax(0, 1fr);
       gap: 0.42em;
       align-items: start;
     }
 
-    .markdown-preview .task-list-item input {
+    .markdown-preview .task-list-item input,
+    .markdown-preview .hermes-markdown-task-checkbox {
       width: 1em;
       height: 1em;
       margin: 0.32em 0 0;
@@ -363,7 +368,8 @@
       font-size: 0.9em;
     }
 
-    .markdown-table-wrap {
+    .markdown-table-wrap,
+    .hermes-markdown-table-wrapper {
       max-width: 100%;
       overflow-x: auto;
       border: 1px solid #d8dee4;
@@ -409,7 +415,8 @@
     }
 
     @media (max-width: 640px) {
-      .markdown-table-wrap {
+      .markdown-table-wrap,
+      .hermes-markdown-table-wrapper {
         overflow: visible;
         border: 0;
         border-radius: 0;
@@ -850,6 +857,11 @@
       return `${Number(value || 0).toFixed(2).replace(/\.?0+$/, "")}px`;
     }
 
+    function viewerMarkdownFontScaleClass(value) {
+      const scale = viewerFontSizeOption(value).id;
+      return `hermes-markdown-font-${scale}`;
+    }
+
     applyViewerPreferences();
 
     function formatBytes(bytes) {
@@ -1156,19 +1168,51 @@
         .replace(/'/g, "&#39;");
     }
 
+    function escapeAttribute(value) {
+      return escapeHtml(value).replace(/`/g, "&#96;");
+    }
+
+    function sanitizeMarkdownLinkHref(href) {
+      const raw = String(href ?? "").trim();
+      if (!raw) return "#";
+      const withoutControls = raw.replace(/[\u0000-\u001f\u007f\s]+/g, "");
+      const lower = withoutControls.toLowerCase();
+      if (lower.startsWith("javascript:") || lower.startsWith("vbscript:") || lower.startsWith("data:")) {
+        return "#";
+      }
+      if (
+        withoutControls.startsWith("#") ||
+        withoutControls.startsWith("/") ||
+        withoutControls.startsWith("./") ||
+        withoutControls.startsWith("../")
+      ) {
+        return withoutControls;
+      }
+      try {
+        const parsed = new URL(withoutControls);
+        return ["http:", "https:", "mailto:", "tel:"].includes(parsed.protocol) ? withoutControls : "#";
+      } catch (_) {
+        return /^[A-Za-z0-9._~/?#[\]@!$&'()*+,;=:%-]+$/.test(withoutControls) ? withoutControls : "#";
+      }
+    }
+
     function renderInlineMarkdown(value) {
-      const code = [];
-      let html = escapeHtml(value).replace(/`([^`]+)`/g, (_match, text) => {
-        const id = code.length;
-        code.push(`<code>${text}</code>`);
+      const codeTokens = [];
+      let html = String(value ?? "").replace(/`([^`]+)`/g, (_match, text) => {
+        const id = codeTokens.length;
+        codeTokens.push(`<code>${escapeHtml(text)}</code>`);
         return `\u0000CODE${id}\u0000`;
       });
+      html = escapeHtml(html);
       html = html
         .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
         .replace(/__([^_]+)__/g, "<strong>$1</strong>")
         .replace(/\*([^*\s][^*]*?)\*/g, "<em>$1</em>")
-        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-      return html.replace(/\u0000CODE(\d+)\u0000/g, (_match, id) => code[Number(id)] || "");
+        .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_match, label, href) => {
+          const safeHref = sanitizeMarkdownLinkHref(href);
+          return `<a href="${escapeAttribute(safeHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        });
+      return html.replace(/\u0000CODE(\d+)\u0000/g, (_match, id) => codeTokens[Number(id)] || "");
     }
 
     function splitMarkdownTableRow(line) {
@@ -1199,10 +1243,12 @@
             return `<td data-label="${escapeHtml(label)}">${renderInlineMarkdown(cell)}</td>`;
           }).join("")}</tr>`).join("")}</tbody>`
         : "";
-      return { html: `<div class="markdown-table-wrap"><table>${head}${body}</table></div>`, nextIndex: index };
+      return { html: `<div class="markdown-table-wrap hermes-markdown-table-wrapper table-wrapper"><table class="hermes-markdown-table">${head}${body}</table></div>`, nextIndex: index };
     }
 
     function renderMarkdownDocument(text) {
+      const fontScale = currentViewerPreferences().markdownSize.id;
+      const articleClass = `hermes-markdown-doc hermes-markdown-mobile ${viewerMarkdownFontScaleClass(fontScale)}`;
       const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
       const out = [];
       let paragraph = [];
@@ -1218,7 +1264,7 @@
 
       function flushList() {
         if (!list) return;
-        const className = list.hasTask ? ' class="task-list"' : "";
+        const className = list.hasTask ? ' class="hermes-markdown-list task-list hermes-markdown-task-list"' : ' class="hermes-markdown-list"';
         out.push(`<${list.type}${className}>${list.items.map((item) => renderListItem(item)).join("")}</${list.type}>`);
         list = null;
       }
@@ -1228,12 +1274,12 @@
         const task = text.match(/^\[( |x|X)\]\s+(.+)$/);
         if (!task) return `<li>${renderInlineMarkdown(text)}</li>`;
         const checked = task[1].toLowerCase() === "x" ? " checked" : "";
-        return `<li class="task-list-item"><input type="checkbox" disabled${checked}><span>${renderInlineMarkdown(task[2])}</span></li>`;
+        return `<li class="task-list-item hermes-markdown-task-item"><input class="hermes-markdown-task-checkbox" type="checkbox" disabled${checked}><span>${renderInlineMarkdown(task[2])}</span></li>`;
       }
 
       function flushFence() {
         if (!inFence) return;
-        out.push(`<pre><code>${escapeHtml(fence.join("\n"))}</code></pre>`);
+        out.push(`<pre class="hermes-markdown-code"><code>${escapeHtml(fence.join("\n"))}</code></pre>`);
         inFence = false;
         fence = [];
       }
@@ -1268,7 +1314,7 @@
           i = table.nextIndex - 1;
           continue;
         }
-        const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+        const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
         if (heading) {
           flushParagraph();
           flushList();
@@ -1306,7 +1352,7 @@
       flushFence();
       flushParagraph();
       flushList();
-      return `<article>${out.join("\n")}</article>`;
+      return `<article class="${articleClass}" data-font-scale="${escapeAttribute(fontScale)}">${out.join("\n")}</article>`;
     }
 
     function renderTextPreview(data, label, options = {}) {
@@ -1447,7 +1493,7 @@
       const text = await ensureMarkdownPreviewText();
       if (!text.trim()) throw new Error("Markdown preview is empty.");
       const workspaceId = workspaceIdForForward();
-      setTransientStatus("正在转发到群...");
+      setTransientStatus("\u6b63\u5728\u8f6c\u53d1\u5230\u7fa4...");
       const singleWindow = await apiJson("/api/single-window", {
         method: "POST",
         body: JSON.stringify({ workspaceId, groupChat: true }),
@@ -1468,7 +1514,7 @@
       await apiJson(`/api/threads/${encodeURIComponent(threadId)}/messages`, {
         method: "POST",
         body: JSON.stringify({
-          text: `转发 Markdown：${filename}`,
+          text: `\u8f6c\u53d1 Markdown\uff1a${filename}`,
           artifacts: [upload.artifact],
           workspaceId,
           singleWindowMode: "chat",
@@ -1476,7 +1522,7 @@
           messageKind: "plain",
         }),
       });
-      setTransientStatus("已转发到群。");
+      setTransientStatus("\u5df2\u8f6c\u53d1\u5230\u7fa4");
     }
 
     async function forwardFileToWeixin() {
@@ -1668,7 +1714,7 @@ window.addEventListener("load", function () {
           return;
         }
         if (!cachedShareBlob) {
-          setTransientStatus("文件还在准备，已先打开原文件。");
+          setTransientStatus("\u6587\u4ef6\u8fd8\u5728\u51c6\u5907\uff0c\u5df2\u5148\u6253\u5f00\u539f\u6587\u4ef6\u3002");
           location.href = downloadUrl;
           return;
         }
@@ -1681,11 +1727,11 @@ window.addEventListener("load", function () {
         const cachedUrl = URL.createObjectURL(cachedShareBlob);
         window.open(cachedUrl, "_blank", "noopener");
         window.setTimeout(() => URL.revokeObjectURL(cachedUrl), 30000);
-        setTransientStatus("此浏览器不支持系统分享，已尝试打开文件。");
+        setTransientStatus("\u6b64\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u5206\u4eab\uff0c\u5df2\u5c1d\u8bd5\u6253\u5f00\u6587\u4ef6\u3002");
         return;
       } catch (err) {
         if (isUserCancelledShare(err)) return;
-        setTransientStatus("系统分享不可用，已打开原文件。");
+        setTransientStatus("\u7cfb\u7edf\u5206\u4eab\u4e0d\u53ef\u7528\uff0c\u5df2\u6253\u5f00\u539f\u6587\u4ef6\u3002");
         location.href = downloadUrl;
         return;
       }
@@ -1701,9 +1747,9 @@ window.addEventListener("load", function () {
         const objectUrl = URL.createObjectURL(blob);
         window.open(objectUrl, "_blank", "noopener");
         window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-        setTransientStatus("此浏览器不支持系统分享，已尝试打开文件。");
+        setTransientStatus("\u6b64\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u5206\u4eab\uff0c\u5df2\u5c1d\u8bd5\u6253\u5f00\u6587\u4ef6\u3002");
       } catch (err) {
-        setTransientStatus(err.message || "无法分享此文件。");
+        setTransientStatus(err.message || "\u65e0\u6cd5\u5206\u4eab\u6b64\u6587\u4ef6\u3002");
       }
     }
 

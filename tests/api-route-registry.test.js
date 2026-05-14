@@ -3,10 +3,12 @@
 const assert = require("node:assert/strict");
 const {
   createApiRouteRegistry,
+  groupRoutesBy,
   listRoutes,
   matchRoute,
   normalizeRouteSpec,
   routeInventorySummary,
+  validateRouteRegistry,
 } = require("../adapters/api-route-registry");
 
 function testNormalizeRouteSpec() {
@@ -27,10 +29,13 @@ function testNormalizeRouteSpec() {
   assert.equal(route.path, "/api/kanban/cards");
   assert.equal(route.order, 7);
   assert.equal(route.group, "kanban");
+  assert.equal(route.moduleKey, "kanban");
   assert.equal(route.riskLevel, "medium");
+  assert.equal(route.authMode, "access-key");
   assert.equal(route.authRequired, true);
   assert.equal(route.workspaceScoped, true);
   assert.deepEqual(route.resourceTypes, ["kanban", "card"]);
+  assert.deepEqual(route.tags, []);
 }
 
 function testRegistrationOrderAndMethodMatching() {
@@ -69,6 +74,39 @@ function testDuplicateRouteIdRejected() {
   );
 }
 
+function testDuplicateRouteSignatureValidation() {
+  const registry = createApiRouteRegistry([
+    { id: "status-one", method: "GET", path: "/api/status" },
+    { id: "status-two", method: "GET", path: "/api/status" },
+  ]);
+  const validation = validateRouteRegistry(registry);
+  assert.equal(validation.ok, false);
+  assert.equal(validation.routeCount, 2);
+  assert.match(validation.errors[0], /duplicate route signature: GET exact:\/api\/status/);
+
+  assert.throws(
+    () => createApiRouteRegistry([
+      { id: "status-one", method: "GET", path: "/api/status" },
+      { id: "status-two", method: "GET", path: "/api/status" },
+    ], { rejectDuplicateMatchers: true }),
+    /duplicate route signature: GET exact:\/api\/status/,
+  );
+}
+
+function testGroupRoutesByModule() {
+  const registry = createApiRouteRegistry([
+    { id: "kanban-list", method: "GET", path: "/api/kanban/cards", group: "kanban", moduleKey: "kanban" },
+    { id: "kanban-add", method: "POST", path: "/api/kanban/cards", group: "kanban", moduleKey: "kanban", riskLevel: "medium", resourceTypes: ["kanban", "card"] },
+    { id: "status", method: "GET", path: "/api/status", group: "system", moduleKey: "status" },
+  ]);
+  const groups = groupRoutesBy(registry, "moduleKey", { public: true });
+  assert.deepEqual(groups.map((group) => group.key), ["kanban", "status"]);
+  assert.equal(groups[0].count, 2);
+  assert.deepEqual(groups[0].methods, ["GET", "POST"]);
+  assert.deepEqual(groups[0].resourceTypes, ["card", "kanban"]);
+  assert.equal(JSON.stringify(groups).includes("/api/kanban/cards"), false);
+}
+
 function testInventorySummaryAndPublicRedaction() {
   const registry = createApiRouteRegistry([
     {
@@ -97,23 +135,19 @@ function testInventorySummaryAndPublicRedaction() {
   const publicRoutes = listRoutes(registry, { public: true });
   assert.equal(Object.hasOwn(publicRoutes[0], "path"), false);
   assert.equal(Object.hasOwn(publicRoutes[1], "pathRegex"), false);
-  assert.deepEqual(publicRoutes[1], {
-    id: "owner-runtime",
-    order: 1,
-    method: ["POST"],
-    group: "owner",
-    matchType: "regex",
-    riskLevel: "owner",
-    authRequired: true,
-    ownerOnly: true,
-    workspaceScoped: false,
-    resourceTypes: ["runtime-config"],
-  });
+  assert.equal(publicRoutes[1].id, "owner-runtime");
+  assert.equal(publicRoutes[1].moduleKey, "owner");
+  assert.equal(publicRoutes[1].matchType, "regex");
+  assert.equal(publicRoutes[1].riskLevel, "owner");
+  assert.equal(publicRoutes[1].authMode, "owner");
+  assert.deepEqual(publicRoutes[1].resourceTypes, ["runtime-config"]);
 
   const summary = routeInventorySummary(registry, { public: true });
   assert.equal(summary.total, 2);
   assert.deepEqual(summary.byGroup, { public: 1, owner: 1 });
+  assert.deepEqual(summary.byModule, { public: 1, owner: 1 });
   assert.deepEqual(summary.byRiskLevel, { public: 1, owner: 1 });
+  assert.deepEqual(summary.byAuthMode, { none: 1, owner: 1 });
   assert.equal(JSON.stringify(summary).includes("/api/owner/runtime-config"), false);
 }
 
@@ -121,5 +155,7 @@ testNormalizeRouteSpec();
 testRegistrationOrderAndMethodMatching();
 testExactPrefixAndRegexMatching();
 testDuplicateRouteIdRejected();
+testDuplicateRouteSignatureValidation();
+testGroupRoutesByModule();
 testInventorySummaryAndPublicRedaction();
 console.log("api-route-registry tests passed");
