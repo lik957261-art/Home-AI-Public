@@ -105,6 +105,56 @@ function parseWorkspaceIdList(value) {
   return out;
 }
 
+function workspaceLabelById(workspaceId) {
+  const id = String(workspaceId || "").trim();
+  if (!id) return "";
+  const workspace = (Array.isArray(state.workspaces) ? state.workspaces : [])
+    .find((item) => String(item?.id || "") === id);
+  return String(workspace?.label || id).trim();
+}
+
+function kanbanPlanBindingParts(draft = {}, kind = "study") {
+  const source = draft && typeof draft === "object" ? draft : {};
+  const learner = String(source.learnerName || source.readerName || "").trim();
+  const title = String(source.activityTitle || source.bookTitle || source.planTitle || source.subject || "").trim();
+  const performerId = String(source.performerWorkspaceId || "").trim();
+  const viewerIds = parseWorkspaceIdList(source.viewerWorkspaceIds);
+  return {
+    learner,
+    title,
+    performerId,
+    performerLabel: workspaceLabelById(performerId),
+    viewerLabels: viewerIds.map(workspaceLabelById).filter(Boolean),
+    kind,
+  };
+}
+
+function renderKanbanPlanBindingPreview(draft = {}, kind = "study") {
+  const parts = kanbanPlanBindingParts(draft, kind);
+  const learner = parts.learner || "\u5b66\u4e60\u8005";
+  const title = parts.title || (kind === "assessment" ? "\u8003\u8bd5\u8ba1\u5212" : "\u5b66\u4e60\u8ba1\u5212");
+  const directoryText = `${learner} / \u5b66\u4e60\u8ba1\u5212 / ${title}`;
+  const performerText = parts.performerLabel ? `\u6267\u884c\uff1a${parts.performerLabel}` : "\u672a\u6307\u5b9a\u6267\u884c\u8005";
+  const viewerText = parts.viewerLabels.length ? `\u53ea\u8bfb\uff1a${parts.viewerLabels.join("\u3001")}` : "\u672a\u6307\u5b9a\u53ea\u8bfb\u67e5\u770b\u8005";
+  return `<div class="kanban-plan-binding-preview" data-kanban-binding-preview data-kanban-binding-kind="${escapeHtml(kind)}">
+    <strong>\u7ed1\u5b9a\u76ee\u5f55</strong>
+    <span>${escapeHtml(directoryText)}</span>
+    <small>${escapeHtml(performerText)} · ${escapeHtml(viewerText)}</small>
+  </div>`;
+}
+
+function updateKanbanPlanBindingPreview(root = document, kind = "study") {
+  const target = root.querySelector?.(`[data-kanban-binding-preview][data-kanban-binding-kind="${kind}"]`);
+  if (!target) return;
+  const draft = kind === "assessment"
+    ? Object.assign(defaultKanbanAssessmentDraft(), state.kanbanAssessmentDraft || {})
+    : Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
+  const marker = document.createElement("div");
+  marker.innerHTML = renderKanbanPlanBindingPreview(draft, kind);
+  const next = marker.firstElementChild;
+  if (next) target.replaceWith(next);
+}
+
 function initialKanbanReadingDraft() {
   try {
     const parsed = JSON.parse(localStorage.getItem("hermesKanbanReadingDraft") || "{}");
@@ -8682,6 +8732,7 @@ function syncKanbanReadingDraftFromDom(root = document) {
   if (fields.activityTitle !== undefined) draft.bookTitle = draft.activityTitle || draft.bookTitle || "";
   state.kanbanReadingDraft = draft;
   localStorage.setItem("hermesKanbanReadingDraft", JSON.stringify(draft));
+  updateKanbanPlanBindingPreview(root, "study");
 }
 
 function syncKanbanAssessmentDraftFromDom(root = document) {
@@ -8713,6 +8764,7 @@ function syncKanbanAssessmentDraftFromDom(root = document) {
   }
   state.kanbanAssessmentDraft = draft;
   localStorage.setItem("hermesKanbanAssessmentDraft", JSON.stringify(draft));
+  updateKanbanPlanBindingPreview(root, "assessment");
 }
 
 function setKanbanReadingCoverFile(file) {
@@ -10053,6 +10105,7 @@ function renderKanbanReadingFields(disabled = false) {
       <span>只读查看工作区</span>
       ${viewerControl}
     </label>
+    ${renderKanbanPlanBindingPreview(draft, "study")}
     <label>
       <span>次数</span>
       <input id="kanbanReadingSessions" class="todo-input" type="number" min="1" max="31" step="1" value="${escapeHtml(draft.sessions || "10")}"${attr}>
@@ -10134,6 +10187,7 @@ function renderKanbanAssessmentFields(disabled = false) {
       <span>只读查看工作区</span>
       ${viewerControl}
     </label>
+    ${renderKanbanPlanBindingPreview(draft, "assessment")}
     <label>
       <span>考试次数</span>
       <input id="kanbanAssessmentExamCount" class="todo-input" type="number" min="1" max="30" step="1" value="${escapeHtml(draft.examCount || "10")}"${attr}>

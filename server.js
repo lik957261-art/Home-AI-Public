@@ -1988,6 +1988,21 @@ function normalizeTaskGroupMeta(value) {
       title,
       updatedAt: String(rawMeta.updatedAt || rawMeta.renamedAt || nowIso()),
     };
+    if (rawMeta.sharedTopic) out[key].sharedTopic = true;
+    for (const name of ["kanbanCaseId", "kanbanCaseMode", "kanbanCaseOwnerWorkspaceId", "sharedDirectoryPath", "caseDirectoryPath"]) {
+      const value = String(rawMeta[name] || "").trim();
+      if (value) out[key][name] = value;
+    }
+    for (const name of ["performerWorkspaceIds", "viewerWorkspaceIds"]) {
+      if (Array.isArray(rawMeta[name])) out[key][name] = dedupe(rawMeta[name]);
+    }
+    if (rawMeta.directoryRoute && typeof rawMeta.directoryRoute === "object" && !Array.isArray(rawMeta.directoryRoute)) {
+      out[key].directoryRoute = {
+        label: String(rawMeta.directoryRoute.label || "").trim(),
+        root: String(rawMeta.directoryRoute.root || "").trim(),
+        path: String(rawMeta.directoryRoute.path || "").trim(),
+      };
+    }
   }
   return out;
 }
@@ -5114,8 +5129,38 @@ function kanbanCaseTopicTitle(plan = {}) {
 
 function kanbanLearnerSharedFolderName(plan = {}) {
   const learner = kanbanPlanLearnerLabel(plan);
-  return safeDirectoryName(`${learner}\u5171\u4eab\u76ee\u5f55`)
+  return safeDirectoryName(learner)
     || `learner-${safeStorageSegment(learner, "learner")}`;
+}
+
+function kanbanStableTextKey(value, fallback = "item") {
+  const text = compactText(value || fallback, 120) || fallback;
+  const slug = safeStorageSegment(text, "");
+  const hash = crypto.createHash("sha1").update(text).digest("hex").slice(0, 10);
+  return slug ? `${slug}-${hash}` : `${fallback}-${hash}`;
+}
+
+function kanbanLearnerRootDirectory(ownerWorkspaceId, ownerRoot, plan = {}) {
+  const learner = kanbanPlanLearnerLabel(plan);
+  const expectedName = kanbanLearnerSharedFolderName(plan);
+  const directoryRecords = sharedDirectoriesForWorkspace(ownerWorkspaceId) || [];
+  const explicit = directoryRecords
+    .filter((record) => String(record?.source || "") !== "hermes-mobile-study-plan")
+    .map((record) => normalizeLocalPath(record?.path || "") || record?.path || "")
+    .filter(Boolean)
+    .filter((recordPath) => pathInsideAnyRoot(recordPath, [ownerRoot]))
+    .find((recordPath) => {
+      const labels = [
+        path.basename(normalizeLocalPath(recordPath) || recordPath),
+        ...directoryRecords
+          .filter((record) => comparablePath(normalizeLocalPath(record?.path || "") || record?.path || "") === comparablePath(recordPath))
+          .flatMap((record) => [record.label, ...(record.aliases || [])]),
+      ].filter(Boolean);
+      return labels.some((label) => String(label || "").trim() === learner);
+    });
+  if (explicit) return normalizeLocalPath(explicit) || explicit;
+  if (fs.existsSync(path.join(ownerRoot, expectedName))) return path.join(ownerRoot, expectedName);
+  return path.join(ownerRoot, expectedName);
 }
 
 function kanbanCaseDirectoryName(plan = {}) {
@@ -5139,7 +5184,7 @@ function ensureKanbanCaseSharedDirectory(ownerWorkspaceId, plan = {}) {
   const targets = kanbanCaseMemberWorkspaceIds(plan, owner).filter((workspaceId) => workspaceId !== owner);
   if (!ownerRoot || !targets.length) return null;
   const learner = kanbanPlanLearnerLabel(plan);
-  const learnerRoot = path.join(ownerRoot, kanbanLearnerSharedFolderName(plan));
+  const learnerRoot = kanbanLearnerRootDirectory(owner, ownerRoot, plan);
   const sharedRoot = path.join(learnerRoot, KANBAN_STUDY_SHARED_FOLDER_NAME);
   const caseDirectory = path.join(sharedRoot, kanbanCaseDirectoryName(plan));
   assertChildPathInside(ownerRoot, learnerRoot);
@@ -5171,7 +5216,7 @@ function ensureKanbanCaseSharedDirectory(ownerWorkspaceId, plan = {}) {
 }
 
 function kanbanCaseTopicKey(ownerWorkspaceId, plan = {}) {
-  return `study:${safeStorageSegment(ownerWorkspaceId || "owner", "owner")}:${safeStorageSegment(kanbanPlanLearnerLabel(plan), "learner").toLowerCase()}`;
+  return `study:${safeStorageSegment(ownerWorkspaceId || "owner", "owner")}:${kanbanStableTextKey(kanbanPlanLearnerLabel(plan), "learner").toLowerCase()}`;
 }
 
 function findKanbanCaseTopicThread(ownerWorkspaceId, topicKey) {

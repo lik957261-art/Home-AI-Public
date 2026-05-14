@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260514-study-topic-share";
+const HERMES_SW_VERSION = "20260514-study-share-dir";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,8 +8,8 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260514-study-topic-share",
-  "/app.js?v=20260514-study-topic-share",
+  "/styles.css?v=20260514-study-share-dir",
+  "/app.js?v=20260514-study-share-dir",
   "/fixed-viewport.js?v=20260505-1135",
   "/file-viewer.html",
   "/manifest-20260509.json",
