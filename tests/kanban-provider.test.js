@@ -415,6 +415,65 @@ async function run() {
   assert.ok(reconcileCalls.some((args) => args.includes("unblock") && args.includes("t_downstream")));
   assert.ok(reconcileCalls.some((args) => args.includes("comment") && args.includes("All planned upstream cards completed; Hermes Mobile released dependency block.")));
 
+  const manualReconcileCalls = [];
+  const manualTasks = [
+    {
+      id: "t_manual_upstream",
+      title: "Manual upstream",
+      status: "done",
+      body: meta({
+        content: "Manual upstream",
+        assignee: "owner",
+        caseId: "case-manual",
+        caseMode: "assessment-plan",
+        caseCardId: "exam-1",
+        caseCardIndex: 1,
+        caseCardCount: 2,
+      }),
+      completed_at: 1778600000,
+      updated_at: 1778600000,
+    },
+    {
+      id: "t_manual_downstream",
+      title: "Manual downstream",
+      status: "blocked",
+      body: meta({
+        content: "Manual downstream",
+        assignee: "owner",
+        caseId: "case-manual",
+        caseMode: "assessment-plan",
+        caseCardId: "exam-2",
+        caseCardIndex: 2,
+        caseCardCount: 2,
+        caseDependsOn: ["exam-1"],
+      }),
+      updated_at: 1778600100,
+    },
+  ];
+  const manualReconcileProvider = createKanbanTodoBridge({
+    command: "hermes",
+    metadataPath: path.join(tempDir, "manual-reconcile-meta.json"),
+    boardForWorkspace: () => "manual-reconcile-board",
+    assigneeForWorkspace: () => "exec-owner",
+    async runCommand(command, args) {
+      manualReconcileCalls.push(args);
+      const joined = args.join(" ");
+      if (joined.includes("boards create")) return { code: 0, stdout: "", stderr: "" };
+      if (joined.includes(" list ")) return { code: 0, stdout: JSON.stringify({ tasks: manualTasks }), stderr: "" };
+      if (joined.includes(" unblock ")) throw new Error("manual assessment plan should not be auto-unblocked");
+      return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+    },
+  });
+  const manualReconciled = await manualReconcileProvider.run({
+    action: "reconcile_dependency_blocks",
+    workspace_id: "owner",
+    source_principal: "owner",
+    limit: 20,
+  });
+  assert.equal(manualReconciled.ok, true);
+  assert.equal(manualReconciled.released.length, 0);
+  assert.equal(manualReconcileCalls.some((args) => args.includes("unblock")), false);
+
   fs.rmSync(tempDir, { recursive: true, force: true });
 }
 

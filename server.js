@@ -5332,8 +5332,10 @@ async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options 
     let blocked = false;
     let blockError = "";
     let blockReason = "";
-    if (index > 0) {
-      blockReason = "Waiting for previous assessment completion; Hermes Mobile shows only the current assessment card.";
+    {
+      blockReason = index > 0
+        ? "Waiting for previous assessment completion and scheduled start; Hermes Mobile shows only the current assessment card."
+        : "Manual formal assessment is parked until its scheduled start time; open it in Hermes Mobile to take the exam.";
       const blockedResult = await kanbanCardProvider.mutateCard({
         action: "block",
         workspaceId,
@@ -5354,7 +5356,7 @@ async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options 
       blockError,
       dependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
     });
-    if (index > 0 && !blocked) {
+    if (!blocked) {
       return {
         ok: false,
         error: `Assessment plan card ${publicCard.id} was created but could not be parked: ${blockError}`,
@@ -6257,8 +6259,24 @@ function publicKanbanAssessmentSummary(workspaceId, card = {}) {
   };
 }
 
-function kanbanAssessmentCanStart(card = {}, state = null) {
+function kanbanAssessmentStateCompleted(workspaceId, card = {}) {
+  const cardId = String(card?.id || card?.cardId || "").trim();
+  if (!cardId || !isKanbanAssessmentCard(card)) return false;
+  const state = readKanbanAssessmentExamState(workspaceId, cardId, card);
+  const attempts = Array.isArray(state?.attempts) ? state.attempts : [];
+  const lastAttempt = attempts.length ? attempts[attempts.length - 1] : null;
+  return String(state?.status || "") === "completed" || Boolean(lastAttempt?.passed);
+}
+
+function kanbanAssessmentPriorComplete(workspaceId, priorCards = []) {
+  return (priorCards || [])
+    .filter((card) => isKanbanAssessmentCard(card))
+    .every((card) => kanbanAssessmentStateCompleted(workspaceId, card));
+}
+
+function kanbanAssessmentCanStart(card = {}, state = null, priorCards = [], workspaceId = "owner") {
   if (state?.exam) return true;
+  if (!kanbanAssessmentPriorComplete(workspaceId, priorCards)) return false;
   const value = String(card?.dueAt || card?.dueLocal || "").trim();
   if (!value) return true;
   const parsed = Date.parse(value.replace(" ", "T"));
@@ -6299,7 +6317,7 @@ async function getKanbanAssessmentExam(workspaceId, cardId) {
   const currentCard = context.current || { id: cardId, content: cardId };
   if (!isKanbanAssessmentCard(currentCard)) return { ok: false, status: 404, error: "Assessment exam is not available for this card" };
   const existing = readKanbanAssessmentExamState(workspaceId, cardId, currentCard);
-  if (!kanbanAssessmentCanStart(currentCard, existing)) {
+  if (!kanbanAssessmentCanStart(currentCard, existing, context.prior || [], workspaceId)) {
     return { ok: false, status: 409, error: "Assessment exam is not open yet" };
   }
   if (existing?.exam) {

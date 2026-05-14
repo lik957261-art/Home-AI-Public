@@ -8820,8 +8820,22 @@ function todoStatusText(todo) {
 
 function normalizedKanbanStatus(todo) {
   const status = String(todo?.kanbanStatus || todo?.kanban_status || "").trim().toLowerCase();
+  if (
+    isKanbanAssessmentCard(todo)
+    && status === "done"
+    && !assessmentExamCompleted(todo)
+  ) {
+    return "blocked";
+  }
   if (KANBAN_STATUS_ORDER.includes(status)) return status;
   const compatible = String(todo?.status || "").trim().toLowerCase();
+  if (
+    isKanbanAssessmentCard(todo)
+    && compatible === "completed"
+    && !assessmentExamCompleted(todo)
+  ) {
+    return "blocked";
+  }
   if (compatible === "completed") return "done";
   if (compatible === "cancelled") return "archived";
   return "todo";
@@ -9022,14 +9036,13 @@ function assessmentExamSummary(todo) {
 function assessmentExamCompleted(todo) {
   const summary = assessmentExamSummary(todo);
   return String(summary?.status || "") === "completed"
-    || Boolean(summary?.lastAttempt?.passed)
-    || normalizedKanbanStatus(todo) === "done";
+    || Boolean(summary?.lastAttempt?.passed);
 }
 
 function assessmentCardAcceptsStart(todo) {
-  if (!isKanbanAssessmentCard(todo) || !todoMatchesOpen(todo)) return false;
+  if (!isKanbanAssessmentCard(todo) || assessmentExamCompleted(todo)) return false;
   const status = normalizedKanbanStatus(todo);
-  if (status === "blocked" || status === "done" || status === "archived") return false;
+  if (status === "archived") return false;
   const startTime = kanbanReadingStartTime(todo);
   return !Number.isFinite(startTime) || startTime <= Date.now();
 }
@@ -9045,7 +9058,7 @@ function kanbanAssessmentCaseCurrentItem(group) {
   if (retake) return retake;
   const startable = cards.find((item) => isKanbanAssessmentCard(item.todo) && assessmentCardAcceptsStart(item.todo));
   if (startable) return startable;
-  const next = cards.find((item) => isKanbanAssessmentCard(item.todo) && !assessmentExamCompleted(item.todo) && !["done", "archived"].includes(normalizedKanbanStatus(item.todo)));
+  const next = cards.find((item) => isKanbanAssessmentCard(item.todo) && !assessmentExamCompleted(item.todo) && normalizedKanbanStatus(item.todo) !== "archived");
   if (next) return next;
   const completed = [...cards].reverse().find((item) => isKanbanAssessmentCard(item.todo) && assessmentExamCompleted(item.todo));
   return completed || cards.find((item) => isKanbanAssessmentCard(item.todo)) || null;
@@ -10162,11 +10175,20 @@ function dedupeKanbanOutputs(outputs) {
 function kanbanCardOutputs(todo) {
   const detail = todoCardDetailState(todo?.id || "");
   const readingOutput = todo?.readingSubmission?.analysisOutput ? [todo.readingSubmission.analysisOutput] : [];
-  return dedupeKanbanOutputs([
+  const outputs = dedupeKanbanOutputs([
     ...(Array.isArray(todo?.kanbanOutputs) ? todo.kanbanOutputs : []),
     ...readingOutput,
     ...(Array.isArray(detail?.outputs) ? detail.outputs : []),
   ]);
+  if (isKanbanAssessmentCard(todo)) {
+    const summary = assessmentExamSummary(todo) || {};
+    if (!summary.lastAttempt && !assessmentExamCompleted(todo)) return [];
+    return outputs.filter((item) => {
+      const name = String(item?.name || item?.path || "").toLowerCase();
+      return !name.includes("answer_key") && !name.includes("sample_answers");
+    });
+  }
+  return outputs;
 }
 
 function shouldAutoLoadKanbanDetail(todo) {

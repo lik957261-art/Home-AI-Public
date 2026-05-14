@@ -608,6 +608,8 @@ function createKanbanTodoBridge(options = {}) {
     const errors = [];
     for (const row of rows) {
       if (String(row.kanban_status || "").trim().toLowerCase() !== "blocked") continue;
+      const caseMode = String(row.kanban_case_mode || "").trim().toLowerCase();
+      if (caseMode === "study-plan" || caseMode === "assessment-plan") continue;
       const caseId = String(row.kanban_case_id || "").trim();
       const dependsOn = arrayFromValue(row.kanban_case_depends_on, 12);
       if (!caseId || !dependsOn.length) continue;
