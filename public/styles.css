@@ -5325,6 +5325,29 @@ button.directory-alias-chip {
   transform: rotate(0deg);
 }
 
+.kanban-archive-case-tail {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.kanban-archive-case-action {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid rgba(50, 132, 108, 0.22);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(50, 132, 108, 0.08);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.kanban-archive-case-action:active {
+  transform: translateY(1px);
+}
+
 .kanban-archive-case-head > div {
   min-width: 0;
   display: grid;

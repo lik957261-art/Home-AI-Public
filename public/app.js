@@ -9198,6 +9198,15 @@ function kanbanStoryCases(items) {
   ));
 }
 
+function kanbanStoryCaseFullyArchived(group) {
+  const cards = group?.cards || [];
+  return cards.length > 0 && cards.every((item) => normalizedKanbanStatus(item.todo) === "archived");
+}
+
+function kanbanActiveStoryCases(items) {
+  return kanbanStoryCases(items).filter((group) => !kanbanStoryCaseFullyArchived(group));
+}
+
 function kanbanStoryCaseKey(group) {
   const first = (group?.cards || [])[0]?.todo || {};
   return [
@@ -9231,6 +9240,24 @@ function kanbanStoryCaseRenderState(group, options = {}) {
     toggleClass: collapsible ? " kanban-archive-case-toggle" : "",
     toggleAttrs: collapsible ? kanbanStoryToggleAttrs(group, expanded) : "",
   };
+}
+
+function kanbanStoryCaseArchiveItems(group) {
+  const cards = group?.cards || [];
+  if (!cards.length) return [];
+  const nonArchived = cards.filter((item) => normalizedKanbanStatus(item.todo) !== "archived");
+  if (!nonArchived.length) return [];
+  const complete = nonArchived.every((item) => normalizedKanbanStatus(item.todo) === "done");
+  if (!complete) return [];
+  return nonArchived.filter((item) => kanbanCan(item.todo, "canDelete"));
+}
+
+function renderKanbanStoryArchiveButton(group, options = {}) {
+  if (!options.archiveAction) return "";
+  const items = kanbanStoryCaseArchiveItems(group);
+  if (!items.length) return "";
+  const key = kanbanStoryCaseKey(group);
+  return `<button class="kanban-archive-case-action" type="button" data-archive-kanban-story-case="${escapeHtml(key)}">${"\u5f52\u6863"}</button>`;
 }
 
 function kanbanArchiveStatusSummary(group) {
@@ -9287,7 +9314,7 @@ function scheduleKanbanStoryDetailLoads(items) {
   if (String(state.todoKanbanStatus || "").trim().toLowerCase() !== KANBAN_STORY_STATUS) return;
   const queued = state.kanbanStoryDetailQueued || {};
   const ids = [];
-  for (const group of kanbanStoryCases(items).filter(kanbanStoryCaseExpanded).slice(0, 4)) {
+  for (const group of kanbanActiveStoryCases(items).filter(kanbanStoryCaseExpanded).slice(0, 4)) {
     const cardItems = group.mode === "study-plan"
       ? [kanbanReadingCaseCurrentItem(group)].filter(Boolean)
       : (group.cards || []).slice(0, 10);
@@ -9332,6 +9359,7 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
     currentOutputCount ? `\u4ea4\u4ed8 ${currentOutputCount}` : "",
   ].filter(Boolean).join(" | ");
   const storyState = kanbanStoryCaseRenderState(group, options);
+  const archiveButton = renderKanbanStoryArchiveButton(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
@@ -9346,7 +9374,7 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
         <span>${escapeHtml([labels.plan, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
       </div>
-      <small>${escapeHtml(latest)}</small>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
     </header>
     ${cover ? renderKanbanCaseCover(cover, { compact: true }) : ""}
     <div class="kanban-archive-story-grid">
@@ -9388,6 +9416,7 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
     lastAttempt ? `上次 ${lastAttempt.score}/100` : "",
   ].filter(Boolean).join(" | ");
   const storyState = kanbanStoryCaseRenderState(group, options);
+  const archiveButton = renderKanbanStoryArchiveButton(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
@@ -9401,7 +9430,7 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
         <span>${escapeHtml(["考试计划", statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "考试计划")}</h3>
       </div>
-      <small>${escapeHtml(latest)}</small>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
     </header>
     <div class="kanban-archive-story-grid">
       <section>
@@ -9460,13 +9489,14 @@ function renderKanbanArchiveCase(group, options = {}) {
   }).join("");
   const more = cards.length > 8 ? `<li class="kanban-archive-more">+${cards.length - 8}</li>` : "";
   const storyState = kanbanStoryCaseRenderState(group, options);
+  const archiveButton = renderKanbanStoryArchiveButton(group, options);
   return `<article class="kanban-archive-case${storyState.caseClass}">
     <header class="kanban-archive-case-head${storyState.toggleClass}"${storyState.toggleAttrs}>
       <div>
         <span>${escapeHtml(["\u4efb\u52a1\u6545\u4e8b", modeLabel, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
       </div>
-      <small>${escapeHtml(latest)}</small>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
     </header>
     ${cover ? renderKanbanCaseCover(cover, { compact: true }) : ""}
     <div class="kanban-archive-story-grid">
@@ -9490,15 +9520,15 @@ function renderKanbanArchiveCase(group, options = {}) {
 function renderKanbanArchiveStories(items) {
   const cases = kanbanArchiveCases(items);
   if (!cases.length) return `<div class="empty-state small">No archived cases.</div>`;
-  return `<div class="kanban-archive-stories">${cases.map(renderKanbanArchiveCase).join("")}</div>`;
+  return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true })).join("")}</div>`;
 }
 
 function renderKanbanStoryTree(items) {
-  const cases = kanbanStoryCases(items);
+  const cases = kanbanActiveStoryCases(items);
   if (!cases.length) {
     return `<div class="empty-state small">\u6682\u65e0\u6545\u4e8b\u6811\u3002\u591a Agent \u62c6\u89e3\u7684\u4efb\u52a1\u4f1a\u5728\u8fd9\u91cc\u6309\u9700\u6c42\u3001\u62c6\u89e3\u3001\u7ed3\u8bba\u805a\u5408\u3002</div>`;
   }
-  return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true })).join("")}</div>`;
+  return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true, archiveAction: true })).join("")}</div>`;
 }
 
 function todoDueLabel(todo) {
@@ -10017,11 +10047,12 @@ function renderTodoKanbanBoard(todos) {
     if (!grouped.has(status)) grouped.set(status, []);
     grouped.get(status).push(todo);
   }
+  grouped.set("done", sortArchivedKanbanCards(grouped.get("done") || []));
   grouped.set("archived", sortArchivedKanbanCards(grouped.get("archived") || []));
   const selectedStatus = currentTodoKanbanStatus(grouped);
   const selectedMeta = kanbanStatusMeta(selectedStatus);
   const selectedItems = grouped.get(selectedStatus) || [];
-  const storyCases = state.todoCompletedLoaded ? kanbanStoryCases(todos) : [];
+  const storyCases = state.todoCompletedLoaded ? kanbanActiveStoryCases(todos) : [];
   const tabs = KANBAN_TAB_ORDER.map((status) => {
     const meta = kanbanStatusMeta(status);
     const items = grouped.get(status) || [];
@@ -10716,6 +10747,13 @@ function wireTodoPanel(root) {
       toggle();
     });
   });
+  root.querySelectorAll("[data-archive-kanban-story-case]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      archiveKanbanStoryCase(button.dataset.archiveKanbanStoryCase || "").catch(showError);
+    });
+  });
   root.querySelectorAll("[data-todo-id]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedTodoId = button.dataset.todoId || "";
@@ -11168,6 +11206,28 @@ async function cancelTodo(todoId) {
   clearTodoListCache(kanbanCardWorkspaceId(todoId));
   state.selectedTodoId = "";
   await loadTodos();
+}
+
+async function archiveKanbanStoryCase(caseKey) {
+  const key = String(caseKey || "").trim();
+  if (!key) return;
+  const group = kanbanActiveStoryCases(state.todos).find((item) => kanbanStoryCaseKey(item) === key);
+  const items = kanbanStoryCaseArchiveItems(group);
+  if (!group || !items.length) throw new Error("No completed story cards can be archived.");
+  if (!window.confirm(`归档故事：${group.title || key}？`)) return;
+  for (const item of items) {
+    await api(boardActionApiPath(item.todo.id, "cancel"), {
+      method: "POST",
+      body: kanbanCardActionBody(item.todo),
+    });
+  }
+  clearTodoListCache();
+  state.selectedTodoId = "";
+  state.todoKanbanStatus = "archived";
+  localStorage.setItem("hermesTodoKanbanStatus", "archived");
+  state.kanbanStoryExpanded = Object.assign({}, state.kanbanStoryExpanded || {}, { [key]: false });
+  showPushToast(`已归档 ${items.length} 张卡片`, "success");
+  await loadTodos({ skipCache: true, freshServer: true });
 }
 
 async function blockTodo(todoId) {
