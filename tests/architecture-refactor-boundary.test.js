@@ -158,6 +158,7 @@ function testPackageRunsArchitectureContracts() {
   ]) {
     assert.match(pkg.scripts.check, new RegExp(`node --check (?:adapters|tests)[\\\\/]${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   }
+  assert.match(pkg.scripts.check, /node --check public[\\/]markdown-renderer-client\.js/);
   for (const testFile of [
     "tests/api-route-registry.test.js",
     "tests/api-route-inventory.test.js",
@@ -189,6 +190,7 @@ function testPackageRunsArchitectureContracts() {
     "tests/resource-access-resolver.test.js",
     "tests/kanban-story-provider.test.js",
     "tests/markdown-renderer.test.js",
+    "tests/markdown-renderer-client.test.js",
     "tests/architecture-refactor-boundary.test.js",
   ]) {
     assert.match(pkg.scripts.test, new RegExp(testFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

@@ -11,6 +11,7 @@ const threadReadUploadApiRoutes = fs.readFileSync(path.join(repoRoot, "server-ro
 const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 const fileViewer = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
+const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "markdown-renderer-client.js"), "utf8");
 const adapterJs = fs.readFileSync(path.join(repoRoot, "adapters", "automation-provider.js"), "utf8");
 const cronBridge = fs.readFileSync(path.join(repoRoot, "cron_bridge.py"), "utf8");
 
@@ -85,16 +86,20 @@ assert.match(
   /:root\[data-font-size\] \.automation-doc-preview\.compact \.automation-doc-name \{[\s\S]*?font-size: calc\(13px \* var\(--app-font-scale\)\);/
 );
 
-assert.match(fileViewer, /function renderMarkdownDocument\(text\)/);
-assert.match(fileViewer, /hermes-markdown-doc hermes-markdown-mobile/);
-assert.match(fileViewer, /viewerMarkdownFontScaleClass\(fontScale\)/);
-assert.match(fileViewer, /sanitizeMarkdownLinkHref\(href\)/);
-assert.match(fileViewer, /class="markdown-table-wrap hermes-markdown-table-wrapper table-wrapper"/);
-assert.match(fileViewer, /class="hermes-markdown-table"/);
-assert.match(fileViewer, /class="hermes-markdown-list task-list hermes-markdown-task-list"/);
-assert.match(fileViewer, /class="task-list-item hermes-markdown-task-item"/);
-assert.match(fileViewer, /class="hermes-markdown-code"/);
-assert.match(fileViewer, /data-label="\$\{escapeHtml\(label\)\}"/);
+assert.match(fileViewer, /\/markdown-renderer-client\.js\?v=20260514-md-client/);
+assert.match(fileViewer, /const markdownRenderer = window\.HermesMarkdownRenderer/);
+assert.match(fileViewer, /markdownRenderer\.renderMarkdownDocument\(text, \{/);
+assert.match(fileViewer, /fontScale: currentViewerPreferences\(\)\.markdownSize\.id/);
+assert.match(fileViewer, /linkTarget: "_blank"/);
+assert.match(fileViewer, /taskListCompatibility: true/);
+assert.match(fileViewer, /const escapeHtml = markdownRenderer\.escapeHtml/);
+assert.doesNotMatch(fileViewer, /function sanitizeMarkdownLinkHref\(href\)/);
+assert.doesNotMatch(fileViewer, /function renderInlineMarkdown\(value\)/);
+assert.match(markdownRendererClient, /hermes-markdown-doc/);
+assert.match(markdownRendererClient, /hermes-markdown-mobile/);
+assert.match(markdownRendererClient, /markdown-table-wrap hermes-markdown-table-wrapper table-wrapper/);
+assert.match(markdownRendererClient, /hermes-markdown-list task-list hermes-markdown-task-list/);
+assert.match(markdownRendererClient, /task-list-item hermes-markdown-task-item/);
 assert.match(fileViewer, /td::before[\s\S]+content: attr\(data-label\)/);
 assert.match(fileViewer, /@media \(max-width: 640px\)/);
 assert.match(fileViewer, /--hermes-markdown-font-family: var\(--viewer-font-family\)/);
