@@ -123,6 +123,9 @@ directory, the starter copies and backs up only top-level Markdown memory files
 (`*.md`) into the shared Owner memory store. Non-Markdown files are not merged
 into shared memory; if they prevent replacing the directory with a symlink, the
 starter leaves that profile-local directory in place and logs the condition.
+Empty `*.md.lock` files from previous built-in memory writes are discarded
+during this conversion because they contain no memory content and should not
+keep an otherwise migrated profile on a profile-local memory directory.
 
 Low-privilege `securityLevel=user` workers must also expose an ordinary-user
 `api_server` platform toolset. This is not a tiny whitelist: public web/search,

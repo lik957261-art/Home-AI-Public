@@ -98,9 +98,8 @@ function Add-OwnerMaintenanceSharedMemoryCommands {
     [string]$ProfileMemoryPath,
     [string]$SharedMemoryPath
   )
-  [void]$Commands.Add("profile_memory_path=$ProfileMemoryPath")
-  [void]$Commands.Add("shared_memory_path=$SharedMemoryPath")
-  [void]$Commands.Add("if [ -L `"`$profile_memory_path`" ]; then rm -f `"`$profile_memory_path`"; elif [ -d `"`$profile_memory_path`" ]; then markdown_backup_dir=$ProfileRoot/memories.profile-local-markdown-backup-`$(date +%Y%m%d%H%M%S); mkdir -p `"`$markdown_backup_dir`"; find `"`$profile_memory_path`" -maxdepth 1 -type f -name '*.md' -exec cp -n {} `"`$shared_memory_path`"/ \; -exec cp -n {} `"`$markdown_backup_dir`"/ \; -delete; if ! rmdir `"`$profile_memory_path`" 2>/dev/null; then echo `"profile memories contains non-markdown files; keeping profile-local directory: `$profile_memory_path`" >&2; fi; elif [ -e `"`$profile_memory_path`" ]; then echo `"profile memories path is not a directory or symlink: `$profile_memory_path`" >&2; fi; if [ ! -e `"`$profile_memory_path`" ]; then ln -sfn `"`$shared_memory_path`" `"`$profile_memory_path`"; fi")
+  $backupDir = "{0}/memories.profile-local-markdown-backup-{1}" -f $ProfileRoot, (Get-Date).ToString("yyyyMMddHHmmss")
+  [void]$Commands.Add("if [ -L $ProfileMemoryPath ]; then rm -f $ProfileMemoryPath; elif [ -d $ProfileMemoryPath ]; then mkdir -p $backupDir; find $ProfileMemoryPath -maxdepth 1 -type f -name \*.md -exec cp -n {} $SharedMemoryPath/ \; -exec cp -n {} $backupDir/ \; -delete; find $ProfileMemoryPath -maxdepth 1 -type f -name \*.md.lock -size 0 -delete; if ! rmdir $ProfileMemoryPath 2>/dev/null; then echo profile_memories_contains_non_markdown_files_keeping_profile_local_directory:$ProfileMemoryPath >&2; fi; elif [ -e $ProfileMemoryPath ]; then echo profile_memories_path_is_not_directory_or_symlink:$ProfileMemoryPath >&2; fi; if [ ! -e $ProfileMemoryPath ]; then ln -sfn $SharedMemoryPath $ProfileMemoryPath; fi")
 }
 
 function Ensure-LowGatewayProfileEnv {
