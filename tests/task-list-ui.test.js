@@ -31,6 +31,7 @@ const kanbanCaseShareServiceJs = fs.readFileSync(path.join(repoRoot, "adapters",
 const kanbanMaintenanceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-maintenance-service.js"), "utf8");
 const kanbanPlanServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-plan-service.js"), "utf8");
 const kanbanStudyArtifactServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-study-artifact-service.js"), "utf8");
+const assessmentExamServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "assessment-exam-service.js"), "utf8");
 const gatewayRunInstructionServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-instruction-service.js"), "utf8");
 const groupChatSharedAttachmentServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "group-chat-shared-attachment-service.js"), "utf8");
 const fileResourceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "file-resource-service.js"), "utf8");
@@ -485,6 +486,8 @@ assert.match(serverJs, /visibleKanbanCaseCards,\s*\n\} = require\("\.\/adapters\
 assert.match(serverJs, /kanbanCardEffectiveCaseIndex\(current, byId\)/);
 assert.match(serverJs, /const canonicalCardId = String\(currentCard\.id \|\| cardId\)/);
 assert.match(serverJs, /function generateVerifiedAmc8AssessmentQuestions\(config = \{\}, seedText = ""\)/);
+assert.match(assessmentExamServiceJs, /function generateVerifiedAmc8AssessmentQuestions\(config = \{\}, seedText = "", options = \{\}\)/);
+assert.match(assessmentExamServiceJs, /function normalizeAssessmentExam\(raw = \{\}, config = \{\}, options = \{\}\)/);
 assert.match(serverJs, /assessmentLooksLikeAmc8\(config, seedText\)/);
 assert.match(serverJs, /function kanbanAssessmentArchived\(card = \{\}\)/);
 assert.match(serverJs, /kanbanAssessmentCanStart\(currentCard, existing, context\.prior \|\| \[\], workspaceId\)/);

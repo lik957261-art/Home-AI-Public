@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
+const assessmentExamService = require("../adapters/assessment-exam-service");
 const bridgeCommandProvider = require("../adapters/bridge-command-provider");
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
@@ -72,6 +73,8 @@ function assertAppearsInOrder(text, labels) {
 }
 
 function testRefactorModulesExportStableContracts() {
+  assert.equal(typeof assessmentExamService.generateVerifiedAmc8AssessmentQuestions, "function");
+  assert.equal(typeof assessmentExamService.normalizeAssessmentExam, "function");
   assert.equal(typeof bridgeCommandProvider.createBridgeCommandProvider, "function");
   assert.equal(typeof bridgeCommandProvider.runJsonBridgeCommand, "function");
   assert.equal(typeof routeRegistry.createApiRouteRegistry, "function");
@@ -223,6 +226,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createKanbanStudyArtifactService/);
   assert.match(server, /kanbanStudyArtifactService\.publicReadingSubmissionSummary/);
   assert.match(server, /kanbanStudyArtifactService\.publicAssessmentExam/);
+  assert.match(server, /assessmentExamService\.normalizeAssessmentExam/);
+  assert.match(server, /assessmentExamService\.generateVerifiedAmc8AssessmentQuestions/);
   assert.match(server, /createDocumentPreviewService/);
   assert.match(server, /documentPreviewService\.extractDocxText/);
   assert.match(server, /documentPreviewService\.textFilePreview/);
