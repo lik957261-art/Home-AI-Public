@@ -10,6 +10,7 @@ const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
 const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
 const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "markdown-renderer-client.js"), "utf8");
+const markdownRendererJs = fs.readFileSync(path.join(repoRoot, "adapters", "markdown-renderer.js"), "utf8");
 const pdfViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "pdf-viewer.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 const serverJs = fs.readFileSync(path.join(repoRoot, "server.js"), "utf8");
@@ -152,11 +153,11 @@ assert.match(serverJs, /const caption = String\(body\.caption \?\? body\.text \?
 assert.doesNotMatch(serverJs, /Weixin file forwarding:/);
 assert.match(serverJs, /function materializeWeixinForwardFile\(file, workspaceId\)/);
 assert.match(serverJs, /function renderMarkdownForwardPdf\(markdownPath, workspaceId, title\)/);
-assert.match(serverJs, /function renderMarkdownForwardDocument\(markdown\)/);
-assert.match(serverJs, /function renderMarkdownForwardTable\(lines, startIndex\)/);
-assert.match(serverJs, /document-kicker/);
-assert.match(serverJs, /markdown-table-wrap/);
-assert.match(serverJs, /Weixin readable PDF/);
+assert.match(serverJs, /renderWeixinMarkdownForwardHtml\(title, sourcePath, markdown\)/);
+assert.match(markdownRendererJs, /function renderWeixinMarkdownForwardHtml\(title, sourcePath, markdown/);
+assert.match(markdownRendererJs, /document-kicker/);
+assert.match(markdownRendererJs, /markdown-table-wrap/);
+assert.match(markdownRendererJs, /Weixin readable PDF/);
 assert.doesNotMatch(serverJs, /<pre>\$\{escapeHtmlForDocument\(markdown \|\| ""\)\}<\/pre>/);
 assert.match(serverJs, /const sourceFile = resolved\.file \|\| fileResultFromBridgeFileForForward\(resolved\.bridgeFile, workspaceId\)\.file/);
 assert.match(serverJs, /const forwardFile = materializeWeixinForwardFile\(sourceFile, workspaceId\)/);

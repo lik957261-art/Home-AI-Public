@@ -10,6 +10,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const webpush = require("web-push");
 const fileResourceService = require("./adapters/file-resource-service");
+const { renderWeixinMarkdownForwardHtml } = require("./adapters/markdown-renderer");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
 const { createAuthProvider } = require("./adapters/auth-provider");
 const { createAutomationProvider } = require("./adapters/automation-provider");
@@ -9340,15 +9341,6 @@ function safeFileName(value) {
   return name || "upload.bin";
 }
 
-function escapeHtmlForDocument(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function safeDirectoryName(value) {
   const name = safeFileName(value || "New Folder").replace(/[. ]+$/g, "").trim();
   if (!name || name === "." || name === "..") return "";
@@ -10012,206 +10004,8 @@ function chromiumExecutableCandidates() {
   ].filter(Boolean);
 }
 
-function renderMarkdownForwardInline(value) {
-  const code = [];
-  let html = escapeHtmlForDocument(value).replace(/`([^`]+)`/g, (_match, text) => {
-    const id = code.length;
-    code.push(`<code>${text}</code>`);
-    return `\u0000CODE${id}\u0000`;
-  });
-  html = html
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-    .replace(/\*([^*\s][^*]*?)\*/g, "<em>$1</em>")
-    .replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, '<span class="image-ref">$1: $2</span>')
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>');
-  return html.replace(/\u0000CODE(\d+)\u0000/g, (_match, id) => code[Number(id)] || "");
-}
-
-function splitMarkdownForwardTableRow(line) {
-  return String(line || "")
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((cell) => cell.trim());
-}
-
-function isMarkdownForwardTableDivider(line) {
-  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(String(line || ""));
-}
-
-function renderMarkdownForwardTable(lines, startIndex) {
-  const header = splitMarkdownForwardTableRow(lines[startIndex]);
-  const rows = [];
-  let index = startIndex + 2;
-  while (index < lines.length && /\|/.test(lines[index]) && lines[index].trim()) {
-    rows.push(splitMarkdownForwardTableRow(lines[index]));
-    index += 1;
-  }
-  const head = `<thead><tr>${header.map((cell) => `<th>${renderMarkdownForwardInline(cell)}</th>`).join("")}</tr></thead>`;
-  const body = rows.length
-    ? `<tbody>${rows.map((row) => `<tr>${row.map((cell, cellIndex) => {
-      const label = header[cellIndex] || "";
-      return `<td data-label="${escapeHtmlForDocument(label)}">${renderMarkdownForwardInline(cell)}</td>`;
-    }).join("")}</tr>`).join("")}</tbody>`
-    : "";
-  return {
-    html: `<div class="markdown-table-wrap"><table>${head}${body}</table></div>`,
-    nextIndex: index,
-  };
-}
-
-function renderMarkdownForwardDocument(markdown) {
-  const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
-  const out = [];
-  let paragraph = [];
-  let list = null;
-  let inFence = false;
-  let fence = [];
-
-  const flushParagraph = () => {
-    if (!paragraph.length) return;
-    out.push(`<p>${renderMarkdownForwardInline(paragraph.join(" "))}</p>`);
-    paragraph = [];
-  };
-  const flushList = () => {
-    if (!list) return;
-    out.push(`<${list.type}>${list.items.map((item) => `<li>${renderMarkdownForwardInline(item)}</li>`).join("")}</${list.type}>`);
-    list = null;
-  };
-  const flushFence = () => {
-    if (!inFence) return;
-    out.push(`<pre><code>${escapeHtmlForDocument(fence.join("\n"))}</code></pre>`);
-    inFence = false;
-    fence = [];
-  };
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (/^```/.test(trimmed)) {
-      flushParagraph();
-      flushList();
-      if (inFence) flushFence();
-      else {
-        inFence = true;
-        fence = [];
-      }
-      continue;
-    }
-    if (inFence) {
-      fence.push(line);
-      continue;
-    }
-    if (!trimmed) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-    if (i + 1 < lines.length && /\|/.test(line) && isMarkdownForwardTableDivider(lines[i + 1])) {
-      flushParagraph();
-      flushList();
-      const table = renderMarkdownForwardTable(lines, i);
-      out.push(table.html);
-      i = table.nextIndex - 1;
-      continue;
-    }
-    const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
-    if (heading) {
-      flushParagraph();
-      flushList();
-      const level = heading[1].length;
-      out.push(`<h${level}>${renderMarkdownForwardInline(heading[2])}</h${level}>`);
-      continue;
-    }
-    if (/^[-*_]{3,}$/.test(trimmed)) {
-      flushParagraph();
-      flushList();
-      out.push("<hr>");
-      continue;
-    }
-    const quote = trimmed.match(/^>\s?(.*)$/);
-    if (quote) {
-      flushParagraph();
-      flushList();
-      out.push(`<blockquote>${renderMarkdownForwardInline(quote[1])}</blockquote>`);
-      continue;
-    }
-    const unordered = trimmed.match(/^[-*+]\s+(.+)$/);
-    const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
-    if (unordered || ordered) {
-      flushParagraph();
-      const type = ordered ? "ol" : "ul";
-      if (!list || list.type !== type) flushList();
-      if (!list) list = { type, items: [] };
-      list.items.push((unordered || ordered)[1]);
-      continue;
-    }
-    paragraph.push(trimmed);
-  }
-  flushParagraph();
-  flushList();
-  flushFence();
-  return `<article>${out.join("\n")}</article>`;
-}
-
 function markdownForwardHtml(title, sourcePath, markdown) {
-  const rendered = renderMarkdownForwardDocument(markdown);
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<style>
-@page { size: 88mm 190mm; margin: 6mm 5.5mm 7mm; }
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; color: #17222b; background: #fffaf2; }
-body { font-family: "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", Arial, sans-serif; font-size: 11.4pt; line-height: 1.68; }
-main { width: 100%; }
-.document-cover { margin: 0 0 5mm; padding: 0 0 4mm; border-bottom: 1px solid rgba(36, 53, 48, 0.14); }
-.document-kicker { color: #1f7768; font-size: 8pt; font-weight: 600; letter-spacing: 0; margin: 0 0 1.6mm; }
-.document-title { color: #111b22; font-size: 17pt; line-height: 1.24; font-weight: 600; letter-spacing: 0; margin: 0; overflow-wrap: anywhere; }
-.source { color: #667085; font-size: 7.8pt; line-height: 1.35; margin: 2mm 0 0; overflow-wrap: anywhere; }
-article { width: 100%; overflow-wrap: anywhere; word-break: break-word; }
-h1, h2, h3, h4 { color: #111b22; line-height: 1.28; letter-spacing: 0; page-break-after: avoid; break-after: avoid; }
-h1 { font-size: 16pt; margin: 5.2mm 0 2.2mm; }
-h2 { font-size: 13.4pt; margin: 4.8mm 0 2mm; padding-bottom: 1.1mm; border-bottom: 1px solid rgba(36, 53, 48, 0.14); }
-h3 { font-size: 12pt; margin: 4mm 0 1.5mm; }
-h4 { font-size: 11.2pt; margin: 3.2mm 0 1.2mm; }
-p, ul, ol, blockquote, pre, .markdown-table-wrap { margin: 2.5mm 0; }
-ul, ol { padding-left: 5.3mm; }
-li + li { margin-top: 1.1mm; }
-strong { font-weight: 600; color: #111b22; }
-em { color: #34444e; }
-a { color: #1f7768; text-decoration: none; overflow-wrap: anywhere; }
-blockquote { padding: 0.4mm 0 0.4mm 3mm; color: #40515c; border-left: 3px solid rgba(31, 119, 104, 0.32); background: rgba(31, 119, 104, 0.045); }
-code { padding: 0.2mm 0.9mm; color: #102027; background: rgba(20, 32, 39, 0.08); border-radius: 3px; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.86em; }
-pre { overflow-wrap: anywhere; white-space: pre-wrap; padding: 2.5mm; color: #142027; background: rgba(20, 32, 39, 0.075); border: 1px solid rgba(36, 53, 48, 0.1); border-radius: 6px; line-height: 1.52; }
-pre code { padding: 0; background: transparent; border-radius: 0; font-size: 0.9em; }
-hr { margin: 4mm 0; border: 0; border-top: 1px solid rgba(36, 53, 48, 0.16); }
-.image-ref { display: inline-block; max-width: 100%; padding: 1mm 1.5mm; color: #40515c; background: rgba(31, 119, 104, 0.06); border-radius: 4px; overflow-wrap: anywhere; }
-.markdown-table-wrap { border: 0; border-radius: 0; background: transparent; }
-table, thead, tbody, tr, th, td { display: block; width: 100%; }
-thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-tr { margin: 0 0 2.6mm; border: 1px solid rgba(36, 53, 48, 0.14); border-radius: 6px; background: rgba(255, 255, 255, 0.68); overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
-td { display: grid; grid-template-columns: minmax(18mm, 36%) minmax(0, 1fr); gap: 2mm; align-items: start; padding: 2mm 2.2mm; border: 0; border-bottom: 1px solid rgba(36, 53, 48, 0.11); overflow-wrap: anywhere; word-break: break-word; }
-td:last-child { border-bottom: 0; }
-td::before { content: attr(data-label); color: #42515c; font-size: 0.82em; font-weight: 600; line-height: 1.35; }
-td[data-label=""] { grid-template-columns: 1fr; }
-td[data-label=""]::before { content: none; }
-</style>
-</head>
-<body>
-<main>
-<section class="document-cover">
-<div class="document-kicker">Hermes Mobile / Weixin readable PDF</div>
-<h1 class="document-title">${escapeHtmlForDocument(title || "Markdown")}</h1>
-<div class="source">${escapeHtmlForDocument(sourcePath || "")}</div>
-</section>
-${rendered}
-</main>
-</body>
-</html>`;
+  return renderWeixinMarkdownForwardHtml(title, sourcePath, markdown);
 }
 
 function findFirstExistingFile(paths) {

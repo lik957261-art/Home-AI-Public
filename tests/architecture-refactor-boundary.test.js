@@ -71,6 +71,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanStory.visibleKanbanCaseCards, "function");
   assert.equal(typeof kanbanStory.kanbanCardEffectiveCaseIndex, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
+  assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(typeof threadViewService.createThreadViewService, "function");

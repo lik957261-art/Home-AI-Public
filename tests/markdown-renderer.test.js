@@ -5,6 +5,7 @@ const {
   escapeHtml,
   renderMarkdownDocument,
   renderMarkdownToHtml,
+  renderWeixinMarkdownForwardHtml,
   markdownFontScaleForBase,
   sanitizeLinkHref,
 } = require("../adapters/markdown-renderer");
@@ -101,6 +102,28 @@ Paragraph with **bold**, *italic*, and [relative](./file.md).
   assert.equal(html.includes('<ol class="hermes-markdown-list">'), true);
 }
 
+function testWeixinForwardHtmlWrapper() {
+  const html = renderWeixinMarkdownForwardHtml("Report <Title>", "C:\\private\\report.md", [
+    "# Summary",
+    "",
+    "| Item | Value |",
+    "| --- | ---: |",
+    "| Score | **98** |",
+    "",
+    "Use [safe](https://example.com) and [bad](javascript:alert(1)).",
+  ].join("\n"));
+  assert.equal(html.startsWith("<!doctype html>"), true);
+  assert.equal(html.includes("Hermes Mobile / Weixin readable PDF"), true);
+  assert.equal(html.includes("Report &lt;Title&gt;"), true);
+  assert.equal(html.includes("C:\\private\\report.md"), true);
+  assert.equal(html.includes("@page { size: 88mm 190mm;"), true);
+  assert.equal(html.includes("font-size: 11.8pt"), true);
+  assert.equal(html.includes('<td data-align="right" data-label="Value"><strong>98</strong></td>'), true);
+  assert.equal(html.includes('<a href="https://example.com">safe</a>'), true);
+  assert.equal(html.includes('<a href="#">bad</a>'), true);
+  assert.equal(html.includes("javascript:"), false);
+}
+
 testHtmlEscape();
 testLinkSanitize();
 testTable();
@@ -108,5 +131,6 @@ testTaskList();
 testCodeFence();
 testMobileDocumentWrapperAndFontScale();
 testCoreBlocks();
+testWeixinForwardHtmlWrapper();
 
 console.log("markdown-renderer tests passed");
