@@ -589,9 +589,14 @@ function createKanbanTodoBridge(options = {}) {
     if (assignee) todos = todos.filter((todo) => todo.assignee_principal_id === assignee);
     if (!includeCompleted) todos = todos.filter((todo) => todo.status === "open" && OPEN_KANBAN_STATUSES.has(todo.kanban_status));
     todos = todos.sort((a, b) => {
-      const left = a.due_at || a.updated_at || a.created_at || "";
-      const right = b.due_at || b.updated_at || b.created_at || "";
-      return String(left).localeCompare(String(right));
+      const leftOpen = a.status === "open" && OPEN_KANBAN_STATUSES.has(String(a.kanban_status || "").trim().toLowerCase());
+      const rightOpen = b.status === "open" && OPEN_KANBAN_STATUSES.has(String(b.kanban_status || "").trim().toLowerCase());
+      if (leftOpen !== rightOpen) return leftOpen ? -1 : 1;
+      const left = a.updated_at || a.created_at || a.due_at || "";
+      const right = b.updated_at || b.created_at || b.due_at || "";
+      const byRecent = String(right).localeCompare(String(left));
+      if (byRecent) return byRecent;
+      return String(b.id || "").localeCompare(String(a.id || ""));
     }).slice(0, positiveNumber(payload.limit, 80));
     return { ok: true, todos, source: "kanban", board };
   }

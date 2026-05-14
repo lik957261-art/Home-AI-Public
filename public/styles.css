@@ -4838,7 +4838,7 @@ button.directory-alias-chip {
 
 .todo-reading-recorder-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(88px, 0.42fr);
   gap: 8px;
 }
 
@@ -4846,6 +4846,28 @@ button.directory-alias-chip {
   min-height: 40px;
   padding-inline: 8px;
   white-space: nowrap;
+}
+
+.todo-reading-record-button {
+  color: #fff;
+  background: #c92a2a;
+  border-color: rgba(201, 42, 42, 0.35);
+}
+
+.todo-reading-record-button.recording {
+  background: #20272d;
+  border-color: rgba(32, 39, 45, 0.35);
+}
+
+.todo-reading-record-button.ready {
+  color: #7a2c13;
+  background: #fff4e6;
+  border-color: rgba(217, 119, 6, 0.28);
+}
+
+.todo-reading-playback {
+  width: 100%;
+  max-height: 42px;
 }
 
 .kanban-study-schedule-weekdays {
@@ -4875,7 +4897,7 @@ button.directory-alias-chip {
 
 @media (max-width: 480px) {
   .todo-reading-recorder-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(82px, 0.45fr);
   }
 }
 
@@ -5447,6 +5469,10 @@ button.directory-alias-chip {
 
 .kanban-archive-case.assessment-plan-case::before {
   background: rgba(162, 117, 47, 0.72);
+}
+
+.kanban-archive-case.single-card-case::before {
+  background: rgba(71, 99, 132, 0.72);
 }
 
 .kanban-archive-case-head {
