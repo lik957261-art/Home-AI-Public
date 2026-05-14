@@ -253,6 +253,8 @@ const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Nu
 const KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1";
 const KANBAN_STUDY_CASE_MODES = new Set(["study-plan"]);
 const KANBAN_ASSESSMENT_CASE_MODES = new Set(["assessment-plan"]);
+const KANBAN_STUDY_SHARED_FOLDER_NAME = "\u5b66\u4e60\u8ba1\u5212";
+const KANBAN_CASE_TOPIC_KIND = "case-topic";
 const KANBAN_ASSESSMENT_PLAN_MAX_EXAMS = Math.max(1, Math.min(30, Number(process.env.HERMES_MOBILE_ASSESSMENT_PLAN_MAX_EXAMS || "30") || 30));
 const KANBAN_ASSESSMENT_MAX_QUESTIONS = Math.max(5, Math.min(40, Number(process.env.HERMES_MOBILE_ASSESSMENT_MAX_QUESTIONS || "40") || 40));
 const KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_ASSESSMENT_MODEL_TIMEOUT_MS || "180000");
@@ -1800,9 +1802,13 @@ function normalizeChatGroup(value, ownerWorkspaceId = "owner", options = {}) {
   if (!options.skipCatalogLookups) memberWorkspaceIds = memberWorkspaceIds.filter((workspaceId) => findWorkspace(workspaceId));
   if (source.enabled) memberWorkspaceIds.unshift(ownerId);
   const normalizedMembers = dedupe(memberWorkspaceIds);
+  const kind = String(source.kind || source.type || "").trim() === KANBAN_CASE_TOPIC_KIND ? KANBAN_CASE_TOPIC_KIND : "";
+  const topicKey = String(source.topicKey || source.topic_key || "").trim().slice(0, 160);
   return {
     enabled: Boolean(source.enabled),
     memberWorkspaceIds: source.enabled ? normalizedMembers : [],
+    kind,
+    topicKey,
     createdAt: String(source.createdAt || source.created_at || ""),
     updatedAt: String(source.updatedAt || source.updated_at || ""),
   };
@@ -3927,6 +3933,7 @@ function upsertKanbanCaseShare(ownerWorkspaceId, caseId, input = {}) {
     || input.manager_workspace_ids
     || "",
   ).filter((workspaceId) => workspaceId !== owner);
+  const topic = input.topic && typeof input.topic === "object" && !Array.isArray(input.topic) ? input.topic : input;
   const store = kanbanCaseShareStore();
   const key = kanbanCaseShareKey(owner, id);
   const previous = store.cases[key] && typeof store.cases[key] === "object" ? store.cases[key] : {};
@@ -3937,6 +3944,10 @@ function upsertKanbanCaseShare(ownerWorkspaceId, caseId, input = {}) {
     performerWorkspaceIds,
     viewerWorkspaceIds,
     managerWorkspaceIds,
+    topicThreadId: String(topic.topicThreadId || topic.topic_thread_id || previous.topicThreadId || "").trim(),
+    topicTaskGroupId: String(topic.topicTaskGroupId || topic.topic_task_group_id || previous.topicTaskGroupId || "").trim(),
+    sharedDirectoryPath: String(topic.sharedDirectoryPath || topic.shared_directory_path || previous.sharedDirectoryPath || "").trim(),
+    caseDirectoryPath: String(topic.caseDirectoryPath || topic.case_directory_path || previous.caseDirectoryPath || "").trim(),
     updatedAt: nowIso(),
     createdAt: previous.createdAt || nowIso(),
   };
@@ -4036,6 +4047,16 @@ function annotateKanbanCardForAuth(card, auth, options = {}) {
 
 function annotateKanbanCardsForAuth(cards, auth, options = {}) {
   return (Array.isArray(cards) ? cards : []).map((card) => annotateKanbanCardForAuth(card, auth, options));
+}
+
+function kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth) {
+  if (!isKanbanCaseTopicThread(thread) || !taskGroupId) return null;
+  const meta = normalizeTaskGroupMeta(thread.taskGroupMeta)[taskGroupId] || {};
+  const caseId = String(meta.kanbanCaseId || meta.kanban_case_id || "").trim();
+  const ownerWorkspaceId = String(meta.kanbanCaseOwnerWorkspaceId || meta.kanban_case_owner_workspace_id || thread.workspaceId || "owner").trim() || "owner";
+  if (!caseId) return null;
+  const role = kanbanCaseRoleForAuth(auth, ownerWorkspaceId, caseId);
+  return kanbanActorPermissions(role);
 }
 
 function kanbanShareActorWorkspaceId(auth, selectedWorkspaceId = "") {
@@ -5067,14 +5088,195 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
   };
 }
 
+function kanbanPlanLearnerLabel(plan = {}) {
+  return compactText(
+    plan.learnerName
+    || plan.readerName
+    || plan.targetName
+    || plan.target_name
+    || "\u5b66\u4e60\u8005",
+    60,
+  ) || "\u5b66\u4e60\u8005";
+}
+
+function kanbanCaseTopicTitle(plan = {}) {
+  return compactText(
+    plan.contentTitle
+    || plan.bookTitle
+    || plan.title
+    || plan.subject
+    || plan.summary
+    || plan.id
+    || "\u5b66\u4e60\u8ba1\u5212",
+    120,
+  ) || "\u5b66\u4e60\u8ba1\u5212";
+}
+
+function kanbanLearnerSharedFolderName(plan = {}) {
+  const learner = kanbanPlanLearnerLabel(plan);
+  return safeDirectoryName(`${learner}\u5171\u4eab\u76ee\u5f55`)
+    || `learner-${safeStorageSegment(learner, "learner")}`;
+}
+
+function kanbanCaseDirectoryName(plan = {}) {
+  const title = kanbanCaseTopicTitle(plan);
+  const id = safeStorageSegment(plan.id || "case", "case");
+  const titlePart = safeStorageSegment(title, "plan").slice(0, 48);
+  return safeDirectoryName(`${id}-${titlePart}`) || id;
+}
+
+function kanbanCaseMemberWorkspaceIds(plan = {}, ownerWorkspaceId = "owner") {
+  return dedupe([
+    ownerWorkspaceId,
+    ...(Array.isArray(plan.performerWorkspaceIds) ? plan.performerWorkspaceIds : []),
+    ...(Array.isArray(plan.viewerWorkspaceIds) ? plan.viewerWorkspaceIds : []),
+  ].filter(Boolean));
+}
+
+function ensureKanbanCaseSharedDirectory(ownerWorkspaceId, plan = {}) {
+  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
+  const ownerRoot = workspaceDefaultRoot(owner);
+  const targets = kanbanCaseMemberWorkspaceIds(plan, owner).filter((workspaceId) => workspaceId !== owner);
+  if (!ownerRoot || !targets.length) return null;
+  const learner = kanbanPlanLearnerLabel(plan);
+  const learnerRoot = path.join(ownerRoot, kanbanLearnerSharedFolderName(plan));
+  const sharedRoot = path.join(learnerRoot, KANBAN_STUDY_SHARED_FOLDER_NAME);
+  const caseDirectory = path.join(sharedRoot, kanbanCaseDirectoryName(plan));
+  assertChildPathInside(ownerRoot, learnerRoot);
+  assertChildPathInside(learnerRoot, sharedRoot);
+  assertChildPathInside(sharedRoot, caseDirectory);
+  fs.mkdirSync(caseDirectory, { recursive: true });
+  const share = upsertSharedDirectory({
+    path: sharedRoot,
+    label: `${learner}${KANBAN_STUDY_SHARED_FOLDER_NAME}`,
+    createdAt: nowIso(),
+    createdBy: owner,
+    createdByPrincipalId: workspacePrincipal(owner),
+    permission: "read_only",
+    scope: "selected_workspaces",
+    targetWorkspaceIds: targets,
+    aliases: [learner, KANBAN_STUDY_SHARED_FOLDER_NAME, `${learner}${KANBAN_STUDY_SHARED_FOLDER_NAME}`],
+    source: "hermes-mobile-study-plan",
+  });
+  return {
+    sharedDirectoryPath: sharedRoot,
+    caseDirectoryPath: caseDirectory,
+    share,
+    directoryRoute: {
+      label: `${learner} / ${KANBAN_STUDY_SHARED_FOLDER_NAME} / ${kanbanCaseTopicTitle(plan)}`,
+      root: caseDirectory,
+      path: caseDirectory,
+    },
+  };
+}
+
+function kanbanCaseTopicKey(ownerWorkspaceId, plan = {}) {
+  return `study:${safeStorageSegment(ownerWorkspaceId || "owner", "owner")}:${safeStorageSegment(kanbanPlanLearnerLabel(plan), "learner").toLowerCase()}`;
+}
+
+function findKanbanCaseTopicThread(ownerWorkspaceId, topicKey) {
+  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
+  const key = String(topicKey || "").trim();
+  return (state.threads || []).find((thread) => (
+    thread?.singleWindow
+    && thread.workspaceId === owner
+    && isKanbanCaseTopicThread(thread)
+    && normalizeChatGroup(thread.chatGroup || {}, owner).topicKey === key
+  )) || null;
+}
+
+function ensureKanbanCaseTopicThread(ownerWorkspaceId, plan = {}, directoryInfo = null) {
+  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
+  const members = kanbanCaseMemberWorkspaceIds(plan, owner);
+  if (members.length <= 1) return null;
+  const now = nowIso();
+  const topicKey = kanbanCaseTopicKey(owner, plan);
+  let thread = findKanbanCaseTopicThread(owner, topicKey);
+  if (!thread) {
+    thread = createSingleWindowThread(owner, {
+      title: `${kanbanPlanLearnerLabel(plan)}${KANBAN_STUDY_SHARED_FOLDER_NAME}`,
+      chatGroup: {
+        enabled: true,
+        kind: KANBAN_CASE_TOPIC_KIND,
+        topicKey,
+        memberWorkspaceIds: members,
+        createdAt: now,
+        updatedAt: now,
+      },
+      createdAt: now,
+      updatedAt: now,
+    });
+    state.threads.unshift(thread);
+  } else {
+    const group = normalizeChatGroup(thread.chatGroup || {}, owner);
+    thread.chatGroup = Object.assign({}, group, {
+      enabled: true,
+      kind: KANBAN_CASE_TOPIC_KIND,
+      topicKey,
+      memberWorkspaceIds: dedupe([...(group.memberWorkspaceIds || []), ...members]),
+      createdAt: group.createdAt || now,
+      updatedAt: now,
+    });
+  }
+  const taskGroupId = `case_${safeStorageSegment(plan.id || makeId("case"), "case")}`;
+  thread.taskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
+  thread.taskGroupMeta[taskGroupId] = Object.assign({}, thread.taskGroupMeta[taskGroupId] || {}, {
+    title: kanbanCaseTopicTitle(plan),
+    updatedAt: now,
+    sharedTopic: true,
+    kanbanCaseId: plan.id || "",
+    kanbanCaseMode: plan.mode || "",
+    kanbanCaseOwnerWorkspaceId: owner,
+    performerWorkspaceIds: plan.performerWorkspaceIds || [],
+    viewerWorkspaceIds: plan.viewerWorkspaceIds || [],
+    directoryRoute: directoryInfo?.directoryRoute || null,
+    sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
+    caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
+  });
+  if (!(thread.messages || []).some((message) => message.taskGroupId === taskGroupId)) {
+    const sender = senderInfoForWorkspace(owner);
+    thread.messages = sortMessagesChronologically([...(thread.messages || []), {
+      id: makeId("msg"),
+      role: "user",
+      content: [
+        `${KANBAN_STUDY_SHARED_FOLDER_NAME}\u8bdd\u9898\uff1a${kanbanCaseTopicTitle(plan)}`,
+        directoryInfo?.caseDirectoryPath ? `Directory: ${directoryInfo.caseDirectoryPath}` : "",
+      ].filter(Boolean).join("\n"),
+      status: "done",
+      taskGroupId,
+      messageKind: "plain",
+      singleWindowMode: "task",
+      actorWorkspaceId: owner,
+      senderWorkspaceId: sender.senderWorkspaceId,
+      senderPrincipalId: sender.senderPrincipalId,
+      senderLabel: sender.senderLabel,
+      directoryRoute: directoryInfo?.directoryRoute || null,
+      directoryAliases: directoryInfo?.directoryRoute ? [directoryInfo.directoryRoute] : [],
+      createdAt: now,
+      updatedAt: now,
+      submittedAt: now,
+    }]);
+  }
+  thread.updatedAt = now;
+  saveState(state, { reason: "kanban-case-topic", forceBackup: true });
+  broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+  return { thread, taskGroupId };
+}
+
 async function createKanbanStudyPlanCards(workspaceId, input = {}) {
   const plan = normalizeKanbanStudyPlan(input, workspaceId);
   const cover = saveKanbanReadingCoverUpload(workspaceId, plan.id, input.coverImage || input.cover_image || input.cover || null);
   if (cover) plan.cover = publicKanbanCoverFile(workspaceId, cover) || cover;
+  const directoryInfo = ensureKanbanCaseSharedDirectory(workspaceId, plan);
+  const topic = ensureKanbanCaseTopicThread(workspaceId, plan, directoryInfo);
   const share = upsertKanbanCaseShare(workspaceId, plan.id, {
     performerWorkspaceIds: plan.performerWorkspaceIds,
     viewerWorkspaceIds: plan.viewerWorkspaceIds,
     managerWorkspaceIds: input.managerWorkspaceIds || input.manager_workspace_ids || [],
+    topicThreadId: topic?.thread?.id || "",
+    topicTaskGroupId: topic?.taskGroupId || "",
+    sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
+    caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
   });
   const performerAssignee = plan.performerWorkspaceIds[0] ? workspacePrincipal(plan.performerWorkspaceIds[0]) : "";
   const requestedAssignee = input.assignee || performerAssignee || workspacePrincipal(workspaceId);
@@ -5150,7 +5352,22 @@ async function createKanbanStudyPlanCards(workspaceId, input = {}) {
       };
     }
   }
-  return { ok: true, plan, cards: created, share };
+  return {
+    ok: true,
+    plan,
+    cards: created,
+    share,
+    topic: topic ? {
+      threadId: topic.thread.id,
+      taskGroupId: topic.taskGroupId,
+      title: kanbanCaseTopicTitle(plan),
+    } : null,
+    sharedDirectory: directoryInfo ? {
+      path: directoryInfo.sharedDirectoryPath,
+      caseDirectoryPath: directoryInfo.caseDirectoryPath,
+      permission: "read_only",
+    } : null,
+  };
 }
 
 function normalizeKanbanAssessmentSubjectId(value = "") {
@@ -5323,10 +5540,16 @@ function kanbanAssessmentConfigFromCard(card = {}) {
 
 async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options = {}) {
   const plan = normalizeKanbanAssessmentPlan(input, workspaceId, options);
+  const directoryInfo = ensureKanbanCaseSharedDirectory(workspaceId, plan);
+  const topic = ensureKanbanCaseTopicThread(workspaceId, plan, directoryInfo);
   const share = upsertKanbanCaseShare(workspaceId, plan.id, {
     performerWorkspaceIds: plan.performerWorkspaceIds,
     viewerWorkspaceIds: plan.viewerWorkspaceIds,
     managerWorkspaceIds: input.managerWorkspaceIds || input.manager_workspace_ids || [],
+    topicThreadId: topic?.thread?.id || "",
+    topicTaskGroupId: topic?.taskGroupId || "",
+    sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
+    caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
   });
   const performerAssignee = plan.performerWorkspaceIds[0] ? workspacePrincipal(plan.performerWorkspaceIds[0]) : "";
   const requestedAssignee = input.assignee || performerAssignee || workspacePrincipal(workspaceId);
@@ -5396,7 +5619,22 @@ async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options 
       };
     }
   }
-  return { ok: true, plan, cards: created, share };
+  return {
+    ok: true,
+    plan,
+    cards: created,
+    share,
+    topic: topic ? {
+      threadId: topic.thread.id,
+      taskGroupId: topic.taskGroupId,
+      title: kanbanCaseTopicTitle(plan),
+    } : null,
+    sharedDirectory: directoryInfo ? {
+      path: directoryInfo.sharedDirectoryPath,
+      caseDirectoryPath: directoryInfo.caseDirectoryPath,
+      permission: "read_only",
+    } : null,
+  };
 }
 
 function isReadingAudioUpload(filename, mime) {
@@ -7356,6 +7594,11 @@ function isGroupChatThread(thread) {
   return Boolean(normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner").enabled);
 }
 
+function isKanbanCaseTopicThread(thread) {
+  const group = normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner");
+  return Boolean(thread?.singleWindow && group.enabled && group.kind === KANBAN_CASE_TOPIC_KIND);
+}
+
 function isExternalIngressThread(thread) {
   return Boolean(thread?.externalIngress?.source);
 }
@@ -7590,6 +7833,7 @@ function migratePrivateSingleWindowGroups(workspaceId) {
   const groupThreads = (state.threads || []).filter((thread) => (
     thread?.singleWindow
     && isGroupChatThread(thread)
+    && !isKanbanCaseTopicThread(thread)
     && (thread.workspaceId === id || chatGroupMemberWorkspaceIds(thread).includes(id))
   ));
   const externalIngressThreads = (state.threads || []).filter((thread) => (
@@ -7751,8 +7995,18 @@ function findGroupChatThreadForWorkspace(workspaceId) {
   const id = String(workspaceId || "").trim();
   if (!id) return null;
   return (state.threads || [])
-    .filter((thread) => thread?.singleWindow && chatGroupMemberWorkspaceIds(thread).includes(id))
+    .filter((thread) => thread?.singleWindow && !isKanbanCaseTopicThread(thread) && chatGroupMemberWorkspaceIds(thread).includes(id))
     .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
+}
+
+function kanbanCaseTopicThreadsForWorkspace(auth, workspaceId) {
+  const id = String(workspaceId || "").trim();
+  if (!id) return [];
+  return (state.threads || [])
+    .filter((thread) => isKanbanCaseTopicThread(thread))
+    .filter((thread) => chatGroupMemberWorkspaceIds(thread).includes(id))
+    .filter((thread) => threadAccessibleToAuth(auth, thread))
+    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
 }
 
 function workspaceLabel(workspaceId) {
@@ -7773,6 +8027,8 @@ function publicChatGroup(thread) {
   const group = normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner");
   return {
     enabled: group.enabled,
+    kind: group.kind || "",
+    topicKey: group.topicKey || "",
     memberWorkspaceIds: group.memberWorkspaceIds,
     members: group.memberWorkspaceIds.map((workspaceId) => ({
       workspaceId,
@@ -12211,7 +12467,32 @@ function isOwnWritableDirectoryPath(thread, localPath, displayPath = "") {
     || pathInsideAnyRoot(localPath, roots.map(normalizeLocalPath));
 }
 
-function isSharedDirectoryWriteAllowed(thread, localPath, displayPath = "") {
+function caseTopicDirectoryRoots(thread) {
+  if (!isKanbanCaseTopicThread(thread)) return [];
+  const roots = [];
+  for (const meta of Object.values(normalizeTaskGroupMeta(thread.taskGroupMeta))) {
+    if (!meta || typeof meta !== "object") continue;
+    if (meta.directoryRoute?.root) roots.push(meta.directoryRoute.root);
+    if (meta.directoryRoute?.path) roots.push(meta.directoryRoute.path);
+    if (meta.caseDirectoryPath) roots.push(meta.caseDirectoryPath);
+  }
+  return dedupe(roots.filter(Boolean));
+}
+
+function isReadOnlyCaseTopicDirectoryForAuth(thread, auth, localPath, displayPath = "") {
+  if (!isKanbanCaseTopicThread(thread)) return false;
+  if (isOwnerAuth(auth) || authCanAccessWorkspace(auth, thread.workspaceId)) return false;
+  const actorWorkspaceId = String(auth?.workspaceId || "").trim();
+  if (!actorWorkspaceId || !chatGroupMemberWorkspaceIds(thread).includes(actorWorkspaceId)) return false;
+  const roots = caseTopicDirectoryRoots(thread);
+  if (!roots.length) return false;
+  return pathInsideAnyRoot(displayPath || localPath, roots)
+    || pathInsideAnyRoot(localPath, roots)
+    || pathInsideAnyRoot(normalizeLocalPath(localPath), roots.map(normalizeLocalPath));
+}
+
+function isSharedDirectoryWriteAllowed(thread, localPath, displayPath = "", auth = null) {
+  if (isReadOnlyCaseTopicDirectoryForAuth(thread, auth, localPath, displayPath)) return false;
   if (isOwnWritableDirectoryPath(thread, localPath, displayPath)) return true;
   return sharedDirectoryProvider.isWriteAllowed(thread, localPath, displayPath);
 }
@@ -13825,6 +14106,12 @@ async function handleApi(req, res) {
         limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
       })
       : null;
+    const caseTopicThreads = messageMode === "tasks" || messageMode === "task"
+      ? kanbanCaseTopicThreadsForWorkspace(auth, workspaceId).map((topicThread) => compactThreadWithMessagePage(topicThread, {
+        mode: "tasks",
+        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+      }))
+      : [];
     sendJson(res, 200, {
       thread: responseThread,
       groupChatAvailable,
@@ -13833,6 +14120,7 @@ async function handleApi(req, res) {
       weixinChatAvailable,
       weixinChatThreadId: weixinChatThread ? weixinThread.id : "",
       weixinChatThread,
+      caseTopicThreads,
     });
     return;
   }
@@ -14086,6 +14374,13 @@ async function handleApi(req, res) {
     if (requestedGroupChat && !isGroupChatMessage) {
       sendJson(res, 403, { error: "Group chat is not enabled for this thread" });
       return;
+    }
+    if (thread.singleWindow && singleWindowMode !== "chat") {
+      const caseTopicPermissions = kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth);
+      if (caseTopicPermissions && !caseTopicPermissions.canSubmitStudy && !caseTopicPermissions.canManage) {
+        sendJson(res, 403, { error: "This shared learning topic is read-only for the current workspace" });
+        return;
+      }
     }
     const compactResponseThread = () => (
       thread.singleWindow && singleWindowMode === "chat"
@@ -14802,7 +15097,7 @@ async function handleApi(req, res) {
         sendJson(res, 400, { error: "Path is not a directory" });
         return;
       }
-      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath)) {
+      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath, authenticateRequest(req))) {
         sendJson(res, 403, { error: "Shared directory is read-only" });
         return;
       }
@@ -14839,7 +15134,7 @@ async function handleApi(req, res) {
     const targetLocalPath = path.join(resolved.localPath, name);
     const targetDisplayPath = joinDisplayPath(resolved.displayPath, name);
     try {
-      if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath)) {
+      if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath, authenticateRequest(req))) {
         sendJson(res, 403, { error: "Shared directory is read-only" });
         return;
       }
@@ -14897,7 +15192,7 @@ async function handleApi(req, res) {
         sendJson(res, 400, { error: "Path is not a directory" });
         return;
       }
-      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath)) {
+      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath, authenticateRequest(req))) {
         sendJson(res, 403, { error: "Shared directory is read-only" });
         return;
       }
@@ -14934,7 +15229,7 @@ async function handleApi(req, res) {
       return;
     }
     try {
-      if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath)) {
+      if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath, authenticateRequest(req))) {
         sendJson(res, 403, { error: "Shared directory is read-only" });
         return;
       }
@@ -15077,7 +15372,7 @@ async function handleApi(req, res) {
     }
     if (resolved.remote === "wsl") {
       const isDirectory = resolved.remoteEntry?.type === "directory";
-      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath)) {
+      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath, authenticateRequest(req))) {
         sendJson(res, 403, { error: "Shared directory is read-only" });
         return;
       }
@@ -15114,7 +15409,7 @@ async function handleApi(req, res) {
       sendJson(res, 404, { error: "Path not found" });
       return;
     }
-    if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath)) {
+    if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath, authenticateRequest(req))) {
       sendJson(res, 403, { error: "Shared directory is read-only" });
       return;
     }

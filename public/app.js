@@ -287,6 +287,7 @@ const state = {
   groupChatAvailable: false,
   groupChatThread: null,
   groupChatThreadId: "",
+  caseTopicThreads: [],
   groupChatManagerOpen: false,
   groupChatMemberDraft: [],
   groupMentionOpen: false,
@@ -572,6 +573,12 @@ function taskGroupsForThread(thread) {
       groups.set(groupId, {
         id: groupId,
         title: String(meta.title || "").trim(),
+        sharedTopic: Boolean(meta.sharedTopic),
+        kanbanCaseId: String(meta.kanbanCaseId || "").trim(),
+        kanbanCaseMode: String(meta.kanbanCaseMode || "").trim(),
+        performerWorkspaceIds: Array.isArray(meta.performerWorkspaceIds) ? meta.performerWorkspaceIds : [],
+        viewerWorkspaceIds: Array.isArray(meta.viewerWorkspaceIds) ? meta.viewerWorkspaceIds : [],
+        directoryRoute: meta.directoryRoute && typeof meta.directoryRoute === "object" ? meta.directoryRoute : null,
         messages: [],
         createdAt: message.createdAt,
         updatedAt: meta.updatedAt || timestamp || message.updatedAt || message.createdAt,
@@ -608,9 +615,29 @@ function taskListGroupsForThread(thread) {
   return taskGroupsForThread(thread)
     .filter((group) => !isSingleWindowConversationTaskGroupId(group.id))
     .filter((group) => {
+      if (group.sharedTopic) return true;
       const ownerWorkspaceId = taskGroupOwnerWorkspaceId(group, thread?.workspaceId || "");
       return !selectedWorkspaceId || !ownerWorkspaceId || ownerWorkspaceId === selectedWorkspaceId;
     });
+}
+
+function sharedCaseTopicGroupsForTaskList(currentThread) {
+  return (Array.isArray(state.caseTopicThreads) ? state.caseTopicThreads : [])
+    .filter((thread) => thread?.id && thread.id !== currentThread?.id)
+    .flatMap((thread) => taskListGroupsForThread(thread).map((group) => Object.assign({}, group, {
+      sourceThreadId: thread.id,
+      sourceThreadTitle: thread.title || "",
+      sharedTopic: true,
+    })));
+}
+
+function sharedTopicReadOnlyForSelectedWorkspace(group) {
+  if (!group?.sharedTopic) return false;
+  const workspaceId = String(state.selectedWorkspaceId || "").trim();
+  if (!workspaceId || state.auth?.isOwner) return false;
+  const performers = new Set((group.performerWorkspaceIds || []).map(String));
+  const viewers = new Set((group.viewerWorkspaceIds || []).map(String));
+  return viewers.has(workspaceId) && !performers.has(workspaceId);
 }
 
 function activeChatTaskGroupId() {
@@ -2998,6 +3025,25 @@ function openTaskGroupFromList(taskGroupId) {
   state.pendingTaskReasoningExplicit = false;
   clearRouteScrollTarget();
   state.currentTaskGroupId = taskGroupId;
+  renderThreads();
+  renderCurrentThread({ stickToBottom: true });
+}
+
+async function openSharedTaskGroupFromList(threadId, taskGroupId) {
+  if (!threadId || !taskGroupId) return;
+  const params = new URLSearchParams({
+    messageMode: "tasks",
+    taskGroupId,
+    messageLimit: String(TASK_MESSAGE_INITIAL_LIMIT),
+  });
+  const result = await api(`/api/threads/${encodeURIComponent(threadId)}?${params}`);
+  state.pendingTaskReasoningEffort = "";
+  state.pendingTaskReasoningExplicit = false;
+  clearRouteScrollTarget();
+  state.currentThread = result.thread || null;
+  state.currentThreadId = state.currentThread?.id || threadId;
+  state.currentTaskGroupId = taskGroupId;
+  state.threads = state.currentThread ? [summarizeThread(state.currentThread)] : state.threads;
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
 }
@@ -8274,6 +8320,7 @@ async function loadSingleWindow(options = {}) {
     state.weixinChatThread = mergeChatScopeThread(state.weixinChatThread, result.weixinChatThread);
     state.weixinChatThreadId = state.weixinChatThread?.id || result.weixinChatThreadId || "";
   }
+  state.caseTopicThreads = Array.isArray(result.caseTopicThreads) ? result.caseTopicThreads : [];
   state.groupChatAvailable = Boolean(result.groupChatAvailable || selectedWorkspaceInThreadGroup(state.currentThread));
   state.weixinChatAvailable = Boolean(result.weixinChatAvailable || isThreadWeixinChat(state.currentThread));
   rememberChatScopeThread(state.currentThread);
@@ -12023,7 +12070,9 @@ function renderCurrentThread(options = {}) {
 }
 
 function renderTaskWindow(thread, conversation, options, bottomOffset) {
-  const allGroups = taskListGroupsForThread(thread);
+  const allGroups = taskListGroupsForThread(thread)
+    .concat(sharedCaseTopicGroupsForTaskList(thread))
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   const displayGroups = allGroups.slice();
   const search = currentSearchText().toLowerCase();
   const groups = displayGroups.filter((group) => {
@@ -12051,6 +12100,11 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       : `${filterBanner}${progressPanel}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {
+        const sourceThreadId = String(button.dataset.openTaskThread || "");
+        if (sourceThreadId && sourceThreadId !== state.currentThreadId) {
+          openSharedTaskGroupFromList(sourceThreadId, button.dataset.openTask).catch(showError);
+          return;
+        }
         openTaskGroupFromList(button.dataset.openTask);
       });
     });
@@ -12067,7 +12121,8 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("threadTitle").textContent = "";
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !groupActiveRuns.length;
-    configureComposer({ enabled: true, placeholder: "Reply in this task..." });
+    const sharedReadOnly = sharedTopicReadOnlyForSelectedWorkspace(selected);
+    configureComposer({ enabled: !sharedReadOnly, placeholder: sharedReadOnly ? "\u53ea\u8bfb\u5b66\u4e60\u8bdd\u9898" : "Reply in this task..." });
     const progressPanel = renderRunProgressPanel(thread, groupActiveRuns);
     conversation.innerHTML = `${progressPanel}${(selected.messages || []).map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
     renderTaskDetailToolbar(selected);
@@ -12380,6 +12435,7 @@ function renderTaskDirectoryBadges(group, options = {}) {
 function renderTaskDetailToolbar(group) {
   const toolbar = $("taskDetailToolbar");
   if (!toolbar) return;
+  const sharedTopic = Boolean(group?.sharedTopic);
   const context = Object.assign({ toolbar: true }, taskDirectoryContext(group));
   const aliasButtons = renderDirectoryAliases(taskDirectoryAliases(group), context);
   const skillChips = renderTaskSkillChips(taskSkills(group), { compact: true });
@@ -12388,12 +12444,12 @@ function renderTaskDetailToolbar(group) {
       <div class="task-toolbar-directories">${aliasButtons || ""}</div>
       ${skillChips}
     </div>
-    <div class="task-more-wrap">
+    ${sharedTopic ? "" : `<div class="task-more-wrap">
       <button class="task-more-button" type="button" data-task-more aria-label="Topic menu" aria-expanded="false">...</button>
       <div class="task-more-menu" hidden>
         <button class="task-more-delete" type="button" data-delete-current-task>Delete</button>
       </div>
-    </div>
+    </div>`}
   `;
   const moreButton = toolbar.querySelector("[data-task-more]");
   const moreMenu = toolbar.querySelector(".task-more-menu");
@@ -12416,6 +12472,7 @@ function renderTaskDetailToolbar(group) {
 function renderTaskCard(group) {
   const latestArtifact = latestTaskListDocument(group);
   const skills = taskSkills(group);
+  const sharedTopic = Boolean(group.sharedTopic || group.sourceThreadId);
   const artifactChips = latestArtifact ? `<span class="task-doc-item">
     <a class="task-doc-icon doc-${escapeHtml(artifactKind(latestArtifact))}" href="${escapeHtml(artifactHref(latestArtifact))}" target="_blank" rel="noopener" data-task-doc title="${escapeHtml(latestArtifact.name || latestArtifact.id || "document")}" aria-label="${escapeHtml(latestArtifact.name || latestArtifact.id || "document")}">
       ${escapeHtml(iconForArtifact(latestArtifact))}
@@ -12423,18 +12480,20 @@ function renderTaskCard(group) {
     ${renderArtifactDirectoryButton(latestArtifact, { compact: true })}
   </span>` : "";
   const skillChips = renderTaskSkillChips(skills, { compact: true });
-  return `<article class="task-card task-card-collapsed task-swipe-row" data-task-swipe-card data-task-id="${escapeHtml(group.id)}">
-    <button class="task-swipe-delete" type="button" data-delete-task="${escapeHtml(group.id)}" aria-label="Delete topic">&#21024;&#38500;</button>
+  const sourceThreadAttr = group.sourceThreadId ? ` data-open-task-thread="${escapeHtml(group.sourceThreadId)}"` : "";
+  const sharedBadge = sharedTopic ? `<span class="task-row-shared">${escapeHtml(group.sourceThreadTitle || "\u5171\u4eab\u5b66\u4e60\u8bdd\u9898")}</span>` : "";
+  return `<article class="task-card task-card-collapsed task-swipe-row${sharedTopic ? " shared-topic-card" : ""}" data-task-swipe-card data-task-id="${escapeHtml(group.id)}">
+    ${sharedTopic ? "" : `<button class="task-swipe-delete" type="button" data-delete-task="${escapeHtml(group.id)}" aria-label="Delete topic">&#21024;&#38500;</button>`}
     <div class="task-swipe-content" data-task-swipe-content>
-      <div class="task-card-menu-wrap">
+      ${sharedTopic ? "" : `<div class="task-card-menu-wrap">
         <button class="task-card-menu-button" type="button" data-task-card-menu="${escapeHtml(group.id)}" aria-label="更多操作" title="更多操作" aria-expanded="false">&#8942;</button>
         <div class="task-card-menu" hidden>
           <button class="task-card-menu-item" type="button" data-rename-task="${escapeHtml(group.id)}">修改话题名</button>
         </div>
-      </div>
-      <button class="task-card-main" type="button" data-open-task="${escapeHtml(group.id)}">
+      </div>`}
+      <button class="task-card-main" type="button" data-open-task="${escapeHtml(group.id)}"${sourceThreadAttr}>
         <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled topic")}</span>
-        <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}</span>
+        <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}${sharedBadge}</span>
       </button>
       <div class="task-card-assets">
         <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Topic documents">

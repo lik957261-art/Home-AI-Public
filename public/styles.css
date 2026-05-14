@@ -2754,6 +2754,15 @@ button.directory-alias-chip {
   white-space: nowrap;
 }
 
+.task-row-shared {
+  margin-left: 6px;
+  color: var(--muted);
+}
+
+.shared-topic-card .task-card-main {
+  padding-right: 14px;
+}
+
 .task-docs {
   min-width: 0;
   max-width: min(34vw, 220px);
