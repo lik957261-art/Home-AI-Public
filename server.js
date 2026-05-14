@@ -8,6 +8,7 @@ const crypto = require("node:crypto");
 const { spawn, spawnSync } = require("node:child_process");
 const webpush = require("web-push");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
+const { createEventFanoutService } = require("./adapters/event-fanout-service");
 const fileResourceService = require("./adapters/file-resource-service");
 const weixinMarkdownForwardService = require("./adapters/weixin-markdown-forward-service");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
@@ -801,14 +802,22 @@ const directoryMutationApiRoutes = createDirectoryMutationApiRoutes({
   unlink: (value) => fs.unlinkSync(value),
   write: (filePath, buffer, options = {}) => fs.writeFileSync(filePath, buffer, { flag: options.flag || "w" }),
 });
+const eventFanoutService = createEventFanoutService({
+  clients,
+  authCanAccessWorkspace,
+  isOwnerAuth,
+  state: () => state,
+  threadAccessibleToAuth,
+});
 const eventStreamApiRoutes = createEventStreamApiRoutes({
   activeStreams: () => activeStreams,
   authenticateRequest,
   clientVersionInfo,
-  clients,
   effectiveHermesApiBase,
   pruneEmptyThreads,
   readClientVersion,
+  registerClient: eventFanoutService.registerClient,
+  removeClient: eventFanoutService.removeClient,
   runConcurrencySnapshot,
   sendJson,
   state: () => state,
@@ -9459,39 +9468,15 @@ function addThreadEvent(thread, event) {
 }
 
 function broadcast(payload) {
-  const body = `data: ${JSON.stringify(payload)}\n\n`;
-  for (const client of [...clients]) {
-    if (!clientCanReceivePayload(client, payload)) continue;
-    const res = client.res || client;
-    try {
-      res.write(body);
-    } catch (_) {
-      clients.delete(client);
-    }
-  }
+  eventFanoutService.broadcast(payload);
 }
 
 function payloadWorkspaceId(payload) {
-  return String(
-    payload?.workspaceId
-      || payload?.thread?.workspaceId
-      || payload?.message?.workspaceId
-      || payload?.todo?.workspaceId
-      || "",
-  );
+  return eventFanoutService.payloadWorkspaceId(payload);
 }
 
 function clientCanReceivePayload(client, payload) {
-  const auth = client?.auth || { ok: true, role: "owner", isOwner: true };
-  if (isOwnerAuth(auth)) return true;
-  const threadId = payload?.threadId || payload?.thread?.id || payload?.message?.threadId || "";
-  if (threadId) {
-    const thread = state.threads.find((item) => item.id === String(threadId));
-    if (thread) return threadAccessibleToAuth(auth, thread);
-  }
-  const workspaceId = payloadWorkspaceId(payload);
-  if (workspaceId) return authCanAccessWorkspace(auth, workspaceId);
-  return true;
+  return eventFanoutService.clientCanReceivePayload(client, payload);
 }
 
 function pushSubscriptionCount() {

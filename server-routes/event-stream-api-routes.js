@@ -33,14 +33,13 @@ function createEventStreamApiRoutes(deps = {}) {
     "effectiveHermesApiBase",
     "pruneEmptyThreads",
     "readClientVersion",
+    "registerClient",
+    "removeClient",
     "runConcurrencySnapshot",
     "sendJson",
     "threadAccessibleToAuth",
     "threadSummary",
   ]);
-  if (!deps.clients || typeof deps.clients.add !== "function" || typeof deps.clients.delete !== "function") {
-    throw new Error("event stream api routes require clients set");
-  }
   if (typeof deps.state !== "function") throw new Error("event stream api routes require state");
   if (typeof deps.activeStreams !== "function") throw new Error("event stream api routes require activeStreams");
 
@@ -84,18 +83,18 @@ function createEventStreamApiRoutes(deps = {}) {
     })}\n\n`);
     lastSentClientVersion = deps.readClientVersion();
     const client = { res, auth };
-    deps.clients.add(client);
+    deps.registerClient(client);
     const heartbeat = setTimer(() => {
       try {
         if (!sendClientVersionEvent(false)) res.write(": keepalive\n\n");
       } catch (_) {
         clearTimer(heartbeat);
-        deps.clients.delete(client);
+        deps.removeClient(client);
       }
     }, 25000);
     req.on("close", () => {
       clearTimer(heartbeat);
-      deps.clients.delete(client);
+      deps.removeClient(client);
     });
   }
 

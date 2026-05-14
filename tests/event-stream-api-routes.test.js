@@ -62,7 +62,6 @@ function makeRoutes(overrides = {}) {
     clientVersionInfo(reported) {
       return { version, reported, refreshRequired: reported !== version };
     },
-    clients,
     effectiveHermesApiBase() {
       return "http://127.0.0.1:8642";
     },
@@ -71,6 +70,13 @@ function makeRoutes(overrides = {}) {
     },
     readClientVersion() {
       return version;
+    },
+    registerClient(client) {
+      clients.add(client);
+      return client;
+    },
+    removeClient(client) {
+      clients.delete(client);
     },
     runConcurrencySnapshot() {
       return { activeGlobal: 1 };

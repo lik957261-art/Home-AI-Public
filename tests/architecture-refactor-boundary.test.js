@@ -7,6 +7,7 @@ const bridgeCommandProvider = require("../adapters/bridge-command-provider");
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
 const documentPreviewService = require("../adapters/document-preview-service");
+const eventFanoutService = require("../adapters/event-fanout-service");
 const fileArtifactAccessService = require("../adapters/file-artifact-access-service");
 const fileArtifactResolverService = require("../adapters/file-artifact-resolver-service");
 const fileResponseService = require("../adapters/file-response-service");
@@ -77,6 +78,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
   assert.equal(typeof documentPreviewService.createDocumentPreviewService, "function");
   assert.equal(typeof documentPreviewService.extractDocxTextFromBuffer, "function");
+  assert.equal(typeof eventFanoutService.createEventFanoutService, "function");
+  assert.equal(typeof eventFanoutService.payloadWorkspaceId, "function");
   assert.equal(typeof fileArtifactAccessService.createFileArtifactAccessService, "function");
   assert.equal(typeof fileArtifactResolverService.createFileArtifactResolverService, "function");
   assert.equal(typeof fileResponseService.createFileResponseService, "function");
@@ -163,6 +166,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /runtimeConfigApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createPushApiRoutes/);
   assert.match(server, /pushApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createEventFanoutService/);
+  assert.match(server, /eventFanoutService\.broadcast/);
   assert.match(server, /createEventStreamApiRoutes/);
   assert.match(server, /eventStreamApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createWeixinApiRoutes/);
