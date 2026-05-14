@@ -50,7 +50,9 @@ function main() {
   assertContains("public/app.js", /function todoWorkflowState\(todo\)/, "frontend must prefer server workflow state");
   assertContains("public/app.js", /workflow\.canSubmitStudy/, "study submission button must honor workflow state");
   assertContains("public/app.js", /workflow\.canStartExam/, "assessment start button must honor workflow state");
-  assertContains("server.js", /egressPolicyProvider\.decide[\s\S]{0,600}operation: "manual_forward"/, "manual Weixin forwarding must use egress policy");
+  assertContains("server.js", /createWeixinFileForwardService[\s\S]{0,1200}egressPolicyProvider/, "manual Weixin file forwarding must receive the egress policy provider");
+  assertContains("adapters/weixin-file-forward-service.js", /egressPolicyProvider\.decide[\s\S]{0,600}operation: "manual_forward"/, "manual Weixin forwarding must use egress policy");
+  assertContains("adapters/weixin-file-forward-service.js", /explicitUserApproved: true[\s\S]{0,200}sendsFileContent: true/, "manual Weixin forwarding must declare user approval and file-content egress");
   assertContains("adapters/path-policy-provider.js", /normalizePathForBoundary/, "path policy must normalize traversal before root checks");
   assertContains("adapters/egress-policy-provider.js", /missing_actor_workspace/, "egress policy must fail closed without actor context");
   assertContains("adapters/egress-policy-provider.js", /const actorWorkspaceId = String\(input\.actorWorkspaceId/, "egress policy must require explicit actor workspace");
@@ -61,7 +63,8 @@ function main() {
   assertContains("adapters/path-policy-provider.js", /Target directory must not be a symlink or junction/, "write path boundary must reject symlink or junction parents");
   assertContains("adapters/shared-directory-provider.js", /path\.win32\.normalize/, "shared directory path helper must normalize traversal");
   assertContains("adapters/project-discovery-provider.js", /path\.win32\.normalize/, "project discovery path helper must normalize traversal");
-  assertContains("server.js", /const sourceFile = resolved\.file \|\| fileResultFromBridgeFileForForward/, "manual Weixin bridge files must materialize after egress policy");
+  assertContains("adapters/weixin-file-forward-service.js", /const bridgeResult = resolved\.file \? null : fileResultFromBridgeFileForForward/, "manual Weixin bridge files must resolve only inside the forwarding service");
+  assertContains("adapters/weixin-file-forward-service.js", /const sourceFile = resolved\.file \|\| bridgeResult\?\.file[\s\S]{0,400}materializeWeixinForwardFile/, "manual Weixin bridge files must materialize after egress policy");
 
   console.log("security invariants check passed");
 }

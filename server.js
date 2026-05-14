@@ -46,6 +46,7 @@ const { createThreadViewService } = require("./adapters/thread-view-service");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
+const { createWeixinFileForwardService } = require("./adapters/weixin-file-forward-service");
 const { createWeixinForwardService } = require("./adapters/weixin-forward-service");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
@@ -468,6 +469,7 @@ const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
 let threadViewService = null;
+let weixinFileForwardService = null;
 let weixinForwardService = null;
 const runConcurrencyPolicy = createRunConcurrencyPolicy({
   maxGlobal: () => RUN_CONCURRENCY_MAX_GLOBAL,
@@ -1015,6 +1017,42 @@ weixinForwardService = createWeixinForwardService({
   workspaceLabel,
 });
 bootTrace("weixin forward service ready");
+
+weixinFileForwardService = createWeixinFileForwardService({
+  authCanAccessWorkspace,
+  basename: path.basename,
+  broadcast,
+  compactMessage,
+  compactText,
+  compactThread,
+  deliveryId: (threadId, messageId) => weixinIngressProvider.deliveryId(threadId, messageId),
+  egressPolicyProvider,
+  ensureWeixinSingleWindowThread,
+  fileResultFromBridgeFileForForward,
+  findThreadForAuth,
+  fs,
+  isOwnerAuth,
+  isWeixinSingleWindowThread,
+  makeId,
+  materializeWeixinForwardFile,
+  mimeFor,
+  normalizeExternalDelivery,
+  normalizeLocalPath,
+  nowIso,
+  publicWeixinOutboundDelivery,
+  resolveArtifactForRequest,
+  resolveAuthorizedCronDeliverableFile,
+  resolveAuthorizedCronOutputFile,
+  resolveFileForBrowserRequest,
+  resolveKanbanOutputFile,
+  resolveWeixinForwardTarget,
+  safeFileName,
+  saveState,
+  singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+  state: () => state,
+  threadSummary,
+});
+bootTrace("weixin file forward service ready");
 
 const workspaceBindingsProvider = createWorkspaceBindingsProvider({
   interfaceToolsetsJson: () => process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "",
@@ -9893,12 +9931,6 @@ function fileResultFromBridgeFileForForward(file, workspaceId) {
   };
 }
 
-function fileResultFromResolvedForwardSource(resolved, workspaceId, fallbackError) {
-  if (resolved?.file) return { file: resolved.file };
-  if (resolved?.bridgeFile) return { bridgeFile: resolved.bridgeFile, bridgeWorkspaceId: workspaceId };
-  return { status: resolved?.status || 404, error: resolved?.error || fallbackError || "File not found" };
-}
-
 function materializeWeixinForwardFile(file, workspaceId) {
   return weixinMarkdownForwardService.materializeWeixinForwardFile(file, workspaceId, {
     dataDir: DATA_DIR,
@@ -9913,221 +9945,19 @@ function materializeWeixinForwardFile(file, workspaceId) {
 }
 
 async function resolveFileFromSourceUrlForRequest(sourceUrl, auth) {
-  const raw = String(sourceUrl || "").trim();
-  if (!raw) return null;
-  let parsed;
-  try {
-    parsed = new URL(raw, "http://hermes-mobile.local");
-  } catch (_) {
-    return { status: 400, error: "Invalid sourceUrl" };
-  }
-  const artifactMatch = parsed.pathname.match(/^\/api\/artifacts\/([^/]+)$/);
-  if (artifactMatch) {
-    const resolved = resolveArtifactForRequest(decodeURIComponent(artifactMatch[1]), auth);
-    if (!resolved.artifact) return { status: resolved.status || 404, error: resolved.error || "Artifact not found" };
-    const artifact = resolved.artifact;
-    return {
-      file: {
-        localPath: artifact.localPath || artifact.path,
-        displayPath: artifact.displayPath || artifact.path || "",
-        name: artifact.name || path.basename(artifact.localPath || artifact.path || "file"),
-        mime: artifact.mime || mimeFor(artifact.localPath || artifact.path || ""),
-        size: Number(artifact.size || 0) || 0,
-        artifact,
-      },
-      thread: resolved.thread,
-    };
-  }
-  if (parsed.pathname === "/api/files" || parsed.pathname === "/api/files/preview") {
-    return resolveFileForBrowserRequest(parsed.searchParams, auth);
-  }
-  if (parsed.pathname === "/api/automations/output" || parsed.pathname === "/api/automations/output/preview") {
-    const workspaceId = String(parsed.searchParams.get("workspaceId") || auth?.workspaceId || "owner").trim() || "owner";
-    const resolved = await resolveAuthorizedCronOutputFile(parsed.searchParams, auth);
-    return fileResultFromResolvedForwardSource(resolved, workspaceId, "Automation output not found");
-  }
-  if (parsed.pathname === "/api/automations/deliverable" || parsed.pathname === "/api/automations/deliverable/preview") {
-    const workspaceId = String(parsed.searchParams.get("workspaceId") || auth?.workspaceId || "owner").trim() || "owner";
-    const resolved = await resolveAuthorizedCronDeliverableFile(parsed.searchParams, auth);
-    return fileResultFromResolvedForwardSource(resolved, workspaceId, "Automation deliverable not found");
-  }
-  if (parsed.pathname === "/api/kanban/cards/output" || parsed.pathname === "/api/kanban/cards/output/preview") {
-    const workspaceId = String(parsed.searchParams.get("workspaceId") || auth?.workspaceId || "owner").trim() || "owner";
-    const resolved = resolveKanbanOutputFile(workspaceId, parsed.searchParams.get("path") || "", auth);
-    return fileResultFromResolvedForwardSource(resolved, workspaceId, "Kanban output not found");
-  }
-  return { status: 400, error: "Unsupported file source for Weixin forwarding" };
+  return weixinFileForwardService.resolveFileFromSourceUrlForRequest(sourceUrl, auth);
 }
 
 async function resolveWeixinForwardFile(body, auth) {
-  const source = body && typeof body === "object" ? body : {};
-  const artifactId = String(source.artifactId || source.artifact_id || "").trim();
-  if (artifactId) {
-    const resolved = resolveArtifactForRequest(artifactId, auth);
-    if (!resolved.artifact) return { status: resolved.status || 404, error: resolved.error || "Artifact not found" };
-    const artifact = resolved.artifact;
-    return {
-      file: {
-        localPath: artifact.localPath || artifact.path,
-        displayPath: artifact.displayPath || artifact.path || "",
-        name: artifact.name || path.basename(artifact.localPath || artifact.path || "file"),
-        mime: artifact.mime || mimeFor(artifact.localPath || artifact.path || ""),
-        size: Number(artifact.size || 0) || 0,
-        artifact,
-      },
-      thread: resolved.thread,
-    };
-  }
-  const sourceUrl = String(source.sourceUrl || source.source_url || source.url || "").trim();
-  if (sourceUrl) return resolveFileFromSourceUrlForRequest(sourceUrl, auth);
-  const threadId = String(source.threadId || source.thread_id || "").trim();
-  const displayPath = String(source.path || source.displayPath || source.display_path || "").trim();
-  if (threadId && displayPath) {
-    const params = new URLSearchParams({ threadId, path: displayPath });
-    return resolveFileForBrowserRequest(params, auth);
-  }
-  return { status: 400, error: "Missing artifactId, sourceUrl, or threadId/path" };
+  return weixinFileForwardService.resolveWeixinForwardFile(body, auth);
 }
 
 function publicArtifactForWeixinForward(file, thread, message) {
-  const localPath = normalizeLocalPath(file?.localPath || "");
-  if (!localPath || !fs.existsSync(localPath)) return null;
-  const stat = fs.statSync(localPath);
-  const existing = file?.artifact?.id
-    ? state.artifacts.find((item) => String(item.id || "") === String(file.artifact.id || ""))
-    : null;
-  const record = existing || {
-    id: makeId("artifact"),
-    path: localPath,
-    displayPath: String(file.displayPath || localPath),
-    name: safeFileName(file.name || localPath),
-    mime: file.mime || mimeFor(localPath),
-    size: stat.size,
-    createdAt: nowIso(),
-    workspaceId: thread.workspaceId,
-    projectId: thread.projectId,
-    subprojectId: thread.subprojectId || "",
-    threadId: thread.id,
-    messageId: message.id,
-  };
-  if (!existing) state.artifacts.push(record);
-  return {
-    id: record.id,
-    name: record.name || path.basename(localPath),
-    mime: record.mime || mimeFor(localPath),
-    size: stat.size,
-    url: `/api/artifacts/${encodeURIComponent(record.id)}`,
-    path: localPath,
-  };
+  return weixinFileForwardService.publicArtifactForWeixinForward(file, thread, message);
 }
 
 async function createWeixinFileForwardDelivery(auth, body = {}) {
-  const workspaceId = String(body.workspaceId || body.workspace_id || auth?.workspaceId || "owner").trim() || "owner";
-  if (!authCanAccessWorkspace(auth, workspaceId)) {
-    const err = new Error("Workspace access is not allowed");
-    err.status = 403;
-    throw err;
-  }
-  const resolved = await resolveWeixinForwardFile(body, auth);
-  if (!resolved?.file && !resolved?.bridgeFile) {
-    const err = new Error(resolved?.error || "File not found");
-    err.status = resolved?.status || 404;
-    throw err;
-  }
-  const target = resolveWeixinForwardTarget(body, auth, workspaceId);
-  const egressDecision = egressPolicyProvider.decide({
-    source: "hermes_mobile",
-    destination: "weixin",
-    operation: "manual_forward",
-    workspaceId,
-    actorWorkspaceId: auth?.workspaceId || workspaceId,
-    targetWorkspaceId: workspaceId,
-    originReply: false,
-    explicitUserApproved: true,
-    ownerApproved: isOwnerAuth(auth),
-    sendsFileContent: true,
-    contentKinds: ["artifact"],
-    targetType: "weixin_outbound",
-    targetId: [target.accountId, target.chatId, target.userId].filter(Boolean).join(":"),
-  });
-  if (!egressDecision.allowed) {
-    const err = new Error(egressDecision.reason || "Weixin file forwarding is not allowed");
-    err.status = 403;
-    err.code = "weixin_forward_egress_denied";
-    throw err;
-  }
-  const sourceFile = resolved.file || fileResultFromBridgeFileForForward(resolved.bridgeFile, workspaceId).file;
-  if (!sourceFile) {
-    const err = new Error("File not found");
-    err.status = 404;
-    throw err;
-  }
-  const forwardFile = materializeWeixinForwardFile(sourceFile, workspaceId);
-  const localPath = normalizeLocalPath(forwardFile.localPath || "");
-  if (!localPath || !fs.existsSync(localPath) || !fs.statSync(localPath).isFile()) {
-    const err = new Error("File not found");
-    err.status = 404;
-    throw err;
-  }
-  const requestedThreadId = String(body.threadId || body.thread_id || "").trim();
-  const requestedThread = requestedThreadId ? findThreadForAuth(auth, requestedThreadId) : null;
-  const thread = requestedThread && isWeixinSingleWindowThread(requestedThread)
-    ? requestedThread
-    : ensureWeixinSingleWindowThread(workspaceId, target);
-  const createdAt = nowIso();
-  const caption = String(body.caption ?? body.text ?? "").trim();
-  const message = {
-    id: makeId("msg"),
-    role: "assistant",
-    content: compactText(caption, 1000),
-    status: "done",
-    createdAt,
-    updatedAt: createdAt,
-    completedAt: createdAt,
-    artifacts: [],
-    taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-    messageKind: "plain",
-    senderWorkspaceId: "hermes",
-    senderPrincipalId: "hermes",
-    senderLabel: "Hermes",
-    actorWorkspaceId: workspaceId,
-    singleWindowMode: "chat",
-  };
-  const artifact = publicArtifactForWeixinForward(forwardFile, thread, message);
-  if (!artifact) {
-    const err = new Error("File could not be registered for forwarding");
-    err.status = 500;
-    throw err;
-  }
-  message.artifacts = [artifact];
-  message.externalDelivery = normalizeExternalDelivery({
-    source: "weixin",
-    deliveryId: weixinIngressProvider.deliveryId(thread.id, message.id),
-    status: "pending",
-    accountId: target.accountId,
-    chatId: target.chatId,
-    userId: target.userId,
-    workspaceId,
-    content: message.content,
-    artifacts: message.artifacts,
-    terminalStatus: "manual_forward",
-    egressDecision: egressDecision.reason,
-    queuedAt: createdAt,
-    updatedAt: createdAt,
-  });
-  thread.messages.push(message);
-  thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
-  thread.updatedAt = createdAt;
-  saveState();
-  broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(message, thread), thread: threadSummary(thread) });
-  return {
-    ok: true,
-    target,
-    delivery: publicWeixinOutboundDelivery(thread, message),
-    message: compactMessage(message, thread),
-    thread: compactThread(thread),
-  };
+  return weixinFileForwardService.createWeixinFileForwardDelivery(auth, body);
 }
 
 function userFacingWeixinRunError(err) {

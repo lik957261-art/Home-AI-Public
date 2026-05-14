@@ -17,6 +17,7 @@ const markdownRenderer = require("../adapters/markdown-renderer");
 const runtimeStateRepository = require("../adapters/runtime-state-repository");
 const studyAssessmentService = require("../adapters/study-assessment-service");
 const threadViewService = require("../adapters/thread-view-service");
+const weixinFileForwardService = require("../adapters/weixin-file-forward-service");
 const weixinForwardService = require("../adapters/weixin-forward-service");
 const weixinMarkdownForwardService = require("../adapters/weixin-markdown-forward-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
@@ -79,6 +80,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(typeof threadViewService.createThreadViewService, "function");
+  assert.equal(typeof weixinFileForwardService.createWeixinFileForwardService, "function");
+  assert.equal(typeof weixinFileForwardService.fileResultFromResolvedForwardSource, "function");
   assert.equal(typeof weixinForwardService.createWeixinForwardService, "function");
   assert.equal(typeof weixinForwardService.compactWeixinForwardTarget, "function");
   assert.equal(typeof weixinMarkdownForwardService.materializeWeixinForwardFile, "function");
@@ -170,6 +173,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /fileResourceService\.extractArtifactPaths/);
   assert.match(server, /createWeixinForwardService/);
   assert.match(server, /weixinForwardService\.targetsForWorkspace/);
+  assert.match(server, /createWeixinFileForwardService/);
+  assert.match(server, /weixinFileForwardService\.createWeixinFileForwardDelivery/);
   assert.match(server, /weixinMarkdownForwardService\.materializeWeixinForwardFile/);
   assert.match(server, /syncKanbanCaseShareStoreToSqlite/);
   assertAppearsInOrder(server, [
