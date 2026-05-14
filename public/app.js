@@ -2260,6 +2260,7 @@ function setReadingFullscreen(enabled) {
     closeSidebar();
     blurComposerInput();
   }
+  updateNavigationControls();
   applyViewMode();
   updateMobileBottomNavReservation();
   if (state.viewMode === "single" || state.viewMode === "tasks") scheduleConversationBottomStick();
@@ -14991,6 +14992,9 @@ function wireUi() {
   });
   $("readingFullscreenExit")?.addEventListener("click", () => {
     setReadingFullscreen(false);
+  });
+  $("readingFullscreenEnter")?.addEventListener("click", () => {
+    setReadingFullscreen(true);
   });
   $("topSettingsButton")?.addEventListener("click", openSettings);
   $("clientVersion")?.addEventListener("click", applyAppUpdateFromBadge);

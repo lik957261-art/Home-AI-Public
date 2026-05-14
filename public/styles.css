@@ -1170,21 +1170,31 @@ button {
 
 .reading-fullscreen-mode .reading-fullscreen-exit {
   position: fixed;
-  right: max(10px, env(safe-area-inset-right));
-  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  top: max(6px, env(safe-area-inset-top));
   z-index: 95;
-  min-height: 34px;
-  padding: 0 11px;
-  display: inline-flex;
-  align-items: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
   color: #0f5f4d;
-  background: rgba(255, 253, 248, 0.86);
+  background: rgba(255, 253, 248, 0.72);
   border: 1px solid rgba(31, 111, 98, 0.18);
-  border-radius: 999px;
-  box-shadow: 0 10px 24px rgba(31, 43, 51, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(31, 43, 51, 0.10);
   backdrop-filter: blur(18px);
-  font-size: 12px;
+  font-size: 0;
   font-weight: 600;
+  opacity: 0.74;
+}
+
+.reading-fullscreen-mode .reading-fullscreen-exit::before {
+  content: "×";
+  font-size: 17px;
+  line-height: 1;
 }
 
 .topbar {
@@ -1341,6 +1351,7 @@ button {
   border-color: rgba(164, 61, 53, 0.2);
 }
 
+.reading-fullscreen-enter,
 .reading-fullscreen-exit {
   display: none;
 }
@@ -7664,6 +7675,35 @@ button.directory-alias-chip {
   .refresh-notice,
   .push-toast {
     bottom: calc(52px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 1099px) and (orientation: landscape) {
+  .reading-fullscreen-enter {
+    position: fixed;
+    right: calc(max(8px, env(safe-area-inset-right)) + 42px);
+    top: max(6px, env(safe-area-inset-top));
+    z-index: 26;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    color: #0f5f4d;
+    background: rgba(255, 253, 248, 0.68);
+    border: 1px solid rgba(31, 111, 98, 0.16);
+    border-radius: 10px;
+    box-shadow: 0 8px 18px rgba(31, 43, 51, 0.09);
+    backdrop-filter: blur(18px);
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.68;
+  }
+
+  .reading-fullscreen-mode .reading-fullscreen-enter {
+    display: none !important;
   }
 }
 

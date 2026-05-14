@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260514-reading-fullscreen">
+<html lang="en" data-client-version="20260514-reading-fullscreen-direct">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260514-reading-fullscreen">
+  <meta name="hermes-web-client-version" content="20260514-reading-fullscreen-direct">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f3efe7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -25,7 +25,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260514-reading-fullscreen">
+  <link rel="stylesheet" href="/styles.css?v=20260514-reading-fullscreen-direct">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -189,6 +189,7 @@
           </div>
         </div>
       </header>
+      <button id="readingFullscreenEnter" class="reading-fullscreen-enter" type="button" aria-label="全屏阅读" title="全屏阅读">⛶</button>
       <button id="readingFullscreenExit" class="reading-fullscreen-exit" type="button">退出全屏</button>
 
       <div id="accessKeyOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="accessKeyTitle"></div>
@@ -216,6 +217,6 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260514-reading-fullscreen"></script>
+  <script src="/app.js?v=20260514-reading-fullscreen-direct"></script>
 </body>
 </html>
