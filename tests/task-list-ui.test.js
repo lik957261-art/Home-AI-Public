@@ -28,6 +28,7 @@ const kanbanProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban
 const kanbanCardProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-card-provider.js"), "utf8");
 const kanbanCaseShareServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-case-share-service.js"), "utf8");
 const kanbanMaintenanceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-maintenance-service.js"), "utf8");
+const kanbanPlanServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-plan-service.js"), "utf8");
 const kanbanStudyArtifactServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-study-artifact-service.js"), "utf8");
 const fileResourceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "file-resource-service.js"), "utf8");
 const threadViewServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "thread-view-service.js"), "utf8");
@@ -770,11 +771,14 @@ assert.match(serverJs, /function saveKanbanSourceDocumentUpload\(workspaceId, bo
 assert.match(serverJs, /function extractKanbanSourceDocumentText\(upload\)/);
 assert.match(serverJs, /reasoning_effort: reasoningEffort/);
 assert.match(serverJs, /reasoningEffort,/);
-assert.match(serverJs, /Requested reasoning effort: \$\{reasoningEffort\}/);
+assert.match(serverJs, /return kanbanPlanService\.normalizeMaxParallel\(value\);/);
+assert.match(serverJs, /return kanbanPlanService\.normalizePlan\(raw, sourceText, workspaceId, options\);/);
+assert.match(serverJs, /return kanbanPlanService\.singleCardCasePayload\(content, description, sourceText\);/);
 assert.match(kanbanCardApiRoutes, /body\.maxParallel \?\? body\.max_parallel/);
 assert.match(serverJs, /Waiting for a free multi-Agent execution slot/);
 assert.match(serverJs, /kanbanMaintenanceService\.maybeReconcileDependencyBlocks\(workspaceId, options\)/);
 assert.match(kanbanMaintenanceServiceJs, /action: "dependency-unblocked"/);
+assert.match(kanbanPlanServiceJs, /Requested reasoning effort: \$\{reasoningEffort\}/);
 assert.match(serverJs, /KANBAN_BLOCKED_PUSH_DELAY_MINUTES/);
 assert.match(serverJs, /function kanbanExecutableProfileForWorkspace\(workspaceId, principalId, requestedAssignee = ""\)/);
 assert.match(serverJs, /assigneeForWorkspace: kanbanExecutableProfileForWorkspace/);
