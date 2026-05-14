@@ -108,6 +108,17 @@ profiles must see the same filesystem store. The helper
 directories, back them up, and replace them with links to a shared store without
 modifying official Hermes Gateway source.
 
+Owner maintenance workers for the same operator should also resolve their
+profile `memories` directory to the same Owner memory store when the deployment
+needs shared long-term user preferences across direct/maintenance Gateways.
+Hermes Mobile's Windows Gateway Pool starter links `officialclean*` profile
+`memories` directories to the Owner root `~/.hermes/memories` by default, with
+`HERMES_MOBILE_OWNER_MAINTENANCE_SHARED_MEMORY_MODE=profile-local` available as
+an opt-out. Only `memories` is shared this way. `state.db`,
+`response_store.db`, `config.yaml`, logs, plugins, and profile directories
+remain profile-local because they contain session/runtime state and can be
+unsafe to share across concurrent Gateway processes.
+
 Low-privilege `securityLevel=user` workers must also expose an ordinary-user
 `api_server` platform toolset. This is not a tiny whitelist: public web/search,
 scoped HTTP, weather, isolated browser automation, in-scope files, vision,

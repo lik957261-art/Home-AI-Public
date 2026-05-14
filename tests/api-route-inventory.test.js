@@ -95,6 +95,15 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "directory-browser-api-routes",
+    exportName: "createDirectoryBrowserApiRoutes",
+    required: false,
+    minRoutes: 1,
+    probes: [
+      { method: "GET", path: "/api/directories/preview", id: "directories-preview" },
+    ],
+  },
+  {
     key: "todo-api-routes",
     exportName: "createTodoApiRoutes",
     required: false,
@@ -114,6 +123,30 @@ const ROUTE_MODULES = Object.freeze([
       { method: "GET", path: "/api/kanban/cards", id: "kanban-cards-list" },
       { method: "GET", path: "/api/kanban/cards/card-1/detail", id: "kanban-card-detail" },
       { method: "POST", path: "/api/kanban/cards/card-1/comment", id: "kanban-card-action" },
+    ],
+  },
+  {
+    key: "kanban-study-api-routes",
+    exportName: "createKanbanStudyApiRoutes",
+    required: false,
+    minRoutes: 5,
+    probes: [
+      { method: "POST", path: "/api/kanban/cards/study-plan", id: "kanban-card-study-plan" },
+      { method: "POST", path: "/api/kanban/cards/assessment-plan", id: "kanban-card-assessment-plan" },
+      { method: "POST", path: "/api/kanban/cards/card-1/study-submission", id: "kanban-reading-submission" },
+      { method: "GET", path: "/api/kanban/cards/card-1/study-quiz", id: "kanban-reading-quiz" },
+      { method: "POST", path: "/api/kanban/cards/card-1/assessment-exam", id: "kanban-assessment-exam" },
+    ],
+  },
+  {
+    key: "file-artifact-api-routes",
+    exportName: "createFileArtifactApiRoutes",
+    required: false,
+    minRoutes: 3,
+    probes: [
+      { method: "GET", path: "/api/files/preview", id: "files-preview" },
+      { method: "GET", path: "/api/files", id: "files-read" },
+      { method: "GET", path: "/api/artifacts/art-1", id: "artifact-read" },
     ],
   },
 ]);

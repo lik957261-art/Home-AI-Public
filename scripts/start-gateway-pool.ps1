@@ -63,6 +63,34 @@ function Resolve-ConnectorPath {
   return Join-Path $officialHermesHome $RelativePath
 }
 
+function Assert-SafeGatewayProfileName {
+  param([string]$Profile)
+  if (-not $Profile -or $Profile -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]*$') {
+    throw "Unsafe Gateway profile name in manifest: $Profile"
+  }
+}
+
+function Assert-SafeLinuxUserName {
+  param([string]$UserName)
+  if (-not $UserName -or $UserName -notmatch '^[A-Za-z_][A-Za-z0-9_-]*$') {
+    throw "Unsafe WSL user name: $UserName"
+  }
+}
+
+function Is-OwnerMaintenanceWorker {
+  param($Worker)
+  if (-not $Worker.enabled -or -not $Worker.allowMaintenance -or -not $Worker.profile -or -not $Worker.port) { return $false }
+  if ([string]$Worker.securityLevel -ne "owner-maintenance") { return $false }
+  return [string]$Worker.profile -match '^officialclean[0-9]+$'
+}
+
+function OwnerMaintenanceSharedMemoryEnabled {
+  $value = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_OWNER_MAINTENANCE_SHARED_MEMORY_MODE")
+  if (-not $value) { $value = [Environment]::GetEnvironmentVariable("HERMES_WEB_OWNER_MAINTENANCE_SHARED_MEMORY_MODE") }
+  if (-not $value) { return $true }
+  return $value -notmatch '^(0|false|no|off|profile-local)$'
+}
+
 function Ensure-LowGatewayProfileEnv {
   $scriptPath = Join-Path $GatewayWorkerRoot "start-low-gateways.sh"
   if (-not (Test-Path -LiteralPath $scriptPath)) { return }
@@ -319,7 +347,8 @@ function Provision-OwnerExternalConnectors {
 function Start-OwnerMaintenanceGateways {
   if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Missing gateway pool manifest: $ManifestPath" }
   $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
-  $workers = @($manifest.workers | Where-Object { $_.enabled -and $_.allowMaintenance -and $_.profile -and $_.port })
+  Assert-SafeLinuxUserName -UserName $OfficialUser
+  $workers = @($manifest.workers | Where-Object { Is-OwnerMaintenanceWorker -Worker $_ })
   if ($workers.Count -eq 0) {
     Write-GatewayPoolLog "No owner-maintenance workers in manifest."
     return @()
@@ -332,18 +361,32 @@ function Start-OwnerMaintenanceGateways {
   $officialPython = "$runtimeRoot/venv/bin/python"
   $sharedAuthPath = "/home/$OfficialUser/.hermes/auth.json"
   $sharedAuthLockPath = "/home/$OfficialUser/.hermes/auth.lock"
+  $sharedMemoryEnabled = OwnerMaintenanceSharedMemoryEnabled
+  $sharedMemoryPath = "/home/$OfficialUser/.hermes/memories"
+  $ownerMaintenanceLockDir = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
   $commands = @(
+    "while ! mkdir $ownerMaintenanceLockDir 2>/dev/null; do sleep 1; done",
+    "trap 'rmdir $ownerMaintenanceLockDir' EXIT",
     "test -x $officialPython",
     "test -d $officialCleanRoot",
     "mkdir -p /home/$OfficialUser/.hermes/logs",
     "test -s $sharedAuthPath"
   )
+  if ($sharedMemoryEnabled) {
+    $commands += "mkdir -p $sharedMemoryPath"
+  }
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
+    Assert-SafeGatewayProfileName -Profile $profile
+    $profileRoot = "/home/$OfficialUser/.hermes/profiles/$profile"
+    $profileMemoryPath = "$profileRoot/memories"
     $commands += "mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs"
     $commands += "rm -f /home/$OfficialUser/.hermes/profiles/$profile/auth.json /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
     $commands += "ln -sfn $sharedAuthPath /home/$OfficialUser/.hermes/profiles/$profile/auth.json"
     $commands += "ln -sfn $sharedAuthLockPath /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
+    if ($sharedMemoryEnabled) {
+      $commands += "if [ -L $profileMemoryPath ]; then rm -f $profileMemoryPath; elif [ -d $profileMemoryPath ]; then backup=$profileMemoryPath.profile-local-backup-`$(date +%Y%m%d%H%M%S); mv $profileMemoryPath `"`$backup`"; find `"`$backup`" -maxdepth 1 -type f -name '*.md' -exec cp -n {} $sharedMemoryPath/ \; || true; fi; ln -sfn $sharedMemoryPath $profileMemoryPath"
+    }
     $commands += "setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1"
   }
   $bash = $commands -join "; "

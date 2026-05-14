@@ -39,7 +39,10 @@ const { createTodoProvider } = require("./adapters/todo-provider");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
 const { createAutomationApiRoutes } = require("./server-routes/automation-api-routes");
+const { createDirectoryBrowserApiRoutes } = require("./server-routes/directory-browser-api-routes");
+const { createFileArtifactApiRoutes } = require("./server-routes/file-artifact-api-routes");
 const { createKanbanCardApiRoutes } = require("./server-routes/kanban-card-api-routes");
+const { createKanbanStudyApiRoutes } = require("./server-routes/kanban-study-api-routes");
 const { createOwnerElevationApiRoutes } = require("./server-routes/owner-elevation-api-routes");
 const { createPublicApiRoutes } = require("./server-routes/public-api-routes");
 const { createPushApiRoutes } = require("./server-routes/push-api-routes");
@@ -606,6 +609,24 @@ const resourceApiRoutes = createResourceApiRoutes({
     detail: (...args) => skillDetailProvider.detail(...args),
   },
   compactText,
+});
+const fileArtifactApiRoutes = createFileArtifactApiRoutes({
+  contentDisposition,
+  extractDocxText,
+  mimeFor,
+  resolveArtifactForRequest,
+  resolveFileForBrowserRequest,
+  sendJson,
+  textFilePreview,
+});
+const directoryBrowserApiRoutes = createDirectoryBrowserApiRoutes({
+  compareDirectoryEntriesNewestFirst,
+  findDirectoryThreadForRequest,
+  publicDirectoryEntry,
+  publicRemoteDirectoryEntry,
+  resolveBrowserPathAsync,
+  runDirectoryBridge,
+  sendJson,
 });
 bootTrace("core api routes ready");
 let todoWebPushRunning = false;
@@ -3427,6 +3448,28 @@ const kanbanCardApiRoutes = createKanbanCardApiRoutes({
   writeKanbanCardListCache,
 });
 bootTrace("kanban card api routes ready");
+const kanbanStudyApiRoutes = createKanbanStudyApiRoutes({
+  annotateKanbanCardForAuth,
+  broadcast,
+  clearKanbanCardListCache,
+  compactText,
+  createKanbanAssessmentPlanCards,
+  createKanbanStudyPlanCards,
+  getKanbanAssessmentExam,
+  getKanbanReadingQuiz,
+  kanbanErrorResponse,
+  maxUploadBytes: MAX_UPLOAD_BYTES,
+  readBody,
+  readingCoverMaxBytes: KANBAN_READING_COVER_MAX_BYTES,
+  requireWorkspaceAccess,
+  resolveKanbanCardAccess,
+  sendJson,
+  submitKanbanAssessmentExam,
+  submitKanbanReadingQuiz,
+  submitKanbanReadingSubmission,
+  useKanbanTodoBackend,
+});
+bootTrace("kanban study api routes ready");
 
 function localAutomationStore() {
   const raw = readJsonStore(LOCAL_AUTOMATION_STORE_PATH, {});
@@ -13695,162 +13738,9 @@ async function handleApi(req, res) {
   if ((await automationApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await todoApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await kanbanCardApiRoutes.handle(req, res, url, { auth })).handled) return;
-
-  if (url.pathname === "/api/kanban/cards/study-plan" && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req, Math.ceil(KANBAN_READING_COVER_MAX_BYTES * 1.4) + 200000);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    try {
-      const result = await createKanbanStudyPlanCards(workspaceId, body);
-      if (!result.ok) {
-        kanbanErrorResponse(res, result, 502);
-        return;
-      }
-      clearKanbanCardListCache(workspaceId);
-      broadcast({ type: "kanban.updated", workspaceId, action: "study-plan-add" });
-      broadcast({ type: "todos.updated", workspaceId, action: "study-plan-add" });
-      sendJson(res, 201, result);
-    } catch (err) {
-      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/kanban/cards/assessment-plan" && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req, 240000);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    try {
-      const result = await createKanbanAssessmentPlanCards(workspaceId, body);
-      if (!result.ok) {
-        kanbanErrorResponse(res, result, 502);
-        return;
-      }
-      clearKanbanCardListCache(workspaceId);
-      broadcast({ type: "kanban.updated", workspaceId, action: "assessment-plan-add" });
-      broadcast({ type: "todos.updated", workspaceId, action: "assessment-plan-add" });
-      sendJson(res, 201, result);
-    } catch (err) {
-      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
-
-  const kanbanReadingSubmission = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/(?:reading|study)-submission$/);
-  if (kanbanReadingSubmission && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req, Math.ceil(MAX_UPLOAD_BYTES * 1.4) + 8192).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    const cardId = decodeURIComponent(kanbanReadingSubmission[1]);
-    const access = await resolveKanbanCardAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner", cardId, "submitStudy");
-    if (!access) return;
-    const workspaceId = access.workspaceId;
-    try {
-      const result = await submitKanbanReadingSubmission(workspaceId, cardId, body);
-      if (!result.ok) {
-        kanbanErrorResponse(res, result, 502);
-        return;
-      }
-      clearKanbanCardListCache(workspaceId);
-      broadcast({ type: "kanban.updated", workspaceId, cardId, action: "reading-submission" });
-      broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "reading-submission" });
-      if (result.card) result.card = annotateKanbanCardForAuth(result.card, access.auth);
-      sendJson(res, 200, result);
-    } catch (err) {
-      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
-
-  const kanbanReadingQuiz = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/(?:reading|study)-quiz$/);
-  if (kanbanReadingQuiz && (req.method === "GET" || req.method === "POST")) {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = req.method === "POST" ? await readBody(req).catch(() => ({})) : {};
-    const cardId = decodeURIComponent(kanbanReadingQuiz[1]);
-    const access = await resolveKanbanCardAccess(
-      req,
-      res,
-      body.workspaceId || url.searchParams.get("workspaceId") || "owner",
-      cardId,
-      req.method === "POST" ? "answerQuiz" : "view",
-    );
-    if (!access) return;
-    const workspaceId = access.workspaceId;
-    try {
-      const result = req.method === "POST"
-        ? await submitKanbanReadingQuiz(workspaceId, cardId, body)
-        : await getKanbanReadingQuiz(workspaceId, cardId);
-      if (!result.ok) {
-        sendJson(res, result.status || 400, { ok: false, error: result.error || "Reading quiz failed" });
-        return;
-      }
-      if (req.method === "POST" && result.passed) {
-        clearKanbanCardListCache(workspaceId);
-        broadcast({ type: "kanban.updated", workspaceId, cardId, action: "reading-quiz-passed" });
-        broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "reading-quiz-passed" });
-      }
-      if (result.card) result.card = annotateKanbanCardForAuth(result.card, access.auth);
-      sendJson(res, 200, result);
-    } catch (err) {
-      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
-
-  const kanbanAssessmentExam = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/assessment-exam$/);
-  if (kanbanAssessmentExam && (req.method === "GET" || req.method === "POST")) {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = req.method === "POST" ? await readBody(req).catch(() => ({})) : {};
-    const cardId = decodeURIComponent(kanbanAssessmentExam[1]);
-    const access = await resolveKanbanCardAccess(
-      req,
-      res,
-      body.workspaceId || url.searchParams.get("workspaceId") || "owner",
-      cardId,
-      req.method === "POST" ? "answerQuiz" : "view",
-    );
-    if (!access) return;
-    const workspaceId = access.workspaceId;
-    try {
-      const result = req.method === "POST"
-        ? await submitKanbanAssessmentExam(workspaceId, cardId, body)
-        : await getKanbanAssessmentExam(workspaceId, cardId);
-      if (!result.ok) {
-        sendJson(res, result.status || 400, { ok: false, error: result.error || "Assessment exam failed" });
-        return;
-      }
-      if (req.method === "POST") {
-        clearKanbanCardListCache(workspaceId);
-        broadcast({ type: "kanban.updated", workspaceId, cardId, action: result.passed ? "assessment-passed" : "assessment-retake" });
-        broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: result.passed ? "assessment-passed" : "assessment-retake" });
-      }
-      if (result.card) result.card = annotateKanbanCardForAuth(result.card, access.auth);
-      sendJson(res, 200, result);
-    } catch (err) {
-      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
+  if ((await kanbanStudyApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await fileArtifactApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await directoryBrowserApiRoutes.handle(req, res, url, { auth })).handled) return;
 
   if (url.pathname === "/api/single-window" && req.method === "POST") {
     const body = await readBody(req);
@@ -14812,75 +14702,6 @@ async function handleApi(req, res) {
     return;
   }
 
-  if (url.pathname === "/api/directories/preview" && req.method === "GET") {
-    const threadId = String(url.searchParams.get("threadId") || "");
-    const thread = findDirectoryThreadForRequest(req, threadId);
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const resolved = await resolveBrowserPathAsync(thread, url.searchParams);
-    if (!resolved) {
-      sendJson(res, 404, { error: "Directory not found or not allowed" });
-      return;
-    }
-    if (resolved.remote === "wsl") {
-      if (resolved.remoteEntry?.type !== "directory") {
-        sendJson(res, 400, { error: "Path is not a directory" });
-        return;
-      }
-      const result = await runDirectoryBridge({ action: "preview", path: resolved.displayPath }).catch((err) => ({ ok: false, error: err.message || String(err) }));
-      if (!result?.ok) {
-        sendJson(res, 404, { error: result?.error || "Directory not found" });
-        return;
-      }
-      const entries = (result.entries || [])
-        .map((entry) => publicRemoteDirectoryEntry(thread, resolved.displayPath, entry))
-        .filter(Boolean)
-        .sort(compareDirectoryEntriesNewestFirst)
-        .slice(0, 300);
-      sendJson(res, 200, {
-        label: resolved.label,
-        path: resolved.displayPath,
-        displayPath: resolved.workspacePath,
-        workspacePath: resolved.workspacePath,
-        localPath: "",
-        remote: "wsl",
-        updatedAt: result.updatedAt || resolved.remoteEntry?.mtime || "",
-        entryCount: entries.length,
-        entries,
-      });
-      return;
-    }
-    let stat;
-    try {
-      stat = fs.statSync(resolved.localPath);
-    } catch (_) {
-      sendJson(res, 404, { error: "Directory not found" });
-      return;
-    }
-    if (!stat.isDirectory()) {
-      sendJson(res, 400, { error: "Path is not a directory" });
-      return;
-    }
-    const entries = fs.readdirSync(resolved.localPath, { withFileTypes: true })
-      .map((entry) => publicDirectoryEntry(thread, resolved.displayPath, resolved.localPath, entry))
-      .filter(Boolean)
-      .sort(compareDirectoryEntriesNewestFirst)
-      .slice(0, 300);
-    sendJson(res, 200, {
-      label: resolved.label,
-      path: resolved.displayPath,
-      displayPath: resolved.workspacePath,
-      workspacePath: resolved.workspacePath,
-      localPath: resolved.localPath,
-      updatedAt: stat.mtime.toISOString(),
-      entryCount: entries.length,
-      entries,
-    });
-    return;
-  }
-
   if (url.pathname === "/api/directories/create" && req.method === "POST") {
     const body = await readBody(req).catch((err) => ({ __error: err }));
     if (body.__error) {
@@ -15251,80 +15072,6 @@ async function handleApi(req, res) {
       const code = err?.code === "ENOTEMPTY" || err?.code === "EEXIST" ? 409 : 500;
       sendJson(res, code, { error: err?.code === "ENOTEMPTY" ? "Directory is not empty" : (err.message || String(err)) });
     }
-    return;
-  }
-
-  if (url.pathname === "/api/files/preview" && req.method === "GET") {
-    const resolved = resolveFileForBrowserRequest(url.searchParams, auth);
-    if (!resolved.file) {
-      sendJson(res, resolved.status || 404, { error: resolved.error || "File not found" });
-      return;
-    }
-    const file = resolved.file;
-    const ext = path.extname(file.localPath).toLowerCase();
-    try {
-      let preview;
-      if (ext === ".docx") preview = extractDocxText(file.localPath);
-      else if ([".txt", ".md", ".csv", ".json"].includes(ext) || /^text\//i.test(file.mime)) preview = textFilePreview(file.localPath);
-      else {
-        sendJson(res, 415, { error: "Preview is not supported for this file type", name: file.name, mime: file.mime });
-        return;
-      }
-      sendJson(res, 200, {
-        name: file.name,
-        mime: file.mime,
-        size: file.size,
-        updatedAt: file.updatedAt,
-        path: file.displayPath,
-        text: preview.text,
-        totalChars: preview.totalChars,
-        truncated: preview.truncated,
-      });
-    } catch (err) {
-      sendJson(res, 422, { error: `Preview failed: ${err.message || String(err)}` });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/files" && req.method === "GET") {
-    const resolved = resolveFileForBrowserRequest(url.searchParams, auth);
-    if (!resolved.file) {
-      sendJson(res, resolved.status || 404, { error: resolved.error || "File not found" });
-      return;
-    }
-    const file = resolved.file;
-    const disposition = /^(1|true|yes|on)$/i.test(String(url.searchParams.get("download") || ""))
-      ? "attachment"
-      : "inline";
-    res.writeHead(200, {
-      "Content-Type": file.mime || mimeFor(file.localPath),
-      "Content-Length": file.size,
-      "Content-Disposition": contentDisposition(disposition, file.name || path.basename(file.localPath)),
-      "Cache-Control": "private, max-age=60",
-    });
-    fs.createReadStream(file.localPath).pipe(res);
-    return;
-  }
-
-  const artifactRead = url.pathname.match(/^\/api\/artifacts\/([^/]+)$/);
-  if (artifactRead && req.method === "GET") {
-    const resolvedArtifact = resolveArtifactForRequest(decodeURIComponent(artifactRead[1]), auth);
-    if (!resolvedArtifact.artifact) {
-      sendJson(res, resolvedArtifact.status || 404, { error: resolvedArtifact.error || "Artifact not found" });
-      return;
-    }
-    const artifact = resolvedArtifact.artifact;
-    const artifactPath = artifact.localPath || artifact.path;
-    const disposition = /^(1|true|yes|on)$/i.test(String(url.searchParams.get("download") || ""))
-      ? "attachment"
-      : "inline";
-    res.writeHead(200, {
-      "Content-Type": artifact.mime || mimeFor(artifactPath),
-      "Content-Length": fs.statSync(artifactPath).size,
-      "Content-Disposition": contentDisposition(disposition, artifact.name || path.basename(artifactPath)),
-      "Cache-Control": "private, max-age=60",
-    });
-    fs.createReadStream(artifactPath).pipe(res);
     return;
   }
 

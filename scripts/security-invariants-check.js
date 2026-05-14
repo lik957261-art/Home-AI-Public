@@ -36,8 +36,11 @@ function main() {
   assertContains("server.js", /grantId: `owner-(?:once|time)-/, "Owner elevation grants must carry stable grant ids");
   assertContains("server.js", /allowedWorkerSecurityLevel: "owner-maintenance"/, "Owner grants must name the allowed worker level");
 
-  assertRouteGuard(/const artifactRead = url\.pathname\.match/, /resolveArtifactForRequest|artifactAccessibleToAuth/);
-  assertRouteGuard(/\/api\/files\/preview/, /resolveFileForBrowserRequest/);
+  assertContains("server.js", /createFileArtifactApiRoutes[\s\S]{0,600}resolveArtifactForRequest/, "artifact read must be wired through the file artifact route module");
+  assertContains("server.js", /createFileArtifactApiRoutes[\s\S]{0,600}resolveFileForBrowserRequest/, "file read/preview must be wired through the file artifact route module");
+  assertContains("server.js", /fileArtifactApiRoutes\.handle\(req, res, url, \{ auth \}\)/, "file artifact routes must be installed in the API router");
+  assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /artifact-read/, /resolveArtifactForRequest/);
+  assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /files-preview/, /resolveFileForBrowserRequest/);
   assertRouteGuard(/\/api\/directories\/create/, /isSharedDirectoryWriteAllowed/);
   assertRouteGuard(/\/api\/directories\/upload/, /isSharedDirectoryWriteAllowed/);
   assertRouteGuard(/\/api\/directories\/delete/, /isSharedDirectoryWriteAllowed/);
