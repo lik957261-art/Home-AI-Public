@@ -1423,9 +1423,9 @@ function authCanAccessWorkspace(auth, workspaceId) {
   return authProvider.authCanAccessWorkspace(auth, workspaceId);
 }
 
-function chatGroupMemberWorkspaceIds(thread) {
+function chatGroupMemberWorkspaceIds(thread, options = {}) {
   if (!thread?.singleWindow) return [];
-  const group = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId);
+  const group = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId, options);
   return group.enabled ? group.memberWorkspaceIds : [];
 }
 
@@ -1935,7 +1935,7 @@ function normalizeThreadMessages(thread, messages, options = {}) {
       thread.singleWindow
       && next.messageKind === "plain"
       && next.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID
-      && chatGroupMemberWorkspaceIds(thread).length
+      && chatGroupMemberWorkspaceIds(thread, options).length
     ) {
       next.taskGroupId = SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
     }
@@ -4974,6 +4974,129 @@ function readingPlanDueTime(startDate, timeOfDay, dayOffset) {
   return formatLocalDateTime(date);
 }
 
+function readingPlanStartDateTime(startDate, timeOfDay) {
+  const dateMatch = String(startDate || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+  const timeMatch = normalizeReadingPlanTime(timeOfDay).match(/^(\d{2}):(\d{2})$/);
+  return dateMatch
+    ? new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]), Number(timeMatch[1]), Number(timeMatch[2]), 0, 0)
+    : new Date();
+}
+
+function normalizeStudyPlanScheduleFrequency(value = "") {
+  const text = String(value || "").trim().toLowerCase();
+  if (["weekly", "week", "weeks", "每周", "每週", "周", "週"].includes(text)) return "weekly";
+  if (["monthly", "month", "months", "每月", "月"].includes(text)) return "monthly";
+  return "daily";
+}
+
+function normalizeStudyPlanWeekdays(value, startDate = "") {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[,\s;，、]+/);
+  const out = [];
+  const seen = new Set();
+  const pushDay = (day) => {
+    const normalized = day === 7 ? 0 : day;
+    if (!Number.isInteger(normalized) || normalized < 0 || normalized > 6 || seen.has(normalized)) return;
+    seen.add(normalized);
+    out.push(normalized);
+  };
+  for (const item of raw) {
+    const text = String(item || "").trim().toLowerCase();
+    if (!text) continue;
+    if (/^(sun|sunday|周日|週日|周天|星期日|星期天)$/.test(text)) { pushDay(0); continue; }
+    if (/^(mon|monday|周一|週一|星期一)$/.test(text)) { pushDay(1); continue; }
+    if (/^(tue|tues|tuesday|周二|週二|星期二)$/.test(text)) { pushDay(2); continue; }
+    if (/^(wed|wednesday|周三|週三|星期三)$/.test(text)) { pushDay(3); continue; }
+    if (/^(thu|thur|thurs|thursday|周四|週四|星期四)$/.test(text)) { pushDay(4); continue; }
+    if (/^(fri|friday|周五|週五|星期五)$/.test(text)) { pushDay(5); continue; }
+    if (/^(sat|saturday|周六|週六|星期六)$/.test(text)) { pushDay(6); continue; }
+    const number = Number(text);
+    if (Number.isFinite(number)) pushDay(number === 0 ? 0 : Math.max(1, Math.min(7, Math.trunc(number))));
+  }
+  if (!out.length) {
+    out.push(readingPlanStartDateTime(normalizeReadingPlanStartDate(startDate), "00:00").getDay());
+  }
+  return out.sort((a, b) => a - b);
+}
+
+function studyPlanWeekdayLabel(day) {
+  return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][day] || "";
+}
+
+function normalizeStudyPlanSchedule(raw = {}, startDate = "", timeOfDay = "") {
+  const frequency = normalizeStudyPlanScheduleFrequency(
+    raw.scheduleFrequency
+    || raw.schedule_frequency
+    || raw.frequency
+    || raw.recurrence
+    || raw.repeat
+    || "",
+  );
+  const weekdays = normalizeStudyPlanWeekdays(
+    raw.scheduleWeekdays
+    || raw.schedule_weekdays
+    || raw.weekdays
+    || raw.weekday
+    || raw.weekDays
+    || raw.week_days
+    || "",
+    startDate,
+  );
+  const monthDay = Math.max(1, Math.min(31, Number(raw.scheduleMonthDay || raw.schedule_month_day || raw.monthDay || raw.month_day || readingPlanStartDateTime(startDate, timeOfDay).getDate()) || 1));
+  const label = frequency === "weekly"
+    ? `每周 ${weekdays.map(studyPlanWeekdayLabel).filter(Boolean).join("、") || "指定日"}`
+    : (frequency === "monthly" ? `每月 ${monthDay} 日` : "每日");
+  return {
+    frequency,
+    weekdays,
+    weekdaysOneBased: weekdays.map((day) => (day === 0 ? 7 : day)),
+    monthDay,
+    label,
+    startDate,
+    timeOfDay,
+  };
+}
+
+function daysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function readingPlanScheduleDueTime(schedule = {}, occurrenceIndex = 0) {
+  const index = Math.max(0, Number(occurrenceIndex) || 0);
+  const start = readingPlanStartDateTime(schedule.startDate, schedule.timeOfDay);
+  if (schedule.frequency === "weekly") {
+    const weekdays = Array.isArray(schedule.weekdays) && schedule.weekdays.length ? schedule.weekdays : [start.getDay()];
+    const date = new Date(start.getTime());
+    let seen = 0;
+    for (let guard = 0; guard < 3700; guard += 1) {
+      if (weekdays.includes(date.getDay())) {
+        if (seen === index) return formatLocalDateTime(date);
+        seen += 1;
+      }
+      date.setDate(date.getDate() + 1);
+    }
+    return formatLocalDateTime(date);
+  }
+  if (schedule.frequency === "monthly") {
+    const targetDay = Math.max(1, Math.min(31, Number(schedule.monthDay || start.getDate()) || start.getDate()));
+    let seen = 0;
+    for (let monthOffset = 0; monthOffset < 240; monthOffset += 1) {
+      const candidateMonth = start.getMonth() + monthOffset;
+      const candidateYear = start.getFullYear() + Math.floor(candidateMonth / 12);
+      const normalizedMonth = ((candidateMonth % 12) + 12) % 12;
+      const day = Math.min(targetDay, daysInMonth(candidateYear, normalizedMonth));
+      const candidate = new Date(candidateYear, normalizedMonth, day, start.getHours(), start.getMinutes(), 0, 0);
+      if (candidate < start) continue;
+      if (seen === index) return formatLocalDateTime(candidate);
+      seen += 1;
+    }
+  }
+  const date = new Date(start.getTime());
+  date.setDate(date.getDate() + index);
+  return formatLocalDateTime(date);
+}
+
 function normalizeKanbanStudyTemplate(raw = {}) {
   const value = String(
     raw.studyTemplate
@@ -5027,6 +5150,7 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
   const sessions = Math.max(1, Math.min(KANBAN_READING_PLAN_MAX_SESSIONS, Number(raw.sessions || raw.sessionCount || raw.session_count || 10) || 10));
   const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date);
   const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
+  const schedule = normalizeStudyPlanSchedule(raw, startDate, timeOfDay);
   const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 15) || 0));
   const sourceText = compactText(raw.sourceText || raw.source_text || raw.text || raw.notes || "", 4000);
   const performerWorkspaceIds = normalizeWorkspaceIdList(
@@ -5057,6 +5181,7 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
     const description = compactText([
       `学习计划：${summary}`,
       `第 ${day} 次，共 ${sessions} 次。`,
+      `执行频率：${schedule.label}，开始时间 ${startDate} ${timeOfDay}。`,
       `领域/科目：${subject}`,
       `当天任务：${activity}`,
       `提交要求：${submissionLabel}`,
@@ -5069,7 +5194,7 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
       clientId: `${template}-session-${day}`,
       title,
       day,
-      dueTime: readingPlanDueTime(startDate, timeOfDay, index),
+      dueTime: readingPlanScheduleDueTime(schedule, index),
       description,
       deliverables: readingTemplate
         ? ["读后复述录音", "AI阅读评价", "针对性单选考卷", "下一次阅读指导"]
@@ -5094,6 +5219,10 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
     sessions,
     startDate,
     timeOfDay,
+    scheduleFrequency: schedule.frequency,
+    scheduleWeekdays: schedule.weekdaysOneBased,
+    scheduleMonthDay: schedule.monthDay,
+    scheduleLabel: schedule.label,
     reminderLeadMinutes,
     sourceText,
     summary,

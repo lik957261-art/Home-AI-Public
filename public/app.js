@@ -65,6 +65,9 @@ function defaultKanbanReadingDraft() {
     sessions: "10",
     startDate: todayDateInputValue(),
     timeOfDay: "21:00",
+    scheduleFrequency: "daily",
+    scheduleWeekdays: "1",
+    scheduleMonthDay: "1",
     reminderLeadMinutes: "15",
   };
 }
@@ -8729,6 +8732,9 @@ function syncKanbanReadingDraftFromDom(root = document) {
     sessions: root.querySelector?.("#kanbanReadingSessions")?.value,
     startDate: root.querySelector?.("#kanbanReadingStartDate")?.value,
     timeOfDay: root.querySelector?.("#kanbanReadingTime")?.value,
+    scheduleFrequency: normalizeKanbanStudyScheduleFrequency(root.querySelector?.("#kanbanStudyScheduleFrequency")?.value),
+    scheduleWeekdays: selectedKanbanStudyWeekdays(root) || draft.scheduleWeekdays || "1",
+    scheduleMonthDay: root.querySelector?.("#kanbanStudyScheduleMonthDay")?.value,
     reminderLeadMinutes: root.querySelector?.("#kanbanReadingReminder")?.value,
   };
   for (const [key, value] of Object.entries(fields)) {
@@ -8781,6 +8787,35 @@ function setKanbanReadingCoverFile(file) {
   draft.coverName = file?.name || "";
   state.kanbanReadingDraft = draft;
   localStorage.setItem("hermesKanbanReadingDraft", JSON.stringify(draft));
+}
+
+function normalizeKanbanStudyScheduleFrequency(value = "") {
+  const text = String(value || "").trim().toLowerCase();
+  if (["weekly", "week", "\u6bcf\u5468"].includes(text)) return "weekly";
+  if (["monthly", "month", "\u6bcf\u6708"].includes(text)) return "monthly";
+  return "daily";
+}
+
+function parseKanbanStudyWeekdays(value = "") {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[,\s;，、]+/);
+  const out = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const number = Number(item);
+    const normalized = number === 0 ? 7 : number;
+    if (!Number.isFinite(normalized) || normalized < 1 || normalized > 7 || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function selectedKanbanStudyWeekdays(root = document) {
+  const checked = Array.from(root.querySelectorAll("[data-kanban-study-weekday]:checked"))
+    .map((item) => item.value);
+  return parseKanbanStudyWeekdays(checked).join(",");
 }
 
 function saveKanbanComposerMode(mode) {
@@ -10051,6 +10086,9 @@ function renderKanbanReadingFields(disabled = false) {
   const template = String(draft.studyTemplate || "").trim() === "custom" ? "custom" : "reading";
   const activityTitle = draft.activityTitle || draft.bookTitle || "";
   const learnerName = draft.learnerName || draft.readerName || "";
+  const scheduleFrequency = normalizeKanbanStudyScheduleFrequency(draft.scheduleFrequency);
+  const scheduleWeekdays = new Set(parseKanbanStudyWeekdays(draft.scheduleWeekdays || "1"));
+  const scheduleMonthDay = Math.max(1, Math.min(31, Number(draft.scheduleMonthDay || "1") || 1));
   const selectedPerformer = String(draft.performerWorkspaceId || "").trim();
   const selectedViewers = new Set(parseWorkspaceIdList(draft.viewerWorkspaceIds));
   const currentWorkspaceId = String(state.selectedWorkspaceId || "").trim();
@@ -10123,6 +10161,33 @@ function renderKanbanReadingFields(disabled = false) {
     <label>
       <span>每天时间</span>
       <input id="kanbanReadingTime" class="todo-input" type="time" value="${escapeHtml(draft.timeOfDay || "21:00")}"${attr}>
+    </label>
+    <label>
+      <span>执行频率</span>
+      <select id="kanbanStudyScheduleFrequency" class="todo-input"${attr}>
+        <option value="daily"${scheduleFrequency === "daily" ? " selected" : ""}>每日</option>
+        <option value="weekly"${scheduleFrequency === "weekly" ? " selected" : ""}>每周几</option>
+        <option value="monthly"${scheduleFrequency === "monthly" ? " selected" : ""}>每月</option>
+      </select>
+    </label>
+    <div class="kanban-study-schedule-weekdays" data-kanban-study-weekdays${scheduleFrequency === "weekly" ? "" : " hidden"}>
+      <span>每周执行日</span>
+      ${[
+        [1, "周一"],
+        [2, "周二"],
+        [3, "周三"],
+        [4, "周四"],
+        [5, "周五"],
+        [6, "周六"],
+        [7, "周日"],
+      ].map(([value, label]) => `<label class="kanban-study-schedule-option">
+        <input type="checkbox" data-kanban-study-weekday value="${value}"${scheduleWeekdays.has(value) ? " checked" : ""}${attr}>
+        <span>${label}</span>
+      </label>`).join("")}
+    </div>
+    <label data-kanban-study-month-day${scheduleFrequency === "monthly" ? "" : " hidden"}>
+      <span>每月日期</span>
+      <input id="kanbanStudyScheduleMonthDay" class="todo-input" type="number" min="1" max="31" step="1" value="${escapeHtml(String(scheduleMonthDay))}"${attr}>
     </label>
     <label>
       <span>提前提醒</span>
@@ -11230,9 +11295,13 @@ function wireTodoPanel(root) {
       focusTodoFormSoon();
     });
   });
-  root.querySelectorAll("#kanbanStudyTemplate, #kanbanStudySubject, #kanbanStudyTitle, #kanbanStudyLearner, #kanbanStudyPerformerWorkspace, #kanbanStudyViewerWorkspaces, #kanbanReadingReader, #kanbanReadingBook, #kanbanReadingSessions, #kanbanReadingStartDate, #kanbanReadingTime, #kanbanReadingReminder, [data-kanban-study-viewer-workspace]").forEach((input) => {
+  root.querySelectorAll("#kanbanStudyTemplate, #kanbanStudySubject, #kanbanStudyTitle, #kanbanStudyLearner, #kanbanStudyPerformerWorkspace, #kanbanStudyViewerWorkspaces, #kanbanReadingReader, #kanbanReadingBook, #kanbanReadingSessions, #kanbanReadingStartDate, #kanbanReadingTime, #kanbanStudyScheduleFrequency, #kanbanStudyScheduleMonthDay, #kanbanReadingReminder, [data-kanban-study-viewer-workspace], [data-kanban-study-weekday]").forEach((input) => {
     input.addEventListener("input", () => syncKanbanReadingDraftFromDom(root));
     input.addEventListener("change", () => syncKanbanReadingDraftFromDom(root));
+  });
+  root.querySelector("#kanbanStudyScheduleFrequency")?.addEventListener("change", () => {
+    syncKanbanReadingDraftFromDom(root);
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   });
   root.querySelectorAll("#kanbanAssessmentSubject, #kanbanAssessmentLearner, #kanbanAssessmentLevel, #kanbanAssessmentTitle, #kanbanAssessmentPerformerWorkspace, #kanbanAssessmentViewerWorkspaces, #kanbanAssessmentExamCount, #kanbanAssessmentQuestionCount, #kanbanAssessmentDuration, #kanbanAssessmentPassingScore, #kanbanAssessmentIntervalDays, #kanbanAssessmentStartDate, #kanbanAssessmentTime, #kanbanAssessmentReminder, #kanbanAssessmentDifficulty, [data-kanban-assessment-viewer-workspace]").forEach((input) => {
     input.addEventListener("input", () => syncKanbanAssessmentDraftFromDom(root));

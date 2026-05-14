@@ -4848,6 +4848,27 @@ button.directory-alias-chip {
   white-space: nowrap;
 }
 
+.kanban-study-schedule-weekdays {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.kanban-study-schedule-weekdays > span {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.kanban-study-schedule-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+}
+
 .todo-reading-record-status {
   min-height: 18px;
 }
