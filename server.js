@@ -59,6 +59,7 @@ const { createWeixinFileForwardService } = require("./adapters/weixin-file-forwa
 const { createWeixinForwardService } = require("./adapters/weixin-forward-service");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createWeixinOutboundDeliveryService } = require("./adapters/weixin-outbound-delivery-service");
+const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service");
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
 const { createAutomationApiRoutes } = require("./server-routes/automation-api-routes");
 const { createDirectoryBrowserApiRoutes } = require("./server-routes/directory-browser-api-routes");
@@ -484,6 +485,7 @@ let localWorkspaceStoreService = null;
 let weixinFileForwardService = null;
 let weixinForwardService = null;
 let weixinOutboundDeliveryService = null;
+let webPushDeliveryService = null;
 const runConcurrencyPolicy = createRunConcurrencyPolicy({
   maxGlobal: () => RUN_CONCURRENCY_MAX_GLOBAL,
   maxPerWorkspace: () => RUN_CONCURRENCY_MAX_PER_WORKSPACE,
@@ -584,7 +586,47 @@ const runtimeConfigProvider = createRuntimeConfigProvider({
 bootTrace("runtime config ready");
 let clientVersionCache = { mtimeMs: 0, version: "" };
 let defaultReasoningCache = { cacheKey: "", value: null };
-let webPushConfig = initializeWebPush();
+webPushDeliveryService = createWebPushDeliveryService({
+  appRouteUrl,
+  automationDeliverableExtensions: AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS,
+  automationDeliverableFutureGraceMs: AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS,
+  automationDeliverableLookbackMs: AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS,
+  automationInitialLookbackMs: AUTOMATION_PUSH_INITIAL_LOOKBACK_MS,
+  automationProvider: () => automationProvider,
+  automationPushEnabled: AUTOMATION_WEB_PUSH_ENABLED,
+  automationPushIntervalMs: AUTOMATION_WEB_PUSH_INTERVAL_MS,
+  automationPushStartDelayMs: AUTOMATION_WEB_PUSH_START_DELAY_MS,
+  compactText,
+  dedupe,
+  effectiveWebPushSubject,
+  effectiveWebPushVapidPath,
+  hashValue,
+  kanbanBlockedPushDelayMinutes: KANBAN_BLOCKED_PUSH_DELAY_MINUTES,
+  loadCatalog,
+  loadRuntimeConfig,
+  logger: console,
+  makeId,
+  maybeReconcileKanbanDependencyBlocks,
+  normalizeStringList,
+  nowIso,
+  publicTodo,
+  saveState,
+  state: () => state,
+  todoProvider: () => todoProvider,
+  todoPushEnabled: TODO_WEB_PUSH_ENABLED,
+  todoPushIntervalMs: TODO_WEB_PUSH_INTERVAL_MS,
+  todoPushReceiptRetryLimit: TODO_WEB_PUSH_RECEIPT_RETRY_LIMIT,
+  todoPushReceiptRetryMinutes: TODO_WEB_PUSH_RECEIPT_RETRY_MINUTES,
+  todoPushRecentCreateMinutes: TODO_WEB_PUSH_RECENT_CREATE_MINUTES,
+  todoPushStartDelayMs: TODO_WEB_PUSH_START_DELAY_MS,
+  useKanbanTodoBackend,
+  webpush,
+  webPushEnabled: WEB_PUSH_ENABLED,
+  webPushSubject: WEB_PUSH_SUBJECT,
+  webPushVapidPath: WEB_PUSH_VAPID_PATH,
+  workspaceIdForPrincipal,
+  workspacePrincipal,
+});
 bootTrace("web push ready");
 const systemApiRoutes = createSystemApiRoutes({
   authenticateRequest,
@@ -637,10 +679,7 @@ const runtimeConfigApiRoutes = createRuntimeConfigApiRoutes({
   publicPushStatus,
   publicRuntimeConfig,
   readBody,
-  reloadWebPush: () => {
-    webPushConfig = initializeWebPush();
-    return webPushConfig;
-  },
+  reloadWebPush,
   requireOwner,
   runConcurrencySnapshot,
   saveRuntimeConfig,
@@ -1174,7 +1213,7 @@ function effectiveWebPushVapidPath(config = loadRuntimeConfig()) {
 function publicRuntimeConfig() {
   return runtimeConfigProvider.publicConfig({
     pushStatus: publicPushStatus(),
-    webPushConfig,
+    webPushConfig: webPushDeliveryService?.getWebPushConfig?.() || null,
     webPushEnabled: WEB_PUSH_ENABLED,
   });
 }
@@ -2036,77 +2075,15 @@ function normalizeState(value, options = {}) {
 }
 
 function normalizePushDelivery(item) {
-  if (!item || typeof item !== "object") return null;
-  const payload = item.payload && typeof item.payload === "object" ? item.payload : {};
-  const data = payload.data && typeof payload.data === "object" ? payload.data : {};
-  const result = item.result && typeof item.result === "object" ? item.result : {};
-  return {
-    id: String(item.id || makeId("pushdel")).slice(0, 80),
-    sentAt: String(item.sentAt || nowIso()),
-    title: String(payload.title || item.title || "").slice(0, 160),
-    tag: String(payload.tag || item.tag || "").slice(0, 240),
-    messageType: String(data.messageType || item.messageType || "").slice(0, 80),
-    principalIds: normalizeStringList(item.principalIds || item.principalId || []),
-    workspaceId: String(data.workspaceId || item.workspaceId || "").slice(0, 120),
-    taskGroupId: String(data.taskGroupId || "").slice(0, 120),
-    messageId: String(data.messageId || "").slice(0, 120),
-    todoId: String(data.todoId || "").slice(0, 120),
-    automationId: String(data.automationId || "").slice(0, 120),
-    attempted: Number(result.attempted || item.attempted || 0),
-    sent: Number(result.sent || item.sent || 0),
-    failed: Number(result.failed || item.failed || 0),
-    removed: Number(result.removed || item.removed || 0),
-  };
+  return webPushDeliveryService.normalizePushDelivery(item);
 }
 
 function normalizePushReceipt(item) {
-  if (!item || typeof item !== "object") return null;
-  const payload = item.payload && typeof item.payload === "object" ? item.payload : {};
-  const data = payload.data && typeof payload.data === "object" ? payload.data : {};
-  const notification = item.notification && typeof item.notification === "object" ? item.notification : {};
-  return {
-    id: String(item.id || makeId("receipt")),
-    receivedAt: String(item.receivedAt || nowIso()),
-    version: String(item.version || "").slice(0, 80),
-    foreground: Boolean(item.foreground),
-    shown: notification.shown !== false,
-    error: String(notification.error || "").slice(0, 500),
-    title: String(payload.title || "").slice(0, 160),
-    tag: String(payload.tag || "").slice(0, 240),
-    markKey: String(data.markKey || item.markKey || "").slice(0, 240),
-    todoId: String(data.todoId || item.todoId || "").slice(0, 120),
-    testId: String(data.testId || item.testId || "").slice(0, 120),
-    messageType: String(data.messageType || item.messageType || "").slice(0, 80),
-    principalId: String(data.principalId || item.principalId || "").slice(0, 120),
-    workspaceId: String(data.workspaceId || item.workspaceId || "").slice(0, 120),
-    url: String(data.url || "").slice(0, 500),
-  };
+  return webPushDeliveryService.normalizePushReceipt(item);
 }
 
 function normalizePushSubscription(item, options = {}) {
-  if (!item || typeof item !== "object") return null;
-  const subscription = item.subscription && typeof item.subscription === "object" ? item.subscription : item;
-  const endpoint = String(subscription.endpoint || item.endpoint || "").trim();
-  if (!endpoint) return null;
-  const now = nowIso();
-  const workspaceIds = normalizeStringList(item.workspaceIds || item.workspaceId || item.workspaces);
-  const principalIds = normalizeStringList(item.principalIds || item.principalId || item.principals || (workspaceIds.length ? workspacePrincipal(workspaceIds[0]) : "owner"));
-  const scopedPrincipalIds = scopedPushPrincipalIds(principalIds);
-  const scopedWorkspaceIds = scopedPushWorkspaceIds(scopedPrincipalIds[0], workspaceIds, options);
-  return {
-    id: String(item.id || `push_${hashValue(endpoint).slice(0, 16)}`),
-    endpointHash: hashValue(endpoint),
-    subscription,
-    deviceLabel: String(item.deviceLabel || "").slice(0, 120),
-    userAgent: String(item.userAgent || "").slice(0, 240),
-    principalIds: scopedPrincipalIds,
-    workspaceIds: scopedWorkspaceIds,
-    createdAt: item.createdAt || now,
-    updatedAt: item.updatedAt || now,
-    lastSuccessAt: item.lastSuccessAt || null,
-    lastError: item.lastError || null,
-    disabledAt: item.disabledAt || null,
-  };
+  return webPushDeliveryService.normalizePushSubscription(item, options);
 }
 
 function scopedPushPrincipalIds(principalIds) {
@@ -2126,15 +2103,7 @@ function scopedPushWorkspaceIds(principalId, workspaceIds = [], options = {}) {
 }
 
 function pushSubscriptionScopeSignature(items) {
-  return JSON.stringify((Array.isArray(items) ? items : []).map((item) => {
-    const subscription = item?.subscription && typeof item.subscription === "object" ? item.subscription : item;
-    const endpoint = String(subscription?.endpoint || item?.endpoint || "").trim();
-    return {
-      endpointHash: String(item?.endpointHash || (endpoint ? hashValue(endpoint) : "")),
-      principalIds: normalizeStringList(item?.principalIds || item?.principalId || item?.principals),
-      workspaceIds: normalizeStringList(item?.workspaceIds || item?.workspaceId || item?.workspaces),
-    };
-  }).sort((a, b) => a.endpointHash.localeCompare(b.endpointHash)));
+  return webPushDeliveryService.pushSubscriptionScopeSignature(items);
 }
 
 function normalizeStringList(value) {
@@ -7373,85 +7342,19 @@ function contentDisposition(disposition, filename) {
 }
 
 function loadVapidConfig() {
-  const envPublic = process.env.WEB_PUSH_VAPID_PUBLIC_KEY || process.env.HERMES_WEB_VAPID_PUBLIC_KEY || "";
-  const envPrivate = process.env.WEB_PUSH_VAPID_PRIVATE_KEY || process.env.HERMES_WEB_VAPID_PRIVATE_KEY || "";
-  const envSubject = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "";
-  if (envPublic && envPrivate) {
-    return { publicKey: envPublic, privateKey: envPrivate, subject: envSubject || WEB_PUSH_SUBJECT, source: "env" };
-  }
-  const runtime = loadRuntimeConfig();
-  const vapidPath = effectiveWebPushVapidPath(runtime);
-  const subject = effectiveWebPushSubject(runtime);
-  try {
-    if (fs.existsSync(vapidPath)) {
-      const parsed = JSON.parse(fs.readFileSync(vapidPath, "utf8"));
-      if (parsed.publicKey && parsed.privateKey) {
-        return {
-          publicKey: String(parsed.publicKey),
-          privateKey: String(parsed.privateKey),
-          subject: String(parsed.subject || subject),
-          source: vapidPath,
-        };
-      }
-    }
-  } catch (_) {}
-  if (!WEB_PUSH_ENABLED) return null;
-  const keys = webpush.generateVAPIDKeys();
-  const generated = { publicKey: keys.publicKey, privateKey: keys.privateKey, subject };
-  try {
-    fs.mkdirSync(path.dirname(vapidPath), { recursive: true });
-    fs.writeFileSync(vapidPath, JSON.stringify(generated, null, 2), { encoding: "utf8", mode: 0o600 });
-  } catch (_) {
-    // Keep the generated pair in memory for this process if persistence fails.
-  }
-  return Object.assign({ source: fs.existsSync(vapidPath) ? vapidPath : "memory" }, generated);
+  return webPushDeliveryService.loadVapidConfig();
 }
 
 function initializeWebPush() {
-  if (!WEB_PUSH_ENABLED) return null;
-  const config = loadVapidConfig();
-  if (!config?.publicKey || !config?.privateKey) return null;
-  try {
-    webpush.setVapidDetails(config.subject || WEB_PUSH_SUBJECT, config.publicKey, config.privateKey);
-    return config;
-  } catch (err) {
-    console.error(`Hermes Mobile Push disabled: ${err.message || String(err)}`);
-    return null;
-  }
+  return webPushDeliveryService.initializeWebPush();
 }
 
 function generateWebPushVapidConfig(options = {}) {
-  if (!WEB_PUSH_ENABLED) {
-    const err = new Error("Web Push is disabled");
-    err.status = 409;
-    throw err;
-  }
-  if (process.env.WEB_PUSH_VAPID_PUBLIC_KEY || process.env.HERMES_WEB_VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY || process.env.HERMES_WEB_VAPID_PRIVATE_KEY) {
-    const err = new Error("Web Push VAPID keys are configured by environment variables");
-    err.status = 409;
-    throw err;
-  }
-  const runtime = loadRuntimeConfig();
-  const vapidPath = effectiveWebPushVapidPath(runtime);
-  if (fs.existsSync(vapidPath) && !options.overwrite) {
-    const err = new Error("VAPID key file already exists");
-    err.status = 409;
-    throw err;
-  }
-  const keys = webpush.generateVAPIDKeys();
-  const generated = {
-    publicKey: keys.publicKey,
-    privateKey: keys.privateKey,
-    subject: effectiveWebPushSubject(runtime),
-  };
-  fs.mkdirSync(path.dirname(vapidPath), { recursive: true });
-  fs.writeFileSync(vapidPath, JSON.stringify(generated, null, 2), { encoding: "utf8", mode: 0o600 });
-  webPushConfig = initializeWebPush();
-  return {
-    source: vapidPath,
-    publicKey: generated.publicKey,
-    subject: generated.subject,
-  };
+  return webPushDeliveryService.generateWebPushVapidConfig(options);
+}
+
+function reloadWebPush() {
+  return webPushDeliveryService.initializeWebPush();
 }
 
 function extractDocxText(filePath) {
@@ -9592,134 +9495,27 @@ function clientCanReceivePayload(client, payload) {
 }
 
 function pushSubscriptionCount() {
-  return (state.pushSubscriptions || []).filter((item) => item && !item.disabledAt).length;
+  return publicPushStatus().subscriptionCount;
 }
 
 function publicPushStatus() {
-  return {
-    enabled: Boolean(webPushConfig),
-    publicKey: webPushConfig?.publicKey || "",
-    subject: webPushConfig?.subject || "",
-    subscriptionCount: pushSubscriptionCount(),
-  };
+  return webPushDeliveryService.publicPushStatus();
 }
 
 function recordPushReceipt(body = {}) {
-  const normalized = normalizePushReceipt(Object.assign({}, body, {
-    id: makeId("receipt"),
-    receivedAt: nowIso(),
-  }));
-  if (!normalized) return null;
-  state.pushReceipts = [...(state.pushReceipts || []), normalized].slice(-200);
-  saveState();
-  if (normalized.markKey && normalized.principalId) {
-    markTodoWebPush({
-      markKey: normalized.markKey,
-      todoId: normalized.todoId,
-      principalId: normalized.principalId,
-      messageType: normalized.messageType || "message",
-    }, normalized.shown ? "shown" : "receipt_failed", {
-      countAttempt: false,
-      error: normalized.error || "",
-    }).catch((err) => {
-      console.error(`Hermes Todo Web Push receipt mark failed: ${err.message || String(err)}`);
-    });
-  }
-  return normalized;
+  return webPushDeliveryService.recordPushReceipt(body);
 }
 
 function savePushSubscription(subscription, meta = {}) {
-  const workspaceId = String(meta.workspaceId || "").trim();
-  const principalId = String(meta.principalId || (workspaceId ? workspacePrincipal(workspaceId) : "") || "").trim();
-  const normalized = normalizePushSubscription({
-    subscription,
-    deviceLabel: meta.deviceLabel,
-    userAgent: meta.userAgent,
-    workspaceIds: workspaceId ? [workspaceId] : [],
-    principalIds: principalId ? [principalId] : [],
-  });
-  if (!normalized) throw new Error("Invalid push subscription");
-  state.pushSubscriptions = state.pushSubscriptions || [];
-  const index = state.pushSubscriptions.findIndex((item) => item.endpointHash === normalized.endpointHash);
-  if (index >= 0) {
-    const existing = state.pushSubscriptions[index];
-    state.pushSubscriptions[index] = Object.assign({}, state.pushSubscriptions[index], normalized, {
-      createdAt: existing.createdAt || normalized.createdAt,
-      updatedAt: nowIso(),
-      disabledAt: null,
-      lastError: null,
-      principalIds: normalized.principalIds || [],
-      workspaceIds: normalized.workspaceIds || [],
-    });
-  } else {
-    state.pushSubscriptions.push(normalized);
-  }
-  saveState();
-  const saved = state.pushSubscriptions.find((item) => item.endpointHash === normalized.endpointHash) || normalized;
-  return {
-    id: saved.id,
-    endpointHash: saved.endpointHash,
-    principalIds: saved.principalIds || [],
-    workspaceIds: saved.workspaceIds || [],
-  };
+  return webPushDeliveryService.savePushSubscription(subscription, meta);
 }
 
 function removePushSubscription(subscriptionOrEndpoint) {
-  const endpoint = typeof subscriptionOrEndpoint === "string"
-    ? subscriptionOrEndpoint
-    : String(subscriptionOrEndpoint?.endpoint || "");
-  if (!endpoint) return false;
-  const hash = hashValue(endpoint);
-  const before = (state.pushSubscriptions || []).length;
-  state.pushSubscriptions = (state.pushSubscriptions || []).filter((item) => item.endpointHash !== hash);
-  if (state.pushSubscriptions.length !== before) saveState();
-  return state.pushSubscriptions.length !== before;
+  return webPushDeliveryService.removePushSubscription(subscriptionOrEndpoint);
 }
 
 async function sendPushNotification(payload, options = {}) {
-  if (!webPushConfig) return { enabled: false, attempted: 0, sent: 0, failed: 0, removed: 0 };
-  const targetPrincipals = normalizeStringList(options.principalIds || options.principalId || []);
-  const subscriptions = (state.pushSubscriptions || []).filter((item) => {
-    if (!item || item.disabledAt || !item.subscription?.endpoint) return false;
-    if (!targetPrincipals.length) return true;
-    const principals = normalizeStringList(item.principalIds || "owner");
-    return principals.some((principal) => targetPrincipals.includes(principal));
-  });
-  let sent = 0;
-  let failed = 0;
-  let removed = 0;
-  const now = nowIso();
-  const body = JSON.stringify(payload);
-  for (const item of subscriptions) {
-    try {
-      await webpush.sendNotification(item.subscription, body, {
-        TTL: options.ttl || 60 * 60,
-        urgency: options.urgency || "normal",
-      });
-      item.lastSuccessAt = now;
-      item.lastError = null;
-      item.updatedAt = now;
-      sent += 1;
-    } catch (err) {
-      failed += 1;
-      item.lastError = err.message || String(err);
-      item.updatedAt = now;
-      if (err.statusCode === 404 || err.statusCode === 410) {
-        item.disabledAt = now;
-        removed += 1;
-      }
-    }
-  }
-  const result = { enabled: true, attempted: subscriptions.length, sent, failed, removed };
-  state.pushDeliveries = [...(state.pushDeliveries || []), normalizePushDelivery({
-    id: makeId("pushdel"),
-    sentAt: now,
-    payload,
-    principalIds: targetPrincipals,
-    result,
-  })].filter(Boolean).slice(-200);
-  saveState();
-  return result;
+  return webPushDeliveryService.sendPushNotification(payload, options);
 }
 
 function appRouteUrl(params = {}) {
@@ -9965,26 +9761,15 @@ function notifyTaskTerminal(thread, message, status) {
 }
 
 function activePushPrincipals() {
-  const principals = new Set();
-  for (const item of state.pushSubscriptions || []) {
-    if (!item || item.disabledAt || !item.subscription?.endpoint) continue;
-    for (const principal of normalizeStringList(item.principalIds || "owner")) principals.add(principal);
-  }
-  return [...principals];
+  return webPushDeliveryService.activePushPrincipals();
 }
 
 function confirmedTodoPushMarkKeys() {
-  const keys = new Set();
-  for (const receipt of state.pushReceipts || []) {
-    if (!receipt || receipt.shown === false) continue;
-    const markKey = String(receipt.markKey || "").trim();
-    if (!markKey) continue;
-    keys.add(markKey);
-  }
-  return [...keys];
+  return webPushDeliveryService.confirmedTodoPushMarkKeys();
 }
 
 function todoPushPayload(event) {
+  return webPushDeliveryService.todoPushPayload(event);
   const principalId = event?.principalId || "";
   const workspaceId = event?.workspaceId || workspaceIdForPrincipal(principalId);
   const todoId = event?.todoId || "";
@@ -10015,6 +9800,7 @@ function todoPushPayload(event) {
 }
 
 async function markTodoWebPush(event, status, options = {}) {
+  return webPushDeliveryService.markTodoWebPush(event, status, options);
   if (!event?.markKey || !event?.principalId) return null;
   return todoProvider.markWebPush({
     markKey: event.markKey,
@@ -10032,6 +9818,7 @@ async function markTodoWebPush(event, status, options = {}) {
 }
 
 async function deliverTodoWebPushEvent(event) {
+  return webPushDeliveryService.deliverTodoWebPushEvent(event);
   const result = await sendPushNotification(todoPushPayload(event), {
     principalId: event.principalId,
     urgency: event.urgency || "high",
@@ -10048,6 +9835,7 @@ async function deliverTodoWebPushEvent(event) {
 }
 
 async function runTodoWebPushTick(options = {}) {
+  return webPushDeliveryService.runTodoWebPushTick(options);
   if (!TODO_WEB_PUSH_ENABLED) return { ok: true, enabled: false, events: [], deliveries: [] };
   const principals = activePushPrincipals();
   const reconcileResults = [];
@@ -10102,6 +9890,7 @@ async function runTodoWebPushTick(options = {}) {
 }
 
 function startTodoWebPushDispatcher() {
+  return webPushDeliveryService.startTodoWebPushDispatcher();
   const interval = Math.max(15000, Number(TODO_WEB_PUSH_INTERVAL_MS) || 60000);
   if (!TODO_WEB_PUSH_ENABLED) return;
   const tick = () => {
@@ -10117,6 +9906,7 @@ function startTodoWebPushDispatcher() {
 }
 
 function scheduleBackgroundWebPushDispatcher(tick, interval, initialDelay) {
+  return webPushDeliveryService.scheduleBackgroundWebPushDispatcher(tick, interval, initialDelay);
   const startDelay = Math.max(0, Number(initialDelay) || 0);
   setTimeout(() => {
     tick();
@@ -10158,10 +9948,12 @@ function automationDeliverableTimeMs(doc) {
 }
 
 function automationLatestDeliverableTimeMs(job) {
+  return webPushDeliveryService.automationLatestDeliverableTimeMs(job);
   return Math.max(0, ...(Array.isArray(job?.outputDocuments) ? job.outputDocuments : []).map(automationDeliverableTimeMs));
 }
 
 function automationListSortByLatestDeliverable(left, right) {
+  return webPushDeliveryService.automationListSortByLatestDeliverable(left, right);
   const leftDelivery = automationLatestDeliverableTimeMs(left);
   const rightDelivery = automationLatestDeliverableTimeMs(right);
   if (leftDelivery !== rightDelivery) return rightDelivery - leftDelivery;
@@ -10182,6 +9974,7 @@ function automationPushMarkDeliverableTimeMs(mark) {
 }
 
 function automationLatestDeliverableForPush(job, existingMark = null) {
+  return webPushDeliveryService.automationLatestDeliverableForPush(job, existingMark);
   const lastRunMs = automationTimeMs(job?.lastRunAt);
   if (!lastRunMs) return null;
   const previousDeliverableMs = automationPushMarkDeliverableTimeMs(existingMark);
@@ -10206,6 +9999,7 @@ function automationLatestDeliverableForPush(job, existingMark = null) {
 }
 
 function automationPushSignature(job, latestDoc = null) {
+  return webPushDeliveryService.automationPushSignature(job, latestDoc);
   const lastRunAt = String(job?.lastRunAt || "").trim();
   if (!lastRunAt) return "";
   const docSignature = latestDoc ? [
@@ -10238,6 +10032,7 @@ function isRecentInitialAutomationDeliverable(latestDoc = null) {
 }
 
 function setAutomationPushMark(job, signature, latestDoc = null) {
+  return webPushDeliveryService.setAutomationPushMark(job, signature, latestDoc);
   state.automationPushMarks = state.automationPushMarks || {};
   state.automationPushMarks[String(job?.id || "")] = {
     signature,
@@ -10252,6 +10047,7 @@ function setAutomationPushMark(job, signature, latestDoc = null) {
 }
 
 function automationPushEventForJob(job, latestDoc, signature) {
+  return webPushDeliveryService.automationPushEventForJob(job, latestDoc, signature);
   const jobId = String(job?.id || "").trim();
   if (!jobId || !String(job?.lastRunAt || "").trim()) return null;
   if (!latestDoc) return null;
@@ -10295,6 +10091,7 @@ function automationPushEventForJob(job, latestDoc, signature) {
 }
 
 async function runAutomationWebPushTick(options = {}) {
+  return webPushDeliveryService.runAutomationWebPushTick(options);
   if (!AUTOMATION_WEB_PUSH_ENABLED) return { ok: true, enabled: false, events: [], initialized: [], deliveries: [] };
   const principals = activePushPrincipals();
   if (!webPushConfig || !principals.length) {
@@ -10355,6 +10152,7 @@ async function runAutomationWebPushTick(options = {}) {
 }
 
 function startAutomationWebPushDispatcher() {
+  return webPushDeliveryService.startAutomationWebPushDispatcher();
   const interval = Math.max(15000, Number(AUTOMATION_WEB_PUSH_INTERVAL_MS) || 60000);
   if (!AUTOMATION_WEB_PUSH_ENABLED) return;
   const tick = () => {
@@ -10370,6 +10168,7 @@ function startAutomationWebPushDispatcher() {
 }
 
 function notifyTodoCreated(result, sourcePrincipal = "") {
+  return webPushDeliveryService.notifyTodoCreated(result, sourcePrincipal);
   const todo = publicTodo(result || {});
   if (!todo.id || !todo.assignee) return;
   if (sourcePrincipal && todo.assignee === sourcePrincipal) return;

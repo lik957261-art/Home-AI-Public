@@ -31,6 +31,7 @@ const weixinFileForwardService = require("../adapters/weixin-file-forward-servic
 const weixinForwardService = require("../adapters/weixin-forward-service");
 const weixinMarkdownForwardService = require("../adapters/weixin-markdown-forward-service");
 const weixinOutboundDeliveryService = require("../adapters/weixin-outbound-delivery-service");
+const webPushDeliveryService = require("../adapters/web-push-delivery-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
 const accessKeyApiRoutes = require("../server-routes/access-key-api-routes");
 const automationApiRoutes = require("../server-routes/automation-api-routes");
@@ -111,6 +112,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof weixinMarkdownForwardService.materializeWeixinForwardFile, "function");
   assert.equal(typeof weixinMarkdownForwardService.renderMarkdownForwardPdf, "function");
   assert.equal(typeof weixinOutboundDeliveryService.createWeixinOutboundDeliveryService, "function");
+  assert.equal(typeof webPushDeliveryService.createWebPushDeliveryService, "function");
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof systemApiRoutes.createSystemApiRoutes, "function");
@@ -167,6 +169,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /weixinApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createWeixinOutboundDeliveryService/);
   assert.match(server, /getWeixinOutboundDeliveryService\(\)\.ackDelivery/);
+  assert.match(server, /createWebPushDeliveryService/);
+  assert.match(server, /webPushDeliveryService\.sendPushNotification/);
   assert.match(server, /createOwnerElevationApiRoutes/);
   assert.match(server, /ownerElevationApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createWorkspaceApiRoutes/);
