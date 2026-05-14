@@ -3958,6 +3958,19 @@ function kanbanCaseRoleForAuth(auth, ownerWorkspaceId, caseId) {
   return "";
 }
 
+function kanbanCaseRoleForWorkspaceActor(actorWorkspaceId, ownerWorkspaceId, caseId, auth = null) {
+  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
+  const actor = String(actorWorkspaceId || "").trim();
+  if (!actor) return kanbanCaseRoleForAuth(auth, owner, caseId);
+  if (actor === owner) return "manager";
+  const share = readKanbanCaseShare(owner, caseId);
+  if (!share) return isOwnerAuth(auth) ? "manager" : "";
+  if (normalizeWorkspaceIdList(share.managerWorkspaceIds).includes(actor)) return "manager";
+  if (normalizeWorkspaceIdList(share.performerWorkspaceIds).includes(actor)) return "performer";
+  if (normalizeWorkspaceIdList(share.viewerWorkspaceIds).includes(actor)) return "viewer";
+  return isOwnerAuth(auth) ? "manager" : "";
+}
+
 function kanbanActorPermissions(role) {
   const normalized = String(role || "").trim();
   if (normalized === "manager") {
@@ -4004,12 +4017,14 @@ function kanbanActorPermissions(role) {
   };
 }
 
-function annotateKanbanCardForAuth(card, auth) {
+function annotateKanbanCardForAuth(card, auth, options = {}) {
   if (!card || typeof card !== "object") return card;
   const workspaceId = String(card.workspaceId || card.workspace_id || "").trim() || "owner";
   const caseId = String(card.kanbanCaseId || card.kanban_case_id || "").trim();
   const role = caseId
-    ? kanbanCaseRoleForAuth(auth, workspaceId, caseId)
+    ? (options.actorWorkspaceId
+      ? kanbanCaseRoleForWorkspaceActor(options.actorWorkspaceId, workspaceId, caseId, auth)
+      : kanbanCaseRoleForAuth(auth, workspaceId, caseId))
     : (authCanAccessWorkspace(auth, workspaceId) ? "manager" : "");
   if (!role) return card;
   return Object.assign({}, card, {
@@ -4019,13 +4034,20 @@ function annotateKanbanCardForAuth(card, auth) {
   });
 }
 
-function annotateKanbanCardsForAuth(cards, auth) {
-  return (Array.isArray(cards) ? cards : []).map((card) => annotateKanbanCardForAuth(card, auth));
+function annotateKanbanCardsForAuth(cards, auth, options = {}) {
+  return (Array.isArray(cards) ? cards : []).map((card) => annotateKanbanCardForAuth(card, auth, options));
 }
 
-function kanbanCaseSharesForActor(auth) {
-  const actorWorkspaceId = String(auth?.workspaceId || "").trim();
-  if (!actorWorkspaceId || isOwnerAuth(auth)) return [];
+function kanbanShareActorWorkspaceId(auth, selectedWorkspaceId = "") {
+  const selected = String(selectedWorkspaceId || "").trim();
+  return isOwnerAuth(auth) && selected && selected !== "owner"
+    ? selected
+    : String(auth?.workspaceId || "").trim();
+}
+
+function kanbanCaseSharesForActor(auth, selectedWorkspaceId = "") {
+  const actorWorkspaceId = kanbanShareActorWorkspaceId(auth, selectedWorkspaceId);
+  if (!actorWorkspaceId) return [];
   const cases = Object.values(kanbanCaseShareStore().cases || {});
   return cases.filter((share) => {
     if (!share || typeof share !== "object") return false;
@@ -4036,7 +4058,8 @@ function kanbanCaseSharesForActor(auth) {
 }
 
 async function sharedKanbanCardsForAuth(auth, selectedWorkspaceId, listArgs = {}) {
-  const shares = kanbanCaseSharesForActor(auth).filter((share) => (
+  const actorWorkspaceId = kanbanShareActorWorkspaceId(auth, selectedWorkspaceId);
+  const shares = kanbanCaseSharesForActor(auth, selectedWorkspaceId).filter((share) => (
     String(share.ownerWorkspaceId || "owner") !== String(selectedWorkspaceId || "owner")
   ));
   if (!shares.length) return [];
@@ -4056,7 +4079,7 @@ async function sharedKanbanCardsForAuth(auth, selectedWorkspaceId, listArgs = {}
     if (!result?.ok) continue;
     for (const card of result.data || []) {
       if (caseIds.has(String(card.kanbanCaseId || "").trim())) {
-        out.push(annotateKanbanCardForAuth(card, auth));
+        out.push(annotateKanbanCardForAuth(card, auth, { actorWorkspaceId }));
       }
     }
   }
@@ -13298,7 +13321,7 @@ async function handleApi(req, res) {
       search: url.searchParams.get("search") || "",
     };
     const auth = authenticateRequest(req);
-    const sharedCases = kanbanCaseSharesForActor(auth);
+    const sharedCases = kanbanCaseSharesForActor(auth, workspaceId);
     const bypassCache = boolParam(url.searchParams.get("fresh")) || boolParam(url.searchParams.get("skipCache")) || boolParam(url.searchParams.get("noCache"));
     if (!bypassCache && !sharedCases.length) {
       const cached = readKanbanCardListCache(listArgs);
