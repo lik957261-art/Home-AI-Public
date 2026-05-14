@@ -7,6 +7,7 @@ const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
 const documentPreviewService = require("../adapters/document-preview-service");
 const fileArtifactAccessService = require("../adapters/file-artifact-access-service");
+const fileArtifactResolverService = require("../adapters/file-artifact-resolver-service");
 const fileResponseService = require("../adapters/file-response-service");
 const fileResourceService = require("../adapters/file-resource-service");
 const gatewayStatusProjection = require("../adapters/gateway-status-projection");
@@ -69,6 +70,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof documentPreviewService.createDocumentPreviewService, "function");
   assert.equal(typeof documentPreviewService.extractDocxTextFromBuffer, "function");
   assert.equal(typeof fileArtifactAccessService.createFileArtifactAccessService, "function");
+  assert.equal(typeof fileArtifactResolverService.createFileArtifactResolverService, "function");
   assert.equal(typeof fileResponseService.createFileResponseService, "function");
   assert.equal(typeof fileResourceService.extractArtifactPaths, "function");
   assert.equal(typeof fileResourceService.publicFileMetadata, "function");
@@ -132,6 +134,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /gatewayStatusProjection\.publicGatewayPoolStatusForAuth/);
   assert.match(server, /createFileArtifactAccessService/);
   assert.match(server, /fileArtifactAccessService\.registerUploadArtifact/);
+  assert.match(server, /createFileArtifactResolverService/);
+  assert.match(server, /fileArtifactResolverService\.resolveArtifactForRequest/);
   assert.match(server, /createFileResponseService/);
   assert.match(server, /fileResponseService\.sendResolvedFilePreview/);
   assert.match(server, /createRuntimeConfigApiRoutes/);

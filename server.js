@@ -18,6 +18,7 @@ const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions 
 const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFileArtifactAccessService } = require("./adapters/file-artifact-access-service");
+const { createFileArtifactResolverService } = require("./adapters/file-artifact-resolver-service");
 const { createFileResponseService } = require("./adapters/file-response-service");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
@@ -519,6 +520,22 @@ const fileResponseService = createFileResponseService({
   sendJson,
   textBufferPreview,
   textFilePreview,
+});
+const fileArtifactResolverService = createFileArtifactResolverService({
+  state: () => state,
+  normalizeLocalPath,
+  resolveBrowserPath,
+  logicalUserPathFallback,
+  logicalDirectoryDisplayPath,
+  mimeFor,
+  authCanAccessWorkspace,
+  artifactAccessibleToAuth,
+  isPathAllowedForThread,
+  isPathAllowed,
+  isOwnerAuth,
+  findArtifactReferenceById,
+  findArtifactReference,
+  resolveArtifactPathFromMessage,
 });
 const publicApiRoutes = createPublicApiRoutes({
   authenticateRequest,
@@ -12201,112 +12218,11 @@ function isHiddenDirectoryEntryName(name) {
 }
 
 function resolveFileForBrowserRequest(query, auth = null) {
-  const artifactId = String(query.get("artifactId") || "").trim();
-  if (artifactId) {
-    const resolvedArtifact = resolveArtifactForRequest(artifactId, auth);
-    if (!resolvedArtifact.artifact) return { status: resolvedArtifact.status || 404, error: resolvedArtifact.error || "Artifact not found" };
-    const artifact = resolvedArtifact.artifact;
-    const localPath = artifact.localPath || artifact.path;
-    let stat;
-    try {
-      stat = fs.statSync(localPath);
-    } catch (_) {
-      return { status: 404, error: "Artifact not found" };
-    }
-    if (!stat.isFile()) return { status: 400, error: "Artifact path is not a file" };
-    return {
-      file: {
-        localPath,
-        displayPath: logicalUserPathFallback(artifact.displayPath || artifact.path || localPath, artifact.name || ""),
-        name: artifact.name || path.basename(localPath),
-        mime: artifact.mime || mimeFor(localPath),
-        size: stat.size,
-        updatedAt: stat.mtime.toISOString(),
-      },
-    };
-  }
-
-  const threadId = String(query.get("threadId") || "");
-  const thread = state.threads.find((item) => item.id === threadId);
-  if (!thread) return { status: 404, error: "Thread not found" };
-  if (auth && !authCanAccessWorkspace(auth, thread.workspaceId)) return { status: 404, error: "Thread not found" };
-  const resolved = resolveBrowserPath(thread, query);
-  if (!resolved) return { status: 404, error: "File not found or not allowed" };
-  let stat;
-  try {
-    stat = fs.statSync(resolved.localPath);
-  } catch (_) {
-    return { status: 404, error: "File not found" };
-  }
-  if (!stat.isFile()) return { status: 400, error: "Path is not a file" };
-  return {
-    file: {
-      localPath: resolved.localPath,
-      displayPath: resolved.workspacePath || logicalDirectoryDisplayPath(thread, resolved.displayPath, path.basename(resolved.localPath)),
-      name: path.basename(resolved.localPath),
-      mime: mimeFor(resolved.localPath),
-      size: stat.size,
-      updatedAt: stat.mtime.toISOString(),
-    },
-  };
+  return fileArtifactResolverService.resolveFileForBrowserRequest(query, auth);
 }
 
 function resolveArtifactForRequest(artifactId, auth = null) {
-  let artifact = state.artifacts.find((item) => String(item.id || "") === String(artifactId || ""));
-  let reference = null;
-  if (!artifact) {
-    reference = findArtifactReferenceById(artifactId);
-    if (!reference) {
-      return { status: 404, error: "Artifact not found" };
-    }
-    artifact = {
-      ...reference.artifact,
-      id: String(artifactId || ""),
-      threadId: reference.thread.id,
-      messageId: reference.message.id,
-      workspaceId: reference.thread.workspaceId,
-      projectId: reference.thread.projectId,
-      subprojectId: reference.thread.subprojectId || "",
-    };
-  }
-  let thread = null;
-  let localPath = artifact.path ? normalizeLocalPath(artifact.path) : "";
-  if (!localPath || !fs.existsSync(localPath)) {
-    reference = reference || findArtifactReference(artifact);
-    const recoveredPath = reference ? resolveArtifactPathFromMessage(artifact, reference.message) : null;
-    if (!reference || !recoveredPath) {
-      return { status: 404, error: "Artifact not found" };
-    }
-    thread = reference.thread;
-    localPath = recoveredPath.localPath;
-    artifact = {
-      ...artifact,
-      path: artifact.path || recoveredPath.rawPath,
-      displayPath: artifact.displayPath || recoveredPath.rawPath,
-      threadId: artifact.threadId || reference.thread.id,
-      messageId: artifact.messageId || reference.message.id,
-      workspaceId: artifact.workspaceId || reference.thread.workspaceId,
-      localPath,
-    };
-  }
-  if (artifact.threadId) {
-    thread = thread || state.threads.find((item) => item.id === String(artifact.threadId || ""));
-    if (!thread) return { status: 404, error: "Artifact not found" };
-    if (auth && !artifactAccessibleToAuth(auth, thread, artifact)) {
-      return { status: 404, error: "Artifact not found" };
-    }
-    if (!isPathAllowedForThread(thread, localPath, artifact.displayPath || artifact.path)) {
-      return { status: 404, error: "Artifact not found" };
-    }
-    return { artifact: { ...artifact, localPath }, thread };
-  }
-  if (auth && !isOwnerAuth(auth)) {
-    return { status: 404, error: "Artifact not found" };
-  }
-  if (!isPathAllowed(localPath)) {
-    return { status: 404, error: "Artifact not found" };
-  }
-  return { artifact: { ...artifact, localPath }, thread: null };
+  return fileArtifactResolverService.resolveArtifactForRequest(artifactId, auth);
 }
 
 async function resolveAuthorizedCronOutputFile(query, auth = null) {
