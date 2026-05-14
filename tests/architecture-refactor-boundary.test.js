@@ -5,6 +5,7 @@ const fs = require("node:fs");
 
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
+const fileResourceService = require("../adapters/file-resource-service");
 const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
 const kanbanCaseShareService = require("../adapters/kanban-case-share-service");
@@ -15,6 +16,7 @@ const markdownRenderer = require("../adapters/markdown-renderer");
 const runtimeStateRepository = require("../adapters/runtime-state-repository");
 const studyAssessmentService = require("../adapters/study-assessment-service");
 const threadViewService = require("../adapters/thread-view-service");
+const weixinForwardService = require("../adapters/weixin-forward-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
 const accessKeyApiRoutes = require("../server-routes/access-key-api-routes");
 const automationApiRoutes = require("../server-routes/automation-api-routes");
@@ -56,6 +58,9 @@ function assertAppearsInOrder(text, labels) {
 function testRefactorModulesExportStableContracts() {
   assert.equal(typeof routeRegistry.createApiRouteRegistry, "function");
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
+  assert.equal(typeof fileResourceService.extractArtifactPaths, "function");
+  assert.equal(typeof fileResourceService.publicFileMetadata, "function");
+  assert.equal(typeof fileResourceService.previewStrategyForFile, "function");
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof requestContext.buildRequestContext, "function");
   assert.equal(typeof resourceResolver.resolveResourceAccess, "function");
@@ -69,6 +74,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(typeof threadViewService.createThreadViewService, "function");
+  assert.equal(typeof weixinForwardService.createWeixinForwardService, "function");
+  assert.equal(typeof weixinForwardService.compactWeixinForwardTarget, "function");
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof systemApiRoutes.createSystemApiRoutes, "function");
@@ -150,6 +157,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createKanbanStudyArtifactService/);
   assert.match(server, /kanbanStudyArtifactService\.publicReadingSubmissionSummary/);
   assert.match(server, /kanbanStudyArtifactService\.publicAssessmentExam/);
+  assert.match(server, /fileResourceService\.extractArtifactPaths/);
+  assert.match(server, /createWeixinForwardService/);
+  assert.match(server, /weixinForwardService\.targetsForWorkspace/);
   assert.match(server, /syncKanbanCaseShareStoreToSqlite/);
   assertAppearsInOrder(server, [
     "threadReadUploadApiRoutes.handle(req, res, url, { auth })",

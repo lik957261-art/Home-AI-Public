@@ -26,6 +26,7 @@ const kanbanCardProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "ka
 const kanbanCaseShareServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-case-share-service.js"), "utf8");
 const kanbanMaintenanceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-maintenance-service.js"), "utf8");
 const kanbanStudyArtifactServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-study-artifact-service.js"), "utf8");
+const fileResourceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "file-resource-service.js"), "utf8");
 const threadViewServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "thread-view-service.js"), "utf8");
 const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-ingress-provider.js"), "utf8");
 
@@ -807,7 +808,8 @@ assert.match(serverJs, /payload\.kanbanOutputs = \[\]/);
 assert.match(kanbanProviderJs, /workspace_id: String\(meta\.workspaceId \|\| meta\.workspace_id \|\| payload\.workspace_id \|\| payload\.workspaceId \|\| ""\)/);
 assert.match(kanbanProviderJs, /let runs = Array\.isArray\(show\?\.runs\) \? show\.runs : \[\]/);
 assert.match(kanbanProviderJs, /const includeLog = bool\(payload\.include_log \|\| payload\.includeLog\)/);
-assert.match(serverJs, /txt\|json\|csv\|html\?\|zip/);
+assert.match(fileResourceServiceJs, /txt\|json\|csv\|html\?\|zip/);
+assert.match(serverJs, /fileResourceService\.extractArtifactPaths\(text\)/);
 assert.match(stylesCss, /\.todo-detail-outputs/);
 assert.match(stylesCss, /\.todo-detail-deliverables/);
 assert.match(stylesCss, /\.todo-detail-meta/);

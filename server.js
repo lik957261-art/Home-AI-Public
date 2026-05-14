@@ -9,6 +9,7 @@ const zlib = require("node:zlib");
 const { spawn, spawnSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const webpush = require("web-push");
+const fileResourceService = require("./adapters/file-resource-service");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
 const { createAuthProvider } = require("./adapters/auth-provider");
 const { createAutomationProvider } = require("./adapters/automation-provider");
@@ -45,6 +46,7 @@ const { createThreadViewService } = require("./adapters/thread-view-service");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
+const { createWeixinForwardService } = require("./adapters/weixin-forward-service");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
 const { createAutomationApiRoutes } = require("./server-routes/automation-api-routes");
@@ -463,6 +465,7 @@ const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
 let threadViewService = null;
+let weixinForwardService = null;
 const runConcurrencyPolicy = createRunConcurrencyPolicy({
   maxGlobal: () => RUN_CONCURRENCY_MAX_GLOBAL,
   maxPerWorkspace: () => RUN_CONCURRENCY_MAX_PER_WORKSPACE,
@@ -998,6 +1001,17 @@ threadViewService = createThreadViewService({
   threadMessageSearchLimit: THREAD_MESSAGE_SEARCH_LIMIT,
 });
 bootTrace("thread view service ready");
+
+weixinForwardService = createWeixinForwardService({
+  authCanAccessWorkspace,
+  chatGroupMemberWorkspaceIds,
+  findWorkspace,
+  isOwnerAuth,
+  state: () => state,
+  threadAccessibleToAuth,
+  workspaceLabel,
+});
+bootTrace("weixin forward service ready");
 
 const workspaceBindingsProvider = createWorkspaceBindingsProvider({
   interfaceToolsetsJson: () => process.env.HERMES_WEB_WORKSPACE_INTERFACE_TOOLSETS_JSON || "",
@@ -9926,104 +9940,23 @@ function publicWeixinOutboundDelivery(thread, message) {
 }
 
 function compactWeixinForwardTarget(target = {}) {
-  const source = target && typeof target === "object" ? target : {};
-  const accountId = String(source.accountId || source.account_id || "").trim();
-  const chatId = String(source.chatId || source.chat_id || "").trim();
-  const userId = String(source.userId || source.user_id || "").trim();
-  if (!accountId || !(chatId || userId)) return null;
-  return {
-    source: "weixin",
-    type: "weixin",
-    label: String(source.label || source.targetLabel || "Weixin").trim() || "Weixin",
-    accountId,
-    chatId,
-    userId,
-    workspaceId: String(source.workspaceId || source.workspace_id || "").trim(),
-    threadId: String(source.threadId || source.thread_id || "").trim(),
-    messageId: String(source.messageId || source.message_id || "").trim(),
-    outboundStatus: String(source.outboundStatus || source.outbound_status || "").trim(),
-    updatedAt: String(source.updatedAt || source.updated_at || "").trim(),
-  };
+  return weixinForwardService.compactTarget(target);
 }
 
 function weixinTargetFromWorkspace(workspace) {
-  if (!workspace) return null;
-  const policy = workspace.policy || {};
-  return compactWeixinForwardTarget({
-    label: workspace.label || workspace.id || "Weixin",
-    workspaceId: workspace.id,
-    accountId: workspace.accountId || policy.source_chat_id_alt || policy.adapter_account_id || policy.account_id || "",
-    chatId: workspace.chatId || policy.source_chat_id || policy.chat_id || "",
-    userId: workspace.userId || policy.source_user_id || policy.user_id || "",
-    outboundStatus: workspace.outboundStatus || policy.outbound_status || "",
-  });
+  return weixinForwardService.targetFromWorkspace(workspace);
 }
 
 function collectRecentWeixinForwardTargets(workspaceId, auth) {
-  const out = [];
-  for (const thread of state.threads || []) {
-    if (!threadAccessibleToAuth(auth, thread)) continue;
-    if (workspaceId && String(thread.workspaceId || "") !== workspaceId && !chatGroupMemberWorkspaceIds(thread).includes(workspaceId)) continue;
-    for (const message of thread.messages || []) {
-      const external = message.externalDelivery?.source === "weixin" ? message.externalDelivery : message.externalIngress;
-      if (!external || external.source !== "weixin") continue;
-      const target = compactWeixinForwardTarget({
-        label: workspaceLabel(workspaceId || thread.workspaceId),
-        workspaceId: workspaceId || thread.workspaceId,
-        threadId: thread.id,
-        messageId: message.id,
-        accountId: external.accountId,
-        chatId: external.chatId,
-        userId: external.userId,
-        updatedAt: external.updatedAt || message.updatedAt || thread.updatedAt,
-      });
-      if (target) out.push(target);
-    }
-  }
-  return out;
+  return weixinForwardService.collectRecentTargets(workspaceId, auth);
 }
 
 function weixinForwardTargetsForWorkspace(workspaceId, auth) {
-  const id = String(workspaceId || auth?.workspaceId || "owner").trim() || "owner";
-  const workspace = findWorkspace(id);
-  if (!workspace || !authCanAccessWorkspace(auth, id)) return [];
-  const targets = [
-    weixinTargetFromWorkspace(workspace),
-    ...collectRecentWeixinForwardTargets(id, auth),
-  ].filter(Boolean);
-  const byKey = new Map();
-  for (const target of targets) {
-    const key = [target.accountId, target.chatId, target.userId].join("\n");
-    const previous = byKey.get(key);
-    if (!previous || String(target.updatedAt || "") > String(previous.updatedAt || "")) byKey.set(key, target);
-  }
-  return [...byKey.values()]
-    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+  return weixinForwardService.targetsForWorkspace(workspaceId, auth);
 }
 
 function resolveWeixinForwardTarget(body, auth, workspaceId) {
-  const explicit = compactWeixinForwardTarget(body?.target || body || {});
-  const targets = weixinForwardTargetsForWorkspace(workspaceId, auth);
-  if (explicit) {
-    if (isOwnerAuth(auth)) return Object.assign({}, targets[0] || {}, explicit, { workspaceId });
-    const allowed = targets.some((target) => (
-      target.accountId === explicit.accountId
-      && (target.chatId || "") === (explicit.chatId || "")
-      && (target.userId || "") === (explicit.userId || "")
-    ));
-    if (allowed) return Object.assign({}, explicit, { workspaceId });
-    const err = new Error("Weixin forwarding target is not allowed for this workspace");
-    err.status = 403;
-    throw err;
-  }
-  const target = targets[0];
-  if (!target) {
-    const err = new Error("No Weixin forwarding target is configured for this workspace");
-    err.status = 409;
-    err.code = "weixin_forward_target_unavailable";
-    throw err;
-  }
-  return Object.assign({}, target, { workspaceId });
+  return weixinForwardService.resolveTarget(body, auth, workspaceId);
 }
 
 function fileResultFromBridgeFileForForward(file, workspaceId) {
@@ -12728,23 +12661,7 @@ function samePath(a, b) {
 }
 
 function extractArtifactPaths(text) {
-  const out = new Set();
-  const source = String(text || "");
-  for (const match of source.matchAll(/MEDIA:\s*([^\r\n]+)/g)) {
-    addPathCandidate(out, match[1]);
-  }
-  const filePattern = /((?:[A-Za-z]:\\|\/mnt\/[A-Za-z]\/|\\\\wsl(?:\.localhost|\$)?\\)[^\r\n<>"'`]+?\.(?:pdf|png|jpe?g|webp|gif|mp4|mov|mp3|m4a|wav|docx|xlsx|pptx|md|txt|json|csv|html?|zip))/gi;
-  for (const match of source.matchAll(filePattern)) {
-    addPathCandidate(out, match[1]);
-  }
-  return [...out];
-}
-
-function addPathCandidate(set, value) {
-  let text = String(value || "").trim();
-  text = text.replace(/^["'`]+|["'`]+$/g, "");
-  text = text.replace(/[)\].,;:]+$/g, "");
-  if (text) set.add(text);
+  return fileResourceService.extractArtifactPaths(text);
 }
 
 function volume1WindowsMirrorPath(rawPath) {
