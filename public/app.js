@@ -1101,6 +1101,10 @@ function isMobileLayout() {
   return window.matchMedia("(max-width: 1099px)").matches;
 }
 
+function isMobileLandscapeCompactLayout() {
+  return window.matchMedia("(max-width: 1099px) and (orientation: landscape) and (max-height: 620px)").matches;
+}
+
 function isCurrentSingleWindowLoaded() {
   return Boolean(
     state.currentThread &&
@@ -1660,7 +1664,10 @@ function updateMobileBottomNavReservation() {
   }
   const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
-  const reserve = Math.max(96, rectHeight + 12, contentHeight + 12);
+  const compact = isMobileLandscapeCompactLayout();
+  const reserve = compact
+    ? Math.max(62, rectHeight + 8, contentHeight + 8)
+    : Math.max(96, rectHeight + 12, contentHeight + 12);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
 }
 
