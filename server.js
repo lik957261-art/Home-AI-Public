@@ -57,6 +57,7 @@ const { createTodoProvider } = require("./adapters/todo-provider");
 const { createWeixinFileForwardService } = require("./adapters/weixin-file-forward-service");
 const { createWeixinForwardService } = require("./adapters/weixin-forward-service");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
+const { createWeixinOutboundDeliveryService } = require("./adapters/weixin-outbound-delivery-service");
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
 const { createAutomationApiRoutes } = require("./server-routes/automation-api-routes");
 const { createDirectoryBrowserApiRoutes } = require("./server-routes/directory-browser-api-routes");
@@ -480,6 +481,7 @@ let threadViewService = null;
 let localWorkspaceStoreService = null;
 let weixinFileForwardService = null;
 let weixinForwardService = null;
+let weixinOutboundDeliveryService = null;
 const runConcurrencyPolicy = createRunConcurrencyPolicy({
   maxGlobal: () => RUN_CONCURRENCY_MAX_GLOBAL,
   maxPerWorkspace: () => RUN_CONCURRENCY_MAX_PER_WORKSPACE,
@@ -9129,132 +9131,36 @@ function weixinIngressThreadForEvent(event, workspaceId) {
   return ensureWeixinSingleWindowThread(workspaceId, event);
 }
 
+function getWeixinOutboundDeliveryService() {
+  if (!weixinOutboundDeliveryService) {
+    weixinOutboundDeliveryService = createWeixinOutboundDeliveryService({
+      state: () => state,
+      nowIso,
+      normalizeExternalDelivery,
+      deliveryId: (threadId, messageId) => weixinIngressProvider.deliveryId(threadId, messageId),
+      compactText,
+      maxMessageChars: MAX_MESSAGE_CHARS,
+      retryLimit: WEIXIN_DELIVERY_RETRY_LIMIT,
+      retryBaseMs: WEIXIN_DELIVERY_RETRY_BASE_MS,
+      retryMaxMs: WEIXIN_DELIVERY_RETRY_MAX_MS,
+      egressDecide: (payload) => egressPolicyProvider.decide(payload),
+      isStaleHttpToolAvailabilityClaim,
+      isStaleImageToolAvailabilityClaim,
+      saveState,
+      broadcast,
+      threadSummary,
+      compactMessage,
+    });
+  }
+  return weixinOutboundDeliveryService;
+}
+
 function enqueueExternalDeliveryForTerminalMessage(thread, message, terminalStatus) {
-  const existing = normalizeExternalDelivery(message?.externalDelivery || null);
-  if (!existing || existing.source !== "weixin") return null;
-  if (["sent", "skipped"].includes(existing.status)) return existing;
-  const updatedAt = nowIso();
-  const deliveryId = existing.deliveryId || weixinIngressProvider.deliveryId(thread.id, message.id);
-  if (terminalStatus === "failed") {
-    const next = normalizeExternalDelivery(Object.assign({}, existing, {
-      deliveryId,
-      status: "skipped",
-      terminalStatus,
-      content: "",
-      error: compactText(message.error || message.content || "Hermes run failed", 1000),
-      artifacts: [],
-      threadId: thread.id,
-      messageId: message.id,
-      taskGroupId: message.taskGroupId || "",
-      taskId: message.taskId || message.runId || "",
-      workspaceId: thread.workspaceId,
-      queuedAt: existing.queuedAt || updatedAt,
-      updatedAt,
-    }));
-    message.externalDelivery = next;
-    return next;
-  }
-  const content = String(message.content || "").trim();
-  if (message?.elevationRequired || isStaleHttpToolAvailabilityClaim(content) || isStaleImageToolAvailabilityClaim(content)) {
-    const next = normalizeExternalDelivery(Object.assign({}, existing, {
-      deliveryId,
-      status: "skipped",
-      terminalStatus,
-      content: "",
-      error: message?.elevationRequired
-        ? "internal_owner_elevation_request_not_external_delivered"
-        : "internal_tool_schema_failure_not_external_delivered",
-      artifacts: [],
-      threadId: thread.id,
-      messageId: message.id,
-      taskGroupId: message.taskGroupId || "",
-      taskId: message.taskId || message.runId || "",
-      workspaceId: thread.workspaceId,
-      queuedAt: existing.queuedAt || updatedAt,
-      updatedAt,
-    }));
-    message.externalDelivery = next;
-    return next;
-  }
-  const artifacts = Array.isArray(message.artifacts) ? message.artifacts : [];
-  const egressDecision = egressPolicyProvider.decide({
-    source: "weixin",
-    destination: "weixin",
-    operation: "origin_reply",
-    workspaceId: thread.workspaceId,
-    actorWorkspaceId: thread.workspaceId,
-    targetWorkspaceId: thread.workspaceId,
-    originReply: true,
-    sendsFileContent: artifacts.length > 0,
-    contentKinds: artifacts.length ? ["artifact"] : ["text"],
-    targetType: "weixin_outbound",
-    targetId: existing.eventId || deliveryId,
-  });
-  if (!egressDecision.allowed) {
-    const next = normalizeExternalDelivery(Object.assign({}, existing, {
-      deliveryId,
-      status: "skipped",
-      terminalStatus,
-      content: "",
-      error: egressDecision.reason,
-      artifacts: [],
-      threadId: thread.id,
-      messageId: message.id,
-      taskGroupId: message.taskGroupId || "",
-      taskId: message.taskId || message.runId || "",
-      workspaceId: thread.workspaceId,
-      queuedAt: existing.queuedAt || updatedAt,
-      updatedAt,
-    }));
-    message.externalDelivery = next;
-    return next;
-  }
-  const next = normalizeExternalDelivery(Object.assign({}, existing, {
-    deliveryId,
-    status: "pending",
-    terminalStatus,
-    content: compactText(content, MAX_MESSAGE_CHARS),
-    artifacts,
-    threadId: thread.id,
-    messageId: message.id,
-    taskGroupId: message.taskGroupId || "",
-    taskId: message.taskId || message.runId || "",
-    workspaceId: thread.workspaceId,
-    queuedAt: existing.queuedAt || updatedAt,
-    updatedAt,
-  }));
-  message.externalDelivery = next;
-  return next;
+  return getWeixinOutboundDeliveryService().enqueueForTerminalMessage(thread, message, terminalStatus);
 }
 
 function publicWeixinOutboundDelivery(thread, message) {
-  const delivery = normalizeExternalDelivery(message?.externalDelivery || null);
-  if (!delivery) return null;
-  return {
-    deliveryId: delivery.deliveryId || weixinIngressProvider.deliveryId(thread.id, message.id),
-    source: "weixin",
-    status: delivery.status || "pending",
-    accountId: delivery.accountId || "",
-    chatId: delivery.chatId || "",
-    userId: delivery.userId || "",
-    eventId: delivery.eventId || "",
-    workspaceId: delivery.workspaceId || thread.workspaceId || "",
-    threadId: thread.id,
-    messageId: message.id,
-    taskGroupId: message.taskGroupId || "",
-    taskId: message.taskId || message.runId || "",
-    content: String(delivery.content || message.content || message.error || "").trim(),
-    artifacts: Array.isArray(delivery.artifacts) ? delivery.artifacts : (Array.isArray(message.artifacts) ? message.artifacts : []),
-    terminalStatus: delivery.terminalStatus || message.status || "",
-    queuedAt: delivery.queuedAt || delivery.updatedAt || message.updatedAt || "",
-    retryCount: weixinDeliveryRetryCount(delivery),
-    nextRetryAt: delivery.nextRetryAt || delivery.next_retry_at || "",
-    lastAttemptAt: delivery.lastAttemptAt || delivery.last_attempt_at || "",
-    retryAfterInbound: Boolean(delivery.retryAfterInbound || delivery.retry_after_inbound),
-    retryExhausted: Boolean(delivery.retryExhausted || delivery.retry_exhausted),
-    error: delivery.error || "",
-    updatedAt: delivery.updatedAt || message.updatedAt || "",
-  };
+  return getWeixinOutboundDeliveryService().publicDelivery(thread, message);
 }
 
 function compactWeixinForwardTarget(target = {}) {
@@ -9335,171 +9241,36 @@ function userFacingWeixinRunError(err) {
   return raw;
 }
 
-function weixinDeliveryTimeMs(value) {
-  const parsed = Date.parse(String(value || ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 function weixinDeliveryRetryCount(delivery) {
-  return Math.max(0, Number(delivery?.retryCount || delivery?.retry_count || 0) || 0);
+  return getWeixinOutboundDeliveryService().deliveryRetryCount(delivery);
 }
 
 function weixinDeliveryRetryDelayMs(retryCount) {
-  const exponent = Math.max(0, Math.min(8, (Number(retryCount) || 1) - 1));
-  return Math.min(WEIXIN_DELIVERY_RETRY_MAX_MS, WEIXIN_DELIVERY_RETRY_BASE_MS * (2 ** exponent));
+  return getWeixinOutboundDeliveryService().deliveryRetryDelayMs(retryCount);
 }
 
 function isWeixinInboundWakeRequiredFailure(ack = {}) {
-  const text = [
-    ack?.error,
-    ack?.rawStatus,
-    ack?.raw_status,
-    ack?.message,
-  ].map((item) => String(item || "")).join("\n");
-  return /(?:^|[^A-Za-z0-9_])ret(?:urn)?(?:code)?\s*[:=]\s*-2(?:[^0-9]|$)/i.test(text)
-    || /(?:^|[^A-Za-z0-9_])ret\s*(?:\u7b49\u4e8e|\u4e3a|\u662f)\s*-2(?:[^0-9]|$)/i.test(text)
-    || /(?:^|[^A-Za-z0-9_])ret\s+-2(?:[^0-9]|$)/i.test(text);
+  return getWeixinOutboundDeliveryService().isInboundWakeRequiredFailure(ack);
 }
 
 function isWeixinDeliveryRetryable(delivery, nowMs = Date.now()) {
-  if (!delivery || delivery.source !== "weixin" || delivery.status !== "failed") return false;
-  if (delivery.retryAfterInbound || delivery.retry_after_inbound) return false;
-  if (WEIXIN_DELIVERY_RETRY_LIMIT <= 0) return false;
-  const retryCount = weixinDeliveryRetryCount(delivery);
-  if (retryCount >= WEIXIN_DELIVERY_RETRY_LIMIT) return false;
-  const nextRetryMs = weixinDeliveryTimeMs(delivery.nextRetryAt || delivery.next_retry_at || "");
-  return !nextRetryMs || nextRetryMs <= nowMs;
-}
-
-function weixinDeliveryMatchesStatusFilter(delivery, status, nowMs = Date.now()) {
-  if (!delivery || delivery.source !== "weixin") return false;
-  if (!status || status === "all") return true;
-  if (status === "pending") return delivery.status === "pending" || isWeixinDeliveryRetryable(delivery, nowMs);
-  if (status === "retryable" || status === "retry") return isWeixinDeliveryRetryable(delivery, nowMs);
-  if (status === "failed") return delivery.status === "failed" || delivery.status === "waiting_inbound";
-  return delivery.status === status;
+  return getWeixinOutboundDeliveryService().isDeliveryRetryable(delivery, nowMs);
 }
 
 function weixinDeliveryMatchesInboundEvent(delivery, event, workspaceId) {
-  if (!delivery || !event) return false;
-  const deliveryWorkspaceId = String(delivery.workspaceId || delivery.workspace_id || "").trim();
-  if (deliveryWorkspaceId && workspaceId && deliveryWorkspaceId !== workspaceId) return false;
-  const deliveryAccountId = String(delivery.accountId || delivery.account_id || "").trim();
-  const eventAccountId = String(event.accountId || event.account_id || "").trim();
-  if (deliveryAccountId && eventAccountId && deliveryAccountId !== eventAccountId) return false;
-  const deliveryChatId = String(delivery.chatId || delivery.chat_id || "").trim();
-  const eventChatId = String(event.chatId || event.chat_id || "").trim();
-  if (deliveryChatId && eventChatId) return deliveryChatId === eventChatId;
-  const deliveryUserId = String(delivery.userId || delivery.user_id || "").trim();
-  const eventUserId = String(event.userId || event.user_id || "").trim();
-  if (deliveryUserId && eventUserId) return deliveryUserId === eventUserId;
-  const deliveryRoute = deliveryChatId || deliveryUserId;
-  const eventRoute = eventChatId || eventUserId;
-  if (deliveryRoute && eventRoute) return deliveryRoute === eventRoute;
-  return Boolean(deliveryAccountId && eventAccountId && deliveryAccountId === eventAccountId);
+  return getWeixinOutboundDeliveryService().deliveryMatchesInboundEvent(delivery, event, workspaceId);
 }
 
 function wakeWeixinOutboundDeliveriesForInboundEvent(event, workspaceId) {
-  const awakenedAt = nowIso();
-  const woke = [];
-  for (const thread of state.threads || []) {
-    for (const message of thread.messages || []) {
-      const delivery = normalizeExternalDelivery(message?.externalDelivery || null);
-      if (!delivery || delivery.source !== "weixin") continue;
-      const waitingInbound = delivery.status === "waiting_inbound" || delivery.retryAfterInbound || delivery.retry_after_inbound;
-      if (!waitingInbound) continue;
-      if (!weixinDeliveryMatchesInboundEvent(delivery, event, workspaceId)) continue;
-      message.externalDelivery = normalizeExternalDelivery(Object.assign({}, delivery, {
-        status: "pending",
-        retryAfterInbound: false,
-        retryWakeAt: awakenedAt,
-        retryWakeEventId: event?.eventId || "",
-        nextRetryAt: "",
-        updatedAt: awakenedAt,
-      }));
-      message.updatedAt = awakenedAt;
-      thread.updatedAt = awakenedAt;
-      woke.push({ thread, message });
-    }
-  }
-  if (!woke.length) return { count: 0, deliveryIds: [] };
-  saveState();
-  const deliveryIds = [];
-  for (const item of woke) {
-    const publicDelivery = publicWeixinOutboundDelivery(item.thread, item.message);
-    if (publicDelivery?.deliveryId) deliveryIds.push(publicDelivery.deliveryId);
-    broadcast({ type: "thread.updated", thread: threadSummary(item.thread) });
-    broadcast({ type: "message.updated", threadId: item.thread.id, message: compactMessage(item.message, item.thread), thread: threadSummary(item.thread) });
-  }
-  return { count: woke.length, deliveryIds };
+  return getWeixinOutboundDeliveryService().wakeForInboundEvent(event, workspaceId);
 }
 
 function pendingWeixinOutboundDeliveries(filters = {}) {
-  const status = String(filters.status || "pending").trim().toLowerCase();
-  const accountId = String(filters.accountId || "").trim();
-  const limit = Math.max(1, Math.min(100, Number(filters.limit || 20) || 20));
-  const nowMs = Date.now();
-  const out = [];
-  for (const thread of state.threads || []) {
-    for (const message of thread.messages || []) {
-      const delivery = normalizeExternalDelivery(message?.externalDelivery || null);
-      if (!delivery || delivery.source !== "weixin") continue;
-      if (!weixinDeliveryMatchesStatusFilter(delivery, status, nowMs)) continue;
-      if (accountId && delivery.accountId !== accountId) continue;
-      const publicDelivery = publicWeixinOutboundDelivery(thread, message);
-      if (publicDelivery) out.push(publicDelivery);
-    }
-  }
-  return out
-    .sort((a, b) => String(a.queuedAt || a.nextRetryAt || a.updatedAt).localeCompare(String(b.queuedAt || b.nextRetryAt || b.updatedAt)))
-    .slice(0, limit);
+  return getWeixinOutboundDeliveryService().pendingDeliveries(filters);
 }
 
 function ackWeixinOutboundDelivery(deliveryId, ack) {
-  const id = String(deliveryId || "").trim();
-  if (!id) return null;
-  for (const thread of state.threads || []) {
-    for (const message of thread.messages || []) {
-      const delivery = normalizeExternalDelivery(message?.externalDelivery || null);
-      const candidateId = delivery?.deliveryId || weixinIngressProvider.deliveryId(thread.id, message.id);
-      if (!delivery || candidateId !== id) continue;
-      const acknowledgedAt = ack.acknowledgedAt || nowIso();
-      const failureRetryCount = ack.status === "failed" ? weixinDeliveryRetryCount(delivery) + 1 : weixinDeliveryRetryCount(delivery);
-      const waitForInbound = ack.status === "failed" && isWeixinInboundWakeRequiredFailure(ack);
-      const retryExhausted = ack.status === "failed"
-        && !waitForInbound
-        && WEIXIN_DELIVERY_RETRY_LIMIT > 0
-        && failureRetryCount >= WEIXIN_DELIVERY_RETRY_LIMIT;
-      const retryBaseMs = weixinDeliveryTimeMs(acknowledgedAt) || Date.now();
-      const nextRetryAt = ack.status === "failed" && !waitForInbound && !retryExhausted && WEIXIN_DELIVERY_RETRY_LIMIT > 0
-        ? new Date(retryBaseMs + weixinDeliveryRetryDelayMs(failureRetryCount)).toISOString()
-        : "";
-      message.externalDelivery = normalizeExternalDelivery(Object.assign({}, delivery, {
-        deliveryId: candidateId,
-        status: waitForInbound ? "waiting_inbound" : ack.status,
-        providerMessageId: ack.status === "sent" ? ack.providerMessageId : "",
-        error: ack.status === "sent" ? "" : ack.error,
-        rawStatus: ack.rawStatus,
-        acknowledgedAt,
-        lastAttemptAt: acknowledgedAt,
-        failedAt: ack.status === "failed" ? acknowledgedAt : "",
-        sentAt: ack.status === "sent" ? acknowledgedAt : "",
-        retryCount: failureRetryCount,
-        retryAfterInbound: waitForInbound,
-        retryExhausted,
-        nextRetryAt,
-        updatedAt: acknowledgedAt,
-      }));
-      message.updatedAt = acknowledgedAt;
-      thread.updatedAt = message.updatedAt;
-      saveState();
-      const publicDelivery = publicWeixinOutboundDelivery(thread, message);
-      broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(message, thread), thread: threadSummary(thread) });
-      return publicDelivery;
-    }
-  }
-  return null;
+  return getWeixinOutboundDeliveryService().ackDelivery(deliveryId, ack);
 }
 
 async function startWeixinIngressEvent(body) {
