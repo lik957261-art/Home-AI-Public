@@ -4016,7 +4016,7 @@ function kanbanActorPermissions(role) {
       canManage: false,
       canRevise: false,
       canDelete: false,
-      canComment: false,
+      canComment: true,
       canSubmitStudy: true,
       canAnswerQuiz: true,
     };
@@ -4027,7 +4027,7 @@ function kanbanActorPermissions(role) {
       canManage: false,
       canRevise: false,
       canDelete: false,
-      canComment: false,
+      canComment: true,
       canSubmitStudy: false,
       canAnswerQuiz: false,
     };
@@ -8617,6 +8617,10 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
       if (groupChatDeliveryRoot) {
         lines.push(`This is a group-chat AI request. Final user-facing document deliverables for this group turn should be Markdown by default and must be written under the group delivery directory: ${groupChatDeliveryRoot}.`);
         lines.push("Do not place group-chat deliverables only in the sender's private delivery directory. Include a MEDIA:<path> line that points to the group delivery file so every group member can preview it in Hermes Mobile.");
+      }
+      if (isKanbanCaseTopicThread(thread)) {
+        lines.push("This is a shared learning-plan topic chat. Members may exchange ordinary chat messages in the topic; this AI run exists only because the latest message explicitly mentioned ChatGPT/AI.");
+        lines.push("Use the bound learning-plan topic directory as context when attached, but do not treat ordinary member chat as permission to modify the plan, delete cards, or change shared-topic membership.");
       }
       if (groupChatAttachmentCopies.length) {
         lines.push("Group-chat shared attachments authorized for this run are available as readable copies below. If a shared attachment's original path is outside the current access policy or returns permission denied, read the accessible copy path instead:");
@@ -14426,8 +14430,16 @@ async function handleApi(req, res) {
       return;
     }
     const requestedTaskGroupId = bodyTaskGroupId || quotedTaskGroupId;
+    const normalizedTaskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
+    const requestedCaseTopicChat = Boolean(
+      thread.singleWindow
+      && singleWindowMode === "chat"
+      && isKanbanCaseTopicThread(thread)
+      && requestedTaskGroupId
+      && normalizedTaskGroupMeta[requestedTaskGroupId]?.sharedTopic
+    );
     const taskGroupId = thread.singleWindow
-      ? (singleWindowMode === "chat" ? singleWindowChatTaskGroupId(requestedTaskGroupId) : (requestedTaskGroupId || makeId("task")))
+      ? (requestedCaseTopicChat ? requestedTaskGroupId : (singleWindowMode === "chat" ? singleWindowChatTaskGroupId(requestedTaskGroupId) : (requestedTaskGroupId || makeId("task"))))
       : "";
     if (thread.singleWindow && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID && singleWindowMode !== "chat") {
       sendJson(res, 400, { error: "Group chat messages must use chat mode" });
@@ -14440,6 +14452,11 @@ async function handleApi(req, res) {
     const isGroupChatMessage = requestedGroupChat && groupMemberIds.length > 0;
     if (requestedGroupChat && !isGroupChatMessage) {
       sendJson(res, 403, { error: "Group chat is not enabled for this thread" });
+      return;
+    }
+    const isCaseTopicChatMessage = requestedCaseTopicChat && groupMemberIds.length > 0;
+    if (requestedCaseTopicChat && !isCaseTopicChatMessage) {
+      sendJson(res, 403, { error: "Shared learning topic chat is not enabled for this thread" });
       return;
     }
     if (thread.singleWindow && singleWindowMode !== "chat") {
@@ -14466,12 +14483,12 @@ async function handleApi(req, res) {
     } else if (!isOwnerAuth(auth) && auth?.workspaceId) {
       actorWorkspaceId = auth.workspaceId;
     }
-    if (isGroupChatMessage && !groupMemberIds.includes(actorWorkspaceId)) {
+    if ((isGroupChatMessage || isCaseTopicChatMessage) && !groupMemberIds.includes(actorWorkspaceId)) {
       sendJson(res, 403, { error: "Selected workspace is not a group chat member" });
       return;
     }
     const senderInfo = senderInfoForWorkspace(actorWorkspaceId);
-    const messageKind = isGroupChatMessage && String(body.messageKind || body.message_kind || "").trim() === "plain" ? "plain" : "ai";
+    const messageKind = (isGroupChatMessage || isCaseTopicChatMessage) && String(body.messageKind || body.message_kind || "").trim() === "plain" ? "plain" : "ai";
     let gatewayRouting = { securityLevel: "user", maintenance: false };
     if (messageKind === "ai") {
       try {
@@ -14491,7 +14508,7 @@ async function handleApi(req, res) {
     const reasoningEffort = VALID_REASONING_EFFORTS.has(requestedReasoningEffort) ? requestedReasoningEffort : "";
     const allowAutomaticDirectoryAttachment = singleWindowMode !== "chat";
     const directoryAttachment = resolveTaskDirectoryAttachment(thread, body.directory || body.directoryRoute || {})
-      || (singleWindowMode === "chat" ? null : taskDirectoryAttachmentForGroup(thread, requestedTaskGroupId))
+      || ((singleWindowMode === "chat" && !isCaseTopicChatMessage) ? null : taskDirectoryAttachmentForGroup(thread, requestedTaskGroupId))
       || (allowAutomaticDirectoryAttachment ? semanticTaskDirectoryAttachment(thread, text) : null);
     const userMessage = {
       id: makeId("msg"),
@@ -14534,7 +14551,7 @@ async function handleApi(req, res) {
       reasoningEffort,
       singleWindowMode,
     };
-    if (isGroupChatMessage && messageKind === "plain") {
+    if ((isGroupChatMessage || isCaseTopicChatMessage) && messageKind === "plain") {
       thread.messages.push(userMessage);
       thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
       thread.updatedAt = createdAt;

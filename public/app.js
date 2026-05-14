@@ -681,13 +681,18 @@ function sharedCaseTopicGroupsForTaskList(currentThread) {
     })));
 }
 
-function sharedTopicReadOnlyForSelectedWorkspace(group) {
+function sharedTopicChatDisabledForSelectedWorkspace(group) {
   if (!group?.sharedTopic) return false;
   const workspaceId = String(state.selectedWorkspaceId || "").trim();
   if (!workspaceId || state.auth?.isOwner) return false;
   const performers = new Set((group.performerWorkspaceIds || []).map(String));
   const viewers = new Set((group.viewerWorkspaceIds || []).map(String));
-  return viewers.has(workspaceId) && !performers.has(workspaceId);
+  return !performers.has(workspaceId) && !viewers.has(workspaceId);
+}
+
+function selectedSharedTopicGroup() {
+  if (state.viewMode !== "tasks" || !state.currentTaskGroupId || !state.currentThread?.singleWindow) return null;
+  return taskGroupsForThread(state.currentThread).find((group) => group.id === state.currentTaskGroupId && group.sharedTopic) || null;
 }
 
 function activeChatTaskGroupId() {
@@ -12175,8 +12180,13 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("threadTitle").textContent = "";
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !groupActiveRuns.length;
-    const sharedReadOnly = sharedTopicReadOnlyForSelectedWorkspace(selected);
-    configureComposer({ enabled: !sharedReadOnly, placeholder: sharedReadOnly ? "\u53ea\u8bfb\u5b66\u4e60\u8bdd\u9898" : "Reply in this task..." });
+    const sharedChatDisabled = sharedTopicChatDisabledForSelectedWorkspace(selected);
+    configureComposer({
+      enabled: !sharedChatDisabled,
+      placeholder: sharedChatDisabled
+        ? "\u65e0\u6743\u53d1\u8a00"
+        : (selected.sharedTopic ? "\u53d1\u5230\u5b66\u4e60\u8bdd\u9898\uff1b@ChatGPT \u624d\u4f1a\u8c03\u7528 AI" : "Reply in this task..."),
+    });
     const progressPanel = renderRunProgressPanel(thread, groupActiveRuns);
     conversation.innerHTML = `${progressPanel}${(selected.messages || []).map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
     renderTaskDetailToolbar(selected);
@@ -14038,7 +14048,15 @@ async function sendMessage(event) {
       }
       if (isGroupChatView()) body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
     }
-    if (state.viewMode === "tasks" && state.currentTaskGroupId) body.taskGroupId = state.currentTaskGroupId;
+    if (state.viewMode === "tasks" && state.currentTaskGroupId) {
+      body.taskGroupId = state.currentTaskGroupId;
+      const sharedTopicGroup = selectedSharedTopicGroup();
+      if (sharedTopicGroup) {
+        body.singleWindowMode = "chat";
+        body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
+        body.messageLimit = TASK_MESSAGE_INITIAL_LIMIT;
+      }
+    }
     const reasoningEffort = selectedComposerReasoningEffort(text);
     if (reasoningEffort) body.reasoning_effort = reasoningEffort;
     const quotedReply = activeQuotedReplyForSend();
