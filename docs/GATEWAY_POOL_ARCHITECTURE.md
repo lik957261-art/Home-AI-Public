@@ -118,6 +118,11 @@ an opt-out. Only `memories` is shared this way. `state.db`,
 `response_store.db`, `config.yaml`, logs, plugins, and profile directories
 remain profile-local because they contain session/runtime state and can be
 unsafe to share across concurrent Gateway processes.
+When converting an existing owner-maintenance profile-local `memories`
+directory, the starter copies and backs up only top-level Markdown memory files
+(`*.md`) into the shared Owner memory store. Non-Markdown files are not merged
+into shared memory; if they prevent replacing the directory with a symlink, the
+starter leaves that profile-local directory in place and logs the condition.
 
 Low-privilege `securityLevel=user` workers must also expose an ordinary-user
 `api_server` platform toolset. This is not a tiny whitelist: public web/search,

@@ -91,6 +91,18 @@ function OwnerMaintenanceSharedMemoryEnabled {
   return $value -notmatch '^(0|false|no|off|profile-local)$'
 }
 
+function Add-OwnerMaintenanceSharedMemoryCommands {
+  param(
+    [System.Collections.ArrayList]$Commands,
+    [string]$ProfileRoot,
+    [string]$ProfileMemoryPath,
+    [string]$SharedMemoryPath
+  )
+  [void]$Commands.Add("profile_memory_path=$ProfileMemoryPath")
+  [void]$Commands.Add("shared_memory_path=$SharedMemoryPath")
+  [void]$Commands.Add("if [ -L `"`$profile_memory_path`" ]; then rm -f `"`$profile_memory_path`"; elif [ -d `"`$profile_memory_path`" ]; then markdown_backup_dir=$ProfileRoot/memories.profile-local-markdown-backup-`$(date +%Y%m%d%H%M%S); mkdir -p `"`$markdown_backup_dir`"; find `"`$profile_memory_path`" -maxdepth 1 -type f -name '*.md' -exec cp -n {} `"`$shared_memory_path`"/ \; -exec cp -n {} `"`$markdown_backup_dir`"/ \; -delete; if ! rmdir `"`$profile_memory_path`" 2>/dev/null; then echo `"profile memories contains non-markdown files; keeping profile-local directory: `$profile_memory_path`" >&2; fi; elif [ -e `"`$profile_memory_path`" ]; then echo `"profile memories path is not a directory or symlink: `$profile_memory_path`" >&2; fi; if [ ! -e `"`$profile_memory_path`" ]; then ln -sfn `"`$shared_memory_path`" `"`$profile_memory_path`"; fi")
+}
+
 function Ensure-LowGatewayProfileEnv {
   $scriptPath = Join-Path $GatewayWorkerRoot "start-low-gateways.sh"
   if (-not (Test-Path -LiteralPath $scriptPath)) { return }
@@ -364,7 +376,7 @@ function Start-OwnerMaintenanceGateways {
   $sharedMemoryEnabled = OwnerMaintenanceSharedMemoryEnabled
   $sharedMemoryPath = "/home/$OfficialUser/.hermes/memories"
   $ownerMaintenanceLockDir = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
-  $commands = @(
+  $commands = [System.Collections.ArrayList]@(
     "while ! mkdir $ownerMaintenanceLockDir 2>/dev/null; do sleep 1; done",
     "trap 'rmdir $ownerMaintenanceLockDir' EXIT",
     "test -x $officialPython",
@@ -373,21 +385,21 @@ function Start-OwnerMaintenanceGateways {
     "test -s $sharedAuthPath"
   )
   if ($sharedMemoryEnabled) {
-    $commands += "mkdir -p $sharedMemoryPath"
+    [void]$commands.Add("mkdir -p $sharedMemoryPath")
   }
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
     Assert-SafeGatewayProfileName -Profile $profile
     $profileRoot = "/home/$OfficialUser/.hermes/profiles/$profile"
     $profileMemoryPath = "$profileRoot/memories"
-    $commands += "mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs"
-    $commands += "rm -f /home/$OfficialUser/.hermes/profiles/$profile/auth.json /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
-    $commands += "ln -sfn $sharedAuthPath /home/$OfficialUser/.hermes/profiles/$profile/auth.json"
-    $commands += "ln -sfn $sharedAuthLockPath /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
+    [void]$commands.Add("mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs")
+    [void]$commands.Add("rm -f /home/$OfficialUser/.hermes/profiles/$profile/auth.json /home/$OfficialUser/.hermes/profiles/$profile/auth.lock")
+    [void]$commands.Add("ln -sfn $sharedAuthPath /home/$OfficialUser/.hermes/profiles/$profile/auth.json")
+    [void]$commands.Add("ln -sfn $sharedAuthLockPath /home/$OfficialUser/.hermes/profiles/$profile/auth.lock")
     if ($sharedMemoryEnabled) {
-      $commands += "if [ -L $profileMemoryPath ]; then rm -f $profileMemoryPath; elif [ -d $profileMemoryPath ]; then backup=$profileMemoryPath.profile-local-backup-`$(date +%Y%m%d%H%M%S); mv $profileMemoryPath `"`$backup`"; find `"`$backup`" -maxdepth 1 -type f -name '*.md' -exec cp -n {} $sharedMemoryPath/ \; || true; fi; ln -sfn $sharedMemoryPath $profileMemoryPath"
+      Add-OwnerMaintenanceSharedMemoryCommands -Commands $commands -ProfileRoot $profileRoot -ProfileMemoryPath $profileMemoryPath -SharedMemoryPath $sharedMemoryPath
     }
-    $commands += "setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1"
+    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
   }
   $bash = $commands -join "; "
 

@@ -5,6 +5,7 @@ const fs = require("node:fs");
 
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
+const documentPreviewService = require("../adapters/document-preview-service");
 const fileResourceService = require("../adapters/file-resource-service");
 const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
@@ -58,6 +59,8 @@ function assertAppearsInOrder(text, labels) {
 function testRefactorModulesExportStableContracts() {
   assert.equal(typeof routeRegistry.createApiRouteRegistry, "function");
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
+  assert.equal(typeof documentPreviewService.createDocumentPreviewService, "function");
+  assert.equal(typeof documentPreviewService.extractDocxTextFromBuffer, "function");
   assert.equal(typeof fileResourceService.extractArtifactPaths, "function");
   assert.equal(typeof fileResourceService.publicFileMetadata, "function");
   assert.equal(typeof fileResourceService.previewStrategyForFile, "function");
@@ -158,6 +161,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createKanbanStudyArtifactService/);
   assert.match(server, /kanbanStudyArtifactService\.publicReadingSubmissionSummary/);
   assert.match(server, /kanbanStudyArtifactService\.publicAssessmentExam/);
+  assert.match(server, /createDocumentPreviewService/);
+  assert.match(server, /documentPreviewService\.extractDocxText/);
+  assert.match(server, /documentPreviewService\.textFilePreview/);
   assert.match(server, /fileResourceService\.extractArtifactPaths/);
   assert.match(server, /createWeixinForwardService/);
   assert.match(server, /weixinForwardService\.targetsForWorkspace/);

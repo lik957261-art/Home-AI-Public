@@ -5,10 +5,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const crypto = require("node:crypto");
-const zlib = require("node:zlib");
 const { spawn, spawnSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const webpush = require("web-push");
+const { createDocumentPreviewService } = require("./adapters/document-preview-service");
 const fileResourceService = require("./adapters/file-resource-service");
 const { renderWeixinMarkdownForwardHtml } = require("./adapters/markdown-renderer");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
@@ -250,6 +250,9 @@ const MAX_EVENT_PREVIEW_CHARS = 1600;
 const MAX_STORED_EVENTS_PER_THREAD = 80;
 const MAX_UPLOAD_BYTES = Number(process.env.HERMES_WEB_MAX_UPLOAD_BYTES || "104857600");
 const MAX_FILE_PREVIEW_CHARS = Number(process.env.HERMES_WEB_MAX_FILE_PREVIEW_CHARS || "180000");
+const documentPreviewService = createDocumentPreviewService({
+  maxPreviewChars: MAX_FILE_PREVIEW_CHARS,
+});
 const SOURCE_MARKDOWN_SEARCH_LIMIT = Number(
   process.env.HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT
   || process.env.HERMES_WEB_SOURCE_MARKDOWN_SEARCH_LIMIT
@@ -7854,96 +7857,16 @@ function generateWebPushVapidConfig(options = {}) {
   };
 }
 
-function xmlDecode(value) {
-  return String(value || "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, "&");
-}
-
-function findZipEntry(buffer, entryName) {
-  const minEocdOffset = Math.max(0, buffer.length - 0xffff - 22);
-  let eocd = -1;
-  for (let i = buffer.length - 22; i >= minEocdOffset; i -= 1) {
-    if (buffer.readUInt32LE(i) === 0x06054b50) {
-      eocd = i;
-      break;
-    }
-  }
-  if (eocd < 0) throw new Error("Invalid ZIP file");
-  const centralDirectorySize = buffer.readUInt32LE(eocd + 12);
-  const centralDirectoryOffset = buffer.readUInt32LE(eocd + 16);
-  let offset = centralDirectoryOffset;
-  const end = centralDirectoryOffset + centralDirectorySize;
-  while (offset + 46 <= end && offset + 46 <= buffer.length) {
-    if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
-    const flags = buffer.readUInt16LE(offset + 8);
-    const method = buffer.readUInt16LE(offset + 10);
-    const compressedSize = buffer.readUInt32LE(offset + 20);
-    const fileNameLength = buffer.readUInt16LE(offset + 28);
-    const extraLength = buffer.readUInt16LE(offset + 30);
-    const commentLength = buffer.readUInt16LE(offset + 32);
-    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
-    const nameBuffer = buffer.subarray(offset + 46, offset + 46 + fileNameLength);
-    const name = nameBuffer.toString(flags & 0x0800 ? "utf8" : "latin1");
-    if (name === entryName) {
-      const local = localHeaderOffset;
-      if (buffer.readUInt32LE(local) !== 0x04034b50) throw new Error("Invalid ZIP local header");
-      const localNameLength = buffer.readUInt16LE(local + 26);
-      const localExtraLength = buffer.readUInt16LE(local + 28);
-      const dataStart = local + 30 + localNameLength + localExtraLength;
-      const compressed = buffer.subarray(dataStart, dataStart + compressedSize);
-      if (method === 0) return compressed;
-      if (method === 8) return zlib.inflateRawSync(compressed);
-      throw new Error(`Unsupported ZIP compression method: ${method}`);
-    }
-    offset += 46 + fileNameLength + extraLength + commentLength;
-  }
-  return null;
-}
-
 function extractDocxText(filePath) {
-  const buffer = fs.readFileSync(filePath);
-  const xmlBuffer = findZipEntry(buffer, "word/document.xml");
-  if (!xmlBuffer) throw new Error("DOCX document body not found");
-  const xml = xmlBuffer.toString("utf8");
-  const body = xml.match(/<w:body[\s\S]*?<\/w:body>/)?.[0] || xml;
-  const paragraphs = [];
-  const paragraphPattern = /<w:p\b[\s\S]*?<\/w:p>/g;
-  let paragraphMatch;
-  while ((paragraphMatch = paragraphPattern.exec(body))) {
-    const paragraph = paragraphMatch[0];
-    let text = "";
-    const tokenPattern = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>|<w:cr\b[^>]*\/>/g;
-    let tokenMatch;
-    while ((tokenMatch = tokenPattern.exec(paragraph))) {
-      const token = tokenMatch[0];
-      if (token.startsWith("<w:t")) text += xmlDecode(tokenMatch[1] || "");
-      else if (token.startsWith("<w:tab")) text += "\t";
-      else text += "\n";
-    }
-    text = text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-    if (text) paragraphs.push(text);
-  }
-  const fullText = paragraphs.join("\n\n").trim();
-  const truncated = fullText.length > MAX_FILE_PREVIEW_CHARS;
-  return {
-    text: truncated ? fullText.slice(0, MAX_FILE_PREVIEW_CHARS) : fullText,
-    totalChars: fullText.length,
-    truncated,
-  };
+  return documentPreviewService.extractDocxText(filePath);
 }
 
 function textFilePreview(filePath) {
-  const raw = fs.readFileSync(filePath, "utf8");
-  const truncated = raw.length > MAX_FILE_PREVIEW_CHARS;
-  return {
-    text: truncated ? raw.slice(0, MAX_FILE_PREVIEW_CHARS) : raw,
-    totalChars: raw.length,
-    truncated,
-  };
+  return documentPreviewService.textFilePreview(filePath);
+}
+
+function textBufferPreview(buffer) {
+  return documentPreviewService.textBufferPreview(buffer);
 }
 
 function serveStatic(req, res) {
@@ -12939,23 +12862,22 @@ function sendResolvedBridgeFilePreview(res, file) {
   const ext = path.extname(file.name || file.displayPath || "").toLowerCase();
   try {
     const buffer = bridgeFileBuffer(file);
-    let text = "";
+    let preview;
     if ([".txt", ".md", ".csv", ".json"].includes(ext) || /^text\//i.test(file.mime || "")) {
-      text = buffer.toString("utf8");
+      preview = textBufferPreview(buffer);
     } else {
       sendJson(res, 415, { error: "Preview is not supported for this file type", name: file.name, mime: file.mime });
       return;
     }
-    const truncated = text.length > MAX_FILE_PREVIEW_CHARS;
     sendJson(res, 200, {
       name: file.name,
       mime: file.mime,
       size: file.size || buffer.length,
       updatedAt: file.updatedAt,
       path: file.displayPath,
-      text: truncated ? text.slice(0, MAX_FILE_PREVIEW_CHARS) : text,
-      totalChars: text.length,
-      truncated,
+      text: preview.text,
+      totalChars: preview.totalChars,
+      truncated: preview.truncated,
     });
   } catch (err) {
     sendJson(res, 422, { error: `Preview failed: ${err.message || String(err)}` });
