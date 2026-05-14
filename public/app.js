@@ -313,6 +313,7 @@ const state = {
   pwaServiceWorkerError: "",
   settingsOpen: false,
   fontSize: normalizeFontSizePreference(localStorage.getItem("hermesWebFontSize") || DEFAULT_FONT_SIZE),
+  readingFullscreen: false,
   transientProjectRoute: null,
   quotedReply: null,
   taskDirectoryFilter: null,
@@ -2108,6 +2109,7 @@ function updateNavigationControls() {
   app?.classList.toggle("task-list-mode", taskList);
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);
   app?.classList.toggle("main-back-visible", mainBack);
+  app?.classList.toggle("reading-fullscreen-mode", state.readingFullscreen);
   if (taskToolbar) {
     taskToolbar.hidden = !taskDetail;
     if (!taskDetail) taskToolbar.innerHTML = "";
@@ -2232,6 +2234,12 @@ function updateTopMoreControls() {
     searchChat.hidden = !chatView;
     searchChat.disabled = !chatView || !state.currentThread;
   }
+  const readingFullscreen = $("topToggleReadingFullscreen");
+  if (readingFullscreen) {
+    readingFullscreen.hidden = false;
+    readingFullscreen.disabled = false;
+    readingFullscreen.textContent = state.readingFullscreen ? "\u9000\u51fa\u5168\u5c4f" : "\u5168\u5c4f\u9605\u8bfb";
+  }
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
   wrap.classList.toggle("hidden", !hasVisibleAction);
@@ -2243,6 +2251,18 @@ function closeTopMoreMenu() {
   const button = $("topMoreButton");
   if (menu) menu.hidden = true;
   button?.setAttribute("aria-expanded", "false");
+}
+
+function setReadingFullscreen(enabled) {
+  state.readingFullscreen = Boolean(enabled);
+  if (state.readingFullscreen) {
+    closeTopMoreMenu();
+    closeSidebar();
+    blurComposerInput();
+  }
+  applyViewMode();
+  updateMobileBottomNavReservation();
+  if (state.viewMode === "single" || state.viewMode === "tasks") scheduleConversationBottomStick();
 }
 
 function chatSearchAvailable() {
@@ -14966,11 +14986,20 @@ function wireUi() {
   $("topManageGroupMembers")?.addEventListener("click", () => {
     openGroupChatMembers().catch(showError);
   });
+  $("topToggleReadingFullscreen")?.addEventListener("click", () => {
+    setReadingFullscreen(!state.readingFullscreen);
+  });
+  $("readingFullscreenExit")?.addEventListener("click", () => {
+    setReadingFullscreen(false);
+  });
   $("topSettingsButton")?.addEventListener("click", openSettings);
   $("clientVersion")?.addEventListener("click", applyAppUpdateFromBadge);
   document.addEventListener("click", closeTopMoreMenu);
   document.addEventListener("click", () => closeTaskCardMenus());
   document.addEventListener("click", () => closeDirectoryEntryMenus());
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.readingFullscreen) setReadingFullscreen(false);
+  });
   $("openMenu").addEventListener("click", (event) => handleTopNavActivation(event));
   $("closeMenu").addEventListener("click", closeSidebar);
   $("sidebarBack")?.addEventListener("click", sidebarBackToMenu);
