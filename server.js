@@ -23,6 +23,7 @@ const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usag
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
 const { createKanbanMaintenanceService } = require("./adapters/kanban-maintenance-service");
+const { createKanbanStudyArtifactService } = require("./adapters/kanban-study-artifact-service");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createAuditEventProvider } = require("./adapters/audit-event-provider");
 const { createEgressPolicyProvider } = require("./adapters/egress-policy-provider");
@@ -3600,6 +3601,15 @@ const kanbanMaintenanceService = createKanbanMaintenanceService({
   broadcast,
   logger: console,
 });
+const kanbanStudyArtifactService = createKanbanStudyArtifactService({
+  artifactRoot: KANBAN_READING_ARTIFACT_ROOT,
+  nowIso,
+  safeStorageSegment,
+  readJsonStore,
+  writeJsonStore,
+  publicKanbanOutputFile,
+  isKanbanStudyCaseMode,
+});
 
 const kanbanCardApiRoutes = createKanbanCardApiRoutes({
   annotateKanbanCardsForAuth,
@@ -4885,33 +4895,7 @@ function publicKanbanOutputsFromText(workspaceId, text) {
 }
 
 function publicKanbanReadingSubmissionSummary(workspaceId, card = {}) {
-  const mode = String(card?.kanbanCaseMode || card?.kanban_case_mode || "").trim();
-  if (!isKanbanStudyCaseMode(mode)) return null;
-  const cardId = String(card?.id || card?.cardId || "").trim();
-  if (!cardId) return null;
-  const currentCard = {
-    kanbanCaseId: String(card?.kanbanCaseId || card?.kanban_case_id || "").trim(),
-  };
-  const state = readKanbanReadingSubmissionState(workspaceId, cardId, currentCard);
-  if (!state || typeof state !== "object") return null;
-  const attempts = Array.isArray(state.attempts) ? state.attempts : [];
-  const lastAttempt = attempts.length ? attempts[attempts.length - 1] : null;
-  return {
-    status: String(state.status || "quiz_pending"),
-    submittedAt: String(state.submittedAt || ""),
-    completedAt: String(state.completedAt || ""),
-    completionError: String(state.completionError || ""),
-    quizAvailable: Boolean(state.quiz),
-    quizUrl: String(state.quizUrl || readingQuizUrl(workspaceId, cardId)),
-    analysisOutput: state.analysisPath ? publicKanbanOutputFile(workspaceId, state.analysisPath) : null,
-    lastAttempt: lastAttempt ? {
-      submittedAt: String(lastAttempt.submittedAt || ""),
-      score: Number(lastAttempt.score || 0),
-      correctCount: Number(lastAttempt.correctCount || 0),
-      total: Number(lastAttempt.total || 10),
-      passed: Boolean(lastAttempt.passed),
-    } : null,
-  };
+  return kanbanStudyArtifactService.publicReadingSubmissionSummary(workspaceId, card);
 }
 
 function eventPreviewText(event) {
@@ -6410,14 +6394,7 @@ function isReadingAudioUpload(filename, mime) {
 }
 
 function readingArtifactDirectory(workspaceId, caseId, cardId) {
-  const dir = path.join(
-    KANBAN_READING_ARTIFACT_ROOT,
-    safeStorageSegment(workspaceId || "owner"),
-    safeStorageSegment(caseId || "study-plan"),
-    safeStorageSegment(cardId || "card"),
-  );
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  return kanbanStudyArtifactService.readingArtifactDirectory(workspaceId, caseId, cardId);
 }
 
 function isReadingCoverImageUpload(filename, mime) {
@@ -6788,16 +6765,7 @@ function normalizeKanbanReadingQuiz(raw = {}) {
 }
 
 function publicKanbanReadingQuiz(quiz = {}) {
-  return {
-    title: String(quiz.title || "Reading practice quiz"),
-    passingScore: 100,
-    questions: (Array.isArray(quiz.questions) ? quiz.questions : []).map((item, index) => ({
-      id: String(item.id || `q${index + 1}`),
-      prompt: String(item.prompt || ""),
-      choices: Array.isArray(item.choices) ? item.choices.map((choice) => String(choice || "")) : [],
-      skill: String(item.skill || ""),
-    })),
-  };
+  return kanbanStudyArtifactService.publicReadingQuiz(quiz);
 }
 
 async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes = "") {
@@ -6844,27 +6812,19 @@ async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, trans
 }
 
 function readingQuizUrl(workspaceId, cardId) {
-  const params = new URLSearchParams({
-    view: "todos",
-    workspaceId: String(workspaceId || "owner"),
-    todoId: String(cardId || ""),
-    readingQuiz: "1",
-  });
-  return `/?${params.toString()}`;
+  return kanbanStudyArtifactService.readingQuizUrl(workspaceId, cardId);
 }
 
 function readingSubmissionStatePath(workspaceId, cardId, currentCard = null) {
-  return path.join(readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId), "latest-reading-submission.json");
+  return kanbanStudyArtifactService.readingSubmissionStatePath(workspaceId, cardId, currentCard);
 }
 
 function readKanbanReadingSubmissionState(workspaceId, cardId, currentCard = null) {
-  return readJsonStore(readingSubmissionStatePath(workspaceId, cardId, currentCard), null);
+  return kanbanStudyArtifactService.readReadingSubmissionState(workspaceId, cardId, currentCard);
 }
 
 function writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, state) {
-  const payload = Object.assign({ schemaVersion: 1, updatedAt: nowIso() }, state || {});
-  writeJsonStore(readingSubmissionStatePath(workspaceId, cardId, currentCard), payload);
-  return payload;
+  return kanbanStudyArtifactService.writeReadingSubmissionState(workspaceId, cardId, currentCard, state);
 }
 
 function kanbanReadingCardTimestamp(card = {}) {
@@ -7185,17 +7145,15 @@ function isKanbanAssessmentCard(card = {}) {
 }
 
 function assessmentExamStatePath(workspaceId, cardId, currentCard = null) {
-  return path.join(readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId), "latest-assessment-exam.json");
+  return kanbanStudyArtifactService.assessmentExamStatePath(workspaceId, cardId, currentCard);
 }
 
 function readKanbanAssessmentExamState(workspaceId, cardId, currentCard = null) {
-  return readJsonStore(assessmentExamStatePath(workspaceId, cardId, currentCard), null);
+  return kanbanStudyArtifactService.readAssessmentExamState(workspaceId, cardId, currentCard);
 }
 
 function writeKanbanAssessmentExamState(workspaceId, cardId, currentCard, state) {
-  const payload = Object.assign({ schemaVersion: 1, updatedAt: nowIso() }, state || {});
-  writeJsonStore(assessmentExamStatePath(workspaceId, cardId, currentCard), payload);
-  return payload;
+  return kanbanStudyArtifactService.writeAssessmentExamState(workspaceId, cardId, currentCard, state);
 }
 
 function seededNumber(seedText) {
@@ -7519,23 +7477,7 @@ async function generateKanbanAssessmentExam(workspaceId, cardId, currentCard, co
 }
 
 function publicKanbanAssessmentExam(exam = {}, state = {}) {
-  return {
-    title: String(exam.title || "Formal assessment"),
-    subject: String(exam.subject || ""),
-    subjectId: String(exam.subjectId || ""),
-    questionCount: Number(exam.questionCount || (Array.isArray(exam.questions) ? exam.questions.length : 0)) || 0,
-    durationMinutes: Number(exam.durationMinutes || 30) || 30,
-    passingScore: Number(exam.passingScore || 80) || 80,
-    verification: String(exam.verification || ""),
-    startedAt: String(state.startedAt || ""),
-    status: String(state.status || "in_progress"),
-    questions: (Array.isArray(exam.questions) ? exam.questions : []).map((item, index) => ({
-      id: String(item.id || `q${index + 1}`),
-      prompt: String(item.prompt || ""),
-      choices: Array.isArray(item.choices) ? item.choices.map((choice) => String(choice || "")) : [],
-      skill: String(item.skill || ""),
-    })),
-  };
+  return kanbanStudyArtifactService.publicAssessmentExam(exam, state);
 }
 
 function assessmentExamUrl(workspaceId, cardId) {

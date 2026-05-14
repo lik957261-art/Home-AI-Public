@@ -25,6 +25,7 @@ const kanbanProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban
 const kanbanCardProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-card-provider.js"), "utf8");
 const kanbanCaseShareServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-case-share-service.js"), "utf8");
 const kanbanMaintenanceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-maintenance-service.js"), "utf8");
+const kanbanStudyArtifactServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-study-artifact-service.js"), "utf8");
 const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-ingress-provider.js"), "utf8");
 
 assert.match(appJs, /function taskGroupsForThread\(thread\)/);
@@ -511,7 +512,7 @@ assert.match(kanbanCaseShareServiceJs, /annotateCardForAuth\(card, auth, \{ acto
 assert.match(kanbanCaseShareServiceJs, /isOwnerAuth\?\.\(auth\) && selected && selected !== "owner"/);
 assert.match(kanbanCardApiRoutes, /kanbanCaseSharesForActor\(auth, workspaceId\)/);
 assert.match(serverJs, /function resolveKanbanCardAccess\(req, res, workspaceId, cardId, capability = "view"\)/);
-assert.match(serverJs, /reading-submission/);
+assert.match(kanbanStudyArtifactServiceJs, /latest-reading-submission\.json/);
 assert.match(serverJs, /async function createKanbanStudyPlanCards\(workspaceId, input = \{\}\)/);
 assert.match(serverJs, /function submitKanbanReadingSubmission\(workspaceId, cardId, body = \{\}\)/);
 assert.match(serverJs, /function generateKanbanReadingQuiz\(workspaceId, cardId, currentCard, transcription, analysis, notes = ""\)/);

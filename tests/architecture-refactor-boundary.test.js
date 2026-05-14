@@ -9,6 +9,7 @@ const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
 const kanbanCaseShareService = require("../adapters/kanban-case-share-service");
 const kanbanMaintenanceService = require("../adapters/kanban-maintenance-service");
+const kanbanStudyArtifactService = require("../adapters/kanban-study-artifact-service");
 const kanbanStory = require("../adapters/kanban-story-provider");
 const markdownRenderer = require("../adapters/markdown-renderer");
 const runtimeStateRepository = require("../adapters/runtime-state-repository");
@@ -59,6 +60,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof resourceResolver.resolveResourceAccess, "function");
   assert.equal(typeof kanbanCaseShareService.createKanbanCaseShareService, "function");
   assert.equal(typeof kanbanMaintenanceService.createKanbanMaintenanceService, "function");
+  assert.equal(typeof kanbanStudyArtifactService.createKanbanStudyArtifactService, "function");
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
@@ -141,6 +143,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createKanbanMaintenanceService/);
   assert.match(server, /kanbanMaintenanceService\.maybeReconcileDependencyBlocks/);
   assert.match(server, /kanbanMaintenanceService\.readCardListCache/);
+  assert.match(server, /createKanbanStudyArtifactService/);
+  assert.match(server, /kanbanStudyArtifactService\.publicReadingSubmissionSummary/);
+  assert.match(server, /kanbanStudyArtifactService\.publicAssessmentExam/);
   assert.match(server, /syncKanbanCaseShareStoreToSqlite/);
   assertAppearsInOrder(server, [
     "threadReadUploadApiRoutes.handle(req, res, url, { auth })",
@@ -159,6 +164,7 @@ function testPackageRunsArchitectureContracts() {
     "study-assessment-service",
     "kanban-case-share-service",
     "kanban-maintenance-service",
+    "kanban-study-artifact-service",
     "request-context-provider",
     "resource-access-resolver",
     "kanban-story-provider",
@@ -197,6 +203,7 @@ function testPackageRunsArchitectureContracts() {
     "tests/study-assessment-service.test.js",
     "tests/kanban-case-share-service.test.js",
     "tests/kanban-maintenance-service.test.js",
+    "tests/kanban-study-artifact-service.test.js",
     "tests/request-context-provider.test.js",
     "tests/resource-access-resolver.test.js",
     "tests/kanban-story-provider.test.js",
