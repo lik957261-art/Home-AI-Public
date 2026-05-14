@@ -5164,10 +5164,27 @@ function kanbanLearnerRootDirectory(ownerWorkspaceId, ownerRoot, plan = {}) {
 }
 
 function kanbanCaseDirectoryName(plan = {}) {
-  const title = kanbanCaseTopicTitle(plan);
-  const id = safeStorageSegment(plan.id || "case", "case");
-  const titlePart = safeStorageSegment(title, "plan").slice(0, 48);
-  return safeDirectoryName(`${id}-${titlePart}`) || id;
+  const readable = safeDirectoryName(compactText(kanbanCaseTopicTitle(plan), 96));
+  return readable || safeStorageSegment(plan.id || "case", "case");
+}
+
+function kanbanCaseDirectoryPath(ownerWorkspaceId, sharedRoot, plan = {}) {
+  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
+  const existingShare = readKanbanCaseShare(owner, plan.id || "");
+  const existingPath = normalizeLocalPath(existingShare?.caseDirectoryPath || "") || existingShare?.caseDirectoryPath || "";
+  if (existingPath && pathInsideAnyRoot(existingPath, [sharedRoot])) return existingPath;
+  const baseName = kanbanCaseDirectoryName(plan);
+  let candidate = path.join(sharedRoot, baseName);
+  if (!fs.existsSync(candidate)) return candidate;
+  const suffix = crypto.createHash("sha1").update(String(plan.id || baseName)).digest("hex").slice(0, 6);
+  const suffixedBase = safeDirectoryName(`${baseName}-${suffix}`) || safeStorageSegment(plan.id || "case", "case");
+  candidate = path.join(sharedRoot, suffixedBase);
+  let index = 2;
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(sharedRoot, safeDirectoryName(`${suffixedBase}-${index}`) || `${suffixedBase}-${index}`);
+    index += 1;
+  }
+  return candidate;
 }
 
 function kanbanCaseMemberWorkspaceIds(plan = {}, ownerWorkspaceId = "owner") {
@@ -5186,7 +5203,7 @@ function ensureKanbanCaseSharedDirectory(ownerWorkspaceId, plan = {}) {
   const learner = kanbanPlanLearnerLabel(plan);
   const learnerRoot = kanbanLearnerRootDirectory(owner, ownerRoot, plan);
   const sharedRoot = path.join(learnerRoot, KANBAN_STUDY_SHARED_FOLDER_NAME);
-  const caseDirectory = path.join(sharedRoot, kanbanCaseDirectoryName(plan));
+  const caseDirectory = kanbanCaseDirectoryPath(owner, sharedRoot, plan);
   assertChildPathInside(ownerRoot, learnerRoot);
   assertChildPathInside(learnerRoot, sharedRoot);
   assertChildPathInside(sharedRoot, caseDirectory);
