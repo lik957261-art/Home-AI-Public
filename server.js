@@ -251,7 +251,7 @@ const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(process.env.HERMES_MOBILE_
 const KANBAN_READING_ARTIFACT_ROOT = path.resolve(process.env.HERMES_MOBILE_READING_ARTIFACT_ROOT || process.env.HERMES_WEB_READING_ARTIFACT_ROOT || path.join(DATA_DIR, "artifacts", "kanban-reading"));
 const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(process.env.HERMES_MOBILE_READING_COVER_MAX_BYTES || process.env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
 const KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1";
-const KANBAN_STUDY_CASE_MODES = new Set(["reading-plan", "study-plan"]);
+const KANBAN_STUDY_CASE_MODES = new Set(["study-plan"]);
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -4081,6 +4081,7 @@ function publicTodo(row) {
       : [],
     kanbanCaseId: String(row.kanban_case_id || row.kanbanCaseId || ""),
     kanbanCaseMode: String(row.kanban_case_mode || row.kanbanCaseMode || ""),
+    kanbanCaseTemplate: String(row.kanban_case_template || row.kanbanCaseTemplate || ""),
     kanbanCaseSourceText: String(row.kanban_case_source_text || row.kanbanCaseSourceText || ""),
     kanbanCaseSummary: String(row.kanban_case_summary || row.kanbanCaseSummary || ""),
     kanbanCaseCover: publicKanbanCoverFile(workspaceId, row.kanban_case_cover || row.kanbanCaseCover || null),
@@ -4110,7 +4111,7 @@ function publicTodo(row) {
   if (isKanbanStudyCaseMode(payload.kanbanCaseMode)) {
     payload.readingSubmission = publicKanbanReadingSubmissionSummary(workspaceId, payload);
     payload.studySubmission = payload.readingSubmission;
-    payload.kanbanStudyKind = payload.kanbanCaseMode === "reading-plan" ? "reading" : "study";
+    payload.kanbanStudyKind = payload.kanbanCaseTemplate || "custom";
   }
   return payload;
 }
@@ -4843,9 +4844,32 @@ function readingPlanDueTime(startDate, timeOfDay, dayOffset) {
   return formatLocalDateTime(date);
 }
 
+function normalizeKanbanStudyTemplate(raw = {}) {
+  const value = String(
+    raw.studyTemplate
+    || raw.study_template
+    || raw.caseTemplate
+    || raw.case_template
+    || raw.template
+    || raw.kind
+    || "",
+  ).trim().toLowerCase();
+  if (["reading", "read", "book", "english-reading", "reading-retell"].includes(value)) return "reading";
+  return "custom";
+}
+
+function kanbanCardStudyTemplate(card = {}) {
+  return String(card?.kanbanCaseTemplate || card?.kanban_case_template || card?.studyTemplate || card?.study_template || "custom").trim().toLowerCase() || "custom";
+}
+
+function kanbanCardUsesReadingTemplate(card = {}) {
+  return kanbanCardStudyTemplate(card) === "reading";
+}
+
 function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
-  const requestedMode = String(raw.mode || raw.caseMode || raw.case_mode || raw.planMode || "").trim();
-  const mode = requestedMode === "study-plan" ? "study-plan" : "reading-plan";
+  const mode = "study-plan";
+  const template = normalizeKanbanStudyTemplate(raw);
+  const readingTemplate = template === "reading";
   const contentTitle = compactText(
     raw.contentTitle
     || raw.content_title
@@ -4855,7 +4879,7 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
     || "",
     120,
   );
-  if (!contentTitle) throw new Error(mode === "reading-plan" ? "Reading plan bookTitle is required" : "Study plan contentTitle is required");
+  if (!contentTitle) throw new Error("Study plan contentTitle is required");
   const learnerName = compactText(
     raw.learnerName
     || raw.learner_name
@@ -4867,9 +4891,9 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
     || "学习者",
     80,
   );
-  const subject = compactText(raw.subject || raw.domain || (mode === "reading-plan" ? "英语阅读" : "学习"), 80);
-  const activity = compactText(raw.activity || raw.activityType || raw.activity_type || (mode === "reading-plan" ? "阅读复述" : "提交成果并考核"), 120);
-  const submissionLabel = compactText(raw.submissionLabel || raw.submission_label || (mode === "reading-plan" ? "复述录音" : "学习成果文件或文字"), 120);
+  const subject = compactText(raw.subject || raw.domain || (readingTemplate ? "英语阅读" : "学习"), 80);
+  const activity = compactText(raw.activity || raw.activityType || raw.activity_type || (readingTemplate ? "阅读复述" : "提交成果并考核"), 120);
+  const submissionLabel = compactText(raw.submissionLabel || raw.submission_label || (readingTemplate ? "复述录音" : "学习成果文件或文字"), 120);
   const sessions = Math.max(1, Math.min(KANBAN_READING_PLAN_MAX_SESSIONS, Number(raw.sessions || raw.sessionCount || raw.session_count || 10) || 10));
   const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date);
   const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
@@ -4894,11 +4918,10 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
     || "",
   ).filter((id) => id !== String(workspaceId || "owner") && !performerWorkspaceIds.includes(id));
   const summary = compactText(`${learnerName}：${subject} - ${contentTitle}`, 180);
-  const idPrefix = mode === "study-plan" ? "study-plan" : "reading-plan";
-  const id = String(raw.id || `${idPrefix}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
+  const id = String(raw.id || `study-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
   const cards = Array.from({ length: sessions }, (_, index) => {
     const day = index + 1;
-    const title = mode === "reading-plan"
+    const title = readingTemplate
       ? `${learnerName}阅读《${contentTitle}》第 ${day}/${sessions} 次：录音复述`
       : `${learnerName}${subject}第 ${day}/${sessions} 次：提交成果`;
     const description = compactText([
@@ -4907,21 +4930,21 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
       `领域/科目：${subject}`,
       `当天任务：${activity}`,
       `提交要求：${submissionLabel}`,
-      mode === "reading-plan"
+      readingTemplate
         ? "当天阅读完成后，需要上传语音复述或总结录音。Hermes Mobile 会先转写录音，再结合前面已完成卡片的反馈生成评价、针对性单选考卷和下一次指导；答卷 10 题全对后，本卡片才会完成。"
         : "当天学习完成后，提交成果文件、文字说明或录音。Hermes Mobile 会提取可读内容、生成评价、针对性单选考卷和下一次指导；答卷 10 题全对后，本卡片才会完成。",
       sourceText ? `整体要求：\n${sourceText}` : "",
     ].filter(Boolean).join("\n\n"), 1800);
     return {
-      clientId: `${mode === "study-plan" ? "study-session" : "reading-session"}-${day}`,
+      clientId: `${template}-session-${day}`,
       title,
       day,
       dueTime: readingPlanDueTime(startDate, timeOfDay, index),
       description,
-      deliverables: mode === "reading-plan"
+      deliverables: readingTemplate
         ? ["读后复述录音", "AI阅读评价", "针对性单选考卷", "下一次阅读指导"]
         : ["学习成果提交", "AI评价", "针对性单选考卷", "下一次学习指导"],
-      acceptance: mode === "reading-plan"
+      acceptance: readingTemplate
         ? ["已上传当天录音", "已生成转写和AI评价", "10题单选考卷全对", "卡片完成结果包含分析文件"]
         : ["已提交当天学习成果", "已生成AI评价", "10题单选考卷全对", "卡片完成结果包含分析文件"],
     };
@@ -4929,6 +4952,7 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
   return {
     id,
     mode,
+    template,
     workspaceId: String(workspaceId || "owner"),
     bookTitle: contentTitle,
     contentTitle,
@@ -4949,11 +4973,7 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
   };
 }
 
-function normalizeKanbanReadingPlan(raw = {}, workspaceId = "owner") {
-  return normalizeKanbanStudyPlan(Object.assign({ mode: "reading-plan" }, raw || {}), workspaceId);
-}
-
-async function createKanbanReadingPlanCards(workspaceId, input = {}) {
+async function createKanbanStudyPlanCards(workspaceId, input = {}) {
   const plan = normalizeKanbanStudyPlan(input, workspaceId);
   const cover = saveKanbanReadingCoverUpload(workspaceId, plan.id, input.coverImage || input.cover_image || input.cover || null);
   if (cover) plan.cover = publicKanbanCoverFile(workspaceId, cover) || cover;
@@ -4978,10 +4998,11 @@ async function createKanbanReadingPlanCards(workspaceId, input = {}) {
       description,
       dueTime: card.dueTime,
       reminderLeadMinutes: plan.reminderLeadMinutes,
-      reason: `Created from Hermes Mobile ${plan.mode === "study-plan" ? "study" : "reading"} plan.`,
+      reason: "Created from Hermes Mobile study plan.",
       idempotencyKey: `hm-${plan.mode}-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
       caseId: plan.id,
       caseMode: plan.mode,
+      caseTemplate: plan.template,
       caseSourceText: compactText(plan.sourceText, 2000),
       caseSummary: plan.summary,
       caseCover: cover || null,
@@ -5035,10 +5056,6 @@ async function createKanbanReadingPlanCards(workspaceId, input = {}) {
   return { ok: true, plan, cards: created, share };
 }
 
-async function createKanbanStudyPlanCards(workspaceId, input = {}) {
-  return createKanbanReadingPlanCards(workspaceId, Object.assign({ mode: "study-plan" }, input || {}));
-}
-
 function isReadingAudioUpload(filename, mime) {
   const ext = path.extname(String(filename || "")).toLowerCase();
   return /^audio\//i.test(String(mime || "")) || [".mp3", ".m4a", ".wav", ".aac", ".ogg", ".opus", ".amr"].includes(ext);
@@ -5048,7 +5065,7 @@ function readingArtifactDirectory(workspaceId, caseId, cardId) {
   const dir = path.join(
     KANBAN_READING_ARTIFACT_ROOT,
     safeStorageSegment(workspaceId || "owner"),
-    safeStorageSegment(caseId || "reading-plan"),
+    safeStorageSegment(caseId || "study-plan"),
     safeStorageSegment(cardId || "card"),
   );
   fs.mkdirSync(dir, { recursive: true });
@@ -5069,13 +5086,13 @@ function saveKanbanReadingCoverUpload(workspaceId, planId, rawCover = null) {
   const filename = safeFileName(rawCover.filename || rawCover.name || "book-cover.jpg");
   const mime = String(rawCover.type || rawCover.mime || rawCover.mimeType || rawCover.mime_type || mimeFor(filename) || "").trim();
   if (!isReadingCoverImageUpload(filename, mime)) {
-    const err = new Error("Reading plan cover must be a PNG, JPEG, WebP, GIF, HEIC, or HEIF image");
+    const err = new Error("Study plan cover must be a PNG, JPEG, WebP, GIF, HEIC, or HEIF image");
     err.status = 400;
     throw err;
   }
   const buffer = Buffer.from(data, "base64");
   if (!buffer.length || buffer.length > KANBAN_READING_COVER_MAX_BYTES) {
-    const err = new Error("Invalid or too-large reading plan cover image");
+    const err = new Error("Invalid or too-large study plan cover image");
     err.status = 400;
     throw err;
   }
@@ -5105,7 +5122,7 @@ function saveKanbanReadingAudioUpload(workspaceId, cardId, body = {}, currentCar
     err.status = 400;
     throw err;
   }
-  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId);
+  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId);
   const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
   fs.writeFileSync(filePath, buffer);
   return { path: filePath, name: filename, mime, size: buffer.length };
@@ -5223,7 +5240,7 @@ async function readingContextForCard(workspaceId, cardId) {
 }
 
 async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, priorCards, transcription, notes = "") {
-  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
+  const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
   const previousContext = (priorCards || [])
     .filter((card) => String(card.kanbanResult || "").trim())
     .map((card) => [
@@ -5233,32 +5250,32 @@ async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, 
     .slice(-8)
     .join("\n\n---\n\n");
   const prompt = [
-    studyMode
-      ? "You are evaluating a child's study-plan submission for Hermes Mobile."
-      : "You are evaluating a child's book-reading retelling submission for a Hermes Mobile reading plan.",
+    readingTemplate
+      ? "You are evaluating a child's book-reading retelling submission for a Hermes Mobile study plan."
+      : "You are evaluating a child's study-plan submission for Hermes Mobile.",
     "Return Markdown only, concise but specific. Do not include JSON or code fences.",
-    studyMode
-      ? "Use the current extracted submission text as primary evidence. Use previous session feedback only as context for continuity."
-      : "Use the current transcript as primary evidence. Use previous session feedback only as context for continuity.",
-    studyMode
-      ? "Include a score out of 100. Break the score down according to the subject/domain, accuracy, method, completeness, clarity, and continuity. Base the score only on the submitted evidence and parent notes."
-      : "Include a score out of 100. Break the score down by fluency, grammar, vocabulary, comprehension, organization, and continuity. Base the score on the transcript; do not claim acoustic pronunciation evidence unless it is supported by transcription notes.",
+    readingTemplate
+      ? "Use the current transcript as primary evidence. Use previous session feedback only as context for continuity."
+      : "Use the current extracted submission text as primary evidence. Use previous session feedback only as context for continuity.",
+    readingTemplate
+      ? "Include a score out of 100. Break the score down by fluency, grammar, vocabulary, comprehension, organization, and continuity. Base the score on the transcript; do not claim acoustic pronunciation evidence unless it is supported by transcription notes."
+      : "Include a score out of 100. Break the score down according to the subject/domain, accuracy, method, completeness, clarity, and continuity. Base the score only on the submitted evidence and parent notes.",
     "Make the score actionable: list the main deductions, quote or paraphrase transcript evidence for each weakness, and explain which skill each deduction affects.",
     "Include a dedicated quiz-target section with 3-5 concrete targets derived only from today's transcript and analysis. For each target include category, transcript evidence, why it affected the score, desired correction/practice pattern, and difficulty level.",
     "Do not invent weaknesses, grammar mistakes, vocabulary gaps, or story details that are not supported by the transcript, parent notes, current card, or previous-session context.",
-    studyMode
-      ? "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, subject accuracy, method/process quality, expression/clarity, comparison with previous sessions, next-session advice, and parent observation points."
-      : "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, comprehension, retelling quality, English grammar/expression, vocabulary/sentence patterns, comparison with previous sessions, next-session advice, and parent observation points.",
+    readingTemplate
+      ? "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, comprehension, retelling quality, English grammar/expression, vocabulary/sentence patterns, comparison with previous sessions, next-session advice, and parent observation points."
+      : "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, subject accuracy, method/process quality, expression/clarity, comparison with previous sessions, next-session advice, and parent observation points.",
     "Include these sections: 本次评分（100分）, 本次理解, 复述质量, 英语表达与语法, 词汇与句型, 与前次相比, 下一次建议, 家长可观察点.",
-    "If this is the final session in the reading plan, also include sections: 整本书总结 and 总分（100分）.",
+    "If this is the final session in the reading template, also include sections: 整本书总结 and 总分（100分）.",
     "Include these sections: 本次理解, 复述质量, 表达与逻辑, 与前次相比, 下一次建议, 家长可观察点.",
-    `${studyMode ? "Study plan" : "Reading story"}: ${currentCard?.kanbanCaseSummary || ""}`,
+    `${readingTemplate ? "Reading study plan" : "Study plan"}: ${currentCard?.kanbanCaseSummary || ""}`,
     `Current card: ${currentCard?.content || cardId}`,
     `Session: ${currentCard?.kanbanCaseCardIndex || ""}/${currentCard?.kanbanCaseCardCount || ""}`,
     currentCard?.kanbanCaseSourceText ? `Original requirement:\n${currentCard.kanbanCaseSourceText}` : "",
     previousContext ? `Previous completed session context:\n${previousContext}` : "Previous completed session context: none yet.",
     notes ? `Parent notes:\n${compactText(notes, 2000)}` : "",
-    `${studyMode ? "Submission evidence" : "Transcript"}:\n${transcription.text}`,
+    `${readingTemplate ? "Transcript" : "Submission evidence"}:\n${transcription.text}`,
   ].filter(Boolean).join("\n\n");
   const output = await hermesModelText({
     input: prompt,
@@ -5267,7 +5284,7 @@ async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, 
     model: AUTOMATION_CREATE_MODEL,
     reasoning_effort: "medium",
     conversation: `hermes_web_reading_analysis_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
-    instructions: "Evaluate the reading retelling transcript. Return Markdown only.",
+    instructions: readingTemplate ? "Evaluate the reading retelling transcript. Return Markdown only." : "Evaluate the study submission. Return Markdown only.",
     access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
   }, KANBAN_READING_ANALYSIS_TIMEOUT_MS);
   return compactText(output || "", 12000);
@@ -5314,22 +5331,22 @@ function publicKanbanReadingQuiz(quiz = {}) {
 }
 
 async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes = "") {
-  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
+  const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
   const prompt = [
-    studyMode
-      ? "Generate a practice quiz for a child's study-plan session."
-      : "Generate a practice quiz for a child's book-reading retelling session.",
+    readingTemplate
+      ? "Generate a practice quiz for a child's book-reading retelling session inside a Hermes Mobile study plan."
+      : "Generate a practice quiz for a child's study-plan session.",
     "Return JSON only. No Markdown, no comments, no code fences.",
     "The quiz must contain exactly 10 single-answer multiple-choice questions.",
-    studyMode
-      ? "This is a targeted remediation quiz, not a generic subject quiz. Every question must be traceable to today's score deductions, weakness/error patterns, quiz targets, submitted evidence, or parent notes."
-      : "This is a targeted remediation quiz, not a generic book quiz. Every question must be traceable to today's score deductions, weakness/error patterns, quiz targets, transcript evidence, or parent notes.",
-    studyMode
-      ? "At least 7 of 10 questions must directly train weaknesses or mistakes found in today's submission/analysis. Up to 2 questions may check core subject understanding, and up to 1 question may train better study/reporting structure."
-      : "At least 7 of 10 questions must directly train weaknesses or mistakes found in today's transcript/analysis. Up to 2 questions may check today's story comprehension or sequence, and up to 1 question may train next-retelling structure.",
-    studyMode
-      ? "Do not invent unrelated trivia or random drills that are not connected to the submitted evidence, the analysis, or the current study card."
-      : "Do not invent unrelated trivia, random grammar drills, or vocabulary that is not connected to the transcript, the analysis, or the current reading card.",
+    readingTemplate
+      ? "This is a targeted remediation quiz, not a generic book quiz. Every question must be traceable to today's score deductions, weakness/error patterns, quiz targets, transcript evidence, or parent notes."
+      : "This is a targeted remediation quiz, not a generic subject quiz. Every question must be traceable to today's score deductions, weakness/error patterns, quiz targets, submitted evidence, or parent notes.",
+    readingTemplate
+      ? "At least 7 of 10 questions must directly train weaknesses or mistakes found in today's transcript/analysis. Up to 2 questions may check today's story comprehension or sequence, and up to 1 question may train next-retelling structure."
+      : "At least 7 of 10 questions must directly train weaknesses or mistakes found in today's submission/analysis. Up to 2 questions may check core subject understanding, and up to 1 question may train better study/reporting structure.",
+    readingTemplate
+      ? "Do not invent unrelated trivia, random grammar drills, or vocabulary that is not connected to the transcript, the analysis, or the current reading card."
+      : "Do not invent unrelated trivia or random drills that are not connected to the submitted evidence, the analysis, or the current study card.",
     "Calibrate difficulty from the analysis score: below 70 should focus on basic comprehension, sequence, and simple sentence correction; 70-84 should use applied grammar/vocabulary choices and sentence ordering; 85 or above should use nuanced grammar, vocabulary precision, retelling structure, and inference. If no score is clear, use medium difficulty but still target explicit weaknesses.",
     "The skill field must be a concise focus label, for example grammar: tense error from today's retelling, vocabulary: precise action verb, comprehension: missing event order, or organization: clearer retelling sequence.",
     "Each explanation must say why the correct answer addresses the specific weakness or error from today's analysis.",
@@ -5341,7 +5358,7 @@ async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, trans
     currentCard?.kanbanCaseSourceText ? `Original requirement:\n${currentCard.kanbanCaseSourceText}` : "",
     notes ? `Parent notes:\n${compactText(notes, 2000)}` : "",
     `Analysis:\n${compactText(analysis, 6000)}`,
-    `${studyMode ? "Submission evidence" : "Transcript"}:\n${compactText(transcription.text, 8000)}`,
+    `${readingTemplate ? "Transcript" : "Submission evidence"}:\n${compactText(transcription.text, 8000)}`,
   ].filter(Boolean).join("\n\n");
   const output = await hermesModelText({
     input: prompt,
@@ -5367,7 +5384,7 @@ function readingQuizUrl(workspaceId, cardId) {
 }
 
 function readingSubmissionStatePath(workspaceId, cardId, currentCard = null) {
-  return path.join(readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId), "latest-reading-submission.json");
+  return path.join(readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId), "latest-reading-submission.json");
 }
 
 function readKanbanReadingSubmissionState(workspaceId, cardId, currentCard = null) {
@@ -5436,12 +5453,12 @@ async function ensureKanbanReadingQuizTargeted(workspaceId, cardId, currentCard,
 }
 
 function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes = "") {
-  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "reading-plan", cardId);
+  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId);
   const stem = safeFileName(`${currentCard?.kanbanCaseCardIndex || "session"}-${currentCard?.content || cardId}`).replace(/\.[^.]+$/, "");
-  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
-  const mdPath = path.join(dir, `${Date.now()}-${stem}-${studyMode ? "study" : "reading"}-analysis.md`);
+  const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
+  const mdPath = path.join(dir, `${Date.now()}-${stem}-${readingTemplate ? "reading" : "study"}-analysis.md`);
   const lines = [
-    `# ${currentCard?.content || (studyMode ? "Study submission analysis" : "Reading submission analysis")}`,
+    `# ${currentCard?.content || (readingTemplate ? "Reading submission analysis" : "Study submission analysis")}`,
     "",
     `- Card: ${cardId}`,
     `- Plan: ${currentCard?.kanbanCaseSummary || ""}`,
@@ -5459,9 +5476,9 @@ function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio,
     "",
     `Quiz link: ${readingQuizUrl(workspaceId, cardId)}`,
     "",
-    `Complete all 10 questions correctly in Hermes Mobile to finish this ${studyMode ? "study" : "reading"} card.`,
+    `Complete all 10 questions correctly in Hermes Mobile to finish this ${readingTemplate ? "reading" : "study"} card.`,
     "",
-    studyMode ? "## Submission Evidence" : "## Transcript",
+    readingTemplate ? "## Transcript" : "## Submission Evidence",
     "",
     transcription.text,
   );
@@ -5479,13 +5496,13 @@ function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio,
 async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
   const context = await readingContextForCard(workspaceId, cardId);
   const currentCard = context.current || { id: cardId, content: cardId };
-  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
-  const audio = studyMode
-    ? saveKanbanStudySubmissionUpload(workspaceId, cardId, body, currentCard)
-    : Object.assign(saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard), { kind: "audio" });
-  const transcription = studyMode
-    ? await extractKanbanStudySubmissionEvidence(audio)
-    : Object.assign(await transcribeKanbanReadingAudio(audio.path), { sourceKind: "audio", sourcePath: audio.path });
+  const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
+  const audio = readingTemplate
+    ? Object.assign(saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard), { kind: "audio" })
+    : saveKanbanStudySubmissionUpload(workspaceId, cardId, body, currentCard);
+  const transcription = readingTemplate
+    ? Object.assign(await transcribeKanbanReadingAudio(audio.path), { sourceKind: "audio", sourcePath: audio.path })
+    : await extractKanbanStudySubmissionEvidence(audio);
   const notes = compactText(body.notes || body.comment || "", 2000);
   const analysis = await analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, context.prior, transcription, notes);
   const quiz = await generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes);
@@ -5512,7 +5529,7 @@ async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
     workspaceId,
     cardId,
     comment: [
-      studyMode ? "Study submission uploaded and analyzed." : "Reading retelling audio uploaded and analyzed.",
+      readingTemplate ? "Reading retelling audio uploaded and analyzed." : "Study submission uploaded and analyzed.",
       "The full Markdown analysis is attached; complete the 10-question quiz with all answers correct to finish this card.",
       `Quiz: ${quizUrl}`,
       `MEDIA: ${analysisPath}`,
@@ -5567,7 +5584,6 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
   if (String(state.status || "") === "completed") {
     return { ok: true, passed: true, score: 100, status: "completed", canonicalCardId: lookup.cardId, quiz: publicKanbanReadingQuiz(state.quiz) };
   }
-  const studyMode = String(currentCard?.kanbanCaseMode || "").trim() === "study-plan";
   const answers = Array.isArray(body.answers)
     ? body.answers
     : (body.answers && typeof body.answers === "object" ? state.quiz.questions.map((question) => body.answers[question.id]) : []);
@@ -5615,8 +5631,9 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
       canonicalCardId: lookup.cardId,
     };
   }
+  const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
   const resultText = [
-    studyMode ? "Study submission quiz passed." : "Reading retelling quiz passed.",
+    readingTemplate ? "Reading retelling quiz passed." : "Study submission quiz passed.",
     "Quiz score: 100/100.",
     "",
     `MEDIA: ${state.analysisPath}`,
@@ -5625,7 +5642,7 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
     action: "comment",
     workspaceId,
     cardId: lookup.cardId,
-    comment: `${studyMode ? "Study" : "Reading"} quiz passed with 10/10 correct answers. Completing this card.`,
+    comment: `${readingTemplate ? "Reading" : "Study"} quiz passed with 10/10 correct answers. Completing this card.`,
     author: "Hermes Mobile",
   }).catch(() => null);
   const completed = await kanbanCardProvider.mutateCard({
@@ -12440,30 +12457,6 @@ async function handleApi(req, res) {
     return;
   }
 
-  if (url.pathname === "/api/kanban/cards/reading-plan" && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req, Math.ceil(KANBAN_READING_COVER_MAX_BYTES * 1.4) + 200000);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    try {
-      const result = await createKanbanReadingPlanCards(workspaceId, body);
-      if (!result.ok) {
-        kanbanErrorResponse(res, result, 502);
-        return;
-      }
-      clearKanbanCardListCache(workspaceId);
-      broadcast({ type: "kanban.updated", workspaceId, action: "reading-plan-add" });
-      broadcast({ type: "todos.updated", workspaceId, action: "reading-plan-add" });
-      sendJson(res, 201, result);
-    } catch (err) {
-      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
-
   if (url.pathname === "/api/kanban/cards/study-plan" && req.method === "POST") {
     if (!useKanbanTodoBackend()) {
       sendJson(res, 409, { error: "Kanban backend is not enabled" });
@@ -12535,6 +12528,7 @@ async function handleApi(req, res) {
       ...(body.caseId || body.case_id ? {
         caseId: body.caseId || body.case_id || "",
         caseMode: body.caseMode || body.case_mode || "",
+        caseTemplate: body.caseTemplate || body.case_template || "",
         caseSourceText: body.caseSourceText || body.case_source_text || "",
         caseSummary: body.caseSummary || body.case_summary || "",
         caseCardId: body.caseCardId || body.case_card_id || "",

@@ -234,6 +234,7 @@ function bodyWithMeta(content, meta) {
     recurrenceDays: meta.recurrenceDays || "",
     caseId: meta.caseId || "",
     caseMode: meta.caseMode || "",
+    caseTemplate: meta.caseTemplate || "",
     caseSourceText: meta.caseSourceText || "",
     caseSummary: meta.caseSummary || "",
     caseCover: meta.caseCover || null,
@@ -465,6 +466,7 @@ function createKanbanTodoBridge(options = {}) {
       recurrence_template: bool(meta.recurrenceTemplate || meta.recurrence_template),
       kanban_case_id: String(meta.caseId || meta.case_id || ""),
       kanban_case_mode: String(meta.caseMode || meta.case_mode || ""),
+      kanban_case_template: String(meta.caseTemplate || meta.case_template || ""),
       kanban_case_source_text: String(meta.caseSourceText || meta.case_source_text || ""),
       kanban_case_summary: String(meta.caseSummary || meta.case_summary || ""),
       kanban_case_cover: meta.caseCover || meta.case_cover || null,
@@ -507,6 +509,7 @@ function createKanbanTodoBridge(options = {}) {
         kanbanStatus: String(row.kanban_status || previous.kanbanStatus || "").trim().toLowerCase(),
         caseId: String(row.kanban_case_id || previous.caseId || ""),
         caseMode: String(row.kanban_case_mode || previous.caseMode || ""),
+        caseTemplate: String(row.kanban_case_template || previous.caseTemplate || ""),
         caseSourceText: String(row.kanban_case_source_text || previous.caseSourceText || ""),
         caseSummary: String(row.kanban_case_summary || previous.caseSummary || ""),
         caseCover: row.kanban_case_cover || previous.caseCover || null,
@@ -692,6 +695,7 @@ function createKanbanTodoBridge(options = {}) {
       recurrenceDays: String(payload.recurrence_days || ""),
       caseId: String(payload.case_id || payload.caseId || "").trim(),
       caseMode: String(payload.case_mode || payload.caseMode || "").trim(),
+      caseTemplate: String(payload.case_template || payload.caseTemplate || "").trim(),
       caseSourceText: String(payload.case_source_text || payload.caseSourceText || "").trim(),
       caseSummary: String(payload.case_summary || payload.caseSummary || "").trim(),
       caseCover: payload.case_cover || payload.caseCover || null,
@@ -864,14 +868,15 @@ function createKanbanTodoBridge(options = {}) {
       const originalCaseCardId = String(meta.caseCardId || meta.case_card_id || todoId).trim() || todoId;
       const caseId = String(meta.caseId || meta.case_id || `manual-revision-${safeSlug(todoId, "card")}`).trim();
       const caseMode = String(meta.caseMode || meta.case_mode || "manual-revision").trim();
+      const caseTemplate = String(meta.caseTemplate || meta.case_template || "").trim();
       const caseSourceText = String(meta.caseSourceText || meta.case_source_text || originalTitle).trim();
       const caseSummary = String(meta.caseSummary || meta.case_summary || `Manual revision for ${originalTitle}`).trim();
       const caseCover = meta.caseCover || meta.case_cover || null;
-      const readingPlanRevision = caseMode === "reading-plan" || caseMode === "study-plan";
+      const studyPlanRevision = caseMode === "study-plan";
       const originalCaseCardIndex = Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 1;
       const currentCaseCardCount = Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || originalCaseCardIndex;
-      const caseCardIndex = readingPlanRevision ? originalCaseCardIndex : currentCaseCardCount + 1;
-      const caseCardCount = readingPlanRevision ? currentCaseCardCount : Math.max(caseCardIndex, currentCaseCardCount);
+      const caseCardIndex = studyPlanRevision ? originalCaseCardIndex : currentCaseCardCount + 1;
+      const caseCardCount = studyPlanRevision ? currentCaseCardCount : Math.max(caseCardIndex, currentCaseCardCount);
       const revisionTitle = String(payload.title || payload.content || `修改：${originalTitle}`).trim();
       const revisionDescription = [
         `Original card: ${todoId}`,
@@ -888,13 +893,14 @@ function createKanbanTodoBridge(options = {}) {
         assignee_label: payload.assignee_label || meta.assigneeLabel || meta.assignee || payload.source_principal || "",
         case_id: caseId,
         case_mode: caseMode,
+        case_template: caseTemplate,
         case_source_text: caseSourceText,
         case_summary: caseSummary,
         case_cover: caseCover,
         case_card_id: `${originalCaseCardId}-revision-${revisionCount}`,
         case_card_index: caseCardIndex,
         case_card_count: caseCardCount,
-        case_depends_on: readingPlanRevision ? [] : [originalCaseCardId],
+        case_depends_on: studyPlanRevision ? [] : [originalCaseCardId],
         case_deliverables: arrayFromValue(meta.caseDeliverables || meta.case_deliverables, 8),
         case_acceptance: arrayFromValue(meta.caseAcceptance || meta.case_acceptance, 7).concat(["Complete the requested modification and update the receipt."]).slice(0, 8),
         case_card_goal: compactValue(revisionRequest, 240),
@@ -920,6 +926,7 @@ function createKanbanTodoBridge(options = {}) {
       nextStore.todos[todoId] = Object.assign({}, previousOriginal, {
         caseId,
         caseMode,
+        caseTemplate,
         caseSourceText,
         caseSummary,
         caseCover,
@@ -960,7 +967,7 @@ function createKanbanTodoBridge(options = {}) {
       const principalId = String(meta.assignee || meta.createdBy || "");
       if (principals.size && !principals.has(principalId)) continue;
       if (String(meta.kanbanStatus || meta.kanban_status || "").trim().toLowerCase() === "blocked") {
-        if (["reading-plan", "study-plan"].includes(String(meta.caseMode || meta.case_mode || "").trim())) continue;
+        if (String(meta.caseMode || meta.case_mode || "").trim() === "study-plan") continue;
         const blockedAt = Date.parse(meta.blockedAt || meta.updatedAt || "");
         if (Number.isFinite(blockedAt) && now - blockedAt >= blockedDelayMs) {
           const markKey = `kanban-todo:${id}:blocked:${meta.blockedAt || meta.updatedAt || ""}`;

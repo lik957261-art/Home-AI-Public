@@ -154,8 +154,9 @@ async function run() {
     source_principal: "weixin_stephen",
     assignee: "weixin_stephen",
     content: "Reading session 2",
-    case_id: "reading-case",
-    case_mode: "reading-plan",
+    case_id: "study-case",
+    case_mode: "study-plan",
+    case_template: "reading",
     case_card_id: "reading-session-2",
     case_card_index: 2,
     case_card_count: 10,
@@ -167,7 +168,7 @@ async function run() {
     workspace_id: "weixin_stephen",
     source_principal: "weixin_stephen",
     todo_id: reading.id,
-    reason: "Waiting for previous reading session completion; Hermes Mobile shows only the current reading session.",
+    reason: "Waiting for previous study session completion; Hermes Mobile shows only the current study session.",
   });
   assert.equal(readingBlocked.ok, true);
   const readingBlockedPush = await provider.run({
@@ -240,7 +241,8 @@ async function run() {
   assert.equal(readingRevision.ok, true);
   assert.equal(readingRevision.action, "revise");
   assert.equal(readingRevision.kanban_revision_of, reading.id);
-  assert.equal(readingRevision.kanban_case_mode, "reading-plan");
+  assert.equal(readingRevision.kanban_case_mode, "study-plan");
+  assert.equal(readingRevision.kanban_case_template, "reading");
   assert.equal(readingRevision.kanban_case_card_index, 2);
   assert.equal(readingRevision.kanban_case_card_count, 10);
   assert.deepEqual(readingRevision.kanban_case_depends_on, []);

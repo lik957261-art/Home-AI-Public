@@ -45,13 +45,15 @@ function todayDateInputValue() {
 
 function initialKanbanComposerMode() {
   const stored = localStorage.getItem("hermesKanbanComposerMode") || "";
-  if (["single", "multi", "reading"].includes(stored)) return stored;
+  if (stored === "reading") return "study";
+  if (["single", "multi", "study"].includes(stored)) return stored;
   return localStorage.getItem("hermesKanbanComposerMultiAgent") === "1" ? "multi" : "single";
 }
 
 function defaultKanbanReadingDraft() {
   return {
-    caseMode: "reading-plan",
+    caseMode: "study-plan",
+    studyTemplate: "reading",
     subjectDomain: "",
     activityTitle: "",
     learnerName: "",
@@ -85,7 +87,7 @@ function parseWorkspaceIdList(value) {
 function initialKanbanReadingDraft() {
   try {
     const parsed = JSON.parse(localStorage.getItem("hermesKanbanReadingDraft") || "{}");
-    return Object.assign(defaultKanbanReadingDraft(), parsed && typeof parsed === "object" ? parsed : {});
+    return Object.assign(defaultKanbanReadingDraft(), parsed && typeof parsed === "object" ? parsed : {}, { caseMode: "study-plan" });
   } catch (_) {
     return defaultKanbanReadingDraft();
   }
@@ -8432,18 +8434,22 @@ function kanbanCaseMode(todo) {
   return String(todo?.kanbanCaseMode || "").trim();
 }
 
+function kanbanCaseTemplate(todo) {
+  return String(todo?.kanbanCaseTemplate || todo?.kanbanStudyKind || "").trim().toLowerCase();
+}
+
 function isKanbanStudyCase(todo) {
-  return ["reading-plan", "study-plan"].includes(kanbanCaseMode(todo));
+  return kanbanCaseMode(todo) === "study-plan";
 }
 
 function isKanbanReadingPlanCase(todo) {
-  return kanbanCaseMode(todo) === "reading-plan";
+  return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "reading";
 }
 
 function kanbanStudyLabels(todo) {
   const reading = isKanbanReadingPlanCase(todo);
   return {
-    plan: reading ? "阅读计划" : "学习计划",
+    plan: "学习计划",
     item: reading ? "阅读" : "学习",
     submit: reading ? "提交录音" : "提交学习记录",
     upload: reading ? "上传复述录音" : "上传学习成果",
@@ -8525,7 +8531,8 @@ function syncKanbanReadingDraftFromDom(root = document) {
     ? viewerInputs.filter((input) => input.checked).map((input) => input.value).filter(Boolean).join(",")
     : root.querySelector?.("#kanbanStudyViewerWorkspaces")?.value;
   const fields = {
-    caseMode: root.querySelector?.("#kanbanStudyCaseMode")?.value,
+    caseMode: "study-plan",
+    studyTemplate: root.querySelector?.("#kanbanStudyTemplate")?.value,
     subjectDomain: root.querySelector?.("#kanbanStudySubject")?.value,
     activityTitle: root.querySelector?.("#kanbanStudyTitle")?.value,
     learnerName: root.querySelector?.("#kanbanStudyLearner")?.value,
@@ -8558,7 +8565,8 @@ function setKanbanReadingCoverFile(file) {
 }
 
 function saveKanbanComposerMode(mode) {
-  const next = ["single", "multi", "reading"].includes(mode) ? mode : "single";
+  const normalized = mode === "reading" ? "study" : mode;
+  const next = ["single", "multi", "study"].includes(normalized) ? normalized : "single";
   state.kanbanComposerMode = next;
   state.kanbanComposerMultiAgent = next === "multi";
   localStorage.setItem("hermesKanbanComposerMode", next);
@@ -9118,7 +9126,7 @@ function scheduleKanbanStoryDetailLoads(items) {
   const queued = state.kanbanStoryDetailQueued || {};
   const ids = [];
   for (const group of kanbanStoryCases(items).slice(0, 4)) {
-    const cardItems = (group.mode === "reading-plan" || group.mode === "study-plan")
+    const cardItems = group.mode === "study-plan"
       ? [kanbanReadingCaseCurrentItem(group)].filter(Boolean)
       : (group.cards || []).slice(0, 10);
     for (const item of cardItems) {
@@ -9169,7 +9177,7 @@ function renderKanbanReadingArchiveCase(group) {
       ${currentFeedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(currentFeedback)}</small>` : ""}
     </button>
   </li>` : "";
-  return `<article class="kanban-archive-case reading-plan-case">
+  return `<article class="kanban-archive-case study-plan-case">
     <header class="kanban-archive-case-head">
       <div>
         <span>${escapeHtml([labels.plan, statusSummary].filter(Boolean).join(" | "))}</span>
@@ -9197,7 +9205,7 @@ function renderKanbanReadingArchiveCase(group) {
 }
 
 function renderKanbanArchiveCase(group) {
-  if (group.mode === "reading-plan" || group.mode === "study-plan") return renderKanbanReadingArchiveCase(group);
+  if (group.mode === "study-plan") return renderKanbanReadingArchiveCase(group);
   const cards = group.cards || [];
   const first = cards[0]?.todo || {};
   const cover = cards.map((item) => kanbanCaseCover(item.todo)).find(Boolean);
@@ -9532,14 +9540,15 @@ function renderKanbanComposerProgress() {
 }
 
 function kanbanComposerMode() {
-  if (["single", "multi", "reading"].includes(state.kanbanComposerMode)) return state.kanbanComposerMode;
+  if (state.kanbanComposerMode === "reading") return "study";
+  if (["single", "multi", "study"].includes(state.kanbanComposerMode)) return state.kanbanComposerMode;
   return state.kanbanComposerMultiAgent ? "multi" : "single";
 }
 
 function renderKanbanReadingFields(disabled = false) {
   const draft = Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
   const attr = disabled ? " disabled" : "";
-  const mode = draft.caseMode === "study-plan" ? "study-plan" : "reading-plan";
+  const template = String(draft.studyTemplate || "").trim() === "custom" ? "custom" : "reading";
   const activityTitle = draft.activityTitle || draft.bookTitle || "";
   const learnerName = draft.learnerName || draft.readerName || "";
   const selectedPerformer = String(draft.performerWorkspaceId || "").trim();
@@ -9574,10 +9583,10 @@ function renderKanbanReadingFields(disabled = false) {
     : `<span class="kanban-reading-cover-placeholder">${escapeHtml(draft.coverName || "可选上传封面图")}</span>`;
   return `<div class="kanban-reading-fields">
     <label>
-      <span>计划类型</span>
-      <select id="kanbanStudyCaseMode" class="todo-input"${attr}>
-        <option value="reading-plan"${mode === "reading-plan" ? " selected" : ""}>阅读计划</option>
-        <option value="study-plan"${mode === "study-plan" ? " selected" : ""}>学习计划</option>
+      <span>学习模板</span>
+      <select id="kanbanStudyTemplate" class="todo-input"${attr}>
+        <option value="reading"${template === "reading" ? " selected" : ""}>阅读复述</option>
+        <option value="custom"${template === "custom" ? " selected" : ""}>通用学习</option>
       </select>
     </label>
     <label>
@@ -9635,17 +9644,17 @@ function renderKanbanComposerPanel() {
   const mode = kanbanComposerMode();
   const singleActive = mode === "single";
   const multiActive = mode === "multi";
-  const readingActive = mode === "reading";
+  const studyActive = mode === "study";
   const modeButton = (mode, label, active) => `<button class="kanban-create-mode-button${active ? " active" : ""}" type="button" data-kanban-composer-mode="${mode}" aria-pressed="${active ? "true" : "false"}"${busy ? " disabled" : ""}>${label}</button>`;
-  const submitLabel = readingActive
+  const submitLabel = studyActive
     ? "创建学习计划"
     : (multiActive
     ? (state.kanbanPlanDraft ? "\u91cd\u65b0\u62c6\u89e3" : "\u62c6\u89e3\u4efb\u52a1")
     : "\u521b\u5efa\u4efb\u52a1");
-  const placeholder = readingActive
+  const placeholder = studyActive
     ? "补充学习范围、分段要求、评价重点，或留空"
     : "\u8f93\u5165\u4efb\u52a1\u9700\u6c42";
-  const caption = readingActive
+  const caption = studyActive
     ? "每次学习一张卡片，上传记录后分析；测验通过后完成"
     : (multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo");
   return `<section class="kanban-composer-panel">
@@ -9653,10 +9662,10 @@ function renderKanbanComposerPanel() {
       <div class="kanban-create-mode" role="group" aria-label="\u4efb\u52a1\u521b\u5efa\u65b9\u5f0f">
         ${modeButton("single", "\u5355\u4efb\u52a1", singleActive)}
         ${modeButton("multi", "\u62c6\u89e3", multiActive)}
-        ${modeButton("reading", "学习计划", readingActive)}
+        ${modeButton("study", "学习计划", studyActive)}
       </div>
-      ${readingActive ? renderKanbanReadingFields(busy) : ""}
-      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="${readingActive ? "4" : "7"}" placeholder="${escapeHtml(placeholder)}"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
+      ${studyActive ? renderKanbanReadingFields(busy) : ""}
+      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="${studyActive ? "4" : "7"}" placeholder="${escapeHtml(placeholder)}"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
       <div class="kanban-composer-toolbar">
         <span class="kanban-create-mode-caption">${escapeHtml(caption)}</span>
         <span class="kanban-composer-buttons">
@@ -10237,7 +10246,7 @@ function wireTodoPanel(root) {
       focusTodoFormSoon();
     });
   });
-  root.querySelectorAll("#kanbanStudyCaseMode, #kanbanStudySubject, #kanbanStudyTitle, #kanbanStudyLearner, #kanbanStudyPerformerWorkspace, #kanbanStudyViewerWorkspaces, #kanbanReadingReader, #kanbanReadingBook, #kanbanReadingSessions, #kanbanReadingStartDate, #kanbanReadingTime, #kanbanReadingReminder, [data-kanban-study-viewer-workspace]").forEach((input) => {
+  root.querySelectorAll("#kanbanStudyTemplate, #kanbanStudySubject, #kanbanStudyTitle, #kanbanStudyLearner, #kanbanStudyPerformerWorkspace, #kanbanStudyViewerWorkspaces, #kanbanReadingReader, #kanbanReadingBook, #kanbanReadingSessions, #kanbanReadingStartDate, #kanbanReadingTime, #kanbanReadingReminder, [data-kanban-study-viewer-workspace]").forEach((input) => {
     input.addEventListener("input", () => syncKanbanReadingDraftFromDom(root));
     input.addEventListener("change", () => syncKanbanReadingDraftFromDom(root));
   });
@@ -10450,21 +10459,21 @@ async function submitKanbanComposer(root) {
   const text = String(input?.value || state.kanbanComposerText || "").trim();
   const mode = kanbanComposerMode();
   const multiAgent = mode === "multi";
-  const readingPlan = mode === "reading";
-  if (!text && !readingPlan) throw new Error("\u8bf7\u5148\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
-  if (readingPlan) syncKanbanReadingDraftFromDom(root);
-  if (readingPlan && !String(state.kanbanReadingDraft?.activityTitle || state.kanbanReadingDraft?.bookTitle || "").trim()) throw new Error("请先填写内容标题");
+  const studyPlan = mode === "study";
+  if (!text && !studyPlan) throw new Error("\u8bf7\u5148\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
+  if (studyPlan) syncKanbanReadingDraftFromDom(root);
+  if (studyPlan && !String(state.kanbanReadingDraft?.activityTitle || state.kanbanReadingDraft?.bookTitle || "").trim()) throw new Error("请先填写内容标题");
   state.kanbanComposerText = text;
   if (text) localStorage.setItem("hermesKanbanComposerDraft", text);
   else localStorage.removeItem("hermesKanbanComposerDraft");
   saveKanbanComposerMode(mode);
   state.kanbanComposerBusy = true;
   state.kanbanPlanDraft = null;
-  pushKanbanComposerMessage("user", readingPlan ? `${state.kanbanReadingDraft.activityTitle || state.kanbanReadingDraft.bookTitle || ""}\n${text}`.trim() : text);
-  beginKanbanComposerProgress(readingPlan ? "reading" : (multiAgent ? "plan" : "create"));
+  pushKanbanComposerMessage("user", studyPlan ? `${state.kanbanReadingDraft.activityTitle || state.kanbanReadingDraft.bookTitle || ""}\n${text}`.trim() : text);
+  beginKanbanComposerProgress(studyPlan ? "reading" : (multiAgent ? "plan" : "create"));
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
-    if (readingPlan) {
+    if (studyPlan) {
       const coverFile = state.kanbanReadingCoverFile;
       const coverImage = coverFile
         ? {
@@ -10476,14 +10485,16 @@ async function submitKanbanComposer(root) {
       const draft = Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
       const activityTitle = String(draft.activityTitle || draft.bookTitle || "").trim();
       const learnerName = String(draft.learnerName || draft.readerName || "").trim();
-      const caseMode = draft.caseMode === "study-plan" ? "study-plan" : "reading-plan";
+      const caseMode = "study-plan";
+      const studyTemplate = String(draft.studyTemplate || "").trim() === "custom" ? "custom" : "reading";
       const viewerWorkspaceIds = parseWorkspaceIdList(draft.viewerWorkspaceIds);
-      const studyPlanEndpoint = caseMode === "study-plan" ? "/api/kanban/cards/study-plan" : "/api/kanban/cards/reading-plan";
+      const studyPlanEndpoint = "/api/kanban/cards/study-plan";
       const result = await api(studyPlanEndpoint, {
         method: "POST",
         body: JSON.stringify(Object.assign({}, draft, {
           workspaceId: state.selectedWorkspaceId,
           caseMode,
+          studyTemplate,
           bookTitle: activityTitle,
           readerName: learnerName,
           activityTitle,
@@ -10496,7 +10507,7 @@ async function submitKanbanComposer(root) {
         })),
       });
       const cards = Array.isArray(result.cards) ? result.cards : [];
-      pushKanbanComposerMessage("assistant", `已创建${caseMode === "study-plan" ? "学习计划" : "阅读计划"}：${cards.length} 张任务；上传记录并完成测验后，卡片会完成。`);
+      pushKanbanComposerMessage("assistant", `已创建学习计划：${cards.length} 张任务；上传记录并完成测验后，卡片会完成。`);
       state.kanbanComposerText = "";
       state.kanbanReadingDraft = defaultKanbanReadingDraft();
       setKanbanReadingCoverFile(null);
