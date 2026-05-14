@@ -5334,8 +5334,8 @@ async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options 
     let blockReason = "";
     {
       blockReason = index > 0
-        ? "Waiting for previous assessment completion and scheduled start; Hermes Mobile shows only the current assessment card."
-        : "Manual formal assessment is parked until its scheduled start time; open it in Hermes Mobile to take the exam.";
+        ? "Waiting for previous assessment completion; Hermes Mobile opens the next assessment card after the prior exam passes."
+        : "Manual formal assessment is open in Hermes Mobile; parked from official worker execution.";
       const blockedResult = await kanbanCardProvider.mutateCard({
         action: "block",
         workspaceId,
@@ -6274,13 +6274,17 @@ function kanbanAssessmentPriorComplete(workspaceId, priorCards = []) {
     .every((card) => kanbanAssessmentStateCompleted(workspaceId, card));
 }
 
+function kanbanAssessmentArchived(card = {}) {
+  const kanbanStatus = String(card?.kanbanStatus || card?.kanban_status || "").trim().toLowerCase();
+  const status = String(card?.status || "").trim().toLowerCase();
+  return kanbanStatus === "archived" || status === "cancelled";
+}
+
 function kanbanAssessmentCanStart(card = {}, state = null, priorCards = [], workspaceId = "owner") {
   if (state?.exam) return true;
+  if (kanbanAssessmentArchived(card)) return false;
   if (!kanbanAssessmentPriorComplete(workspaceId, priorCards)) return false;
-  const value = String(card?.dueAt || card?.dueLocal || "").trim();
-  if (!value) return true;
-  const parsed = Date.parse(value.replace(" ", "T"));
-  return !Number.isFinite(parsed) || parsed <= Date.now();
+  return true;
 }
 
 function assessmentExamReportPath(workspaceId, cardId, currentCard, exam, attempt) {

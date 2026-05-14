@@ -9019,12 +9019,11 @@ function kanbanReadingStartTime(todo) {
 }
 
 function readingCardAcceptsSubmission(todo) {
-  if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return false;
+  if (!isKanbanReadingCard(todo)) return false;
   const status = normalizedKanbanStatus(todo);
-  if (status === "blocked" || status === "done" || status === "archived") return false;
-  if (status === "running") return true;
-  const startTime = kanbanReadingStartTime(todo);
-  return !Number.isFinite(startTime) || startTime <= Date.now();
+  if (status === "done" || status === "archived") return false;
+  if (status === "blocked" && !readingCasePriorComplete(todo)) return false;
+  return true;
 }
 
 function assessmentExamSummary(todo) {
@@ -9039,12 +9038,32 @@ function assessmentExamCompleted(todo) {
     || Boolean(summary?.lastAttempt?.passed);
 }
 
+function kanbanCasePriorCards(todo, predicate) {
+  const caseId = String(todo?.kanbanCaseId || "").trim();
+  const index = Number(todo?.kanbanCaseCardIndex || 0) || 0;
+  if (!caseId || !index) return [];
+  return (state.todos || [])
+    .filter((card) => (
+      String(card?.kanbanCaseId || "").trim() === caseId
+      && (Number(card?.kanbanCaseCardIndex || 0) || 0) < index
+      && (!predicate || predicate(card))
+    ))
+    .sort((left, right) => (Number(left?.kanbanCaseCardIndex || 0) || 0) - (Number(right?.kanbanCaseCardIndex || 0) || 0));
+}
+
+function readingCasePriorComplete(todo) {
+  return kanbanCasePriorCards(todo, isKanbanReadingCard).every(readingSubmissionCompleted);
+}
+
+function assessmentPriorComplete(todo) {
+  return kanbanCasePriorCards(todo, isKanbanAssessmentCard).every(assessmentExamCompleted);
+}
+
 function assessmentCardAcceptsStart(todo) {
   if (!isKanbanAssessmentCard(todo) || assessmentExamCompleted(todo)) return false;
   const status = normalizedKanbanStatus(todo);
   if (status === "archived") return false;
-  const startTime = kanbanReadingStartTime(todo);
-  return !Number.isFinite(startTime) || startTime <= Date.now();
+  return assessmentPriorComplete(todo);
 }
 
 function kanbanAssessmentCaseCurrentItem(group) {
@@ -10473,7 +10492,7 @@ function renderKanbanAssessmentExamPanel(todo) {
     const last = summary.lastAttempt;
     const text = last
       ? `上次 ${last.score}/100，通过线 ${last.passingScore || summary.passingScore || 80}；${last.passed ? "已通过" : "需要重考"}。`
-      : (startable ? "考试已开放。开始后会生成正式单选考卷。" : `考试尚未开放${todo.dueLocal || todo.dueAt ? `：${todo.dueLocal || todo.dueAt}` : ""}。`);
+      : (startable ? "考试已开放。开始后会生成正式单选考卷。" : "考试尚未开放，需要先通过前一张考试卡。");
     return `<section class="todo-comment-panel todo-assessment-panel">
       <div class="todo-detail-deliverables-head">
         <strong>${escapeHtml(summary.finalExam ? "最终综合考试" : "正式检测")}</strong>
