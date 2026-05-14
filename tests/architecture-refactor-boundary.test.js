@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
 const documentPreviewService = require("../adapters/document-preview-service");
+const fileArtifactAccessService = require("../adapters/file-artifact-access-service");
 const fileResourceService = require("../adapters/file-resource-service");
 const gatewayStatusProjection = require("../adapters/gateway-status-projection");
 const requestContext = require("../adapters/request-context-provider");
@@ -66,6 +67,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
   assert.equal(typeof documentPreviewService.createDocumentPreviewService, "function");
   assert.equal(typeof documentPreviewService.extractDocxTextFromBuffer, "function");
+  assert.equal(typeof fileArtifactAccessService.createFileArtifactAccessService, "function");
   assert.equal(typeof fileResourceService.extractArtifactPaths, "function");
   assert.equal(typeof fileResourceService.publicFileMetadata, "function");
   assert.equal(typeof fileResourceService.previewStrategyForFile, "function");
@@ -126,6 +128,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /systemApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createGatewayStatusProjection/);
   assert.match(server, /gatewayStatusProjection\.publicGatewayPoolStatusForAuth/);
+  assert.match(server, /createFileArtifactAccessService/);
+  assert.match(server, /fileArtifactAccessService\.registerUploadArtifact/);
   assert.match(server, /createRuntimeConfigApiRoutes/);
   assert.match(server, /runtimeConfigApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createPushApiRoutes/);

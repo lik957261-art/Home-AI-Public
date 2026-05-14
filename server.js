@@ -17,6 +17,7 @@ const { createBridgeCommandProvider } = require("./adapters/bridge-command-provi
 const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
 const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
+const { createFileArtifactAccessService } = require("./adapters/file-artifact-access-service");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
@@ -494,6 +495,21 @@ const authProvider = createAuthProvider({
 bootTrace("auth ready");
 const gatewayStatusProjection = createGatewayStatusProjection({
   isOwnerAuth,
+});
+const fileArtifactAccessService = createFileArtifactAccessService({
+  dataDir: DATA_DIR,
+  workspaceUploadDirName: WORKSPACE_UPLOAD_DIR_NAME,
+  workspaceUploadSubdir: WORKSPACE_UPLOAD_SUBDIR,
+  state: () => state,
+  findWorkspace,
+  normalizeLocalPath,
+  rootConflictsWithProtected: (value) => securityBoundaryProvider.rootConflictsWithProtected(value),
+  pathInsideAnyRoot,
+  chatGroupMemberWorkspaceIds,
+  authCanAccessWorkspace,
+  makeId,
+  nowIso,
+  mimeFor,
 });
 const publicApiRoutes = createPublicApiRoutes({
   authenticateRequest,
@@ -9144,143 +9160,55 @@ function buildHermesInstructions(thread, policy, project, latestText = "", taskD
 }
 
 function safeFileName(value) {
-  const name = path.basename(String(value || "upload.bin")).replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim();
-  return name || "upload.bin";
+  return fileArtifactAccessService.safeFileName(value);
 }
 
 function safeDirectoryName(value) {
-  const name = safeFileName(value || "New Folder").replace(/[. ]+$/g, "").trim();
-  if (!name || name === "." || name === "..") return "";
-  return name;
+  return fileArtifactAccessService.safeDirectoryName(value);
 }
 
 function uniqueChildPath(parentPath, filename) {
-  const parsed = path.parse(safeFileName(filename));
-  let candidate = path.join(parentPath, `${parsed.name}${parsed.ext}`);
-  let index = 1;
-  while (fs.existsSync(candidate)) {
-    candidate = path.join(parentPath, `${parsed.name} (${index})${parsed.ext}`);
-    index += 1;
-  }
-  return candidate;
+  return fileArtifactAccessService.uniqueChildPath(parentPath, filename);
 }
 
 function workspaceDefaultRoot(workspaceId) {
-  const workspace = findWorkspace(workspaceId || "owner");
-  const root = String(workspace?.defaultWorkspace || workspace?.policy?.default_workspace || "").trim();
-  const localRoot = normalizeLocalPath(root) || root;
-  if (!localRoot || securityBoundaryProvider.rootConflictsWithProtected(localRoot) || securityBoundaryProvider.rootConflictsWithProtected(root)) return "";
-  return localRoot;
+  return fileArtifactAccessService.workspaceDefaultRoot(workspaceId);
 }
 
 function threadUploadRoot(thread) {
-  return thread?.id ? path.join(DATA_DIR, WORKSPACE_UPLOAD_SUBDIR, thread.id) : "";
+  return fileArtifactAccessService.threadUploadRoot(thread);
 }
 
 function workspaceUploadRoot(workspaceId, threadId) {
-  const root = workspaceDefaultRoot(workspaceId);
-  const safeThreadId = safeDirectoryName(threadId || "thread");
-  if (!root || !safeThreadId) return "";
-  const uploadRoot = path.resolve(path.join(root, WORKSPACE_UPLOAD_DIR_NAME, WORKSPACE_UPLOAD_SUBDIR, safeThreadId));
-  if (!pathInsideAnyRoot(uploadRoot, [path.resolve(root)])) return "";
-  return uploadRoot;
+  return fileArtifactAccessService.workspaceUploadRoot(workspaceId, threadId);
 }
 
 function uploadWorkspaceAllowedForThread(thread, workspaceId) {
-  const id = String(workspaceId || "").trim();
-  if (!thread || !id) return false;
-  return id === String(thread.workspaceId || "") || chatGroupMemberWorkspaceIds(thread).includes(id);
+  return fileArtifactAccessService.uploadWorkspaceAllowedForThread(thread, workspaceId);
 }
 
 function uploadWorkspaceIdForRequest(auth, thread, body = {}) {
-  const requested = String(body.workspaceId || body.actorWorkspaceId || body.actor_workspace_id || "").trim();
-  if (requested && authCanAccessWorkspace(auth, requested) && uploadWorkspaceAllowedForThread(thread, requested)) return requested;
-  const authWorkspaceId = String(auth?.workspaceId || "").trim();
-  if (authWorkspaceId && uploadWorkspaceAllowedForThread(thread, authWorkspaceId)) return authWorkspaceId;
-  return String(thread?.workspaceId || "owner").trim() || "owner";
+  return fileArtifactAccessService.uploadWorkspaceIdForRequest(auth, thread, body);
 }
 
 function uploadRootsForThread(thread) {
-  if (!thread?.id) return [];
-  const workspaceIds = dedupe([
-    thread.workspaceId,
-    ...chatGroupMemberWorkspaceIds(thread),
-  ].filter(Boolean));
-  return dedupe([
-    threadUploadRoot(thread),
-    ...workspaceIds.map((workspaceId) => workspaceUploadRoot(workspaceId, thread.id)),
-  ].filter(Boolean));
+  return fileArtifactAccessService.uploadRootsForThread(thread);
 }
 
 function workspaceUploadDirectoryForRequest(auth, thread, body = {}) {
-  const workspaceId = uploadWorkspaceIdForRequest(auth, thread, body);
-  const uploadDir = workspaceUploadRoot(workspaceId, thread?.id);
-  if (!uploadDir) {
-    const err = new Error("Workspace upload directory is not available");
-    err.status = 400;
-    throw err;
-  }
-  return { workspaceId, uploadDir };
+  return fileArtifactAccessService.workspaceUploadDirectoryForRequest(auth, thread, body);
 }
 
 function registerUploadArtifact(thread, message, filePath, originalName, options = {}) {
-  const stat = fs.statSync(filePath);
-  const workspaceId = String(options.workspaceId || message?.actorWorkspaceId || thread.workspaceId || "").trim();
-  const artifact = {
-    id: makeId("artifact"),
-    path: filePath,
-    displayPath: filePath,
-    name: safeFileName(originalName || filePath),
-    mime: mimeFor(filePath),
-    size: stat.size,
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-    workspaceId: workspaceId || thread.workspaceId,
-    projectId: thread.projectId,
-    subprojectId: thread.subprojectId || "",
-    threadId: thread.id,
-    messageId: message?.id || "",
-  };
-  state.artifacts.push(artifact);
-  return {
-    id: artifact.id,
-    name: artifact.name,
-    mime: artifact.mime,
-    size: artifact.size,
-    url: `/api/artifacts/${encodeURIComponent(artifact.id)}`,
-    path: artifact.path,
-    workspaceId: artifact.workspaceId,
-  };
+  return fileArtifactAccessService.registerUploadArtifact(thread, message, filePath, originalName, options);
 }
 
 function publicArtifactFromClient(value) {
-  if (!value || typeof value !== "object") return null;
-  const id = String(value.id || "");
-  const artifact = state.artifacts.find((item) => item.id === id);
-  if (!artifact) return null;
-  return {
-    id: artifact.id,
-    name: artifact.name,
-    mime: artifact.mime,
-    size: artifact.size,
-    url: `/api/artifacts/${encodeURIComponent(artifact.id)}`,
-  };
+  return fileArtifactAccessService.publicArtifactFromClient(value);
 }
 
 function attachUploadedArtifactsToMessage(thread, message) {
-  const artifactIds = new Set((message?.artifacts || [])
-    .map((artifact) => String(artifact?.id || ""))
-    .filter(Boolean));
-  if (!thread || !message || !artifactIds.size) return;
-  for (const artifact of state.artifacts || []) {
-    if (!artifactIds.has(String(artifact.id || ""))) continue;
-    if (String(artifact.threadId || "") !== String(thread.id || "")) continue;
-    artifact.messageId = message.id;
-    artifact.workspaceId = message.actorWorkspaceId || artifact.workspaceId || thread.workspaceId;
-    artifact.projectId = thread.projectId;
-    artifact.subprojectId = thread.subprojectId || "";
-    artifact.updatedAt = nowIso();
-  }
+  return fileArtifactAccessService.attachUploadedArtifactsToMessage(thread, message);
 }
 
 function compactArtifactForMessage(value) {
