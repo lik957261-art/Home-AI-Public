@@ -171,6 +171,16 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "thread-message-run-api-routes",
+    exportName: "createThreadMessageRunApiRoutes",
+    required: false,
+    minRoutes: 2,
+    probes: [
+      { method: "POST", path: "/api/threads/thread-1/messages", id: "thread-messages-create" },
+      { method: "POST", path: "/api/threads/thread-1/messages/msg-1/owner-elevation", id: "thread-message-owner-elevation" },
+    ],
+  },
+  {
     key: "todo-api-routes",
     exportName: "createTodoApiRoutes",
     required: false,

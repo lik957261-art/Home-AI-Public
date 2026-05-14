@@ -28,6 +28,7 @@ const resourceApiRoutes = require("../server-routes/resource-api-routes");
 const runtimeConfigApiRoutes = require("../server-routes/runtime-config-api-routes");
 const singleWindowGroupChatApiRoutes = require("../server-routes/single-window-group-chat-api-routes");
 const systemApiRoutes = require("../server-routes/system-api-routes");
+const threadMessageRunApiRoutes = require("../server-routes/thread-message-run-api-routes");
 const threadReadUploadApiRoutes = require("../server-routes/thread-read-upload-api-routes");
 const threadTaskApiRoutes = require("../server-routes/thread-task-api-routes");
 const todoApiRoutes = require("../server-routes/todo-api-routes");
@@ -36,6 +37,16 @@ const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
 
 function fileText(file) {
   return fs.readFileSync(file, "utf8");
+}
+
+function assertAppearsInOrder(text, labels) {
+  let previousIndex = -1;
+  for (const label of labels) {
+    const index = text.indexOf(label);
+    assert.notEqual(index, -1, `missing ${label}`);
+    assert.ok(index > previousIndex, `${label} should appear after prior marker`);
+    previousIndex = index;
+  }
 }
 
 function testRefactorModulesExportStableContracts() {
@@ -61,6 +72,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof resourceApiRoutes.createResourceApiRoutes, "function");
   assert.equal(typeof singleWindowGroupChatApiRoutes.createSingleWindowGroupChatApiRoutes, "function");
   assert.equal(typeof automationApiRoutes.createAutomationApiRoutes, "function");
+  assert.equal(typeof threadMessageRunApiRoutes.createThreadMessageRunApiRoutes, "function");
   assert.equal(typeof directoryBrowserApiRoutes.createDirectoryBrowserApiRoutes, "function");
   assert.equal(typeof directoryMutationApiRoutes.createDirectoryMutationApiRoutes, "function");
   assert.equal(typeof directoryShareApiRoutes.createDirectoryShareApiRoutes, "function");
@@ -96,6 +108,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /resourceApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createSingleWindowGroupChatApiRoutes/);
   assert.match(server, /singleWindowGroupChatApiRoutes\.handle\(req, res, url/);
+  assert.match(server, /createThreadMessageRunApiRoutes/);
+  assert.match(server, /threadMessageRunApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createAutomationApiRoutes/);
   assert.match(server, /automationApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createDirectoryBrowserApiRoutes/);
@@ -121,6 +135,12 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /syncKanbanCaseShareStoreToSqlite/);
   assert.match(server, /listKanbanCaseShares/);
   assert.match(server, /upsertKanbanCaseShare/);
+  assertAppearsInOrder(server, [
+    "threadReadUploadApiRoutes.handle(req, res, url, { auth })",
+    "threadTaskApiRoutes.handle(req, res, url, { auth })",
+    "singleWindowGroupChatApiRoutes.handle(req, res, url, { auth })",
+    "threadMessageRunApiRoutes.handle(req, res, url, { auth })",
+  ]);
 }
 
 function testPackageRunsArchitectureContracts() {
@@ -152,6 +172,7 @@ function testPackageRunsArchitectureContracts() {
     "tests/access-key-api-routes.test.js",
     "tests/resource-api-routes.test.js",
     "tests/single-window-group-chat-api-routes.test.js",
+    "tests/thread-message-run-api-routes.test.js",
     "tests/automation-api-routes.test.js",
     "tests/directory-browser-api-routes.test.js",
     "tests/directory-mutation-api-routes.test.js",
@@ -183,6 +204,7 @@ function testPackageRunsArchitectureContracts() {
   assert.match(pkg.scripts.check, /server-routes[\\/]access-key-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]resource-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]single-window-group-chat-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]thread-message-run-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]automation-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]directory-browser-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]directory-mutation-api-routes\.js/);

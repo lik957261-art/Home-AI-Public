@@ -19,6 +19,7 @@ const kanbanStudyApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes"
 const threadReadUploadApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "thread-read-upload-api-routes.js"), "utf8");
 const directoryMutationApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "directory-mutation-api-routes.js"), "utf8");
 const singleWindowGroupChatApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "single-window-group-chat-api-routes.js"), "utf8");
+const threadMessageRunApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "thread-message-run-api-routes.js"), "utf8");
 const kanbanProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-provider.js"), "utf8");
 const kanbanCardProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-card-provider.js"), "utf8");
 const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-ingress-provider.js"), "utf8");
@@ -64,7 +65,8 @@ assert.match(serverJs, /isOwnerElevationActive\(auth\)/);
 assert.match(serverJs, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
 assert.match(serverJs, /function modelPermissionApprovalRequest\(text, message = \{\}\)/);
 assert.match(serverJs, /elevationRequired: Boolean\(message\.elevationRequired\)/);
-assert.match(serverJs, /messages\\\/\(\[\^\/\]\+\)\\\/owner-elevation/);
+assert.match(threadMessageRunApiRoutes, /id: "thread-message-owner-elevation"/);
+assert.ok(threadMessageRunApiRoutes.includes("pathRegex: /^\\/api\\/threads\\/[^/]+\\/messages\\/[^/]+\\/owner-elevation$/"));
 assert.match(serverJs, /gatewaySecurityLevel: gatewayRouting\.securityLevel/);
 assert.match(serverJs, /gatewayMaintenance: Boolean\(gatewayRouting\.maintenance/);
 assert.match(serverJs, /gatewayMaintenanceCategory: gatewayRouting\.maintenanceCategory/);

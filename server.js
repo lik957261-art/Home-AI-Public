@@ -53,6 +53,7 @@ const { createResourceApiRoutes } = require("./server-routes/resource-api-routes
 const { createRuntimeConfigApiRoutes } = require("./server-routes/runtime-config-api-routes");
 const { createSingleWindowGroupChatApiRoutes } = require("./server-routes/single-window-group-chat-api-routes");
 const { createSystemApiRoutes } = require("./server-routes/system-api-routes");
+const { createThreadMessageRunApiRoutes } = require("./server-routes/thread-message-run-api-routes");
 const { createThreadReadUploadApiRoutes } = require("./server-routes/thread-read-upload-api-routes");
 const { createThreadTaskApiRoutes } = require("./server-routes/thread-task-api-routes");
 const { createTodoApiRoutes } = require("./server-routes/todo-api-routes");
@@ -789,6 +790,10 @@ const singleWindowGroupChatApiRoutes = createSingleWindowGroupChatApiRoutes({
   threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
   threadSummary,
   weixinForwardTargetsForWorkspace,
+});
+const threadMessageRunApiRoutes = createThreadMessageRunApiRoutes({
+  handleThreadMessageCreate,
+  handleThreadMessageOwnerElevation,
 });
 bootTrace("core api routes ready");
 let todoWebPushRunning = false;
@@ -13862,6 +13867,501 @@ function maybeRejectModelMaintenanceRequest(res, text, auth) {
   return true;
 }
 
+async function handleThreadMessageCreate(req, res, _url, context = {}) {
+   const thread = findThreadForRequest(req, context.threadId || "");
+  if (!thread) {
+    sendJson(res, 404, { error: "Thread not found" });
+    return;
+  }
+  if (!thread.singleWindow && (thread.activeRunId || (thread.activeRunIds || []).length)) {
+    sendJson(res, 409, { error: "Thread already has an active Hermes run" });
+    return;
+  }
+  const body = await readBody(req);
+  const text = String(body.text || "").trim();
+  const uploadArtifacts = Array.isArray(body.artifacts) ? body.artifacts : [];
+  if (!text && !uploadArtifacts.length) {
+    sendJson(res, 400, { error: "Message text is required" });
+    return;
+  }
+  const auth = context.auth || authenticateRequest(req);
+  const createdAt = nowIso();
+  if (thread.title === "New thread") thread.title = deriveTitle(text);
+  const singleWindowMode = normalizeSingleWindowMode(body.singleWindowMode || body.single_window_mode || "");
+  const replyToMessageId = singleWindowMode === "chat" ? "" : (body.replyToMessageId ? String(body.replyToMessageId).slice(0, 120) : "");
+  const quotedMessage = replyToMessageId
+    ? (thread.messages || []).find((message) => message.id === replyToMessageId)
+    : null;
+  if (replyToMessageId && !quotedMessage) {
+    sendJson(res, 400, { error: "Quoted message not found" });
+    return;
+  }
+  const bodyTaskGroupId = body.taskGroupId ? sanitizeTaskGroupId(body.taskGroupId) : "";
+  const quotedTaskGroupId = quotedMessage?.taskGroupId ? sanitizeTaskGroupId(quotedMessage.taskGroupId) : "";
+  if (bodyTaskGroupId && quotedTaskGroupId && bodyTaskGroupId !== quotedTaskGroupId) {
+    sendJson(res, 400, { error: "Quoted message does not belong to the requested task group" });
+    return;
+  }
+  const requestedTaskGroupId = bodyTaskGroupId || quotedTaskGroupId;
+  const normalizedTaskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
+  const requestedCaseTopicChat = Boolean(
+    thread.singleWindow
+    && singleWindowMode === "chat"
+    && isKanbanCaseTopicThread(thread)
+    && requestedTaskGroupId
+    && normalizedTaskGroupMeta[requestedTaskGroupId]?.sharedTopic
+  );
+  const taskGroupId = thread.singleWindow
+    ? (requestedCaseTopicChat ? requestedTaskGroupId : (singleWindowMode === "chat" ? singleWindowChatTaskGroupId(requestedTaskGroupId) : (requestedTaskGroupId || makeId("task"))))
+    : "";
+  if (thread.singleWindow && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID && singleWindowMode !== "chat") {
+    sendJson(res, 400, { error: "Group chat messages must use chat mode" });
+    return;
+  }
+  const groupMemberIds = chatGroupMemberWorkspaceIds(thread);
+  const requestedGroupChat = thread.singleWindow
+    && singleWindowMode === "chat"
+    && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
+  const isGroupChatMessage = requestedGroupChat && groupMemberIds.length > 0;
+  if (requestedGroupChat && !isGroupChatMessage) {
+    sendJson(res, 403, { error: "Group chat is not enabled for this thread" });
+    return;
+  }
+  const isCaseTopicChatMessage = requestedCaseTopicChat && groupMemberIds.length > 0;
+  if (requestedCaseTopicChat && !isCaseTopicChatMessage) {
+    sendJson(res, 403, { error: "Shared learning topic chat is not enabled for this thread" });
+    return;
+  }
+  if (thread.singleWindow && singleWindowMode !== "chat") {
+    const caseTopicPermissions = kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth);
+    if (caseTopicPermissions && !caseTopicPermissions.canSubmitStudy && !caseTopicPermissions.canManage) {
+      sendJson(res, 403, { error: "This shared learning topic is read-only for the current workspace" });
+      return;
+    }
+  }
+  const compactResponseThread = () => (
+    thread.singleWindow && singleWindowMode === "chat"
+      ? compactThreadWithMessagePage(thread, {
+        mode: "chat",
+        taskGroupId,
+        groupChat: taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
+      })
+      : compactThread(thread)
+  );
+  let actorWorkspaceId = thread.workspaceId;
+  const requestedActorWorkspaceId = String(body.workspaceId || body.actorWorkspaceId || body.actor_workspace_id || "").trim();
+  if (requestedActorWorkspaceId && authCanAccessWorkspace(auth, requestedActorWorkspaceId)) {
+    actorWorkspaceId = requestedActorWorkspaceId;
+  } else if (!isOwnerAuth(auth) && auth?.workspaceId) {
+    actorWorkspaceId = auth.workspaceId;
+  }
+  if ((isGroupChatMessage || isCaseTopicChatMessage) && !groupMemberIds.includes(actorWorkspaceId)) {
+    sendJson(res, 403, { error: "Selected workspace is not a group chat member" });
+    return;
+  }
+  const senderInfo = senderInfoForWorkspace(actorWorkspaceId);
+  const messageKind = (isGroupChatMessage || isCaseTopicChatMessage) && String(body.messageKind || body.message_kind || "").trim() === "plain" ? "plain" : "ai";
+  let gatewayRouting = { securityLevel: "user", maintenance: false };
+  if (messageKind === "ai") {
+    try {
+      gatewayRouting = gatewayRoutingForModelRun(auth, text, Object.assign({}, body, { actorWorkspaceId }));
+    } catch (err) {
+      sendJson(res, err.status || 403, {
+        error: err.message || String(err),
+        code: err.code || "gateway_security_boundary",
+        operatorRequired: Boolean(err.operatorRequired),
+        elevationRequired: Boolean(err.elevationRequired),
+        elevationScope: err.elevationScope || "",
+      });
+      return;
+    }
+  }
+  const requestedReasoningEffort = String(body.reasoning_effort || "").trim();
+  const reasoningEffort = VALID_REASONING_EFFORTS.has(requestedReasoningEffort) ? requestedReasoningEffort : "";
+  const allowAutomaticDirectoryAttachment = singleWindowMode !== "chat";
+  const directoryAttachment = resolveTaskDirectoryAttachment(thread, body.directory || body.directoryRoute || {})
+    || ((singleWindowMode === "chat" && !isCaseTopicChatMessage) ? null : taskDirectoryAttachmentForGroup(thread, requestedTaskGroupId))
+    || (allowAutomaticDirectoryAttachment ? semanticTaskDirectoryAttachment(thread, text) : null);
+  const userMessage = {
+    id: makeId("msg"),
+    role: "user",
+    content: buildUserMessageContent(text, uploadArtifacts),
+    status: "done",
+    createdAt,
+    updatedAt: createdAt,
+    submittedAt: createdAt,
+    artifacts: uploadArtifacts.map(publicArtifactFromClient).filter(Boolean),
+    taskGroupId,
+    messageKind,
+    senderWorkspaceId: senderInfo.senderWorkspaceId,
+    senderPrincipalId: senderInfo.senderPrincipalId,
+    senderLabel: senderInfo.senderLabel,
+    actorWorkspaceId,
+    replyToMessageId: quotedMessage?.id || "",
+    directoryAliases: directoryAttachment ? [directoryAttachment] : [],
+    directoryRoute: directoryAttachment || null,
+    reasoningEffort,
+    singleWindowMode,
+  };
+  attachUploadedArtifactsToMessage(thread, userMessage);
+  const assistantMessage = {
+    id: makeId("msg"),
+    role: "assistant",
+    content: "",
+    status: "queued",
+    runId: null,
+    createdAt,
+    updatedAt: createdAt,
+    queuedAt: createdAt,
+    artifacts: [],
+    taskGroupId,
+    messageKind: "ai",
+    senderWorkspaceId: "hermes",
+    senderPrincipalId: "hermes",
+    senderLabel: "Hermes",
+    actorWorkspaceId,
+    reasoningEffort,
+    singleWindowMode,
+  };
+  if ((isGroupChatMessage || isCaseTopicChatMessage) && messageKind === "plain") {
+    thread.messages.push(userMessage);
+    thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
+    thread.updatedAt = createdAt;
+    saveState();
+    broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
+    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
+    notifyGroupChatMentions(thread, userMessage);
+    sendJson(res, 201, { ok: true, thread: compactResponseThread() });
+    return;
+  }
+  const directKanbanCreate = useKanbanTodoBackend() && detectDirectKanbanCreateRequest(text);
+  if (directKanbanCreate) {
+    let result = null;
+    let kanbanDraft = null;
+    try {
+      kanbanDraft = await interpretKanbanNaturalLanguage(text, findWorkspace(thread.workspaceId), workspacePrincipal(thread.workspaceId));
+      result = await kanbanCardProvider.addCard({
+        workspaceId: thread.workspaceId,
+        assignee: kanbanDraft.assignee,
+        assigneeLabel: todoAssigneeLabel(thread.workspaceId, kanbanDraft.assignee),
+        content: kanbanDraft.content,
+        description: kanbanDraft.description,
+        dueTime: kanbanDraft.dueTime,
+        reason: kanbanDraft.reason,
+        ...kanbanSingleCardCasePayload(kanbanDraft.content, kanbanDraft.description, text),
+      });
+    } catch (err) {
+      result = { ok: false, error: err.message || String(err) };
+    }
+    let createdCard = null;
+    let directKanbanVerification = { ok: true, error: "" };
+    if (result?.ok) {
+      createdCard = publicTodo(result);
+      directKanbanVerification = verifyDirectTodoCreateResult(createdCard);
+      if (!directKanbanVerification.ok) {
+        result = {
+          ...(result && typeof result === "object" ? result : {}),
+          ok: false,
+          error: directKanbanVerification.error || "Kanban creation verification failed.",
+        };
+        createdCard = null;
+      }
+    }
+    if (!result?.ok) {
+      directKanbanVerification = {
+        ok: false,
+        error: String(result?.error || directKanbanVerification.error || ""),
+      };
+    }
+    const finishedAt = nowIso();
+    assistantMessage.status = result?.ok ? "done" : "failed";
+    assistantMessage.content = result?.ok
+      ? `已新增看板卡片：${todoAssigneeLabel(thread.workspaceId, kanbanDraft?.assignee || "")} | ${kanbanDraft?.dueTime || "no due time"} | ${kanbanDraft?.content || ""}`
+      : `新增看板卡片失败：${result?.error || "Kanban card operation failed"}`;
+    assistantMessage.error = result?.ok ? null : (result?.error || "Kanban operation failed");
+    if (result?.ok && createdCard) {
+      assistantMessage.content = formatDirectTodoCreateSuccessMessage({
+        assigneeLabel: todoAssigneeLabel(thread.workspaceId, kanbanDraft?.assignee || ""),
+        dueTime: kanbanDraft?.dueTime || "",
+        content: kanbanDraft?.content || "",
+      }, createdCard);
+    }
+    assistantMessage.completedAt = result?.ok ? finishedAt : "";
+    assistantMessage.failedAt = result?.ok ? "" : finishedAt;
+    assistantMessage.updatedAt = finishedAt;
+    thread.messages.push(userMessage, assistantMessage);
+    thread.status = "idle";
+    thread.updatedAt = finishedAt;
+    saveState();
+    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
+    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+    if (result?.ok) {
+      const assigneeWorkspaceId = workspaceIdForPrincipal(kanbanDraft?.assignee || "");
+      broadcast({ type: "kanban.updated", workspaceId: thread.workspaceId });
+      broadcast({ type: "todos.updated", workspaceId: thread.workspaceId });
+      if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) {
+        broadcast({ type: "kanban.updated", workspaceId: assigneeWorkspaceId });
+        broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
+      }
+    }
+    sendJson(res, result?.ok ? 201 : 400, {
+      ok: Boolean(result?.ok),
+      card: result?.ok ? createdCard : null,
+      result,
+      verification: directKanbanVerification,
+      thread: compactResponseThread(),
+    });
+    return;
+  }
+  const directTodoIntent = directTodoCreateEnabled()
+    ? (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId)
+      || detectDirectTodoCreateIntent(text, thread.workspaceId))
+    : null;
+  if (directTodoIntent) {
+    let result = null;
+    try {
+      result = await todoProvider.addTodo({
+        workspaceId: thread.workspaceId,
+        assignee: directTodoIntent.assignee,
+        content: directTodoIntent.content,
+        dueTime: directTodoIntent.dueTime,
+        suppressExternalNotice: true,
+        reminderLeadMinutes: null,
+        recurrence: "none",
+        recurrenceDays: "",
+        recurrenceUntil: "",
+      });
+    } catch (err) {
+      result = { ok: false, error: err.message || String(err) };
+    }
+    let createdTodo = null;
+    let directTodoVerification = { ok: true, error: "" };
+    if (result?.ok) {
+      createdTodo = publicTodo(result);
+      directTodoVerification = verifyDirectTodoCreateResult(createdTodo);
+      if (!directTodoVerification.ok) {
+        result = {
+          ...(result && typeof result === "object" ? result : {}),
+          ok: false,
+          error: directTodoVerification.error || "Todo creation verification failed.",
+        };
+        createdTodo = null;
+      }
+    }
+    if (!result?.ok) {
+      directTodoVerification = {
+        ok: false,
+        error: String(result?.error || directTodoVerification.error || ""),
+      };
+    }
+    const finishedAt = nowIso();
+    assistantMessage.status = result?.ok ? "done" : "failed";
+    assistantMessage.content = result?.ok
+      ? `已新增待办：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
+      : `新增待办失败：${result?.error || "Todo operation failed"}`;
+    assistantMessage.error = result?.ok ? null : (result?.error || "Todo operation failed");
+    assistantMessage.completedAt = result?.ok ? finishedAt : "";
+    assistantMessage.failedAt = result?.ok ? "" : finishedAt;
+    assistantMessage.updatedAt = finishedAt;
+    thread.messages.push(userMessage, assistantMessage);
+    thread.status = "idle";
+    thread.updatedAt = finishedAt;
+    saveState();
+    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
+    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+    if (result?.ok) {
+      const assigneeWorkspaceId = workspaceIdForPrincipal(directTodoIntent.assignee);
+      broadcast({ type: "todos.updated", workspaceId: thread.workspaceId });
+      if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
+      notifyTodoCreated(result, workspacePrincipal(thread.workspaceId));
+    }
+    sendJson(res, result?.ok ? 201 : 400, {
+      ok: Boolean(result?.ok),
+      todo: result?.ok ? createdTodo : null,
+      result,
+      verification: directTodoVerification,
+      thread: compactResponseThread(),
+    });
+    return;
+  }
+  const followUpInstructions = thread.singleWindow
+    ? singleWindowMode === "chat"
+      ? "The latest user message is a Hermes Mobile continuous-chat turn. Treat it as part of the supplied same-task conversation_history."
+      : (requestedTaskGroupId
+        ? "The latest user message is an explicit Web quote/reply to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task."
+        : "")
+    : "";
+  const runOptions = {
+    reasoning_effort: reasoningEffort,
+    singleWindowMode,
+    actorWorkspaceId,
+    gatewayRouting,
+    instructions: [
+      body.instructions || "",
+      ownerElevationInstructions(body),
+      followUpInstructions,
+    ].filter(Boolean).join("\n\n"),
+  };
+  if (body.model) runOptions.model = body.model;
+  if (body.reasoning && typeof body.reasoning === "object") runOptions.reasoning = body.reasoning;
+  if (body.access_policy_context && typeof body.access_policy_context === "object") {
+    runOptions.access_policy_context = body.access_policy_context;
+  }
+  assistantMessage.runOptions = runOptions;
+  const queueBehindActiveChatRun = thread.singleWindow
+    && singleWindowMode === "chat"
+    && taskGroupId
+    && taskGroupHasRunningRun(thread, taskGroupId);
+  if (!queueBehindActiveChatRun) {
+    const concurrencyError = runConcurrencyError(actorWorkspaceId);
+    if (concurrencyError) {
+      sendJson(res, concurrencyError.status || 429, {
+        error: concurrencyError.message,
+        code: concurrencyError.code,
+        concurrency: concurrencyError.snapshot || runConcurrencySnapshot(),
+      });
+      return;
+    }
+  }
+  thread.messages.push(userMessage, assistantMessage);
+  thread.status = queueBehindActiveChatRun && (thread.activeRunIds || []).length ? "running" : "queued";
+  thread.updatedAt = createdAt;
+  saveState();
+  broadcast({ type: "thread.updated", thread: threadSummary(thread) });
+  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
+  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+  if (isGroupChatMessage) notifyGroupChatMentions(thread, userMessage);
+  if (queueBehindActiveChatRun) {
+    sendJson(res, 202, { run: { status: "queued", taskGroupId, engine: "responses" }, thread: compactResponseThread() });
+    return;
+  }
+  try {
+    const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
+    sendJson(res, 202, { run, thread: compactResponseThread() });
+  } catch (err) {
+    const failedAt = nowIso();
+    assistantMessage.status = "failed";
+    assistantMessage.error = err.message || String(err);
+    assistantMessage.failedAt = failedAt;
+    assistantMessage.updatedAt = failedAt;
+    removeThreadActiveRun(thread, assistantMessage.runId, "failed");
+    thread.updatedAt = failedAt;
+    saveState();
+    broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+    sendJson(res, err.status || 502, { error: assistantMessage.error, thread: compactResponseThread() });
+  }
+  return;
+}
+
+async function handleThreadMessageOwnerElevation(req, res, _url, context = {}) {
+   const ownerAuth = requireOwner(req, res);
+  if (!ownerAuth) return;
+  const thread = findThreadForRequest(req, context.threadId || "");
+  if (!thread) {
+    sendJson(res, 404, { error: "Thread not found" });
+    return;
+  }
+  const messageId = String(context.messageId || "");
+  const message = (thread.messages || []).find((item) => String(item.id || "") === messageId);
+  if (!message || message.role !== "assistant") {
+    sendJson(res, 404, { error: "Assistant message not found" });
+    return;
+  }
+  if (!message.elevationRequired) {
+    sendJson(res, 409, { error: "This message is not waiting for Owner elevation approval" });
+    return;
+  }
+  const body = await readBody(req).catch((err) => ({ __error: err }));
+  if (body.__error) {
+    sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
+    return;
+  }
+  const userMessage = precedingUserMessageForAssistant(thread, message);
+  if (!userMessage) {
+    sendJson(res, 400, { error: "Original user message was not found" });
+    return;
+  }
+  const actorWorkspaceId = "owner";
+  const concurrencyError = runConcurrencyError(actorWorkspaceId);
+  if (concurrencyError) {
+    sendJson(res, concurrencyError.status || 429, {
+      error: concurrencyError.message,
+      code: concurrencyError.code,
+      concurrency: concurrencyError.snapshot || runConcurrencySnapshot(),
+    });
+    return;
+  }
+  let assistantMessage = null;
+  try {
+    const elevationScope = sanitizeElevationScope(body.elevationScope || body.elevation_scope || message.elevationScope || "owner_high_privilege");
+    const gatewayRouting = gatewayRoutingForModelRun(ownerAuth, userMessage.content, {
+      actorWorkspaceId,
+      maintenanceMode: true,
+      ownerElevationOnceToken: body.ownerElevationOnceToken || body.owner_elevation_once_token || "",
+      elevationScope,
+    });
+    const createdAt = nowIso();
+    assistantMessage = {
+      id: makeId("msg"),
+      role: "assistant",
+      content: "",
+      status: "queued",
+      runId: null,
+      createdAt,
+      updatedAt: createdAt,
+      queuedAt: createdAt,
+      artifacts: [],
+      taskGroupId: userMessage.taskGroupId || message.taskGroupId || "",
+      messageKind: "ai",
+      senderWorkspaceId: "hermes",
+      senderPrincipalId: "hermes",
+      senderLabel: "Hermes",
+      actorWorkspaceId,
+      reasoningEffort: userMessage.reasoningEffort || message.reasoningEffort || "",
+      singleWindowMode: userMessage.singleWindowMode || message.singleWindowMode || "",
+      elevatedFromMessageId: message.id,
+    };
+    const runOptions = {
+      reasoning_effort: assistantMessage.reasoningEffort,
+      singleWindowMode: assistantMessage.singleWindowMode,
+      actorWorkspaceId,
+      gatewayRouting,
+      instructions: ownerElevationInstructions({ elevationScope }),
+    };
+    assistantMessage.runOptions = runOptions;
+    thread.messages.push(assistantMessage);
+    thread.status = "queued";
+    thread.updatedAt = createdAt;
+    saveState();
+    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+    const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
+    sendJson(res, 202, { ok: true, run, thread: compactThread(thread) });
+  } catch (err) {
+    if (assistantMessage) {
+      const failedAt = nowIso();
+      assistantMessage.status = "failed";
+      assistantMessage.error = err.message || String(err);
+      assistantMessage.failedAt = failedAt;
+      assistantMessage.updatedAt = failedAt;
+      removeThreadActiveRun(thread, assistantMessage.runId, "failed");
+      thread.updatedAt = failedAt;
+      saveState();
+      broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
+    }
+    sendJson(res, err.status || 502, {
+      error: err.message || String(err),
+      code: err.code || "owner_elevation_retry_failed",
+      elevationRequired: Boolean(err.elevationRequired),
+      elevationScope: err.elevationScope || "",
+      thread: compactThread(thread),
+    });
+  }
+  return;
+}
+
 async function handleApi(req, res) {
   const url = getUrl(req);
   attachClientVersionHeaders(req, res);
@@ -13909,502 +14409,7 @@ async function handleApi(req, res) {
   if ((await threadTaskApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await singleWindowGroupChatApiRoutes.handle(req, res, url, { auth })).handled) return;
 
-  const threadMessages = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages$/);
-  if (threadMessages && req.method === "POST") {
-    const thread = findThreadForRequest(req, decodeURIComponent(threadMessages[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    if (!thread.singleWindow && (thread.activeRunId || (thread.activeRunIds || []).length)) {
-      sendJson(res, 409, { error: "Thread already has an active Hermes run" });
-      return;
-    }
-    const body = await readBody(req);
-    const text = String(body.text || "").trim();
-    const uploadArtifacts = Array.isArray(body.artifacts) ? body.artifacts : [];
-    if (!text && !uploadArtifacts.length) {
-      sendJson(res, 400, { error: "Message text is required" });
-      return;
-    }
-    const auth = authenticateRequest(req);
-    const createdAt = nowIso();
-    if (thread.title === "New thread") thread.title = deriveTitle(text);
-    const singleWindowMode = normalizeSingleWindowMode(body.singleWindowMode || body.single_window_mode || "");
-    const replyToMessageId = singleWindowMode === "chat" ? "" : (body.replyToMessageId ? String(body.replyToMessageId).slice(0, 120) : "");
-    const quotedMessage = replyToMessageId
-      ? (thread.messages || []).find((message) => message.id === replyToMessageId)
-      : null;
-    if (replyToMessageId && !quotedMessage) {
-      sendJson(res, 400, { error: "Quoted message not found" });
-      return;
-    }
-    const bodyTaskGroupId = body.taskGroupId ? sanitizeTaskGroupId(body.taskGroupId) : "";
-    const quotedTaskGroupId = quotedMessage?.taskGroupId ? sanitizeTaskGroupId(quotedMessage.taskGroupId) : "";
-    if (bodyTaskGroupId && quotedTaskGroupId && bodyTaskGroupId !== quotedTaskGroupId) {
-      sendJson(res, 400, { error: "Quoted message does not belong to the requested task group" });
-      return;
-    }
-    const requestedTaskGroupId = bodyTaskGroupId || quotedTaskGroupId;
-    const normalizedTaskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
-    const requestedCaseTopicChat = Boolean(
-      thread.singleWindow
-      && singleWindowMode === "chat"
-      && isKanbanCaseTopicThread(thread)
-      && requestedTaskGroupId
-      && normalizedTaskGroupMeta[requestedTaskGroupId]?.sharedTopic
-    );
-    const taskGroupId = thread.singleWindow
-      ? (requestedCaseTopicChat ? requestedTaskGroupId : (singleWindowMode === "chat" ? singleWindowChatTaskGroupId(requestedTaskGroupId) : (requestedTaskGroupId || makeId("task"))))
-      : "";
-    if (thread.singleWindow && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID && singleWindowMode !== "chat") {
-      sendJson(res, 400, { error: "Group chat messages must use chat mode" });
-      return;
-    }
-    const groupMemberIds = chatGroupMemberWorkspaceIds(thread);
-    const requestedGroupChat = thread.singleWindow
-      && singleWindowMode === "chat"
-      && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
-    const isGroupChatMessage = requestedGroupChat && groupMemberIds.length > 0;
-    if (requestedGroupChat && !isGroupChatMessage) {
-      sendJson(res, 403, { error: "Group chat is not enabled for this thread" });
-      return;
-    }
-    const isCaseTopicChatMessage = requestedCaseTopicChat && groupMemberIds.length > 0;
-    if (requestedCaseTopicChat && !isCaseTopicChatMessage) {
-      sendJson(res, 403, { error: "Shared learning topic chat is not enabled for this thread" });
-      return;
-    }
-    if (thread.singleWindow && singleWindowMode !== "chat") {
-      const caseTopicPermissions = kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth);
-      if (caseTopicPermissions && !caseTopicPermissions.canSubmitStudy && !caseTopicPermissions.canManage) {
-        sendJson(res, 403, { error: "This shared learning topic is read-only for the current workspace" });
-        return;
-      }
-    }
-    const compactResponseThread = () => (
-      thread.singleWindow && singleWindowMode === "chat"
-        ? compactThreadWithMessagePage(thread, {
-          mode: "chat",
-          taskGroupId,
-          groupChat: taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-          limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
-        })
-        : compactThread(thread)
-    );
-    let actorWorkspaceId = thread.workspaceId;
-    const requestedActorWorkspaceId = String(body.workspaceId || body.actorWorkspaceId || body.actor_workspace_id || "").trim();
-    if (requestedActorWorkspaceId && authCanAccessWorkspace(auth, requestedActorWorkspaceId)) {
-      actorWorkspaceId = requestedActorWorkspaceId;
-    } else if (!isOwnerAuth(auth) && auth?.workspaceId) {
-      actorWorkspaceId = auth.workspaceId;
-    }
-    if ((isGroupChatMessage || isCaseTopicChatMessage) && !groupMemberIds.includes(actorWorkspaceId)) {
-      sendJson(res, 403, { error: "Selected workspace is not a group chat member" });
-      return;
-    }
-    const senderInfo = senderInfoForWorkspace(actorWorkspaceId);
-    const messageKind = (isGroupChatMessage || isCaseTopicChatMessage) && String(body.messageKind || body.message_kind || "").trim() === "plain" ? "plain" : "ai";
-    let gatewayRouting = { securityLevel: "user", maintenance: false };
-    if (messageKind === "ai") {
-      try {
-        gatewayRouting = gatewayRoutingForModelRun(auth, text, Object.assign({}, body, { actorWorkspaceId }));
-      } catch (err) {
-        sendJson(res, err.status || 403, {
-          error: err.message || String(err),
-          code: err.code || "gateway_security_boundary",
-          operatorRequired: Boolean(err.operatorRequired),
-          elevationRequired: Boolean(err.elevationRequired),
-          elevationScope: err.elevationScope || "",
-        });
-        return;
-      }
-    }
-    const requestedReasoningEffort = String(body.reasoning_effort || "").trim();
-    const reasoningEffort = VALID_REASONING_EFFORTS.has(requestedReasoningEffort) ? requestedReasoningEffort : "";
-    const allowAutomaticDirectoryAttachment = singleWindowMode !== "chat";
-    const directoryAttachment = resolveTaskDirectoryAttachment(thread, body.directory || body.directoryRoute || {})
-      || ((singleWindowMode === "chat" && !isCaseTopicChatMessage) ? null : taskDirectoryAttachmentForGroup(thread, requestedTaskGroupId))
-      || (allowAutomaticDirectoryAttachment ? semanticTaskDirectoryAttachment(thread, text) : null);
-    const userMessage = {
-      id: makeId("msg"),
-      role: "user",
-      content: buildUserMessageContent(text, uploadArtifacts),
-      status: "done",
-      createdAt,
-      updatedAt: createdAt,
-      submittedAt: createdAt,
-      artifacts: uploadArtifacts.map(publicArtifactFromClient).filter(Boolean),
-      taskGroupId,
-      messageKind,
-      senderWorkspaceId: senderInfo.senderWorkspaceId,
-      senderPrincipalId: senderInfo.senderPrincipalId,
-      senderLabel: senderInfo.senderLabel,
-      actorWorkspaceId,
-      replyToMessageId: quotedMessage?.id || "",
-      directoryAliases: directoryAttachment ? [directoryAttachment] : [],
-      directoryRoute: directoryAttachment || null,
-      reasoningEffort,
-      singleWindowMode,
-    };
-    attachUploadedArtifactsToMessage(thread, userMessage);
-    const assistantMessage = {
-      id: makeId("msg"),
-      role: "assistant",
-      content: "",
-      status: "queued",
-      runId: null,
-      createdAt,
-      updatedAt: createdAt,
-      queuedAt: createdAt,
-      artifacts: [],
-      taskGroupId,
-      messageKind: "ai",
-      senderWorkspaceId: "hermes",
-      senderPrincipalId: "hermes",
-      senderLabel: "Hermes",
-      actorWorkspaceId,
-      reasoningEffort,
-      singleWindowMode,
-    };
-    if ((isGroupChatMessage || isCaseTopicChatMessage) && messageKind === "plain") {
-      thread.messages.push(userMessage);
-      thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
-      thread.updatedAt = createdAt;
-      saveState();
-      broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
-      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
-      notifyGroupChatMentions(thread, userMessage);
-      sendJson(res, 201, { ok: true, thread: compactResponseThread() });
-      return;
-    }
-    const directKanbanCreate = useKanbanTodoBackend() && detectDirectKanbanCreateRequest(text);
-    if (directKanbanCreate) {
-      let result = null;
-      let kanbanDraft = null;
-      try {
-        kanbanDraft = await interpretKanbanNaturalLanguage(text, findWorkspace(thread.workspaceId), workspacePrincipal(thread.workspaceId));
-        result = await kanbanCardProvider.addCard({
-          workspaceId: thread.workspaceId,
-          assignee: kanbanDraft.assignee,
-          assigneeLabel: todoAssigneeLabel(thread.workspaceId, kanbanDraft.assignee),
-          content: kanbanDraft.content,
-          description: kanbanDraft.description,
-          dueTime: kanbanDraft.dueTime,
-          reason: kanbanDraft.reason,
-          ...kanbanSingleCardCasePayload(kanbanDraft.content, kanbanDraft.description, text),
-        });
-      } catch (err) {
-        result = { ok: false, error: err.message || String(err) };
-      }
-      let createdCard = null;
-      let directKanbanVerification = { ok: true, error: "" };
-      if (result?.ok) {
-        createdCard = publicTodo(result);
-        directKanbanVerification = verifyDirectTodoCreateResult(createdCard);
-        if (!directKanbanVerification.ok) {
-          result = {
-            ...(result && typeof result === "object" ? result : {}),
-            ok: false,
-            error: directKanbanVerification.error || "Kanban creation verification failed.",
-          };
-          createdCard = null;
-        }
-      }
-      if (!result?.ok) {
-        directKanbanVerification = {
-          ok: false,
-          error: String(result?.error || directKanbanVerification.error || ""),
-        };
-      }
-      const finishedAt = nowIso();
-      assistantMessage.status = result?.ok ? "done" : "failed";
-      assistantMessage.content = result?.ok
-        ? `已新增看板卡片：${todoAssigneeLabel(thread.workspaceId, kanbanDraft?.assignee || "")} | ${kanbanDraft?.dueTime || "no due time"} | ${kanbanDraft?.content || ""}`
-        : `新增看板卡片失败：${result?.error || "Kanban card operation failed"}`;
-      assistantMessage.error = result?.ok ? null : (result?.error || "Kanban operation failed");
-      if (result?.ok && createdCard) {
-        assistantMessage.content = formatDirectTodoCreateSuccessMessage({
-          assigneeLabel: todoAssigneeLabel(thread.workspaceId, kanbanDraft?.assignee || ""),
-          dueTime: kanbanDraft?.dueTime || "",
-          content: kanbanDraft?.content || "",
-        }, createdCard);
-      }
-      assistantMessage.completedAt = result?.ok ? finishedAt : "";
-      assistantMessage.failedAt = result?.ok ? "" : finishedAt;
-      assistantMessage.updatedAt = finishedAt;
-      thread.messages.push(userMessage, assistantMessage);
-      thread.status = "idle";
-      thread.updatedAt = finishedAt;
-      saveState();
-      broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
-      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-      if (result?.ok) {
-        const assigneeWorkspaceId = workspaceIdForPrincipal(kanbanDraft?.assignee || "");
-        broadcast({ type: "kanban.updated", workspaceId: thread.workspaceId });
-        broadcast({ type: "todos.updated", workspaceId: thread.workspaceId });
-        if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) {
-          broadcast({ type: "kanban.updated", workspaceId: assigneeWorkspaceId });
-          broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
-        }
-      }
-      sendJson(res, result?.ok ? 201 : 400, {
-        ok: Boolean(result?.ok),
-        card: result?.ok ? createdCard : null,
-        result,
-        verification: directKanbanVerification,
-        thread: compactResponseThread(),
-      });
-      return;
-    }
-    const directTodoIntent = directTodoCreateEnabled()
-      ? (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId)
-        || detectDirectTodoCreateIntent(text, thread.workspaceId))
-      : null;
-    if (directTodoIntent) {
-      let result = null;
-      try {
-        result = await todoProvider.addTodo({
-          workspaceId: thread.workspaceId,
-          assignee: directTodoIntent.assignee,
-          content: directTodoIntent.content,
-          dueTime: directTodoIntent.dueTime,
-          suppressExternalNotice: true,
-          reminderLeadMinutes: null,
-          recurrence: "none",
-          recurrenceDays: "",
-          recurrenceUntil: "",
-        });
-      } catch (err) {
-        result = { ok: false, error: err.message || String(err) };
-      }
-      let createdTodo = null;
-      let directTodoVerification = { ok: true, error: "" };
-      if (result?.ok) {
-        createdTodo = publicTodo(result);
-        directTodoVerification = verifyDirectTodoCreateResult(createdTodo);
-        if (!directTodoVerification.ok) {
-          result = {
-            ...(result && typeof result === "object" ? result : {}),
-            ok: false,
-            error: directTodoVerification.error || "Todo creation verification failed.",
-          };
-          createdTodo = null;
-        }
-      }
-      if (!result?.ok) {
-        directTodoVerification = {
-          ok: false,
-          error: String(result?.error || directTodoVerification.error || ""),
-        };
-      }
-      const finishedAt = nowIso();
-      assistantMessage.status = result?.ok ? "done" : "failed";
-      assistantMessage.content = result?.ok
-        ? `已新增待办：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
-        : `新增待办失败：${result?.error || "Todo operation failed"}`;
-      assistantMessage.error = result?.ok ? null : (result?.error || "Todo operation failed");
-      assistantMessage.completedAt = result?.ok ? finishedAt : "";
-      assistantMessage.failedAt = result?.ok ? "" : finishedAt;
-      assistantMessage.updatedAt = finishedAt;
-      thread.messages.push(userMessage, assistantMessage);
-      thread.status = "idle";
-      thread.updatedAt = finishedAt;
-      saveState();
-      broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
-      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-      if (result?.ok) {
-        const assigneeWorkspaceId = workspaceIdForPrincipal(directTodoIntent.assignee);
-        broadcast({ type: "todos.updated", workspaceId: thread.workspaceId });
-        if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
-        notifyTodoCreated(result, workspacePrincipal(thread.workspaceId));
-      }
-      sendJson(res, result?.ok ? 201 : 400, {
-        ok: Boolean(result?.ok),
-        todo: result?.ok ? createdTodo : null,
-        result,
-        verification: directTodoVerification,
-        thread: compactResponseThread(),
-      });
-      return;
-    }
-    const followUpInstructions = thread.singleWindow
-      ? singleWindowMode === "chat"
-        ? "The latest user message is a Hermes Mobile continuous-chat turn. Treat it as part of the supplied same-task conversation_history."
-        : (requestedTaskGroupId
-          ? "The latest user message is an explicit Web quote/reply to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task."
-          : "")
-      : "";
-    const runOptions = {
-      reasoning_effort: reasoningEffort,
-      singleWindowMode,
-      actorWorkspaceId,
-      gatewayRouting,
-      instructions: [
-        body.instructions || "",
-        ownerElevationInstructions(body),
-        followUpInstructions,
-      ].filter(Boolean).join("\n\n"),
-    };
-    if (body.model) runOptions.model = body.model;
-    if (body.reasoning && typeof body.reasoning === "object") runOptions.reasoning = body.reasoning;
-    if (body.access_policy_context && typeof body.access_policy_context === "object") {
-      runOptions.access_policy_context = body.access_policy_context;
-    }
-    assistantMessage.runOptions = runOptions;
-    const queueBehindActiveChatRun = thread.singleWindow
-      && singleWindowMode === "chat"
-      && taskGroupId
-      && taskGroupHasRunningRun(thread, taskGroupId);
-    if (!queueBehindActiveChatRun) {
-      const concurrencyError = runConcurrencyError(actorWorkspaceId);
-      if (concurrencyError) {
-        sendJson(res, concurrencyError.status || 429, {
-          error: concurrencyError.message,
-          code: concurrencyError.code,
-          concurrency: concurrencyError.snapshot || runConcurrencySnapshot(),
-        });
-        return;
-      }
-    }
-    thread.messages.push(userMessage, assistantMessage);
-    thread.status = queueBehindActiveChatRun && (thread.activeRunIds || []).length ? "running" : "queued";
-    thread.updatedAt = createdAt;
-    saveState();
-    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-    if (isGroupChatMessage) notifyGroupChatMentions(thread, userMessage);
-    if (queueBehindActiveChatRun) {
-      sendJson(res, 202, { run: { status: "queued", taskGroupId, engine: "responses" }, thread: compactResponseThread() });
-      return;
-    }
-    try {
-      const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
-      sendJson(res, 202, { run, thread: compactResponseThread() });
-    } catch (err) {
-      const failedAt = nowIso();
-      assistantMessage.status = "failed";
-      assistantMessage.error = err.message || String(err);
-      assistantMessage.failedAt = failedAt;
-      assistantMessage.updatedAt = failedAt;
-      removeThreadActiveRun(thread, assistantMessage.runId, "failed");
-      thread.updatedAt = failedAt;
-      saveState();
-      broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-      sendJson(res, err.status || 502, { error: assistantMessage.error, thread: compactResponseThread() });
-    }
-    return;
-  }
-
-  const messageOwnerElevation = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages\/([^/]+)\/owner-elevation$/);
-  if (messageOwnerElevation && req.method === "POST") {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    const thread = findThreadForRequest(req, decodeURIComponent(messageOwnerElevation[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const messageId = decodeURIComponent(messageOwnerElevation[2]);
-    const message = (thread.messages || []).find((item) => String(item.id || "") === messageId);
-    if (!message || message.role !== "assistant") {
-      sendJson(res, 404, { error: "Assistant message not found" });
-      return;
-    }
-    if (!message.elevationRequired) {
-      sendJson(res, 409, { error: "This message is not waiting for Owner elevation approval" });
-      return;
-    }
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    const userMessage = precedingUserMessageForAssistant(thread, message);
-    if (!userMessage) {
-      sendJson(res, 400, { error: "Original user message was not found" });
-      return;
-    }
-    const actorWorkspaceId = "owner";
-    const concurrencyError = runConcurrencyError(actorWorkspaceId);
-    if (concurrencyError) {
-      sendJson(res, concurrencyError.status || 429, {
-        error: concurrencyError.message,
-        code: concurrencyError.code,
-        concurrency: concurrencyError.snapshot || runConcurrencySnapshot(),
-      });
-      return;
-    }
-    let assistantMessage = null;
-    try {
-      const elevationScope = sanitizeElevationScope(body.elevationScope || body.elevation_scope || message.elevationScope || "owner_high_privilege");
-      const gatewayRouting = gatewayRoutingForModelRun(ownerAuth, userMessage.content, {
-        actorWorkspaceId,
-        maintenanceMode: true,
-        ownerElevationOnceToken: body.ownerElevationOnceToken || body.owner_elevation_once_token || "",
-        elevationScope,
-      });
-      const createdAt = nowIso();
-      assistantMessage = {
-        id: makeId("msg"),
-        role: "assistant",
-        content: "",
-        status: "queued",
-        runId: null,
-        createdAt,
-        updatedAt: createdAt,
-        queuedAt: createdAt,
-        artifacts: [],
-        taskGroupId: userMessage.taskGroupId || message.taskGroupId || "",
-        messageKind: "ai",
-        senderWorkspaceId: "hermes",
-        senderPrincipalId: "hermes",
-        senderLabel: "Hermes",
-        actorWorkspaceId,
-        reasoningEffort: userMessage.reasoningEffort || message.reasoningEffort || "",
-        singleWindowMode: userMessage.singleWindowMode || message.singleWindowMode || "",
-        elevatedFromMessageId: message.id,
-      };
-      const runOptions = {
-        reasoning_effort: assistantMessage.reasoningEffort,
-        singleWindowMode: assistantMessage.singleWindowMode,
-        actorWorkspaceId,
-        gatewayRouting,
-        instructions: ownerElevationInstructions({ elevationScope }),
-      };
-      assistantMessage.runOptions = runOptions;
-      thread.messages.push(assistantMessage);
-      thread.status = "queued";
-      thread.updatedAt = createdAt;
-      saveState();
-      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-      const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
-      sendJson(res, 202, { ok: true, run, thread: compactThread(thread) });
-    } catch (err) {
-      if (assistantMessage) {
-        const failedAt = nowIso();
-        assistantMessage.status = "failed";
-        assistantMessage.error = err.message || String(err);
-        assistantMessage.failedAt = failedAt;
-        assistantMessage.updatedAt = failedAt;
-        removeThreadActiveRun(thread, assistantMessage.runId, "failed");
-        thread.updatedAt = failedAt;
-        saveState();
-        broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-      }
-      sendJson(res, err.status || 502, {
-        error: err.message || String(err),
-        code: err.code || "owner_elevation_retry_failed",
-        elevationRequired: Boolean(err.elevationRequired),
-        elevationScope: err.elevationScope || "",
-        thread: compactThread(thread),
-      });
-    }
-    return;
-  }
+  if ((await threadMessageRunApiRoutes.handle(req, res, url, { auth })).handled) return;
 
   sendJson(res, 404, { error: "Not found" });
 }
