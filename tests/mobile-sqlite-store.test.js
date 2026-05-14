@@ -318,8 +318,35 @@ function testRuntimeStateRoundTrip() {
   store.close();
 }
 
+function testAuditStoresDecisionPayload() {
+  const dir = tempDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "audit.sqlite3") });
+  store.migrate();
+  store.audit("path_read_decision", {
+    actorWorkspaceId: "owner",
+    actorPrincipalId: "owner",
+    targetType: "path",
+    targetId: "fingerprint",
+    timestamp: "2026-05-14T00:00:00.000Z",
+    action: "read",
+    decision: "deny",
+    reason: "protected_path",
+    payload: { rootType: "workspace" },
+  });
+  const row = store.open().prepare("SELECT * FROM audit_log WHERE event_type = ?").get("path_read_decision");
+  assert.equal(row.actor_workspace_id, "owner");
+  assert.equal(row.created_at, "2026-05-14T00:00:00.000Z");
+  const payload = JSON.parse(row.payload_json);
+  assert.equal(payload.decision, "deny");
+  assert.equal(payload.reason, "protected_path");
+  assert.equal(payload.action, "read");
+  assert.equal(payload.rootType, "workspace");
+  store.close();
+}
+
 testImportAndIntegrity();
 testWorkspaceInferenceFallback();
 testServiceLayerLocalRows();
 testRuntimeStateRoundTrip();
+testAuditStoresDecisionPayload();
 console.log("mobile-sqlite-store tests passed");

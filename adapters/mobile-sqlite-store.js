@@ -1287,6 +1287,14 @@ function createMobileSqliteStore(options = {}) {
   }
 
   function audit(eventType, payload = {}) {
+    const payloadJson = Object.assign({}, payload.payload || {}, {
+      eventId: payload.eventId || payload.event_id || "",
+      timestamp: payload.timestamp || payload.createdAt || payload.created_at || "",
+      action: payload.action || payload.operation || "",
+      decision: payload.decision || "",
+      reason: payload.reason || "",
+      traceId: payload.traceId || payload.trace_id || "",
+    });
     open().prepare(`
       INSERT INTO audit_log(event_type, actor_workspace_id, actor_principal_id, target_type, target_id, payload_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -1296,8 +1304,8 @@ function createMobileSqliteStore(options = {}) {
       String(payload.actorPrincipalId || ""),
       String(payload.targetType || ""),
       String(payload.targetId || ""),
-      stableJson(payload.payload || {}),
-      normalizeIso(payload.createdAt || nowIso()),
+      stableJson(payloadJson),
+      normalizeIso(payload.createdAt || payload.timestamp || nowIso()),
     );
   }
 

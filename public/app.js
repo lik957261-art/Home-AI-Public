@@ -9234,8 +9234,22 @@ function kanbanReadingStartTime(todo) {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+function todoWorkflowState(todo) {
+  const workflow = todo?.workflowState && typeof todo.workflowState === "object" ? todo.workflowState : null;
+  if (!workflow) return null;
+  if (
+    ["reading", "study", "assessment", "final-assessment"].includes(String(workflow.kind || ""))
+    && workflow.priorContextAvailable === false
+  ) {
+    return null;
+  }
+  return workflow;
+}
+
 function readingCardAcceptsSubmission(todo) {
   if (!isKanbanReadingCard(todo)) return false;
+  const workflow = todoWorkflowState(todo);
+  if (workflow && Object.prototype.hasOwnProperty.call(workflow, "canSubmitStudy")) return Boolean(workflow.canSubmitStudy);
   const status = normalizedKanbanStatus(todo);
   if (status === "done" || status === "archived") return false;
   if (status === "blocked" && !readingCasePriorComplete(todo)) return false;
@@ -9249,9 +9263,11 @@ function assessmentExamSummary(todo) {
 }
 
 function assessmentExamCompleted(todo) {
+  const workflow = todoWorkflowState(todo);
+  if (workflow && (workflow.kind === "assessment" || workflow.kind === "final-assessment")) return Boolean(workflow.completed);
   const summary = assessmentExamSummary(todo);
-  return String(summary?.status || "") === "completed"
-    || Boolean(summary?.lastAttempt?.passed);
+  if (summary?.completionError) return false;
+  return String(summary?.status || "") === "completed";
 }
 
 function assessmentHasVisibleResult(todo) {
@@ -9284,6 +9300,8 @@ function assessmentPriorComplete(todo) {
 
 function assessmentCardAcceptsStart(todo) {
   if (!isKanbanAssessmentCard(todo) || assessmentExamCompleted(todo)) return false;
+  const workflow = todoWorkflowState(todo);
+  if (workflow && Object.prototype.hasOwnProperty.call(workflow, "canStartExam")) return Boolean(workflow.canStartExam);
   const status = normalizedKanbanStatus(todo);
   if (status === "archived") return false;
   return assessmentPriorComplete(todo);
@@ -10624,6 +10642,10 @@ function readingSubmissionSummary(todo) {
 }
 
 function readingSubmissionHasAnalysis(todo) {
+  const workflow = todoWorkflowState(todo);
+  if (workflow && (workflow.kind === "reading" || workflow.kind === "study")) {
+    return ["quiz_pending", "completed"].includes(String(workflow.phase || ""));
+  }
   const summary = readingSubmissionSummary(todo);
   return Boolean(
     summary?.quizAvailable
@@ -10634,9 +10656,11 @@ function readingSubmissionHasAnalysis(todo) {
 }
 
 function readingSubmissionCompleted(todo) {
+  const workflow = todoWorkflowState(todo);
+  if (workflow && (workflow.kind === "reading" || workflow.kind === "study")) return Boolean(workflow.completed);
   const summary = readingSubmissionSummary(todo);
-  return String(summary?.status || "") === "completed"
-    || Boolean(summary?.lastAttempt?.passed);
+  if (summary?.completionError) return false;
+  return String(summary?.status || "") === "completed";
 }
 
 function renderKanbanReadingWorkflowPanel(todo) {

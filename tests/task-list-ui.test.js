@@ -142,7 +142,8 @@ assert.match(serverJs, /document-kicker/);
 assert.match(serverJs, /markdown-table-wrap/);
 assert.match(serverJs, /Weixin readable PDF/);
 assert.doesNotMatch(serverJs, /<pre>\$\{escapeHtmlForDocument\(markdown \|\| ""\)\}<\/pre>/);
-assert.match(serverJs, /const forwardFile = materializeWeixinForwardFile\(resolved\.file, workspaceId\)/);
+assert.match(serverJs, /const sourceFile = resolved\.file \|\| fileResultFromBridgeFileForForward\(resolved\.bridgeFile, workspaceId\)\.file/);
+assert.match(serverJs, /const forwardFile = materializeWeixinForwardFile\(sourceFile, workspaceId\)/);
 assert.match(serverJs, /pathToFileURL\(htmlPath\)\.href/);
 assert.match(serverJs, /WEIXIN_FORWARD_MARKDOWN_MAX_BYTES/);
 assert.match(serverJs, /fileResultFromBridgeFileForForward\(file, workspaceId\)/);
@@ -356,6 +357,28 @@ const readingCompletionFn = appJs.slice(
   appJs.indexOf("function renderKanbanReadingWorkflowPanel(todo)"),
 );
 assert.equal(readingCompletionFn.includes("normalizedKanbanStatus"), false);
+assert.match(readingCompletionFn, /summary\?\.completionError/);
+const assessmentCompletionFn = appJs.slice(
+  appJs.indexOf("function assessmentExamCompleted(todo)"),
+  appJs.indexOf("function assessmentHasVisibleResult(todo)"),
+);
+assert.match(assessmentCompletionFn, /summary\?\.completionError/);
+assert.match(serverJs, /completionError: ""/);
+assert.match(serverJs, /operation: "manual_forward"[\s\S]{0,500}explicitUserApproved: true/);
+assert.match(serverJs, /const sourceFile = resolved\.file \|\| fileResultFromBridgeFileForForward/);
+assert.match(serverJs, /if \(resolved\?\.bridgeFile\) return \{ bridgeFile: resolved\.bridgeFile/);
+assert.match(serverJs, /const publicTodoListContextCache = new WeakMap\(\)/);
+assert.match(serverJs, /publicTodoWorkflowCompleted\(payload\)/);
+assert.match(serverJs, /function kanbanWorkflowStateCompleted\(state = \{\}, officialDone = false\)/);
+assert.match(serverJs, /officialDone && kanbanHasPassedAttempt\(state\)/);
+assert.match(serverJs, /const invalidAnswers = questions/);
+assert.match(serverJs, /Assessment answers are incomplete/);
+assert.match(serverJs, /workflowInput\.priorComplete = priorContext\.priorComplete/);
+assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "kanban-card-provider.js"), "utf8"), /\.map\(\(row, index\) => publicCard\(row, index, rows\)\)/);
+assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "todo-provider.js"), "utf8"), /\.map\(\(row, index\) => publicTodo\(row, index, rows\)\)/);
+const studyWorkflowProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "study-workflow-provider.js"), "utf8");
+assert.match(studyWorkflowProviderJs, /function readingCompletionEvidence\(state = \{\}, officialDone = false\)/);
+assert.match(studyWorkflowProviderJs, /officialDone && hasPassedAttempt\(state\)/);
 assert.match(appJs, /group\.mode === "study-plan"/);
 assert.match(appJs, /kanbanDisplayResultText\(todo, todo\.kanbanResult \|\| detail\?\.summary \|\| ""\)/);
 assert.match(appJs, /detail && !readingCard \? renderKanbanProcessRows\(detail\) : ""/);
@@ -523,8 +546,8 @@ assert.ok(appJs.includes("New topic"));
 assert.ok(appJs.includes("\u770b\u677f\u8be6\u60c5"));
 assert.ok(appJs.includes("\u65b0\u589e\u5361\u7247"));
 assert.ok(appJs.includes("Topic ID"));
-assert.ok(indexHtml.includes("20260514-study-schedule"));
-assert.ok(serviceWorkerJs.includes("20260514-study-schedule"));
+assert.ok(indexHtml.includes("20260514-control-policy-workflow"));
+assert.ok(serviceWorkerJs.includes("20260514-control-policy-workflow"));
 assert.match(indexHtml, /id="chatManagementMode"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.addEventListener\("click"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.classList\.toggle\("active", single && state\.singleWindowMode === "chat"\)/);

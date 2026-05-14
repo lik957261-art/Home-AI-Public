@@ -22,11 +22,15 @@ const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
+const { createAuditEventProvider } = require("./adapters/audit-event-provider");
+const { createEgressPolicyProvider } = require("./adapters/egress-policy-provider");
+const { createPathPolicyProvider } = require("./adapters/path-policy-provider");
 const { createProjectDiscoveryProvider } = require("./adapters/project-discovery-provider");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createRunConcurrencyPolicy } = require("./adapters/run-concurrency-policy");
 const { createSecurityBoundaryProvider } = require("./adapters/security-boundary-provider");
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
+const { deriveKanbanWorkflowState } = require("./adapters/study-workflow-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
@@ -97,6 +101,7 @@ const DATA_DIR = path.resolve(process.env.HERMES_WEB_DATA_DIR || path.join(REPO_
 const STATE_PATH = path.join(DATA_DIR, "state.json");
 const STATE_BACKUP_DIR = path.join(DATA_DIR, "backups");
 const SHARED_DIRECTORIES_PATH = path.join(DATA_DIR, "shared-directories.json");
+const AUDIT_EVENT_LOG_PATH = path.resolve(process.env.HERMES_MOBILE_AUDIT_EVENT_LOG_PATH || process.env.HERMES_WEB_AUDIT_EVENT_LOG_PATH || path.join(DATA_DIR, "audit-events.jsonl"));
 const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
 const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
 const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
@@ -554,6 +559,58 @@ const sharedDirectoryProvider = createSharedDirectoryProvider({
   isRootAllowed: (root) => !securityBoundaryProvider.rootConflictsWithProtected(root),
 });
 bootTrace("shared directories ready");
+
+const auditEventProvider = createAuditEventProvider({
+  sink: (eventType, event) => {
+    if (useSqliteServiceStore()) {
+      mobileSqliteStore().audit(eventType, event);
+      return;
+    }
+    ensureDataDir();
+    fs.appendFileSync(AUDIT_EVENT_LOG_PATH, `${JSON.stringify(event)}\n`, "utf8");
+  },
+  onError: (err, event) => {
+    console.warn("[audit] failed to record event", event?.eventType || "event", err?.message || String(err));
+  },
+});
+bootTrace("audit events ready");
+
+const egressPolicyProvider = createEgressPolicyProvider({
+  audit: (eventType, payload) => auditEventProvider.audit(eventType, payload),
+});
+bootTrace("egress policy ready");
+
+const pathPolicyProvider = createPathPolicyProvider({
+  normalizeLocalPath: (value) => normalizeLocalPath(value),
+  isProtectedPath: (value) => securityBoundaryProvider.isProtectedPath(value),
+  isGloballyAllowedPath: (value) => isPathAllowed(value),
+  uploadRootsForThread: (thread) => uploadRootsForThread(thread),
+  policyForThread: (thread) => policyForThread(thread),
+  ownerRootsForThread: (thread) => dedupe([
+    ...loadCatalog().projects
+      .filter((project) => project.workspaceId === "owner")
+      .map((project) => project.root)
+      .filter(Boolean),
+    ...sharedDirectoryRoots(thread?.workspaceId),
+  ]),
+  directoryOwnerRootsForThread: (thread) => {
+    const home = os.homedir();
+    return [
+      home ? path.join(home, "Documents") : "",
+      home ? path.join(home, "SynologyDrive") : "",
+      path.join(REPO_ROOT, "workspace"),
+      path.join(REPO_ROOT, "outbox"),
+      ...sharedDirectoryRoots(thread?.workspaceId),
+      ...loadCatalog().projects
+        .filter((project) => project.workspaceId === "owner")
+        .flatMap((project) => [project.root, ...(project.children || []).map((child) => child.root)]),
+    ].filter((root) => root && !securityBoundaryProvider.rootConflictsWithProtected(root));
+  },
+  audit: (eventType, payload) => {
+    if (payload?.decision === "deny") auditEventProvider.audit(eventType, payload);
+  },
+});
+bootTrace("path policy ready");
 
 const accessPolicyProvider = createAccessPolicyProvider({
   uploadCacheRoot: () => path.join(DATA_DIR, "uploads"),
@@ -1338,13 +1395,26 @@ function grantOwnerElevationOnce(auth) {
   const grantedAtMs = Date.now();
   const ttlMs = Math.max(30_000, OWNER_ELEVATION_ONCE_TTL_MS || 120_000);
   const grant = {
+    grantId: `owner-once-${grantedAtMs}-${crypto.randomBytes(3).toString("hex")}`,
     token,
     grantedAt: new Date(grantedAtMs).toISOString(),
     expiresAt: new Date(grantedAtMs + ttlMs).toISOString(),
     expiresAtMs: grantedAtMs + ttlMs,
     grantedBy: auth.principalId || auth.workspaceId || "owner",
+    allowedWorkerSecurityLevel: "owner-maintenance",
+    allowedOperations: ["single_run"],
+    maxInvocations: 1,
   };
   ownerElevationOnceGrants.set(token, grant);
+  auditEventProvider.audit("owner_elevation_once_granted", {
+    actorWorkspaceId: auth.workspaceId || "owner",
+    actorPrincipalId: auth.principalId || "owner",
+    targetType: "owner_elevation",
+    targetId: grant.grantId,
+    action: "grant_once",
+    decision: "allow",
+    grant,
+  });
   return grant;
 }
 
@@ -1358,6 +1428,15 @@ function consumeOwnerElevationOnce(auth, token) {
   const principal = auth.principalId || auth.workspaceId || "owner";
   if (grant.grantedBy && grant.grantedBy !== principal) return false;
   ownerElevationOnceGrants.delete(normalized);
+  auditEventProvider.audit("owner_elevation_once_consumed", {
+    actorWorkspaceId: auth.workspaceId || "owner",
+    actorPrincipalId: principal,
+    targetType: "owner_elevation",
+    targetId: grant.grantId || "owner-once",
+    action: "consume_once",
+    decision: "allow",
+    grant,
+  });
   return true;
 }
 
@@ -1369,6 +1448,10 @@ function publicOwnerElevationStatus(auth) {
     available: Boolean(owner && OWNER_MAINTENANCE_RUNS_ENABLED),
     active: Boolean(grant),
     currentPermission: grant ? "owner-maintenance" : "standard",
+    grantId: grant?.grantId || "",
+    allowedWorkerSecurityLevel: grant?.allowedWorkerSecurityLevel || "",
+    allowedOperations: Array.isArray(grant?.allowedOperations) ? grant.allowedOperations.slice() : [],
+    maxInvocations: Number(grant?.maxInvocations || 0) || 0,
     label: grant ? "高权限运行" : "普通权限",
     expiresAt: grant?.expiresAt || "",
     grantedAt: grant?.grantedAt || "",
@@ -1401,12 +1484,26 @@ function grantOwnerElevation(auth, durationMinutes) {
   const grantedAtMs = Date.now();
   const expiresAtMs = grantedAtMs + requested * 60 * 1000;
   ownerElevationGrant = {
+    grantId: `owner-time-${grantedAtMs}-${crypto.randomBytes(3).toString("hex")}`,
     grantedAt: new Date(grantedAtMs).toISOString(),
     expiresAt: new Date(expiresAtMs).toISOString(),
     expiresAtMs,
     durationMinutes: requested,
     grantedBy: auth.principalId || auth.workspaceId || "owner",
+    allowedWorkerSecurityLevel: "owner-maintenance",
+    allowedOperations: ["maintenance_run"],
+    maxInvocations: 0,
   };
+  auditEventProvider.audit("owner_elevation_granted", {
+    actorWorkspaceId: auth.workspaceId || "owner",
+    actorPrincipalId: auth.principalId || "owner",
+    targetType: "owner_elevation",
+    targetId: ownerElevationGrant.grantId,
+    action: "grant_timed",
+    decision: "allow",
+    durationMinutes: requested,
+    grant: ownerElevationGrant,
+  });
   return ownerElevationGrant;
 }
 
@@ -1416,7 +1513,16 @@ function revokeOwnerElevation(auth) {
     err.status = 403;
     throw err;
   }
+  const previousGrant = ownerElevationGrant;
   ownerElevationGrant = null;
+  auditEventProvider.audit("owner_elevation_revoked", {
+    actorWorkspaceId: auth.workspaceId || "owner",
+    actorPrincipalId: auth.principalId || "owner",
+    targetType: "owner_elevation",
+    targetId: previousGrant?.grantId || "owner-time",
+    action: "revoke",
+    decision: "allow",
+  });
 }
 
 function authCanAccessWorkspace(auth, workspaceId) {
@@ -4155,7 +4261,114 @@ async function resolveKanbanCardAccess(req, res, workspaceId, cardId, capability
   return { workspaceId: id, auth, role, context, card };
 }
 
-function publicTodo(row) {
+function publicTodoOptions(contextOrIndex = null, maybeRows = null) {
+  if (typeof contextOrIndex === "number" && Array.isArray(maybeRows)) {
+    return { listIndex: contextOrIndex, listRows: maybeRows };
+  }
+  if (contextOrIndex && typeof contextOrIndex === "object" && !Array.isArray(contextOrIndex)) {
+    return contextOrIndex;
+  }
+  return {};
+}
+
+const publicTodoListContextCache = new WeakMap();
+
+function kanbanHasPassedAttempt(state = {}) {
+  const attempts = Array.isArray(state?.attempts) ? state.attempts : [];
+  return attempts.some((attempt) => Boolean(attempt?.passed)) || Boolean(state?.lastAttempt?.passed);
+}
+
+function kanbanWorkflowStateCompleted(state = {}, officialDone = false) {
+  if (String(state?.status || "") === "completed" && !state?.completionError) return true;
+  return Boolean(officialDone && kanbanHasPassedAttempt(state));
+}
+
+function publicTodoWorkflowCompleted(payload = {}) {
+  const status = String(payload.kanbanStatus || payload.status || "").trim().toLowerCase();
+  const officialDone = status === "done" || status === "completed";
+  if (isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment") {
+    const reading = payload.readingSubmission || payload.studySubmission || {};
+    return kanbanWorkflowStateCompleted(reading, officialDone);
+  }
+  if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
+    const assessment = payload.assessmentExam || {};
+    return kanbanWorkflowStateCompleted(assessment, officialDone);
+  }
+  return officialDone;
+}
+
+function publicTodoListContext(listRows) {
+  if (!Array.isArray(listRows) || !listRows.length) return null;
+  const cached = publicTodoListContextCache.get(listRows);
+  if (cached) return cached;
+  const byCase = new Map();
+  for (const row of listRows) {
+    const caseId = String(row?.kanbanCaseId || row?.kanban_case_id || "").trim();
+    if (!caseId) continue;
+    if (!byCase.has(caseId)) byCase.set(caseId, []);
+    byCase.get(caseId).push(row);
+  }
+  const byCardId = new Map();
+  for (const [caseId, rawSiblings] of byCase.entries()) {
+    const byId = new Map(rawSiblings.map((card) => [String(card?.id || ""), card]));
+    const visible = visibleKanbanCaseCards(rawSiblings)
+      .sort((left, right) => (
+        (kanbanCardEffectiveCaseIndex(left, byId) - kanbanCardEffectiveCaseIndex(right, byId))
+        || String(left?.id || "").localeCompare(String(right?.id || ""))
+      ));
+    let studyPriorComplete = true;
+    let assessmentPriorComplete = true;
+    let learningPriorComplete = true;
+    for (const rawCard of visible) {
+      const payload = publicTodo(rawCard, { skipWorkflow: true });
+      const cardId = String(payload.id || rawCard?.id || "").trim();
+      if (cardId) {
+        byCardId.set(`${caseId}\0${cardId}`, {
+          studyPriorComplete,
+          assessmentPriorComplete,
+          learningPriorComplete,
+        });
+      }
+      const completed = publicTodoWorkflowCompleted(payload);
+      const isStudy = isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment";
+      const isAssessment = isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment";
+      if (isStudy) {
+        studyPriorComplete = studyPriorComplete && completed;
+        learningPriorComplete = learningPriorComplete && completed;
+      } else if (isAssessment) {
+        assessmentPriorComplete = assessmentPriorComplete && completed;
+        learningPriorComplete = learningPriorComplete && completed;
+      }
+    }
+  }
+  const context = { byCardId };
+  publicTodoListContextCache.set(listRows, context);
+  return context;
+}
+
+function publicTodoPriorContext(payload, options = {}) {
+  if (options.skipWorkflow) return null;
+  const listRows = Array.isArray(options.listRows) ? options.listRows : [];
+  const caseId = String(payload.kanbanCaseId || "").trim();
+  const currentId = String(payload.id || "").trim();
+  if (!caseId || !currentId || !listRows.length) return null;
+  const context = publicTodoListContext(listRows);
+  const prior = context?.byCardId?.get(`${caseId}\0${currentId}`);
+  if (!prior) return null;
+  if (payload.kanbanCaseTemplate === "final-assessment") {
+    return { priorComplete: prior.learningPriorComplete };
+  }
+  if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode)) {
+    return { priorComplete: prior.assessmentPriorComplete };
+  }
+  if (isKanbanStudyCaseMode(payload.kanbanCaseMode)) {
+    return { priorComplete: prior.studyPriorComplete };
+  }
+  return null;
+}
+
+function publicTodo(row, contextOrIndex = null, maybeRows = null) {
+  const options = publicTodoOptions(contextOrIndex, maybeRows);
   const workspaceId = String(row.workspace_id || row.workspaceId || "").trim();
   const kanbanResult = String(row.kanban_result || row.kanbanResult || "");
   const payload = {
@@ -4225,11 +4438,9 @@ function publicTodo(row) {
     payload.readingSubmission = publicKanbanReadingSubmissionSummary(workspaceId, payload);
     payload.studySubmission = payload.readingSubmission;
     payload.kanbanStudyKind = payload.kanbanCaseTemplate || "custom";
-  }
-  if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
-    payload.assessmentExam = publicKanbanAssessmentSummary(workspaceId, payload);
-    payload.kanbanAssessmentKind = payload.kanbanCaseTemplate || "assessment";
-    if (payload.assessmentExam && !payload.assessmentExam.lastAttempt && String(payload.assessmentExam.status || "") !== "completed") {
+    const rawStudyStatus = String(row.kanban_status || row.kanbanStatus || row.status || "").trim().toLowerCase();
+    const rawStudyCompleted = rawStudyStatus === "done" || rawStudyStatus === "completed";
+    if (rawStudyCompleted && !publicTodoWorkflowCompleted(payload)) {
       payload.status = payload.status === "cancelled" ? payload.status : "open";
       payload.kanbanStatus = payload.kanbanStatus === "archived" ? payload.kanbanStatus : "blocked";
       payload.kanbanCompletedAt = "";
@@ -4237,6 +4448,34 @@ function publicTodo(row) {
       payload.kanbanResult = "";
       payload.kanbanOutputs = [];
     }
+  }
+  if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
+    payload.assessmentExam = publicKanbanAssessmentSummary(workspaceId, payload);
+    payload.kanbanAssessmentKind = payload.kanbanCaseTemplate || "assessment";
+    if (!publicTodoWorkflowCompleted(payload)) {
+      payload.status = payload.status === "cancelled" ? payload.status : "open";
+      payload.kanbanStatus = payload.kanbanStatus === "archived" ? payload.kanbanStatus : "blocked";
+      payload.kanbanCompletedAt = "";
+      payload.completedAt = "";
+      payload.kanbanResult = "";
+      payload.kanbanOutputs = [];
+    }
+  }
+  if (options.skipWorkflow) return payload;
+  const workflowInput = {
+    card: payload,
+    readingState: payload.readingSubmission || payload.studySubmission || null,
+    assessmentState: payload.assessmentExam || null,
+  };
+  const priorContext = publicTodoPriorContext(payload, options);
+  if (priorContext && Object.prototype.hasOwnProperty.call(priorContext, "priorComplete")) {
+    workflowInput.priorComplete = priorContext.priorComplete;
+  }
+  const workflowState = deriveKanbanWorkflowState(workflowInput);
+  if (workflowState.kind) {
+    payload.workflowState = workflowState;
+    if (workflowState.kind === "reading" || workflowState.kind === "study") payload.studyWorkflow = workflowState;
+    if (workflowState.kind === "assessment" || workflowState.kind === "final-assessment") payload.assessmentWorkflow = workflowState;
   }
   return payload;
 }
@@ -4352,6 +4591,7 @@ function publicKanbanReadingSubmissionSummary(workspaceId, card = {}) {
     status: String(state.status || "quiz_pending"),
     submittedAt: String(state.submittedAt || ""),
     completedAt: String(state.completedAt || ""),
+    completionError: String(state.completionError || ""),
     quizAvailable: Boolean(state.quiz),
     quizUrl: String(state.quizUrl || readingQuizUrl(workspaceId, cardId)),
     analysisOutput: state.analysisPath ? publicKanbanOutputFile(workspaceId, state.analysisPath) : null,
@@ -6267,6 +6507,35 @@ function findKanbanReadingSubmissionState(workspaceId, cardId, context = {}) {
   return { state: null, card: current, cardId: requestedId };
 }
 
+function kanbanReadingStateCompleted(workspaceId, card = {}) {
+  const cardId = String(card?.id || card?.cardId || "").trim();
+  if (!cardId) return false;
+  const state = readKanbanReadingSubmissionState(workspaceId, cardId, card);
+  if (String(state?.status || "") === "completed" && !state?.completionError) return true;
+  const status = String(card?.kanbanStatus || card?.kanban_status || card?.status || "").trim().toLowerCase();
+  return kanbanWorkflowStateCompleted(state || {}, status === "done" || status === "completed");
+}
+
+function kanbanReadingPriorComplete(workspaceId, priorCards = []) {
+  return (priorCards || [])
+    .filter((card) => isKanbanStudyCaseMode(card?.kanbanCaseMode || card?.kanban_case_mode || "")
+      && String(card?.kanbanCaseTemplate || card?.kanban_case_template || "").trim() !== "final-assessment")
+    .every((card) => kanbanReadingStateCompleted(workspaceId, card));
+}
+
+function kanbanReadingArchived(card = {}) {
+  const kanbanStatus = String(card?.kanbanStatus || card?.kanban_status || "").trim().toLowerCase();
+  const status = String(card?.status || "").trim().toLowerCase();
+  return kanbanStatus === "archived" || status === "cancelled";
+}
+
+function kanbanReadingCanSubmit(card = {}, priorCards = [], workspaceId = "owner") {
+  if (kanbanReadingArchived(card)) return false;
+  if (!kanbanReadingPriorComplete(workspaceId, priorCards)) return false;
+  const status = String(card?.kanbanStatus || card?.kanban_status || card?.status || "").trim().toLowerCase();
+  return status !== "done" && status !== "completed";
+}
+
 function kanbanReadingQuizNeedsRetarget(state = {}) {
   if (!state?.quiz) return false;
   if (String(state.quizTargetingVersion || "") === KANBAN_READING_QUIZ_TARGETING_VERSION) return false;
@@ -6340,6 +6609,9 @@ function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio,
 async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
   const context = await readingContextForCard(workspaceId, cardId);
   const currentCard = context.current || { id: cardId, content: cardId };
+  if (!kanbanReadingCanSubmit(currentCard, context.prior || [], workspaceId)) {
+    return { ok: false, status: 409, error: "Study card is not open yet" };
+  }
   const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
   const audio = readingTemplate
     ? Object.assign(saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard), { kind: "audio" })
@@ -6454,12 +6726,12 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
     results,
   };
   const nextState = Object.assign({}, state, {
-    status: passed ? "completed" : "quiz_pending",
+    status: "quiz_pending",
     attempts: [...(Array.isArray(state.attempts) ? state.attempts : []), attempt].slice(-20),
-    completedAt: passed ? nowIso() : state.completedAt || "",
+    completedAt: state.completedAt || "",
   });
-  writeKanbanReadingSubmissionState(workspaceId, lookup.cardId, currentCard, nextState);
   if (!passed) {
+    writeKanbanReadingSubmissionState(workspaceId, lookup.cardId, currentCard, nextState);
     return {
       ok: true,
       passed: false,
@@ -6496,7 +6768,17 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
     result: resultText,
     author: "Hermes Mobile",
   });
-  if (!completed?.ok) return { ok: false, error: completed?.error || "Reading card completion failed", score };
+  if (!completed?.ok) {
+    writeKanbanReadingSubmissionState(workspaceId, lookup.cardId, currentCard, Object.assign({}, nextState, {
+      completionError: completed?.error || "Reading card completion failed",
+    }));
+    return { ok: false, error: completed?.error || "Reading card completion failed", score };
+  }
+  writeKanbanReadingSubmissionState(workspaceId, lookup.cardId, currentCard, Object.assign({}, nextState, {
+    status: "completed",
+    completedAt: nowIso(),
+    completionError: "",
+  }));
   await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
   return {
     ok: true,
@@ -6892,6 +7174,7 @@ function publicKanbanAssessmentSummary(workspaceId, card = {}) {
     status: String(state?.status || "not_started"),
     startedAt: String(state?.startedAt || ""),
     completedAt: String(state?.completedAt || ""),
+    completionError: String(state?.completionError || ""),
     examAvailable: Boolean(state?.exam),
     examUrl: assessmentExamUrl(workspaceId, cardId),
     questionCount: Number(state?.exam?.questionCount || config.questionCount || 20) || 20,
@@ -6914,9 +7197,9 @@ function kanbanAssessmentStateCompleted(workspaceId, card = {}) {
   const cardId = String(card?.id || card?.cardId || "").trim();
   if (!cardId || !isKanbanAssessmentCard(card)) return false;
   const state = readKanbanAssessmentExamState(workspaceId, cardId, card);
-  const attempts = Array.isArray(state?.attempts) ? state.attempts : [];
-  const lastAttempt = attempts.length ? attempts[attempts.length - 1] : null;
-  return String(state?.status || "") === "completed" || Boolean(lastAttempt?.passed);
+  if (String(state?.status || "") === "completed" && !state?.completionError) return true;
+  const status = String(card?.kanbanStatus || card?.kanban_status || card?.status || "").trim().toLowerCase();
+  return kanbanWorkflowStateCompleted(state || {}, status === "done" || status === "completed");
 }
 
 function kanbanAssessmentPriorComplete(workspaceId, priorCards = []) {
@@ -7015,10 +7298,26 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
     state = readKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard);
   }
   const exam = state.exam;
+  const questions = Array.isArray(exam.questions) ? exam.questions : [];
   const answers = Array.isArray(body.answers)
     ? body.answers
-    : (body.answers && typeof body.answers === "object" ? exam.questions.map((question) => body.answers[question.id]) : []);
-  const results = exam.questions.map((question, index) => {
+    : (body.answers && typeof body.answers === "object" ? questions.map((question) => body.answers[question.id]) : []);
+  const invalidAnswers = questions
+    .map((question, index) => {
+      const answerIndex = Number(answers[index]);
+      const choiceCount = Array.isArray(question.choices) ? question.choices.length : 0;
+      return Number.isInteger(answerIndex) && answerIndex >= 0 && answerIndex < choiceCount ? null : (question.id || `q${index + 1}`);
+    })
+    .filter(Boolean);
+  if (!questions.length || answers.length < questions.length || invalidAnswers.length) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Assessment answers are incomplete",
+      missingAnswers: invalidAnswers,
+    };
+  }
+  const results = questions.map((question, index) => {
     const answerIndex = Number(answers[index]);
     const correct = Number.isInteger(answerIndex) && answerIndex === Number(question.answerIndex);
     return {
@@ -7045,12 +7344,11 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
   };
   const reportPath = assessmentExamReportPath(workspaceId, canonicalCardId, currentCard, exam, attempt);
   const nextState = Object.assign({}, state, {
-    status: passed ? "completed" : "retake_required",
+    status: passed ? "in_progress" : "retake_required",
     attempts: [...(Array.isArray(state.attempts) ? state.attempts : []), attempt].slice(-20),
     lastReportPath: reportPath,
-    completedAt: passed ? nowIso() : state.completedAt || "",
+    completedAt: state.completedAt || "",
   });
-  writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, nextState);
   const resultComment = [
     `Formal assessment scored ${score}/100; passing score ${passingScore}/100.`,
     passed ? "Assessment passed. Completing this card." : "Assessment did not pass. Retake is required; this card remains open.",
@@ -7064,6 +7362,7 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
     author: "Hermes Mobile",
   }).catch(() => null);
   if (!passed) {
+    writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, nextState);
     return {
       ok: true,
       passed: false,
@@ -7088,7 +7387,18 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
     ].join("\n"),
     author: "Hermes Mobile",
   });
-  if (!completed?.ok) return { ok: false, error: completed?.error || "Assessment card completion failed", score };
+  if (!completed?.ok) {
+    writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, Object.assign({}, nextState, {
+      status: "retake_required",
+      completionError: completed?.error || "Assessment card completion failed",
+    }));
+    return { ok: false, error: completed?.error || "Assessment card completion failed", score };
+  }
+  writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, Object.assign({}, nextState, {
+    status: "completed",
+    completedAt: nowIso(),
+    completionError: "",
+  }));
   await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
   return {
     ok: true,
@@ -8341,6 +8651,9 @@ function comparablePath(value) {
   p = p.replace(/^\/\/wsl(?:\.localhost|\$)?\/[^/]+/i, "");
   p = p.replace(/^\/mnt\/([a-zA-Z])\//, (_, drive) => `${drive.toLowerCase()}:/`);
   p = p.replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
+  if (/^[a-z]:\//i.test(p)) p = path.win32.normalize(p).replaceAll("\\", "/").replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
+  else if (p.startsWith("/")) p = path.posix.normalize(p);
+  else p = path.posix.normalize(p);
   return p.replace(/\/+$/, "").toLowerCase();
 }
 
@@ -9300,12 +9613,45 @@ function enqueueExternalDeliveryForTerminalMessage(thread, message, terminalStat
     message.externalDelivery = next;
     return next;
   }
+  const artifacts = Array.isArray(message.artifacts) ? message.artifacts : [];
+  const egressDecision = egressPolicyProvider.decide({
+    source: "weixin",
+    destination: "weixin",
+    operation: "origin_reply",
+    workspaceId: thread.workspaceId,
+    actorWorkspaceId: thread.workspaceId,
+    targetWorkspaceId: thread.workspaceId,
+    originReply: true,
+    sendsFileContent: artifacts.length > 0,
+    contentKinds: artifacts.length ? ["artifact"] : ["text"],
+    targetType: "weixin_outbound",
+    targetId: existing.eventId || deliveryId,
+  });
+  if (!egressDecision.allowed) {
+    const next = normalizeExternalDelivery(Object.assign({}, existing, {
+      deliveryId,
+      status: "skipped",
+      terminalStatus,
+      content: "",
+      error: egressDecision.reason,
+      artifacts: [],
+      threadId: thread.id,
+      messageId: message.id,
+      taskGroupId: message.taskGroupId || "",
+      taskId: message.taskId || message.runId || "",
+      workspaceId: thread.workspaceId,
+      queuedAt: existing.queuedAt || updatedAt,
+      updatedAt,
+    }));
+    message.externalDelivery = next;
+    return next;
+  }
   const next = normalizeExternalDelivery(Object.assign({}, existing, {
     deliveryId,
     status: "pending",
     terminalStatus,
     content: compactText(content, MAX_MESSAGE_CHARS),
-    artifacts: Array.isArray(message.artifacts) ? message.artifacts : [],
+    artifacts,
     threadId: thread.id,
     messageId: message.id,
     taskGroupId: message.taskGroupId || "",
@@ -9471,7 +9817,7 @@ function fileResultFromBridgeFileForForward(file, workspaceId) {
 
 function fileResultFromResolvedForwardSource(resolved, workspaceId, fallbackError) {
   if (resolved?.file) return { file: resolved.file };
-  if (resolved?.bridgeFile) return fileResultFromBridgeFileForForward(resolved.bridgeFile, workspaceId);
+  if (resolved?.bridgeFile) return { bridgeFile: resolved.bridgeFile, bridgeWorkspaceId: workspaceId };
   return { status: resolved?.status || 404, error: resolved?.error || fallbackError || "File not found" };
 }
 
@@ -9895,19 +10241,46 @@ async function createWeixinFileForwardDelivery(auth, body = {}) {
     throw err;
   }
   const resolved = await resolveWeixinForwardFile(body, auth);
-  if (!resolved?.file) {
+  if (!resolved?.file && !resolved?.bridgeFile) {
     const err = new Error(resolved?.error || "File not found");
     err.status = resolved?.status || 404;
     throw err;
   }
-  const forwardFile = materializeWeixinForwardFile(resolved.file, workspaceId);
+  const target = resolveWeixinForwardTarget(body, auth, workspaceId);
+  const egressDecision = egressPolicyProvider.decide({
+    source: "hermes_mobile",
+    destination: "weixin",
+    operation: "manual_forward",
+    workspaceId,
+    actorWorkspaceId: auth?.workspaceId || workspaceId,
+    targetWorkspaceId: workspaceId,
+    originReply: false,
+    explicitUserApproved: true,
+    ownerApproved: isOwnerAuth(auth),
+    sendsFileContent: true,
+    contentKinds: ["artifact"],
+    targetType: "weixin_outbound",
+    targetId: [target.accountId, target.chatId, target.userId].filter(Boolean).join(":"),
+  });
+  if (!egressDecision.allowed) {
+    const err = new Error(egressDecision.reason || "Weixin file forwarding is not allowed");
+    err.status = 403;
+    err.code = "weixin_forward_egress_denied";
+    throw err;
+  }
+  const sourceFile = resolved.file || fileResultFromBridgeFileForForward(resolved.bridgeFile, workspaceId).file;
+  if (!sourceFile) {
+    const err = new Error("File not found");
+    err.status = 404;
+    throw err;
+  }
+  const forwardFile = materializeWeixinForwardFile(sourceFile, workspaceId);
   const localPath = normalizeLocalPath(forwardFile.localPath || "");
   if (!localPath || !fs.existsSync(localPath) || !fs.statSync(localPath).isFile()) {
     const err = new Error("File not found");
     err.status = 404;
     throw err;
   }
-  const target = resolveWeixinForwardTarget(body, auth, workspaceId);
   const requestedThreadId = String(body.threadId || body.thread_id || "").trim();
   const requestedThread = requestedThreadId ? findThreadForAuth(auth, requestedThreadId) : null;
   const thread = requestedThread && isWeixinSingleWindowThread(requestedThread)
@@ -9950,6 +10323,7 @@ async function createWeixinFileForwardDelivery(auth, body = {}) {
     content: message.content,
     artifacts: message.artifacts,
     terminalStatus: "manual_forward",
+    egressDecision: egressDecision.reason,
     queuedAt: createdAt,
     updatedAt: createdAt,
   });
@@ -12428,63 +12802,11 @@ function isPathAllowed(filePath) {
 }
 
 function isPathAllowedForThread(thread, localPath, originalPath = "") {
-  if (securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(originalPath)) return false;
-  const uploadRoots = uploadRootsForThread(thread);
-  if (uploadRoots.length && (
-    pathInsideAnyRoot(localPath, uploadRoots)
-    || pathInsideAnyRoot(originalPath || localPath, uploadRoots)
-  )) {
-    return true;
-  }
-  const policy = policyForThread(thread);
-  if (policy.access_mode === "unrestricted" || policy.principal_id === "owner") {
-    const ownerRoots = dedupe([
-      ...loadCatalog().projects
-        .filter((project) => project.workspaceId === "owner")
-        .map((project) => project.root)
-        .filter(Boolean),
-      ...sharedDirectoryRoots(thread.workspaceId),
-    ]);
-    return isPathAllowed(localPath)
-      || pathInsideAnyRoot(originalPath || localPath, ownerRoots)
-      || pathInsideAnyRoot(localPath, ownerRoots.map(normalizeLocalPath));
-  }
-  const roots = dedupe([
-    ...(policy.allowed_roots || []),
-    ...(policy.delivery_roots || []),
-    ...(policy.cache_roots || []),
-    policy.sync_root,
-    policy.download_root,
-  ]);
-  if (!roots.length) return false;
-  return pathInsideAnyRoot(originalPath || localPath, roots)
-    || pathInsideAnyRoot(localPath, roots)
-    || pathInsideAnyRoot(localPath, roots.map(normalizeLocalPath));
+  return pathPolicyProvider.canReadForThread(thread, localPath, originalPath).allowed;
 }
 
 function isDirectoryBrowserPathAllowedForThread(thread, localPath, originalPath = "") {
-  if (securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(originalPath)) return false;
-  if (isPathAllowedForThread(thread, localPath, originalPath)) return true;
-  const policy = policyForThread(thread);
-  if (!(policy.access_mode === "unrestricted" || policy.principal_id === "owner")) return false;
-  const home = os.homedir();
-  const ownerRoots = [
-    home ? path.join(home, "Documents") : "",
-    home ? path.join(home, "SynologyDrive") : "",
-    path.join(REPO_ROOT, "workspace"),
-    path.join(REPO_ROOT, "outbox"),
-    ...sharedDirectoryRoots(thread.workspaceId),
-    ...loadCatalog().projects
-      .filter((project) => project.workspaceId === "owner")
-      .flatMap((project) => [project.root, ...(project.children || []).map((child) => child.root)]),
-  ].filter((root) => root && !securityBoundaryProvider.rootConflictsWithProtected(root));
-  let realLocalPath = localPath;
-  try {
-    realLocalPath = fs.realpathSync.native(localPath);
-  } catch (_) {}
-  return pathInsideAnyRoot(realLocalPath, ownerRoots)
-    || pathInsideAnyRoot(originalPath || localPath, ownerRoots)
-    || pathInsideAnyRoot(realLocalPath, ownerRoots.map(normalizeLocalPath));
+  return pathPolicyProvider.canBrowseDirectoryForThread(thread, localPath, originalPath).allowed;
 }
 
 function directoryAliasKey(value) {
@@ -12587,14 +12909,7 @@ function directoryRequestParams(body = {}) {
 }
 
 function assertChildPathInside(parentPath, childPath) {
-  const parent = path.resolve(parentPath);
-  const child = path.resolve(childPath);
-  const relative = path.relative(parent, child);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
-    const err = new Error("Target path escapes the current directory");
-    err.status = 400;
-    throw err;
-  }
+  return pathPolicyProvider.assertChildPathInside(parentPath, childPath);
 }
 
 function protectedDirectoryRoots(thread) {

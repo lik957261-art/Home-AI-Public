@@ -51,8 +51,9 @@ function createKanbanCardProvider(options = {}) {
     });
     if (!result?.ok) return { ok: false, result, error: result?.error || "Kanban operation failed" };
 
-    const data = (Array.isArray(result.todos) ? result.todos : [])
-      .map(publicCard)
+    const rows = Array.isArray(result.todos) ? result.todos : [];
+    const data = rows
+      .map((row, index) => publicCard(row, index, rows))
       .filter((card) => cardMatchesSearch(card, args.search));
 
     return {

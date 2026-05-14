@@ -48,8 +48,9 @@ function createTodoProvider(options = {}) {
     });
     if (!result?.ok) return { ok: false, result, error: result?.error || "Todo operation failed" };
 
-    const todos = (Array.isArray(result.todos) ? result.todos : [])
-      .map(publicTodo)
+    const rows = Array.isArray(result.todos) ? result.todos : [];
+    const todos = rows
+      .map((row, index) => publicTodo(row, index, rows))
       .filter((todo) => todoMatchesSearch(todo, args.search));
 
     return {
