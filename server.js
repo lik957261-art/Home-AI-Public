@@ -38,6 +38,7 @@ const {
 } = require("./adapters/kanban-story-provider");
 const { createKanbanStudyArtifactService } = require("./adapters/kanban-study-artifact-service");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
+const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service");
 const { createAuditEventProvider } = require("./adapters/audit-event-provider");
 const { createEgressPolicyProvider } = require("./adapters/egress-policy-provider");
 const { createPathPolicyProvider } = require("./adapters/path-policy-provider");
@@ -476,6 +477,7 @@ const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
 let threadViewService = null;
+let localWorkspaceStoreService = null;
 let weixinFileForwardService = null;
 let weixinForwardService = null;
 const runConcurrencyPolicy = createRunConcurrencyPolicy({
@@ -1541,225 +1543,48 @@ function getUrl(req) {
   return new URL(req.url, `http://${req.headers.host || "localhost"}`);
 }
 
+function getLocalWorkspaceStoreService() {
+  if (!localWorkspaceStoreService) {
+    localWorkspaceStoreService = createLocalWorkspaceStoreService({
+      storagePath: LOCAL_WORKSPACES_PATH,
+      ownerDefaultWorkspace: OWNER_DEFAULT_WORKSPACE,
+      ensureDataDir,
+      nowIso,
+      normalizeStringList,
+      normalizeStringMap,
+      findWorkspace,
+      deleteWorkspaceAccessKey: (workspaceId) => authProvider.deleteWorkspaceAccessKey(workspaceId),
+      invalidateCatalogCache,
+      clearDynamicProjectCache: (workspaceId) => dynamicProjectCache.delete(String(workspaceId || "")),
+      rootConflictsWithProtected: (root) => securityBoundaryProvider.rootConflictsWithProtected(root),
+      filterRoots: (roots) => securityBoundaryProvider.filterRoots(roots),
+    });
+  }
+  return localWorkspaceStoreService;
+}
+
 function workspaceIdSlug(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
+  return getLocalWorkspaceStoreService().workspaceIdSlug(value);
 }
 
 function workspaceIdFromUsername(value) {
-  const raw = String(value || "").trim();
-  const slug = workspaceIdSlug(raw);
-  if (slug) return slug;
-  if (!raw) return "";
-  return `user-${hashValue(raw).slice(0, 8)}`;
-}
-
-function titleCaseWorkspaceId(value) {
-  const parts = String(value || "")
-    .replace(/^user[-_]+/i, "")
-    .split(/[-_\s.]+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return parts.map((part) => {
-    if (part.length <= 2) return part.toUpperCase();
-    return `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`;
-  }).join(" ");
-}
-
-function defaultWorkspaceLabel(value, workspaceId) {
-  const raw = String(value || "").trim();
-  if (raw && /[^\x00-\x7F]/.test(raw)) return raw.slice(0, 80);
-  return titleCaseWorkspaceId(raw || workspaceId) || workspaceId || "User";
-}
-
-function safeWorkspaceFolderName(value, fallback = "workspace") {
-  const text = String(value || fallback)
-    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/[. ]+$/g, "")
-    .slice(0, 80);
-  return text || fallback;
+  return getLocalWorkspaceStoreService().workspaceIdFromUsername(value);
 }
 
 function localWorkspaceDefaults(input = {}, previous = {}) {
-  const username = String(input.username || input.userName || input.workspaceId || input.workspace_id || input.id || previous.id || "").trim();
-  const id = workspaceIdFromUsername(input.workspaceId || input.workspace_id || input.id || username) || previous.id || "";
-  const label = String(input.label || input.name || "").trim()
-    || String(previous.label || "").trim()
-    || defaultWorkspaceLabel(username, id);
-  const folderName = safeWorkspaceFolderName(label, id || "workspace");
-  const defaultWorkspace = String(input.defaultWorkspace || input.default_workspace || input.root || previous.defaultWorkspace || "").trim()
-    || path.join(OWNER_DEFAULT_WORKSPACE, folderName);
-  const allowedRoots = normalizeStringList(
-    input.allowedRoots
-      || input.allowed_roots
-      || input.root
-      || input.defaultWorkspace
-      || input.default_workspace
-      || previous.allowedRoots
-      || defaultWorkspace,
-  );
-  if (securityBoundaryProvider?.rootConflictsWithProtected(defaultWorkspace)) {
-    const err = new Error("Workspace root is blocked by the Hermes Mobile security boundary");
-    err.status = 403;
-    throw err;
-  }
-  const safeAllowedRoots = securityBoundaryProvider?.filterRoots(allowedRoots) || allowedRoots;
-  if (allowedRoots.length && !safeAllowedRoots.length) {
-    const err = new Error("Workspace allowed roots are blocked by the Hermes Mobile security boundary");
-    err.status = 403;
-    throw err;
-  }
-  return {
-    workspaceId: id,
-    label,
-    defaultWorkspace,
-    allowedRoots: safeAllowedRoots.length ? safeAllowedRoots : [defaultWorkspace],
-    allowedToolsets: normalizeStringList(input.allowedToolsets || input.allowed_toolsets || previous.allowedToolsets || []),
-    connectorProfiles: normalizeStringMap(input.connectorProfiles || input.connector_profiles || previous.connectorProfiles || {}),
-  };
-}
-
-function normalizeLocalWorkspaceRecord(record) {
-  const source = record && typeof record === "object" ? record : {};
-  const id = workspaceIdSlug(source.id || source.workspaceId || source.workspace_id);
-  if (!id || id === "owner") return null;
-  const label = String(source.label || source.name || id).trim() || id;
-  const defaultWorkspace = String(source.defaultWorkspace || source.default_workspace || source.root || "").trim();
-  const allowedRoots = normalizeStringList(source.allowedRoots || source.allowed_roots || defaultWorkspace);
-  if (securityBoundaryProvider?.rootConflictsWithProtected(defaultWorkspace)) return null;
-  const safeAllowedRoots = securityBoundaryProvider?.filterRoots(allowedRoots) || allowedRoots;
-  return {
-    id,
-    label,
-    accessMode: String(source.accessMode || source.access_mode || "restricted").trim() || "restricted",
-    defaultWorkspace,
-    allowedRoots: safeAllowedRoots,
-    aliases: normalizeStringList(source.aliases),
-    allowedToolsets: normalizeStringList(source.allowedToolsets || source.allowed_toolsets),
-    connectorProfiles: normalizeStringMap(source.connectorProfiles || source.connector_profiles),
-    createdAt: String(source.createdAt || ""),
-    updatedAt: String(source.updatedAt || source.createdAt || ""),
-    createdBy: String(source.createdBy || "owner"),
-  };
-}
-
-function normalizeLocalWorkspaceStore(value) {
-  const source = value && typeof value === "object" ? value : {};
-  const raw = Array.isArray(source.workspaces) ? source.workspaces : [];
-  const workspaces = [];
-  const seen = new Set();
-  for (const item of raw) {
-    const record = normalizeLocalWorkspaceRecord(item);
-    if (!record || seen.has(record.id)) continue;
-    seen.add(record.id);
-    workspaces.push(record);
-  }
-  return {
-    schemaVersion: 1,
-    workspaces,
-    updatedAt: String(source.updatedAt || ""),
-  };
-}
-
-function loadLocalWorkspaceStore() {
-  ensureDataDir();
-  try {
-    return normalizeLocalWorkspaceStore(JSON.parse(fs.readFileSync(LOCAL_WORKSPACES_PATH, "utf8")));
-  } catch (_) {
-    return normalizeLocalWorkspaceStore({});
-  }
-}
-
-function saveLocalWorkspaceStore(store) {
-  ensureDataDir();
-  const normalized = normalizeLocalWorkspaceStore(Object.assign({}, store, { updatedAt: nowIso() }));
-  fs.writeFileSync(LOCAL_WORKSPACES_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-  return normalized;
+  return getLocalWorkspaceStoreService().localWorkspaceDefaults(input, previous);
 }
 
 function localWorkspaceRecords() {
-  return loadLocalWorkspaceStore().workspaces || [];
+  return getLocalWorkspaceStoreService().localWorkspaceRecords();
 }
 
 function upsertLocalWorkspace(input, actor = "owner") {
-  const rawId = input.workspaceId || input.workspace_id || input.id || "";
-  const id = workspaceIdFromUsername(rawId || input.username || input.userName);
-  if (!id) {
-    const err = new Error("Workspace id is required");
-    err.status = 400;
-    throw err;
-  }
-  if (id === "owner") {
-    const err = new Error("Owner workspace already exists");
-    err.status = 409;
-    throw err;
-  }
-  const existing = findWorkspace(id);
-  if (existing && existing.source !== "local-workspace") {
-    const err = new Error("Workspace id is already managed by the external workspace provider");
-    err.status = 409;
-    throw err;
-  }
-  const now = nowIso();
-  const store = loadLocalWorkspaceStore();
-  const previous = store.workspaces.find((item) => item.id === id) || {};
-  const defaults = localWorkspaceDefaults(Object.assign({}, input, { workspaceId: id }), previous);
-  const record = normalizeLocalWorkspaceRecord(Object.assign({}, previous, input, {
-    id,
-    label: defaults.label,
-    defaultWorkspace: defaults.defaultWorkspace,
-    allowedRoots: defaults.allowedRoots,
-    allowedToolsets: defaults.allowedToolsets,
-    connectorProfiles: defaults.connectorProfiles,
-    createdAt: previous.createdAt || now,
-    updatedAt: now,
-    createdBy: previous.createdBy || actor || "owner",
-  }));
-  if (!record) {
-    const err = new Error("Invalid workspace");
-    err.status = 400;
-    throw err;
-  }
-  const next = store.workspaces.filter((item) => item.id !== id);
-  next.push(record);
-  saveLocalWorkspaceStore(Object.assign({}, store, { workspaces: next }));
-  invalidateCatalogCache();
-  dynamicProjectCache.delete(id);
-  return record;
+  return getLocalWorkspaceStoreService().upsertLocalWorkspace(input, actor);
 }
 
 function deleteLocalWorkspace(workspaceId) {
-  const id = workspaceIdSlug(workspaceId);
-  if (!id || id === "owner") {
-    const err = new Error("Invalid workspace");
-    err.status = 400;
-    throw err;
-  }
-  const workspace = findWorkspace(id);
-  if (workspace && workspace.source !== "local-workspace") {
-    const err = new Error("Workspace is managed by the external workspace provider");
-    err.status = 409;
-    throw err;
-  }
-  const store = loadLocalWorkspaceStore();
-  const previousCount = store.workspaces.length;
-  const next = store.workspaces.filter((item) => item.id !== id);
-  if (next.length === previousCount) {
-    const err = new Error("Local workspace not found");
-    err.status = 404;
-    throw err;
-  }
-  saveLocalWorkspaceStore(Object.assign({}, store, { workspaces: next }));
-  authProvider.deleteWorkspaceAccessKey(id);
-  invalidateCatalogCache();
-  dynamicProjectCache.delete(id);
-  return { id };
+  return getLocalWorkspaceStoreService().deleteLocalWorkspace(workspaceId);
 }
 
 function authenticateRequest(req) {
