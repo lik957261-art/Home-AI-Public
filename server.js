@@ -21,6 +21,7 @@ const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider"
 const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
+const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createAuditEventProvider } = require("./adapters/audit-event-provider");
 const { createEgressPolicyProvider } = require("./adapters/egress-policy-provider");
@@ -3573,6 +3574,18 @@ const kanbanCardProvider = createKanbanCardProvider({
   publicCard: publicTodo,
   sourceName: () => "hermes_kanban",
 });
+const kanbanCaseShareService = createKanbanCaseShareService({
+  sharePath: KANBAN_CASE_SHARE_PATH,
+  readJsonStore,
+  writeJsonStore,
+  useSqliteServiceStore,
+  mobileSqliteStore,
+  nowIso,
+  findWorkspace,
+  isOwnerAuth,
+  authCanAccessWorkspace,
+  kanbanCardProvider,
+});
 const kanbanDependencyReconcileLastRun = new Map();
 const kanbanCardListCache = new Map();
 let kanbanCardListCacheStoreLoaded = false;
@@ -4447,218 +4460,55 @@ function isKanbanAssessmentCaseMode(mode) {
 }
 
 function normalizeWorkspaceIdList(value) {
-  const raw = Array.isArray(value)
-    ? value
-    : String(value || "").split(/[,\s;，、]+/);
-  const seen = new Set();
-  const out = [];
-  for (const item of raw) {
-    const id = String(item || "").trim();
-    if (!id || seen.has(id) || !findWorkspace(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
+  return kanbanCaseShareService.normalizeWorkspaceIdList(value);
 }
 
 function kanbanCaseShareJsonStore() {
-  const raw = readJsonStore(KANBAN_CASE_SHARE_PATH, { schemaVersion: 1, cases: {} });
-  return {
-    schemaVersion: 1,
-    cases: raw?.cases && typeof raw.cases === "object" && !Array.isArray(raw.cases) ? raw.cases : {},
-  };
+  return kanbanCaseShareService.jsonStore();
 }
 
 function kanbanCaseShareStore() {
-  const store = kanbanCaseShareJsonStore();
-  if (!useSqliteServiceStore()) return store;
-  const rows = mobileSqliteStore().listKanbanCaseShares({ includeArchived: true, includeDeleted: true });
-  for (const row of rows) {
-    if (!row || typeof row !== "object") continue;
-    const key = kanbanCaseShareKey(row.ownerWorkspaceId, row.caseId);
-    if (!key.endsWith("::")) store.cases[key] = Object.assign({}, store.cases[key] || {}, row);
-  }
-  return store;
+  return kanbanCaseShareService.store();
 }
 
 function syncKanbanCaseShareStoreToSqlite(store) {
-  if (!useSqliteServiceStore()) return;
-  const sqlite = mobileSqliteStore();
-  for (const share of Object.values(store?.cases || {})) {
-    if (!share || typeof share !== "object" || Array.isArray(share)) continue;
-    const owner = String(share.ownerWorkspaceId || share.owner_workspace_id || "owner").trim() || "owner";
-    const caseId = String(share.caseId || share.case_id || share.kanbanCaseId || share.kanban_case_id || "").trim();
-    if (!caseId) continue;
-    if (share.deletedAt || share.deleted_at) {
-      sqlite.deleteKanbanCaseShare(owner, caseId, {
-        soft: true,
-        deletedAt: share.deletedAt || share.deleted_at || nowIso(),
-      });
-    } else {
-      sqlite.upsertKanbanCaseShare(owner, caseId, share);
-    }
-  }
+  kanbanCaseShareService.syncToSqlite(store);
 }
 
 function saveKanbanCaseShareStore(store) {
-  const nextStore = Object.assign({ schemaVersion: 1, cases: {} }, store || {});
-  syncKanbanCaseShareStoreToSqlite(nextStore);
-  writeJsonStore(KANBAN_CASE_SHARE_PATH, nextStore);
+  kanbanCaseShareService.saveStore(store);
 }
 
 function kanbanCaseShareKey(ownerWorkspaceId, caseId) {
-  return `${String(ownerWorkspaceId || "owner").trim() || "owner"}::${String(caseId || "").trim()}`;
+  return kanbanCaseShareService.key(ownerWorkspaceId, caseId);
 }
 
 function readKanbanCaseShare(ownerWorkspaceId, caseId) {
-  const key = kanbanCaseShareKey(ownerWorkspaceId, caseId);
-  const share = kanbanCaseShareStore().cases[key];
-  return share && typeof share === "object" && !Array.isArray(share) ? share : null;
+  return kanbanCaseShareService.readShare(ownerWorkspaceId, caseId);
 }
 
 function upsertKanbanCaseShare(ownerWorkspaceId, caseId, input = {}) {
-  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
-  const id = String(caseId || "").trim();
-  if (!id) return null;
-  const performerWorkspaceIds = normalizeWorkspaceIdList(
-    input.performerWorkspaceIds
-    || input.performer_workspace_ids
-    || input.targetWorkspaceIds
-    || input.target_workspace_ids
-    || input.performerWorkspaceId
-    || input.performer_workspace_id
-    || input.targetWorkspaceId
-    || input.target_workspace_id
-    || "",
-  ).filter((workspaceId) => workspaceId !== owner);
-  const viewerWorkspaceIds = normalizeWorkspaceIdList(
-    input.viewerWorkspaceIds
-    || input.viewer_workspace_ids
-    || input.readonlyWorkspaceIds
-    || input.readonly_workspace_ids
-    || input.sharedViewerWorkspaceIds
-    || input.shared_viewer_workspace_ids
-    || "",
-  ).filter((workspaceId) => workspaceId !== owner && !performerWorkspaceIds.includes(workspaceId));
-  const managerWorkspaceIds = normalizeWorkspaceIdList(
-    input.managerWorkspaceIds
-    || input.manager_workspace_ids
-    || "",
-  ).filter((workspaceId) => workspaceId !== owner);
-  const topic = input.topic && typeof input.topic === "object" && !Array.isArray(input.topic) ? input.topic : input;
-  const store = kanbanCaseShareStore();
-  const key = kanbanCaseShareKey(owner, id);
-  const previous = store.cases[key] && typeof store.cases[key] === "object" ? store.cases[key] : {};
-  const share = {
-    schemaVersion: 1,
-    ownerWorkspaceId: owner,
-    caseId: id,
-    performerWorkspaceIds,
-    viewerWorkspaceIds,
-    managerWorkspaceIds,
-    topicThreadId: String(topic.topicThreadId || topic.topic_thread_id || previous.topicThreadId || "").trim(),
-    topicTaskGroupId: String(topic.topicTaskGroupId || topic.topic_task_group_id || previous.topicTaskGroupId || "").trim(),
-    sharedDirectoryPath: String(topic.sharedDirectoryPath || topic.shared_directory_path || previous.sharedDirectoryPath || "").trim(),
-    caseDirectoryPath: String(topic.caseDirectoryPath || topic.case_directory_path || previous.caseDirectoryPath || "").trim(),
-    updatedAt: nowIso(),
-    createdAt: previous.createdAt || nowIso(),
-  };
-  store.cases[key] = share;
-  saveKanbanCaseShareStore(store);
-  return share;
+  return kanbanCaseShareService.upsertShare(ownerWorkspaceId, caseId, input);
 }
 
 function kanbanCaseRoleForAuth(auth, ownerWorkspaceId, caseId) {
-  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
-  if (isOwnerAuth(auth) || authCanAccessWorkspace(auth, owner)) return "manager";
-  const actorWorkspaceId = String(auth?.workspaceId || "").trim();
-  if (!actorWorkspaceId) return "";
-  const share = readKanbanCaseShare(owner, caseId);
-  if (!share) return "";
-  if (normalizeWorkspaceIdList(share.managerWorkspaceIds).includes(actorWorkspaceId)) return "manager";
-  if (normalizeWorkspaceIdList(share.performerWorkspaceIds).includes(actorWorkspaceId)) return "performer";
-  if (normalizeWorkspaceIdList(share.viewerWorkspaceIds).includes(actorWorkspaceId)) return "viewer";
-  return "";
+  return kanbanCaseShareService.roleForAuth(auth, ownerWorkspaceId, caseId);
 }
 
 function kanbanCaseRoleForWorkspaceActor(actorWorkspaceId, ownerWorkspaceId, caseId, auth = null) {
-  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
-  const actor = String(actorWorkspaceId || "").trim();
-  if (!actor) return kanbanCaseRoleForAuth(auth, owner, caseId);
-  if (actor === owner) return "manager";
-  const share = readKanbanCaseShare(owner, caseId);
-  if (!share) return isOwnerAuth(auth) ? "manager" : "";
-  if (normalizeWorkspaceIdList(share.managerWorkspaceIds).includes(actor)) return "manager";
-  if (normalizeWorkspaceIdList(share.performerWorkspaceIds).includes(actor)) return "performer";
-  if (normalizeWorkspaceIdList(share.viewerWorkspaceIds).includes(actor)) return "viewer";
-  return isOwnerAuth(auth) ? "manager" : "";
+  return kanbanCaseShareService.roleForWorkspaceActor(actorWorkspaceId, ownerWorkspaceId, caseId, auth);
 }
 
 function kanbanActorPermissions(role) {
-  const normalized = String(role || "").trim();
-  if (normalized === "manager") {
-    return {
-      canView: true,
-      canManage: true,
-      canRevise: true,
-      canDelete: true,
-      canComment: true,
-      canSubmitStudy: true,
-      canAnswerQuiz: true,
-    };
-  }
-  if (normalized === "performer") {
-    return {
-      canView: true,
-      canManage: false,
-      canRevise: false,
-      canDelete: false,
-      canComment: true,
-      canSubmitStudy: true,
-      canAnswerQuiz: true,
-    };
-  }
-  if (normalized === "viewer") {
-    return {
-      canView: true,
-      canManage: false,
-      canRevise: false,
-      canDelete: false,
-      canComment: true,
-      canSubmitStudy: false,
-      canAnswerQuiz: false,
-    };
-  }
-  return {
-    canView: false,
-    canManage: false,
-    canRevise: false,
-    canDelete: false,
-    canComment: false,
-    canSubmitStudy: false,
-    canAnswerQuiz: false,
-  };
+  return kanbanCaseShareService.actorPermissions(role);
 }
 
 function annotateKanbanCardForAuth(card, auth, options = {}) {
-  if (!card || typeof card !== "object") return card;
-  const workspaceId = String(card.workspaceId || card.workspace_id || "").trim() || "owner";
-  const caseId = String(card.kanbanCaseId || card.kanban_case_id || "").trim();
-  const role = caseId
-    ? (options.actorWorkspaceId
-      ? kanbanCaseRoleForWorkspaceActor(options.actorWorkspaceId, workspaceId, caseId, auth)
-      : kanbanCaseRoleForAuth(auth, workspaceId, caseId))
-    : (authCanAccessWorkspace(auth, workspaceId) ? "manager" : "");
-  if (!role) return card;
-  return Object.assign({}, card, {
-    kanbanActorRole: role,
-    kanbanActorPermissions: kanbanActorPermissions(role),
-    kanbanShareOwnerWorkspaceId: workspaceId,
-  });
+  return kanbanCaseShareService.annotateCardForAuth(card, auth, options);
 }
 
 function annotateKanbanCardsForAuth(cards, auth, options = {}) {
-  return (Array.isArray(cards) ? cards : []).map((card) => annotateKanbanCardForAuth(card, auth, options));
+  return kanbanCaseShareService.annotateCardsForAuth(cards, auth, options);
 }
 
 function kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth) {
@@ -4672,62 +4522,19 @@ function kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth) {
 }
 
 function kanbanShareActorWorkspaceId(auth, selectedWorkspaceId = "") {
-  const selected = String(selectedWorkspaceId || "").trim();
-  return isOwnerAuth(auth) && selected && selected !== "owner"
-    ? selected
-    : String(auth?.workspaceId || "").trim();
+  return kanbanCaseShareService.shareActorWorkspaceId(auth, selectedWorkspaceId);
 }
 
 function kanbanCaseSharesForActor(auth, selectedWorkspaceId = "") {
-  const actorWorkspaceId = kanbanShareActorWorkspaceId(auth, selectedWorkspaceId);
-  if (!actorWorkspaceId) return [];
-  const cases = Object.values(kanbanCaseShareStore().cases || {});
-  return cases.filter((share) => {
-    if (!share || typeof share !== "object") return false;
-    return normalizeWorkspaceIdList(share.managerWorkspaceIds).includes(actorWorkspaceId)
-      || normalizeWorkspaceIdList(share.performerWorkspaceIds).includes(actorWorkspaceId)
-      || normalizeWorkspaceIdList(share.viewerWorkspaceIds).includes(actorWorkspaceId);
-  });
+  return kanbanCaseShareService.sharesForActor(auth, selectedWorkspaceId);
 }
 
 async function sharedKanbanCardsForAuth(auth, selectedWorkspaceId, listArgs = {}) {
-  const actorWorkspaceId = kanbanShareActorWorkspaceId(auth, selectedWorkspaceId);
-  const shares = kanbanCaseSharesForActor(auth, selectedWorkspaceId).filter((share) => (
-    String(share.ownerWorkspaceId || "owner") !== String(selectedWorkspaceId || "owner")
-  ));
-  if (!shares.length) return [];
-  const byOwner = new Map();
-  for (const share of shares) {
-    const owner = String(share.ownerWorkspaceId || "owner").trim() || "owner";
-    if (!byOwner.has(owner)) byOwner.set(owner, new Set());
-    byOwner.get(owner).add(String(share.caseId || "").trim());
-  }
-  const out = [];
-  for (const [ownerWorkspaceId, caseIds] of byOwner.entries()) {
-    const result = await kanbanCardProvider.listCards(Object.assign({}, listArgs, {
-      workspaceId: ownerWorkspaceId,
-      includeCompleted: true,
-      limit: Math.max(Number(listArgs.limit || 120), 500),
-    })).catch((err) => ({ ok: false, error: err?.message || String(err) }));
-    if (!result?.ok) continue;
-    for (const card of result.data || []) {
-      if (caseIds.has(String(card.kanbanCaseId || "").trim())) {
-        out.push(annotateKanbanCardForAuth(card, auth, { actorWorkspaceId }));
-      }
-    }
-  }
-  return out;
+  return kanbanCaseShareService.sharedCardsForAuth(auth, selectedWorkspaceId, listArgs);
 }
 
 function kanbanPermissionAllows(role, capability) {
-  const permissions = kanbanActorPermissions(role);
-  if (capability === "view") return permissions.canView;
-  if (capability === "submitStudy") return permissions.canSubmitStudy;
-  if (capability === "answerQuiz") return permissions.canAnswerQuiz;
-  if (capability === "comment") return permissions.canComment;
-  if (capability === "revise") return permissions.canRevise;
-  if (capability === "delete") return permissions.canDelete;
-  return permissions.canManage;
+  return kanbanCaseShareService.permissionAllows(role, capability);
 }
 
 async function resolveKanbanCardAccess(req, res, workspaceId, cardId, capability = "view") {

@@ -23,6 +23,7 @@ const singleWindowGroupChatApiRoutes = fs.readFileSync(path.join(repoRoot, "serv
 const threadMessageRunApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "thread-message-run-api-routes.js"), "utf8");
 const kanbanProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-provider.js"), "utf8");
 const kanbanCardProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-card-provider.js"), "utf8");
+const kanbanCaseShareServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-case-share-service.js"), "utf8");
 const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-ingress-provider.js"), "utf8");
 
 assert.match(appJs, /function taskGroupsForThread\(thread\)/);
@@ -503,8 +504,9 @@ assert.match(serverJs, /function kanbanCaseRoleForWorkspaceActor\(actorWorkspace
 assert.match(serverJs, /const requestedCaseTopicChat = Boolean\(/);
 assert.match(serverJs, /const isCaseTopicChatMessage = requestedCaseTopicChat && groupMemberIds\.length > 0/);
 assert.match(serverJs, /\(isGroupChatMessage \|\| isCaseTopicChatMessage\) && String\(body\.messageKind/);
-assert.match(serverJs, /annotateKanbanCardForAuth\(card, auth, \{ actorWorkspaceId \}\)/);
-assert.match(serverJs, /isOwnerAuth\(auth\) && selected && selected !== "owner"/);
+assert.match(serverJs, /kanbanCaseShareService\.sharedCardsForAuth\(auth, selectedWorkspaceId, listArgs\)/);
+assert.match(kanbanCaseShareServiceJs, /annotateCardForAuth\(card, auth, \{ actorWorkspaceId \}\)/);
+assert.match(kanbanCaseShareServiceJs, /isOwnerAuth\?\.\(auth\) && selected && selected !== "owner"/);
 assert.match(kanbanCardApiRoutes, /kanbanCaseSharesForActor\(auth, workspaceId\)/);
 assert.match(serverJs, /function resolveKanbanCardAccess\(req, res, workspaceId, cardId, capability = "view"\)/);
 assert.match(serverJs, /reading-submission/);
