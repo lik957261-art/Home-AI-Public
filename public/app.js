@@ -26,6 +26,8 @@ const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
 const KANBAN_STORY_STATUS = "story";
 const KANBAN_STORY_DEFAULT_VERSION = "20260513-story-tree";
 const KANBAN_STORY_DETAIL_LOAD_LIMIT = 6;
+const KANBAN_MULTI_AGENT_DEFAULT_PARALLEL = 3;
+const KANBAN_MULTI_AGENT_MAX_PARALLEL = 8;
 
 function initialTodoKanbanStatus() {
   const stored = localStorage.getItem("hermesTodoKanbanStatus") || "";
@@ -48,6 +50,21 @@ function initialKanbanComposerMode() {
   if (stored === "reading") return "study";
   if (["single", "multi", "study", "assessment"].includes(stored)) return stored;
   return localStorage.getItem("hermesKanbanComposerMultiAgent") === "1" ? "multi" : "single";
+}
+
+function normalizeKanbanComposerMaxParallel(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return KANBAN_MULTI_AGENT_DEFAULT_PARALLEL;
+  return Math.max(1, Math.min(KANBAN_MULTI_AGENT_MAX_PARALLEL, Math.floor(parsed)));
+}
+
+function initialKanbanMaxParallel() {
+  return normalizeKanbanComposerMaxParallel(localStorage.getItem("hermesKanbanComposerMaxParallel"));
+}
+
+function initialKanbanReasoningEffort() {
+  const effort = String(localStorage.getItem("hermesKanbanComposerReasoningEffort") || "").trim().toLowerCase();
+  return ["low", "medium", "high", "xhigh"].includes(effort) ? effort : "";
 }
 
 function defaultKanbanReadingDraft() {
@@ -242,6 +259,10 @@ const state = {
   kanbanReadingCoverFile: null,
   kanbanReadingCoverPreviewUrl: "",
   kanbanCoverObjectUrls: {},
+  kanbanComposerDocuments: [],
+  kanbanComposerDocumentUploading: false,
+  kanbanComposerMaxParallel: initialKanbanMaxParallel(),
+  kanbanComposerReasoningEffort: initialKanbanReasoningEffort(),
   kanbanComposerBusy: false,
   kanbanComposerProgressKind: "",
   kanbanComposerProgressStartedAt: 0,
@@ -400,7 +421,6 @@ const TASK_REASONING_OPTIONS = [
   { value: "high", label: "High" },
   { value: "xhigh", label: "Xhigh" },
 ];
-const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
 const KANBAN_PLAN_PROGRESS_STEPS = Object.freeze([
   "\u6574\u7406\u9700\u6c42",
   "\u5206\u6790\u4ea4\u4ed8\u76ee\u6807",
@@ -2289,8 +2309,9 @@ function updateTopMoreControls() {
   const deleteTodo = $("topDeleteTodo");
   if (deleteTodo) {
     const selectedTodo = kanbanCardById(state.selectedTodoId);
-    deleteTodo.hidden = !todoDetail || Boolean(selectedTodo && !kanbanCan(selectedTodo, "canDelete"));
-    deleteTodo.disabled = !todoDetail || !state.selectedTodoId || Boolean(selectedTodo && !kanbanCan(selectedTodo, "canDelete"));
+    const storyCard = Boolean(selectedTodo && kanbanCardHasExplicitStoryCase(selectedTodo));
+    deleteTodo.hidden = !todoDetail || storyCard || Boolean(selectedTodo && !kanbanCan(selectedTodo, "canDelete"));
+    deleteTodo.disabled = !todoDetail || storyCard || !state.selectedTodoId || Boolean(selectedTodo && !kanbanCan(selectedTodo, "canDelete"));
   }
   const renameTask = $("topRenameTask");
   if (renameTask) {
@@ -8610,6 +8631,10 @@ function kanbanCaseMode(todo) {
   return String(todo?.kanbanCaseMode || "").trim();
 }
 
+function kanbanCardHasExplicitStoryCase(todo) {
+  return Boolean(String(todo?.kanbanCaseId || "").trim() || kanbanCaseMode(todo));
+}
+
 function kanbanCaseTemplate(todo) {
   return String(todo?.kanbanCaseTemplate || todo?.kanbanStudyKind || "").trim().toLowerCase();
 }
@@ -8825,6 +8850,47 @@ function saveKanbanComposerMode(mode) {
   state.kanbanComposerMultiAgent = next === "multi";
   localStorage.setItem("hermesKanbanComposerMode", next);
   localStorage.setItem("hermesKanbanComposerMultiAgent", next === "multi" ? "1" : "0");
+}
+
+function saveKanbanComposerMaxParallel(value) {
+  const next = normalizeKanbanComposerMaxParallel(value);
+  state.kanbanComposerMaxParallel = next;
+  localStorage.setItem("hermesKanbanComposerMaxParallel", String(next));
+  return next;
+}
+
+function saveKanbanComposerReasoningEffort(value) {
+  const effort = String(value || "").trim().toLowerCase();
+  const next = ["low", "medium", "high", "xhigh"].includes(effort) ? effort : "";
+  state.kanbanComposerReasoningEffort = next;
+  if (next) localStorage.setItem("hermesKanbanComposerReasoningEffort", next);
+  else localStorage.removeItem("hermesKanbanComposerReasoningEffort");
+  return next;
+}
+
+function kanbanComposerDocumentContext() {
+  const docs = Array.isArray(state.kanbanComposerDocuments) ? state.kanbanComposerDocuments : [];
+  return docs
+    .slice(0, 3)
+    .filter((item) => String(item?.text || "").trim())
+    .map((item, index) => {
+      const text = String(item.text || "").trim();
+      const limited = text.length > 60000 ? `${text.slice(0, 60000)}\n\n[document truncated in composer: ${text.length} chars total]` : text;
+      return [
+        `Document ${index + 1}: ${item.name || "kanban-source"}`,
+        limited,
+      ].join("\n\n");
+    })
+    .join("\n\n---\n\n");
+}
+
+function kanbanComposerSubmissionText(rawText = "") {
+  return [String(rawText || "").trim(), kanbanComposerDocumentContext()].filter(Boolean).join("\n\n");
+}
+
+function clearKanbanComposerDocuments() {
+  state.kanbanComposerDocuments = [];
+  state.kanbanComposerDocumentUploading = false;
 }
 
 function todoRefreshShouldYieldToKanbanComposer(options = {}) {
@@ -9533,6 +9599,21 @@ function renderKanbanStoryArchiveButton(group, options = {}) {
   return `<button class="kanban-archive-case-action" type="button" data-archive-kanban-story-case="${escapeHtml(key)}">${"\u5f52\u6863"}</button>`;
 }
 
+function kanbanStoryCaseDeleteItems(group) {
+  const cards = group?.cards || [];
+  if (!cards.length) return [];
+  const deletable = cards.filter((item) => kanbanCan(item.todo, "canDelete"));
+  return deletable.length === cards.length ? deletable : [];
+}
+
+function renderKanbanStoryDeleteButton(group, options = {}) {
+  if (!options.deleteAction) return "";
+  const items = kanbanStoryCaseDeleteItems(group);
+  if (!items.length) return "";
+  const key = kanbanStoryCaseKey(group);
+  return `<button class="kanban-archive-case-action danger" type="button" data-delete-kanban-story-case="${escapeHtml(key)}">${"\u5220\u9664"}</button>`;
+}
+
 function kanbanArchiveStatusSummary(group) {
   const counts = new Map();
   for (const item of group.cards || []) {
@@ -9635,6 +9716,7 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
   ].filter(Boolean).join(" | ");
   const storyState = kanbanStoryCaseRenderState(group, options);
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
+  const deleteButton = renderKanbanStoryDeleteButton(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
@@ -9649,7 +9731,7 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
         <span>${escapeHtml([labels.plan, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
       </div>
-      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}${deleteButton}</span>
     </header>
     ${cover ? renderKanbanCaseCover(cover, { compact: true }) : ""}
     <div class="kanban-archive-story-grid">
@@ -9718,6 +9800,7 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
   ].filter(Boolean).join(" | ");
   const storyState = kanbanStoryCaseRenderState(group, options);
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
+  const deleteButton = renderKanbanStoryDeleteButton(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
@@ -9731,7 +9814,7 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
         <span>${escapeHtml(["考试计划", statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "考试计划")}</h3>
       </div>
-      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}${deleteButton}</span>
     </header>
     <div class="kanban-archive-story-grid">
       <section>
@@ -9791,6 +9874,7 @@ function renderKanbanArchiveCase(group, options = {}) {
   const more = cards.length > 8 ? `<li class="kanban-archive-more">+${cards.length - 8}</li>` : "";
   const storyState = kanbanStoryCaseRenderState(group, options);
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
+  const deleteButton = renderKanbanStoryDeleteButton(group, options);
   const modeClass = group.mode === "single-card"
     ? " single-card-case"
     : (group.mode === "multi-agent" ? " multi-agent-case" : "");
@@ -9800,7 +9884,7 @@ function renderKanbanArchiveCase(group, options = {}) {
         <span>${escapeHtml(["\u4efb\u52a1\u6545\u4e8b", modeLabel, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
       </div>
-      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}${deleteButton}</span>
     </header>
     ${cover ? renderKanbanCaseCover(cover, { compact: true }) : ""}
     <div class="kanban-archive-story-grid">
@@ -9824,7 +9908,7 @@ function renderKanbanArchiveCase(group, options = {}) {
 function renderKanbanArchiveStories(items) {
   const cases = kanbanArchiveCases(items);
   if (!cases.length) return `<div class="empty-state small">No archived cases.</div>`;
-  return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true })).join("")}</div>`;
+  return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true, deleteAction: true })).join("")}</div>`;
 }
 
 function renderKanbanStoryTree(items) {
@@ -9832,7 +9916,7 @@ function renderKanbanStoryTree(items) {
   if (!cases.length) {
     return `<div class="empty-state small">\u6682\u65e0\u6545\u4e8b\u6811\u3002\u770b\u677f\u5355\u5361\u6216\u591a Agent \u62c6\u89e3\u7684\u4efb\u52a1\u4f1a\u5728\u8fd9\u91cc\u6309\u9700\u6c42\u3001\u62c6\u89e3\u3001\u7ed3\u8bba\u805a\u5408\u3002</div>`;
   }
-  return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true, archiveAction: true })).join("")}</div>`;
+  return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true, archiveAction: true, deleteAction: true })).join("")}</div>`;
 }
 
 function todoDueLabel(todo) {
@@ -10052,19 +10136,75 @@ function renderKanbanPlanDraft(plan) {
       ${acceptance.length ? `<small>${escapeHtml("\u9a8c\u6536\uff1a" + acceptance.join(" / "))}</small>` : ""}
     </article>`;
   }).join("");
+  const maxParallel = normalizeKanbanComposerMaxParallel(plan?.maxParallel || state.kanbanComposerMaxParallel);
   return `<section class="kanban-plan-draft">
     <div class="kanban-plan-draft-head">
       <div>
         <strong>\u591a Agent \u62c6\u89e3\u8349\u6848</strong>
         <span>${escapeHtml(plan?.summary || "")}</span>
       </div>
-      <small>\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}</small>
+      <small>\u6700\u5927\u5e76\u884c ${maxParallel}</small>
     </div>
     <div class="kanban-plan-card-list">${cardItems}</div>
     <div class="kanban-plan-actions">
       <button type="button" data-clear-kanban-plan${disabled}>\u6e05\u7a7a\u8349\u6848</button>
       <button type="button" data-create-kanban-plan${disabled}>\u786e\u8ba4\u6267\u884c ${cards.length} \u5f20\u4efb\u52a1</button>
     </div>
+  </section>`;
+}
+
+function renderKanbanReasoningOptions(selected = "") {
+  const known = new Map();
+  const add = (item) => {
+    const value = String(item?.value || "").trim().toLowerCase();
+    if (known.has(value)) return;
+    known.set(value, item);
+  };
+  TASK_REASONING_OPTIONS.forEach(add);
+  configuredReasoningOptions().forEach(add);
+  return [...known.values()].map((item) => {
+    const value = String(item?.value || "").trim().toLowerCase();
+    const label = value ? reasoningEffortLabel(value) : `Hermes default (${defaultReasoningLabel()})`;
+    return `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+function renderKanbanMultiAgentControls(disabled = false) {
+  const attr = disabled ? " disabled" : "";
+  const maxParallel = normalizeKanbanComposerMaxParallel(state.kanbanComposerMaxParallel);
+  const rawReasoningEffort = String(state.kanbanComposerReasoningEffort || "").trim().toLowerCase();
+  const reasoningEffort = ["low", "medium", "high", "xhigh"].includes(rawReasoningEffort) ? rawReasoningEffort : "";
+  return `<div class="kanban-multi-agent-controls">
+    <label>
+      <span>\u6700\u5927 Agent \u6570</span>
+      <input id="kanbanComposerMaxParallel" class="todo-input" type="number" min="1" max="${KANBAN_MULTI_AGENT_MAX_PARALLEL}" step="1" value="${escapeHtml(String(maxParallel))}"${attr}>
+    </label>
+    <label>
+      <span>\u63a8\u7406\u7b49\u7ea7</span>
+      <select id="kanbanComposerReasoningEffort" class="todo-input"${attr}>${renderKanbanReasoningOptions(reasoningEffort)}</select>
+    </label>
+  </div>`;
+}
+
+function renderKanbanComposerDocumentPanel(disabled = false) {
+  const attr = disabled ? " disabled" : "";
+  const docs = Array.isArray(state.kanbanComposerDocuments) ? state.kanbanComposerDocuments : [];
+  const items = docs.map((item, index) => `<li>
+    <div>
+      <strong>${escapeHtml(item.name || `Document ${index + 1}`)}</strong>
+      <small>${escapeHtml([item.mime || item.kind || "", item.size ? formatBytes(item.size) : "", item.truncated ? "\u5df2\u622a\u65ad" : ""].filter(Boolean).join(" | "))}</small>
+      <p>${escapeHtml(compactDisplayText(item.text || "", 180) || "\u5df2\u63d0\u53d6\u6587\u6863\u5185\u5bb9")}</p>
+    </div>
+    <button type="button" data-remove-kanban-composer-document="${index}"${attr}>\u79fb\u9664</button>
+  </li>`).join("");
+  const uploading = state.kanbanComposerDocumentUploading ? `<small class="kanban-document-upload-status">\u6587\u6863\u6b63\u5728\u89e3\u6790...</small>` : "";
+  return `<section class="kanban-document-source">
+    <label class="kanban-document-picker">
+      <span>\u4e0a\u4f20\u6587\u6863\u4f5c\u4e3a\u9700\u6c42\u6765\u6e90</span>
+      <input id="kanbanComposerDocument" type="file" accept=".txt,.md,.markdown,.csv,.json,.docx,text/*,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document"${attr}>
+    </label>
+    ${uploading}
+    ${items ? `<ul class="kanban-document-source-list">${items}</ul>` : ""}
   </section>`;
 }
 
@@ -10355,6 +10495,8 @@ function renderKanbanComposerPanel() {
       </div>
       ${studyActive ? renderKanbanReadingFields(busy) : ""}
       ${assessmentActive ? renderKanbanAssessmentFields(busy) : ""}
+      ${multiActive ? renderKanbanMultiAgentControls(busy) : ""}
+      ${renderKanbanComposerDocumentPanel(busy)}
       <textarea id="kanbanComposerText" class="kanban-composer-input" rows="${studyActive || assessmentActive ? "4" : "7"}" placeholder="${escapeHtml(placeholder)}"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
       <div class="kanban-composer-toolbar">
         <span class="kanban-create-mode-caption">${escapeHtml(caption)}</span>
@@ -11337,6 +11479,29 @@ function wireTodoPanel(root) {
       focusTodoFormSoon();
     });
   });
+  root.querySelector("#kanbanComposerMaxParallel")?.addEventListener("input", (event) => {
+    saveKanbanComposerMaxParallel(event.target?.value);
+  });
+  root.querySelector("#kanbanComposerReasoningEffort")?.addEventListener("change", (event) => {
+    saveKanbanComposerReasoningEffort(event.target?.value);
+  });
+  root.querySelector("#kanbanComposerDocument")?.addEventListener("change", (event) => {
+    const file = event.target?.files?.[0] || null;
+    const currentText = root.querySelector("#kanbanComposerText")?.value || "";
+    state.kanbanComposerText = currentText;
+    if (currentText) localStorage.setItem("hermesKanbanComposerDraft", currentText);
+    uploadKanbanComposerDocument(file).catch(showError);
+    event.target.value = "";
+  });
+  root.querySelectorAll("[data-remove-kanban-composer-document]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.removeKanbanComposerDocument);
+      if (Number.isFinite(index)) {
+        state.kanbanComposerDocuments = (state.kanbanComposerDocuments || []).filter((_, itemIndex) => itemIndex !== index);
+        renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+      }
+    });
+  });
   root.querySelectorAll("#kanbanStudyTemplate, #kanbanStudySubject, #kanbanStudyTitle, #kanbanStudyLearner, #kanbanStudyPerformerWorkspace, #kanbanStudyViewerWorkspaces, #kanbanReadingReader, #kanbanReadingBook, #kanbanReadingSessions, #kanbanReadingStartDate, #kanbanReadingTime, #kanbanStudyScheduleFrequency, #kanbanStudyScheduleMonthDay, #kanbanReadingReminder, [data-kanban-study-viewer-workspace], [data-kanban-study-weekday]").forEach((input) => {
     input.addEventListener("input", () => syncKanbanReadingDraftFromDom(root));
     input.addEventListener("change", () => syncKanbanReadingDraftFromDom(root));
@@ -11404,6 +11569,13 @@ function wireTodoPanel(root) {
       event.preventDefault();
       event.stopPropagation();
       archiveKanbanStoryCase(button.dataset.archiveKanbanStoryCase || "").catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-delete-kanban-story-case]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteKanbanStoryCase(button.dataset.deleteKanbanStoryCase || "").catch(showError);
     });
   });
   root.querySelectorAll("[data-todo-id]").forEach((button) => {
@@ -11634,13 +11806,51 @@ function pushKanbanComposerMessage(role, content) {
 function kanbanPlanSummaryText(plan) {
   const cards = Array.isArray(plan?.cards) ? plan.cards : [];
   const firstWave = cards.filter((card) => card.initialRunnable).length;
-  return `\u5df2\u751f\u6210 ${cards.length} \u5f20\u5361\u7247\u7684\u591a Agent \u62c6\u89e3\u8349\u6848\uff1b\u9996\u6279\u6267\u884c ${firstWave}\uff0c\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}\u3002`;
+  const maxParallel = normalizeKanbanComposerMaxParallel(plan?.maxParallel || state.kanbanComposerMaxParallel);
+  return `\u5df2\u751f\u6210 ${cards.length} \u5f20\u5361\u7247\u7684\u591a Agent \u62c6\u89e3\u8349\u6848\uff1b\u9996\u6279\u6267\u884c ${firstWave}\uff0c\u6700\u5927\u5e76\u884c ${maxParallel}\u3002`;
+}
+
+async function uploadKanbanComposerDocument(file) {
+  if (!file) return;
+  if (state.kanbanComposerDocumentUploading) return;
+  state.kanbanComposerDocumentUploading = true;
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const dataBase64 = await fileToBase64(file);
+    const result = await api("/api/kanban/cards/document-preview", {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: state.selectedWorkspaceId,
+        filename: file.name || "kanban-source.txt",
+        type: file.type || "",
+        dataBase64,
+      }),
+    });
+    const doc = result.document || {};
+    state.kanbanComposerDocuments = [
+      ...(state.kanbanComposerDocuments || []),
+      {
+        name: doc.name || file.name || "kanban-source",
+        mime: doc.mime || file.type || "",
+        kind: doc.kind || "",
+        size: doc.size || file.size || 0,
+        text: result.text || "",
+        totalChars: result.totalChars || 0,
+        truncated: Boolean(result.truncated),
+      },
+    ];
+    showPushToast("\u6587\u6863\u5df2\u89e3\u6790\uff0c\u5c06\u4f5c\u4e3a\u770b\u677f\u9700\u6c42\u4e0a\u4e0b\u6587", "success");
+  } finally {
+    state.kanbanComposerDocumentUploading = false;
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
 }
 
 async function submitKanbanComposer(root) {
   if (state.kanbanComposerBusy || state.kanbanPlanCreating) return;
   const input = root.querySelector("#kanbanComposerText");
-  const text = String(input?.value || state.kanbanComposerText || "").trim();
+  const rawText = String(input?.value || state.kanbanComposerText || "").trim();
+  const text = kanbanComposerSubmissionText(rawText);
   const mode = kanbanComposerMode();
   const multiAgent = mode === "multi";
   const studyPlan = mode === "study";
@@ -11650,17 +11860,20 @@ async function submitKanbanComposer(root) {
   if (assessmentPlan) syncKanbanAssessmentDraftFromDom(root);
   if (studyPlan && !String(state.kanbanReadingDraft?.activityTitle || state.kanbanReadingDraft?.bookTitle || "").trim()) throw new Error("????????");
   if (assessmentPlan && !String(state.kanbanAssessmentDraft?.planTitle || state.kanbanAssessmentDraft?.subject || "").trim()) throw new Error("????????");
-  state.kanbanComposerText = text;
-  if (text) localStorage.setItem("hermesKanbanComposerDraft", text);
+  const maxParallel = saveKanbanComposerMaxParallel(root.querySelector("#kanbanComposerMaxParallel")?.value || state.kanbanComposerMaxParallel);
+  const reasoningEffort = saveKanbanComposerReasoningEffort(root.querySelector("#kanbanComposerReasoningEffort")?.value || state.kanbanComposerReasoningEffort);
+  const documentNames = (state.kanbanComposerDocuments || []).map((item) => item.name).filter(Boolean).join(", ");
+  state.kanbanComposerText = rawText;
+  if (rawText) localStorage.setItem("hermesKanbanComposerDraft", rawText);
   else localStorage.removeItem("hermesKanbanComposerDraft");
   saveKanbanComposerMode(mode);
   state.kanbanComposerBusy = true;
   state.kanbanPlanDraft = null;
   pushKanbanComposerMessage("user", studyPlan
     ? `${state.kanbanReadingDraft.activityTitle || state.kanbanReadingDraft.bookTitle || ""}
-${text}`.trim()
+${rawText || (documentNames ? `Documents: ${documentNames}` : "")}`.trim()
     : (assessmentPlan ? `${state.kanbanAssessmentDraft.planTitle || state.kanbanAssessmentDraft.subject || ""}
-${text}`.trim() : text));
+${rawText || (documentNames ? `Documents: ${documentNames}` : "")}`.trim() : (rawText || (documentNames ? `Documents: ${documentNames}` : text))));
   beginKanbanComposerProgress(assessmentPlan ? "assessment" : (studyPlan ? "reading" : (multiAgent ? "plan" : "create")));
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
@@ -11684,6 +11897,7 @@ ${text}`.trim() : text));
       pushKanbanComposerMessage("assistant", `????????${cards.length} ??????????????????`);
       state.kanbanComposerText = "";
       state.kanbanAssessmentDraft = defaultKanbanAssessmentDraft();
+      clearKanbanComposerDocuments();
       localStorage.removeItem("hermesKanbanComposerDraft");
       localStorage.removeItem("hermesKanbanAssessmentDraft");
       finishKanbanComposerProgress();
@@ -11726,6 +11940,7 @@ ${text}`.trim() : text));
       pushKanbanComposerMessage("assistant", `????????${cards.length} ???????????????????????????????`);
       state.kanbanComposerText = "";
       state.kanbanReadingDraft = defaultKanbanReadingDraft();
+      clearKanbanComposerDocuments();
       setKanbanReadingCoverFile(null);
       localStorage.removeItem("hermesKanbanComposerDraft");
       localStorage.removeItem("hermesKanbanReadingDraft");
@@ -11741,7 +11956,8 @@ ${text}`.trim() : text));
         body: JSON.stringify({
           workspaceId: state.selectedWorkspaceId,
           text,
-          maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+          maxParallel,
+          reasoning_effort: reasoningEffort,
         }),
       });
       state.kanbanPlanDraft = result.plan || null;
@@ -11749,17 +11965,21 @@ ${text}`.trim() : text));
       finishKanbanComposerProgress();
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     } else {
+      const singleContent = rawText || (documentNames ? `Create Kanban task from document: ${documentNames}` : text);
       const result = await api(boardCollectionApiPath(), {
         method: "POST",
         body: JSON.stringify({
           workspaceId: state.selectedWorkspaceId,
           assignee: defaultTodoAssignee(),
-          content: text,
+          content: singleContent,
+          description: text,
+          sourceText: text,
         }),
       });
       const card = result.card || result.todo || result.result || {};
       pushKanbanComposerMessage("assistant", `????????${card.id || ""} ${card.content || text}`.trim());
       state.kanbanComposerText = "";
+      clearKanbanComposerDocuments();
       localStorage.removeItem("hermesKanbanComposerDraft");
       finishKanbanComposerProgress();
       clearTodoListCache();
@@ -11790,7 +12010,8 @@ async function createKanbanPlanFromDraft() {
       body: JSON.stringify({
         workspaceId: state.selectedWorkspaceId,
         plan: state.kanbanPlanDraft,
-        maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+        maxParallel: normalizeKanbanComposerMaxParallel(state.kanbanPlanDraft?.maxParallel || state.kanbanComposerMaxParallel),
+        reasoning_effort: state.kanbanPlanDraft?.reasoningEffort || state.kanbanComposerReasoningEffort || "",
       }),
     });
     const cards = Array.isArray(result.cards) ? result.cards : [];
@@ -11798,6 +12019,7 @@ async function createKanbanPlanFromDraft() {
     pushKanbanComposerMessage("assistant", `\u5df2\u521b\u5efa ${cards.length} \u5f20\u591a Agent \u770b\u677f\u5361\u7247\uff1b${Math.max(0, cards.length - blocked)} \u5f20\u9996\u6279\u6267\u884c\uff0c${blocked} \u5f20\u7b49\u5f85\u4f9d\u8d56\u6216\u5e76\u884c\u4f4d\u3002`);
     state.kanbanPlanDraft = null;
     state.kanbanComposerText = "";
+    clearKanbanComposerDocuments();
     localStorage.removeItem("hermesKanbanComposerDraft");
     finishKanbanComposerProgress();
     clearTodoListCache();
@@ -11890,6 +12112,28 @@ async function archiveKanbanStoryCase(caseKey) {
   state.kanbanStoryExpanded = Object.assign({}, state.kanbanStoryExpanded || {}, { [key]: false });
   showPushToast(`已归档 ${items.length} 张卡片`, "success");
   await loadTodos({ skipCache: true, freshServer: true });
+}
+
+async function deleteKanbanStoryCase(caseKey) {
+  const key = String(caseKey || "").trim();
+  if (!key) return;
+  const group = kanbanStoryCases(state.todos).find((item) => kanbanStoryCaseKey(item) === key);
+  const items = kanbanStoryCaseDeleteItems(group);
+  if (!group || !items.length) throw new Error("No deletable cards in this story.");
+  const title = group.title || key;
+  if (!window.confirm(`\u5220\u9664\u6545\u4e8b\uff1a${title}\n\u5c06\u4e00\u6b21\u5220\u9664 ${items.length} \u5f20\u770b\u677f\u5361\u7247\uff0c\u4e0d\u53ef\u901a\u8fc7\u5355\u5361\u5165\u53e3\u64a4\u9500\u3002`)) return;
+  for (const item of items) {
+    await api(boardActionApiPath(item.todo.id, "delete"), {
+      method: "POST",
+      body: kanbanCardActionBody(item.todo),
+    });
+  }
+  clearTodoListCache();
+  closeTopMoreMenu();
+  state.selectedTodoId = "";
+  state.kanbanStoryExpanded = Object.assign({}, state.kanbanStoryExpanded || {}, { [key]: false });
+  showPushToast(`\u5df2\u5220\u9664 ${items.length} \u5f20\u6545\u4e8b\u5361\u7247`, "success");
+  await loadTodos({ skipCache: true, freshServer: true, includeCompleted: true });
 }
 
 async function blockTodo(todoId) {
@@ -12147,6 +12391,7 @@ async function deleteTodo(todoId) {
   if (!todoId) return;
   const card = kanbanCardById(todoId);
   if (card && !kanbanCan(card, "canDelete")) throw new Error("No permission to delete this card");
+  if (card && kanbanCardHasExplicitStoryCase(card)) throw new Error("This card belongs to a story. Delete the story from the Story view.");
   if (!window.confirm(`删除看板卡片 ${todoId}？`)) return;
   await api(boardActionApiPath(todoId, "delete"), {
     method: "POST",
@@ -12162,6 +12407,7 @@ async function deleteTodoDirect(todoId) {
   if (!todoId) return;
   const card = kanbanCardById(todoId);
   if (card && !kanbanCan(card, "canDelete")) throw new Error("No permission to delete this card");
+  if (card && kanbanCardHasExplicitStoryCase(card)) throw new Error("This card belongs to a story. Delete the story from the Story view.");
   await api(boardActionApiPath(todoId, "delete"), {
     method: "POST",
     body: kanbanCardActionBody(todoId),

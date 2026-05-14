@@ -246,7 +246,8 @@ const KANBAN_WORKSPACE_PATH_STYLE = String(process.env.HERMES_MOBILE_KANBAN_WORK
 const KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS = Math.max(5000, Number(process.env.HERMES_MOBILE_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || process.env.HERMES_WEB_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || "30000") || 30000);
 const KANBAN_CARD_LIST_CACHE_TTL_MS = Math.max(0, Number(process.env.HERMES_MOBILE_KANBAN_CARD_LIST_CACHE_TTL_MS || process.env.HERMES_WEB_KANBAN_CARD_LIST_CACHE_TTL_MS || String(30 * 60 * 1000)) || 0);
 const KANBAN_BLOCKED_PUSH_DELAY_MINUTES = Math.max(0, Number(process.env.HERMES_MOBILE_KANBAN_BLOCKED_PUSH_DELAY_MINUTES || process.env.HERMES_WEB_KANBAN_BLOCKED_PUSH_DELAY_MINUTES || "10") || 0);
-const KANBAN_MULTI_AGENT_MAX_PARALLEL = 3;
+const KANBAN_MULTI_AGENT_DEFAULT_PARALLEL = 3;
+const KANBAN_MULTI_AGENT_MAX_PARALLEL = Math.max(KANBAN_MULTI_AGENT_DEFAULT_PARALLEL, Math.min(12, Number(process.env.HERMES_MOBILE_KANBAN_MULTI_AGENT_MAX_PARALLEL || process.env.HERMES_WEB_KANBAN_MULTI_AGENT_MAX_PARALLEL || "8") || 8));
 const KANBAN_MULTI_AGENT_MAX_CARDS = 8;
 const KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_KANBAN_PLAN_TIMEOUT_MS || process.env.HERMES_WEB_KANBAN_PLAN_TIMEOUT_MS || "90000");
 const KANBAN_READING_PLAN_MAX_SESSIONS = Math.max(1, Math.min(60, Number(process.env.HERMES_MOBILE_READING_PLAN_MAX_SESSIONS || process.env.HERMES_WEB_READING_PLAN_MAX_SESSIONS || "31") || 31));
@@ -255,6 +256,7 @@ const KANBAN_READING_TRANSCRIBE_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_RE
 const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(process.env.HERMES_MOBILE_READING_TRANSCRIBE_SCRIPT || process.env.HERMES_WEB_READING_TRANSCRIBE_SCRIPT || path.join(__dirname, "scripts", "transcribe-reading-audio.ps1"));
 const KANBAN_READING_ARTIFACT_ROOT = path.resolve(process.env.HERMES_MOBILE_READING_ARTIFACT_ROOT || process.env.HERMES_WEB_READING_ARTIFACT_ROOT || path.join(DATA_DIR, "artifacts", "kanban-reading"));
 const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(process.env.HERMES_MOBILE_READING_COVER_MAX_BYTES || process.env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
+const KANBAN_SOURCE_DOCUMENT_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(process.env.HERMES_MOBILE_KANBAN_SOURCE_DOCUMENT_MAX_BYTES || process.env.HERMES_WEB_KANBAN_SOURCE_DOCUMENT_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
 const KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1";
 const KANBAN_STUDY_CASE_MODES = new Set(["study-plan"]);
 const KANBAN_ASSESSMENT_CASE_MODES = new Set(["assessment-plan"]);
@@ -1645,6 +1647,28 @@ function findThreadForRequest(req, threadId) {
 function findThreadForAuth(auth, threadId) {
   const thread = state.threads.find((item) => item.id === String(threadId || ""));
   return threadAccessibleToAuth(auth, thread) ? thread : null;
+}
+
+function ownerDirectoryBrowserThread() {
+  return {
+    id: "owner-directory-browser",
+    title: "Owner Directory Browser",
+    workspaceId: "owner",
+    projectId: "",
+    subprojectId: "",
+    singleWindow: false,
+    status: "idle",
+    taskGroupMeta: {},
+    chatGroup: { enabled: false, memberWorkspaceIds: [] },
+    messages: [],
+  };
+}
+
+function findDirectoryThreadForRequest(req, threadId) {
+  const auth = authenticateRequest(req);
+  const thread = findThreadForAuth(auth, threadId);
+  if (thread) return thread;
+  return isOwnerAuth(auth) ? ownerDirectoryBrowserThread() : null;
 }
 
 function ensureDataDir() {
@@ -4966,8 +4990,21 @@ function kanbanPlanDependencyRefs(value) {
   return String(value).split(/[,;\n]+/g);
 }
 
-function normalizeKanbanPlan(raw, sourceText, workspaceId) {
+function normalizeKanbanMaxParallel(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return KANBAN_MULTI_AGENT_DEFAULT_PARALLEL;
+  return Math.max(1, Math.min(KANBAN_MULTI_AGENT_MAX_PARALLEL, Math.floor(parsed)));
+}
+
+function normalizeKanbanPlanReasoningEffort(value) {
+  const effort = String(value || "").trim().toLowerCase();
+  return VALID_REASONING_EFFORTS.has(effort) ? effort : "";
+}
+
+function normalizeKanbanPlan(raw, sourceText, workspaceId, options = {}) {
   const draft = raw && typeof raw === "object" ? raw : {};
+  const maxParallel = normalizeKanbanMaxParallel(options.maxParallel ?? draft.maxParallel ?? draft.max_parallel);
+  const reasoningEffort = normalizeKanbanPlanReasoningEffort(options.reasoningEffort || options.reasoning_effort || draft.reasoningEffort || draft.reasoning_effort);
   if (draft.needs_clarification || draft.needsClarification) {
     throw new Error(compactText(draft.clarification || draft.question || "Kanban plan needs clarification", 240));
   }
@@ -5012,7 +5049,7 @@ function normalizeKanbanPlan(raw, sourceText, workspaceId) {
   const initialRunnableIds = new Set();
   for (const card of cards) {
     if (card.dependsOn.length) continue;
-    if (initialRunnableIds.size >= KANBAN_MULTI_AGENT_MAX_PARALLEL) continue;
+    if (initialRunnableIds.size >= maxParallel) continue;
     initialRunnableIds.add(card.clientId);
   }
   for (const card of cards) card.initialRunnable = initialRunnableIds.has(card.clientId);
@@ -5023,19 +5060,22 @@ function normalizeKanbanPlan(raw, sourceText, workspaceId) {
     workspaceId: String(workspaceId || "owner"),
     sourceText: compactText(draft.sourceText || sourceText, 4000),
     summary: compactText(draft.summary || draft.goal || sourceText, 500),
-    maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+    maxParallel,
+    reasoningEffort,
     cards,
   };
 }
 
-async function planKanbanMultiAgent(text, workspace, ownerPrincipalId) {
+async function planKanbanMultiAgent(text, workspace, ownerPrincipalId, options = {}) {
   const sourceText = compactText(text, 8000);
   if (!sourceText) throw new Error("Kanban plan text is required");
+  const maxParallel = normalizeKanbanMaxParallel(options.maxParallel);
+  const reasoningEffort = normalizeKanbanPlanReasoningEffort(options.reasoningEffort || options.reasoning_effort) || "medium";
   const prompt = [
     "You are the Hermes Mobile Kanban planner.",
     "Return strict JSON only. Do not include Markdown fences or prose.",
     "The user is creating a multi-Agent execution plan for a Kanban board.",
-    `The maximum parallel worker count is fixed at ${KANBAN_MULTI_AGENT_MAX_PARALLEL}. Do not propose more than ${KANBAN_MULTI_AGENT_MAX_PARALLEL} first-wave runnable cards.`,
+    `The maximum parallel worker count for this plan is ${maxParallel}. Do not propose more than ${maxParallel} first-wave runnable cards.`,
     "Create 3 to 8 cards. Make cards independently executable when possible, but add dependencies for integration, verification, or sequential work.",
     "Every card must have a short actionable title, a description, expected deliverables, acceptance criteria, and dependsOn as 1-based card numbers.",
     "Add a final integration or verification card when the work has multiple outputs.",
@@ -5049,18 +5089,18 @@ async function planKanbanMultiAgent(text, workspace, ownerPrincipalId) {
     stream: true,
     store: false,
     model: AUTOMATION_CREATE_MODEL,
-    reasoning_effort: "medium",
+    reasoning_effort: reasoningEffort,
     conversation: `hermes_web_kanban_plan_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
     instructions: "Plan a multi-Agent Kanban decomposition. Return JSON only.",
     access_policy_context: sanitizePolicy(workspace?.policy || {}),
   }, KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS);
   try {
-    return normalizeKanbanPlan(extractJsonObject(output), sourceText, workspace?.id || ownerPrincipalId || "owner");
+    return normalizeKanbanPlan(extractJsonObject(output), sourceText, workspace?.id || ownerPrincipalId || "owner", { maxParallel, reasoningEffort });
   } catch (err) {
     const fallback = normalizeKanbanPlan({
       summary: sourceText,
       cards: kanbanPlanFallbackCards(sourceText),
-    }, sourceText, workspace?.id || ownerPrincipalId || "owner");
+    }, sourceText, workspace?.id || ownerPrincipalId || "owner", { maxParallel, reasoningEffort });
     fallback.warning = compactText(`Planner JSON fallback used: ${err.message || String(err)}`, 300);
     return fallback;
   }
@@ -5068,14 +5108,17 @@ async function planKanbanMultiAgent(text, workspace, ownerPrincipalId) {
 
 function kanbanPlanCardDescription(plan, card) {
   const dependencyLabels = kanbanPlanDependencyLabelsForServer(plan, card);
+  const maxParallel = normalizeKanbanMaxParallel(plan?.maxParallel);
+  const reasoningEffort = normalizeKanbanPlanReasoningEffort(plan?.reasoningEffort || plan?.reasoning_effort);
   return [
     `Multi-Agent plan: ${plan.summary || plan.sourceText || ""}`,
     `Source request:\n${plan.sourceText || ""}`,
+    reasoningEffort ? `Requested reasoning effort: ${reasoningEffort}` : "",
     `Card goal:\n${card.description || card.title || ""}`,
     card.deliverables?.length ? `Expected deliverables:\n- ${card.deliverables.join("\n- ")}` : "",
     card.acceptance?.length ? `Acceptance criteria:\n- ${card.acceptance.join("\n- ")}` : "",
     dependencyLabels.length ? `Dependencies:\n- ${dependencyLabels.join("\n- ")}` : "",
-    `Concurrency rule: Hermes Mobile may run at most ${KANBAN_MULTI_AGENT_MAX_PARALLEL} first-wave cards from this plan in parallel. Cards outside that wave are blocked until dependencies complete or the Owner unblocks them.`,
+    `Concurrency rule: Hermes Mobile may run at most ${maxParallel} first-wave cards from this plan in parallel. Cards outside that wave are blocked until dependencies complete or the Owner unblocks them.`,
   ].filter(Boolean).join("\n\n");
 }
 
@@ -5103,10 +5146,13 @@ function kanbanSingleCardCasePayload(content, description = "", sourceText = "")
 }
 
 async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
-  const plan = normalizeKanbanPlan(planInput, planInput?.sourceText || options.sourceText || "", workspaceId);
+  const requestedMaxParallel = options.maxParallel ?? planInput?.maxParallel ?? planInput?.max_parallel;
+  const maxParallel = normalizeKanbanMaxParallel(requestedMaxParallel);
+  const reasoningEffort = normalizeKanbanPlanReasoningEffort(options.reasoningEffort || options.reasoning_effort || planInput?.reasoningEffort || planInput?.reasoning_effort);
+  const plan = normalizeKanbanPlan(planInput, planInput?.sourceText || options.sourceText || "", workspaceId, { maxParallel, reasoningEffort });
   const created = [];
   const byClientId = new Map();
-  const runnableIds = new Set(plan.cards.filter((card) => !card.dependsOn.length).slice(0, KANBAN_MULTI_AGENT_MAX_PARALLEL).map((card) => card.clientId));
+  const runnableIds = new Set(plan.cards.filter((card) => !card.dependsOn.length).slice(0, maxParallel).map((card) => card.clientId));
 
   for (const [cardIndex, card] of plan.cards.entries()) {
     const assignee = card.assignee || options.assignee || "";
@@ -5153,7 +5199,7 @@ async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
     if (shouldBlock) {
       blockReason = dependencyLabels.length
         ? `Waiting for planned upstream cards: ${dependencyLabels.join(" / ")}.`
-        : `Waiting for a free multi-Agent execution slot; Hermes Mobile max parallel is ${KANBAN_MULTI_AGENT_MAX_PARALLEL}.`;
+        : `Waiting for a free multi-Agent execution slot; Hermes Mobile max parallel is ${maxParallel}.`;
       const blockedResult = await kanbanCardProvider.mutateCard({
         action: "block",
         workspaceId,
@@ -5184,7 +5230,7 @@ async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
     }
   }
 
-  return { ok: true, plan, cards: created, maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL };
+  return { ok: true, plan, cards: created, maxParallel };
 }
 
 function normalizeReadingPlanTime(value) {
@@ -6193,6 +6239,61 @@ function saveKanbanStudySubmissionUpload(workspaceId, cardId, body = {}, current
   const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
   fs.writeFileSync(filePath, buffer);
   return { path: filePath, name: filename, mime, size: buffer.length, kind: path.extname(filename).toLowerCase() === ".docx" ? "docx" : "text" };
+}
+
+function isKanbanSourceDocumentUpload(filename, mime) {
+  const ext = path.extname(String(filename || "")).toLowerCase();
+  const type = String(mime || "").toLowerCase().split(";")[0].trim();
+  return /^text\//i.test(type)
+    || ["application/json", "application/csv", "text/csv", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(type)
+    || [".txt", ".md", ".markdown", ".csv", ".json", ".docx"].includes(ext);
+}
+
+function saveKanbanSourceDocumentUpload(workspaceId, body = {}) {
+  const filename = safeFileName(body.filename || body.name || "kanban-source.txt");
+  const mime = String(body.type || body.mime || body.mimeType || body.mime_type || mimeFor(filename) || "").trim();
+  if (!isKanbanSourceDocumentUpload(filename, mime)) {
+    const err = new Error("Kanban source document must be DOCX, Markdown, plain text, CSV, or JSON");
+    err.status = 400;
+    throw err;
+  }
+  const data = String(body.dataBase64 || body.data_base64 || "");
+  if (!data) {
+    const err = new Error("Missing dataBase64");
+    err.status = 400;
+    throw err;
+  }
+  const buffer = Buffer.from(data, "base64");
+  if (!buffer.length || buffer.length > KANBAN_SOURCE_DOCUMENT_MAX_BYTES) {
+    const err = new Error("Invalid or too-large Kanban source document");
+    err.status = 400;
+    throw err;
+  }
+  const dir = path.join(DATA_DIR, "uploads", "kanban-source", safeStorageSegment(workspaceId || "owner"));
+  fs.mkdirSync(dir, { recursive: true });
+  const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
+  fs.writeFileSync(filePath, buffer);
+  return {
+    path: filePath,
+    name: filename,
+    mime,
+    size: buffer.length,
+    kind: path.extname(filename).toLowerCase() === ".docx" ? "docx" : "text",
+  };
+}
+
+function extractKanbanSourceDocumentText(upload) {
+  const ext = path.extname(upload?.path || upload?.name || "").toLowerCase();
+  const preview = ext === ".docx" || upload?.kind === "docx"
+    ? extractDocxText(upload.path)
+    : textFilePreview(upload.path);
+  const text = compactText(preview.text || "", MAX_FILE_PREVIEW_CHARS);
+  if (!text.trim()) throw new Error("Kanban source document extraction returned empty text");
+  return {
+    text,
+    totalChars: preview.totalChars || text.length,
+    truncated: Boolean(preview.truncated),
+  };
 }
 
 async function extractKanbanStudySubmissionEvidence(upload) {
@@ -14207,6 +14308,39 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/kanban/cards/document-preview" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req, Math.ceil(KANBAN_SOURCE_DOCUMENT_MAX_BYTES * 1.4) + 8192).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      sendJson(res, 413, { ok: false, error: body.__error.message || "Document upload is too large" });
+      return;
+    }
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    try {
+      const upload = saveKanbanSourceDocumentUpload(workspaceId, body);
+      const preview = extractKanbanSourceDocumentText(upload);
+      sendJson(res, 200, {
+        ok: true,
+        document: {
+          name: upload.name,
+          mime: upload.mime,
+          size: upload.size,
+          kind: upload.kind,
+        },
+        text: preview.text,
+        totalChars: preview.totalChars,
+        truncated: preview.truncated,
+      });
+    } catch (err) {
+      sendJson(res, err.status || 400, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
   if (url.pathname === "/api/kanban/cards/plan" && req.method === "POST") {
     if (!useKanbanTodoBackend()) {
       sendJson(res, 409, { error: "Kanban backend is not enabled" });
@@ -14221,8 +14355,13 @@ async function handleApi(req, res) {
       return;
     }
     try {
-      const plan = await planKanbanMultiAgent(text, findWorkspace(workspaceId), workspacePrincipal(workspaceId));
-      sendJson(res, 200, { ok: true, plan, maxParallel: KANBAN_MULTI_AGENT_MAX_PARALLEL });
+      const maxParallel = normalizeKanbanMaxParallel(body.maxParallel ?? body.max_parallel);
+      const reasoningEffort = normalizeKanbanPlanReasoningEffort(body.reasoning_effort || body.reasoningEffort || body.reasoning);
+      const plan = await planKanbanMultiAgent(text, findWorkspace(workspaceId), workspacePrincipal(workspaceId), {
+        maxParallel,
+        reasoningEffort,
+      });
+      sendJson(res, 200, { ok: true, plan, maxParallel, reasoningEffort });
     } catch (err) {
       sendJson(res, 502, { ok: false, error: compactText(err.message || String(err), 800) });
     }
@@ -14241,6 +14380,8 @@ async function handleApi(req, res) {
       const result = await createKanbanPlanCards(workspaceId, body.plan || { cards: body.cards || [], sourceText: body.text || "" }, {
         assignee: body.assignee || "",
         sourceText: body.text || "",
+        maxParallel: body.maxParallel ?? body.max_parallel ?? body.plan?.maxParallel ?? body.plan?.max_parallel,
+        reasoningEffort: body.reasoning_effort || body.reasoningEffort || body.plan?.reasoningEffort || body.plan?.reasoning_effort,
       });
       if (!result.ok) {
         kanbanErrorResponse(res, result, 502);
@@ -15532,7 +15673,7 @@ async function handleApi(req, res) {
 
   if (url.pathname === "/api/directories/preview" && req.method === "GET") {
     const threadId = String(url.searchParams.get("threadId") || "");
-    const thread = findThreadForRequest(req, threadId);
+    const thread = findDirectoryThreadForRequest(req, threadId);
     if (!thread) {
       sendJson(res, 404, { error: "Thread not found" });
       return;
@@ -15605,7 +15746,7 @@ async function handleApi(req, res) {
       sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
       return;
     }
-    const thread = findThreadForRequest(req, String(body.threadId || ""));
+    const thread = findDirectoryThreadForRequest(req, String(body.threadId || ""));
     if (!thread) {
       sendJson(res, 404, { error: "Thread not found" });
       return;
@@ -15694,7 +15835,7 @@ async function handleApi(req, res) {
       sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
       return;
     }
-    const thread = findThreadForRequest(req, String(body.threadId || ""));
+    const thread = findDirectoryThreadForRequest(req, String(body.threadId || ""));
     if (!thread) {
       sendJson(res, 404, { error: "Thread not found" });
       return;
@@ -15785,7 +15926,7 @@ async function handleApi(req, res) {
       sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
       return;
     }
-    const thread = findThreadForRequest(req, String(body.threadId || ""));
+    const thread = findDirectoryThreadForRequest(req, String(body.threadId || ""));
     if (!thread) {
       sendJson(res, 404, { error: "Thread not found" });
       return;
@@ -15888,7 +16029,7 @@ async function handleApi(req, res) {
       sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
       return;
     }
-    const thread = findThreadForRequest(req, String(body.threadId || ""));
+    const thread = findDirectoryThreadForRequest(req, String(body.threadId || ""));
     if (!thread) {
       sendJson(res, 404, { error: "Thread not found" });
       return;

@@ -4628,7 +4628,7 @@ button.directory-alias-chip {
 
 .kanban-create-mode {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -4665,6 +4665,103 @@ button.directory-alias-chip {
   font: inherit;
   font-size: 14px;
   line-height: 1.45;
+}
+
+.kanban-multi-agent-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kanban-multi-agent-controls label,
+.kanban-document-picker {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.kanban-document-source {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed rgba(31, 111, 98, 0.24);
+  border-radius: 14px;
+  background: rgba(231, 244, 238, 0.28);
+}
+
+.kanban-document-picker input {
+  width: 100%;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.kanban-document-upload-status {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.kanban-document-source-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kanban-document-source-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  padding: 9px;
+  border: 1px solid rgba(20, 32, 39, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.kanban-document-source-list strong,
+.kanban-document-source-list small,
+.kanban-document-source-list p {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.kanban-document-source-list strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.kanban-document-source-list small,
+.kanban-document-source-list p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.kanban-document-source-list button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: rgba(255, 252, 246, 0.78);
+  border: 1px solid rgba(20, 32, 39, 0.1);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .kanban-create-mode,
+  .kanban-multi-agent-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .kanban-reading-fields {
@@ -5543,6 +5640,12 @@ button.directory-alias-chip {
   background: rgba(50, 132, 108, 0.08);
   font-size: 12px;
   font-weight: 600;
+}
+
+.kanban-archive-case-action.danger {
+  color: #b04444;
+  background: rgba(176, 68, 68, 0.08);
+  border-color: rgba(176, 68, 68, 0.24);
 }
 
 .kanban-archive-case-action:active {
