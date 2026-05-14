@@ -209,11 +209,69 @@ function normalizeAssessmentExam(raw = {}, config = {}, options = {}) {
   };
 }
 
+function gradeAssessmentExam(exam = {}, state = {}, body = {}, options = {}) {
+  const questions = Array.isArray(exam.questions) ? exam.questions : [];
+  const answers = Array.isArray(body.answers)
+    ? body.answers
+    : (body.answers && typeof body.answers === "object" ? questions.map((question) => body.answers[question.id]) : []);
+  const invalidAnswers = questions
+    .map((question, index) => {
+      const answerIndex = Number(answers[index]);
+      const choiceCount = Array.isArray(question.choices) ? question.choices.length : 0;
+      return Number.isInteger(answerIndex) && answerIndex >= 0 && answerIndex < choiceCount ? null : (question.id || `q${index + 1}`);
+    })
+    .filter(Boolean);
+  if (!questions.length || answers.length < questions.length || invalidAnswers.length) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Assessment answers are incomplete",
+      missingAnswers: invalidAnswers,
+    };
+  }
+  const results = questions.map((question, index) => {
+    const answerIndex = Number(answers[index]);
+    const correct = Number.isInteger(answerIndex) && answerIndex === Number(question.answerIndex);
+    return {
+      id: question.id || `q${index + 1}`,
+      skill: question.skill || "",
+      correct,
+      answerIndex: Number.isInteger(answerIndex) ? answerIndex : -1,
+      correctIndex: Number(question.answerIndex),
+      explanation: question.explanation || "",
+    };
+  });
+  const correctCount = results.filter((item) => item.correct).length;
+  const total = results.length;
+  const score = Math.round((correctCount / Math.max(1, total)) * 100);
+  const passingScore = Number(exam.passingScore || state.config?.passingScore || options.passingScore || 80) || 80;
+  const passed = score >= passingScore;
+  return {
+    ok: true,
+    passed,
+    score,
+    correctCount,
+    total,
+    passingScore,
+    results,
+    attempt: {
+      submittedAt: typeof options.nowIso === "function" ? options.nowIso() : (options.submittedAt || new Date().toISOString()),
+      score,
+      correctCount,
+      total,
+      passingScore,
+      passed,
+      results,
+    },
+  };
+}
+
 module.exports = {
   assessmentChoiceSet,
   assessmentLooksLikeAmc8,
   fractionText,
   generateVerifiedAmc8AssessmentQuestions,
+  gradeAssessmentExam,
   mathQuestionWithChoices,
   normalizeAssessmentExam,
   seededNumber,

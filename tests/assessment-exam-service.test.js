@@ -6,6 +6,7 @@ const {
   assessmentLooksLikeAmc8,
   fractionText,
   generateVerifiedAmc8AssessmentQuestions,
+  gradeAssessmentExam,
   normalizeAssessmentExam,
   seededNumber,
   seededRandom,
@@ -110,10 +111,42 @@ function testNormalizeAssessmentExam() {
   );
 }
 
+function testGradeAssessmentExam() {
+  const exam = {
+    passingScore: 80,
+    questions: [
+      { id: "q1", skill: "a", choices: ["0", "1"], answerIndex: 1, explanation: "one" },
+      { id: "q2", skill: "b", choices: ["x", "y"], answerIndex: 0, explanation: "x" },
+      { id: "q3", skill: "c", choices: ["m", "n"], answerIndex: 1, explanation: "n" },
+    ],
+  };
+  const passed = gradeAssessmentExam(exam, {}, { answers: [1, 0, 1] }, { submittedAt: "2026-05-15T00:00:00.000Z" });
+  assert.equal(passed.ok, true);
+  assert.equal(passed.passed, true);
+  assert.equal(passed.score, 100);
+  assert.equal(passed.attempt.submittedAt, "2026-05-15T00:00:00.000Z");
+
+  const failed = gradeAssessmentExam(exam, {}, { answers: { q1: 1, q2: 1, q3: 0 } }, { submittedAt: "fixed" });
+  assert.equal(failed.ok, true);
+  assert.equal(failed.passed, false);
+  assert.equal(failed.correctCount, 1);
+  assert.equal(failed.score, 33);
+  assert.deepEqual(failed.results.map((item) => item.correct), [true, false, false]);
+
+  const incomplete = gradeAssessmentExam(exam, {}, { answers: [1, 0] });
+  assert.equal(incomplete.ok, false);
+  assert.equal(incomplete.status, 400);
+
+  const invalid = gradeAssessmentExam(exam, {}, { answers: [1, 0, 4] });
+  assert.equal(invalid.ok, false);
+  assert.deepEqual(invalid.missingAnswers, ["q3"]);
+}
+
 testSeededRandomIsDeterministic();
 testAssessmentChoiceSet();
 testFractionsAndAmcDetection();
 testVerifiedAmc8Questions();
 testNormalizeAssessmentExam();
+testGradeAssessmentExam();
 
 console.log("assessment exam service tests passed");

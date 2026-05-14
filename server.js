@@ -7032,50 +7032,9 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
     state = readKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard);
   }
   const exam = state.exam;
-  const questions = Array.isArray(exam.questions) ? exam.questions : [];
-  const answers = Array.isArray(body.answers)
-    ? body.answers
-    : (body.answers && typeof body.answers === "object" ? questions.map((question) => body.answers[question.id]) : []);
-  const invalidAnswers = questions
-    .map((question, index) => {
-      const answerIndex = Number(answers[index]);
-      const choiceCount = Array.isArray(question.choices) ? question.choices.length : 0;
-      return Number.isInteger(answerIndex) && answerIndex >= 0 && answerIndex < choiceCount ? null : (question.id || `q${index + 1}`);
-    })
-    .filter(Boolean);
-  if (!questions.length || answers.length < questions.length || invalidAnswers.length) {
-    return {
-      ok: false,
-      status: 400,
-      error: "Assessment answers are incomplete",
-      missingAnswers: invalidAnswers,
-    };
-  }
-  const results = questions.map((question, index) => {
-    const answerIndex = Number(answers[index]);
-    const correct = Number.isInteger(answerIndex) && answerIndex === Number(question.answerIndex);
-    return {
-      id: question.id || `q${index + 1}`,
-      skill: question.skill || "",
-      correct,
-      answerIndex: Number.isInteger(answerIndex) ? answerIndex : -1,
-      correctIndex: Number(question.answerIndex),
-      explanation: question.explanation || "",
-    };
-  });
-  const correctCount = results.filter((item) => item.correct).length;
-  const score = Math.round((correctCount / Math.max(1, results.length)) * 100);
-  const passingScore = Number(exam.passingScore || state.config?.passingScore || 80) || 80;
-  const passed = score >= passingScore;
-  const attempt = {
-    submittedAt: nowIso(),
-    score,
-    correctCount,
-    total: results.length,
-    passingScore,
-    passed,
-    results,
-  };
+  const graded = assessmentExamService.gradeAssessmentExam(exam, state, body, { nowIso });
+  if (!graded.ok) return graded;
+  const { attempt, correctCount, passed, passingScore, results, score, total } = graded;
   const reportPath = assessmentExamReportPath(workspaceId, canonicalCardId, currentCard, exam, attempt);
   const nextState = Object.assign({}, state, {
     status: passed ? "in_progress" : "retake_required",
@@ -7103,7 +7062,7 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
       status: "retake_required",
       score,
       correctCount,
-      total: results.length,
+      total,
       passingScore,
       reportPath,
       results: results.map((item) => ({ id: item.id, skill: item.skill, correct: item.correct, explanation: item.correct ? "" : item.explanation })),
@@ -7116,7 +7075,7 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
     cardId: canonicalCardId,
     result: [
       `Formal assessment passed with ${score}/100.`,
-      `Correct: ${correctCount}/${results.length}.`,
+      `Correct: ${correctCount}/${total}.`,
       `MEDIA: ${reportPath}`,
     ].join("\n"),
     author: "Hermes Mobile",
@@ -7140,7 +7099,7 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
     status: "completed",
     score,
     correctCount,
-    total: results.length,
+    total,
     passingScore,
     reportPath,
     card: publicTodo(completed),
