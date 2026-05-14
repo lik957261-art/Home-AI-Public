@@ -5297,6 +5297,34 @@ button.directory-alias-chip {
   gap: 12px;
 }
 
+.kanban-archive-case.story-collapsed > :not(.kanban-archive-case-head) {
+  display: none;
+}
+
+.kanban-archive-case-toggle {
+  cursor: pointer;
+  border-radius: 14px;
+  padding: 2px 4px;
+  outline: none;
+}
+
+.kanban-archive-case-toggle:focus-visible {
+  box-shadow: 0 0 0 3px rgba(50, 132, 108, 0.18);
+}
+
+.kanban-archive-case-toggle::after {
+  content: "\2304";
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  transform: rotate(-90deg);
+}
+
+.kanban-archive-case-toggle[aria-expanded="true"]::after {
+  transform: rotate(0deg);
+}
+
 .kanban-archive-case-head > div {
   min-width: 0;
   display: grid;

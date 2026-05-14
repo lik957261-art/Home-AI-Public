@@ -161,6 +161,7 @@ const state = {
   todoCompletedLoaded: false,
   todoCardDetails: {},
   kanbanStoryDetailQueued: {},
+  kanbanStoryExpanded: {},
   todoCommentDrafts: {},
   todoRevisionDrafts: {},
   todoRevisionSubmitting: {},
@@ -9197,6 +9198,41 @@ function kanbanStoryCases(items) {
   ));
 }
 
+function kanbanStoryCaseKey(group) {
+  const first = (group?.cards || [])[0]?.todo || {};
+  return [
+    String(group?.mode || "case"),
+    String(group?.id || first.kanbanCaseId || first.id || group?.title || "story"),
+  ].filter(Boolean).join(":");
+}
+
+function kanbanStoryCaseExpanded(group) {
+  const key = kanbanStoryCaseKey(group);
+  return Boolean(key && state.kanbanStoryExpanded && state.kanbanStoryExpanded[key]);
+}
+
+function kanbanStoryToggleAttrs(group, expanded) {
+  const key = kanbanStoryCaseKey(group);
+  return key
+    ? ` data-kanban-story-case="${escapeHtml(key)}" role="button" tabindex="0" aria-expanded="${expanded ? "true" : "false"}"`
+    : "";
+}
+
+function kanbanStoryCaseBodyOpen(group, options = {}) {
+  return !options.collapsible || kanbanStoryCaseExpanded(group);
+}
+
+function kanbanStoryCaseRenderState(group, options = {}) {
+  const collapsible = Boolean(options.collapsible);
+  const expanded = kanbanStoryCaseBodyOpen(group, options);
+  return {
+    expanded,
+    caseClass: collapsible && !expanded ? " story-collapsed" : "",
+    toggleClass: collapsible ? " kanban-archive-case-toggle" : "",
+    toggleAttrs: collapsible ? kanbanStoryToggleAttrs(group, expanded) : "",
+  };
+}
+
 function kanbanArchiveStatusSummary(group) {
   const counts = new Map();
   for (const item of group.cards) {
@@ -9251,7 +9287,7 @@ function scheduleKanbanStoryDetailLoads(items) {
   if (String(state.todoKanbanStatus || "").trim().toLowerCase() !== KANBAN_STORY_STATUS) return;
   const queued = state.kanbanStoryDetailQueued || {};
   const ids = [];
-  for (const group of kanbanStoryCases(items).slice(0, 4)) {
+  for (const group of kanbanStoryCases(items).filter(kanbanStoryCaseExpanded).slice(0, 4)) {
     const cardItems = group.mode === "study-plan"
       ? [kanbanReadingCaseCurrentItem(group)].filter(Boolean)
       : (group.cards || []).slice(0, 10);
@@ -9272,7 +9308,7 @@ function scheduleKanbanStoryDetailLoads(items) {
   });
 }
 
-function renderKanbanReadingArchiveCase(group) {
+function renderKanbanReadingArchiveCase(group, options = {}) {
   const cards = group.cards || [];
   const baseCards = kanbanReadingBaseCardItems(group);
   const first = cards[0]?.todo || {};
@@ -9295,6 +9331,7 @@ function renderKanbanReadingArchiveCase(group) {
     currentTodo?.dueLocal || currentTodo?.dueAt || "",
     currentOutputCount ? `\u4ea4\u4ed8 ${currentOutputCount}` : "",
   ].filter(Boolean).join(" | ");
+  const storyState = kanbanStoryCaseRenderState(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
@@ -9303,8 +9340,8 @@ function renderKanbanReadingArchiveCase(group) {
       ${currentFeedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(currentFeedback)}</small>` : ""}
     </button>
   </li>` : "";
-  return `<article class="kanban-archive-case study-plan-case">
-    <header class="kanban-archive-case-head">
+  return `<article class="kanban-archive-case study-plan-case${storyState.caseClass}">
+    <header class="kanban-archive-case-head${storyState.toggleClass}"${storyState.toggleAttrs}>
       <div>
         <span>${escapeHtml([labels.plan, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
@@ -9330,7 +9367,7 @@ function renderKanbanReadingArchiveCase(group) {
   </article>`;
 }
 
-function renderKanbanAssessmentArchiveCase(group) {
+function renderKanbanAssessmentArchiveCase(group, options = {}) {
   const cards = group.cards || [];
   const first = cards[0]?.todo || {};
   const current = kanbanAssessmentCaseCurrentItem(group);
@@ -9350,6 +9387,7 @@ function renderKanbanAssessmentArchiveCase(group) {
     summary.passingScore ? `通过线 ${summary.passingScore}` : "",
     lastAttempt ? `上次 ${lastAttempt.score}/100` : "",
   ].filter(Boolean).join(" | ");
+  const storyState = kanbanStoryCaseRenderState(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
@@ -9357,8 +9395,8 @@ function renderKanbanAssessmentArchiveCase(group) {
       <small>${escapeHtml(currentMeta)}</small>
     </button>
   </li>` : "";
-  return `<article class="kanban-archive-case assessment-plan-case">
-    <header class="kanban-archive-case-head">
+  return `<article class="kanban-archive-case assessment-plan-case${storyState.caseClass}">
+    <header class="kanban-archive-case-head${storyState.toggleClass}"${storyState.toggleAttrs}>
       <div>
         <span>${escapeHtml(["考试计划", statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "考试计划")}</h3>
@@ -9383,9 +9421,9 @@ function renderKanbanAssessmentArchiveCase(group) {
   </article>`;
 }
 
-function renderKanbanArchiveCase(group) {
-  if (group.mode === "assessment-plan") return renderKanbanAssessmentArchiveCase(group);
-  if (group.mode === "study-plan") return renderKanbanReadingArchiveCase(group);
+function renderKanbanArchiveCase(group, options = {}) {
+  if (group.mode === "assessment-plan") return renderKanbanAssessmentArchiveCase(group, options);
+  if (group.mode === "study-plan") return renderKanbanReadingArchiveCase(group, options);
   const cards = group.cards || [];
   const first = cards[0]?.todo || {};
   const cover = cards.map((item) => kanbanCaseCover(item.todo)).find(Boolean);
@@ -9421,8 +9459,9 @@ function renderKanbanArchiveCase(group) {
     </li>`;
   }).join("");
   const more = cards.length > 8 ? `<li class="kanban-archive-more">+${cards.length - 8}</li>` : "";
-  return `<article class="kanban-archive-case">
-    <header class="kanban-archive-case-head">
+  const storyState = kanbanStoryCaseRenderState(group, options);
+  return `<article class="kanban-archive-case${storyState.caseClass}">
+    <header class="kanban-archive-case-head${storyState.toggleClass}"${storyState.toggleAttrs}>
       <div>
         <span>${escapeHtml(["\u4efb\u52a1\u6545\u4e8b", modeLabel, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
@@ -9459,7 +9498,7 @@ function renderKanbanStoryTree(items) {
   if (!cases.length) {
     return `<div class="empty-state small">\u6682\u65e0\u6545\u4e8b\u6811\u3002\u591a Agent \u62c6\u89e3\u7684\u4efb\u52a1\u4f1a\u5728\u8fd9\u91cc\u6309\u9700\u6c42\u3001\u62c6\u89e3\u3001\u7ed3\u8bba\u805a\u5408\u3002</div>`;
   }
-  return `<div class="kanban-archive-stories">${cases.map(renderKanbanArchiveCase).join("")}</div>`;
+  return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true })).join("")}</div>`;
 }
 
 function todoDueLabel(todo) {
@@ -10654,6 +10693,27 @@ function wireTodoPanel(root) {
         return;
       }
       renderTodos();
+    });
+  });
+  root.querySelectorAll("[data-kanban-story-case]").forEach((button) => {
+    const toggle = () => {
+      const key = String(button.dataset.kanbanStoryCase || "").trim();
+      if (!key) return;
+      state.kanbanStoryExpanded = Object.assign({}, state.kanbanStoryExpanded || {}, {
+        [key]: !state.kanbanStoryExpanded?.[key],
+      });
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    };
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggle();
+    });
+    button.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggle();
     });
   });
   root.querySelectorAll("[data-todo-id]").forEach((button) => {
