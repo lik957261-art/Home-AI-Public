@@ -261,6 +261,8 @@ assert.match(appJs, /compatible === "completed"\s+&& !assessmentExamCompleted\(t
 assert.match(appJs, /function kanbanAssessmentCaseCurrentItem\(group\)/);
 assert.match(appJs, /function assessmentPriorComplete\(todo\)/);
 assert.match(appJs, /return assessmentPriorComplete\(todo\)/);
+assert.match(appJs, /function assessmentHasVisibleResult\(todo\)/);
+assert.match(appJs, /isKanbanAssessmentCard\(todo\) && !assessmentHasVisibleResult\(todo\)/);
 assert.match(appJs, /const next = cards\.find\(\(item\) => isKanbanAssessmentCard\(item\.todo\) && !assessmentExamCompleted\(item\.todo\) && normalizedKanbanStatus\(item\.todo\) !== "archived"\)/);
 assert.match(appJs, /if \(!summary\.lastAttempt && !assessmentExamCompleted\(todo\)\) return \[\]/);
 assert.match(appJs, /function renderKanbanAssessmentArchiveCase\(group, options = \{\}\)/);
@@ -432,8 +434,8 @@ assert.ok(appJs.includes("New topic"));
 assert.ok(appJs.includes("\u770b\u677f\u8be6\u60c5"));
 assert.ok(appJs.includes("\u65b0\u589e\u5361\u7247"));
 assert.ok(appJs.includes("Topic ID"));
-assert.ok(indexHtml.includes("20260514-plan-open"));
-assert.ok(serviceWorkerJs.includes("20260514-plan-open"));
+assert.ok(indexHtml.includes("20260514-assessment-receipt"));
+assert.ok(serviceWorkerJs.includes("20260514-assessment-receipt"));
 assert.match(indexHtml, /id="chatManagementMode"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.addEventListener\("click"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.classList\.toggle\("active", single && state\.singleWindowMode === "chat"\)/);
@@ -581,6 +583,8 @@ assert.match(serverJs, /url\.pathname === "\/api\/kanban\/cards\/output\/preview
 assert.match(serverJs, /publicKanbanCardDetail\(workspaceId, result\)/);
 assert.match(serverJs, /function publicKanbanOutputsFromText\(workspaceId, text\)/);
 assert.match(serverJs, /kanbanOutputs: publicKanbanOutputsFromText\(workspaceId, kanbanResult\)/);
+assert.match(serverJs, /payload\.kanbanResult = ""/);
+assert.match(serverJs, /payload\.kanbanOutputs = \[\]/);
 assert.match(kanbanProviderJs, /workspace_id: String\(meta\.workspaceId \|\| meta\.workspace_id \|\| payload\.workspace_id \|\| payload\.workspaceId \|\| ""\)/);
 assert.match(kanbanProviderJs, /let runs = Array\.isArray\(show\?\.runs\) \? show\.runs : \[\]/);
 assert.match(kanbanProviderJs, /const includeLog = bool\(payload\.include_log \|\| payload\.includeLog\)/);

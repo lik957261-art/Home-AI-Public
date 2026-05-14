@@ -8938,6 +8938,7 @@ function cleanKanbanReadingResultText(text) {
 function kanbanDisplayResultText(todo, text) {
   const raw = String(text || "").trim();
   if (!raw) return "";
+  if (isKanbanAssessmentCard(todo) && !assessmentHasVisibleResult(todo)) return "";
   return isKanbanReadingCard(todo)
     ? cleanKanbanReadingResultText(raw)
     : cleanKanbanInternalResultLines(raw);
@@ -9036,6 +9037,11 @@ function assessmentExamCompleted(todo) {
   const summary = assessmentExamSummary(todo);
   return String(summary?.status || "") === "completed"
     || Boolean(summary?.lastAttempt?.passed);
+}
+
+function assessmentHasVisibleResult(todo) {
+  const summary = assessmentExamSummary(todo);
+  return Boolean(summary?.lastAttempt) || assessmentExamCompleted(todo);
 }
 
 function kanbanCasePriorCards(todo, predicate) {
@@ -10301,6 +10307,7 @@ function renderKanbanProcessRows(detail) {
 
 function renderKanbanDetailReport(todo) {
   if (!isKanbanTodoSource()) return "";
+  if (isKanbanAssessmentCard(todo) && !assessmentHasVisibleResult(todo)) return "";
   const detail = todoCardDetailState(todo.id);
   const summary = kanbanDisplayResultText(todo, todo.kanbanResult || detail?.summary || "");
   const readingCard = isKanbanReadingCard(todo);

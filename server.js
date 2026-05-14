@@ -4170,6 +4170,14 @@ function publicTodo(row) {
   if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
     payload.assessmentExam = publicKanbanAssessmentSummary(workspaceId, payload);
     payload.kanbanAssessmentKind = payload.kanbanCaseTemplate || "assessment";
+    if (payload.assessmentExam && !payload.assessmentExam.lastAttempt && String(payload.assessmentExam.status || "") !== "completed") {
+      payload.status = payload.status === "cancelled" ? payload.status : "open";
+      payload.kanbanStatus = payload.kanbanStatus === "archived" ? payload.kanbanStatus : "blocked";
+      payload.kanbanCompletedAt = "";
+      payload.completedAt = "";
+      payload.kanbanResult = "";
+      payload.kanbanOutputs = [];
+    }
   }
   return payload;
 }
