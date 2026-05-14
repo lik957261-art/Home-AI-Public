@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
+const bridgeCommandProvider = require("../adapters/bridge-command-provider");
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
 const documentPreviewService = require("../adapters/document-preview-service");
@@ -65,6 +66,8 @@ function assertAppearsInOrder(text, labels) {
 }
 
 function testRefactorModulesExportStableContracts() {
+  assert.equal(typeof bridgeCommandProvider.createBridgeCommandProvider, "function");
+  assert.equal(typeof bridgeCommandProvider.runJsonBridgeCommand, "function");
   assert.equal(typeof routeRegistry.createApiRouteRegistry, "function");
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
   assert.equal(typeof documentPreviewService.createDocumentPreviewService, "function");
@@ -127,6 +130,7 @@ function testRefactorModulesExportStableContracts() {
 function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const server = fileText("server.js");
   assert.match(server, /createPublicApiRoutes/);
+  assert.match(server, /bridgeCommandProvider\.runJsonCommand/);
   assert.match(server, /publicApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createSystemApiRoutes/);
   assert.match(server, /systemApiRoutes\.handle\(req, res, url\)/);

@@ -3565,58 +3565,16 @@ function runTodoBridge(payload) {
   if (useKanbanTodoBackend()) return kanbanTodoBridge.run(payload);
   if (useLocalTodoBackend()) return runLocalTodoBridge(payload);
   if (BRIDGE_HOST_URL) return runBridgeHost("todo", payload, TODO_BRIDGE_TIMEOUT_MS);
-  return new Promise((resolve, reject) => {
-    const bridge = bridgeCommandProvider.python(TODO_BRIDGE_SCRIPT, [
-      "HERMES_WEB_TODO_PLUGIN_NAME",
-      "HERMES_WEB_TODO_PLUGIN_PATH",
-    ]);
-    const { command, args } = bridge;
-    const child = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill();
-      reject(new Error("Todo bridge timed out"));
-    }, TODO_BRIDGE_TIMEOUT_MS);
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-      if (stdout.length > CRON_BRIDGE_STDOUT_LIMIT_BYTES) stdout = stdout.slice(-CRON_BRIDGE_STDOUT_LIMIT_BYTES);
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
-      if (stderr.length > 200_000) stderr = stderr.slice(-200_000);
-    });
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      let result = null;
-      try {
-        result = JSON.parse(stdout.trim() || "{}");
-      } catch (err) {
-        reject(new Error(`Todo bridge returned invalid JSON: ${err.message || String(err)}`));
-        return;
-      }
-      if (code !== 0 && !result.error) {
-        reject(new Error(stderr.trim() || `Todo bridge exited with ${code}`));
-        return;
-      }
-      if (stderr.trim()) result.stderr = compactText(stderr.trim(), 1200);
-      resolve(result);
-    });
-    child.stdin.end(JSON.stringify(payload || {}));
+  const bridge = bridgeCommandProvider.python(TODO_BRIDGE_SCRIPT, [
+    "HERMES_WEB_TODO_PLUGIN_NAME",
+    "HERMES_WEB_TODO_PLUGIN_PATH",
+  ]);
+  return bridgeCommandProvider.runJsonCommand(bridge, payload, {
+    spawn,
+    label: "Todo bridge",
+    timeoutMs: TODO_BRIDGE_TIMEOUT_MS,
+    stdoutLimitBytes: CRON_BRIDGE_STDOUT_LIMIT_BYTES,
+    compactText,
   });
 }
 
@@ -4073,60 +4031,18 @@ async function runLocalCronBridge(payload = {}) {
 function runCronBridge(payload) {
   if (useLocalAutomationBackend()) return runLocalCronBridge(payload);
   if (BRIDGE_HOST_URL) return runBridgeHost("cron", payload, CRON_BRIDGE_TIMEOUT_MS);
-  return new Promise((resolve, reject) => {
-    const bridge = bridgeCommandProvider.python(CRON_BRIDGE_SCRIPT, [
-      "HERMES_WEB_CRON_JOBS_PATH",
-      "HERMES_CRON_JOBS_PATH",
-      "HERMES_WEB_CRON_JOBS_FALLBACK_PATH",
-      "HERMES_WEB_CRON_OUTPUT_ROOT",
-    ]);
-    const { command, args } = bridge;
-    const child = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill();
-      reject(new Error("Cron bridge timed out"));
-    }, CRON_BRIDGE_TIMEOUT_MS);
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-      if (stdout.length > 2_000_000) stdout = stdout.slice(-2_000_000);
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
-      if (stderr.length > 200_000) stderr = stderr.slice(-200_000);
-    });
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      let result = null;
-      try {
-        result = JSON.parse(stdout.trim() || "{}");
-      } catch (err) {
-        reject(new Error(`Cron bridge returned invalid JSON: ${err.message || String(err)}`));
-        return;
-      }
-      if (code !== 0 && !result.error) {
-        reject(new Error(stderr.trim() || `Cron bridge exited with ${code}`));
-        return;
-      }
-      if (stderr.trim()) result.stderr = compactText(stderr.trim(), 1200);
-      resolve(result);
-    });
-    child.stdin.end(JSON.stringify(payload || {}));
+  const bridge = bridgeCommandProvider.python(CRON_BRIDGE_SCRIPT, [
+    "HERMES_WEB_CRON_JOBS_PATH",
+    "HERMES_CRON_JOBS_PATH",
+    "HERMES_WEB_CRON_JOBS_FALLBACK_PATH",
+    "HERMES_WEB_CRON_OUTPUT_ROOT",
+  ]);
+  return bridgeCommandProvider.runJsonCommand(bridge, payload, {
+    spawn,
+    label: "Cron bridge",
+    timeoutMs: CRON_BRIDGE_TIMEOUT_MS,
+    stdoutLimitBytes: 2_000_000,
+    compactText,
   });
 }
 
@@ -4195,57 +4111,15 @@ bootTrace("automation api routes ready");
 
 function runDirectoryBridge(payload) {
   if (BRIDGE_HOST_URL) return runBridgeHost("directory", payload, DIRECTORY_BRIDGE_TIMEOUT_MS);
-  return new Promise((resolve, reject) => {
-    const bridge = bridgeCommandProvider.python(DIRECTORY_BRIDGE_SCRIPT, [
-      "HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON",
-    ]);
-    const { command, args } = bridge;
-    const child = spawn(command, args, {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill();
-      reject(new Error("Directory bridge timed out"));
-    }, DIRECTORY_BRIDGE_TIMEOUT_MS);
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-      if (stdout.length > 4_000_000) stdout = stdout.slice(-4_000_000);
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
-      if (stderr.length > 200_000) stderr = stderr.slice(-200_000);
-    });
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      let result = null;
-      try {
-        result = JSON.parse(stdout.trim() || "{}");
-      } catch (err) {
-        reject(new Error(`Directory bridge returned invalid JSON: ${err.message || String(err)}`));
-        return;
-      }
-      if (code !== 0 && !result.error) {
-        reject(new Error(stderr.trim() || `Directory bridge exited with ${code}`));
-        return;
-      }
-      if (stderr.trim()) result.stderr = compactText(stderr.trim(), 1200);
-      resolve(result);
-    });
-    child.stdin.end(JSON.stringify(payload || {}));
+  const bridge = bridgeCommandProvider.python(DIRECTORY_BRIDGE_SCRIPT, [
+    "HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON",
+  ]);
+  return bridgeCommandProvider.runJsonCommand(bridge, payload, {
+    spawn,
+    label: "Directory bridge",
+    timeoutMs: DIRECTORY_BRIDGE_TIMEOUT_MS,
+    stdoutLimitBytes: 4_000_000,
+    compactText,
   });
 }
 
