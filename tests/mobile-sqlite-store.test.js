@@ -133,6 +133,25 @@ function makeJsonDataDir() {
       },
     ],
   });
+  writeJson(path.join(dir, "kanban-case-shares.json"), {
+    schemaVersion: 1,
+    cases: {
+      "owner::study_case": {
+        schemaVersion: 1,
+        ownerWorkspaceId: "owner",
+        caseId: "study_case",
+        caseMode: "study-plan",
+        performerWorkspaceIds: ["weixin_example_user"],
+        viewerWorkspaceIds: ["viewer_a"],
+        topicThreadId: "thread_owner",
+        topicTaskGroupId: "study_case_topic",
+        sharedDirectoryPath: "/data/health",
+        caseDirectoryPath: "/data/health/study_case",
+        createdAt: "2026-05-07T00:00:00.000Z",
+        updatedAt: "2026-05-07T00:02:00.000Z",
+      },
+    },
+  });
   writeJson(path.join(dir, "workspaces.json"), {
     schemaVersion: 1,
     workspaces: [
@@ -186,10 +205,12 @@ function testImportAndIntegrity() {
   assert.equal(report.counts.push_receipts, 1);
   assert.equal(report.counts.push_deliveries, 1);
   assert.equal(report.counts.shared_directories, 1);
+  assert.equal(report.counts.kanban_case_shares, 1);
   assert.equal(report.counts.todo_items, 1);
   assert.equal(report.counts.automation_jobs, 1);
   assert.equal(manifest.counts.messages, 2);
   assert.equal(manifest.counts.artifacts, 1);
+  assert.equal(manifest.counts.kanbanCaseShares, 1);
   assert.equal(manifest.counts.todoItems, 1);
   assert.equal(manifest.counts.automationJobs, 1);
   assert.equal(manifest.warnings.length, 0);
@@ -201,6 +222,12 @@ function testImportAndIntegrity() {
   const push = store.open().prepare("SELECT endpoint_hash FROM push_subscriptions WHERE id = ?").get("push_1");
   assert.match(push.endpoint_hash, /^[a-f0-9]{64}$/);
   assert.notEqual(push.endpoint_hash, "https://push.example.invalid/token");
+
+  const caseShare = store.getKanbanCaseShare("owner", "study_case");
+  assert.equal(caseShare.caseMode, "study-plan");
+  assert.equal(caseShare.topicThreadId, "thread_owner");
+  assert.deepEqual(caseShare.performerWorkspaceIds, ["weixin_example_user"]);
+  assert.deepEqual(caseShare.viewerWorkspaceIds, ["viewer_a"]);
   store.close();
 }
 
@@ -284,6 +311,81 @@ function testServiceLayerLocalRows() {
   store.close();
 }
 
+function testKanbanCaseShareCrud() {
+  const dir = tempDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "shares.sqlite3") });
+  store.migrate();
+
+  const created = store.upsertKanbanCaseShare("owner", "case_a", {
+    caseMode: "assessment-plan",
+    performerWorkspaceId: "student_a",
+    viewerWorkspaceIds: ["observer_a", "student_a", "owner"],
+    managerWorkspaceIds: ["coach_a", "owner"],
+    topic: {
+      topicThreadId: "thread_case_a",
+      topicTaskGroupId: "task_group_case_a",
+      sharedDirectoryPath: "C:\\shared",
+      caseDirectoryPath: "C:\\shared\\case_a",
+    },
+    createdAt: "2026-05-14T00:00:00.000Z",
+    updatedAt: "2026-05-14T00:01:00.000Z",
+    accessToken: "must-not-be-stored",
+  });
+  assert.equal(created.ownerWorkspaceId, "owner");
+  assert.equal(created.workspaceId, "owner");
+  assert.equal(created.caseId, "case_a");
+  assert.equal(created.caseMode, "assessment-plan");
+  assert.equal(created.performerWorkspaceId, "student_a");
+  assert.deepEqual(created.performerWorkspaceIds, ["student_a"]);
+  assert.deepEqual(created.viewerWorkspaceIds, ["observer_a"]);
+  assert.deepEqual(created.managerWorkspaceIds, ["coach_a"]);
+  assert.equal(created.topicThreadId, "thread_case_a");
+  assert.equal(created.topicTaskGroupId, "task_group_case_a");
+  assert.equal(created.sharedDirectoryPath, "C:\\shared");
+  assert.equal(created.caseDirectoryPath, "C:\\shared\\case_a");
+
+  const raw = store.open().prepare("SELECT raw_json FROM kanban_case_shares WHERE case_id = ?").get("case_a").raw_json;
+  assert.doesNotMatch(raw, /must-not-be-stored/);
+  assert.doesNotMatch(raw, /accessToken/);
+
+  const updated = store.upsertKanbanCaseShare({
+    ownerWorkspaceId: "owner",
+    caseId: "case_a",
+    performerWorkspaceIds: ["student_b"],
+    viewerWorkspaceIds: "observer_b, student_b, owner",
+    updatedAt: "2026-05-14T00:02:00.000Z",
+  });
+  assert.equal(updated.caseMode, "assessment-plan");
+  assert.equal(updated.performerWorkspaceId, "student_b");
+  assert.deepEqual(updated.performerWorkspaceIds, ["student_b"]);
+  assert.deepEqual(updated.viewerWorkspaceIds, ["observer_b"]);
+
+  assert.deepEqual(
+    store.listKanbanCaseShares({ actorWorkspaceId: "observer_b" }).map((row) => row.caseId),
+    ["case_a"],
+  );
+  assert.deepEqual(
+    store.listKanbanCaseShares({ actorWorkspaceId: "student_a" }).map((row) => row.caseId),
+    [],
+  );
+
+  const softDeleted = store.deleteKanbanCaseShare("owner", "case_a", {
+    soft: true,
+    deletedAt: "2026-05-14T00:03:00.000Z",
+  });
+  assert.equal(softDeleted.deletedAt, "2026-05-14T00:03:00.000Z");
+  assert.deepEqual(store.listKanbanCaseShares({ ownerWorkspaceId: "owner" }), []);
+  assert.deepEqual(
+    store.listKanbanCaseShares({ ownerWorkspaceId: "owner", includeDeleted: true }).map((row) => row.caseId),
+    ["case_a"],
+  );
+
+  const removed = store.deleteKanbanCaseShare("owner", "case_a");
+  assert.equal(removed.caseId, "case_a");
+  assert.equal(store.getKanbanCaseShare("owner", "case_a"), null);
+  store.close();
+}
+
 function testRuntimeStateRoundTrip() {
   const dataDir = makeJsonDataDir();
   const store = createMobileSqliteStore({ dbPath: path.join(dataDir, "runtime.sqlite3") });
@@ -347,6 +449,7 @@ function testAuditStoresDecisionPayload() {
 testImportAndIntegrity();
 testWorkspaceInferenceFallback();
 testServiceLayerLocalRows();
+testKanbanCaseShareCrud();
 testRuntimeStateRoundTrip();
 testAuditStoresDecisionPayload();
 console.log("mobile-sqlite-store tests passed");

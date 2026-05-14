@@ -32,6 +32,7 @@ const { createSecurityBoundaryProvider } = require("./adapters/security-boundary
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
 const { deriveKanbanWorkflowState } = require("./adapters/study-workflow-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider");
+const { buildRequestContext } = require("./adapters/request-context-provider");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
@@ -4027,7 +4028,7 @@ function normalizeWorkspaceIdList(value) {
   return out;
 }
 
-function kanbanCaseShareStore() {
+function kanbanCaseShareJsonStore() {
   const raw = readJsonStore(KANBAN_CASE_SHARE_PATH, { schemaVersion: 1, cases: {} });
   return {
     schemaVersion: 1,
@@ -4035,8 +4036,41 @@ function kanbanCaseShareStore() {
   };
 }
 
+function kanbanCaseShareStore() {
+  const store = kanbanCaseShareJsonStore();
+  if (!useSqliteServiceStore()) return store;
+  const rows = mobileSqliteStore().listKanbanCaseShares({ includeArchived: true, includeDeleted: true });
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const key = kanbanCaseShareKey(row.ownerWorkspaceId, row.caseId);
+    if (!key.endsWith("::")) store.cases[key] = Object.assign({}, store.cases[key] || {}, row);
+  }
+  return store;
+}
+
+function syncKanbanCaseShareStoreToSqlite(store) {
+  if (!useSqliteServiceStore()) return;
+  const sqlite = mobileSqliteStore();
+  for (const share of Object.values(store?.cases || {})) {
+    if (!share || typeof share !== "object" || Array.isArray(share)) continue;
+    const owner = String(share.ownerWorkspaceId || share.owner_workspace_id || "owner").trim() || "owner";
+    const caseId = String(share.caseId || share.case_id || share.kanbanCaseId || share.kanban_case_id || "").trim();
+    if (!caseId) continue;
+    if (share.deletedAt || share.deleted_at) {
+      sqlite.deleteKanbanCaseShare(owner, caseId, {
+        soft: true,
+        deletedAt: share.deletedAt || share.deleted_at || nowIso(),
+      });
+    } else {
+      sqlite.upsertKanbanCaseShare(owner, caseId, share);
+    }
+  }
+}
+
 function saveKanbanCaseShareStore(store) {
-  writeJsonStore(KANBAN_CASE_SHARE_PATH, Object.assign({ schemaVersion: 1 }, store || {}));
+  const nextStore = Object.assign({ schemaVersion: 1, cases: {} }, store || {});
+  syncKanbanCaseShareStoreToSqlite(nextStore);
+  writeJsonStore(KANBAN_CASE_SHARE_PATH, nextStore);
 }
 
 function kanbanCaseShareKey(ownerWorkspaceId, caseId) {
@@ -13500,6 +13534,16 @@ async function handleApi(req, res) {
     sendJson(res, 401, { error: "Unauthorized" });
     return;
   }
+  req.hermesRequestContext = buildRequestContext({
+    auth,
+    url,
+    request: {
+      method: req.method,
+      headers: req.headers,
+      requestId: req.headers["x-request-id"] || "",
+      clientVersion: requestClientVersion(req),
+    },
+  });
 
   if (url.pathname === "/api/client-version" && req.method === "GET") {
     sendJson(res, 200, Object.assign(clientVersionInfo(requestClientVersion(req)), { reasoning: publicReasoningInfoForAuth(auth) }));

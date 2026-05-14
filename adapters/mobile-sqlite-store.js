@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 function nowIso() {
   return new Date().toISOString();
@@ -48,6 +48,24 @@ function normalizeId(value, fallback = "") {
   return text || fallback;
 }
 
+function normalizeStringList(value) {
+  const input = typeof value === "string" && value.trim().startsWith("[")
+    ? parseJson(value, value)
+    : value;
+  const raw = Array.isArray(input)
+    ? input
+    : (input && typeof input === "object" ? Object.values(input) : String(input || "").split(/[,\n;]/));
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    const id = String(item || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
 function publicTodoFromRow(row) {
   const raw = parseJson(row?.raw_json, null);
   if (raw && typeof raw === "object") return raw;
@@ -80,6 +98,34 @@ function publicAutomationFromRow(row) {
   };
 }
 
+function publicKanbanCaseShareFromRow(row) {
+  if (!row) return null;
+  const raw = parseJson(row.raw_json, {});
+  const performerWorkspaceIds = normalizeStringList(row.performer_workspace_ids_json)
+    .concat(normalizeStringList(row.performer_workspace_id))
+    .filter((value, index, all) => all.indexOf(value) === index);
+  const fallback = {
+    schemaVersion: 1,
+    ownerWorkspaceId: String(row.owner_workspace_id || row.workspace_id || "owner"),
+    workspaceId: String(row.workspace_id || row.owner_workspace_id || "owner"),
+    caseId: String(row.case_id || ""),
+    caseMode: String(row.case_mode || ""),
+    performerWorkspaceId: String(row.performer_workspace_id || performerWorkspaceIds[0] || ""),
+    performerWorkspaceIds,
+    viewerWorkspaceIds: normalizeStringList(row.viewer_workspace_ids_json),
+    managerWorkspaceIds: normalizeStringList(row.manager_workspace_ids_json),
+    topicThreadId: String(row.topic_thread_id || ""),
+    topicTaskGroupId: String(row.topic_task_group_id || ""),
+    sharedDirectoryPath: String(row.shared_directory_path || ""),
+    caseDirectoryPath: String(row.case_directory_path || ""),
+    createdAt: String(row.created_at || ""),
+    updatedAt: String(row.updated_at || ""),
+    archivedAt: String(row.archived_at || ""),
+    deletedAt: String(row.deleted_at || ""),
+  };
+  return Object.assign({}, raw && typeof raw === "object" ? raw : {}, fallback);
+}
+
 function sha256File(filePath) {
   try {
     const hash = crypto.createHash("sha256");
@@ -98,6 +144,7 @@ const TABLES = [
   "audit_log",
   "automation_jobs",
   "todo_items",
+  "kanban_case_shares",
   "shared_directories",
   "push_deliveries",
   "push_receipts",
@@ -123,6 +170,7 @@ const TABLE_COUNT_COLUMNS = {
   push_receipts: "id",
   push_deliveries: "id",
   shared_directories: "id",
+  kanban_case_shares: "id",
   todo_items: "id",
   automation_jobs: "id",
   audit_log: "id",
@@ -346,6 +394,34 @@ function createMobileSqliteStore(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_shared_root ON shared_directories(root_path);
       CREATE INDEX IF NOT EXISTS idx_shared_owner ON shared_directories(owner_workspace_id);
 
+      CREATE TABLE IF NOT EXISTS kanban_case_shares (
+        id TEXT PRIMARY KEY,
+        case_id TEXT NOT NULL DEFAULT '',
+        workspace_id TEXT NOT NULL DEFAULT '',
+        owner_workspace_id TEXT NOT NULL DEFAULT '',
+        case_mode TEXT NOT NULL DEFAULT '',
+        topic_thread_id TEXT NOT NULL DEFAULT '',
+        topic_task_group_id TEXT NOT NULL DEFAULT '',
+        shared_directory_path TEXT NOT NULL DEFAULT '',
+        case_directory_path TEXT NOT NULL DEFAULT '',
+        performer_workspace_id TEXT NOT NULL DEFAULT '',
+        performer_workspace_ids_json TEXT,
+        viewer_workspace_ids_json TEXT,
+        manager_workspace_ids_json TEXT,
+        raw_json TEXT,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '',
+        archived_at TEXT NOT NULL DEFAULT '',
+        deleted_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_kanban_case_shares_owner_case
+        ON kanban_case_shares(owner_workspace_id, case_id);
+      CREATE INDEX IF NOT EXISTS idx_kanban_case_shares_owner
+        ON kanban_case_shares(owner_workspace_id, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_kanban_case_shares_topic
+        ON kanban_case_shares(topic_thread_id, topic_task_group_id);
+
       CREATE TABLE IF NOT EXISTS todo_items (
         id TEXT PRIMARY KEY,
         workspace_id TEXT NOT NULL DEFAULT '',
@@ -392,16 +468,28 @@ function createMobileSqliteStore(options = {}) {
     ensureColumn("push_subscriptions", "position", "INTEGER NOT NULL DEFAULT 0");
     ensureColumn("push_receipts", "position", "INTEGER NOT NULL DEFAULT 0");
     ensureColumn("push_deliveries", "position", "INTEGER NOT NULL DEFAULT 0");
+    ensureColumn("kanban_case_shares", "workspace_id", "TEXT NOT NULL DEFAULT ''");
+    ensureColumn("kanban_case_shares", "case_mode", "TEXT NOT NULL DEFAULT ''");
+    ensureColumn("kanban_case_shares", "performer_workspace_id", "TEXT NOT NULL DEFAULT ''");
+    ensureColumn("kanban_case_shares", "performer_workspace_ids_json", "TEXT");
+    ensureColumn("kanban_case_shares", "viewer_workspace_ids_json", "TEXT");
+    ensureColumn("kanban_case_shares", "manager_workspace_ids_json", "TEXT");
+    ensureColumn("kanban_case_shares", "archived_at", "TEXT NOT NULL DEFAULT ''");
+    ensureColumn("kanban_case_shares", "deleted_at", "TEXT NOT NULL DEFAULT ''");
 
-    const row = open().prepare("SELECT version FROM schema_migrations WHERE version = ?").get(CURRENT_SCHEMA_VERSION);
-    if (!row) {
-      open().prepare("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
-        CURRENT_SCHEMA_VERSION,
-        "initial_mobile_service_layer",
-        nowIso(),
-      );
-    }
+    markMigration(1, "initial_mobile_service_layer");
+    markMigration(2, "kanban_case_shares");
     setMeta("schemaVersion", CURRENT_SCHEMA_VERSION);
+  }
+
+  function markMigration(version, name) {
+    const row = open().prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
+    if (row) return;
+    open().prepare("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
+      version,
+      name,
+      nowIso(),
+    );
   }
 
   function ensureColumn(table, column, definition) {
@@ -812,6 +900,229 @@ function createMobileSqliteStore(options = {}) {
     return true;
   }
 
+  function kanbanCaseShareKey(ownerWorkspaceId, caseId) {
+    return `${normalizeId(ownerWorkspaceId, "owner")}::${normalizeId(caseId)}`;
+  }
+
+  function existingKanbanCaseShare(ownerWorkspaceId, caseId) {
+    const id = kanbanCaseShareKey(ownerWorkspaceId, caseId);
+    const row = open().prepare("SELECT * FROM kanban_case_shares WHERE id = ?").get(id);
+    return row ? publicKanbanCaseShareFromRow(row) : null;
+  }
+
+  function normalizeKanbanCaseShareInput(ownerWorkspaceId, caseId, input = {}) {
+    const source = ownerWorkspaceId && typeof ownerWorkspaceId === "object" && !Array.isArray(ownerWorkspaceId)
+      ? ownerWorkspaceId
+      : Object.assign({}, input || {}, {
+        ownerWorkspaceId,
+        caseId,
+      });
+    const owner = normalizeId(
+      source.ownerWorkspaceId
+        || source.owner_workspace_id
+        || source.workspaceId
+        || source.workspace_id,
+      "owner",
+    );
+    const caseValue = normalizeId(
+      source.caseId
+        || source.case_id
+        || source.kanbanCaseId
+        || source.kanban_case_id
+        || (String(source.id || "").includes("::") ? String(source.id).split("::").slice(1).join("::") : source.id),
+    );
+    if (!caseValue) return null;
+    const previous = existingKanbanCaseShare(owner, caseValue) || {};
+    const performerWorkspaceIds = normalizeStringList(
+      source.performerWorkspaceIds
+        || source.performer_workspace_ids
+        || source.targetWorkspaceIds
+        || source.target_workspace_ids
+        || source.performerWorkspaceId
+        || source.performer_workspace_id
+        || source.targetWorkspaceId
+        || source.target_workspace_id
+        || previous.performerWorkspaceIds
+        || previous.performerWorkspaceId
+        || "",
+    ).filter((workspaceId) => workspaceId !== owner);
+    const requestedPerformerWorkspaceId = String(source.performerWorkspaceId || source.performer_workspace_id || "").trim();
+    const viewerWorkspaceIds = normalizeStringList(
+      source.viewerWorkspaceIds
+        || source.viewer_workspace_ids
+        || source.readonlyWorkspaceIds
+        || source.readonly_workspace_ids
+        || source.sharedViewerWorkspaceIds
+        || source.shared_viewer_workspace_ids
+        || previous.viewerWorkspaceIds
+        || "",
+    ).filter((workspaceId) => workspaceId !== owner && !performerWorkspaceIds.includes(workspaceId));
+    const managerWorkspaceIds = normalizeStringList(
+      source.managerWorkspaceIds
+        || source.manager_workspace_ids
+        || previous.managerWorkspaceIds
+        || "",
+    ).filter((workspaceId) => workspaceId !== owner);
+    const topic = source.topic && typeof source.topic === "object" && !Array.isArray(source.topic) ? source.topic : source;
+    const now = nowIso();
+    return {
+      schemaVersion: 1,
+      ownerWorkspaceId: owner,
+      workspaceId: normalizeId(source.workspaceId || source.workspace_id || owner, owner),
+      caseId: caseValue,
+      caseMode: String(source.caseMode || source.case_mode || source.kanbanCaseMode || source.kanban_case_mode || source.mode || previous.caseMode || "").trim(),
+      performerWorkspaceId: performerWorkspaceIds.includes(requestedPerformerWorkspaceId)
+        ? requestedPerformerWorkspaceId
+        : String(performerWorkspaceIds[0] || ""),
+      performerWorkspaceIds,
+      viewerWorkspaceIds,
+      managerWorkspaceIds,
+      topicThreadId: String(topic.topicThreadId || topic.topic_thread_id || previous.topicThreadId || "").trim(),
+      topicTaskGroupId: String(topic.topicTaskGroupId || topic.topic_task_group_id || previous.topicTaskGroupId || "").trim(),
+      sharedDirectoryPath: String(topic.sharedDirectoryPath || topic.shared_directory_path || previous.sharedDirectoryPath || "").trim(),
+      caseDirectoryPath: String(topic.caseDirectoryPath || topic.case_directory_path || previous.caseDirectoryPath || "").trim(),
+      createdAt: normalizeIso(source.createdAt || source.created_at || previous.createdAt || now),
+      updatedAt: normalizeIso(source.updatedAt || source.updated_at || now),
+      archivedAt: normalizeIso(source.archivedAt || source.archived_at || previous.archivedAt),
+      deletedAt: normalizeIso(source.deletedAt || source.deleted_at || previous.deletedAt),
+    };
+  }
+
+  function upsertKanbanCaseShare(ownerWorkspaceId, caseId, input = {}) {
+    migrate();
+    const share = normalizeKanbanCaseShareInput(ownerWorkspaceId, caseId, input);
+    if (!share) return null;
+    const id = kanbanCaseShareKey(share.ownerWorkspaceId, share.caseId);
+    open().prepare(`
+      INSERT INTO kanban_case_shares(id, case_id, workspace_id, owner_workspace_id, case_mode,
+        topic_thread_id, topic_task_group_id, shared_directory_path, case_directory_path,
+        performer_workspace_id, performer_workspace_ids_json, viewer_workspace_ids_json,
+        manager_workspace_ids_json, raw_json, created_at, updated_at, archived_at, deleted_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        case_id = excluded.case_id,
+        workspace_id = excluded.workspace_id,
+        owner_workspace_id = excluded.owner_workspace_id,
+        case_mode = excluded.case_mode,
+        topic_thread_id = excluded.topic_thread_id,
+        topic_task_group_id = excluded.topic_task_group_id,
+        shared_directory_path = excluded.shared_directory_path,
+        case_directory_path = excluded.case_directory_path,
+        performer_workspace_id = excluded.performer_workspace_id,
+        performer_workspace_ids_json = excluded.performer_workspace_ids_json,
+        viewer_workspace_ids_json = excluded.viewer_workspace_ids_json,
+        manager_workspace_ids_json = excluded.manager_workspace_ids_json,
+        raw_json = excluded.raw_json,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        archived_at = excluded.archived_at,
+        deleted_at = excluded.deleted_at
+    `).run(
+      id,
+      share.caseId,
+      share.workspaceId,
+      share.ownerWorkspaceId,
+      share.caseMode,
+      share.topicThreadId,
+      share.topicTaskGroupId,
+      share.sharedDirectoryPath,
+      share.caseDirectoryPath,
+      share.performerWorkspaceId,
+      stableJson(share.performerWorkspaceIds),
+      stableJson(share.viewerWorkspaceIds),
+      stableJson(share.managerWorkspaceIds),
+      stableJson(share),
+      share.createdAt,
+      share.updatedAt,
+      share.archivedAt,
+      share.deletedAt,
+    );
+    return getKanbanCaseShare(share.ownerWorkspaceId, share.caseId);
+  }
+
+  function importKanbanCaseShare(row = {}, index = 0) {
+    return Boolean(upsertKanbanCaseShare(Object.assign({}, row, {
+      caseId: row.caseId || row.case_id || row.kanbanCaseId || row.kanban_case_id || (row.id ? "" : `kanban_case_${index}`),
+    })));
+  }
+
+  function getKanbanCaseShare(ownerWorkspaceId, caseId) {
+    const source = ownerWorkspaceId && typeof ownerWorkspaceId === "object" && !Array.isArray(ownerWorkspaceId)
+      ? normalizeKanbanCaseShareInput(ownerWorkspaceId)
+      : normalizeKanbanCaseShareInput({ ownerWorkspaceId, caseId });
+    if (!source) return null;
+    const row = open().prepare("SELECT * FROM kanban_case_shares WHERE id = ?").get(
+      kanbanCaseShareKey(source.ownerWorkspaceId, source.caseId),
+    );
+    return row ? publicKanbanCaseShareFromRow(row) : null;
+  }
+
+  function listKanbanCaseShares(args = {}) {
+    migrate();
+    const clauses = [];
+    const values = [];
+    const owner = normalizeId(args.ownerWorkspaceId || args.owner_workspace_id || args.workspaceId || args.workspace_id);
+    const caseMode = String(args.caseMode || args.case_mode || "").trim();
+    const topicThreadId = String(args.topicThreadId || args.topic_thread_id || "").trim();
+    const topicTaskGroupId = String(args.topicTaskGroupId || args.topic_task_group_id || "").trim();
+    if (owner) {
+      clauses.push("owner_workspace_id = ?");
+      values.push(owner);
+    }
+    if (caseMode) {
+      clauses.push("case_mode = ?");
+      values.push(caseMode);
+    }
+    if (topicThreadId) {
+      clauses.push("topic_thread_id = ?");
+      values.push(topicThreadId);
+    }
+    if (topicTaskGroupId) {
+      clauses.push("topic_task_group_id = ?");
+      values.push(topicTaskGroupId);
+    }
+    const sql = `SELECT * FROM kanban_case_shares${clauses.length ? ` WHERE ${clauses.join(" AND ")}` : ""} ORDER BY updated_at DESC, created_at DESC, case_id`;
+    let rows = open().prepare(sql).all(...values).map(publicKanbanCaseShareFromRow);
+    if (!args.includeArchived && !args.include_archived) {
+      rows = rows.filter((row) => !row.archivedAt);
+    }
+    if (!args.includeDeleted && !args.include_deleted) {
+      rows = rows.filter((row) => !row.deletedAt);
+    }
+    const actor = normalizeId(args.actorWorkspaceId || args.actor_workspace_id);
+    if (actor) {
+      rows = rows.filter((row) => (
+        row.ownerWorkspaceId === actor
+        || normalizeStringList(row.managerWorkspaceIds).includes(actor)
+        || normalizeStringList(row.performerWorkspaceIds).includes(actor)
+        || normalizeStringList(row.viewerWorkspaceIds).includes(actor)
+      ));
+    }
+    const limit = args.limit === undefined ? rows.length : Math.max(1, Math.min(1000, Number(args.limit) || 100));
+    return rows.slice(0, limit);
+  }
+
+  function deleteKanbanCaseShare(ownerWorkspaceId, caseId, options = {}) {
+    migrate();
+    const before = getKanbanCaseShare(ownerWorkspaceId, caseId);
+    if (!before) return null;
+    if (options.soft || options.markDeleted || options.deletedAt || options.deleted_at) {
+      const deletedAt = normalizeIso(options.deletedAt || options.deleted_at || nowIso());
+      const updated = Object.assign({}, before, { deletedAt, updatedAt: deletedAt });
+      open().prepare("UPDATE kanban_case_shares SET deleted_at = ?, updated_at = ?, raw_json = ? WHERE id = ?").run(
+        deletedAt,
+        updated.updatedAt,
+        stableJson(updated),
+        kanbanCaseShareKey(before.ownerWorkspaceId, before.caseId),
+      );
+      return updated;
+    }
+    open().prepare("DELETE FROM kanban_case_shares WHERE id = ?").run(
+      kanbanCaseShareKey(before.ownerWorkspaceId, before.caseId),
+    );
+    return before;
+  }
+
   function importTodoItem(row = {}, index = 0) {
     const id = normalizeId(row.id, `todo_${index}`);
     open().prepare(`
@@ -1155,6 +1466,7 @@ function createMobileSqliteStore(options = {}) {
     const statePath = path.join(root, "state.json");
     const accessPath = path.join(root, "access-keys.json");
     const sharedPath = path.join(root, "shared-directories.json");
+    const kanbanCaseSharesPath = path.join(root, "kanban-case-shares.json");
     const workspacesPath = path.join(root, "workspaces.json");
     const runtimePath = path.join(root, "runtime-config.json");
     const todosPath = path.join(root, "todos.json");
@@ -1191,6 +1503,20 @@ function createMobileSqliteStore(options = {}) {
       ? { exists: true, sha256: sha256File(sharedPath), bytes: fs.statSync(sharedPath).size }
       : { exists: false };
     manifest.counts.sharedDirectories = sharedCount;
+
+    const kanbanCaseShares = readJsonIfExists(kanbanCaseSharesPath, null);
+    let kanbanCaseShareCount = 0;
+    const caseShareSource = kanbanCaseShares?.cases || kanbanCaseShares?.caseShares || kanbanCaseShares?.kanbanCaseShares || kanbanCaseShares;
+    const caseShareRows = caseShareSource && typeof caseShareSource === "object" && !Array.isArray(caseShareSource)
+      ? Object.entries(caseShareSource).map(([id, row]) => Object.assign({ id }, row || {}))
+      : asArray(caseShareSource);
+    caseShareRows.forEach((row, index) => {
+      if (importKanbanCaseShare(row, index)) kanbanCaseShareCount += 1;
+    });
+    manifest.files.kanbanCaseShares = fs.existsSync(kanbanCaseSharesPath)
+      ? { exists: true, sha256: sha256File(kanbanCaseSharesPath), bytes: fs.statSync(kanbanCaseSharesPath).size }
+      : { exists: false };
+    manifest.counts.kanbanCaseShares = kanbanCaseShareCount;
 
     const workspaces = options.workspaceCatalog || readJsonIfExists(workspacesPath, null);
     let workspaceCount = 0;
@@ -1318,6 +1644,7 @@ function createMobileSqliteStore(options = {}) {
     importAccessKey,
     importFromDataDir,
     importMessage,
+    importKanbanCaseShare,
     importSharedDirectory,
     importState,
     importThread,
@@ -1326,11 +1653,14 @@ function createMobileSqliteStore(options = {}) {
     importWorkspace,
     integrityReport,
     deleteAutomationJob,
+    deleteKanbanCaseShare,
     deleteTodoItem,
     getAutomationJob,
+    getKanbanCaseShare,
     getTodoItem,
     exportRuntimeState,
     listAutomationJobs,
+    listKanbanCaseShares,
     listTodoItems,
     migrate,
     replaceRuntimeState,
@@ -1338,6 +1668,7 @@ function createMobileSqliteStore(options = {}) {
     open,
     setMeta,
     tableCounts,
+    upsertKanbanCaseShare,
   };
 }
 
