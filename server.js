@@ -22,6 +22,7 @@ const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
+const { createKanbanMaintenanceService } = require("./adapters/kanban-maintenance-service");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createAuditEventProvider } = require("./adapters/audit-event-provider");
 const { createEgressPolicyProvider } = require("./adapters/egress-policy-provider");
@@ -3586,9 +3587,19 @@ const kanbanCaseShareService = createKanbanCaseShareService({
   authCanAccessWorkspace,
   kanbanCardProvider,
 });
-const kanbanDependencyReconcileLastRun = new Map();
-const kanbanCardListCache = new Map();
-let kanbanCardListCacheStoreLoaded = false;
+const kanbanMaintenanceService = createKanbanMaintenanceService({
+  cardListCachePath: KANBAN_CARD_LIST_CACHE_PATH,
+  cardListCacheTtlMs: KANBAN_CARD_LIST_CACHE_TTL_MS,
+  dependencyReconcileIntervalMs: KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS,
+  readJsonStore,
+  writeJsonStore,
+  nowIso,
+  fileExists: fs.existsSync,
+  useKanbanTodoBackend,
+  kanbanCardProvider,
+  broadcast,
+  logger: console,
+});
 
 const kanbanCardApiRoutes = createKanbanCardApiRoutes({
   annotateKanbanCardsForAuth,
@@ -7789,95 +7800,27 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
 }
 
 async function maybeReconcileKanbanDependencyBlocks(workspaceId, options = {}) {
-  if (!useKanbanTodoBackend()) return { ok: true, skipped: true, reason: "kanban_backend_disabled" };
-  const id = String(workspaceId || "owner").trim() || "owner";
-  const now = Date.now();
-  const last = kanbanDependencyReconcileLastRun.get(id) || 0;
-  if (!options.force && now - last < KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS) {
-    return { ok: true, skipped: true, reason: "recent", workspaceId: id };
-  }
-  kanbanDependencyReconcileLastRun.set(id, now);
-  const result = await kanbanCardProvider.reconcileDependencyBlocks({
-    workspaceId: id,
-    limit: options.limit || 500,
-  });
-  const released = Array.isArray(result?.released) ? result.released : [];
-  for (const item of released) {
-    const cardId = String(item?.id || "");
-    broadcast({ type: "kanban.updated", workspaceId: id, cardId, action: "dependency-unblocked" });
-    broadcast({ type: "todos.updated", workspaceId: id, todoId: cardId, action: "dependency-unblocked" });
-  }
-  if (released.length) clearKanbanCardListCache(id);
-  if (released.length) {
-    console.info(`Hermes Kanban dependency reconcile released ${released.length} card(s) for workspace ${id}.`);
-  }
-  return Object.assign({ workspaceId: id }, result || {});
+  return kanbanMaintenanceService.maybeReconcileDependencyBlocks(workspaceId, options);
 }
 
 function kanbanCardListCacheKey(args = {}) {
-  return [
-    String(args.workspaceId || "owner"),
-    String(args.scope || "mine"),
-    args.includeCompleted ? "all" : "open",
-    String(args.assignee || ""),
-    String(args.limit || 120),
-    String(args.search || ""),
-  ].join("\0");
+  return kanbanMaintenanceService.cacheKey(args);
 }
 
 function readKanbanCardListCache(args = {}) {
-  if (!KANBAN_CARD_LIST_CACHE_TTL_MS) return null;
-  const key = kanbanCardListCacheKey(args);
-  if (!kanbanCardListCacheStoreLoaded) {
-    const store = readJsonStore(KANBAN_CARD_LIST_CACHE_PATH, { entries: {} });
-    const entries = store?.entries && typeof store.entries === "object" ? store.entries : {};
-    for (const [entryKey, entry] of Object.entries(entries)) {
-      if (entry && typeof entry === "object") kanbanCardListCache.set(entryKey, entry);
-    }
-    kanbanCardListCacheStoreLoaded = true;
-  }
-  const cached = kanbanCardListCache.get(key);
-  if (!cached) return null;
-  if (Date.now() - Number(cached.savedAt || 0) > KANBAN_CARD_LIST_CACHE_TTL_MS) {
-    kanbanCardListCache.delete(key);
-    return null;
-  }
-  return Object.assign({}, cached.payload, {
-    cache: { hit: true, ageMs: Date.now() - Number(cached.savedAt || 0) },
-  });
+  return kanbanMaintenanceService.readCardListCache(args);
 }
 
 function writeKanbanCardListCache(args = {}, payload = {}) {
-  if (!KANBAN_CARD_LIST_CACHE_TTL_MS) return;
-  const entry = {
-    savedAt: Date.now(),
-    payload,
-  };
-  kanbanCardListCache.set(kanbanCardListCacheKey(args), entry);
-  const entries = {};
-  const now = Date.now();
-  for (const [key, value] of kanbanCardListCache.entries()) {
-    if (now - Number(value?.savedAt || 0) <= KANBAN_CARD_LIST_CACHE_TTL_MS) entries[key] = value;
-  }
-  writeJsonStore(KANBAN_CARD_LIST_CACHE_PATH, { schemaVersion: 1, updatedAt: nowIso(), entries });
+  kanbanMaintenanceService.writeCardListCache(args, payload);
 }
 
 function clearKanbanCardListCache(workspaceId = "") {
-  const prefix = workspaceId ? `${String(workspaceId)}\0` : "";
-  for (const key of kanbanCardListCache.keys()) {
-    if (!prefix || key.startsWith(prefix)) kanbanCardListCache.delete(key);
-  }
-  if (fs.existsSync(KANBAN_CARD_LIST_CACHE_PATH)) {
-    const entries = {};
-    for (const [key, value] of kanbanCardListCache.entries()) entries[key] = value;
-    writeJsonStore(KANBAN_CARD_LIST_CACHE_PATH, { schemaVersion: 1, updatedAt: nowIso(), entries });
-  }
+  kanbanMaintenanceService.clearCardListCache(workspaceId);
 }
 
 function scheduleKanbanDependencyReconcile(workspaceId) {
-  maybeReconcileKanbanDependencyBlocks(workspaceId)
-    .catch((err) => console.warn(`Hermes Kanban dependency reconcile failed for workspace ${workspaceId}: ${err.message || err}`));
-  return { ok: true, skipped: true, reason: "background" };
+  return kanbanMaintenanceService.scheduleDependencyReconcile(workspaceId);
 }
 
 function todoErrorResponse(res, result, fallbackStatus = 400) {
