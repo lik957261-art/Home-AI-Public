@@ -8993,6 +8993,53 @@ function kanbanReadingDisplayCardIndex(group, item) {
   return Number(value || 0) || 0;
 }
 
+function kanbanRevisionSortTimestamp(item) {
+  return todoSortTimestamp(item?.todo || {}) || 0;
+}
+
+function kanbanLatestRevisionReplacementItems(group, predicate = null) {
+  const cards = (group?.cards || []).filter((item) => !predicate || predicate(item.todo));
+  if (!cards.length) return [];
+  const baseIds = new Set(cards
+    .filter((item) => !isKanbanReadingRevision(item))
+    .map((item) => String(item?.todo?.id || ""))
+    .filter(Boolean));
+  const revisionsByOriginal = new Map();
+  for (const item of cards) {
+    const originalId = String(item?.todo?.kanbanRevisionOf || "").trim();
+    if (!originalId) continue;
+    const previous = revisionsByOriginal.get(originalId);
+    const previousRank = Number(previous?.todo?.kanbanRevisionCount || 0) || 0;
+    const nextRank = Number(item?.todo?.kanbanRevisionCount || 0) || 0;
+    if (!previous || nextRank > previousRank || (
+      nextRank === previousRank
+      && kanbanRevisionSortTimestamp(item) >= kanbanRevisionSortTimestamp(previous)
+    )) {
+      revisionsByOriginal.set(originalId, item);
+    }
+  }
+  const visible = [];
+  for (const item of cards) {
+    const id = String(item?.todo?.id || "");
+    if (isKanbanReadingRevision(item)) continue;
+    visible.push(revisionsByOriginal.get(id) || item);
+  }
+  for (const item of cards) {
+    const originalId = String(item?.todo?.kanbanRevisionOf || "").trim();
+    if (originalId && !baseIds.has(originalId)) visible.push(item);
+  }
+  return visible.sort((left, right) => {
+    const leftIndex = kanbanReadingDisplayCardIndex(group, left) || 999;
+    const rightIndex = kanbanReadingDisplayCardIndex(group, right) || 999;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
+  });
+}
+
+function kanbanAssessmentVisibleCardItems(group) {
+  return kanbanLatestRevisionReplacementItems(group, (todo) => isKanbanAssessmentCard(todo));
+}
+
 function kanbanReadingBaseCardItems(group) {
   return (group?.cards || []).filter((item) => !isKanbanReadingRevision(item));
 }
@@ -9046,15 +9093,17 @@ function assessmentHasVisibleResult(todo) {
 
 function kanbanCasePriorCards(todo, predicate) {
   const caseId = String(todo?.kanbanCaseId || "").trim();
-  const index = Number(todo?.kanbanCaseCardIndex || 0) || 0;
+  const caseCards = (state.todos || [])
+    .filter((card) => String(card?.kanbanCaseId || "").trim() === caseId && (!predicate || predicate(card)))
+    .map((card) => ({ todo: card, info: kanbanCardCaseInfo(card) }));
+  const visibleItems = kanbanLatestRevisionReplacementItems({ cards: caseCards }, predicate);
+  const currentItem = visibleItems.find((item) => String(item?.todo?.id || "") === String(todo?.id || ""))
+    || caseCards.find((item) => String(item?.todo?.id || "") === String(todo?.id || ""));
+  const index = kanbanReadingDisplayCardIndex({ cards: caseCards }, currentItem) || Number(todo?.kanbanCaseCardIndex || 0) || 0;
   if (!caseId || !index) return [];
-  return (state.todos || [])
-    .filter((card) => (
-      String(card?.kanbanCaseId || "").trim() === caseId
-      && (Number(card?.kanbanCaseCardIndex || 0) || 0) < index
-      && (!predicate || predicate(card))
-    ))
-    .sort((left, right) => (Number(left?.kanbanCaseCardIndex || 0) || 0) - (Number(right?.kanbanCaseCardIndex || 0) || 0));
+  return visibleItems
+    .filter((item) => (kanbanReadingDisplayCardIndex({ cards: caseCards }, item) || 0) < index)
+    .map((item) => item.todo);
 }
 
 function readingCasePriorComplete(todo) {
@@ -9073,12 +9122,7 @@ function assessmentCardAcceptsStart(todo) {
 }
 
 function kanbanAssessmentCaseCurrentItem(group) {
-  const cards = [...(Array.isArray(group?.cards) ? group.cards : [])].sort((left, right) => {
-    const leftIndex = left.info?.cardIndex || left.todo?.kanbanCaseCardIndex || 999;
-    const rightIndex = right.info?.cardIndex || right.todo?.kanbanCaseCardIndex || 999;
-    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
-    return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
-  });
+  const cards = kanbanAssessmentVisibleCardItems(group);
   const retake = cards.find((item) => isKanbanAssessmentCard(item.todo) && String(assessmentExamSummary(item.todo)?.status || "") === "retake_required");
   if (retake) return retake;
   const startable = cards.find((item) => isKanbanAssessmentCard(item.todo) && assessmentCardAcceptsStart(item.todo));
@@ -9237,7 +9281,9 @@ function kanbanStoryCases(items) {
 }
 
 function kanbanStoryCaseFullyArchived(group) {
-  const cards = group?.cards || [];
+  const cards = group?.mode === "assessment-plan"
+    ? kanbanAssessmentVisibleCardItems(group)
+    : (group?.cards || []);
   return cards.length > 0 && cards.every((item) => normalizedKanbanStatus(item.todo) === "archived");
 }
 
@@ -9281,13 +9327,19 @@ function kanbanStoryCaseRenderState(group, options = {}) {
 }
 
 function kanbanStoryCaseArchiveItems(group) {
-  const cards = group?.cards || [];
+  const allCards = group?.cards || [];
+  const cards = group?.mode === "assessment-plan"
+    ? kanbanAssessmentVisibleCardItems(group)
+    : allCards;
   if (!cards.length) return [];
   const nonArchived = cards.filter((item) => normalizedKanbanStatus(item.todo) !== "archived");
   if (!nonArchived.length) return [];
   const complete = nonArchived.every((item) => normalizedKanbanStatus(item.todo) === "done");
   if (!complete) return [];
-  return nonArchived.filter((item) => kanbanCan(item.todo, "canDelete"));
+  const archiveItems = group?.mode === "assessment-plan" ? allCards : nonArchived;
+  return archiveItems
+    .filter((item) => normalizedKanbanStatus(item.todo) !== "archived")
+    .filter((item) => kanbanCan(item.todo, "canDelete"));
 }
 
 function renderKanbanStoryArchiveButton(group, options = {}) {
@@ -9300,7 +9352,7 @@ function renderKanbanStoryArchiveButton(group, options = {}) {
 
 function kanbanArchiveStatusSummary(group) {
   const counts = new Map();
-  for (const item of group.cards) {
+  for (const item of group.cards || []) {
     const status = normalizedKanbanStatus(item.todo);
     counts.set(status, (counts.get(status) || 0) + 1);
   }
@@ -9355,6 +9407,8 @@ function scheduleKanbanStoryDetailLoads(items) {
   for (const group of kanbanActiveStoryCases(items).filter(kanbanStoryCaseExpanded).slice(0, 4)) {
     const cardItems = group.mode === "study-plan"
       ? [kanbanReadingCaseCurrentItem(group)].filter(Boolean)
+      : group.mode === "assessment-plan"
+        ? [kanbanAssessmentCaseCurrentItem(group)].filter(Boolean)
       : (group.cards || []).slice(0, 10);
     for (const item of cardItems) {
       const id = String(item?.todo?.id || "").trim();
@@ -9402,7 +9456,7 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
       <strong>${escapeHtml(currentTodo.content || currentTodo.id)}</strong>
-      <small>${escapeHtml(currentMeta)}</small>
+      <small>${escapeHtml([currentMeta, currentTodo?.kanbanRevisionOf ? "\u4fee\u6539\u4efb\u52a1" : ""].filter(Boolean).join(" | "))}</small>
       ${currentFeedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(currentFeedback)}</small>` : ""}
     </button>
   </li>` : "";
@@ -9433,16 +9487,42 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
   </article>`;
 }
 
+function stripAssessmentConfigText(text = "") {
+  return String(text || "")
+    .replace(/ASSESSMENT_CONFIG:[A-Za-z0-9_-]+/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function assessmentTemplateDisplayText(group, currentTodo, firstTodo) {
+  const summary = assessmentExamSummary(currentTodo) || assessmentExamSummary(firstTodo) || {};
+  const questionCount = Number(summary.questionCount || currentTodo?.assessmentExam?.questionCount || firstTodo?.assessmentExam?.questionCount || 0) || 0;
+  const durationMinutes = Number(summary.durationMinutes || currentTodo?.assessmentExam?.durationMinutes || firstTodo?.assessmentExam?.durationMinutes || 0) || 0;
+  const passingScore = Number(summary.passingScore || currentTodo?.assessmentExam?.passingScore || firstTodo?.assessmentExam?.passingScore || 0) || 0;
+  const source = compactDisplayText(stripAssessmentConfigText(group?.sourceText || firstTodo?.kanbanCaseSourceText || ""), 180);
+  const revision = compactDisplayText(currentTodo?.kanbanRevisionRequest || "", 160);
+  const parts = [
+    questionCount && durationMinutes ? `${questionCount}\u9898/${durationMinutes}\u5206\u949f` : "",
+    passingScore ? `\u901a\u8fc7\u7ebf ${passingScore}` : "",
+    summary.finalExam ? "\u7ec8\u8003" : "",
+    revision ? `\u672c\u6b21\u4fee\u6539\uff1a${revision}` : "",
+    source,
+  ].filter(Boolean);
+  return parts.join(" | ") || "\u56fa\u5b9a\u6b63\u5f0f\u6d4b\u8bd5\u6a21\u677f";
+}
+
 function renderKanbanAssessmentArchiveCase(group, options = {}) {
   const cards = group.cards || [];
-  const first = cards[0]?.todo || {};
+  const visibleCards = kanbanAssessmentVisibleCardItems(group);
+  const visibleGroup = Object.assign({}, group, { cards: visibleCards });
+  const first = visibleCards[0]?.todo || cards[0]?.todo || {};
   const current = kanbanAssessmentCaseCurrentItem(group);
   const currentTodo = current?.todo || first;
-  const requirement = compactDisplayText(group.sourceText || group.title || first.content || "", 320);
-  const statusSummary = kanbanArchiveStatusSummary(group);
+  const requirement = assessmentTemplateDisplayText(group, currentTodo, first);
+  const statusSummary = kanbanArchiveStatusSummary(visibleGroup);
   const latest = group.latest ? todoTimestampLabel(new Date(group.latest).toISOString()) : "";
-  const completed = cards.filter((item) => assessmentExamCompleted(item.todo)).length;
-  const total = Number(first.kanbanCaseCardCount || cards.length || 0) || cards.length;
+  const completed = visibleCards.filter((item) => assessmentExamCompleted(item.todo)).length;
+  const total = Number(first.kanbanCaseCardCount || visibleCards.length || cards.length || 0) || visibleCards.length || cards.length;
   const summary = assessmentExamSummary(currentTodo) || {};
   const currentStatus = currentTodo ? kanbanStatusMeta(normalizedKanbanStatus(currentTodo)).shortLabel : "";
   const lastAttempt = summary.lastAttempt;
@@ -9457,9 +9537,9 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
-      <span>${escapeHtml(String(current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
+      <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
       <strong>${escapeHtml(currentTodo.content || currentTodo.id)}</strong>
-      <small>${escapeHtml(currentMeta)}</small>
+      <small>${escapeHtml([currentMeta, currentTodo?.kanbanRevisionOf ? "\u4fee\u6539\u4efb\u52a1" : ""].filter(Boolean).join(" | "))}</small>
     </button>
   </li>` : "";
   return `<article class="kanban-archive-case assessment-plan-case${storyState.caseClass}">

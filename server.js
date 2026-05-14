@@ -5540,6 +5540,66 @@ async function transcribeKanbanReadingAudio(audioPath) {
   return Object.assign({}, parsed, { text });
 }
 
+function kanbanCardRevisionOf(card = {}) {
+  return String(card.kanbanRevisionOf || card.kanban_revision_of || "").trim();
+}
+
+function kanbanCardEffectiveCaseIndex(card = {}, byId = new Map()) {
+  const originalId = kanbanCardRevisionOf(card);
+  const original = originalId ? byId.get(originalId) : null;
+  const value = original
+    ? Number(original.kanbanCaseCardIndex || original.kanban_case_card_index || 0)
+    : Number(card.kanbanCaseCardIndex || card.kanban_case_card_index || 0);
+  return value || 0;
+}
+
+function kanbanCardUpdatedTimestamp(card = {}) {
+  const parsed = Date.parse(card.updatedAt || card.updated_at || card.completedAt || card.completed_at || card.createdAt || card.created_at || "");
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function visibleKanbanCaseCards(cards = []) {
+  const byId = new Map();
+  for (const card of cards || []) {
+    const id = String(card?.id || "").trim();
+    if (id) byId.set(id, card);
+  }
+  const baseIds = new Set((cards || [])
+    .filter((card) => !kanbanCardRevisionOf(card))
+    .map((card) => String(card?.id || "").trim())
+    .filter(Boolean));
+  const revisionsByOriginal = new Map();
+  for (const card of cards || []) {
+    const originalId = kanbanCardRevisionOf(card);
+    if (!originalId) continue;
+    const previous = revisionsByOriginal.get(originalId);
+    const previousRank = Number(previous?.kanbanRevisionCount || previous?.kanban_revision_count || 0) || 0;
+    const nextRank = Number(card?.kanbanRevisionCount || card?.kanban_revision_count || 0) || 0;
+    if (!previous || nextRank > previousRank || (
+      nextRank === previousRank
+      && kanbanCardUpdatedTimestamp(card) >= kanbanCardUpdatedTimestamp(previous)
+    )) {
+      revisionsByOriginal.set(originalId, card);
+    }
+  }
+  const visible = [];
+  for (const card of cards || []) {
+    if (kanbanCardRevisionOf(card)) continue;
+    const id = String(card?.id || "").trim();
+    visible.push(revisionsByOriginal.get(id) || card);
+  }
+  for (const card of cards || []) {
+    const originalId = kanbanCardRevisionOf(card);
+    if (originalId && !baseIds.has(originalId)) visible.push(card);
+  }
+  return visible.sort((left, right) => {
+    const leftIndex = kanbanCardEffectiveCaseIndex(left, byId) || 999;
+    const rightIndex = kanbanCardEffectiveCaseIndex(right, byId) || 999;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    return kanbanCardUpdatedTimestamp(left) - kanbanCardUpdatedTimestamp(right);
+  });
+}
+
 async function readingContextForCard(workspaceId, cardId) {
   const listed = await kanbanCardProvider.listCards({
     workspaceId,
@@ -5548,15 +5608,22 @@ async function readingContextForCard(workspaceId, cardId) {
     limit: 500,
   });
   const cards = Array.isArray(listed?.data) ? listed.data : [];
-  const current = cards.find((card) => String(card.id) === String(cardId)) || null;
-  const caseId = String(current?.kanbanCaseId || "").trim();
-  const siblings = caseId
+  const rawCurrent = cards.find((card) => String(card.id) === String(cardId)) || null;
+  const caseId = String(rawCurrent?.kanbanCaseId || "").trim();
+  const rawSiblings = caseId
     ? cards
       .filter((card) => String(card.kanbanCaseId || "") === caseId)
       .sort((a, b) => (Number(a.kanbanCaseCardIndex || 0) - Number(b.kanbanCaseCardIndex || 0)) || String(a.id).localeCompare(String(b.id)))
     : [];
-  const prior = siblings.filter((card) => Number(card.kanbanCaseCardIndex || 0) < Number(current?.kanbanCaseCardIndex || 0));
-  return { current, siblings, prior };
+  const siblings = visibleKanbanCaseCards(rawSiblings);
+  const replacement = rawCurrent && !kanbanCardRevisionOf(rawCurrent)
+    ? siblings.find((card) => kanbanCardRevisionOf(card) === String(rawCurrent.id))
+    : null;
+  const current = siblings.find((card) => String(card.id) === String(cardId)) || replacement || rawCurrent;
+  const byId = new Map(rawSiblings.map((card) => [String(card.id || ""), card]));
+  const currentIndex = kanbanCardEffectiveCaseIndex(current, byId) || Number(current?.kanbanCaseCardIndex || 0) || 0;
+  const prior = siblings.filter((card) => kanbanCardEffectiveCaseIndex(card, byId) < currentIndex);
+  return { current, siblings, rawSiblings, prior };
 }
 
 async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, priorCards, transcription, notes = "") {
@@ -6062,7 +6129,114 @@ function mathQuestionWithChoices(id, skill, prompt, correct, distractors, explan
   };
 }
 
+function gcdInt(a, b) {
+  let left = Math.abs(Number(a) || 0);
+  let right = Math.abs(Number(b) || 0);
+  while (right) {
+    const next = left % right;
+    left = right;
+    right = next;
+  }
+  return left || 1;
+}
+
+function fractionText(numerator, denominator) {
+  const divisor = gcdInt(numerator, denominator);
+  return `${numerator / divisor}/${denominator / divisor}`;
+}
+
+function assessmentLooksLikeAmc8(config = {}, seedText = "") {
+  const text = [
+    config.subject,
+    config.subjectId,
+    config.courseLevel,
+    config.difficulty,
+    seedText,
+  ].map((item) => String(item || "").toLowerCase()).join(" ");
+  return /amc\s*8|amc8|mathcounts|competition|contest/.test(text)
+    || /竞赛|奥数|美国数学/.test(text);
+}
+
+function generateVerifiedAmc8AssessmentQuestions(config = {}, seedText = "") {
+  const random = seededRandom(seedText);
+  const count = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(config.questionCount || 20) || 20));
+  const int = (min, max) => min + Math.floor(random() * (max - min + 1));
+  const questions = [];
+  for (let index = 0; index < count; index += 1) {
+    const type = index % 10;
+    const id = `q${index + 1}`;
+    if (type === 0) {
+      const x = int(4, 16);
+      const a = int(2, 7);
+      const b = int(3, 11);
+      const c = a * (x + b);
+      questions.push(mathQuestionWithChoices(id, "AMC 8 algebra", `If ${a}(x + ${b}) = ${c}, what is x?`, x, [x + b, x - 1, c - b, a + b], `Divide by ${a} to get x + ${b} = ${x + b}, so x = ${x}.`, random));
+    } else if (type === 1) {
+      const width = int(6, 15);
+      const height = int(5, 14);
+      const cut = int(2, Math.min(width, height) - 1);
+      const correct = width * height - cut * cut;
+      questions.push(mathQuestionWithChoices(id, "AMC 8 geometry area", `A ${width} by ${height} rectangle has a ${cut} by ${cut} square removed from one corner. What area remains?`, correct, [width * height, correct + cut, 2 * (width + height) - cut * cut, correct - cut], `The original area is ${width * height}; the removed square area is ${cut * cut}; remaining area is ${correct}.`, random));
+    } else if (type === 2) {
+      const sides = int(7, 14);
+      const correct = sides * (sides - 3) / 2;
+      questions.push(mathQuestionWithChoices(id, "AMC 8 combinatorics", `How many diagonals does a convex ${sides}-gon have?`, correct, [sides * (sides - 1) / 2, sides * (sides - 3), correct + sides, correct - sides], `A polygon has n(n-3)/2 diagonals, so ${sides}(${sides}-3)/2 = ${correct}.`, random));
+    } else if (type === 3) {
+      const red = int(3, 8);
+      const blue = int(4, 9);
+      const total = red + blue;
+      const numerator = red * blue * 2;
+      const denominator = total * (total - 1);
+      const correct = fractionText(numerator, denominator);
+      questions.push(mathQuestionWithChoices(id, "AMC 8 probability", `A bag has ${red} red and ${blue} blue balls. Two balls are drawn without replacement. What is the probability the colors are different?`, correct, [fractionText(red * blue, denominator), fractionText(red * (red - 1), denominator), fractionText(blue * (blue - 1), denominator), fractionText(numerator, total * total)], `Different colors can occur as RB or BR, giving ${red}*${blue}*2 favorable ordered outcomes out of ${total}*${total - 1}.`, random));
+    } else if (type === 4) {
+      const primes = [[2, 3], [2, 5], [3, 5], [2, 7]][int(0, 3)];
+      const expA = int(2, 4);
+      const expB = int(1, 3);
+      const correct = (expA + 1) * (expB + 1);
+      questions.push(mathQuestionWithChoices(id, "AMC 8 number theory", `How many positive divisors does ${primes[0]}^${expA} * ${primes[1]}^${expB} have?`, correct, [expA * expB, correct - 1, correct + expA, expA + expB + 1], `For p^a q^b, the divisor count is (a+1)(b+1) = ${correct}.`, random));
+    } else if (type === 5) {
+      const boys = int(3, 7);
+      const girls = int(4, 9);
+      const scale = int(4, 11);
+      const addedGirls = int(2, 8);
+      const correct = boys * scale;
+      const totalAfter = (boys + girls) * scale + addedGirls;
+      questions.push(mathQuestionWithChoices(id, "AMC 8 ratio", `A club has boys:girls = ${boys}:${girls}. After ${addedGirls} girls join, there are ${totalAfter} students. How many boys are in the club?`, correct, [girls * scale, correct + addedGirls, totalAfter - correct, correct - addedGirls], `Before the new girls, the total was ${totalAfter - addedGirls}; one ratio unit is ${scale}, so boys = ${boys}*${scale}.`, random));
+    } else if (type === 6) {
+      const countScores = int(4, 7);
+      const average = int(12, 20);
+      const newScore = int(21, 30);
+      const newAverageNumerator = average * countScores + newScore;
+      const correct = fractionText(newAverageNumerator, countScores + 1);
+      questions.push(mathQuestionWithChoices(id, "AMC 8 averages", `${countScores} numbers have average ${average}. A new number ${newScore} is added. What is the new average?`, correct, [String(average + newScore), fractionText(average + newScore, 2), fractionText(newAverageNumerator, countScores), String(average + 1)], `The new sum is ${average * countScores}+${newScore}=${newAverageNumerator}, divided by ${countScores + 1}.`, random));
+    } else if (type === 7) {
+      const divisor = int(5, 13);
+      const quotient = int(8, 25);
+      const remainder = int(1, divisor - 1);
+      const value = divisor * quotient + remainder;
+      const multiplier = int(3, 9);
+      const correct = (value * multiplier) % divisor;
+      questions.push(mathQuestionWithChoices(id, "AMC 8 modular arithmetic", `When ${value} is multiplied by ${multiplier}, what is the remainder upon division by ${divisor}?`, correct, [(remainder + multiplier) % divisor, remainder, divisor - correct, (correct + 1) % divisor], `${value} leaves remainder ${remainder}; ${remainder}*${multiplier} leaves remainder ${correct} mod ${divisor}.`, random));
+    } else if (type === 8) {
+      const slow = int(3, 7);
+      const fast = slow + int(2, 5);
+      const hours = int(2, 5);
+      const correct = (fast - slow) * hours;
+      questions.push(mathQuestionWithChoices(id, "AMC 8 rate", `Runner A travels ${slow} miles per hour and Runner B travels ${fast} miles per hour in the same direction. After ${hours} hours, how many miles farther has B traveled?`, correct, [fast * hours, slow * hours, correct + slow, fast - slow], `Only the speed difference matters: (${fast}-${slow})*${hours} = ${correct}.`, random));
+    } else {
+      const first = int(2, 9);
+      const diff = int(3, 8);
+      const term = int(9, 16);
+      const correct = first + (term - 1) * diff;
+      questions.push(mathQuestionWithChoices(id, "AMC 8 sequences", `The first term of an arithmetic sequence is ${first}, and the common difference is ${diff}. What is the ${term}th term?`, correct, [first + term * diff, correct - diff, correct + diff, first * term], `The ${term}th term is ${first}+(${term}-1)*${diff} = ${correct}.`, random));
+    }
+  }
+  return questions;
+}
+
 function generateVerifiedMathAssessmentQuestions(config = {}, seedText = "") {
+  if (assessmentLooksLikeAmc8(config, seedText)) return generateVerifiedAmc8AssessmentQuestions(config, seedText);
   const random = seededRandom(seedText);
   const count = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(config.questionCount || 20) || 20));
   const int = (min, max) => min + Math.floor(random() * (max - min + 1));
@@ -6168,13 +6342,24 @@ function normalizeKanbanAssessmentExam(raw = {}, config = {}) {
 }
 
 async function generateKanbanAssessmentExam(workspaceId, cardId, currentCard, config = {}) {
+  const assessmentSeedText = [
+    workspaceId,
+    cardId,
+    currentCard?.updatedAt || "",
+    currentCard?.content || "",
+    currentCard?.kanbanCaseSourceText || "",
+    currentCard?.kanbanCaseCardGoal || "",
+    currentCard?.kanbanRevisionRequest || "",
+    config.courseLevel || "",
+    config.difficulty || "",
+  ].join("\0");
   if (normalizeKanbanAssessmentSubjectId(config.subjectId || config.subject) === "math") {
     return normalizeKanbanAssessmentExam({
       title: `${config.subject || "数学"}正式测试`,
       subject: config.subject || "数学",
       subjectId: "math",
       verification: "deterministic-template",
-      questions: generateVerifiedMathAssessmentQuestions(config, `${workspaceId}\0${cardId}\0${currentCard?.updatedAt || ""}`),
+      questions: generateVerifiedMathAssessmentQuestions(config, assessmentSeedText),
     }, config);
   }
   const prompt = [
@@ -6192,6 +6377,7 @@ async function generateKanbanAssessmentExam(workspaceId, cardId, currentCard, co
     `Duration minutes: ${config.durationMinutes || 30}`,
     `Passing score: ${config.passingScore || 80}`,
     `Difficulty blueprint: ${config.difficulty || ""}`,
+    currentCard?.kanbanCaseCardGoal ? `Current card instruction:\n${compactText(currentCard.kanbanCaseCardGoal.replace(/ASSESSMENT_CONFIG:[A-Za-z0-9_-]+/g, ""), 1200)}` : "",
     currentCard?.kanbanCaseSourceText ? `Plan blueprint:\n${compactText(currentCard.kanbanCaseSourceText.replace(/ASSESSMENT_CONFIG:[A-Za-z0-9_-]+/g, ""), 5000)}` : "",
   ].filter(Boolean).join("\n\n");
   const output = await hermesModelText({
@@ -6328,7 +6514,8 @@ async function getKanbanAssessmentExam(workspaceId, cardId) {
   const context = await readingContextForCard(workspaceId, cardId);
   const currentCard = context.current || { id: cardId, content: cardId };
   if (!isKanbanAssessmentCard(currentCard)) return { ok: false, status: 404, error: "Assessment exam is not available for this card" };
-  const existing = readKanbanAssessmentExamState(workspaceId, cardId, currentCard);
+  const canonicalCardId = String(currentCard.id || cardId);
+  const existing = readKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard);
   if (!kanbanAssessmentCanStart(currentCard, existing, context.prior || [], workspaceId)) {
     return { ok: false, status: 409, error: "Assessment exam is not open yet" };
   }
@@ -6345,11 +6532,11 @@ async function getKanbanAssessmentExam(workspaceId, cardId) {
     };
   }
   const config = kanbanAssessmentConfigFromCard(currentCard);
-  const exam = await generateKanbanAssessmentExam(workspaceId, cardId, currentCard, config);
-  const state = writeKanbanAssessmentExamState(workspaceId, cardId, currentCard, {
+  const exam = await generateKanbanAssessmentExam(workspaceId, canonicalCardId, currentCard, config);
+  const state = writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, {
     status: "in_progress",
     workspaceId,
-    cardId,
+    cardId: canonicalCardId,
     cardTitle: currentCard.content || cardId,
     config,
     exam,
@@ -6363,11 +6550,12 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
   const context = await readingContextForCard(workspaceId, cardId);
   const currentCard = context.current || { id: cardId, content: cardId };
   if (!isKanbanAssessmentCard(currentCard)) return { ok: false, status: 404, error: "Assessment exam is not available for this card" };
-  let state = readKanbanAssessmentExamState(workspaceId, cardId, currentCard);
+  const canonicalCardId = String(currentCard.id || cardId);
+  let state = readKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard);
   if (!state?.exam) {
-    const generated = await getKanbanAssessmentExam(workspaceId, cardId);
+    const generated = await getKanbanAssessmentExam(workspaceId, canonicalCardId);
     if (!generated.ok) return generated;
-    state = readKanbanAssessmentExamState(workspaceId, cardId, currentCard);
+    state = readKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard);
   }
   const exam = state.exam;
   const answers = Array.isArray(body.answers)
@@ -6398,14 +6586,14 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
     passed,
     results,
   };
-  const reportPath = assessmentExamReportPath(workspaceId, cardId, currentCard, exam, attempt);
+  const reportPath = assessmentExamReportPath(workspaceId, canonicalCardId, currentCard, exam, attempt);
   const nextState = Object.assign({}, state, {
     status: passed ? "completed" : "retake_required",
     attempts: [...(Array.isArray(state.attempts) ? state.attempts : []), attempt].slice(-20),
     lastReportPath: reportPath,
     completedAt: passed ? nowIso() : state.completedAt || "",
   });
-  writeKanbanAssessmentExamState(workspaceId, cardId, currentCard, nextState);
+  writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, nextState);
   const resultComment = [
     `Formal assessment scored ${score}/100; passing score ${passingScore}/100.`,
     passed ? "Assessment passed. Completing this card." : "Assessment did not pass. Retake is required; this card remains open.",
@@ -6414,7 +6602,7 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
   await kanbanCardProvider.mutateCard({
     action: "comment",
     workspaceId,
-    cardId,
+    cardId: canonicalCardId,
     comment: resultComment,
     author: "Hermes Mobile",
   }).catch(() => null);
@@ -6435,7 +6623,7 @@ async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
   const completed = await kanbanCardProvider.mutateCard({
     action: "complete",
     workspaceId,
-    cardId,
+    cardId: canonicalCardId,
     result: [
       `Formal assessment passed with ${score}/100.`,
       `Correct: ${correctCount}/${results.length}.`,

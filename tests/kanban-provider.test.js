@@ -279,6 +279,22 @@ async function run() {
   assert.equal(readingRevision.kanban_case_card_count, 10);
   assert.deepEqual(readingRevision.kanban_case_depends_on, []);
 
+  const assessmentRevision = await provider.run({
+    action: "revise",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: assessment.id,
+    comment: "make this AMC8 level",
+  });
+  assert.equal(assessmentRevision.ok, true);
+  assert.equal(assessmentRevision.action, "revise");
+  assert.equal(assessmentRevision.kanban_revision_of, assessment.id);
+  assert.equal(assessmentRevision.kanban_case_mode, "assessment-plan");
+  assert.equal(assessmentRevision.kanban_case_template, "math");
+  assert.equal(assessmentRevision.kanban_case_card_index, 2);
+  assert.equal(assessmentRevision.kanban_case_card_count, 10);
+  assert.deepEqual(assessmentRevision.kanban_case_depends_on, []);
+
   const listedWithClosed = await provider.run({
     action: "list",
     workspace_id: "weixin_stephen",

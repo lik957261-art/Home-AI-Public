@@ -874,11 +874,11 @@ function createKanbanTodoBridge(options = {}) {
       const caseSourceText = String(meta.caseSourceText || meta.case_source_text || originalTitle).trim();
       const caseSummary = String(meta.caseSummary || meta.case_summary || `Manual revision for ${originalTitle}`).trim();
       const caseCover = meta.caseCover || meta.case_cover || null;
-      const studyPlanRevision = caseMode === "study-plan";
+      const manualWorkflowRevision = caseMode === "study-plan" || caseMode === "assessment-plan";
       const originalCaseCardIndex = Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 1;
       const currentCaseCardCount = Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || originalCaseCardIndex;
-      const caseCardIndex = studyPlanRevision ? originalCaseCardIndex : currentCaseCardCount + 1;
-      const caseCardCount = studyPlanRevision ? currentCaseCardCount : Math.max(caseCardIndex, currentCaseCardCount);
+      const caseCardIndex = manualWorkflowRevision ? originalCaseCardIndex : currentCaseCardCount + 1;
+      const caseCardCount = manualWorkflowRevision ? currentCaseCardCount : Math.max(caseCardIndex, currentCaseCardCount);
       const revisionTitle = String(payload.title || payload.content || `修改：${originalTitle}`).trim();
       const revisionDescription = [
         `Original card: ${todoId}`,
@@ -902,7 +902,7 @@ function createKanbanTodoBridge(options = {}) {
         case_card_id: `${originalCaseCardId}-revision-${revisionCount}`,
         case_card_index: caseCardIndex,
         case_card_count: caseCardCount,
-        case_depends_on: studyPlanRevision ? [] : [originalCaseCardId],
+        case_depends_on: manualWorkflowRevision ? [] : [originalCaseCardId],
         case_deliverables: arrayFromValue(meta.caseDeliverables || meta.case_deliverables, 8),
         case_acceptance: arrayFromValue(meta.caseAcceptance || meta.case_acceptance, 7).concat(["Complete the requested modification and update the receipt."]).slice(0, 8),
         case_card_goal: compactValue(revisionRequest, 240),
