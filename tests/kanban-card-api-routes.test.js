@@ -510,6 +510,28 @@ async function testPlanningAndDocumentRoutesUseWorkspaceScopedFakes() {
   ]);
 }
 
+async function testCreateAndBatchClampNotificationAssignee() {
+  const { routes, calls } = makeRoutes({
+    normalizeKanbanNotificationAssignee(workspaceId, requested) {
+      calls.shared.push({ workspaceId, requested });
+      return requested === "allowed-child" ? requested : `principal-${workspaceId}`;
+    },
+  });
+
+  const created = await request(routes, "POST", "/api/kanban/cards", {
+    body: { workspaceId: "child", title: "Direct", assignee: "other-workspace" },
+  });
+  assert.equal(created.res.statusCode, 201);
+  assert.equal(calls.add[0].assignee, "principal-child");
+  assert.equal(calls.add[0].assigneeLabel, "child:principal-child");
+
+  const batch = await request(routes, "POST", "/api/kanban/cards/batch", {
+    body: { workspaceId: "child", cards: [{ title: "A", assignee: "other-workspace" }], text: "source", assignee: "other-workspace" },
+  });
+  assert.equal(batch.res.statusCode, 201);
+  assert.equal(calls.batch[0].options.assignee, "principal-child");
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createKanbanCardApiRoutes({}),
@@ -565,6 +587,7 @@ function testDependencyValidation() {
   await testDetailAndActionAccessCapabilities();
   await testCreateMapsBodyCasePayloadCacheBroadcastAndVerification();
   await testPlanningAndDocumentRoutesUseWorkspaceScopedFakes();
+  await testCreateAndBatchClampNotificationAssignee();
   testDependencyValidation();
   console.log("kanban card api routes tests passed");
 })().catch((err) => {

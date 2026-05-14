@@ -9,6 +9,7 @@ const documentPreviewService = require("../adapters/document-preview-service");
 const fileResourceService = require("../adapters/file-resource-service");
 const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
+const kanbanAssigneePolicy = require("../adapters/kanban-assignee-policy");
 const kanbanCaseShareService = require("../adapters/kanban-case-share-service");
 const kanbanMaintenanceService = require("../adapters/kanban-maintenance-service");
 const kanbanPlanService = require("../adapters/kanban-plan-service");
@@ -70,6 +71,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof requestContext.buildRequestContext, "function");
   assert.equal(typeof resourceResolver.resolveResourceAccess, "function");
+  assert.equal(typeof kanbanAssigneePolicy.createKanbanAssigneePolicy, "function");
   assert.equal(typeof kanbanCaseShareService.createKanbanCaseShareService, "function");
   assert.equal(typeof kanbanMaintenanceService.createKanbanMaintenanceService, "function");
   assert.equal(typeof kanbanPlanService.createKanbanPlanService, "function");
@@ -169,6 +171,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createKanbanPlanService/);
   assert.match(server, /kanbanPlanService\.normalizePlan/);
   assert.match(server, /kanbanPlanService\.singleCardCasePayload/);
+  assert.match(server, /createKanbanAssigneePolicy/);
+  assert.match(server, /normalizeKanbanNotificationAssignee/);
   assert.match(server, /createKanbanStudyArtifactService/);
   assert.match(server, /kanbanStudyArtifactService\.publicReadingSubmissionSummary/);
   assert.match(server, /kanbanStudyArtifactService\.publicAssessmentExam/);

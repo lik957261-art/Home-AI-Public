@@ -206,6 +206,13 @@ function createKanbanCardApiRoutes(deps = {}) {
     return false;
   }
 
+  function normalizeNotificationAssignee(workspaceId, ...candidates) {
+    if (typeof deps.normalizeKanbanNotificationAssignee === "function") {
+      return deps.normalizeKanbanNotificationAssignee(workspaceId, ...candidates);
+    }
+    return candidates.map((item) => String(item || "").trim()).find(Boolean) || "";
+  }
+
   async function handleList(req, res, url) {
     if (!requireKanbanEnabled(res)) return;
     const workspaceId = deps.requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
@@ -352,7 +359,7 @@ function createKanbanCardApiRoutes(deps = {}) {
     if (!workspaceId) return;
     try {
       const result = await deps.createKanbanPlanCards(workspaceId, body.plan || { cards: body.cards || [], sourceText: body.text || "" }, {
-        assignee: body.assignee || "",
+        assignee: normalizeNotificationAssignee(workspaceId, body.assignee || ""),
         sourceText: body.text || "",
         maxParallel: body.maxParallel ?? body.max_parallel ?? body.plan?.maxParallel ?? body.plan?.max_parallel,
         reasoningEffort: body.reasoning_effort || body.reasoningEffort || body.plan?.reasoningEffort || body.plan?.reasoning_effort,
@@ -375,10 +382,11 @@ function createKanbanCardApiRoutes(deps = {}) {
     const body = await deps.readBody(req);
     const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
+    const assignee = normalizeNotificationAssignee(workspaceId, body.assignee || "");
     const result = await deps.kanbanCardProvider.addCard({
       workspaceId,
-      assignee: body.assignee || "",
-      assigneeLabel: deps.todoAssigneeLabel(workspaceId, body.assignee || ""),
+      assignee,
+      assigneeLabel: deps.todoAssigneeLabel(workspaceId, assignee),
       content: body.content || body.title || "",
       description: body.description || "",
       dueTime: body.dueTime || body.due_time || "",

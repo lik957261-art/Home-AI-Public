@@ -88,6 +88,8 @@ function OwnerMaintenanceSharedMemoryEnabled {
   $value = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_OWNER_MAINTENANCE_SHARED_MEMORY_MODE")
   if (-not $value) { $value = [Environment]::GetEnvironmentVariable("HERMES_WEB_OWNER_MAINTENANCE_SHARED_MEMORY_MODE") }
   if (-not $value) { return $true }
+  $value = $value.Trim()
+  if (-not $value) { return $true }
   return $value -notmatch '^(0|false|no|off|profile-local)$'
 }
 
@@ -374,10 +376,12 @@ function Start-OwnerMaintenanceGateways {
   $sharedAuthLockPath = "/home/$OfficialUser/.hermes/auth.lock"
   $sharedMemoryEnabled = OwnerMaintenanceSharedMemoryEnabled
   $sharedMemoryPath = "/home/$OfficialUser/.hermes/memories"
-  $ownerMaintenanceLockDir = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
+  $ownerMaintenanceLockPath = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
   $commands = [System.Collections.ArrayList]@(
-    "while ! mkdir $ownerMaintenanceLockDir 2>/dev/null; do sleep 1; done",
-    "trap 'rmdir $ownerMaintenanceLockDir' EXIT",
+    "if [ -d $ownerMaintenanceLockPath ]; then rmdir $ownerMaintenanceLockPath 2>/dev/null || { echo owner_maintenance_memory_lock_busy >&2; exit 42; }; fi",
+    "exec 9>$ownerMaintenanceLockPath",
+    "flock -w 60 9 || { echo owner_maintenance_memory_lock_timeout >&2; exit 42; }",
+    "trap 'flock -u 9' EXIT",
     "test -x $officialPython",
     "test -d $officialCleanRoot",
     "mkdir -p /home/$OfficialUser/.hermes/logs",

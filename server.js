@@ -22,6 +22,7 @@ const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider"
 const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
+const { createKanbanAssigneePolicy } = require("./adapters/kanban-assignee-policy");
 const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
 const { createKanbanMaintenanceService } = require("./adapters/kanban-maintenance-service");
 const { createKanbanPlanService } = require("./adapters/kanban-plan-service");
@@ -3706,6 +3707,10 @@ const kanbanPlanService = createKanbanPlanService({
   createPlanId: () => `kanban-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
   createSingleCaseId: () => `kanban-single-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
 });
+const kanbanAssigneePolicy = createKanbanAssigneePolicy({
+  workspacePrincipal,
+  todoAssigneesForWorkspace,
+});
 
 const kanbanCardApiRoutes = createKanbanCardApiRoutes({
   annotateKanbanCardsForAuth,
@@ -3721,6 +3726,7 @@ const kanbanCardApiRoutes = createKanbanCardApiRoutes({
   kanbanCaseSharesForActor,
   kanbanErrorResponse,
   kanbanSingleCardCasePayload,
+  normalizeKanbanNotificationAssignee,
   normalizeKanbanMaxParallel,
   normalizeKanbanPlanReasoningEffort,
   planKanbanMultiAgent,
@@ -4403,6 +4409,10 @@ function formatLocalDateTime(date) {
 
 function todoAssigneeLabel(workspaceId, principalId) {
   return todoAssigneesForWorkspace(workspaceId).find((item) => item.id === principalId)?.label || principalId;
+}
+
+function normalizeKanbanNotificationAssignee(workspaceId, ...candidates) {
+  return kanbanAssigneePolicy.normalizeNotificationAssignee(workspaceId, ...candidates);
 }
 
 function resolveTodoAssigneeFromText(text, workspaceId) {
@@ -5397,7 +5407,7 @@ async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
   const runnableIds = new Set(plan.cards.filter((card) => !card.dependsOn.length).slice(0, maxParallel).map((card) => card.clientId));
 
   for (const [cardIndex, card] of plan.cards.entries()) {
-    const assignee = card.assignee || options.assignee || "";
+    const assignee = normalizeKanbanNotificationAssignee(workspaceId, card.assignee, options.assignee);
     const cardCaseTemplate = card.caseTemplate || plan.template;
     const cardSourceText = compactText([
       plan.sourceText,
