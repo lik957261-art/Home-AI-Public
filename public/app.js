@@ -56,6 +56,7 @@ const KANBAN_STORY_DETAIL_LOAD_LIMIT = 6;
 const KANBAN_MULTI_AGENT_DEFAULT_PARALLEL = 3;
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 8;
 const TaskArtifactHelpers = window.HermesTaskArtifactHelpers || {};
+const KanbanStoryHelpers = window.HermesKanbanStoryHelpers || {};
 
 function initialTodoKanbanStatus() {
   const stored = localStorage.getItem("hermesTodoKanbanStatus") || "";
@@ -9085,6 +9086,31 @@ function kanbanDisplayResultText(todo, text) {
     : cleanKanbanInternalResultLines(raw);
 }
 
+function kanbanStoryHelperOptions(extra = {}) {
+  return Object.assign({
+    allTodos: state.todos || [],
+    statusOrder: KANBAN_STATUS_ORDER,
+    todoSortTimestamp,
+    todoTitle,
+    compactDisplayText,
+    isKanbanReadingCard,
+    isKanbanAssessmentCard,
+    normalizedKanbanStatus,
+    kanbanStatusMeta,
+    assessmentExamSummary,
+    assessmentExamCompleted,
+    assessmentCardAcceptsStart,
+    readingSubmissionHasAnalysis,
+    readingSubmissionCompleted,
+    readingCardAcceptsSubmission,
+    kanbanCan,
+    kanbanDisplayResultText,
+    todoCardDetailState,
+    kanbanCardOutputs,
+    isKanbanTodoSource,
+  }, extra || {});
+}
+
 function isReadingPlanWaitingCard(todo) {
   if (!isKanbanReadingCard(todo)) return false;
   if (normalizedKanbanStatus(todo) !== "blocked") return false;
@@ -9094,110 +9120,47 @@ function isReadingPlanWaitingCard(todo) {
 }
 
 function kanbanReadingCaseKey(todo) {
-  return String(todo?.kanbanCaseId || todo?.id || "").trim() || String(todo?.id || "");
+  return KanbanStoryHelpers.kanbanReadingCaseKey(todo);
 }
 
 function kanbanVisibleReadingTodoIds(todos) {
-  const groups = new Map();
-  for (const todo of todos || []) {
-    if (!isKanbanReadingCard(todo) && !isKanbanAssessmentCard(todo)) continue;
-    const key = kanbanReadingCaseKey(todo);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push({ todo, info: kanbanCardCaseInfo(todo) });
-  }
-  const visible = new Set();
-  for (const cards of groups.values()) {
-    const hasStudyCards = cards.some((item) => isKanbanReadingCard(item.todo));
-    const item = hasStudyCards
-      ? kanbanReadingCaseCurrentItem({ cards })
-      : kanbanAssessmentCaseCurrentItem({ cards });
-    const id = String(item?.todo?.id || "");
-    if (id) visible.add(id);
-  }
-  return visible;
+  return KanbanStoryHelpers.kanbanVisibleReadingTodoIds(todos, kanbanStoryHelperOptions());
 }
 
 function kanbanReadingRevisionOriginal(group, item) {
-  const originalId = String(item?.todo?.kanbanRevisionOf || "").trim();
-  if (!originalId) return null;
-  return (group?.cards || []).find((candidate) => String(candidate?.todo?.id || "") === originalId) || null;
+  return KanbanStoryHelpers.kanbanReadingRevisionOriginal(group, item);
 }
 
 function isKanbanReadingRevision(itemOrTodo) {
-  const todo = itemOrTodo?.todo || itemOrTodo || {};
-  return Boolean(String(todo?.kanbanRevisionOf || "").trim());
+  return KanbanStoryHelpers.isKanbanReadingRevision(itemOrTodo);
 }
 
 function kanbanReadingDisplayCardIndex(group, item) {
-  const original = kanbanReadingRevisionOriginal(group, item);
-  const value = original?.info?.cardIndex || item?.info?.cardIndex || item?.todo?.kanbanCaseCardIndex || 0;
-  return Number(value || 0) || 0;
+  return KanbanStoryHelpers.kanbanReadingDisplayCardIndex(group, item);
 }
 
 function kanbanRevisionSortTimestamp(item) {
-  return todoSortTimestamp(item?.todo || {}) || 0;
+  return KanbanStoryHelpers.kanbanRevisionSortTimestamp(item, kanbanStoryHelperOptions());
 }
 
 function kanbanLatestRevisionReplacementItems(group, predicate = null) {
-  const cards = (group?.cards || []).filter((item) => !predicate || predicate(item.todo));
-  if (!cards.length) return [];
-  const baseIds = new Set(cards
-    .filter((item) => !isKanbanReadingRevision(item))
-    .map((item) => String(item?.todo?.id || ""))
-    .filter(Boolean));
-  const revisionsByOriginal = new Map();
-  for (const item of cards) {
-    const originalId = String(item?.todo?.kanbanRevisionOf || "").trim();
-    if (!originalId) continue;
-    const previous = revisionsByOriginal.get(originalId);
-    const previousRank = Number(previous?.todo?.kanbanRevisionCount || 0) || 0;
-    const nextRank = Number(item?.todo?.kanbanRevisionCount || 0) || 0;
-    if (!previous || nextRank > previousRank || (
-      nextRank === previousRank
-      && kanbanRevisionSortTimestamp(item) >= kanbanRevisionSortTimestamp(previous)
-    )) {
-      revisionsByOriginal.set(originalId, item);
-    }
-  }
-  const visible = [];
-  for (const item of cards) {
-    const id = String(item?.todo?.id || "");
-    if (isKanbanReadingRevision(item)) continue;
-    visible.push(revisionsByOriginal.get(id) || item);
-  }
-  for (const item of cards) {
-    const originalId = String(item?.todo?.kanbanRevisionOf || "").trim();
-    if (originalId && !baseIds.has(originalId)) visible.push(item);
-  }
-  return visible.sort((left, right) => {
-    const leftIndex = kanbanReadingDisplayCardIndex(group, left) || 999;
-    const rightIndex = kanbanReadingDisplayCardIndex(group, right) || 999;
-    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
-    return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
-  });
+  return KanbanStoryHelpers.kanbanLatestRevisionReplacementItems(group, predicate, kanbanStoryHelperOptions());
 }
 
 function kanbanAssessmentVisibleCardItems(group) {
-  return kanbanLatestRevisionReplacementItems(group, (todo) => isKanbanAssessmentCard(todo));
+  return KanbanStoryHelpers.kanbanAssessmentVisibleCardItems(group, kanbanStoryHelperOptions());
 }
 
 function kanbanReadingBaseCardItems(group) {
-  return (group?.cards || []).filter((item) => !isKanbanReadingRevision(item));
+  return KanbanStoryHelpers.kanbanReadingBaseCardItems(group);
 }
 
 function kanbanReadingDisplayCardCount(group) {
-  const baseCount = kanbanReadingBaseCardItems(group).length;
-  if (baseCount) return baseCount;
-  const first = (group?.cards || [])[0];
-  return Number(first?.info?.cardCount || first?.todo?.kanbanCaseCardCount || 0) || 0;
+  return KanbanStoryHelpers.kanbanReadingDisplayCardCount(group);
 }
 
 function kanbanVisibleBoardTodos(todos) {
-  const visibleReadingIds = kanbanVisibleReadingTodoIds(todos);
-  return (todos || []).filter((todo) => (
-    (!isKanbanReadingCard(todo) && !isKanbanAssessmentCard(todo))
-    || visibleReadingIds.has(String(todo?.id || ""))
-  ));
+  return KanbanStoryHelpers.kanbanVisibleBoardTodos(todos, kanbanStoryHelperOptions());
 }
 
 function kanbanReadingStartTime(todo) {
@@ -9249,26 +9212,15 @@ function assessmentHasVisibleResult(todo) {
 }
 
 function kanbanCasePriorCards(todo, predicate) {
-  const caseId = String(todo?.kanbanCaseId || "").trim();
-  const caseCards = (state.todos || [])
-    .filter((card) => String(card?.kanbanCaseId || "").trim() === caseId && (!predicate || predicate(card)))
-    .map((card) => ({ todo: card, info: kanbanCardCaseInfo(card) }));
-  const visibleItems = kanbanLatestRevisionReplacementItems({ cards: caseCards }, predicate);
-  const currentItem = visibleItems.find((item) => String(item?.todo?.id || "") === String(todo?.id || ""))
-    || caseCards.find((item) => String(item?.todo?.id || "") === String(todo?.id || ""));
-  const index = kanbanReadingDisplayCardIndex({ cards: caseCards }, currentItem) || Number(todo?.kanbanCaseCardIndex || 0) || 0;
-  if (!caseId || !index) return [];
-  return visibleItems
-    .filter((item) => (kanbanReadingDisplayCardIndex({ cards: caseCards }, item) || 0) < index)
-    .map((item) => item.todo);
+  return KanbanStoryHelpers.kanbanCasePriorCards(todo, predicate, kanbanStoryHelperOptions());
 }
 
 function readingCasePriorComplete(todo) {
-  return kanbanCasePriorCards(todo, isKanbanReadingCard).every(readingSubmissionCompleted);
+  return KanbanStoryHelpers.readingCasePriorComplete(todo, kanbanStoryHelperOptions());
 }
 
 function assessmentPriorComplete(todo) {
-  return kanbanCasePriorCards(todo, isKanbanAssessmentCard).every(assessmentExamCompleted);
+  return KanbanStoryHelpers.assessmentPriorComplete(todo, kanbanStoryHelperOptions());
 }
 
 function assessmentCardAcceptsStart(todo) {
@@ -9281,178 +9233,55 @@ function assessmentCardAcceptsStart(todo) {
 }
 
 function kanbanAssessmentCaseCurrentItem(group) {
-  const cards = kanbanAssessmentVisibleCardItems(group);
-  const retake = cards.find((item) => isKanbanAssessmentCard(item.todo) && String(assessmentExamSummary(item.todo)?.status || "") === "retake_required");
-  if (retake) return retake;
-  const startable = cards.find((item) => isKanbanAssessmentCard(item.todo) && assessmentCardAcceptsStart(item.todo));
-  if (startable) return startable;
-  const next = cards.find((item) => isKanbanAssessmentCard(item.todo) && !assessmentExamCompleted(item.todo) && normalizedKanbanStatus(item.todo) !== "archived");
-  if (next) return next;
-  const completed = [...cards].reverse().find((item) => isKanbanAssessmentCard(item.todo) && assessmentExamCompleted(item.todo));
-  return completed || cards.find((item) => isKanbanAssessmentCard(item.todo)) || null;
+  return KanbanStoryHelpers.kanbanAssessmentCaseCurrentItem(group, kanbanStoryHelperOptions());
 }
 
 function kanbanReadingCaseCurrentItem(group) {
-  const cards = [...(Array.isArray(group?.cards) ? group.cards : [])].sort((left, right) => {
-    const leftIndex = kanbanReadingDisplayCardIndex(group, left) || 999;
-    const rightIndex = kanbanReadingDisplayCardIndex(group, right) || 999;
-    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
-    if (isKanbanReadingRevision(left) !== isKanbanReadingRevision(right)) {
-      return isKanbanReadingRevision(left) ? 1 : -1;
-    }
-    return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
-  });
-  const pendingQuiz = cards.find((item) => readingSubmissionHasAnalysis(item.todo) && !readingSubmissionCompleted(item.todo));
-  if (pendingQuiz) return pendingQuiz;
-  const visibleOpen = cards.find((item) => {
-    const status = normalizedKanbanStatus(item.todo);
-    return !isKanbanReadingRevision(item) && status !== "done" && status !== "archived" && readingCardAcceptsSubmission(item.todo);
-  });
-  if (visibleOpen) return visibleOpen;
-  const nextBase = cards.find((item) => {
-    const status = normalizedKanbanStatus(item.todo);
-    return !isKanbanReadingRevision(item) && status !== "done" && status !== "archived";
-  });
-  if (nextBase) return nextBase;
-  const completed = [...cards].reverse().find((item) => !isKanbanReadingRevision(item) && ["done", "archived"].includes(normalizedKanbanStatus(item.todo)));
-  if (completed) return completed;
-  return cards.find((item) => !isKanbanReadingRevision(item))
-    || cards[0]
-    || null;
+  return KanbanStoryHelpers.kanbanReadingCaseCurrentItem(group, kanbanStoryHelperOptions());
 }
 
 function stableDisplayHash(value) {
-  let hash = 2166136261;
-  const text = String(value || "");
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
+  return KanbanStoryHelpers.stableDisplayHash(value);
 }
 
 function arrayFromKanbanField(value, limit = 8) {
-  const raw = Array.isArray(value) ? value : value ? [value] : [];
-  return raw.map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
+  return KanbanStoryHelpers.arrayFromKanbanField(value, limit);
 }
 
 function kanbanDescriptionSection(description, heading) {
-  const text = String(description || "");
-  const marker = `${heading}:\n`;
-  const start = text.indexOf(marker);
-  if (start < 0) return "";
-  const rest = text.slice(start + marker.length);
-  const next = rest.search(/\n\n(?:Multi-Agent plan|Source request|Card goal|Expected deliverables|Acceptance criteria|Dependencies|Concurrency rule):/);
-  return (next >= 0 ? rest.slice(0, next) : rest).trim();
+  return KanbanStoryHelpers.kanbanDescriptionSection(description, heading);
 }
 
 function kanbanDescriptionList(description, heading, limit = 8) {
-  return kanbanDescriptionSection(description, heading)
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
-    .filter(Boolean)
-    .slice(0, limit);
+  return KanbanStoryHelpers.kanbanDescriptionList(description, heading, limit);
 }
 
 function parsedKanbanPlanDescription(todo) {
-  const description = String(todo?.description || "");
-  if (!description) return {};
-  const summary = description.match(/(?:^|\n)Multi-Agent plan:\s*([^\n]+)/)?.[1]?.trim() || "";
-  return {
-    summary,
-    sourceText: kanbanDescriptionSection(description, "Source request"),
-    cardGoal: kanbanDescriptionSection(description, "Card goal"),
-    deliverables: kanbanDescriptionList(description, "Expected deliverables", 8),
-    acceptance: kanbanDescriptionList(description, "Acceptance criteria", 8),
-    dependsOn: kanbanDescriptionList(description, "Dependencies", 12),
-  };
+  return KanbanStoryHelpers.parsedKanbanPlanDescription(todo);
 }
 
 function kanbanCardCaseInfo(todo) {
-  const parsed = parsedKanbanPlanDescription(todo);
-  const sourceText = String(todo?.kanbanCaseSourceText || parsed.sourceText || "").trim();
-  const summary = String(todo?.kanbanCaseSummary || parsed.summary || sourceText || todo?.content || todo?.id || "").trim();
-  const explicitCaseId = String(todo?.kanbanCaseId || "").trim();
-  const inferredCaseId = sourceText
-    ? `parsed-plan-${stableDisplayHash(`${summary}\0${sourceText}`)}`
-    : `single-card-${todo?.id || stableDisplayHash(summary)}`;
-  return {
-    id: explicitCaseId || inferredCaseId,
-    mode: String(todo?.kanbanCaseMode || (sourceText ? "multi-agent" : "single-card")),
-    sourceText,
-    summary,
-    cardId: String(todo?.kanbanCaseCardId || todo?.id || ""),
-    cardIndex: Number(todo?.kanbanCaseCardIndex || 0) || 0,
-    cardCount: Number(todo?.kanbanCaseCardCount || 0) || 0,
-    cardGoal: String(todo?.kanbanCaseCardGoal || parsed.cardGoal || todo?.description || "").trim(),
-    dependsOn: arrayFromKanbanField(todo?.kanbanCaseDependsOn, 12).length
-      ? arrayFromKanbanField(todo?.kanbanCaseDependsOn, 12)
-      : parsed.dependsOn,
-    deliverables: arrayFromKanbanField(todo?.kanbanCaseDeliverables, 8).length
-      ? arrayFromKanbanField(todo?.kanbanCaseDeliverables, 8)
-      : parsed.deliverables,
-    acceptance: arrayFromKanbanField(todo?.kanbanCaseAcceptance, 8).length
-      ? arrayFromKanbanField(todo?.kanbanCaseAcceptance, 8)
-      : parsed.acceptance,
-  };
+  return KanbanStoryHelpers.kanbanCardCaseInfo(todo);
 }
 
 function kanbanArchiveCases(items) {
-  const groups = new Map();
-  for (const todo of items || []) {
-    const info = kanbanCardCaseInfo(todo);
-    if (!groups.has(info.id)) {
-      groups.set(info.id, {
-        id: info.id,
-        mode: info.mode,
-        title: info.summary || todoTitle(todo),
-        sourceText: info.sourceText,
-        cards: [],
-        latest: 0,
-      });
-    }
-    const group = groups.get(info.id);
-    if (!group.sourceText && info.sourceText) group.sourceText = info.sourceText;
-    if ((!group.title || group.title === group.id) && info.summary) group.title = info.summary;
-    group.cards.push({ todo, info });
-    group.latest = Math.max(group.latest, todoSortTimestamp(todo));
-  }
-  return [...groups.values()].map((group) => {
-    group.cards.sort((left, right) => {
-      const leftIndex = left.info.cardIndex || 999;
-      const rightIndex = right.info.cardIndex || 999;
-      if (leftIndex !== rightIndex) return leftIndex - rightIndex;
-      return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
-    });
-    return group;
-  }).sort((left, right) => {
-    const delta = right.latest - left.latest;
-    if (delta) return delta;
-    return String(right.id).localeCompare(String(left.id));
-  });
+  return KanbanStoryHelpers.kanbanArchiveCases(items, kanbanStoryHelperOptions());
 }
 
 function kanbanStoryCases(items) {
-  return kanbanArchiveCases(items);
+  return KanbanStoryHelpers.kanbanStoryCases(items, kanbanStoryHelperOptions());
 }
 
 function kanbanStoryCaseFullyArchived(group) {
-  const cards = group?.mode === "assessment-plan"
-    ? kanbanAssessmentVisibleCardItems(group)
-    : (group?.cards || []);
-  return cards.length > 0 && cards.every((item) => normalizedKanbanStatus(item.todo) === "archived");
+  return KanbanStoryHelpers.kanbanStoryCaseFullyArchived(group, kanbanStoryHelperOptions());
 }
 
 function kanbanActiveStoryCases(items) {
-  return kanbanStoryCases(items).filter((group) => !kanbanStoryCaseFullyArchived(group));
+  return KanbanStoryHelpers.kanbanActiveStoryCases(items, kanbanStoryHelperOptions());
 }
 
 function kanbanStoryCaseKey(group) {
-  const first = (group?.cards || [])[0]?.todo || {};
-  return [
-    String(group?.mode || "case"),
-    String(group?.id || first.kanbanCaseId || first.id || group?.title || "story"),
-  ].filter(Boolean).join(":");
+  return KanbanStoryHelpers.kanbanStoryCaseKey(group);
 }
 
 function kanbanStoryCaseExpanded(group) {
@@ -9483,19 +9312,7 @@ function kanbanStoryCaseRenderState(group, options = {}) {
 }
 
 function kanbanStoryCaseArchiveItems(group) {
-  const allCards = group?.cards || [];
-  const cards = group?.mode === "assessment-plan"
-    ? kanbanAssessmentVisibleCardItems(group)
-    : allCards;
-  if (!cards.length) return [];
-  const nonArchived = cards.filter((item) => normalizedKanbanStatus(item.todo) !== "archived");
-  if (!nonArchived.length) return [];
-  const complete = nonArchived.every((item) => normalizedKanbanStatus(item.todo) === "done");
-  if (!complete) return [];
-  const archiveItems = group?.mode === "assessment-plan" ? allCards : nonArchived;
-  return archiveItems
-    .filter((item) => normalizedKanbanStatus(item.todo) !== "archived")
-    .filter((item) => kanbanCan(item.todo, "canDelete"));
+  return KanbanStoryHelpers.kanbanStoryCaseArchiveItems(group, kanbanStoryHelperOptions());
 }
 
 function renderKanbanStoryArchiveButton(group, options = {}) {
@@ -9507,16 +9324,11 @@ function renderKanbanStoryArchiveButton(group, options = {}) {
 }
 
 function kanbanStoryCaseDeleteItems(group) {
-  const cards = group?.cards || [];
-  if (!cards.length) return [];
-  const deletable = cards.filter((item) => kanbanCan(item.todo, "canDelete"));
-  return deletable.length === cards.length ? deletable : [];
+  return KanbanStoryHelpers.kanbanStoryCaseDeleteItems(group, kanbanStoryHelperOptions());
 }
 
 function kanbanStoryCaseCanDelete(group, options = {}) {
-  if (!options.deleteAction) return false;
-  const items = kanbanStoryCaseDeleteItems(group);
-  return Boolean(items.length && kanbanStoryCaseKey(group));
+  return KanbanStoryHelpers.kanbanStoryCaseCanDelete(group, kanbanStoryHelperOptions(options));
 }
 
 function kanbanStorySwipeRenderState(group, options = {}) {
@@ -9534,52 +9346,23 @@ function kanbanStorySwipeRenderState(group, options = {}) {
 }
 
 function kanbanArchiveStatusSummary(group) {
-  const counts = new Map();
-  for (const item of group.cards || []) {
-    const status = normalizedKanbanStatus(item.todo);
-    counts.set(status, (counts.get(status) || 0) + 1);
-  }
-  return KANBAN_STATUS_ORDER
-    .filter((status) => counts.has(status))
-    .map((status) => `${kanbanStatusMeta(status).shortLabel} ${counts.get(status)}`)
-    .join(" / ");
+  return KanbanStoryHelpers.kanbanArchiveStatusSummary(group, kanbanStoryHelperOptions());
 }
 
 function kanbanArchiveConclusion(group) {
-  const result = [...(group.cards || [])]
-    .sort((left, right) => todoSortTimestamp(right.todo) - todoSortTimestamp(left.todo))
-    .map((item) => kanbanCardStoryFeedback(item.todo))
-    .find(Boolean);
-  if (result) return compactDisplayText(result, 320);
-  const completed = group.cards.filter((item) => normalizedKanbanStatus(item.todo) === "done").length;
-  const archived = group.cards.filter((item) => normalizedKanbanStatus(item.todo) === "archived").length;
-  if (completed || archived) return `Done ${completed} / Archived ${archived}`;
-  return "\u672a\u5199\u5165\u7ed3\u679c\u56de\u6267";
+  return KanbanStoryHelpers.kanbanArchiveConclusion(group, kanbanStoryHelperOptions());
 }
 
 function kanbanCardStoryFeedback(todo) {
-  const detail = todoCardDetailState(todo?.id || "");
-  return kanbanDisplayResultText(todo, todo?.kanbanResult || detail?.summary || "");
+  return KanbanStoryHelpers.kanbanCardStoryFeedback(todo, kanbanStoryHelperOptions());
 }
 
 function kanbanCardNeedsStoryDetail(todo) {
-  if (!todo || !isKanbanTodoSource()) return false;
-  if (kanbanCardStoryFeedback(todo)) return false;
-  if (kanbanCardOutputs(todo).length) return false;
-  const detail = todoCardDetailState(todo.id);
-  if (detail?.loading || detail?.error || detail?.summary) return false;
-  const status = normalizedKanbanStatus(todo);
-  return status === "done" || status === "archived";
+  return KanbanStoryHelpers.kanbanCardNeedsStoryDetail(todo, kanbanStoryHelperOptions());
 }
 
 function kanbanCardStoryFeedbackLine(todo) {
-  const feedback = kanbanCardStoryFeedback(todo);
-  if (feedback) return compactDisplayText(feedback, 220);
-  const detail = todoCardDetailState(todo?.id || "");
-  if (detail?.loading) return "\u6267\u884c\u53cd\u9988\u52a0\u8f7d\u4e2d";
-  if (detail?.error) return `\u6267\u884c\u53cd\u9988\u52a0\u8f7d\u5931\u8d25\uff1a${compactDisplayText(detail.error, 80)}`;
-  if (kanbanCardNeedsStoryDetail(todo)) return "\u7b49\u5f85\u52a0\u8f7d\u6267\u884c\u53cd\u9988";
-  return "";
+  return KanbanStoryHelpers.kanbanCardStoryFeedbackLine(todo, kanbanStoryHelperOptions());
 }
 
 function scheduleKanbanStoryDetailLoads(items) {
