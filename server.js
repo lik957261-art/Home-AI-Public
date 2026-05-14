@@ -6,11 +6,10 @@ const path = require("node:path");
 const os = require("node:os");
 const crypto = require("node:crypto");
 const { spawn, spawnSync } = require("node:child_process");
-const { pathToFileURL } = require("node:url");
 const webpush = require("web-push");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
 const fileResourceService = require("./adapters/file-resource-service");
-const { renderWeixinMarkdownForwardHtml } = require("./adapters/markdown-renderer");
+const weixinMarkdownForwardService = require("./adapters/weixin-markdown-forward-service");
 const { createAccessPolicyProvider } = require("./adapters/access-policy-provider");
 const { createAuthProvider } = require("./adapters/auth-provider");
 const { createAutomationProvider } = require("./adapters/automation-provider");
@@ -9900,108 +9899,16 @@ function fileResultFromResolvedForwardSource(resolved, workspaceId, fallbackErro
   return { status: resolved?.status || 404, error: resolved?.error || fallbackError || "File not found" };
 }
 
-function isMarkdownForwardFile(file) {
-  const name = String(file?.name || file?.displayPath || file?.localPath || "").toLowerCase();
-  const mime = String(file?.mime || "").toLowerCase();
-  return name.endsWith(".md") || mime.includes("markdown");
-}
-
-function weixinMarkdownForwardDir(workspaceId) {
-  const dir = path.join(DATA_DIR, "artifacts", "weixin-forward", safeFileName(workspaceId || "owner"), "markdown");
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-function chromiumExecutableCandidates() {
-  return [
-    process.env.HERMES_MOBILE_WEIXIN_MARKDOWN_PDF_BROWSER,
-    process.env.HERMES_WEB_WEIXIN_MARKDOWN_PDF_BROWSER,
-    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
-    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    "msedge.exe",
-    "chrome.exe",
-    "chromium",
-    "google-chrome",
-  ].filter(Boolean);
-}
-
-function markdownForwardHtml(title, sourcePath, markdown) {
-  return renderWeixinMarkdownForwardHtml(title, sourcePath, markdown);
-}
-
-function findFirstExistingFile(paths) {
-  for (const candidate of paths || []) {
-    if (!candidate) continue;
-    try {
-      if (fs.existsSync(candidate)) return candidate;
-    } catch (_) {
-      // Ignore inaccessible candidate paths.
-    }
-  }
-  return "";
-}
-
-function renderMarkdownForwardPdf(markdownPath, workspaceId, title) {
-  const source = normalizeLocalPath(markdownPath);
-  if (!source || !fs.existsSync(source) || !fs.statSync(source).isFile()) return null;
-  const stat = fs.statSync(source);
-  if (stat.size > WEIXIN_FORWARD_MARKDOWN_MAX_BYTES) return null;
-  const markdown = fs.readFileSync(source, "utf8");
-  const dir = weixinMarkdownForwardDir(workspaceId);
-  const stem = path.parse(safeFileName(title || source)).name || "markdown";
-  const id = `${Date.now()}-${makeId("md")}`;
-  const htmlPath = path.join(dir, `${id}-${stem}.html`);
-  const pdfPath = path.join(dir, `${id}-${stem}.pdf`);
-  fs.writeFileSync(htmlPath, markdownForwardHtml(stem, source, markdown), "utf8");
-  const browser = findFirstExistingFile(chromiumExecutableCandidates()) || chromiumExecutableCandidates().find((candidate) => !path.isAbsolute(candidate));
-  if (!browser) return null;
-  const result = spawnSync(browser, [
-    "--headless=new",
-    "--disable-gpu",
-    "--no-sandbox",
-    `--print-to-pdf=${pdfPath}`,
-    pathToFileURL(htmlPath).href,
-  ], {
-    windowsHide: true,
-    timeout: 30000,
-    stdio: "ignore",
-  });
-  if (result.error || result.status !== 0) return null;
-  if (!fs.existsSync(pdfPath) || fs.statSync(pdfPath).size < 500) return null;
-  return pdfPath;
-}
-
-function materializeMarkdownForwardText(markdownPath, workspaceId, title) {
-  const source = normalizeLocalPath(markdownPath);
-  if (!source || !fs.existsSync(source) || !fs.statSync(source).isFile()) return null;
-  const stat = fs.statSync(source);
-  const maxBytes = Math.max(1024, WEIXIN_FORWARD_MARKDOWN_MAX_BYTES);
-  if (stat.size > maxBytes) return null;
-  const dir = weixinMarkdownForwardDir(workspaceId);
-  const stem = path.parse(safeFileName(title || source)).name || "markdown";
-  const outPath = path.join(dir, `${Date.now()}-${makeId("md")}-${stem}.txt`);
-  fs.writeFileSync(outPath, fs.readFileSync(source, "utf8"), "utf8");
-  return outPath;
-}
-
 function materializeWeixinForwardFile(file, workspaceId) {
-  if (!isMarkdownForwardFile(file)) return file;
-  const source = normalizeLocalPath(file?.localPath || "");
-  const name = safeFileName(file?.name || path.basename(source || "markdown.md"));
-  const pdfPath = renderMarkdownForwardPdf(source, workspaceId, name);
-  const outPath = pdfPath || materializeMarkdownForwardText(source, workspaceId, name);
-  if (!outPath) return file;
-  const stat = fs.statSync(outPath);
-  return Object.assign({}, file, {
-    localPath: outPath,
-    displayPath: outPath,
-    name: `${path.parse(name).name || "markdown"}${path.extname(outPath).toLowerCase()}`,
-    mime: mimeFor(outPath),
-    size: stat.size,
-    updatedAt: nowIso(),
-    sourceMarkdownPath: source,
+  return weixinMarkdownForwardService.materializeWeixinForwardFile(file, workspaceId, {
+    dataDir: DATA_DIR,
+    makeId,
+    maxBytes: WEIXIN_FORWARD_MARKDOWN_MAX_BYTES,
+    mimeFor,
+    normalizeLocalPath,
+    nowIso,
+    safeFileName,
+    spawnSync,
   });
 }
 

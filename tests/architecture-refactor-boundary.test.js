@@ -18,6 +18,7 @@ const runtimeStateRepository = require("../adapters/runtime-state-repository");
 const studyAssessmentService = require("../adapters/study-assessment-service");
 const threadViewService = require("../adapters/thread-view-service");
 const weixinForwardService = require("../adapters/weixin-forward-service");
+const weixinMarkdownForwardService = require("../adapters/weixin-markdown-forward-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
 const accessKeyApiRoutes = require("../server-routes/access-key-api-routes");
 const automationApiRoutes = require("../server-routes/automation-api-routes");
@@ -80,6 +81,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof threadViewService.createThreadViewService, "function");
   assert.equal(typeof weixinForwardService.createWeixinForwardService, "function");
   assert.equal(typeof weixinForwardService.compactWeixinForwardTarget, "function");
+  assert.equal(typeof weixinMarkdownForwardService.materializeWeixinForwardFile, "function");
+  assert.equal(typeof weixinMarkdownForwardService.renderMarkdownForwardPdf, "function");
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof systemApiRoutes.createSystemApiRoutes, "function");
@@ -167,6 +170,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /fileResourceService\.extractArtifactPaths/);
   assert.match(server, /createWeixinForwardService/);
   assert.match(server, /weixinForwardService\.targetsForWorkspace/);
+  assert.match(server, /weixinMarkdownForwardService\.materializeWeixinForwardFile/);
   assert.match(server, /syncKanbanCaseShareStoreToSqlite/);
   assertAppearsInOrder(server, [
     "threadReadUploadApiRoutes.handle(req, res, url, { auth })",

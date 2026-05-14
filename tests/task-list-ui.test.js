@@ -11,6 +11,7 @@ const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-w
 const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
 const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "markdown-renderer-client.js"), "utf8");
 const markdownRendererJs = fs.readFileSync(path.join(repoRoot, "adapters", "markdown-renderer.js"), "utf8");
+const weixinMarkdownForwardServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-markdown-forward-service.js"), "utf8");
 const pdfViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "pdf-viewer.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 const serverJs = fs.readFileSync(path.join(repoRoot, "server.js"), "utf8");
@@ -152,8 +153,9 @@ assert.match(serverJs, /async function createWeixinFileForwardDelivery\(auth, bo
 assert.match(serverJs, /const caption = String\(body\.caption \?\? body\.text \?\? ""\)\.trim\(\)/);
 assert.doesNotMatch(serverJs, /Weixin file forwarding:/);
 assert.match(serverJs, /function materializeWeixinForwardFile\(file, workspaceId\)/);
-assert.match(serverJs, /function renderMarkdownForwardPdf\(markdownPath, workspaceId, title\)/);
-assert.match(serverJs, /renderWeixinMarkdownForwardHtml\(title, sourcePath, markdown\)/);
+assert.match(serverJs, /weixinMarkdownForwardService\.materializeWeixinForwardFile\(file, workspaceId/);
+assert.match(weixinMarkdownForwardServiceJs, /function renderMarkdownForwardPdf\(markdownPath, workspaceId, title/);
+assert.match(weixinMarkdownForwardServiceJs, /renderWeixinMarkdownForwardHtml/);
 assert.match(markdownRendererJs, /function renderWeixinMarkdownForwardHtml\(title, sourcePath, markdown/);
 assert.match(markdownRendererJs, /document-kicker/);
 assert.match(markdownRendererJs, /markdown-table-wrap/);
@@ -161,7 +163,7 @@ assert.match(markdownRendererJs, /Weixin readable PDF/);
 assert.doesNotMatch(serverJs, /<pre>\$\{escapeHtmlForDocument\(markdown \|\| ""\)\}<\/pre>/);
 assert.match(serverJs, /const sourceFile = resolved\.file \|\| fileResultFromBridgeFileForForward\(resolved\.bridgeFile, workspaceId\)\.file/);
 assert.match(serverJs, /const forwardFile = materializeWeixinForwardFile\(sourceFile, workspaceId\)/);
-assert.match(serverJs, /pathToFileURL\(htmlPath\)\.href/);
+assert.match(weixinMarkdownForwardServiceJs, /pathToFileURL\(htmlPath\)\.href/);
 assert.match(serverJs, /WEIXIN_FORWARD_MARKDOWN_MAX_BYTES/);
 assert.match(serverJs, /fileResultFromBridgeFileForForward\(file, workspaceId\)/);
 assert.match(serverJs, /parsed\.pathname === "\/api\/automations\/output" \|\| parsed\.pathname === "\/api\/automations\/output\/preview"/);

@@ -245,9 +245,11 @@ def _extract_docx(path: Path, max_chars: int, include_headers_footers: bool, inc
 
     full_text = "\n\n".join(chunks).strip()
     truncated = len(full_text) > max_chars
+    preview = full_text[:max_chars]
     return {
-        "text": full_text[:max_chars],
-        "char_count": len(full_text),
+        "text": preview,
+        "textPreview": preview,
+        "totalChars": len(full_text),
         "truncated": truncated,
         "parts": parts,
     }
@@ -267,7 +269,7 @@ def _docx_extract_text_handler(args: dict[str, Any], **_: Any) -> str:
             "ok": True,
             "tool": "docx_extract_text",
             "source": "office-open-xml",
-            "file_path": str(path),
+            "fileName": path.name,
             "bytes": path.stat().st_size,
             **result,
         })
@@ -276,7 +278,6 @@ def _docx_extract_text_handler(args: dict[str, Any], **_: Any) -> str:
             "ok": False,
             "tool": "docx_extract_text",
             "error": str(error),
-            "allowed_roots": [str(root) for root in _allowed_roots()],
         })
 
 

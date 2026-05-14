@@ -18,7 +18,7 @@
 - `http`：当前 workspace 文档化 Program API 的 scoped HTTP 调用。
 - `weather`：当前用户请求相关的天气查询。
 - `browser`：隔离 worker browser/session 内的公开网页或当前账号明确请求的网页操作。
-- `file`：当前 run 授权 roots 内的文件读写。
+- `file`：当前 run 授权 roots 内的文件读写，以及普通文档解析能力，例如 profile-local `docx_extract_text` 对授权 roots 内 DOCX/Word OpenXML 文件做文本预览提取。该能力不得返回宿主绝对路径，且不等同于 shell、terminal 或代码执行。
 - `vision` / `video`：授权 roots 内媒体文件或公开媒体 URL 的 OCR、视觉和视频分析。
 - `image_gen`：当前账号请求的图片生成、编辑、擦除，输入和输出必须在授权 roots 或 delivery roots 内。
 - `messaging` / `tts`：当前会话、当前 workspace 投递通道或明确 in-scope 收件人的消息和语音能力。
@@ -54,4 +54,4 @@
 
 ## 依赖说明
 
-`allowed_toolsets` 表示 Hermes Mobile 允许该类能力；真实 callable 还取决于 Gateway profile 的插件和运行时依赖。已经产品化为 profile-local plugin 的能力，例如 `weather`、`http`、fallback `web`、`image_gen` 编辑/擦除，应随 `scripts/configure-low-gateways.sh` 自动安装到 lowgw。`browser` 还依赖 worker runtime 中的 `agent-browser` 和 Chromium/Lightpanda/云浏览器配置；没有这些依赖时，policy 和 profile 可以开放 `browser`，但真实 schema 不会出现 `browser_*` callable。不能把这种情况描述为“权限不允许”，应描述为“运行时 browser 依赖未就绪”。
+`allowed_toolsets` 表示 Hermes Mobile 允许该类能力；真实 callable 还取决于 Gateway profile 的插件和运行时依赖。已经产品化为 profile-local plugin 的能力，例如 `weather`、`http`、fallback `web`、DOCX 文本解析、`image_gen` 编辑/擦除，应随 `scripts/configure-low-gateways.sh` 自动安装到 lowgw。`browser` 还依赖 worker runtime 中的 `agent-browser` 和 Chromium/Lightpanda/云浏览器配置；没有这些依赖时，policy 和 profile 可以开放 `browser`，但真实 schema 不会出现 `browser_*` callable。不能把这种情况描述为“权限不允许”，应描述为“运行时 browser 依赖未就绪”。
