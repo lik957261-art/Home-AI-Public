@@ -40,6 +40,7 @@ const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provi
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
 const { createAutomationApiRoutes } = require("./server-routes/automation-api-routes");
 const { createDirectoryBrowserApiRoutes } = require("./server-routes/directory-browser-api-routes");
+const { createDirectoryShareApiRoutes } = require("./server-routes/directory-share-api-routes");
 const { createEventStreamApiRoutes } = require("./server-routes/event-stream-api-routes");
 const { createFileArtifactApiRoutes } = require("./server-routes/file-artifact-api-routes");
 const { createKanbanCardApiRoutes } = require("./server-routes/kanban-card-api-routes");
@@ -50,6 +51,7 @@ const { createPushApiRoutes } = require("./server-routes/push-api-routes");
 const { createResourceApiRoutes } = require("./server-routes/resource-api-routes");
 const { createRuntimeConfigApiRoutes } = require("./server-routes/runtime-config-api-routes");
 const { createSystemApiRoutes } = require("./server-routes/system-api-routes");
+const { createThreadReadUploadApiRoutes } = require("./server-routes/thread-read-upload-api-routes");
 const { createTodoApiRoutes } = require("./server-routes/todo-api-routes");
 const { createWeixinApiRoutes } = require("./server-routes/weixin-api-routes");
 const { createWorkspaceApiRoutes } = require("./server-routes/workspace-api-routes");
@@ -629,6 +631,29 @@ const directoryBrowserApiRoutes = createDirectoryBrowserApiRoutes({
   runDirectoryBridge,
   sendJson,
 });
+const directoryShareApiRoutes = createDirectoryShareApiRoutes({
+  basename: (value) => path.basename(value),
+  clearDynamicProjectCache: () => dynamicProjectCache.clear(),
+  directoryRequestParams,
+  findDirectoryThreadForRequest,
+  invalidateCatalogCache,
+  normalizeSharePermission,
+  normalizeShareScope,
+  normalizeShareTargets,
+  nowIso,
+  publicSharedDirectory,
+  readBody,
+  removeSharedDirectoryRecord,
+  requireWorkspaceAccess,
+  resolveBrowserPathAsync,
+  sendJson,
+  shareableRootProjectForPath,
+  sharedDirectoryLabel,
+  statSync: (value) => fs.statSync(value),
+  updateSharedDirectoryAccess,
+  upsertSharedDirectory,
+  workspacePrincipal,
+});
 const eventStreamApiRoutes = createEventStreamApiRoutes({
   activeStreams: () => activeStreams,
   authenticateRequest,
@@ -642,6 +667,41 @@ const eventStreamApiRoutes = createEventStreamApiRoutes({
   state: () => state,
   threadAccessibleToAuth,
   threadSummary,
+});
+const threadReadUploadApiRoutes = createThreadReadUploadApiRoutes({
+  authenticateRequest,
+  boolParam,
+  broadcast,
+  chatGroupMemberWorkspaceIds,
+  compactMessage,
+  compactThread,
+  compactThreadWithMessagePage,
+  findProject,
+  findSubproject,
+  findThreadForRequest,
+  findWorkspace,
+  isDiscardableEmptyThread,
+  makeId,
+  maxUploadBytes: MAX_UPLOAD_BYTES,
+  normalizeThread,
+  nowIso,
+  pruneEmptyThreads,
+  readBody,
+  registerUploadArtifact,
+  requireWorkspaceAccess,
+  safeFileName,
+  saveState,
+  searchThreadMessages,
+  sendJson,
+  singleWindowProjectTaskSummaries,
+  state: () => state,
+  threadAccessibleToRequest,
+  threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
+  threadMessagePageLimit: THREAD_MESSAGE_PAGE_LIMIT,
+  threadMessageSearchLimit: THREAD_MESSAGE_SEARCH_LIMIT,
+  threadMessagesPage,
+  threadSummary,
+  workspaceUploadDirectoryForRequest,
 });
 bootTrace("core api routes ready");
 let todoWebPushRunning = false;
@@ -13756,6 +13816,8 @@ async function handleApi(req, res) {
   if ((await kanbanStudyApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await fileArtifactApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await directoryBrowserApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await directoryShareApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await threadReadUploadApiRoutes.handle(req, res, url, { auth })).handled) return;
 
   if (url.pathname === "/api/single-window" && req.method === "POST") {
     const body = await readBody(req);
@@ -13824,170 +13886,6 @@ async function handleApi(req, res) {
       weixinChatThread,
       caseTopicThreads,
     });
-    return;
-  }
-
-  if (url.pathname === "/api/threads" && req.method === "GET") {
-    pruneEmptyThreads();
-    const workspaceId = url.searchParams.get("workspaceId") || "";
-    const projectId = url.searchParams.get("projectId") || "";
-    const subprojectId = url.searchParams.get("subprojectId") || "";
-    const search = String(url.searchParams.get("search") || "").trim().toLowerCase();
-    if (workspaceId) {
-      const allowedWorkspaceId = requireWorkspaceAccess(req, res, workspaceId);
-      if (!allowedWorkspaceId) return;
-    }
-    const selectedProject = workspaceId && projectId ? findProject(workspaceId, projectId) : null;
-    const selectedSubproject = selectedProject && subprojectId ? findSubproject(selectedProject, subprojectId) : null;
-    let threads = state.threads.filter((item) => threadAccessibleToRequest(req, item));
-    if (workspaceId) {
-      threads = threads.filter((item) => item.workspaceId === workspaceId || chatGroupMemberWorkspaceIds(item).includes(workspaceId));
-    }
-    if (projectId) threads = threads.filter((item) => item.projectId === projectId);
-    if (subprojectId) threads = threads.filter((item) => (item.subprojectId || "") === subprojectId);
-    if (search) {
-      threads = threads.filter((item) => {
-        const haystack = `${item.title}\n${(item.messages || []).map((msg) => msg.content || "").join("\n")}`.toLowerCase();
-        return haystack.includes(search);
-      });
-    }
-    const summaries = [
-      ...threads.map(threadSummary),
-      ...singleWindowProjectTaskSummaries(workspaceId, selectedProject, selectedSubproject, search),
-    ].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    sendJson(res, 200, { data: summaries });
-    return;
-  }
-
-  if (url.pathname === "/api/threads" && req.method === "POST") {
-    pruneEmptyThreads();
-    const body = await readBody(req);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    const projectId = String(body.projectId || "general");
-    const subprojectId = String(body.subprojectId || "");
-    const workspace = findWorkspace(workspaceId);
-    const project = findProject(workspaceId, projectId);
-    if (!workspace) {
-      sendJson(res, 400, { error: "Unknown workspace" });
-      return;
-    }
-    if (!project) {
-      sendJson(res, 400, { error: "Unknown project" });
-      return;
-    }
-    if (subprojectId && !findSubproject(project, subprojectId)) {
-      sendJson(res, 400, { error: "Unknown subproject" });
-      return;
-    }
-    const thread = normalizeThread({
-      id: makeId("thread"),
-      title: String(body.title || "New thread").trim() || "New thread",
-      workspaceId,
-      projectId,
-      subprojectId,
-      hermesSessionId: `web_${makeId("session")}`,
-      status: "idle",
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-      messages: [],
-      events: [],
-    });
-    state.threads.unshift(thread);
-    saveState();
-    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-    sendJson(res, 201, { thread: compactThread(thread) });
-    return;
-  }
-
-  const threadRead = url.pathname.match(/^\/api\/threads\/([^/]+)$/);
-  if (threadRead && req.method === "GET") {
-    const thread = findThreadForRequest(req, decodeURIComponent(threadRead[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    if (isDiscardableEmptyThread(thread)) {
-      pruneEmptyThreads();
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const messageMode = String(url.searchParams.get("messageMode") || url.searchParams.get("message_mode") || "").trim().toLowerCase();
-    if (["chat", "tasks", "task"].includes(messageMode)) {
-      sendJson(res, 200, {
-        thread: compactThreadWithMessagePage(thread, {
-          mode: messageMode,
-          groupChat: boolParam(url.searchParams.get("groupChat") || url.searchParams.get("group_chat")),
-          taskGroupId: url.searchParams.get("taskGroupId") || url.searchParams.get("task_group_id") || "",
-          limit: url.searchParams.get("messageLimit") || url.searchParams.get("message_limit") || THREAD_MESSAGE_INITIAL_LIMIT,
-        }),
-      });
-      return;
-    }
-    sendJson(res, 200, { thread: compactThread(thread) });
-    return;
-  }
-
-  const threadMessagesRead = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages$/);
-  if (threadMessagesRead && req.method === "GET") {
-    const thread = findThreadForRequest(req, decodeURIComponent(threadMessagesRead[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const messageMode = String(url.searchParams.get("messageMode") || url.searchParams.get("message_mode") || "chat").trim().toLowerCase();
-    const options = {
-      mode: messageMode,
-      groupChat: boolParam(url.searchParams.get("groupChat") || url.searchParams.get("group_chat")),
-      taskGroupId: url.searchParams.get("taskGroupId") || url.searchParams.get("task_group_id") || "",
-      before: url.searchParams.get("before") || "",
-      limit: url.searchParams.get("limit") || THREAD_MESSAGE_PAGE_LIMIT,
-      search: url.searchParams.get("search") || url.searchParams.get("q") || "",
-    };
-    const page = String(options.search || "").trim()
-      ? searchThreadMessages(thread, Object.assign({}, options, { limit: url.searchParams.get("limit") || THREAD_MESSAGE_SEARCH_LIMIT }))
-      : threadMessagesPage(thread, options);
-    sendJson(res, 200, {
-      messages: page.messages.map((message) => compactMessage(message, thread)),
-      page: page.page,
-    });
-    return;
-  }
-
-  const upload = url.pathname.match(/^\/api\/threads\/([^/]+)\/uploads$/);
-  if (upload && req.method === "POST") {
-    const auth = authenticateRequest(req);
-    const thread = findThreadForRequest(req, decodeURIComponent(upload[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const body = await readBody(req, Math.ceil(MAX_UPLOAD_BYTES * 1.4) + 4096);
-    const filename = safeFileName(body.filename || "upload.bin");
-    const data = String(body.dataBase64 || "");
-    if (!data) {
-      sendJson(res, 400, { error: "Missing dataBase64" });
-      return;
-    }
-    const buffer = Buffer.from(data, "base64");
-    if (!buffer.length || buffer.length > MAX_UPLOAD_BYTES) {
-      sendJson(res, 400, { error: "Invalid or too-large upload" });
-      return;
-    }
-    let uploadTarget;
-    try {
-      uploadTarget = workspaceUploadDirectoryForRequest(auth, thread, body);
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-      return;
-    }
-    const uploadDir = uploadTarget.uploadDir;
-    fs.mkdirSync(uploadDir, { recursive: true });
-    const filePath = path.join(uploadDir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
-    fs.writeFileSync(filePath, buffer);
-    const artifact = registerUploadArtifact(thread, null, filePath, filename, { workspaceId: uploadTarget.workspaceId });
-    saveState();
-    sendJson(res, 201, { artifact });
     return;
   }
 
@@ -14891,109 +14789,6 @@ async function handleApi(req, res) {
         ok: true,
         entry: publicManagedEntry(thread, resolved.displayPath, resolved.localPath, targetLocalPath),
       });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/directories/share" && req.method === "POST") {
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    const thread = findDirectoryThreadForRequest(req, String(body.threadId || ""));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const resolved = await resolveBrowserPathAsync(thread, directoryRequestParams(body));
-    if (!resolved) {
-      sendJson(res, 404, { error: "Directory not found or not allowed" });
-      return;
-    }
-    const rootProject = await shareableRootProjectForPath(thread.workspaceId, resolved.displayPath);
-    if (!rootProject) {
-      sendJson(res, 400, { error: "Only first-level directories on the directory root page can be shared" });
-      return;
-    }
-    let label = String(body.name || resolved.label || sharedDirectoryLabel(resolved.displayPath)).trim();
-    if (resolved.remote === "wsl") {
-      if (resolved.remoteEntry?.type !== "directory") {
-        sendJson(res, 400, { error: "Only directories can be shared" });
-        return;
-      }
-      label = String(rootProject.label || resolved.remoteEntry?.name || label || sharedDirectoryLabel(resolved.displayPath)).trim();
-    } else {
-      let stat;
-      try {
-        stat = fs.statSync(resolved.localPath);
-      } catch (_) {
-        sendJson(res, 404, { error: "Directory not found" });
-        return;
-      }
-      if (!stat.isDirectory()) {
-        sendJson(res, 400, { error: "Only directories can be shared" });
-        return;
-      }
-      label = String(rootProject.label || path.basename(resolved.localPath) || label || sharedDirectoryLabel(resolved.displayPath)).trim();
-    }
-    const record = upsertSharedDirectory({
-      path: resolved.displayPath,
-      label,
-      createdAt: nowIso(),
-      createdBy: thread.workspaceId,
-      createdByPrincipalId: workspacePrincipal(thread.workspaceId),
-      permission: normalizeSharePermission(body.permission),
-      scope: normalizeShareScope(body.scope, normalizeShareTargets(body)),
-      targetWorkspaceIds: normalizeShareTargets(body),
-    });
-    invalidateCatalogCache();
-    dynamicProjectCache.clear();
-    sendJson(res, 200, {
-      ok: true,
-      shared: Object.assign({}, publicSharedDirectory(record, thread.workspaceId), {
-        displayPath: resolved.workspacePath,
-        workspacePath: resolved.workspacePath,
-        source: "hermes-web-shared-directory",
-      }),
-    });
-    return;
-  }
-
-  if (url.pathname === "/api/directories/unshare" && req.method === "POST") {
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    try {
-      const record = removeSharedDirectoryRecord(body.id || body.path, workspaceId);
-      invalidateCatalogCache();
-      dynamicProjectCache.clear();
-      sendJson(res, 200, { ok: true, removed: publicSharedDirectory(record, workspaceId) });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/directories/share/update" && req.method === "POST") {
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    try {
-      const record = updateSharedDirectoryAccess(body.id || body.path, workspaceId, body);
-      invalidateCatalogCache();
-      dynamicProjectCache.clear();
-      sendJson(res, 200, { ok: true, shared: publicSharedDirectory(record, workspaceId) });
     } catch (err) {
       sendJson(res, err.status || 500, { error: err.message || String(err) });
     }

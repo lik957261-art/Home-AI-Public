@@ -114,6 +114,30 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "directory-share-api-routes",
+    exportName: "createDirectoryShareApiRoutes",
+    required: false,
+    minRoutes: 3,
+    probes: [
+      { method: "POST", path: "/api/directories/share", id: "directories-share-create" },
+      { method: "POST", path: "/api/directories/unshare", id: "directories-share-delete" },
+      { method: "POST", path: "/api/directories/share/update", id: "directories-share-update" },
+    ],
+  },
+  {
+    key: "thread-read-upload-api-routes",
+    exportName: "createThreadReadUploadApiRoutes",
+    required: false,
+    minRoutes: 5,
+    probes: [
+      { method: "GET", path: "/api/threads", id: "threads-list" },
+      { method: "POST", path: "/api/threads", id: "threads-create" },
+      { method: "GET", path: "/api/threads/thread-1", id: "thread-read" },
+      { method: "GET", path: "/api/threads/thread-1/messages", id: "thread-messages-list" },
+      { method: "POST", path: "/api/threads/thread-1/uploads", id: "thread-uploads-create" },
+    ],
+  },
+  {
     key: "todo-api-routes",
     exportName: "createTodoApiRoutes",
     required: false,
@@ -227,6 +251,8 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/kanban/cards/card-1/assessment-exam" }).id, "kanban-assessment-exam");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/threads/thread-1/uploads" }).id, "thread-uploads-create");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/share/update" }).id, "directories-share-update");
   assert.equal(matchHermesMobileApiRoute({ method: "DELETE", path: "/api/threads/thread-1/tasks/task-1" }).id, "thread-task-delete");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/artifacts/art-1?download=1" }).id, "artifact-read");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/unknown" }), null);
