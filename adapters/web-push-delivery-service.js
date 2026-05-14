@@ -697,6 +697,7 @@ function createWebPushDeliveryService(options = {}) {
         if (!doc?.url || Number(doc?.size || 0) <= 0) return false;
         const docTimeMs = automationDeliverableTimeMs(doc);
         if (!docTimeMs) return false;
+        // Web Push is tied to Markdown/PDF/Office file freshness, not CRON execution time.
         if (previousDeliverableMs && docTimeMs <= previousDeliverableMs) return false;
         if (docTimeMs < lastRunMs - automationDeliverableLookbackMs) return false;
         if (docTimeMs > nowWithGrace) return false;
