@@ -56,6 +56,16 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "event-stream-api-routes",
+    exportName: "createEventStreamApiRoutes",
+    required: false,
+    minRoutes: 1,
+    probes: [
+      { method: "GET", path: "/api/events", id: "events" },
+      { method: "POST", path: "/api/events", id: "events" },
+    ],
+  },
+  {
     key: "owner-elevation-api-routes",
     exportName: "createOwnerElevationApiRoutes",
     required: false,

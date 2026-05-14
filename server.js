@@ -40,6 +40,7 @@ const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provi
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
 const { createAutomationApiRoutes } = require("./server-routes/automation-api-routes");
 const { createDirectoryBrowserApiRoutes } = require("./server-routes/directory-browser-api-routes");
+const { createEventStreamApiRoutes } = require("./server-routes/event-stream-api-routes");
 const { createFileArtifactApiRoutes } = require("./server-routes/file-artifact-api-routes");
 const { createKanbanCardApiRoutes } = require("./server-routes/kanban-card-api-routes");
 const { createKanbanStudyApiRoutes } = require("./server-routes/kanban-study-api-routes");
@@ -627,6 +628,20 @@ const directoryBrowserApiRoutes = createDirectoryBrowserApiRoutes({
   resolveBrowserPathAsync,
   runDirectoryBridge,
   sendJson,
+});
+const eventStreamApiRoutes = createEventStreamApiRoutes({
+  activeStreams: () => activeStreams,
+  authenticateRequest,
+  clientVersionInfo,
+  clients,
+  effectiveHermesApiBase,
+  pruneEmptyThreads,
+  readClientVersion,
+  runConcurrencySnapshot,
+  sendJson,
+  state: () => state,
+  threadAccessibleToAuth,
+  threadSummary,
 });
 bootTrace("core api routes ready");
 let todoWebPushRunning = false;
@@ -15078,59 +15093,10 @@ async function handleApi(req, res) {
   sendJson(res, 404, { error: "Not found" });
 }
 
-function handleEvents(req, res) {
-  const auth = authenticateRequest(req);
-  if (!auth.ok) {
-    sendJson(res, 401, { error: "Unauthorized" });
-    return;
-  }
-  const url = getUrl(req);
-  const reportedClientVersion = url.searchParams.get("clientVersion") || req.headers["x-hermes-web-client-version"] || "";
-  let lastSentClientVersion = "";
-  const sendClientVersionEvent = (force = false) => {
-    const info = clientVersionInfo(reportedClientVersion);
-    if (!force && info.version === lastSentClientVersion) return false;
-    lastSentClientVersion = info.version;
-    res.write(`data: ${JSON.stringify({ type: "client.version", clientVersion: info })}\n\n`);
-    return true;
-  };
-  pruneEmptyThreads();
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream; charset=utf-8",
-    "Cache-Control": "no-cache, no-transform",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",
-  });
-  res.write(`data: ${JSON.stringify({
-    type: "snapshot",
-    threads: state.threads.filter((thread) => threadAccessibleToAuth(auth, thread)).map(threadSummary),
-    status: { apiBase: effectiveHermesApiBase(), activeRuns: activeStreams.size, concurrency: runConcurrencySnapshot() },
-    clientVersion: clientVersionInfo(reportedClientVersion),
-  })}\n\n`);
-  lastSentClientVersion = readClientVersion();
-  const client = { res, auth };
-  clients.add(client);
-  const heartbeat = setInterval(() => {
-    try {
-      if (!sendClientVersionEvent(false)) res.write(": keepalive\n\n");
-    } catch (_) {
-      clearInterval(heartbeat);
-      clients.delete(client);
-    }
-  }, 25000);
-  req.on("close", () => {
-    clearInterval(heartbeat);
-    clients.delete(client);
-  });
-}
-
 const server = http.createServer(async (req, res) => {
   try {
     const url = getUrl(req);
-    if (url.pathname === "/api/events") {
-      handleEvents(req, res);
-      return;
-    }
+    if ((await eventStreamApiRoutes.handle(req, res, url)).handled) return;
     if (url.pathname.startsWith("/api/")) {
       await handleApi(req, res);
       return;

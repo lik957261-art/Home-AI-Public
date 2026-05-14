@@ -15,6 +15,7 @@ const sqliteStore = require("../adapters/mobile-sqlite-store");
 const accessKeyApiRoutes = require("../server-routes/access-key-api-routes");
 const automationApiRoutes = require("../server-routes/automation-api-routes");
 const directoryBrowserApiRoutes = require("../server-routes/directory-browser-api-routes");
+const eventStreamApiRoutes = require("../server-routes/event-stream-api-routes");
 const fileArtifactApiRoutes = require("../server-routes/file-artifact-api-routes");
 const kanbanCardApiRoutes = require("../server-routes/kanban-card-api-routes");
 const kanbanStudyApiRoutes = require("../server-routes/kanban-study-api-routes");
@@ -47,6 +48,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof systemApiRoutes.createSystemApiRoutes, "function");
   assert.equal(typeof runtimeConfigApiRoutes.createRuntimeConfigApiRoutes, "function");
   assert.equal(typeof pushApiRoutes.createPushApiRoutes, "function");
+  assert.equal(typeof eventStreamApiRoutes.createEventStreamApiRoutes, "function");
   assert.equal(typeof ownerElevationApiRoutes.createOwnerElevationApiRoutes, "function");
   assert.equal(typeof weixinApiRoutes.createWeixinApiRoutes, "function");
   assert.equal(typeof workspaceApiRoutes.createWorkspaceApiRoutes, "function");
@@ -70,6 +72,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /runtimeConfigApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createPushApiRoutes/);
   assert.match(server, /pushApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createEventStreamApiRoutes/);
+  assert.match(server, /eventStreamApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createWeixinApiRoutes/);
   assert.match(server, /weixinApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createOwnerElevationApiRoutes/);
@@ -121,6 +125,7 @@ function testPackageRunsArchitectureContracts() {
     "tests/system-api-routes.test.js",
     "tests/runtime-config-api-routes.test.js",
     "tests/push-api-routes.test.js",
+    "tests/event-stream-api-routes.test.js",
     "tests/owner-elevation-api-routes.test.js",
     "tests/weixin-api-routes.test.js",
     "tests/workspace-api-routes.test.js",
@@ -146,6 +151,7 @@ function testPackageRunsArchitectureContracts() {
   assert.match(pkg.scripts.check, /server-routes[\\/]system-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]runtime-config-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]push-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]event-stream-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]owner-elevation-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]weixin-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]workspace-api-routes\.js/);
