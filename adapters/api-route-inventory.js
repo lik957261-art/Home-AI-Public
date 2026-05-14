@@ -401,12 +401,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["directory"],
   })),
-  exact("directories-create", "POST", "/api/directories/create", "directory", routeOptions("directory", {
+  exact("directories-create", "POST", "/api/directories/create", "directory", routeOptions("directory-mutation", {
     workspaceScoped: true,
     riskLevel: "medium",
     resourceTypes: ["directory"],
   })),
-  exact("directories-upload", "POST", "/api/directories/upload", "directory", routeOptions("directory", {
+  exact("directories-upload", "POST", "/api/directories/upload", "directory", routeOptions("directory-mutation", {
     workspaceScoped: true,
     riskLevel: "medium",
     resourceTypes: ["directory", "file"],
@@ -426,7 +426,7 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "medium",
     resourceTypes: ["directory", "share"],
   })),
-  exact("directories-delete", "POST", "/api/directories/delete", "directory", routeOptions("directory", {
+  exact("directories-delete", "POST", "/api/directories/delete", "directory", routeOptions("directory-mutation", {
     workspaceScoped: true,
     riskLevel: "medium",
     resourceTypes: ["directory", "file"],

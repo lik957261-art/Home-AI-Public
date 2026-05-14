@@ -40,6 +40,7 @@ const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provi
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
 const { createAutomationApiRoutes } = require("./server-routes/automation-api-routes");
 const { createDirectoryBrowserApiRoutes } = require("./server-routes/directory-browser-api-routes");
+const { createDirectoryMutationApiRoutes } = require("./server-routes/directory-mutation-api-routes");
 const { createDirectoryShareApiRoutes } = require("./server-routes/directory-share-api-routes");
 const { createEventStreamApiRoutes } = require("./server-routes/event-stream-api-routes");
 const { createFileArtifactApiRoutes } = require("./server-routes/file-artifact-api-routes");
@@ -653,6 +654,37 @@ const directoryShareApiRoutes = createDirectoryShareApiRoutes({
   updateSharedDirectoryAccess,
   upsertSharedDirectory,
   workspacePrincipal,
+});
+const directoryMutationApiRoutes = createDirectoryMutationApiRoutes({
+  assertChildPathInside,
+  authenticateRequest,
+  clearDynamicProjectCache: (workspaceId) => dynamicProjectCache.delete(String(workspaceId || "")),
+  directoryRequestParams,
+  exists: (value) => fs.existsSync(value),
+  findDirectoryThreadForRequest,
+  invalidateCatalogCache,
+  isDeletableWorkspaceRootChild,
+  isDirectoryBrowserPathAllowedForThread,
+  isProtectedDirectoryRoot,
+  isSharedDirectoryWriteAllowed,
+  joinDisplayPath,
+  joinLocalPath: (parent, name) => path.join(parent, name),
+  maxUploadBytes: MAX_UPLOAD_BYTES,
+  mimeFor,
+  mkdir: (value) => fs.mkdirSync(value),
+  publicManagedEntry,
+  publicRemoteDirectoryEntry,
+  readBody,
+  resolveBrowserPathAsync,
+  rmdir: (value) => fs.rmdirSync(value),
+  runDirectoryBridge,
+  safeDirectoryName,
+  safeFileName,
+  sendJson,
+  stat: (value) => fs.statSync(value),
+  uniqueChildPath,
+  unlink: (value) => fs.unlinkSync(value),
+  write: (filePath, buffer, options = {}) => fs.writeFileSync(filePath, buffer, { flag: options.flag || "w" }),
 });
 const eventStreamApiRoutes = createEventStreamApiRoutes({
   activeStreams: () => activeStreams,
@@ -13817,6 +13849,7 @@ async function handleApi(req, res) {
   if ((await fileArtifactApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await directoryBrowserApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await directoryShareApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await directoryMutationApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await threadReadUploadApiRoutes.handle(req, res, url, { auth })).handled) return;
 
   if (url.pathname === "/api/single-window" && req.method === "POST") {
@@ -14611,276 +14644,6 @@ async function handleApi(req, res) {
       sendJson(res, 200, { ok: true, runIds });
     } catch (err) {
       sendJson(res, err.status || 502, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/directories/create" && req.method === "POST") {
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    const thread = findDirectoryThreadForRequest(req, String(body.threadId || ""));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const resolved = await resolveBrowserPathAsync(thread, directoryRequestParams(body));
-    if (!resolved) {
-      sendJson(res, 404, { error: "Directory not found or not allowed" });
-      return;
-    }
-    const name = safeDirectoryName(body.name || "");
-    if (!name) {
-      sendJson(res, 400, { error: "Invalid directory name" });
-      return;
-    }
-    if (resolved.remote === "wsl") {
-      if (resolved.remoteEntry?.type !== "directory") {
-        sendJson(res, 400, { error: "Path is not a directory" });
-        return;
-      }
-      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath, authenticateRequest(req))) {
-        sendJson(res, 403, { error: "Shared directory is read-only" });
-        return;
-      }
-      const targetDisplayPath = joinDisplayPath(resolved.displayPath, name);
-      if (!isDirectoryBrowserPathAllowedForThread(thread, "", targetDisplayPath)) {
-        sendJson(res, 403, { error: "Target directory is not allowed" });
-        return;
-      }
-      const result = await runDirectoryBridge({ action: "mkdir", path: resolved.displayPath, name }).catch((err) => ({ ok: false, error: err.message || String(err) }));
-      if (!result?.ok) {
-        const status = /already exists/i.test(result?.error || "") ? 409 : 500;
-        sendJson(res, status, { error: result?.error || "Create directory failed" });
-        return;
-      }
-      invalidateCatalogCache();
-      dynamicProjectCache.delete(String(thread.workspaceId || ""));
-      sendJson(res, 201, {
-        ok: true,
-        entry: publicRemoteDirectoryEntry(thread, resolved.displayPath, result.entry),
-      });
-      return;
-    }
-    let stat;
-    try {
-      stat = fs.statSync(resolved.localPath);
-    } catch (_) {
-      sendJson(res, 404, { error: "Directory not found" });
-      return;
-    }
-    if (!stat.isDirectory()) {
-      sendJson(res, 400, { error: "Path is not a directory" });
-      return;
-    }
-    const targetLocalPath = path.join(resolved.localPath, name);
-    const targetDisplayPath = joinDisplayPath(resolved.displayPath, name);
-    try {
-      if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath, authenticateRequest(req))) {
-        sendJson(res, 403, { error: "Shared directory is read-only" });
-        return;
-      }
-      assertChildPathInside(resolved.localPath, targetLocalPath);
-      if (!isDirectoryBrowserPathAllowedForThread(thread, targetLocalPath, targetDisplayPath)) {
-        sendJson(res, 403, { error: "Target directory is not allowed" });
-        return;
-      }
-      if (fs.existsSync(targetLocalPath)) {
-        sendJson(res, 409, { error: "Directory already exists" });
-        return;
-      }
-      fs.mkdirSync(targetLocalPath);
-      invalidateCatalogCache();
-      dynamicProjectCache.delete(String(thread.workspaceId || ""));
-      sendJson(res, 201, {
-        ok: true,
-        entry: publicManagedEntry(thread, resolved.displayPath, resolved.localPath, targetLocalPath),
-      });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/directories/upload" && req.method === "POST") {
-    const body = await readBody(req, Math.ceil(MAX_UPLOAD_BYTES * 1.4) + 8192).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    const thread = findDirectoryThreadForRequest(req, String(body.threadId || ""));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const resolved = await resolveBrowserPathAsync(thread, directoryRequestParams(body));
-    if (!resolved) {
-      sendJson(res, 404, { error: "Directory not found or not allowed" });
-      return;
-    }
-    const filename = safeFileName(body.filename || "upload.bin");
-    const data = String(body.dataBase64 || "");
-    if (!data) {
-      sendJson(res, 400, { error: "Missing dataBase64" });
-      return;
-    }
-    const buffer = Buffer.from(data, "base64");
-    if (!buffer.length || buffer.length > MAX_UPLOAD_BYTES) {
-      sendJson(res, 400, { error: "Invalid or too-large upload" });
-      return;
-    }
-    if (resolved.remote === "wsl") {
-      if (resolved.remoteEntry?.type !== "directory") {
-        sendJson(res, 400, { error: "Path is not a directory" });
-        return;
-      }
-      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath, authenticateRequest(req))) {
-        sendJson(res, 403, { error: "Shared directory is read-only" });
-        return;
-      }
-      const targetDisplayPath = joinDisplayPath(resolved.displayPath, filename);
-      if (!isDirectoryBrowserPathAllowedForThread(thread, "", targetDisplayPath)) {
-        sendJson(res, 403, { error: "Target file is not allowed" });
-        return;
-      }
-      const result = await runDirectoryBridge({
-        action: "upload",
-        path: resolved.displayPath,
-        filename,
-        dataBase64: data,
-      }).catch((err) => ({ ok: false, error: err.message || String(err) }));
-      if (!result?.ok) {
-        sendJson(res, 500, { error: result?.error || "Upload failed" });
-        return;
-      }
-      sendJson(res, 201, {
-        ok: true,
-        entry: publicRemoteDirectoryEntry(thread, resolved.displayPath, result.entry),
-      });
-      return;
-    }
-    let stat;
-    try {
-      stat = fs.statSync(resolved.localPath);
-    } catch (_) {
-      sendJson(res, 404, { error: "Directory not found" });
-      return;
-    }
-    if (!stat.isDirectory()) {
-      sendJson(res, 400, { error: "Path is not a directory" });
-      return;
-    }
-    try {
-      if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath, authenticateRequest(req))) {
-        sendJson(res, 403, { error: "Shared directory is read-only" });
-        return;
-      }
-      const targetLocalPath = uniqueChildPath(resolved.localPath, filename);
-      const targetDisplayPath = joinDisplayPath(resolved.displayPath, path.basename(targetLocalPath));
-      assertChildPathInside(resolved.localPath, targetLocalPath);
-      if (!isDirectoryBrowserPathAllowedForThread(thread, targetLocalPath, targetDisplayPath)) {
-        sendJson(res, 403, { error: "Target file is not allowed" });
-        return;
-      }
-      fs.writeFileSync(targetLocalPath, buffer, { flag: "wx" });
-      sendJson(res, 201, {
-        ok: true,
-        entry: publicManagedEntry(thread, resolved.displayPath, resolved.localPath, targetLocalPath),
-      });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/directories/delete" && req.method === "POST") {
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    const thread = findDirectoryThreadForRequest(req, String(body.threadId || ""));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const resolved = await resolveBrowserPathAsync(thread, directoryRequestParams(body));
-    if (!resolved) {
-      sendJson(res, 404, { error: "Path not found or not allowed" });
-      return;
-    }
-    if (resolved.remote === "wsl") {
-      const isDirectory = resolved.remoteEntry?.type === "directory";
-      if (!isSharedDirectoryWriteAllowed(thread, "", resolved.displayPath, authenticateRequest(req))) {
-        sendJson(res, 403, { error: "Shared directory is read-only" });
-        return;
-      }
-      if (isDirectory
-        && isProtectedDirectoryRoot(thread, "", resolved.displayPath)
-        && !isDeletableWorkspaceRootChild(thread, "", resolved.displayPath)) {
-        sendJson(res, 400, { error: "Cannot delete a project/workspace root directory" });
-        return;
-      }
-      const result = await runDirectoryBridge({ action: "delete", path: resolved.displayPath }).catch((err) => ({ ok: false, error: err.message || String(err) }));
-      if (!result?.ok) {
-        const code = /not empty/i.test(result?.error || "") ? 409 : 500;
-        sendJson(res, code, { error: /not empty/i.test(result?.error || "") ? "Directory is not empty" : (result?.error || "Delete failed") });
-        return;
-      }
-      invalidateCatalogCache();
-      dynamicProjectCache.delete(String(thread.workspaceId || ""));
-      sendJson(res, 200, {
-        ok: true,
-        deleted: {
-          path: resolved.displayPath,
-          displayPath: resolved.workspacePath,
-          workspacePath: resolved.workspacePath,
-          name: resolved.remoteEntry?.name || path.posix.basename(resolved.displayPath),
-          type: isDirectory ? "directory" : "file",
-        },
-      });
-      return;
-    }
-    let stat;
-    try {
-      stat = fs.statSync(resolved.localPath);
-    } catch (_) {
-      sendJson(res, 404, { error: "Path not found" });
-      return;
-    }
-    if (!isSharedDirectoryWriteAllowed(thread, resolved.localPath, resolved.displayPath, authenticateRequest(req))) {
-      sendJson(res, 403, { error: "Shared directory is read-only" });
-      return;
-    }
-    if (stat.isDirectory()
-      && isProtectedDirectoryRoot(thread, resolved.localPath, resolved.displayPath)
-      && !isDeletableWorkspaceRootChild(thread, resolved.localPath, resolved.displayPath)) {
-      sendJson(res, 400, { error: "Cannot delete a project/workspace root directory" });
-      return;
-    }
-    try {
-      if (stat.isDirectory()) {
-        fs.rmdirSync(resolved.localPath);
-      } else {
-        fs.unlinkSync(resolved.localPath);
-      }
-      invalidateCatalogCache();
-      dynamicProjectCache.delete(String(thread.workspaceId || ""));
-      sendJson(res, 200, {
-        ok: true,
-        deleted: {
-          path: resolved.displayPath,
-          displayPath: resolved.workspacePath,
-          workspacePath: resolved.workspacePath,
-          name: path.basename(resolved.localPath),
-          type: stat.isDirectory() ? "directory" : "file",
-        },
-      });
-    } catch (err) {
-      const code = err?.code === "ENOTEMPTY" || err?.code === "EEXIST" ? 409 : 500;
-      sendJson(res, code, { error: err?.code === "ENOTEMPTY" ? "Directory is not empty" : (err.message || String(err)) });
     }
     return;
   }

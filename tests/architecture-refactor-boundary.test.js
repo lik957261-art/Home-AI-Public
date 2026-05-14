@@ -15,6 +15,7 @@ const sqliteStore = require("../adapters/mobile-sqlite-store");
 const accessKeyApiRoutes = require("../server-routes/access-key-api-routes");
 const automationApiRoutes = require("../server-routes/automation-api-routes");
 const directoryBrowserApiRoutes = require("../server-routes/directory-browser-api-routes");
+const directoryMutationApiRoutes = require("../server-routes/directory-mutation-api-routes");
 const directoryShareApiRoutes = require("../server-routes/directory-share-api-routes");
 const eventStreamApiRoutes = require("../server-routes/event-stream-api-routes");
 const fileArtifactApiRoutes = require("../server-routes/file-artifact-api-routes");
@@ -58,6 +59,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof resourceApiRoutes.createResourceApiRoutes, "function");
   assert.equal(typeof automationApiRoutes.createAutomationApiRoutes, "function");
   assert.equal(typeof directoryBrowserApiRoutes.createDirectoryBrowserApiRoutes, "function");
+  assert.equal(typeof directoryMutationApiRoutes.createDirectoryMutationApiRoutes, "function");
   assert.equal(typeof directoryShareApiRoutes.createDirectoryShareApiRoutes, "function");
   assert.equal(typeof threadReadUploadApiRoutes.createThreadReadUploadApiRoutes, "function");
   assert.equal(typeof todoApiRoutes.createTodoApiRoutes, "function");
@@ -92,6 +94,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /automationApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createDirectoryBrowserApiRoutes/);
   assert.match(server, /directoryBrowserApiRoutes\.handle\(req, res, url/);
+  assert.match(server, /createDirectoryMutationApiRoutes/);
+  assert.match(server, /directoryMutationApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createDirectoryShareApiRoutes/);
   assert.match(server, /directoryShareApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createThreadReadUploadApiRoutes/);
@@ -141,6 +145,7 @@ function testPackageRunsArchitectureContracts() {
     "tests/resource-api-routes.test.js",
     "tests/automation-api-routes.test.js",
     "tests/directory-browser-api-routes.test.js",
+    "tests/directory-mutation-api-routes.test.js",
     "tests/directory-share-api-routes.test.js",
     "tests/todo-api-routes.test.js",
     "tests/kanban-card-api-routes.test.js",
@@ -169,6 +174,7 @@ function testPackageRunsArchitectureContracts() {
   assert.match(pkg.scripts.check, /server-routes[\\/]resource-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]automation-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]directory-browser-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]directory-mutation-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]directory-share-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]thread-read-upload-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]todo-api-routes\.js/);

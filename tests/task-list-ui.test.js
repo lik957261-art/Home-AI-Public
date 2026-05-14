@@ -17,6 +17,7 @@ const weixinApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "we
 const kanbanCardApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "kanban-card-api-routes.js"), "utf8");
 const kanbanStudyApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "kanban-study-api-routes.js"), "utf8");
 const threadReadUploadApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "thread-read-upload-api-routes.js"), "utf8");
+const directoryMutationApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "directory-mutation-api-routes.js"), "utf8");
 const kanbanProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-provider.js"), "utf8");
 const kanbanCardProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-card-provider.js"), "utf8");
 const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-ingress-provider.js"), "utf8");
@@ -79,8 +80,9 @@ assert.match(appJs, /if \(!directoryActivePath\(\) \|\| wasRootListProject\) awa
 assert.match(serverJs, /function isDeletableWorkspaceRootChild\(thread, localPath, displayPath = ""\)/);
 assert.match(serverJs, /function pathDirectChildOfRoot\(candidate, root\)/);
 assert.equal(serverJs.includes("Workspace users can delete empty folders only"), false);
-const directoryDeleteBlock = serverJs.match(/if \(url\.pathname === "\/api\/directories\/delete"[\s\S]+?sendJson\(res, 404, \{ error: "Not found" \}\);/)?.[0] || "";
-assert.ok((directoryDeleteBlock.match(/dynamicProjectCache\.delete\(String\(thread\.workspaceId \|\| ""\)\)/g) || []).length >= 2);
+assert.match(directoryMutationApiRoutes, /id: "directories-delete"/);
+assert.match(directoryMutationApiRoutes, /clearDirectoryCatalogCaches\(deps, thread\)/);
+assert.match(directoryMutationApiRoutes, /deps\.clearDynamicProjectCache\(String\(thread\?\.workspaceId \|\| ""\)\)/);
 assert.match(serverJs, /function taskDirectoryAttachmentCandidatesForMessage\(thread, message\)/);
 assert.match(serverJs, /the attached task directory is the frozen working directory/);
 assert.match(serverJs, /singleWindowMode === "chat" \|\| taskDirectory\?\.path \? "" : semanticProjectRoutingInstructions/);

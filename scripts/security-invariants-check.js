@@ -41,9 +41,9 @@ function main() {
   assertContains("server.js", /fileArtifactApiRoutes\.handle\(req, res, url, \{ auth \}\)/, "file artifact routes must be installed in the API router");
   assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /artifact-read/, /resolveArtifactForRequest/);
   assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /files-preview/, /resolveFileForBrowserRequest/);
-  assertRouteGuard(/\/api\/directories\/create/, /isSharedDirectoryWriteAllowed/);
-  assertRouteGuard(/\/api\/directories\/upload/, /isSharedDirectoryWriteAllowed/);
-  assertRouteGuard(/\/api\/directories\/delete/, /isSharedDirectoryWriteAllowed/);
+  assertRouteGuardInFile("server-routes/directory-mutation-api-routes.js", /directories-create/, /isSharedDirectoryWriteAllowed/);
+  assertRouteGuardInFile("server-routes/directory-mutation-api-routes.js", /directories-upload/, /isSharedDirectoryWriteAllowed/);
+  assertRouteGuardInFile("server-routes/directory-mutation-api-routes.js", /directories-delete/, /isSharedDirectoryWriteAllowed/);
   assertRouteGuardInFile("server-routes/weixin-api-routes.js", /\/api\/ingress\/weixin\/outbound/, /requireWeixinIngress/);
   assertRouteGuardInFile("server-routes/owner-elevation-api-routes.js", /\/api\/owner-elevation\/once/, /requireOwner/);
 

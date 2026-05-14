@@ -125,6 +125,17 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "directory-mutation-api-routes",
+    exportName: "createDirectoryMutationApiRoutes",
+    required: false,
+    minRoutes: 3,
+    probes: [
+      { method: "POST", path: "/api/directories/create", id: "directories-create" },
+      { method: "POST", path: "/api/directories/upload", id: "directories-upload" },
+      { method: "POST", path: "/api/directories/delete", id: "directories-delete" },
+    ],
+  },
+  {
     key: "thread-read-upload-api-routes",
     exportName: "createThreadReadUploadApiRoutes",
     required: false,
@@ -251,6 +262,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/kanban/cards/card-1/assessment-exam" }).id, "kanban-assessment-exam");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/threads/thread-1/uploads" }).id, "thread-uploads-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/share/update" }).id, "directories-share-update");
   assert.equal(matchHermesMobileApiRoute({ method: "DELETE", path: "/api/threads/thread-1/tasks/task-1" }).id, "thread-task-delete");
@@ -276,6 +288,7 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("kanban-study"));
   assert.ok(modules.has("thread-message"));
   assert.ok(modules.has("directory-share"));
+  assert.ok(modules.has("directory-mutation"));
   assert.deepEqual(modules.get("weixin-ingress").authModes, ["ingress"]);
   assert.equal(modules.get("runtime-config").riskLevels.includes("owner"), true);
   assert.equal(JSON.stringify(groups).includes("/api/runtime-config"), false);
