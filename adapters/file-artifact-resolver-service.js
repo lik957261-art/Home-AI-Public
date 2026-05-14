@@ -27,6 +27,10 @@ function createFileArtifactResolverService(options = {}) {
     return typeof deps.state === "function" ? deps.state() : deps.state;
   }
 
+  function fileBaseName(value) {
+    return deps.path.basename(String(value || "").replace(/\\/g, "/"));
+  }
+
   function resolveFileForBrowserRequest(query, auth = null) {
     const artifactId = String(query.get("artifactId") || "").trim();
     if (artifactId) {
@@ -45,7 +49,7 @@ function createFileArtifactResolverService(options = {}) {
         file: {
           localPath,
           displayPath: deps.logicalUserPathFallback(artifact.displayPath || artifact.path || localPath, artifact.name || ""),
-          name: artifact.name || deps.path.basename(localPath),
+          name: artifact.name || fileBaseName(localPath),
           mime: artifact.mime || deps.mimeFor(localPath),
           size: stat.size,
           updatedAt: stat.mtime.toISOString(),
@@ -69,8 +73,8 @@ function createFileArtifactResolverService(options = {}) {
     return {
       file: {
         localPath: resolved.localPath,
-        displayPath: resolved.workspacePath || deps.logicalDirectoryDisplayPath(thread, resolved.displayPath, deps.path.basename(resolved.localPath)),
-        name: deps.path.basename(resolved.localPath),
+        displayPath: resolved.workspacePath || deps.logicalDirectoryDisplayPath(thread, resolved.displayPath, fileBaseName(resolved.localPath)),
+        name: fileBaseName(resolved.localPath),
         mime: deps.mimeFor(resolved.localPath),
         size: stat.size,
         updatedAt: stat.mtime.toISOString(),
