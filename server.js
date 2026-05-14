@@ -252,6 +252,10 @@ const KANBAN_READING_ARTIFACT_ROOT = path.resolve(process.env.HERMES_MOBILE_READ
 const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(process.env.HERMES_MOBILE_READING_COVER_MAX_BYTES || process.env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
 const KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1";
 const KANBAN_STUDY_CASE_MODES = new Set(["study-plan"]);
+const KANBAN_ASSESSMENT_CASE_MODES = new Set(["assessment-plan"]);
+const KANBAN_ASSESSMENT_PLAN_MAX_EXAMS = Math.max(1, Math.min(30, Number(process.env.HERMES_MOBILE_ASSESSMENT_PLAN_MAX_EXAMS || "30") || 30));
+const KANBAN_ASSESSMENT_MAX_QUESTIONS = Math.max(5, Math.min(40, Number(process.env.HERMES_MOBILE_ASSESSMENT_MAX_QUESTIONS || "40") || 40));
+const KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_ASSESSMENT_MODEL_TIMEOUT_MS || "180000");
 const AUTOMATION_BACKEND = String(process.env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
 const LOCAL_TODO_STORE_PATH = path.resolve(process.env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
 const LOCAL_AUTOMATION_STORE_PATH = path.resolve(process.env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
@@ -749,6 +753,52 @@ function publicGatewayPoolStatusForAuth(auth, pool) {
   if (isOwnerAuth(auth)) return pool || null;
   if (!pool || typeof pool !== "object") return null;
   const workers = Array.isArray(pool.workers) ? pool.workers : [];
+  const includeFinalAssessment = raw.includeFinalAssessment !== false && raw.include_final_assessment !== false;
+  if (includeFinalAssessment) {
+    const finalQuestionCount = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(raw.finalQuestionCount || raw.final_question_count || 20) || 20));
+    const finalDurationMinutes = Math.max(5, Math.min(180, Number(raw.finalDurationMinutes || raw.final_duration_minutes || 30) || 30));
+    const finalPassingScore = Math.max(50, Math.min(100, Number(raw.finalPassingScore || raw.final_passing_score || 80) || 80));
+    const finalConfig = {
+      schemaVersion: 1,
+      kind: "final-study-assessment",
+      subject,
+      subjectId: normalizeKanbanAssessmentSubjectId(subject),
+      learnerName,
+      courseLevel: compactText(raw.courseLevel || raw.course_level || "学习计划阶段结束", 80),
+      questionCount: finalQuestionCount,
+      durationMinutes: finalDurationMinutes,
+      passingScore: finalPassingScore,
+      difficulty: compactText(raw.finalDifficulty || raw.final_difficulty || "覆盖本阶段全部内容，难度高于每日小测", 160),
+      retakeUntilPass: true,
+      examIndex: sessions + 1,
+      examCount: sessions + 1,
+      finalExam: true,
+    };
+    cards.push({
+      clientId: "final-assessment",
+      title: `${learnerName}${subject}阶段结束综合考试`,
+      day: sessions + 1,
+      dueTime: readingPlanDueTime(startDate, timeOfDay, sessions),
+      description: compactText([
+        `学习计划：${summary}`,
+        "最终阶段性考试，不再安排中间阶段测。",
+        `题量：${finalQuestionCount} 题`,
+        `时长：${finalDurationMinutes} 分钟`,
+        `通过线：${finalPassingScore} 分`,
+        "考试范围必须覆盖本阶段全部学习内容；未达到通过线时保持重考状态，直到通过为止。",
+        sourceText ? `本阶段学习要求：\n${sourceText}` : "",
+      ].filter(Boolean).join("\n\n"), 1800),
+      caseTemplate: "final-assessment",
+      config: finalConfig,
+      deliverables: ["阶段综合考卷", "自动评分", "阶段学习成果诊断", "补强与重考建议"],
+      acceptance: [
+        `完成 ${finalQuestionCount} 题综合考试`,
+        `得分达到 ${finalPassingScore}/100`,
+        "未达标则继续重考",
+        "生成阶段总结报告",
+      ],
+    });
+  }
   return {
     enabled: Boolean(pool.enabled),
     mode: pool.mode || "",
@@ -3807,6 +3857,10 @@ function isKanbanStudyCaseMode(mode) {
   return KANBAN_STUDY_CASE_MODES.has(String(mode || "").trim());
 }
 
+function isKanbanAssessmentCaseMode(mode) {
+  return KANBAN_ASSESSMENT_CASE_MODES.has(String(mode || "").trim());
+}
+
 function normalizeWorkspaceIdList(value) {
   const raw = Array.isArray(value)
     ? value
@@ -4108,10 +4162,14 @@ function publicTodo(row) {
     completedAt: String(row.completed_at || ""),
     cancelledAt: String(row.cancelled_at || ""),
   };
-  if (isKanbanStudyCaseMode(payload.kanbanCaseMode)) {
+  if (isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment") {
     payload.readingSubmission = publicKanbanReadingSubmissionSummary(workspaceId, payload);
     payload.studySubmission = payload.readingSubmission;
     payload.kanbanStudyKind = payload.kanbanCaseTemplate || "custom";
+  }
+  if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
+    payload.assessmentExam = publicKanbanAssessmentSummary(workspaceId, payload);
+    payload.kanbanAssessmentKind = payload.kanbanCaseTemplate || "assessment";
   }
   return payload;
 }
@@ -4745,6 +4803,11 @@ async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
 
   for (const [cardIndex, card] of plan.cards.entries()) {
     const assignee = card.assignee || options.assignee || "";
+    const cardCaseTemplate = card.caseTemplate || plan.template;
+    const cardSourceText = compactText([
+      plan.sourceText,
+      card.config ? assessmentConfigLine(card.config) : "",
+    ].filter(Boolean).join("\n\n"), 3000);
     const result = await kanbanCardProvider.addCard({
       workspaceId,
       assignee,
@@ -5002,8 +5065,8 @@ async function createKanbanStudyPlanCards(workspaceId, input = {}) {
       idempotencyKey: `hm-${plan.mode}-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
       caseId: plan.id,
       caseMode: plan.mode,
-      caseTemplate: plan.template,
-      caseSourceText: compactText(plan.sourceText, 2000),
+      caseTemplate: cardCaseTemplate,
+      caseSourceText: cardSourceText,
       caseSummary: plan.summary,
       caseCover: cover || null,
       caseCardId: card.clientId,
@@ -5012,7 +5075,10 @@ async function createKanbanStudyPlanCards(workspaceId, input = {}) {
       caseDependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
       caseDeliverables: card.deliverables,
       caseAcceptance: card.acceptance,
-      caseCardGoal: card.description,
+      caseCardGoal: compactText([
+        card.config ? assessmentConfigLine(card.config) : "",
+        card.description,
+      ].filter(Boolean).join("\n\n"), 1800),
     });
     if (!result?.ok) {
       return { ok: false, error: result?.error || "Study plan card creation failed", plan, cards: created, result };
@@ -5048,6 +5114,250 @@ async function createKanbanStudyPlanCards(workspaceId, input = {}) {
       return {
         ok: false,
         error: `Study plan card ${publicCard.id} was created but could not be parked: ${blockError}`,
+        plan,
+        cards: created,
+      };
+    }
+  }
+  return { ok: true, plan, cards: created, share };
+}
+
+function normalizeKanbanAssessmentSubjectId(value = "") {
+  const text = String(value || "").trim().toLowerCase();
+  if (/math|数学|數學|amc/.test(text)) return "math";
+  if (/english|英语|英文|reading|language/.test(text)) return "english";
+  if (/science|科学|科學|physics|chemistry|biology/.test(text)) return "science";
+  if (/history|历史|歷史/.test(text)) return "history";
+  if (/chinese|中文|语文|語文/.test(text)) return "chinese";
+  return safeSlug(text || "assessment", "assessment").slice(0, 40) || "assessment";
+}
+
+function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options = {}) {
+  const ownerWorkspaceId = String(workspaceId || "owner").trim() || "owner";
+  const linkedStudyPlan = Boolean(options.linkedStudyPlan);
+  const subject = compactText(raw.subject || raw.domain || raw.course || "数学", 80);
+  const subjectId = normalizeKanbanAssessmentSubjectId(subject);
+  const learnerName = compactText(raw.learnerName || raw.learner_name || raw.targetName || raw.target_name || "学习者", 80);
+  const courseLevel = compactText(raw.courseLevel || raw.course_level || raw.grade || raw.level || "阶段检测", 80);
+  const title = compactText(raw.title || raw.planTitle || raw.plan_title || `${learnerName} ${subject} 考试计划`, 140);
+  const examCount = Math.max(1, Math.min(KANBAN_ASSESSMENT_PLAN_MAX_EXAMS, Number(raw.examCount || raw.exam_count || raw.sessions || 10) || 10));
+  const questionCount = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(raw.questionCount || raw.question_count || 20) || 20));
+  const durationMinutes = Math.max(5, Math.min(180, Number(raw.durationMinutes || raw.duration_minutes || 30) || 30));
+  const passingScore = Math.max(50, Math.min(100, Number(raw.passingScore || raw.passing_score || 80) || 80));
+  const intervalDays = Math.max(1, Math.min(60, Number(raw.intervalDays || raw.interval_days || raw.examIntervalDays || raw.exam_interval_days || 14) || 14));
+  const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date);
+  const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
+  const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 30) || 0));
+  const difficulty = compactText(raw.difficulty || raw.difficultyMix || raw.difficulty_mix || "基础30% / 中等50% / 挑战20%", 160);
+  const blueprint = compactText(raw.blueprint || raw.examBlueprint || raw.exam_blueprint || raw.sourceText || raw.source_text || raw.text || "", 4000);
+  const retakeUntilPass = raw.retakeUntilPass ?? raw.retake_until_pass ?? true;
+  const performerWorkspaceIds = normalizeWorkspaceIdList(
+    raw.performerWorkspaceIds
+    || raw.performer_workspace_ids
+    || raw.targetWorkspaceIds
+    || raw.target_workspace_ids
+    || raw.performerWorkspaceId
+    || raw.performer_workspace_id
+    || raw.targetWorkspaceId
+    || raw.target_workspace_id
+    || "",
+  ).filter((id) => id !== ownerWorkspaceId);
+  const viewerWorkspaceIds = normalizeWorkspaceIdList(
+    raw.viewerWorkspaceIds
+    || raw.viewer_workspace_ids
+    || raw.readonlyWorkspaceIds
+    || raw.readonly_workspace_ids
+    || "",
+  ).filter((id) => id !== ownerWorkspaceId && !performerWorkspaceIds.includes(id));
+  const id = String(raw.id || `assessment-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
+  const summary = compactText(`${learnerName}：${subject} ${courseLevel} - ${title}`, 180);
+  const baseConfig = {
+    schemaVersion: 1,
+    kind: linkedStudyPlan ? "final-study-assessment" : "assessment-plan",
+    subject,
+    subjectId,
+    learnerName,
+    courseLevel,
+    questionCount,
+    durationMinutes,
+    passingScore,
+    difficulty,
+    retakeUntilPass: Boolean(retakeUntilPass),
+  };
+  const cards = Array.from({ length: examCount }, (_, index) => {
+    const number = index + 1;
+    const finalExam = linkedStudyPlan && number === examCount;
+    const config = Object.assign({}, baseConfig, {
+      examIndex: number,
+      examCount,
+      finalExam,
+    });
+    const cardTitle = finalExam
+      ? `${learnerName}${subject}阶段结束综合考试`
+      : `${learnerName}${subject}第 ${number}/${examCount} 次正式测试`;
+    const description = compactText([
+      `考试计划：${summary}`,
+      `科目：${subject}`,
+      `阶段：${courseLevel}`,
+      `题量：${questionCount} 题`,
+      `时长：${durationMinutes} 分钟`,
+      `通过线：${passingScore} 分`,
+      `难度：${difficulty}`,
+      "这是正式检测卡片，难度高于每日小测；低于通过线时不完成卡片，继续保持重考状态。",
+      finalExam ? "这是学习计划的最终阶段考试；只有达到通过线后，阶段学习计划才算完成。" : "",
+      blueprint ? `考试蓝图：\n${blueprint}` : "",
+    ].filter(Boolean).join("\n\n"), 1800);
+    return {
+      clientId: finalExam ? "final-assessment" : `assessment-exam-${number}`,
+      title: cardTitle,
+      dueTime: readingPlanDueTime(startDate, timeOfDay, index * intervalDays),
+      description,
+      config,
+      deliverables: ["正式考卷", "自动评分", "能力诊断", "错题与补强建议"],
+      acceptance: [
+        `完成 ${questionCount} 题正式测试`,
+        `得分达到 ${passingScore}/100`,
+        "未达标则保留为重考状态",
+        "生成考试报告和下一步补强建议",
+      ],
+    };
+  });
+  return {
+    id,
+    mode: linkedStudyPlan ? "study-plan" : "assessment-plan",
+    template: linkedStudyPlan ? "final-assessment" : subjectId,
+    workspaceId: ownerWorkspaceId,
+    subject,
+    subjectId,
+    learnerName,
+    courseLevel,
+    title,
+    examCount,
+    questionCount,
+    durationMinutes,
+    passingScore,
+    intervalDays,
+    startDate,
+    timeOfDay,
+    reminderLeadMinutes,
+    difficulty,
+    blueprint,
+    retakeUntilPass: Boolean(retakeUntilPass),
+    summary,
+    performerWorkspaceIds,
+    viewerWorkspaceIds,
+    cards,
+  };
+}
+
+function assessmentConfigLine(config = {}) {
+  return `ASSESSMENT_CONFIG:${Buffer.from(JSON.stringify(config)).toString("base64url")}`;
+}
+
+function parseAssessmentConfigLine(text = "") {
+  const match = String(text || "").match(/ASSESSMENT_CONFIG:([A-Za-z0-9_-]+)/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(match[1], "base64url").toString("utf8"));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function kanbanAssessmentConfigFromCard(card = {}) {
+  const parsed = parseAssessmentConfigLine([
+    card.kanbanCaseCardGoal,
+    card.kanban_case_card_goal,
+    card.description,
+    card.kanbanCaseSourceText,
+    card.kanban_case_source_text,
+  ].filter(Boolean).join("\n"));
+  const subject = compactText(parsed?.subject || card.kanbanCaseTemplate || card.kanban_case_template || "assessment", 80);
+  return {
+    subject,
+    subjectId: normalizeKanbanAssessmentSubjectId(parsed?.subjectId || parsed?.subject_id || subject),
+    learnerName: compactText(parsed?.learnerName || parsed?.learner_name || "学习者", 80),
+    courseLevel: compactText(parsed?.courseLevel || parsed?.course_level || "阶段检测", 80),
+    questionCount: Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(parsed?.questionCount || parsed?.question_count || 20) || 20)),
+    durationMinutes: Math.max(5, Math.min(180, Number(parsed?.durationMinutes || parsed?.duration_minutes || 30) || 30)),
+    passingScore: Math.max(50, Math.min(100, Number(parsed?.passingScore || parsed?.passing_score || 80) || 80)),
+    difficulty: compactText(parsed?.difficulty || "基础30% / 中等50% / 挑战20%", 160),
+    retakeUntilPass: parsed?.retakeUntilPass !== false && parsed?.retake_until_pass !== false,
+    examIndex: Number(parsed?.examIndex || parsed?.exam_index || card.kanbanCaseCardIndex || card.kanban_case_card_index || 1) || 1,
+    examCount: Number(parsed?.examCount || parsed?.exam_count || card.kanbanCaseCardCount || card.kanban_case_card_count || 1) || 1,
+    finalExam: Boolean(parsed?.finalExam || parsed?.final_exam),
+  };
+}
+
+async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options = {}) {
+  const plan = normalizeKanbanAssessmentPlan(input, workspaceId, options);
+  const share = upsertKanbanCaseShare(workspaceId, plan.id, {
+    performerWorkspaceIds: plan.performerWorkspaceIds,
+    viewerWorkspaceIds: plan.viewerWorkspaceIds,
+    managerWorkspaceIds: input.managerWorkspaceIds || input.manager_workspace_ids || [],
+  });
+  const performerAssignee = plan.performerWorkspaceIds[0] ? workspacePrincipal(plan.performerWorkspaceIds[0]) : "";
+  const requestedAssignee = input.assignee || performerAssignee || workspacePrincipal(workspaceId);
+  const created = [];
+  for (const [index, card] of plan.cards.entries()) {
+    const sourceText = compactText([plan.blueprint, assessmentConfigLine(card.config)].filter(Boolean).join("\n\n"), 3000);
+    const result = await kanbanCardProvider.addCard({
+      workspaceId,
+      assignee: requestedAssignee,
+      assigneeLabel: todoAssigneeLabel(workspaceId, requestedAssignee),
+      content: card.title,
+      description: card.description,
+      dueTime: card.dueTime,
+      reminderLeadMinutes: plan.reminderLeadMinutes,
+      reason: "Created from Hermes Mobile assessment plan.",
+      idempotencyKey: `hm-${plan.mode}-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
+      caseId: plan.id,
+      caseMode: plan.mode,
+      caseTemplate: plan.template,
+      caseSourceText: sourceText,
+      caseSummary: plan.summary,
+      caseCardId: card.clientId,
+      caseCardIndex: index + 1,
+      caseCardCount: plan.cards.length,
+      caseDependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
+      caseDeliverables: card.deliverables,
+      caseAcceptance: card.acceptance,
+      caseCardGoal: compactText(`${assessmentConfigLine(card.config)}\n\n${card.description}`, 1800),
+    });
+    if (!result?.ok) {
+      return { ok: false, error: result?.error || "Assessment plan card creation failed", plan, cards: created, result };
+    }
+    let publicCard = publicTodo(result);
+    let blocked = false;
+    let blockError = "";
+    let blockReason = "";
+    if (index > 0) {
+      blockReason = "Waiting for previous assessment completion; Hermes Mobile shows only the current assessment card.";
+      const blockedResult = await kanbanCardProvider.mutateCard({
+        action: "block",
+        workspaceId,
+        cardId: publicCard.id,
+        reason: blockReason,
+        author: "Hermes Mobile",
+      });
+      blocked = Boolean(blockedResult?.ok);
+      blockError = blocked ? "" : (blockedResult?.error || "Failed to block future assessment");
+      if (blocked) publicCard = publicTodo(blockedResult);
+    }
+    created.push({
+      clientId: card.clientId,
+      dueTime: card.dueTime,
+      card: publicCard,
+      blocked,
+      blockReason,
+      blockError,
+      dependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
+    });
+    if (index > 0 && !blocked) {
+      return {
+        ok: false,
+        error: `Assessment plan card ${publicCard.id} was created but could not be parked: ${blockError}`,
         plan,
         cards: created,
       };
@@ -5663,6 +5973,458 @@ async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
     total: results.length,
     card: publicTodo(completed),
     status: "completed",
+  };
+}
+
+function isKanbanAssessmentCard(card = {}) {
+  const mode = String(card?.kanbanCaseMode || card?.kanban_case_mode || "").trim();
+  const template = String(card?.kanbanCaseTemplate || card?.kanban_case_template || "").trim();
+  return isKanbanAssessmentCaseMode(mode) || (isKanbanStudyCaseMode(mode) && template === "final-assessment");
+}
+
+function assessmentExamStatePath(workspaceId, cardId, currentCard = null) {
+  return path.join(readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId), "latest-assessment-exam.json");
+}
+
+function readKanbanAssessmentExamState(workspaceId, cardId, currentCard = null) {
+  return readJsonStore(assessmentExamStatePath(workspaceId, cardId, currentCard), null);
+}
+
+function writeKanbanAssessmentExamState(workspaceId, cardId, currentCard, state) {
+  const payload = Object.assign({ schemaVersion: 1, updatedAt: nowIso() }, state || {});
+  writeJsonStore(assessmentExamStatePath(workspaceId, cardId, currentCard), payload);
+  return payload;
+}
+
+function seededNumber(seedText) {
+  let value = 2166136261;
+  const text = String(seedText || "");
+  for (let index = 0; index < text.length; index += 1) {
+    value ^= text.charCodeAt(index);
+    value = Math.imul(value, 16777619);
+  }
+  return value >>> 0;
+}
+
+function seededRandom(seedText) {
+  let seed = seededNumber(seedText) || 1;
+  return () => {
+    seed = Math.imul(seed ^ (seed >>> 15), 2246822507);
+    seed = Math.imul(seed ^ (seed >>> 13), 3266489909);
+    return ((seed ^= seed >>> 16) >>> 0) / 4294967296;
+  };
+}
+
+function assessmentChoiceSet(correct, distractors, random) {
+  const seen = new Set();
+  const values = [correct, ...(Array.isArray(distractors) ? distractors : [])]
+    .map((value) => String(value))
+    .filter((value) => {
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
+  while (values.length < 4) {
+    const candidate = String(Number(correct) + (values.length + 1) * (random() > 0.5 ? 1 : -1));
+    if (!seen.has(candidate)) {
+      seen.add(candidate);
+      values.push(candidate);
+    }
+  }
+  const choices = values.slice(0, 4);
+  for (let index = choices.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [choices[index], choices[swap]] = [choices[swap], choices[index]];
+  }
+  return { choices, answerIndex: choices.indexOf(String(correct)) };
+}
+
+function mathQuestionWithChoices(id, skill, prompt, correct, distractors, explanation, random) {
+  const choiceSet = assessmentChoiceSet(correct, distractors, random);
+  return {
+    id,
+    skill,
+    prompt,
+    choices: choiceSet.choices,
+    answerIndex: choiceSet.answerIndex,
+    explanation,
+    verification: "deterministic-template",
+  };
+}
+
+function generateVerifiedMathAssessmentQuestions(config = {}, seedText = "") {
+  const random = seededRandom(seedText);
+  const count = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(config.questionCount || 20) || 20));
+  const int = (min, max) => min + Math.floor(random() * (max - min + 1));
+  const questions = [];
+  for (let index = 0; index < count; index += 1) {
+    const type = index % 10;
+    const id = `q${index + 1}`;
+    if (type === 0) {
+      const a = int(12, 80);
+      const b = int(8, 60);
+      const c = int(3, 9);
+      const correct = a + b * c;
+      questions.push(mathQuestionWithChoices(id, "arithmetic: operation order", `${a} + ${b} × ${c} = ?`, correct, [a + b + c, (a + b) * c, correct + b, correct - c], `先算乘法 ${b} × ${c}，再加 ${a}。`, random));
+    } else if (type === 1) {
+      const x = int(3, 18);
+      const a = int(2, 9);
+      const b = int(4, 30);
+      const c = a * x + b;
+      questions.push(mathQuestionWithChoices(id, "algebra: linear equation", `If ${a}x + ${b} = ${c}, what is x?`, x, [x + 1, x - 1, a + b, c - b], `移项后 ${a}x=${c - b}，所以 x=${x}。`, random));
+    } else if (type === 2) {
+      const base = int(8, 30) * 10;
+      const rate = [10, 15, 20, 25, 30, 40][int(0, 5)];
+      const correct = Math.round(base * rate / 100);
+      questions.push(mathQuestionWithChoices(id, "percentage", `${base} 的 ${rate}% 是多少？`, correct, [correct + 5, correct - 5, Math.round(base / rate), base - correct], `${rate}% = ${rate}/100，所以结果是 ${correct}。`, random));
+    } else if (type === 3) {
+      const left = int(2, 7);
+      const right = int(3, 9);
+      const unit = int(4, 12);
+      const total = (left + right) * unit;
+      const correct = left * unit;
+      questions.push(mathQuestionWithChoices(id, "ratio", `A:B = ${left}:${right}，如果 A+B=${total}，A 是多少？`, correct, [right * unit, correct + unit, total - correct + unit, total], `总份数 ${left + right}，每份 ${unit}，A=${left} 份。`, random));
+    } else if (type === 4) {
+      const w = int(4, 14);
+      const h = int(5, 16);
+      const correct = w * h;
+      questions.push(mathQuestionWithChoices(id, "geometry: rectangle area", `长方形长 ${w}、宽 ${h}，面积是多少？`, correct, [2 * (w + h), correct + w, correct + h, w + h], `长方形面积 = 长 × 宽 = ${correct}。`, random));
+    } else if (type === 5) {
+      const a = int(55, 95);
+      const b = int(55, 95);
+      const c = int(55, 95);
+      const targetAvg = int(70, 90);
+      const correct = targetAvg * 4 - a - b - c;
+      questions.push(mathQuestionWithChoices(id, "average", `四次测验平均分要达到 ${targetAvg}。前三次是 ${a}, ${b}, ${c}，第四次需要多少分？`, correct, [correct + 5, correct - 5, targetAvg, Math.round((a + b + c) / 3)], `四次总分需 ${targetAvg * 4}，减去前三次即可。`, random));
+    } else if (type === 6) {
+      const red = int(2, 8);
+      const blue = int(2, 8);
+      const total = red + blue;
+      questions.push(mathQuestionWithChoices(id, "probability", `袋子里有 ${red} 个红球和 ${blue} 个蓝球，随机取 1 个，取到红球的概率是？`, `${red}/${total}`, [`${blue}/${total}`, `${red}/${blue}`, `${total}/${red}`, `1/${total}`], `有利结果 ${red} 个，总结果 ${total} 个。`, random));
+    } else if (type === 7) {
+      const start = int(2, 12);
+      const step = int(3, 9);
+      const correct = start + step * 5;
+      questions.push(mathQuestionWithChoices(id, "sequence", `数列 ${start}, ${start + step}, ${start + step * 2}, ${start + step * 3}, ... 的第 6 项是多少？`, correct, [correct - step, correct + step, start * 6, step * 6], `第 6 项比第 1 项多 5 个公差。`, random));
+    } else if (type === 8) {
+      const n = int(4, 16);
+      const divisor = int(3, 9);
+      const remainder = int(0, divisor - 1);
+      const value = n * divisor + remainder;
+      questions.push(mathQuestionWithChoices(id, "number theory: remainder", `${value} 除以 ${divisor} 的余数是多少？`, remainder, [divisor - remainder, remainder + 1, n, divisor], `${value}=${divisor}×${n}+${remainder}。`, random));
+    } else {
+      const price = int(12, 48);
+      const countItems = int(3, 9);
+      const paid = Math.ceil(price * countItems / 10) * 10 + 10;
+      const correct = paid - price * countItems;
+      questions.push(mathQuestionWithChoices(id, "word problem", `每本练习册 ${price} 元，买 ${countItems} 本，付 ${paid} 元，应找回多少元？`, correct, [correct + price, correct - 1, paid - price, price * countItems], `总价 ${price * countItems}，找回 ${paid}-${price * countItems}=${correct}。`, random));
+    }
+  }
+  return questions;
+}
+
+function normalizeKanbanAssessmentExam(raw = {}, config = {}) {
+  const questionLimit = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(config.questionCount || raw.questionCount || raw.question_count || 20) || 20));
+  const questions = (Array.isArray(raw.questions) ? raw.questions : [])
+    .map((item, index) => {
+      const choices = (Array.isArray(item?.choices) ? item.choices : [])
+        .map((choice) => compactText(choice, 320))
+        .filter(Boolean)
+        .slice(0, 4);
+      const answerIndex = Number(item?.answerIndex ?? item?.answer_index ?? item?.correctIndex ?? item?.correct_index);
+      return {
+        id: compactText(item?.id || `q${index + 1}`, 40),
+        skill: compactText(item?.skill || item?.category || "", 100),
+        prompt: compactText(item?.prompt || item?.question || "", 900),
+        choices,
+        answerIndex: Number.isInteger(answerIndex) && answerIndex >= 0 && answerIndex < choices.length ? answerIndex : -1,
+        explanation: compactText(item?.explanation || "", 900),
+        verification: compactText(item?.verification || raw.verification || "model-generated", 80),
+      };
+    })
+    .filter((item) => item.prompt && item.choices.length >= 2 && item.answerIndex >= 0)
+    .slice(0, questionLimit);
+  if (questions.length !== questionLimit) throw new Error(`Assessment exam generation returned ${questions.length} valid questions; expected ${questionLimit}`);
+  return {
+    title: compactText(raw.title || `${config.subject || "Assessment"} formal exam`, 160),
+    subject: compactText(raw.subject || config.subject || "", 80),
+    subjectId: compactText(raw.subjectId || raw.subject_id || config.subjectId || "", 80),
+    questionCount: questionLimit,
+    durationMinutes: Math.max(5, Math.min(180, Number(config.durationMinutes || raw.durationMinutes || raw.duration_minutes || 30) || 30)),
+    passingScore: Math.max(50, Math.min(100, Number(config.passingScore || raw.passingScore || raw.passing_score || 80) || 80)),
+    verification: compactText(raw.verification || (questions.every((item) => item.verification === "deterministic-template") ? "deterministic-template" : "model-generated"), 80),
+    questions,
+  };
+}
+
+async function generateKanbanAssessmentExam(workspaceId, cardId, currentCard, config = {}) {
+  if (normalizeKanbanAssessmentSubjectId(config.subjectId || config.subject) === "math") {
+    return normalizeKanbanAssessmentExam({
+      title: `${config.subject || "数学"}正式测试`,
+      subject: config.subject || "数学",
+      subjectId: "math",
+      verification: "deterministic-template",
+      questions: generateVerifiedMathAssessmentQuestions(config, `${workspaceId}\0${cardId}\0${currentCard?.updatedAt || ""}`),
+    }, config);
+  }
+  const prompt = [
+    "Generate a formal assessment exam as JSON only. No Markdown, no comments, no code fences.",
+    "The exam must use single-answer multiple-choice questions.",
+    "Questions should be more comprehensive and harder than a daily practice quiz.",
+    "Do not copy copyrighted exam questions. Create original questions or generic skill checks.",
+    "Every question needs exactly 4 choices, one 0-based answerIndex, one concise skill tag, and a brief explanation.",
+    "The answer key must be internally consistent. Avoid questions that require external images, audio, or ambiguous current events.",
+    "Use this schema: {\"title\":\"...\",\"subject\":\"...\",\"verification\":\"model-generated\",\"questions\":[{\"id\":\"q1\",\"skill\":\"...\",\"prompt\":\"...\",\"choices\":[\"...\",\"...\",\"...\",\"...\"],\"answerIndex\":0,\"explanation\":\"...\"}]}",
+    `Subject: ${config.subject || ""}`,
+    `Learner: ${config.learnerName || ""}`,
+    `Course level: ${config.courseLevel || ""}`,
+    `Question count: ${config.questionCount || 20}`,
+    `Duration minutes: ${config.durationMinutes || 30}`,
+    `Passing score: ${config.passingScore || 80}`,
+    `Difficulty blueprint: ${config.difficulty || ""}`,
+    currentCard?.kanbanCaseSourceText ? `Plan blueprint:\n${compactText(currentCard.kanbanCaseSourceText.replace(/ASSESSMENT_CONFIG:[A-Za-z0-9_-]+/g, ""), 5000)}` : "",
+  ].filter(Boolean).join("\n\n");
+  const output = await hermesModelText({
+    input: prompt,
+    stream: false,
+    store: false,
+    model: AUTOMATION_CREATE_MODEL,
+    reasoning_effort: "medium",
+    conversation: `hermes_web_assessment_exam_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+    instructions: "Generate a formal multiple-choice assessment exam as JSON.",
+    access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+  }, KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS);
+  return normalizeKanbanAssessmentExam(extractJsonObject(output || ""), config);
+}
+
+function publicKanbanAssessmentExam(exam = {}, state = {}) {
+  return {
+    title: String(exam.title || "Formal assessment"),
+    subject: String(exam.subject || ""),
+    subjectId: String(exam.subjectId || ""),
+    questionCount: Number(exam.questionCount || (Array.isArray(exam.questions) ? exam.questions.length : 0)) || 0,
+    durationMinutes: Number(exam.durationMinutes || 30) || 30,
+    passingScore: Number(exam.passingScore || 80) || 80,
+    verification: String(exam.verification || ""),
+    startedAt: String(state.startedAt || ""),
+    status: String(state.status || "in_progress"),
+    questions: (Array.isArray(exam.questions) ? exam.questions : []).map((item, index) => ({
+      id: String(item.id || `q${index + 1}`),
+      prompt: String(item.prompt || ""),
+      choices: Array.isArray(item.choices) ? item.choices.map((choice) => String(choice || "")) : [],
+      skill: String(item.skill || ""),
+    })),
+  };
+}
+
+function assessmentExamUrl(workspaceId, cardId) {
+  const params = new URLSearchParams({
+    view: "todos",
+    workspaceId: String(workspaceId || "owner"),
+    todoId: String(cardId || ""),
+    assessmentExam: "1",
+  });
+  return `/?${params.toString()}`;
+}
+
+function publicKanbanAssessmentSummary(workspaceId, card = {}) {
+  if (!isKanbanAssessmentCard(card)) return null;
+  const cardId = String(card?.id || card?.cardId || "").trim();
+  if (!cardId) return null;
+  const state = readKanbanAssessmentExamState(workspaceId, cardId, card);
+  const config = kanbanAssessmentConfigFromCard(card);
+  const attempts = Array.isArray(state?.attempts) ? state.attempts : [];
+  const lastAttempt = attempts.length ? attempts[attempts.length - 1] : null;
+  return {
+    status: String(state?.status || "not_started"),
+    startedAt: String(state?.startedAt || ""),
+    completedAt: String(state?.completedAt || ""),
+    examAvailable: Boolean(state?.exam),
+    examUrl: assessmentExamUrl(workspaceId, cardId),
+    questionCount: Number(state?.exam?.questionCount || config.questionCount || 20) || 20,
+    durationMinutes: Number(state?.exam?.durationMinutes || config.durationMinutes || 30) || 30,
+    passingScore: Number(state?.exam?.passingScore || config.passingScore || 80) || 80,
+    finalExam: Boolean(config.finalExam),
+    verification: String(state?.exam?.verification || ""),
+    lastAttempt: lastAttempt ? {
+      submittedAt: lastAttempt.submittedAt || "",
+      score: Number(lastAttempt.score || 0),
+      correctCount: Number(lastAttempt.correctCount || 0),
+      total: Number(lastAttempt.total || 0),
+      passingScore: Number(lastAttempt.passingScore || config.passingScore || 80),
+      passed: Boolean(lastAttempt.passed),
+    } : null,
+  };
+}
+
+function kanbanAssessmentCanStart(card = {}, state = null) {
+  if (state?.exam) return true;
+  const value = String(card?.dueAt || card?.dueLocal || "").trim();
+  if (!value) return true;
+  const parsed = Date.parse(value.replace(" ", "T"));
+  return !Number.isFinite(parsed) || parsed <= Date.now();
+}
+
+function assessmentExamReportPath(workspaceId, cardId, currentCard, exam, attempt) {
+  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId);
+  const mdPath = path.join(dir, `${Date.now()}-${safeFileName(currentCard?.content || cardId)}-assessment-report.md`);
+  const wrong = (attempt.results || []).filter((item) => !item.correct);
+  const lines = [
+    `# ${currentCard?.content || exam.title || "Assessment Report"}`,
+    "",
+    `- Card: ${cardId}`,
+    `- Subject: ${exam.subject || ""}`,
+    `- Score: ${attempt.score}/100`,
+    `- Correct: ${attempt.correctCount}/${attempt.total}`,
+    `- Passing score: ${exam.passingScore}/100`,
+    `- Passed: ${attempt.passed ? "yes" : "no"}`,
+    `- Submitted: ${attempt.submittedAt}`,
+    "",
+    "## Summary",
+    "",
+    attempt.passed
+      ? "This formal assessment reached the passing score."
+      : "This formal assessment did not reach the passing score. Retake is required before the card can complete.",
+    "",
+    "## Incorrect Items",
+    "",
+    wrong.length ? wrong.map((item) => `- ${item.id}: ${item.explanation || "Review this skill."}`).join("\n") : "None.",
+  ];
+  fs.writeFileSync(mdPath, lines.join("\n"), "utf8");
+  return mdPath;
+}
+
+async function getKanbanAssessmentExam(workspaceId, cardId) {
+  const context = await readingContextForCard(workspaceId, cardId);
+  const currentCard = context.current || { id: cardId, content: cardId };
+  if (!isKanbanAssessmentCard(currentCard)) return { ok: false, status: 404, error: "Assessment exam is not available for this card" };
+  const existing = readKanbanAssessmentExamState(workspaceId, cardId, currentCard);
+  if (!kanbanAssessmentCanStart(currentCard, existing)) {
+    return { ok: false, status: 409, error: "Assessment exam is not open yet" };
+  }
+  if (existing?.exam) {
+    return {
+      ok: true,
+      exam: publicKanbanAssessmentExam(existing.exam, existing),
+      status: existing.status || "in_progress",
+      attempts: Array.isArray(existing.attempts) ? existing.attempts.map((attempt) => ({
+        submittedAt: attempt.submittedAt || "",
+        score: Number(attempt.score || 0),
+        passed: Boolean(attempt.passed),
+      })).slice(-5) : [],
+    };
+  }
+  const config = kanbanAssessmentConfigFromCard(currentCard);
+  const exam = await generateKanbanAssessmentExam(workspaceId, cardId, currentCard, config);
+  const state = writeKanbanAssessmentExamState(workspaceId, cardId, currentCard, {
+    status: "in_progress",
+    workspaceId,
+    cardId,
+    cardTitle: currentCard.content || cardId,
+    config,
+    exam,
+    startedAt: nowIso(),
+    attempts: [],
+  });
+  return { ok: true, exam: publicKanbanAssessmentExam(exam, state), status: state.status, attempts: [] };
+}
+
+async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
+  const context = await readingContextForCard(workspaceId, cardId);
+  const currentCard = context.current || { id: cardId, content: cardId };
+  if (!isKanbanAssessmentCard(currentCard)) return { ok: false, status: 404, error: "Assessment exam is not available for this card" };
+  let state = readKanbanAssessmentExamState(workspaceId, cardId, currentCard);
+  if (!state?.exam) {
+    const generated = await getKanbanAssessmentExam(workspaceId, cardId);
+    if (!generated.ok) return generated;
+    state = readKanbanAssessmentExamState(workspaceId, cardId, currentCard);
+  }
+  const exam = state.exam;
+  const answers = Array.isArray(body.answers)
+    ? body.answers
+    : (body.answers && typeof body.answers === "object" ? exam.questions.map((question) => body.answers[question.id]) : []);
+  const results = exam.questions.map((question, index) => {
+    const answerIndex = Number(answers[index]);
+    const correct = Number.isInteger(answerIndex) && answerIndex === Number(question.answerIndex);
+    return {
+      id: question.id || `q${index + 1}`,
+      skill: question.skill || "",
+      correct,
+      answerIndex: Number.isInteger(answerIndex) ? answerIndex : -1,
+      correctIndex: Number(question.answerIndex),
+      explanation: question.explanation || "",
+    };
+  });
+  const correctCount = results.filter((item) => item.correct).length;
+  const score = Math.round((correctCount / Math.max(1, results.length)) * 100);
+  const passingScore = Number(exam.passingScore || state.config?.passingScore || 80) || 80;
+  const passed = score >= passingScore;
+  const attempt = {
+    submittedAt: nowIso(),
+    score,
+    correctCount,
+    total: results.length,
+    passingScore,
+    passed,
+    results,
+  };
+  const reportPath = assessmentExamReportPath(workspaceId, cardId, currentCard, exam, attempt);
+  const nextState = Object.assign({}, state, {
+    status: passed ? "completed" : "retake_required",
+    attempts: [...(Array.isArray(state.attempts) ? state.attempts : []), attempt].slice(-20),
+    lastReportPath: reportPath,
+    completedAt: passed ? nowIso() : state.completedAt || "",
+  });
+  writeKanbanAssessmentExamState(workspaceId, cardId, currentCard, nextState);
+  const resultComment = [
+    `Formal assessment scored ${score}/100; passing score ${passingScore}/100.`,
+    passed ? "Assessment passed. Completing this card." : "Assessment did not pass. Retake is required; this card remains open.",
+    `MEDIA: ${reportPath}`,
+  ].join("\n");
+  await kanbanCardProvider.mutateCard({
+    action: "comment",
+    workspaceId,
+    cardId,
+    comment: resultComment,
+    author: "Hermes Mobile",
+  }).catch(() => null);
+  if (!passed) {
+    return {
+      ok: true,
+      passed: false,
+      status: "retake_required",
+      score,
+      correctCount,
+      total: results.length,
+      passingScore,
+      reportPath,
+      results: results.map((item) => ({ id: item.id, skill: item.skill, correct: item.correct, explanation: item.correct ? "" : item.explanation })),
+      exam: publicKanbanAssessmentExam(exam, nextState),
+    };
+  }
+  const completed = await kanbanCardProvider.mutateCard({
+    action: "complete",
+    workspaceId,
+    cardId,
+    result: [
+      `Formal assessment passed with ${score}/100.`,
+      `Correct: ${correctCount}/${results.length}.`,
+      `MEDIA: ${reportPath}`,
+    ].join("\n"),
+    author: "Hermes Mobile",
+  });
+  if (!completed?.ok) return { ok: false, error: completed?.error || "Assessment card completion failed", score };
+  await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
+  return {
+    ok: true,
+    passed: true,
+    status: "completed",
+    score,
+    correctCount,
+    total: results.length,
+    passingScore,
+    reportPath,
+    card: publicTodo(completed),
   };
 }
 
@@ -12481,6 +13243,30 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (url.pathname === "/api/kanban/cards/assessment-plan" && req.method === "POST") {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = await readBody(req, 240000);
+    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
+    if (!workspaceId) return;
+    try {
+      const result = await createKanbanAssessmentPlanCards(workspaceId, body);
+      if (!result.ok) {
+        kanbanErrorResponse(res, result, 502);
+        return;
+      }
+      clearKanbanCardListCache(workspaceId);
+      broadcast({ type: "kanban.updated", workspaceId, action: "assessment-plan-add" });
+      broadcast({ type: "todos.updated", workspaceId, action: "assessment-plan-add" });
+      sendJson(res, 201, result);
+    } catch (err) {
+      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
   if (url.pathname === "/api/todos" && req.method === "POST") {
     const body = await readBody(req);
     const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
@@ -12661,6 +13447,44 @@ async function handleApi(req, res) {
         clearKanbanCardListCache(workspaceId);
         broadcast({ type: "kanban.updated", workspaceId, cardId, action: "reading-quiz-passed" });
         broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "reading-quiz-passed" });
+      }
+      if (result.card) result.card = annotateKanbanCardForAuth(result.card, access.auth);
+      sendJson(res, 200, result);
+    } catch (err) {
+      sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
+    }
+    return;
+  }
+
+  const kanbanAssessmentExam = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/assessment-exam$/);
+  if (kanbanAssessmentExam && (req.method === "GET" || req.method === "POST")) {
+    if (!useKanbanTodoBackend()) {
+      sendJson(res, 409, { error: "Kanban backend is not enabled" });
+      return;
+    }
+    const body = req.method === "POST" ? await readBody(req).catch(() => ({})) : {};
+    const cardId = decodeURIComponent(kanbanAssessmentExam[1]);
+    const access = await resolveKanbanCardAccess(
+      req,
+      res,
+      body.workspaceId || url.searchParams.get("workspaceId") || "owner",
+      cardId,
+      req.method === "POST" ? "answerQuiz" : "view",
+    );
+    if (!access) return;
+    const workspaceId = access.workspaceId;
+    try {
+      const result = req.method === "POST"
+        ? await submitKanbanAssessmentExam(workspaceId, cardId, body)
+        : await getKanbanAssessmentExam(workspaceId, cardId);
+      if (!result.ok) {
+        sendJson(res, result.status || 400, { ok: false, error: result.error || "Assessment exam failed" });
+        return;
+      }
+      if (req.method === "POST") {
+        clearKanbanCardListCache(workspaceId);
+        broadcast({ type: "kanban.updated", workspaceId, cardId, action: result.passed ? "assessment-passed" : "assessment-retake" });
+        broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: result.passed ? "assessment-passed" : "assessment-retake" });
       }
       if (result.card) result.card = annotateKanbanCardForAuth(result.card, access.auth);
       sendJson(res, 200, result);

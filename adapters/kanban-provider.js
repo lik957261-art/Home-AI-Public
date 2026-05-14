@@ -967,7 +967,7 @@ function createKanbanTodoBridge(options = {}) {
       const principalId = String(meta.assignee || meta.createdBy || "");
       if (principals.size && !principals.has(principalId)) continue;
       if (String(meta.kanbanStatus || meta.kanban_status || "").trim().toLowerCase() === "blocked") {
-        if (String(meta.caseMode || meta.case_mode || "").trim() === "study-plan") continue;
+        if (["study-plan", "assessment-plan"].includes(String(meta.caseMode || meta.case_mode || "").trim())) continue;
         const blockedAt = Date.parse(meta.blockedAt || meta.updatedAt || "");
         if (Number.isFinite(blockedAt) && now - blockedAt >= blockedDelayMs) {
           const markKey = `kanban-todo:${id}:blocked:${meta.blockedAt || meta.updatedAt || ""}`;

@@ -180,6 +180,38 @@ async function run() {
   assert.equal(readingBlockedPush.ok, true);
   assert.equal(readingBlockedPush.events.some((event) => event.messageType === "blocked" && event.todoId === reading.id), false);
 
+  const assessment = await provider.run({
+    action: "add",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    assignee: "weixin_stephen",
+    content: "Math formal assessment 2",
+    case_id: "assessment-case",
+    case_mode: "assessment-plan",
+    case_template: "math",
+    case_card_id: "assessment-exam-2",
+    case_card_index: 2,
+    case_card_count: 10,
+    case_depends_on: ["assessment-exam-1"],
+  });
+  assert.equal(assessment.ok, true);
+  const assessmentBlocked = await provider.run({
+    action: "block",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: assessment.id,
+    reason: "Waiting for previous assessment completion; Hermes Mobile shows only the current assessment card.",
+  });
+  assert.equal(assessmentBlocked.ok, true);
+  const assessmentBlockedPush = await provider.run({
+    action: "web_pending_pushes",
+    principals: ["weixin_stephen"],
+    blocked_notification_delay_minutes: 0,
+    limit: 20,
+  });
+  assert.equal(assessmentBlockedPush.ok, true);
+  assert.equal(assessmentBlockedPush.events.some((event) => event.messageType === "blocked" && event.todoId === assessment.id), false);
+
   const commented = await provider.run({
     action: "comment",
     workspace_id: "weixin_stephen",
@@ -224,12 +256,12 @@ async function run() {
   assert.equal(revision.ok, true);
   assert.equal(revision.action, "revise");
   assert.equal(revision.originalId, "t_created");
-  assert.equal(revision.revisionId, "t_created_4");
+  assert.equal(revision.revisionId, "t_created_5");
   assert.equal(revision.status, "open");
   assert.equal(revision.kanban_revision_of, "t_created");
   assert.equal(revision.kanban_revision_request, "revise the final copy");
   assert.ok(calls.some(([, args]) => args.includes("create") && args.includes("修改：Read chapter")));
-  assert.ok(calls.some(([, args]) => args.includes("comment") && args.includes("Manual revision requested: revise the final copy\nFollow-up card: t_created_4")));
+  assert.ok(calls.some(([, args]) => args.includes("comment") && args.includes("Manual revision requested: revise the final copy\nFollow-up card: t_created_5")));
 
   const readingRevision = await provider.run({
     action: "revise",

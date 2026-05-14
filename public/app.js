@@ -46,7 +46,7 @@ function todayDateInputValue() {
 function initialKanbanComposerMode() {
   const stored = localStorage.getItem("hermesKanbanComposerMode") || "";
   if (stored === "reading") return "study";
-  if (["single", "multi", "study"].includes(stored)) return stored;
+  if (["single", "multi", "study", "assessment"].includes(stored)) return stored;
   return localStorage.getItem("hermesKanbanComposerMultiAgent") === "1" ? "multi" : "single";
 }
 
@@ -66,6 +66,27 @@ function defaultKanbanReadingDraft() {
     startDate: todayDateInputValue(),
     timeOfDay: "21:00",
     reminderLeadMinutes: "15",
+  };
+}
+
+function defaultKanbanAssessmentDraft() {
+  return {
+    caseMode: "assessment-plan",
+    subject: "数学",
+    learnerName: "",
+    courseLevel: "",
+    planTitle: "",
+    performerWorkspaceId: "",
+    viewerWorkspaceIds: "",
+    examCount: "10",
+    questionCount: "20",
+    durationMinutes: "30",
+    passingScore: "80",
+    intervalDays: "14",
+    startDate: todayDateInputValue(),
+    timeOfDay: "19:30",
+    reminderLeadMinutes: "30",
+    difficulty: "基础30% / 中等50% / 挑战20%",
   };
 }
 
@@ -90,6 +111,15 @@ function initialKanbanReadingDraft() {
     return Object.assign(defaultKanbanReadingDraft(), parsed && typeof parsed === "object" ? parsed : {}, { caseMode: "study-plan" });
   } catch (_) {
     return defaultKanbanReadingDraft();
+  }
+}
+
+function initialKanbanAssessmentDraft() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("hermesKanbanAssessmentDraft") || "{}");
+    return Object.assign(defaultKanbanAssessmentDraft(), parsed && typeof parsed === "object" ? parsed : {}, { caseMode: "assessment-plan" });
+  } catch (_) {
+    return defaultKanbanAssessmentDraft();
   }
 }
 
@@ -141,6 +171,10 @@ const state = {
   todoReadingQuizAnswers: {},
   todoReadingQuizStep: {},
   todoReadingQuizSubmitting: {},
+  todoAssessmentExams: {},
+  todoAssessmentAnswers: {},
+  todoAssessmentStep: {},
+  todoAssessmentSubmitting: {},
   pendingReadingQuizTodoId: "",
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
@@ -149,6 +183,7 @@ const state = {
   kanbanComposerMode: initialKanbanComposerMode(),
   kanbanComposerMultiAgent: initialKanbanComposerMode() === "multi",
   kanbanReadingDraft: initialKanbanReadingDraft(),
+  kanbanAssessmentDraft: initialKanbanAssessmentDraft(),
   kanbanReadingCoverFile: null,
   kanbanReadingCoverPreviewUrl: "",
   kanbanCoverObjectUrls: {},
@@ -325,6 +360,12 @@ const KANBAN_READING_PROGRESS_STEPS = Object.freeze([
   "整理学习计划",
   "生成学习任务",
   "写入提醒时间",
+  "刷新故事树",
+]);
+const KANBAN_ASSESSMENT_PROGRESS_STEPS = Object.freeze([
+  "整理考试模板",
+  "生成正式测试卡片",
+  "写入考试时间和通过线",
   "刷新故事树",
 ]);
 const KANBAN_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
@@ -8442,8 +8483,20 @@ function isKanbanStudyCase(todo) {
   return kanbanCaseMode(todo) === "study-plan";
 }
 
+function isKanbanAssessmentCase(todo) {
+  return kanbanCaseMode(todo) === "assessment-plan";
+}
+
 function isKanbanReadingPlanCase(todo) {
   return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "reading";
+}
+
+function isKanbanFinalStudyAssessment(todo) {
+  return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "final-assessment";
+}
+
+function isKanbanAssessmentCard(todo) {
+  return isKanbanAssessmentCase(todo) || isKanbanFinalStudyAssessment(todo);
 }
 
 function kanbanStudyLabels(todo) {
@@ -8482,6 +8535,7 @@ function kanbanCan(todo, key) {
 }
 
 function kanbanComposerProgressSteps() {
+  if (state.kanbanComposerProgressKind === "assessment") return KANBAN_ASSESSMENT_PROGRESS_STEPS;
   if (state.kanbanComposerProgressKind === "reading") return KANBAN_READING_PROGRESS_STEPS;
   return state.kanbanComposerProgressKind === "create"
     ? KANBAN_CREATE_PROGRESS_STEPS
@@ -8554,6 +8608,37 @@ function syncKanbanReadingDraftFromDom(root = document) {
   localStorage.setItem("hermesKanbanReadingDraft", JSON.stringify(draft));
 }
 
+function syncKanbanAssessmentDraftFromDom(root = document) {
+  const draft = Object.assign(defaultKanbanAssessmentDraft(), state.kanbanAssessmentDraft || {});
+  const viewerInputs = Array.from(root.querySelectorAll?.("[data-kanban-assessment-viewer-workspace]") || []);
+  const selectedViewers = viewerInputs.length
+    ? viewerInputs.filter((input) => input.checked).map((input) => input.value).filter(Boolean).join(",")
+    : root.querySelector?.("#kanbanAssessmentViewerWorkspaces")?.value;
+  const fields = {
+    caseMode: "assessment-plan",
+    subject: root.querySelector?.("#kanbanAssessmentSubject")?.value,
+    learnerName: root.querySelector?.("#kanbanAssessmentLearner")?.value,
+    courseLevel: root.querySelector?.("#kanbanAssessmentLevel")?.value,
+    planTitle: root.querySelector?.("#kanbanAssessmentTitle")?.value,
+    performerWorkspaceId: root.querySelector?.("#kanbanAssessmentPerformerWorkspace")?.value,
+    viewerWorkspaceIds: selectedViewers,
+    examCount: root.querySelector?.("#kanbanAssessmentExamCount")?.value,
+    questionCount: root.querySelector?.("#kanbanAssessmentQuestionCount")?.value,
+    durationMinutes: root.querySelector?.("#kanbanAssessmentDuration")?.value,
+    passingScore: root.querySelector?.("#kanbanAssessmentPassingScore")?.value,
+    intervalDays: root.querySelector?.("#kanbanAssessmentIntervalDays")?.value,
+    startDate: root.querySelector?.("#kanbanAssessmentStartDate")?.value,
+    timeOfDay: root.querySelector?.("#kanbanAssessmentTime")?.value,
+    reminderLeadMinutes: root.querySelector?.("#kanbanAssessmentReminder")?.value,
+    difficulty: root.querySelector?.("#kanbanAssessmentDifficulty")?.value,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) draft[key] = value || "";
+  }
+  state.kanbanAssessmentDraft = draft;
+  localStorage.setItem("hermesKanbanAssessmentDraft", JSON.stringify(draft));
+}
+
 function setKanbanReadingCoverFile(file) {
   if (state.kanbanReadingCoverPreviewUrl) URL.revokeObjectURL(state.kanbanReadingCoverPreviewUrl);
   state.kanbanReadingCoverFile = file || null;
@@ -8566,7 +8651,7 @@ function setKanbanReadingCoverFile(file) {
 
 function saveKanbanComposerMode(mode) {
   const normalized = mode === "reading" ? "study" : mode;
-  const next = ["single", "multi", "study"].includes(normalized) ? normalized : "single";
+  const next = ["single", "multi", "study", "assessment"].includes(normalized) ? normalized : "single";
   state.kanbanComposerMode = next;
   state.kanbanComposerMultiAgent = next === "multi";
   localStorage.setItem("hermesKanbanComposerMode", next);
@@ -8858,14 +8943,17 @@ function kanbanReadingCaseKey(todo) {
 function kanbanVisibleReadingTodoIds(todos) {
   const groups = new Map();
   for (const todo of todos || []) {
-    if (!isKanbanReadingCard(todo)) continue;
+    if (!isKanbanReadingCard(todo) && !isKanbanAssessmentCard(todo)) continue;
     const key = kanbanReadingCaseKey(todo);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push({ todo, info: kanbanCardCaseInfo(todo) });
   }
   const visible = new Set();
   for (const cards of groups.values()) {
-    const item = kanbanReadingCaseCurrentItem({ cards });
+    const hasStudyCards = cards.some((item) => isKanbanReadingCard(item.todo));
+    const item = hasStudyCards
+      ? kanbanReadingCaseCurrentItem({ cards })
+      : kanbanAssessmentCaseCurrentItem({ cards });
     const id = String(item?.todo?.id || "");
     if (id) visible.add(id);
   }
@@ -8903,7 +8991,7 @@ function kanbanReadingDisplayCardCount(group) {
 function kanbanVisibleBoardTodos(todos) {
   const visibleReadingIds = kanbanVisibleReadingTodoIds(todos);
   return (todos || []).filter((todo) => (
-    !isKanbanReadingCard(todo)
+    (!isKanbanReadingCard(todo) && !isKanbanAssessmentCard(todo))
     || visibleReadingIds.has(String(todo?.id || ""))
   ));
 }
@@ -8922,6 +9010,44 @@ function readingCardAcceptsSubmission(todo) {
   if (status === "running") return true;
   const startTime = kanbanReadingStartTime(todo);
   return !Number.isFinite(startTime) || startTime <= Date.now();
+}
+
+function assessmentExamSummary(todo) {
+  return todo?.assessmentExam && typeof todo.assessmentExam === "object"
+    ? todo.assessmentExam
+    : null;
+}
+
+function assessmentExamCompleted(todo) {
+  const summary = assessmentExamSummary(todo);
+  return String(summary?.status || "") === "completed"
+    || Boolean(summary?.lastAttempt?.passed)
+    || normalizedKanbanStatus(todo) === "done";
+}
+
+function assessmentCardAcceptsStart(todo) {
+  if (!isKanbanAssessmentCard(todo) || !todoMatchesOpen(todo)) return false;
+  const status = normalizedKanbanStatus(todo);
+  if (status === "blocked" || status === "done" || status === "archived") return false;
+  const startTime = kanbanReadingStartTime(todo);
+  return !Number.isFinite(startTime) || startTime <= Date.now();
+}
+
+function kanbanAssessmentCaseCurrentItem(group) {
+  const cards = [...(Array.isArray(group?.cards) ? group.cards : [])].sort((left, right) => {
+    const leftIndex = left.info?.cardIndex || left.todo?.kanbanCaseCardIndex || 999;
+    const rightIndex = right.info?.cardIndex || right.todo?.kanbanCaseCardIndex || 999;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    return todoSortTimestamp(left.todo) - todoSortTimestamp(right.todo);
+  });
+  const retake = cards.find((item) => isKanbanAssessmentCard(item.todo) && String(assessmentExamSummary(item.todo)?.status || "") === "retake_required");
+  if (retake) return retake;
+  const startable = cards.find((item) => isKanbanAssessmentCard(item.todo) && assessmentCardAcceptsStart(item.todo));
+  if (startable) return startable;
+  const next = cards.find((item) => isKanbanAssessmentCard(item.todo) && !assessmentExamCompleted(item.todo) && !["done", "archived"].includes(normalizedKanbanStatus(item.todo)));
+  if (next) return next;
+  const completed = [...cards].reverse().find((item) => isKanbanAssessmentCard(item.todo) && assessmentExamCompleted(item.todo));
+  return completed || cards.find((item) => isKanbanAssessmentCard(item.todo)) || null;
 }
 
 function kanbanReadingCaseCurrentItem(group) {
@@ -9204,7 +9330,61 @@ function renderKanbanReadingArchiveCase(group) {
   </article>`;
 }
 
+function renderKanbanAssessmentArchiveCase(group) {
+  const cards = group.cards || [];
+  const first = cards[0]?.todo || {};
+  const current = kanbanAssessmentCaseCurrentItem(group);
+  const currentTodo = current?.todo || first;
+  const requirement = compactDisplayText(group.sourceText || group.title || first.content || "", 320);
+  const statusSummary = kanbanArchiveStatusSummary(group);
+  const latest = group.latest ? todoTimestampLabel(new Date(group.latest).toISOString()) : "";
+  const completed = cards.filter((item) => assessmentExamCompleted(item.todo)).length;
+  const total = Number(first.kanbanCaseCardCount || cards.length || 0) || cards.length;
+  const summary = assessmentExamSummary(currentTodo) || {};
+  const currentStatus = currentTodo ? kanbanStatusMeta(normalizedKanbanStatus(currentTodo)).shortLabel : "";
+  const lastAttempt = summary.lastAttempt;
+  const currentMeta = [
+    currentStatus,
+    currentTodo?.dueLocal || currentTodo?.dueAt || "",
+    summary.questionCount ? `${summary.questionCount}题/${summary.durationMinutes || 30}分钟` : "",
+    summary.passingScore ? `通过线 ${summary.passingScore}` : "",
+    lastAttempt ? `上次 ${lastAttempt.score}/100` : "",
+  ].filter(Boolean).join(" | ");
+  const currentRow = currentTodo ? `<li>
+    <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
+      <span>${escapeHtml(String(current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
+      <strong>${escapeHtml(currentTodo.content || currentTodo.id)}</strong>
+      <small>${escapeHtml(currentMeta)}</small>
+    </button>
+  </li>` : "";
+  return `<article class="kanban-archive-case assessment-plan-case">
+    <header class="kanban-archive-case-head">
+      <div>
+        <span>${escapeHtml(["考试计划", statusSummary].filter(Boolean).join(" | "))}</span>
+        <h3>${escapeHtml(group.title || first.content || first.id || "考试计划")}</h3>
+      </div>
+      <small>${escapeHtml(latest)}</small>
+    </header>
+    <div class="kanban-archive-story-grid">
+      <section>
+        <strong>考试模板</strong>
+        <p>${escapeHtml(requirement || "固定正式测试模板")}</p>
+      </section>
+      <section>
+        <strong>进度</strong>
+        <p>${escapeHtml(`${completed}/${total} 已通过${statusSummary ? ` | ${statusSummary}` : ""}`)}</p>
+      </section>
+      <section>
+        <strong>规则</strong>
+        <p>${escapeHtml("正式测试高于日常小测；低于通过线则保持重考，直到通过。")}</p>
+      </section>
+    </div>
+    <ol class="kanban-archive-card-chain">${currentRow}</ol>
+  </article>`;
+}
+
 function renderKanbanArchiveCase(group) {
+  if (group.mode === "assessment-plan") return renderKanbanAssessmentArchiveCase(group);
   if (group.mode === "study-plan") return renderKanbanReadingArchiveCase(group);
   const cards = group.cards || [];
   const first = cards[0]?.todo || {};
@@ -9541,7 +9721,7 @@ function renderKanbanComposerProgress() {
 
 function kanbanComposerMode() {
   if (state.kanbanComposerMode === "reading") return "study";
-  if (["single", "multi", "study"].includes(state.kanbanComposerMode)) return state.kanbanComposerMode;
+  if (["single", "multi", "study", "assessment"].includes(state.kanbanComposerMode)) return state.kanbanComposerMode;
   return state.kanbanComposerMultiAgent ? "multi" : "single";
 }
 
@@ -9635,6 +9815,102 @@ function renderKanbanReadingFields(disabled = false) {
   </div>`;
 }
 
+function renderKanbanAssessmentFields(disabled = false) {
+  const draft = Object.assign(defaultKanbanAssessmentDraft(), state.kanbanAssessmentDraft || {});
+  const attr = disabled ? " disabled" : "";
+  const selectedPerformer = String(draft.performerWorkspaceId || "").trim();
+  const selectedViewers = new Set(parseWorkspaceIdList(draft.viewerWorkspaceIds));
+  const currentWorkspaceId = String(state.selectedWorkspaceId || "").trim();
+  const shareWorkspaces = (Array.isArray(state.workspaces) ? state.workspaces : [])
+    .filter((workspace) => String(workspace?.id || "").trim() && String(workspace.id) !== currentWorkspaceId);
+  const performerControl = shareWorkspaces.length
+    ? `<select id="kanbanAssessmentPerformerWorkspace" class="todo-input"${attr}>
+        <option value="">不指定执行工作区</option>
+        ${shareWorkspaces.map((workspace) => {
+          const id = String(workspace.id || "");
+          return `<option value="${escapeHtml(id)}"${selectedPerformer === id ? " selected" : ""}>${escapeHtml(workspace.label || id)} (${escapeHtml(id)})</option>`;
+        }).join("")}
+      </select>`
+    : `<input id="kanbanAssessmentPerformerWorkspace" class="todo-input" type="text" value="${escapeHtml(selectedPerformer)}" placeholder="workspace id"${attr}>`;
+  const viewerControl = shareWorkspaces.length
+    ? `<div class="kanban-study-share-list">
+        ${shareWorkspaces.map((workspace) => {
+          const id = String(workspace.id || "");
+          const disabledViewer = id === selectedPerformer || disabled;
+          return `<span class="kanban-study-share-option">
+            <input type="checkbox" data-kanban-assessment-viewer-workspace value="${escapeHtml(id)}"${selectedViewers.has(id) ? " checked" : ""}${disabledViewer ? " disabled" : ""}>
+            <span>${escapeHtml(workspace.label || id)} <small>${escapeHtml(id)}</small></span>
+          </span>`;
+        }).join("")}
+      </div>
+      <input id="kanbanAssessmentViewerWorkspaces" type="hidden" value="${escapeHtml(Array.from(selectedViewers).join(","))}">`
+    : `<input id="kanbanAssessmentViewerWorkspaces" class="todo-input" type="text" value="${escapeHtml(draft.viewerWorkspaceIds || "")}" placeholder="多个 id 用逗号分隔"${attr}>`;
+  return `<div class="kanban-reading-fields kanban-assessment-fields">
+    <label>
+      <span>科目</span>
+      <select id="kanbanAssessmentSubject" class="todo-input"${attr}>
+        ${["数学", "英语", "科学", "历史", "中文"].map((subject) => `<option value="${escapeHtml(subject)}"${String(draft.subject || "") === subject ? " selected" : ""}>${escapeHtml(subject)}</option>`).join("")}
+      </select>
+    </label>
+    <label>
+      <span>学习者</span>
+      <input id="kanbanAssessmentLearner" class="todo-input" type="text" value="${escapeHtml(draft.learnerName || "")}" placeholder="姓名或目标对象"${attr}>
+    </label>
+    <label>
+      <span>阶段 / 课程</span>
+      <input id="kanbanAssessmentLevel" class="todo-input" type="text" value="${escapeHtml(draft.courseLevel || "")}" placeholder="本学期、AMC8、A-Level..."${attr}>
+    </label>
+    <label>
+      <span>计划标题</span>
+      <input id="kanbanAssessmentTitle" class="todo-input" type="text" value="${escapeHtml(draft.planTitle || "")}" placeholder="本学期数学能力检测"${attr}>
+    </label>
+    <label>
+      <span>执行工作区</span>
+      ${performerControl}
+    </label>
+    <label>
+      <span>只读查看工作区</span>
+      ${viewerControl}
+    </label>
+    <label>
+      <span>考试次数</span>
+      <input id="kanbanAssessmentExamCount" class="todo-input" type="number" min="1" max="30" step="1" value="${escapeHtml(draft.examCount || "10")}"${attr}>
+    </label>
+    <label>
+      <span>每次题量</span>
+      <input id="kanbanAssessmentQuestionCount" class="todo-input" type="number" min="5" max="40" step="1" value="${escapeHtml(draft.questionCount || "20")}"${attr}>
+    </label>
+    <label>
+      <span>时长分钟</span>
+      <input id="kanbanAssessmentDuration" class="todo-input" type="number" min="5" max="180" step="5" value="${escapeHtml(draft.durationMinutes || "30")}"${attr}>
+    </label>
+    <label>
+      <span>通过线</span>
+      <input id="kanbanAssessmentPassingScore" class="todo-input" type="number" min="50" max="100" step="1" value="${escapeHtml(draft.passingScore || "80")}"${attr}>
+    </label>
+    <label>
+      <span>间隔天数</span>
+      <input id="kanbanAssessmentIntervalDays" class="todo-input" type="number" min="1" max="60" step="1" value="${escapeHtml(draft.intervalDays || "14")}"${attr}>
+    </label>
+    <label>
+      <span>首次日期</span>
+      <input id="kanbanAssessmentStartDate" class="todo-input" type="date" value="${escapeHtml(draft.startDate || todayDateInputValue())}"${attr}>
+    </label>
+    <label>
+      <span>考试时间</span>
+      <input id="kanbanAssessmentTime" class="todo-input" type="time" value="${escapeHtml(draft.timeOfDay || "19:30")}"${attr}>
+    </label>
+    <label>
+      <span>提前提醒</span>
+      <input id="kanbanAssessmentReminder" class="todo-input" type="number" min="0" max="1440" step="5" value="${escapeHtml(draft.reminderLeadMinutes || "30")}"${attr}>
+    </label>
+    <label>
+      <span>难度分布</span>
+      <input id="kanbanAssessmentDifficulty" class="todo-input" type="text" value="${escapeHtml(draft.difficulty || "")}" placeholder="基础30% / 中等50% / 挑战20%"${attr}>
+    </label>
+  </div>`;
+}
+
 function renderKanbanComposerPanel() {
   if (!isKanbanTodoSource()) return "";
   const busy = state.kanbanComposerBusy || state.kanbanPlanCreating;
@@ -9645,27 +9921,36 @@ function renderKanbanComposerPanel() {
   const singleActive = mode === "single";
   const multiActive = mode === "multi";
   const studyActive = mode === "study";
+  const assessmentActive = mode === "assessment";
   const modeButton = (mode, label, active) => `<button class="kanban-create-mode-button${active ? " active" : ""}" type="button" data-kanban-composer-mode="${mode}" aria-pressed="${active ? "true" : "false"}"${busy ? " disabled" : ""}>${label}</button>`;
-  const submitLabel = studyActive
-    ? "创建学习计划"
-    : (multiActive
-    ? (state.kanbanPlanDraft ? "\u91cd\u65b0\u62c6\u89e3" : "\u62c6\u89e3\u4efb\u52a1")
-    : "\u521b\u5efa\u4efb\u52a1");
-  const placeholder = studyActive
-    ? "补充学习范围、分段要求、评价重点，或留空"
-    : "\u8f93\u5165\u4efb\u52a1\u9700\u6c42";
-  const caption = studyActive
-    ? "每次学习一张卡片，上传记录后分析；测验通过后完成"
-    : (multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo");
+  const submitLabel = assessmentActive
+    ? "\u521b\u5efa\u8003\u8bd5\u8ba1\u5212"
+    : (studyActive
+      ? "\u521b\u5efa\u5b66\u4e60\u8ba1\u5212"
+      : (multiActive
+        ? (state.kanbanPlanDraft ? "\u91cd\u65b0\u62c6\u89e3" : "\u62c6\u89e3\u4efb\u52a1")
+        : "\u521b\u5efa\u4efb\u52a1"));
+  const placeholder = assessmentActive
+    ? "\u8865\u5145\u8003\u8bd5\u8303\u56f4\u3001\u9898\u578b\u6bd4\u4f8b\u3001\u6559\u6750\u7ae0\u8282\u6216\u8584\u5f31\u70b9"
+    : (studyActive
+      ? "\u8865\u5145\u5b66\u4e60\u8303\u56f4\u3001\u5206\u6bb5\u8981\u6c42\u3001\u8bc4\u4ef7\u91cd\u70b9\uff0c\u6216\u7559\u7a7a"
+      : "\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
+  const caption = assessmentActive
+    ? "\u56fa\u5b9a\u6b63\u5f0f\u8003\u8bd5\u6a21\u677f\uff1b\u672a\u8fbe\u901a\u8fc7\u7ebf\u4f1a\u4fdd\u7559\u91cd\u8003"
+    : (studyActive
+      ? "\u6bcf\u6b21\u5b66\u4e60\u4e00\u5f20\u5361\u7247\uff0c\u6bcf\u65e5\u5c0f\u6d4b\u901a\u8fc7\u540e\u5b8c\u6210\uff1b\u6700\u540e\u6709\u7efc\u5408\u8003\u8bd5"
+      : (multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo"));
   return `<section class="kanban-composer-panel">
     <form id="kanbanComposerForm" class="kanban-composer-form">
       <div class="kanban-create-mode" role="group" aria-label="\u4efb\u52a1\u521b\u5efa\u65b9\u5f0f">
         ${modeButton("single", "\u5355\u4efb\u52a1", singleActive)}
         ${modeButton("multi", "\u62c6\u89e3", multiActive)}
-        ${modeButton("study", "学习计划", studyActive)}
+        ${modeButton("study", "\u5b66\u4e60\u8ba1\u5212", studyActive)}
+        ${modeButton("assessment", "\u8003\u8bd5\u8ba1\u5212", assessmentActive)}
       </div>
       ${studyActive ? renderKanbanReadingFields(busy) : ""}
-      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="${studyActive ? "4" : "7"}" placeholder="${escapeHtml(placeholder)}"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
+      ${assessmentActive ? renderKanbanAssessmentFields(busy) : ""}
+      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="${studyActive || assessmentActive ? "4" : "7"}" placeholder="${escapeHtml(placeholder)}"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
       <div class="kanban-composer-toolbar">
         <span class="kanban-create-mode-caption">${escapeHtml(caption)}</span>
         <span class="kanban-composer-buttons">
@@ -9931,7 +10216,7 @@ function renderKanbanDetailReport(todo) {
 }
 
 function isKanbanReadingCard(todo) {
-  return isKanbanStudyCase(todo);
+  return isKanbanStudyCase(todo) && !isKanbanFinalStudyAssessment(todo);
 }
 
 function readingSubmissionSummary(todo) {
@@ -10080,6 +10365,91 @@ function renderKanbanReadingQuizPanel(todo) {
   </form>`;
 }
 
+function assessmentExamState(todoId) {
+  return state.todoAssessmentExams?.[todoId] || null;
+}
+
+function renderKanbanAssessmentExamPanel(todo) {
+  if (!isKanbanAssessmentCard(todo)) return "";
+  const canAnswer = kanbanCan(todo, "canAnswerQuiz");
+  const summary = assessmentExamSummary(todo) || {};
+  const examState = assessmentExamState(todo.id);
+  const submitting = Boolean(state.todoAssessmentSubmitting?.[todo.id]);
+  const passed = assessmentExamCompleted(todo);
+  const startable = assessmentCardAcceptsStart(todo);
+  if (!examState) {
+    const last = summary.lastAttempt;
+    const text = last
+      ? `上次 ${last.score}/100，通过线 ${last.passingScore || summary.passingScore || 80}；${last.passed ? "已通过" : "需要重考"}。`
+      : (startable ? "考试已开放。开始后会生成正式单选考卷。" : `考试尚未开放${todo.dueLocal || todo.dueAt ? `：${todo.dueLocal || todo.dueAt}` : ""}。`);
+    return `<section class="todo-comment-panel todo-assessment-panel">
+      <div class="todo-detail-deliverables-head">
+        <strong>${escapeHtml(summary.finalExam ? "最终综合考试" : "正式检测")}</strong>
+        <span>${escapeHtml(`${summary.questionCount || 20}题 / ${summary.durationMinutes || 30}分钟`)}</span>
+      </div>
+      <p class="todo-detail-muted">${escapeHtml(text)}</p>
+      <button type="button" data-load-assessment-exam="${escapeHtml(todo.id)}"${(!startable && !summary.examAvailable) || (!canAnswer && !passed) ? " disabled" : ""}>${escapeHtml(summary.examAvailable || passed ? "查看考卷" : "开始考试")}</button>
+    </section>`;
+  }
+  if (examState.loading) {
+    return `<section class="todo-comment-panel todo-assessment-panel"><p class="todo-detail-muted">正在生成正式考卷...</p></section>`;
+  }
+  if (examState.error) {
+    return `<section class="todo-comment-panel todo-assessment-panel">
+      <p class="todo-detail-error">${escapeHtml(examState.error)}</p>
+      <button type="button" data-load-assessment-exam="${escapeHtml(todo.id)}">重新加载</button>
+    </section>`;
+  }
+  const exam = examState.exam || {};
+  const questions = Array.isArray(exam.questions) ? exam.questions : [];
+  if (!questions.length) return "";
+  const answers = state.todoAssessmentAnswers?.[todo.id] || [];
+  const step = Math.max(0, Math.min(questions.length - 1, Number(state.todoAssessmentStep?.[todo.id] || 0)));
+  const question = questions[step] || questions[0];
+  const selected = Number(answers[step]);
+  const result = examState.result || null;
+  const resultItems = result && Array.isArray(result.results) ? result.results : [];
+  const currentResult = resultItems[step] || null;
+  const currentWrong = result && !result.passed && currentResult && !currentResult.correct;
+  const choices = (question.choices || []).map((choice, index) => {
+    const id = `assessmentExam_${todo.id}_${step}_${index}`.replace(/[^\w-]/g, "_");
+    return `<label class="reading-quiz-choice" for="${escapeHtml(id)}">
+      <input id="${escapeHtml(id)}" type="radio" name="assessmentExamChoice_${escapeHtml(todo.id)}" value="${index}" data-assessment-exam-choice="${escapeHtml(todo.id)}" data-question-index="${step}"${selected === index ? " checked" : ""}${submitting || passed || !canAnswer ? " disabled" : ""}>
+      <span>${escapeHtml(choice)}</span>
+    </label>`;
+  }).join("");
+  const canPrev = step > 0;
+  const canNext = step < questions.length - 1;
+  const answeredCount = answers.filter((value) => Number.isInteger(Number(value))).length;
+  const status = result
+    ? (result.passed ? `已通过：${result.score}/100` : `本次 ${result.score}/100，未达通过线，请修正后重考。`)
+    : (passed ? "已通过，可查看题目。" : `已答 ${answeredCount}/${questions.length}；通过线 ${exam.passingScore || summary.passingScore || 80}`);
+  const wrongHint = currentWrong
+    ? `<div class="reading-quiz-feedback" role="status">
+      <strong>第 ${step + 1} 题需要复习</strong>
+      <p>${escapeHtml(currentResult.explanation || "这题需要重新检查。")}</p>
+    </div>`
+    : "";
+  return `<form class="todo-comment-panel todo-assessment-panel" data-assessment-exam-form="${escapeHtml(todo.id)}">
+    <div class="todo-detail-deliverables-head">
+      <strong>${escapeHtml(exam.title || "正式检测")}</strong>
+      <span>${step + 1}/${questions.length}</span>
+    </div>
+    <p class="todo-detail-muted">${escapeHtml(status)}</p>
+    <article class="reading-quiz-question">
+      <small>${escapeHtml(question.skill || "")}</small>
+      <strong>${escapeHtml(question.prompt || "")}</strong>
+      <div class="reading-quiz-choices">${choices}</div>
+    </article>
+    ${wrongHint}
+    <div class="todo-comment-actions">
+      <button type="button" data-assessment-exam-prev="${escapeHtml(todo.id)}"${canPrev && !submitting ? "" : " disabled"}>上一题</button>
+      <button type="button" data-assessment-exam-next="${escapeHtml(todo.id)}"${canNext && (passed || Number.isInteger(selected)) && !submitting ? "" : " disabled"}>下一题</button>
+      <button type="submit"${canAnswer && !passed && answeredCount === questions.length && !submitting ? "" : " disabled"}>${passed ? "已通过" : (submitting ? "正在判卷..." : "提交考试")}</button>
+    </div>
+  </form>`;
+}
+
 function renderKanbanReadingSubmissionPanel(todo) {
   if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return "";
   if (!kanbanCan(todo, "canSubmitStudy")) return "";
@@ -10124,6 +10494,7 @@ function renderTodoDetail(todo) {
   const blocked = kanbanStatus === "blocked";
   const completed = kanban && (kanbanStatus === "done" || todo.status === "completed");
   const readingCard = kanban && isKanbanReadingCard(todo);
+  const assessmentCard = kanban && isKanbanAssessmentCard(todo);
   const canManage = !kanban || kanbanCan(todo, "canManage");
   const canRevise = !kanban || kanbanCan(todo, "canRevise");
   const canComment = !kanban || kanbanCan(todo, "canComment");
@@ -10153,6 +10524,7 @@ function renderTodoDetail(todo) {
   const deliveryBlock = kanban ? renderKanbanDeliveryFiles(todo) : "";
   const readingWorkflowBlock = kanban ? renderKanbanReadingWorkflowPanel(todo) : "";
   const readingQuizBlock = kanban ? renderKanbanReadingQuizPanel(todo) : "";
+  const assessmentExamBlock = kanban ? renderKanbanAssessmentExamPanel(todo) : "";
   const resultBlock = kanban ? renderKanbanDetailReport(todo) : "";
   const readingPanel = kanban ? renderKanbanReadingSubmissionPanel(todo) : "";
   const metaBlock = kanban
@@ -10195,11 +10567,12 @@ function renderTodoDetail(todo) {
     ${resultBlock}
     ${readingPanel}
     ${readingQuizBlock}
+    ${assessmentExamBlock}
     ${metaBlock}
     ${commentPanel}
     ${revisionPanel}
     ${open && canManage ? `<div class="todo-detail-actions">
-      ${readingCard ? "" : `<button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>`}
+      ${readingCard || assessmentCard ? "" : `<button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>`}
       ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
       ${kanban && blocked ? `<button type="button" data-unblock-todo="${escapeHtml(todo.id)}">解除阻塞</button>` : ""}
       <button type="button" data-cancel-todo="${escapeHtml(todo.id)}">取消</button>
@@ -10249,6 +10622,10 @@ function wireTodoPanel(root) {
   root.querySelectorAll("#kanbanStudyTemplate, #kanbanStudySubject, #kanbanStudyTitle, #kanbanStudyLearner, #kanbanStudyPerformerWorkspace, #kanbanStudyViewerWorkspaces, #kanbanReadingReader, #kanbanReadingBook, #kanbanReadingSessions, #kanbanReadingStartDate, #kanbanReadingTime, #kanbanReadingReminder, [data-kanban-study-viewer-workspace]").forEach((input) => {
     input.addEventListener("input", () => syncKanbanReadingDraftFromDom(root));
     input.addEventListener("change", () => syncKanbanReadingDraftFromDom(root));
+  });
+  root.querySelectorAll("#kanbanAssessmentSubject, #kanbanAssessmentLearner, #kanbanAssessmentLevel, #kanbanAssessmentTitle, #kanbanAssessmentPerformerWorkspace, #kanbanAssessmentViewerWorkspaces, #kanbanAssessmentExamCount, #kanbanAssessmentQuestionCount, #kanbanAssessmentDuration, #kanbanAssessmentPassingScore, #kanbanAssessmentIntervalDays, #kanbanAssessmentStartDate, #kanbanAssessmentTime, #kanbanAssessmentReminder, #kanbanAssessmentDifficulty, [data-kanban-assessment-viewer-workspace]").forEach((input) => {
+    input.addEventListener("input", () => syncKanbanAssessmentDraftFromDom(root));
+    input.addEventListener("change", () => syncKanbanAssessmentDraftFromDom(root));
   });
   root.querySelector("#kanbanReadingCover")?.addEventListener("change", (event) => {
     const file = event.target?.files?.[0] || null;
@@ -10415,6 +10792,53 @@ function wireTodoPanel(root) {
       submitReadingQuiz(form.dataset.readingQuizForm || "").catch(showError);
     });
   });
+  root.querySelectorAll("[data-load-assessment-exam]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      loadAssessmentExam(button.dataset.loadAssessmentExam || "").catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-assessment-exam-choice]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const todoId = input.dataset.assessmentExamChoice || "";
+      const index = Number(input.dataset.questionIndex || 0);
+      if (!todoId || !Number.isFinite(index)) return;
+      if (!Array.isArray(state.todoAssessmentAnswers[todoId])) state.todoAssessmentAnswers[todoId] = [];
+      state.todoAssessmentAnswers[todoId][index] = Number(input.value);
+      if (state.todoAssessmentExams[todoId]?.result && !state.todoAssessmentExams[todoId]?.result?.passed) {
+        state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId], { result: null });
+      }
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  });
+  root.querySelectorAll("[data-assessment-exam-prev]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = button.dataset.assessmentExamPrev || "";
+      state.todoAssessmentStep[todoId] = Math.max(0, Number(state.todoAssessmentStep[todoId] || 0) - 1);
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  });
+  root.querySelectorAll("[data-assessment-exam-next]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = button.dataset.assessmentExamNext || "";
+      const exam = state.todoAssessmentExams[todoId]?.exam || {};
+      const total = Array.isArray(exam.questions) ? exam.questions.length : 20;
+      state.todoAssessmentStep[todoId] = Math.min(total - 1, Number(state.todoAssessmentStep[todoId] || 0) + 1);
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  });
+  root.querySelectorAll("[data-assessment-exam-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      submitAssessmentExam(form.dataset.assessmentExamForm || "").catch(showError);
+    });
+  });
   root.querySelectorAll("[data-comment-unblock-todo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -10460,20 +10884,55 @@ async function submitKanbanComposer(root) {
   const mode = kanbanComposerMode();
   const multiAgent = mode === "multi";
   const studyPlan = mode === "study";
-  if (!text && !studyPlan) throw new Error("\u8bf7\u5148\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
+  const assessmentPlan = mode === "assessment";
+  if (!text && !studyPlan && !assessmentPlan) throw new Error("????????");
   if (studyPlan) syncKanbanReadingDraftFromDom(root);
-  if (studyPlan && !String(state.kanbanReadingDraft?.activityTitle || state.kanbanReadingDraft?.bookTitle || "").trim()) throw new Error("请先填写内容标题");
+  if (assessmentPlan) syncKanbanAssessmentDraftFromDom(root);
+  if (studyPlan && !String(state.kanbanReadingDraft?.activityTitle || state.kanbanReadingDraft?.bookTitle || "").trim()) throw new Error("????????");
+  if (assessmentPlan && !String(state.kanbanAssessmentDraft?.planTitle || state.kanbanAssessmentDraft?.subject || "").trim()) throw new Error("????????");
   state.kanbanComposerText = text;
   if (text) localStorage.setItem("hermesKanbanComposerDraft", text);
   else localStorage.removeItem("hermesKanbanComposerDraft");
   saveKanbanComposerMode(mode);
   state.kanbanComposerBusy = true;
   state.kanbanPlanDraft = null;
-  pushKanbanComposerMessage("user", studyPlan ? `${state.kanbanReadingDraft.activityTitle || state.kanbanReadingDraft.bookTitle || ""}\n${text}`.trim() : text);
-  beginKanbanComposerProgress(studyPlan ? "reading" : (multiAgent ? "plan" : "create"));
+  pushKanbanComposerMessage("user", studyPlan
+    ? `${state.kanbanReadingDraft.activityTitle || state.kanbanReadingDraft.bookTitle || ""}
+${text}`.trim()
+    : (assessmentPlan ? `${state.kanbanAssessmentDraft.planTitle || state.kanbanAssessmentDraft.subject || ""}
+${text}`.trim() : text));
+  beginKanbanComposerProgress(assessmentPlan ? "assessment" : (studyPlan ? "reading" : (multiAgent ? "plan" : "create")));
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
-    if (studyPlan) {
+    if (assessmentPlan) {
+      const draft = Object.assign(defaultKanbanAssessmentDraft(), state.kanbanAssessmentDraft || {});
+      const viewerWorkspaceIds = parseWorkspaceIdList(draft.viewerWorkspaceIds);
+      const result = await api("/api/kanban/cards/assessment-plan", {
+        method: "POST",
+        body: JSON.stringify(Object.assign({}, draft, {
+          workspaceId: state.selectedWorkspaceId,
+          subject: draft.subject,
+          learnerName: draft.learnerName,
+          courseLevel: draft.courseLevel,
+          title: draft.planTitle,
+          performerWorkspaceId: String(draft.performerWorkspaceId || "").trim(),
+          viewerWorkspaceIds,
+          sourceText: text,
+        })),
+      });
+      const cards = Array.isArray(result.cards) ? result.cards : [];
+      pushKanbanComposerMessage("assistant", `????????${cards.length} ??????????????????`);
+      state.kanbanComposerText = "";
+      state.kanbanAssessmentDraft = defaultKanbanAssessmentDraft();
+      localStorage.removeItem("hermesKanbanComposerDraft");
+      localStorage.removeItem("hermesKanbanAssessmentDraft");
+      finishKanbanComposerProgress();
+      clearTodoListCache();
+      state.todoKanbanStatus = KANBAN_STORY_STATUS;
+      localStorage.setItem("hermesTodoKanbanStatus", KANBAN_STORY_STATUS);
+      state.todoCreateOpen = false;
+      await loadTodos({ skipCache: true, includeCompleted: true });
+    } else if (studyPlan) {
       const coverFile = state.kanbanReadingCoverFile;
       const coverImage = coverFile
         ? {
@@ -10485,16 +10944,13 @@ async function submitKanbanComposer(root) {
       const draft = Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
       const activityTitle = String(draft.activityTitle || draft.bookTitle || "").trim();
       const learnerName = String(draft.learnerName || draft.readerName || "").trim();
-      const caseMode = "study-plan";
-      const studyTemplate = String(draft.studyTemplate || "").trim() === "custom" ? "custom" : "reading";
       const viewerWorkspaceIds = parseWorkspaceIdList(draft.viewerWorkspaceIds);
-      const studyPlanEndpoint = "/api/kanban/cards/study-plan";
-      const result = await api(studyPlanEndpoint, {
+      const result = await api("/api/kanban/cards/study-plan", {
         method: "POST",
         body: JSON.stringify(Object.assign({}, draft, {
           workspaceId: state.selectedWorkspaceId,
-          caseMode,
-          studyTemplate,
+          caseMode: "study-plan",
+          studyTemplate: String(draft.studyTemplate || "").trim() === "custom" ? "custom" : "reading",
           bookTitle: activityTitle,
           readerName: learnerName,
           activityTitle,
@@ -10507,7 +10963,7 @@ async function submitKanbanComposer(root) {
         })),
       });
       const cards = Array.isArray(result.cards) ? result.cards : [];
-      pushKanbanComposerMessage("assistant", `已创建学习计划：${cards.length} 张任务；上传记录并完成测验后，卡片会完成。`);
+      pushKanbanComposerMessage("assistant", `????????${cards.length} ???????????????????????????????`);
       state.kanbanComposerText = "";
       state.kanbanReadingDraft = defaultKanbanReadingDraft();
       setKanbanReadingCoverFile(null);
@@ -10542,7 +10998,7 @@ async function submitKanbanComposer(root) {
         }),
       });
       const card = result.card || result.todo || result.result || {};
-      pushKanbanComposerMessage("assistant", `\u5df2\u521b\u5efa\u770b\u677f\u5361\u7247\uff1a${card.id || ""} ${card.content || text}`.trim());
+      pushKanbanComposerMessage("assistant", `????????${card.id || ""} ${card.content || text}`.trim());
       state.kanbanComposerText = "";
       localStorage.removeItem("hermesKanbanComposerDraft");
       finishKanbanComposerProgress();
@@ -10554,7 +11010,7 @@ async function submitKanbanComposer(root) {
     }
   } catch (err) {
     finishKanbanComposerProgress();
-    pushKanbanComposerMessage("assistant", `\u770b\u677f\u64cd\u4f5c\u5931\u8d25\uff1a${err.message || String(err)}`);
+    pushKanbanComposerMessage("assistant", `???????${err.message || String(err)}`);
     throw err;
   } finally {
     state.kanbanComposerBusy = false;
@@ -10855,6 +11311,52 @@ async function submitReadingQuiz(todoId) {
     }
   } finally {
     delete state.todoReadingQuizSubmitting[todoId];
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
+}
+
+async function loadAssessmentExam(todoId) {
+  if (!todoId) return;
+  state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId] || {}, { loading: true, error: "" });
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const params = new URLSearchParams({ workspaceId: kanbanCardWorkspaceId(todoId) });
+    const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/assessment-exam?${params.toString()}`);
+    state.todoAssessmentExams[todoId] = { exam: result.exam, status: result.status || "", attempts: result.attempts || [] };
+    if (!Array.isArray(state.todoAssessmentAnswers[todoId])) state.todoAssessmentAnswers[todoId] = [];
+    if (!Number.isFinite(Number(state.todoAssessmentStep[todoId]))) state.todoAssessmentStep[todoId] = 0;
+  } catch (err) {
+    state.todoAssessmentExams[todoId] = { loading: false, error: err.message || String(err) };
+  }
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+}
+
+async function submitAssessmentExam(todoId) {
+  if (!todoId || state.todoAssessmentSubmitting?.[todoId]) return;
+  const card = kanbanCardById(todoId);
+  if (card && !kanbanCan(card, "canAnswerQuiz")) throw new Error("No permission to answer this exam");
+  const answers = state.todoAssessmentAnswers[todoId] || [];
+  state.todoAssessmentSubmitting[todoId] = true;
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/assessment-exam`, {
+      method: "POST",
+      body: JSON.stringify({ workspaceId: kanbanCardWorkspaceId(todoId), answers }),
+    });
+    state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId] || {}, { result, status: result.status || "" });
+    clearTodoListCache(kanbanCardWorkspaceId(todoId));
+    if (result.passed) {
+      delete state.todoCardDetails[todoId];
+      await loadTodos({ skipCache: true, includeCompleted: true });
+      state.selectedTodoId = todoId;
+      showPushToast(`考试通过：${result.score || 0}/100`, "success");
+    } else {
+      const wrongIndex = Array.isArray(result.results) ? result.results.findIndex((item) => !item.correct) : -1;
+      if (wrongIndex >= 0) state.todoAssessmentStep[todoId] = wrongIndex;
+      showPushToast(`考试 ${result.score || 0}/100，未达通过线，请重考。`, "error");
+    }
+  } finally {
+    delete state.todoAssessmentSubmitting[todoId];
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
 }
