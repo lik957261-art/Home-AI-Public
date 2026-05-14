@@ -11,6 +11,7 @@ const fileArtifactAccessService = require("../adapters/file-artifact-access-serv
 const fileArtifactResolverService = require("../adapters/file-artifact-resolver-service");
 const fileResponseService = require("../adapters/file-response-service");
 const fileResourceService = require("../adapters/file-resource-service");
+const gatewayRunInstructionService = require("../adapters/gateway-run-instruction-service");
 const gatewayStatusProjection = require("../adapters/gateway-status-projection");
 const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
@@ -78,6 +79,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof fileResourceService.extractArtifactPaths, "function");
   assert.equal(typeof fileResourceService.publicFileMetadata, "function");
   assert.equal(typeof fileResourceService.previewStrategyForFile, "function");
+  assert.equal(typeof gatewayRunInstructionService.createGatewayRunInstructionService, "function");
   assert.equal(typeof gatewayStatusProjection.createGatewayStatusProjection, "function");
   assert.equal(typeof gatewayStatusProjection.gatewayPoolStatusHealthy, "function");
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
@@ -131,6 +133,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const server = fileText("server.js");
   assert.match(server, /createPublicApiRoutes/);
   assert.match(server, /bridgeCommandProvider\.runJsonCommand/);
+  assert.match(server, /createGatewayRunInstructionService/);
+  assert.match(server, /gatewayRunInstructionService\.buildHermesInstructions/);
   assert.match(server, /publicApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createSystemApiRoutes/);
   assert.match(server, /systemApiRoutes\.handle\(req, res, url\)/);
