@@ -20,6 +20,14 @@ function assertRouteGuard(routePattern, guardPattern) {
   assert.match(windowText, guardPattern, `server.js route ${routePattern} missing guard ${guardPattern}`);
 }
 
+function assertRouteGuardInFile(file, routePattern, guardPattern) {
+  const text = read(file);
+  const routeIndex = text.search(routePattern);
+  assert.ok(routeIndex >= 0, `${file} route missing: ${routePattern}`);
+  const windowText = text.slice(routeIndex, routeIndex + 5000);
+  assert.match(windowText, guardPattern, `${file} route ${routePattern} missing guard ${guardPattern}`);
+}
+
 function main() {
   assertContains("server.js", /createPathPolicyProvider/, "path-policy provider must be wired");
   assertContains("server.js", /createEgressPolicyProvider/, "egress policy provider must be wired");
@@ -33,8 +41,8 @@ function main() {
   assertRouteGuard(/\/api\/directories\/create/, /isSharedDirectoryWriteAllowed/);
   assertRouteGuard(/\/api\/directories\/upload/, /isSharedDirectoryWriteAllowed/);
   assertRouteGuard(/\/api\/directories\/delete/, /isSharedDirectoryWriteAllowed/);
-  assertRouteGuard(/\/api\/ingress\/weixin\/outbound/, /requireWeixinIngress/);
-  assertRouteGuard(/\/api\/owner-elevation\/once/, /requireOwner/);
+  assertRouteGuardInFile("server-routes/weixin-api-routes.js", /\/api\/ingress\/weixin\/outbound/, /requireWeixinIngress/);
+  assertRouteGuardInFile("server-routes/owner-elevation-api-routes.js", /\/api\/owner-elevation\/once/, /requireOwner/);
 
   assertContains("public/app.js", /function todoWorkflowState\(todo\)/, "frontend must prefer server workflow state");
   assertContains("public/app.js", /workflow\.canSubmitStudy/, "study submission button must honor workflow state");

@@ -6,6 +6,7 @@ const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..");
 const serverJs = fs.readFileSync(path.join(repoRoot, "server.js"), "utf8");
+const systemApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "system-api-routes.js"), "utf8");
 const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 const fileViewer = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
@@ -30,8 +31,8 @@ assert.match(serverJs, /HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT/);
 assert.match(serverJs, /function findSourceMarkdownForArtifact\(thread, value\)/);
 assert.match(serverJs, /source_md_\$\{crypto\.createHash\("sha1"\)/);
 assert.match(serverJs, /\/api\/files\?\$\{params\.toString\(\)\}/);
-assert.match(serverJs, /\/api\/app-update\/status/);
-assert.match(serverJs, /\/api\/app-update\/apply/);
+assert.match(systemApiRoutes, /\/api\/app-update\/status/);
+assert.match(systemApiRoutes, /\/api\/app-update\/apply/);
 assert.match(serverJs, /gitRepositoryStatus/);
 assert.match(serverJs, /merge", "--ff-only"/);
 

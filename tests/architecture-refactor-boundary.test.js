@@ -9,8 +9,18 @@ const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
 const kanbanStory = require("../adapters/kanban-story-provider");
 const markdownRenderer = require("../adapters/markdown-renderer");
+const runtimeStateRepository = require("../adapters/runtime-state-repository");
+const studyAssessmentService = require("../adapters/study-assessment-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
+const accessKeyApiRoutes = require("../server-routes/access-key-api-routes");
+const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
 const publicApiRoutes = require("../server-routes/public-api-routes");
+const pushApiRoutes = require("../server-routes/push-api-routes");
+const resourceApiRoutes = require("../server-routes/resource-api-routes");
+const runtimeConfigApiRoutes = require("../server-routes/runtime-config-api-routes");
+const systemApiRoutes = require("../server-routes/system-api-routes");
+const weixinApiRoutes = require("../server-routes/weixin-api-routes");
+const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
 
 function fileText(file) {
   return fs.readFileSync(file, "utf8");
@@ -24,13 +34,40 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof resourceResolver.resolveResourceAccess, "function");
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
+  assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
+  assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
+  assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
+  assert.equal(typeof systemApiRoutes.createSystemApiRoutes, "function");
+  assert.equal(typeof runtimeConfigApiRoutes.createRuntimeConfigApiRoutes, "function");
+  assert.equal(typeof pushApiRoutes.createPushApiRoutes, "function");
+  assert.equal(typeof ownerElevationApiRoutes.createOwnerElevationApiRoutes, "function");
+  assert.equal(typeof weixinApiRoutes.createWeixinApiRoutes, "function");
+  assert.equal(typeof workspaceApiRoutes.createWorkspaceApiRoutes, "function");
+  assert.equal(typeof accessKeyApiRoutes.createAccessKeyApiRoutes, "function");
+  assert.equal(typeof resourceApiRoutes.createResourceApiRoutes, "function");
 }
 
 function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const server = fileText("server.js");
   assert.match(server, /createPublicApiRoutes/);
   assert.match(server, /publicApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createSystemApiRoutes/);
+  assert.match(server, /systemApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createRuntimeConfigApiRoutes/);
+  assert.match(server, /runtimeConfigApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createPushApiRoutes/);
+  assert.match(server, /pushApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createWeixinApiRoutes/);
+  assert.match(server, /weixinApiRoutes\.handle\(req, res, url/);
+  assert.match(server, /createOwnerElevationApiRoutes/);
+  assert.match(server, /ownerElevationApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createWorkspaceApiRoutes/);
+  assert.match(server, /workspaceApiRoutes\.handle\(req, res, url/);
+  assert.match(server, /createAccessKeyApiRoutes/);
+  assert.match(server, /accessKeyApiRoutes\.handle\(req, res, url/);
+  assert.match(server, /createResourceApiRoutes/);
+  assert.match(server, /resourceApiRoutes\.handle\(req, res, url/);
   assert.match(server, /buildRequestContext/);
   assert.match(server, /req\.hermesRequestContext/);
   assert.match(server, /syncKanbanCaseShareStoreToSqlite/);
@@ -43,6 +80,8 @@ function testPackageRunsArchitectureContracts() {
   for (const name of [
     "api-route-registry",
     "api-route-inventory",
+    "runtime-state-repository",
+    "study-assessment-service",
     "request-context-provider",
     "resource-access-resolver",
     "kanban-story-provider",
@@ -55,6 +94,16 @@ function testPackageRunsArchitectureContracts() {
     "tests/api-route-registry.test.js",
     "tests/api-route-inventory.test.js",
     "tests/public-api-routes.test.js",
+    "tests/system-api-routes.test.js",
+    "tests/runtime-config-api-routes.test.js",
+    "tests/push-api-routes.test.js",
+    "tests/owner-elevation-api-routes.test.js",
+    "tests/weixin-api-routes.test.js",
+    "tests/workspace-api-routes.test.js",
+    "tests/access-key-api-routes.test.js",
+    "tests/resource-api-routes.test.js",
+    "tests/runtime-state-repository.test.js",
+    "tests/study-assessment-service.test.js",
     "tests/request-context-provider.test.js",
     "tests/resource-access-resolver.test.js",
     "tests/kanban-story-provider.test.js",
@@ -64,6 +113,14 @@ function testPackageRunsArchitectureContracts() {
     assert.match(pkg.scripts.test, new RegExp(testFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.match(pkg.scripts.check, /server-routes[\\/]public-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]system-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]runtime-config-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]push-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]owner-elevation-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]weixin-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]workspace-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]access-key-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]resource-api-routes\.js/);
 }
 
 function testRefactorPlanTracksTwelveWorkPackages() {

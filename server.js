@@ -37,7 +37,15 @@ const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindin
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
+const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
+const { createOwnerElevationApiRoutes } = require("./server-routes/owner-elevation-api-routes");
 const { createPublicApiRoutes } = require("./server-routes/public-api-routes");
+const { createPushApiRoutes } = require("./server-routes/push-api-routes");
+const { createResourceApiRoutes } = require("./server-routes/resource-api-routes");
+const { createRuntimeConfigApiRoutes } = require("./server-routes/runtime-config-api-routes");
+const { createSystemApiRoutes } = require("./server-routes/system-api-routes");
+const { createWeixinApiRoutes } = require("./server-routes/weixin-api-routes");
+const { createWorkspaceApiRoutes } = require("./server-routes/workspace-api-routes");
 
 function normalizeAutoMode(value) {
   const text = String(value || "").trim();
@@ -464,6 +472,19 @@ const weixinIngressProvider = createWeixinIngressProvider({
   defaultWorkspaceId: () => WEIXIN_INGRESS_DEFAULT_WORKSPACE,
 });
 bootTrace("ingress ready");
+const weixinApiRoutes = createWeixinApiRoutes({
+  requireWeixinIngress,
+  readBody,
+  sendJson,
+  startWeixinIngressEvent,
+  pendingWeixinOutboundDeliveries,
+  ackWeixinOutboundDelivery,
+  weixinIngressProvider,
+  authCanAccessWorkspace,
+  weixinForwardTargetsForWorkspace,
+  createWeixinFileForwardDelivery,
+});
+bootTrace("weixin api routes ready");
 const runtimeConfigProvider = createRuntimeConfigProvider({
   storagePath: () => RUNTIME_CONFIG_PATH,
   ensureDataDir,
@@ -479,6 +500,111 @@ let clientVersionCache = { mtimeMs: 0, version: "" };
 let defaultReasoningCache = { cacheKey: "", value: null };
 let webPushConfig = initializeWebPush();
 bootTrace("web push ready");
+const systemApiRoutes = createSystemApiRoutes({
+  authenticateRequest,
+  appUpdateStatus,
+  applyAppUpdate,
+  bootTrace,
+  clientVersionInfo,
+  compactText,
+  display: {
+    ownerLabel: OWNER_LABEL,
+    ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
+    ownerRootFallbackLabel: OWNER_ROOT_FALLBACK_LABEL,
+  },
+  getHermesStatus,
+  includeStatusCatalog: STATUS_INCLUDE_CATALOG,
+  isOwnerAuth,
+  loadCatalog,
+  publicConcurrencyForAuth,
+  publicGatewayPoolStatusForAuth,
+  publicOwnerElevationStatus,
+  publicPushStatus,
+  publicReasoningInfoForAuth,
+  requestClientVersion,
+  sendJson,
+});
+const ownerElevationApiRoutes = createOwnerElevationApiRoutes({
+  requireOwner,
+  readBody,
+  sendJson,
+  publicOwnerElevationStatus,
+  grantOwnerElevationOnce,
+  grantOwnerElevation,
+  revokeOwnerElevation,
+});
+const accessKeyApiRoutes = createAccessKeyApiRoutes({
+  requireOwner,
+  readBody,
+  sendJson,
+  isOwnerAuth,
+  ownerKeySource: () => authProvider.ownerKeySource(),
+  listWorkspaceAccessKeyStatuses,
+  rotateWorkspaceAccessKey,
+  revokeWorkspaceAccessKey,
+  rotateGlobalAccessKey,
+  boolParam,
+});
+const runtimeConfigApiRoutes = createRuntimeConfigApiRoutes({
+  generateWebPushVapidConfig,
+  getHermesStatus,
+  publicPushStatus,
+  publicRuntimeConfig,
+  readBody,
+  reloadWebPush: () => {
+    webPushConfig = initializeWebPush();
+    return webPushConfig;
+  },
+  requireOwner,
+  runConcurrencySnapshot,
+  saveRuntimeConfig,
+  sendJson,
+});
+const pushApiRoutes = createPushApiRoutes({
+  appRouteUrl,
+  authenticateRequest,
+  nowIso,
+  publicPushStatus,
+  pushWorkspaceForAuth,
+  readBody,
+  recordPushReceipt,
+  removePushSubscription,
+  requireOwner,
+  requireWorkspaceAccess,
+  savePushSubscription,
+  sendJson,
+  sendPushNotification,
+  state: () => state,
+  listPushReceipts: () => state?.pushReceipts || [],
+  listPushDeliveries: () => state?.pushDeliveries || [],
+  workspacePrincipal,
+});
+const workspaceApiRoutes = createWorkspaceApiRoutes({
+  bootTrace,
+  loadCatalog,
+  publicWorkspacesForAuth,
+  publicWorkspace,
+  isOwnerAuth,
+  requireOwner,
+  localWorkspaceDefaults,
+  sendJson,
+  readBody,
+  upsertLocalWorkspace,
+  deleteLocalWorkspace,
+  findWorkspace,
+});
+const resourceApiRoutes = createResourceApiRoutes({
+  requireWorkspaceAccess,
+  sendJson,
+  publicProjectsForWorkspace,
+  sharedDirectoriesForWorkspace,
+  publicSharedDirectory,
+  skillDetailProvider: {
+    detail: (...args) => skillDetailProvider.detail(...args),
+  },
+  compactText,
+});
+bootTrace("core api routes ready");
 let todoWebPushRunning = false;
 let automationWebPushRunning = false;
 
@@ -13449,54 +13575,7 @@ async function handleApi(req, res) {
 
   if ((await publicApiRoutes.handle(req, res, url)).handled) return;
 
-  if (url.pathname === "/api/ingress/weixin/events" && req.method === "POST") {
-    if (!requireWeixinIngress(req, res)) return;
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    try {
-      const result = await startWeixinIngressEvent(body);
-      sendJson(res, result.duplicate ? 200 : 202, result);
-    } catch (err) {
-      sendJson(res, err.status || 500, Object.assign({ ok: false, error: err.message || String(err) }, err.result || {}));
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/ingress/weixin/outbound" && req.method === "GET") {
-    if (!requireWeixinIngress(req, res)) return;
-    const data = pendingWeixinOutboundDeliveries({
-      status: url.searchParams.get("status") || "pending",
-      accountId: url.searchParams.get("accountId") || url.searchParams.get("account_id") || "",
-      limit: url.searchParams.get("limit") || "",
-    });
-    sendJson(res, 200, { ok: true, data });
-    return;
-  }
-
-  const weixinOutboundAck = url.pathname.match(/^\/api\/ingress\/weixin\/outbound\/([^/]+)\/ack$/);
-  if (weixinOutboundAck && req.method === "POST") {
-    if (!requireWeixinIngress(req, res)) return;
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    try {
-      const ack = weixinIngressProvider.normalizeAck(body);
-      const delivery = ackWeixinOutboundDelivery(decodeURIComponent(weixinOutboundAck[1]), ack);
-      if (!delivery) {
-        sendJson(res, 404, { ok: false, error: "Delivery not found" });
-        return;
-      }
-      sendJson(res, 200, { ok: true, delivery });
-    } catch (err) {
-      sendJson(res, err.status || 500, { ok: false, error: err.message || String(err) });
-    }
-    return;
-  }
+  if (url.pathname.startsWith("/api/ingress/weixin/") && (await weixinApiRoutes.handle(req, res, url)).handled) return;
 
   const auth = authenticateRequest(req);
   if (!auth.ok) {
@@ -13514,461 +13593,17 @@ async function handleApi(req, res) {
     },
   });
 
-  if (url.pathname === "/api/client-version" && req.method === "GET") {
-    sendJson(res, 200, Object.assign(clientVersionInfo(requestClientVersion(req)), { reasoning: publicReasoningInfoForAuth(auth) }));
-    return;
-  }
+  if ((await systemApiRoutes.handle(req, res, url)).handled) return;
 
-  if (url.pathname === "/api/app-update/status" && req.method === "GET") {
-    if (!requireOwner(req, res)) return;
-    try {
-      sendJson(res, 200, await appUpdateStatus());
-    } catch (err) {
-      sendJson(res, 200, { ok: false, updateAvailable: false, warning: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
+  if ((await weixinApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await ownerElevationApiRoutes.handle(req, res, url)).handled) return;
 
-  if (url.pathname === "/api/app-update/apply" && req.method === "POST") {
-    if (!requireOwner(req, res)) return;
-    try {
-      const result = await applyAppUpdate();
-      sendJson(res, result.ok ? 200 : 409, result);
-    } catch (err) {
-      sendJson(res, 500, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
+  if ((await runtimeConfigApiRoutes.handle(req, res, url)).handled) return;
+  if ((await pushApiRoutes.handle(req, res, url)).handled) return;
 
-  if (url.pathname === "/api/status" && req.method === "GET") {
-    bootTrace("request api/status enter");
-    const status = await getHermesStatus();
-    bootTrace("request api/status after getHermesStatus");
-    status.gatewayPool = publicGatewayPoolStatusForAuth(auth, status.gatewayPool);
-    if (isOwnerAuth(auth) && STATUS_INCLUDE_CATALOG) status.catalog = loadCatalog().sources;
-    bootTrace("request api/status after optional catalog");
-    status.display = {
-      ownerLabel: OWNER_LABEL,
-      ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
-      ownerRootFallbackLabel: OWNER_ROOT_FALLBACK_LABEL,
-    };
-    status.push = publicPushStatus();
-    bootTrace("request api/status after push status");
-    status.reasoning = publicReasoningInfoForAuth(auth);
-    bootTrace("request api/status after reasoning");
-    status.concurrency = publicConcurrencyForAuth(auth);
-    status.ownerElevation = publicOwnerElevationStatus(auth);
-    status.clientVersion = clientVersionInfo(req.headers["x-hermes-web-client-version"] || "");
-    bootTrace("request api/status before send");
-    sendJson(res, 200, status);
-    return;
-  }
-
-  if (url.pathname === "/api/weixin/forward-targets" && req.method === "GET") {
-    const workspaceId = String(url.searchParams.get("workspaceId") || url.searchParams.get("workspace_id") || auth.workspaceId || "owner").trim() || "owner";
-    if (!authCanAccessWorkspace(auth, workspaceId)) {
-      sendJson(res, 403, { error: "Workspace access is not allowed" });
-      return;
-    }
-    sendJson(res, 200, { ok: true, data: weixinForwardTargetsForWorkspace(workspaceId, auth) });
-    return;
-  }
-
-  if (url.pathname === "/api/weixin/forward-file" && req.method === "POST") {
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    try {
-      const result = await createWeixinFileForwardDelivery(auth, body);
-      sendJson(res, 202, result);
-    } catch (err) {
-      sendJson(res, err.status || 500, {
-        ok: false,
-        error: err.message || String(err),
-        code: err.code || "weixin_forward_failed",
-      });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/owner-elevation" && req.method === "GET") {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    sendJson(res, 200, { ok: true, ownerElevation: publicOwnerElevationStatus(ownerAuth) });
-    return;
-  }
-
-  if (url.pathname === "/api/owner-elevation/once" && req.method === "POST") {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    try {
-      const grant = grantOwnerElevationOnce(ownerAuth);
-      sendJson(res, 200, {
-        ok: true,
-        ownerElevationOnce: {
-          token: grant.token,
-          expiresAt: grant.expiresAt,
-          grantedAt: grant.grantedAt,
-        },
-        ownerElevation: publicOwnerElevationStatus(ownerAuth),
-      });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err), ownerElevation: publicOwnerElevationStatus(ownerAuth) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/owner-elevation" && req.method === "POST") {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    try {
-      grantOwnerElevation(ownerAuth, body.durationMinutes || body.duration_minutes);
-      sendJson(res, 200, { ok: true, ownerElevation: publicOwnerElevationStatus(ownerAuth) });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err), ownerElevation: publicOwnerElevationStatus(ownerAuth) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/owner-elevation" && req.method === "DELETE") {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    try {
-      revokeOwnerElevation(ownerAuth);
-      sendJson(res, 200, { ok: true, ownerElevation: publicOwnerElevationStatus(ownerAuth) });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err), ownerElevation: publicOwnerElevationStatus(ownerAuth) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/runtime-config" && req.method === "GET") {
-    if (!requireOwner(req, res)) return;
-    sendJson(res, 200, { ok: true, config: publicRuntimeConfig() });
-    return;
-  }
-
-  if (url.pathname === "/api/runtime-config" && req.method === "PATCH") {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    try {
-      saveRuntimeConfig(body, ownerAuth.principalId || "owner");
-      webPushConfig = initializeWebPush();
-      sendJson(res, 200, { ok: true, config: publicRuntimeConfig(), push: publicPushStatus() });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/runtime-config/web-push/generate" && req.method === "POST") {
-    if (!requireOwner(req, res)) return;
-    const body = await readBody(req).catch(() => ({}));
-    try {
-      const generated = generateWebPushVapidConfig({ overwrite: boolParam(body.overwrite) });
-      sendJson(res, 201, { ok: true, generated, config: publicRuntimeConfig(), push: publicPushStatus() });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err), config: publicRuntimeConfig(), push: publicPushStatus() });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/runtime-config/web-push/reload" && req.method === "POST") {
-    if (!requireOwner(req, res)) return;
-    webPushConfig = initializeWebPush();
-    sendJson(res, 200, { ok: Boolean(webPushConfig), config: publicRuntimeConfig(), push: publicPushStatus() });
-    return;
-  }
-
-  if (url.pathname === "/api/runtime-config/test" && req.method === "POST") {
-    if (!requireOwner(req, res)) return;
-    const status = await getHermesStatus();
-    status.concurrency = runConcurrencySnapshot();
-    sendJson(res, 200, { ok: Boolean(status.ok), status, config: publicRuntimeConfig() });
-    return;
-  }
-
-  if (url.pathname === "/api/push/vapid-public-key" && req.method === "GET") {
-    sendJson(res, 200, publicPushStatus());
-    return;
-  }
-
-  if (url.pathname === "/api/push/receipt" && req.method === "POST") {
-    const body = await readBody(req).catch(() => ({}));
-    const receipt = recordPushReceipt(body);
-    sendJson(res, 201, { ok: Boolean(receipt), receipt });
-    return;
-  }
-
-  if (url.pathname === "/api/push/receipts" && req.method === "GET") {
-    if (!requireOwner(req, res)) return;
-    const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || 50)));
-    sendJson(res, 200, { ok: true, data: (state.pushReceipts || []).slice(-limit).reverse() });
-    return;
-  }
-
-  if (url.pathname === "/api/push/deliveries" && req.method === "GET") {
-    if (!requireOwner(req, res)) return;
-    const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || 50)));
-    sendJson(res, 200, { ok: true, data: (state.pushDeliveries || []).slice(-limit).reverse() });
-    return;
-  }
-
-  if (url.pathname === "/api/push/subscribe" && req.method === "POST") {
-    if (!webPushConfig) {
-      sendJson(res, 503, { error: "Web Push is not configured", push: publicPushStatus() });
-      return;
-    }
-    try {
-      const body = await readBody(req);
-      const subscription = body.subscription || body;
-      const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || body.workspace_id || "owner");
-      if (!workspaceId) return;
-      const pushWorkspaceId = pushWorkspaceForAuth(authenticateRequest(req), workspaceId);
-      const saved = savePushSubscription(subscription, {
-        deviceLabel: body.deviceLabel || body.label || "",
-        userAgent: req.headers["user-agent"] || "",
-        workspaceId: pushWorkspaceId,
-        principalId: workspacePrincipal(pushWorkspaceId),
-      });
-      sendJson(res, 201, { ok: true, subscription: saved, push: publicPushStatus() });
-    } catch (err) {
-      sendJson(res, 400, { error: err.message || String(err), push: publicPushStatus() });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/push/unsubscribe" && req.method === "POST") {
-    const body = await readBody(req).catch(() => ({}));
-    const endpoint = body.endpoint || body.subscription?.endpoint || "";
-    const removed = removePushSubscription(endpoint || body.subscription || body);
-    sendJson(res, 200, { ok: true, removed, push: publicPushStatus() });
-    return;
-  }
-
-  if (url.pathname === "/api/push/test" && req.method === "POST") {
-    const body = await readBody(req).catch(() => ({}));
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || body.workspace_id || "owner");
-    if (!workspaceId) return;
-    const pushWorkspaceId = pushWorkspaceForAuth(authenticateRequest(req), workspaceId);
-    const targetPrincipalId = workspacePrincipal(pushWorkspaceId);
-    const sentAt = nowIso();
-    const testId = `test_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    const result = await sendPushNotification({
-      title: "\u901a\u77e5\u6d4b\u8bd5",
-      body: `Test notification ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`,
-      tag: `hermes-web-test-${testId}`,
-      renotify: true,
-      requireInteraction: true,
-      silent: false,
-      timestamp: Date.now(),
-      vibrate: [200, 100, 200, 100, 200],
-      data: { url: appRouteUrl({ view: "tasks", workspaceId: pushWorkspaceId }), viewMode: "tasks", workspaceId: pushWorkspaceId, principalId: targetPrincipalId, messageType: "test", testId, sentAt, requireInteraction: true },
-    }, { urgency: "high", ttl: 5 * 60, principalIds: [targetPrincipalId] });
-    sendJson(res, 200, { ok: true, result, target: { workspaceId: pushWorkspaceId, principalId: targetPrincipalId, testId, sentAt }, push: publicPushStatus() });
-    return;
-  }
-
-  if (url.pathname === "/api/workspaces" && req.method === "GET") {
-    bootTrace("request api/workspaces enter");
-    const catalog = loadCatalog();
-    bootTrace("request api/workspaces after loadCatalog");
-    sendJson(res, 200, { data: publicWorkspacesForAuth(auth).map(publicWorkspace), sources: catalog.sources, auth: { role: auth.role, workspaceId: auth.workspaceId, isOwner: isOwnerAuth(auth) } });
-    bootTrace("request api/workspaces sent");
-    return;
-  }
-
-  if (url.pathname === "/api/workspaces/defaults" && req.method === "GET") {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    try {
-      const defaults = localWorkspaceDefaults({
-        username: url.searchParams.get("username") || "",
-        workspaceId: url.searchParams.get("workspaceId") || url.searchParams.get("id") || "",
-        label: url.searchParams.get("label") || "",
-      });
-      sendJson(res, 200, {
-        ok: true,
-        defaults,
-      });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/workspaces" && req.method === "POST") {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    const body = await readBody(req).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-      return;
-    }
-    try {
-      const record = upsertLocalWorkspace(body, ownerAuth.principalId || "owner");
-      const workspace = findWorkspace(record.id);
-      sendJson(res, 201, { ok: true, workspace: publicWorkspace(workspace), record });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  const workspaceAdmin = url.pathname.match(/^\/api\/workspaces\/([^/]+)$/);
-  if (workspaceAdmin && ["PATCH", "DELETE"].includes(req.method)) {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
-    const workspaceId = decodeURIComponent(workspaceAdmin[1] || "");
-    if (req.method === "PATCH") {
-      const body = await readBody(req).catch((err) => ({ __error: err }));
-      if (body.__error) {
-        sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-        return;
-      }
-      try {
-        const record = upsertLocalWorkspace(Object.assign({}, body, { workspaceId }), ownerAuth.principalId || "owner");
-        const workspace = findWorkspace(record.id);
-        sendJson(res, 200, { ok: true, workspace: publicWorkspace(workspace), record });
-      } catch (err) {
-        sendJson(res, err.status || 500, { error: err.message || String(err) });
-      }
-      return;
-    }
-    try {
-      const deleted = deleteLocalWorkspace(workspaceId);
-      sendJson(res, 200, { ok: true, deleted });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/access-keys" && req.method === "GET") {
-    const accessAuth = requireOwner(req, res);
-    if (!accessAuth) return;
-    sendJson(res, 200, {
-      ok: true,
-      auth: {
-        isOwner: isOwnerAuth(accessAuth),
-        workspaceId: accessAuth.workspaceId || "",
-        source: isOwnerAuth(accessAuth) ? authProvider.ownerKeySource() : "workspace",
-        canRotateGlobal: isOwnerAuth(accessAuth) && authProvider.ownerKeySource() !== "env",
-      },
-      data: listWorkspaceAccessKeyStatuses(accessAuth, { workspaceId: url.searchParams.get("workspaceId") || "" }),
-    });
-    return;
-  }
-
-  if (url.pathname === "/api/access-keys/workspace" && req.method === "POST") {
-    const accessAuth = requireOwner(req, res);
-    if (!accessAuth) return;
-    const body = await readBody(req).catch(() => ({}));
-    const requestedWorkspaceId = String(body.workspaceId || body.workspace_id || "").trim();
-    if (!requestedWorkspaceId) {
-      sendJson(res, 400, { error: "workspaceId is required" });
-      return;
-    }
-    try {
-      const result = rotateWorkspaceAccessKey(requestedWorkspaceId, {
-        dryRun: boolParam(body.dryRun || body.dry_run),
-        actor: accessAuth.principalId || accessAuth.workspaceId || "owner",
-      });
-      sendJson(res, result.dryRun ? 200 : 201, {
-        ok: true,
-        key: result.key,
-        workspace: result.record,
-        dryRun: result.dryRun,
-        requiresReLogin: false,
-      });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  const workspaceKeyAdmin = url.pathname.match(/^\/api\/access-keys\/workspace\/([^/]+)$/);
-  if (workspaceKeyAdmin && req.method === "DELETE") {
-    const accessAuth = requireOwner(req, res);
-    if (!accessAuth) return;
-    const requestedWorkspaceId = decodeURIComponent(workspaceKeyAdmin[1] || "").trim();
-    if (!requestedWorkspaceId) {
-      sendJson(res, 400, { error: "workspaceId is required" });
-      return;
-    }
-    const body = await readBody(req).catch(() => ({}));
-    try {
-      const result = revokeWorkspaceAccessKey(requestedWorkspaceId, {
-        dryRun: boolParam(body.dryRun || body.dry_run),
-      });
-      sendJson(res, 200, { ok: true, result, requiresReLogin: false });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/access-keys/web" && req.method === "POST") {
-    if (!requireOwner(req, res)) return;
-    const body = await readBody(req).catch(() => ({}));
-    try {
-      const result = rotateGlobalAccessKey({ dryRun: boolParam(body.dryRun || body.dry_run) });
-      sendJson(res, result.dryRun ? 200 : 201, {
-        ok: true,
-        key: result.key,
-        auth: result.auth,
-        dryRun: result.dryRun,
-        requiresReLogin: !result.dryRun,
-      });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: err.message || String(err) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/projects" && req.method === "GET") {
-    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
-    sendJson(res, 200, { data: await publicProjectsForWorkspace(workspaceId) });
-    return;
-  }
-
-  if (url.pathname === "/api/directories/shared" && req.method === "GET") {
-    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
-    const directories = sharedDirectoriesForWorkspace(workspaceId)
-      .map((record) => publicSharedDirectory(record, workspaceId))
-      .filter(Boolean);
-    sendJson(res, 200, { ok: true, data: directories });
-    return;
-  }
-
-  if (url.pathname === "/api/skills/detail" && req.method === "GET") {
-    const skill = String(url.searchParams.get("skill") || "").trim();
-    if (!skill) {
-      sendJson(res, 400, { error: "Skill is required" });
-      return;
-    }
-    try {
-      const detail = await skillDetailProvider.detail(skill);
-      sendJson(res, 200, { data: detail });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: compactText(err.message || String(err), 800), skill: err.skill || skill });
-    }
-    return;
-  }
+  if ((await workspaceApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await accessKeyApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await resourceApiRoutes.handle(req, res, url, { auth })).handled) return;
 
   if (url.pathname === "/api/automations" && req.method === "GET") {
     const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");

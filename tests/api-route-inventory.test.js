@@ -1,6 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { validateRouteRegistry } = require("../adapters/api-route-registry");
 const {
   createHermesMobileApiRouteInventory,
   groupHermesMobileApiRoutes,
@@ -10,6 +13,126 @@ const {
   summarizeHermesMobileApiRoutes,
   validateHermesMobileApiRouteInventory,
 } = require("../adapters/api-route-inventory");
+
+const ROUTE_MODULES = Object.freeze([
+  {
+    key: "public-api-routes",
+    exportName: "createPublicApiRoutes",
+    required: true,
+    minRoutes: 4,
+    probes: [
+      { method: "GET", path: "/api/public-config", id: "public-config" },
+      { method: "POST", path: "/api/login", id: "login" },
+    ],
+  },
+  {
+    key: "system-api-routes",
+    exportName: "createSystemApiRoutes",
+    required: true,
+    minRoutes: 4,
+    probes: [
+      { method: "GET", path: "/api/status", id: "status" },
+      { method: "POST", path: "/api/app-update/apply", id: "app-update-apply" },
+    ],
+  },
+  {
+    key: "runtime-config-api-routes",
+    exportName: "createRuntimeConfigApiRoutes",
+    required: true,
+    minRoutes: 4,
+    probes: [
+      { method: "GET", path: "/api/runtime-config", id: "runtime-config" },
+      { method: "POST", path: "/api/runtime-config/test", id: "runtime-config-test" },
+    ],
+  },
+  {
+    key: "push-api-routes",
+    exportName: "createPushApiRoutes",
+    required: true,
+    minRoutes: 7,
+    probes: [
+      { method: "GET", path: "/api/push/vapid-public-key", id: "push-vapid-public-key" },
+      { method: "POST", path: "/api/push/test", id: "push-test" },
+    ],
+  },
+  {
+    key: "owner-elevation-api-routes",
+    exportName: "createOwnerElevationApiRoutes",
+    required: false,
+    minRoutes: 1,
+    probes: [
+      { method: "GET", path: "/api/owner-elevation", id: "owner-elevation-status" },
+    ],
+  },
+  {
+    key: "weixin-api-routes",
+    exportName: "createWeixinApiRoutes",
+    required: false,
+    minRoutes: 1,
+    probes: [
+      { method: "GET", path: "/api/weixin/forward-targets", id: "weixin-forward-targets" },
+      { method: "POST", path: "/api/ingress/weixin/outbound/delivery-1/ack", id: "weixin-outbound-ack" },
+    ],
+  },
+  {
+    key: "workspace-api-routes",
+    exportName: "createWorkspaceApiRoutes",
+    required: false,
+    minRoutes: 1,
+    probes: [
+      { method: "GET", path: "/api/workspaces", id: "workspaces-list" },
+    ],
+  },
+]);
+
+function routeModuleFile(moduleInfo) {
+  return path.join(__dirname, "..", "server-routes", `${moduleInfo.key}.js`);
+}
+
+function createNoopRouteDeps() {
+  function createNoopFunction() {
+    const fn = function noopRouteDependency() {};
+    return new Proxy(fn, {
+      get(target, prop) {
+        if (prop === "then") return undefined;
+        if (!Object.hasOwn(target, prop)) target[prop] = createNoopFunction();
+        return target[prop];
+      },
+    });
+  }
+
+  const deps = {};
+  return new Proxy(deps, {
+    get(target, prop) {
+      if (prop === "then") return undefined;
+      if (!Object.hasOwn(target, prop)) target[prop] = createNoopFunction();
+      return target[prop];
+    },
+  });
+}
+
+function loadRouteModules() {
+  return ROUTE_MODULES.flatMap((moduleInfo) => {
+    const file = routeModuleFile(moduleInfo);
+    if (!fs.existsSync(file)) {
+      assert.equal(moduleInfo.required, false, `${moduleInfo.key} route module is required`);
+      return [];
+    }
+
+    const exports = require(file);
+    const createRoutes = exports[moduleInfo.exportName];
+    assert.equal(typeof createRoutes, "function", `${moduleInfo.key} must export ${moduleInfo.exportName}`);
+    const routes = createRoutes(createNoopRouteDeps());
+    return [{ moduleInfo, routes }];
+  });
+}
+
+function matcherSignature(route) {
+  if (route.matchType === "exact") return `exact:${route.path}`;
+  if (route.matchType === "prefix") return `prefix:${route.pathPrefix}`;
+  if (route.matchType === "regex") return `regex:${route.pathRegex.source}:${route.pathRegex.flags}`;
+  throw new Error(`unsupported match type for ${route.id}: ${route.matchType}`);
+}
 
 function testInventoryBuildsAValidRegistry() {
   const registry = createHermesMobileApiRouteInventory();
@@ -67,9 +190,84 @@ function testPublicRouteListRedactsPathMatchers() {
   assert.deepEqual(regexRoute.resourceTypes, ["kanban", "card"]);
 }
 
+function testRouteModulesExposeRegistryInventorySurface() {
+  const modules = loadRouteModules();
+  for (const requiredKey of ROUTE_MODULES.filter((moduleInfo) => moduleInfo.required).map((moduleInfo) => moduleInfo.key)) {
+    assert.ok(modules.some(({ moduleInfo }) => moduleInfo.key === requiredKey), `${requiredKey} should be loaded`);
+  }
+
+  for (const { moduleInfo, routes } of modules) {
+    assert.equal(typeof routes.list, "function", `${moduleInfo.key} must expose list()`);
+    assert.equal(typeof routes.summary, "function", `${moduleInfo.key} must expose summary()`);
+    assert.equal(typeof routes.match, "function", `${moduleInfo.key} must expose match()`);
+
+    const list = routes.list();
+    const publicList = routes.list({ public: true });
+    const summary = routes.summary();
+    const publicSummary = routes.summary({ public: true });
+
+    assert.equal(Array.isArray(list), true, `${moduleInfo.key} list() must return an array`);
+    assert.equal(list.length >= moduleInfo.minRoutes, true, `${moduleInfo.key} should list at least ${moduleInfo.minRoutes} routes`);
+    assert.equal(publicList.length, list.length, `${moduleInfo.key} public list should preserve route count`);
+    assert.equal(summary.total, list.length, `${moduleInfo.key} summary total should match list length`);
+    assert.equal(publicSummary.total, list.length, `${moduleInfo.key} public summary total should match list length`);
+    assert.equal(Array.isArray(summary.routes), true, `${moduleInfo.key} summary should include route inventory`);
+    assert.equal(Object.keys(summary.byMethod).length > 0, true, `${moduleInfo.key} summary should count methods`);
+
+    const routeIds = new Set(list.map((route) => route.id));
+    for (const probe of moduleInfo.probes) {
+      if (!routeIds.has(probe.id)) {
+        assert.equal(moduleInfo.required, false, `${moduleInfo.key} should include ${probe.id}`);
+        continue;
+      }
+      const matched = routes.match({ method: probe.method, path: probe.path });
+      assert.ok(matched, `${moduleInfo.key} should match ${probe.method} ${probe.path}`);
+      assert.equal(matched.id, probe.id, `${moduleInfo.key} probe ${probe.method} ${probe.path}`);
+    }
+
+    for (const route of list.filter((item) => item.matchType === "exact")) {
+      const method = route.method.includes("ALL") ? "GET" : route.method[0];
+      assert.equal(routes.match({ method, path: `${route.path}?inventoryProbe=1` }).id, route.id, `${moduleInfo.key} should match ${method} ${route.path}`);
+    }
+
+    const validation = validateRouteRegistry(list);
+    assert.equal(validation.ok, true, `${moduleInfo.key} route inventory has errors: ${validation.errors.join("; ")}`);
+  }
+}
+
+function testRouteModuleIdsAndMethodPathsAreUniqueAcrossLoadedModules() {
+  const modules = loadRouteModules();
+  const allRoutes = modules.flatMap(({ moduleInfo, routes }) => (
+    routes.list().map((route) => Object.assign({ sourceModuleKey: moduleInfo.key }, route))
+  ));
+
+  const ids = new Map();
+  const signatures = new Map();
+  for (const route of allRoutes) {
+    assert.equal(typeof route.id, "string");
+    assert.notEqual(route.id.trim(), "", `${route.sourceModuleKey} route id should not be empty`);
+    assert.equal(Array.isArray(route.method), true, `${route.sourceModuleKey}/${route.id} method should be normalized`);
+    assert.equal(route.method.length > 0, true, `${route.sourceModuleKey}/${route.id} should have at least one method`);
+
+    assert.equal(ids.has(route.id), false, `duplicate route id ${route.id} in ${ids.get(route.id)} and ${route.sourceModuleKey}`);
+    ids.set(route.id, route.sourceModuleKey);
+
+    for (const method of route.method) {
+      const signature = `${method} ${matcherSignature(route)}`;
+      assert.equal(signatures.has(signature), false, `duplicate route method/path ${signature} in ${signatures.get(signature)} and ${route.sourceModuleKey}/${route.id}`);
+      signatures.set(signature, `${route.sourceModuleKey}/${route.id}`);
+    }
+  }
+
+  const validation = validateRouteRegistry(allRoutes);
+  assert.equal(validation.ok, true, `loaded route modules have duplicate registry entries: ${validation.errors.join("; ")}`);
+}
+
 testInventoryBuildsAValidRegistry();
 testInventoryMatchesCurrentServerRouteShapes();
 testSummarySeparatesRuntimeAuthDomains();
 testGroupingProducesModuleWorkPackages();
 testPublicRouteListRedactsPathMatchers();
+testRouteModulesExposeRegistryInventorySurface();
+testRouteModuleIdsAndMethodPathsAreUniqueAcrossLoadedModules();
 console.log("api-route-inventory tests passed");
