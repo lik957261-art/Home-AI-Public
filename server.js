@@ -38,12 +38,15 @@ const { createWorkspaceProjectProvider } = require("./adapters/workspace-project
 const { createTodoProvider } = require("./adapters/todo-provider");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createAccessKeyApiRoutes } = require("./server-routes/access-key-api-routes");
+const { createAutomationApiRoutes } = require("./server-routes/automation-api-routes");
+const { createKanbanCardApiRoutes } = require("./server-routes/kanban-card-api-routes");
 const { createOwnerElevationApiRoutes } = require("./server-routes/owner-elevation-api-routes");
 const { createPublicApiRoutes } = require("./server-routes/public-api-routes");
 const { createPushApiRoutes } = require("./server-routes/push-api-routes");
 const { createResourceApiRoutes } = require("./server-routes/resource-api-routes");
 const { createRuntimeConfigApiRoutes } = require("./server-routes/runtime-config-api-routes");
 const { createSystemApiRoutes } = require("./server-routes/system-api-routes");
+const { createTodoApiRoutes } = require("./server-routes/todo-api-routes");
 const { createWeixinApiRoutes } = require("./server-routes/weixin-api-routes");
 const { createWorkspaceApiRoutes } = require("./server-routes/workspace-api-routes");
 
@@ -3356,6 +3359,25 @@ const todoProvider = createTodoProvider({
     : (useKanbanTodoBackend() ? "hermes_kanban" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos")),
 });
 
+const todoApiRoutes = createTodoApiRoutes({
+  boolParam,
+  broadcast,
+  clearKanbanCardListCache,
+  maybeReconcileKanbanDependencyBlocks,
+  notifyTodoCreated,
+  publicTodo,
+  readBody,
+  requireOwner,
+  requireWorkspaceAccess,
+  runTodoWebPushTick,
+  sendJson,
+  todoErrorResponse,
+  todoProvider,
+  useKanbanTodoBackend,
+  workspacePrincipal,
+});
+bootTrace("todo api routes ready");
+
 const kanbanCardProvider = createKanbanCardProvider({
   runBridge: (payload) => kanbanTodoBridge.run(payload),
   workspacePrincipal,
@@ -3366,6 +3388,45 @@ const kanbanCardProvider = createKanbanCardProvider({
 const kanbanDependencyReconcileLastRun = new Map();
 const kanbanCardListCache = new Map();
 let kanbanCardListCacheStoreLoaded = false;
+
+const kanbanCardApiRoutes = createKanbanCardApiRoutes({
+  annotateKanbanCardsForAuth,
+  authenticateRequest,
+  boolParam,
+  broadcast,
+  clearKanbanCardListCache,
+  compactText,
+  createKanbanPlanCards,
+  extractKanbanSourceDocumentText,
+  findWorkspace,
+  kanbanCardProvider,
+  kanbanCaseSharesForActor,
+  kanbanErrorResponse,
+  kanbanSingleCardCasePayload,
+  normalizeKanbanMaxParallel,
+  normalizeKanbanPlanReasoningEffort,
+  planKanbanMultiAgent,
+  publicKanbanCardDetail,
+  publicTodo,
+  readBody,
+  readKanbanCardListCache,
+  requireWorkspaceAccess,
+  resolveKanbanCardAccess,
+  resolveKanbanOutputFile,
+  saveKanbanSourceDocumentUpload,
+  scheduleKanbanDependencyReconcile,
+  sendJson,
+  sendResolvedFile,
+  sendResolvedFilePreview,
+  sharedKanbanCardsForAuth,
+  sourceDocumentMaxBytes: KANBAN_SOURCE_DOCUMENT_MAX_BYTES,
+  todoAssigneeLabel,
+  useKanbanTodoBackend,
+  verifyDirectTodoCreateResult,
+  workspacePrincipal,
+  writeKanbanCardListCache,
+});
+bootTrace("kanban card api routes ready");
 
 function localAutomationStore() {
   const raw = readJsonStore(LOCAL_AUTOMATION_STORE_PATH, {});
@@ -3766,6 +3827,33 @@ function clearCronListCache() {
 async function runCronListBridgeCached(options = {}) {
   return automationProvider.listJobs(Object.assign({ limit: 0 }, options));
 }
+
+const automationApiRoutes = createAutomationApiRoutes({
+  automationListSortByLatestDeliverable,
+  automationProvider,
+  boolParam,
+  clearCronListCache,
+  compactText,
+  cronJobMatchesOwner,
+  cronJobMatchesSearch,
+  findWorkspace,
+  interpretAutomationNaturalLanguage,
+  readBody,
+  requireOwner,
+  requireWorkspaceAccess,
+  resolveAuthorizedCronDeliverableFile,
+  resolveAuthorizedCronOutputFile,
+  runAutomationWebPushTick,
+  runCronListBridgeCached,
+  sanitizePolicy,
+  sendJson,
+  sendResolvedBridgeFile,
+  sendResolvedBridgeFilePreview,
+  sendResolvedFile,
+  sendResolvedFilePreview,
+  workspacePrincipal,
+});
+bootTrace("automation api routes ready");
 
 function runDirectoryBridge(payload) {
   if (BRIDGE_HOST_URL) return runBridgeHost("directory", payload, DIRECTORY_BRIDGE_TIMEOUT_MS);
@@ -13604,446 +13692,9 @@ async function handleApi(req, res) {
   if ((await workspaceApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await accessKeyApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await resourceApiRoutes.handle(req, res, url, { auth })).handled) return;
-
-  if (url.pathname === "/api/automations" && req.method === "GET") {
-    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
-    const ownerPrincipalId = workspacePrincipal(workspaceId);
-    const requestedLimit = Number(url.searchParams.get("limit") || "200");
-    const includeDisabled = boolParam(url.searchParams.get("includeDisabled") || "1");
-    const bypassCache = boolParam(url.searchParams.get("refresh") || url.searchParams.get("fresh"));
-    let result;
-    try {
-      result = await runCronListBridgeCached({ includeDisabled, bypassCache, ownerPrincipalId });
-    } catch (err) {
-      sendJson(res, 200, {
-        data: [],
-        source: { name: "hermes_cron", available: false, jobCount: 0, workspaceId, ownerPrincipalId },
-        warning: compactText(err.message || String(err), 800),
-      });
-      return;
-    }
-    if (!result.ok) {
-      sendJson(res, 200, {
-        data: [],
-        source: Object.assign({}, result.source || { name: "hermes_cron", available: false }, {
-          jobCount: 0,
-          workspaceId,
-          ownerPrincipalId,
-        }),
-        warning: compactText(result.error || "Hermes CRON bridge failed", 800),
-      });
-      return;
-    }
-    const search = String(url.searchParams.get("search") || "").trim().toLowerCase();
-    let jobs = (result.jobs || [])
-      .filter((job) => cronJobMatchesOwner(job, ownerPrincipalId))
-      .filter((job) => cronJobMatchesSearch(job, search))
-      .sort(automationListSortByLatestDeliverable);
-    if (requestedLimit > 0) jobs = jobs.slice(0, requestedLimit);
-    sendJson(res, 200, {
-      data: jobs,
-      source: Object.assign({}, result.source || { name: "hermes_cron", available: true }, {
-        jobCount: jobs.length,
-        totalJobCount: result.source?.jobCount ?? (result.jobs || []).length,
-        workspaceId,
-        ownerPrincipalId,
-      }),
-      warning: result.warning || "",
-    });
-    return;
-  }
-
-  if (url.pathname === "/api/automations" && req.method === "POST") {
-    const body = await readBody(req).catch(() => ({}));
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    const workspace = findWorkspace(workspaceId);
-    const text = String(body.text || body.prompt || "").trim();
-    if (!text) {
-      sendJson(res, 400, { error: "Automation description is required" });
-      return;
-    }
-    const ownerPrincipalId = workspacePrincipal(workspaceId);
-    let draft;
-    try {
-      draft = await interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId);
-    } catch (err) {
-      sendJson(res, err.status || 502, { error: compactText(err.message || String(err), 800) });
-      return;
-    }
-    let result;
-    try {
-      result = await automationProvider.createJob({
-        dryRun: boolParam(body.dryRun || body.dry_run),
-        text,
-        job: draft,
-        ownerPrincipalId,
-        accessPolicyContext: sanitizePolicy(workspace.policy || {}),
-      });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: compactText(err.message || String(err), 800), draft });
-      return;
-    }
-    if (!result.ok) {
-      sendJson(res, 400, { error: compactText(result.error || "Hermes CRON create failed", 800), draft, result });
-      return;
-    }
-    if (!boolParam(body.dryRun || body.dry_run)) clearCronListCache();
-    sendJson(res, boolParam(body.dryRun || body.dry_run) ? 200 : 201, {
-      ok: true,
-      job: result.job,
-      draft,
-      source: Object.assign({}, result.source || {}, { workspaceId, ownerPrincipalId, interpreter: "hermes_model" }),
-      dryRun: boolParam(body.dryRun || body.dry_run),
-    });
-    return;
-  }
-
-  const automationActionMatch = url.pathname.match(/^\/api\/automations\/([^/]+)\/(delete|pause|resume|update)$/);
-  if (automationActionMatch && req.method === "POST") {
-    const jobId = decodeURIComponent(automationActionMatch[1] || "");
-    const action = automationActionMatch[2];
-    const body = await readBody(req).catch(() => ({}));
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
-    const workspace = findWorkspace(workspaceId);
-    if (!jobId) {
-      sendJson(res, 400, { error: "Automation job id is required" });
-      return;
-    }
-    const ownerPrincipalId = workspacePrincipal(workspaceId);
-    const dryRun = boolParam(body.dryRun ?? body.dry_run ?? url.searchParams.get("dryRun"));
-    const patch = action === "update" ? {
-      name: body.name,
-      prompt: body.prompt,
-      schedule: body.schedule,
-      deliver: body.deliver,
-      skills: body.skills,
-      enabled_toolsets: body.enabled_toolsets || body.enabledToolsets,
-      model: body.model,
-      provider: body.provider,
-      workdir: body.workdir,
-    } : {};
-    let result;
-    try {
-      result = await automationProvider.mutateJob({
-        action,
-        jobId,
-        ownerPrincipalId,
-        dryRun,
-        patch,
-        reason: String(body.reason || ""),
-      });
-    } catch (err) {
-      sendJson(res, err.status || 500, { error: compactText(err.message || String(err), 800) });
-      return;
-    }
-    if (!result.ok) {
-      sendJson(res, result.status || 400, { error: compactText(result.error || "Hermes CRON action failed", 800), result });
-      return;
-    }
-    if (!dryRun) clearCronListCache();
-    sendJson(res, 200, {
-      ok: true,
-      job: result.job || null,
-      deletedJob: result.deletedJob || null,
-      source: Object.assign({}, result.source || {}, { workspaceId, ownerPrincipalId }),
-      dryRun,
-    });
-    return;
-  }
-
-  if (url.pathname === "/api/automations/push/tick" && req.method === "POST") {
-    if (!requireOwner(req, res)) return;
-    const body = await readBody(req).catch(() => ({}));
-    const result = await runAutomationWebPushTick({
-      dryRun: boolParam(body.dryRun ?? body.dry_run ?? url.searchParams.get("dryRun")),
-      includeInitial: boolParam(body.includeInitial ?? body.include_initial ?? url.searchParams.get("includeInitial")),
-      limit: Number(body.limit || url.searchParams.get("limit") || 100),
-    });
-    sendJson(res, 200, result);
-    return;
-  }
-
-  if (url.pathname === "/api/automations/deliverable" && req.method === "GET") {
-    const resolved = await resolveAuthorizedCronDeliverableFile(url.searchParams, auth);
-    if (resolved.bridgeFile) {
-      sendResolvedBridgeFile(res, resolved.bridgeFile, url.searchParams);
-      return;
-    }
-    if (!resolved.file) {
-      sendJson(res, resolved.status || 404, { error: resolved.error || "Automation deliverable not found" });
-      return;
-    }
-    sendResolvedFile(res, resolved.file, url.searchParams);
-    return;
-  }
-
-  if (url.pathname === "/api/automations/deliverable/preview" && req.method === "GET") {
-    const resolved = await resolveAuthorizedCronDeliverableFile(url.searchParams, auth);
-    if (resolved.bridgeFile) {
-      sendResolvedBridgeFilePreview(res, resolved.bridgeFile);
-      return;
-    }
-    if (!resolved.file) {
-      sendJson(res, resolved.status || 404, { error: resolved.error || "Automation deliverable not found" });
-      return;
-    }
-    sendResolvedFilePreview(res, resolved.file);
-    return;
-  }
-
-  if (url.pathname === "/api/automations/output" && req.method === "GET") {
-    const resolved = await resolveAuthorizedCronOutputFile(url.searchParams, auth);
-    if (resolved.bridgeFile) {
-      sendResolvedBridgeFile(res, resolved.bridgeFile, url.searchParams);
-      return;
-    }
-    if (!resolved.file) {
-      sendJson(res, resolved.status || 404, { error: resolved.error || "Automation output not found" });
-      return;
-    }
-    sendResolvedFile(res, resolved.file, url.searchParams);
-    return;
-  }
-
-  if (url.pathname === "/api/automations/output/preview" && req.method === "GET") {
-    const resolved = await resolveAuthorizedCronOutputFile(url.searchParams, auth);
-    if (resolved.bridgeFile) {
-      sendResolvedBridgeFilePreview(res, resolved.bridgeFile);
-      return;
-    }
-    if (!resolved.file) {
-      sendJson(res, resolved.status || 404, { error: resolved.error || "Automation output not found" });
-      return;
-    }
-    sendResolvedFilePreview(res, resolved.file);
-    return;
-  }
-
-  if (url.pathname === "/api/todos" && req.method === "GET") {
-    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
-    let maintenance = null;
-    if (useKanbanTodoBackend()) {
-      maintenance = await maybeReconcileKanbanDependencyBlocks(workspaceId).catch((err) => ({ ok: false, error: err.message || String(err) }));
-    }
-    const result = await todoProvider.listTodos({
-      workspaceId,
-      scope: url.searchParams.get("scope") || "mine",
-      includeCompleted: boolParam(url.searchParams.get("includeCompleted")),
-      assignee: url.searchParams.get("assignee") || "",
-      limit: Number(url.searchParams.get("limit") || "80"),
-      search: url.searchParams.get("search") || "",
-    });
-    if (!result.ok) {
-      todoErrorResponse(res, result.result || result);
-      return;
-    }
-    sendJson(res, 200, {
-      data: result.data,
-      assignees: result.assignees,
-      source: result.source,
-      maintenance,
-    });
-    return;
-  }
-
-  if (url.pathname === "/api/kanban/cards" && req.method === "GET") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const workspaceId = requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
-    const listArgs = {
-      workspaceId,
-      scope: url.searchParams.get("scope") || "mine",
-      includeCompleted: boolParam(url.searchParams.get("includeCompleted")),
-      assignee: url.searchParams.get("assignee") || "",
-      limit: Number(url.searchParams.get("limit") || "120"),
-      search: url.searchParams.get("search") || "",
-    };
-    const auth = authenticateRequest(req);
-    const sharedCases = kanbanCaseSharesForActor(auth, workspaceId);
-    const bypassCache = boolParam(url.searchParams.get("fresh")) || boolParam(url.searchParams.get("skipCache")) || boolParam(url.searchParams.get("noCache"));
-    if (!bypassCache && !sharedCases.length) {
-      const cached = readKanbanCardListCache(listArgs);
-      if (cached) {
-        scheduleKanbanDependencyReconcile(workspaceId);
-        sendJson(res, 200, Object.assign({}, cached, { data: annotateKanbanCardsForAuth(cached.data, auth) }));
-        return;
-      }
-    }
-    const maintenance = scheduleKanbanDependencyReconcile(workspaceId);
-    const result = await kanbanCardProvider.listCards(listArgs);
-    if (!result.ok) {
-      kanbanErrorResponse(res, result.result || result);
-      return;
-    }
-    const sharedData = await sharedKanbanCardsForAuth(auth, workspaceId, listArgs);
-    const data = annotateKanbanCardsForAuth(result.data, auth).concat(sharedData);
-    const payload = {
-      data,
-      assignees: result.assignees,
-      source: result.source,
-      board: result.board,
-      result: result.result,
-      maintenance,
-      sharedCases: sharedData.length,
-    };
-    if (!sharedCases.length) writeKanbanCardListCache(listArgs, payload);
-    sendJson(res, 200, payload);
-    return;
-  }
-
-  if (url.pathname === "/api/kanban/cards/output" && req.method === "GET") {
-    const workspaceId = String(url.searchParams.get("workspaceId") || "owner").trim() || "owner";
-    if (!findWorkspace(workspaceId)) {
-      sendJson(res, 400, { error: "Unknown workspace" });
-      return;
-    }
-    const resolved = resolveKanbanOutputFile(workspaceId, url.searchParams.get("path") || "", authenticateRequest(req));
-    if (!resolved.file) {
-      sendJson(res, resolved.status || 404, { error: resolved.error || "Kanban output not found" });
-      return;
-    }
-    sendResolvedFile(res, resolved.file, url.searchParams);
-    return;
-  }
-
-  if (url.pathname === "/api/kanban/cards/output/preview" && req.method === "GET") {
-    const workspaceId = String(url.searchParams.get("workspaceId") || "owner").trim() || "owner";
-    if (!findWorkspace(workspaceId)) {
-      sendJson(res, 400, { error: "Unknown workspace" });
-      return;
-    }
-    const resolved = resolveKanbanOutputFile(workspaceId, url.searchParams.get("path") || "", authenticateRequest(req));
-    if (!resolved.file) {
-      sendJson(res, resolved.status || 404, { error: resolved.error || "Kanban output not found" });
-      return;
-    }
-    sendResolvedFilePreview(res, resolved.file);
-    return;
-  }
-
-  const kanbanCardDetail = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/detail$/);
-  if (kanbanCardDetail && req.method === "GET") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const requestedWorkspaceId = url.searchParams.get("workspaceId") || "owner";
-    const cardId = decodeURIComponent(kanbanCardDetail[1]);
-    const access = await resolveKanbanCardAccess(req, res, requestedWorkspaceId, cardId, "view");
-    if (!access) return;
-    const workspaceId = access.workspaceId;
-    const result = await kanbanCardProvider.cardDetail({
-      workspaceId,
-      cardId,
-      logTail: Number(url.searchParams.get("logTail") || "12000"),
-    });
-    if (!result.ok) {
-      kanbanErrorResponse(res, result.result || result);
-      return;
-    }
-    sendJson(res, 200, {
-      ok: true,
-      detail: publicKanbanCardDetail(workspaceId, result),
-      result,
-    });
-    return;
-  }
-
-  if (url.pathname === "/api/kanban/cards/document-preview" && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req, Math.ceil(KANBAN_SOURCE_DOCUMENT_MAX_BYTES * 1.4) + 8192).catch((err) => ({ __error: err }));
-    if (body.__error) {
-      sendJson(res, 413, { ok: false, error: body.__error.message || "Document upload is too large" });
-      return;
-    }
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    try {
-      const upload = saveKanbanSourceDocumentUpload(workspaceId, body);
-      const preview = extractKanbanSourceDocumentText(upload);
-      sendJson(res, 200, {
-        ok: true,
-        document: {
-          name: upload.name,
-          mime: upload.mime,
-          size: upload.size,
-          kind: upload.kind,
-        },
-        text: preview.text,
-        totalChars: preview.totalChars,
-        truncated: preview.truncated,
-      });
-    } catch (err) {
-      sendJson(res, err.status || 400, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/kanban/cards/plan" && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    const text = String(body.text || body.content || body.prompt || "").trim();
-    if (!text) {
-      sendJson(res, 400, { error: "Kanban plan text is required" });
-      return;
-    }
-    try {
-      const maxParallel = normalizeKanbanMaxParallel(body.maxParallel ?? body.max_parallel);
-      const reasoningEffort = normalizeKanbanPlanReasoningEffort(body.reasoning_effort || body.reasoningEffort || body.reasoning);
-      const plan = await planKanbanMultiAgent(text, findWorkspace(workspaceId), workspacePrincipal(workspaceId), {
-        maxParallel,
-        reasoningEffort,
-      });
-      sendJson(res, 200, { ok: true, plan, maxParallel, reasoningEffort });
-    } catch (err) {
-      sendJson(res, 502, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
-
-  if (url.pathname === "/api/kanban/cards/batch" && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    try {
-      const result = await createKanbanPlanCards(workspaceId, body.plan || { cards: body.cards || [], sourceText: body.text || "" }, {
-        assignee: body.assignee || "",
-        sourceText: body.text || "",
-        maxParallel: body.maxParallel ?? body.max_parallel ?? body.plan?.maxParallel ?? body.plan?.max_parallel,
-        reasoningEffort: body.reasoning_effort || body.reasoningEffort || body.plan?.reasoningEffort || body.plan?.reasoning_effort,
-      });
-      if (!result.ok) {
-        kanbanErrorResponse(res, result, 502);
-        return;
-      }
-      clearKanbanCardListCache(workspaceId);
-      broadcast({ type: "kanban.updated", workspaceId, action: "batch-add" });
-      broadcast({ type: "todos.updated", workspaceId, action: "batch-add" });
-      sendJson(res, 201, result);
-    } catch (err) {
-      sendJson(res, 500, { ok: false, error: compactText(err.message || String(err), 800) });
-    }
-    return;
-  }
+  if ((await automationApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await todoApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await kanbanCardApiRoutes.handle(req, res, url, { auth })).handled) return;
 
   if (url.pathname === "/api/kanban/cards/study-plan" && req.method === "POST") {
     if (!useKanbanTodoBackend()) {
@@ -14090,125 +13741,6 @@ async function handleApi(req, res) {
     } catch (err) {
       sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
     }
-    return;
-  }
-
-  if (url.pathname === "/api/todos" && req.method === "POST") {
-    const body = await readBody(req);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    const result = await todoProvider.addTodo({
-      workspaceId,
-      assignee: body.assignee || "",
-      content: body.content || "",
-      dueTime: body.dueTime || body.due_time || "",
-      suppressExternalNotice: true,
-      reminderLeadMinutes: body.reminderLeadMinutes ?? body.reminder_lead_minutes ?? null,
-      recurrence: body.recurrence || "none",
-      recurrenceDays: body.recurrenceDays || body.recurrence_days || "",
-      recurrenceUntil: body.recurrenceUntil || body.recurrence_until || "",
-    });
-    if (!result.ok) {
-      todoErrorResponse(res, result);
-      return;
-    }
-    clearKanbanCardListCache(workspaceId);
-    broadcast({ type: "todos.updated", workspaceId });
-    notifyTodoCreated(result, workspacePrincipal(workspaceId));
-    sendJson(res, 201, { todo: publicTodo(result), result });
-    return;
-  }
-
-  if (url.pathname === "/api/kanban/cards" && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    const result = await kanbanCardProvider.addCard({
-      workspaceId,
-      assignee: body.assignee || "",
-      assigneeLabel: todoAssigneeLabel(workspaceId, body.assignee || ""),
-      content: body.content || body.title || "",
-      description: body.description || "",
-      dueTime: body.dueTime || body.due_time || "",
-      reminderLeadMinutes: body.reminderLeadMinutes ?? body.reminder_lead_minutes ?? null,
-      reason: body.reason || "",
-      idempotencyKey: body.idempotencyKey || body.idempotency_key || "",
-      ...(body.caseId || body.case_id ? {
-        caseId: body.caseId || body.case_id || "",
-        caseMode: body.caseMode || body.case_mode || "",
-        caseTemplate: body.caseTemplate || body.case_template || "",
-        caseSourceText: body.caseSourceText || body.case_source_text || "",
-        caseSummary: body.caseSummary || body.case_summary || "",
-        caseCardId: body.caseCardId || body.case_card_id || "",
-        caseCardIndex: body.caseCardIndex ?? body.case_card_index ?? 0,
-        caseCardCount: body.caseCardCount ?? body.case_card_count ?? 0,
-        caseDependsOn: body.caseDependsOn || body.case_depends_on || [],
-        caseDeliverables: body.caseDeliverables || body.case_deliverables || [],
-        caseAcceptance: body.caseAcceptance || body.case_acceptance || [],
-        caseCardGoal: body.caseCardGoal || body.case_card_goal || "",
-      } : kanbanSingleCardCasePayload(body.content || body.title || "", body.description || "", body.sourceText || body.source_text || "")),
-    });
-    if (!result?.ok) {
-      kanbanErrorResponse(res, result);
-      return;
-    }
-    const card = publicTodo(result);
-    const verification = verifyDirectTodoCreateResult(card);
-    if (!verification.ok) {
-      kanbanErrorResponse(res, { ok: false, error: verification.error, result }, 502);
-      return;
-    }
-    clearKanbanCardListCache(workspaceId);
-    broadcast({ type: "kanban.updated", workspaceId, cardId: card.id, action: "add" });
-    broadcast({ type: "todos.updated", workspaceId, todoId: card.id, action: "add" });
-    sendJson(res, 201, { card, result, verification });
-    return;
-  }
-
-  if (url.pathname === "/api/todos/push/tick" && req.method === "POST") {
-    if (!requireOwner(req, res)) return;
-    const body = await readBody(req).catch(() => ({}));
-    const dryRun = boolParam(body.dryRun ?? body.dry_run ?? url.searchParams.get("dryRun"));
-    const limit = Number(body.limit || url.searchParams.get("limit") || 100);
-    try {
-      const result = await runTodoWebPushTick({ dryRun, limit });
-      sendJson(res, 200, result);
-    } catch (err) {
-      sendJson(res, 500, { ok: false, error: err.message || String(err) });
-    }
-    return;
-  }
-
-  const todoAction = url.pathname.match(/^\/api\/todos\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment|revise)$/);
-  if (todoAction && req.method === "POST") {
-    const body = await readBody(req).catch(() => ({}));
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner");
-    if (!workspaceId) return;
-    const action = todoAction[2];
-    const result = await todoProvider.mutateTodo({
-      action,
-      workspaceId,
-      todoId: decodeURIComponent(todoAction[1]),
-      assignee: body.assignee || "",
-      recurrenceScope: body.recurrenceScope || body.recurrence_scope || "one",
-      dueTime: body.dueTime || body.due_time || "",
-      reason: body.reason || "",
-      comment: body.comment || body.text || "",
-      content: body.content || body.title || "",
-      description: body.description || "",
-      author: body.author || "",
-    });
-    if (!result.ok) {
-      todoErrorResponse(res, result);
-      return;
-    }
-    clearKanbanCardListCache(workspaceId);
-    broadcast({ type: "todos.updated", workspaceId, todoId: result.id, action });
-    sendJson(res, 200, { ok: true, result });
     return;
   }
 
@@ -14317,45 +13849,6 @@ async function handleApi(req, res) {
     } catch (err) {
       sendJson(res, err.status || 500, { ok: false, error: compactText(err.message || String(err), 800) });
     }
-    return;
-  }
-
-  const kanbanAction = url.pathname.match(/^\/api\/kanban\/cards\/([^/]+)\/(complete|cancel|postpone|delete|block|unblock|comment|revise)$/);
-  if (kanbanAction && req.method === "POST") {
-    if (!useKanbanTodoBackend()) {
-      sendJson(res, 409, { error: "Kanban backend is not enabled" });
-      return;
-    }
-    const body = await readBody(req).catch(() => ({}));
-    const action = kanbanAction[2];
-    const cardId = decodeURIComponent(kanbanAction[1]);
-    const capability = action === "comment"
-      ? "comment"
-      : (action === "revise" ? "revise" : (action === "delete" || action === "cancel" ? "delete" : "manage"));
-    const access = await resolveKanbanCardAccess(req, res, body.workspaceId || url.searchParams.get("workspaceId") || "owner", cardId, capability);
-    if (!access) return;
-    const workspaceId = access.workspaceId;
-    const result = await kanbanCardProvider.mutateCard({
-      action,
-      workspaceId,
-      cardId,
-      assignee: body.assignee || "",
-      dueTime: body.dueTime || body.due_time || "",
-      reason: body.reason || "",
-      comment: body.comment || body.text || "",
-      content: body.content || body.title || "",
-      description: body.description || "",
-      author: body.author || "",
-    });
-    if (!result?.ok) {
-      kanbanErrorResponse(res, result);
-      return;
-    }
-    const resultCardId = String(result.id || cardId);
-    clearKanbanCardListCache(workspaceId);
-    broadcast({ type: "kanban.updated", workspaceId, cardId: resultCardId, action });
-    broadcast({ type: "todos.updated", workspaceId, todoId: resultCardId, action });
-    sendJson(res, 200, { ok: true, result });
     return;
   }
 

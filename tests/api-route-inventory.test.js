@@ -83,6 +83,39 @@ const ROUTE_MODULES = Object.freeze([
       { method: "GET", path: "/api/workspaces", id: "workspaces-list" },
     ],
   },
+  {
+    key: "automation-api-routes",
+    exportName: "createAutomationApiRoutes",
+    required: false,
+    minRoutes: 8,
+    probes: [
+      { method: "GET", path: "/api/automations", id: "automations-list" },
+      { method: "POST", path: "/api/automations/job-1/pause", id: "automations-action" },
+      { method: "GET", path: "/api/automations/output/preview", id: "automations-output-preview" },
+    ],
+  },
+  {
+    key: "todo-api-routes",
+    exportName: "createTodoApiRoutes",
+    required: false,
+    minRoutes: 4,
+    probes: [
+      { method: "GET", path: "/api/todos", id: "todos-list" },
+      { method: "POST", path: "/api/todos/todo-1/block", id: "todos-action" },
+      { method: "POST", path: "/api/todos/push/tick", id: "todos-push-tick" },
+    ],
+  },
+  {
+    key: "kanban-card-api-routes",
+    exportName: "createKanbanCardApiRoutes",
+    required: false,
+    minRoutes: 9,
+    probes: [
+      { method: "GET", path: "/api/kanban/cards", id: "kanban-cards-list" },
+      { method: "GET", path: "/api/kanban/cards/card-1/detail", id: "kanban-card-detail" },
+      { method: "POST", path: "/api/kanban/cards/card-1/comment", id: "kanban-card-action" },
+    ],
+  },
 ]);
 
 function routeModuleFile(moduleInfo) {
