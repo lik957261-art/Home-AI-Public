@@ -32,6 +32,7 @@ const kanbanMaintenanceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters
 const kanbanPlanServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-plan-service.js"), "utf8");
 const kanbanStudyArtifactServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-study-artifact-service.js"), "utf8");
 const gatewayRunInstructionServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-instruction-service.js"), "utf8");
+const groupChatSharedAttachmentServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "group-chat-shared-attachment-service.js"), "utf8");
 const fileResourceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "file-resource-service.js"), "utf8");
 const threadViewServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "thread-view-service.js"), "utf8");
 const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-ingress-provider.js"), "utf8");
@@ -154,7 +155,7 @@ assert.match(serverJs, /conversation_history: buildConversationHistory\(thread, 
 assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
 assert.match(gatewayRunInstructionServiceJs, /Group-chat shared attachments authorized for this run/);
 assert.match(serverJs, /groupChatAttachmentCopies/);
-assert.match(serverJs, /shared-attachments/);
+assert.match(groupChatSharedAttachmentServiceJs, /shared-attachments/);
 assert.match(serverJs, /reason: "unmatched_workspace_route"/);
 assert.match(weixinOutboundDeliveryServiceJs, /terminalStatus === "failed"/);
 assert.match(weixinOutboundDeliveryServiceJs, /status: "skipped"/);

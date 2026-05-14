@@ -13,6 +13,7 @@ const fileResponseService = require("../adapters/file-response-service");
 const fileResourceService = require("../adapters/file-resource-service");
 const gatewayRunInstructionService = require("../adapters/gateway-run-instruction-service");
 const gatewayStatusProjection = require("../adapters/gateway-status-projection");
+const groupChatSharedAttachmentService = require("../adapters/group-chat-shared-attachment-service");
 const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
 const kanbanAssigneePolicy = require("../adapters/kanban-assignee-policy");
@@ -84,6 +85,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof gatewayRunInstructionService.createGatewayRunInstructionService, "function");
   assert.equal(typeof gatewayStatusProjection.createGatewayStatusProjection, "function");
   assert.equal(typeof gatewayStatusProjection.gatewayPoolStatusHealthy, "function");
+  assert.equal(typeof groupChatSharedAttachmentService.createGroupChatSharedAttachmentService, "function");
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof requestContext.buildRequestContext, "function");
   assert.equal(typeof resourceResolver.resolveResourceAccess, "function");
@@ -142,6 +144,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /gatewayRunInstructionService\.buildHermesInstructions/);
   assert.match(server, /createLocalWorkspaceStoreService/);
   assert.match(server, /getLocalWorkspaceStoreService\(\)\.upsertLocalWorkspace/);
+  assert.match(server, /createGroupChatSharedAttachmentService/);
+  assert.match(server, /getGroupChatSharedAttachmentService\(\)\.ensureSharedArtifactCopies/);
   assert.match(server, /publicApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createSystemApiRoutes/);
   assert.match(server, /systemApiRoutes\.handle\(req, res, url\)/);

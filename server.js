@@ -26,6 +26,7 @@ const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service");
 const { createGatewayStatusProjection, gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
+const { createGroupChatSharedAttachmentService } = require("./adapters/group-chat-shared-attachment-service");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanAssigneePolicy } = require("./adapters/kanban-assignee-policy");
 const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
@@ -471,6 +472,7 @@ let activeStreams = new Map();
 let gatewayRunner = null;
 let gatewayPoolProvider = null;
 let gatewayUsageTelemetryProvider = null;
+let groupChatSharedAttachmentService = null;
 let lastStateBackupAt = 0;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
@@ -2961,78 +2963,45 @@ function safeStorageSegment(value, fallback = "item") {
     .slice(0, 96) || fallback;
 }
 
+function getGroupChatSharedAttachmentService() {
+  if (!groupChatSharedAttachmentService) {
+    groupChatSharedAttachmentService = createGroupChatSharedAttachmentService({
+      groupDeliveriesDir: GROUP_DELIVERIES_DIR,
+      groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+      safeStorageSegment,
+      safeFileName,
+      normalizeLocalPath,
+      isProtectedPath: (value) => securityBoundaryProvider.isProtectedPath(value),
+      samePath,
+      windowsPathToWsl,
+      listArtifacts: () => state.artifacts || [],
+    });
+  }
+  return groupChatSharedAttachmentService;
+}
+
 function groupChatDeliveryRootForThread(thread) {
-  return path.join(GROUP_DELIVERIES_DIR, safeStorageSegment(thread?.id || "thread"));
+  return getGroupChatSharedAttachmentService().deliveryRootForThread(thread);
 }
 
 function groupChatSharedAttachmentRootForThread(thread) {
-  return path.join(groupChatDeliveryRootForThread(thread), "shared-attachments");
+  return getGroupChatSharedAttachmentService().sharedAttachmentRootForThread(thread);
 }
 
 function storedArtifactForMessageArtifact(artifact = {}) {
-  const id = String(artifact?.id || "").trim();
-  const stored = id ? (state.artifacts || []).find((item) => String(item.id || "") === id) : null;
-  return Object.assign({}, stored || {}, artifact || {});
+  return getGroupChatSharedAttachmentService().storedArtifactForMessageArtifact(artifact);
 }
 
 function groupChatMessagesForRun(thread, latestUserMessage) {
-  if (!thread?.singleWindow || latestUserMessage?.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return [];
-  const messages = thread.messages || [];
-  const latestIndex = messages.findIndex((message) => String(message?.id || "") === String(latestUserMessage?.id || ""));
-  return messages
-    .slice(0, latestIndex >= 0 ? latestIndex + 1 : messages.length)
-    .filter((message) => message?.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID)
-    .filter((message) => !message.revokedAt);
+  return getGroupChatSharedAttachmentService().messagesForRun(thread, latestUserMessage);
 }
 
 function safeArtifactCopyName(artifact = {}, index = 0) {
-  const id = String(artifact.id || "").trim() || `artifact-${index + 1}`;
-  const name = safeFileName(artifact.name || artifact.path || id);
-  return `${safeStorageSegment(id)}-${name}`;
+  return getGroupChatSharedAttachmentService().safeArtifactCopyName(artifact, index);
 }
 
 function ensureGroupChatSharedArtifactCopies(thread, latestUserMessage, deliveryRoot) {
-  if (!deliveryRoot || latestUserMessage?.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return [];
-  const messages = groupChatMessagesForRun(thread, latestUserMessage);
-  const copyRoot = path.join(deliveryRoot, "shared-attachments");
-  const copies = [];
-  const seen = new Set();
-  fs.mkdirSync(copyRoot, { recursive: true });
-  for (const message of messages) {
-    for (const messageArtifact of Array.isArray(message.artifacts) ? message.artifacts : []) {
-      const artifact = storedArtifactForMessageArtifact(messageArtifact);
-      const artifactId = String(artifact.id || messageArtifact.id || "").trim();
-      const rawPath = String(artifact.path || artifact.localPath || artifact.displayPath || "").trim();
-      const localPath = normalizeLocalPath(rawPath) || rawPath;
-      const key = artifactId || localPath.toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      if (!localPath || securityBoundaryProvider.isProtectedPath(localPath) || securityBoundaryProvider.isProtectedPath(rawPath)) continue;
-      let stat = null;
-      try {
-        stat = fs.statSync(localPath);
-      } catch (_) {
-        continue;
-      }
-      if (!stat.isFile()) continue;
-      const copyPath = path.join(copyRoot, safeArtifactCopyName(artifact, copies.length));
-      try {
-        if (!samePath(localPath, copyPath)) fs.copyFileSync(localPath, copyPath);
-      } catch (_) {
-        continue;
-      }
-      copies.push({
-        id: artifactId,
-        name: artifact.name || path.basename(localPath),
-        originalPath: rawPath || localPath,
-        copyPath,
-        copyPathForModel: windowsPathToWsl(copyPath) || copyPath,
-        messageId: message.id || "",
-        senderWorkspaceId: message.senderWorkspaceId || "",
-      });
-    }
-  }
-  return copies;
+  return getGroupChatSharedAttachmentService().ensureSharedArtifactCopies(thread, latestUserMessage, deliveryRoot);
 }
 
 function backendIsLocal(value, bridgeNames = []) {
