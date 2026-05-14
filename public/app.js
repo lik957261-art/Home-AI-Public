@@ -15,6 +15,33 @@ const FONT_SIZE_OPTIONS = Object.freeze([
   { id: "xxlarge", label: "超大", scale: 1.32 },
 ]);
 const DEFAULT_FONT_SIZE = "standard";
+const FONT_FAMILY_OPTIONS = Object.freeze([
+  {
+    id: "system",
+    label: "系统",
+    sample: "Aa",
+    family: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif',
+  },
+  {
+    id: "sans",
+    label: "黑体",
+    sample: "黑",
+    family: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Aptos", "Segoe UI", sans-serif',
+  },
+  {
+    id: "serif",
+    label: "宋体",
+    sample: "宋",
+    family: '"Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif',
+  },
+  {
+    id: "kai",
+    label: "楷体",
+    sample: "楷",
+    family: '"Kaiti SC", "KaiTi", "STKaiti", "Microsoft YaHei", serif',
+  },
+]);
+const DEFAULT_FONT_FAMILY = "system";
 const CHAT_MESSAGE_INITIAL_LIMIT = 60;
 const CHAT_MESSAGE_PAGE_LIMIT = 40;
 const CHAT_MESSAGE_SEARCH_LIMIT = 120;
@@ -389,6 +416,7 @@ const state = {
   pwaServiceWorkerError: "",
   settingsOpen: false,
   fontSize: normalizeFontSizePreference(localStorage.getItem("hermesWebFontSize") || DEFAULT_FONT_SIZE),
+  fontFamily: normalizeFontFamilyPreference(localStorage.getItem("hermesWebFontFamily") || DEFAULT_FONT_FAMILY),
   readingFullscreen: false,
   transientProjectRoute: null,
   quotedReply: null,
@@ -3087,8 +3115,12 @@ function commitSwipeDelete(row, kind, itemId) {
   window.setTimeout(() => {
     const action = kind === "todo"
       ? deleteTodoDirect(itemId)
-      : deleteTaskGroup(itemId, { confirm: false });
-    action.catch((err) => {
+      : (kind === "kanban-story"
+        ? deleteKanbanStoryCase(itemId)
+        : deleteTaskGroup(itemId, { confirm: false }));
+    action.then((deleted) => {
+      if (kind === "kanban-story" && deleted === false) resetTaskSwipeRow(row);
+    }).catch((err) => {
       resetTaskSwipeRow(row);
       showError(err);
     });
@@ -4648,6 +4680,16 @@ function normalizeFontSizePreference(value) {
   return FONT_SIZE_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_SIZE;
 }
 
+function fontFamilyOption(value) {
+  const normalized = normalizeFontFamilyPreference(value);
+  return FONT_FAMILY_OPTIONS.find((option) => option.id === normalized) || FONT_FAMILY_OPTIONS[0];
+}
+
+function normalizeFontFamilyPreference(value) {
+  const id = String(value || "").trim();
+  return FONT_FAMILY_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_FAMILY;
+}
+
 function applyFontSizePreference(value = state.fontSize) {
   const option = fontSizeOption(value);
   state.fontSize = option.id;
@@ -4656,11 +4698,26 @@ function applyFontSizePreference(value = state.fontSize) {
   window.setTimeout(updateMobileBottomNavReservation, 0);
 }
 
+function applyFontFamilyPreference(value = state.fontFamily) {
+  const option = fontFamilyOption(value);
+  state.fontFamily = option.id;
+  document.documentElement.dataset.fontFamily = option.id;
+  document.documentElement.style.setProperty("--app-font-family", option.family);
+}
+
 function setFontSizePreference(value) {
   const option = fontSizeOption(value);
   state.fontSize = option.id;
   localStorage.setItem("hermesWebFontSize", option.id);
   applyFontSizePreference(option.id);
+  renderSettingsOverlay();
+}
+
+function setFontFamilyPreference(value) {
+  const option = fontFamilyOption(value);
+  state.fontFamily = option.id;
+  localStorage.setItem("hermesWebFontFamily", option.id);
+  applyFontFamilyPreference(option.id);
   renderSettingsOverlay();
 }
 
@@ -4673,11 +4730,19 @@ function renderSettingsOverlay() {
     return;
   }
   const current = normalizeFontSizePreference(state.fontSize);
+  const currentFamily = normalizeFontFamilyPreference(state.fontFamily);
   const options = FONT_SIZE_OPTIONS.map((option) => {
     const active = option.id === current;
     return `<button class="font-size-option${active ? " active" : ""}" type="button" data-font-size-option="${escapeHtml(option.id)}" style="--font-preview-scale:${option.scale}">
       <span class="font-size-option-name">${escapeHtml(option.label)}</span>
       <span class="font-size-option-sample">Aa</span>
+    </button>`;
+  }).join("");
+  const familyOptions = FONT_FAMILY_OPTIONS.map((option) => {
+    const active = option.id === currentFamily;
+    return `<button class="font-family-option${active ? " active" : ""}" type="button" data-font-family-option="${escapeHtml(option.id)}" style="--font-preview-family:${escapeHtml(option.family)}">
+      <span class="font-family-option-sample">${escapeHtml(option.sample)}</span>
+      <span class="font-family-option-name">${escapeHtml(option.label)}</span>
     </button>`;
   }).join("");
   overlay.innerHTML = `<section class="access-key-sheet settings-sheet">
@@ -4693,9 +4758,13 @@ function renderSettingsOverlay() {
       <div class="font-size-options" role="group" aria-label="字体大小">
         ${options}
       </div>
+      <div class="settings-row-title">字体</div>
+      <div class="font-family-options" role="group" aria-label="字体">
+        ${familyOptions}
+      </div>
       <div class="settings-preview">
         <div class="settings-preview-title">Hermes Mobile</div>
-        <div class="settings-preview-body">聊天、话题、目录、看板和自动化页面会使用这个字体大小。</div>
+        <div class="settings-preview-body">聊天、话题、目录、看板、Markdown 阅读和自动化页面会使用这个显示偏好。</div>
       </div>
     </section>
   </section>`;
@@ -4708,6 +4777,9 @@ function renderSettingsOverlay() {
   overlay.querySelector("[data-close-settings]")?.addEventListener("click", closeSettings);
   overlay.querySelectorAll("[data-font-size-option]").forEach((button) => {
     button.addEventListener("click", () => setFontSizePreference(button.dataset.fontSizeOption || DEFAULT_FONT_SIZE));
+  });
+  overlay.querySelectorAll("[data-font-family-option]").forEach((button) => {
+    button.addEventListener("click", () => setFontFamilyPreference(button.dataset.fontFamilyOption || DEFAULT_FONT_FAMILY));
   });
 }
 
@@ -9606,12 +9678,24 @@ function kanbanStoryCaseDeleteItems(group) {
   return deletable.length === cards.length ? deletable : [];
 }
 
-function renderKanbanStoryDeleteButton(group, options = {}) {
-  if (!options.deleteAction) return "";
+function kanbanStoryCaseCanDelete(group, options = {}) {
+  if (!options.deleteAction) return false;
   const items = kanbanStoryCaseDeleteItems(group);
-  if (!items.length) return "";
+  return Boolean(items.length && kanbanStoryCaseKey(group));
+}
+
+function kanbanStorySwipeRenderState(group, options = {}) {
   const key = kanbanStoryCaseKey(group);
-  return `<button class="kanban-archive-case-action danger" type="button" data-delete-kanban-story-case="${escapeHtml(key)}">${"\u5220\u9664"}</button>`;
+  const swipable = Boolean(key && kanbanStoryCaseCanDelete(group, options));
+  return {
+    articleClass: swipable ? " task-swipe-row kanban-story-swipe" : "",
+    articleAttrs: swipable ? ` data-swipe-row data-swipe-kind="kanban-story" data-swipe-id="${escapeHtml(key)}"` : "",
+    contentClass: swipable ? "task-swipe-content kanban-story-swipe-content" : "kanban-story-swipe-content",
+    contentAttrs: swipable ? " data-swipe-content" : "",
+    deleteButton: swipable
+      ? `<button class="task-swipe-delete kanban-story-swipe-delete" type="button" data-delete-swipe aria-label="\u5220\u9664\u6545\u4e8b">\u5220\u9664</button>`
+      : "",
+  };
 }
 
 function kanbanArchiveStatusSummary(group) {
@@ -9715,8 +9799,8 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
     currentOutputCount ? `\u4ea4\u4ed8 ${currentOutputCount}` : "",
   ].filter(Boolean).join(" | ");
   const storyState = kanbanStoryCaseRenderState(group, options);
+  const swipeState = kanbanStorySwipeRenderState(group, options);
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
-  const deleteButton = renderKanbanStoryDeleteButton(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
@@ -9725,13 +9809,15 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
       ${currentFeedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(currentFeedback)}</small>` : ""}
     </button>
   </li>` : "";
-  return `<article class="kanban-archive-case study-plan-case${storyState.caseClass}">
+  return `<article class="kanban-archive-case study-plan-case${storyState.caseClass}${swipeState.articleClass}"${swipeState.articleAttrs}>
+    ${swipeState.deleteButton}
+    <div class="${swipeState.contentClass}"${swipeState.contentAttrs}>
     <header class="kanban-archive-case-head${storyState.toggleClass}"${storyState.toggleAttrs}>
       <div>
         <span>${escapeHtml([labels.plan, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
       </div>
-      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}${deleteButton}</span>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
     </header>
     ${cover ? renderKanbanCaseCover(cover, { compact: true }) : ""}
     <div class="kanban-archive-story-grid">
@@ -9749,6 +9835,7 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
       </section>
     </div>
     <ol class="kanban-archive-card-chain">${currentRow}</ol>
+    </div>
   </article>`;
 }
 
@@ -9799,8 +9886,8 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
     lastAttempt ? `上次 ${lastAttempt.score}/100` : "",
   ].filter(Boolean).join(" | ");
   const storyState = kanbanStoryCaseRenderState(group, options);
+  const swipeState = kanbanStorySwipeRenderState(group, options);
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
-  const deleteButton = renderKanbanStoryDeleteButton(group, options);
   const currentRow = currentTodo ? `<li>
     <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
       <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
@@ -9808,13 +9895,15 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
       <small>${escapeHtml([currentMeta, currentTodo?.kanbanRevisionOf ? "\u4fee\u6539\u4efb\u52a1" : ""].filter(Boolean).join(" | "))}</small>
     </button>
   </li>` : "";
-  return `<article class="kanban-archive-case assessment-plan-case${storyState.caseClass}">
+  return `<article class="kanban-archive-case assessment-plan-case${storyState.caseClass}${swipeState.articleClass}"${swipeState.articleAttrs}>
+    ${swipeState.deleteButton}
+    <div class="${swipeState.contentClass}"${swipeState.contentAttrs}>
     <header class="kanban-archive-case-head${storyState.toggleClass}"${storyState.toggleAttrs}>
       <div>
         <span>${escapeHtml(["考试计划", statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "考试计划")}</h3>
       </div>
-      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}${deleteButton}</span>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
     </header>
     <div class="kanban-archive-story-grid">
       <section>
@@ -9831,6 +9920,7 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
       </section>
     </div>
     <ol class="kanban-archive-card-chain">${currentRow}</ol>
+    </div>
   </article>`;
 }
 
@@ -9873,18 +9963,20 @@ function renderKanbanArchiveCase(group, options = {}) {
   }).join("");
   const more = cards.length > 8 ? `<li class="kanban-archive-more">+${cards.length - 8}</li>` : "";
   const storyState = kanbanStoryCaseRenderState(group, options);
+  const swipeState = kanbanStorySwipeRenderState(group, options);
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
-  const deleteButton = renderKanbanStoryDeleteButton(group, options);
   const modeClass = group.mode === "single-card"
     ? " single-card-case"
     : (group.mode === "multi-agent" ? " multi-agent-case" : "");
-  return `<article class="kanban-archive-case${modeClass}${storyState.caseClass}">
+  return `<article class="kanban-archive-case${modeClass}${storyState.caseClass}${swipeState.articleClass}"${swipeState.articleAttrs}>
+    ${swipeState.deleteButton}
+    <div class="${swipeState.contentClass}"${swipeState.contentAttrs}>
     <header class="kanban-archive-case-head${storyState.toggleClass}"${storyState.toggleAttrs}>
       <div>
         <span>${escapeHtml(["\u4efb\u52a1\u6545\u4e8b", modeLabel, statusSummary].filter(Boolean).join(" | "))}</span>
         <h3>${escapeHtml(group.title || first.content || first.id || "\u672a\u5f52\u7ec4")}</h3>
       </div>
-      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}${deleteButton}</span>
+      <span class="kanban-archive-case-tail"><small>${escapeHtml(latest)}</small>${archiveButton}</span>
     </header>
     ${cover ? renderKanbanCaseCover(cover, { compact: true }) : ""}
     <div class="kanban-archive-story-grid">
@@ -9902,6 +9994,7 @@ function renderKanbanArchiveCase(group, options = {}) {
       </section>
     </div>
     <ol class="kanban-archive-card-chain">${cardRows}${more}</ol>
+    </div>
   </article>`;
 }
 
@@ -11571,13 +11664,6 @@ function wireTodoPanel(root) {
       archiveKanbanStoryCase(button.dataset.archiveKanbanStoryCase || "").catch(showError);
     });
   });
-  root.querySelectorAll("[data-delete-kanban-story-case]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      deleteKanbanStoryCase(button.dataset.deleteKanbanStoryCase || "").catch(showError);
-    });
-  });
   root.querySelectorAll("[data-todo-id]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedTodoId = button.dataset.todoId || "";
@@ -12116,12 +12202,12 @@ async function archiveKanbanStoryCase(caseKey) {
 
 async function deleteKanbanStoryCase(caseKey) {
   const key = String(caseKey || "").trim();
-  if (!key) return;
+  if (!key) return false;
   const group = kanbanStoryCases(state.todos).find((item) => kanbanStoryCaseKey(item) === key);
   const items = kanbanStoryCaseDeleteItems(group);
   if (!group || !items.length) throw new Error("No deletable cards in this story.");
   const title = group.title || key;
-  if (!window.confirm(`\u5220\u9664\u6545\u4e8b\uff1a${title}\n\u5c06\u4e00\u6b21\u5220\u9664 ${items.length} \u5f20\u770b\u677f\u5361\u7247\uff0c\u4e0d\u53ef\u901a\u8fc7\u5355\u5361\u5165\u53e3\u64a4\u9500\u3002`)) return;
+  if (!window.confirm(`\u5220\u9664\u6545\u4e8b\uff1a${title}\n\u5c06\u4e00\u6b21\u5220\u9664 ${items.length} \u5f20\u770b\u677f\u5361\u7247\uff0c\u4e0d\u53ef\u901a\u8fc7\u5355\u5361\u5165\u53e3\u64a4\u9500\u3002`)) return false;
   for (const item of items) {
     await api(boardActionApiPath(item.todo.id, "delete"), {
       method: "POST",
@@ -12134,6 +12220,7 @@ async function deleteKanbanStoryCase(caseKey) {
   state.kanbanStoryExpanded = Object.assign({}, state.kanbanStoryExpanded || {}, { [key]: false });
   showPushToast(`\u5df2\u5220\u9664 ${items.length} \u5f20\u6545\u4e8b\u5361\u7247`, "success");
   await loadTodos({ skipCache: true, freshServer: true, includeCompleted: true });
+  return true;
 }
 
 async function blockTodo(todoId) {
@@ -15907,6 +15994,7 @@ function wireUi() {
 }
 
 async function start() {
+  applyFontFamilyPreference();
   applyFontSizePreference();
   wireUi();
   state.pwaInstalled = isStandalonePwa();

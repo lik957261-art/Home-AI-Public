@@ -13,6 +13,9 @@
       --line: rgba(36, 53, 48, 0.13);
       --accent: #1f7768;
       --word: #477cb3;
+      --viewer-font-scale: 1;
+      --viewer-markdown-font-scale: 1.1;
+      --viewer-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
     }
 
     * {
@@ -28,7 +31,7 @@
       background:
         radial-gradient(circle at 14% 6%, rgba(43, 126, 108, 0.12), transparent 30%),
         linear-gradient(180deg, #fbf6ea 0%, var(--paper) 100%);
-      font: 16px/1.45 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
+      font: calc(16px * var(--viewer-font-scale))/1.45 var(--viewer-font-family);
       overflow: hidden;
       touch-action: pan-y;
       -webkit-text-size-adjust: 100%;
@@ -171,7 +174,7 @@
       border-radius: 999px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
       backdrop-filter: blur(14px);
-      font: 760 14px/1.1 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
+      font: 760 calc(14px * var(--viewer-font-scale))/1.1 var(--viewer-font-family);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
@@ -232,7 +235,7 @@
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       color: #17242c;
-      font: 15px/1.72 "Microsoft YaHei", "Aptos", "Segoe UI", sans-serif;
+      font: calc(15px * var(--viewer-font-scale))/1.72 var(--viewer-font-family);
       overscroll-behavior-y: contain;
       -webkit-overflow-scrolling: touch;
       touch-action: pan-y;
@@ -242,13 +245,14 @@
       white-space: normal;
       overflow-wrap: anywhere;
       word-break: normal;
+      font-size: calc(15px * var(--viewer-markdown-font-scale));
     }
 
     .markdown-preview article {
       max-width: 860px;
       margin: 0 auto;
       color: #24292f;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+      font-family: var(--viewer-font-family);
       line-height: 1.72;
     }
 
@@ -536,7 +540,7 @@
       background: rgba(255, 255, 255, 0.74);
       border: 1px solid rgba(36, 53, 48, 0.12);
       border-radius: 14px;
-      font: 780 15px/1.2 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
+      font: 780 calc(15px * var(--viewer-font-scale))/1.2 var(--viewer-font-family);
       text-align: left;
     }
 
@@ -687,7 +691,7 @@
       overflow: visible;
       padding: calc(18px + env(safe-area-inset-top)) max(22px, env(safe-area-inset-left)) calc(32px + env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-right));
       color: #24292f;
-      font: 18px/1.72 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+      font: calc(18px * var(--viewer-font-scale))/1.72 var(--viewer-font-family);
       letter-spacing: 0;
       background: #fff;
       touch-action: pan-y;
@@ -696,6 +700,7 @@
     body.text-document-mode .preview-text.markdown-preview {
       padding-left: max(22px, calc((100vw - 900px) / 2));
       padding-right: max(22px, calc((100vw - 900px) / 2));
+      font-size: calc(18px * var(--viewer-markdown-font-scale));
       line-height: 1.72;
     }
 
@@ -703,8 +708,12 @@
       body.text-document-mode .preview-text {
         padding-left: 20px;
         padding-right: 20px;
-        font-size: 18px;
+        font-size: calc(18px * var(--viewer-font-scale));
         line-height: 1.72;
+      }
+
+      body.text-document-mode .preview-text.markdown-preview {
+        font-size: calc(18px * var(--viewer-markdown-font-scale));
       }
     }
   </style>
@@ -778,6 +787,70 @@
     let cachedPreviewText = "";
     let imageSwipe = null;
     let handlingViewerBack = false;
+    const VIEWER_FONT_SIZE_OPTIONS = Object.freeze([
+      { id: "small", scale: 0.92 },
+      { id: "standard", scale: 1 },
+      { id: "large", scale: 1.1 },
+      { id: "xlarge", scale: 1.2 },
+      { id: "xxlarge", scale: 1.32 },
+    ]);
+    const VIEWER_FONT_FAMILY_OPTIONS = Object.freeze([
+      {
+        id: "system",
+        family: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif',
+      },
+      {
+        id: "sans",
+        family: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Aptos", "Segoe UI", sans-serif',
+      },
+      {
+        id: "serif",
+        family: '"Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif',
+      },
+      {
+        id: "kai",
+        family: '"Kaiti SC", "KaiTi", "STKaiti", "Microsoft YaHei", serif',
+      },
+    ]);
+
+    function viewerFontSizeOption(value) {
+      const id = String(value || "").trim();
+      return VIEWER_FONT_SIZE_OPTIONS.find((option) => option.id === id)
+        || VIEWER_FONT_SIZE_OPTIONS.find((option) => option.id === "standard");
+    }
+
+    function viewerMarkdownSizeOption(value) {
+      const option = viewerFontSizeOption(value);
+      const index = VIEWER_FONT_SIZE_OPTIONS.findIndex((item) => item.id === option.id);
+      return VIEWER_FONT_SIZE_OPTIONS[Math.min(VIEWER_FONT_SIZE_OPTIONS.length - 1, Math.max(0, index) + 1)] || option;
+    }
+
+    function viewerFontFamilyOption(value) {
+      const id = String(value || "").trim();
+      return VIEWER_FONT_FAMILY_OPTIONS.find((option) => option.id === id) || VIEWER_FONT_FAMILY_OPTIONS[0];
+    }
+
+    function currentViewerPreferences() {
+      const fontSize = viewerFontSizeOption(localStorage.getItem("hermesWebFontSize") || "standard");
+      const markdownSize = viewerMarkdownSizeOption(fontSize.id);
+      const fontFamily = viewerFontFamilyOption(localStorage.getItem("hermesWebFontFamily") || "system");
+      return { fontSize, markdownSize, fontFamily };
+    }
+
+    function applyViewerPreferences() {
+      const prefs = currentViewerPreferences();
+      document.documentElement.dataset.fontSize = prefs.fontSize.id;
+      document.documentElement.dataset.fontFamily = prefs.fontFamily.id;
+      document.documentElement.style.setProperty("--viewer-font-scale", String(prefs.fontSize.scale));
+      document.documentElement.style.setProperty("--viewer-markdown-font-scale", String(prefs.markdownSize.scale));
+      document.documentElement.style.setProperty("--viewer-font-family", prefs.fontFamily.family);
+    }
+
+    function cssPx(value) {
+      return `${Number(value || 0).toFixed(2).replace(/\.?0+$/, "")}px`;
+    }
+
+    applyViewerPreferences();
 
     function formatBytes(bytes) {
       const n = Number(bytes || 0);
@@ -1422,6 +1495,9 @@
     }
 
     function markdownExportHtml(options = {}) {
+      const prefs = currentViewerPreferences();
+      const markdownFontSize = cssPx(18 * prefs.markdownSize.scale);
+      const fontFamily = prefs.fontFamily.family;
       const autoPrintScript = options.autoPrint ? `<script>
 window.addEventListener("load", function () {
   window.setTimeout(function () {
@@ -1437,7 +1513,7 @@ window.addEventListener("load", function () {
   <title>${escapeHtml(name)}</title>
   <style>
     *{box-sizing:border-box;}
-    body{margin:0;background:#fff;color:#24292f;font:18px/1.72 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;-webkit-text-size-adjust:100%;}
+    body{margin:0;background:#fff;color:#24292f;font:${markdownFontSize}/1.72 ${fontFamily};-webkit-text-size-adjust:100%;}
     main{max-width:860px;margin:0 auto;padding:28px 22px 48px;overflow-wrap:anywhere;}
     article{max-width:860px;margin:0 auto;}
     h1,h2,h3,h4{line-height:1.25;margin:1.35em 0 .62em;color:#1f2328;font-weight:760;letter-spacing:0;overflow-wrap:anywhere;}
@@ -1452,7 +1528,7 @@ window.addEventListener("load", function () {
     pre{overflow-x:auto;background:#f6f8fa;border:1px solid #d8dee4;border-radius:8px;padding:1em;line-height:1.55;-webkit-overflow-scrolling:touch;}pre code{background:transparent;padding:0;border-radius:0;font-size:.9em;}
     .markdown-table-wrap{max-width:100%;overflow-x:auto;border:1px solid #d8dee4;border-radius:8px;background:#fff;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;}table{width:100%;border-collapse:collapse;font-size:.94em;margin:0;}th,td{min-width:0;border:1px solid #d0d7de;padding:.55em .65em;vertical-align:top;overflow-wrap:anywhere;}th{background:#f6f8fa;font-weight:820;}tr:nth-child(even) td{background:rgba(246,248,250,.56);}
     hr{margin:1.5em 0;border:0;border-top:1px solid #d8dee4;}
-    @media(max-width:640px){body{font-size:17px;}main{padding:22px 16px 40px;}.markdown-table-wrap{overflow:visible;border:0;border-radius:0;background:transparent;touch-action:pan-y;}table,thead,tbody,tr,th,td{display:block;width:100%;}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}tr{margin:0 0 .82em;border:1px solid #d0d7de;border-radius:8px;background:#fff;overflow:hidden;}td{display:grid;grid-template-columns:minmax(5.8em,34%) minmax(0,1fr);gap:.7em;align-items:start;border:0;border-bottom:1px solid #d8dee4;overflow-wrap:anywhere;word-break:break-word;}td:last-child{border-bottom:0;}td::before{content:attr(data-label);color:#57606a;font-size:.82em;font-weight:780;line-height:1.35;overflow-wrap:anywhere;}td[data-label=""]{grid-template-columns:1fr;}td[data-label=""]::before{content:none;}}
+    @media(max-width:640px){main{padding:22px 16px 40px;}.markdown-table-wrap{overflow:visible;border:0;border-radius:0;background:transparent;touch-action:pan-y;}table,thead,tbody,tr,th,td{display:block;width:100%;}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}tr{margin:0 0 .82em;border:1px solid #d0d7de;border-radius:8px;background:#fff;overflow:hidden;}td{display:grid;grid-template-columns:minmax(5.8em,34%) minmax(0,1fr);gap:.7em;align-items:start;border:0;border-bottom:1px solid #d8dee4;overflow-wrap:anywhere;word-break:break-word;}td:last-child{border-bottom:0;}td::before{content:attr(data-label);color:#57606a;font-size:.82em;font-weight:780;line-height:1.35;overflow-wrap:anywhere;}td[data-label=""]{grid-template-columns:1fr;}td[data-label=""]::before{content:none;}}
     @media print{body{background:#fff;font-size:12pt;}main{max-width:none;padding:18mm 16mm;}a{color:inherit;text-decoration:underline;}}
   </style>
 </head>
@@ -1490,9 +1566,11 @@ window.addEventListener("load", function () {
     function openMarkdownPrintWindow() {
       const printWindow = window.open("about:blank", "_blank");
       if (!printWindow) return null;
+      const prefs = currentViewerPreferences();
+      const loadingFontSize = cssPx(18 * prefs.fontSize.scale);
       try {
         printWindow.document.open();
-        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preparing PDF</title><style>body{margin:0;background:#f7f1e8;color:#17222b;font:18px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}main{padding:28px 22px;}</style></head><body><main>Preparing PDF preview...</main></body></html>`);
+        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preparing PDF</title><style>body{margin:0;background:#f7f1e8;color:#17222b;font:${loadingFontSize}/1.7 ${prefs.fontFamily.family};}main{padding:28px 22px;}</style></head><body><main>Preparing PDF preview...</main></body></html>`);
         printWindow.document.close();
       } catch (_) {}
       return printWindow;

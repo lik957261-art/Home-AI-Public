@@ -21,9 +21,10 @@
   --radius: 18px;
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
   --app-font-scale: 1;
+  --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
   --mobile-bottom-nav-height: calc(80px + env(safe-area-inset-bottom));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 12px));
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-family: var(--app-font-family);
 }
 
 :root[data-font-size="small"] {
@@ -1937,7 +1938,7 @@ button {
 .message.assistant .message-body {
   padding: 18px 19px 20px;
   color: #142027;
-  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Aptos", "Segoe UI", sans-serif;
+  font-family: var(--app-font-family);
   font-size: 16.8px;
   line-height: 1.78;
 }
@@ -3704,6 +3705,12 @@ button.directory-alias-chip {
   gap: 7px;
 }
 
+.font-family-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
 .font-size-option {
   min-width: 0;
   min-height: 48px;
@@ -3718,7 +3725,28 @@ button.directory-alias-chip {
   font-weight: 560;
 }
 
+.font-family-option {
+  min-width: 0;
+  min-height: 54px;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  padding: 7px 5px;
+  color: var(--ink);
+  background: rgba(255, 252, 246, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-family: var(--font-preview-family, var(--app-font-family));
+  font-weight: 560;
+}
+
 .font-size-option.active {
+  color: #fffaf1;
+  background: var(--accent);
+  border-color: rgba(31, 111, 98, 0.45);
+}
+
+.font-family-option.active {
   color: #fffaf1;
   background: var(--accent);
   border-color: rgba(31, 111, 98, 0.45);
@@ -3729,10 +3757,22 @@ button.directory-alias-chip {
   line-height: 1.1;
 }
 
+.font-family-option-name {
+  font-size: 12px;
+  line-height: 1.1;
+}
+
 .font-size-option-sample {
   color: inherit;
   opacity: 0.86;
   font-size: calc(15px * var(--font-preview-scale, 1));
+  line-height: 1;
+}
+
+.font-family-option-sample {
+  color: inherit;
+  opacity: 0.9;
+  font-size: calc(18px * var(--app-font-scale));
   line-height: 1;
 }
 
@@ -5505,14 +5545,14 @@ button.directory-alias-chip {
 
 .todo-kanban-lane-title {
   color: var(--ink);
-  font-size: 15px;
+  font-size: calc(15px * var(--app-font-scale));
   font-weight: 600;
   line-height: 1.2;
 }
 
 .todo-kanban-lane-code {
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--app-font-scale));
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -5525,7 +5565,7 @@ button.directory-alias-chip {
   text-align: center;
   background: var(--accent-soft);
   border-radius: 999px;
-  font-size: 12px;
+  font-size: calc(12px * var(--app-font-scale));
   font-weight: 560;
 }
 
@@ -5550,6 +5590,18 @@ button.directory-alias-chip {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 10px 24px rgba(20, 32, 39, 0.055);
+}
+
+.kanban-story-swipe-content {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  border-radius: inherit;
+}
+
+.kanban-story-swipe-delete {
+  width: 84px;
+  font-size: calc(13px * var(--app-font-scale));
 }
 
 .kanban-archive-case::before {
@@ -5583,7 +5635,8 @@ button.directory-alias-chip {
   background: rgba(249, 246, 238, 0.82);
 }
 
-.kanban-archive-case.story-collapsed > :not(.kanban-archive-case-head) {
+.kanban-archive-case.story-collapsed > :not(.kanban-archive-case-head):not(.kanban-story-swipe-content):not(.task-swipe-delete),
+.kanban-archive-case.story-collapsed .kanban-story-swipe-content > :not(.kanban-archive-case-head) {
   display: none;
 }
 
@@ -5591,12 +5644,14 @@ button.directory-alias-chip {
   border-bottom: 0;
 }
 
-.kanban-archive-case > :not(.kanban-archive-case-head) {
+.kanban-archive-case > :not(.kanban-archive-case-head):not(.kanban-story-swipe-content):not(.task-swipe-delete),
+.kanban-archive-case .kanban-story-swipe-content > :not(.kanban-archive-case-head) {
   margin-right: 12px;
   margin-left: 18px;
 }
 
-.kanban-archive-case > :last-child:not(.kanban-archive-case-head) {
+.kanban-archive-case > :last-child:not(.kanban-archive-case-head):not(.kanban-story-swipe-content),
+.kanban-archive-case .kanban-story-swipe-content > :last-child:not(.kanban-archive-case-head) {
   margin-bottom: 12px;
 }
 
@@ -5638,7 +5693,7 @@ button.directory-alias-chip {
   border-radius: 999px;
   color: var(--accent);
   background: rgba(50, 132, 108, 0.08);
-  font-size: 12px;
+  font-size: calc(12px * var(--app-font-scale));
   font-weight: 600;
 }
 
@@ -5661,14 +5716,14 @@ button.directory-alias-chip {
 .kanban-archive-case-head span,
 .kanban-archive-case-head small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(12px * var(--app-font-scale));
   font-weight: 500;
 }
 
 .kanban-archive-case-head h3 {
   margin: 0;
   color: var(--ink);
-  font-size: 16px;
+  font-size: calc(17px * var(--app-font-scale));
   font-weight: 600;
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -5693,7 +5748,7 @@ button.directory-alias-chip {
 
 .kanban-archive-story-grid strong {
   color: var(--gold);
-  font-size: 11px;
+  font-size: calc(12px * var(--app-font-scale));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -5702,7 +5757,7 @@ button.directory-alias-chip {
 .kanban-archive-story-grid p {
   margin: 0;
   color: var(--ink);
-  font-size: 13px;
+  font-size: calc(15px * var(--app-font-scale));
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -5738,14 +5793,14 @@ button.directory-alias-chip {
   text-align: center;
   background: var(--accent-soft);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: calc(12px * var(--app-font-scale));
   font-weight: 560;
 }
 
 .kanban-archive-card-chain button strong {
   min-width: 0;
   color: var(--ink);
-  font-size: 13px;
+  font-size: calc(15px * var(--app-font-scale));
   font-weight: 600;
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -5754,7 +5809,7 @@ button.directory-alias-chip {
 .kanban-archive-card-chain button small,
 .kanban-archive-more {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(13px * var(--app-font-scale));
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
@@ -5804,14 +5859,14 @@ button.directory-alias-chip {
   color: var(--accent);
   background: rgba(231, 244, 238, 0.72);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: calc(11px * var(--app-font-scale));
   font-weight: 560;
 }
 
 .todo-kanban-card-title {
   min-width: 0;
   color: var(--ink);
-  font-size: 15px;
+  font-size: calc(15px * var(--app-font-scale));
   font-weight: 600;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -5819,7 +5874,7 @@ button.directory-alias-chip {
 
 .todo-kanban-card-meta {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--app-font-scale));
 }
 
 .todo-kanban-card-chips,
@@ -5840,7 +5895,7 @@ button.directory-alias-chip {
   background: rgba(20, 32, 39, 0.045);
   border: 1px solid rgba(20, 32, 39, 0.07);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: calc(11px * var(--app-font-scale));
   font-weight: 500;
   overflow-wrap: anywhere;
 }
