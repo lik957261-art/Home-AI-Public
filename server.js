@@ -6958,29 +6958,13 @@ function kanbanAssessmentCanStart(card = {}, state = null, priorCards = [], work
 function assessmentExamReportPath(workspaceId, cardId, currentCard, exam, attempt) {
   const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId);
   const mdPath = path.join(dir, `${Date.now()}-${safeFileName(currentCard?.content || cardId)}-assessment-report.md`);
-  const wrong = (attempt.results || []).filter((item) => !item.correct);
-  const lines = [
-    `# ${currentCard?.content || exam.title || "Assessment Report"}`,
-    "",
-    `- Card: ${cardId}`,
-    `- Subject: ${exam.subject || ""}`,
-    `- Score: ${attempt.score}/100`,
-    `- Correct: ${attempt.correctCount}/${attempt.total}`,
-    `- Passing score: ${exam.passingScore}/100`,
-    `- Passed: ${attempt.passed ? "yes" : "no"}`,
-    `- Submitted: ${attempt.submittedAt}`,
-    "",
-    "## Summary",
-    "",
-    attempt.passed
-      ? "This formal assessment reached the passing score."
-      : "This formal assessment did not reach the passing score. Retake is required before the card can complete.",
-    "",
-    "## Incorrect Items",
-    "",
-    wrong.length ? wrong.map((item) => `- ${item.id}: ${item.explanation || "Review this skill."}`).join("\n") : "None.",
-  ];
-  fs.writeFileSync(mdPath, lines.join("\n"), "utf8");
+  const markdown = assessmentExamService.buildAssessmentExamReportMarkdown({
+    cardId,
+    cardTitle: currentCard?.content || exam.title || "Assessment Report",
+    exam,
+    attempt,
+  });
+  fs.writeFileSync(mdPath, markdown, "utf8");
   return mdPath;
 }
 

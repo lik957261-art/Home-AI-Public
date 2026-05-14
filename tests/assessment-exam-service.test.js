@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   assessmentChoiceSet,
   assessmentLooksLikeAmc8,
+  buildAssessmentExamReportMarkdown,
   fractionText,
   generateVerifiedAmc8AssessmentQuestions,
   gradeAssessmentExam,
@@ -142,11 +143,37 @@ function testGradeAssessmentExam() {
   assert.deepEqual(invalid.missingAnswers, ["q3"]);
 }
 
+function testBuildAssessmentExamReportMarkdown() {
+  const markdown = buildAssessmentExamReportMarkdown({
+    cardId: "card-1",
+    cardTitle: "Formal Math Check",
+    exam: { subject: "Math", passingScore: 80 },
+    attempt: {
+      submittedAt: "fixed",
+      score: 67,
+      correctCount: 2,
+      total: 3,
+      passed: false,
+      results: [
+        { id: "q1", correct: true, explanation: "ok" },
+        { id: "q2", correct: false, explanation: "review ratio" },
+      ],
+    },
+  });
+  assert.match(markdown, /^# Formal Math Check/);
+  assert.match(markdown, /- Card: card-1/);
+  assert.match(markdown, /- Score: 67\/100/);
+  assert.match(markdown, /Retake is required/);
+  assert.match(markdown, /- q2: review ratio/);
+  assert.equal(markdown.includes("q1: ok"), false);
+}
+
 testSeededRandomIsDeterministic();
 testAssessmentChoiceSet();
 testFractionsAndAmcDetection();
 testVerifiedAmc8Questions();
 testNormalizeAssessmentExam();
 testGradeAssessmentExam();
+testBuildAssessmentExamReportMarkdown();
 
 console.log("assessment exam service tests passed");

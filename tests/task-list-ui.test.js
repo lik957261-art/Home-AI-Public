@@ -489,6 +489,7 @@ assert.match(serverJs, /const canonicalCardId = String\(currentCard\.id \|\| car
 assert.match(serverJs, /function generateVerifiedAmc8AssessmentQuestions\(config = \{\}, seedText = ""\)/);
 assert.match(assessmentExamServiceJs, /function generateVerifiedAmc8AssessmentQuestions\(config = \{\}, seedText = "", options = \{\}\)/);
 assert.match(assessmentExamServiceJs, /function normalizeAssessmentExam\(raw = \{\}, config = \{\}, options = \{\}\)/);
+assert.match(assessmentExamServiceJs, /function buildAssessmentExamReportMarkdown\(input = \{\}\)/);
 assert.match(serverJs, /assessmentLooksLikeAmc8\(config, seedText\)/);
 assert.match(serverJs, /function kanbanAssessmentArchived\(card = \{\}\)/);
 assert.match(serverJs, /kanbanAssessmentCanStart\(currentCard, existing, context\.prior \|\| \[\], workspaceId\)/);

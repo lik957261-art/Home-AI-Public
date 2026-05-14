@@ -74,6 +74,7 @@ function assertAppearsInOrder(text, labels) {
 
 function testRefactorModulesExportStableContracts() {
   assert.equal(typeof assessmentExamService.generateVerifiedAmc8AssessmentQuestions, "function");
+  assert.equal(typeof assessmentExamService.buildAssessmentExamReportMarkdown, "function");
   assert.equal(typeof assessmentExamService.gradeAssessmentExam, "function");
   assert.equal(typeof assessmentExamService.normalizeAssessmentExam, "function");
   assert.equal(typeof bridgeCommandProvider.createBridgeCommandProvider, "function");
@@ -230,6 +231,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /assessmentExamService\.normalizeAssessmentExam/);
   assert.match(server, /assessmentExamService\.generateVerifiedAmc8AssessmentQuestions/);
   assert.match(server, /assessmentExamService\.gradeAssessmentExam/);
+  assert.match(server, /assessmentExamService\.buildAssessmentExamReportMarkdown/);
   assert.match(server, /createDocumentPreviewService/);
   assert.match(server, /documentPreviewService\.extractDocxText/);
   assert.match(server, /documentPreviewService\.textFilePreview/);

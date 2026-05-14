@@ -266,9 +266,39 @@ function gradeAssessmentExam(exam = {}, state = {}, body = {}, options = {}) {
   };
 }
 
+function buildAssessmentExamReportMarkdown(input = {}) {
+  const cardTitle = String(input.cardTitle || input.exam?.title || "Assessment Report");
+  const cardId = String(input.cardId || "");
+  const exam = input.exam || {};
+  const attempt = input.attempt || {};
+  const wrong = (Array.isArray(attempt.results) ? attempt.results : []).filter((item) => !item.correct);
+  return [
+    `# ${cardTitle}`,
+    "",
+    `- Card: ${cardId}`,
+    `- Subject: ${exam.subject || ""}`,
+    `- Score: ${Number(attempt.score || 0)}/100`,
+    `- Correct: ${Number(attempt.correctCount || 0)}/${Number(attempt.total || 0)}`,
+    `- Passing score: ${Number(exam.passingScore || attempt.passingScore || 0)}/100`,
+    `- Passed: ${attempt.passed ? "yes" : "no"}`,
+    `- Submitted: ${attempt.submittedAt || ""}`,
+    "",
+    "## Summary",
+    "",
+    attempt.passed
+      ? "This formal assessment reached the passing score."
+      : "This formal assessment did not reach the passing score. Retake is required before the card can complete.",
+    "",
+    "## Incorrect Items",
+    "",
+    wrong.length ? wrong.map((item) => `- ${item.id}: ${item.explanation || "Review this skill."}`).join("\n") : "None.",
+  ].join("\n");
+}
+
 module.exports = {
   assessmentChoiceSet,
   assessmentLooksLikeAmc8,
+  buildAssessmentExamReportMarkdown,
   fractionText,
   generateVerifiedAmc8AssessmentQuestions,
   gradeAssessmentExam,
