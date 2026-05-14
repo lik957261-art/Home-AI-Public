@@ -149,6 +149,17 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "thread-task-api-routes",
+    exportName: "createThreadTaskApiRoutes",
+    required: false,
+    minRoutes: 3,
+    probes: [
+      { method: "PATCH", path: "/api/threads/thread-1/tasks/task-1", id: "thread-task-rename" },
+      { method: "DELETE", path: "/api/threads/thread-1/tasks/task-1", id: "thread-task-delete" },
+      { method: "POST", path: "/api/threads/thread-1/interrupt", id: "thread-interrupt" },
+    ],
+  },
+  {
     key: "todo-api-routes",
     exportName: "createTodoApiRoutes",
     required: false,
@@ -287,6 +298,8 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("kanban"));
   assert.ok(modules.has("kanban-study"));
   assert.ok(modules.has("thread-message"));
+  assert.ok(modules.has("thread-task"));
+  assert.ok(modules.has("thread-run"));
   assert.ok(modules.has("directory-share"));
   assert.ok(modules.has("directory-mutation"));
   assert.deepEqual(modules.get("weixin-ingress").authModes, ["ingress"]);

@@ -53,6 +53,7 @@ const { createResourceApiRoutes } = require("./server-routes/resource-api-routes
 const { createRuntimeConfigApiRoutes } = require("./server-routes/runtime-config-api-routes");
 const { createSystemApiRoutes } = require("./server-routes/system-api-routes");
 const { createThreadReadUploadApiRoutes } = require("./server-routes/thread-read-upload-api-routes");
+const { createThreadTaskApiRoutes } = require("./server-routes/thread-task-api-routes");
 const { createTodoApiRoutes } = require("./server-routes/todo-api-routes");
 const { createWeixinApiRoutes } = require("./server-routes/weixin-api-routes");
 const { createWorkspaceApiRoutes } = require("./server-routes/workspace-api-routes");
@@ -734,6 +735,22 @@ const threadReadUploadApiRoutes = createThreadReadUploadApiRoutes({
   threadMessagesPage,
   threadSummary,
   workspaceUploadDirectoryForRequest,
+});
+const threadTaskApiRoutes = createThreadTaskApiRoutes({
+  broadcast,
+  compactThread,
+  dedupe,
+  findThreadForRequest,
+  isSingleWindowConversationTaskGroupId,
+  normalizeTaskGroupMeta,
+  nowIso,
+  readBody,
+  sanitizeTaskGroupId,
+  sanitizeTaskTitle,
+  saveState,
+  sendJson,
+  state: () => state,
+  stopRunIds,
 });
 bootTrace("core api routes ready");
 let todoWebPushRunning = false;
@@ -13851,6 +13868,7 @@ async function handleApi(req, res) {
   if ((await directoryShareApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await directoryMutationApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await threadReadUploadApiRoutes.handle(req, res, url, { auth })).handled) return;
+  if ((await threadTaskApiRoutes.handle(req, res, url, { auth })).handled) return;
 
   if (url.pathname === "/api/single-window" && req.method === "POST") {
     const body = await readBody(req);
@@ -14526,125 +14544,6 @@ async function handleApi(req, res) {
       messages: touchedMessages.map(compactMessage),
       thread: compactThread(thread),
     });
-    return;
-  }
-
-  const taskDelete = url.pathname.match(/^\/api\/threads\/([^/]+)\/tasks\/([^/]+)$/);
-  if (taskDelete && req.method === "PATCH") {
-    const thread = findThreadForRequest(req, decodeURIComponent(taskDelete[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    if (!thread.singleWindow) {
-      sendJson(res, 400, { error: "Task rename is only supported for single-window task groups" });
-      return;
-    }
-    const taskGroupId = sanitizeTaskGroupId(decodeURIComponent(taskDelete[2]));
-    if (isSingleWindowConversationTaskGroupId(taskGroupId)) {
-      sendJson(res, 400, { error: "Chat history cannot be renamed as a task" });
-      return;
-    }
-    const groupMessages = (thread.messages || []).filter((message) => message.taskGroupId === taskGroupId);
-    if (!groupMessages.length) {
-      sendJson(res, 404, { error: "Task not found" });
-      return;
-    }
-    const body = await readBody(req).catch(() => ({}));
-    const title = sanitizeTaskTitle(body.title || body.name || "");
-    if (!title) {
-      sendJson(res, 400, { error: "Task title is required" });
-      return;
-    }
-    const updatedAt = nowIso();
-    thread.taskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
-    thread.taskGroupMeta[taskGroupId] = { title, updatedAt };
-    thread.updatedAt = updatedAt;
-    saveState();
-    broadcast({ type: "task.renamed", threadId: thread.id, taskGroupId, title, thread: compactThread(thread) });
-    sendJson(res, 200, { ok: true, taskGroupId, title, thread: compactThread(thread) });
-    return;
-  }
-
-  if (taskDelete && req.method === "DELETE") {
-    const thread = findThreadForRequest(req, decodeURIComponent(taskDelete[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    if (!thread.singleWindow) {
-      sendJson(res, 400, { error: "Task deletion is only supported for single-window task groups" });
-      return;
-    }
-    const taskGroupId = sanitizeTaskGroupId(decodeURIComponent(taskDelete[2]));
-    if (isSingleWindowConversationTaskGroupId(taskGroupId)) {
-      sendJson(res, 400, { error: "Chat history cannot be deleted as a task" });
-      return;
-    }
-    const deletedMessages = (thread.messages || []).filter((message) => message.taskGroupId === taskGroupId);
-    if (!deletedMessages.length) {
-      sendJson(res, 404, { error: "Task not found" });
-      return;
-    }
-    const deletedMessageIds = new Set(deletedMessages.map((message) => message.id).filter(Boolean));
-    const deletedArtifactIds = new Set();
-    for (const message of deletedMessages) {
-      for (const artifact of Array.isArray(message.artifacts) ? message.artifacts : []) {
-        if (artifact?.id) deletedArtifactIds.add(String(artifact.id));
-      }
-    }
-    const activeRunIds = deletedMessages
-      .filter((message) => ["queued", "running"].includes(message.status))
-      .map((message) => message.runId)
-      .filter(Boolean);
-    let stoppedRunIds = [];
-    try {
-      stoppedRunIds = await stopRunIds(activeRunIds);
-    } catch (err) {
-      sendJson(res, err.status || 502, { error: err.message || String(err) });
-      return;
-    }
-    thread.activeRunIds = (thread.activeRunIds || []).filter((runId) => !activeRunIds.includes(runId));
-    if (activeRunIds.includes(thread.activeRunId)) thread.activeRunId = thread.activeRunIds[thread.activeRunIds.length - 1] || null;
-    thread.messages = (thread.messages || []).filter((message) => message.taskGroupId !== taskGroupId);
-    if (thread.taskGroupMeta && typeof thread.taskGroupMeta === "object") delete thread.taskGroupMeta[taskGroupId];
-    thread.status = thread.activeRunIds.length ? "running" : "idle";
-    thread.updatedAt = nowIso();
-    state.artifacts = (state.artifacts || []).filter((artifact) => {
-      if (deletedArtifactIds.has(String(artifact.id || ""))) return false;
-      if (artifact.threadId === thread.id && deletedMessageIds.has(String(artifact.messageId || ""))) return false;
-      return true;
-    });
-    saveState(state, { allowMessageDrop: true, reason: "task-delete", forceBackup: true });
-    broadcast({ type: "task.deleted", threadId: thread.id, taskGroupId, stoppedRunIds, thread: compactThread(thread) });
-    sendJson(res, 200, { ok: true, taskGroupId, deletedMessages: deletedMessages.length, stoppedRunIds, thread: compactThread(thread) });
-    return;
-  }
-
-  const interrupt = url.pathname.match(/^\/api\/threads\/([^/]+)\/interrupt$/);
-  if (interrupt && req.method === "POST") {
-    const thread = findThreadForRequest(req, decodeURIComponent(interrupt[1]));
-    const body = await readBody(req).catch(() => ({}));
-    const taskGroupId = body.taskGroupId ? sanitizeTaskGroupId(body.taskGroupId) : "";
-    let runIds = thread ? dedupe([...(thread.activeRunIds || []), thread.activeRunId].filter(Boolean)) : [];
-    if (thread && taskGroupId) {
-      const groupRunIds = (thread.messages || [])
-        .filter((message) => message.taskGroupId === taskGroupId)
-        .filter((message) => ["queued", "running"].includes(message.status))
-        .map((message) => message.runId)
-        .filter(Boolean);
-      runIds = runIds.filter((runId) => groupRunIds.includes(runId));
-    }
-    if (!thread || !runIds.length) {
-      sendJson(res, 404, { error: "No active run for thread" });
-      return;
-    }
-    try {
-      await stopRunIds(runIds);
-      sendJson(res, 200, { ok: true, runIds });
-    } catch (err) {
-      sendJson(res, err.status || 502, { error: err.message || String(err) });
-    }
     return;
   }
 
