@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const { createGatewayStatusProjection } = require("../adapters/gateway-status-projection");
 const { createSystemApiRoutes, SYSTEM_API_ROUTE_SPECS } = require("../server-routes/system-api-routes");
 
 function makeResponse() {
@@ -25,6 +26,11 @@ function sendJson(res, status, data) {
 
 function makeRoutes(overrides = {}) {
   const calls = [];
+  const gatewayStatusProjection = createGatewayStatusProjection({
+    isOwnerAuth(auth) {
+      return auth?.workspaceId === "owner";
+    },
+  });
   const deps = Object.assign({
     authenticateRequest(req) {
       const key = req.headers?.["x-hermes-web-key"] || "";
@@ -59,7 +65,7 @@ function makeRoutes(overrides = {}) {
       return Promise.resolve({
         ok: true,
         health: { status: "ok" },
-        gatewayPool: { enabled: true, workers: [{ id: "lowgw1", url: "http://127.0.0.1:18751" }] },
+        gatewayPool: { enabled: true, workers: [{ id: "lowgw1", url: "http://127.0.0.1:18751", healthy: true }] },
       });
     },
     isOwnerAuth(auth) {
@@ -69,7 +75,7 @@ function makeRoutes(overrides = {}) {
       return auth.workspaceId === "owner" ? { activeGlobal: 1 } : { activeForWorkspace: 1 };
     },
     publicGatewayPoolStatusForAuth(auth, pool) {
-      return auth.workspaceId === "owner" ? pool : { enabled: Boolean(pool?.enabled), workerCount: pool?.workers?.length || 0 };
+      return gatewayStatusProjection.publicGatewayPoolStatusForAuth(auth, pool);
     },
     publicOwnerElevationStatus(auth) {
       return { owner: auth.workspaceId === "owner", active: false };
@@ -168,7 +174,7 @@ async function testStatusShapeForWorkspaceAndOwner() {
   const userStatus = JSON.parse(userRes.body);
   assert.equal(userRes.statusCode, 200);
   assert.equal(userStatus.ok, true);
-  assert.deepEqual(userStatus.gatewayPool, { enabled: true, workerCount: 1 });
+  assert.deepEqual(userStatus.gatewayPool, { enabled: true, mode: "", workerCount: 1, healthy: 1 });
   assert.equal(Object.hasOwn(userStatus, "catalog"), false);
   assert.deepEqual(userStatus.display, {
     ownerLabel: "Owner",

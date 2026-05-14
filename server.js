@@ -20,6 +20,7 @@ const { createExternalIntegrationProvider } = require("./adapters/external-integ
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
+const { createGatewayStatusProjection, gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanAssigneePolicy } = require("./adapters/kanban-assignee-policy");
@@ -491,6 +492,9 @@ const authProvider = createAuthProvider({
   listWorkspaces: () => loadCatalog().workspaces,
 });
 bootTrace("auth ready");
+const gatewayStatusProjection = createGatewayStatusProjection({
+  isOwnerAuth,
+});
 const publicApiRoutes = createPublicApiRoutes({
   authenticateRequest,
   createInitialOwnerKey,
@@ -1229,61 +1233,7 @@ function publicReasoningInfoForAuth(auth) {
 }
 
 function publicGatewayPoolStatusForAuth(auth, pool) {
-  if (isOwnerAuth(auth)) return pool || null;
-  if (!pool || typeof pool !== "object") return null;
-  const workers = Array.isArray(pool.workers) ? pool.workers : [];
-  const includeFinalAssessment = raw.includeFinalAssessment !== false && raw.include_final_assessment !== false;
-  if (includeFinalAssessment) {
-    const finalQuestionCount = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(raw.finalQuestionCount || raw.final_question_count || 20) || 20));
-    const finalDurationMinutes = Math.max(5, Math.min(180, Number(raw.finalDurationMinutes || raw.final_duration_minutes || 30) || 30));
-    const finalPassingScore = Math.max(50, Math.min(100, Number(raw.finalPassingScore || raw.final_passing_score || 80) || 80));
-    const finalConfig = {
-      schemaVersion: 1,
-      kind: "final-study-assessment",
-      subject,
-      subjectId: normalizeKanbanAssessmentSubjectId(subject),
-      learnerName,
-      courseLevel: compactText(raw.courseLevel || raw.course_level || "学习计划阶段结束", 80),
-      questionCount: finalQuestionCount,
-      durationMinutes: finalDurationMinutes,
-      passingScore: finalPassingScore,
-      difficulty: compactText(raw.finalDifficulty || raw.final_difficulty || "覆盖本阶段全部内容，难度高于每日小测", 160),
-      retakeUntilPass: true,
-      examIndex: sessions + 1,
-      examCount: sessions + 1,
-      finalExam: true,
-    };
-    cards.push({
-      clientId: "final-assessment",
-      title: `${learnerName}${subject}阶段结束综合考试`,
-      day: sessions + 1,
-      dueTime: readingPlanDueTime(startDate, timeOfDay, sessions),
-      description: compactText([
-        `学习计划：${summary}`,
-        "最终阶段性考试，不再安排中间阶段测。",
-        `题量：${finalQuestionCount} 题`,
-        `时长：${finalDurationMinutes} 分钟`,
-        `通过线：${finalPassingScore} 分`,
-        "考试范围必须覆盖本阶段全部学习内容；未达到通过线时保持重考状态，直到通过为止。",
-        sourceText ? `本阶段学习要求：\n${sourceText}` : "",
-      ].filter(Boolean).join("\n\n"), 1800),
-      caseTemplate: "final-assessment",
-      config: finalConfig,
-      deliverables: ["阶段综合考卷", "自动评分", "阶段学习成果诊断", "补强与重考建议"],
-      acceptance: [
-        `完成 ${finalQuestionCount} 题综合考试`,
-        `得分达到 ${finalPassingScore}/100`,
-        "未达标则继续重考",
-        "生成阶段总结报告",
-      ],
-    });
-  }
-  return {
-    enabled: Boolean(pool.enabled),
-    mode: pool.mode || "",
-    workerCount: Number(pool.workerCount || workers.length || 0),
-    healthy: workers.filter((worker) => worker.healthy === true).length,
-  };
+  return gatewayStatusProjection.publicGatewayPoolStatusForAuth(auth, pool);
 }
 
 function publicConcurrencyForAuth(auth) {
@@ -11199,12 +11149,6 @@ async function getHermesStatus() {
     status.ok = true;
   }
   return status;
-}
-
-function gatewayPoolStatusHealthy(poolStatus) {
-  if (!poolStatus?.enabled) return false;
-  const workers = Array.isArray(poolStatus.workers) ? poolStatus.workers : [];
-  return workers.some((worker) => worker?.healthy === true);
 }
 
 function isToolUnavailableClaimText(text) {

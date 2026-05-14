@@ -7,6 +7,7 @@ const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
 const documentPreviewService = require("../adapters/document-preview-service");
 const fileResourceService = require("../adapters/file-resource-service");
+const gatewayStatusProjection = require("../adapters/gateway-status-projection");
 const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
 const kanbanAssigneePolicy = require("../adapters/kanban-assignee-policy");
@@ -68,6 +69,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof fileResourceService.extractArtifactPaths, "function");
   assert.equal(typeof fileResourceService.publicFileMetadata, "function");
   assert.equal(typeof fileResourceService.previewStrategyForFile, "function");
+  assert.equal(typeof gatewayStatusProjection.createGatewayStatusProjection, "function");
+  assert.equal(typeof gatewayStatusProjection.gatewayPoolStatusHealthy, "function");
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof requestContext.buildRequestContext, "function");
   assert.equal(typeof resourceResolver.resolveResourceAccess, "function");
@@ -121,6 +124,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /publicApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createSystemApiRoutes/);
   assert.match(server, /systemApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createGatewayStatusProjection/);
+  assert.match(server, /gatewayStatusProjection\.publicGatewayPoolStatusForAuth/);
   assert.match(server, /createRuntimeConfigApiRoutes/);
   assert.match(server, /runtimeConfigApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createPushApiRoutes/);

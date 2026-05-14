@@ -234,7 +234,7 @@ assert.match(pdfViewerHtml, /id="weixinButton"/);
 assert.match(pdfViewerHtml, /async function forwardPdfToWeixin\(\)/);
 assert.match(pdfViewerHtml, /\/api\/weixin\/forward-file/);
 assert.match(serverJs, /运行被终止，未生成回复。/);
-assert.match(serverJs, /function gatewayPoolStatusHealthy\(poolStatus\)/);
+assert.match(serverJs, /gatewayPoolStatusHealthy \} = require\("\.\/adapters\/gateway-status-projection"\)/);
 assert.match(serverJs, /status\.fallbackError = status\.error \|\| ""/);
 assert.match(indexHtml, /id="topSearchChat"/);
 assert.match(appJs, /\$\("topSearchChat"\)\?\.addEventListener\("click"/);
@@ -485,7 +485,7 @@ assert.match(serverJs, /function generateVerifiedAmc8AssessmentQuestions\(config
 assert.match(serverJs, /assessmentLooksLikeAmc8\(config, seedText\)/);
 assert.match(serverJs, /function kanbanAssessmentArchived\(card = \{\}\)/);
 assert.match(serverJs, /kanbanAssessmentCanStart\(currentCard, existing, context\.prior \|\| \[\], workspaceId\)/);
-assert.match(serverJs, /caseTemplate: "final-assessment"/);
+assert.match(serverJs, /template: linkedStudyPlan \? "final-assessment" : subjectId/);
 assert.match(serverJs, /const KANBAN_CASE_SHARE_PATH = path\.resolve/);
 assert.match(serverJs, /function upsertKanbanCaseShare\(ownerWorkspaceId, caseId, input = \{\}\)/);
 assert.match(serverJs, /KANBAN_STUDY_SHARED_FOLDER_NAME/);
