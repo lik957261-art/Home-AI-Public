@@ -346,6 +346,12 @@ assert.match(serverJs, /assessment-exam/);
 assert.equal(serverJs.includes('/api/kanban/cards/reading-plan'), false);
 assert.match(serverJs, /function normalizeKanbanStudyTemplate\(raw = \{\}\)/);
 assert.match(serverJs, /caseTemplate: cardCaseTemplate/);
+const studyPlanCreateFn = serverJs.slice(
+  serverJs.indexOf("async function createKanbanStudyPlanCards(workspaceId, input = {})"),
+  serverJs.indexOf("async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options = {})"),
+);
+assert.match(studyPlanCreateFn, /const cardCaseTemplate = card\.caseTemplate \|\| plan\.template/);
+assert.match(studyPlanCreateFn, /const cardSourceText = compactText/);
 assert.match(serverJs, /function normalizeKanbanAssessmentPlan\(raw = \{\}, workspaceId = "owner", options = \{\}\)/);
 assert.match(serverJs, /async function createKanbanAssessmentPlanCards\(workspaceId, input = \{\}, options = \{\}\)/);
 assert.match(serverJs, /function generateVerifiedMathAssessmentQuestions\(config = \{\}, seedText = ""\)/);

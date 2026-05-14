@@ -5282,6 +5282,11 @@ async function createKanbanStudyPlanCards(workspaceId, input = {}) {
   const requestedAssignee = input.assignee || performerAssignee || workspacePrincipal(workspaceId);
   const created = [];
   for (const [index, card] of plan.cards.entries()) {
+    const cardCaseTemplate = card.caseTemplate || plan.template;
+    const cardSourceText = compactText([
+      plan.sourceText,
+      card.config ? assessmentConfigLine(card.config) : "",
+    ].filter(Boolean).join("\n\n"), 3000);
     const description = compactText([
       card.description,
       cover ? "封面图片已上传，可在 Hermes Mobile 学习计划中预览。" : "",
