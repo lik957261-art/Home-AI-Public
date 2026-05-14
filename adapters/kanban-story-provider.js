@@ -117,6 +117,125 @@ function timestampValue(raw = {}) {
   return 0;
 }
 
+function cardFieldString(card = {}, names = []) {
+  if (!card || typeof card !== "object") return "";
+  for (const name of names) {
+    if (!own(card, name)) continue;
+    const value = cleanString(card[name]);
+    if (value) return value;
+  }
+  return "";
+}
+
+function cardFieldNumber(card = {}, names = []) {
+  if (!card || typeof card !== "object") return 0;
+  for (const name of names) {
+    if (!own(card, name)) continue;
+    const value = Number(card[name]);
+    if (Number.isFinite(value)) return value || 0;
+  }
+  return 0;
+}
+
+function kanbanCardId(card = {}) {
+  return cardFieldString(card, ["id", "todoId", "todo_id", "cardId", "card_id"]);
+}
+
+function kanbanCardRevisionOf(card = {}) {
+  return cardFieldString(card, [
+    "kanbanRevisionOf",
+    "kanban_revision_of",
+    "revisionOf",
+    "revision_of",
+  ]);
+}
+
+function kanbanCardRevisionCount(card = {}) {
+  return cardFieldNumber(card, [
+    "kanbanRevisionCount",
+    "kanban_revision_count",
+    "revisionCount",
+    "revision_count",
+  ]);
+}
+
+function kanbanCardCaseIndex(card = {}) {
+  return cardFieldNumber(card, [
+    "kanbanCaseCardIndex",
+    "kanban_case_card_index",
+    "caseCardIndex",
+    "case_card_index",
+  ]);
+}
+
+function getOriginalCardById(originalId, byId = new Map()) {
+  if (!originalId || !byId || typeof byId.get !== "function") return null;
+  return byId.get(originalId) || byId.get(String(originalId)) || null;
+}
+
+function kanbanCardEffectiveCaseIndex(card = {}, byId = new Map()) {
+  const originalId = kanbanCardRevisionOf(card);
+  const original = getOriginalCardById(originalId, byId);
+  const value = original ? kanbanCardCaseIndex(original) : kanbanCardCaseIndex(card);
+  return value || 0;
+}
+
+function kanbanCardUpdatedTimestamp(card = {}) {
+  const text = cardFieldString(card, [
+    "updatedAt",
+    "updated_at",
+    "completedAt",
+    "completed_at",
+    "createdAt",
+    "created_at",
+  ]).replace(" ", "T");
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function visibleKanbanCaseCards(cards = []) {
+  const input = Array.isArray(cards) ? cards : [];
+  const byId = new Map();
+  for (const card of input) {
+    const id = kanbanCardId(card);
+    if (id) byId.set(id, card);
+  }
+  const baseIds = new Set(input
+    .filter((card) => !kanbanCardRevisionOf(card))
+    .map(kanbanCardId)
+    .filter(Boolean));
+  const revisionsByOriginal = new Map();
+  for (const card of input) {
+    const originalId = kanbanCardRevisionOf(card);
+    if (!originalId) continue;
+    const previous = revisionsByOriginal.get(originalId);
+    const previousRank = kanbanCardRevisionCount(previous);
+    const nextRank = kanbanCardRevisionCount(card);
+    if (!previous || nextRank > previousRank || (
+      nextRank === previousRank
+      && kanbanCardUpdatedTimestamp(card) >= kanbanCardUpdatedTimestamp(previous)
+    )) {
+      revisionsByOriginal.set(originalId, card);
+    }
+  }
+  const visible = [];
+  for (const card of input) {
+    if (kanbanCardRevisionOf(card)) continue;
+    const id = kanbanCardId(card);
+    visible.push(revisionsByOriginal.get(id) || card);
+  }
+  for (const card of input) {
+    const originalId = kanbanCardRevisionOf(card);
+    if (originalId && !baseIds.has(originalId)) visible.push(card);
+  }
+  return visible.sort((left, right) => {
+    const leftIndex = kanbanCardEffectiveCaseIndex(left, byId) || 999;
+    const rightIndex = kanbanCardEffectiveCaseIndex(right, byId) || 999;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    return kanbanCardUpdatedTimestamp(left) - kanbanCardUpdatedTimestamp(right);
+  });
+}
+
 function descriptionSection(description, heading) {
   const text = String(description || "");
   const marker = `${heading}:\n`;
@@ -364,7 +483,7 @@ function normalizeKanbanCaseCard(rawInput = {}, options = {}) {
 
 function cardSortIndex(card = {}, byId = new Map()) {
   const original = card.revisionOf ? byId.get(card.revisionOf) : null;
-  return Number(original?.caseCardIndex || card.caseCardIndex || 0) || 0;
+  return kanbanCardEffectiveCaseIndex(card, byId) || Number(original?.caseCardIndex || card.caseCardIndex || 0) || 0;
 }
 
 function compareCaseCards(left = {}, right = {}, byId = new Map()) {
@@ -949,10 +1068,14 @@ module.exports = {
   actorRoleForKanbanCase,
   buildPublicKanbanStoryTree,
   groupKanbanCaseCards,
+  kanbanCardEffectiveCaseIndex,
+  kanbanCardRevisionOf,
+  kanbanCardUpdatedTimestamp,
   kanbanCaseCanActor,
   kanbanCaseKey,
   normalizeKanbanCaseRecord,
   publicKanbanCaseDetail,
   publicKanbanCaseListItem,
   publicKanbanCaseSummary,
+  visibleKanbanCaseCards,
 };

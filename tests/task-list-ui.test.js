@@ -455,7 +455,7 @@ assert.match(serverJs, /function generateVerifiedMathAssessmentQuestions\(config
 assert.match(serverJs, /async function submitKanbanAssessmentExam\(workspaceId, cardId, body = \{\}\)/);
 assert.match(serverJs, /Manual formal assessment is open in Hermes Mobile; parked from official worker execution\./);
 assert.match(serverJs, /function kanbanAssessmentPriorComplete\(workspaceId, priorCards = \[\]\)/);
-assert.match(serverJs, /function visibleKanbanCaseCards\(cards = \[\]\)/);
+assert.match(serverJs, /visibleKanbanCaseCards,\s*\n\} = require\("\.\/adapters\/kanban-story-provider"\)/);
 assert.match(serverJs, /kanbanCardEffectiveCaseIndex\(current, byId\)/);
 assert.match(serverJs, /const canonicalCardId = String\(currentCard\.id \|\| cardId\)/);
 assert.match(serverJs, /function generateVerifiedAmc8AssessmentQuestions\(config = \{\}, seedText = ""\)/);

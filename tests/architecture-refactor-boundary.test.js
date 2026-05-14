@@ -62,6 +62,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanMaintenanceService.createKanbanMaintenanceService, "function");
   assert.equal(typeof kanbanStudyArtifactService.createKanbanStudyArtifactService, "function");
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
+  assert.equal(typeof kanbanStory.visibleKanbanCaseCards, "function");
+  assert.equal(typeof kanbanStory.kanbanCardEffectiveCaseIndex, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");

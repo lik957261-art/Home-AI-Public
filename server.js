@@ -23,6 +23,11 @@ const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usag
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
 const { createKanbanMaintenanceService } = require("./adapters/kanban-maintenance-service");
+const {
+  kanbanCardEffectiveCaseIndex,
+  kanbanCardRevisionOf,
+  visibleKanbanCaseCards,
+} = require("./adapters/kanban-story-provider");
 const { createKanbanStudyArtifactService } = require("./adapters/kanban-study-artifact-service");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createAuditEventProvider } = require("./adapters/audit-event-provider");
@@ -6598,66 +6603,6 @@ async function transcribeKanbanReadingAudio(audioPath) {
   const text = compactText(parsed.text || "", 20000);
   if (!text) throw new Error("Reading audio transcription returned empty text");
   return Object.assign({}, parsed, { text });
-}
-
-function kanbanCardRevisionOf(card = {}) {
-  return String(card.kanbanRevisionOf || card.kanban_revision_of || "").trim();
-}
-
-function kanbanCardEffectiveCaseIndex(card = {}, byId = new Map()) {
-  const originalId = kanbanCardRevisionOf(card);
-  const original = originalId ? byId.get(originalId) : null;
-  const value = original
-    ? Number(original.kanbanCaseCardIndex || original.kanban_case_card_index || 0)
-    : Number(card.kanbanCaseCardIndex || card.kanban_case_card_index || 0);
-  return value || 0;
-}
-
-function kanbanCardUpdatedTimestamp(card = {}) {
-  const parsed = Date.parse(card.updatedAt || card.updated_at || card.completedAt || card.completed_at || card.createdAt || card.created_at || "");
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function visibleKanbanCaseCards(cards = []) {
-  const byId = new Map();
-  for (const card of cards || []) {
-    const id = String(card?.id || "").trim();
-    if (id) byId.set(id, card);
-  }
-  const baseIds = new Set((cards || [])
-    .filter((card) => !kanbanCardRevisionOf(card))
-    .map((card) => String(card?.id || "").trim())
-    .filter(Boolean));
-  const revisionsByOriginal = new Map();
-  for (const card of cards || []) {
-    const originalId = kanbanCardRevisionOf(card);
-    if (!originalId) continue;
-    const previous = revisionsByOriginal.get(originalId);
-    const previousRank = Number(previous?.kanbanRevisionCount || previous?.kanban_revision_count || 0) || 0;
-    const nextRank = Number(card?.kanbanRevisionCount || card?.kanban_revision_count || 0) || 0;
-    if (!previous || nextRank > previousRank || (
-      nextRank === previousRank
-      && kanbanCardUpdatedTimestamp(card) >= kanbanCardUpdatedTimestamp(previous)
-    )) {
-      revisionsByOriginal.set(originalId, card);
-    }
-  }
-  const visible = [];
-  for (const card of cards || []) {
-    if (kanbanCardRevisionOf(card)) continue;
-    const id = String(card?.id || "").trim();
-    visible.push(revisionsByOriginal.get(id) || card);
-  }
-  for (const card of cards || []) {
-    const originalId = kanbanCardRevisionOf(card);
-    if (originalId && !baseIds.has(originalId)) visible.push(card);
-  }
-  return visible.sort((left, right) => {
-    const leftIndex = kanbanCardEffectiveCaseIndex(left, byId) || 999;
-    const rightIndex = kanbanCardEffectiveCaseIndex(right, byId) || 999;
-    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
-    return kanbanCardUpdatedTimestamp(left) - kanbanCardUpdatedTimestamp(right);
-  });
 }
 
 async function readingContextForCard(workspaceId, cardId) {

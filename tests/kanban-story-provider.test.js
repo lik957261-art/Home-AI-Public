@@ -5,12 +5,16 @@ const {
   actorRoleForKanbanCase,
   buildPublicKanbanStoryTree,
   groupKanbanCaseCards,
+  kanbanCardEffectiveCaseIndex,
+  kanbanCardRevisionOf,
+  kanbanCardUpdatedTimestamp,
   kanbanCaseCanActor,
   kanbanCaseKey,
   normalizeKanbanCaseRecord,
   publicKanbanCaseDetail,
   publicKanbanCaseListItem,
   publicKanbanCaseSummary,
+  visibleKanbanCaseCards,
 } = require("../adapters/kanban-story-provider");
 
 function byCaseId(groups, caseId) {
@@ -273,6 +277,36 @@ function run() {
   assert.equal(manual.progress.done, 1);
   assert.equal(manual.progress.open, 1);
   assert.equal(manual.archiveState, "active");
+
+  const rawRevisionCards = [
+    { id: "base-1", kanbanCaseCardIndex: 1, updatedAt: "2026-05-14T10:00:00.000Z" },
+    { id: "base-2", kanbanCaseCardIndex: 2, updatedAt: "2026-05-14T10:05:00.000Z" },
+    {
+      id: "rev-1-old",
+      kanbanRevisionOf: "base-1",
+      kanbanRevisionCount: 1,
+      updatedAt: "2026-05-14T10:10:00.000Z",
+    },
+    {
+      id: "rev-1-new",
+      kanbanRevisionOf: "base-1",
+      kanbanRevisionCount: 2,
+      updatedAt: "2026-05-14T10:20:00.000Z",
+    },
+    {
+      id: "orphan-rev",
+      kanbanRevisionOf: "missing-base",
+      kanbanRevisionCount: 1,
+      kanbanCaseCardIndex: 9,
+      updatedAt: "2026-05-14T10:30:00.000Z",
+    },
+  ];
+  const rawById = new Map(rawRevisionCards.map((card) => [card.id, card]));
+  const rawVisible = visibleKanbanCaseCards(rawRevisionCards);
+  assert.deepEqual(rawVisible.map((card) => card.id), ["rev-1-new", "base-2", "orphan-rev"]);
+  assert.equal(kanbanCardRevisionOf(rawVisible[0]), "base-1");
+  assert.equal(kanbanCardEffectiveCaseIndex(rawVisible[0], rawById), 1);
+  assert.equal(kanbanCardUpdatedTimestamp(rawVisible[0]), Date.parse("2026-05-14T10:20:00.000Z"));
 
   const single = byCaseId(groups, "single-card-direct-card");
   assert.equal(single.caseMode, "single-card");
