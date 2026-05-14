@@ -51,6 +51,7 @@ const { createPublicApiRoutes } = require("./server-routes/public-api-routes");
 const { createPushApiRoutes } = require("./server-routes/push-api-routes");
 const { createResourceApiRoutes } = require("./server-routes/resource-api-routes");
 const { createRuntimeConfigApiRoutes } = require("./server-routes/runtime-config-api-routes");
+const { createSingleWindowGroupChatApiRoutes } = require("./server-routes/single-window-group-chat-api-routes");
 const { createSystemApiRoutes } = require("./server-routes/system-api-routes");
 const { createThreadReadUploadApiRoutes } = require("./server-routes/thread-read-upload-api-routes");
 const { createThreadTaskApiRoutes } = require("./server-routes/thread-task-api-routes");
@@ -751,6 +752,43 @@ const threadTaskApiRoutes = createThreadTaskApiRoutes({
   sendJson,
   state: () => state,
   stopRunIds,
+});
+const singleWindowGroupChatApiRoutes = createSingleWindowGroupChatApiRoutes({
+  authenticateRequest,
+  broadcast,
+  canRevokeGroupChatMessage,
+  compactMessage,
+  compactThread,
+  compactThreadWithMessagePage,
+  ensureSingleWindowThread,
+  ensureWeixinSingleWindowThread,
+  findGroupChatThreadForWorkspace,
+  findThreadForRequest,
+  findWeixinSingleWindowThreadForWorkspace,
+  findWorkspace,
+  groupAiReplyRevokedText: GROUP_AI_REPLY_REVOKED_TEXT,
+  groupAssistantReplyForUserMessage,
+  groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+  groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT,
+  groupMessageRevoker,
+  kanbanCaseTopicThreadsForWorkspace,
+  normalizeChatGroup,
+  normalizeStringList,
+  nowIso,
+  readBody,
+  removeThreadActiveRun,
+  requireOwner,
+  requireWorkspaceAccess,
+  revokeGroupMessagePayload,
+  saveState,
+  scheduleNextQueuedRunForTaskGroup,
+  sendJson,
+  state: () => state,
+  stopRunIds,
+  threadAccessibleToAuth,
+  threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
+  threadSummary,
+  weixinForwardTargetsForWorkspace,
 });
 bootTrace("core api routes ready");
 let todoWebPushRunning = false;
@@ -13869,109 +13907,7 @@ async function handleApi(req, res) {
   if ((await directoryMutationApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await threadReadUploadApiRoutes.handle(req, res, url, { auth })).handled) return;
   if ((await threadTaskApiRoutes.handle(req, res, url, { auth })).handled) return;
-
-  if (url.pathname === "/api/single-window" && req.method === "POST") {
-    const body = await readBody(req);
-    const auth = authenticateRequest(req);
-    const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || "owner");
-    if (!workspaceId) return;
-    const weixinRequested = Boolean(body.weixinChat || body.weixin_chat);
-    let weixinThread = weixinRequested
-      ? ensureWeixinSingleWindowThread(workspaceId)
-      : findWeixinSingleWindowThreadForWorkspace(workspaceId);
-    const groupRequested = !weixinRequested && Boolean(body.groupChat || body.group_chat);
-    const availableGroupThread = findGroupChatThreadForWorkspace(workspaceId);
-    const groupChatAvailable = Boolean(availableGroupThread && threadAccessibleToAuth(auth, availableGroupThread));
-    const groupThread = groupRequested && groupChatAvailable ? availableGroupThread : null;
-    const thread = weixinRequested
-      ? weixinThread
-      : (groupThread || ensureSingleWindowThread(workspaceId, { allowGroupThread: false }));
-    if (!thread) {
-      sendJson(res, 400, { error: "Unknown workspace or single-window project" });
-      return;
-    }
-    if (!weixinRequested) weixinThread = findWeixinSingleWindowThreadForWorkspace(workspaceId);
-    const weixinTargets = weixinForwardTargetsForWorkspace(workspaceId, auth);
-    const weixinChatAvailable = Boolean(
-      (weixinThread && threadAccessibleToAuth(auth, weixinThread))
-      || weixinTargets.length
-    );
-    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-    const messageMode = String(body.messageMode || body.message_mode || "").trim().toLowerCase();
-    const wantsMessagePage = ["chat", "tasks", "task"].includes(messageMode);
-    const responseThread = wantsMessagePage
-      ? compactThreadWithMessagePage(thread, {
-        mode: messageMode,
-        groupChat: groupRequested && !weixinRequested,
-        taskGroupId: body.taskGroupId || body.task_group_id || "",
-        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
-      })
-      : compactThread(thread);
-    const groupChatThread = groupChatAvailable
-      ? compactThreadWithMessagePage(availableGroupThread, {
-        mode: "chat",
-        groupChat: true,
-        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
-      })
-      : null;
-    const weixinChatThread = weixinThread && threadAccessibleToAuth(auth, weixinThread)
-      ? compactThreadWithMessagePage(weixinThread, {
-        mode: "chat",
-        groupChat: false,
-        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
-      })
-      : null;
-    const caseTopicThreads = messageMode === "tasks" || messageMode === "task"
-      ? kanbanCaseTopicThreadsForWorkspace(auth, workspaceId).map((topicThread) => compactThreadWithMessagePage(topicThread, {
-        mode: "tasks",
-        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
-      }))
-      : [];
-    sendJson(res, 200, {
-      thread: responseThread,
-      groupChatAvailable,
-      groupChatThreadId: groupChatAvailable ? availableGroupThread.id : "",
-      groupChatThread,
-      weixinChatAvailable,
-      weixinChatThreadId: weixinChatThread ? weixinThread.id : "",
-      weixinChatThread,
-      caseTopicThreads,
-    });
-    return;
-  }
-
-  const groupChatRoute = url.pathname.match(/^\/api\/threads\/([^/]+)\/group-chat$/);
-  if (groupChatRoute && req.method === "PATCH") {
-    const auth = requireOwner(req, res);
-    if (!auth) return;
-    const thread = findThreadForRequest(req, decodeURIComponent(groupChatRoute[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    if (!thread.singleWindow) {
-      sendJson(res, 400, { error: "Group chat is only supported for single-window chat" });
-      return;
-    }
-    const body = await readBody(req).catch(() => ({}));
-    const enabled = body.enabled !== false;
-    const now = nowIso();
-    const current = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId);
-    const memberWorkspaceIds = normalizeStringList(
-      body.memberWorkspaceIds || body.member_workspace_ids || body.members || current.memberWorkspaceIds,
-    ).filter((workspaceId) => findWorkspace(workspaceId));
-    thread.chatGroup = normalizeChatGroup({
-      enabled,
-      memberWorkspaceIds,
-      createdAt: current.createdAt || now,
-      updatedAt: now,
-    }, thread.workspaceId);
-    thread.updatedAt = now;
-    saveState();
-    broadcast({ type: "thread.updated", threadId: thread.id, thread: compactThread(thread) });
-    sendJson(res, 200, { ok: true, thread: compactThread(thread) });
-    return;
-  }
+  if ((await singleWindowGroupChatApiRoutes.handle(req, res, url, { auth })).handled) return;
 
   const threadMessages = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages$/);
   if (threadMessages && req.method === "POST") {
@@ -14467,83 +14403,6 @@ async function handleApi(req, res) {
         thread: compactThread(thread),
       });
     }
-    return;
-  }
-
-  const messageRevoke = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages\/([^/]+)\/revoke$/);
-  if (messageRevoke && req.method === "POST") {
-    const auth = authenticateRequest(req);
-    const thread = findThreadForRequest(req, decodeURIComponent(messageRevoke[1]));
-    if (!thread) {
-      sendJson(res, 404, { error: "Thread not found" });
-      return;
-    }
-    const messageId = decodeURIComponent(messageRevoke[2]);
-    const message = (thread.messages || []).find((item) => String(item.id || "") === messageId);
-    if (!message) {
-      sendJson(res, 404, { error: "Message not found" });
-      return;
-    }
-    if (!canRevokeGroupChatMessage(auth, thread, message)) {
-      sendJson(res, 403, { error: "This group chat message cannot be revoked by the current account" });
-      return;
-    }
-    const now = nowIso();
-    const revoker = groupMessageRevoker(auth);
-    const pairedAssistant = message.messageKind === "ai" ? groupAssistantReplyForUserMessage(thread, message) : null;
-    const touchedMessages = [message];
-    const touchedArtifactIds = new Set();
-    const rememberArtifacts = (item) => {
-      for (const artifact of Array.isArray(item?.artifacts) ? item.artifacts : []) {
-        if (artifact?.id) touchedArtifactIds.add(String(artifact.id));
-      }
-    };
-    const shouldRevokePairedAssistant = Boolean(pairedAssistant && !pairedAssistant.revokedAt);
-    const activeRunIds = [];
-    rememberArtifacts(message);
-    if (shouldRevokePairedAssistant) {
-      rememberArtifacts(pairedAssistant);
-      if (["queued", "running"].includes(pairedAssistant.status) && pairedAssistant.runId) {
-        activeRunIds.push(pairedAssistant.runId);
-      }
-    }
-    let stoppedRunIds = [];
-    try {
-      stoppedRunIds = await stopRunIds(activeRunIds);
-    } catch (err) {
-      sendJson(res, err.status || 502, { error: err.message || String(err) });
-      return;
-    }
-    revokeGroupMessagePayload(message, now, revoker, GROUP_MESSAGE_REVOKED_TEXT);
-    if (shouldRevokePairedAssistant) {
-      revokeGroupMessagePayload(pairedAssistant, now, revoker, GROUP_AI_REPLY_REVOKED_TEXT);
-      pairedAssistant.status = "cancelled";
-      pairedAssistant.cancelledAt = now;
-      pairedAssistant.completedAt = "";
-      pairedAssistant.failedAt = "";
-      touchedMessages.push(pairedAssistant);
-    }
-    for (const runId of stoppedRunIds) removeThreadActiveRun(thread, runId, "idle");
-    const touchedMessageIds = new Set(touchedMessages.map((item) => String(item.id || "")).filter(Boolean));
-    state.artifacts = (state.artifacts || []).filter((artifact) => {
-      if (touchedArtifactIds.has(String(artifact.id || ""))) return false;
-      if (artifact.threadId === thread.id && touchedMessageIds.has(String(artifact.messageId || ""))) return false;
-      return true;
-    });
-    thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
-    thread.updatedAt = now;
-    saveState(state, { reason: "group-message-revoke", forceBackup: true });
-    broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
-    for (const touched of touchedMessages) {
-      broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(touched), thread: threadSummary(thread) });
-    }
-    if (shouldRevokePairedAssistant) scheduleNextQueuedRunForTaskGroup(thread, SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID);
-    sendJson(res, 200, {
-      ok: true,
-      stoppedRunIds,
-      messages: touchedMessages.map(compactMessage),
-      thread: compactThread(thread),
-    });
     return;
   }
 

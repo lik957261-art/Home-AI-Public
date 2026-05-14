@@ -336,7 +336,7 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["kanban", "card"],
   })),
 
-  exact("single-window", "POST", "/api/single-window", "thread", routeOptions("thread", {
+  exact("single-window", "POST", "/api/single-window", "thread", routeOptions("single-window", {
     workspaceScoped: true,
     resourceTypes: ["thread", "workspace"],
   })),
@@ -361,7 +361,7 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "medium",
     resourceTypes: ["thread", "artifact", "file"],
   })),
-  regex("thread-group-chat-update", "PATCH", /^\/api\/threads\/[^/]+\/group-chat$/, "thread", routeOptions("thread-group-chat", {
+  regex("thread-group-chat-update", "PATCH", /^\/api\/threads\/[^/]+\/group-chat$/, "thread", routeOptions("group-chat", {
     riskLevel: "owner",
     ownerOnly: true,
     resourceTypes: ["thread", "group-chat"],
@@ -376,7 +376,7 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["thread", "message", "owner-elevation"],
   })),
-  regex("thread-message-revoke", "POST", /^\/api\/threads\/[^/]+\/messages\/[^/]+\/revoke$/, "thread", routeOptions("thread-message", {
+  regex("thread-message-revoke", "POST", /^\/api\/threads\/[^/]+\/messages\/[^/]+\/revoke$/, "thread", routeOptions("group-chat", {
     workspaceScoped: true,
     riskLevel: "medium",
     resourceTypes: ["thread", "message"],

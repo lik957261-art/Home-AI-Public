@@ -26,6 +26,7 @@ const publicApiRoutes = require("../server-routes/public-api-routes");
 const pushApiRoutes = require("../server-routes/push-api-routes");
 const resourceApiRoutes = require("../server-routes/resource-api-routes");
 const runtimeConfigApiRoutes = require("../server-routes/runtime-config-api-routes");
+const singleWindowGroupChatApiRoutes = require("../server-routes/single-window-group-chat-api-routes");
 const systemApiRoutes = require("../server-routes/system-api-routes");
 const threadReadUploadApiRoutes = require("../server-routes/thread-read-upload-api-routes");
 const threadTaskApiRoutes = require("../server-routes/thread-task-api-routes");
@@ -58,6 +59,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof workspaceApiRoutes.createWorkspaceApiRoutes, "function");
   assert.equal(typeof accessKeyApiRoutes.createAccessKeyApiRoutes, "function");
   assert.equal(typeof resourceApiRoutes.createResourceApiRoutes, "function");
+  assert.equal(typeof singleWindowGroupChatApiRoutes.createSingleWindowGroupChatApiRoutes, "function");
   assert.equal(typeof automationApiRoutes.createAutomationApiRoutes, "function");
   assert.equal(typeof directoryBrowserApiRoutes.createDirectoryBrowserApiRoutes, "function");
   assert.equal(typeof directoryMutationApiRoutes.createDirectoryMutationApiRoutes, "function");
@@ -92,6 +94,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /accessKeyApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createResourceApiRoutes/);
   assert.match(server, /resourceApiRoutes\.handle\(req, res, url/);
+  assert.match(server, /createSingleWindowGroupChatApiRoutes/);
+  assert.match(server, /singleWindowGroupChatApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createAutomationApiRoutes/);
   assert.match(server, /automationApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createDirectoryBrowserApiRoutes/);
@@ -147,6 +151,7 @@ function testPackageRunsArchitectureContracts() {
     "tests/workspace-api-routes.test.js",
     "tests/access-key-api-routes.test.js",
     "tests/resource-api-routes.test.js",
+    "tests/single-window-group-chat-api-routes.test.js",
     "tests/automation-api-routes.test.js",
     "tests/directory-browser-api-routes.test.js",
     "tests/directory-mutation-api-routes.test.js",
@@ -177,6 +182,7 @@ function testPackageRunsArchitectureContracts() {
   assert.match(pkg.scripts.check, /server-routes[\\/]workspace-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]access-key-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]resource-api-routes\.js/);
+  assert.match(pkg.scripts.check, /server-routes[\\/]single-window-group-chat-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]automation-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]directory-browser-api-routes\.js/);
   assert.match(pkg.scripts.check, /server-routes[\\/]directory-mutation-api-routes\.js/);

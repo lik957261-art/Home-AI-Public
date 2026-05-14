@@ -160,6 +160,17 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "single-window-group-chat-api-routes",
+    exportName: "createSingleWindowGroupChatApiRoutes",
+    required: false,
+    minRoutes: 3,
+    probes: [
+      { method: "POST", path: "/api/single-window", id: "single-window" },
+      { method: "PATCH", path: "/api/threads/thread-1/group-chat", id: "thread-group-chat-update" },
+      { method: "POST", path: "/api/threads/thread-1/messages/msg-1/revoke", id: "thread-message-revoke" },
+    ],
+  },
+  {
     key: "todo-api-routes",
     exportName: "createTodoApiRoutes",
     required: false,
@@ -298,6 +309,8 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("kanban"));
   assert.ok(modules.has("kanban-study"));
   assert.ok(modules.has("thread-message"));
+  assert.ok(modules.has("single-window"));
+  assert.ok(modules.has("group-chat"));
   assert.ok(modules.has("thread-task"));
   assert.ok(modules.has("thread-run"));
   assert.ok(modules.has("directory-share"));
