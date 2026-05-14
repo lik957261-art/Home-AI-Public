@@ -18,6 +18,7 @@ const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions 
 const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFileArtifactAccessService } = require("./adapters/file-artifact-access-service");
+const { createFileResponseService } = require("./adapters/file-response-service");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
@@ -510,6 +511,14 @@ const fileArtifactAccessService = createFileArtifactAccessService({
   makeId,
   nowIso,
   mimeFor,
+});
+const fileResponseService = createFileResponseService({
+  contentDisposition,
+  extractDocxText,
+  mimeFor,
+  sendJson,
+  textBufferPreview,
+  textFilePreview,
 });
 const publicApiRoutes = createPublicApiRoutes({
   authenticateRequest,
@@ -12309,85 +12318,19 @@ async function resolveAuthorizedCronDeliverableFile(query, auth = null) {
 }
 
 function sendResolvedFile(res, file, query) {
-  const disposition = /^(1|true|yes|on)$/i.test(String(query.get("download") || ""))
-    ? "attachment"
-    : "inline";
-  res.writeHead(200, {
-    "Content-Type": file.mime || mimeFor(file.localPath),
-    "Content-Length": file.size,
-    "Content-Disposition": contentDisposition(disposition, file.name || path.basename(file.localPath)),
-    "Cache-Control": "private, max-age=60",
-  });
-  fs.createReadStream(file.localPath).pipe(res);
-}
-
-function bridgeFileBuffer(file) {
-  return Buffer.from(String(file?.contentBase64 || ""), "base64");
+  return fileResponseService.sendResolvedFile(res, file, query);
 }
 
 function sendResolvedBridgeFile(res, file, query) {
-  const buffer = bridgeFileBuffer(file);
-  const disposition = /^(1|true|yes|on)$/i.test(String(query.get("download") || ""))
-    ? "attachment"
-    : "inline";
-  res.writeHead(200, {
-    "Content-Type": file.mime || mimeFor(file.name || file.displayPath || ""),
-    "Content-Length": buffer.length,
-    "Content-Disposition": contentDisposition(disposition, file.name || path.basename(file.displayPath || "automation-deliverable")),
-    "Cache-Control": "private, max-age=60",
-  });
-  res.end(buffer);
+  return fileResponseService.sendResolvedBridgeFile(res, file, query);
 }
 
 function sendResolvedFilePreview(res, file) {
-  const ext = path.extname(file.localPath).toLowerCase();
-  try {
-    let preview;
-    if (ext === ".docx") preview = extractDocxText(file.localPath);
-    else if ([".txt", ".md", ".csv", ".json"].includes(ext) || /^text\//i.test(file.mime)) preview = textFilePreview(file.localPath);
-    else {
-      sendJson(res, 415, { error: "Preview is not supported for this file type", name: file.name, mime: file.mime });
-      return;
-    }
-    sendJson(res, 200, {
-      name: file.name,
-      mime: file.mime,
-      size: file.size,
-      updatedAt: file.updatedAt,
-      path: file.displayPath,
-      text: preview.text,
-      totalChars: preview.totalChars,
-      truncated: preview.truncated,
-    });
-  } catch (err) {
-    sendJson(res, 422, { error: `Preview failed: ${err.message || String(err)}` });
-  }
+  return fileResponseService.sendResolvedFilePreview(res, file);
 }
 
 function sendResolvedBridgeFilePreview(res, file) {
-  const ext = path.extname(file.name || file.displayPath || "").toLowerCase();
-  try {
-    const buffer = bridgeFileBuffer(file);
-    let preview;
-    if ([".txt", ".md", ".csv", ".json"].includes(ext) || /^text\//i.test(file.mime || "")) {
-      preview = textBufferPreview(buffer);
-    } else {
-      sendJson(res, 415, { error: "Preview is not supported for this file type", name: file.name, mime: file.mime });
-      return;
-    }
-    sendJson(res, 200, {
-      name: file.name,
-      mime: file.mime,
-      size: file.size || buffer.length,
-      updatedAt: file.updatedAt,
-      path: file.displayPath,
-      text: preview.text,
-      totalChars: preview.totalChars,
-      truncated: preview.truncated,
-    });
-  } catch (err) {
-    sendJson(res, 422, { error: `Preview failed: ${err.message || String(err)}` });
-  }
+  return fileResponseService.sendResolvedBridgeFilePreview(res, file);
 }
 
 function maybeRejectModelMaintenanceRequest(res, text, auth) {
