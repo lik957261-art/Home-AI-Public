@@ -218,6 +218,7 @@ const state = {
   todoReadingSubmissionDrafts: {},
   todoReadingSubmitting: {},
   todoReadingSubmissionProgress: {},
+  todoReadingRecorders: {},
   todoReadingQuizzes: {},
   todoReadingQuizAnswers: {},
   todoReadingQuizStep: {},
@@ -10782,6 +10783,280 @@ function renderKanbanAssessmentExamPanel(todo) {
   </form>`;
 }
 
+function kanbanReadingMediaRecorderApi() {
+  if (typeof window !== "undefined" && typeof window.MediaRecorder === "function") return window.MediaRecorder;
+  if (typeof MediaRecorder !== "undefined" && typeof MediaRecorder === "function") return MediaRecorder;
+  return null;
+}
+
+function supportsKanbanReadingRecorder() {
+  return Boolean(
+    kanbanReadingMediaRecorderApi()
+    && typeof navigator !== "undefined"
+    && navigator.mediaDevices
+    && typeof navigator.mediaDevices.getUserMedia === "function"
+  );
+}
+
+function preferredKanbanReadingRecorderMimeType() {
+  const Recorder = kanbanReadingMediaRecorderApi();
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
+  if (!Recorder || typeof Recorder.isTypeSupported !== "function") return "";
+  return candidates.find((mime) => {
+    try {
+      return Recorder.isTypeSupported(mime);
+    } catch (_) {
+      return false;
+    }
+  }) || "";
+}
+
+function kanbanReadingRecordingExtension(mime = "") {
+  const value = String(mime || "").toLowerCase();
+  if (value.includes("mpeg") || value.includes("mp3")) return "mp3";
+  if (value.includes("mp4") || value.includes("m4a")) return "m4a";
+  if (value.includes("wav")) return "wav";
+  if (value.includes("ogg") || value.includes("opus")) return "ogg";
+  return "webm";
+}
+
+function kanbanReadingRecordingFile(todoId, blob, mime = "") {
+  const extension = kanbanReadingRecordingExtension(mime);
+  const safeId = String(todoId || "card").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "card";
+  const filename = `reading-recording-${safeId}-${Date.now()}.${extension}`;
+  try {
+    if (typeof File === "function") return new File([blob], filename, { type: mime || blob.type || "audio/webm" });
+  } catch (_) {
+    // Older WebViews can expose Blob without a usable File constructor.
+  }
+  blob.name = filename;
+  blob.lastModified = Date.now();
+  return blob;
+}
+
+function kanbanReadingRecordingDuration(recording = {}) {
+  const stored = Number(recording.elapsedMs || 0) || 0;
+  if (recording.status === "recording" && recording.startedAt) {
+    return Math.max(0, stored + Date.now() - Number(recording.startedAt || 0));
+  }
+  return Math.max(0, stored);
+}
+
+function formatKanbanReadingRecordingDuration(ms) {
+  const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function kanbanReadingRecordingPermissionMessage(err) {
+  const name = String(err?.name || "");
+  if (["NotAllowedError", "PermissionDeniedError", "SecurityError"].includes(name)) return "麦克风权限未开启，可上传音频。";
+  if (["NotFoundError", "DevicesNotFoundError", "NotReadableError", "TrackStartError"].includes(name)) return "未找到可用麦克风，可上传音频。";
+  return "无法开始录音，可上传音频。";
+}
+
+function kanbanReadingRecordingStatusText(todoId) {
+  const recording = state.todoReadingRecorders?.[todoId] || {};
+  const duration = formatKanbanReadingRecordingDuration(kanbanReadingRecordingDuration(recording));
+  if (recording.status === "requesting") return "请求麦克风...";
+  if (recording.status === "recording") return `录音中 ${duration}`;
+  if (recording.status === "stopping") return "正在保存录音...";
+  if (recording.status === "ready") return `录音完成 ${duration}，可提交。`;
+  if (recording.status === "unsupported") return "浏览器不支持直接录音，可上传音频。";
+  if (recording.status === "error") return recording.error || "录音不可用，可上传音频。";
+  return supportsKanbanReadingRecorder() ? "可直接录音，或上传文件。" : "浏览器不支持直接录音，可上传音频。";
+}
+
+function renderKanbanReadingRecorderControls(todo, submitting = false) {
+  const todoId = String(todo?.id || "");
+  const recording = state.todoReadingRecorders?.[todoId] || {};
+  const status = String(recording.status || "");
+  const supported = supportsKanbanReadingRecorder();
+  const active = ["requesting", "recording", "stopping"].includes(status);
+  const ready = status === "ready" && recording.file;
+  const canStart = supported && !submitting && !active && !ready;
+  const canStop = !submitting && status === "recording";
+  const canCancel = !submitting && (active || ready || status === "error");
+  const canSubmit = !submitting && ready;
+  return `<div class="todo-reading-recorder" data-reading-recorder="${escapeHtml(todoId)}">
+    <div class="todo-reading-recorder-actions">
+      <button type="button" data-reading-record-start="${escapeHtml(todoId)}"${canStart ? "" : " disabled"}>录音</button>
+      <button type="button" data-reading-record-stop="${escapeHtml(todoId)}"${canStop ? "" : " disabled"}>停止</button>
+      <button type="button" data-reading-record-cancel="${escapeHtml(todoId)}"${canCancel ? "" : " disabled"}>取消</button>
+      <button type="button" data-reading-record-submit="${escapeHtml(todoId)}"${canSubmit ? "" : " disabled"}>提交</button>
+    </div>
+    <div class="todo-detail-muted todo-reading-record-status" data-reading-record-status="${escapeHtml(todoId)}">${escapeHtml(kanbanReadingRecordingStatusText(todoId))}</div>
+  </div>`;
+}
+
+function clearKanbanReadingRecordingTimer(recording = {}) {
+  if (recording.timer) {
+    clearInterval(recording.timer);
+    recording.timer = 0;
+  }
+}
+
+function stopKanbanReadingRecordingTracks(recording = {}) {
+  const tracks = recording.stream?.getTracks?.() || [];
+  for (const track of tracks) {
+    try {
+      track.stop();
+    } catch (_) {
+      // Ignore cleanup errors from already-stopped tracks.
+    }
+  }
+}
+
+function renderTodosAfterReadingRecorderChange() {
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+}
+
+function updateKanbanReadingRecordingStatus(todoId) {
+  const text = kanbanReadingRecordingStatusText(todoId);
+  document.querySelectorAll("[data-reading-record-status]").forEach((node) => {
+    if (node.dataset.readingRecordStatus === String(todoId)) node.textContent = text;
+  });
+}
+
+function startKanbanReadingRecordingTimer(todoId, recording) {
+  clearKanbanReadingRecordingTimer(recording);
+  recording.timer = setInterval(() => updateKanbanReadingRecordingStatus(todoId), 1000);
+  updateKanbanReadingRecordingStatus(todoId);
+}
+
+function finishKanbanReadingRecording(todoId, recording) {
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  if (recording.cancelled) return;
+  const chunks = (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
+  const elapsedMs = Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording);
+  if (!chunks.length) {
+    state.todoReadingRecorders[todoId] = { status: "error", error: "未录到声音，可重试或上传音频。", elapsedMs };
+    renderTodosAfterReadingRecorderChange();
+    return;
+  }
+  const mime = recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
+  const blob = new Blob(chunks, { type: mime });
+  state.todoReadingRecorders[todoId] = {
+    status: "ready",
+    elapsedMs,
+    mimeType: mime,
+    file: kanbanReadingRecordingFile(todoId, blob, mime),
+  };
+  renderTodosAfterReadingRecorderChange();
+}
+
+function failKanbanReadingRecording(todoId, err) {
+  const recording = state.todoReadingRecorders?.[todoId] || {};
+  const elapsedMs = kanbanReadingRecordingDuration(recording);
+  recording.cancelled = true;
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  state.todoReadingRecorders[todoId] = {
+    status: "error",
+    elapsedMs,
+    error: kanbanReadingRecordingPermissionMessage(err),
+  };
+  renderTodosAfterReadingRecorderChange();
+}
+
+async function startKanbanReadingRecording(todoId) {
+  if (!todoId || state.todoReadingSubmitting?.[todoId]) return;
+  const Recorder = kanbanReadingMediaRecorderApi();
+  if (!supportsKanbanReadingRecorder() || !Recorder) {
+    state.todoReadingRecorders[todoId] = { status: "unsupported" };
+    renderTodosAfterReadingRecorderChange();
+    return;
+  }
+  const current = state.todoReadingRecorders?.[todoId] || {};
+  if (["requesting", "recording", "stopping"].includes(current.status)) return;
+  state.todoReadingRecorders[todoId] = { status: "requesting", chunks: [], elapsedMs: 0, error: "" };
+  renderTodosAfterReadingRecorderChange();
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const pending = state.todoReadingRecorders?.[todoId];
+    if (!pending || pending.status !== "requesting") {
+      stream.getTracks?.().forEach((track) => track.stop());
+      return;
+    }
+    const mimeType = preferredKanbanReadingRecorderMimeType();
+    const recorder = new Recorder(stream, mimeType ? { mimeType } : undefined);
+    const recording = {
+      status: "recording",
+      recorder,
+      stream,
+      chunks: [],
+      startedAt: Date.now(),
+      elapsedMs: 0,
+      mimeType: recorder.mimeType || mimeType || "",
+      error: "",
+    };
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size > 0) recording.chunks.push(event.data);
+    });
+    recorder.addEventListener("stop", () => finishKanbanReadingRecording(todoId, recording));
+    recorder.addEventListener("error", (event) => failKanbanReadingRecording(todoId, event.error || event));
+    state.todoReadingRecorders[todoId] = recording;
+    recorder.start();
+    startKanbanReadingRecordingTimer(todoId, recording);
+    renderTodosAfterReadingRecorderChange();
+  } catch (err) {
+    if (stream) stream.getTracks?.().forEach((track) => track.stop());
+    failKanbanReadingRecording(todoId, err);
+  }
+}
+
+function stopKanbanReadingRecording(todoId) {
+  const recording = state.todoReadingRecorders?.[todoId];
+  if (!recording || recording.status !== "recording") return;
+  recording.elapsedMs = kanbanReadingRecordingDuration(recording);
+  recording.startedAt = 0;
+  recording.status = "stopping";
+  clearKanbanReadingRecordingTimer(recording);
+  try {
+    if (recording.recorder && recording.recorder.state !== "inactive") {
+      recording.recorder.stop();
+    } else {
+      finishKanbanReadingRecording(todoId, recording);
+    }
+  } catch (err) {
+    failKanbanReadingRecording(todoId, err);
+  }
+  renderTodosAfterReadingRecorderChange();
+}
+
+function cancelKanbanReadingRecording(todoId) {
+  const recording = state.todoReadingRecorders?.[todoId];
+  if (!recording) return;
+  recording.cancelled = true;
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  try {
+    if (recording.recorder && recording.recorder.state !== "inactive") recording.recorder.stop();
+  } catch (_) {
+    // Ignore cancellation stop errors.
+  }
+  delete state.todoReadingRecorders[todoId];
+  renderTodosAfterReadingRecorderChange();
+}
+
+async function submitRecordedReadingSubmission(todoId, notes = "") {
+  const recording = state.todoReadingRecorders?.[todoId];
+  if (!recording?.file) throw new Error("请先停止录音");
+  const file = recording.file;
+  await submitReadingSubmission(todoId, file, notes);
+  const latest = state.todoReadingRecorders?.[todoId];
+  if (latest?.file === file) delete state.todoReadingRecorders[todoId];
+}
+
 function renderKanbanReadingSubmissionPanel(todo) {
   if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return "";
   if (!kanbanCan(todo, "canSubmitStudy")) return "";
@@ -10799,6 +11074,9 @@ function renderKanbanReadingSubmissionPanel(todo) {
     </section>`;
   }
   const submitting = Boolean(state.todoReadingSubmitting?.[todo.id]);
+  const recorderStatus = String(state.todoReadingRecorders?.[todo.id]?.status || "");
+  const recorderBusy = ["requesting", "recording", "stopping"].includes(recorderStatus);
+  const recorderBlock = renderKanbanReadingRecorderControls(todo, submitting);
   const progress = String(state.todoReadingSubmissionProgress?.[todo.id] || "");
   const notes = state.todoReadingSubmissionDrafts?.[todo.id] || "";
   const progressText = progress === "uploading"
@@ -10809,7 +11087,8 @@ function renderKanbanReadingSubmissionPanel(todo) {
     : `选择${labels.recording}后会自动提交并开始分析；如果浏览器没有自动开始，请点提交。`;
   return `<form class="todo-comment-panel todo-reading-panel" data-reading-submission-form="${escapeHtml(todo.id)}" ${submitting ? 'aria-busy="true"' : ""}>
     <label class="todo-panel-label" for="readingSubmissionAudio">${escapeHtml(labels.upload)}</label>
-    <input id="readingSubmissionAudio" class="todo-input todo-reading-audio" type="file" accept="${isKanbanReadingPlanCase(todo) ? "audio/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.amr" : "audio/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.amr,.txt,.md,.markdown,.csv,.json,.docx"}"${submitting ? " disabled" : ""}>
+    ${recorderBlock}
+    <input id="readingSubmissionAudio" class="todo-input todo-reading-audio" type="file" accept="${isKanbanReadingPlanCase(todo) ? "audio/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.amr" : "audio/*,.m4a,.mp3,.wav,.aac,.ogg,.opus,.amr,.txt,.md,.markdown,.csv,.json,.docx"}"${submitting || recorderBusy ? " disabled" : ""}>
     <div class="todo-detail-muted todo-reading-audio-status" data-reading-audio-status>${submitting ? escapeHtml(progressText) : escapeHtml(idleUploadText)}</div>
     <textarea id="todoReadingSubmissionNotes" class="todo-input todo-comment-textarea" rows="3" placeholder="补充当天范围、状态或观察，可留空" ${submitting ? "disabled" : ""}>${escapeHtml(notes)}</textarea>
     <div class="todo-comment-actions">
@@ -11080,6 +11359,37 @@ function wireTodoPanel(root) {
     });
   });
   root.querySelectorAll("[data-reading-submission-form]").forEach((form) => {
+    const resolveReadingSubmissionTodoId = () => form.dataset.readingSubmissionForm || form.querySelector("[data-submit-reading]")?.dataset?.submitReading || "";
+    const syncReadingSubmissionNotes = () => {
+      const todoId = resolveReadingSubmissionTodoId();
+      const notes = form.querySelector("#todoReadingSubmissionNotes")?.value || "";
+      if (todoId) state.todoReadingSubmissionDrafts[todoId] = notes;
+      return { todoId, notes };
+    };
+    form.querySelector("[data-reading-record-start]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const { todoId } = syncReadingSubmissionNotes();
+      startKanbanReadingRecording(todoId).catch(showError);
+    });
+    form.querySelector("[data-reading-record-stop]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const { todoId } = syncReadingSubmissionNotes();
+      stopKanbanReadingRecording(todoId);
+    });
+    form.querySelector("[data-reading-record-cancel]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const { todoId } = syncReadingSubmissionNotes();
+      cancelKanbanReadingRecording(todoId);
+    });
+    form.querySelector("[data-reading-record-submit]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const { todoId, notes } = syncReadingSubmissionNotes();
+      submitRecordedReadingSubmission(todoId, notes).catch(showError);
+    });
     form.querySelector("#todoReadingSubmissionNotes")?.addEventListener("input", (event) => {
       const todoId = form.dataset.readingSubmissionForm || "";
       if (todoId) state.todoReadingSubmissionDrafts[todoId] = event.target.value || "";
@@ -11102,6 +11412,10 @@ function wireTodoPanel(root) {
       const todoId = form.dataset.readingSubmissionForm || form.querySelector("[data-submit-reading]")?.dataset?.submitReading || "";
       const file = form.querySelector("#readingSubmissionAudio")?.files?.[0] || null;
       const notes = form.querySelector("#todoReadingSubmissionNotes")?.value || "";
+      if (!file && state.todoReadingRecorders?.[todoId]?.file) {
+        submitRecordedReadingSubmission(todoId, notes).catch(showError);
+        return;
+      }
       submitReadingSubmission(todoId, file, notes).catch(showError);
     });
   });
@@ -12251,6 +12565,7 @@ function messageExtractedDirectoryAliases(message) {
 
 function explicitTaskDirectoryAliases(group) {
   const aliases = [];
+  if (group?.directoryRoute) aliases.push(Object.assign({ source: "bound" }, group.directoryRoute));
   for (const message of group?.messages || []) {
     aliases.push(...messageDirectoryAliases(message).map((alias) => Object.assign({ messageId: message.id }, alias)));
   }
@@ -12614,12 +12929,24 @@ function renderExternalDeliveryStatus(message) {
   return `<div class="external-delivery-status status-${escapeHtml(status || "unknown")}">${escapeHtml(label + error)}</div>`;
 }
 
+function messageUsesSenderLabel(message) {
+  if (isGroupChatView()) return true;
+  return Boolean(messageTaskGroup(message)?.sharedTopic);
+}
+
+function userMessageSenderLabel(message) {
+  return message?.senderLabel
+    || workspaceLabelById(message?.senderWorkspaceId || message?.actorWorkspaceId || "")
+    || "You";
+}
+
 function renderMessage(message) {
   const revoked = Boolean(message.revokedAt);
-  const roleLabel = isGroupChatView() && message.role === "user"
-    ? (message.senderLabel || "You")
+  const useSenderLabel = messageUsesSenderLabel(message);
+  const roleLabel = useSenderLabel && message.role === "user"
+    ? userMessageSenderLabel(message)
     : (message.role === "user" ? "You" : "Hermes");
-  const kindLabel = isGroupChatView() && message.role === "user" && message.messageKind === "ai" ? " · AI" : "";
+  const kindLabel = useSenderLabel && message.role === "user" && message.messageKind === "ai" ? " · AI" : "";
   const status = !revoked && message.status && message.status !== "done" ? ` - ${message.status}` : "";
   const timeLabel = messageDisplayTimeLabel(message);
   const usage = !revoked && message.usage ? renderUsage(message.usage, message) : "";
@@ -13308,9 +13635,17 @@ function renderDirectoryAliases(aliases, message, options = {}) {
     const reference = Boolean(options.reference || displayAlias.referenceKind || displayAlias.source === "reference");
     const chipClass = `directory-alias-chip${reference ? " directory-alias-chip-reference" : ""}`;
     if (route) {
-      const baseLabel = reference
+      const pathIsNested = Boolean(
+        route.root
+        && directoryPath
+        && pathMatchesDirectoryRoot(directoryPath, route.root)
+        && comparableDirectoryPath(directoryPath) !== comparableDirectoryPath(route.root)
+      );
+      const baseLabel = pathIsNested && displayAlias.label
+        ? displayAlias.label
+        : (reference || pathIsNested
         ? logicalDirectoryDisplayPath(directoryPath, route.label || displayAlias.label)
-        : directoryRouteDisplayPath(route, route.label || displayAlias.label);
+        : directoryRouteDisplayPath(route, route.label || displayAlias.label));
       const label = reference ? `\u4ea4\u4ed8 \u00b7 ${baseLabel}` : baseLabel;
       return `<span class="${chipClass} directory-alias-chip-mapped" title="${escapeHtml(label)}">
         <button class="directory-alias-open" type="button" data-directory-project data-project-id="${escapeHtml(route.projectId)}" data-subproject-id="${escapeHtml(route.subprojectId || "")}" data-directory-path="${escapeHtml(directoryPath)}" aria-label="打开目录管理">

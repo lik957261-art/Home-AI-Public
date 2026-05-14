@@ -4827,6 +4827,37 @@ button.directory-alias-chip {
   padding: 9px;
 }
 
+.todo-reading-recorder {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.todo-reading-recorder-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.todo-reading-recorder-actions button {
+  min-height: 40px;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+.todo-reading-record-status {
+  min-height: 18px;
+}
+
+@media (max-width: 480px) {
+  .todo-reading-recorder-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .todo-reading-quiz-panel {
   min-width: 0;
   overflow: hidden;
