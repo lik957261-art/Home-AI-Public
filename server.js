@@ -8,9 +8,15 @@ const crypto = require("node:crypto");
 const { spawn, spawnSync } = require("node:child_process");
 const webpush = require("web-push");
 const assessmentExamService = require("./adapters/assessment-exam-service");
+const {
+  assessmentConfigLine,
+  createAssessmentExamWorkflowService,
+} = require("./adapters/assessment-exam-workflow-service");
+const studyAssessmentService = require("./adapters/study-assessment-service");
 const { createConversationHistoryService } = require("./adapters/conversation-history-service");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
 const { createDirectKanbanCreateService } = require("./adapters/direct-kanban-create-service");
+const { createDirectoryBrowserBoundaryService } = require("./adapters/directory-browser-boundary-service");
 const { createEventFanoutService } = require("./adapters/event-fanout-service");
 const fileResourceService = require("./adapters/file-resource-service");
 const weixinMarkdownForwardService = require("./adapters/weixin-markdown-forward-service");
@@ -19,28 +25,37 @@ const { createAuthProvider } = require("./adapters/auth-provider");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createBridgeCommandProvider } = require("./adapters/bridge-command-provider");
 const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
-const { createDisplayPathProvider } = require("./adapters/display-path-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createFileArtifactAccessService } = require("./adapters/file-artifact-access-service");
 const { createFileArtifactResolverService } = require("./adapters/file-artifact-resolver-service");
 const { createFileResponseService } = require("./adapters/file-response-service");
+const { createArtifactTextRegistrationService } = require("./adapters/artifact-text-registration-service");
 const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-provider");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
+const { createGatewayRunEventService } = require("./adapters/gateway-run-event-service");
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service");
 const { createGatewayRunLifecycleService } = require("./adapters/gateway-run-lifecycle-service");
+const { createGatewayRunStartService } = require("./adapters/gateway-run-start-service");
+const { createGatewayRunStreamService } = require("./adapters/gateway-run-stream-service");
 const { createGatewayStatusProjection, gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createGroupChatSharedAttachmentService } = require("./adapters/group-chat-shared-attachment-service");
 const { createOwnerElevationGrantService } = require("./adapters/owner-elevation-grant-service");
+const { createRuntimeStatePersistenceService } = require("./adapters/runtime-state-persistence-service");
 const {
-  decideBackupPruning,
-  shouldRefuseMessageCountOverwrite,
-} = require("./adapters/runtime-state-store-service");
+  createRuntimeStateNormalizationService,
+  normalizeStringList,
+  normalizeStringMap,
+} = require("./adapters/runtime-state-normalization-service");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
+const { createRuntimeStateThreadService } = require("./adapters/runtime-state-thread-service");
 const { createKanbanAssigneePolicy } = require("./adapters/kanban-assignee-policy");
 const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
+const { createKanbanCaseTopicService } = require("./adapters/kanban-case-topic-service");
 const { createKanbanMaintenanceService } = require("./adapters/kanban-maintenance-service");
+const { createKanbanOutputProjectionService } = require("./adapters/kanban-output-projection-service");
+const { createKanbanPlanCardCreationService } = require("./adapters/kanban-plan-card-creation-service");
 const { createKanbanPlanService } = require("./adapters/kanban-plan-service");
 const {
   kanbanCardEffectiveCaseIndex,
@@ -50,7 +65,7 @@ const {
 const { createKanbanStudyArtifactService } = require("./adapters/kanban-study-artifact-service");
 const { createKanbanReadingWorkflowService } = require("./adapters/kanban-reading-workflow-service");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
-const { createLocalAutomationBridgeService } = require("./adapters/local-automation-bridge-service");
+const { createLocalBridgeRuntimeService } = require("./adapters/local-bridge-runtime-service");
 const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service");
 const { createNaturalLanguageDraftService } = require("./adapters/natural-language-draft-service");
 const { createAuditEventProvider } = require("./adapters/audit-event-provider");
@@ -60,15 +75,27 @@ const { createProjectDiscoveryProvider } = require("./adapters/project-discovery
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createRunConcurrencyPolicy } = require("./adapters/run-concurrency-policy");
 const { createSecurityBoundaryProvider } = require("./adapters/security-boundary-provider");
+const { createSemanticDirectoryAttachmentService } = require("./adapters/semantic-directory-attachment-service");
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
 const { createSharedDirectoryProjectionService } = require("./adapters/shared-directory-projection-service");
+const { createSingleWindowThreadService } = require("./adapters/single-window-thread-service");
+const {
+  createSystemRuntimeStatusService,
+} = require("./adapters/system-runtime-status-service");
 const { deriveKanbanWorkflowState } = require("./adapters/study-workflow-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider");
 const { buildRequestContext } = require("./adapters/request-context-provider");
+const { createThreadDirectCreateExecutionService } = require("./adapters/thread-direct-create-execution-service");
+const { createThreadMessageCreateService } = require("./adapters/thread-message-create-service");
+const { createThreadMessageRunRouteService } = require("./adapters/thread-message-run-route-service");
+const { createThreadOwnerElevationRetryService } = require("./adapters/thread-owner-elevation-retry-service");
 const { createThreadViewService } = require("./adapters/thread-view-service");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
+const { createWorkspaceDisplayPathService } = require("./adapters/workspace-display-path-service");
+const { createWorkspacePublicProjectionService } = require("./adapters/workspace-public-projection-service");
 const { createWorkspaceProjectProvider } = require("./adapters/workspace-project-provider");
 const { createTodoProvider } = require("./adapters/todo-provider");
+const { createTodoPublicProjectionService } = require("./adapters/todo-public-projection-service");
 const { createWeixinFileForwardService } = require("./adapters/weixin-file-forward-service");
 const { createWeixinForwardService } = require("./adapters/weixin-forward-service");
 const { createWeixinIngressEventService } = require("./adapters/weixin-ingress-event-service");
@@ -84,6 +111,7 @@ const { createEventStreamApiRoutes } = require("./server-routes/event-stream-api
 const { createFileArtifactApiRoutes } = require("./server-routes/file-artifact-api-routes");
 const { createKanbanCardApiRoutes } = require("./server-routes/kanban-card-api-routes");
 const { createKanbanStudyApiRoutes } = require("./server-routes/kanban-study-api-routes");
+const { createMobileApiDispatcher } = require("./server-routes/mobile-api-dispatcher");
 const { createOwnerElevationApiRoutes } = require("./server-routes/owner-elevation-api-routes");
 const { createPublicApiRoutes } = require("./server-routes/public-api-routes");
 const { createPushApiRoutes } = require("./server-routes/push-api-routes");
@@ -336,7 +364,6 @@ const SERVICE_STORE_BACKEND = String(process.env.HERMES_WEB_SERVICE_STORE || "")
 const MOBILE_SQLITE_DB_PATH = path.resolve(process.env.HERMES_WEB_DB_PATH || path.join(DATA_DIR, "hermes-mobile.sqlite3"));
 const BRIDGE_HOST_URL = stripTrailingSlash(process.env.HERMES_MOBILE_BRIDGE_HOST_URL || process.env.HERMES_WEB_BRIDGE_HOST_URL || "");
 const BRIDGE_HOST_KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
-let bridgeHostKeyCache = { path: "", value: "" };
 const OWNER_MAINTENANCE_RUNS_ENABLED = /^(1|true|yes|on)$/i.test(process.env.HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS || process.env.HERMES_WEB_ALLOW_OWNER_MAINTENANCE_RUNS || "");
 const OWNER_ELEVATION_DURATION_OPTIONS_MINUTES = normalizeOwnerElevationDurations(process.env.HERMES_MOBILE_OWNER_ELEVATION_MINUTES || process.env.HERMES_WEB_OWNER_ELEVATION_MINUTES || "5,15,30,60");
 const OWNER_ELEVATION_DEFAULT_MINUTES = OWNER_ELEVATION_DURATION_OPTIONS_MINUTES.includes(15)
@@ -485,9 +512,14 @@ let clients = new Set();
 let activeStreams = new Map();
 let gatewayRunner = null;
 let gatewayPoolProvider = null;
+let gatewayRunStreamService = null;
+let gatewayRunEventService = null;
+let gatewayRunStartService = null;
+let assessmentExamWorkflowService = null;
+let directoryBrowserBoundaryService = null;
+let artifactTextRegistrationService = null;
 let gatewayUsageTelemetryProvider = null;
 let groupChatSharedAttachmentService = null;
-let lastStateBackupAt = 0;
 let sharedDirectoryProjectionService = null;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
@@ -495,9 +527,24 @@ const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
 let threadViewService = null;
-let localAutomationBridgeService = null;
+let localBridgeRuntimeService = null;
+let todoPublicProjectionService = null;
+let kanbanOutputProjectionService = null;
+let singleWindowThreadService = null;
 let localWorkspaceStoreService = null;
+let workspacePublicProjectionService = null;
+let semanticDirectoryAttachmentService = null;
+let kanbanCaseTopicService = null;
+let kanbanPlanCardCreationService = null;
+let runtimeStateNormalizationService = null;
+let runtimeStatePersistenceService = null;
+let runtimeStateThreadService = null;
 let ownerElevationGrantService = null;
+let threadDirectCreateExecutionService = null;
+let threadMessageCreateService = null;
+let threadMessageRunRouteService = null;
+let threadOwnerElevationRetryService = null;
+let systemRuntimeStatusService = null;
 let weixinFileForwardService = null;
 let weixinForwardService = null;
 let weixinIngressEventService = null;
@@ -550,17 +597,17 @@ const fileResponseService = createFileResponseService({
 const fileArtifactResolverService = createFileArtifactResolverService({
   state: () => state,
   normalizeLocalPath,
-  resolveBrowserPath,
-  logicalUserPathFallback,
-  logicalDirectoryDisplayPath,
+  resolveBrowserPath: (...args) => getDirectoryBrowserBoundaryService().resolveBrowserPath(...args),
+  logicalUserPathFallback: (...args) => workspaceDisplayPathService.logicalUserPathFallback(...args),
+  logicalDirectoryDisplayPath: (...args) => workspaceDisplayPathService.logicalDirectoryDisplayPath(...args),
   mimeFor,
   authCanAccessWorkspace,
-  artifactAccessibleToAuth,
+  artifactAccessibleToAuth: (...args) => getRuntimeStateThreadService().artifactAccessibleToAuth(...args),
   isPathAllowedForThread,
   isPathAllowed,
   isOwnerAuth,
-  findArtifactReferenceById,
-  findArtifactReference,
+  findArtifactReferenceById: (...args) => getRuntimeStateThreadService().findArtifactReferenceById(...args),
+  findArtifactReference: (...args) => getRuntimeStateThreadService().findArtifactReference(...args),
   resolveArtifactPathFromMessage,
 });
 const publicApiRoutes = createPublicApiRoutes({
@@ -601,8 +648,6 @@ const runtimeConfigProvider = createRuntimeConfigProvider({
   defaultWebPushVapidPath: () => WEB_PUSH_VAPID_PATH,
 });
 bootTrace("runtime config ready");
-let clientVersionCache = { mtimeMs: 0, version: "" };
-let defaultReasoningCache = { cacheKey: "", value: null };
 webPushDeliveryService = createWebPushDeliveryService({
   appRouteUrl,
   automationDeliverableExtensions: AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS,
@@ -613,11 +658,14 @@ webPushDeliveryService = createWebPushDeliveryService({
   automationPushEnabled: AUTOMATION_WEB_PUSH_ENABLED,
   automationPushIntervalMs: AUTOMATION_WEB_PUSH_INTERVAL_MS,
   automationPushStartDelayMs: AUTOMATION_WEB_PUSH_START_DELAY_MS,
+  chatGroupMemberWorkspaceIds,
   compactText,
   dedupe,
   effectiveWebPushSubject,
   effectiveWebPushVapidPath,
   hashValue,
+  findWorkspace,
+  isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
   kanbanBlockedPushDelayMinutes: KANBAN_BLOCKED_PUSH_DELAY_MINUTES,
   loadCatalog,
   loadRuntimeConfig,
@@ -628,6 +676,8 @@ webPushDeliveryService = createWebPushDeliveryService({
   nowIso,
   publicTodo,
   saveState,
+  singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+  singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
   state: () => state,
   todoProvider: () => todoProvider,
   todoPushEnabled: TODO_WEB_PUSH_ENABLED,
@@ -641,6 +691,7 @@ webPushDeliveryService = createWebPushDeliveryService({
   webPushEnabled: WEB_PUSH_ENABLED,
   webPushSubject: WEB_PUSH_SUBJECT,
   webPushVapidPath: WEB_PUSH_VAPID_PATH,
+  workspaceLabel,
   workspaceIdForPrincipal,
   workspacePrincipal,
 });
@@ -664,7 +715,7 @@ const systemApiRoutes = createSystemApiRoutes({
   publicConcurrencyForAuth,
   publicGatewayPoolStatusForAuth,
   publicOwnerElevationStatus,
-  publicPushStatus,
+  publicPushStatus: webPushDeliveryService.publicPushStatus,
   publicReasoningInfoForAuth,
   requestClientVersion,
   sendJson,
@@ -693,7 +744,7 @@ const accessKeyApiRoutes = createAccessKeyApiRoutes({
 const runtimeConfigApiRoutes = createRuntimeConfigApiRoutes({
   generateWebPushVapidConfig,
   getHermesStatus,
-  publicPushStatus,
+  publicPushStatus: webPushDeliveryService.publicPushStatus,
   publicRuntimeConfig,
   readBody,
   reloadWebPush,
@@ -706,16 +757,16 @@ const pushApiRoutes = createPushApiRoutes({
   appRouteUrl,
   authenticateRequest,
   nowIso,
-  publicPushStatus,
+  publicPushStatus: webPushDeliveryService.publicPushStatus,
   pushWorkspaceForAuth,
   readBody,
-  recordPushReceipt,
-  removePushSubscription,
+  recordPushReceipt: webPushDeliveryService.recordPushReceipt,
+  removePushSubscription: webPushDeliveryService.removePushSubscription,
   requireOwner,
   requireWorkspaceAccess,
-  savePushSubscription,
+  savePushSubscription: webPushDeliveryService.savePushSubscription,
   sendJson,
-  sendPushNotification,
+  sendPushNotification: webPushDeliveryService.sendPushNotification,
   state: () => state,
   listPushReceipts: () => state?.pushReceipts || [],
   listPushDeliveries: () => state?.pushDeliveries || [],
@@ -757,24 +808,24 @@ const fileArtifactApiRoutes = createFileArtifactApiRoutes({
   textFilePreview,
 });
 const directoryBrowserApiRoutes = createDirectoryBrowserApiRoutes({
-  compareDirectoryEntriesNewestFirst,
+  compareDirectoryEntriesNewestFirst: (...args) => getDirectoryBrowserBoundaryService().compareDirectoryEntriesNewestFirst(...args),
   findDirectoryThreadForRequest,
-  publicDirectoryEntry,
-  publicRemoteDirectoryEntry,
-  resolveBrowserPathAsync,
+  publicDirectoryEntry: (...args) => getDirectoryBrowserBoundaryService().publicDirectoryEntry(...args),
+  publicRemoteDirectoryEntry: (...args) => getDirectoryBrowserBoundaryService().publicRemoteDirectoryEntry(...args),
+  resolveBrowserPathAsync: (...args) => getDirectoryBrowserBoundaryService().resolveBrowserPathAsync(...args),
   runDirectoryBridge,
   sendJson,
 });
 const directoryShareApiRoutes = createDirectoryShareApiRoutes({
   basename: (value) => path.basename(value),
   clearDynamicProjectCache: () => dynamicProjectCache.clear(),
-  directoryRequestParams,
+  directoryRequestParams: (...args) => getDirectoryBrowserBoundaryService().directoryRequestParams(...args),
   findDirectoryThreadForRequest,
   invalidateCatalogCache,
   nowIso,
   readBody,
   requireWorkspaceAccess,
-  resolveBrowserPathAsync,
+  resolveBrowserPathAsync: (...args) => getDirectoryBrowserBoundaryService().resolveBrowserPathAsync(...args),
   sendJson,
   sharedDirectoryProjectionService: {
     normalizeSharePermission: (...args) => getSharedDirectoryProjectionService().normalizeSharePermission(...args),
@@ -791,26 +842,26 @@ const directoryShareApiRoutes = createDirectoryShareApiRoutes({
   workspacePrincipal,
 });
 const directoryMutationApiRoutes = createDirectoryMutationApiRoutes({
-  assertChildPathInside,
+  assertChildPathInside: (...args) => getDirectoryBrowserBoundaryService().assertChildPathInside(...args),
   authenticateRequest,
   clearDynamicProjectCache: (workspaceId) => dynamicProjectCache.delete(String(workspaceId || "")),
-  directoryRequestParams,
+  directoryRequestParams: (...args) => getDirectoryBrowserBoundaryService().directoryRequestParams(...args),
   exists: (value) => fs.existsSync(value),
   findDirectoryThreadForRequest,
   invalidateCatalogCache,
-  isDeletableWorkspaceRootChild,
+  isDeletableWorkspaceRootChild: (...args) => getDirectoryBrowserBoundaryService().isDeletableWorkspaceRootChild(...args),
   isDirectoryBrowserPathAllowedForThread,
-  isProtectedDirectoryRoot,
-  isSharedDirectoryWriteAllowed,
-  joinDisplayPath,
+  isProtectedDirectoryRoot: (...args) => getDirectoryBrowserBoundaryService().isProtectedDirectoryRoot(...args),
+  isSharedDirectoryWriteAllowed: (...args) => getDirectoryBrowserBoundaryService().isSharedDirectoryWriteAllowed(...args),
+  joinDisplayPath: (...args) => getDirectoryBrowserBoundaryService().joinDisplayPath(...args),
   joinLocalPath: (parent, name) => path.join(parent, name),
   maxUploadBytes: MAX_UPLOAD_BYTES,
   mimeFor,
   mkdir: (value) => fs.mkdirSync(value),
-  publicManagedEntry,
-  publicRemoteDirectoryEntry,
+  publicManagedEntry: (...args) => getDirectoryBrowserBoundaryService().publicManagedEntry(...args),
+  publicRemoteDirectoryEntry: (...args) => getDirectoryBrowserBoundaryService().publicRemoteDirectoryEntry(...args),
   readBody,
-  resolveBrowserPathAsync,
+  resolveBrowserPathAsync: (...args) => getDirectoryBrowserBoundaryService().resolveBrowserPathAsync(...args),
   rmdir: (value) => fs.rmdirSync(value),
   runDirectoryBridge,
   safeDirectoryName,
@@ -826,21 +877,21 @@ const eventFanoutService = createEventFanoutService({
   authCanAccessWorkspace,
   isOwnerAuth,
   state: () => state,
-  threadAccessibleToAuth,
+  threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
 });
 const eventStreamApiRoutes = createEventStreamApiRoutes({
   activeStreams: () => activeStreams,
   authenticateRequest,
   clientVersionInfo,
   effectiveHermesApiBase,
-  pruneEmptyThreads,
+  pruneEmptyThreads: (...args) => getRuntimeStateThreadService().pruneEmptyThreads(...args),
   readClientVersion,
   registerClient: eventFanoutService.registerClient,
   removeClient: eventFanoutService.removeClient,
   runConcurrencySnapshot,
   sendJson,
   state: () => state,
-  threadAccessibleToAuth,
+  threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
   threadSummary,
 });
 const threadReadUploadApiRoutes = createThreadReadUploadApiRoutes({
@@ -853,14 +904,14 @@ const threadReadUploadApiRoutes = createThreadReadUploadApiRoutes({
   compactThreadWithMessagePage,
   findProject,
   findSubproject,
-  findThreadForRequest,
+  findThreadForRequest: (...args) => getRuntimeStateThreadService().findThreadForRequest(...args),
   findWorkspace,
-  isDiscardableEmptyThread,
+  isDiscardableEmptyThread: (...args) => getRuntimeStateThreadService().isDiscardableEmptyThread(...args),
   makeId,
   maxUploadBytes: MAX_UPLOAD_BYTES,
-  normalizeThread,
+  normalizeThread: (...args) => getRuntimeStateNormalizationService().normalizeThread(...args),
   nowIso,
-  pruneEmptyThreads,
+  pruneEmptyThreads: (...args) => getRuntimeStateThreadService().pruneEmptyThreads(...args),
   readBody,
   registerUploadArtifact,
   requireWorkspaceAccess,
@@ -870,7 +921,7 @@ const threadReadUploadApiRoutes = createThreadReadUploadApiRoutes({
   sendJson,
   singleWindowProjectTaskSummaries,
   state: () => state,
-  threadAccessibleToRequest,
+  threadAccessibleToRequest: (...args) => getRuntimeStateThreadService().threadAccessibleToRequest(...args),
   threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
   threadMessagePageLimit: THREAD_MESSAGE_PAGE_LIMIT,
   threadMessageSearchLimit: THREAD_MESSAGE_SEARCH_LIMIT,
@@ -882,13 +933,13 @@ const threadTaskApiRoutes = createThreadTaskApiRoutes({
   broadcast,
   compactThread,
   dedupe,
-  findThreadForRequest,
+  findThreadForRequest: (...args) => getRuntimeStateThreadService().findThreadForRequest(...args),
   isSingleWindowConversationTaskGroupId,
-  normalizeTaskGroupMeta,
+  normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
   nowIso,
   readBody,
-  sanitizeTaskGroupId,
-  sanitizeTaskTitle,
+  sanitizeTaskGroupId: (...args) => getRuntimeStateNormalizationService().sanitizeTaskGroupId(...args),
+  sanitizeTaskTitle: (...args) => getRuntimeStateNormalizationService().sanitizeTaskTitle(...args),
   saveState,
   sendJson,
   state: () => state,
@@ -901,18 +952,18 @@ const singleWindowGroupChatApiRoutes = createSingleWindowGroupChatApiRoutes({
   compactMessage,
   compactThread,
   compactThreadWithMessagePage,
-  ensureSingleWindowThread,
-  ensureWeixinSingleWindowThread,
-  findGroupChatThreadForWorkspace,
-  findThreadForRequest,
-  findWeixinSingleWindowThreadForWorkspace,
+  ensureSingleWindowThread: (...args) => getSingleWindowThreadService().ensureSingleWindowThread(...args),
+  ensureWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().ensureWeixinSingleWindowThread(...args),
+  findGroupChatThreadForWorkspace: (...args) => getSingleWindowThreadService().findGroupChatThreadForWorkspace(...args),
+  findThreadForRequest: (...args) => getRuntimeStateThreadService().findThreadForRequest(...args),
+  findWeixinSingleWindowThreadForWorkspace: (...args) => getSingleWindowThreadService().findWeixinSingleWindowThreadForWorkspace(...args),
   findWorkspace,
   groupAiReplyRevokedText: GROUP_AI_REPLY_REVOKED_TEXT,
   groupAssistantReplyForUserMessage,
   groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
   groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT,
   groupMessageRevoker,
-  kanbanCaseTopicThreadsForWorkspace,
+  kanbanCaseTopicThreadsForWorkspace: (...args) => getSingleWindowThreadService().kanbanCaseTopicThreadsForWorkspace(...args),
   normalizeChatGroup,
   normalizeStringList,
   nowIso,
@@ -926,16 +977,15 @@ const singleWindowGroupChatApiRoutes = createSingleWindowGroupChatApiRoutes({
   sendJson,
   state: () => state,
   stopRunIds,
-  threadAccessibleToAuth,
+  threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
   threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
   threadSummary,
   weixinForwardTargetsForWorkspace,
 });
 const threadMessageRunApiRoutes = createThreadMessageRunApiRoutes({
-  handleThreadMessageCreate,
-  handleThreadMessageOwnerElevation,
+  handleThreadMessageCreate: (...args) => getThreadMessageRunRouteService().handleThreadMessageCreate(...args),
+  handleThreadMessageOwnerElevation: (...args) => getThreadMessageRunRouteService().handleThreadMessageOwnerElevation(...args),
 });
-bootTrace("core api routes ready");
 let todoWebPushRunning = false;
 let automationWebPushRunning = false;
 
@@ -1113,12 +1163,12 @@ threadViewService = createThreadViewService({
   isSingleWindowConversationTaskGroupId,
   maxApiTextChars: MAX_API_TEXT_CHARS,
   maxStoredEventsPerThread: MAX_STORED_EVENTS_PER_THREAD,
-  normalizeTaskGroupMeta,
-  projectSearchLabels,
+  normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
+  projectSearchLabels: (...args) => getSemanticDirectoryAttachmentService().projectSearchLabels(...args),
   publicChatGroup,
-  publicExternalIngress,
+  publicExternalIngress: (...args) => getSingleWindowThreadService().publicExternalIngress(...args),
   publicWeixinOutboundDelivery,
-  sanitizeTaskTitle,
+  sanitizeTaskTitle: (...args) => getRuntimeStateNormalizationService().sanitizeTaskTitle(...args),
   searchableText,
   singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
   singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
@@ -1135,7 +1185,7 @@ weixinForwardService = createWeixinForwardService({
   findWorkspace,
   isOwnerAuth,
   state: () => state,
-  threadAccessibleToAuth,
+  threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
   workspaceLabel,
 });
 bootTrace("weixin forward service ready");
@@ -1149,16 +1199,16 @@ weixinFileForwardService = createWeixinFileForwardService({
   compactThread,
   deliveryId: (threadId, messageId) => weixinIngressProvider.deliveryId(threadId, messageId),
   egressPolicyProvider,
-  ensureWeixinSingleWindowThread,
+  ensureWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().ensureWeixinSingleWindowThread(...args),
   fileResultFromBridgeFileForForward,
-  findThreadForAuth,
+  findThreadForAuth: (...args) => getRuntimeStateThreadService().findThreadForAuth(...args),
   fs,
   isOwnerAuth,
-  isWeixinSingleWindowThread,
+  isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
   makeId,
   materializeWeixinForwardFile,
   mimeFor,
-  normalizeExternalDelivery,
+  normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
   normalizeLocalPath,
   nowIso,
   publicWeixinOutboundDelivery,
@@ -1183,10 +1233,14 @@ const workspaceBindingsProvider = createWorkspaceBindingsProvider({
 });
 bootTrace("workspace bindings ready");
 
-const displayPathProvider = createDisplayPathProvider({
+const workspaceDisplayPathService = createWorkspaceDisplayPathService({
+  allProjectsForWorkspaceSync,
+  comparablePath,
+  findWorkspace,
   ownerDriveRootNames: () => OWNER_DRIVE_ROOT_NAMES,
   ownerRootFallbackLabel: () => OWNER_ROOT_FALLBACK_LABEL,
   normalizeLocalPath: (value) => normalizeLocalPath(value),
+  pathInsideAnyRoot,
 });
 bootTrace("display paths ready");
 
@@ -1240,7 +1294,7 @@ function effectiveWebPushVapidPath(config = loadRuntimeConfig()) {
 
 function publicRuntimeConfig() {
   return runtimeConfigProvider.publicConfig({
-    pushStatus: publicPushStatus(),
+    pushStatus: webPushDeliveryService.publicPushStatus(),
     webPushConfig: webPushDeliveryService?.getWebPushConfig?.() || null,
     webPushEnabled: WEB_PUSH_ENABLED,
   });
@@ -1292,19 +1346,7 @@ async function chooseGatewayRunTarget(hints = {}) {
 }
 
 function gatewayTargetForRun(runId) {
-  const active = activeStreams.get(runId);
-  if (active?.gatewayUrl) {
-    return {
-      apiBase: active.gatewayUrl,
-      apiKey: active.gatewayApiKey || "",
-      name: active.gatewayName || "",
-      profile: active.gatewayProfile || "",
-      pooled: active.gatewaySource === "worker_pool",
-      source: active.gatewaySource || "",
-    };
-  }
-  const gatewayUrl = gatewayUrlForRun(runId);
-  return gatewayPool().targetForGatewayUrl(gatewayUrl);
+  return getGatewayRunStreamService().gatewayTargetForRun(runId);
 }
 
 function runConcurrencySnapshot() {
@@ -1662,10 +1704,6 @@ function authenticateRequest(req) {
   return authProvider.authenticateRequest(req);
 }
 
-function isAuthorized(req) {
-  return authenticateRequest(req).ok;
-}
-
 function isOwnerAuth(auth) {
   return authProvider.isOwnerAuth(auth);
 }
@@ -1684,16 +1722,8 @@ function getOwnerElevationGrantService() {
   return ownerElevationGrantService;
 }
 
-function currentOwnerElevationGrant(now = Date.now()) {
-  return getOwnerElevationGrantService().currentGrant(now);
-}
-
 function isOwnerElevationActive(auth) {
   return getOwnerElevationGrantService().isActive(auth);
-}
-
-function pruneOwnerElevationOnceGrants(now = Date.now()) {
-  return getOwnerElevationGrantService().pruneOnceGrants(now);
 }
 
 function grantOwnerElevationOnce(auth) {
@@ -1720,51 +1750,24 @@ function authCanAccessWorkspace(auth, workspaceId) {
   return authProvider.authCanAccessWorkspace(auth, workspaceId);
 }
 
+function getRuntimeStateThreadService() {
+  if (!runtimeStateThreadService) {
+    runtimeStateThreadService = createRuntimeStateThreadService({
+      authenticateRequest,
+      authCanAccessWorkspace,
+      chatGroupMemberWorkspaceIds,
+      groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+      saveState,
+      state: () => state,
+    });
+  }
+  return runtimeStateThreadService;
+}
+
 function chatGroupMemberWorkspaceIds(thread, options = {}) {
   if (!thread?.singleWindow) return [];
   const group = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId, options);
   return group.enabled ? group.memberWorkspaceIds : [];
-}
-
-function messageContainsArtifact(message, artifact) {
-  const artifactId = String(artifact?.id || "");
-  if (!message || !artifactId) return false;
-  return (message.artifacts || []).some((item) => String(item?.id || "") === artifactId);
-}
-
-function groupChatArtifactAccessibleToAuth(auth, thread, artifact) {
-  if (!auth?.ok || !auth.workspaceId || !thread?.singleWindow) return false;
-  if (!chatGroupMemberWorkspaceIds(thread).includes(auth.workspaceId)) return false;
-  const message = (thread.messages || []).find((item) => String(item?.id || "") === String(artifact?.messageId || ""));
-  return Boolean(message?.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID && messageContainsArtifact(message, artifact));
-}
-
-function artifactAccessibleToAuth(auth, thread, artifact) {
-  if (authCanAccessWorkspace(auth, thread?.workspaceId || "")) return true;
-  return groupChatArtifactAccessibleToAuth(auth, thread, artifact);
-}
-
-function findArtifactReference(artifact) {
-  const artifactId = String(artifact?.id || "");
-  if (!artifactId) return null;
-  for (const thread of state.threads || []) {
-    for (const message of thread.messages || []) {
-      if (messageContainsArtifact(message, artifact)) return { thread, message };
-    }
-  }
-  return null;
-}
-
-function findArtifactReferenceById(artifactId) {
-  const id = String(artifactId || "");
-  if (!id) return null;
-  for (const thread of state.threads || []) {
-    for (const message of thread.messages || []) {
-      const artifact = (message.artifacts || []).find((item) => String(item?.id || "") === id);
-      if (artifact) return { thread, message, artifact };
-    }
-  }
-  return null;
 }
 
 function resolveArtifactPathFromMessage(artifact, message) {
@@ -1783,23 +1786,29 @@ function resolveArtifactPathFromMessage(artifact, message) {
   return candidates.length === 1 ? candidates[0] : null;
 }
 
-function threadAccessibleToAuth(auth, thread) {
-  if (!thread) return false;
-  if (authCanAccessWorkspace(auth, thread.workspaceId)) return true;
-  if (!auth?.ok || !auth.workspaceId) return false;
-  return chatGroupMemberWorkspaceIds(thread).includes(auth.workspaceId);
-}
-
 function pushWorkspaceForAuth(auth, requestedWorkspaceId = "owner") {
   const requested = String(requestedWorkspaceId || auth?.workspaceId || "owner").trim() || "owner";
   if (isOwnerAuth(auth)) return findWorkspace(requested) ? requested : "owner";
   return String(auth?.workspaceId || requestedWorkspaceId || "owner").trim() || "owner";
 }
 
+function getWorkspacePublicProjectionService() {
+  if (!workspacePublicProjectionService) {
+    workspacePublicProjectionService = createWorkspacePublicProjectionService({
+      dedupe,
+      filterRoots: (roots) => securityBoundaryProvider.filterRoots(roots),
+      isOwnerAuth,
+      loadCatalog,
+      publicWorkspaceAccessKeyStatus: (workspace) => authProvider.publicWorkspaceAccessKeyStatus(workspace),
+      publicWorkspaceBindings: (workspace) => workspaceBindingsProvider.publicBindings(workspace),
+      rootConflictsWithProtected: (root) => securityBoundaryProvider.rootConflictsWithProtected(root),
+    });
+  }
+  return workspacePublicProjectionService;
+}
+
 function publicWorkspacesForAuth(auth) {
-  const workspaces = loadCatalog().workspaces;
-  if (isOwnerAuth(auth)) return workspaces;
-  return workspaces.filter((workspace) => workspace.id === auth?.workspaceId);
+  return getWorkspacePublicProjectionService().publicWorkspacesForAuth(auth);
 }
 
 function requireOwner(req, res) {
@@ -1824,20 +1833,6 @@ function requireWorkspaceAccess(req, res, workspaceId) {
   return id;
 }
 
-function threadAccessibleToRequest(req, thread) {
-  return threadAccessibleToAuth(authenticateRequest(req), thread);
-}
-
-function findThreadForRequest(req, threadId) {
-  const thread = state.threads.find((item) => item.id === String(threadId || ""));
-  return threadAccessibleToRequest(req, thread) ? thread : null;
-}
-
-function findThreadForAuth(auth, threadId) {
-  const thread = state.threads.find((item) => item.id === String(threadId || ""));
-  return threadAccessibleToAuth(auth, thread) ? thread : null;
-}
-
 function ownerDirectoryBrowserThread() {
   return {
     id: "owner-directory-browser",
@@ -1855,7 +1850,7 @@ function ownerDirectoryBrowserThread() {
 
 function findDirectoryThreadForRequest(req, threadId) {
   const auth = authenticateRequest(req);
-  const thread = findThreadForAuth(auth, threadId);
+  const thread = getRuntimeStateThreadService().findThreadForAuth(auth, threadId);
   if (thread) return thread;
   return isOwnerAuth(auth) ? ownerDirectoryBrowserThread() : null;
 }
@@ -1865,123 +1860,67 @@ function ensureDataDir() {
   fs.mkdirSync(OWNER_DEFAULT_WORKSPACE, { recursive: true });
 }
 
-function ensureStateBackupDir() {
-  fs.mkdirSync(STATE_BACKUP_DIR, { recursive: true });
+function getRuntimeStateNormalizationService() {
+  if (!runtimeStateNormalizationService) {
+    runtimeStateNormalizationService = createRuntimeStateNormalizationService({
+      bootTrace,
+      chatGroupMemberWorkspaceIds,
+      compactFullContent,
+      dedupe,
+      findWorkspace,
+      groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT,
+      kanbanCaseTopicKind: KANBAN_CASE_TOPIC_KIND,
+      makeId,
+      maxStoredEventsPerThread: MAX_STORED_EVENTS_PER_THREAD,
+      messageTimeFields: MESSAGE_TIME_FIELDS,
+      normalizePushDelivery,
+      normalizePushReceipt,
+      normalizePushSubscription,
+      normalizeSingleWindowMode,
+      nowIso,
+      singleWindowChatTaskGroupId,
+      singleWindowChatTaskGroupIdValue: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+      singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+      validReasoningEfforts: VALID_REASONING_EFFORTS,
+      workspaceLabel,
+    });
+  }
+  return runtimeStateNormalizationService;
+}
+
+function getRuntimeStatePersistenceService() {
+  if (!runtimeStatePersistenceService) {
+    runtimeStatePersistenceService = createRuntimeStatePersistenceService({
+      fs,
+      path,
+      statePath: STATE_PATH,
+      dataDir: DATA_DIR,
+      stateBackupDir: STATE_BACKUP_DIR,
+      maxStateBackups: MAX_STATE_BACKUPS,
+      stateBackupMinIntervalMs: STATE_BACKUP_MIN_INTERVAL_MS,
+      bootTrace,
+      defaultState,
+      ensureDataDir,
+      logError: (message) => console.error(message),
+      mobileSqliteStore,
+      normalizeState,
+      pushSubscriptionScopeSignature,
+      useSqliteServiceStore,
+    });
+  }
+  return runtimeStatePersistenceService;
 }
 
 function defaultState() {
-  return {
-    schemaVersion: 1,
-    threads: [],
-    artifacts: [],
-    pushSubscriptions: [],
-    pushReceipts: [],
-    pushDeliveries: [],
-    automationPushMarks: {},
-  };
+  return getRuntimeStateNormalizationService().defaultState();
 }
 
 function loadState() {
-  bootTrace("loadState enter");
-  ensureDataDir();
-  bootTrace("loadState ensured data dir");
-  if (useSqliteServiceStore()) return loadStateFromSqlite();
-  bootTrace("loadState json mode");
-  let raw = "";
-  let parsed = null;
-  try {
-    raw = fs.readFileSync(STATE_PATH, "utf8");
-  } catch (err) {
-    if (err && err.code === "ENOENT") {
-      const fresh = defaultState();
-      writeStateFile(fresh);
-      return fresh;
-    }
-    throw err;
-  }
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    backupStateFile("parse-failed", { force: true, rawFallback: true });
-    console.error(`Hermes Mobile state parse failed; wrote fresh state after backup: ${err.message || String(err)}`);
-    const fresh = defaultState();
-    writeStateFile(fresh);
-    return fresh;
-  }
-  backupStateFile("startup", { force: true });
-  try {
-      const normalized = normalizeState(parsed, { skipCatalogLookups: true });
-    if (pushSubscriptionScopeSignature(parsed.pushSubscriptions) !== pushSubscriptionScopeSignature(normalized.pushSubscriptions)) {
-      saveState(normalized, { reason: "normalize-push-subscriptions" });
-    }
-    return normalized;
-  } catch (err) {
-    backupStateFile("normalize-failed", { force: true, rawFallback: true });
-    throw err;
-  }
-}
-
-function loadStateFromSqlite() {
-  bootTrace("loadState sqlite enter");
-  const store = mobileSqliteStore();
-  bootTrace("loadState sqlite store ready");
-  const counts = store.runtimeStateCounts();
-  bootTrace(`loadState sqlite counts ${JSON.stringify(counts)}`);
-  const hasRuntimeRows = Object.values(counts).some((value) => Number(value || 0) > 0);
-  if (!hasRuntimeRows) {
-    bootTrace("loadState sqlite empty runtime");
-    const existing = readStateFileIfValid();
-    if (existing) {
-      bootTrace("loadState sqlite import state-file source");
-      backupStateFile("sqlite-import-source", { force: true });
-      const normalized = normalizeState(existing, { skipCatalogLookups: true });
-      bootTrace("loadState sqlite state-file normalized");
-      store.replaceRuntimeState(normalized);
-      bootTrace("loadState sqlite state-file imported");
-      writeStateFile(normalized);
-      bootTrace("loadState sqlite state-file snapshot written");
-      return normalized;
-    }
-    const fresh = defaultState();
-    bootTrace("loadState sqlite writing fresh state");
-    store.replaceRuntimeState(fresh);
-    bootTrace("loadState sqlite fresh imported");
-    writeStateFile(fresh);
-    bootTrace("loadState sqlite fresh snapshot written");
-    return fresh;
-  }
-  bootTrace("loadState sqlite before exportRuntimeState");
-  const exported = store.exportRuntimeState();
-  bootTrace("loadState sqlite after exportRuntimeState");
-  const normalized = normalizeState(exported, { skipCatalogLookups: true });
-  bootTrace("loadState sqlite after normalizeState");
-  writeStateFile(normalized);
-  bootTrace("loadState sqlite snapshot written");
-  return normalized;
+  return getRuntimeStatePersistenceService().loadState();
 }
 
 function normalizeState(value, options = {}) {
-  const next = value && typeof value === "object" ? value : {};
-  bootTrace("normalizeState start");
-  const threads = Array.isArray(next.threads) ? next.threads.map((thread) => normalizeThread(thread, options)) : [];
-  bootTrace(`normalizeState threads ${threads.length}`);
-  const pushSubscriptions = Array.isArray(next.pushSubscriptions) ? next.pushSubscriptions.map((item) => normalizePushSubscription(item, options)).filter(Boolean) : [];
-  bootTrace(`normalizeState pushSubscriptions ${pushSubscriptions.length}`);
-  const pushReceipts = Array.isArray(next.pushReceipts) ? next.pushReceipts.map(normalizePushReceipt).filter(Boolean).slice(-200) : [];
-  bootTrace(`normalizeState pushReceipts ${pushReceipts.length}`);
-  const pushDeliveries = Array.isArray(next.pushDeliveries) ? next.pushDeliveries.map(normalizePushDelivery).filter(Boolean).slice(-200) : [];
-  bootTrace(`normalizeState pushDeliveries ${pushDeliveries.length}`);
-  return {
-    schemaVersion: 1,
-    threads,
-    artifacts: Array.isArray(next.artifacts) ? next.artifacts : [],
-    pushSubscriptions,
-    pushReceipts,
-    pushDeliveries,
-    automationPushMarks: next.automationPushMarks && typeof next.automationPushMarks === "object" && !Array.isArray(next.automationPushMarks)
-      ? next.automationPushMarks
-      : {},
-  };
+  return getRuntimeStateNormalizationService().normalizeState(value, options);
 }
 
 function normalizePushDelivery(item) {
@@ -2016,24 +1955,6 @@ function pushSubscriptionScopeSignature(items) {
   return webPushDeliveryService.pushSubscriptionScopeSignature(items);
 }
 
-function normalizeStringList(value) {
-  const raw = Array.isArray(value)
-    ? value
-    : (typeof value === "string" ? value.split(",") : (value ? [value] : []));
-  return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean));
-}
-
-function normalizeStringMap(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const out = {};
-  for (const [key, rawValue] of Object.entries(value)) {
-    const normalizedKey = String(key || "").trim();
-    const normalizedValue = String(rawValue || "").trim();
-    if (normalizedKey && normalizedValue) out[normalizedKey] = normalizedValue;
-  }
-  return out;
-}
-
 function stripPrincipalLabelPrefixes(value) {
   let text = String(value || "").trim();
   for (const prefix of PRINCIPAL_LABEL_PREFIXES) {
@@ -2043,367 +1964,11 @@ function stripPrincipalLabelPrefixes(value) {
 }
 
 function normalizeChatGroup(value, ownerWorkspaceId = "owner", options = {}) {
-  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  const ownerId = String(ownerWorkspaceId || "owner").trim() || "owner";
-  let memberWorkspaceIds = normalizeStringList(
-    source.memberWorkspaceIds || source.member_workspace_ids || source.members || source.workspaceIds,
-  );
-  if (!options.skipCatalogLookups) memberWorkspaceIds = memberWorkspaceIds.filter((workspaceId) => findWorkspace(workspaceId));
-  if (source.enabled) memberWorkspaceIds.unshift(ownerId);
-  const normalizedMembers = dedupe(memberWorkspaceIds);
-  const kind = String(source.kind || source.type || "").trim() === KANBAN_CASE_TOPIC_KIND ? KANBAN_CASE_TOPIC_KIND : "";
-  const topicKey = String(source.topicKey || source.topic_key || "").trim().slice(0, 160);
-  return {
-    enabled: Boolean(source.enabled),
-    memberWorkspaceIds: source.enabled ? normalizedMembers : [],
-    kind,
-    topicKey,
-    createdAt: String(source.createdAt || source.created_at || ""),
-    updatedAt: String(source.updatedAt || source.updated_at || ""),
-  };
-}
-
-function normalizeExternalIngress(value) {
-  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  const sourceName = String(source.source || "").trim();
-  if (!sourceName) return null;
-  return {
-    source: sourceName.slice(0, 80),
-    threadKey: String(source.threadKey || source.thread_key || "").slice(0, 120),
-    eventId: String(source.eventId || source.event_id || "").slice(0, 160),
-    accountId: String(source.accountId || source.account_id || "").slice(0, 160),
-    chatId: String(source.chatId || source.chat_id || "").slice(0, 240),
-    userId: String(source.userId || source.user_id || "").slice(0, 240),
-    principalId: String(source.principalId || source.principal_id || "").slice(0, 160),
-    workspaceId: String(source.workspaceId || source.workspace_id || "").slice(0, 160),
-    senderLabel: String(source.senderLabel || source.sender_label || "").slice(0, 120),
-    status: String(source.status || "").slice(0, 80),
-    createdAt: String(source.createdAt || source.created_at || ""),
-    updatedAt: String(source.updatedAt || source.updated_at || ""),
-  };
-}
-
-function normalizeExternalDelivery(value) {
-  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  const sourceName = String(source.source || "").trim();
-  if (!sourceName) return null;
-  return Object.assign({}, source, {
-    source: sourceName.slice(0, 80),
-    deliveryId: String(source.deliveryId || source.delivery_id || "").slice(0, 160),
-    status: String(source.status || "waiting").slice(0, 80),
-    accountId: String(source.accountId || source.account_id || "").slice(0, 160),
-    chatId: String(source.chatId || source.chat_id || "").slice(0, 240),
-    userId: String(source.userId || source.user_id || "").slice(0, 240),
-    eventId: String(source.eventId || source.event_id || "").slice(0, 160),
-    updatedAt: String(source.updatedAt || source.updated_at || ""),
-  });
-}
-
-function normalizeThread(thread, options = {}) {
-  const now = new Date().toISOString();
-  const normalized = {
-    id: String(thread.id || makeId("thread")),
-    title: String(thread.title || "New thread"),
-    workspaceId: String(thread.workspaceId || "owner"),
-    projectId: String(thread.projectId || "general"),
-    subprojectId: String(thread.subprojectId || ""),
-    singleWindow: Boolean(thread.singleWindow),
-    hermesSessionId: String(thread.hermesSessionId || `web_${makeId("session")}`),
-    status: String(thread.status || "idle"),
-    activeRunId: thread.activeRunId || null,
-    activeRunIds: Array.isArray(thread.activeRunIds) ? thread.activeRunIds.map(String).filter(Boolean) : dedupe([thread.activeRunId].filter(Boolean)),
-    createdAt: thread.createdAt || now,
-    updatedAt: thread.updatedAt || now,
-    taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
-    chatGroup: normalizeChatGroup(thread.chatGroup || thread.groupChat, thread.workspaceId || "owner", options),
-    externalIngress: normalizeExternalIngress(thread.externalIngress || thread.external_ingress),
-    messages: Array.isArray(thread.messages) ? thread.messages : [],
-    events: Array.isArray(thread.events) ? thread.events.slice(-MAX_STORED_EVENTS_PER_THREAD) : [],
-  };
-  normalized.messages = normalizeThreadMessages(normalized, normalized.messages, options);
-  return normalized;
-}
-
-function normalizeThreadMessages(thread, messages, options = {}) {
-  const normalized = messages.map((message) => {
-    const next = message && typeof message === "object" ? Object.assign({}, message) : {};
-    next.id = String(next.id || makeId("msg"));
-    next.role = String(next.role || "assistant");
-    next.content = String(next.content || "");
-    next.status = String(next.status || "done");
-    next.createdAt = next.createdAt || nowIso();
-    next.updatedAt = next.updatedAt || next.createdAt;
-    for (const field of MESSAGE_TIME_FIELDS) {
-      if (next[field]) next[field] = String(next[field]);
-    }
-    next.artifacts = Array.isArray(next.artifacts) ? next.artifacts : [];
-    next.directoryAliases = Array.isArray(next.directoryAliases) ? next.directoryAliases : [];
-    next.directoryRoute = next.directoryRoute && typeof next.directoryRoute === "object" ? next.directoryRoute : null;
-    next.messageKind = String(next.messageKind || next.message_kind || "").trim() === "plain" ? "plain" : "ai";
-    next.senderWorkspaceId = String(next.senderWorkspaceId || next.sender_workspace_id || next.actorWorkspaceId || thread.workspaceId || "").trim();
-    next.senderPrincipalId = String(next.senderPrincipalId || next.sender_principal_id || "").trim();
-    next.senderLabel = String(next.senderLabel || next.sender_label || "").trim();
-    next.gatewayUrl = String(next.gatewayUrl || next.gateway_url || "").trim();
-    next.gatewayName = String(next.gatewayName || next.gateway_name || "").trim();
-    next.gatewayProfile = String(next.gatewayProfile || next.gateway_profile || "").trim();
-    next.gatewaySource = String(next.gatewaySource || next.gateway_source || "").trim();
-    next.externalIngress = normalizeExternalIngress(next.externalIngress || next.external_ingress);
-    next.externalDelivery = normalizeExternalDelivery(next.externalDelivery || next.external_delivery);
-    if (!next.senderLabel && next.senderWorkspaceId) {
-      next.senderLabel = options.skipCatalogLookups ? next.senderWorkspaceId : workspaceLabel(next.senderWorkspaceId);
-    }
-    next.revokedAt = String(next.revokedAt || next.revoked_at || "").trim();
-    next.revokedByWorkspaceId = String(next.revokedByWorkspaceId || next.revoked_by_workspace_id || "").trim();
-    next.revokedByPrincipalId = String(next.revokedByPrincipalId || next.revoked_by_principal_id || "").trim();
-    next.revokedByLabel = String(next.revokedByLabel || next.revoked_by_label || "").trim();
-    if (next.revokedAt) {
-      next.content = next.content || GROUP_MESSAGE_REVOKED_TEXT;
-      next.error = null;
-      next.artifacts = [];
-      next.directoryAliases = [];
-      next.directoryRoute = null;
-    }
-    const reasoningEffort = String(next.reasoningEffort || next.reasoning_effort || "").trim();
-    next.reasoningEffort = VALID_REASONING_EFFORTS.has(reasoningEffort) ? reasoningEffort : "";
-    if (next.role === "user" && !next.submittedAt) next.submittedAt = next.createdAt;
-    if (next.role === "assistant") {
-      if (!next.queuedAt) next.queuedAt = next.createdAt;
-      if (next.status === "done" && !next.completedAt && (next.content || next.artifacts.length)) next.completedAt = next.updatedAt;
-    if (next.status === "failed" && !next.failedAt) next.failedAt = next.updatedAt;
-      if (next.status === "cancelled" && !next.cancelledAt) next.cancelledAt = next.updatedAt;
-    }
-    if (next.taskGroupId) next.taskGroupId = sanitizeTaskGroupId(next.taskGroupId);
-    if (thread.singleWindow) {
-      const rawSingleWindowMode = String(next.singleWindowMode || next.single_window_mode || "").trim();
-      const weixinIngressMessage = next.externalIngress?.source === "weixin" || next.externalDelivery?.source === "weixin";
-      const conversationMessage = isSingleWindowConversationTaskGroupId(next.taskGroupId) || weixinIngressMessage;
-      next.singleWindowMode = normalizeSingleWindowMode(rawSingleWindowMode || (conversationMessage ? "chat" : "task"));
-      if (next.singleWindowMode === "chat") next.taskGroupId = singleWindowChatTaskGroupId(next.taskGroupId);
-    }
-    if (
-      thread.singleWindow
-      && next.messageKind === "plain"
-      && next.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID
-      && chatGroupMemberWorkspaceIds(thread, options).length
-    ) {
-      next.taskGroupId = SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
-    }
-    return next;
-  });
-  if (!thread.singleWindow) return normalized;
-
-  let currentTaskGroupId = "";
-  for (let i = 0; i < normalized.length; i += 1) {
-    const message = normalized[i];
-    if (message.taskGroupId) {
-      currentTaskGroupId = message.taskGroupId;
-      continue;
-    }
-    if (message.role === "user" || !currentTaskGroupId) {
-      const nextAssistant = normalized[i + 1]?.role === "assistant" ? normalized[i + 1] : null;
-      currentTaskGroupId = sanitizeTaskGroupId(
-        nextAssistant?.taskGroupId || nextAssistant?.taskId || message.taskId || `task_${message.id}`,
-      );
-    }
-    message.taskGroupId = currentTaskGroupId;
-  }
-  return normalized;
-}
-
-function sanitizeTaskGroupId(value) {
-  const cleaned = String(value || "")
-    .trim()
-    .replace(/[^A-Za-z0-9_.:-]+/g, "_")
-    .slice(0, 96);
-  return cleaned || makeId("task");
-}
-
-function sanitizeTaskTitle(value) {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 120);
-}
-
-function normalizeTaskGroupMeta(value) {
-  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  const out = {};
-  for (const [rawKey, rawMeta] of Object.entries(source)) {
-    const key = sanitizeTaskGroupId(rawKey);
-    if (!key || !rawMeta || typeof rawMeta !== "object" || Array.isArray(rawMeta)) continue;
-    const title = sanitizeTaskTitle(rawMeta.title || rawMeta.name || "");
-    if (!title) continue;
-    out[key] = {
-      title,
-      updatedAt: String(rawMeta.updatedAt || rawMeta.renamedAt || nowIso()),
-    };
-    if (rawMeta.sharedTopic) out[key].sharedTopic = true;
-    for (const name of ["kanbanCaseId", "kanbanCaseMode", "kanbanCaseOwnerWorkspaceId", "sharedDirectoryPath", "caseDirectoryPath"]) {
-      const value = String(rawMeta[name] || "").trim();
-      if (value) out[key][name] = value;
-    }
-    for (const name of ["performerWorkspaceIds", "viewerWorkspaceIds"]) {
-      if (Array.isArray(rawMeta[name])) out[key][name] = dedupe(rawMeta[name]);
-    }
-    if (rawMeta.directoryRoute && typeof rawMeta.directoryRoute === "object" && !Array.isArray(rawMeta.directoryRoute)) {
-      out[key].directoryRoute = {
-        label: String(rawMeta.directoryRoute.label || "").trim(),
-        root: String(rawMeta.directoryRoute.root || "").trim(),
-        path: String(rawMeta.directoryRoute.path || "").trim(),
-      };
-    }
-  }
-  return out;
-}
-
-function stateMessageCount(value) {
-  const threads = Array.isArray(value?.threads) ? value.threads : [];
-  return threads.reduce((total, thread) => total + (Array.isArray(thread?.messages) ? thread.messages.length : 0), 0);
-}
-
-function stateThreadCount(value) {
-  return Array.isArray(value?.threads) ? value.threads.length : 0;
-}
-
-function stateBackupTimestamp() {
-  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-}
-
-function safeStateBackupReason(reason) {
-  return String(reason || "save").toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "save";
-}
-
-function backupStateFile(reason = "save", options = {}) {
-  ensureDataDir();
-  if (!fs.existsSync(STATE_PATH)) return null;
-  const now = Date.now();
-  if (!options.force && lastStateBackupAt && now - lastStateBackupAt < STATE_BACKUP_MIN_INTERVAL_MS) return null;
-  let raw = "";
-  try {
-    raw = fs.readFileSync(STATE_PATH, "utf8");
-  } catch (_) {
-    return null;
-  }
-  if (!raw.trim()) return null;
-  let summary = "unreadable";
-  if (!options.rawFallback) {
-    try {
-      const parsed = JSON.parse(raw);
-      summary = `${stateThreadCount(parsed)}t-${stateMessageCount(parsed)}m`;
-    } catch (_) {
-      summary = "unreadable";
-    }
-  }
-  ensureStateBackupDir();
-  const filePath = path.join(STATE_BACKUP_DIR, `state-auto-${stateBackupTimestamp()}-${safeStateBackupReason(reason)}-${summary}.json`);
-  try {
-    fs.writeFileSync(filePath, raw, "utf8");
-    lastStateBackupAt = now;
-    pruneStateBackups();
-    return filePath;
-  } catch (err) {
-    console.error(`Hermes Mobile state backup failed: ${err.message || String(err)}`);
-    return null;
-  }
-}
-
-function pruneStateBackups() {
-  if (!Number.isFinite(MAX_STATE_BACKUPS) || MAX_STATE_BACKUPS <= 0) return;
-  let entries = [];
-  try {
-    entries = fs.readdirSync(STATE_BACKUP_DIR, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && /^state-auto-.*\.json$/i.test(entry.name))
-      .map((entry) => {
-        const filePath = path.join(STATE_BACKUP_DIR, entry.name);
-        const stat = fs.statSync(filePath);
-        return { filePath, mtimeMs: stat.mtimeMs };
-      });
-  } catch (_) {
-    return;
-  }
-  const decision = decideBackupPruning(entries, { maxBackups: MAX_STATE_BACKUPS });
-  for (const entry of decision.prune) {
-    try {
-      fs.unlinkSync(entry.filePath);
-    } catch (_) {
-      // Best-effort retention cleanup only.
-    }
-  }
-}
-
-function readStateFileIfValid() {
-  try {
-    if (!fs.existsSync(STATE_PATH)) return null;
-    return JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
-  } catch (_) {
-    return null;
-  }
-}
-
-function shouldRefuseStateOverwrite(previous, next, options = {}) {
-  return shouldRefuseMessageCountOverwrite(previous, next, {
-    allowMessageDrop: options.allowMessageDrop,
-    minExistingMessages: 5,
-    minDrop: 6,
-    dropRatio: 0.4,
-  }).refuse;
-}
-
-function writeStateFile(next) {
-  ensureDataDir();
-  const tmp = `${STATE_PATH}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
-  fs.renameSync(tmp, STATE_PATH);
+  return getRuntimeStateNormalizationService().normalizeChatGroup(value, ownerWorkspaceId, options);
 }
 
 function saveState(next = state, options = {}) {
-  ensureDataDir();
-  const previous = readStateFileIfValid();
-  if (previous && shouldRefuseStateOverwrite(previous, next, options)) {
-    const backupPath = backupStateFile(`refused-${options.reason || "message-drop"}`, { force: true });
-    const previousMessages = stateMessageCount(previous);
-    const nextMessages = stateMessageCount(next);
-    throw new Error(`Refusing to overwrite Hermes Mobile state: message count would drop from ${previousMessages} to ${nextMessages}.${backupPath ? ` Backup: ${backupPath}` : ""}`);
-  }
-  const previousMessages = previous ? stateMessageCount(previous) : 0;
-  const nextMessages = stateMessageCount(next);
-  if (previousMessages && previousMessages !== nextMessages) {
-    backupStateFile(options.reason || "message-count-change", { force: options.forceBackup });
-  } else {
-    backupStateFile(options.reason || "periodic-save");
-  }
-  if (useSqliteServiceStore()) {
-    mobileSqliteStore().replaceRuntimeState(next);
-  }
-  writeStateFile(next);
-}
-
-function isDiscardableEmptyThread(thread) {
-  const threadId = String(thread?.id || "");
-  const hasArtifacts = (state.artifacts || []).some((artifact) => String(artifact.threadId || "") === threadId);
-  const timestamp = Date.parse(thread?.updatedAt || thread?.createdAt || "");
-  const oldEnough = !Number.isFinite(timestamp) || Date.now() - timestamp > 60_000;
-  return Boolean(
-    thread &&
-    !thread.singleWindow &&
-    !(thread.messages || []).length &&
-    !(thread.activeRunId || (thread.activeRunIds || []).length) &&
-    !hasArtifacts &&
-    oldEnough
-  );
-}
-
-function pruneEmptyThreads() {
-  const removedIds = new Set();
-  state.threads = (state.threads || []).filter((thread) => {
-    if (!isDiscardableEmptyThread(thread)) return true;
-    removedIds.add(thread.id);
-    return false;
-  });
-  if (!removedIds.size) return 0;
-  state.artifacts = (state.artifacts || []).filter((artifact) => !removedIds.has(String(artifact.threadId || "")));
-  saveState();
-  return removedIds.size;
+  return getRuntimeStatePersistenceService().saveState(next, options);
 }
 
 function hashValue(value) {
@@ -2418,18 +1983,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function normalizeClientVersion(value) {
-  return String(value || "").trim();
-}
-
-function normalizeReasoningEffort(value) {
-  const effort = String(value || "").trim().toLowerCase();
-  if (effort === "minimal") return "low";
-  if (effort === "none") return "none";
-  if (VALID_REASONING_EFFORTS.has(effort)) return effort;
-  return "";
-}
-
 function normalizeOwnerElevationDurations(value) {
   const parsed = normalizeStringList(value)
     .map((item) => Number(item))
@@ -2441,60 +1994,6 @@ function normalizeOwnerElevationDurations(value) {
 
 function normalizeSingleWindowMode(value) {
   return String(value || "").trim().toLowerCase() === "chat" ? "chat" : "task";
-}
-
-function unquoteYamlScalar(value) {
-  return String(value || "")
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .trim();
-}
-
-function assignRuntimeConfigYamlValue(result, section, key, value) {
-  const normalizedSection = String(section || "").trim().toLowerCase();
-  const normalizedKey = String(key || "").trim().toLowerCase().replace(/-/g, "_");
-  const scalar = unquoteYamlScalar(value);
-  if (!scalar) return;
-  if (normalizedSection === "agent" && normalizedKey === "reasoning_effort") result.reasoningEffort = scalar;
-  if (normalizedSection === "model" && normalizedKey === "default") result.defaultModel = scalar;
-  if (normalizedSection === "model" && normalizedKey === "provider") result.provider = scalar;
-  if (normalizedSection === "model" && normalizedKey === "base_url") result.baseUrl = scalar;
-}
-
-function parseAgentRuntimeConfigFromYaml(text) {
-  const result = { reasoningEffort: "", defaultModel: "", provider: "", baseUrl: "" };
-  let section = "";
-  let sectionIndent = -1;
-  for (const rawLine of String(text || "").split(/\r?\n/)) {
-    const noComment = rawLine.replace(/\s+#.*$/, "");
-    if (!noComment.trim()) continue;
-    const dotted = noComment.match(/^\s*(agent|model)\.([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/i);
-    if (dotted) {
-      assignRuntimeConfigYamlValue(result, dotted[1], dotted[2], dotted[3]);
-      continue;
-    }
-    const topSection = noComment.match(/^(\s*)(agent|model)\s*:\s*$/i);
-    if (topSection) {
-      section = topSection[2].toLowerCase();
-      sectionIndent = topSection[1].length;
-      continue;
-    }
-    if (section) {
-      const indent = (noComment.match(/^(\s*)/) || ["", ""])[1].length;
-      if (indent <= sectionIndent) {
-        section = "";
-        sectionIndent = -1;
-      } else {
-        const scalar = noComment.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/);
-        if (scalar) assignRuntimeConfigYamlValue(result, section, scalar[1], scalar[2]);
-      }
-    }
-  }
-  return result;
-}
-
-function parseAgentReasoningEffortFromYaml(text) {
-  return parseAgentRuntimeConfigFromYaml(text).reasoningEffort;
 }
 
 function configPathReadableForRuntimeInfo(configPath) {
@@ -2530,63 +2029,31 @@ function runtimeConfigPathCandidates() {
   return dedupe([...gatewayPoolConfigPathCandidates(), ...base]).filter(configPathReadableForRuntimeInfo);
 }
 
-function assistantLabelForRuntimeConfig(info = {}) {
-  const provider = String(info.provider || "").trim();
-  const baseUrl = String(info.baseUrl || "").trim();
-  const model = String(info.defaultModel || "").trim();
-  if (/openai-codex/i.test(provider) || /chatgpt\.com\/backend-api\/codex/i.test(baseUrl)) return "ChatGPT";
-  if (/claude/i.test(provider) || /^claude/i.test(model)) return "Claude";
-  if (/gemini/i.test(provider) || /^gemini/i.test(model)) return "Gemini";
-  if (/qwen/i.test(provider) || /^qwen/i.test(model)) return "Qwen";
-  if (/deepseek/i.test(provider) || /^deepseek/i.test(model)) return "DeepSeek";
-  if (provider) return provider;
-  if (model) return model;
-  return "AI";
+function getSystemRuntimeStatusService() {
+  if (!systemRuntimeStatusService) {
+    systemRuntimeStatusService = createSystemRuntimeStatusService({
+      compactText,
+      env: process.env,
+      fetchText: fetchTextWithTimeout,
+      fs,
+      indexHtmlPath: INDEX_HTML_PATH,
+      nowIso,
+      path,
+      process,
+      repoRoot: REPO_ROOT,
+      runProcessText,
+      runtimeConfigPathCandidates,
+      updateBranch: UPDATE_BRANCH,
+      updateCheckTimeoutMs: UPDATE_CHECK_TIMEOUT_MS,
+      updateRemoteName: UPDATE_REMOTE_NAME,
+      updateVersionUrl: UPDATE_VERSION_URL,
+    });
+  }
+  return systemRuntimeStatusService;
 }
 
 function runtimeModelConfigInfo() {
-  const configPaths = runtimeConfigPathCandidates();
-  const parts = configPaths.map((item) => {
-    try {
-      const stat = fs.statSync(item);
-      return `${item}:${stat.mtimeMs}`;
-    } catch (_) {
-      return `${item}:missing`;
-    }
-  }).join("|");
-  if (defaultReasoningCache.value && defaultReasoningCache.cacheKey === parts) return defaultReasoningCache.value;
-  const envEffort = normalizeReasoningEffort(process.env.HERMES_WEB_DEFAULT_REASONING_EFFORT || "");
-  for (const configPath of configPaths) {
-    try {
-      if (!configPath || !fs.existsSync(configPath)) continue;
-      const parsed = parseAgentRuntimeConfigFromYaml(fs.readFileSync(configPath, "utf8"));
-      const effort = normalizeReasoningEffort(envEffort || parsed.reasoningEffort);
-      if (effort || parsed.defaultModel || parsed.provider || parsed.baseUrl) {
-        const value = {
-          defaultEffort: effort || "medium",
-          defaultModel: parsed.defaultModel || "",
-          provider: parsed.provider || "",
-          baseUrl: parsed.baseUrl || "",
-          assistantLabel: assistantLabelForRuntimeConfig(parsed),
-          source: configPath,
-          efforts: REASONING_EFFORT_OPTIONS,
-        };
-        defaultReasoningCache = { cacheKey: parts, value };
-        return value;
-      }
-    } catch (_) {}
-  }
-  const fallback = {
-    defaultEffort: envEffort || "medium",
-    defaultModel: "",
-    provider: "",
-    baseUrl: "",
-    assistantLabel: "AI",
-    source: envEffort ? "env:HERMES_WEB_DEFAULT_REASONING_EFFORT" : "gateway-default",
-    efforts: REASONING_EFFORT_OPTIONS,
-  };
-  defaultReasoningCache = { cacheKey: parts || "no-config", value: fallback };
-  return fallback;
+  return getSystemRuntimeStatusService().runtimeModelConfigInfo();
 }
 
 function defaultReasoningInfo() {
@@ -2594,46 +2061,11 @@ function defaultReasoningInfo() {
 }
 
 function readClientVersion() {
-  try {
-    const stat = fs.statSync(INDEX_HTML_PATH);
-    if (clientVersionCache.version && clientVersionCache.mtimeMs === stat.mtimeMs) return clientVersionCache.version;
-    const html = fs.readFileSync(INDEX_HTML_PATH, "utf8");
-    const explicit = html.match(/\bdata-client-version=["']([^"']+)["']/i)
-      || html.match(/<meta\s+name=["']hermes-web-client-version["']\s+content=["']([^"']+)["'][^>]*>/i)
-      || html.match(/\/app\.js\?v=([A-Za-z0-9._-]+)/i);
-    clientVersionCache = {
-      mtimeMs: stat.mtimeMs,
-      version: normalizeClientVersion(explicit?.[1] || "unknown"),
-    };
-    return clientVersionCache.version;
-  } catch (_) {
-    return clientVersionCache.version || "unknown";
-  }
+  return getSystemRuntimeStatusService().readClientVersion();
 }
 
 function clientVersionInfo(clientVersion = "") {
-  const current = readClientVersion();
-  const reported = normalizeClientVersion(clientVersion);
-  return {
-    version: current,
-    clientVersion: reported,
-    refreshRequired: Boolean(reported && current && current !== "unknown" && current !== reported),
-    checkedAt: nowIso(),
-  };
-}
-
-function compareClientVersions(a, b) {
-  const left = normalizeClientVersion(a);
-  const right = normalizeClientVersion(b);
-  if (left === right) return 0;
-  const parse = (value) => {
-    const match = value.match(/^(\d{8})-(\d{4})$/);
-    return match ? Number(`${match[1]}${match[2]}`) : NaN;
-  };
-  const leftNumber = parse(left);
-  const rightNumber = parse(right);
-  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) return leftNumber - rightNumber;
-  return left.localeCompare(right);
+  return getSystemRuntimeStatusService().clientVersionInfo(clientVersion);
 }
 
 function runGitSync(args, options = {}) {
@@ -2651,108 +2083,14 @@ function runGitSync(args, options = {}) {
   };
 }
 
-function gitRemoteRawIndexUrl(remoteUrl, branch = UPDATE_BRANCH) {
-  const raw = String(remoteUrl || "").trim();
-  if (!raw) return "";
-  let owner = "";
-  let repo = "";
-  let match = raw.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/i);
-  if (match) {
-    owner = match[1];
-    repo = match[2];
-  } else {
-    try {
-      const url = new URL(raw);
-      if (!/github\.com$/i.test(url.hostname)) return "";
-      const parts = url.pathname.replace(/^\/+/, "").replace(/\.git$/i, "").split("/");
-      owner = parts[0] || "";
-      repo = parts[1] || "";
-    } catch (_) {
-      return "";
-    }
-  }
-  if (!owner || !repo) return "";
-  return `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/public/index.html`;
-}
-
 async function fetchTextWithTimeout(url, timeoutMs = UPDATE_CHECK_TIMEOUT_MS) {
   const response = await fetch(url, { signal: AbortSignal.timeout(Math.max(1000, timeoutMs)), cache: "no-store" });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.text();
 }
 
-function parseClientVersionFromHtml(html) {
-  const explicit = String(html || "").match(/\bdata-client-version=["']([^"']+)["']/i)
-    || String(html || "").match(/<meta\s+name=["']hermes-web-client-version["']\s+content=["']([^"']+)["'][^>]*>/i)
-    || String(html || "").match(/\/app\.js\?v=([A-Za-z0-9._-]+)/i);
-  return normalizeClientVersion(explicit?.[1] || "");
-}
-
-function gitRepositoryStatus() {
-  const inside = runGitSync(["rev-parse", "--is-inside-work-tree"]);
-  if (!inside.ok || inside.stdout !== "true") {
-    return { available: false, clean: false, reason: "Current app directory is not a git checkout." };
-  }
-  const head = runGitSync(["rev-parse", "HEAD"]);
-  const branch = runGitSync(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const remote = runGitSync(["remote", "get-url", UPDATE_REMOTE_NAME]);
-  const dirty = runGitSync(["status", "--porcelain", "--untracked-files=normal"]);
-  const clean = dirty.ok && !dirty.stdout;
-  return {
-    available: true,
-    clean,
-    dirty: dirty.stdout ? compactText(dirty.stdout, 600) : "",
-    head: head.ok ? head.stdout : "",
-    branch: branch.ok ? branch.stdout : "",
-    remoteConfigured: remote.ok,
-    remoteName: UPDATE_REMOTE_NAME,
-    remoteUrl: remote.ok ? remote.stdout : "",
-    updateBranch: UPDATE_BRANCH,
-  };
-}
-
 async function appUpdateStatus() {
-  const currentVersion = readClientVersion();
-  const repo = gitRepositoryStatus();
-  let latestVersion = "";
-  let latestCommit = "";
-  let checkError = "";
-  if (repo.available) {
-    const versionUrl = UPDATE_VERSION_URL || gitRemoteRawIndexUrl(repo.remoteUrl, UPDATE_BRANCH);
-    if (versionUrl) {
-      try {
-        latestVersion = parseClientVersionFromHtml(await fetchTextWithTimeout(versionUrl));
-      } catch (err) {
-        checkError = `Version check failed: ${err.message || String(err)}`;
-      }
-    } else {
-      checkError = "No GitHub raw version URL is configured.";
-    }
-    const remoteHead = runGitSync(["ls-remote", UPDATE_REMOTE_NAME, `refs/heads/${UPDATE_BRANCH}`]);
-    if (remoteHead.ok) latestCommit = String(remoteHead.stdout.split(/\s+/)[0] || "");
-    else if (!checkError) checkError = remoteHead.stderr || "GitHub branch check failed.";
-  }
-  const updateAvailable = Boolean(latestVersion && compareClientVersions(latestVersion, currentVersion) > 0)
-    || Boolean(latestCommit && repo.head && latestCommit !== repo.head);
-  return {
-    ok: true,
-    currentVersion,
-    latestVersion,
-    updateAvailable,
-    latestCommit,
-    currentCommit: repo.head || "",
-    repository: {
-      available: repo.available,
-      clean: repo.clean,
-      dirty: repo.dirty || "",
-      branch: repo.branch || "",
-      remoteName: repo.remoteName || UPDATE_REMOTE_NAME,
-      updateBranch: UPDATE_BRANCH,
-    },
-    canFastForward: Boolean(repo.available && repo.clean && updateAvailable),
-    warning: checkError || repo.reason || "",
-    checkedAt: nowIso(),
-  };
+  return getSystemRuntimeStatusService().appUpdateStatus();
 }
 
 async function applyAppUpdate() {
@@ -2774,7 +2112,7 @@ async function applyAppUpdate() {
   }
   const merge = runGitSync(["merge", "--ff-only", remoteRef], { timeoutMs: 30000 });
   if (!merge.ok) return Object.assign({}, status, { ok: false, error: merge.stderr || "git fast-forward failed." });
-  clientVersionCache = { mtimeMs: 0, version: "" };
+  getSystemRuntimeStatusService().resetCaches();
   return Object.assign({}, await appUpdateStatus(), {
     ok: true,
     updated: true,
@@ -2863,16 +2201,8 @@ function groupChatDeliveryRootForThread(thread) {
   return getGroupChatSharedAttachmentService().deliveryRootForThread(thread);
 }
 
-function groupChatSharedAttachmentRootForThread(thread) {
-  return getGroupChatSharedAttachmentService().sharedAttachmentRootForThread(thread);
-}
-
 function storedArtifactForMessageArtifact(artifact = {}) {
   return getGroupChatSharedAttachmentService().storedArtifactForMessageArtifact(artifact);
-}
-
-function groupChatMessagesForRun(thread, latestUserMessage) {
-  return getGroupChatSharedAttachmentService().messagesForRun(thread, latestUserMessage);
 }
 
 function safeArtifactCopyName(artifact = {}, index = 0) {
@@ -2937,321 +2267,45 @@ function writeJsonStore(filePath, value) {
   fs.renameSync(tmp, filePath);
 }
 
-function bridgeHostKey() {
-  const envKey = String(process.env.HERMES_MOBILE_BRIDGE_HOST_KEY || process.env.HERMES_WEB_BRIDGE_HOST_KEY || "").trim();
-  if (envKey) return envKey;
-  if (!BRIDGE_HOST_KEY_PATH) return "";
-  const normalizedPath = path.resolve(BRIDGE_HOST_KEY_PATH);
-  if (bridgeHostKeyCache.path === normalizedPath && bridgeHostKeyCache.value) return bridgeHostKeyCache.value;
-  const value = String(fs.readFileSync(normalizedPath, "utf8") || "").trim();
-  bridgeHostKeyCache = { path: normalizedPath, value };
-  return value;
-}
-
-async function runBridgeHost(kind, payload, timeoutMs) {
-  if (!BRIDGE_HOST_URL) return null;
-  const key = bridgeHostKey();
-  if (!key) throw new Error("Hermes Mobile bridge host key is not configured");
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || 15000));
-  try {
-    const response = await fetch(`${BRIDGE_HOST_URL}/bridge/${encodeURIComponent(kind)}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify(payload || {}),
-      signal: controller.signal,
+function getLocalBridgeRuntimeService() {
+  if (!localBridgeRuntimeService) {
+    localBridgeRuntimeService = createLocalBridgeRuntimeService({
+      bridgeCommandProvider,
+      bridgeHostKeyPath: BRIDGE_HOST_KEY_PATH,
+      bridgeHostUrl: () => BRIDGE_HOST_URL,
+      compactText,
+      createAutomationId: () => `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+      cronBridgeScript: CRON_BRIDGE_SCRIPT,
+      cronStdoutLimitBytes: 2_000_000,
+      cronTimeoutMs: CRON_BRIDGE_TIMEOUT_MS,
+      directoryBridgeScript: DIRECTORY_BRIDGE_SCRIPT,
+      directoryStdoutLimitBytes: 4_000_000,
+      directoryTimeoutMs: DIRECTORY_BRIDGE_TIMEOUT_MS,
+      env: process.env,
+      formatLocalDateTime,
+      kanbanTodoBridge: () => kanbanTodoBridge,
+      localAutomationStorePath: LOCAL_AUTOMATION_STORE_PATH,
+      localTodoStorePath: LOCAL_TODO_STORE_PATH,
+      mobileSqliteStore,
+      nowIso,
+      readJsonStore,
+      sortJobs: webPushDeliveryService.automationListSortByLatestDeliverable,
+      spawn,
+      todoBridgeScript: TODO_BRIDGE_SCRIPT,
+      todoStdoutLimitBytes: CRON_BRIDGE_STDOUT_LIMIT_BYTES,
+      todoTimeoutMs: TODO_BRIDGE_TIMEOUT_MS,
+      useKanbanTodoBackend,
+      useLocalAutomationBackend,
+      useLocalTodoBackend,
+      useSqliteServiceStore,
+      writeJsonStore,
     });
-    let parsed = {};
-    try {
-      parsed = await response.json();
-    } catch (_) {
-      parsed = {};
-    }
-    if (!response.ok) {
-      throw new Error(parsed?.error || `Hermes Mobile bridge host returned HTTP ${response.status}`);
-    }
-    return parsed;
-  } catch (err) {
-    if (err?.name === "AbortError") throw new Error(`${kind} bridge host timed out`);
-    throw err;
-  } finally {
-    clearTimeout(timer);
   }
-}
-
-function localTodoStore() {
-  const raw = readJsonStore(LOCAL_TODO_STORE_PATH, {});
-  return {
-    schemaVersion: 1,
-    todos: Array.isArray(raw?.todos) ? raw.todos.filter((item) => item && typeof item === "object") : [],
-    pushMarks: raw?.pushMarks && typeof raw.pushMarks === "object" && !Array.isArray(raw.pushMarks) ? raw.pushMarks : {},
-    updatedAt: String(raw?.updatedAt || ""),
-  };
-}
-
-function saveLocalTodoStore(store) {
-  writeJsonStore(LOCAL_TODO_STORE_PATH, Object.assign({}, store, {
-    schemaVersion: 1,
-    updatedAt: nowIso(),
-  }));
-}
-
-function parseLocalTodoDue(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  const normalized = text.includes("T") ? text : text.replace(/\s+/, "T");
-  const date = new Date(normalized);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
-}
-
-function localTodoDueLocal(value) {
-  const date = new Date(value || "");
-  return Number.isNaN(date.getTime()) ? "" : formatLocalDateTime(date);
-}
-
-function localTodoAuthorized(row, source) {
-  const principal = String(source || "").trim();
-  if (!principal) return false;
-  if (principal === "owner") return true;
-  return [row?.assignee_principal_id, row?.created_by_principal].map((item) => String(item || "").trim()).includes(principal);
-}
-
-function localTodoMatchesList(row, source, scope) {
-  const principal = String(source || "").trim();
-  if (!principal) return false;
-  if (principal === "owner") return true;
-  const normalizedScope = String(scope || "mine").trim().toLowerCase();
-  if (normalizedScope === "created") return String(row?.created_by_principal || "") === principal;
-  return localTodoAuthorized(row, principal);
-}
-
-async function runSqliteTodoBridge(payload = {}) {
-  const action = String(payload.action || "").trim().toLowerCase();
-  const source = String(payload.source_principal || "owner").trim() || "owner";
-  const store = mobileSqliteStore();
-  const now = nowIso();
-
-  if (action === "list") {
-    return {
-      ok: true,
-      todos: store.listTodoItems({
-        sourcePrincipal: source,
-        scope: payload.scope || "mine",
-        includeCompleted: Boolean(payload.include_completed),
-        assignee: payload.assignee || "",
-        limit: payload.limit || 80,
-      }),
-    };
-  }
-
-  if (action === "add") {
-    const content = String(payload.content || "").trim();
-    const dueAt = parseLocalTodoDue(payload.due_time);
-    if (!content) return { ok: false, error: "Todo content is required" };
-    if (!dueAt) return { ok: false, error: "Todo due time is required" };
-    const assignee = String(payload.assignee || source).trim() || source;
-    const row = {
-      id: `todo_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
-      content,
-      status: "open",
-      assignee_principal_id: assignee,
-      assignee_label: assignee,
-      created_by_principal: source,
-      due_at: dueAt,
-      due_local: localTodoDueLocal(dueAt),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
-      reminder_lead_minutes: Number(payload.reminder_lead_minutes || 0) || 0,
-      recurrence_kind: String(payload.recurrence || "none"),
-      recurrence_label: String(payload.recurrence || "none"),
-      recurrence_days: String(payload.recurrence_days || ""),
-      recurrence_series_id: "",
-      recurrence_template: false,
-      source: "sqlite",
-      created_at: now,
-      updated_at: now,
-      completed_at: "",
-      cancelled_at: "",
-      ok: true,
-    };
-    store.importTodoItem(row);
-    return row;
-  }
-
-  const todoId = String(payload.todo_id || "").trim();
-  const row = store.getTodoItem(todoId);
-
-  if (["complete", "cancel", "postpone", "delete"].includes(action)) {
-    if (!row) return { ok: false, error: "No matching todo found." };
-    if (!localTodoAuthorized(row, source)) return { ok: false, error: "Not authorized to mutate this todo." };
-  }
-
-  if (action === "complete") {
-    row.status = "completed";
-    row.completed_at = now;
-    row.updated_at = now;
-    store.importTodoItem(row);
-    return Object.assign({}, row, { ok: true, action });
-  }
-  if (action === "cancel") {
-    row.status = "cancelled";
-    row.cancelled_at = now;
-    row.updated_at = now;
-    store.importTodoItem(row);
-    return Object.assign({}, row, { ok: true, action });
-  }
-  if (action === "postpone") {
-    const dueAt = parseLocalTodoDue(payload.due_time);
-    if (!dueAt) return { ok: false, error: "due_time is required" };
-    row.due_at = dueAt;
-    row.due_local = localTodoDueLocal(dueAt);
-    row.updated_at = now;
-    store.importTodoItem(row);
-    return Object.assign({}, row, { ok: true, action });
-  }
-  if (action === "delete") {
-    store.deleteTodoItem(todoId);
-    return Object.assign({}, row, { ok: true, action });
-  }
-  if (action === "web_pending_pushes") return { ok: true, events: [] };
-  if (action === "web_mark_push") {
-    store.audit("todo_web_push_mark", {
-      actorWorkspaceId: "system",
-      actorPrincipalId: source,
-      targetType: "todo",
-      targetId: String(payload.todoId || payload.todo_id || ""),
-      payload: {
-        markKey: String(payload.markKey || payload.mark_key || ""),
-        principalId: String(payload.principalId || payload.principal_id || ""),
-        messageType: String(payload.messageType || payload.message_type || ""),
-        status: String(payload.status || "sent"),
-      },
-    });
-    return { ok: true };
-  }
-  return { ok: false, error: `unknown action: ${action}` };
-}
-
-async function runLocalTodoBridge(payload = {}) {
-  if (useSqliteServiceStore()) return runSqliteTodoBridge(payload);
-  const action = String(payload.action || "").trim().toLowerCase();
-  const source = String(payload.source_principal || "owner").trim() || "owner";
-  const store = localTodoStore();
-  const now = nowIso();
-
-  if (action === "list") {
-    const includeCompleted = Boolean(payload.include_completed);
-    const assignee = String(payload.assignee || "").trim();
-    const limit = Math.max(1, Math.min(200, Number(payload.limit) || 80));
-    let rows = store.todos.filter((row) => localTodoMatchesList(row, source, payload.scope || "mine"));
-    if (!includeCompleted) rows = rows.filter((row) => String(row.status || "") === "open");
-    if (assignee) rows = rows.filter((row) => String(row.assignee_principal_id || "") === assignee);
-    rows = rows.sort((a, b) => String(a.due_at || a.created_at || "").localeCompare(String(b.due_at || b.created_at || ""))).slice(0, limit);
-    return { ok: true, todos: rows };
-  }
-
-  if (action === "add") {
-    const content = String(payload.content || "").trim();
-    const dueAt = parseLocalTodoDue(payload.due_time);
-    if (!content) return { ok: false, error: "Todo content is required" };
-    if (!dueAt) return { ok: false, error: "Todo due time is required" };
-    const assignee = String(payload.assignee || source).trim() || source;
-    const row = {
-      id: `todo_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
-      content,
-      status: "open",
-      assignee_principal_id: assignee,
-      assignee_label: assignee,
-      created_by_principal: source,
-      due_at: dueAt,
-      due_local: localTodoDueLocal(dueAt),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
-      reminder_lead_minutes: Number(payload.reminder_lead_minutes || 0) || 0,
-      recurrence_kind: String(payload.recurrence || "none"),
-      recurrence_label: String(payload.recurrence || "none"),
-      recurrence_days: String(payload.recurrence_days || ""),
-      recurrence_series_id: "",
-      recurrence_template: false,
-      created_at: now,
-      updated_at: now,
-      completed_at: "",
-      cancelled_at: "",
-      ok: true,
-    };
-    store.todos.push(row);
-    saveLocalTodoStore(store);
-    return row;
-  }
-
-  const todoId = String(payload.todo_id || "").trim();
-  const index = store.todos.findIndex((row) => String(row.id || "") === todoId);
-  const row = index >= 0 ? store.todos[index] : null;
-
-  if (["complete", "cancel", "postpone", "delete"].includes(action)) {
-    if (!row) return { ok: false, error: "No matching todo found." };
-    if (!localTodoAuthorized(row, source)) return { ok: false, error: "Not authorized to mutate this todo." };
-  }
-
-  if (action === "complete") {
-    row.status = "completed";
-    row.completed_at = now;
-    row.updated_at = now;
-    saveLocalTodoStore(store);
-    return Object.assign({}, row, { ok: true, action });
-  }
-  if (action === "cancel") {
-    row.status = "cancelled";
-    row.cancelled_at = now;
-    row.updated_at = now;
-    saveLocalTodoStore(store);
-    return Object.assign({}, row, { ok: true, action });
-  }
-  if (action === "postpone") {
-    const dueAt = parseLocalTodoDue(payload.due_time);
-    if (!dueAt) return { ok: false, error: "due_time is required" };
-    row.due_at = dueAt;
-    row.due_local = localTodoDueLocal(dueAt);
-    row.updated_at = now;
-    saveLocalTodoStore(store);
-    return Object.assign({}, row, { ok: true, action });
-  }
-  if (action === "delete") {
-    store.todos.splice(index, 1);
-    saveLocalTodoStore(store);
-    return Object.assign({}, row, { ok: true, action });
-  }
-  if (action === "web_pending_pushes") return { ok: true, events: [] };
-  if (action === "web_mark_push") {
-    store.pushMarks[String(payload.markKey || payload.mark_key || "")] = {
-      todoId: String(payload.todoId || payload.todo_id || ""),
-      principalId: String(payload.principalId || payload.principal_id || ""),
-      messageType: String(payload.messageType || payload.message_type || ""),
-      status: String(payload.status || "sent"),
-      updatedAt: now,
-    };
-    saveLocalTodoStore(store);
-    return { ok: true };
-  }
-  return { ok: false, error: `unknown action: ${action}` };
+  return localBridgeRuntimeService;
 }
 
 function runTodoBridge(payload) {
-  if (useKanbanTodoBackend()) return kanbanTodoBridge.run(payload);
-  if (useLocalTodoBackend()) return runLocalTodoBridge(payload);
-  if (BRIDGE_HOST_URL) return runBridgeHost("todo", payload, TODO_BRIDGE_TIMEOUT_MS);
-  const bridge = bridgeCommandProvider.python(TODO_BRIDGE_SCRIPT, [
-    "HERMES_WEB_TODO_PLUGIN_NAME",
-    "HERMES_WEB_TODO_PLUGIN_PATH",
-  ]);
-  return bridgeCommandProvider.runJsonCommand(bridge, payload, {
-    spawn,
-    label: "Todo bridge",
-    timeoutMs: TODO_BRIDGE_TIMEOUT_MS,
-    stdoutLimitBytes: CRON_BRIDGE_STDOUT_LIMIT_BYTES,
-    compactText,
-  });
+  return getLocalBridgeRuntimeService().runTodoBridge(payload);
 }
 
 const todoProvider = createTodoProvider({
@@ -3269,12 +2323,12 @@ const todoApiRoutes = createTodoApiRoutes({
   broadcast,
   clearKanbanCardListCache,
   maybeReconcileKanbanDependencyBlocks,
-  notifyTodoCreated,
+  notifyTodoCreated: webPushDeliveryService.notifyTodoCreated,
   publicTodo,
   readBody,
   requireOwner,
   requireWorkspaceAccess,
-  runTodoWebPushTick,
+  runTodoWebPushTick: webPushDeliveryService.runTodoWebPushTick,
   sendJson,
   todoErrorResponse,
   todoProvider,
@@ -3329,6 +2383,7 @@ const kanbanReadingWorkflowService = createKanbanReadingWorkflowService({
   analysisTimeoutMs: KANBAN_READING_ANALYSIS_TIMEOUT_MS,
   automationCreateModel: AUTOMATION_CREATE_MODEL,
   compactText,
+  dataDir: DATA_DIR,
   extractDocxText,
   extractJsonObject,
   findWorkspace,
@@ -3337,15 +2392,19 @@ const kanbanReadingWorkflowService = createKanbanReadingWorkflowService({
   kanbanCardEffectiveCaseIndex,
   kanbanCardProvider,
   kanbanCardRevisionOf,
-  kanbanCardUsesReadingTemplate,
+  kanbanCardUsesReadingTemplate: studyAssessmentService.kanbanCardUsesReadingTemplate,
   kanbanWorkflowStateCompleted,
   maxUploadBytes: MAX_UPLOAD_BYTES,
   maybeReconcileKanbanDependencyBlocks,
+  maxCoverBytes: KANBAN_READING_COVER_MAX_BYTES,
+  maxFilePreviewChars: MAX_FILE_PREVIEW_CHARS,
+  maxSourceDocumentBytes: KANBAN_SOURCE_DOCUMENT_MAX_BYTES,
   mimeFor,
   nowIso,
   publicTodo,
   runProcessText,
   safeFileName,
+  safeStorageSegment,
   sanitizePolicy,
   textFilePreview,
   transcribeScript: KANBAN_READING_TRANSCRIBE_SCRIPT,
@@ -3389,17 +2448,17 @@ const directKanbanCreateService = createDirectKanbanCreateService({
 });
 
 const kanbanCardApiRoutes = createKanbanCardApiRoutes({
-  annotateKanbanCardsForAuth,
+  annotateKanbanCardsForAuth: (...args) => kanbanCaseShareService.annotateCardsForAuth(...args),
   authenticateRequest,
   boolParam,
   broadcast,
   clearKanbanCardListCache,
   compactText,
   createKanbanPlanCards,
-  extractKanbanSourceDocumentText,
+  extractKanbanSourceDocumentText: (...args) => kanbanReadingWorkflowService.extractKanbanSourceDocumentText(...args),
   findWorkspace,
   kanbanCardProvider,
-  kanbanCaseSharesForActor,
+  kanbanCaseSharesForActor: (...args) => kanbanCaseShareService.sharesForActor(...args),
   kanbanErrorResponse,
   kanbanSingleCardCasePayload,
   normalizeKanbanNotificationAssignee,
@@ -3413,12 +2472,12 @@ const kanbanCardApiRoutes = createKanbanCardApiRoutes({
   requireWorkspaceAccess,
   resolveKanbanCardAccess,
   resolveKanbanOutputFile,
-  saveKanbanSourceDocumentUpload,
+  saveKanbanSourceDocumentUpload: (...args) => kanbanReadingWorkflowService.saveKanbanSourceDocumentUpload(...args),
   scheduleKanbanDependencyReconcile,
   sendJson,
   sendResolvedFile,
   sendResolvedFilePreview,
-  sharedKanbanCardsForAuth,
+  sharedKanbanCardsForAuth: (...args) => kanbanCaseShareService.sharedCardsForAuth(...args),
   sourceDocumentMaxBytes: KANBAN_SOURCE_DOCUMENT_MAX_BYTES,
   todoAssigneeLabel,
   useKanbanTodoBackend,
@@ -3428,14 +2487,14 @@ const kanbanCardApiRoutes = createKanbanCardApiRoutes({
 });
 bootTrace("kanban card api routes ready");
 const kanbanStudyApiRoutes = createKanbanStudyApiRoutes({
-  annotateKanbanCardForAuth,
+  annotateKanbanCardForAuth: (...args) => kanbanCaseShareService.annotateCardForAuth(...args),
   broadcast,
   clearKanbanCardListCache,
   compactText,
-  createKanbanAssessmentPlanCards,
-  createKanbanStudyPlanCards,
-  getKanbanAssessmentExam,
-  getKanbanReadingQuiz,
+  createKanbanAssessmentPlanCards: (...args) => getKanbanPlanCardCreationService().createKanbanAssessmentPlanCards(...args),
+  createKanbanStudyPlanCards: (...args) => getKanbanPlanCardCreationService().createKanbanStudyPlanCards(...args),
+  getKanbanAssessmentExam: (...args) => getAssessmentExamWorkflowService().getKanbanAssessmentExam(...args),
+  getKanbanReadingQuiz: (...args) => kanbanReadingWorkflowService.getKanbanReadingQuiz(...args),
   kanbanErrorResponse,
   maxUploadBytes: MAX_UPLOAD_BYTES,
   readBody,
@@ -3443,50 +2502,15 @@ const kanbanStudyApiRoutes = createKanbanStudyApiRoutes({
   requireWorkspaceAccess,
   resolveKanbanCardAccess,
   sendJson,
-  submitKanbanAssessmentExam,
-  submitKanbanReadingQuiz,
-  submitKanbanReadingSubmission,
+  submitKanbanAssessmentExam: (...args) => getAssessmentExamWorkflowService().submitKanbanAssessmentExam(...args),
+  submitKanbanReadingQuiz: (...args) => kanbanReadingWorkflowService.submitKanbanReadingQuiz(...args),
+  submitKanbanReadingSubmission: (...args) => kanbanReadingWorkflowService.submitKanbanReadingSubmission(...args),
   useKanbanTodoBackend,
 });
 bootTrace("kanban study api routes ready");
 
-function getLocalAutomationBridgeService() {
-  if (!localAutomationBridgeService) {
-    localAutomationBridgeService = createLocalAutomationBridgeService({
-      storePath: LOCAL_AUTOMATION_STORE_PATH,
-      readJsonStore,
-      writeJsonStore,
-      sqliteStore: mobileSqliteStore,
-      useSqliteServiceStore,
-      compactText,
-      nowIso,
-      createId: () => `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
-      sortJobs: automationListSortByLatestDeliverable,
-    });
-  }
-  return localAutomationBridgeService;
-}
-
-async function runLocalCronBridge(payload = {}) {
-  return getLocalAutomationBridgeService().runBridge(payload);
-}
-
 function runCronBridge(payload) {
-  if (useLocalAutomationBackend()) return runLocalCronBridge(payload);
-  if (BRIDGE_HOST_URL) return runBridgeHost("cron", payload, CRON_BRIDGE_TIMEOUT_MS);
-  const bridge = bridgeCommandProvider.python(CRON_BRIDGE_SCRIPT, [
-    "HERMES_WEB_CRON_JOBS_PATH",
-    "HERMES_CRON_JOBS_PATH",
-    "HERMES_WEB_CRON_JOBS_FALLBACK_PATH",
-    "HERMES_WEB_CRON_OUTPUT_ROOT",
-  ]);
-  return bridgeCommandProvider.runJsonCommand(bridge, payload, {
-    spawn,
-    label: "Cron bridge",
-    timeoutMs: CRON_BRIDGE_TIMEOUT_MS,
-    stdoutLimitBytes: 2_000_000,
-    compactText,
-  });
+  return getLocalBridgeRuntimeService().runCronBridge(payload);
 }
 
 const automationProvider = createAutomationProvider({
@@ -3526,7 +2550,7 @@ async function runCronListBridgeCached(options = {}) {
 }
 
 const automationApiRoutes = createAutomationApiRoutes({
-  automationListSortByLatestDeliverable,
+  automationListSortByLatestDeliverable: webPushDeliveryService.automationListSortByLatestDeliverable,
   automationProvider,
   boolParam,
   clearCronListCache,
@@ -3540,7 +2564,7 @@ const automationApiRoutes = createAutomationApiRoutes({
   requireWorkspaceAccess,
   resolveAuthorizedCronDeliverableFile,
   resolveAuthorizedCronOutputFile,
-  runAutomationWebPushTick,
+  runAutomationWebPushTick: webPushDeliveryService.runAutomationWebPushTick,
   runCronListBridgeCached,
   sanitizePolicy,
   sendJson,
@@ -3552,18 +2576,39 @@ const automationApiRoutes = createAutomationApiRoutes({
 });
 bootTrace("automation api routes ready");
 
+const mobileApiDispatcher = createMobileApiDispatcher({
+  accessKeyApiRoutes,
+  attachClientVersionHeaders,
+  authenticateRequest,
+  automationApiRoutes,
+  buildRequestContext,
+  directoryBrowserApiRoutes,
+  directoryMutationApiRoutes,
+  directoryShareApiRoutes,
+  fileArtifactApiRoutes,
+  getUrl,
+  kanbanCardApiRoutes,
+  kanbanStudyApiRoutes,
+  ownerElevationApiRoutes,
+  publicApiRoutes,
+  pushApiRoutes,
+  requestClientVersion,
+  resourceApiRoutes,
+  runtimeConfigApiRoutes,
+  sendJson,
+  singleWindowGroupChatApiRoutes,
+  systemApiRoutes,
+  threadMessageRunApiRoutes,
+  threadReadUploadApiRoutes,
+  threadTaskApiRoutes,
+  todoApiRoutes,
+  weixinApiRoutes,
+  workspaceApiRoutes,
+});
+bootTrace("core api routes ready");
+
 function runDirectoryBridge(payload) {
-  if (BRIDGE_HOST_URL) return runBridgeHost("directory", payload, DIRECTORY_BRIDGE_TIMEOUT_MS);
-  const bridge = bridgeCommandProvider.python(DIRECTORY_BRIDGE_SCRIPT, [
-    "HERMES_WEB_VOLUME1_MOUNT_HELPERS_JSON",
-  ]);
-  return bridgeCommandProvider.runJsonCommand(bridge, payload, {
-    spawn,
-    label: "Directory bridge",
-    timeoutMs: DIRECTORY_BRIDGE_TIMEOUT_MS,
-    stdoutLimitBytes: 4_000_000,
-    compactText,
-  });
+  return getLocalBridgeRuntimeService().runDirectoryBridge(payload);
 }
 
 const skillDetailProvider = createSkillDetailProvider({
@@ -3819,82 +2864,14 @@ function isKanbanAssessmentCaseMode(mode) {
   return KANBAN_ASSESSMENT_CASE_MODES.has(String(mode || "").trim());
 }
 
-function normalizeWorkspaceIdList(value) {
-  return kanbanCaseShareService.normalizeWorkspaceIdList(value);
-}
-
-function kanbanCaseShareJsonStore() {
-  return kanbanCaseShareService.jsonStore();
-}
-
-function kanbanCaseShareStore() {
-  return kanbanCaseShareService.store();
-}
-
-function syncKanbanCaseShareStoreToSqlite(store) {
-  kanbanCaseShareService.syncToSqlite(store);
-}
-
-function saveKanbanCaseShareStore(store) {
-  kanbanCaseShareService.saveStore(store);
-}
-
-function kanbanCaseShareKey(ownerWorkspaceId, caseId) {
-  return kanbanCaseShareService.key(ownerWorkspaceId, caseId);
-}
-
-function readKanbanCaseShare(ownerWorkspaceId, caseId) {
-  return kanbanCaseShareService.readShare(ownerWorkspaceId, caseId);
-}
-
-function upsertKanbanCaseShare(ownerWorkspaceId, caseId, input = {}) {
-  return kanbanCaseShareService.upsertShare(ownerWorkspaceId, caseId, input);
-}
-
-function kanbanCaseRoleForAuth(auth, ownerWorkspaceId, caseId) {
-  return kanbanCaseShareService.roleForAuth(auth, ownerWorkspaceId, caseId);
-}
-
-function kanbanCaseRoleForWorkspaceActor(actorWorkspaceId, ownerWorkspaceId, caseId, auth = null) {
-  return kanbanCaseShareService.roleForWorkspaceActor(actorWorkspaceId, ownerWorkspaceId, caseId, auth);
-}
-
-function kanbanActorPermissions(role) {
-  return kanbanCaseShareService.actorPermissions(role);
-}
-
-function annotateKanbanCardForAuth(card, auth, options = {}) {
-  return kanbanCaseShareService.annotateCardForAuth(card, auth, options);
-}
-
-function annotateKanbanCardsForAuth(cards, auth, options = {}) {
-  return kanbanCaseShareService.annotateCardsForAuth(cards, auth, options);
-}
-
 function kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth) {
-  if (!isKanbanCaseTopicThread(thread) || !taskGroupId) return null;
-  const meta = normalizeTaskGroupMeta(thread.taskGroupMeta)[taskGroupId] || {};
+  if (!getSingleWindowThreadService().isKanbanCaseTopicThread(thread) || !taskGroupId) return null;
+  const meta = getRuntimeStateNormalizationService().normalizeTaskGroupMeta(thread.taskGroupMeta)[taskGroupId] || {};
   const caseId = String(meta.kanbanCaseId || meta.kanban_case_id || "").trim();
   const ownerWorkspaceId = String(meta.kanbanCaseOwnerWorkspaceId || meta.kanban_case_owner_workspace_id || thread.workspaceId || "owner").trim() || "owner";
   if (!caseId) return null;
-  const role = kanbanCaseRoleForAuth(auth, ownerWorkspaceId, caseId);
-  return kanbanActorPermissions(role);
-}
-
-function kanbanShareActorWorkspaceId(auth, selectedWorkspaceId = "") {
-  return kanbanCaseShareService.shareActorWorkspaceId(auth, selectedWorkspaceId);
-}
-
-function kanbanCaseSharesForActor(auth, selectedWorkspaceId = "") {
-  return kanbanCaseShareService.sharesForActor(auth, selectedWorkspaceId);
-}
-
-async function sharedKanbanCardsForAuth(auth, selectedWorkspaceId, listArgs = {}) {
-  return kanbanCaseShareService.sharedCardsForAuth(auth, selectedWorkspaceId, listArgs);
-}
-
-function kanbanPermissionAllows(role, capability) {
-  return kanbanCaseShareService.permissionAllows(role, capability);
+  const role = kanbanCaseShareService.roleForAuth(auth, ownerWorkspaceId, caseId);
+  return kanbanCaseShareService.actorPermissions(role);
 }
 
 async function resolveKanbanCardAccess(req, res, workspaceId, cardId, capability = "view") {
@@ -3911,231 +2888,37 @@ async function resolveKanbanCardAccess(req, res, workspaceId, cardId, capability
     sendJson(res, 404, { error: "Kanban card not found" });
     return null;
   }
-  const role = kanbanCaseRoleForAuth(auth, id, card.kanbanCaseId);
-  if (!role || !kanbanPermissionAllows(role, capability)) {
+  const role = kanbanCaseShareService.roleForAuth(auth, id, card.kanbanCaseId);
+  if (!role || !kanbanCaseShareService.permissionAllows(role, capability)) {
     sendJson(res, 403, { error: "Kanban card access is not allowed" });
     return null;
   }
   return { workspaceId: id, auth, role, context, card };
 }
 
-function publicTodoOptions(contextOrIndex = null, maybeRows = null) {
-  if (typeof contextOrIndex === "number" && Array.isArray(maybeRows)) {
-    return { listIndex: contextOrIndex, listRows: maybeRows };
+function getTodoPublicProjectionService() {
+  if (!todoPublicProjectionService) {
+    todoPublicProjectionService = createTodoPublicProjectionService({
+      deriveKanbanWorkflowState,
+      isKanbanAssessmentCaseMode,
+      isKanbanStudyCaseMode,
+      kanbanCardEffectiveCaseIndex,
+      publicKanbanAssessmentSummary: (...args) => getAssessmentExamWorkflowService().publicKanbanAssessmentSummary(...args),
+      publicKanbanCoverFile,
+      publicKanbanOutputsFromText,
+      publicKanbanReadingSubmissionSummary,
+      visibleKanbanCaseCards,
+    });
   }
-  if (contextOrIndex && typeof contextOrIndex === "object" && !Array.isArray(contextOrIndex)) {
-    return contextOrIndex;
-  }
-  return {};
-}
-
-const publicTodoListContextCache = new WeakMap();
-
-function kanbanHasPassedAttempt(state = {}) {
-  const attempts = Array.isArray(state?.attempts) ? state.attempts : [];
-  return attempts.some((attempt) => Boolean(attempt?.passed)) || Boolean(state?.lastAttempt?.passed);
+  return todoPublicProjectionService;
 }
 
 function kanbanWorkflowStateCompleted(state = {}, officialDone = false) {
-  if (String(state?.status || "") === "completed" && !state?.completionError) return true;
-  return Boolean(officialDone && kanbanHasPassedAttempt(state));
-}
-
-function publicTodoWorkflowCompleted(payload = {}) {
-  const status = String(payload.kanbanStatus || payload.status || "").trim().toLowerCase();
-  const officialDone = status === "done" || status === "completed";
-  if (isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment") {
-    const reading = payload.readingSubmission || payload.studySubmission || {};
-    return kanbanWorkflowStateCompleted(reading, officialDone);
-  }
-  if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
-    const assessment = payload.assessmentExam || {};
-    return kanbanWorkflowStateCompleted(assessment, officialDone);
-  }
-  return officialDone;
-}
-
-function publicTodoListContext(listRows) {
-  if (!Array.isArray(listRows) || !listRows.length) return null;
-  const cached = publicTodoListContextCache.get(listRows);
-  if (cached) return cached;
-  const byCase = new Map();
-  for (const row of listRows) {
-    const caseId = String(row?.kanbanCaseId || row?.kanban_case_id || "").trim();
-    if (!caseId) continue;
-    if (!byCase.has(caseId)) byCase.set(caseId, []);
-    byCase.get(caseId).push(row);
-  }
-  const byCardId = new Map();
-  for (const [caseId, rawSiblings] of byCase.entries()) {
-    const byId = new Map(rawSiblings.map((card) => [String(card?.id || ""), card]));
-    const visible = visibleKanbanCaseCards(rawSiblings)
-      .sort((left, right) => (
-        (kanbanCardEffectiveCaseIndex(left, byId) - kanbanCardEffectiveCaseIndex(right, byId))
-        || String(left?.id || "").localeCompare(String(right?.id || ""))
-      ));
-    let studyPriorComplete = true;
-    let assessmentPriorComplete = true;
-    let learningPriorComplete = true;
-    for (const rawCard of visible) {
-      const payload = publicTodo(rawCard, { skipWorkflow: true });
-      const cardId = String(payload.id || rawCard?.id || "").trim();
-      if (cardId) {
-        byCardId.set(`${caseId}\0${cardId}`, {
-          studyPriorComplete,
-          assessmentPriorComplete,
-          learningPriorComplete,
-        });
-      }
-      const completed = publicTodoWorkflowCompleted(payload);
-      const isStudy = isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment";
-      const isAssessment = isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment";
-      if (isStudy) {
-        studyPriorComplete = studyPriorComplete && completed;
-        learningPriorComplete = learningPriorComplete && completed;
-      } else if (isAssessment) {
-        assessmentPriorComplete = assessmentPriorComplete && completed;
-        learningPriorComplete = learningPriorComplete && completed;
-      }
-    }
-  }
-  const context = { byCardId };
-  publicTodoListContextCache.set(listRows, context);
-  return context;
-}
-
-function publicTodoPriorContext(payload, options = {}) {
-  if (options.skipWorkflow) return null;
-  const listRows = Array.isArray(options.listRows) ? options.listRows : [];
-  const caseId = String(payload.kanbanCaseId || "").trim();
-  const currentId = String(payload.id || "").trim();
-  if (!caseId || !currentId || !listRows.length) return null;
-  const context = publicTodoListContext(listRows);
-  const prior = context?.byCardId?.get(`${caseId}\0${currentId}`);
-  if (!prior) return null;
-  if (payload.kanbanCaseTemplate === "final-assessment") {
-    return { priorComplete: prior.learningPriorComplete };
-  }
-  if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode)) {
-    return { priorComplete: prior.assessmentPriorComplete };
-  }
-  if (isKanbanStudyCaseMode(payload.kanbanCaseMode)) {
-    return { priorComplete: prior.studyPriorComplete };
-  }
-  return null;
+  return getTodoPublicProjectionService().kanbanWorkflowStateCompleted(state, officialDone);
 }
 
 function publicTodo(row, contextOrIndex = null, maybeRows = null) {
-  const options = publicTodoOptions(contextOrIndex, maybeRows);
-  const workspaceId = String(row.workspace_id || row.workspaceId || "").trim();
-  const kanbanResult = String(row.kanban_result || row.kanbanResult || "");
-  const payload = {
-    id: String(row.id || ""),
-    workspaceId,
-    content: String(row.content || ""),
-    status: String(row.status || ""),
-    assignee: String(row.assignee_principal_id || row.assignee || ""),
-    assigneeLabel: String(row.assignee_label || row.assignee_principal_id || ""),
-    createdBy: String(row.created_by_principal || row.createdBy || ""),
-    dueAt: String(row.due_at || ""),
-    dueLocal: String(row.due_local || ""),
-    timezone: String(row.timezone || ""),
-    reminderLeadMinutes: Number(row.reminder_lead_minutes || 0),
-    recurrence: String(row.recurrence_kind || "none"),
-    recurrenceLabel: String(row.recurrence_label || ""),
-    recurrenceDays: String(row.recurrence_days || ""),
-    recurrenceSeriesId: String(row.recurrence_series_id || ""),
-    recurrenceTemplate: Boolean(row.recurrence_template),
-    source: String(row.source || ""),
-    kanbanBoard: String(row.kanban_board || row.kanbanBoard || ""),
-    kanbanStatus: String(row.kanban_status || row.kanbanStatus || ""),
-    kanbanAssignee: String(row.kanban_assignee || row.kanbanAssignee || ""),
-    kanbanPriority: Number(row.kanban_priority || row.kanbanPriority || 0),
-    kanbanTenant: String(row.kanban_tenant || row.kanbanTenant || ""),
-    kanbanWorkspaceKind: String(row.kanban_workspace_kind || row.kanbanWorkspaceKind || ""),
-    kanbanCreatedBy: String(row.kanban_created_by || row.kanbanCreatedBy || ""),
-    kanbanStartedAt: String(row.kanban_started_at || row.kanbanStartedAt || ""),
-    kanbanCompletedAt: String(row.kanban_completed_at || row.kanbanCompletedAt || ""),
-    kanbanResult,
-    kanbanOutputs: publicKanbanOutputsFromText(workspaceId, kanbanResult),
-    kanbanBlockReason: String(row.kanban_block_reason || row.kanbanBlockReason || ""),
-    kanbanMaxRetries: Number(row.kanban_max_retries || row.kanbanMaxRetries || 0),
-    kanbanSkills: Array.isArray(row.kanban_skills || row.kanbanSkills)
-      ? (row.kanban_skills || row.kanbanSkills).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
-      : [],
-    kanbanCaseId: String(row.kanban_case_id || row.kanbanCaseId || ""),
-    kanbanCaseMode: String(row.kanban_case_mode || row.kanbanCaseMode || ""),
-    kanbanCaseTemplate: String(row.kanban_case_template || row.kanbanCaseTemplate || ""),
-    kanbanCaseSourceText: String(row.kanban_case_source_text || row.kanbanCaseSourceText || ""),
-    kanbanCaseSummary: String(row.kanban_case_summary || row.kanbanCaseSummary || ""),
-    kanbanCaseCover: publicKanbanCoverFile(workspaceId, row.kanban_case_cover || row.kanbanCaseCover || null),
-    kanbanCaseCardId: String(row.kanban_case_card_id || row.kanbanCaseCardId || ""),
-    kanbanCaseCardIndex: Number(row.kanban_case_card_index || row.kanbanCaseCardIndex || 0),
-    kanbanCaseCardCount: Number(row.kanban_case_card_count || row.kanbanCaseCardCount || 0),
-    kanbanCaseDependsOn: Array.isArray(row.kanban_case_depends_on || row.kanbanCaseDependsOn)
-      ? (row.kanban_case_depends_on || row.kanbanCaseDependsOn).map((item) => String(item || "")).filter(Boolean).slice(0, 12)
-      : [],
-    kanbanCaseDeliverables: Array.isArray(row.kanban_case_deliverables || row.kanbanCaseDeliverables)
-      ? (row.kanban_case_deliverables || row.kanbanCaseDeliverables).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
-      : [],
-    kanbanCaseAcceptance: Array.isArray(row.kanban_case_acceptance || row.kanbanCaseAcceptance)
-      ? (row.kanban_case_acceptance || row.kanbanCaseAcceptance).map((item) => String(item || "")).filter(Boolean).slice(0, 8)
-      : [],
-    kanbanCaseCardGoal: String(row.kanban_case_card_goal || row.kanbanCaseCardGoal || ""),
-    kanbanRevisionOf: String(row.kanban_revision_of || row.kanbanRevisionOf || ""),
-    kanbanRevisionRequest: String(row.kanban_revision_request || row.kanbanRevisionRequest || ""),
-    kanbanRevisionRequestedAt: String(row.kanban_revision_requested_at || row.kanbanRevisionRequestedAt || ""),
-    kanbanRevisionRequestedBy: String(row.kanban_revision_requested_by || row.kanbanRevisionRequestedBy || ""),
-    kanbanRevisionCount: Number(row.kanban_revision_count || row.kanbanRevisionCount || 0),
-    createdAt: String(row.created_at || ""),
-    updatedAt: String(row.updated_at || ""),
-    completedAt: String(row.completed_at || ""),
-    cancelledAt: String(row.cancelled_at || ""),
-  };
-  if (isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment") {
-    payload.readingSubmission = publicKanbanReadingSubmissionSummary(workspaceId, payload);
-    payload.studySubmission = payload.readingSubmission;
-    payload.kanbanStudyKind = payload.kanbanCaseTemplate || "custom";
-    const rawStudyStatus = String(row.kanban_status || row.kanbanStatus || row.status || "").trim().toLowerCase();
-    const rawStudyCompleted = rawStudyStatus === "done" || rawStudyStatus === "completed";
-    if (rawStudyCompleted && !publicTodoWorkflowCompleted(payload)) {
-      payload.status = payload.status === "cancelled" ? payload.status : "open";
-      payload.kanbanStatus = payload.kanbanStatus === "archived" ? payload.kanbanStatus : "blocked";
-      payload.kanbanCompletedAt = "";
-      payload.completedAt = "";
-      payload.kanbanResult = "";
-      payload.kanbanOutputs = [];
-    }
-  }
-  if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
-    payload.assessmentExam = publicKanbanAssessmentSummary(workspaceId, payload);
-    payload.kanbanAssessmentKind = payload.kanbanCaseTemplate || "assessment";
-    if (!publicTodoWorkflowCompleted(payload)) {
-      payload.status = payload.status === "cancelled" ? payload.status : "open";
-      payload.kanbanStatus = payload.kanbanStatus === "archived" ? payload.kanbanStatus : "blocked";
-      payload.kanbanCompletedAt = "";
-      payload.completedAt = "";
-      payload.kanbanResult = "";
-      payload.kanbanOutputs = [];
-    }
-  }
-  if (options.skipWorkflow) return payload;
-  const workflowInput = {
-    card: payload,
-    readingState: payload.readingSubmission || payload.studySubmission || null,
-    assessmentState: payload.assessmentExam || null,
-  };
-  const priorContext = publicTodoPriorContext(payload, options);
-  if (priorContext && Object.prototype.hasOwnProperty.call(priorContext, "priorComplete")) {
-    workflowInput.priorComplete = priorContext.priorComplete;
-  }
-  const workflowState = deriveKanbanWorkflowState(workflowInput);
-  if (workflowState.kind) {
-    payload.workflowState = workflowState;
-    if (workflowState.kind === "reading" || workflowState.kind === "study") payload.studyWorkflow = workflowState;
-    if (workflowState.kind === "assessment" || workflowState.kind === "final-assessment") payload.assessmentWorkflow = workflowState;
-  }
-  return payload;
+  return getTodoPublicProjectionService().publicTodo(row, contextOrIndex, maybeRows);
 }
 
 function kanbanOutputAccessThread(workspaceId) {
@@ -4163,7 +2946,7 @@ function authCanAccessKanbanOutput(auth, workspaceId, rawPath) {
   if (authCanAccessWorkspace(auth, workspace)) return true;
   const caseId = kanbanOutputCaseIdFromPath(workspace, rawPath);
   if (!caseId) return false;
-  return Boolean(kanbanCaseRoleForAuth(auth, workspace, caseId));
+  return Boolean(kanbanCaseShareService.roleForAuth(auth, workspace, caseId));
 }
 
 function resolveKanbanOutputFile(workspaceId, rawPath, auth = null) {
@@ -4184,7 +2967,7 @@ function resolveKanbanOutputFile(workspaceId, rawPath, auth = null) {
   return {
     file: {
       localPath,
-      displayPath: logicalUserPathFallback(displayPath, path.basename(localPath)),
+      displayPath: workspaceDisplayPathService.logicalUserPathFallback(displayPath, path.basename(localPath)),
       name: path.basename(localPath),
       mime: mimeFor(localPath),
       size: stat.size,
@@ -4193,105 +2976,36 @@ function resolveKanbanOutputFile(workspaceId, rawPath, auth = null) {
   };
 }
 
+function getKanbanOutputProjectionService() {
+  if (!kanbanOutputProjectionService) {
+    kanbanOutputProjectionService = createKanbanOutputProjectionService({
+      compactText,
+      dateStringFromTaskLike,
+      extractArtifactPaths,
+      resolveKanbanOutputFile,
+    });
+  }
+  return kanbanOutputProjectionService;
+}
+
 function publicKanbanOutputFile(workspaceId, rawPath) {
-  const resolved = resolveKanbanOutputFile(workspaceId, rawPath, null);
-  if (!resolved.file) return null;
-  const params = new URLSearchParams({ workspaceId: String(workspaceId || "owner"), path: String(rawPath || "") });
-  return {
-    name: resolved.file.name,
-    path: String(rawPath || ""),
-    displayPath: resolved.file.displayPath,
-    mime: resolved.file.mime,
-    size: resolved.file.size,
-    updatedAt: resolved.file.updatedAt,
-    url: `/api/kanban/cards/output?${params.toString()}`,
-  };
+  return getKanbanOutputProjectionService().publicKanbanOutputFile(workspaceId, rawPath);
 }
 
 function publicKanbanCoverFile(workspaceId, rawCover) {
-  const cover = rawCover && typeof rawCover === "object" && !Array.isArray(rawCover)
-    ? rawCover
-    : { path: String(rawCover || "") };
-  const coverPath = String(cover.path || "").trim();
-  if (!coverPath) return null;
-  const file = publicKanbanOutputFile(workspaceId, coverPath);
-  if (!file) return null;
-  return Object.assign({}, file, {
-    role: "cover",
-    name: cover.name || file.name,
-    mime: cover.mime || file.mime,
-    size: Number(cover.size || file.size || 0) || 0,
-  });
+  return getKanbanOutputProjectionService().publicKanbanCoverFile(workspaceId, rawCover);
 }
 
 function publicKanbanOutputsFromText(workspaceId, text) {
-  const workspace = String(workspaceId || "").trim();
-  if (!workspace) return [];
-  return extractArtifactPaths(text)
-    .map((item) => publicKanbanOutputFile(workspace, item))
-    .filter(Boolean)
-    .slice(0, 12);
+  return getKanbanOutputProjectionService().publicKanbanOutputsFromText(workspaceId, text);
 }
 
 function publicKanbanReadingSubmissionSummary(workspaceId, card = {}) {
   return kanbanStudyArtifactService.publicReadingSubmissionSummary(workspaceId, card);
 }
 
-function eventPreviewText(event) {
-  if (!event || typeof event !== "object") return "";
-  const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
-  return compactText(payload.note || payload.summary || payload.error || event.message || event.kind || "", 360);
-}
-
 function publicKanbanCardDetail(workspaceId, detail = {}) {
-  const runs = Array.isArray(detail.runs) ? detail.runs : [];
-  const events = Array.isArray(detail.events) ? detail.events : [];
-  const comments = Array.isArray(detail.comments) ? detail.comments : [];
-  const latestRun = [...runs].reverse().find((run) => run && (run.summary || run.metadata));
-  const summary = compactText(
-    detail.latest_summary
-    || detail.latestSummary
-    || detail.task?.result
-    || latestRun?.summary
-    || "",
-    4000,
-  );
-  const outputPaths = new Set();
-  for (const run of runs) {
-    const outputs = run?.metadata?.outputs;
-    if (Array.isArray(outputs)) outputs.forEach((item) => outputPaths.add(String(item || "")));
-  }
-  for (const comment of comments) {
-    const commentText = [comment?.text, comment?.body, comment?.comment].filter(Boolean).join("\n");
-    for (const pathText of extractArtifactPaths(commentText)) outputPaths.add(pathText);
-  }
-  for (const pathText of extractArtifactPaths(summary)) outputPaths.add(pathText);
-  for (const pathText of extractArtifactPaths(detail.log || "")) outputPaths.add(pathText);
-  const outputs = [...outputPaths].map((item) => publicKanbanOutputFile(workspaceId, item)).filter(Boolean);
-  return {
-    summary,
-    outputs,
-    comments: comments.slice(-12).map((comment) => ({
-      author: String(comment.author || comment.created_by || ""),
-      text: compactText(comment.text || comment.body || comment.comment || "", 800),
-      createdAt: dateStringFromTaskLike(comment.created_at || comment.createdAt || ""),
-    })),
-    events: events.slice(-20).map((event) => ({
-      kind: String(event.kind || ""),
-      preview: eventPreviewText(event),
-      createdAt: dateStringFromTaskLike(event.created_at || event.createdAt || ""),
-    })).filter((event) => event.kind || event.preview),
-    runs: runs.slice(-8).map((run) => ({
-      id: String(run.id || ""),
-      profile: String(run.profile || ""),
-      status: String(run.status || ""),
-      outcome: String(run.outcome || ""),
-      summary: compactText(run.summary || "", 1200),
-      startedAt: dateStringFromTaskLike(run.started_at || run.startedAt || ""),
-      endedAt: dateStringFromTaskLike(run.ended_at || run.endedAt || ""),
-    })),
-    logTail: compactText(detail.log || "", 4000),
-  };
+  return getKanbanOutputProjectionService().publicKanbanCardDetail(workspaceId, detail);
 }
 
 function dateStringFromTaskLike(value) {
@@ -4376,54 +3090,7 @@ async function hermesModelText(body, timeoutMs = AUTOMATION_CREATE_TIMEOUT_MS) {
 }
 
 function runProcessText(command, args = [], options = {}) {
-  return new Promise((resolve, reject) => {
-    const timeoutMs = Math.max(1000, Number(options.timeoutMs || 30000));
-    const maxOutputBytes = Math.max(8192, Number(options.maxOutputBytes || 2_000_000));
-    const child = spawn(command, args.map(String), {
-      cwd: options.cwd || undefined,
-      env: options.env || process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const append = (current, chunk) => (current + chunk.toString("utf8")).slice(-maxOutputBytes);
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill();
-      const err = new Error(`${command} timed out after ${timeoutMs}ms`);
-      err.code = "ETIMEDOUT";
-      err.stdout = stdout;
-      err.stderr = stderr;
-      reject(err);
-    }, timeoutMs);
-    child.stdout.on("data", (chunk) => { stdout = append(stdout, chunk); });
-    child.stderr.on("data", (chunk) => { stderr = append(stderr, chunk); });
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      err.stdout = stdout;
-      err.stderr = stderr;
-      reject(err);
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve({ stdout, stderr, code });
-        return;
-      }
-      const err = new Error(`${command} exited with code ${code}`);
-      err.code = code;
-      err.stdout = stdout;
-      err.stderr = stderr;
-      reject(err);
-    });
-  });
+  return getLocalBridgeRuntimeService().runProcessText(command, args, options);
 }
 
 function normalizeAutomationDraft(raw, sourceText) {
@@ -4440,14 +3107,6 @@ function normalizeKanbanDraft(raw, sourceText, workspaceId) {
 
 async function interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId) {
   return naturalLanguageDraftService.interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId);
-}
-
-function kanbanPlanFallbackCards(sourceText) {
-  return kanbanPlanService.fallbackCards(sourceText);
-}
-
-function kanbanPlanDependencyRefs(value) {
-  return kanbanPlanService.dependencyRefs(value);
 }
 
 function normalizeKanbanMaxParallel(value) {
@@ -4478,1577 +3137,143 @@ function kanbanSingleCardCasePayload(content, description = "", sourceText = "")
   return kanbanPlanService.singleCardCasePayload(content, description, sourceText);
 }
 
-async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
-  const requestedMaxParallel = options.maxParallel ?? planInput?.maxParallel ?? planInput?.max_parallel;
-  const maxParallel = normalizeKanbanMaxParallel(requestedMaxParallel);
-  const reasoningEffort = normalizeKanbanPlanReasoningEffort(options.reasoningEffort || options.reasoning_effort || planInput?.reasoningEffort || planInput?.reasoning_effort);
-  const plan = normalizeKanbanPlan(planInput, planInput?.sourceText || options.sourceText || "", workspaceId, { maxParallel, reasoningEffort });
-  const created = [];
-  const byClientId = new Map();
-  const runnableIds = new Set(plan.cards.filter((card) => !card.dependsOn.length).slice(0, maxParallel).map((card) => card.clientId));
-
-  for (const [cardIndex, card] of plan.cards.entries()) {
-    const assignee = normalizeKanbanNotificationAssignee(workspaceId, card.assignee, options.assignee);
-    const cardCaseTemplate = card.caseTemplate || plan.template;
-    const cardSourceText = compactText([
-      plan.sourceText,
-      card.config ? assessmentConfigLine(card.config) : "",
-    ].filter(Boolean).join("\n\n"), 3000);
-    const result = await kanbanCardProvider.addCard({
-      workspaceId,
-      assignee,
-      assigneeLabel: todoAssigneeLabel(workspaceId, assignee),
-      content: card.title,
-      description: kanbanPlanCardDescription(plan, card),
-      dueTime: "",
-      reason: "Created from Hermes Mobile multi-Agent Kanban planner.",
-      idempotencyKey: `hm-plan-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
-      caseId: plan.id,
-      caseMode: plan.mode,
-      caseSourceText: compactText(plan.sourceText, 2000),
-      caseSummary: compactText(plan.summary, 500),
-      caseCardId: card.clientId,
-      caseCardIndex: cardIndex + 1,
-      caseCardCount: plan.cards.length,
-      caseDependsOn: card.dependsOn,
-      caseDeliverables: card.deliverables,
-      caseAcceptance: card.acceptance,
-      caseCardGoal: card.description || card.title,
+function getKanbanPlanCardCreationService() {
+  if (!kanbanPlanCardCreationService) {
+    kanbanPlanCardCreationService = createKanbanPlanCardCreationService({
+      assessmentConfigLine,
+      compactText,
+      ensureKanbanCaseSharedDirectory,
+      ensureKanbanCaseTopicThread,
+      kanbanCardProvider,
+      kanbanCaseTopicTitle,
+      kanbanPlanCardDescription,
+      kanbanPlanDependencyLabelsForServer,
+      normalizeKanbanAssessmentPlan: (raw = {}, workspaceId = "owner", options = {}) => (
+        studyAssessmentService.normalizeKanbanAssessmentPlan(raw, workspaceId, Object.assign({}, options, {
+          assessmentMaxQuestions: KANBAN_ASSESSMENT_MAX_QUESTIONS,
+          assessmentPlanMaxExams: KANBAN_ASSESSMENT_PLAN_MAX_EXAMS,
+      normalizeWorkspaceIdList: (...args) => kanbanCaseShareService.normalizeWorkspaceIdList(...args),
+        }))
+      ),
+      normalizeKanbanMaxParallel,
+      normalizeKanbanNotificationAssignee,
+      normalizeKanbanPlan,
+      normalizeKanbanPlanReasoningEffort,
+      normalizeKanbanStudyPlan: (raw = {}, workspaceId = "owner") => (
+        studyAssessmentService.normalizeKanbanStudyPlan(raw, workspaceId, {
+          maxSessions: KANBAN_READING_PLAN_MAX_SESSIONS,
+          normalizeWorkspaceIdList: (...args) => kanbanCaseShareService.normalizeWorkspaceIdList(...args),
+        })
+      ),
+      publicKanbanCoverFile,
+      publicTodo,
+      saveKanbanReadingCoverUpload: (...args) => kanbanReadingWorkflowService.saveKanbanReadingCoverUpload(...args),
+      todoAssigneeLabel,
+      upsertKanbanCaseShare: (...args) => kanbanCaseShareService.upsertShare(...args),
+      verifyDirectTodoCreateResult,
+      workspacePrincipal,
     });
-    if (!result?.ok) {
-      return { ok: false, error: result?.error || "Kanban card creation failed", plan, cards: created, result };
-    }
-    const publicCard = publicTodo(result);
-    const verification = verifyDirectTodoCreateResult(publicCard);
-    if (!verification.ok) {
-      return { ok: false, error: verification.error, plan, cards: created, result };
-    }
-    byClientId.set(card.clientId, publicCard);
-    const dependencyLabels = kanbanPlanDependencyLabelsForServer(plan, card);
-    const shouldBlock = !runnableIds.has(card.clientId);
-    let blocked = false;
-    let blockError = "";
-    let blockReason = "";
-    if (shouldBlock) {
-      blockReason = dependencyLabels.length
-        ? `Waiting for planned upstream cards: ${dependencyLabels.join(" / ")}.`
-        : `Waiting for a free multi-Agent execution slot; Hermes Mobile max parallel is ${maxParallel}.`;
-      const blockedResult = await kanbanCardProvider.mutateCard({
-        action: "block",
-        workspaceId,
-        cardId: publicCard.id,
-        reason: blockReason,
-        author: "Hermes Mobile",
-      });
-      blocked = Boolean(blockedResult?.ok);
-      blockError = blocked ? "" : (blockedResult?.error || "Failed to block planned card");
-    }
-    const createdEntry = {
-      clientId: card.clientId,
-      title: card.title,
-      card: publicCard,
-      blocked,
-      blockReason,
-      blockError,
-      dependsOn: card.dependsOn.map((id) => byClientId.get(id)?.id || id),
-    };
-    created.push(createdEntry);
-    if (shouldBlock && !blocked) {
-      return {
-        ok: false,
-        error: `Planned card ${publicCard.id} was created but could not be blocked: ${blockError}`,
-        plan,
-        cards: created,
-      };
-    }
   }
-
-  return { ok: true, plan, cards: created, maxParallel };
+  return kanbanPlanCardCreationService;
 }
 
-function normalizeReadingPlanTime(value) {
-  const text = String(value || "").trim();
-  const match = text.match(/^(\d{1,2})(?::|：)(\d{1,2})$/);
-  if (!match) return "21:00";
-  const hour = Math.max(0, Math.min(23, Number(match[1]) || 0));
-  const minute = Math.max(0, Math.min(59, Number(match[2]) || 0));
-  return `${pad2(hour)}:${pad2(minute)}`;
+async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
+  return getKanbanPlanCardCreationService().createKanbanPlanCards(workspaceId, planInput, options);
 }
 
-function normalizeReadingPlanStartDate(value) {
-  const text = String(value || "").trim();
-  const match = text.match(/^(20\d{2})-(\d{1,2})-(\d{1,2})$/);
-  const now = new Date();
-  if (!match) return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-  return `${match[1]}-${pad2(Number(match[2]))}-${pad2(Number(match[3]))}`;
-}
-
-function readingPlanDueTime(startDate, timeOfDay, dayOffset) {
-  const dateMatch = String(startDate || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
-  const timeMatch = normalizeReadingPlanTime(timeOfDay).match(/^(\d{2}):(\d{2})$/);
-  const date = dateMatch
-    ? new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]), Number(timeMatch[1]), Number(timeMatch[2]), 0, 0)
-    : new Date();
-  date.setDate(date.getDate() + Math.max(0, Number(dayOffset) || 0));
-  return formatLocalDateTime(date);
-}
-
-function readingPlanStartDateTime(startDate, timeOfDay) {
-  const dateMatch = String(startDate || "").match(/^(20\d{2})-(\d{2})-(\d{2})$/);
-  const timeMatch = normalizeReadingPlanTime(timeOfDay).match(/^(\d{2}):(\d{2})$/);
-  return dateMatch
-    ? new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]), Number(timeMatch[1]), Number(timeMatch[2]), 0, 0)
-    : new Date();
-}
-
-function normalizeStudyPlanScheduleFrequency(value = "") {
-  const text = String(value || "").trim().toLowerCase();
-  if (["weekly", "week", "weeks", "每周", "每週", "周", "週"].includes(text)) return "weekly";
-  if (["monthly", "month", "months", "每月", "月"].includes(text)) return "monthly";
-  return "daily";
-}
-
-function normalizeStudyPlanWeekdays(value, startDate = "") {
-  const raw = Array.isArray(value)
-    ? value
-    : String(value || "").split(/[,\s;，、]+/);
-  const out = [];
-  const seen = new Set();
-  const pushDay = (day) => {
-    const normalized = day === 7 ? 0 : day;
-    if (!Number.isInteger(normalized) || normalized < 0 || normalized > 6 || seen.has(normalized)) return;
-    seen.add(normalized);
-    out.push(normalized);
-  };
-  for (const item of raw) {
-    const text = String(item || "").trim().toLowerCase();
-    if (!text) continue;
-    if (/^(sun|sunday|周日|週日|周天|星期日|星期天)$/.test(text)) { pushDay(0); continue; }
-    if (/^(mon|monday|周一|週一|星期一)$/.test(text)) { pushDay(1); continue; }
-    if (/^(tue|tues|tuesday|周二|週二|星期二)$/.test(text)) { pushDay(2); continue; }
-    if (/^(wed|wednesday|周三|週三|星期三)$/.test(text)) { pushDay(3); continue; }
-    if (/^(thu|thur|thurs|thursday|周四|週四|星期四)$/.test(text)) { pushDay(4); continue; }
-    if (/^(fri|friday|周五|週五|星期五)$/.test(text)) { pushDay(5); continue; }
-    if (/^(sat|saturday|周六|週六|星期六)$/.test(text)) { pushDay(6); continue; }
-    const number = Number(text);
-    if (Number.isFinite(number)) pushDay(number === 0 ? 0 : Math.max(1, Math.min(7, Math.trunc(number))));
+function getKanbanCaseTopicService() {
+  if (!kanbanCaseTopicService) {
+    kanbanCaseTopicService = createKanbanCaseTopicService({
+      assertChildPathInside: (...args) => getDirectoryBrowserBoundaryService().assertChildPathInside(...args),
+      broadcast,
+      compactText,
+      comparablePath,
+      createSingleWindowThread: (...args) => getSingleWindowThreadService().createSingleWindowThread(...args),
+      getState: () => state,
+      isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
+      makeId,
+      mkdirp: (targetPath) => fs.mkdirSync(targetPath, { recursive: true }),
+      normalizeChatGroup,
+      normalizeLocalPath,
+      normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
+      nowIso,
+      pathExists: (targetPath) => fs.existsSync(targetPath),
+      pathInsideAnyRoot,
+      readKanbanCaseShare: (...args) => kanbanCaseShareService.readShare(...args),
+      saveState,
+      senderInfoForWorkspace,
+      sharedDirectoriesForWorkspace,
+      sharedFolderName: KANBAN_STUDY_SHARED_FOLDER_NAME,
+      sortMessagesChronologically: (...args) => getSingleWindowThreadService().sortMessagesChronologically(...args),
+      threadSummary,
+      topicKind: KANBAN_CASE_TOPIC_KIND,
+      upsertSharedDirectory,
+      workspaceDefaultRoot,
+      workspacePrincipal,
+    });
   }
-  if (!out.length) {
-    out.push(readingPlanStartDateTime(normalizeReadingPlanStartDate(startDate), "00:00").getDay());
-  }
-  return out.sort((a, b) => a - b);
-}
-
-function studyPlanWeekdayLabel(day) {
-  return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][day] || "";
-}
-
-function normalizeStudyPlanSchedule(raw = {}, startDate = "", timeOfDay = "") {
-  const frequency = normalizeStudyPlanScheduleFrequency(
-    raw.scheduleFrequency
-    || raw.schedule_frequency
-    || raw.frequency
-    || raw.recurrence
-    || raw.repeat
-    || "",
-  );
-  const weekdays = normalizeStudyPlanWeekdays(
-    raw.scheduleWeekdays
-    || raw.schedule_weekdays
-    || raw.weekdays
-    || raw.weekday
-    || raw.weekDays
-    || raw.week_days
-    || "",
-    startDate,
-  );
-  const monthDay = Math.max(1, Math.min(31, Number(raw.scheduleMonthDay || raw.schedule_month_day || raw.monthDay || raw.month_day || readingPlanStartDateTime(startDate, timeOfDay).getDate()) || 1));
-  const label = frequency === "weekly"
-    ? `每周 ${weekdays.map(studyPlanWeekdayLabel).filter(Boolean).join("、") || "指定日"}`
-    : (frequency === "monthly" ? `每月 ${monthDay} 日` : "每日");
-  return {
-    frequency,
-    weekdays,
-    weekdaysOneBased: weekdays.map((day) => (day === 0 ? 7 : day)),
-    monthDay,
-    label,
-    startDate,
-    timeOfDay,
-  };
-}
-
-function daysInMonth(year, monthIndex) {
-  return new Date(year, monthIndex + 1, 0).getDate();
-}
-
-function readingPlanScheduleDueTime(schedule = {}, occurrenceIndex = 0) {
-  const index = Math.max(0, Number(occurrenceIndex) || 0);
-  const start = readingPlanStartDateTime(schedule.startDate, schedule.timeOfDay);
-  if (schedule.frequency === "weekly") {
-    const weekdays = Array.isArray(schedule.weekdays) && schedule.weekdays.length ? schedule.weekdays : [start.getDay()];
-    const date = new Date(start.getTime());
-    let seen = 0;
-    for (let guard = 0; guard < 3700; guard += 1) {
-      if (weekdays.includes(date.getDay())) {
-        if (seen === index) return formatLocalDateTime(date);
-        seen += 1;
-      }
-      date.setDate(date.getDate() + 1);
-    }
-    return formatLocalDateTime(date);
-  }
-  if (schedule.frequency === "monthly") {
-    const targetDay = Math.max(1, Math.min(31, Number(schedule.monthDay || start.getDate()) || start.getDate()));
-    let seen = 0;
-    for (let monthOffset = 0; monthOffset < 240; monthOffset += 1) {
-      const candidateMonth = start.getMonth() + monthOffset;
-      const candidateYear = start.getFullYear() + Math.floor(candidateMonth / 12);
-      const normalizedMonth = ((candidateMonth % 12) + 12) % 12;
-      const day = Math.min(targetDay, daysInMonth(candidateYear, normalizedMonth));
-      const candidate = new Date(candidateYear, normalizedMonth, day, start.getHours(), start.getMinutes(), 0, 0);
-      if (candidate < start) continue;
-      if (seen === index) return formatLocalDateTime(candidate);
-      seen += 1;
-    }
-  }
-  const date = new Date(start.getTime());
-  date.setDate(date.getDate() + index);
-  return formatLocalDateTime(date);
-}
-
-function normalizeKanbanStudyTemplate(raw = {}) {
-  const value = String(
-    raw.studyTemplate
-    || raw.study_template
-    || raw.caseTemplate
-    || raw.case_template
-    || raw.template
-    || raw.kind
-    || "",
-  ).trim().toLowerCase();
-  if (["reading", "read", "book", "english-reading", "reading-retell"].includes(value)) return "reading";
-  return "custom";
-}
-
-function kanbanCardStudyTemplate(card = {}) {
-  return String(card?.kanbanCaseTemplate || card?.kanban_case_template || card?.studyTemplate || card?.study_template || "custom").trim().toLowerCase() || "custom";
-}
-
-function kanbanCardUsesReadingTemplate(card = {}) {
-  return kanbanCardStudyTemplate(card) === "reading";
-}
-
-function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner") {
-  const mode = "study-plan";
-  const template = normalizeKanbanStudyTemplate(raw);
-  const readingTemplate = template === "reading";
-  const contentTitle = compactText(
-    raw.contentTitle
-    || raw.content_title
-    || raw.bookTitle
-    || raw.book_title
-    || raw.title
-    || "",
-    120,
-  );
-  if (!contentTitle) throw new Error("Study plan contentTitle is required");
-  const learnerName = compactText(
-    raw.learnerName
-    || raw.learner_name
-    || raw.readerName
-    || raw.reader_name
-    || raw.reader
-    || raw.targetName
-    || raw.target_name
-    || "学习者",
-    80,
-  );
-  const subject = compactText(raw.subject || raw.domain || (readingTemplate ? "英语阅读" : "学习"), 80);
-  const activity = compactText(raw.activity || raw.activityType || raw.activity_type || (readingTemplate ? "阅读复述" : "提交成果并考核"), 120);
-  const submissionLabel = compactText(raw.submissionLabel || raw.submission_label || (readingTemplate ? "复述录音" : "学习成果文件或文字"), 120);
-  const sessions = Math.max(1, Math.min(KANBAN_READING_PLAN_MAX_SESSIONS, Number(raw.sessions || raw.sessionCount || raw.session_count || 10) || 10));
-  const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date);
-  const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
-  const schedule = normalizeStudyPlanSchedule(raw, startDate, timeOfDay);
-  const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 15) || 0));
-  const sourceText = compactText(raw.sourceText || raw.source_text || raw.text || raw.notes || "", 4000);
-  const performerWorkspaceIds = normalizeWorkspaceIdList(
-    raw.performerWorkspaceIds
-    || raw.performer_workspace_ids
-    || raw.targetWorkspaceIds
-    || raw.target_workspace_ids
-    || raw.performerWorkspaceId
-    || raw.performer_workspace_id
-    || raw.targetWorkspaceId
-    || raw.target_workspace_id
-    || "",
-  ).filter((id) => id !== String(workspaceId || "owner"));
-  const viewerWorkspaceIds = normalizeWorkspaceIdList(
-    raw.viewerWorkspaceIds
-    || raw.viewer_workspace_ids
-    || raw.readonlyWorkspaceIds
-    || raw.readonly_workspace_ids
-    || "",
-  ).filter((id) => id !== String(workspaceId || "owner") && !performerWorkspaceIds.includes(id));
-  const summary = compactText(`${learnerName}：${subject} - ${contentTitle}`, 180);
-  const id = String(raw.id || `study-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
-  const cards = Array.from({ length: sessions }, (_, index) => {
-    const day = index + 1;
-    const title = readingTemplate
-      ? `${learnerName}阅读《${contentTitle}》第 ${day}/${sessions} 次：录音复述`
-      : `${learnerName}${subject}第 ${day}/${sessions} 次：提交成果`;
-    const description = compactText([
-      `学习计划：${summary}`,
-      `第 ${day} 次，共 ${sessions} 次。`,
-      `执行频率：${schedule.label}，开始时间 ${startDate} ${timeOfDay}。`,
-      `领域/科目：${subject}`,
-      `当天任务：${activity}`,
-      `提交要求：${submissionLabel}`,
-      readingTemplate
-        ? "当天阅读完成后，需要上传语音复述或总结录音。Hermes Mobile 会先转写录音，再结合前面已完成卡片的反馈生成评价、针对性单选考卷和下一次指导；答卷 10 题全对后，本卡片才会完成。"
-        : "当天学习完成后，提交成果文件、文字说明或录音。Hermes Mobile 会提取可读内容、生成评价、针对性单选考卷和下一次指导；答卷 10 题全对后，本卡片才会完成。",
-      sourceText ? `整体要求：\n${sourceText}` : "",
-    ].filter(Boolean).join("\n\n"), 1800);
-    return {
-      clientId: `${template}-session-${day}`,
-      title,
-      day,
-      dueTime: readingPlanScheduleDueTime(schedule, index),
-      description,
-      deliverables: readingTemplate
-        ? ["读后复述录音", "AI阅读评价", "针对性单选考卷", "下一次阅读指导"]
-        : ["学习成果提交", "AI评价", "针对性单选考卷", "下一次学习指导"],
-      acceptance: readingTemplate
-        ? ["已上传当天录音", "已生成转写和AI评价", "10题单选考卷全对", "卡片完成结果包含分析文件"]
-        : ["已提交当天学习成果", "已生成AI评价", "10题单选考卷全对", "卡片完成结果包含分析文件"],
-    };
-  });
-  return {
-    id,
-    mode,
-    template,
-    workspaceId: String(workspaceId || "owner"),
-    bookTitle: contentTitle,
-    contentTitle,
-    readerName: learnerName,
-    learnerName,
-    subject,
-    activity,
-    submissionLabel,
-    sessions,
-    startDate,
-    timeOfDay,
-    scheduleFrequency: schedule.frequency,
-    scheduleWeekdays: schedule.weekdaysOneBased,
-    scheduleMonthDay: schedule.monthDay,
-    scheduleLabel: schedule.label,
-    reminderLeadMinutes,
-    sourceText,
-    summary,
-    performerWorkspaceIds,
-    viewerWorkspaceIds,
-    cards,
-  };
-}
-
-function kanbanPlanLearnerLabel(plan = {}) {
-  return compactText(
-    plan.learnerName
-    || plan.readerName
-    || plan.targetName
-    || plan.target_name
-    || "\u5b66\u4e60\u8005",
-    60,
-  ) || "\u5b66\u4e60\u8005";
+  return kanbanCaseTopicService;
 }
 
 function kanbanCaseTopicTitle(plan = {}) {
-  return compactText(
-    plan.contentTitle
-    || plan.bookTitle
-    || plan.title
-    || plan.subject
-    || plan.summary
-    || plan.id
-    || "\u5b66\u4e60\u8ba1\u5212",
-    120,
-  ) || "\u5b66\u4e60\u8ba1\u5212";
-}
-
-function kanbanLearnerSharedFolderName(plan = {}) {
-  const learner = kanbanPlanLearnerLabel(plan);
-  return safeDirectoryName(learner)
-    || `learner-${safeStorageSegment(learner, "learner")}`;
+  return getKanbanCaseTopicService().caseTopicTitle(plan);
 }
 
 function kanbanStableTextKey(value, fallback = "item") {
-  const text = compactText(value || fallback, 120) || fallback;
-  const slug = safeStorageSegment(text, "");
-  const hash = crypto.createHash("sha1").update(text).digest("hex").slice(0, 10);
-  return slug ? `${slug}-${hash}` : `${fallback}-${hash}`;
+  return getKanbanCaseTopicService().stableTextKey(value, fallback);
 }
 
 function kanbanLearnerRootDirectory(ownerWorkspaceId, ownerRoot, plan = {}) {
-  const learner = kanbanPlanLearnerLabel(plan);
-  const expectedName = kanbanLearnerSharedFolderName(plan);
-  const directoryRecords = sharedDirectoriesForWorkspace(ownerWorkspaceId) || [];
-  const explicit = directoryRecords
-    .filter((record) => String(record?.source || "") !== "hermes-mobile-study-plan")
-    .map((record) => normalizeLocalPath(record?.path || "") || record?.path || "")
-    .filter(Boolean)
-    .filter((recordPath) => pathInsideAnyRoot(recordPath, [ownerRoot]))
-    .find((recordPath) => {
-      const labels = [
-        path.basename(normalizeLocalPath(recordPath) || recordPath),
-        ...directoryRecords
-          .filter((record) => comparablePath(normalizeLocalPath(record?.path || "") || record?.path || "") === comparablePath(recordPath))
-          .flatMap((record) => [record.label, ...(record.aliases || [])]),
-      ].filter(Boolean);
-      return labels.some((label) => String(label || "").trim() === learner);
-    });
-  if (explicit) return normalizeLocalPath(explicit) || explicit;
-  if (fs.existsSync(path.join(ownerRoot, expectedName))) return path.join(ownerRoot, expectedName);
-  return path.join(ownerRoot, expectedName);
-}
-
-function kanbanCaseDirectoryName(plan = {}) {
-  const readable = safeDirectoryName(compactText(kanbanCaseTopicTitle(plan), 96));
-  return readable || safeStorageSegment(plan.id || "case", "case");
-}
-
-function kanbanCaseDirectoryPath(ownerWorkspaceId, sharedRoot, plan = {}) {
-  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
-  const existingShare = readKanbanCaseShare(owner, plan.id || "");
-  const existingPath = normalizeLocalPath(existingShare?.caseDirectoryPath || "") || existingShare?.caseDirectoryPath || "";
-  if (existingPath && pathInsideAnyRoot(existingPath, [sharedRoot])) return existingPath;
-  const baseName = kanbanCaseDirectoryName(plan);
-  let candidate = path.join(sharedRoot, baseName);
-  if (!fs.existsSync(candidate)) return candidate;
-  const suffix = crypto.createHash("sha1").update(String(plan.id || baseName)).digest("hex").slice(0, 6);
-  const suffixedBase = safeDirectoryName(`${baseName}-${suffix}`) || safeStorageSegment(plan.id || "case", "case");
-  candidate = path.join(sharedRoot, suffixedBase);
-  let index = 2;
-  while (fs.existsSync(candidate)) {
-    candidate = path.join(sharedRoot, safeDirectoryName(`${suffixedBase}-${index}`) || `${suffixedBase}-${index}`);
-    index += 1;
-  }
-  return candidate;
-}
-
-function kanbanCaseMemberWorkspaceIds(plan = {}, ownerWorkspaceId = "owner") {
-  return dedupe([
-    ownerWorkspaceId,
-    ...(Array.isArray(plan.performerWorkspaceIds) ? plan.performerWorkspaceIds : []),
-    ...(Array.isArray(plan.viewerWorkspaceIds) ? plan.viewerWorkspaceIds : []),
-  ].filter(Boolean));
+  return getKanbanCaseTopicService().learnerRootDirectory(ownerWorkspaceId, ownerRoot, plan);
 }
 
 function ensureKanbanCaseSharedDirectory(ownerWorkspaceId, plan = {}) {
-  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
-  const ownerRoot = workspaceDefaultRoot(owner);
-  const targets = kanbanCaseMemberWorkspaceIds(plan, owner).filter((workspaceId) => workspaceId !== owner);
-  if (!ownerRoot || !targets.length) return null;
-  const learner = kanbanPlanLearnerLabel(plan);
-  const learnerRoot = kanbanLearnerRootDirectory(owner, ownerRoot, plan);
-  const sharedRoot = path.join(learnerRoot, KANBAN_STUDY_SHARED_FOLDER_NAME);
-  const caseDirectory = kanbanCaseDirectoryPath(owner, sharedRoot, plan);
-  assertChildPathInside(ownerRoot, learnerRoot);
-  assertChildPathInside(learnerRoot, sharedRoot);
-  assertChildPathInside(sharedRoot, caseDirectory);
-  fs.mkdirSync(caseDirectory, { recursive: true });
-  const share = upsertSharedDirectory({
-    path: sharedRoot,
-    label: `${learner}${KANBAN_STUDY_SHARED_FOLDER_NAME}`,
-    createdAt: nowIso(),
-    createdBy: owner,
-    createdByPrincipalId: workspacePrincipal(owner),
-    permission: "read_only",
-    scope: "selected_workspaces",
-    targetWorkspaceIds: targets,
-    aliases: [learner, KANBAN_STUDY_SHARED_FOLDER_NAME, `${learner}${KANBAN_STUDY_SHARED_FOLDER_NAME}`],
-    source: "hermes-mobile-study-plan",
-  });
-  return {
-    sharedDirectoryPath: sharedRoot,
-    caseDirectoryPath: caseDirectory,
-    share,
-    directoryRoute: {
-      label: `${learner} / ${KANBAN_STUDY_SHARED_FOLDER_NAME} / ${kanbanCaseTopicTitle(plan)}`,
-      root: caseDirectory,
-      path: caseDirectory,
-    },
-  };
-}
-
-function kanbanCaseTopicKey(ownerWorkspaceId, plan = {}) {
-  return `study:${safeStorageSegment(ownerWorkspaceId || "owner", "owner")}:${kanbanStableTextKey(kanbanPlanLearnerLabel(plan), "learner").toLowerCase()}`;
-}
-
-function findKanbanCaseTopicThread(ownerWorkspaceId, topicKey) {
-  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
-  const key = String(topicKey || "").trim();
-  return (state.threads || []).find((thread) => (
-    thread?.singleWindow
-    && thread.workspaceId === owner
-    && isKanbanCaseTopicThread(thread)
-    && normalizeChatGroup(thread.chatGroup || {}, owner).topicKey === key
-  )) || null;
+  return getKanbanCaseTopicService().ensureSharedDirectory(ownerWorkspaceId, plan);
 }
 
 function ensureKanbanCaseTopicThread(ownerWorkspaceId, plan = {}, directoryInfo = null) {
-  const owner = String(ownerWorkspaceId || "owner").trim() || "owner";
-  const members = kanbanCaseMemberWorkspaceIds(plan, owner);
-  if (members.length <= 1) return null;
-  const now = nowIso();
-  const topicKey = kanbanCaseTopicKey(owner, plan);
-  let thread = findKanbanCaseTopicThread(owner, topicKey);
-  if (!thread) {
-    thread = createSingleWindowThread(owner, {
-      title: `${kanbanPlanLearnerLabel(plan)}${KANBAN_STUDY_SHARED_FOLDER_NAME}`,
-      chatGroup: {
-        enabled: true,
-        kind: KANBAN_CASE_TOPIC_KIND,
-        topicKey,
-        memberWorkspaceIds: members,
-        createdAt: now,
-        updatedAt: now,
-      },
-      createdAt: now,
-      updatedAt: now,
-    });
-    state.threads.unshift(thread);
-  } else {
-    const group = normalizeChatGroup(thread.chatGroup || {}, owner);
-    thread.chatGroup = Object.assign({}, group, {
-      enabled: true,
-      kind: KANBAN_CASE_TOPIC_KIND,
-      topicKey,
-      memberWorkspaceIds: dedupe([...(group.memberWorkspaceIds || []), ...members]),
-      createdAt: group.createdAt || now,
-      updatedAt: now,
-    });
-  }
-  const taskGroupId = `case_${safeStorageSegment(plan.id || makeId("case"), "case")}`;
-  thread.taskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
-  thread.taskGroupMeta[taskGroupId] = Object.assign({}, thread.taskGroupMeta[taskGroupId] || {}, {
-    title: kanbanCaseTopicTitle(plan),
-    updatedAt: now,
-    sharedTopic: true,
-    kanbanCaseId: plan.id || "",
-    kanbanCaseMode: plan.mode || "",
-    kanbanCaseOwnerWorkspaceId: owner,
-    performerWorkspaceIds: plan.performerWorkspaceIds || [],
-    viewerWorkspaceIds: plan.viewerWorkspaceIds || [],
-    directoryRoute: directoryInfo?.directoryRoute || null,
-    sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
-    caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
-  });
-  if (!(thread.messages || []).some((message) => message.taskGroupId === taskGroupId)) {
-    const sender = senderInfoForWorkspace(owner);
-    thread.messages = sortMessagesChronologically([...(thread.messages || []), {
-      id: makeId("msg"),
-      role: "user",
-      content: [
-        `${KANBAN_STUDY_SHARED_FOLDER_NAME}\u8bdd\u9898\uff1a${kanbanCaseTopicTitle(plan)}`,
-        directoryInfo?.caseDirectoryPath ? `Directory: ${directoryInfo.caseDirectoryPath}` : "",
-      ].filter(Boolean).join("\n"),
-      status: "done",
-      taskGroupId,
-      messageKind: "plain",
-      singleWindowMode: "task",
-      actorWorkspaceId: owner,
-      senderWorkspaceId: sender.senderWorkspaceId,
-      senderPrincipalId: sender.senderPrincipalId,
-      senderLabel: sender.senderLabel,
-      directoryRoute: directoryInfo?.directoryRoute || null,
-      directoryAliases: directoryInfo?.directoryRoute ? [directoryInfo.directoryRoute] : [],
-      createdAt: now,
-      updatedAt: now,
-      submittedAt: now,
-    }]);
-  }
-  thread.updatedAt = now;
-  saveState(state, { reason: "kanban-case-topic", forceBackup: true });
-  broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-  return { thread, taskGroupId };
-}
-
-async function createKanbanStudyPlanCards(workspaceId, input = {}) {
-  const plan = normalizeKanbanStudyPlan(input, workspaceId);
-  const cover = saveKanbanReadingCoverUpload(workspaceId, plan.id, input.coverImage || input.cover_image || input.cover || null);
-  if (cover) plan.cover = publicKanbanCoverFile(workspaceId, cover) || cover;
-  const directoryInfo = ensureKanbanCaseSharedDirectory(workspaceId, plan);
-  const topic = ensureKanbanCaseTopicThread(workspaceId, plan, directoryInfo);
-  const share = upsertKanbanCaseShare(workspaceId, plan.id, {
-    performerWorkspaceIds: plan.performerWorkspaceIds,
-    viewerWorkspaceIds: plan.viewerWorkspaceIds,
-    managerWorkspaceIds: input.managerWorkspaceIds || input.manager_workspace_ids || [],
-    topicThreadId: topic?.thread?.id || "",
-    topicTaskGroupId: topic?.taskGroupId || "",
-    sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
-    caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
-  });
-  const performerAssignee = plan.performerWorkspaceIds[0] ? workspacePrincipal(plan.performerWorkspaceIds[0]) : "";
-  const requestedAssignee = input.assignee || performerAssignee || workspacePrincipal(workspaceId);
-  const created = [];
-  for (const [index, card] of plan.cards.entries()) {
-    const cardCaseTemplate = card.caseTemplate || plan.template;
-    const cardSourceText = compactText([
-      plan.sourceText,
-      card.config ? assessmentConfigLine(card.config) : "",
-    ].filter(Boolean).join("\n\n"), 3000);
-    const description = compactText([
-      card.description,
-      cover ? "封面图片已上传，可在 Hermes Mobile 学习计划中预览。" : "",
-    ].filter(Boolean).join("\n\n"), 1800);
-    const result = await kanbanCardProvider.addCard({
-      workspaceId,
-      assignee: requestedAssignee,
-      assigneeLabel: todoAssigneeLabel(workspaceId, requestedAssignee),
-      content: card.title,
-      description,
-      dueTime: card.dueTime,
-      reminderLeadMinutes: plan.reminderLeadMinutes,
-      reason: "Created from Hermes Mobile study plan.",
-      idempotencyKey: `hm-${plan.mode}-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
-      caseId: plan.id,
-      caseMode: plan.mode,
-      caseTemplate: cardCaseTemplate,
-      caseSourceText: cardSourceText,
-      caseSummary: plan.summary,
-      caseCover: cover || null,
-      caseCardId: card.clientId,
-      caseCardIndex: index + 1,
-      caseCardCount: plan.cards.length,
-      caseDependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
-      caseDeliverables: card.deliverables,
-      caseAcceptance: card.acceptance,
-      caseCardGoal: compactText([
-        card.config ? assessmentConfigLine(card.config) : "",
-        card.description,
-      ].filter(Boolean).join("\n\n"), 1800),
-    });
-    if (!result?.ok) {
-      return { ok: false, error: result?.error || "Study plan card creation failed", plan, cards: created, result };
-    }
-    let publicCard = publicTodo(result);
-    let blocked = false;
-    let blockError = "";
-    let blockReason = "";
-    if (index > 0) {
-      blockReason = "Waiting for previous study session completion; Hermes Mobile shows only the current study session.";
-      const blockedResult = await kanbanCardProvider.mutateCard({
-        action: "block",
-        workspaceId,
-        cardId: publicCard.id,
-        reason: blockReason,
-        author: "Hermes Mobile",
-      });
-      blocked = Boolean(blockedResult?.ok);
-      blockError = blocked ? "" : (blockedResult?.error || "Failed to block future reading session");
-      if (blocked) publicCard = publicTodo(blockedResult);
-    }
-    created.push({
-      clientId: card.clientId,
-      day: card.day,
-      dueTime: card.dueTime,
-      card: publicCard,
-      blocked,
-      blockReason,
-      blockError,
-      dependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
-    });
-    if (index > 0 && !blocked) {
-      return {
-        ok: false,
-        error: `Study plan card ${publicCard.id} was created but could not be parked: ${blockError}`,
-        plan,
-        cards: created,
-      };
-    }
-  }
-  return {
-    ok: true,
-    plan,
-    cards: created,
-    share,
-    topic: topic ? {
-      threadId: topic.thread.id,
-      taskGroupId: topic.taskGroupId,
-      title: kanbanCaseTopicTitle(plan),
-    } : null,
-    sharedDirectory: directoryInfo ? {
-      path: directoryInfo.sharedDirectoryPath,
-      caseDirectoryPath: directoryInfo.caseDirectoryPath,
-      permission: "read_only",
-    } : null,
-  };
+  return getKanbanCaseTopicService().ensureTopicThread(ownerWorkspaceId, plan, directoryInfo);
 }
 
 function normalizeKanbanAssessmentSubjectId(value = "") {
-  const text = String(value || "").trim().toLowerCase();
-  if (/math|数学|數學|amc/.test(text)) return "math";
-  if (/english|英语|英文|reading|language/.test(text)) return "english";
-  if (/science|科学|科學|physics|chemistry|biology/.test(text)) return "science";
-  if (/history|历史|歷史/.test(text)) return "history";
-  if (/chinese|中文|语文|語文/.test(text)) return "chinese";
-  return safeSlug(text || "assessment", "assessment").slice(0, 40) || "assessment";
+  return studyAssessmentService.normalizeKanbanAssessmentSubjectId(value);
 }
 
-function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options = {}) {
-  const ownerWorkspaceId = String(workspaceId || "owner").trim() || "owner";
-  const linkedStudyPlan = Boolean(options.linkedStudyPlan);
-  const subject = compactText(raw.subject || raw.domain || raw.course || "数学", 80);
-  const subjectId = normalizeKanbanAssessmentSubjectId(subject);
-  const learnerName = compactText(raw.learnerName || raw.learner_name || raw.targetName || raw.target_name || "学习者", 80);
-  const courseLevel = compactText(raw.courseLevel || raw.course_level || raw.grade || raw.level || "阶段检测", 80);
-  const title = compactText(raw.title || raw.planTitle || raw.plan_title || `${learnerName} ${subject} 考试计划`, 140);
-  const examCount = Math.max(1, Math.min(KANBAN_ASSESSMENT_PLAN_MAX_EXAMS, Number(raw.examCount || raw.exam_count || raw.sessions || 10) || 10));
-  const questionCount = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(raw.questionCount || raw.question_count || 20) || 20));
-  const durationMinutes = Math.max(5, Math.min(180, Number(raw.durationMinutes || raw.duration_minutes || 30) || 30));
-  const passingScore = Math.max(50, Math.min(100, Number(raw.passingScore || raw.passing_score || 80) || 80));
-  const intervalDays = Math.max(1, Math.min(60, Number(raw.intervalDays || raw.interval_days || raw.examIntervalDays || raw.exam_interval_days || 14) || 14));
-  const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date);
-  const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
-  const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 30) || 0));
-  const difficulty = compactText(raw.difficulty || raw.difficultyMix || raw.difficulty_mix || "基础30% / 中等50% / 挑战20%", 160);
-  const blueprint = compactText(raw.blueprint || raw.examBlueprint || raw.exam_blueprint || raw.sourceText || raw.source_text || raw.text || "", 4000);
-  const retakeUntilPass = raw.retakeUntilPass ?? raw.retake_until_pass ?? true;
-  const performerWorkspaceIds = normalizeWorkspaceIdList(
-    raw.performerWorkspaceIds
-    || raw.performer_workspace_ids
-    || raw.targetWorkspaceIds
-    || raw.target_workspace_ids
-    || raw.performerWorkspaceId
-    || raw.performer_workspace_id
-    || raw.targetWorkspaceId
-    || raw.target_workspace_id
-    || "",
-  ).filter((id) => id !== ownerWorkspaceId);
-  const viewerWorkspaceIds = normalizeWorkspaceIdList(
-    raw.viewerWorkspaceIds
-    || raw.viewer_workspace_ids
-    || raw.readonlyWorkspaceIds
-    || raw.readonly_workspace_ids
-    || "",
-  ).filter((id) => id !== ownerWorkspaceId && !performerWorkspaceIds.includes(id));
-  const id = String(raw.id || `assessment-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`);
-  const summary = compactText(`${learnerName}：${subject} ${courseLevel} - ${title}`, 180);
-  const baseConfig = {
-    schemaVersion: 1,
-    kind: linkedStudyPlan ? "final-study-assessment" : "assessment-plan",
-    subject,
-    subjectId,
-    learnerName,
-    courseLevel,
-    questionCount,
-    durationMinutes,
-    passingScore,
-    difficulty,
-    retakeUntilPass: Boolean(retakeUntilPass),
-  };
-  const cards = Array.from({ length: examCount }, (_, index) => {
-    const number = index + 1;
-    const finalExam = linkedStudyPlan && number === examCount;
-    const config = Object.assign({}, baseConfig, {
-      examIndex: number,
-      examCount,
-      finalExam,
+function getAssessmentExamWorkflowService() {
+  if (!assessmentExamWorkflowService) {
+    assessmentExamWorkflowService = createAssessmentExamWorkflowService({
+      assessmentExamService,
+      automationCreateModel: AUTOMATION_CREATE_MODEL,
+      compactText,
+      extractJsonObject,
+      findWorkspace,
+      hermesModelText,
+      isKanbanAssessmentCaseMode,
+      isKanbanStudyCaseMode,
+      kanbanCardEffectiveCaseIndex,
+      kanbanCardProvider,
+      kanbanCardRevisionOf,
+      kanbanWorkflowStateCompleted,
+      logger: console,
+      maxQuestions: KANBAN_ASSESSMENT_MAX_QUESTIONS,
+      maybeReconcileKanbanDependencyBlocks,
+      modelTimeoutMs: KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS,
+      normalizeKanbanAssessmentSubjectId,
+      nowIso,
+      publicTodo,
+      randomHex: (bytes) => crypto.randomBytes(bytes).toString("hex"),
+      readingContextForCard,
+      safeFileName,
+      sanitizePolicy,
+      visibleKanbanCaseCards,
+      artifactService: kanbanStudyArtifactService,
     });
-    const cardTitle = finalExam
-      ? `${learnerName}${subject}阶段结束综合考试`
-      : `${learnerName}${subject}第 ${number}/${examCount} 次正式测试`;
-    const description = compactText([
-      `考试计划：${summary}`,
-      `科目：${subject}`,
-      `阶段：${courseLevel}`,
-      `题量：${questionCount} 题`,
-      `时长：${durationMinutes} 分钟`,
-      `通过线：${passingScore} 分`,
-      `难度：${difficulty}`,
-      "这是正式检测卡片，难度高于每日小测；低于通过线时不完成卡片，继续保持重考状态。",
-      finalExam ? "这是学习计划的最终阶段考试；只有达到通过线后，阶段学习计划才算完成。" : "",
-      blueprint ? `考试蓝图：\n${blueprint}` : "",
-    ].filter(Boolean).join("\n\n"), 1800);
-    return {
-      clientId: finalExam ? "final-assessment" : `assessment-exam-${number}`,
-      title: cardTitle,
-      dueTime: readingPlanDueTime(startDate, timeOfDay, index * intervalDays),
-      description,
-      config,
-      deliverables: ["正式考卷", "自动评分", "能力诊断", "错题与补强建议"],
-      acceptance: [
-        `完成 ${questionCount} 题正式测试`,
-        `得分达到 ${passingScore}/100`,
-        "未达标则保留为重考状态",
-        "生成考试报告和下一步补强建议",
-      ],
-    };
-  });
-  return {
-    id,
-    mode: linkedStudyPlan ? "study-plan" : "assessment-plan",
-    template: linkedStudyPlan ? "final-assessment" : subjectId,
-    workspaceId: ownerWorkspaceId,
-    subject,
-    subjectId,
-    learnerName,
-    courseLevel,
-    title,
-    examCount,
-    questionCount,
-    durationMinutes,
-    passingScore,
-    intervalDays,
-    startDate,
-    timeOfDay,
-    reminderLeadMinutes,
-    difficulty,
-    blueprint,
-    retakeUntilPass: Boolean(retakeUntilPass),
-    summary,
-    performerWorkspaceIds,
-    viewerWorkspaceIds,
-    cards,
-  };
-}
-
-function assessmentConfigLine(config = {}) {
-  return `ASSESSMENT_CONFIG:${Buffer.from(JSON.stringify(config)).toString("base64url")}`;
-}
-
-function parseAssessmentConfigLine(text = "") {
-  const match = String(text || "").match(/ASSESSMENT_CONFIG:([A-Za-z0-9_-]+)/);
-  if (!match) return null;
-  try {
-    const parsed = JSON.parse(Buffer.from(match[1], "base64url").toString("utf8"));
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch (_) {
-    return null;
   }
-}
-
-function kanbanAssessmentConfigFromCard(card = {}) {
-  const parsed = parseAssessmentConfigLine([
-    card.kanbanCaseCardGoal,
-    card.kanban_case_card_goal,
-    card.description,
-    card.kanbanCaseSourceText,
-    card.kanban_case_source_text,
-  ].filter(Boolean).join("\n"));
-  const subject = compactText(parsed?.subject || card.kanbanCaseTemplate || card.kanban_case_template || "assessment", 80);
-  return {
-    subject,
-    subjectId: normalizeKanbanAssessmentSubjectId(parsed?.subjectId || parsed?.subject_id || subject),
-    learnerName: compactText(parsed?.learnerName || parsed?.learner_name || "学习者", 80),
-    courseLevel: compactText(parsed?.courseLevel || parsed?.course_level || "阶段检测", 80),
-    questionCount: Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(parsed?.questionCount || parsed?.question_count || 20) || 20)),
-    durationMinutes: Math.max(5, Math.min(180, Number(parsed?.durationMinutes || parsed?.duration_minutes || 30) || 30)),
-    passingScore: Math.max(50, Math.min(100, Number(parsed?.passingScore || parsed?.passing_score || 80) || 80)),
-    difficulty: compactText(parsed?.difficulty || "基础30% / 中等50% / 挑战20%", 160),
-    retakeUntilPass: parsed?.retakeUntilPass !== false && parsed?.retake_until_pass !== false,
-    examIndex: Number(parsed?.examIndex || parsed?.exam_index || card.kanbanCaseCardIndex || card.kanban_case_card_index || 1) || 1,
-    examCount: Number(parsed?.examCount || parsed?.exam_count || card.kanbanCaseCardCount || card.kanban_case_card_count || 1) || 1,
-    finalExam: Boolean(parsed?.finalExam || parsed?.final_exam),
-  };
-}
-
-async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options = {}) {
-  const plan = normalizeKanbanAssessmentPlan(input, workspaceId, options);
-  const directoryInfo = ensureKanbanCaseSharedDirectory(workspaceId, plan);
-  const topic = ensureKanbanCaseTopicThread(workspaceId, plan, directoryInfo);
-  const share = upsertKanbanCaseShare(workspaceId, plan.id, {
-    performerWorkspaceIds: plan.performerWorkspaceIds,
-    viewerWorkspaceIds: plan.viewerWorkspaceIds,
-    managerWorkspaceIds: input.managerWorkspaceIds || input.manager_workspace_ids || [],
-    topicThreadId: topic?.thread?.id || "",
-    topicTaskGroupId: topic?.taskGroupId || "",
-    sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
-    caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
-  });
-  const performerAssignee = plan.performerWorkspaceIds[0] ? workspacePrincipal(plan.performerWorkspaceIds[0]) : "";
-  const requestedAssignee = input.assignee || performerAssignee || workspacePrincipal(workspaceId);
-  const created = [];
-  for (const [index, card] of plan.cards.entries()) {
-    const sourceText = compactText([plan.blueprint, assessmentConfigLine(card.config)].filter(Boolean).join("\n\n"), 3000);
-    const result = await kanbanCardProvider.addCard({
-      workspaceId,
-      assignee: requestedAssignee,
-      assigneeLabel: todoAssigneeLabel(workspaceId, requestedAssignee),
-      content: card.title,
-      description: card.description,
-      dueTime: card.dueTime,
-      reminderLeadMinutes: plan.reminderLeadMinutes,
-      reason: "Created from Hermes Mobile assessment plan.",
-      idempotencyKey: `hm-${plan.mode}-${crypto.createHash("sha256").update(`${plan.id}\0${card.clientId}`).digest("hex").slice(0, 24)}`,
-      caseId: plan.id,
-      caseMode: plan.mode,
-      caseTemplate: plan.template,
-      caseSourceText: sourceText,
-      caseSummary: plan.summary,
-      caseCardId: card.clientId,
-      caseCardIndex: index + 1,
-      caseCardCount: plan.cards.length,
-      caseDependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
-      caseDeliverables: card.deliverables,
-      caseAcceptance: card.acceptance,
-      caseCardGoal: compactText(`${assessmentConfigLine(card.config)}\n\n${card.description}`, 1800),
-    });
-    if (!result?.ok) {
-      return { ok: false, error: result?.error || "Assessment plan card creation failed", plan, cards: created, result };
-    }
-    let publicCard = publicTodo(result);
-    let blocked = false;
-    let blockError = "";
-    let blockReason = "";
-    {
-      blockReason = index > 0
-        ? "Waiting for previous assessment completion; Hermes Mobile opens the next assessment card after the prior exam passes."
-        : "Manual formal assessment is open in Hermes Mobile; parked from official worker execution.";
-      const blockedResult = await kanbanCardProvider.mutateCard({
-        action: "block",
-        workspaceId,
-        cardId: publicCard.id,
-        reason: blockReason,
-        author: "Hermes Mobile",
-      });
-      blocked = Boolean(blockedResult?.ok);
-      blockError = blocked ? "" : (blockedResult?.error || "Failed to block future assessment");
-      if (blocked) publicCard = publicTodo(blockedResult);
-    }
-    created.push({
-      clientId: card.clientId,
-      dueTime: card.dueTime,
-      card: publicCard,
-      blocked,
-      blockReason,
-      blockError,
-      dependsOn: index > 0 ? [plan.cards[index - 1].clientId] : [],
-    });
-    if (!blocked) {
-      return {
-        ok: false,
-        error: `Assessment plan card ${publicCard.id} was created but could not be parked: ${blockError}`,
-        plan,
-        cards: created,
-      };
-    }
-  }
-  return {
-    ok: true,
-    plan,
-    cards: created,
-    share,
-    topic: topic ? {
-      threadId: topic.thread.id,
-      taskGroupId: topic.taskGroupId,
-      title: kanbanCaseTopicTitle(plan),
-    } : null,
-    sharedDirectory: directoryInfo ? {
-      path: directoryInfo.sharedDirectoryPath,
-      caseDirectoryPath: directoryInfo.caseDirectoryPath,
-      permission: "read_only",
-    } : null,
-  };
-}
-
-function isReadingAudioUpload(filename, mime) {
-  return kanbanReadingWorkflowService.isReadingAudioUpload(filename, mime);
-}
-
-function readingArtifactDirectory(workspaceId, caseId, cardId) {
-  return kanbanStudyArtifactService.readingArtifactDirectory(workspaceId, caseId, cardId);
-}
-
-function isReadingCoverImageUpload(filename, mime) {
-  const ext = path.extname(String(filename || "")).toLowerCase();
-  const allowedExt = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"];
-  const normalizedMime = String(mime || "").toLowerCase();
-  return allowedExt.includes(ext) && /^image\/(png|jpe?g|webp|gif|heic|heif)$/i.test(normalizedMime || mimeFor(filename));
-}
-
-function saveKanbanReadingCoverUpload(workspaceId, planId, rawCover = null) {
-  if (!rawCover || typeof rawCover !== "object" || Array.isArray(rawCover)) return null;
-  const data = String(rawCover.dataBase64 || rawCover.data_base64 || "");
-  if (!data) return null;
-  const filename = safeFileName(rawCover.filename || rawCover.name || "book-cover.jpg");
-  const mime = String(rawCover.type || rawCover.mime || rawCover.mimeType || rawCover.mime_type || mimeFor(filename) || "").trim();
-  if (!isReadingCoverImageUpload(filename, mime)) {
-    const err = new Error("Study plan cover must be a PNG, JPEG, WebP, GIF, HEIC, or HEIF image");
-    err.status = 400;
-    throw err;
-  }
-  const buffer = Buffer.from(data, "base64");
-  if (!buffer.length || buffer.length > KANBAN_READING_COVER_MAX_BYTES) {
-    const err = new Error("Invalid or too-large study plan cover image");
-    err.status = 400;
-    throw err;
-  }
-  const dir = readingArtifactDirectory(workspaceId, planId, "cover");
-  const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
-  fs.writeFileSync(filePath, buffer);
-  return { path: filePath, name: filename, mime, size: buffer.length };
-}
-
-function saveKanbanReadingAudioUpload(workspaceId, cardId, body = {}, currentCard = null) {
-  return kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard);
-}
-
-function isStudyTextUpload(filename, mime) {
-  const ext = path.extname(String(filename || "")).toLowerCase();
-  const type = String(mime || "").toLowerCase();
-  return /^text\//i.test(type)
-    || ["application/json", "application/csv"].includes(type)
-    || [".txt", ".md", ".markdown", ".csv", ".json", ".docx"].includes(ext);
-}
-
-function saveKanbanStudySubmissionUpload(workspaceId, cardId, body = {}, currentCard = null) {
-  return kanbanReadingWorkflowService.saveKanbanStudySubmissionUpload(workspaceId, cardId, body, currentCard);
-}
-
-function isKanbanSourceDocumentUpload(filename, mime) {
-  const ext = path.extname(String(filename || "")).toLowerCase();
-  const type = String(mime || "").toLowerCase().split(";")[0].trim();
-  return /^text\//i.test(type)
-    || ["application/json", "application/csv", "text/csv", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(type)
-    || [".txt", ".md", ".markdown", ".csv", ".json", ".docx"].includes(ext);
-}
-
-function saveKanbanSourceDocumentUpload(workspaceId, body = {}) {
-  const filename = safeFileName(body.filename || body.name || "kanban-source.txt");
-  const mime = String(body.type || body.mime || body.mimeType || body.mime_type || mimeFor(filename) || "").trim();
-  if (!isKanbanSourceDocumentUpload(filename, mime)) {
-    const err = new Error("Kanban source document must be DOCX, Markdown, plain text, CSV, or JSON");
-    err.status = 400;
-    throw err;
-  }
-  const data = String(body.dataBase64 || body.data_base64 || "");
-  if (!data) {
-    const err = new Error("Missing dataBase64");
-    err.status = 400;
-    throw err;
-  }
-  const buffer = Buffer.from(data, "base64");
-  if (!buffer.length || buffer.length > KANBAN_SOURCE_DOCUMENT_MAX_BYTES) {
-    const err = new Error("Invalid or too-large Kanban source document");
-    err.status = 400;
-    throw err;
-  }
-  const dir = path.join(DATA_DIR, "uploads", "kanban-source", safeStorageSegment(workspaceId || "owner"));
-  fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
-  fs.writeFileSync(filePath, buffer);
-  return {
-    path: filePath,
-    name: filename,
-    mime,
-    size: buffer.length,
-    kind: path.extname(filename).toLowerCase() === ".docx" ? "docx" : "text",
-  };
-}
-
-function extractKanbanSourceDocumentText(upload) {
-  const ext = path.extname(upload?.path || upload?.name || "").toLowerCase();
-  const preview = ext === ".docx" || upload?.kind === "docx"
-    ? extractDocxText(upload.path)
-    : textFilePreview(upload.path);
-  const text = compactText(preview.text || "", MAX_FILE_PREVIEW_CHARS);
-  if (!text.trim()) throw new Error("Kanban source document extraction returned empty text");
-  return {
-    text,
-    totalChars: preview.totalChars || text.length,
-    truncated: Boolean(preview.truncated),
-  };
-}
-
-async function extractKanbanStudySubmissionEvidence(upload) {
-  return kanbanReadingWorkflowService.extractKanbanStudySubmissionEvidence(upload);
-}
-
-async function transcribeKanbanReadingAudio(audioPath) {
-  return kanbanReadingWorkflowService.transcribeKanbanReadingAudio(audioPath);
-}
-
-async function readingContextForCard(workspaceId, cardId) {
-  return kanbanReadingWorkflowService.readingContextForCard(workspaceId, cardId);
-}
-
-async function analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, priorCards, transcription, notes = "") {
-  return kanbanReadingWorkflowService.analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, priorCards, transcription, notes);
-}
-
-function normalizeKanbanReadingQuiz(raw = {}) {
-  return kanbanReadingWorkflowService.normalizeKanbanReadingQuiz(raw);
-}
-
-function publicKanbanReadingQuiz(quiz = {}) {
-  return kanbanStudyArtifactService.publicReadingQuiz(quiz);
-}
-
-async function generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes = "") {
-  return kanbanReadingWorkflowService.generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes);
-}
-
-function readingQuizUrl(workspaceId, cardId) {
-  return kanbanStudyArtifactService.readingQuizUrl(workspaceId, cardId);
-}
-
-function readingSubmissionStatePath(workspaceId, cardId, currentCard = null) {
-  return kanbanStudyArtifactService.readingSubmissionStatePath(workspaceId, cardId, currentCard);
-}
-
-function readKanbanReadingSubmissionState(workspaceId, cardId, currentCard = null) {
-  return kanbanStudyArtifactService.readReadingSubmissionState(workspaceId, cardId, currentCard);
-}
-
-function writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, state) {
-  return kanbanStudyArtifactService.writeReadingSubmissionState(workspaceId, cardId, currentCard, state);
-}
-
-function kanbanReadingCardTimestamp(card = {}) {
-  const parsed = Date.parse(card.updatedAt || card.completedAt || card.createdAt || "");
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function findKanbanReadingSubmissionState(workspaceId, cardId, context = {}) {
-  return kanbanReadingWorkflowService.findKanbanReadingSubmissionState(workspaceId, cardId, context);
-}
-
-function kanbanReadingStateCompleted(workspaceId, card = {}) {
-  return kanbanReadingWorkflowService.kanbanReadingStateCompleted(workspaceId, card);
-}
-
-function kanbanReadingPriorComplete(workspaceId, priorCards = []) {
-  return kanbanReadingWorkflowService.kanbanReadingPriorComplete(workspaceId, priorCards);
-}
-
-function kanbanReadingArchived(card = {}) {
-  const kanbanStatus = String(card?.kanbanStatus || card?.kanban_status || "").trim().toLowerCase();
-  const status = String(card?.status || "").trim().toLowerCase();
-  return kanbanStatus === "archived" || status === "cancelled";
-}
-
-function kanbanReadingCanSubmit(card = {}, priorCards = [], workspaceId = "owner") {
-  return kanbanReadingWorkflowService.kanbanReadingCanSubmit(card, priorCards, workspaceId);
-}
-
-function kanbanReadingQuizNeedsRetarget(state = {}) {
-  return kanbanReadingWorkflowService.kanbanReadingQuizNeedsRetarget(state);
-}
-
-async function ensureKanbanReadingQuizTargeted(workspaceId, cardId, currentCard, state = {}) {
-  return kanbanReadingWorkflowService.ensureKanbanReadingQuizTargeted(workspaceId, cardId, currentCard, state);
-}
-
-function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes = "") {
-  return kanbanReadingWorkflowService.writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes);
-}
-
-async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
-  return kanbanReadingWorkflowService.submitKanbanReadingSubmission(workspaceId, cardId, body);
-}
-
-async function getKanbanReadingQuiz(workspaceId, cardId) {
-  return kanbanReadingWorkflowService.getKanbanReadingQuiz(workspaceId, cardId);
-}
-
-async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
-  return kanbanReadingWorkflowService.submitKanbanReadingQuiz(workspaceId, cardId, body);
-}
-
-function isKanbanAssessmentCard(card = {}) {
-  const mode = String(card?.kanbanCaseMode || card?.kanban_case_mode || "").trim();
-  const template = String(card?.kanbanCaseTemplate || card?.kanban_case_template || "").trim();
-  return isKanbanAssessmentCaseMode(mode) || (isKanbanStudyCaseMode(mode) && template === "final-assessment");
-}
-
-function assessmentExamStatePath(workspaceId, cardId, currentCard = null) {
-  return kanbanStudyArtifactService.assessmentExamStatePath(workspaceId, cardId, currentCard);
-}
-
-function readKanbanAssessmentExamState(workspaceId, cardId, currentCard = null) {
-  return kanbanStudyArtifactService.readAssessmentExamState(workspaceId, cardId, currentCard);
-}
-
-function writeKanbanAssessmentExamState(workspaceId, cardId, currentCard, state) {
-  return kanbanStudyArtifactService.writeAssessmentExamState(workspaceId, cardId, currentCard, state);
-}
-
-function seededNumber(seedText) {
-  return assessmentExamService.seededNumber(seedText);
-}
-
-function seededRandom(seedText) {
-  return assessmentExamService.seededRandom(seedText);
-}
-
-function assessmentChoiceSet(correct, distractors, random) {
-  return assessmentExamService.assessmentChoiceSet(correct, distractors, random);
-}
-
-function mathQuestionWithChoices(id, skill, prompt, correct, distractors, explanation, random) {
-  return assessmentExamService.mathQuestionWithChoices(id, skill, prompt, correct, distractors, explanation, random);
-}
-
-function fractionText(numerator, denominator) {
-  return assessmentExamService.fractionText(numerator, denominator);
-}
-
-function assessmentLooksLikeAmc8(config = {}, seedText = "") {
-  return assessmentExamService.assessmentLooksLikeAmc8(config, seedText);
-}
-
-function generateVerifiedAmc8AssessmentQuestions(config = {}, seedText = "") {
-  return assessmentExamService.generateVerifiedAmc8AssessmentQuestions(config, seedText, {
-    maxQuestions: KANBAN_ASSESSMENT_MAX_QUESTIONS,
-  });
-}
-
-function generateVerifiedMathAssessmentQuestions(config = {}, seedText = "") {
-  if (assessmentLooksLikeAmc8(config, seedText)) return generateVerifiedAmc8AssessmentQuestions(config, seedText);
-  const random = seededRandom(seedText);
-  const count = Math.max(5, Math.min(KANBAN_ASSESSMENT_MAX_QUESTIONS, Number(config.questionCount || 20) || 20));
-  const int = (min, max) => min + Math.floor(random() * (max - min + 1));
-  const questions = [];
-  for (let index = 0; index < count; index += 1) {
-    const type = index % 10;
-    const id = `q${index + 1}`;
-    if (type === 0) {
-      const a = int(12, 80);
-      const b = int(8, 60);
-      const c = int(3, 9);
-      const correct = a + b * c;
-      questions.push(mathQuestionWithChoices(id, "arithmetic: operation order", `${a} + ${b} × ${c} = ?`, correct, [a + b + c, (a + b) * c, correct + b, correct - c], `先算乘法 ${b} × ${c}，再加 ${a}。`, random));
-    } else if (type === 1) {
-      const x = int(3, 18);
-      const a = int(2, 9);
-      const b = int(4, 30);
-      const c = a * x + b;
-      questions.push(mathQuestionWithChoices(id, "algebra: linear equation", `If ${a}x + ${b} = ${c}, what is x?`, x, [x + 1, x - 1, a + b, c - b], `移项后 ${a}x=${c - b}，所以 x=${x}。`, random));
-    } else if (type === 2) {
-      const base = int(8, 30) * 10;
-      const rate = [10, 15, 20, 25, 30, 40][int(0, 5)];
-      const correct = Math.round(base * rate / 100);
-      questions.push(mathQuestionWithChoices(id, "percentage", `${base} 的 ${rate}% 是多少？`, correct, [correct + 5, correct - 5, Math.round(base / rate), base - correct], `${rate}% = ${rate}/100，所以结果是 ${correct}。`, random));
-    } else if (type === 3) {
-      const left = int(2, 7);
-      const right = int(3, 9);
-      const unit = int(4, 12);
-      const total = (left + right) * unit;
-      const correct = left * unit;
-      questions.push(mathQuestionWithChoices(id, "ratio", `A:B = ${left}:${right}，如果 A+B=${total}，A 是多少？`, correct, [right * unit, correct + unit, total - correct + unit, total], `总份数 ${left + right}，每份 ${unit}，A=${left} 份。`, random));
-    } else if (type === 4) {
-      const w = int(4, 14);
-      const h = int(5, 16);
-      const correct = w * h;
-      questions.push(mathQuestionWithChoices(id, "geometry: rectangle area", `长方形长 ${w}、宽 ${h}，面积是多少？`, correct, [2 * (w + h), correct + w, correct + h, w + h], `长方形面积 = 长 × 宽 = ${correct}。`, random));
-    } else if (type === 5) {
-      const a = int(55, 95);
-      const b = int(55, 95);
-      const c = int(55, 95);
-      const targetAvg = int(70, 90);
-      const correct = targetAvg * 4 - a - b - c;
-      questions.push(mathQuestionWithChoices(id, "average", `四次测验平均分要达到 ${targetAvg}。前三次是 ${a}, ${b}, ${c}，第四次需要多少分？`, correct, [correct + 5, correct - 5, targetAvg, Math.round((a + b + c) / 3)], `四次总分需 ${targetAvg * 4}，减去前三次即可。`, random));
-    } else if (type === 6) {
-      const red = int(2, 8);
-      const blue = int(2, 8);
-      const total = red + blue;
-      questions.push(mathQuestionWithChoices(id, "probability", `袋子里有 ${red} 个红球和 ${blue} 个蓝球，随机取 1 个，取到红球的概率是？`, `${red}/${total}`, [`${blue}/${total}`, `${red}/${blue}`, `${total}/${red}`, `1/${total}`], `有利结果 ${red} 个，总结果 ${total} 个。`, random));
-    } else if (type === 7) {
-      const start = int(2, 12);
-      const step = int(3, 9);
-      const correct = start + step * 5;
-      questions.push(mathQuestionWithChoices(id, "sequence", `数列 ${start}, ${start + step}, ${start + step * 2}, ${start + step * 3}, ... 的第 6 项是多少？`, correct, [correct - step, correct + step, start * 6, step * 6], `第 6 项比第 1 项多 5 个公差。`, random));
-    } else if (type === 8) {
-      const n = int(4, 16);
-      const divisor = int(3, 9);
-      const remainder = int(0, divisor - 1);
-      const value = n * divisor + remainder;
-      questions.push(mathQuestionWithChoices(id, "number theory: remainder", `${value} 除以 ${divisor} 的余数是多少？`, remainder, [divisor - remainder, remainder + 1, n, divisor], `${value}=${divisor}×${n}+${remainder}。`, random));
-    } else {
-      const price = int(12, 48);
-      const countItems = int(3, 9);
-      const paid = Math.ceil(price * countItems / 10) * 10 + 10;
-      const correct = paid - price * countItems;
-      questions.push(mathQuestionWithChoices(id, "word problem", `每本练习册 ${price} 元，买 ${countItems} 本，付 ${paid} 元，应找回多少元？`, correct, [correct + price, correct - 1, paid - price, price * countItems], `总价 ${price * countItems}，找回 ${paid}-${price * countItems}=${correct}。`, random));
-    }
-  }
-  return questions;
-}
-
-function normalizeKanbanAssessmentExam(raw = {}, config = {}) {
-  return assessmentExamService.normalizeAssessmentExam(raw, config, {
-    compactText,
-    maxQuestions: KANBAN_ASSESSMENT_MAX_QUESTIONS,
-  });
-}
-
-async function generateKanbanAssessmentExam(workspaceId, cardId, currentCard, config = {}) {
-  const assessmentSeedText = [
-    workspaceId,
-    cardId,
-    currentCard?.updatedAt || "",
-    currentCard?.content || "",
-    currentCard?.kanbanCaseSourceText || "",
-    currentCard?.kanbanCaseCardGoal || "",
-    currentCard?.kanbanRevisionRequest || "",
-    config.courseLevel || "",
-    config.difficulty || "",
-  ].join("\0");
-  if (normalizeKanbanAssessmentSubjectId(config.subjectId || config.subject) === "math") {
-    return normalizeKanbanAssessmentExam({
-      title: `${config.subject || "数学"}正式测试`,
-      subject: config.subject || "数学",
-      subjectId: "math",
-      verification: "deterministic-template",
-      questions: generateVerifiedMathAssessmentQuestions(config, assessmentSeedText),
-    }, config);
-  }
-  const prompt = [
-    "Generate a formal assessment exam as JSON only. No Markdown, no comments, no code fences.",
-    "The exam must use single-answer multiple-choice questions.",
-    "Questions should be more comprehensive and harder than a daily practice quiz.",
-    "Do not copy copyrighted exam questions. Create original questions or generic skill checks.",
-    "Every question needs exactly 4 choices, one 0-based answerIndex, one concise skill tag, and a brief explanation.",
-    "The answer key must be internally consistent. Avoid questions that require external images, audio, or ambiguous current events.",
-    "Use this schema: {\"title\":\"...\",\"subject\":\"...\",\"verification\":\"model-generated\",\"questions\":[{\"id\":\"q1\",\"skill\":\"...\",\"prompt\":\"...\",\"choices\":[\"...\",\"...\",\"...\",\"...\"],\"answerIndex\":0,\"explanation\":\"...\"}]}",
-    `Subject: ${config.subject || ""}`,
-    `Learner: ${config.learnerName || ""}`,
-    `Course level: ${config.courseLevel || ""}`,
-    `Question count: ${config.questionCount || 20}`,
-    `Duration minutes: ${config.durationMinutes || 30}`,
-    `Passing score: ${config.passingScore || 80}`,
-    `Difficulty blueprint: ${config.difficulty || ""}`,
-    currentCard?.kanbanCaseCardGoal ? `Current card instruction:\n${compactText(currentCard.kanbanCaseCardGoal.replace(/ASSESSMENT_CONFIG:[A-Za-z0-9_-]+/g, ""), 1200)}` : "",
-    currentCard?.kanbanCaseSourceText ? `Plan blueprint:\n${compactText(currentCard.kanbanCaseSourceText.replace(/ASSESSMENT_CONFIG:[A-Za-z0-9_-]+/g, ""), 5000)}` : "",
-  ].filter(Boolean).join("\n\n");
-  const output = await hermesModelText({
-    input: prompt,
-    stream: false,
-    store: false,
-    model: AUTOMATION_CREATE_MODEL,
-    reasoning_effort: "medium",
-    conversation: `hermes_web_assessment_exam_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
-    instructions: "Generate a formal multiple-choice assessment exam as JSON.",
-    access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
-  }, KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS);
-  return normalizeKanbanAssessmentExam(extractJsonObject(output || ""), config);
-}
-
-function publicKanbanAssessmentExam(exam = {}, state = {}) {
-  return kanbanStudyArtifactService.publicAssessmentExam(exam, state);
-}
-
-function assessmentExamUrl(workspaceId, cardId) {
-  const params = new URLSearchParams({
-    view: "todos",
-    workspaceId: String(workspaceId || "owner"),
-    todoId: String(cardId || ""),
-    assessmentExam: "1",
-  });
-  return `/?${params.toString()}`;
-}
-
-function publicKanbanAssessmentSummary(workspaceId, card = {}) {
-  if (!isKanbanAssessmentCard(card)) return null;
-  const cardId = String(card?.id || card?.cardId || "").trim();
-  if (!cardId) return null;
-  const state = readKanbanAssessmentExamState(workspaceId, cardId, card);
-  const config = kanbanAssessmentConfigFromCard(card);
-  const attempts = Array.isArray(state?.attempts) ? state.attempts : [];
-  const lastAttempt = attempts.length ? attempts[attempts.length - 1] : null;
-  return {
-    status: String(state?.status || "not_started"),
-    startedAt: String(state?.startedAt || ""),
-    completedAt: String(state?.completedAt || ""),
-    completionError: String(state?.completionError || ""),
-    examAvailable: Boolean(state?.exam),
-    examUrl: assessmentExamUrl(workspaceId, cardId),
-    questionCount: Number(state?.exam?.questionCount || config.questionCount || 20) || 20,
-    durationMinutes: Number(state?.exam?.durationMinutes || config.durationMinutes || 30) || 30,
-    passingScore: Number(state?.exam?.passingScore || config.passingScore || 80) || 80,
-    finalExam: Boolean(config.finalExam),
-    verification: String(state?.exam?.verification || ""),
-    lastAttempt: lastAttempt ? {
-      submittedAt: lastAttempt.submittedAt || "",
-      score: Number(lastAttempt.score || 0),
-      correctCount: Number(lastAttempt.correctCount || 0),
-      total: Number(lastAttempt.total || 0),
-      passingScore: Number(lastAttempt.passingScore || config.passingScore || 80),
-      passed: Boolean(lastAttempt.passed),
-    } : null,
-  };
-}
-
-function kanbanAssessmentStateCompleted(workspaceId, card = {}) {
-  const cardId = String(card?.id || card?.cardId || "").trim();
-  if (!cardId || !isKanbanAssessmentCard(card)) return false;
-  const state = readKanbanAssessmentExamState(workspaceId, cardId, card);
-  if (String(state?.status || "") === "completed" && !state?.completionError) return true;
-  const status = String(card?.kanbanStatus || card?.kanban_status || card?.status || "").trim().toLowerCase();
-  return kanbanWorkflowStateCompleted(state || {}, status === "done" || status === "completed");
-}
-
-function kanbanAssessmentPriorComplete(workspaceId, priorCards = []) {
-  return (priorCards || [])
-    .filter((card) => isKanbanAssessmentCard(card))
-    .every((card) => kanbanAssessmentStateCompleted(workspaceId, card));
-}
-
-function kanbanAssessmentArchived(card = {}) {
-  const kanbanStatus = String(card?.kanbanStatus || card?.kanban_status || "").trim().toLowerCase();
-  const status = String(card?.status || "").trim().toLowerCase();
-  return kanbanStatus === "archived" || status === "cancelled";
-}
-
-function kanbanAssessmentCanStart(card = {}, state = null, priorCards = [], workspaceId = "owner") {
-  if (state?.exam) return true;
-  if (kanbanAssessmentArchived(card)) return false;
-  if (!kanbanAssessmentPriorComplete(workspaceId, priorCards)) return false;
-  return true;
-}
-
-function assessmentExamReportPath(workspaceId, cardId, currentCard, exam, attempt) {
-  const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId);
-  const mdPath = path.join(dir, `${Date.now()}-${safeFileName(currentCard?.content || cardId)}-assessment-report.md`);
-  const markdown = assessmentExamService.buildAssessmentExamReportMarkdown({
-    cardId,
-    cardTitle: currentCard?.content || exam.title || "Assessment Report",
-    exam,
-    attempt,
-  });
-  fs.writeFileSync(mdPath, markdown, "utf8");
-  return mdPath;
-}
-
-async function getKanbanAssessmentExam(workspaceId, cardId) {
-  const context = await readingContextForCard(workspaceId, cardId);
-  const currentCard = context.current || { id: cardId, content: cardId };
-  if (!isKanbanAssessmentCard(currentCard)) return { ok: false, status: 404, error: "Assessment exam is not available for this card" };
-  const canonicalCardId = String(currentCard.id || cardId);
-  const existing = readKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard);
-  if (!kanbanAssessmentCanStart(currentCard, existing, context.prior || [], workspaceId)) {
-    return { ok: false, status: 409, error: "Assessment exam is not open yet" };
-  }
-  if (existing?.exam) {
-    return {
-      ok: true,
-      exam: publicKanbanAssessmentExam(existing.exam, existing),
-      status: existing.status || "in_progress",
-      attempts: Array.isArray(existing.attempts) ? existing.attempts.map((attempt) => ({
-        submittedAt: attempt.submittedAt || "",
-        score: Number(attempt.score || 0),
-        passed: Boolean(attempt.passed),
-      })).slice(-5) : [],
-    };
-  }
-  const config = kanbanAssessmentConfigFromCard(currentCard);
-  const exam = await generateKanbanAssessmentExam(workspaceId, canonicalCardId, currentCard, config);
-  const state = writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, {
-    status: "in_progress",
-    workspaceId,
-    cardId: canonicalCardId,
-    cardTitle: currentCard.content || cardId,
-    config,
-    exam,
-    startedAt: nowIso(),
-    attempts: [],
-  });
-  return { ok: true, exam: publicKanbanAssessmentExam(exam, state), status: state.status, attempts: [] };
-}
-
-async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
-  const context = await readingContextForCard(workspaceId, cardId);
-  const currentCard = context.current || { id: cardId, content: cardId };
-  if (!isKanbanAssessmentCard(currentCard)) return { ok: false, status: 404, error: "Assessment exam is not available for this card" };
-  const canonicalCardId = String(currentCard.id || cardId);
-  let state = readKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard);
-  if (!state?.exam) {
-    const generated = await getKanbanAssessmentExam(workspaceId, canonicalCardId);
-    if (!generated.ok) return generated;
-    state = readKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard);
-  }
-  const exam = state.exam;
-  const graded = assessmentExamService.gradeAssessmentExam(exam, state, body, { nowIso });
-  if (!graded.ok) return graded;
-  const { attempt, correctCount, passed, passingScore, results, score, total } = graded;
-  const reportPath = assessmentExamReportPath(workspaceId, canonicalCardId, currentCard, exam, attempt);
-  const nextState = Object.assign({}, state, {
-    status: passed ? "in_progress" : "retake_required",
-    attempts: [...(Array.isArray(state.attempts) ? state.attempts : []), attempt].slice(-20),
-    lastReportPath: reportPath,
-    completedAt: state.completedAt || "",
-  });
-  const resultComment = [
-    `Formal assessment scored ${score}/100; passing score ${passingScore}/100.`,
-    passed ? "Assessment passed. Completing this card." : "Assessment did not pass. Retake is required; this card remains open.",
-    `MEDIA: ${reportPath}`,
-  ].join("\n");
-  await kanbanCardProvider.mutateCard({
-    action: "comment",
-    workspaceId,
-    cardId: canonicalCardId,
-    comment: resultComment,
-    author: "Hermes Mobile",
-  }).catch(() => null);
-  if (!passed) {
-    writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, nextState);
-    return {
-      ok: true,
-      passed: false,
-      status: "retake_required",
-      score,
-      correctCount,
-      total,
-      passingScore,
-      reportPath,
-      results: results.map((item) => ({ id: item.id, skill: item.skill, correct: item.correct, explanation: item.correct ? "" : item.explanation })),
-      exam: publicKanbanAssessmentExam(exam, nextState),
-    };
-  }
-  const completed = await kanbanCardProvider.mutateCard({
-    action: "complete",
-    workspaceId,
-    cardId: canonicalCardId,
-    result: [
-      `Formal assessment passed with ${score}/100.`,
-      `Correct: ${correctCount}/${total}.`,
-      `MEDIA: ${reportPath}`,
-    ].join("\n"),
-    author: "Hermes Mobile",
-  });
-  if (!completed?.ok) {
-    writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, Object.assign({}, nextState, {
-      status: "retake_required",
-      completionError: completed?.error || "Assessment card completion failed",
-    }));
-    return { ok: false, error: completed?.error || "Assessment card completion failed", score };
-  }
-  writeKanbanAssessmentExamState(workspaceId, canonicalCardId, currentCard, Object.assign({}, nextState, {
-    status: "completed",
-    completedAt: nowIso(),
-    completionError: "",
-  }));
-  await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
-  return {
-    ok: true,
-    passed: true,
-    status: "completed",
-    score,
-    correctCount,
-    total,
-    passingScore,
-    reportPath,
-    card: publicTodo(completed),
-  };
+  return assessmentExamWorkflowService;
 }
 
 async function maybeReconcileKanbanDependencyBlocks(workspaceId, options = {}) {
   return kanbanMaintenanceService.maybeReconcileDependencyBlocks(workspaceId, options);
-}
-
-function kanbanCardListCacheKey(args = {}) {
-  return kanbanMaintenanceService.cacheKey(args);
 }
 
 function readKanbanCardListCache(args = {}) {
@@ -6191,40 +3416,8 @@ function normalizeShareScope(value, targets) {
   return getSharedDirectoryProjectionService().normalizeShareScope(value, targets);
 }
 
-function normalizeSharedDirectoryRecord(item) {
-  return sharedDirectoryProvider.normalizeRecord(item);
-}
-
-function loadSharedDirectoryRecords() {
-  return sharedDirectoryProvider.loadRecords();
-}
-
-function saveSharedDirectoryRecords(records) {
-  sharedDirectoryProvider.saveRecords(records);
-}
-
 function sharedDirectoryRoots(workspaceId = "") {
   return getSharedDirectoryProjectionService().roots(workspaceId, workspaceId);
-}
-
-function sharedDirectoryId(record) {
-  return sharedDirectoryProvider.id(record);
-}
-
-function sharedDirectoryPermissionLabel(record) {
-  return sharedDirectoryProvider.permissionLabel(record);
-}
-
-function sharedDirectoryCreator(record, workspaces = null) {
-  return sharedDirectoryProvider.creator(record, workspaces);
-}
-
-function shareAppliesToWorkspace(record, workspaceId) {
-  return sharedDirectoryProvider.appliesToWorkspace(record, workspaceId);
-}
-
-function canManageSharedDirectory(record, workspaceId) {
-  return sharedDirectoryProvider.canManage(record, workspaceId);
 }
 
 function publicSharedDirectory(record, workspaceId = "owner") {
@@ -6235,16 +3428,8 @@ function removeSharedDirectoryRecord(identifier, workspaceId = "owner") {
   return getSharedDirectoryProjectionService().removeSharedDirectoryRecord(identifier, workspaceId);
 }
 
-function aclSharedDirectoryRecords() {
-  return sharedDirectoryProvider.aclRecords();
-}
-
 function sharedDirectoriesForWorkspace(workspaceId = "owner") {
   return sharedDirectoryProvider.directoriesForWorkspace(workspaceId);
-}
-
-function removeAclSharedDirectoryRecord(identifier, workspaceId = "owner") {
-  return sharedDirectoryProvider.removeAcl(identifier, workspaceId);
 }
 
 function updateSharedDirectoryAccess(identifier, workspaceId = "owner", updates = {}) {
@@ -6421,513 +3606,33 @@ function policyForThread(thread) {
   return buildAccessPolicy(workspace?.policy || workspace || {}, {}, project);
 }
 
-function sharedProjectOwnerLabel(project) {
-  return displayPathProvider.sharedProjectOwnerLabel(project);
-}
-
-function ownerDriveRootIndex(parts) {
-  return displayPathProvider.ownerDriveRootIndex(parts);
-}
-
-function sharedProjectRootOwnerLabel(project) {
-  return displayPathProvider.sharedProjectRootOwnerLabel(project);
-}
-
-function sharedProjectDisplayLabel(project) {
-  return displayPathProvider.sharedProjectDisplayLabel(project);
-}
-
-function directoryRouteDisplayLabel(project, child = null) {
-  return displayPathProvider.directoryRouteDisplayLabel(project, child);
-}
-
-function directoryRouteCandidatesForWorkspace(workspaceId) {
-  const candidates = [];
-  for (const project of allProjectsForWorkspaceSync(workspaceId).filter((item) => !item.hidden)) {
-    if (project.source === "workspace-default") continue;
-    if (project.root) {
-      candidates.push({
-        root: project.root,
-        label: directoryRouteDisplayLabel(project),
-      });
-    }
-    for (const child of project.children || []) {
-      if (!child.root) continue;
-      candidates.push({
-        root: child.root,
-        label: directoryRouteDisplayLabel(project, child),
-      });
-    }
+function getSingleWindowThreadService() {
+  if (!singleWindowThreadService) {
+    singleWindowThreadService = createSingleWindowThreadService({
+      chatGroupMemberWorkspaceIds,
+      findProject,
+      findWorkspace,
+      kanbanCaseTopicKind: KANBAN_CASE_TOPIC_KIND,
+      makeId,
+      normalizeChatGroup,
+      normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
+      normalizeExternalIngress: (...args) => getRuntimeStateNormalizationService().normalizeExternalIngress(...args),
+      normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
+      normalizeThread: (...args) => getRuntimeStateNormalizationService().normalizeThread(...args),
+      nowIso,
+      saveState,
+      singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+      singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+      singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
+      singleWindowThreadTitle: SINGLE_WINDOW_THREAD_TITLE,
+      state: () => state,
+      taskGroupOwnerWorkspaceId,
+      taskGroupsForThread,
+      threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
+      weixinIngressProvider,
+    });
   }
-  return candidates.sort((a, b) => comparablePath(b.root).length - comparablePath(a.root).length);
-}
-
-function relativeDisplayTail(rawPath, rootPath) {
-  const rawLocal = normalizeLocalPath(rawPath);
-  const rootLocal = normalizeLocalPath(rootPath);
-  if (rawLocal && rootLocal) {
-    const relative = path.relative(rootLocal, rawLocal);
-    if (relative && relative !== "." && !relative.startsWith("..") && !path.isAbsolute(relative)) {
-      return relative.split(/[\\/]+/g).filter(Boolean).join(" / ");
-    }
-  }
-  const raw = String(rawPath || "").replaceAll("\\", "/");
-  const root = String(rootPath || "").replaceAll("\\", "/").replace(/\/+$/g, "");
-  if (raw && root && raw.toLowerCase().startsWith(`${root.toLowerCase()}/`)) {
-    return raw.slice(root.length + 1).split("/").filter(Boolean).join(" / ");
-  }
-  return "";
-}
-
-function logicalUserPathFallback(rawPath, fallbackLabel = "") {
-  return displayPathProvider.logicalUserPathFallback(rawPath, fallbackLabel);
-}
-
-function logicalDirectoryDisplayPath(thread, rawPath, fallbackLabel = "") {
-  const value = String(rawPath || "").trim();
-  if (!value) return fallbackLabel || "";
-  for (const candidate of directoryRouteCandidatesForWorkspace(thread.workspaceId)) {
-    if (
-      !pathInsideAnyRoot(value, [candidate.root])
-      && !pathInsideAnyRoot(normalizeLocalPath(value), [normalizeLocalPath(candidate.root)])
-    ) {
-      continue;
-    }
-    const tail = relativeDisplayTail(value, candidate.root);
-    return [candidate.label, tail].filter(Boolean).join(" / ");
-  }
-  const workspace = findWorkspace(thread.workspaceId);
-  const workspaceRoot = workspace?.defaultWorkspace || workspace?.policy?.default_workspace || "";
-  if (
-    workspaceRoot
-    && (
-      pathInsideAnyRoot(value, [workspaceRoot])
-      || pathInsideAnyRoot(normalizeLocalPath(value), [normalizeLocalPath(workspaceRoot)])
-    )
-  ) {
-    const tail = relativeDisplayTail(value, workspaceRoot);
-    return tail || fallbackLabel || workspace.label || "目录";
-  }
-  return logicalUserPathFallback(value, fallbackLabel);
-}
-
-function isGroupChatThread(thread) {
-  return Boolean(normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner").enabled);
-}
-
-function isKanbanCaseTopicThread(thread) {
-  const group = normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner");
-  return Boolean(thread?.singleWindow && group.enabled && group.kind === KANBAN_CASE_TOPIC_KIND);
-}
-
-function isExternalIngressThread(thread) {
-  return Boolean(thread?.externalIngress?.source);
-}
-
-function isWeixinSingleWindowThread(thread) {
-  return Boolean(thread?.singleWindow && thread?.externalIngress?.source === "weixin");
-}
-
-function publicExternalIngress(thread) {
-  const ingress = normalizeExternalIngress(thread?.externalIngress || null);
-  if (!ingress) return null;
-  return {
-    source: ingress.source,
-    type: ingress.source,
-    workspaceId: ingress.workspaceId || thread.workspaceId || "",
-    senderLabel: ingress.senderLabel || "",
-    status: ingress.status || "",
-    updatedAt: ingress.updatedAt || "",
-  };
-}
-
-function latestMessageTimestamp(messages) {
-  return (messages || []).reduce((latest, message) => {
-    const value = message?.completedAt || message?.failedAt || message?.cancelledAt || message?.updatedAt || message?.createdAt || "";
-    return String(value) > String(latest || "") ? value : latest;
-  }, "");
-}
-
-function messageChronologyRank(message) {
-  if (message?.role === "user") return 0;
-  if (message?.role === "assistant") return 1;
-  return 2;
-}
-
-function sortMessagesChronologically(messages) {
-  return [...(messages || [])].sort((a, b) => (
-    String(a?.createdAt || "").localeCompare(String(b?.createdAt || ""))
-    || messageChronologyRank(a) - messageChronologyRank(b)
-    || String(a?.submittedAt || a?.queuedAt || "").localeCompare(String(b?.submittedAt || b?.queuedAt || ""))
-    || String(a?.id || "").localeCompare(String(b?.id || ""))
-  ));
-}
-
-function createSingleWindowThread(workspaceId, overrides = {}) {
-  const now = nowIso();
-  return normalizeThread(Object.assign({
-    id: makeId("thread"),
-    title: SINGLE_WINDOW_THREAD_TITLE,
-    workspaceId,
-    projectId: SINGLE_WINDOW_PROJECT_ID,
-    subprojectId: "",
-    singleWindow: true,
-    hermesSessionId: `web_single_${makeId("session")}`,
-    status: "idle",
-    createdAt: now,
-    updatedAt: now,
-    messages: [],
-    events: [],
-  }, overrides));
-}
-
-function weixinThreadSeed(workspaceId, source = {}) {
-  const now = nowIso();
-  let threadKey = String(source.threadKey || source.thread_key || "").trim();
-  if (!threadKey && (source.accountId || source.account_id || source.chatId || source.chat_id || source.userId || source.user_id)) {
-    try {
-      threadKey = weixinIngressProvider.threadKey(source);
-    } catch (_) {
-      threadKey = "";
-    }
-  }
-  return normalizeExternalIngress({
-    source: "weixin",
-    threadKey,
-    eventId: source.eventId || source.event_id || "",
-    accountId: source.accountId || source.account_id || "",
-    chatId: source.chatId || source.chat_id || "",
-    userId: source.userId || source.user_id || "",
-    principalId: source.principalId || source.principal_id || "",
-    workspaceId,
-    senderLabel: source.senderLabel || source.sender_label || "",
-    status: source.status || "window",
-    createdAt: source.createdAt || source.created_at || now,
-    updatedAt: source.updatedAt || source.updated_at || now,
-  });
-}
-
-function findWeixinSingleWindowThreadForWorkspace(workspaceId) {
-  const id = String(workspaceId || "").trim();
-  if (!id) return null;
-  return (state.threads || [])
-    .filter((thread) => (
-      thread?.workspaceId === id
-      && isWeixinSingleWindowThread(thread)
-      && !isGroupChatThread(thread)
-    ))
-    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
-}
-
-function createWeixinSingleWindowThread(workspaceId, seed = {}) {
-  return createSingleWindowThread(workspaceId, {
-    title: "Weixin",
-    hermesSessionId: `web_weixin_${makeId("session")}`,
-    externalIngress: weixinThreadSeed(workspaceId, seed),
-  });
-}
-
-function messageBelongsToWeixinWindow(message) {
-  return Boolean(
-    message?.externalIngress?.source === "weixin"
-    || message?.externalDelivery?.source === "weixin"
-    || message?.runOptions?.gatewayRouting?.source === "weixin"
-  );
-}
-
-function updateThreadChronology(thread) {
-  const latest = latestMessageTimestamp(thread.messages);
-  if (latest) thread.updatedAt = latest;
-  const earliest = (thread.messages || [])
-    .map((message) => message.createdAt || "")
-    .filter(Boolean)
-    .sort()[0];
-  if (earliest && String(earliest) < String(thread.createdAt || "")) {
-    thread.createdAt = earliest;
-  }
-}
-
-function migrateWeixinMessagesToDedicatedThread(workspaceId, targetThread = null) {
-  const id = String(workspaceId || "").trim();
-  if (!id) return null;
-  let target = targetThread || findWeixinSingleWindowThreadForWorkspace(id);
-  let changed = false;
-  for (const sourceThread of state.threads || []) {
-    if (
-      !sourceThread?.singleWindow
-      || sourceThread.workspaceId !== id
-      || isGroupChatThread(sourceThread)
-      || isWeixinSingleWindowThread(sourceThread)
-    ) {
-      continue;
-    }
-    const hasActiveRun = (sourceThread.activeRunIds || []).length
-      || (sourceThread.messages || []).some((message) => ["queued", "running"].includes(message?.status));
-    if (hasActiveRun) continue;
-    const moveMessages = (sourceThread.messages || []).filter(messageBelongsToWeixinWindow);
-    if (!moveMessages.length) continue;
-    if (!target) {
-      target = createWeixinSingleWindowThread(id, moveMessages[0]?.externalIngress || moveMessages[0]?.externalDelivery || {});
-      state.threads.unshift(target);
-    }
-    const moveIds = new Set(moveMessages.map((message) => String(message?.id || "")).filter(Boolean));
-    const existingIds = new Set((target.messages || []).map((message) => String(message?.id || "")));
-    const movedMessages = [];
-    const keptMessages = [];
-    for (const message of sourceThread.messages || []) {
-      const messageId = String(message?.id || "");
-      if (!moveIds.has(messageId)) {
-        keptMessages.push(message);
-        continue;
-      }
-      if (messageId && existingIds.has(messageId)) continue;
-      const moved = Object.assign({}, message, {
-        taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-        singleWindowMode: "chat",
-      });
-      if (moved.externalDelivery) {
-        moved.externalDelivery = normalizeExternalDelivery(Object.assign({}, moved.externalDelivery, {
-          threadId: target.id,
-          taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-          updatedAt: moved.externalDelivery.updatedAt || moved.updatedAt || nowIso(),
-        }));
-      }
-      movedMessages.push(moved);
-      if (messageId) existingIds.add(messageId);
-    }
-    target.messages = sortMessagesChronologically([...(target.messages || []), ...movedMessages]);
-    updateThreadChronology(target);
-    sourceThread.messages = keptMessages;
-    updateThreadChronology(sourceThread);
-    for (const artifact of state.artifacts || []) {
-      if (moveIds.has(String(artifact.messageId || ""))) artifact.threadId = target.id;
-    }
-    changed = true;
-  }
-  if (changed) {
-    saveState(state, { reason: "weixin-single-window-split", forceBackup: true });
-  }
-  return target;
-}
-
-function ensureWeixinSingleWindowThread(workspaceId, seed = {}) {
-  const workspace = findWorkspace(workspaceId);
-  const project = findProject(workspaceId, SINGLE_WINDOW_PROJECT_ID);
-  if (!workspace || !project) return null;
-  let thread = findWeixinSingleWindowThreadForWorkspace(workspaceId);
-  let changed = false;
-  if (!thread) {
-    thread = createWeixinSingleWindowThread(workspaceId, seed);
-    state.threads.unshift(thread);
-    changed = true;
-  }
-  const nextIngress = weixinThreadSeed(workspaceId, Object.assign({}, thread.externalIngress || {}, seed || {}, {
-    createdAt: thread.externalIngress?.createdAt || thread.createdAt,
-    updatedAt: nowIso(),
-  }));
-  if (JSON.stringify(nextIngress) !== JSON.stringify(thread.externalIngress || null)) {
-    thread.externalIngress = nextIngress;
-    changed = true;
-  }
-  const migrated = migrateWeixinMessagesToDedicatedThread(workspaceId, thread);
-  if (migrated && migrated.id === thread.id) thread = migrated;
-  if (changed) saveState();
-  return thread;
-}
-
-function taskGroupHasActiveRun(group) {
-  return (group?.messages || []).some((message) => (
-    message?.status === "queued"
-    || message?.status === "running"
-  ));
-}
-
-function migratePrivateSingleWindowGroups(workspaceId) {
-  const id = String(workspaceId || "").trim();
-  if (!id) return null;
-  let privateThread = (state.threads || []).find((thread) => (
-    thread.workspaceId === id
-    && thread.singleWindow
-    && !isGroupChatThread(thread)
-    && !isExternalIngressThread(thread)
-  )) || null;
-  const groupThreads = (state.threads || []).filter((thread) => (
-    thread?.singleWindow
-    && isGroupChatThread(thread)
-    && !isKanbanCaseTopicThread(thread)
-    && (thread.workspaceId === id || chatGroupMemberWorkspaceIds(thread).includes(id))
-  ));
-  const externalIngressThreads = (state.threads || []).filter((thread) => (
-    thread?.singleWindow
-    && thread.workspaceId === id
-    && !isGroupChatThread(thread)
-    && isExternalIngressThread(thread)
-    && !isWeixinSingleWindowThread(thread)
-  ));
-  let changed = false;
-  for (const groupThread of groupThreads) {
-    const moveMessageIds = new Set();
-    const moveArtifactIds = new Set();
-    const moveTaskGroupMeta = {};
-    for (const group of taskGroupsForThread(groupThread)) {
-      if (group.id === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) continue;
-      if (taskGroupOwnerWorkspaceId(group, groupThread.workspaceId) !== id) continue;
-      if (taskGroupHasActiveRun(group)) continue;
-      const meta = normalizeTaskGroupMeta(groupThread.taskGroupMeta)[group.id];
-      if (meta) moveTaskGroupMeta[group.id] = meta;
-      for (const message of group.messages || []) {
-        moveMessageIds.add(String(message.id || ""));
-        for (const artifact of Array.isArray(message.artifacts) ? message.artifacts : []) {
-          if (artifact?.id) moveArtifactIds.add(String(artifact.id));
-        }
-      }
-    }
-    if (!moveMessageIds.size) continue;
-    if (!privateThread) {
-      privateThread = createSingleWindowThread(id);
-      state.threads.unshift(privateThread);
-    }
-    const existingMessageIds = new Set((privateThread.messages || []).map((message) => String(message.id || "")));
-    const movedMessages = [];
-    const keptMessages = [];
-    for (const message of groupThread.messages || []) {
-      const messageId = String(message.id || "");
-      if (moveMessageIds.has(messageId)) {
-        if (!existingMessageIds.has(messageId)) {
-          movedMessages.push(message);
-          existingMessageIds.add(messageId);
-        }
-      } else {
-        keptMessages.push(message);
-      }
-    }
-    privateThread.messages = sortMessagesChronologically([...(privateThread.messages || []), ...movedMessages]);
-    privateThread.taskGroupMeta = Object.assign(
-      {},
-      normalizeTaskGroupMeta(privateThread.taskGroupMeta),
-      moveTaskGroupMeta,
-    );
-    const privateLatest = latestMessageTimestamp(privateThread.messages);
-    if (privateLatest) privateThread.updatedAt = privateLatest;
-    const privateEarliest = (privateThread.messages || [])
-      .map((message) => message.createdAt || "")
-      .filter(Boolean)
-      .sort()[0];
-    if (privateEarliest && String(privateEarliest) < String(privateThread.createdAt || "")) {
-      privateThread.createdAt = privateEarliest;
-    }
-    groupThread.messages = keptMessages;
-    const groupMeta = normalizeTaskGroupMeta(groupThread.taskGroupMeta);
-    for (const key of Object.keys(moveTaskGroupMeta)) delete groupMeta[key];
-    groupThread.taskGroupMeta = groupMeta;
-    groupThread.updatedAt = latestMessageTimestamp(groupThread.messages) || nowIso();
-    for (const artifact of state.artifacts || []) {
-      if (moveMessageIds.has(String(artifact.messageId || "")) || moveArtifactIds.has(String(artifact.id || ""))) {
-        artifact.threadId = privateThread.id;
-      }
-    }
-    changed = true;
-  }
-  for (const externalThread of externalIngressThreads) {
-    const hasActiveRun = (externalThread.activeRunIds || []).length
-      || (externalThread.messages || []).some((message) => ["queued", "running"].includes(message?.status));
-    if (hasActiveRun) continue;
-    const sourceMessages = externalThread.messages || [];
-    if (!sourceMessages.length) {
-      state.threads = (state.threads || []).filter((thread) => thread.id !== externalThread.id);
-      changed = true;
-      continue;
-    }
-    if (!privateThread) {
-      privateThread = createSingleWindowThread(id);
-      state.threads.unshift(privateThread);
-    }
-    const existingMessageIds = new Set((privateThread.messages || []).map((message) => String(message.id || "")));
-    const movedMessages = [];
-    const movedMessageIds = new Set();
-    for (const message of sourceMessages) {
-      const messageId = String(message?.id || "");
-      if (messageId && existingMessageIds.has(messageId)) continue;
-      const moved = Object.assign({}, message, {
-        taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-        singleWindowMode: "chat",
-      });
-      if (moved.externalDelivery) {
-        moved.externalDelivery = normalizeExternalDelivery(Object.assign({}, moved.externalDelivery, {
-          threadId: privateThread.id,
-          taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-          updatedAt: moved.externalDelivery.updatedAt || moved.updatedAt || nowIso(),
-        }));
-      }
-      movedMessages.push(moved);
-      if (messageId) {
-        existingMessageIds.add(messageId);
-        movedMessageIds.add(messageId);
-      }
-    }
-    if (movedMessages.length) {
-      privateThread.messages = sortMessagesChronologically([...(privateThread.messages || []), ...movedMessages]);
-      const privateLatest = latestMessageTimestamp(privateThread.messages);
-      if (privateLatest) privateThread.updatedAt = privateLatest;
-      const privateEarliest = (privateThread.messages || [])
-        .map((message) => message.createdAt || "")
-        .filter(Boolean)
-        .sort()[0];
-      if (privateEarliest && String(privateEarliest) < String(privateThread.createdAt || "")) {
-        privateThread.createdAt = privateEarliest;
-      }
-      for (const artifact of state.artifacts || []) {
-        if (movedMessageIds.has(String(artifact.messageId || ""))) artifact.threadId = privateThread.id;
-      }
-    }
-    state.threads = (state.threads || []).filter((thread) => thread.id !== externalThread.id);
-    changed = true;
-  }
-  if (changed) {
-    saveState(state, { reason: "single-window-private-split", forceBackup: true });
-  }
-  return privateThread;
-}
-
-function ensureSingleWindowThread(workspaceId, options = {}) {
-  const workspace = findWorkspace(workspaceId);
-  const project = findProject(workspaceId, SINGLE_WINDOW_PROJECT_ID);
-  if (!workspace || !project) return null;
-  const allowGroupThread = Boolean(options.allowGroupThread);
-  if (!allowGroupThread) {
-    migrateWeixinMessagesToDedicatedThread(workspaceId);
-    const migrated = migratePrivateSingleWindowGroups(workspaceId);
-    if (migrated) return migrated;
-  }
-  let thread = state.threads.find((item) => (
-    item.workspaceId === workspaceId
-    && item.singleWindow
-    && (allowGroupThread || !isGroupChatThread(item))
-    && (allowGroupThread || !isExternalIngressThread(item))
-  ));
-  if (thread) return thread;
-  thread = createSingleWindowThread(workspaceId);
-  state.threads.unshift(thread);
-  saveState();
-  return thread;
-}
-
-function findGroupChatThreadForWorkspace(workspaceId) {
-  const id = String(workspaceId || "").trim();
-  if (!id) return null;
-  return (state.threads || [])
-    .filter((thread) => thread?.singleWindow && !isKanbanCaseTopicThread(thread) && chatGroupMemberWorkspaceIds(thread).includes(id))
-    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
-}
-
-function kanbanCaseTopicThreadsForWorkspace(auth, workspaceId) {
-  const id = String(workspaceId || "").trim();
-  if (!id) return [];
-  return (state.threads || [])
-    .filter((thread) => isKanbanCaseTopicThread(thread))
-    .filter((thread) => chatGroupMemberWorkspaceIds(thread).includes(id))
-    .filter((thread) => threadAccessibleToAuth(auth, thread))
-    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+  return singleWindowThreadService;
 }
 
 function workspaceLabel(workspaceId) {
@@ -6968,57 +3673,8 @@ function ownerExternalAccessPolicy() {
   return externalIntegrationProvider.ownerAccessPolicy();
 }
 
-function publicWorkspaceAccessKeyStatus(workspace) {
-  return authProvider.publicWorkspaceAccessKeyStatus(workspace);
-}
-
-function publicWorkspaceBindings(workspace) {
-  return workspaceBindingsProvider.publicBindings(workspace);
-}
-
 function publicWorkspace(workspace) {
-  const policy = workspace.policy || {};
-  const isLocalWorkspace = workspace.source === "local-workspace";
-  const workDirectories = dedupe([
-    workspace.defaultWorkspace,
-    policy.default_workspace,
-    policy.sync_root,
-    policy.download_root,
-    ...(Array.isArray(policy.allowed_roots) ? policy.allowed_roots : []),
-    ...(Array.isArray(policy.delivery_roots) ? policy.delivery_roots : []),
-  ].filter(Boolean))
-    .filter((item) => !securityBoundaryProvider.rootConflictsWithProtected(item))
-    .map((item) => ({ path: item }));
-  return {
-    id: workspace.id,
-    label: workspace.label,
-    role: workspace.role,
-    source: workspace.source || "",
-    accessMode: workspace.accessMode,
-    defaultWorkspace: workspace.defaultWorkspace,
-    accessKey: String(policy.principal_id || workspace.id || ""),
-    principalId: String(policy.principal_id || workspace.id || ""),
-    accountId: workspace.accountId || policy.source_chat_id_alt || "",
-    userId: workspace.userId || policy.source_user_id || "",
-    chatId: workspace.chatId || policy.source_chat_id || "",
-    target: workspace.target || "",
-    contextTokenAvailable: workspace.contextTokenAvailable,
-    outboundStatus: workspace.outboundStatus || "",
-    workDirectories,
-    accessKeyStatus: publicWorkspaceAccessKeyStatus(workspace),
-    bindings: publicWorkspaceBindings(workspace),
-    aliases: workspace.aliases || [],
-    sessionMode: workspace.sessionMode || "",
-    responseStyle: workspace.responseStyle || "",
-    showTaskId: workspace.showTaskId,
-    maxParallelTasks: workspace.maxParallelTasks || 0,
-    localConfig: isLocalWorkspace ? {
-      defaultWorkspace: String(workspace.defaultWorkspace || policy.default_workspace || ""),
-      allowedRoots: Array.isArray(policy.allowed_roots) ? securityBoundaryProvider.filterRoots(policy.allowed_roots) : [],
-      allowedToolsets: Array.isArray(policy.allowed_toolsets) ? policy.allowed_toolsets : [],
-      connectorProfiles: policy.connector_profiles && typeof policy.connector_profiles === "object" ? policy.connector_profiles : {},
-    } : null,
-  };
+  return getWorkspacePublicProjectionService().publicWorkspace(workspace);
 }
 
 function publicAccessKeyStatus(workspace, record = null) {
@@ -7076,262 +3732,30 @@ function searchableText(value) {
   return String(value || "").toLowerCase().replace(/\s+/g, "");
 }
 
-function projectSearchLabels(project, parentLabel = "") {
-  const labels = directoryAliasLabels(project, parentLabel);
-  if (project.label) labels.push(project.label);
-  if (parentLabel && project.label) labels.push(`${parentLabel}${project.label}`);
-  return dedupe(labels.map(String).filter((label) => searchableText(label).length >= 2));
-}
-
-function semanticProjectMatches(thread, latestText) {
-  const search = searchableText(latestText);
-  if (!search) return [];
-  const matches = [];
-  const projects = loadCatalog().projects.filter((item) => item.workspaceId === thread.workspaceId && !item.hidden);
-  for (const project of projects) {
-    for (const label of projectSearchLabels(project)) {
-      const key = searchableText(label);
-      if (key && search.includes(key)) {
-        matches.push({
-          projectId: project.id || "",
-          subprojectId: "",
-          label: project.label || label,
-          alias: label,
-          root: project.root || "",
-          score: key.length * 100 + comparablePath(project.root).length,
-        });
-      }
-    }
-    for (const child of project.children || []) {
-      const parentLabel = project.label || "";
-      for (const label of projectSearchLabels(child, parentLabel)) {
-        const key = searchableText(label);
-        if (key && search.includes(key)) {
-          matches.push({
-            projectId: project.id || "",
-            subprojectId: child.id || "",
-            label: parentLabel ? `${parentLabel} / ${child.label || label}` : (child.label || label),
-            alias: label,
-            root: child.root || "",
-            score: key.length * 100 + comparablePath(child.root).length,
-          });
-        }
-      }
-    }
-  }
-  const byRoot = new Map();
-  for (const match of matches.filter((item) => item.root)) {
-    const key = comparablePath(match.root);
-    const prev = byRoot.get(key);
-    if (!prev || match.score > prev.score) byRoot.set(key, match);
-  }
-  return suppressGenericOwnerTopicMatches([...byRoot.values()].sort((a, b) => b.score - a.score)).slice(0, 5);
-}
-
-function pathMatchesRoot(candidatePath, rootPath) {
-  const candidate = comparablePath(candidatePath);
-  const root = comparablePath(rootPath);
-  return Boolean(candidate && root && (candidate === root || candidate.startsWith(`${root}/`)));
-}
-
-function directoryAttachmentCandidatesForThread(thread) {
-  const candidates = [];
-  for (const project of allProjectsForWorkspaceSync(thread.workspaceId).filter((item) => !item.hidden)) {
-    if (!project.root || project.id === SINGLE_WINDOW_PROJECT_ID || project.source === "workspace-default") continue;
-    candidates.push({
-      projectId: project.id || "",
-      subprojectId: "",
-      label: directoryRouteDisplayLabel(project),
-      root: project.root || "",
-    });
-    for (const child of project.children || []) {
-      if (!child.root) continue;
-      candidates.push({
-        projectId: project.id || "",
-        subprojectId: child.id || "",
-        label: directoryRouteDisplayLabel(project, child),
-        root: child.root || "",
-      });
-    }
-  }
-  return candidates.sort((a, b) => comparablePath(b.root).length - comparablePath(a.root).length);
-}
-
-function normalizeTaskDirectoryAttachment(thread, attachment) {
-  if (!attachment?.root && !attachment?.path) return null;
-  const root = String(attachment.root || attachment.path || "").trim();
-  const requestedPath = String(attachment.path || root).trim();
-  const pathValue = requestedPath && pathMatchesRoot(requestedPath, root) ? requestedPath : root;
-  if (!isDirectoryBrowserPathAllowedForThread(thread, "", pathValue)) return null;
-  const label = String(attachment.label || "").trim() || logicalDirectoryDisplayPath(thread, pathValue, "Directory");
-  return {
-    projectId: String(attachment.projectId || ""),
-    subprojectId: String(attachment.subprojectId || ""),
-    label,
-    path: pathValue,
-    root,
-  };
-}
-
-function resolveTaskDirectoryAttachment(thread, raw = {}) {
-  if (!raw || typeof raw !== "object") return null;
-  const projectId = String(raw.projectId || "").trim();
-  const subprojectId = String(raw.subprojectId || "").trim();
-  const requestedPath = String(raw.path || "").trim();
-  const rawRoot = String(raw.root || "").trim();
-  const candidates = directoryAttachmentCandidatesForThread(thread);
-  let match = null;
-  if (projectId) {
-    match = candidates.find((item) => item.projectId === projectId && (subprojectId ? item.subprojectId === subprojectId : !item.subprojectId))
-      || candidates.find((item) => item.projectId === projectId && (!subprojectId || item.subprojectId === subprojectId));
-  }
-  if (!match && requestedPath) {
-    match = candidates.find((item) => pathMatchesRoot(requestedPath, item.root));
-  }
-  if (!match && (rawRoot || requestedPath)) {
-    return normalizeTaskDirectoryAttachment(thread, {
-      projectId,
-      subprojectId,
-      label: String(raw.label || "").trim(),
-      root: rawRoot || requestedPath,
-      path: requestedPath || rawRoot,
+function getSemanticDirectoryAttachmentService() {
+  if (!semanticDirectoryAttachmentService) {
+    semanticDirectoryAttachmentService = createSemanticDirectoryAttachmentService({
+      allProjectsForWorkspaceSync,
+      comparablePath,
+      dedupe,
+      directoryRouteDisplayLabel: (...args) => workspaceDisplayPathService.directoryRouteDisplayLabel(...args),
+      effectiveProjectForThread,
+      findProject,
+      findSubproject,
+      genericDirectoryAliasInstruction: "If a semantic project match exists, do not emit a generic `目录别名：默认目录=...`; emit the matched project alias/path instead.",
+      genericOwnerTopicProjectIds: [...GENERIC_OWNER_TOPIC_PROJECT_IDS],
+      genericOwnerTopicProjectPrefixes: GENERIC_OWNER_TOPIC_PROJECT_PREFIXES,
+      isDirectoryBrowserPathAllowedForThread,
+      isSingleWindowConversationTaskGroupId,
+      loadCatalog,
+      logicalDirectoryDisplayPath: (...args) => workspaceDisplayPathService.logicalDirectoryDisplayPath(...args),
+      normalizeLocalPath,
+      searchableText,
+      singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
+      textIncludesPath,
     });
   }
-  if (!match) return null;
-  return normalizeTaskDirectoryAttachment(thread, Object.assign({}, match, {
-    label: String(raw.label || "").trim() || match.label,
-    path: requestedPath || match.root,
-  }));
-}
-
-function semanticTaskDirectoryAttachment(thread, latestText) {
-  if (!thread.singleWindow) return null;
-  const matches = semanticProjectMatches(thread, latestText);
-  const match = matches.find((item) => !isDeliveryProjectMatch(item)) || matches[0];
-  if (!match?.root) return null;
-  return normalizeTaskDirectoryAttachment(thread, {
-    projectId: match.projectId || "",
-    subprojectId: match.subprojectId || "",
-    label: match.label || match.alias || "",
-    path: match.root,
-    root: match.root,
-  });
-}
-
-function isDeliveryProjectMatch(match) {
-  const projectId = String(match?.projectId || "");
-  const root = comparablePath(match?.root || "");
-  return isGenericOwnerTopicProjectId(projectId) || root.includes("hermes\u540c\u6b65\u6587\u4ef6\u5939");
-}
-
-function uniqueTaskDirectoryAttachments(items) {
-  const unique = new Map();
-  for (const item of items || []) {
-    if (!item?.root && !item?.path) continue;
-    const key = [
-      item.projectId || "",
-      item.subprojectId || "",
-      comparablePath(item.root || item.path || ""),
-    ].join("|");
-    if (!unique.has(key)) unique.set(key, item);
-  }
-  return [...unique.values()];
-}
-
-function messageTaskDirectoryHaystack(message) {
-  const parts = [message?.content || ""];
-  if (message?.directoryRoute) {
-    parts.push(message.directoryRoute.label || "", message.directoryRoute.path || "", message.directoryRoute.root || "");
-  }
-  for (const alias of Array.isArray(message?.directoryAliases) ? message.directoryAliases : []) {
-    parts.push(alias?.label || "", alias?.path || "", alias?.root || "");
-  }
-  for (const artifact of Array.isArray(message?.artifacts) ? message.artifacts : []) {
-    parts.push(artifact?.name || "", artifact?.path || "", artifact?.displayPath || "", artifact?.url || "");
-  }
-  return parts.join("\n");
-}
-
-function taskDirectoryAttachmentCandidatesForMessage(thread, message) {
-  const rawCandidates = [];
-  if (message?.directoryRoute) rawCandidates.push(message.directoryRoute);
-  for (const alias of Array.isArray(message?.directoryAliases) ? message.directoryAliases : []) {
-    if (alias) rawCandidates.push(alias);
-  }
-  const haystack = messageTaskDirectoryHaystack(message);
-  for (const candidate of directoryAttachmentCandidatesForThread(thread)) {
-    if (textIncludesPath(haystack, candidate.root)) rawCandidates.push(candidate);
-  }
-  return uniqueTaskDirectoryAttachments(rawCandidates
-    .map((raw) => resolveTaskDirectoryAttachment(thread, raw || {}))
-    .filter(Boolean));
-}
-
-function taskDirectoryAttachmentForGroup(thread, taskGroupId) {
-  if (!taskGroupId) return null;
-  for (const message of thread.messages || []) {
-    if (message.taskGroupId !== taskGroupId) continue;
-    const candidates = taskDirectoryAttachmentCandidatesForMessage(thread, message);
-    const binding = candidates.find((item) => !isDeliveryProjectMatch(item));
-    if (binding) return binding;
-  }
-  return null;
-}
-
-function taskDirectoryAttachmentForMessage(thread, message) {
-  const direct = normalizeTaskDirectoryAttachment(thread, message?.directoryRoute || {});
-  if (direct) return direct;
-  if (thread?.singleWindow && isSingleWindowConversationTaskGroupId(message?.taskGroupId)) return null;
-  return taskDirectoryAttachmentForGroup(thread, message?.taskGroupId || "");
-}
-
-function isGenericOwnerTopicProjectId(projectId) {
-  const value = String(projectId || "");
-  return GENERIC_OWNER_TOPIC_PROJECT_IDS.has(value)
-    || GENERIC_OWNER_TOPIC_PROJECT_PREFIXES.some((prefix) => value.startsWith(prefix));
-}
-
-function isContextAnchorProjectMatch(match) {
-  if (!match?.root) return false;
-  if (match.subprojectId) return false;
-  if (isGenericOwnerTopicProjectId(match.projectId)) return false;
-  if (match.projectId === SINGLE_WINDOW_PROJECT_ID) return false;
-  return true;
-}
-
-function suppressGenericOwnerTopicMatches(matches) {
-  const anchors = matches.filter(isContextAnchorProjectMatch);
-  if (!anchors.length) return matches;
-  return matches.filter((match) => {
-    if (!isGenericOwnerTopicProjectId(match.projectId)) return true;
-    return anchors.some((anchor) => pathInsideAnyRoot(match.root, [anchor.root]));
-  });
-}
-
-function semanticProjectRoutingInstructions(thread, latestText) {
-  if (!thread.singleWindow) return "";
-  const matches = semanticProjectMatches(thread, latestText);
-  if (!matches.length) return "";
-  return [
-    "Semantic project-directory matches from the latest user request:",
-    ...matches.map((item) => `- ${item.label} (matched alias: ${item.alias}) => ${item.root}`),
-    "Use the most specific matched project root for file search, report generation, and directory aliases.",
-    "If a semantic project match exists, do not emit a generic `目录别名：默认目录=...`; emit the matched project alias/path instead.",
-  ].join("\n");
-}
-
-function projectForTaskDirectoryAttachment(thread, attachment) {
-  if (!attachment) return effectiveProjectForThread(thread);
-  const project = findProject(thread.workspaceId, attachment.projectId);
-  const child = findSubproject(project, attachment.subprojectId);
-  const base = child
-    ? Object.assign({}, child, { workspaceId: project.workspaceId, parentProjectId: project.id, parentLabel: project.label })
-    : (project || {});
-  return Object.assign({}, base, {
-    id: attachment.subprojectId || attachment.projectId || base.id || "attached-directory",
-    label: attachment.label || base.label || "Attached directory",
-    root: attachment.path || attachment.root || base.root || "",
-  });
+  return semanticDirectoryAttachmentService;
 }
 
 function formatAccessPolicyInstructionSummary(policy = {}) {
@@ -7354,8 +3778,8 @@ const gatewayRunInstructionService = createGatewayRunInstructionService({
   normalizeSingleWindowMode,
   createDeliveryBoundaryInstructions,
   permissionBoundarySkillInstructions: (policy) => securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
-  semanticProjectRoutingInstructions,
-  isKanbanCaseTopicThread,
+  semanticProjectRoutingInstructions: (...args) => getSemanticDirectoryAttachmentService().semanticProjectRoutingInstructions(...args),
+  isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
 });
 const conversationHistoryService = createConversationHistoryService({
   policyHasToolset,
@@ -7431,181 +3855,65 @@ function attachUploadedArtifactsToMessage(thread, message) {
   return fileArtifactAccessService.attachUploadedArtifactsToMessage(thread, message);
 }
 
+function getArtifactTextRegistrationService() {
+  if (!artifactTextRegistrationService) {
+    artifactTextRegistrationService = createArtifactTextRegistrationService({
+      dedupe,
+      effectiveProjectForThread,
+      extractArtifactPaths,
+      findProject,
+      findSubproject,
+      isPathAllowedForThread,
+      makeId,
+      mimeFor,
+      normalizeLocalPath,
+      nowIso,
+      sourceMarkdownSearchCache,
+      sourceMarkdownSearchLimit: SOURCE_MARKDOWN_SEARCH_LIMIT,
+      state: () => state,
+    });
+  }
+  return artifactTextRegistrationService;
+}
+
 function compactArtifactForMessage(value) {
-  if (!value || typeof value !== "object") return null;
-  const id = String(value.id || "");
-  const stored = id ? state.artifacts.find((item) => item.id === id) : null;
-  return {
-    id: id || stored?.id || "",
-    name: value.name || stored?.name || id || "document",
-    mime: value.mime || stored?.mime || "",
-    size: value.size || stored?.size || 0,
-    url: value.url || (stored?.id ? `/api/artifacts/${encodeURIComponent(stored.id)}` : ""),
-    path: value.path || stored?.path || "",
-  };
+  return getArtifactTextRegistrationService().compactArtifactForMessage(value);
 }
 
 function compactArtifactPathKey(value) {
-  const localPath = normalizeLocalPath(value);
-  if (!localPath) return "";
-  return path.resolve(localPath).toLowerCase();
+  return getArtifactTextRegistrationService().compactArtifactPathKey(value);
 }
 
 function compactArtifactStemKey(value) {
-  return path.basename(String(value || "")).replace(/\.[^.]+$/, "").toLowerCase();
+  return getArtifactTextRegistrationService().compactArtifactStemKey(value);
 }
 
 function publicMarkdownPreviewArtifact(thread, rawPath, baseId = "") {
-  if (!thread) return null;
-  const displayPath = String(rawPath || "").trim();
-  const localPath = normalizeLocalPath(displayPath);
-  if (!localPath || path.extname(localPath).toLowerCase() !== ".md") return null;
-  let stat;
-  try {
-    stat = fs.statSync(localPath);
-  } catch (_) {
-    return null;
-  }
-  if (!stat.isFile() || !isPathAllowedForThread(thread, localPath, displayPath || localPath)) return null;
-  const name = path.basename(localPath);
-  const params = new URLSearchParams({ threadId: thread.id, path: displayPath || localPath });
-  return {
-    id: `source_md_${crypto.createHash("sha1").update(`${baseId}\0${localPath}`).digest("hex").slice(0, 16)}`,
-    name,
-    mime: mimeFor(localPath),
-    size: stat.size,
-    url: `/api/files?${params.toString()}`,
-    path: localPath,
-    source: "source-markdown",
-  };
+  return getArtifactTextRegistrationService().publicMarkdownPreviewArtifact(thread, rawPath, baseId);
 }
 
 function sourceMarkdownSearchRoots(thread) {
-  if (!thread) return [];
-  const roots = [];
-  const project = findProject(thread.workspaceId, thread.projectId);
-  const subproject = findSubproject(project, thread.subprojectId);
-  if (subproject?.root) roots.push(subproject.root);
-  if (project?.root) roots.push(project.root);
-  const effectiveProject = effectiveProjectForThread(thread);
-  if (effectiveProject?.root) roots.push(effectiveProject.root);
-  return dedupe(roots.map(normalizeLocalPath).filter((root) => root && fs.existsSync(root)));
+  return getArtifactTextRegistrationService().sourceMarkdownSearchRoots(thread);
 }
 
 function findMarkdownByStemUnderRoot(root, stem) {
-  const target = String(stem || "").toLowerCase();
-  if (!target || !root || !fs.existsSync(root)) return "";
-  const queue = [root];
-  let scanned = 0;
-  let best = null;
-  while (queue.length && scanned < SOURCE_MARKDOWN_SEARCH_LIMIT) {
-    const dir = queue.shift();
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch (_) {
-      continue;
-    }
-    for (const entry of entries) {
-      if (scanned >= SOURCE_MARKDOWN_SEARCH_LIMIT) break;
-      if (!entry.name || entry.name.startsWith(".") || entry.name === "node_modules") continue;
-      const entryPath = path.join(dir, entry.name);
-      scanned += 1;
-      if (entry.isDirectory()) {
-        queue.push(entryPath);
-        continue;
-      }
-      if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== ".md") continue;
-      if (compactArtifactStemKey(entry.name) !== target) continue;
-      let stat;
-      try {
-        stat = fs.statSync(entryPath);
-      } catch (_) {
-        continue;
-      }
-      if (!best || stat.mtimeMs > best.mtimeMs) best = { path: entryPath, mtimeMs: stat.mtimeMs };
-    }
-  }
-  return best?.path || "";
+  return getArtifactTextRegistrationService().findMarkdownByStemUnderRoot(root, stem);
 }
 
 function findSourceMarkdownForArtifact(thread, value) {
-  const stem = compactArtifactStemKey(value?.name || value?.path || "");
-  if (!thread || !stem) return "";
-  const key = [thread.workspaceId, thread.projectId, thread.subprojectId || "", stem].join("\0");
-  if (sourceMarkdownSearchCache.has(key)) return sourceMarkdownSearchCache.get(key) || "";
-  let found = "";
-  for (const root of sourceMarkdownSearchRoots(thread)) {
-    found = findMarkdownByStemUnderRoot(root, stem);
-    if (found) break;
-  }
-  if (found) sourceMarkdownSearchCache.set(key, found);
-  return found || "";
+  return getArtifactTextRegistrationService().findSourceMarkdownForArtifact(thread, value);
 }
 
 function companionMarkdownPathForArtifact(thread, value) {
-  if (!value || typeof value !== "object") return "";
-  const kind = mimeFor(value.path || value.name || "");
-  const name = String(value.name || value.path || "");
-  const ext = path.extname(name).toLowerCase();
-  if (![".pdf", ".doc", ".docx"].includes(ext) && !/(pdf|word|officedocument)/i.test(kind)) return "";
-  const localPath = normalizeLocalPath(value.path || "");
-  if (!localPath) return "";
-  const parsed = path.parse(localPath);
-  const candidate = path.join(parsed.dir, `${parsed.name}.md`);
-  if (fs.existsSync(candidate)) return candidate;
-  return findSourceMarkdownForArtifact(thread, value);
+  return getArtifactTextRegistrationService().companionMarkdownPathForArtifact(thread, value);
 }
 
 function findThreadForMessage(message) {
-  const messageId = String(message?.id || "");
-  if (!messageId) return null;
-  return (state.threads || []).find((thread) => (thread.messages || []).some((item) => item?.id === messageId)) || null;
+  return getArtifactTextRegistrationService().findThreadForMessage(message);
 }
 
 function compactArtifactsForMessage(message, thread = null) {
-  const baseArtifacts = Array.isArray(message?.artifacts) ? message.artifacts.map(compactArtifactForMessage).filter(Boolean) : [];
-  const resolvedThread = thread || findThreadForMessage(message);
-  if (!resolvedThread) return baseArtifacts;
-
-  const seenPaths = new Set(baseArtifacts.map((artifact) => compactArtifactPathKey(artifact.path)).filter(Boolean));
-  const seenMarkdownStems = new Set(baseArtifacts
-    .filter((artifact) => path.extname(artifact.name || artifact.path || "").toLowerCase() === ".md")
-    .map((artifact) => compactArtifactStemKey(artifact.name || artifact.path))
-    .filter(Boolean));
-  const markdownArtifacts = [];
-  const addMarkdown = (rawPath, baseId = "") => {
-    const artifact = publicMarkdownPreviewArtifact(resolvedThread, rawPath, baseId);
-    if (!artifact) return;
-    const pathKey = compactArtifactPathKey(artifact.path);
-    const stemKey = compactArtifactStemKey(artifact.name || artifact.path);
-    if ((pathKey && seenPaths.has(pathKey)) || (stemKey && seenMarkdownStems.has(stemKey))) return;
-    if (pathKey) seenPaths.add(pathKey);
-    if (stemKey) seenMarkdownStems.add(stemKey);
-    markdownArtifacts.push(artifact);
-  };
-
-  for (const rawPath of extractArtifactPaths(message?.content || "")) {
-    if (path.extname(normalizeLocalPath(rawPath) || rawPath).toLowerCase() === ".md") {
-      addMarkdown(rawPath, message.id || "");
-    }
-  }
-  for (const artifact of baseArtifacts) {
-    const candidate = companionMarkdownPathForArtifact(resolvedThread, artifact);
-    if (candidate) addMarkdown(candidate, artifact.id || message.id || "");
-  }
-  return [...markdownArtifacts, ...baseArtifacts];
-}
-
-function buildUserMessageContent(text, artifacts) {
-  const lines = [];
-  if (String(text || "").trim()) lines.push(String(text).trim());
-  for (const item of artifacts || []) {
-    const id = String(item?.id || "");
-    const artifact = state.artifacts.find((candidate) => candidate.id === id);
-    if (artifact?.path) lines.push(`MEDIA:${artifact.path}`);
-  }
-  return lines.join("\n\n").trim();
+  return getArtifactTextRegistrationService().compactArtifactsForMessage(message, thread);
 }
 
 function readFirstConfiguredSecret(paths) {
@@ -7671,7 +3979,7 @@ function getWeixinIngressEventService() {
     weixinIngressEventService = createWeixinIngressEventService({
       weixinIngressProvider,
       findWorkspace,
-      findExistingIngressEvent: findExistingWeixinIngressEvent,
+      findExistingIngressEvent: (...args) => getRuntimeStateThreadService().findExistingWeixinIngressEvent(...args),
       wakeOutboundForInbound: wakeWeixinOutboundDeliveriesForInboundEvent,
       classifyMaintenanceIntent: (text) => securityBoundaryProvider.classifyMaintenanceIntent(text),
       ensureThreadForEvent: weixinIngressThreadForEvent,
@@ -7679,8 +3987,8 @@ function getWeixinIngressEventService() {
       nowIso,
       makeId,
       senderInfoForWorkspace,
-      normalizeExternalIngress,
-      normalizeExternalDelivery,
+      normalizeExternalIngress: (...args) => getRuntimeStateNormalizationService().normalizeExternalIngress(...args),
+      normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
       deliveryMatchesInboundEvent: weixinDeliveryMatchesInboundEvent,
       attachmentContextWindowMs: WEIXIN_INGRESS_ATTACHMENT_CONTEXT_WINDOW_MS,
       taskGroupHasRunningRun,
@@ -7699,10 +4007,6 @@ function getWeixinIngressEventService() {
   return weixinIngressEventService;
 }
 
-function weixinIngressMessageContent(event) {
-  return getWeixinIngressEventService().messageContentForWeixinIngress(event);
-}
-
 function weixinIngressIsAttachmentOnlyEvent(event) {
   return !String(event?.text || "").trim() && Array.isArray(event?.attachments) && event.attachments.length > 0;
 }
@@ -7715,21 +4019,8 @@ function weixinIngressInstructions(event, pendingAttachmentMessages = []) {
   return getWeixinIngressEventService().instructionsForWeixinIngress(event, pendingAttachmentMessages);
 }
 
-function findExistingWeixinIngressEvent(eventId) {
-  const id = String(eventId || "").trim();
-  if (!id) return null;
-  for (const thread of state.threads || []) {
-    for (const message of thread.messages || []) {
-      if (message?.role === "user" && message.externalIngress?.source === "weixin" && message.externalIngress.eventId === id) {
-        return { thread, message };
-      }
-    }
-  }
-  return null;
-}
-
 function weixinIngressThreadForEvent(event, workspaceId) {
-  return ensureWeixinSingleWindowThread(workspaceId, event);
+  return getSingleWindowThreadService().ensureWeixinSingleWindowThread(workspaceId, event);
 }
 
 function getWeixinOutboundDeliveryService() {
@@ -7737,7 +4028,7 @@ function getWeixinOutboundDeliveryService() {
     weixinOutboundDeliveryService = createWeixinOutboundDeliveryService({
       state: () => state,
       nowIso,
-      normalizeExternalDelivery,
+      normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
       deliveryId: (threadId, messageId) => weixinIngressProvider.deliveryId(threadId, messageId),
       compactText,
       maxMessageChars: MAX_MESSAGE_CHARS,
@@ -7762,10 +4053,6 @@ function enqueueExternalDeliveryForTerminalMessage(thread, message, terminalStat
 
 function publicWeixinOutboundDelivery(thread, message) {
   return getWeixinOutboundDeliveryService().publicDelivery(thread, message);
-}
-
-function compactWeixinForwardTarget(target = {}) {
-  return weixinForwardService.compactTarget(target);
 }
 
 function weixinTargetFromWorkspace(workspace) {
@@ -8013,30 +4300,6 @@ function clientCanReceivePayload(client, payload) {
   return eventFanoutService.clientCanReceivePayload(client, payload);
 }
 
-function pushSubscriptionCount() {
-  return publicPushStatus().subscriptionCount;
-}
-
-function publicPushStatus() {
-  return webPushDeliveryService.publicPushStatus();
-}
-
-function recordPushReceipt(body = {}) {
-  return webPushDeliveryService.recordPushReceipt(body);
-}
-
-function savePushSubscription(subscription, meta = {}) {
-  return webPushDeliveryService.savePushSubscription(subscription, meta);
-}
-
-function removePushSubscription(subscriptionOrEndpoint) {
-  return webPushDeliveryService.removePushSubscription(subscriptionOrEndpoint);
-}
-
-async function sendPushNotification(payload, options = {}) {
-  return webPushDeliveryService.sendPushNotification(payload, options);
-}
-
 function appRouteUrl(params = {}) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -8045,154 +4308,6 @@ function appRouteUrl(params = {}) {
   }
   const serialized = query.toString();
   return serialized ? `/?${serialized}` : "/";
-}
-
-function taskDetailUrl(thread, message) {
-  return appRouteUrl({
-    view: "tasks",
-    workspaceId: thread?.workspaceId || "owner",
-    taskGroupId: message?.taskGroupId || "",
-    messageId: message?.id || "",
-  });
-}
-
-function terminalNotificationRoute(thread, message) {
-  const workspaceId = thread?.workspaceId || "owner";
-  if (thread?.singleWindow && message?.taskGroupId === SINGLE_WINDOW_CHAT_TASK_GROUP_ID) {
-    const params = { view: "single", workspaceId };
-    if (isWeixinSingleWindowThread(thread)) params.weixinChat = "1";
-    return {
-      url: appRouteUrl(params),
-      viewMode: "single",
-    };
-  }
-  return {
-    url: taskDetailUrl(thread, message),
-    viewMode: "tasks",
-  };
-}
-
-function todoDetailUrl(event) {
-  const principalId = event?.principalId || "";
-  return appRouteUrl({
-    view: "todos",
-    workspaceId: event?.workspaceId || workspaceIdForPrincipal(principalId),
-    todoId: event?.todoId || "",
-    messageType: event?.messageType || "",
-    localDate: event?.localDate || "",
-  });
-}
-
-function taskPromptForMessage(thread, message) {
-  const taskGroupId = message?.taskGroupId || "";
-  const user = [...(thread.messages || [])]
-    .reverse()
-    .find((item) => item.role === "user" && (!taskGroupId || item.taskGroupId === taskGroupId));
-  return compactText(String(user?.content || thread.title || "Hermes task"), 120).replace(/\s+/g, " ").trim();
-}
-
-function notificationBodyForMessage(thread, message, fallback) {
-  const prompt = taskPromptForMessage(thread, message);
-  const summary = compactText(String(message?.content || "").replace(/^Task ID:\s*\S+/i, "").trim(), 140)
-    .replace(/MEDIA:\s*\S+/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return summary || prompt || fallback;
-}
-
-function normalizeMentionAlias(value) {
-  return String(value || "")
-    .replace(/^@+/, "")
-    .trim()
-    .replace(/\s+/g, "")
-    .toLowerCase();
-}
-
-function trimMentionToken(value) {
-  return String(value || "")
-    .replace(/^[\s@]+/, "")
-    .replace(/[.,，。!！?？:：;；、)）\]】}>"'`]+$/g, "")
-    .trim();
-}
-
-function groupMentionCandidates(thread) {
-  return chatGroupMemberWorkspaceIds(thread).map((workspaceId) => {
-    const workspace = findWorkspace(workspaceId) || {};
-    const principalId = workspacePrincipal(workspaceId);
-    const label = workspaceLabel(workspaceId);
-    const aliases = dedupe([
-      workspaceId,
-      principalId,
-      label,
-      workspace.label,
-      workspace.name,
-    ].map((item) => String(item || "").trim()).filter(Boolean));
-    return { workspaceId, principalId, label, aliases };
-  });
-}
-
-function groupMentionWorkspaceIds(thread, text, senderWorkspaceId = "") {
-  const candidates = groupMentionCandidates(thread);
-  if (!candidates.length || !String(text || "").includes("@")) return [];
-  const byAlias = new Map();
-  for (const candidate of candidates) {
-    for (const alias of candidate.aliases || []) {
-      const normalized = normalizeMentionAlias(alias);
-      if (normalized) byAlias.set(normalized, candidate.workspaceId);
-    }
-  }
-  const mentioned = new Set();
-  const source = String(text || "").replace(/\u00a0/g, " ");
-  const tokenPattern = /@([^\s@]{1,80})/g;
-  let match = null;
-  while ((match = tokenPattern.exec(source))) {
-    const token = normalizeMentionAlias(trimMentionToken(match[1] || ""));
-    const workspaceId = token ? byAlias.get(token) : "";
-    if (workspaceId && workspaceId !== senderWorkspaceId) mentioned.add(workspaceId);
-  }
-  return [...mentioned];
-}
-
-function notifyGroupChatMentions(thread, userMessage) {
-  if (!thread?.singleWindow || userMessage?.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) {
-    return Promise.resolve([]);
-  }
-  const mentionedWorkspaceIds = groupMentionWorkspaceIds(thread, userMessage.content || "", userMessage.senderWorkspaceId || "");
-  if (!mentionedWorkspaceIds.length) return Promise.resolve([]);
-  const senderLabel = userMessage.senderLabel || workspaceLabel(userMessage.senderWorkspaceId || "") || "Hermes Mobile";
-  const body = compactText(String(userMessage.content || "").replace(/\s+/g, " ").trim(), 180);
-  const jobs = mentionedWorkspaceIds.map((workspaceId) => {
-    const principalId = workspacePrincipal(workspaceId);
-    return sendPushNotification({
-      title: "群聊 @你",
-      body: `${senderLabel}: ${body || "有人在群聊中提到了你"}`,
-      tag: `hermes-group-mention-${thread.id}-${userMessage.id}-${workspaceId}`,
-      renotify: true,
-      requireInteraction: true,
-      silent: false,
-      timestamp: Date.now(),
-      vibrate: [200, 100, 200],
-      data: {
-        url: appRouteUrl({ view: "single", workspaceId, groupChat: "1", threadId: thread.id, messageId: userMessage.id }),
-        viewMode: "single",
-        workspaceId,
-        principalId,
-        messageType: "group_mention",
-        threadId: thread.id,
-        messageId: userMessage.id,
-        senderWorkspaceId: userMessage.senderWorkspaceId || "",
-        requireInteraction: true,
-      },
-    }, {
-      principalIds: [principalId],
-      urgency: "high",
-      ttl: 24 * 60 * 60,
-    });
-  });
-  return Promise.all(jobs).catch((err) => {
-    console.error(`Hermes group mention Web Push send failed: ${err.message || String(err)}`);
-    return [];
-  });
 }
 
 function groupMessageRevoker(auth) {
@@ -8239,82 +4354,6 @@ function revokeGroupMessagePayload(message, now, revoker, text) {
   message.updatedAt = now;
 }
 
-function notifyTaskTerminal(thread, message, status) {
-  if (thread?.singleWindow && message?.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return;
-  const principalId = workspacePrincipal(thread.workspaceId || "owner");
-  const workspaceId = thread.workspaceId || workspaceIdForPrincipal(principalId) || "owner";
-  const messageType = status === "failed" ? "task_failed" : "task_completed";
-  const title = status === "failed" ? "\u4efb\u52a1\u5931\u8d25" : "\u4efb\u52a1\u5b8c\u6210";
-  const fallback = status === "failed" ? (message.error || "Task failed") : "Task completed";
-  const body = notificationBodyForMessage(thread, message, fallback);
-  const route = terminalNotificationRoute(thread, message);
-  sendPushNotification({
-    title,
-    body,
-    tag: `hermes-task-${message.id || message.runId || Date.now()}`,
-    renotify: true,
-    requireInteraction: true,
-    silent: false,
-    timestamp: Date.now(),
-    vibrate: [200, 100, 200],
-    data: {
-      url: route.url,
-      viewMode: route.viewMode,
-      workspaceId,
-      principalId,
-      messageType,
-      threadId: thread.id,
-      taskGroupId: message.taskGroupId || "",
-      messageId: message.id,
-      runId: message.runId || "",
-      status,
-      requireInteraction: true,
-    },
-  }, {
-    principalIds: [principalId],
-    urgency: "high",
-    ttl: 24 * 60 * 60,
-  }).catch((err) => {
-    console.error(`Hermes Mobile Push send failed: ${err.message || String(err)}`);
-  });
-}
-
-function activePushPrincipals() {
-  return webPushDeliveryService.activePushPrincipals();
-}
-
-function confirmedTodoPushMarkKeys() {
-  return webPushDeliveryService.confirmedTodoPushMarkKeys();
-}
-
-function todoPushPayload(event) {
-  return webPushDeliveryService.todoPushPayload(event);
-}
-
-async function markTodoWebPush(event, status, options = {}) {
-  return webPushDeliveryService.markTodoWebPush(event, status, options);
-}
-
-async function deliverTodoWebPushEvent(event) {
-  return webPushDeliveryService.deliverTodoWebPushEvent(event);
-}
-
-async function runTodoWebPushTick(options = {}) {
-  return webPushDeliveryService.runTodoWebPushTick(options);
-}
-
-function startTodoWebPushDispatcher() {
-  return webPushDeliveryService.startTodoWebPushDispatcher();
-}
-
-function scheduleBackgroundWebPushDispatcher(tick, interval, initialDelay) {
-  return webPushDeliveryService.scheduleBackgroundWebPushDispatcher(tick, interval, initialDelay);
-}
-
-function automationOwnerPrincipal(job) {
-  return String(job?.ownerPrincipalId || "").trim() || "owner";
-}
-
 function workspaceIdForPrincipal(principalId) {
   const principal = String(principalId || "owner").trim() || "owner";
   const workspace = loadCatalog().workspaces.find((item) => {
@@ -8322,88 +4361,6 @@ function workspaceIdForPrincipal(principalId) {
     return item.id === principal || itemPrincipal === principal;
   });
   return workspace?.id || (principal === "owner" ? "owner" : principal);
-}
-
-function automationTitleForPush(job) {
-  return compactText(job?.name || job?.id || "Hermes CRON", 120).replace(/\s+/g, " ").trim() || "Hermes CRON";
-}
-
-function automationTimeMs(value) {
-  const parsed = Date.parse(String(value || ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function automationDeliverableExtension(doc) {
-  return path.extname(String(doc?.name || "")).toLowerCase();
-}
-
-function automationDeliverableTimeMs(doc) {
-  return Math.max(
-    automationTimeMs(doc?.runOutputUpdatedAt),
-    automationTimeMs(doc?.updatedAt),
-  );
-}
-
-function automationLatestDeliverableTimeMs(job) {
-  return webPushDeliveryService.automationLatestDeliverableTimeMs(job);
-}
-
-function automationListSortByLatestDeliverable(left, right) {
-  return webPushDeliveryService.automationListSortByLatestDeliverable(left, right);
-}
-
-function automationPushMarkDeliverableTimeMs(mark) {
-  if (!mark || typeof mark !== "object") return 0;
-  return Math.max(
-    automationTimeMs(mark.deliverableTimeAt),
-    automationTimeMs(mark.deliverableUpdatedAt),
-    automationTimeMs(mark.runOutputUpdatedAt),
-  );
-}
-
-function automationLatestDeliverableForPush(job, existingMark = null) {
-  return webPushDeliveryService.automationLatestDeliverableForPush(job, existingMark);
-}
-
-function automationPushSignature(job, latestDoc = null) {
-  return webPushDeliveryService.automationPushSignature(job, latestDoc);
-}
-
-function automationPushMarkSignature(mark) {
-  if (!mark) return "";
-  if (typeof mark === "string") return mark;
-  if (typeof mark === "object") return String(mark.signature || "");
-  return "";
-}
-
-function isRecentInitialAutomationDeliverable(latestDoc = null) {
-  const docTimeMs = automationDeliverableTimeMs(latestDoc);
-  if (!docTimeMs) return false;
-  return Date.now() - docTimeMs <= Math.max(0, AUTOMATION_PUSH_INITIAL_LOOKBACK_MS);
-}
-
-function setAutomationPushMark(job, signature, latestDoc = null) {
-  return webPushDeliveryService.setAutomationPushMark(job, signature, latestDoc);
-}
-
-function automationPushEventForJob(job, latestDoc, signature) {
-  return webPushDeliveryService.automationPushEventForJob(job, latestDoc, signature);
-}
-
-async function runAutomationWebPushTick(options = {}) {
-  return webPushDeliveryService.runAutomationWebPushTick(options);
-}
-
-function startAutomationWebPushDispatcher() {
-  return webPushDeliveryService.startAutomationWebPushDispatcher();
-}
-
-function notifyTodoCreated(result, sourcePrincipal = '') {
-  return webPushDeliveryService.notifyTodoCreated(result, sourcePrincipal);
-}
-
-async function hermesRequest(apiPath, options = {}) {
-  return singleGatewayRunner().request(apiPath, options);
 }
 
 async function getHermesStatus() {
@@ -8478,111 +4435,47 @@ function deriveTitle(text) {
   return conversationHistoryService.deriveTitle(text);
 }
 
-async function startRunForThread(thread, userMessage, assistantMessage, options = {}) {
-  const actorWorkspaceId = String(options.actorWorkspaceId || userMessage.senderWorkspaceId || thread.workspaceId || "owner").trim() || "owner";
-  assertRunConcurrencyCapacity(actorWorkspaceId);
-  assistantMessage.actorWorkspaceId = actorWorkspaceId;
-  const requestedGatewayRouting = Object.assign({}, options.gatewayRouting || {});
-  const policyHardeningOptions = accessPolicyHardeningOptionsForGatewayRouting(requestedGatewayRouting);
-  const policyThread = actorWorkspaceId === thread.workspaceId
-    ? thread
-    : Object.assign({}, thread, {
-      workspaceId: actorWorkspaceId,
-      projectId: SINGLE_WINDOW_PROJECT_ID,
-      subprojectId: "",
+function getGatewayRunStartService() {
+  if (!gatewayRunStartService) {
+    gatewayRunStartService = createGatewayRunStartService({
+      accessPolicyHardeningOptionsForGatewayRouting,
+      addThreadActiveRun,
+      assertRunConcurrencyCapacity,
+      buildAccessPolicy,
+      buildConversationHistory,
+      buildHermesInstructions,
+      chooseGatewayRunTarget,
+      compactMessage,
+      dedupe,
+      effectiveProjectForThread,
+      findWorkspace,
+      gatewayConversationId,
+      gatewaySkillRoutingForWorkspace,
+      groupChatDeliveryRootForThread,
+      groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+      makePublicTaskId,
+      mergeAccessPolicyOverride,
+      mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
+      nowIso,
+      projectForTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().projectForTaskDirectoryAttachment(...args),
+      removeThreadActiveRun,
+      sanitizePolicy,
+      saveState,
+      singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
+      streamResponse,
+      taskDirectoryAttachmentForMessage: (...args) => getSemanticDirectoryAttachmentService().taskDirectoryAttachmentForMessage(...args),
+      threadSummary,
+      toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
+      windowsPathToWsl,
+      ensureGroupChatSharedArtifactCopies,
+      broadcast,
     });
-  const taskDirectory = taskDirectoryAttachmentForMessage(thread, userMessage);
-  const project = taskDirectory ? projectForTaskDirectoryAttachment(thread, taskDirectory) : effectiveProjectForThread(policyThread);
-  const workspace = findWorkspace(actorWorkspaceId);
-  let policy = buildAccessPolicy(workspace?.policy || workspace || {}, {}, project, policyHardeningOptions);
-  const groupChatDeliveryRoot = thread.singleWindow && userMessage.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
-    ? groupChatDeliveryRootForThread(thread)
-    : "";
-  const groupChatDeliveryRootForModel = groupChatDeliveryRoot ? windowsPathToWsl(groupChatDeliveryRoot) : "";
-  const groupChatAttachmentCopies = groupChatDeliveryRoot
-    ? ensureGroupChatSharedArtifactCopies(thread, userMessage, groupChatDeliveryRoot)
-    : [];
-  if (groupChatDeliveryRoot) {
-    fs.mkdirSync(groupChatDeliveryRoot, { recursive: true });
-    policy.allowed_roots = dedupe([...(policy.allowed_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
-    policy.delivery_roots = dedupe([...(policy.delivery_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
-    policy.cache_roots = dedupe([...(policy.cache_roots || []), groupChatDeliveryRootForModel, groupChatDeliveryRoot].filter(Boolean));
   }
-  policy = sanitizePolicy(policy, policyHardeningOptions);
-  const runPolicy = options.access_policy_context && typeof options.access_policy_context === "object"
-    ? sanitizePolicy(mergeAccessPolicyOverride(policy, options.access_policy_context), policyHardeningOptions)
-    : policy;
-  const taskId = makePublicTaskId("web");
-  const body = {
-    input: userMessage.content,
-    stream: true,
-    store: true,
-    conversation: gatewayConversationId(thread, userMessage, runPolicy),
-    conversation_history: buildConversationHistory(thread, userMessage.id, runPolicy),
-    instructions: [
-      buildHermesInstructions(
-        policyThread,
-        runPolicy,
-        project,
-        userMessage.content,
-        taskDirectory,
-        Object.assign({}, options, { groupChatDeliveryRoot: groupChatDeliveryRootForModel, groupChatAttachmentCopies }),
-      ),
-      options.instructions || "",
-    ].filter(Boolean).join("\n\n"),
-    access_policy_context: runPolicy,
-  };
-  if (options.model) body.model = options.model;
-  if (options.reasoning_effort) body.reasoning_effort = options.reasoning_effort;
-  if (options.reasoning && typeof options.reasoning === "object") body.reasoning = options.reasoning;
-  assistantMessage.runOptions = Object.assign({}, assistantMessage.runOptions || {}, {
-    access_policy_context: runPolicy,
-    gatewayConversation: body.conversation,
-    toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
-  });
+  return gatewayRunStartService;
+}
 
-  const gatewayRouting = Object.assign({}, requestedGatewayRouting, {
-    purpose: "user_run",
-    workspaceId: actorWorkspaceId,
-    taskGroupId: userMessage.taskGroupId || "",
-    model: body.model || "",
-    reasoning_effort: body.reasoning_effort || "",
-  });
-  Object.assign(gatewayRouting, gatewaySkillRoutingForWorkspace(actorWorkspaceId, gatewayRouting));
-
-  const gatewayTarget = await chooseGatewayRunTarget(gatewayRouting);
-  const startedAt = nowIso();
-  const gatewayUrl = gatewayTarget.apiBase;
-  assistantMessage.runId = taskId;
-  assistantMessage.taskId = taskId;
-  assistantMessage.gatewayUrl = gatewayUrl;
-  assistantMessage.gatewayName = gatewayTarget.name || "";
-  assistantMessage.gatewayProfile = gatewayTarget.profile || "";
-  assistantMessage.gatewaySource = gatewayTarget.source || "";
-  assistantMessage.status = "running";
-  assistantMessage.startedAt = assistantMessage.startedAt || startedAt;
-  assistantMessage.updatedAt = startedAt;
-  addThreadActiveRun(thread, taskId);
-  thread.status = "running";
-  thread.updatedAt = startedAt;
-  saveState();
-  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-  streamResponse(taskId, thread.id, assistantMessage.id, body, {
-    gatewayUrl,
-    gatewayApiKey: gatewayTarget.apiKey || "",
-    gatewayName: gatewayTarget.name || "",
-    gatewayProfile: gatewayTarget.profile || "",
-    gatewaySource: gatewayTarget.source || "",
-  });
-  return {
-    run_id: taskId,
-    status: "started",
-    engine: "responses",
-    gatewayUrl,
-    gatewayName: gatewayTarget.name || "",
-    gatewayProfile: gatewayTarget.profile || "",
-    gatewaySource: gatewayTarget.source || "",
-  };
+async function startRunForThread(thread, userMessage, assistantMessage, options = {}) {
+  return getGatewayRunStartService().startRunForThread(thread, userMessage, assistantMessage, options);
 }
 
 function makePublicTaskId(prefix) {
@@ -8677,147 +4570,81 @@ function scheduleNextQueuedRunForTaskGroup(thread, taskGroupId) {
 }
 
 async function stopRunIds(runIds) {
-  const stopped = [];
-  for (const runId of dedupe((runIds || []).filter(Boolean))) {
-    const stream = activeStreams.get(runId);
-    if (stream?.controller) {
-      stream.controller.abort();
-      stopped.push(runId);
-    } else {
-      try {
-        const target = gatewayTargetForRun(runId);
-        await gatewayPool().runnerFor(target).stopRun(runId, {
-          gatewayUrl: target.apiBase,
-          apiKey: target.apiKey,
-        });
-      } catch (err) {
-        if (err.status !== 404) throw err;
-      }
-      stopped.push(runId);
-    }
-  }
-  return stopped;
+  return getGatewayRunStreamService().stopRunIds(runIds);
 }
 
 function gatewayUrlForRun(runId) {
-  const active = activeStreams.get(runId);
-  if (active?.gatewayUrl) return active.gatewayUrl;
-  for (const thread of state.threads || []) {
-    const message = (thread.messages || []).find((item) => item.runId === runId);
-    if (message?.gatewayUrl) return String(message.gatewayUrl || "");
+  return getGatewayRunStreamService().gatewayUrlForRun(runId);
+}
+
+function getGatewayRunStreamService() {
+  if (!gatewayRunStreamService) {
+    gatewayRunStreamService = createGatewayRunStreamService({
+      activeStreams,
+      apiTimeoutMs: HERMES_API_TIMEOUT_MS,
+      dedupe,
+      gatewayPool,
+      gatewayUrlForRun: (...args) => getRuntimeStateThreadService().storedGatewayUrlForRun(...args),
+      livenessDecisionAfterCheck: gatewayRunLifecycleService.livenessDecisionAfterCheck,
+      logger: console,
+      markRunCancelled,
+      markRunFailed,
+      nowMs: () => Date.now(),
+      onHermesRunEvent: applyHermesRunEvent,
+      runLivenessCheckAfterMs: RUN_LIVENESS_CHECK_AFTER_MS,
+      runLivenessCheckIntervalMs: RUN_LIVENESS_CHECK_INTERVAL_MS,
+      runLivenessStaleAfterMs: RUN_LIVENESS_STALE_AFTER_MS,
+      runStartTimeoutMs: RUN_START_TIMEOUT_MS,
+      singleGatewayRunner,
+    });
   }
-  return "";
+  return gatewayRunStreamService;
 }
 
 function abortActiveStreamAsFailed(publicRunId, reason) {
-  const stream = activeStreams.get(publicRunId);
-  if (!stream || stream.failureReason) return;
-  stream.failureReason = reason;
-  try {
-    stream.controller.abort();
-  } catch (_) {}
+  return getGatewayRunStreamService().abortActiveStreamAsFailed(publicRunId, reason);
 }
 
 async function checkActiveStreamLiveness(publicRunId) {
-  const stream = activeStreams.get(publicRunId);
-  if (!stream) return;
-  const now = Date.now();
-  if (!stream.realRunId) {
-    if (RUN_START_TIMEOUT_MS > 0 && now - stream.startedAt >= RUN_START_TIMEOUT_MS) {
-      abortActiveStreamAsFailed(publicRunId, `Hermes Gateway did not create a run within ${Math.round(RUN_START_TIMEOUT_MS / 1000)} seconds; the queued task was released.`);
-    }
-    return;
-  }
-  if (RUN_LIVENESS_CHECK_AFTER_MS > 0 && now - stream.lastEventAt < RUN_LIVENESS_CHECK_AFTER_MS) return;
-  try {
-    const target = gatewayTargetForRun(publicRunId);
-    await gatewayPool().runnerFor(target).checkRun(stream.realRunId, {
-      gatewayUrl: target.apiBase,
-      apiKey: target.apiKey,
-      signal: AbortSignal.timeout(Math.max(1000, HERMES_API_TIMEOUT_MS)),
-    });
-    stream.livenessMisses = 0;
-    stream.lastLivenessWarningAt = 0;
-  } catch (err) {
-    const decision = gatewayRunLifecycleService.livenessDecisionAfterCheck({
-      status: err.status,
-      nowMs: now,
-      lastEventAtMs: stream.lastEventAt,
-      staleAfterMs: RUN_LIVENESS_STALE_AFTER_MS,
-      livenessMisses: stream.livenessMisses,
-      lastWarningAtMs: stream.lastLivenessWarningAt,
-    });
-    if (decision.action === "ignore_error") return;
-    stream.livenessMisses = decision.livenessMisses;
-    if (decision.shouldAbort) {
-      abortActiveStreamAsFailed(publicRunId, `Hermes Gateway no longer reports run ${stream.realRunId} after ${Math.round(decision.elapsedMs / 1000)} seconds without response events; the Web task was marked stale and the queue was released.`);
-      return;
-    }
-    if (decision.shouldWarn) {
-      stream.lastLivenessWarningAt = decision.lastWarningAt;
-      console.warn(`Hermes Mobile run liveness check got 404 for ${stream.realRunId}; keeping the active stream open because long-running Gateway tools can be absent from /v1/runs.`);
-    }
-  }
+  return getGatewayRunStreamService().checkActiveStreamLiveness(publicRunId);
 }
 
 function streamResponse(runId, threadId, messageId, body, options = {}) {
-  if (activeStreams.has(runId)) return;
-  const controller = new AbortController();
-  const streamState = {
-    threadId,
-    messageId,
-    controller,
-    engine: "responses",
-    gatewayUrl: options.gatewayUrl || singleGatewayRunner().apiBase(),
-    gatewayApiKey: options.gatewayApiKey || "",
-    gatewayName: options.gatewayName || "",
-    gatewayProfile: options.gatewayProfile || "",
-    gatewaySource: options.gatewaySource || "",
-    startedAt: Date.now(),
-    lastEventAt: Date.now(),
-    livenessTimer: null,
-    livenessMisses: 0,
-    lastLivenessWarningAt: 0,
-    failureReason: "",
-  };
-  if (RUN_LIVENESS_CHECK_INTERVAL_MS > 0) {
-    streamState.livenessTimer = setInterval(() => {
-      checkActiveStreamLiveness(runId).catch((err) => {
-        console.error(`Hermes Mobile run liveness check failed: ${err.message || String(err)}`);
-      });
-    }, Math.max(5000, RUN_LIVENESS_CHECK_INTERVAL_MS));
-    if (typeof streamState.livenessTimer.unref === "function") streamState.livenessTimer.unref();
-  }
-  activeStreams.set(runId, streamState);
-  readResponseEvents(runId, body, controller.signal)
-    .then(() => {
-      const stream = activeStreams.get(runId);
-      const visibleRunId = stream?.realRunId || runId;
-      markRunFailed(threadId, messageId, visibleRunId, new Error("Hermes stream ended without a terminal completion event; please rerun the task."));
-    })
-    .catch((err) => {
-      const stream = activeStreams.get(runId);
-      const visibleRunId = stream?.realRunId || runId;
-      if (controller.signal.aborted && stream?.failureReason) markRunFailed(threadId, messageId, visibleRunId, new Error(stream.failureReason));
-      else if (controller.signal.aborted) markRunCancelled(threadId, messageId, visibleRunId);
-      else markRunFailed(threadId, messageId, visibleRunId, err);
-    })
-    .finally(() => {
-      const stream = activeStreams.get(runId);
-      if (stream?.livenessTimer) clearInterval(stream.livenessTimer);
-      if (stream?.realRunId) activeStreams.delete(stream.realRunId);
-      activeStreams.delete(runId);
-    });
+  return getGatewayRunStreamService().streamResponse(runId, threadId, messageId, body, options);
 }
 
 async function readResponseEvents(runId, body, signal) {
-  const target = gatewayTargetForRun(runId);
-  await gatewayPool().runnerFor(target).streamResponses(body, {
-    signal,
-    gatewayUrl: target.apiBase,
-    apiKey: target.apiKey,
-    onEvent: (event) => applyHermesRunEvent(Object.assign({ run_id: runId }, event)),
-  });
+  return getGatewayRunStreamService().readResponseEvents(runId, body, signal);
+}
+
+function getGatewayRunEventService() {
+  if (!gatewayRunEventService) {
+    gatewayRunEventService = createGatewayRunEventService({
+      activeStreams,
+      addThreadEvent,
+      appendBounded,
+      broadcast,
+      compactFullContent,
+      compactMessage,
+      enqueueExternalDeliveryForTerminalMessage,
+      isOrdinaryToolSchemaElevationRequest,
+      maxMessageChars: MAX_MESSAGE_CHARS,
+      modelPermissionApprovalRequest,
+      nowIso,
+      nowMs: () => Date.now(),
+      notifyTaskTerminal: (...args) => webPushDeliveryService.notifyTaskTerminal(...args),
+      registerArtifactsFromText,
+      removeThreadActiveRun,
+      replaceThreadActiveRun,
+      saveState,
+      scheduleNextQueuedRunForTaskGroup,
+      state: () => state,
+      stripPermissionApprovalMarkers,
+      supplementGatewayUsage,
+      threadSummary,
+    });
+  }
+  return gatewayRunEventService;
 }
 
 function parseSseFrame(frame) {
@@ -8840,13 +4667,7 @@ function parseSseFrame(frame) {
 }
 
 function findRunTarget(runId) {
-  const active = activeStreams.get(runId);
-  if (active) return active;
-  for (const thread of state.threads) {
-    const msg = (thread.messages || []).find((item) => item.runId === runId);
-    if (msg) return { threadId: thread.id, messageId: msg.id };
-  }
-  return null;
+  return getGatewayRunEventService().findRunTarget(runId);
 }
 
 function supplementGatewayUsage(usage, runId, message = {}) {
@@ -8861,211 +4682,23 @@ function supplementGatewayUsage(usage, runId, message = {}) {
 }
 
 function applyHermesRunEvent(event) {
-  const eventName = String(event.event || event.type || "");
-  const originalRunId = event.run_id || event.runId || "";
-  const responseRunId = event.response?.id || "";
-  const runId = eventName === "response.created" ? (originalRunId || responseRunId) : (responseRunId || originalRunId);
-  const streamForEvent = activeStreams.get(runId) || activeStreams.get(originalRunId) || activeStreams.get(responseRunId);
-  if (streamForEvent) streamForEvent.lastEventAt = Date.now();
-  const target = findRunTarget(runId);
-  if (!target) return;
-  const thread = state.threads.find((item) => item.id === target.threadId);
-  if (!thread) return;
-  const message = (thread.messages || []).find((item) => item.id === target.messageId);
-  if (!message) return;
-
-  if (eventName === "response.created" && event.response?.id) {
-    const realId = String(event.response.id);
-    if (realId && realId !== runId) {
-      const stream = activeStreams.get(runId);
-      if (stream) stream.realRunId = realId;
-      activeStreams.set(realId, stream);
-      message.runId = realId;
-      replaceThreadActiveRun(thread, runId, realId);
-    }
-    saveState();
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(message), thread: threadSummary(thread) });
-    return;
-  }
-
-  if (eventName === "message.delta" || eventName === "response.output_text.delta") {
-    const delta = String(event.delta || event.text || "");
-    if (delta) {
-      const feedbackAt = nowIso();
-      message.content = appendBounded(message.content || "", delta, MAX_MESSAGE_CHARS);
-      if (!message.firstFeedbackAt) message.firstFeedbackAt = feedbackAt;
-      message.updatedAt = feedbackAt;
-      thread.updatedAt = feedbackAt;
-      saveState();
-      broadcast({
-        type: "message.delta",
-        threadId: thread.id,
-        messageId: message.id,
-        delta,
-        firstFeedbackAt: message.firstFeedbackAt,
-        updatedAt: message.updatedAt,
-        thread: threadSummary(thread),
-      });
-    }
-    return;
-  }
-
-  if (eventName === "response.output_item.added" || eventName === "response.output_item.done") {
-    const item = event.item || {};
-    addThreadEvent(thread, {
-      event: eventName,
-      timestamp: Date.now() / 1000,
-      runId,
-      tool: item.name || item.type || "",
-      preview: item.arguments || item.output || "",
-      error: false,
-    });
-    saveState();
-    broadcast({ type: "run.event", threadId: thread.id, runId, event: thread.events[thread.events.length - 1], thread: threadSummary(thread) });
-    return;
-  }
-
-  addThreadEvent(thread, event);
-
-  if (eventName === "run.completed" || eventName === "response.completed") {
-    const output = extractCompletedOutput(event) || String(message.content || "");
-    const approvalRequest = modelPermissionApprovalRequest(output, message);
-    const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
-    const visibleOutput = approvalRequest ? stripPermissionApprovalMarkers(output) : output;
-    const completedAt = nowIso();
-    message.content = compactFullContent(visibleOutput || output);
-    message.status = "done";
-    message.usage = supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message);
-    if (validApprovalRequest) {
-      message.elevationRequired = true;
-      message.elevationScope = validApprovalRequest.elevationScope;
-      message.elevationReason = validApprovalRequest.elevationReason;
-      message.elevationSource = validApprovalRequest.elevationSource;
-    } else {
-      message.elevationRequired = false;
-      message.elevationScope = "";
-      message.elevationReason = "";
-      message.elevationSource = "";
-    }
-    if (!message.firstFeedbackAt && (visibleOutput || output)) message.firstFeedbackAt = completedAt;
-    message.completedAt = completedAt;
-    message.updatedAt = completedAt;
-    message.artifacts = registerArtifactsFromText(thread, message, visibleOutput || output);
-    enqueueExternalDeliveryForTerminalMessage(thread, message, "done");
-    removeThreadActiveRun(thread, runId, "idle");
-    thread.updatedAt = completedAt;
-    saveState();
-    broadcast({ type: "run.completed", threadId: thread.id, runId, message: compactMessage(message), thread: threadSummary(thread) });
-    notifyTaskTerminal(thread, message, "done");
-    scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);
-    return;
-  }
-
-  if (eventName === "run.failed" || eventName === "response.failed") {
-    const failedAt = nowIso();
-    message.status = "failed";
-    message.error = String(event.error?.message || event.error || "run failed");
-    message.failedAt = failedAt;
-    message.updatedAt = failedAt;
-    enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
-    removeThreadActiveRun(thread, runId, "failed");
-    thread.updatedAt = failedAt;
-    saveState();
-    broadcast({ type: "run.failed", threadId: thread.id, runId, message: compactMessage(message), thread: threadSummary(thread) });
-    notifyTaskTerminal(thread, message, "failed");
-    scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);
-    return;
-  }
-
-  if (eventName === "run.cancelled" || eventName === "response.incomplete") {
-    markRunCancelled(thread.id, message.id, runId);
-    return;
-  }
-
-  saveState();
-  broadcast({ type: "run.event", threadId: thread.id, runId, event: thread.events[thread.events.length - 1], thread: threadSummary(thread) });
+  return getGatewayRunEventService().applyHermesRunEvent(event);
 }
 
 function extractCompletedOutput(event) {
-  if (event.output) return String(event.output);
-  const response = event.response || {};
-  const chunks = [];
-  for (const item of Array.isArray(response.output) ? response.output : []) {
-    if (item.type !== "message") continue;
-    for (const part of Array.isArray(item.content) ? item.content : []) {
-      if (part.type === "output_text" && part.text) chunks.push(String(part.text));
-    }
-  }
-  return chunks.join("\n\n").trim();
+  return getGatewayRunEventService().extractCompletedOutput(event);
 }
 
 function markRunFailed(threadId, messageId, runId, err) {
-  const thread = state.threads.find((item) => item.id === threadId);
-  if (!thread) return;
-  const message = (thread.messages || []).find((item) => item.id === messageId);
-  if (!message || ["done", "failed", "cancelled"].includes(message.status)) return;
-  const failedAt = nowIso();
-  message.status = "failed";
-  message.error = err.message || String(err);
-  message.failedAt = failedAt;
-  message.updatedAt = failedAt;
-  enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
-  removeThreadActiveRun(thread, runId, "failed");
-  thread.updatedAt = failedAt;
-  saveState();
-  broadcast({ type: "run.failed", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
-  notifyTaskTerminal(thread, message, "failed");
-  scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);
+  return getGatewayRunEventService().markRunFailed(threadId, messageId, runId, err);
 }
 
 function markRunCancelled(threadId, messageId, runId) {
-  const thread = state.threads.find((item) => item.id === threadId);
-  if (!thread) return;
-  const message = (thread.messages || []).find((item) => item.id === messageId);
-  if (!message || ["done", "failed", "cancelled"].includes(message.status)) return;
-  const cancelledAt = nowIso();
-  message.status = "cancelled";
-  message.cancelledAt = cancelledAt;
-  message.updatedAt = cancelledAt;
-  removeThreadActiveRun(thread, runId, "idle");
-  thread.updatedAt = cancelledAt;
-  saveState();
-  broadcast({ type: "run.cancelled", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
-  scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);
+  return getGatewayRunEventService().markRunCancelled(threadId, messageId, runId);
 }
 
 function reconcileDetachedActiveRuns(reason = "Hermes Mobile restarted while this task was running; the result stream is no longer attached. Please rerun the task.") {
-  let changed = false;
-  const failedAt = nowIso();
-  for (const thread of state.threads || []) {
-    let threadChanged = false;
-    for (const message of thread.messages || []) {
-      if (!["queued", "running"].includes(String(message.status || ""))) continue;
-      const runId = String(message.runId || "");
-      if (message.status === "queued" && !runId) continue;
-      if (runId && activeStreams.has(runId)) continue;
-      message.status = "failed";
-      message.error = reason;
-      message.failedAt = failedAt;
-      message.updatedAt = failedAt;
-      enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
-      if (runId) removeThreadActiveRun(thread, runId, "failed");
-      changed = true;
-      threadChanged = true;
-      broadcast({ type: "run.failed", threadId: thread.id, runId, message: compactMessage(message), thread: threadSummary(thread) });
-    }
-    if (!thread.activeRunIds?.length && thread.status === "running") thread.status = "failed";
-    if (threadChanged) thread.updatedAt = failedAt;
-  }
-  if (changed) saveState();
-  for (const thread of state.threads || []) {
-    if ((thread.activeRunIds || []).length) continue;
-    const queued = (thread.messages || []).find((message) => (
-      message.role === "assistant" && message.status === "queued" && !message.runId && message.taskGroupId
-    ));
-    if (queued) scheduleNextQueuedRunForTaskGroup(thread, queued.taskGroupId);
-  }
-  return changed;
+  return getGatewayRunEventService().reconcileDetachedActiveRuns(reason);
 }
 
 function appendBounded(current, delta, maxChars) {
@@ -9079,45 +4712,7 @@ function compactFullContent(value) {
 }
 
 function registerArtifactsFromText(thread, message, text) {
-  const paths = extractArtifactPaths(text);
-  const artifacts = [];
-  for (const rawPath of paths) {
-    const localPath = normalizeLocalPath(rawPath);
-    if (!localPath || !fs.existsSync(localPath) || !isPathAllowedForThread(thread, localPath, rawPath)) continue;
-    const existing = state.artifacts.find((item) => samePath(item.path, localPath) || samePath(item.displayPath, rawPath));
-    const stat = fs.statSync(localPath);
-    const artifact = existing || {
-      id: makeId("artifact"),
-      path: localPath,
-      displayPath: String(rawPath || localPath),
-      name: path.basename(localPath),
-      mime: mimeFor(localPath),
-      size: stat.size,
-      createdAt: nowIso(),
-      workspaceId: thread.workspaceId,
-      projectId: thread.projectId,
-      subprojectId: thread.subprojectId || "",
-      threadId: thread.id,
-      messageId: message.id,
-    };
-    artifact.size = stat.size;
-    artifact.threadId = thread.id;
-    artifact.messageId = message.id;
-    artifact.updatedAt = nowIso();
-    if (!existing) state.artifacts.push(artifact);
-    artifacts.push({
-      id: artifact.id,
-      name: artifact.name,
-      mime: artifact.mime,
-      size: artifact.size,
-      url: `/api/artifacts/${encodeURIComponent(artifact.id)}`,
-    });
-  }
-  return artifacts;
-}
-
-function samePath(a, b) {
-  return path.resolve(String(a || "")).toLowerCase() === path.resolve(String(b || "")).toLowerCase();
+  return getArtifactTextRegistrationService().registerArtifactsFromText(thread, message, text);
 }
 
 function extractArtifactPaths(text) {
@@ -9149,283 +4744,30 @@ function isDirectoryBrowserPathAllowedForThread(thread, localPath, originalPath 
   return pathPolicyProvider.canBrowseDirectoryForThread(thread, localPath, originalPath).allowed;
 }
 
-function directoryAliasKey(value) {
-  return String(value || "")
-    .replace(/^目录别名\s*[:：]\s*/, "")
-    .replace(/^`+|`+$/g, "")
-    .replace(/\s*\/\s*/g, "/")
-    .replace(/\s+/g, "")
-    .toLowerCase();
-}
-
-function directoryAliasLabels(project, parentLabel = "") {
-  const labels = [
-    project.label,
-    ...(project.aliases || []),
-  ].filter(Boolean);
-  if (parentLabel && project.label) labels.push(`${parentLabel} / ${project.label}`);
-  return labels;
-}
-
-function resolveDirectoryAlias(thread, alias) {
-  const key = directoryAliasKey(alias);
-  if (!key) return null;
-  const projects = allProjectsForWorkspaceSync(thread.workspaceId).filter((project) => !project.hidden);
-  for (const project of projects) {
-    for (const label of directoryAliasLabels(project)) {
-      if (directoryAliasKey(label) === key && project.root) return { label, path: project.root };
-    }
-    for (const child of project.children || []) {
-      const parentLabel = project.label || "";
-      for (const label of directoryAliasLabels(child, parentLabel)) {
-        if (directoryAliasKey(label) === key && child.root) return { label, path: child.root };
-      }
-    }
+function getDirectoryBrowserBoundaryService() {
+  if (!directoryBrowserBoundaryService) {
+    directoryBrowserBoundaryService = createDirectoryBrowserBoundaryService({
+      allProjectsForWorkspaceSync,
+      authCanAccessWorkspace,
+      chatGroupMemberWorkspaceIds,
+      comparablePath,
+      dedupe,
+      isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
+      isOwnerAuth,
+      logicalDirectoryDisplayPath: (...args) => workspaceDisplayPathService.logicalDirectoryDisplayPath(...args),
+      mimeFor,
+      normalizeLocalPath,
+      normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
+      pathDirectChildOfRoot,
+      pathInsideAnyRoot,
+      pathPolicyProvider,
+      policyForThread,
+      runDirectoryBridge,
+      sharedDirectoryProvider,
+      sharedDirectoryRoots,
+    });
   }
-  return null;
-}
-
-function resolveBrowserPath(thread, query) {
-  const rawPath = String(query.get("path") || "").trim();
-  const alias = String(query.get("alias") || "").trim();
-  const aliasResolved = alias ? resolveDirectoryAlias(thread, alias) : null;
-  const resolved = aliasResolved || (rawPath ? { label: alias || path.basename(rawPath), path: rawPath } : null);
-  if (!resolved?.path) return null;
-  const localPath = normalizeLocalPath(resolved.path);
-  if (!localPath || !fs.existsSync(localPath)) return null;
-  if (!isDirectoryBrowserPathAllowedForThread(thread, localPath, resolved.path)) return null;
-  const label = resolved.label || path.basename(localPath);
-  return {
-    label,
-    displayPath: resolved.path,
-    workspacePath: logicalDirectoryDisplayPath(thread, resolved.path, label),
-    localPath,
-  };
-}
-
-async function resolveVolume1RemoteBrowserPath(thread, fallback) {
-  const displayPath = String(fallback?.path || "").trim();
-  if (!displayPath.startsWith("/volume1/")) return null;
-  if (!isDirectoryBrowserPathAllowedForThread(thread, "", displayPath)) return null;
-
-  let result;
-  try {
-    result = await runDirectoryBridge({ action: "stat", path: displayPath });
-  } catch (_) {
-    return null;
-  }
-  if (!result?.ok || !result.entry) return null;
-  const label = fallback?.label || result.entry.name || path.basename(displayPath);
-  return {
-    label,
-    displayPath,
-    workspacePath: logicalDirectoryDisplayPath(thread, displayPath, label),
-    localPath: "",
-    remote: "wsl",
-    remotePath: displayPath,
-    remoteEntry: result.entry,
-  };
-}
-
-async function resolveBrowserPathAsync(thread, query) {
-  const rawPath = String(query.get("path") || "").trim();
-  const alias = String(query.get("alias") || "").trim();
-  const aliasResolved = alias ? resolveDirectoryAlias(thread, alias) : null;
-  const fallback = aliasResolved || (rawPath ? { label: alias || path.basename(rawPath), path: rawPath } : null);
-
-  const remoteVolume1 = await resolveVolume1RemoteBrowserPath(thread, fallback);
-  if (remoteVolume1) return remoteVolume1;
-
-  return resolveBrowserPath(thread, query);
-}
-
-function directoryRequestParams(body = {}) {
-  const params = new URLSearchParams();
-  for (const name of ["threadId", "path", "alias"]) {
-    const value = String(body[name] || "").trim();
-    if (value) params.set(name, value);
-  }
-  return params;
-}
-
-function assertChildPathInside(parentPath, childPath) {
-  return pathPolicyProvider.assertChildPathInside(parentPath, childPath);
-}
-
-function protectedDirectoryRoots(thread) {
-  const policy = policyForThread(thread);
-  const roots = [
-    policy.default_workspace,
-    policy.sync_root,
-    policy.download_root,
-    ...(policy.allowed_roots || []),
-    ...(policy.delivery_roots || []),
-    ...allProjectsForWorkspaceSync(thread.workspaceId)
-      .flatMap((project) => [project.root, ...(project.children || []).map((child) => child.root)]),
-  ].filter(Boolean);
-  return dedupe(roots.flatMap((root) => [root, normalizeLocalPath(root)].filter(Boolean)));
-}
-
-function isProtectedDirectoryRoot(thread, localPath, displayPath = "") {
-  const localKey = comparablePath(localPath);
-  const displayKey = comparablePath(displayPath);
-  return protectedDirectoryRoots(thread).some((root) => {
-    const key = comparablePath(root);
-    return key && (key === localKey || key === displayKey);
-  });
-}
-
-function directoryRootProjectForPathSync(thread, localPath, displayPath = "") {
-  const localKey = comparablePath(localPath);
-  const displayKey = comparablePath(displayPath);
-  return allProjectsForWorkspaceSync(thread.workspaceId).find((project) => {
-    const key = comparablePath(project?.root);
-    return key && (key === localKey || key === displayKey);
-  }) || null;
-}
-
-function isDeletableWorkspaceRootChild(thread, localPath, displayPath = "") {
-  const policy = policyForThread(thread);
-  const defaultWorkspace = policy.default_workspace || "";
-  if (!defaultWorkspace) return false;
-  const project = directoryRootProjectForPathSync(thread, localPath, displayPath);
-  if (project) {
-    const source = String(project.source || "");
-    if (source !== "workspace-directory" && source !== "workspace-directory-wsl") return false;
-    if (project.shared || project.hidden || project.singleWindow) return false;
-    if (["general", "sync", "download"].includes(String(project.id || ""))) return false;
-  }
-  const candidates = [displayPath, localPath, normalizeLocalPath(localPath)].filter(Boolean);
-  const hardProtected = [
-    policy.default_workspace,
-    policy.sync_root,
-    policy.download_root,
-    ...(policy.delivery_roots || []),
-    ...(policy.cache_roots || []),
-    ...sharedDirectoryRoots(thread.workspaceId),
-  ].filter(Boolean);
-  if (candidates.some((candidate) => hardProtected.some((root) => comparablePath(candidate) === comparablePath(root)))) {
-    return false;
-  }
-  return candidates.some((candidate) => pathDirectChildOfRoot(candidate, defaultWorkspace));
-}
-
-function isOwnWritableDirectoryPath(thread, localPath, displayPath = "") {
-  const policy = policyForThread(thread);
-  if (policy.access_mode === "unrestricted" || policy.principal_id === "owner") return true;
-  const roots = [
-    policy.default_workspace,
-    policy.sync_root,
-    policy.download_root,
-  ].filter(Boolean);
-  return pathInsideAnyRoot(displayPath || localPath, roots)
-    || pathInsideAnyRoot(localPath, roots.map(normalizeLocalPath));
-}
-
-function caseTopicDirectoryRoots(thread) {
-  if (!isKanbanCaseTopicThread(thread)) return [];
-  const roots = [];
-  for (const meta of Object.values(normalizeTaskGroupMeta(thread.taskGroupMeta))) {
-    if (!meta || typeof meta !== "object") continue;
-    if (meta.directoryRoute?.root) roots.push(meta.directoryRoute.root);
-    if (meta.directoryRoute?.path) roots.push(meta.directoryRoute.path);
-    if (meta.caseDirectoryPath) roots.push(meta.caseDirectoryPath);
-  }
-  return dedupe(roots.filter(Boolean));
-}
-
-function isReadOnlyCaseTopicDirectoryForAuth(thread, auth, localPath, displayPath = "") {
-  if (!isKanbanCaseTopicThread(thread)) return false;
-  if (isOwnerAuth(auth) || authCanAccessWorkspace(auth, thread.workspaceId)) return false;
-  const actorWorkspaceId = String(auth?.workspaceId || "").trim();
-  if (!actorWorkspaceId || !chatGroupMemberWorkspaceIds(thread).includes(actorWorkspaceId)) return false;
-  const roots = caseTopicDirectoryRoots(thread);
-  if (!roots.length) return false;
-  return pathInsideAnyRoot(displayPath || localPath, roots)
-    || pathInsideAnyRoot(localPath, roots)
-    || pathInsideAnyRoot(normalizeLocalPath(localPath), roots.map(normalizeLocalPath));
-}
-
-function isSharedDirectoryWriteAllowed(thread, localPath, displayPath = "", auth = null) {
-  if (isReadOnlyCaseTopicDirectoryForAuth(thread, auth, localPath, displayPath)) return false;
-  if (isOwnWritableDirectoryPath(thread, localPath, displayPath)) return true;
-  return sharedDirectoryProvider.isWriteAllowed(thread, localPath, displayPath);
-}
-
-function publicManagedEntry(thread, parentDisplayPath, parentLocalPath, localPath) {
-  const name = path.basename(localPath);
-  return publicDirectoryEntry(thread, parentDisplayPath, parentLocalPath, {
-    name,
-    isDirectory: () => fs.statSync(localPath).isDirectory(),
-  });
-}
-
-function joinDisplayPath(parent, name) {
-  const base = String(parent || "");
-  if (base.includes("/") && !base.includes("\\")) return `${base.replace(/\/+$/, "")}/${name}`;
-  return path.join(base, name);
-}
-
-function publicDirectoryEntry(thread, parentDisplayPath, parentLocalPath, dirent) {
-  if (isHiddenDirectoryEntryName(dirent.name)) return null;
-  const localPath = path.join(parentLocalPath, dirent.name);
-  let stat;
-  try {
-    stat = fs.statSync(localPath);
-  } catch (_) {
-    return null;
-  }
-  const displayPath = joinDisplayPath(parentDisplayPath || parentLocalPath, dirent.name);
-  const isDirectory = stat.isDirectory();
-  const params = new URLSearchParams({ threadId: thread.id, path: displayPath });
-  const workspacePath = logicalDirectoryDisplayPath(thread, displayPath, dirent.name);
-  return {
-    name: dirent.name,
-    type: isDirectory ? "directory" : "file",
-    size: isDirectory ? 0 : stat.size,
-    mtime: stat.mtime.toISOString(),
-    mime: isDirectory ? "" : mimeFor(localPath),
-    path: displayPath,
-    displayPath: workspacePath,
-    workspacePath,
-    url: isDirectory ? `/directory-viewer.html?${params.toString()}` : `/api/files?${params.toString()}`,
-  };
-}
-
-function publicRemoteDirectoryEntry(thread, parentDisplayPath, entry) {
-  if (isHiddenDirectoryEntryName(entry?.name)) return null;
-  const displayPath = String(entry?.path || joinDisplayPath(parentDisplayPath, entry?.name || ""));
-  const isDirectory = entry?.type === "directory";
-  const params = new URLSearchParams({ threadId: thread.id, path: displayPath });
-  const workspacePath = logicalDirectoryDisplayPath(thread, displayPath, entry?.name || path.posix.basename(displayPath));
-  return {
-    name: String(entry?.name || path.posix.basename(displayPath) || "item"),
-    type: isDirectory ? "directory" : "file",
-    size: isDirectory ? 0 : Number(entry?.size || 0),
-    mtime: String(entry?.mtime || ""),
-    mime: isDirectory ? "" : String(entry?.mime || mimeFor(displayPath)),
-    path: displayPath,
-    displayPath: workspacePath,
-    workspacePath,
-    url: isDirectory ? `/directory-viewer.html?${params.toString()}` : `/api/files?${params.toString()}`,
-  };
-}
-
-function directoryEntryTimeMs(entry) {
-  const time = Date.parse(String(entry?.mtime || entry?.updatedAt || ""));
-  return Number.isFinite(time) ? time : 0;
-}
-
-function compareDirectoryEntriesNewestFirst(a, b) {
-  if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
-  const timeDelta = directoryEntryTimeMs(b) - directoryEntryTimeMs(a);
-  if (timeDelta) return timeDelta;
-  return String(a.name || "").localeCompare(String(b.name || ""), "zh-Hans-CN");
-}
-
-function isHiddenDirectoryEntryName(name) {
-  const text = String(name || "").trim();
-  return !text || text.startsWith(".") || text.startsWith("@") || text.startsWith("#");
+  return directoryBrowserBoundaryService;
 }
 
 function resolveFileForBrowserRequest(query, auth = null) {
@@ -9460,562 +4802,123 @@ function sendResolvedBridgeFilePreview(res, file) {
   return fileResponseService.sendResolvedBridgeFilePreview(res, file);
 }
 
-function maybeRejectModelMaintenanceRequest(res, text, auth) {
-  const classification = securityBoundaryProvider.classifyMaintenanceIntent(text);
-  if (!classification) return false;
-  sendJson(res, isOwnerAuth(auth) ? 409 : 403, {
-    error: classification.message,
-    code: classification.category,
-    operatorRequired: true,
-  });
-  return true;
+function getThreadOwnerElevationRetryService() {
+  if (!threadOwnerElevationRetryService) {
+    threadOwnerElevationRetryService = createThreadOwnerElevationRetryService({
+      broadcast,
+      compactMessage,
+      compactThread,
+      gatewayRoutingForModelRun,
+      isOwnerAuth,
+      makeId,
+      nowIso,
+      ownerElevationInstructions,
+      precedingUserMessageForAssistant,
+      removeThreadActiveRun,
+      runConcurrencyError,
+      runConcurrencySnapshot,
+      sanitizeElevationScope,
+      saveState,
+      startRunForThread,
+      threadSummary,
+    });
+  }
+  return threadOwnerElevationRetryService;
 }
 
-async function handleThreadMessageCreate(req, res, _url, context = {}) {
-   const thread = findThreadForRequest(req, context.threadId || "");
-  if (!thread) {
-    sendJson(res, 404, { error: "Thread not found" });
-    return;
-  }
-  if (!thread.singleWindow && (thread.activeRunId || (thread.activeRunIds || []).length)) {
-    sendJson(res, 409, { error: "Thread already has an active Hermes run" });
-    return;
-  }
-  const body = await readBody(req);
-  const text = String(body.text || "").trim();
-  const uploadArtifacts = Array.isArray(body.artifacts) ? body.artifacts : [];
-  if (!text && !uploadArtifacts.length) {
-    sendJson(res, 400, { error: "Message text is required" });
-    return;
-  }
-  const auth = context.auth || authenticateRequest(req);
-  const createdAt = nowIso();
-  if (thread.title === "New thread") thread.title = deriveTitle(text);
-  const singleWindowMode = normalizeSingleWindowMode(body.singleWindowMode || body.single_window_mode || "");
-  const replyToMessageId = singleWindowMode === "chat" ? "" : (body.replyToMessageId ? String(body.replyToMessageId).slice(0, 120) : "");
-  const quotedMessage = replyToMessageId
-    ? (thread.messages || []).find((message) => message.id === replyToMessageId)
-    : null;
-  if (replyToMessageId && !quotedMessage) {
-    sendJson(res, 400, { error: "Quoted message not found" });
-    return;
-  }
-  const bodyTaskGroupId = body.taskGroupId ? sanitizeTaskGroupId(body.taskGroupId) : "";
-  const quotedTaskGroupId = quotedMessage?.taskGroupId ? sanitizeTaskGroupId(quotedMessage.taskGroupId) : "";
-  if (bodyTaskGroupId && quotedTaskGroupId && bodyTaskGroupId !== quotedTaskGroupId) {
-    sendJson(res, 400, { error: "Quoted message does not belong to the requested task group" });
-    return;
-  }
-  const requestedTaskGroupId = bodyTaskGroupId || quotedTaskGroupId;
-  const normalizedTaskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
-  const requestedCaseTopicChat = Boolean(
-    thread.singleWindow
-    && singleWindowMode === "chat"
-    && isKanbanCaseTopicThread(thread)
-    && requestedTaskGroupId
-    && normalizedTaskGroupMeta[requestedTaskGroupId]?.sharedTopic
-  );
-  const taskGroupId = thread.singleWindow
-    ? (requestedCaseTopicChat ? requestedTaskGroupId : (singleWindowMode === "chat" ? singleWindowChatTaskGroupId(requestedTaskGroupId) : (requestedTaskGroupId || makeId("task"))))
-    : "";
-  if (thread.singleWindow && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID && singleWindowMode !== "chat") {
-    sendJson(res, 400, { error: "Group chat messages must use chat mode" });
-    return;
-  }
-  const groupMemberIds = chatGroupMemberWorkspaceIds(thread);
-  const requestedGroupChat = thread.singleWindow
-    && singleWindowMode === "chat"
-    && taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
-  const isGroupChatMessage = requestedGroupChat && groupMemberIds.length > 0;
-  if (requestedGroupChat && !isGroupChatMessage) {
-    sendJson(res, 403, { error: "Group chat is not enabled for this thread" });
-    return;
-  }
-  const isCaseTopicChatMessage = requestedCaseTopicChat && groupMemberIds.length > 0;
-  if (requestedCaseTopicChat && !isCaseTopicChatMessage) {
-    sendJson(res, 403, { error: "Shared learning topic chat is not enabled for this thread" });
-    return;
-  }
-  if (thread.singleWindow && singleWindowMode !== "chat") {
-    const caseTopicPermissions = kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth);
-    if (caseTopicPermissions && !caseTopicPermissions.canSubmitStudy && !caseTopicPermissions.canManage) {
-      sendJson(res, 403, { error: "This shared learning topic is read-only for the current workspace" });
-      return;
-    }
-  }
-  const compactResponseThread = () => (
-    thread.singleWindow && singleWindowMode === "chat"
-      ? compactThreadWithMessagePage(thread, {
-        mode: "chat",
-        taskGroupId,
-        groupChat: taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-        limit: body.messageLimit || body.message_limit || THREAD_MESSAGE_INITIAL_LIMIT,
-      })
-      : compactThread(thread)
-  );
-  let actorWorkspaceId = thread.workspaceId;
-  const requestedActorWorkspaceId = String(body.workspaceId || body.actorWorkspaceId || body.actor_workspace_id || "").trim();
-  if (requestedActorWorkspaceId && authCanAccessWorkspace(auth, requestedActorWorkspaceId)) {
-    actorWorkspaceId = requestedActorWorkspaceId;
-  } else if (!isOwnerAuth(auth) && auth?.workspaceId) {
-    actorWorkspaceId = auth.workspaceId;
-  }
-  if ((isGroupChatMessage || isCaseTopicChatMessage) && !groupMemberIds.includes(actorWorkspaceId)) {
-    sendJson(res, 403, { error: "Selected workspace is not a group chat member" });
-    return;
-  }
-  const senderInfo = senderInfoForWorkspace(actorWorkspaceId);
-  const messageKind = (isGroupChatMessage || isCaseTopicChatMessage) && String(body.messageKind || body.message_kind || "").trim() === "plain" ? "plain" : "ai";
-  let gatewayRouting = { securityLevel: "user", maintenance: false };
-  if (messageKind === "ai") {
-    try {
-      gatewayRouting = gatewayRoutingForModelRun(auth, text, Object.assign({}, body, { actorWorkspaceId }));
-    } catch (err) {
-      sendJson(res, err.status || 403, {
-        error: err.message || String(err),
-        code: err.code || "gateway_security_boundary",
-        operatorRequired: Boolean(err.operatorRequired),
-        elevationRequired: Boolean(err.elevationRequired),
-        elevationScope: err.elevationScope || "",
-      });
-      return;
-    }
-  }
-  const requestedReasoningEffort = String(body.reasoning_effort || "").trim();
-  const reasoningEffort = VALID_REASONING_EFFORTS.has(requestedReasoningEffort) ? requestedReasoningEffort : "";
-  const allowAutomaticDirectoryAttachment = singleWindowMode !== "chat";
-  const directoryAttachment = resolveTaskDirectoryAttachment(thread, body.directory || body.directoryRoute || {})
-    || ((singleWindowMode === "chat" && !isCaseTopicChatMessage) ? null : taskDirectoryAttachmentForGroup(thread, requestedTaskGroupId))
-    || (allowAutomaticDirectoryAttachment ? semanticTaskDirectoryAttachment(thread, text) : null);
-  const userMessage = {
-    id: makeId("msg"),
-    role: "user",
-    content: buildUserMessageContent(text, uploadArtifacts),
-    status: "done",
-    createdAt,
-    updatedAt: createdAt,
-    submittedAt: createdAt,
-    artifacts: uploadArtifacts.map(publicArtifactFromClient).filter(Boolean),
-    taskGroupId,
-    messageKind,
-    senderWorkspaceId: senderInfo.senderWorkspaceId,
-    senderPrincipalId: senderInfo.senderPrincipalId,
-    senderLabel: senderInfo.senderLabel,
-    actorWorkspaceId,
-    replyToMessageId: quotedMessage?.id || "",
-    directoryAliases: directoryAttachment ? [directoryAttachment] : [],
-    directoryRoute: directoryAttachment || null,
-    reasoningEffort,
-    singleWindowMode,
-  };
-  attachUploadedArtifactsToMessage(thread, userMessage);
-  const assistantMessage = {
-    id: makeId("msg"),
-    role: "assistant",
-    content: "",
-    status: "queued",
-    runId: null,
-    createdAt,
-    updatedAt: createdAt,
-    queuedAt: createdAt,
-    artifacts: [],
-    taskGroupId,
-    messageKind: "ai",
-    senderWorkspaceId: "hermes",
-    senderPrincipalId: "hermes",
-    senderLabel: "Hermes",
-    actorWorkspaceId,
-    reasoningEffort,
-    singleWindowMode,
-  };
-  if ((isGroupChatMessage || isCaseTopicChatMessage) && messageKind === "plain") {
-    thread.messages.push(userMessage);
-    thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
-    thread.updatedAt = createdAt;
-    saveState();
-    broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
-    notifyGroupChatMentions(thread, userMessage);
-    sendJson(res, 201, { ok: true, thread: compactResponseThread() });
-    return;
-  }
-  const directKanbanCreate = useKanbanTodoBackend() && detectDirectKanbanCreateRequest(text);
-  if (directKanbanCreate) {
-    let result = null;
-    let kanbanDraft = null;
-    try {
-      kanbanDraft = await interpretKanbanNaturalLanguage(text, findWorkspace(thread.workspaceId), workspacePrincipal(thread.workspaceId));
-      result = await kanbanCardProvider.addCard({
-        workspaceId: thread.workspaceId,
-        assignee: kanbanDraft.assignee,
-        assigneeLabel: todoAssigneeLabel(thread.workspaceId, kanbanDraft.assignee),
-        content: kanbanDraft.content,
-        description: kanbanDraft.description,
-        dueTime: kanbanDraft.dueTime,
-        reason: kanbanDraft.reason,
-        ...kanbanSingleCardCasePayload(kanbanDraft.content, kanbanDraft.description, text),
-      });
-    } catch (err) {
-      result = { ok: false, error: err.message || String(err) };
-    }
-    let createdCard = null;
-    let directKanbanVerification = { ok: true, error: "" };
-    if (result?.ok) {
-      createdCard = publicTodo(result);
-      directKanbanVerification = verifyDirectTodoCreateResult(createdCard);
-      if (!directKanbanVerification.ok) {
-        result = {
-          ...(result && typeof result === "object" ? result : {}),
-          ok: false,
-          error: directKanbanVerification.error || "Kanban creation verification failed.",
-        };
-        createdCard = null;
-      }
-    }
-    if (!result?.ok) {
-      directKanbanVerification = {
-        ok: false,
-        error: String(result?.error || directKanbanVerification.error || ""),
-      };
-    }
-    const finishedAt = nowIso();
-    assistantMessage.status = result?.ok ? "done" : "failed";
-    assistantMessage.content = result?.ok
-      ? `已新增看板卡片：${todoAssigneeLabel(thread.workspaceId, kanbanDraft?.assignee || "")} | ${kanbanDraft?.dueTime || "no due time"} | ${kanbanDraft?.content || ""}`
-      : `新增看板卡片失败：${result?.error || "Kanban card operation failed"}`;
-    assistantMessage.error = result?.ok ? null : (result?.error || "Kanban operation failed");
-    if (result?.ok && createdCard) {
-      assistantMessage.content = formatDirectTodoCreateSuccessMessage({
-        assigneeLabel: todoAssigneeLabel(thread.workspaceId, kanbanDraft?.assignee || ""),
-        dueTime: kanbanDraft?.dueTime || "",
-        content: kanbanDraft?.content || "",
-      }, createdCard);
-    }
-    assistantMessage.completedAt = result?.ok ? finishedAt : "";
-    assistantMessage.failedAt = result?.ok ? "" : finishedAt;
-    assistantMessage.updatedAt = finishedAt;
-    thread.messages.push(userMessage, assistantMessage);
-    thread.status = "idle";
-    thread.updatedAt = finishedAt;
-    saveState();
-    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-    if (result?.ok) {
-      const assigneeWorkspaceId = workspaceIdForPrincipal(kanbanDraft?.assignee || "");
-      broadcast({ type: "kanban.updated", workspaceId: thread.workspaceId });
-      broadcast({ type: "todos.updated", workspaceId: thread.workspaceId });
-      if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) {
-        broadcast({ type: "kanban.updated", workspaceId: assigneeWorkspaceId });
-        broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
-      }
-    }
-    sendJson(res, result?.ok ? 201 : 400, {
-      ok: Boolean(result?.ok),
-      card: result?.ok ? createdCard : null,
-      result,
-      verification: directKanbanVerification,
-      thread: compactResponseThread(),
+function getThreadMessageCreateService() {
+  if (!threadMessageCreateService) {
+    threadMessageCreateService = createThreadMessageCreateService({
+      authCanAccessWorkspace,
+      broadcast,
+      buildUserMessageContent: (...args) => getRuntimeStateThreadService().buildUserMessageContent(...args),
+      chatGroupMemberWorkspaceIds,
+      compactMessage,
+      deriveTitle,
+      detectDirectKanbanCreateRequest,
+      detectDirectTodoCreateIntent,
+      detectDirectTodoCreateIntentForWeb,
+      directTodoCreateEnabled,
+      formatDirectTodoCreateSuccessMessage,
+      gatewayRoutingForModelRun,
+      groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+      isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
+      isOwnerAuth,
+      kanbanCaseTopicPermissionsForTaskGroup,
+      kanbanSingleCardCasePayload,
+      makeId,
+      normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
+      notifyGroupChatMentions: webPushDeliveryService.notifyGroupChatMentions,
+      notifyTodoCreated: webPushDeliveryService.notifyTodoCreated,
+      nowIso,
+      ownerElevationInstructions,
+      publicArtifactFromClient,
+      removeThreadActiveRun,
+      resolveTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().resolveTaskDirectoryAttachment(...args),
+      runConcurrencyError,
+      runConcurrencySnapshot,
+      sanitizeTaskGroupId: (...args) => getRuntimeStateNormalizationService().sanitizeTaskGroupId(...args),
+      saveState,
+      semanticTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().semanticTaskDirectoryAttachment(...args),
+      senderInfoForWorkspace,
+      singleWindowChatTaskGroupId,
+      startRunForThread,
+      taskDirectoryAttachmentForGroup: (...args) => getSemanticDirectoryAttachmentService().taskDirectoryAttachmentForGroup(...args),
+      taskGroupHasRunningRun,
+      threadSummary,
+      todoAssigneeLabel,
+      useKanbanTodoBackend,
+      validReasoningEfforts: VALID_REASONING_EFFORTS,
+      workspaceIdForPrincipal,
+      workspacePrincipal,
     });
-    return;
   }
-  const directTodoIntent = directTodoCreateEnabled()
-    ? (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId)
-      || detectDirectTodoCreateIntent(text, thread.workspaceId))
-    : null;
-  if (directTodoIntent) {
-    let result = null;
-    try {
-      result = await todoProvider.addTodo({
-        workspaceId: thread.workspaceId,
-        assignee: directTodoIntent.assignee,
-        content: directTodoIntent.content,
-        dueTime: directTodoIntent.dueTime,
-        suppressExternalNotice: true,
-        reminderLeadMinutes: null,
-        recurrence: "none",
-        recurrenceDays: "",
-        recurrenceUntil: "",
-      });
-    } catch (err) {
-      result = { ok: false, error: err.message || String(err) };
-    }
-    let createdTodo = null;
-    let directTodoVerification = { ok: true, error: "" };
-    if (result?.ok) {
-      createdTodo = publicTodo(result);
-      directTodoVerification = verifyDirectTodoCreateResult(createdTodo);
-      if (!directTodoVerification.ok) {
-        result = {
-          ...(result && typeof result === "object" ? result : {}),
-          ok: false,
-          error: directTodoVerification.error || "Todo creation verification failed.",
-        };
-        createdTodo = null;
-      }
-    }
-    if (!result?.ok) {
-      directTodoVerification = {
-        ok: false,
-        error: String(result?.error || directTodoVerification.error || ""),
-      };
-    }
-    const finishedAt = nowIso();
-    assistantMessage.status = result?.ok ? "done" : "failed";
-    assistantMessage.content = result?.ok
-      ? `已新增待办：${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`
-      : `新增待办失败：${result?.error || "Todo operation failed"}`;
-    assistantMessage.error = result?.ok ? null : (result?.error || "Todo operation failed");
-    assistantMessage.completedAt = result?.ok ? finishedAt : "";
-    assistantMessage.failedAt = result?.ok ? "" : finishedAt;
-    assistantMessage.updatedAt = finishedAt;
-    thread.messages.push(userMessage, assistantMessage);
-    thread.status = "idle";
-    thread.updatedAt = finishedAt;
-    saveState();
-    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-    if (result?.ok) {
-      const assigneeWorkspaceId = workspaceIdForPrincipal(directTodoIntent.assignee);
-      broadcast({ type: "todos.updated", workspaceId: thread.workspaceId });
-      if (assigneeWorkspaceId && assigneeWorkspaceId !== thread.workspaceId) broadcast({ type: "todos.updated", workspaceId: assigneeWorkspaceId });
-      notifyTodoCreated(result, workspacePrincipal(thread.workspaceId));
-    }
-    sendJson(res, result?.ok ? 201 : 400, {
-      ok: Boolean(result?.ok),
-      todo: result?.ok ? createdTodo : null,
-      result,
-      verification: directTodoVerification,
-      thread: compactResponseThread(),
-    });
-    return;
-  }
-  const followUpInstructions = thread.singleWindow
-    ? singleWindowMode === "chat"
-      ? "The latest user message is a Hermes Mobile continuous-chat turn. Treat it as part of the supplied same-task conversation_history."
-      : (requestedTaskGroupId
-        ? "The latest user message is an explicit Web quote/reply to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task."
-        : "")
-    : "";
-  const runOptions = {
-    reasoning_effort: reasoningEffort,
-    singleWindowMode,
-    actorWorkspaceId,
-    gatewayRouting,
-    instructions: [
-      body.instructions || "",
-      ownerElevationInstructions(body),
-      followUpInstructions,
-    ].filter(Boolean).join("\n\n"),
-  };
-  if (body.model) runOptions.model = body.model;
-  if (body.reasoning && typeof body.reasoning === "object") runOptions.reasoning = body.reasoning;
-  if (body.access_policy_context && typeof body.access_policy_context === "object") {
-    runOptions.access_policy_context = body.access_policy_context;
-  }
-  assistantMessage.runOptions = runOptions;
-  const queueBehindActiveChatRun = thread.singleWindow
-    && singleWindowMode === "chat"
-    && taskGroupId
-    && taskGroupHasRunningRun(thread, taskGroupId);
-  if (!queueBehindActiveChatRun) {
-    const concurrencyError = runConcurrencyError(actorWorkspaceId);
-    if (concurrencyError) {
-      sendJson(res, concurrencyError.status || 429, {
-        error: concurrencyError.message,
-        code: concurrencyError.code,
-        concurrency: concurrencyError.snapshot || runConcurrencySnapshot(),
-      });
-      return;
-    }
-  }
-  thread.messages.push(userMessage, assistantMessage);
-  thread.status = queueBehindActiveChatRun && (thread.activeRunIds || []).length ? "running" : "queued";
-  thread.updatedAt = createdAt;
-  saveState();
-  broadcast({ type: "thread.updated", thread: threadSummary(thread) });
-  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(userMessage), thread: threadSummary(thread) });
-  broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-  if (isGroupChatMessage) notifyGroupChatMentions(thread, userMessage);
-  if (queueBehindActiveChatRun) {
-    sendJson(res, 202, { run: { status: "queued", taskGroupId, engine: "responses" }, thread: compactResponseThread() });
-    return;
-  }
-  try {
-    const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
-    sendJson(res, 202, { run, thread: compactResponseThread() });
-  } catch (err) {
-    const failedAt = nowIso();
-    assistantMessage.status = "failed";
-    assistantMessage.error = err.message || String(err);
-    assistantMessage.failedAt = failedAt;
-    assistantMessage.updatedAt = failedAt;
-    removeThreadActiveRun(thread, assistantMessage.runId, "failed");
-    thread.updatedAt = failedAt;
-    saveState();
-    broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-    sendJson(res, err.status || 502, { error: assistantMessage.error, thread: compactResponseThread() });
-  }
-  return;
+  return threadMessageCreateService;
 }
 
-async function handleThreadMessageOwnerElevation(req, res, _url, context = {}) {
-   const ownerAuth = requireOwner(req, res);
-  if (!ownerAuth) return;
-  const thread = findThreadForRequest(req, context.threadId || "");
-  if (!thread) {
-    sendJson(res, 404, { error: "Thread not found" });
-    return;
-  }
-  const messageId = String(context.messageId || "");
-  const message = (thread.messages || []).find((item) => String(item.id || "") === messageId);
-  if (!message || message.role !== "assistant") {
-    sendJson(res, 404, { error: "Assistant message not found" });
-    return;
-  }
-  if (!message.elevationRequired) {
-    sendJson(res, 409, { error: "This message is not waiting for Owner elevation approval" });
-    return;
-  }
-  const body = await readBody(req).catch((err) => ({ __error: err }));
-  if (body.__error) {
-    sendJson(res, 400, { error: body.__error.message || "Invalid request body" });
-    return;
-  }
-  const userMessage = precedingUserMessageForAssistant(thread, message);
-  if (!userMessage) {
-    sendJson(res, 400, { error: "Original user message was not found" });
-    return;
-  }
-  const actorWorkspaceId = "owner";
-  const concurrencyError = runConcurrencyError(actorWorkspaceId);
-  if (concurrencyError) {
-    sendJson(res, concurrencyError.status || 429, {
-      error: concurrencyError.message,
-      code: concurrencyError.code,
-      concurrency: concurrencyError.snapshot || runConcurrencySnapshot(),
-    });
-    return;
-  }
-  let assistantMessage = null;
-  try {
-    const elevationScope = sanitizeElevationScope(body.elevationScope || body.elevation_scope || message.elevationScope || "owner_high_privilege");
-    const gatewayRouting = gatewayRoutingForModelRun(ownerAuth, userMessage.content, {
-      actorWorkspaceId,
-      maintenanceMode: true,
-      ownerElevationOnceToken: body.ownerElevationOnceToken || body.owner_elevation_once_token || "",
-      elevationScope,
-    });
-    const createdAt = nowIso();
-    assistantMessage = {
-      id: makeId("msg"),
-      role: "assistant",
-      content: "",
-      status: "queued",
-      runId: null,
-      createdAt,
-      updatedAt: createdAt,
-      queuedAt: createdAt,
-      artifacts: [],
-      taskGroupId: userMessage.taskGroupId || message.taskGroupId || "",
-      messageKind: "ai",
-      senderWorkspaceId: "hermes",
-      senderPrincipalId: "hermes",
-      senderLabel: "Hermes",
-      actorWorkspaceId,
-      reasoningEffort: userMessage.reasoningEffort || message.reasoningEffort || "",
-      singleWindowMode: userMessage.singleWindowMode || message.singleWindowMode || "",
-      elevatedFromMessageId: message.id,
-    };
-    const runOptions = {
-      reasoning_effort: assistantMessage.reasoningEffort,
-      singleWindowMode: assistantMessage.singleWindowMode,
-      actorWorkspaceId,
-      gatewayRouting,
-      instructions: ownerElevationInstructions({ elevationScope }),
-    };
-    assistantMessage.runOptions = runOptions;
-    thread.messages.push(assistantMessage);
-    thread.status = "queued";
-    thread.updatedAt = createdAt;
-    saveState();
-    broadcast({ type: "message.updated", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-    const run = await startRunForThread(thread, userMessage, assistantMessage, runOptions);
-    sendJson(res, 202, { ok: true, run, thread: compactThread(thread) });
-  } catch (err) {
-    if (assistantMessage) {
-      const failedAt = nowIso();
-      assistantMessage.status = "failed";
-      assistantMessage.error = err.message || String(err);
-      assistantMessage.failedAt = failedAt;
-      assistantMessage.updatedAt = failedAt;
-      removeThreadActiveRun(thread, assistantMessage.runId, "failed");
-      thread.updatedAt = failedAt;
-      saveState();
-      broadcast({ type: "run.failed", threadId: thread.id, message: compactMessage(assistantMessage), thread: threadSummary(thread) });
-    }
-    sendJson(res, err.status || 502, {
-      error: err.message || String(err),
-      code: err.code || "owner_elevation_retry_failed",
-      elevationRequired: Boolean(err.elevationRequired),
-      elevationScope: err.elevationScope || "",
-      thread: compactThread(thread),
+function getThreadDirectCreateExecutionService() {
+  if (!threadDirectCreateExecutionService) {
+    threadDirectCreateExecutionService = createThreadDirectCreateExecutionService({
+      broadcast,
+      compactMessage,
+      findWorkspace,
+      formatDirectTodoCreateSuccessMessage,
+      interpretKanbanNaturalLanguage,
+      kanbanCardProvider,
+      publicTodo,
+      saveState,
+      threadMessageCreateService: getThreadMessageCreateService(),
+      threadSummary,
+      todoAssigneeLabel,
+      todoProvider,
+      verifyDirectTodoCreateResult,
+      workspacePrincipal,
+      compactResponseThread: (...args) => getThreadMessageRunRouteService().compactThreadForMessageCreatePlan(...args),
+      nowIso,
     });
   }
-  return;
+  return threadDirectCreateExecutionService;
 }
 
-async function handleApi(req, res) {
-  const url = getUrl(req);
-  attachClientVersionHeaders(req, res);
-
-  if ((await publicApiRoutes.handle(req, res, url)).handled) return;
-
-  if (url.pathname.startsWith("/api/ingress/weixin/") && (await weixinApiRoutes.handle(req, res, url)).handled) return;
-
-  const auth = authenticateRequest(req);
-  if (!auth.ok) {
-    sendJson(res, 401, { error: "Unauthorized" });
-    return;
+function getThreadMessageRunRouteService() {
+  if (!threadMessageRunRouteService) {
+    threadMessageRunRouteService = createThreadMessageRunRouteService({
+      attachUploadedArtifactsToMessage,
+      authenticateRequest,
+      compactThread,
+      compactThreadWithMessagePage,
+      findThreadForRequest: (...args) => getRuntimeStateThreadService().findThreadForRequest(...args),
+      getThreadDirectCreateExecutionService,
+      getThreadMessageCreateService,
+      getThreadOwnerElevationRetryService,
+      nowIso,
+      readBody,
+      requireOwner,
+      sendJson,
+      threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
+    });
   }
-  req.hermesRequestContext = buildRequestContext({
-    auth,
-    url,
-    request: {
-      method: req.method,
-      headers: req.headers,
-      requestId: req.headers["x-request-id"] || "",
-      clientVersion: requestClientVersion(req),
-    },
-  });
-
-  if ((await systemApiRoutes.handle(req, res, url)).handled) return;
-
-  if ((await weixinApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await ownerElevationApiRoutes.handle(req, res, url)).handled) return;
-
-  if ((await runtimeConfigApiRoutes.handle(req, res, url)).handled) return;
-  if ((await pushApiRoutes.handle(req, res, url)).handled) return;
-
-  if ((await workspaceApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await accessKeyApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await resourceApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await automationApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await todoApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await kanbanCardApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await kanbanStudyApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await fileArtifactApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await directoryBrowserApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await directoryShareApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await directoryMutationApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await threadReadUploadApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await threadTaskApiRoutes.handle(req, res, url, { auth })).handled) return;
-  if ((await singleWindowGroupChatApiRoutes.handle(req, res, url, { auth })).handled) return;
-
-  if ((await threadMessageRunApiRoutes.handle(req, res, url, { auth })).handled) return;
-
-  sendJson(res, 404, { error: "Not found" });
+  return threadMessageRunRouteService;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -10023,7 +4926,7 @@ const server = http.createServer(async (req, res) => {
     const url = getUrl(req);
     if ((await eventStreamApiRoutes.handle(req, res, url)).handled) return;
     if (url.pathname.startsWith("/api/")) {
-      await handleApi(req, res);
+      await mobileApiDispatcher.handle(req, res);
       return;
     }
     serveStatic(req, res);
@@ -10055,6 +4958,6 @@ server.listen(PORT, HOST, () => {
   if (!DISABLE_AUTH && authProvider.ownerKeySource() !== "env") {
     console.log("Current process login key is not printed; use the configured Owner key file or HERMES_WEB_KEY.");
   }
-  startTodoWebPushDispatcher();
-  startAutomationWebPushDispatcher();
+  webPushDeliveryService.startTodoWebPushDispatcher();
+  webPushDeliveryService.startAutomationWebPushDispatcher();
 });

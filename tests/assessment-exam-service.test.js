@@ -7,6 +7,7 @@ const {
   buildAssessmentExamReportMarkdown,
   fractionText,
   generateVerifiedAmc8AssessmentQuestions,
+  generateVerifiedMathAssessmentQuestions,
   gradeAssessmentExam,
   normalizeAssessmentExam,
   seededNumber,
@@ -47,6 +48,41 @@ function testVerifiedAmc8Questions() {
   assert.equal(first.every((item) => item.verification === "deterministic-template"), true);
   assert.equal(first.every((item) => Array.isArray(item.choices) && item.choices.length === 4), true);
   assert.equal(first.every((item) => item.answerIndex >= 0 && item.answerIndex < item.choices.length), true);
+}
+
+function testVerifiedMathQuestions() {
+  const config = { subject: "Math", questionCount: 14 };
+  const first = generateVerifiedMathAssessmentQuestions(config, "case-a", { maxQuestions: 20 });
+  const second = generateVerifiedMathAssessmentQuestions(config, "case-a", { maxQuestions: 20 });
+  const other = generateVerifiedMathAssessmentQuestions(config, "case-b", { maxQuestions: 20 });
+  assert.equal(first.length, 14);
+  assert.deepEqual(first, second);
+  assert.notDeepEqual(first, other);
+  assert.equal(first.every((item) => item.verification === "deterministic-template"), true);
+  assert.equal(first.every((item) => Array.isArray(item.choices) && item.choices.length === 4), true);
+  assert.equal(first.every((item) => item.answerIndex >= 0 && item.answerIndex < item.choices.length), true);
+  assert.deepEqual(first.slice(0, 10).map((item) => item.skill), [
+    "arithmetic: operation order",
+    "algebra: linear equation",
+    "percentage",
+    "ratio",
+    "geometry: rectangle area",
+    "average",
+    "probability",
+    "sequence",
+    "number theory: remainder",
+    "word problem",
+  ]);
+
+  const clamped = generateVerifiedMathAssessmentQuestions({ questionCount: 80 }, "case-a", { maxQuestions: 9 });
+  assert.equal(clamped.length, 9);
+
+  const minimum = generateVerifiedMathAssessmentQuestions({ questionCount: 1 }, "case-a", { maxQuestions: 20 });
+  assert.equal(minimum.length, 5);
+
+  const competition = generateVerifiedMathAssessmentQuestions({ courseLevel: "AMC 8", questionCount: 6 }, "case-a", { maxQuestions: 20 });
+  assert.equal(competition.length, 6);
+  assert.equal(competition.every((item) => item.skill.startsWith("AMC 8 ")), true);
 }
 
 function testNormalizeAssessmentExam() {
@@ -172,6 +208,7 @@ testSeededRandomIsDeterministic();
 testAssessmentChoiceSet();
 testFractionsAndAmcDetection();
 testVerifiedAmc8Questions();
+testVerifiedMathQuestions();
 testNormalizeAssessmentExam();
 testGradeAssessmentExam();
 testBuildAssessmentExamReportMarkdown();

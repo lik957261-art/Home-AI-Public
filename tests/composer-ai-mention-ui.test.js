@@ -6,15 +6,16 @@ const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "..");
 const serverJs = fs.readFileSync(path.join(repoRoot, "server.js"), "utf8");
+const systemRuntimeStatusServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "system-runtime-status-service.js"), "utf8");
 const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
 assert.match(serverJs, /const REASONING_EFFORT_OPTIONS = Object\.freeze\(\[/);
 assert.match(serverJs, /shortLabel: "Xhigh"/);
-assert.match(serverJs, /function parseAgentRuntimeConfigFromYaml\(text\)/);
+assert.match(systemRuntimeStatusServiceJs, /function parseAgentRuntimeConfigFromYaml\(text\)/);
 assert.match(serverJs, /function runtimeModelConfigInfo\(\)/);
-assert.match(serverJs, /function assistantLabelForRuntimeConfig\(info = \{\}\)/);
+assert.match(systemRuntimeStatusServiceJs, /function assistantLabelForRuntimeConfig\(info = \{\}\)/);
 assert.match(serverJs, /model:\s*\{\s*default: info\.defaultModel/s);
 assert.match(serverJs, /return dedupe\(\[\.\.\.gatewayPoolConfigPathCandidates\(\), \.\.\.base\]\)\.filter\(configPathReadableForRuntimeInfo\);/);
 

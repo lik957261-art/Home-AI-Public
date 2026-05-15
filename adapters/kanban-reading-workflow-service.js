@@ -14,9 +14,14 @@ function createKanbanReadingWorkflowService(deps = {}) {
   if (!artifactService) throw new Error("kanban reading workflow service requires artifactService");
   const compactText = typeof deps.compactText === "function" ? deps.compactText : defaultCompactText;
   const safeFileName = typeof deps.safeFileName === "function" ? deps.safeFileName : (value) => path.basename(String(value || "file")).replace(/[^A-Za-z0-9_.-]+/g, "_") || "file";
+  const safeStorageSegment = typeof deps.safeStorageSegment === "function" ? deps.safeStorageSegment : (value) => String(value || "item").replace(/[^A-Za-z0-9_.-]+/g, "_") || "item";
   const mimeFor = typeof deps.mimeFor === "function" ? deps.mimeFor : () => "";
+  const dataDir = path.resolve(deps.dataDir || process.env.HERMES_WEB_DATA_DIR || path.join(process.cwd(), "workspace"));
   const nowIso = typeof deps.nowIso === "function" ? deps.nowIso : () => new Date().toISOString();
   const maxUploadBytes = Math.max(1, Number(deps.maxUploadBytes || 100 * 1024 * 1024));
+  const maxCoverBytes = Math.max(1, Math.min(maxUploadBytes, Number(deps.maxCoverBytes || deps.kanbanReadingCoverMaxBytes || process.env.HERMES_MOBILE_READING_COVER_MAX_BYTES || process.env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
+  const maxSourceDocumentBytes = Math.max(1, Math.min(maxUploadBytes, Number(deps.maxSourceDocumentBytes || deps.kanbanSourceDocumentMaxBytes || process.env.HERMES_MOBILE_KANBAN_SOURCE_DOCUMENT_MAX_BYTES || process.env.HERMES_WEB_KANBAN_SOURCE_DOCUMENT_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
+  const maxFilePreviewChars = Math.max(1, Number(deps.maxFilePreviewChars || process.env.HERMES_WEB_MAX_FILE_PREVIEW_CHARS || "180000") || 180000);
   const analysisTimeoutMs = Number(deps.analysisTimeoutMs || 120000);
   const transcribeTimeoutMs = Number(deps.transcribeTimeoutMs || 240000);
   const transcribeScript = path.resolve(deps.transcribeScript || path.join(process.cwd(), "scripts", "transcribe-reading-audio.ps1"));
@@ -53,6 +58,13 @@ function createKanbanReadingWorkflowService(deps = {}) {
     return /^audio\//i.test(String(mime || "")) || [".mp3", ".m4a", ".wav", ".aac", ".ogg", ".opus", ".amr"].includes(ext);
   }
 
+  function isReadingCoverImageUpload(filename, mime) {
+    const ext = path.extname(String(filename || "")).toLowerCase();
+    const allowedExt = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"];
+    const normalizedMime = String(mime || "").toLowerCase();
+    return allowedExt.includes(ext) && /^image\/(png|jpe?g|webp|gif|heic|heif)$/i.test(normalizedMime || mimeFor(filename));
+  }
+
   function isStudyTextUpload(filename, mime) {
     const ext = path.extname(String(filename || "")).toLowerCase();
     const type = String(mime || "").toLowerCase();
@@ -63,6 +75,29 @@ function createKanbanReadingWorkflowService(deps = {}) {
 
   function readingArtifactDirectory(workspaceId, caseId, cardId) {
     return artifactService.readingArtifactDirectory(workspaceId, caseId, cardId);
+  }
+
+  function saveKanbanReadingCoverUpload(workspaceId, planId, rawCover = null) {
+    if (!rawCover || typeof rawCover !== "object" || Array.isArray(rawCover)) return null;
+    const data = String(rawCover.dataBase64 || rawCover.data_base64 || "");
+    if (!data) return null;
+    const filename = safeFileName(rawCover.filename || rawCover.name || "book-cover.jpg");
+    const mime = String(rawCover.type || rawCover.mime || rawCover.mimeType || rawCover.mime_type || mimeFor(filename) || "").trim();
+    if (!isReadingCoverImageUpload(filename, mime)) {
+      const err = new Error("Study plan cover must be a PNG, JPEG, WebP, GIF, HEIC, or HEIF image");
+      err.status = 400;
+      throw err;
+    }
+    const buffer = Buffer.from(data, "base64");
+    if (!buffer.length || buffer.length > maxCoverBytes) {
+      const err = new Error("Invalid or too-large study plan cover image");
+      err.status = 400;
+      throw err;
+    }
+    const dir = readingArtifactDirectory(workspaceId, planId, "cover");
+    const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
+    fs.writeFileSync(filePath, buffer);
+    return { path: filePath, name: filename, mime, size: buffer.length };
   }
 
   function saveKanbanReadingAudioUpload(workspaceId, cardId, body = {}, currentCard = null) {
@@ -131,6 +166,61 @@ function createKanbanReadingWorkflowService(deps = {}) {
     const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
     fs.writeFileSync(filePath, buffer);
     return { path: filePath, name: filename, mime, size: buffer.length, kind: path.extname(filename).toLowerCase() === ".docx" ? "docx" : "text" };
+  }
+
+  function isKanbanSourceDocumentUpload(filename, mime) {
+    const ext = path.extname(String(filename || "")).toLowerCase();
+    const type = String(mime || "").toLowerCase().split(";")[0].trim();
+    return /^text\//i.test(type)
+      || ["application/json", "application/csv", "text/csv", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(type)
+      || [".txt", ".md", ".markdown", ".csv", ".json", ".docx"].includes(ext);
+  }
+
+  function saveKanbanSourceDocumentUpload(workspaceId, body = {}) {
+    const filename = safeFileName(body.filename || body.name || "kanban-source.txt");
+    const mime = String(body.type || body.mime || body.mimeType || body.mime_type || mimeFor(filename) || "").trim();
+    if (!isKanbanSourceDocumentUpload(filename, mime)) {
+      const err = new Error("Kanban source document must be DOCX, Markdown, plain text, CSV, or JSON");
+      err.status = 400;
+      throw err;
+    }
+    const data = String(body.dataBase64 || body.data_base64 || "");
+    if (!data) {
+      const err = new Error("Missing dataBase64");
+      err.status = 400;
+      throw err;
+    }
+    const buffer = Buffer.from(data, "base64");
+    if (!buffer.length || buffer.length > maxSourceDocumentBytes) {
+      const err = new Error("Invalid or too-large Kanban source document");
+      err.status = 400;
+      throw err;
+    }
+    const dir = path.join(dataDir, "uploads", "kanban-source", safeStorageSegment(workspaceId || "owner"));
+    fs.mkdirSync(dir, { recursive: true });
+    const filePath = path.join(dir, `${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${filename}`);
+    fs.writeFileSync(filePath, buffer);
+    return {
+      path: filePath,
+      name: filename,
+      mime,
+      size: buffer.length,
+      kind: path.extname(filename).toLowerCase() === ".docx" ? "docx" : "text",
+    };
+  }
+
+  function extractKanbanSourceDocumentText(upload) {
+    const ext = path.extname(upload?.path || upload?.name || "").toLowerCase();
+    const preview = ext === ".docx" || upload?.kind === "docx"
+      ? extractDocxText(upload.path)
+      : textFilePreview(upload.path);
+    const text = compactText(preview.text || "", maxFilePreviewChars);
+    if (!text.trim()) throw new Error("Kanban source document extraction returned empty text");
+    return {
+      text,
+      totalChars: preview.totalChars || text.length,
+      truncated: Boolean(preview.truncated),
+    };
   }
 
   async function transcribeKanbanReadingAudio(audioPath) {
@@ -652,11 +742,14 @@ function createKanbanReadingWorkflowService(deps = {}) {
   return {
     analyzeKanbanReadingSubmission,
     ensureKanbanReadingQuizTargeted,
+    extractKanbanSourceDocumentText,
     extractKanbanStudySubmissionEvidence,
     findKanbanReadingSubmissionState,
     generateKanbanReadingQuiz,
     getKanbanReadingQuiz,
+    isKanbanSourceDocumentUpload,
     isReadingAudioUpload,
+    isReadingCoverImageUpload,
     kanbanReadingCanSubmit,
     kanbanReadingPriorComplete,
     kanbanReadingQuizNeedsRetarget,
@@ -664,6 +757,8 @@ function createKanbanReadingWorkflowService(deps = {}) {
     normalizeKanbanReadingQuiz,
     publicKanbanReadingQuiz,
     readingContextForCard,
+    saveKanbanReadingCoverUpload,
+    saveKanbanSourceDocumentUpload,
     saveKanbanReadingAudioUpload,
     saveKanbanStudySubmissionUpload,
     submitKanbanReadingQuiz,

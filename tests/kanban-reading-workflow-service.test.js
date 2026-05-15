@@ -26,9 +26,11 @@ function makeService(overrides = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-reading-workflow-"));
   const stores = new Map();
   const calls = {
+    docx: [],
     hermes: [],
     mutate: [],
     reconcile: [],
+    textPreview: [],
     transcribe: [],
     warnings: [],
   };
@@ -65,7 +67,9 @@ function makeService(overrides = {}) {
       const text = String(value || "").trim();
       return text.length > maxChars ? text.slice(0, maxChars) : text;
     },
-    extractDocxText() {
+    dataDir: path.join(root, "data"),
+    extractDocxText(file) {
+      calls.docx.push(file);
       return { text: "docx evidence", totalChars: 13, truncated: false };
     },
     extractJsonObject(text) {
@@ -92,6 +96,9 @@ function makeService(overrides = {}) {
     kanbanCardRevisionOf: (card) => String(card?.kanbanRevisionOf || ""),
     kanbanCardUsesReadingTemplate: (card) => String(card?.kanbanCaseTemplate || "") === "reading",
     kanbanWorkflowStateCompleted: (state) => String(state?.status || "") === "completed",
+    maxCoverBytes: 64,
+    maxFilePreviewChars: 12,
+    maxSourceDocumentBytes: 64,
     maxUploadBytes: 1000000,
     async maybeReconcileKanbanDependencyBlocks(workspaceId, options) {
       calls.reconcile.push({ workspaceId, options });
@@ -99,6 +106,9 @@ function makeService(overrides = {}) {
     mimeFor(file) {
       if (String(file).endsWith(".txt")) return "text/plain";
       if (String(file).endsWith(".m4a")) return "audio/mp4";
+      if (String(file).endsWith(".png")) return "image/png";
+      if (String(file).endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      if (String(file).endsWith(".md")) return "text/markdown";
       return "application/octet-stream";
     },
     nowIso: () => "2026-05-15T00:00:00.000Z",
@@ -108,8 +118,10 @@ function makeService(overrides = {}) {
       return { stdout: JSON.stringify({ ok: true, text: "spoken evidence", language: "en" }), stderr: "" };
     },
     safeFileName: (value) => path.basename(String(value || "file")).replace(/[^A-Za-z0-9_.-]+/g, "_"),
+    safeStorageSegment: (value) => String(value || "item").replace(/[^A-Za-z0-9_.-]+/g, "_"),
     sanitizePolicy: (policy) => policy,
     textFilePreview(file) {
+      calls.textPreview.push(file);
       return { text: fs.readFileSync(file, "utf8"), totalChars: fs.statSync(file).size, truncated: false };
     },
     transcribeScript,
@@ -208,12 +220,135 @@ function testNormalizeRejectsInvalidQuiz() {
   );
 }
 
+function testReadingCoverUploadHelpers() {
+  const { service, root } = makeService();
+  assert.equal(service.isReadingCoverImageUpload("cover.png", "image/png"), true);
+  assert.equal(service.isReadingCoverImageUpload("cover.webp", "image/webp"), true);
+  assert.equal(service.isReadingCoverImageUpload("cover.gif", ""), false);
+  assert.equal(service.isReadingCoverImageUpload("cover.txt", "image/png"), false);
+  assert.equal(service.saveKanbanReadingCoverUpload("owner", "plan-1", null), null);
+  assert.equal(service.saveKanbanReadingCoverUpload("owner", "plan-1", { filename: "cover.png" }), null);
+
+  const saved = service.saveKanbanReadingCoverUpload("owner", "plan-1", {
+    filename: "My Cover.PNG",
+    type: "image/png",
+    dataBase64: Buffer.from("img").toString("base64"),
+  });
+  assert.equal(saved.name, "My_Cover.PNG");
+  assert.equal(saved.mime, "image/png");
+  assert.equal(saved.size, 3);
+  assert.equal(fs.existsSync(saved.path), true);
+  assert.equal(path.dirname(saved.path), path.join(root, "owner", "plan-1", "cover"));
+  assert.match(path.basename(saved.path), /^\d+-[a-f0-9]{6}-My_Cover\.PNG$/);
+
+  assert.throws(
+    () => service.saveKanbanReadingCoverUpload("owner", "plan-1", {
+      filename: "cover.png",
+      type: "application/octet-stream",
+      dataBase64: Buffer.from("img").toString("base64"),
+    }),
+    /Study plan cover must be/,
+  );
+  assert.throws(
+    () => service.saveKanbanReadingCoverUpload("owner", "plan-1", {
+      filename: "cover.png",
+      type: "image/png",
+      dataBase64: Buffer.alloc(65, 1).toString("base64"),
+    }),
+    /Invalid or too-large study plan cover image/,
+  );
+}
+
+function testKanbanSourceDocumentUploadHelpers() {
+  const { service, root } = makeService();
+  assert.equal(service.isKanbanSourceDocumentUpload("source.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"), true);
+  assert.equal(service.isKanbanSourceDocumentUpload("source.md", "text/markdown; charset=utf-8"), true);
+  assert.equal(service.isKanbanSourceDocumentUpload("source.csv", "application/csv"), true);
+  assert.equal(service.isKanbanSourceDocumentUpload("source.json", "application/json"), true);
+  assert.equal(service.isKanbanSourceDocumentUpload("source.pdf", "application/pdf"), false);
+
+  const textUpload = service.saveKanbanSourceDocumentUpload("owner user", {
+    filename: "Plan Notes.md",
+    type: "text/markdown",
+    dataBase64: Buffer.from("# Plan").toString("base64"),
+  });
+  assert.equal(textUpload.name, "Plan_Notes.md");
+  assert.equal(textUpload.mime, "text/markdown");
+  assert.equal(textUpload.kind, "text");
+  assert.equal(textUpload.size, 6);
+  assert.equal(fs.existsSync(textUpload.path), true);
+  assert.equal(path.dirname(textUpload.path), path.join(root, "data", "uploads", "kanban-source", "owner_user"));
+
+  const docxUpload = service.saveKanbanSourceDocumentUpload("owner", {
+    filename: "source.docx",
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    dataBase64: Buffer.from("docx").toString("base64"),
+  });
+  assert.equal(docxUpload.kind, "docx");
+
+  assert.throws(
+    () => service.saveKanbanSourceDocumentUpload("owner", {
+      filename: "source.pdf",
+      type: "application/pdf",
+      dataBase64: Buffer.from("pdf").toString("base64"),
+    }),
+    /Kanban source document must be/,
+  );
+  assert.throws(
+    () => service.saveKanbanSourceDocumentUpload("owner", {
+      filename: "source.txt",
+      type: "text/plain",
+    }),
+    /Missing dataBase64/,
+  );
+  assert.throws(
+    () => service.saveKanbanSourceDocumentUpload("owner", {
+      filename: "source.txt",
+      type: "text/plain",
+      dataBase64: Buffer.alloc(65, 1).toString("base64"),
+    }),
+    /Invalid or too-large Kanban source document/,
+  );
+}
+
+function testKanbanSourceDocumentExtraction() {
+  const { service, root, calls } = makeService();
+  const textPath = path.join(root, "source.txt");
+  fs.writeFileSync(textPath, "long source document text", "utf8");
+  const textResult = service.extractKanbanSourceDocumentText({ path: textPath, name: "source.txt", kind: "text" });
+  assert.equal(textResult.text, "long source ");
+  assert.equal(textResult.totalChars, 25);
+  assert.equal(textResult.truncated, false);
+  assert.deepEqual(calls.textPreview, [textPath]);
+
+  const docxPath = path.join(root, "source.docx");
+  fs.writeFileSync(docxPath, "docx", "utf8");
+  const docxResult = service.extractKanbanSourceDocumentText({ path: docxPath, name: "source.docx", kind: "docx" });
+  assert.equal(docxResult.text, "docx evidenc");
+  assert.deepEqual(calls.docx, [docxPath]);
+
+  const emptyService = makeService({
+    deps: {
+      textFilePreview() {
+        return { text: "   ", totalChars: 3, truncated: false };
+      },
+    },
+  }).service;
+  assert.throws(
+    () => emptyService.extractKanbanSourceDocumentText({ path: textPath, name: "source.txt", kind: "text" }),
+    /Kanban source document extraction returned empty text/,
+  );
+}
+
 async function run() {
   await testTextSubmissionCreatesAnalysisQuizAndComment();
   await testReadingAudioUsesTranscriptionPath();
   await testQuizFailureAndPassWorkflow();
   await testQuizReadRetargetsOldUnattemptedQuiz();
   testNormalizeRejectsInvalidQuiz();
+  testReadingCoverUploadHelpers();
+  testKanbanSourceDocumentUploadHelpers();
+  testKanbanSourceDocumentExtraction();
   console.log("kanban reading workflow service tests passed");
 }
 

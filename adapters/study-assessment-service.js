@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const {
   actorRoleForKanbanCase,
   normalizeKanbanCaseRecord,
@@ -8,6 +9,18 @@ const {
 const CASE_ROLES = new Set(["manager", "performer", "viewer"]);
 const DONE_STATUSES = new Set(["done", "completed"]);
 const ARCHIVED_STATUSES = new Set(["archived", "cancelled", "canceled"]);
+const DEFAULT_READING_PLAN_MAX_SESSIONS = Math.max(
+  1,
+  Math.min(60, Number(process.env.HERMES_MOBILE_READING_PLAN_MAX_SESSIONS || process.env.HERMES_WEB_READING_PLAN_MAX_SESSIONS || "31") || 31),
+);
+const DEFAULT_ASSESSMENT_PLAN_MAX_EXAMS = Math.max(
+  1,
+  Math.min(30, Number(process.env.HERMES_MOBILE_ASSESSMENT_PLAN_MAX_EXAMS || "30") || 30),
+);
+const DEFAULT_ASSESSMENT_MAX_QUESTIONS = Math.max(
+  5,
+  Math.min(40, Number(process.env.HERMES_MOBILE_ASSESSMENT_MAX_QUESTIONS || "40") || 40),
+);
 
 function own(object, key) {
   return Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
@@ -19,6 +32,37 @@ function cleanString(value) {
 
 function lowerString(value) {
   return cleanString(value).toLowerCase();
+}
+
+function compactText(value, maxChars) {
+  const text = String(value || "");
+  if (text.length <= maxChars) return text;
+  const head = Math.floor(maxChars * 0.45);
+  const tail = maxChars - head;
+  return `${text.slice(0, head)}\n\n[truncated: ${text.length} chars total]\n\n${text.slice(-tail)}`;
+}
+
+function safeSlug(value, fallback = "default") {
+  const slug = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return slug || fallback;
+}
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function formatLocalDate(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function formatLocalDateTime(date) {
+  return `${formatLocalDate(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
 function firstString(source, names, fallback = "") {
@@ -84,6 +128,526 @@ function normalizeStudyAssessmentKind(card = {}) {
   if (mode === "study-plan" && (template === "reading" || template === "reading-plan")) return "reading";
   if (mode === "study-plan") return "study";
   return "";
+}
+
+function normalizeKanbanStudyTemplate(raw = {}) {
+  const value = lowerString(firstString(raw, [
+    "studyTemplate",
+    "study_template",
+    "caseTemplate",
+    "case_template",
+    "template",
+    "kind",
+  ]));
+  if (["reading", "read", "book", "english-reading", "reading-retell"].includes(value)) return "reading";
+  return "custom";
+}
+
+function kanbanCardStudyTemplate(card = {}) {
+  return lowerString(
+    card?.kanbanCaseTemplate
+    || card?.kanban_case_template
+    || card?.studyTemplate
+    || card?.study_template
+    || "custom",
+  ) || "custom";
+}
+
+function kanbanCardUsesReadingTemplate(card = {}) {
+  return kanbanCardStudyTemplate(card) === "reading";
+}
+
+function normalizeReadingPlanTime(value) {
+  const text = cleanString(value);
+  const match = text.match(/^(\d{1,2})(?::|\uFF1A)(\d{1,2})$/);
+  if (!match) return "21:00";
+  const hour = Math.max(0, Math.min(23, Number(match[1]) || 0));
+  const minute = Math.max(0, Math.min(59, Number(match[2]) || 0));
+  return `${pad2(hour)}:${pad2(minute)}`;
+}
+
+function dateNow(options = {}) {
+  if (options.now instanceof Date) return new Date(options.now.getTime());
+  if (typeof options.now === "function") {
+    const value = options.now();
+    if (value instanceof Date) return new Date(value.getTime());
+  }
+  return new Date();
+}
+
+function normalizeReadingPlanStartDate(value, options = {}) {
+  const text = cleanString(value);
+  const match = text.match(/^(20\d{2})-(\d{1,2})-(\d{1,2})$/);
+  const now = dateNow(options);
+  if (!match) return formatLocalDate(now);
+  return `${match[1]}-${pad2(Number(match[2]))}-${pad2(Number(match[3]))}`;
+}
+
+function readingPlanDueTime(startDate, timeOfDay, dayOffset, options = {}) {
+  const dateMatch = cleanString(startDate).match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+  const timeMatch = normalizeReadingPlanTime(timeOfDay).match(/^(\d{2}):(\d{2})$/);
+  const date = dateMatch
+    ? new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]), Number(timeMatch[1]), Number(timeMatch[2]), 0, 0)
+    : dateNow(options);
+  date.setDate(date.getDate() + Math.max(0, Number(dayOffset) || 0));
+  return formatLocalDateTime(date);
+}
+
+function readingPlanStartDateTime(startDate, timeOfDay, options = {}) {
+  const dateMatch = cleanString(startDate).match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+  const timeMatch = normalizeReadingPlanTime(timeOfDay).match(/^(\d{2}):(\d{2})$/);
+  return dateMatch
+    ? new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]), Number(timeMatch[1]), Number(timeMatch[2]), 0, 0)
+    : dateNow(options);
+}
+
+function normalizeStudyPlanScheduleFrequency(value = "") {
+  const text = cleanString(value).toLowerCase();
+  if (["weekly", "week", "weeks", "\u6BCF\u5468", "\u6BCF\u9031", "\u5468", "\u9031"].includes(text)) return "weekly";
+  if (["monthly", "month", "months", "\u6BCF\u6708", "\u6708"].includes(text)) return "monthly";
+  return "daily";
+}
+
+function normalizeStudyPlanWeekdays(value, startDate = "", options = {}) {
+  const raw = Array.isArray(value)
+    ? value
+    : cleanString(value).split(/[,\s;\uFF0C\u3001]+/);
+  const out = [];
+  const seen = new Set();
+  const pushDay = (day) => {
+    const normalized = day === 7 ? 0 : day;
+    if (!Number.isInteger(normalized) || normalized < 0 || normalized > 6 || seen.has(normalized)) return;
+    seen.add(normalized);
+    out.push(normalized);
+  };
+  for (const item of raw) {
+    const text = cleanString(item).toLowerCase();
+    if (!text) continue;
+    if (/^(sun|sunday|\u5468\u65E5|\u9031\u65E5|\u5468\u5929|\u661F\u671F\u65E5|\u661F\u671F\u5929)$/.test(text)) { pushDay(0); continue; }
+    if (/^(mon|monday|\u5468\u4E00|\u9031\u4E00|\u661F\u671F\u4E00)$/.test(text)) { pushDay(1); continue; }
+    if (/^(tue|tues|tuesday|\u5468\u4E8C|\u9031\u4E8C|\u661F\u671F\u4E8C)$/.test(text)) { pushDay(2); continue; }
+    if (/^(wed|wednesday|\u5468\u4E09|\u9031\u4E09|\u661F\u671F\u4E09)$/.test(text)) { pushDay(3); continue; }
+    if (/^(thu|thur|thurs|thursday|\u5468\u56DB|\u9031\u56DB|\u661F\u671F\u56DB)$/.test(text)) { pushDay(4); continue; }
+    if (/^(fri|friday|\u5468\u4E94|\u9031\u4E94|\u661F\u671F\u4E94)$/.test(text)) { pushDay(5); continue; }
+    if (/^(sat|saturday|\u5468\u516D|\u9031\u516D|\u661F\u671F\u516D)$/.test(text)) { pushDay(6); continue; }
+    const number = Number(text);
+    if (Number.isFinite(number)) pushDay(number === 0 ? 0 : Math.max(1, Math.min(7, Math.trunc(number))));
+  }
+  if (!out.length) {
+    out.push(readingPlanStartDateTime(normalizeReadingPlanStartDate(startDate, options), "00:00", options).getDay());
+  }
+  return out.sort((a, b) => a - b);
+}
+
+function studyPlanWeekdayLabel(day) {
+  return ["\u5468\u65E5", "\u5468\u4E00", "\u5468\u4E8C", "\u5468\u4E09", "\u5468\u56DB", "\u5468\u4E94", "\u5468\u516D"][day] || "";
+}
+
+function normalizeStudyPlanSchedule(raw = {}, startDate = "", timeOfDay = "", options = {}) {
+  const frequency = normalizeStudyPlanScheduleFrequency(
+    raw.scheduleFrequency
+    || raw.schedule_frequency
+    || raw.frequency
+    || raw.recurrence
+    || raw.repeat
+    || "",
+  );
+  const weekdays = normalizeStudyPlanWeekdays(
+    raw.scheduleWeekdays
+    || raw.schedule_weekdays
+    || raw.weekdays
+    || raw.weekday
+    || raw.weekDays
+    || raw.week_days
+    || "",
+    startDate,
+    options,
+  );
+  const monthDay = Math.max(1, Math.min(31, Number(
+    raw.scheduleMonthDay || raw.schedule_month_day || raw.monthDay || raw.month_day || readingPlanStartDateTime(startDate, timeOfDay, options).getDate(),
+  ) || 1));
+  const label = frequency === "weekly"
+    ? `\u6BCF\u5468 ${weekdays.map(studyPlanWeekdayLabel).filter(Boolean).join("\u3001") || "\u6307\u5B9A\u65E5"}`
+    : (frequency === "monthly" ? `\u6BCF\u6708 ${monthDay} \u65E5` : "\u6BCF\u65E5");
+  return {
+    frequency,
+    weekdays,
+    weekdaysOneBased: weekdays.map((day) => (day === 0 ? 7 : day)),
+    monthDay,
+    label,
+    startDate,
+    timeOfDay,
+  };
+}
+
+function daysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function readingPlanScheduleDueTime(schedule = {}, occurrenceIndex = 0, options = {}) {
+  const index = Math.max(0, Number(occurrenceIndex) || 0);
+  const start = readingPlanStartDateTime(schedule.startDate, schedule.timeOfDay, options);
+  if (schedule.frequency === "weekly") {
+    const weekdays = Array.isArray(schedule.weekdays) && schedule.weekdays.length ? schedule.weekdays : [start.getDay()];
+    const date = new Date(start.getTime());
+    let seen = 0;
+    for (let guard = 0; guard < 3700; guard += 1) {
+      if (weekdays.includes(date.getDay())) {
+        if (seen === index) return formatLocalDateTime(date);
+        seen += 1;
+      }
+      date.setDate(date.getDate() + 1);
+    }
+    return formatLocalDateTime(date);
+  }
+  if (schedule.frequency === "monthly") {
+    const targetDay = Math.max(1, Math.min(31, Number(schedule.monthDay || start.getDate()) || start.getDate()));
+    let seen = 0;
+    for (let monthOffset = 0; monthOffset < 240; monthOffset += 1) {
+      const candidateMonth = start.getMonth() + monthOffset;
+      const candidateYear = start.getFullYear() + Math.floor(candidateMonth / 12);
+      const normalizedMonth = ((candidateMonth % 12) + 12) % 12;
+      const day = Math.min(targetDay, daysInMonth(candidateYear, normalizedMonth));
+      const candidate = new Date(candidateYear, normalizedMonth, day, start.getHours(), start.getMinutes(), 0, 0);
+      if (candidate < start) continue;
+      if (seen === index) return formatLocalDateTime(candidate);
+      seen += 1;
+    }
+  }
+  const date = new Date(start.getTime());
+  date.setDate(date.getDate() + index);
+  return formatLocalDateTime(date);
+}
+
+function studyPlanMaxSessions(options = {}) {
+  const value = options.maxSessions ?? options.readingPlanMaxSessions ?? options.studyPlanMaxSessions ?? DEFAULT_READING_PLAN_MAX_SESSIONS;
+  return Math.max(1, Math.min(60, Number(value) || DEFAULT_READING_PLAN_MAX_SESSIONS));
+}
+
+function normalizeStudyPlanWorkspaceIdList(value, options = {}) {
+  const normalize = typeof options.normalizeWorkspaceIdList === "function"
+    ? options.normalizeWorkspaceIdList
+    : null;
+  if (normalize) return normalize(value);
+  const raw = Array.isArray(value)
+    ? value
+    : cleanString(value).split(/[,\s;\uFF0C\u3001\uFF1B]+/);
+  const out = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const id = cleanString(item);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner", options = {}) {
+  const mode = "study-plan";
+  const template = normalizeKanbanStudyTemplate(raw);
+  const readingTemplate = template === "reading";
+  const ownerWorkspaceId = String(workspaceId || "owner");
+  const contentTitle = compactText(
+    raw.contentTitle
+    || raw.content_title
+    || raw.bookTitle
+    || raw.book_title
+    || raw.title
+    || "",
+    120,
+  );
+  if (!contentTitle) throw new Error("Study plan contentTitle is required");
+  const learnerName = compactText(
+    raw.learnerName
+    || raw.learner_name
+    || raw.readerName
+    || raw.reader_name
+    || raw.reader
+    || raw.targetName
+    || raw.target_name
+    || "\u5B66\u4E60\u8005",
+    80,
+  );
+  const subject = compactText(raw.subject || raw.domain || (readingTemplate ? "\u82F1\u8BED\u9605\u8BFB" : "\u5B66\u4E60"), 80);
+  const activity = compactText(raw.activity || raw.activityType || raw.activity_type || (readingTemplate ? "\u9605\u8BFB\u590D\u8FF0" : "\u63D0\u4EA4\u6210\u679C\u5E76\u8003\u6838"), 120);
+  const submissionLabel = compactText(raw.submissionLabel || raw.submission_label || (readingTemplate ? "\u590D\u8FF0\u5F55\u97F3" : "\u5B66\u4E60\u6210\u679C\u6587\u4EF6\u6216\u6587\u5B57"), 120);
+  const sessions = Math.max(1, Math.min(studyPlanMaxSessions(options), Number(raw.sessions || raw.sessionCount || raw.session_count || 10) || 10));
+  const now = dateNow(options);
+  const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date, { now });
+  const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
+  const schedule = normalizeStudyPlanSchedule(raw, startDate, timeOfDay, { now });
+  const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 15) || 0));
+  const sourceText = compactText(raw.sourceText || raw.source_text || raw.text || raw.notes || "", 4000);
+  const performerWorkspaceIds = normalizeStudyPlanWorkspaceIdList(
+    raw.performerWorkspaceIds
+    || raw.performer_workspace_ids
+    || raw.targetWorkspaceIds
+    || raw.target_workspace_ids
+    || raw.performerWorkspaceId
+    || raw.performer_workspace_id
+    || raw.targetWorkspaceId
+    || raw.target_workspace_id
+    || "",
+    options,
+  ).filter((id) => id !== ownerWorkspaceId);
+  const viewerWorkspaceIds = normalizeStudyPlanWorkspaceIdList(
+    raw.viewerWorkspaceIds
+    || raw.viewer_workspace_ids
+    || raw.readonlyWorkspaceIds
+    || raw.readonly_workspace_ids
+    || "",
+    options,
+  ).filter((id) => id !== ownerWorkspaceId && !performerWorkspaceIds.includes(id));
+  const summary = compactText(`${learnerName}\uFF1A${subject} - ${contentTitle}`, 180);
+  const idTimestamp = typeof options.nowMs === "function" ? options.nowMs() : Date.now();
+  const randomBytes = typeof options.randomBytes === "function" ? options.randomBytes : crypto.randomBytes;
+  const id = String(raw.id || `study-plan-${idTimestamp}-${randomBytes(3).toString("hex")}`);
+  const cards = Array.from({ length: sessions }, (_, index) => {
+    const day = index + 1;
+    const title = readingTemplate
+      ? `${learnerName}\u9605\u8BFB\u300A${contentTitle}\u300B\u7B2C ${day}/${sessions} \u6B21\uFF1A\u5F55\u97F3\u590D\u8FF0`
+      : `${learnerName}${subject}\u7B2C ${day}/${sessions} \u6B21\uFF1A\u63D0\u4EA4\u6210\u679C`;
+    const description = compactText([
+      `\u5B66\u4E60\u8BA1\u5212\uFF1A${summary}`,
+      `\u7B2C ${day} \u6B21\uFF0C\u5171 ${sessions} \u6B21\u3002`,
+      `\u6267\u884C\u9891\u7387\uFF1A${schedule.label}\uFF0C\u5F00\u59CB\u65F6\u95F4 ${startDate} ${timeOfDay}\u3002`,
+      `\u9886\u57DF/\u79D1\u76EE\uFF1A${subject}`,
+      `\u5F53\u5929\u4EFB\u52A1\uFF1A${activity}`,
+      `\u63D0\u4EA4\u8981\u6C42\uFF1A${submissionLabel}`,
+      readingTemplate
+        ? "\u5F53\u5929\u9605\u8BFB\u5B8C\u6210\u540E\uFF0C\u9700\u8981\u4E0A\u4F20\u8BED\u97F3\u590D\u8FF0\u6216\u603B\u7ED3\u5F55\u97F3\u3002Hermes Mobile \u4F1A\u5148\u8F6C\u5199\u5F55\u97F3\uFF0C\u518D\u7ED3\u5408\u524D\u9762\u5DF2\u5B8C\u6210\u5361\u7247\u7684\u53CD\u9988\u751F\u6210\u8BC4\u4EF7\u3001\u9488\u5BF9\u6027\u5355\u9009\u8003\u5377\u548C\u4E0B\u4E00\u6B21\u6307\u5BFC\uFF1B\u7B54\u5377 10 \u9898\u5168\u5BF9\u540E\uFF0C\u672C\u5361\u7247\u624D\u4F1A\u5B8C\u6210\u3002"
+        : "\u5F53\u5929\u5B66\u4E60\u5B8C\u6210\u540E\uFF0C\u63D0\u4EA4\u6210\u679C\u6587\u4EF6\u3001\u6587\u5B57\u8BF4\u660E\u6216\u5F55\u97F3\u3002Hermes Mobile \u4F1A\u63D0\u53D6\u53EF\u8BFB\u5185\u5BB9\u3001\u751F\u6210\u8BC4\u4EF7\u3001\u9488\u5BF9\u6027\u5355\u9009\u8003\u5377\u548C\u4E0B\u4E00\u6B21\u6307\u5BFC\uFF1B\u7B54\u5377 10 \u9898\u5168\u5BF9\u540E\uFF0C\u672C\u5361\u7247\u624D\u4F1A\u5B8C\u6210\u3002",
+      sourceText ? `\u6574\u4F53\u8981\u6C42\uFF1A\n${sourceText}` : "",
+    ].filter(Boolean).join("\n\n"), 1800);
+    return {
+      clientId: `${template}-session-${day}`,
+      title,
+      day,
+      dueTime: readingPlanScheduleDueTime(schedule, index, { now }),
+      description,
+      deliverables: readingTemplate
+        ? ["\u8BFB\u540E\u590D\u8FF0\u5F55\u97F3", "AI\u9605\u8BFB\u8BC4\u4EF7", "\u9488\u5BF9\u6027\u5355\u9009\u8003\u5377", "\u4E0B\u4E00\u6B21\u9605\u8BFB\u6307\u5BFC"]
+        : ["\u5B66\u4E60\u6210\u679C\u63D0\u4EA4", "AI\u8BC4\u4EF7", "\u9488\u5BF9\u6027\u5355\u9009\u8003\u5377", "\u4E0B\u4E00\u6B21\u5B66\u4E60\u6307\u5BFC"],
+      acceptance: readingTemplate
+        ? ["\u5DF2\u4E0A\u4F20\u5F53\u5929\u5F55\u97F3", "\u5DF2\u751F\u6210\u8F6C\u5199\u548CAI\u8BC4\u4EF7", "10\u9898\u5355\u9009\u8003\u5377\u5168\u5BF9", "\u5361\u7247\u5B8C\u6210\u7ED3\u679C\u5305\u542B\u5206\u6790\u6587\u4EF6"]
+        : ["\u5DF2\u63D0\u4EA4\u5F53\u5929\u5B66\u4E60\u6210\u679C", "\u5DF2\u751F\u6210AI\u8BC4\u4EF7", "10\u9898\u5355\u9009\u8003\u5377\u5168\u5BF9", "\u5361\u7247\u5B8C\u6210\u7ED3\u679C\u5305\u542B\u5206\u6790\u6587\u4EF6"],
+    };
+  });
+  return {
+    id,
+    mode,
+    template,
+    workspaceId: ownerWorkspaceId,
+    bookTitle: contentTitle,
+    contentTitle,
+    readerName: learnerName,
+    learnerName,
+    subject,
+    activity,
+    submissionLabel,
+    sessions,
+    startDate,
+    timeOfDay,
+    scheduleFrequency: schedule.frequency,
+    scheduleWeekdays: schedule.weekdaysOneBased,
+    scheduleMonthDay: schedule.monthDay,
+    scheduleLabel: schedule.label,
+    reminderLeadMinutes,
+    sourceText,
+    summary,
+    performerWorkspaceIds,
+    viewerWorkspaceIds,
+    cards,
+  };
+}
+
+function normalizeAssessmentPlanWorkspaceIdList(value, options = {}) {
+  const normalize = typeof options.normalizeWorkspaceIdList === "function"
+    ? options.normalizeWorkspaceIdList
+    : null;
+  if (normalize) return normalize(value);
+  const raw = Array.isArray(value)
+    ? value
+    : cleanString(value).split(/[,\s;\uFF0C\u3001\uFF1B]+/);
+  const out = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const id = cleanString(item);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function normalizeAssessmentPlanStartDate(value, options = {}) {
+  const text = cleanString(value);
+  const match = text.match(/^(20\d{2})-(\d{1,2})-(\d{1,2})$/);
+  const now = options.now instanceof Date ? new Date(options.now.getTime()) : new Date();
+  if (!match) return formatLocalDate(now);
+  return `${match[1]}-${pad2(Number(match[2]))}-${pad2(Number(match[3]))}`;
+}
+
+function normalizeAssessmentPlanTime(value) {
+  const text = cleanString(value);
+  const match = text.match(/^(\d{1,2})(?::|\uFF1A)(\d{1,2})$/);
+  if (!match) return "21:00";
+  const hour = Math.max(0, Math.min(23, Number(match[1]) || 0));
+  const minute = Math.max(0, Math.min(59, Number(match[2]) || 0));
+  return `${pad2(hour)}:${pad2(minute)}`;
+}
+
+function assessmentPlanDueTime(startDate, timeOfDay, dayOffset, options = {}) {
+  const dateMatch = cleanString(startDate).match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+  const timeMatch = normalizeAssessmentPlanTime(timeOfDay).match(/^(\d{2}):(\d{2})$/);
+  const date = dateMatch
+    ? new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]), Number(timeMatch[1]), Number(timeMatch[2]), 0, 0)
+    : (options.now instanceof Date ? new Date(options.now.getTime()) : new Date());
+  date.setDate(date.getDate() + Math.max(0, Number(dayOffset) || 0));
+  return formatLocalDateTime(date);
+}
+
+function assessmentPlanMaxExams(options = {}) {
+  const value = options.maxExams ?? options.assessmentPlanMaxExams ?? DEFAULT_ASSESSMENT_PLAN_MAX_EXAMS;
+  return Math.max(1, Math.min(30, Number(value) || DEFAULT_ASSESSMENT_PLAN_MAX_EXAMS));
+}
+
+function assessmentMaxQuestions(options = {}) {
+  const value = options.maxQuestions ?? options.assessmentMaxQuestions ?? DEFAULT_ASSESSMENT_MAX_QUESTIONS;
+  return Math.max(5, Math.min(40, Number(value) || DEFAULT_ASSESSMENT_MAX_QUESTIONS));
+}
+
+function normalizeKanbanAssessmentSubjectId(value = "") {
+  const text = lowerString(value);
+  if (/math|\u6570\u5b66|\u6578\u5b78|amc/.test(text)) return "math";
+  if (/english|\u82f1\u8bed|\u82f1\u6587|reading|language/.test(text)) return "english";
+  if (/science|\u79d1\u5b66|\u79d1\u5b78|physics|chemistry|biology/.test(text)) return "science";
+  if (/history|\u5386\u53f2|\u6b77\u53f2/.test(text)) return "history";
+  if (/chinese|\u4e2d\u6587|\u8bed\u6587|\u8a9e\u6587/.test(text)) return "chinese";
+  return safeSlug(text || "assessment", "assessment").slice(0, 40) || "assessment";
+}
+
+function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options = {}) {
+  const ownerWorkspaceId = cleanString(workspaceId) || "owner";
+  const linkedStudyPlan = Boolean(options.linkedStudyPlan);
+  const subject = compactText(raw.subject || raw.domain || raw.course || "\u6570\u5b66", 80);
+  const subjectId = normalizeKanbanAssessmentSubjectId(subject);
+  const learnerName = compactText(raw.learnerName || raw.learner_name || raw.targetName || raw.target_name || "\u5b66\u4e60\u8005", 80);
+  const courseLevel = compactText(raw.courseLevel || raw.course_level || raw.grade || raw.level || "\u9636\u6bb5\u68c0\u6d4b", 80);
+  const title = compactText(raw.title || raw.planTitle || raw.plan_title || `${learnerName} ${subject} \u8003\u8bd5\u8ba1\u5212`, 140);
+  const examCount = Math.max(1, Math.min(assessmentPlanMaxExams(options), Number(raw.examCount || raw.exam_count || raw.sessions || 10) || 10));
+  const questionCount = Math.max(5, Math.min(assessmentMaxQuestions(options), Number(raw.questionCount || raw.question_count || 20) || 20));
+  const durationMinutes = Math.max(5, Math.min(180, Number(raw.durationMinutes || raw.duration_minutes || 30) || 30));
+  const passingScore = Math.max(50, Math.min(100, Number(raw.passingScore || raw.passing_score || 80) || 80));
+  const intervalDays = Math.max(1, Math.min(60, Number(raw.intervalDays || raw.interval_days || raw.examIntervalDays || raw.exam_interval_days || 14) || 14));
+  const startDate = normalizeAssessmentPlanStartDate(raw.startDate || raw.start_date, options);
+  const timeOfDay = normalizeAssessmentPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
+  const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 30) || 0));
+  const difficulty = compactText(raw.difficulty || raw.difficultyMix || raw.difficulty_mix || "\u57fa\u784030% / \u4e2d\u7b4950% / \u6311\u621820%", 160);
+  const blueprint = compactText(raw.blueprint || raw.examBlueprint || raw.exam_blueprint || raw.sourceText || raw.source_text || raw.text || "", 4000);
+  const retakeUntilPass = raw.retakeUntilPass ?? raw.retake_until_pass ?? true;
+  const performerWorkspaceIds = normalizeAssessmentPlanWorkspaceIdList(
+    raw.performerWorkspaceIds
+    || raw.performer_workspace_ids
+    || raw.targetWorkspaceIds
+    || raw.target_workspace_ids
+    || raw.performerWorkspaceId
+    || raw.performer_workspace_id
+    || raw.targetWorkspaceId
+    || raw.target_workspace_id
+    || "",
+    options,
+  ).filter((id) => id !== ownerWorkspaceId);
+  const viewerWorkspaceIds = normalizeAssessmentPlanWorkspaceIdList(
+    raw.viewerWorkspaceIds
+    || raw.viewer_workspace_ids
+    || raw.readonlyWorkspaceIds
+    || raw.readonly_workspace_ids
+    || "",
+    options,
+  ).filter((id) => id !== ownerWorkspaceId && !performerWorkspaceIds.includes(id));
+  const idTimestamp = typeof options.nowMs === "function" ? options.nowMs() : Date.now();
+  const randomBytes = typeof options.randomBytes === "function" ? options.randomBytes : crypto.randomBytes;
+  const id = String(raw.id || `assessment-plan-${idTimestamp}-${randomBytes(3).toString("hex")}`);
+  const summary = compactText(`${learnerName}\uFF1A${subject} ${courseLevel} - ${title}`, 180);
+  const baseConfig = {
+    schemaVersion: 1,
+    kind: linkedStudyPlan ? "final-study-assessment" : "assessment-plan",
+    subject,
+    subjectId,
+    learnerName,
+    courseLevel,
+    questionCount,
+    durationMinutes,
+    passingScore,
+    difficulty,
+    retakeUntilPass: Boolean(retakeUntilPass),
+  };
+  const cards = Array.from({ length: examCount }, (_, index) => {
+    const number = index + 1;
+    const finalExam = linkedStudyPlan && number === examCount;
+    const config = Object.assign({}, baseConfig, {
+      examIndex: number,
+      examCount,
+      finalExam,
+    });
+    const cardTitle = finalExam
+      ? `${learnerName}${subject}\u9636\u6bb5\u7ed3\u675f\u7efc\u5408\u8003\u8bd5`
+      : `${learnerName}${subject}\u7b2c ${number}/${examCount} \u6b21\u6b63\u5f0f\u6d4b\u8bd5`;
+    const description = compactText([
+      `\u8003\u8bd5\u8ba1\u5212\uFF1A${summary}`,
+      `\u79d1\u76ee\uFF1A${subject}`,
+      `\u9636\u6bb5\uFF1A${courseLevel}`,
+      `\u9898\u91CF\uFF1A${questionCount} \u9898`,
+      `\u65F6\u957F\uFF1A${durationMinutes} \u5206\u949F`,
+      `\u901A\u8FC7\u7EBF\uFF1A${passingScore} \u5206`,
+      `\u96BE\u5EA6\uFF1A${difficulty}`,
+      "\u8FD9\u662F\u6B63\u5F0F\u68C0\u6D4B\u5361\u7247\uFF0C\u96BE\u5EA6\u9AD8\u4E8E\u6BCF\u65E5\u5C0F\u6D4B\uFF1B\u4F4E\u4E8E\u901A\u8FC7\u7EBF\u65F6\u4E0D\u5B8C\u6210\u5361\u7247\uFF0C\u7EE7\u7EED\u4FDD\u6301\u91CD\u8003\u72B6\u6001\u3002",
+      finalExam ? "\u8FD9\u662F\u5B66\u4E60\u8BA1\u5212\u7684\u6700\u7EC8\u9636\u6BB5\u8003\u8BD5\uFF1B\u53EA\u6709\u8FBE\u5230\u901A\u8FC7\u7EBF\u540E\uFF0C\u9636\u6BB5\u5B66\u4E60\u8BA1\u5212\u624D\u7B97\u5B8C\u6210\u3002" : "",
+      blueprint ? `\u8003\u8BD5\u84DD\u56FE\uFF1A\n${blueprint}` : "",
+    ].filter(Boolean).join("\n\n"), 1800);
+    return {
+      clientId: finalExam ? "final-assessment" : `assessment-exam-${number}`,
+      title: cardTitle,
+      dueTime: assessmentPlanDueTime(startDate, timeOfDay, index * intervalDays, options),
+      description,
+      config,
+      deliverables: ["\u6B63\u5F0F\u8003\u5377", "\u81EA\u52A8\u8BC4\u5206", "\u80FD\u529B\u8BCA\u65AD", "\u9519\u9898\u4E0E\u8865\u5F3A\u5EFA\u8BAE"],
+      acceptance: [
+        `\u5B8C\u6210 ${questionCount} \u9898\u6B63\u5F0F\u6D4B\u8BD5`,
+        `\u5F97\u5206\u8FBE\u5230 ${passingScore}/100`,
+        "\u672A\u8FBE\u6807\u5219\u4FDD\u7559\u4E3A\u91CD\u8003\u72B6\u6001",
+        "\u751F\u6210\u8003\u8BD5\u62A5\u544A\u548C\u4E0B\u4E00\u6B65\u8865\u5F3A\u5EFA\u8BAE",
+      ],
+    };
+  });
+  return {
+    id,
+    mode: linkedStudyPlan ? "study-plan" : "assessment-plan",
+    template: linkedStudyPlan ? "final-assessment" : subjectId,
+    workspaceId: ownerWorkspaceId,
+    subject,
+    subjectId,
+    learnerName,
+    courseLevel,
+    title,
+    examCount,
+    questionCount,
+    durationMinutes,
+    passingScore,
+    intervalDays,
+    startDate,
+    timeOfDay,
+    reminderLeadMinutes,
+    difficulty,
+    blueprint,
+    retakeUntilPass: Boolean(retakeUntilPass),
+    summary,
+    performerWorkspaceIds,
+    viewerWorkspaceIds,
+    cards,
+  };
 }
 
 function isStudyKind(kind) {
@@ -408,6 +972,18 @@ function dependencyIds(card = {}) {
   ], 50);
 }
 
+function studyAssessmentCardId(card = {}) {
+  return cardId(card);
+}
+
+function studyAssessmentCardSortIndex(card = {}) {
+  return cardSortIndex(card);
+}
+
+function studyAssessmentDependencyIds(card = {}) {
+  return dependencyIds(card);
+}
+
 function cardCompleted(card = {}, options = {}) {
   const kind = normalizeStudyAssessmentKind(card);
   const status = normalizeStatus(card);
@@ -564,7 +1140,23 @@ module.exports = {
   hasPassedAttempt,
   isAssessmentExamComplete,
   isStudyQuizComplete,
+  kanbanCardStudyTemplate,
+  kanbanCardUsesReadingTemplate,
+  normalizeKanbanAssessmentPlan,
+  normalizeKanbanAssessmentSubjectId,
+  normalizeKanbanStudyPlan,
+  normalizeKanbanStudyTemplate,
+  normalizeReadingPlanStartDate,
+  normalizeReadingPlanTime,
   normalizeStudyAssessmentKind,
+  normalizeStudyPlanSchedule,
+  normalizeStudyPlanScheduleFrequency,
+  normalizeStudyPlanWeekdays,
   permissionsForStudyAssessmentRole,
+  readingPlanDueTime,
+  readingPlanScheduleDueTime,
+  studyAssessmentCardId,
   studyAssessmentCanActor,
+  studyAssessmentCardSortIndex,
+  studyAssessmentDependencyIds,
 };

@@ -74,7 +74,7 @@ assert.match(server, /HERMES_MOBILE_WEB_PUSH_START_DELAY_MS/);
 assert.match(server, /HERMES_WEB_TODO_PUSH_START_DELAY_MS/);
 assert.match(server, /HERMES_WEB_AUTOMATION_PUSH_START_DELAY_MS/);
 assert.match(server, /120000/);
-assert.match(server, /function scheduleBackgroundWebPushDispatcher/);
+assert.match(fs.readFileSync("adapters/web-push-delivery-service.js", "utf8"), /function scheduleBackgroundWebPushDispatcher/);
 assert.doesNotMatch(server, /setTimeout\(tick, 8000\)/);
 assert.doesNotMatch(server, /setTimeout\(tick, 12000\)/);
 

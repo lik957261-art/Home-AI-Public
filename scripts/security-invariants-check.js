@@ -40,7 +40,7 @@ function main() {
 
   assertContains("server.js", /createFileArtifactApiRoutes[\s\S]{0,600}resolveArtifactForRequest/, "artifact read must be wired through the file artifact route module");
   assertContains("server.js", /createFileArtifactApiRoutes[\s\S]{0,600}resolveFileForBrowserRequest/, "file read/preview must be wired through the file artifact route module");
-  assertContains("server.js", /fileArtifactApiRoutes\.handle\(req, res, url, \{ auth \}\)/, "file artifact routes must be installed in the API router");
+  assertContains("server-routes/mobile-api-dispatcher.js", /key: "fileArtifactApiRoutes"/, "file artifact routes must be installed in the API router");
   assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /artifact-read/, /resolveArtifactForRequest/);
   assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /files-preview/, /resolveFileForBrowserRequest/);
   assertRouteGuardInFile("server-routes/directory-mutation-api-routes.js", /directories-create/, /isSharedDirectoryWriteAllowed/);

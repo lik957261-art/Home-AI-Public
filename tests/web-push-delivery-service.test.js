@@ -69,8 +69,8 @@ function createHarness(root, overrides = {}) {
     kanbanBlockedPushDelayMinutes: 10,
     loadCatalog: () => ({
       workspaces: [
-        { id: "owner", policy: { principal_id: "owner" } },
-        { id: "child", policy: { principal_id: "child-principal" } },
+        { id: "owner", label: "Owner", policy: { principal_id: "owner" } },
+        { id: "child", label: "Child", name: "Learner", policy: { principal_id: "child-principal" } },
       ],
     }),
     loadRuntimeConfig: () => ({}),
@@ -92,6 +92,15 @@ function createHarness(root, overrides = {}) {
     webpush,
     webPushEnabled: true,
     webPushSubject: "mailto:test@example.invalid",
+    chatGroupMemberWorkspaceIds: (thread) => thread?.chatGroup?.memberWorkspaceIds || [],
+    findWorkspace: (workspaceId) => ({
+      owner: { id: "owner", label: "Owner", policy: { principal_id: "owner" } },
+      child: { id: "child", label: "Child", name: "Learner", policy: { principal_id: "child-principal" } },
+    })[workspaceId] || null,
+    isWeixinSingleWindowThread: (thread) => thread?.externalIngress?.source === "weixin",
+    singleWindowChatTaskGroupId: "chat",
+    singleWindowGroupChatTaskGroupId: "group-chat",
+    workspaceLabel: (workspaceId) => workspaceId === "child" ? "Child" : "Owner",
     workspaceIdForPrincipal: (principalId) => principalId === "child-principal" ? "child" : "owner",
     workspacePrincipal: (workspaceId) => workspaceId === "child" ? "child-principal" : "owner",
   }, overrides.serviceOptions || {}));
@@ -249,12 +258,82 @@ function testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes() {
   });
 }
 
+function testTaskTerminalAndGroupMentionNotifications() {
+  withTempDir((root) => {
+    const { calls, service, state } = createHarness(root);
+    state.pushSubscriptions.push({
+      subscription: { endpoint: "child-endpoint" },
+      principalIds: ["child-principal"],
+      workspaceIds: ["child"],
+    });
+    state.pushSubscriptions.push({
+      subscription: { endpoint: "owner-endpoint" },
+      principalIds: ["owner"],
+      workspaceIds: ["owner"],
+    });
+    const thread = {
+      id: "thread-1",
+      title: "Thread title",
+      workspaceId: "child",
+      singleWindow: false,
+      messages: [
+        { id: "u1", role: "user", content: "Prompt text", taskGroupId: "task-1" },
+      ],
+    };
+    const message = {
+      id: "a1",
+      role: "assistant",
+      content: "Task result",
+      runId: "run-1",
+      taskGroupId: "task-1",
+    };
+
+    return service.notifyTaskTerminal(thread, message, "done").then(() => {
+      assert.equal(calls.sends.at(-1).payload.data.viewMode, "tasks");
+      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=a1");
+      assert.equal(calls.sends.at(-1).payload.data.messageType, "task_completed");
+
+      const weixinThread = Object.assign({}, thread, {
+        singleWindow: true,
+        externalIngress: { source: "weixin" },
+      });
+      const chatMessage = Object.assign({}, message, { taskGroupId: "chat" });
+      return service.notifyTaskTerminal(weixinThread, chatMessage, "failed");
+    }).then(() => {
+      assert.equal(calls.sends.at(-1).payload.data.viewMode, "single");
+      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=single&workspaceId=child&weixinChat=1");
+
+      const groupThread = {
+        id: "group-thread",
+        workspaceId: "owner",
+        singleWindow: true,
+        chatGroup: { enabled: true, memberWorkspaceIds: ["owner", "child"] },
+      };
+      const groupMessage = {
+        id: "gm1",
+        taskGroupId: "group-chat",
+        content: "hello @Learner and @Owner",
+        senderWorkspaceId: "owner",
+        senderLabel: "Owner",
+      };
+      return service.notifyGroupChatMentions(groupThread, groupMessage);
+    }).then(() => {
+      assert.equal(calls.sends.filter((send) => send.payload.data.messageType === "group_mention").length, 1);
+      const groupSend = calls.sends.find((send) => send.payload.data.messageType === "group_mention");
+      assert.equal(groupSend.payload.data.workspaceId, "child");
+      assert.equal(groupSend.payload.data.senderWorkspaceId, "owner");
+      assert.equal(groupSend.payload.data.url, "/?view=single&workspaceId=child&groupChat=1&threadId=group-thread&messageId=gm1");
+    });
+  });
+}
+
 Promise.resolve()
   .then(testVapidLifecycleAndPublicStatus)
   .then(testSubscriptionSendAndRemoval)
   .then(testReceiptMarksTodoWithoutCountingAttempt)
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)
+  .then(testTaskTerminalAndGroupMentionNotifications)
   .then(() => {
     console.log("web-push-delivery-service tests passed");
   });

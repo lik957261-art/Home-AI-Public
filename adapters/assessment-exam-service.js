@@ -172,6 +172,80 @@ function generateVerifiedAmc8AssessmentQuestions(config = {}, seedText = "", opt
   return questions;
 }
 
+function generateVerifiedMathAssessmentQuestions(config = {}, seedText = "", options = {}) {
+  if (assessmentLooksLikeAmc8(config, seedText)) {
+    return generateVerifiedAmc8AssessmentQuestions(config, seedText, options);
+  }
+  const random = seededRandom(seedText);
+  const count = maxQuestionCount(config, {}, options);
+  const int = (min, max) => min + Math.floor(random() * (max - min + 1));
+  const questions = [];
+  for (let index = 0; index < count; index += 1) {
+    const type = index % 10;
+    const id = `q${index + 1}`;
+    if (type === 0) {
+      const a = int(12, 80);
+      const b = int(8, 60);
+      const c = int(3, 9);
+      const correct = a + b * c;
+      questions.push(mathQuestionWithChoices(id, "arithmetic: operation order", `${a} + ${b} × ${c} = ?`, correct, [a + b + c, (a + b) * c, correct + b, correct - c], `先算乘法 ${b} × ${c}，再加 ${a}。`, random));
+    } else if (type === 1) {
+      const x = int(3, 18);
+      const a = int(2, 9);
+      const b = int(4, 30);
+      const c = a * x + b;
+      questions.push(mathQuestionWithChoices(id, "algebra: linear equation", `If ${a}x + ${b} = ${c}, what is x?`, x, [x + 1, x - 1, a + b, c - b], `移项后 ${a}x=${c - b}，所以 x=${x}。`, random));
+    } else if (type === 2) {
+      const base = int(8, 30) * 10;
+      const rate = [10, 15, 20, 25, 30, 40][int(0, 5)];
+      const correct = Math.round(base * rate / 100);
+      questions.push(mathQuestionWithChoices(id, "percentage", `${base} 的 ${rate}% 是多少？`, correct, [correct + 5, correct - 5, Math.round(base / rate), base - correct], `${rate}% = ${rate}/100，所以结果是 ${correct}。`, random));
+    } else if (type === 3) {
+      const left = int(2, 7);
+      const right = int(3, 9);
+      const unit = int(4, 12);
+      const total = (left + right) * unit;
+      const correct = left * unit;
+      questions.push(mathQuestionWithChoices(id, "ratio", `A:B = ${left}:${right}，如果 A+B=${total}，A 是多少？`, correct, [right * unit, correct + unit, total - correct + unit, total], `总份数 ${left + right}，每份 ${unit}，A=${left} 份。`, random));
+    } else if (type === 4) {
+      const w = int(4, 14);
+      const h = int(5, 16);
+      const correct = w * h;
+      questions.push(mathQuestionWithChoices(id, "geometry: rectangle area", `长方形长 ${w}、宽 ${h}，面积是多少？`, correct, [2 * (w + h), correct + w, correct + h, w + h], `长方形面积 = 长 × 宽 = ${correct}。`, random));
+    } else if (type === 5) {
+      const a = int(55, 95);
+      const b = int(55, 95);
+      const c = int(55, 95);
+      const targetAvg = int(70, 90);
+      const correct = targetAvg * 4 - a - b - c;
+      questions.push(mathQuestionWithChoices(id, "average", `四次测验平均分要达到 ${targetAvg}。前三次是 ${a}, ${b}, ${c}，第四次需要多少分？`, correct, [correct + 5, correct - 5, targetAvg, Math.round((a + b + c) / 3)], `四次总分需 ${targetAvg * 4}，减去前三次即可。`, random));
+    } else if (type === 6) {
+      const red = int(2, 8);
+      const blue = int(2, 8);
+      const total = red + blue;
+      questions.push(mathQuestionWithChoices(id, "probability", `袋子里有 ${red} 个红球和 ${blue} 个蓝球，随机取 1 个，取到红球的概率是？`, `${red}/${total}`, [`${blue}/${total}`, `${red}/${blue}`, `${total}/${red}`, `1/${total}`], `有利结果 ${red} 个，总结果 ${total} 个。`, random));
+    } else if (type === 7) {
+      const start = int(2, 12);
+      const step = int(3, 9);
+      const correct = start + step * 5;
+      questions.push(mathQuestionWithChoices(id, "sequence", `数列 ${start}, ${start + step}, ${start + step * 2}, ${start + step * 3}, ... 的第 6 项是多少？`, correct, [correct - step, correct + step, start * 6, step * 6], `第 6 项比第 1 项多 5 个公差。`, random));
+    } else if (type === 8) {
+      const n = int(4, 16);
+      const divisor = int(3, 9);
+      const remainder = int(0, divisor - 1);
+      const value = n * divisor + remainder;
+      questions.push(mathQuestionWithChoices(id, "number theory: remainder", `${value} 除以 ${divisor} 的余数是多少？`, remainder, [divisor - remainder, remainder + 1, n, divisor], `${value}=${divisor}×${n}+${remainder}。`, random));
+    } else {
+      const price = int(12, 48);
+      const countItems = int(3, 9);
+      const paid = Math.ceil(price * countItems / 10) * 10 + 10;
+      const correct = paid - price * countItems;
+      questions.push(mathQuestionWithChoices(id, "word problem", `每本练习册 ${price} 元，买 ${countItems} 本，付 ${paid} 元，应找回多少元？`, correct, [correct + price, correct - 1, paid - price, price * countItems], `总价 ${price * countItems}，找回 ${paid}-${price * countItems}=${correct}。`, random));
+    }
+  }
+  return questions;
+}
+
 function normalizeAssessmentExam(raw = {}, config = {}, options = {}) {
   const compactText = typeof options.compactText === "function" ? options.compactText : defaultCompactText;
   const questionLimit = maxQuestionCount(config, raw, options);
@@ -301,6 +375,7 @@ module.exports = {
   buildAssessmentExamReportMarkdown,
   fractionText,
   generateVerifiedAmc8AssessmentQuestions,
+  generateVerifiedMathAssessmentQuestions,
   gradeAssessmentExam,
   mathQuestionWithChoices,
   normalizeAssessmentExam,

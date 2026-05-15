@@ -81,6 +81,18 @@ function createWebPushDeliveryService(options = {}) {
   const workspaceIdForPrincipal = typeof options.workspaceIdForPrincipal === "function"
     ? options.workspaceIdForPrincipal
     : ((principalId) => String(principalId || "owner"));
+  const workspaceLabel = typeof options.workspaceLabel === "function"
+    ? options.workspaceLabel
+    : ((workspaceId) => String(workspaceId || ""));
+  const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : (() => null);
+  const chatGroupMemberWorkspaceIds = typeof options.chatGroupMemberWorkspaceIds === "function"
+    ? options.chatGroupMemberWorkspaceIds
+    : (() => []);
+  const isWeixinSingleWindowThread = typeof options.isWeixinSingleWindowThread === "function"
+    ? options.isWeixinSingleWindowThread
+    : (() => false);
+  const singleWindowChatTaskGroupId = String(options.singleWindowChatTaskGroupId || "chat");
+  const singleWindowGroupChatTaskGroupId = String(options.singleWindowGroupChatTaskGroupId || "group-chat");
   const loadCatalog = typeof options.loadCatalog === "function" ? options.loadCatalog : (() => ({ workspaces: [] }));
   const publicTodo = typeof options.publicTodo === "function" ? options.publicTodo : ((value) => value || {});
   const useKanbanTodoBackend = typeof options.useKanbanTodoBackend === "function" ? options.useKanbanTodoBackend : (() => false);
@@ -893,6 +905,184 @@ function createWebPushDeliveryService(options = {}) {
     });
   }
 
+  function taskDetailUrl(thread, message) {
+    return appRouteUrl({
+      view: "tasks",
+      workspaceId: thread?.workspaceId || "owner",
+      taskGroupId: message?.taskGroupId || "",
+      messageId: message?.id || "",
+    });
+  }
+
+  function terminalNotificationRoute(thread, message) {
+    const workspaceId = thread?.workspaceId || "owner";
+    if (thread?.singleWindow && message?.taskGroupId === singleWindowChatTaskGroupId) {
+      const params = { view: "single", workspaceId };
+      if (isWeixinSingleWindowThread(thread)) params.weixinChat = "1";
+      return {
+        url: appRouteUrl(params),
+        viewMode: "single",
+      };
+    }
+    return {
+      url: taskDetailUrl(thread, message),
+      viewMode: "tasks",
+    };
+  }
+
+  function taskPromptForMessage(thread, message) {
+    const taskGroupId = message?.taskGroupId || "";
+    const user = [...(thread?.messages || [])]
+      .reverse()
+      .find((item) => item.role === "user" && (!taskGroupId || item.taskGroupId === taskGroupId));
+    return compactText(String(user?.content || thread?.title || "Hermes task"), 120).replace(/\s+/g, " ").trim();
+  }
+
+  function notificationBodyForMessage(thread, message, fallback) {
+    const prompt = taskPromptForMessage(thread, message);
+    const summary = compactText(String(message?.content || "").replace(/^Task ID:\s*\S+/i, "").trim(), 140)
+      .replace(/MEDIA:\s*\S+/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return summary || prompt || fallback;
+  }
+
+  function normalizeMentionAlias(value) {
+    return String(value || "")
+      .replace(/^@+/, "")
+      .trim()
+      .replace(/\s+/g, "")
+      .toLowerCase();
+  }
+
+  function trimMentionToken(value) {
+    return String(value || "")
+      .replace(/^[\s@]+/, "")
+      .replace(/[.,，。？！；、，]、\\>"'`]+$/g, "")
+      .trim();
+  }
+
+  function groupMentionCandidates(thread) {
+    return chatGroupMemberWorkspaceIds(thread).map((workspaceId) => {
+      const workspace = findWorkspace(workspaceId) || {};
+      const principalId = workspacePrincipal(workspaceId);
+      const label = workspaceLabel(workspaceId);
+      const aliases = dedupe([
+        workspaceId,
+        principalId,
+        label,
+        workspace.label,
+        workspace.name,
+      ].map((item) => String(item || "").trim()).filter(Boolean));
+      return { workspaceId, principalId, label, aliases };
+    });
+  }
+
+  function groupMentionWorkspaceIds(thread, text, senderWorkspaceId = "") {
+    const candidates = groupMentionCandidates(thread);
+    if (!candidates.length || !String(text || "").includes("@")) return [];
+    const byAlias = new Map();
+    for (const candidate of candidates) {
+      for (const alias of candidate.aliases || []) {
+        const normalized = normalizeMentionAlias(alias);
+        if (normalized) byAlias.set(normalized, candidate.workspaceId);
+      }
+    }
+    const mentioned = new Set();
+    const source = String(text || "").replace(/\u00a0/g, " ");
+    const tokenPattern = /@([^\s@]{1,80})/g;
+    let match = null;
+    while ((match = tokenPattern.exec(source))) {
+      const token = normalizeMentionAlias(trimMentionToken(match[1] || ""));
+      const workspaceId = token ? byAlias.get(token) : "";
+      if (workspaceId && workspaceId !== senderWorkspaceId) mentioned.add(workspaceId);
+    }
+    return [...mentioned];
+  }
+
+  function notifyGroupChatMentions(thread, userMessage) {
+    if (!thread?.singleWindow || userMessage?.taskGroupId !== singleWindowGroupChatTaskGroupId) {
+      return Promise.resolve([]);
+    }
+    const mentionedWorkspaceIds = groupMentionWorkspaceIds(thread, userMessage.content || "", userMessage.senderWorkspaceId || "");
+    if (!mentionedWorkspaceIds.length) return Promise.resolve([]);
+    const senderLabel = userMessage.senderLabel || workspaceLabel(userMessage.senderWorkspaceId || "") || "Hermes Mobile";
+    const body = compactText(String(userMessage.content || "").replace(/\s+/g, " ").trim(), 180);
+    const jobs = mentionedWorkspaceIds.map((workspaceId) => {
+      const principalId = workspacePrincipal(workspaceId);
+      return sendPushNotification({
+        title: "\u7fa4\u804a @\u4f60",
+        body: `${senderLabel}: ${body || "\u6709\u4eba\u5728\u7fa4\u804a\u4e2d\u63d0\u5230\u4e86\u4f60"}`,
+        tag: `hermes-group-mention-${thread.id}-${userMessage.id}-${workspaceId}`,
+        renotify: true,
+        requireInteraction: true,
+        silent: false,
+        timestamp: Date.now(),
+        vibrate: [200, 100, 200],
+        data: {
+          url: appRouteUrl({ view: "single", workspaceId, groupChat: "1", threadId: thread.id, messageId: userMessage.id }),
+          viewMode: "single",
+          workspaceId,
+          principalId,
+          messageType: "group_mention",
+          threadId: thread.id,
+          messageId: userMessage.id,
+          senderWorkspaceId: userMessage.senderWorkspaceId || "",
+          requireInteraction: true,
+        },
+      }, {
+        principalIds: [principalId],
+        urgency: "high",
+        ttl: 24 * 60 * 60,
+      });
+    });
+    return Promise.all(jobs).catch((err) => {
+      logger.error?.(`Hermes group mention Web Push send failed: ${err.message || String(err)}`);
+      return [];
+    });
+  }
+
+  function notifyTaskTerminal(thread, message, status) {
+    if (thread?.singleWindow && message?.taskGroupId === singleWindowGroupChatTaskGroupId) return Promise.resolve(null);
+    const principalId = workspacePrincipal(thread?.workspaceId || "owner");
+    const workspaceId = thread?.workspaceId || workspaceIdForPrincipal(principalId) || "owner";
+    const messageType = status === "failed" ? "task_failed" : "task_completed";
+    const title = status === "failed" ? "\u4efb\u52a1\u5931\u8d25" : "\u4efb\u52a1\u5b8c\u6210";
+    const fallback = status === "failed" ? (message?.error || "Task failed") : "Task completed";
+    const body = notificationBodyForMessage(thread, message, fallback);
+    const route = terminalNotificationRoute(thread, message);
+    return sendPushNotification({
+      title,
+      body,
+      tag: `hermes-task-${message?.id || message?.runId || Date.now()}`,
+      renotify: true,
+      requireInteraction: true,
+      silent: false,
+      timestamp: Date.now(),
+      vibrate: [200, 100, 200],
+      data: {
+        url: route.url,
+        viewMode: route.viewMode,
+        workspaceId,
+        principalId,
+        messageType,
+        threadId: thread?.id || "",
+        taskGroupId: message?.taskGroupId || "",
+        messageId: message?.id || "",
+        runId: message?.runId || "",
+        status,
+        requireInteraction: true,
+      },
+    }, {
+      principalIds: [principalId],
+      urgency: "high",
+      ttl: 24 * 60 * 60,
+    }).catch((err) => {
+      logger.error?.(`Hermes Mobile Push send failed: ${err.message || String(err)}`);
+      return null;
+    });
+  }
+
   function workspaceIdForPrincipalFromCatalog(principalId) {
     const principal = String(principalId || "owner").trim() || "owner";
     const workspace = (loadCatalog().workspaces || []).find((item) => {
@@ -906,6 +1096,7 @@ function createWebPushDeliveryService(options = {}) {
 
   return {
     activePushPrincipals,
+    appRouteUrl,
     automationListSortByLatestDeliverable,
     automationLatestDeliverableForPush,
     automationLatestDeliverableTimeMs,
@@ -918,9 +1109,12 @@ function createWebPushDeliveryService(options = {}) {
     initializeWebPush,
     loadVapidConfig,
     markTodoWebPush,
+    notificationBodyForMessage,
     normalizePushDelivery,
     normalizePushReceipt,
     normalizePushSubscription,
+    notifyGroupChatMentions,
+    notifyTaskTerminal,
     notifyTodoCreated,
     publicPushStatus,
     pushSubscriptionScopeSignature,
@@ -934,7 +1128,10 @@ function createWebPushDeliveryService(options = {}) {
     setAutomationPushMark,
     startAutomationWebPushDispatcher,
     startTodoWebPushDispatcher,
+    taskDetailUrl,
     todoPushPayload,
+    terminalNotificationRoute,
+    todoDetailUrl,
     workspaceIdForPrincipalFromCatalog,
   };
 }

@@ -52,8 +52,8 @@ Required baseline for new business services:
 
 Current CI guardrails:
 
-- `server.js` must stay at or below 10,200 lines;
-- top-level `function` declarations in `server.js` must stay at or below 700;
+- `server.js` must stay at or below 5,000 lines;
+- top-level `function` declarations in `server.js` must stay at or below 430;
 - if a feature would exceed either budget, extract route modules and services first.
 
 These budgets are intentionally temporary ceilings. Lower them after each successful extraction round.
