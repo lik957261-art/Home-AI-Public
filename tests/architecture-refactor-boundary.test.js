@@ -131,6 +131,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
   assert.equal(typeof runtimeStateStoreService.createRuntimeStateStoreService, "function");
   assert.equal(typeof runtimeStateStoreService.mergeRuntimeStateWithDefaults, "function");
+  assert.equal(typeof runtimeStateStoreService.shouldRefuseMessageCountOverwrite, "function");
   assert.equal(typeof sharedDirectoryProjectionService.createSharedDirectoryProjectionService, "function");
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(typeof threadViewService.createThreadViewService, "function");
@@ -274,6 +275,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /kanbanReadingWorkflowService\.submitKanbanReadingSubmission/);
   assert.match(server, /kanbanReadingWorkflowService\.getKanbanReadingQuiz/);
   assert.match(server, /kanbanReadingWorkflowService\.submitKanbanReadingQuiz/);
+  assert.match(server, /shouldRefuseMessageCountOverwrite/);
+  assert.match(server, /decideBackupPruning/);
   assert.match(server, /assessmentExamService\.normalizeAssessmentExam/);
   assert.match(server, /assessmentExamService\.generateVerifiedAmc8AssessmentQuestions/);
   assert.match(server, /assessmentExamService\.gradeAssessmentExam/);

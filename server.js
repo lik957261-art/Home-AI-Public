@@ -32,6 +32,10 @@ const { createGatewayStatusProjection, gatewayPoolStatusHealthy } = require("./a
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createGroupChatSharedAttachmentService } = require("./adapters/group-chat-shared-attachment-service");
 const { createOwnerElevationGrantService } = require("./adapters/owner-elevation-grant-service");
+const {
+  decideBackupPruning,
+  shouldRefuseMessageCountOverwrite,
+} = require("./adapters/runtime-state-store-service");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanAssigneePolicy } = require("./adapters/kanban-assignee-policy");
 const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
@@ -2312,12 +2316,12 @@ function pruneStateBackups() {
         const filePath = path.join(STATE_BACKUP_DIR, entry.name);
         const stat = fs.statSync(filePath);
         return { filePath, mtimeMs: stat.mtimeMs };
-      })
-      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      });
   } catch (_) {
     return;
   }
-  for (const entry of entries.slice(MAX_STATE_BACKUPS)) {
+  const decision = decideBackupPruning(entries, { maxBackups: MAX_STATE_BACKUPS });
+  for (const entry of decision.prune) {
     try {
       fs.unlinkSync(entry.filePath);
     } catch (_) {
@@ -2336,12 +2340,12 @@ function readStateFileIfValid() {
 }
 
 function shouldRefuseStateOverwrite(previous, next, options = {}) {
-  if (options.allowMessageDrop) return false;
-  const previousMessages = stateMessageCount(previous);
-  const nextMessages = stateMessageCount(next);
-  if (previousMessages < 5) return false;
-  const dropped = previousMessages - nextMessages;
-  return dropped >= Math.max(6, Math.ceil(previousMessages * 0.4));
+  return shouldRefuseMessageCountOverwrite(previous, next, {
+    allowMessageDrop: options.allowMessageDrop,
+    minExistingMessages: 5,
+    minDrop: 6,
+    dropRatio: 0.4,
+  }).refuse;
 }
 
 function writeStateFile(next) {

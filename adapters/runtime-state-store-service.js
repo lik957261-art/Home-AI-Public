@@ -84,6 +84,9 @@ function mergeRuntimeStateWithDefaults(input = {}, defaults = DEFAULT_RUNTIME_ST
 
 function countMessages(value) {
   if (Array.isArray(value)) return value.length;
+  if (isPlainObject(value) && Array.isArray(value.threads)) {
+    return value.threads.reduce((total, thread) => total + countMessages(thread), 0);
+  }
   if (isPlainObject(value) && Array.isArray(value.messages)) return value.messages.length;
   const count = Number(value);
   return Number.isFinite(count) && count >= 0 ? Math.floor(count) : 0;
@@ -104,6 +107,30 @@ function decideMessageCountOverwrite(existing, next, options = {}) {
     return { overwrite: true, reason: "allowed_decrease", existingCount, nextCount };
   }
   return { overwrite: false, reason: "stale_decrease_guard", existingCount, nextCount };
+}
+
+function shouldRefuseMessageCountOverwrite(existing, next, options = {}) {
+  const existingCount = countMessages(existing);
+  const nextCount = countMessages(next);
+  const minExistingMessages = Math.max(0, Number(options.minExistingMessages || 0) || 0);
+  const minDrop = Math.max(0, Number(options.minDrop || 0) || 0);
+  const dropRatio = Math.max(0, Number(options.dropRatio || 0) || 0);
+  if (options.allowMessageDrop) {
+    return { refuse: false, reason: "allow_message_drop", existingCount, nextCount, dropped: Math.max(0, existingCount - nextCount), threshold: 0 };
+  }
+  if (existingCount < minExistingMessages) {
+    return { refuse: false, reason: "below_min_existing", existingCount, nextCount, dropped: Math.max(0, existingCount - nextCount), threshold: 0 };
+  }
+  const dropped = existingCount - nextCount;
+  const threshold = Math.max(minDrop, Math.ceil(existingCount * dropRatio));
+  return {
+    refuse: dropped >= threshold && threshold > 0,
+    reason: dropped >= threshold && threshold > 0 ? "stale_decrease_guard" : "within_drop_tolerance",
+    existingCount,
+    nextCount,
+    dropped: Math.max(0, dropped),
+    threshold,
+  };
 }
 
 function backupSortKey(backup) {
@@ -135,6 +162,7 @@ function createRuntimeStateStoreService(options = {}) {
     safeCloneJson,
     mergeRuntimeStateWithDefaults: (input) => mergeRuntimeStateWithDefaults(input, defaults),
     decideMessageCountOverwrite,
+    shouldRefuseMessageCountOverwrite,
     decideBackupPruning,
   });
 }
@@ -143,7 +171,9 @@ module.exports = {
   DEFAULT_RUNTIME_STATE,
   safeCloneJson,
   mergeRuntimeStateWithDefaults,
+  countMessages,
   decideMessageCountOverwrite,
+  shouldRefuseMessageCountOverwrite,
   decideBackupPruning,
   createRuntimeStateStoreService,
 };

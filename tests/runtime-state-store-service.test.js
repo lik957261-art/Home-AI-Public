@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const {
   createRuntimeStateStoreService,
+  shouldRefuseMessageCountOverwrite,
   decideBackupPruning,
   decideMessageCountOverwrite,
   mergeRuntimeStateWithDefaults,
@@ -60,6 +61,22 @@ function testRuntimeStateDefaultMergeAndNormalization() {
 }
 
 function testMessageCountOverwriteGuard() {
+  assert.deepEqual(
+    shouldRefuseMessageCountOverwrite(
+      { threads: [{ messages: [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}] }] },
+      { threads: [{ messages: [{}, {}, {}] }] },
+      { minExistingMessages: 5, minDrop: 6, dropRatio: 0.4 },
+    ),
+    { refuse: true, reason: "stale_decrease_guard", existingCount: 10, nextCount: 3, dropped: 7, threshold: 6 },
+  );
+  assert.deepEqual(
+    shouldRefuseMessageCountOverwrite(10, 6, { minExistingMessages: 5, minDrop: 6, dropRatio: 0.4 }),
+    { refuse: false, reason: "within_drop_tolerance", existingCount: 10, nextCount: 6, dropped: 4, threshold: 6 },
+  );
+  assert.equal(
+    shouldRefuseMessageCountOverwrite(10, 0, { allowMessageDrop: true, minExistingMessages: 5, minDrop: 6, dropRatio: 0.4 }).refuse,
+    false,
+  );
   assert.deepEqual(
     decideMessageCountOverwrite({ messages: [{}, {}] }, { messages: [{}, {}, {}] }),
     { overwrite: true, reason: "increase", existingCount: 2, nextCount: 3 },
