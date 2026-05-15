@@ -388,6 +388,9 @@ function createAssessmentExamWorkflowService(deps = {}) {
 
   function reportDirectory(workspaceId, cardId, currentCard = {}) {
     if (typeof deps.reportDirectory === "function") return deps.reportDirectory(workspaceId, cardId, currentCard);
+    if (typeof artifactService.assessmentExamReportDirectory === "function") {
+      return artifactService.assessmentExamReportDirectory(workspaceId, cardId, currentCard);
+    }
     if (typeof artifactService.readingArtifactDirectory === "function") {
       return artifactService.readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId);
     }

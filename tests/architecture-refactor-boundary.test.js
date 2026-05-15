@@ -159,6 +159,10 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanPlanService.createKanbanPlanService, "function");
   assert.equal(typeof kanbanReadingWorkflowService.createKanbanReadingWorkflowService, "function");
   assert.equal(typeof kanbanStudyArtifactService.createKanbanStudyArtifactService, "function");
+  {
+    const artifactService = kanbanStudyArtifactService.createKanbanStudyArtifactService();
+    assert.equal(typeof artifactService.assessmentExamReportDirectory, "function");
+  }
   assert.equal(typeof kanbanStudyPlanService.createKanbanStudyPlanService, "function");
   assert.equal(typeof kanbanTaskDispatchPolicy.createKanbanTaskDispatchPolicy, "function");
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
@@ -409,6 +413,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /assessmentExamService\.generateVerifiedMathAssessmentQuestions/);
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /assessmentExamService\.gradeAssessmentExam/);
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /assessmentExamService\.buildAssessmentExamReportMarkdown/);
+  assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /artifactService\.assessmentExamReportDirectory/);
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /artifactService\.publicAssessmentExam/);
   assert.match(server, /getAssessmentExamWorkflowService\(\)\.submitKanbanAssessmentExam/);
   assert.match(server, /studyAssessmentService\.normalizeKanbanAssessmentPlan/);

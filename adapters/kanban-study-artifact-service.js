@@ -58,9 +58,17 @@ function createKanbanStudyArtifactService(deps = {}) {
 
   function assessmentExamStatePath(workspaceId, cardId, currentCard = null) {
     return path.join(
-      readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId),
+      assessmentExamArtifactDirectory(workspaceId, cardId, currentCard),
       "latest-assessment-exam.json",
     );
+  }
+
+  function assessmentExamArtifactDirectory(workspaceId, cardId, currentCard = null) {
+    return readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId);
+  }
+
+  function assessmentExamReportDirectory(workspaceId, cardId, currentCard = null) {
+    return assessmentExamArtifactDirectory(workspaceId, cardId, currentCard);
   }
 
   function readAssessmentExamState(workspaceId, cardId, currentCard = null) {
@@ -142,6 +150,8 @@ function createKanbanStudyArtifactService(deps = {}) {
     readingSubmissionStatePath,
     readReadingSubmissionState,
     writeReadingSubmissionState,
+    assessmentExamArtifactDirectory,
+    assessmentExamReportDirectory,
     assessmentExamStatePath,
     readAssessmentExamState,
     writeAssessmentExamState,

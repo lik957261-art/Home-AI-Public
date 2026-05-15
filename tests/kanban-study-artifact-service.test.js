@@ -60,6 +60,7 @@ function run() {
   });
   assert.equal(examState.status, "in_progress");
   assert.equal(service.readAssessmentExamState("owner", "exam-1", { kanbanCaseId: "case-b" }).startedAt, "2026-05-14T12:01:00.000Z");
+  assert.equal(service.assessmentExamReportDirectory("owner", "exam-1", { kanbanCaseId: "case-b" }).includes(path.join("owner", "case-b", "exam-1")), true);
 
   const exam = service.publicAssessmentExam({
     title: "Formal",

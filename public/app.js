@@ -281,6 +281,7 @@ const state = {
   todoAssessmentStep: {},
   todoAssessmentSubmitting: {},
   pendingReadingQuizTodoId: "",
+  pendingAssessmentExamTodoId: "",
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
   todoRouteMissingTargetId: "",
@@ -3792,6 +3793,7 @@ function applyRouteParams(params) {
   const directoryPath = String(params.get("directoryPath") || "").trim();
   const directoryRoot = String(params.get("directoryRoot") || "").trim();
   const readingQuizRequested = ["1", "true", "yes"].includes(String(params.get("readingQuiz") || params.get("reading_quiz") || "").trim().toLowerCase());
+  const assessmentExamRequested = ["1", "true", "yes"].includes(String(params.get("assessmentExam") || params.get("assessment_exam") || "").trim().toLowerCase());
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
   const routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
@@ -3816,8 +3818,10 @@ function applyRouteParams(params) {
     state.selectedTodoId = todoId;
     state.todoRouteMissingTargetId = "";
     state.pendingReadingQuizTodoId = readingQuizRequested ? todoId : "";
+    state.pendingAssessmentExamTodoId = assessmentExamRequested ? todoId : "";
   } else if (routeView) {
     state.pendingReadingQuizTodoId = "";
+    state.pendingAssessmentExamTodoId = "";
   }
   if (routeView === "projects") {
     state.directoryReturnRoute = null;
@@ -3859,7 +3863,7 @@ function applyRouteParams(params) {
       localStorage.setItem("hermesWebWeixinChatOpen", "0");
     }
   }
-  return Boolean(routeView || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested);
+  return Boolean(routeView || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested || assessmentExamRequested);
 }
 
 function applyRouteFromUrl(value) {
@@ -3870,6 +3874,23 @@ function applyRouteFromUrl(value) {
 
 function applyInitialRouteFromUrl() {
   return applyRouteFromUrl(window.location.href);
+}
+
+function replaceTodoDetailRouteFlag(todoId, flagName) {
+  const id = String(todoId || "").trim();
+  const flag = String(flagName || "").trim();
+  if (!id || !flag || state.viewMode !== "todos") return;
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    params.set("view", "todos");
+    params.set("workspaceId", state.selectedWorkspaceId || "owner");
+    params.set("todoId", id);
+    if (flag === "assessmentExam") params.delete("readingQuiz");
+    if (flag === "readingQuiz") params.delete("assessmentExam");
+    params.set(flag, "1");
+    const nextState = Object.assign({}, window.history.state || {}, { hermesWebBase: true });
+    window.history.replaceState(nextState, "", `/?${params.toString()}`);
+  } catch (_) {}
 }
 
 async function openNotificationRoute(value) {
@@ -7615,6 +7636,11 @@ async function loadSelectedView() {
       state.pendingReadingQuizTodoId = "";
       await loadReadingQuiz(todoId);
     }
+    if (state.pendingAssessmentExamTodoId && state.pendingAssessmentExamTodoId === state.selectedTodoId) {
+      const todoId = state.pendingAssessmentExamTodoId;
+      state.pendingAssessmentExamTodoId = "";
+      await loadAssessmentExam(todoId);
+    }
   } else if (state.viewMode === "automation") {
     await loadAutomations();
   } else if (state.viewMode === "projects") {
@@ -10552,12 +10578,143 @@ function clearReadingSubmissionPendingState(todoId) {
   delete state.todoReadingSubmissionProgress[todoId];
 }
 
+function answerDraftHash(value) {
+  const text = String(value || "");
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function answerDraftStorageId(value) {
+  return encodeURIComponent(String(value || ""));
+}
+
+function answerDraftStoragePrefix(kind, workspaceId, todoId) {
+  return `hermes${kind}AnswerDraft:${answerDraftStorageId(workspaceId || "owner")}:${answerDraftStorageId(todoId)}:`;
+}
+
+function answerDraftStorageKey(kind, workspaceId, todoId, fingerprint) {
+  return `${answerDraftStoragePrefix(kind, workspaceId, todoId)}${answerDraftHash(fingerprint)}`;
+}
+
+function answerDraftFingerprint(source = {}) {
+  const questions = Array.isArray(source.questions) ? source.questions : [];
+  const questionKey = questions.map((question, index) => [
+    question?.id || `q${index + 1}`,
+    question?.prompt || "",
+    Array.isArray(question?.choices) ? question.choices.length : 0,
+  ].join(":")).join("|");
+  return [
+    source.startedAt || "",
+    source.quizTargetingVersion || "",
+    source.verification || "",
+    source.status || "",
+    questions.length,
+    questionKey,
+  ].join("|");
+}
+
+function validAnswerChoice(value, question = {}) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  return Number.isInteger(parsed) && parsed >= 0 && parsed < choices.length ? parsed : null;
+}
+
+function serializeAnswerDraftAnswers(answers = [], questions = []) {
+  return questions.map((question, index) => validAnswerChoice(answers[index], question));
+}
+
+function restoreAnswerDraftAnswers(answers = [], questions = []) {
+  const restored = [];
+  questions.forEach((question, index) => {
+    const value = validAnswerChoice(answers[index], question);
+    if (value !== null) restored[index] = value;
+  });
+  return restored;
+}
+
+function answerDraftAnsweredCount(answers = [], questions = []) {
+  return serializeAnswerDraftAnswers(answers, questions).filter((value) => value !== null).length;
+}
+
+function clearAnswerDrafts(kind, workspaceId, todoId, keepKey = "") {
+  const prefix = answerDraftStoragePrefix(kind, workspaceId, todoId);
+  try {
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith(prefix) && key !== keepKey) localStorage.removeItem(key);
+    }
+  } catch (_) {}
+}
+
+function readAnswerDraft(kind, workspaceId, todoId, source = {}) {
+  const questions = Array.isArray(source.questions) ? source.questions : [];
+  if (!todoId || !questions.length) return { answers: [], step: 0 };
+  const key = answerDraftStorageKey(kind, workspaceId, todoId, answerDraftFingerprint(source));
+  clearAnswerDrafts(kind, workspaceId, todoId, key);
+  try {
+    const raw = JSON.parse(localStorage.getItem(key) || "null");
+    if (!raw || typeof raw !== "object") return { answers: [], step: 0 };
+    const answers = restoreAnswerDraftAnswers(Array.isArray(raw.answers) ? raw.answers : [], questions);
+    const maxStep = Math.max(0, questions.length - 1);
+    const step = Math.max(0, Math.min(maxStep, Number(raw.step || 0) || 0));
+    return { answers, step };
+  } catch (_) {
+    return { answers: [], step: 0 };
+  }
+}
+
+function writeAnswerDraft(kind, workspaceId, todoId, source = {}, answers = [], step = 0) {
+  const questions = Array.isArray(source.questions) ? source.questions : [];
+  if (!todoId || !questions.length) return;
+  const key = answerDraftStorageKey(kind, workspaceId, todoId, answerDraftFingerprint(source));
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    answers: serializeAnswerDraftAnswers(answers, questions),
+    step: Math.max(0, Math.min(Math.max(0, questions.length - 1), Number(step || 0) || 0)),
+  };
+  try {
+    localStorage.setItem(key, JSON.stringify(payload));
+    clearAnswerDrafts(kind, workspaceId, todoId, key);
+  } catch (_) {}
+}
+
+function applyAnswerDraft(kind, workspaceId, todoId, source = {}, existingAnswers = [], existingStep = 0) {
+  const questions = Array.isArray(source.questions) ? source.questions : [];
+  const existingCount = answerDraftAnsweredCount(existingAnswers, questions);
+  if (existingCount > 0) {
+    return {
+      answers: restoreAnswerDraftAnswers(existingAnswers, questions),
+      step: Math.max(0, Math.min(Math.max(0, questions.length - 1), Number(existingStep || 0) || 0)),
+    };
+  }
+  return readAnswerDraft(kind, workspaceId, todoId, source);
+}
+
 function readingSubmissionReady(todoId) {
   const id = String(todoId || "").trim();
   if (!id) return false;
   const quiz = readingQuizState(id)?.quiz;
   if (quiz && Array.isArray(quiz.questions) && quiz.questions.length) return true;
   return readingSubmissionHasAnalysis(kanbanCardById(id));
+}
+
+function readReadingQuizDraft(todoId, quiz = {}) {
+  return readAnswerDraft("ReadingQuiz", kanbanCardWorkspaceId(todoId), todoId, quiz);
+}
+
+function writeReadingQuizDraft(todoId) {
+  const quiz = state.todoReadingQuizzes[todoId]?.quiz || null;
+  if (!quiz) return;
+  writeAnswerDraft("ReadingQuiz", kanbanCardWorkspaceId(todoId), todoId, quiz, state.todoReadingQuizAnswers[todoId] || [], state.todoReadingQuizStep[todoId] || 0);
+}
+
+function clearReadingQuizDrafts(todoId) {
+  clearAnswerDrafts("ReadingQuiz", kanbanCardWorkspaceId(todoId), todoId);
 }
 
 function applyReadingQuizResult(todoId, result = {}) {
@@ -10573,8 +10730,16 @@ function applyReadingQuizResult(todoId, result = {}) {
     quizUrl: result.quizUrl || "",
     status: result.status || "quiz_pending",
   };
-  if (!Array.isArray(state.todoReadingQuizAnswers[canonicalId])) state.todoReadingQuizAnswers[canonicalId] = [];
-  if (!Number.isFinite(Number(state.todoReadingQuizStep[canonicalId]))) state.todoReadingQuizStep[canonicalId] = 0;
+  const draft = applyAnswerDraft(
+    "ReadingQuiz",
+    kanbanCardWorkspaceId(canonicalId),
+    canonicalId,
+    result.quiz,
+    state.todoReadingQuizAnswers[canonicalId] || [],
+    state.todoReadingQuizStep[canonicalId] || 0,
+  );
+  state.todoReadingQuizAnswers[canonicalId] = draft.answers;
+  state.todoReadingQuizStep[canonicalId] = draft.step;
   return canonicalId;
 }
 
@@ -10800,6 +10965,20 @@ function renderKanbanReadingQuizPanel(todo) {
 
 function assessmentExamState(todoId) {
   return state.todoAssessmentExams?.[todoId] || null;
+}
+
+function readAssessmentExamDraft(todoId, exam = {}) {
+  return readAnswerDraft("AssessmentExam", kanbanCardWorkspaceId(todoId), todoId, exam);
+}
+
+function writeAssessmentExamDraft(todoId) {
+  const exam = state.todoAssessmentExams[todoId]?.exam || null;
+  if (!exam) return;
+  writeAnswerDraft("AssessmentExam", kanbanCardWorkspaceId(todoId), todoId, exam, state.todoAssessmentAnswers[todoId] || [], state.todoAssessmentStep[todoId] || 0);
+}
+
+function clearAssessmentExamDrafts(todoId) {
+  clearAnswerDrafts("AssessmentExam", kanbanCardWorkspaceId(todoId), todoId);
 }
 
 function renderKanbanAssessmentExamPanel(todo) {
@@ -11604,6 +11783,7 @@ function wireTodoPanel(root) {
       if (!todoId || !Number.isFinite(index)) return;
       if (!Array.isArray(state.todoReadingQuizAnswers[todoId])) state.todoReadingQuizAnswers[todoId] = [];
       state.todoReadingQuizAnswers[todoId][index] = Number(input.value);
+      writeReadingQuizDraft(todoId);
       if (state.todoReadingQuizzes[todoId]?.result && !state.todoReadingQuizzes[todoId]?.result?.passed) {
         state.todoReadingQuizzes[todoId] = Object.assign({}, state.todoReadingQuizzes[todoId], { result: null });
       }
@@ -11616,6 +11796,7 @@ function wireTodoPanel(root) {
       event.stopPropagation();
       const todoId = button.dataset.readingQuizPrev || "";
       state.todoReadingQuizStep[todoId] = Math.max(0, Number(state.todoReadingQuizStep[todoId] || 0) - 1);
+      writeReadingQuizDraft(todoId);
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
   });
@@ -11627,6 +11808,7 @@ function wireTodoPanel(root) {
       const quiz = state.todoReadingQuizzes[todoId]?.quiz || {};
       const total = Array.isArray(quiz.questions) ? quiz.questions.length : 10;
       state.todoReadingQuizStep[todoId] = Math.min(total - 1, Number(state.todoReadingQuizStep[todoId] || 0) + 1);
+      writeReadingQuizDraft(todoId);
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
   });
@@ -11651,6 +11833,7 @@ function wireTodoPanel(root) {
       if (!todoId || !Number.isFinite(index)) return;
       if (!Array.isArray(state.todoAssessmentAnswers[todoId])) state.todoAssessmentAnswers[todoId] = [];
       state.todoAssessmentAnswers[todoId][index] = Number(input.value);
+      writeAssessmentExamDraft(todoId);
       if (state.todoAssessmentExams[todoId]?.result && !state.todoAssessmentExams[todoId]?.result?.passed) {
         state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId], { result: null });
       }
@@ -11663,6 +11846,7 @@ function wireTodoPanel(root) {
       event.stopPropagation();
       const todoId = button.dataset.assessmentExamPrev || "";
       state.todoAssessmentStep[todoId] = Math.max(0, Number(state.todoAssessmentStep[todoId] || 0) - 1);
+      writeAssessmentExamDraft(todoId);
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
   });
@@ -11674,6 +11858,7 @@ function wireTodoPanel(root) {
       const exam = state.todoAssessmentExams[todoId]?.exam || {};
       const total = Array.isArray(exam.questions) ? exam.questions.length : 20;
       state.todoAssessmentStep[todoId] = Math.min(total - 1, Number(state.todoAssessmentStep[todoId] || 0) + 1);
+      writeAssessmentExamDraft(todoId);
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
   });
@@ -12233,14 +12418,8 @@ async function loadReadingQuiz(todoId) {
   try {
     const params = new URLSearchParams({ workspaceId: kanbanCardWorkspaceId(todoId) });
     const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-quiz?${params.toString()}`);
-    const canonicalId = String(result.canonicalCardId || todoId || "").trim() || todoId;
-    if (canonicalId !== todoId && state.todos.some((todo) => todo.id === canonicalId)) {
-      delete state.todoReadingQuizzes[todoId];
-      state.selectedTodoId = canonicalId;
-    }
-    state.todoReadingQuizzes[canonicalId] = { quiz: result.quiz, quizUrl: result.quizUrl || "", status: result.status || "" };
-    if (!Array.isArray(state.todoReadingQuizAnswers[canonicalId])) state.todoReadingQuizAnswers[canonicalId] = [];
-    if (!Number.isFinite(Number(state.todoReadingQuizStep[canonicalId]))) state.todoReadingQuizStep[canonicalId] = 0;
+    applyReadingQuizResult(todoId, result);
+    replaceTodoDetailRouteFlag(String(result.canonicalCardId || todoId || "").trim() || todoId, "readingQuiz");
   } catch (err) {
     state.todoReadingQuizzes[todoId] = { loading: false, error: err.message || String(err) };
   }
@@ -12263,6 +12442,8 @@ async function submitReadingQuiz(todoId) {
     const canonicalId = String(result.canonicalCardId || todoId || "").trim() || todoId;
     if (result.passed) {
       clearTodoListCache(kanbanCardWorkspaceId(todoId));
+      clearReadingQuizDrafts(canonicalId);
+      if (canonicalId !== todoId) clearReadingQuizDrafts(todoId);
       delete state.todoCardDetails[todoId];
       await loadTodos({ skipCache: true, includeCompleted: true });
       state.selectedTodoId = state.todos.some((todo) => todo.id === canonicalId) ? canonicalId : todoId;
@@ -12270,6 +12451,7 @@ async function submitReadingQuiz(todoId) {
     } else {
       const wrongIndex = Array.isArray(result.results) ? result.results.findIndex((item) => !item.correct) : -1;
       if (wrongIndex >= 0) state.todoReadingQuizStep[todoId] = wrongIndex;
+      writeReadingQuizDraft(todoId);
       showPushToast(`考卷 ${result.correctCount || 0}/${result.total || 10}，请订正后再提交。`, "error");
     }
   } finally {
@@ -12286,8 +12468,17 @@ async function loadAssessmentExam(todoId) {
     const params = new URLSearchParams({ workspaceId: kanbanCardWorkspaceId(todoId) });
     const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/assessment-exam?${params.toString()}`);
     state.todoAssessmentExams[todoId] = { exam: result.exam, status: result.status || "", attempts: result.attempts || [] };
-    if (!Array.isArray(state.todoAssessmentAnswers[todoId])) state.todoAssessmentAnswers[todoId] = [];
-    if (!Number.isFinite(Number(state.todoAssessmentStep[todoId]))) state.todoAssessmentStep[todoId] = 0;
+    replaceTodoDetailRouteFlag(todoId, "assessmentExam");
+    const draft = applyAnswerDraft(
+      "AssessmentExam",
+      kanbanCardWorkspaceId(todoId),
+      todoId,
+      result.exam || {},
+      state.todoAssessmentAnswers[todoId] || [],
+      state.todoAssessmentStep[todoId] || 0,
+    );
+    state.todoAssessmentAnswers[todoId] = draft.answers;
+    state.todoAssessmentStep[todoId] = draft.step;
   } catch (err) {
     state.todoAssessmentExams[todoId] = { loading: false, error: err.message || String(err) };
   }
@@ -12309,6 +12500,7 @@ async function submitAssessmentExam(todoId) {
     state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId] || {}, { result, status: result.status || "" });
     clearTodoListCache(kanbanCardWorkspaceId(todoId));
     if (result.passed) {
+      clearAssessmentExamDrafts(todoId);
       delete state.todoCardDetails[todoId];
       await loadTodos({ skipCache: true, includeCompleted: true });
       state.selectedTodoId = todoId;
@@ -12316,6 +12508,7 @@ async function submitAssessmentExam(todoId) {
     } else {
       const wrongIndex = Array.isArray(result.results) ? result.results.findIndex((item) => !item.correct) : -1;
       if (wrongIndex >= 0) state.todoAssessmentStep[todoId] = wrongIndex;
+      writeAssessmentExamDraft(todoId);
       showPushToast(`考试 ${result.score || 0}/100，未达通过线，请重考。`, "error");
     }
   } finally {

@@ -133,6 +133,13 @@ function makeService(overrides = {}) {
     sanitizePolicy(policy) {
       return { workspaceId: policy.workspaceId || "" };
     },
+    artifactService: {
+      assessmentExamReportDirectory(workspaceId, cardId, currentCard) {
+        const dir = path.join(root, "artifacts", workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId);
+        fs.mkdirSync(dir, { recursive: true });
+        return dir;
+      },
+    },
     writeAssessmentExamReport(workspaceId, cardId, currentCard, exam, attempt) {
       const filePath = path.join(root, `${cardId}-${calls.reports.length + 1}-assessment-report.md`);
       const markdown = [
@@ -158,6 +165,9 @@ function makeService(overrides = {}) {
     kanbanCardRevisionOf,
     visibleKanbanCaseCards,
   };
+  if (overrides.useDefaultReportWriter) {
+    delete deps.writeAssessmentExamReport;
+  }
   if (!overrides.useProviderContext) {
     deps.readingContextForCard = async function readingContextForCard(workspaceId, cardId) {
       calls.contexts.push({ workspaceId, cardId });
@@ -335,6 +345,30 @@ async function testPassedSubmissionCompletesCardAndReconciles() {
   assert.equal(saved.completionError, "");
 }
 
+async function testDefaultReportWriterUsesCardArtifactDirectory() {
+  const exam = parsedExam(5, "English");
+  const fixture = makeService({
+    useDefaultReportWriter: true,
+    cards: [makeAssessmentCard("card-1", { subject: "English", subjectId: "english", questionCount: 5 })],
+    states: [[stateKey("owner", "card-1"), {
+      status: "in_progress",
+      config: { subject: "English", subjectId: "english", questionCount: 5, passingScore: 80 },
+      exam,
+      attempts: [],
+      startedAt: "2026-05-15T00:00:00.000Z",
+    }]],
+  });
+  const result = await fixture.service.submitKanbanAssessmentExam("owner", "card-1", {
+    answers: [0, 1, 2, 3, 0],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.reportPath.startsWith(path.join(fixture.root, "artifacts", "owner", "case-1", "card-1")), true);
+  assert.equal(fs.existsSync(result.reportPath), true);
+  assert.match(fs.readFileSync(result.reportPath, "utf8"), /Score: 100\/100/);
+  const saved = fixture.states.get(stateKey("owner", "card-1"));
+  assert.equal(saved.lastReportPath, result.reportPath);
+}
+
 async function testCompletionFailurePreservesRetakeRequiredState() {
   const exam = parsedExam(5, "English");
   const fixture = makeService({
@@ -393,6 +427,7 @@ async function run() {
   await testRevisionUsesOriginalEffectiveCaseIndexForOpenGate();
   await testFailedSubmissionWritesRetakeStateAndReport();
   await testPassedSubmissionCompletesCardAndReconciles();
+  await testDefaultReportWriterUsesCardArtifactDirectory();
   await testCompletionFailurePreservesRetakeRequiredState();
   await testInvalidAnswersDoNotWriteReportOrMutate();
   console.log("assessment exam workflow service tests passed");
