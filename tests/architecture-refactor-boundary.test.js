@@ -24,6 +24,7 @@ const kanbanAssigneePolicy = require("../adapters/kanban-assignee-policy");
 const kanbanCaseShareService = require("../adapters/kanban-case-share-service");
 const kanbanMaintenanceService = require("../adapters/kanban-maintenance-service");
 const kanbanPlanService = require("../adapters/kanban-plan-service");
+const kanbanReadingWorkflowService = require("../adapters/kanban-reading-workflow-service");
 const kanbanStudyArtifactService = require("../adapters/kanban-study-artifact-service");
 const kanbanStory = require("../adapters/kanban-story-provider");
 const localAutomationBridgeService = require("../adapters/local-automation-bridge-service");
@@ -110,6 +111,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanCaseShareService.createKanbanCaseShareService, "function");
   assert.equal(typeof kanbanMaintenanceService.createKanbanMaintenanceService, "function");
   assert.equal(typeof kanbanPlanService.createKanbanPlanService, "function");
+  assert.equal(typeof kanbanReadingWorkflowService.createKanbanReadingWorkflowService, "function");
   assert.equal(typeof kanbanStudyArtifactService.createKanbanStudyArtifactService, "function");
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
   assert.equal(typeof kanbanStory.visibleKanbanCaseCards, "function");
@@ -256,6 +258,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createKanbanStudyArtifactService/);
   assert.match(server, /kanbanStudyArtifactService\.publicReadingSubmissionSummary/);
   assert.match(server, /kanbanStudyArtifactService\.publicAssessmentExam/);
+  assert.match(server, /createKanbanReadingWorkflowService/);
+  assert.match(server, /kanbanReadingWorkflowService\.submitKanbanReadingSubmission/);
+  assert.match(server, /kanbanReadingWorkflowService\.getKanbanReadingQuiz/);
+  assert.match(server, /kanbanReadingWorkflowService\.submitKanbanReadingQuiz/);
   assert.match(server, /assessmentExamService\.normalizeAssessmentExam/);
   assert.match(server, /assessmentExamService\.generateVerifiedAmc8AssessmentQuestions/);
   assert.match(server, /assessmentExamService\.gradeAssessmentExam/);
