@@ -267,6 +267,8 @@ const state = {
   todoRevisionSubmitting: {},
   todoReadingSubmissionDrafts: {},
   todoReadingSubmitting: {},
+  todoReadingSubmissionRefreshing: {},
+  todoReadingSubmissionWatchdogs: {},
   todoReadingSubmissionProgress: {},
   todoReadingSubmissionFeedback: {},
   todoReadingRecorders: {},
@@ -10506,6 +10508,135 @@ function setReadingSubmissionFeedback(todoId, feedback = {}) {
   state.todoReadingSubmissionFeedback[todoId] = Object.assign({ updatedAt: Date.now() }, feedback);
 }
 
+function clearReadingSubmissionWatchdog(todoId) {
+  const timer = state.todoReadingSubmissionWatchdogs?.[todoId];
+  if (timer) {
+    window.clearTimeout(timer);
+    delete state.todoReadingSubmissionWatchdogs[todoId];
+  }
+}
+
+function clearReadingSubmissionPendingState(todoId) {
+  if (!todoId) return;
+  clearReadingSubmissionWatchdog(todoId);
+  delete state.todoReadingSubmitting[todoId];
+  delete state.todoReadingSubmissionRefreshing[todoId];
+  delete state.todoReadingSubmissionProgress[todoId];
+}
+
+function readingSubmissionReady(todoId) {
+  const id = String(todoId || "").trim();
+  if (!id) return false;
+  const quiz = readingQuizState(id)?.quiz;
+  if (quiz && Array.isArray(quiz.questions) && quiz.questions.length) return true;
+  return readingSubmissionHasAnalysis(kanbanCardById(id));
+}
+
+function applyReadingQuizResult(todoId, result = {}) {
+  const originalId = String(todoId || "").trim();
+  const canonicalId = String(result.canonicalCardId || originalId || "").trim() || originalId;
+  if (!canonicalId || !result?.quiz) return originalId;
+  if (canonicalId !== originalId) {
+    delete state.todoReadingQuizzes[originalId];
+    state.selectedTodoId = canonicalId;
+  }
+  state.todoReadingQuizzes[canonicalId] = {
+    quiz: result.quiz,
+    quizUrl: result.quizUrl || "",
+    status: result.status || "quiz_pending",
+  };
+  if (!Array.isArray(state.todoReadingQuizAnswers[canonicalId])) state.todoReadingQuizAnswers[canonicalId] = [];
+  if (!Number.isFinite(Number(state.todoReadingQuizStep[canonicalId]))) state.todoReadingQuizStep[canonicalId] = 0;
+  return canonicalId;
+}
+
+async function refreshReadingSubmissionStatus(todoId, options = {}) {
+  const id = String(todoId || "").trim();
+  if (!id || state.todoReadingSubmissionRefreshing?.[id]) return false;
+  const card = kanbanCardById(id);
+  const labels = kanbanStudyLabels(card || {});
+  state.todoReadingSubmissionRefreshing[id] = true;
+  state.todoReadingSubmissionProgress[id] = "transcribing";
+  setReadingSubmissionFeedback(id, {
+    kind: "info",
+    message: options.fromWatchdog
+      ? "正在重新检查后台处理结果。"
+      : "正在刷新处理结果。",
+  });
+  if (!options.silent) renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+
+  let canonicalId = id;
+  let ready = false;
+  let quizError = null;
+  let refreshError = null;
+  try {
+    const params = new URLSearchParams({ workspaceId: kanbanCardWorkspaceId(id) });
+    const result = await api(`/api/kanban/cards/${encodeURIComponent(id)}/reading-quiz?${params.toString()}`);
+    canonicalId = applyReadingQuizResult(id, result);
+    const questions = result?.quiz?.questions;
+    ready = Array.isArray(questions) && questions.length > 0;
+  } catch (err) {
+    quizError = err;
+  }
+
+  try {
+    const workspaceId = kanbanCardWorkspaceId(canonicalId || id);
+    clearTodoListCache(workspaceId);
+    state.todoKanbanStatus = KANBAN_STORY_STATUS;
+    localStorage.setItem("hermesTodoKanbanStatus", KANBAN_STORY_STATUS);
+    await loadTodos({ skipCache: true, includeCompleted: true, freshServer: true, preserveScroll: true });
+    if (state.todos.some((todo) => todo.id === canonicalId)) state.selectedTodoId = canonicalId;
+    else if (state.todos.some((todo) => todo.id === id)) state.selectedTodoId = id;
+    delete state.todoCardDetails[id];
+    if (canonicalId !== id) delete state.todoCardDetails[canonicalId];
+    await loadKanbanCardDetail(canonicalId || id, { force: true, silent: true });
+  } catch (err) {
+    refreshError = err;
+  }
+
+  ready = ready || readingSubmissionReady(canonicalId) || readingSubmissionReady(id);
+  if (ready) {
+    clearReadingSubmissionPendingState(id);
+    if (canonicalId && canonicalId !== id) clearReadingSubmissionPendingState(canonicalId);
+    delete state.todoReadingSubmissionDrafts[id];
+    setReadingSubmissionFeedback(canonicalId || id, {
+      kind: "success",
+      message: `${labels.analysis}和${labels.quiz}已生成；请完成 10 题，全对后卡片完成。`,
+    });
+    if (!options.silentToast) showPushToast(`${labels.analysis}和${labels.quiz}已生成；请开始答卷。`, "success");
+  } else if (quizError && refreshError) {
+    setReadingSubmissionFeedback(id, {
+      kind: "error",
+      message: "刷新处理状态失败；请检查网络后重试。",
+    });
+  } else {
+    setReadingSubmissionFeedback(id, {
+      kind: "info",
+      message: "后台仍在处理；稍后会继续刷新，也可以再次点刷新处理结果。",
+    });
+  }
+  if (!ready && state.todoReadingSubmitting?.[id]) scheduleReadingSubmissionRecovery(id);
+  delete state.todoReadingSubmissionRefreshing[id];
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  return ready;
+}
+
+function scheduleReadingSubmissionRecovery(todoId) {
+  const id = String(todoId || "").trim();
+  if (!id) return;
+  clearReadingSubmissionWatchdog(id);
+  state.todoReadingSubmissionWatchdogs[id] = window.setTimeout(() => {
+    if (!state.todoReadingSubmitting?.[id]) return;
+    refreshReadingSubmissionStatus(id, { fromWatchdog: true, silentToast: true }).catch((err) => {
+      setReadingSubmissionFeedback(id, {
+        kind: "error",
+        message: err?.message || "刷新处理状态失败；请手动刷新。",
+      });
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  }, 45000);
+}
+
 function renderKanbanReadingWorkflowPanel(todo) {
   if (!isKanbanReadingCard(todo)) return "";
   const labels = kanbanStudyLabels(todo);
@@ -11037,6 +11168,7 @@ function renderKanbanReadingSubmissionPanel(todo) {
   const recorderBlock = renderKanbanReadingRecorderControls(todo, submitting);
   const progress = String(state.todoReadingSubmissionProgress?.[todo.id] || "");
   const feedback = readingSubmissionFeedback(todo.id);
+  const refreshing = Boolean(state.todoReadingSubmissionRefreshing?.[todo.id]);
   const notes = state.todoReadingSubmissionDrafts?.[todo.id] || "";
   const progressText = progress === "uploading"
     ? `正在上传${labels.recording}。`
@@ -11048,12 +11180,16 @@ function renderKanbanReadingSubmissionPanel(todo) {
   const statusClass = feedback?.kind === "error" && !submitting
     ? "todo-detail-error todo-reading-audio-status"
     : "todo-detail-muted todo-reading-audio-status";
+  const refreshButton = submitting
+    ? `<button type="button" data-refresh-reading-submission="${escapeHtml(todo.id)}"${refreshing ? " disabled" : ""}>${escapeHtml(refreshing ? "正在刷新" : "刷新处理结果")}</button>`
+    : "";
   return `<form class="todo-comment-panel todo-reading-panel" data-reading-submission-form="${escapeHtml(todo.id)}" ${submitting ? 'aria-busy="true"' : ""}>
     <label class="todo-panel-label">${escapeHtml(labels.submit)}</label>
     ${recorderBlock}
     <div class="${statusClass}" data-reading-audio-status role="status">${escapeHtml(statusText)}</div>
     <textarea id="todoReadingSubmissionNotes" class="todo-input todo-comment-textarea" rows="3" placeholder="补充当天范围、状态或观察，可留空" ${submitting ? "disabled" : ""}>${escapeHtml(notes)}</textarea>
     <div class="todo-comment-actions">
+      ${refreshButton}
       <button type="submit" data-submit-reading="${escapeHtml(todo.id)}" ${submitting || !state.todoReadingRecorders?.[todo.id]?.file ? "disabled" : ""}>${submitting ? "已提交处理中" : labels.submit}</button>
     </div>
     <p class="todo-detail-muted">${submitting ? `处理可能需要几十秒到数分钟；正在等待语音转写、阅读分析和${labels.quiz}生成。` : `${labels.recording}提交后，Hermes 会先转写语音，再生成分析和${labels.quiz}；10 题全对后，本卡片才会完成。`}</p>
@@ -11368,6 +11504,12 @@ function wireTodoPanel(root) {
     form.querySelector("#todoReadingSubmissionNotes")?.addEventListener("input", (event) => {
       const todoId = form.dataset.readingSubmissionForm || "";
       if (todoId) state.todoReadingSubmissionDrafts[todoId] = event.target.value || "";
+    });
+    form.querySelector("[data-refresh-reading-submission]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const { todoId } = syncReadingSubmissionNotes();
+      refreshReadingSubmissionStatus(todoId).catch(showError);
     });
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -11958,6 +12100,7 @@ async function submitReadingSubmission(todoId, file, notes = "") {
     message: `正在上传${labels.recording}。`,
   });
   showPushToast(`${labels.recording}已开始上传，正在${labels.analysis}`);
+  scheduleReadingSubmissionRecovery(todoId);
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     const dataBase64 = await fileToBase64(file);
@@ -11977,11 +12120,7 @@ async function submitReadingSubmission(todoId, file, notes = "") {
         notes,
       }),
     });
-    if (result?.quiz) {
-      state.todoReadingQuizzes[todoId] = { quiz: result.quiz, quizUrl: result.quizUrl || "", status: result.status || "quiz_pending" };
-      state.todoReadingQuizAnswers[todoId] = [];
-      state.todoReadingQuizStep[todoId] = 0;
-    }
+    if (result?.quiz) applyReadingQuizResult(todoId, result);
     clearTodoListCache(kanbanCardWorkspaceId(todoId));
     state.todoKanbanStatus = KANBAN_STORY_STATUS;
     localStorage.setItem("hermesTodoKanbanStatus", KANBAN_STORY_STATUS);
@@ -11996,14 +12135,20 @@ async function submitReadingSubmission(todoId, file, notes = "") {
     });
     showPushToast(`${labels.analysis}和${labels.quiz}已生成；10 题全对后完成卡片。`, "success");
   } catch (err) {
+    if (readingSubmissionReady(todoId)) {
+      setReadingSubmissionFeedback(todoId, {
+        kind: "success",
+        message: `${labels.analysis}和${labels.quiz}已生成；请完成 10 题，全对后卡片完成。`,
+      });
+      return;
+    }
     setReadingSubmissionFeedback(todoId, {
       kind: "error",
       message: err?.message || `${labels.recording}提交失败，请重试。`,
     });
     throw err;
   } finally {
-    delete state.todoReadingSubmitting[todoId];
-    delete state.todoReadingSubmissionProgress[todoId];
+    clearReadingSubmissionPendingState(todoId);
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
 }
