@@ -35,6 +35,7 @@ const studyAssessmentService = require("../adapters/study-assessment-service");
 const threadViewService = require("../adapters/thread-view-service");
 const weixinFileForwardService = require("../adapters/weixin-file-forward-service");
 const weixinForwardService = require("../adapters/weixin-forward-service");
+const weixinIngressEventService = require("../adapters/weixin-ingress-event-service");
 const weixinMarkdownForwardService = require("../adapters/weixin-markdown-forward-service");
 const weixinOutboundDeliveryService = require("../adapters/weixin-outbound-delivery-service");
 const webPushDeliveryService = require("../adapters/web-push-delivery-service");
@@ -125,6 +126,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof weixinFileForwardService.fileResultFromResolvedForwardSource, "function");
   assert.equal(typeof weixinForwardService.createWeixinForwardService, "function");
   assert.equal(typeof weixinForwardService.compactWeixinForwardTarget, "function");
+  assert.equal(typeof weixinIngressEventService.createWeixinIngressEventService, "function");
   assert.equal(typeof weixinMarkdownForwardService.materializeWeixinForwardFile, "function");
   assert.equal(typeof weixinMarkdownForwardService.renderMarkdownForwardPdf, "function");
   assert.equal(typeof weixinOutboundDeliveryService.createWeixinOutboundDeliveryService, "function");
@@ -191,6 +193,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /eventStreamApiRoutes\.handle\(req, res, url\)/);
   assert.match(server, /createWeixinApiRoutes/);
   assert.match(server, /weixinApiRoutes\.handle\(req, res, url/);
+  assert.match(server, /createWeixinIngressEventService/);
+  assert.match(server, /getWeixinIngressEventService\(\)\.start\(body\)/);
   assert.match(server, /createWeixinOutboundDeliveryService/);
   assert.match(server, /getWeixinOutboundDeliveryService\(\)\.ackDelivery/);
   assert.match(server, /createWebPushDeliveryService/);
