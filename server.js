@@ -9,6 +9,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const webpush = require("web-push");
 const assessmentExamService = require("./adapters/assessment-exam-service");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
+const { createDirectKanbanCreateService } = require("./adapters/direct-kanban-create-service");
 const { createEventFanoutService } = require("./adapters/event-fanout-service");
 const fileResourceService = require("./adapters/file-resource-service");
 const weixinMarkdownForwardService = require("./adapters/weixin-markdown-forward-service");
@@ -3437,6 +3438,14 @@ const kanbanAssigneePolicy = createKanbanAssigneePolicy({
   workspacePrincipal,
   todoAssigneesForWorkspace,
 });
+const directKanbanCreateService = createDirectKanbanCreateService({
+  formatLocalDateTime,
+  resolveTodoAssigneeFromText,
+  todoAssigneeLabel,
+  stripPrincipalLabelPrefixes,
+  escapeRegExp,
+  useKanbanTodoBackend,
+});
 
 const kanbanCardApiRoutes = createKanbanCardApiRoutes({
   annotateKanbanCardsForAuth,
@@ -4121,103 +4130,27 @@ function detectDirectTodoCreateIntent(text, workspaceId) {
 }
 
 function parseWebTodoDueFromText(text, now = new Date()) {
-  const raw = String(text || "");
-  const iso = raw.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T]*(\d{1,2})(?:[:\uff1a])?(\d{1,2})?/);
-  if (iso) {
-    const date = new Date(now);
-    date.setFullYear(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
-    date.setHours(Number(iso[4]), Number(iso[5] || 0), 0, 0);
-    return { dueTime: formatLocalDateTime(date), raw: iso[0] };
-  }
-  const match = raw.match(/(\u4eca\u5929|\u660e\u5929|\u540e\u5929)?\s*(\u4eca\u665a|\u660e\u65e9|\u51cc\u6668|\u65e9\u4e0a|\u4e0a\u5348|\u4e2d\u5348|\u4e0b\u5348|\u665a\u4e0a)?\s*(\d{1,2})\s*(?:\u70b9|[:\uff1a])\s*(\u534a|\d{1,2}\s*\u5206?)?/);
-  if (!match) return null;
-  const date = new Date(now);
-  const dateWord = match[1] || "";
-  const timeWord = match[2] || "";
-  let dayOffset = dateWord === "\u540e\u5929" ? 2 : dateWord === "\u660e\u5929" || timeWord === "\u660e\u65e9" ? 1 : 0;
-  date.setDate(date.getDate() + dayOffset);
-  let hour = Number(match[3]);
-  let minute = 0;
-  const minuteRaw = String(match[4] || "").trim();
-  if (minuteRaw === "\u534a") minute = 30;
-  else if (minuteRaw) minute = Number((minuteRaw.match(/\d{1,2}/) || ["0"])[0]);
-  if ((timeWord === "\u4e0b\u5348" || timeWord === "\u665a\u4e0a" || timeWord === "\u4eca\u665a") && hour < 12) hour += 12;
-  if (timeWord === "\u4e2d\u5348" && hour < 11) hour += 12;
-  if (!dateWord && !timeWord && hour < 12 && now.getHours() >= 12) hour += 12;
-  date.setHours(hour, minute, 0, 0);
-  if (!dateWord && date.getTime() <= now.getTime()) {
-    date.setDate(date.getDate() + 1);
-  }
-  return { dueTime: formatLocalDateTime(date), raw: match[0] };
+  return directKanbanCreateService.parseWebTodoDueFromText(text, now);
 }
 
 function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
-  const rawText = String(text || "").trim();
-  if (!rawText || !/(\u5f85\u529e|\u770b\u677f|\u5361\u7247|kanban|todo|to-do)/i.test(rawText)) return null;
-  if (!/(\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/.test(rawText)) return null;
-  const due = parseWebTodoDueFromText(rawText);
-  if (!due?.dueTime) return null;
-  const assignee = resolveTodoAssigneeFromText(rawText, workspaceId);
-  const assigneeLabel = todoAssigneeLabel(workspaceId, assignee);
-  let content = rawText;
-  for (const token of [assigneeLabel, assignee, stripPrincipalLabelPrefixes(assignee)].filter(Boolean)) {
-    content = content.replace(new RegExp(`(?:\\u7ed9|\\u4e3a|\\u5e2e)?\\s*${escapeRegExp(token)}`, "g"), " ");
-  }
-  content = content
-    .replace(due.raw, " ")
-    .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)\s*(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
-    .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/ig, " ")
-    .replace(/(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
-    .replace(/(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
-    .replace(/\u7684/g, " ")
-    .replace(/[\uff0c,.\u3002\uff1b;\uff1a:]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!content) return null;
-  return { assignee, assigneeLabel, dueTime: due.dueTime, content };
+  return directKanbanCreateService.detectDirectTodoCreateIntentForWeb(text, workspaceId);
 }
 
 function detectDirectKanbanCreateRequest(text) {
-  const rawText = String(text || "").trim();
-  if (!rawText) return false;
-  if (!/(看板|卡片|kanban|board)/i.test(rawText)) return false;
-  return /(\badd\b|\bcreate\b|\bnew\b|新增|新建|创建|增加|添加|加入|放进|放入|安排|登记|记录|补建|补录|生成)/i.test(rawText);
+  return directKanbanCreateService.detectDirectKanbanCreateRequest(text);
 }
 
 function directTodoCreateNeedsKanbanFields(todo) {
-  if (!todo || typeof todo !== "object") return useKanbanTodoBackend();
-  const source = String(todo.source || "").trim().toLowerCase();
-  if (source === "kanban" || source === "hermes_kanban") return true;
-  return useKanbanTodoBackend();
+  return directKanbanCreateService.directTodoCreateNeedsKanbanFields(todo);
 }
 
 function verifyDirectTodoCreateResult(todo) {
-  const id = String(todo?.id || "").trim();
-  if (!id) {
-    return { ok: false, error: "Todo created but no visible card id returned." };
-  }
-  if (directTodoCreateNeedsKanbanFields(todo)) {
-    const board = String(todo?.kanbanBoard || "").trim();
-    const status = String(todo?.kanbanStatus || "").trim();
-    if (!board || !status) {
-      return { ok: false, error: "Kanban card creation returned without board/status metadata." };
-    }
-  }
-  return { ok: true, error: "" };
+  return directKanbanCreateService.verifyDirectTodoCreateResult(todo);
 }
 
 function formatDirectTodoCreateSuccessMessage(intent, todo) {
-  const assigneeLabel = String(intent?.assigneeLabel || "").trim() || "owner";
-  const dueTime = String(intent?.dueTime || "").trim() || "no due time";
-  const content = String(intent?.content || "").trim() || String(todo?.content || "").trim() || "todo";
-  const id = String(todo?.id || "").trim();
-  const source = String(todo?.source || "").trim() || "unknown";
-  const board = String(todo?.kanbanBoard || "").trim();
-  const status = String(todo?.kanbanStatus || "").trim();
-  const details = [`ID: ${id}`, `Source: ${source}`];
-  if (board) details.push(`Board: ${board}`);
-  if (status) details.push(`Status: ${status}`);
-  return `\u5df2\u65b0\u589e\u770b\u677f\u5361\u7247\uff1a${assigneeLabel} | ${dueTime} | ${content}\n${details.join(" | ")}`;
+  return directKanbanCreateService.formatDirectTodoCreateSuccessMessage(intent, todo);
 }
 
 function isKanbanStudyCaseMode(mode) {

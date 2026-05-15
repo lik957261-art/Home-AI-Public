@@ -8,6 +8,7 @@ const bridgeCommandProvider = require("../adapters/bridge-command-provider");
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
 const documentPreviewService = require("../adapters/document-preview-service");
+const directKanbanCreateService = require("../adapters/direct-kanban-create-service");
 const eventFanoutService = require("../adapters/event-fanout-service");
 const fileArtifactAccessService = require("../adapters/file-artifact-access-service");
 const fileArtifactResolverService = require("../adapters/file-artifact-resolver-service");
@@ -83,6 +84,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
   assert.equal(typeof documentPreviewService.createDocumentPreviewService, "function");
   assert.equal(typeof documentPreviewService.extractDocxTextFromBuffer, "function");
+  assert.equal(typeof directKanbanCreateService.createDirectKanbanCreateService, "function");
   assert.equal(typeof eventFanoutService.createEventFanoutService, "function");
   assert.equal(typeof eventFanoutService.payloadWorkspaceId, "function");
   assert.equal(typeof fileArtifactAccessService.createFileArtifactAccessService, "function");
@@ -152,6 +154,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /bridgeCommandProvider\.runJsonCommand/);
   assert.match(server, /createGatewayRunInstructionService/);
   assert.match(server, /gatewayRunInstructionService\.buildHermesInstructions/);
+  assert.match(server, /createDirectKanbanCreateService/);
+  assert.match(server, /directKanbanCreateService\.detectDirectTodoCreateIntentForWeb/);
+  assert.match(server, /directKanbanCreateService\.verifyDirectTodoCreateResult/);
   assert.match(server, /createLocalWorkspaceStoreService/);
   assert.match(server, /getLocalWorkspaceStoreService\(\)\.upsertLocalWorkspace/);
   assert.match(server, /createGroupChatSharedAttachmentService/);

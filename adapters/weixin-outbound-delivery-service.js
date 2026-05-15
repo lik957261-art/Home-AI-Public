@@ -210,7 +210,8 @@ function createWeixinOutboundDeliveryService(options = {}) {
     const status = String(filters.status || "pending").trim().toLowerCase();
     const accountId = String(filters.accountId || "").trim();
     const limit = Math.max(1, Math.min(100, Number(filters.limit || 20) || 20));
-    const nowMs = Date.now();
+    const filterNowMs = Number(filters.nowMs);
+    const nowMs = Number.isFinite(filterNowMs) ? filterNowMs : Date.now();
     const out = [];
     for (const { thread, message } of allMessages()) {
       const delivery = normalizeExternalDelivery(message?.externalDelivery || null);

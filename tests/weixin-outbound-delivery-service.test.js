@@ -148,7 +148,16 @@ function testAckSentAndFailedRetryStates() {
   assert.equal(failed.status, "failed");
   assert.equal(failed.retryCount, 1);
   assert.equal(failed.nextRetryAt, "2026-05-15T00:00:01.000Z");
-  assert.equal(failedFixture.service.pendingDeliveries({ status: "retryable", limit: 10 }).length, 0);
+  assert.equal(failedFixture.service.pendingDeliveries({
+    status: "retryable",
+    limit: 10,
+    nowMs: Date.parse("2026-05-15T00:00:00.500Z"),
+  }).length, 0);
+  assert.equal(failedFixture.service.pendingDeliveries({
+    status: "retryable",
+    limit: 10,
+    nowMs: Date.parse("2026-05-15T00:00:01.000Z"),
+  }).length, 1);
 }
 
 function testRetMinusTwoWaitsForInboundWake() {
