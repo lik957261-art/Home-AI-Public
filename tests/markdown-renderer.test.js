@@ -72,14 +72,15 @@ function testMobileDocumentWrapperAndFontScale() {
   assert.equal(html.includes("<h1>Title</h1>"), true);
 
   const fallback = renderMarkdownDocument("Text", { fontScale: "oversized" });
-  assert.equal(fallback.includes("hermes-markdown-font-large"), true);
-  assert.equal(fallback.includes('data-font-scale="large"'), true);
+  assert.equal(fallback.includes("hermes-markdown-font-standard"), true);
+  assert.equal(fallback.includes('data-font-scale="standard"'), true);
 
   const defaultReader = renderMarkdownDocument("Text");
-  assert.equal(defaultReader.includes("hermes-markdown-font-large"), true);
-  assert.equal(defaultReader.includes('data-font-scale="large"'), true);
-  assert.equal(markdownFontScaleForBase("standard"), "large");
-  assert.equal(markdownFontScaleForBase("large"), "xlarge");
+  assert.equal(defaultReader.includes("hermes-markdown-font-standard"), true);
+  assert.equal(defaultReader.includes('data-font-scale="standard"'), true);
+  assert.equal(markdownFontScaleForBase("small"), "small");
+  assert.equal(markdownFontScaleForBase("standard"), "standard");
+  assert.equal(markdownFontScaleForBase("large"), "large");
   assert.equal(markdownFontScaleForBase("xlarge"), "xlarge");
 }
 

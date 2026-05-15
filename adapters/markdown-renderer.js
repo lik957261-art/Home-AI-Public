@@ -70,11 +70,11 @@ function normalizeFontScale(fontScale, fallback = DEFAULT_BASE_FONT_SCALE) {
 function markdownFontScaleForBase(baseFontScale) {
   const base = normalizeFontScale(baseFontScale, DEFAULT_BASE_FONT_SCALE);
   const index = FONT_SCALE_ORDER.indexOf(base);
-  return FONT_SCALE_ORDER[Math.min(FONT_SCALE_ORDER.length - 1, Math.max(0, index) + 1)] || base;
+  return FONT_SCALE_ORDER[Math.min(FONT_SCALE_ORDER.length - 1, Math.max(0, index))] || base;
 }
 
 function markdownFontScaleClass(fontScale) {
-  return FONT_SCALE_CLASS.get(normalizeFontScale(fontScale, markdownFontScaleForBase())) || FONT_SCALE_CLASS.get("large");
+  return FONT_SCALE_CLASS.get(normalizeFontScale(fontScale, markdownFontScaleForBase())) || FONT_SCALE_CLASS.get(DEFAULT_BASE_FONT_SCALE);
 }
 
 function renderMarkdownDocument(markdown, options = {}) {

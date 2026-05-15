@@ -49,7 +49,8 @@ function testExports() {
   assert.equal(typeof clientRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof clientRenderer.renderMarkdownToHtml, "function");
   assert.equal(typeof clientRenderer.sanitizeLinkHref, "function");
-  assert.equal(clientRenderer.markdownFontScaleForBase("standard"), "large");
+  assert.equal(clientRenderer.markdownFontScaleForBase("standard"), "standard");
+  assert.equal(clientRenderer.markdownFontScaleForBase("large"), "large");
   assert.equal(clientRenderer.sanitizeLinkHref("data:text/html,x"), "#");
 }
 

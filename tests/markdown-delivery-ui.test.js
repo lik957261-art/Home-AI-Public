@@ -101,7 +101,7 @@ assert.match(
   /:root\[data-font-size\] \.automation-doc-preview\.compact \.automation-doc-name \{[\s\S]*?font-size: calc\(13px \* var\(--app-font-scale\)\);/
 );
 
-assert.match(fileViewer, /\/markdown-renderer-client\.js\?v=20260514-md-client/);
+assert.match(fileViewer, /\/markdown-renderer-client\.js\?v=20260515-md-font-stepdown/);
 assert.match(fileViewer, /const markdownRenderer = window\.HermesMarkdownRenderer/);
 assert.match(fileViewer, /markdownRenderer\.renderMarkdownDocument\(text, \{/);
 assert.match(fileViewer, /fontScale: currentViewerPreferences\(\)\.markdownSize\.id/);
@@ -118,6 +118,8 @@ assert.match(markdownRendererClient, /task-list-item hermes-markdown-task-item/)
 assert.match(fileViewer, /td::before[\s\S]+content: attr\(data-label\)/);
 assert.match(fileViewer, /@media \(max-width: 640px\)/);
 assert.match(fileViewer, /--hermes-markdown-font-family: var\(--viewer-font-family\)/);
+assert.match(fileViewer, /--viewer-markdown-font-scale: 1;/);
+assert.match(fileViewer, /function viewerMarkdownSizeOption\(value\) \{[\s\S]*?Math\.max\(0, index\)\)\] \|\| option;/);
 assert.match(fileViewer, /font-size: calc\(18px \* var\(--viewer-markdown-font-scale\)\)/);
 assert.match(fileViewer, /url\.pathname === "\/api\/files\/preview"/);
 assert.match(fileViewer, /url\.pathname = "\/api\/files"/);
