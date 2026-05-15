@@ -6,12 +6,14 @@ const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..");
 const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
+const runtimeEnvironmentJs = fs.readFileSync(path.join(repoRoot, "adapters", "mobile-runtime-environment-service.js"), "utf8");
+const gatewayRuntimeCompositionJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-runtime-composition-service.js"), "utf8");
 const streamServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-stream-service.js"), "utf8");
 
-assert.match(serverJs, /const RUN_LIVENESS_STALE_AFTER_MS = Number\(process\.env\.HERMES_WEB_RUN_LIVENESS_STALE_AFTER_MS \|\| "0"\);/);
-assert.match(serverJs, /createGatewayRunLifecycleService/);
-assert.match(serverJs, /createGatewayRunStreamService/);
-assert.match(serverJs, /livenessDecisionAfterCheck: gatewayRunLifecycleService\.livenessDecisionAfterCheck/);
+assert.match(runtimeEnvironmentJs, /const RUN_LIVENESS_STALE_AFTER_MS = Number\(env\.HERMES_WEB_RUN_LIVENESS_STALE_AFTER_MS \|\| "0"\);/);
+assert.match(gatewayRuntimeCompositionJs, /createGatewayRunLifecycleService/);
+assert.match(gatewayRuntimeCompositionJs, /createGatewayRunStreamService/);
+assert.match(gatewayRuntimeCompositionJs, /livenessDecisionAfterCheck: lifecycleService\.livenessDecisionAfterCheck/);
 assert.match(serverJs, /runLivenessStaleAfterMs: RUN_LIVENESS_STALE_AFTER_MS/);
 assert.match(streamServiceJs, /const \{ livenessDecisionAfterCheck \} = require\("\.\/gateway-run-lifecycle-service"\);/);
 assert.match(streamServiceJs, /const decision = livenessDecision\({/);

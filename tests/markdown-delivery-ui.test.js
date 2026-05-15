@@ -6,6 +6,8 @@ const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..");
 const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
+const runtimeEnvironmentJs = fs.readFileSync(path.join(repoRoot, "adapters", "mobile-runtime-environment-service.js"), "utf8");
+const mobileApiComposition = fs.readFileSync(path.join(repoRoot, "server-routes", "mobile-api-composition.js"), "utf8");
 const systemApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "system-api-routes.js"), "utf8");
 const threadReadUploadApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "thread-read-upload-api-routes.js"), "utf8");
 const mobileApiDispatcher = fs.readFileSync(path.join(repoRoot, "server-routes", "mobile-api-dispatcher.js"), "utf8");
@@ -24,7 +26,7 @@ const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "ma
 const adapterJs = fs.readFileSync(path.join(repoRoot, "adapters", "automation-provider.js"), "utf8");
 const cronBridge = fs.readFileSync(path.join(repoRoot, "cron_bridge.py"), "utf8");
 
-assert.match(serverJs, /AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS = new Set\(\["\.md", "\.pdf"/);
+assert.match(runtimeEnvironmentJs, /AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS = new Set\(\["\.md", "\.pdf"/);
 assert.match(gatewayRunInstructionServiceJs, /Write final document deliverables as Markdown by default/);
 assert.match(webPushDeliveryServiceJs, /Markdown\/PDF\/Office file/);
 assert.match(fileArtifactResolverService, /const localPath = artifact\.localPath \|\| artifact\.path/);
@@ -35,14 +37,14 @@ assert.match(fileArtifactAccessService, /artifact\.messageId = message\.id/);
 assert.match(runtimeStateThreadServiceJs, /function findArtifactReferenceById\(artifactId\)/);
 assert.match(serverJs, /findArtifactReferenceById: \(\.\.\.args\) => getRuntimeStateThreadService\(\)\.findArtifactReferenceById\(\.\.\.args\)/);
 assert.match(fileArtifactResolverService, /reference = deps\.findArtifactReferenceById\(artifactId\)/);
-assert.match(serverJs, /const WORKSPACE_UPLOAD_DIR_NAME = "\.hermes-mobile"/);
+assert.match(runtimeEnvironmentJs, /const WORKSPACE_UPLOAD_DIR_NAME = "\.hermes-mobile"/);
 assert.match(serverJs, /function workspaceUploadDirectoryForRequest\(auth, thread, body = \{\}\)/);
 assert.match(fileArtifactAccessService, /function workspaceUploadDirectoryForRequest\(auth, thread, body = \{\}\)/);
-assert.match(serverJs, /createThreadReadUploadApiRoutes/);
+assert.match(mobileApiComposition, /createThreadReadUploadApiRoutes/);
 assert.match(mobileApiDispatcher, /key: "threadReadUploadApiRoutes"/);
 assert.match(threadReadUploadApiRoutes, /const uploadDir = uploadTarget\.uploadDir/);
 assert.match(threadReadUploadApiRoutes, /registerUploadArtifact\(thread, null, filePath, filename, \{ workspaceId: uploadTarget\.workspaceId \}\)/);
-assert.match(serverJs, /HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT/);
+assert.match(runtimeEnvironmentJs, /HERMES_MOBILE_SOURCE_MARKDOWN_SEARCH_LIMIT/);
 assert.match(serverJs, /function findSourceMarkdownForArtifact\(thread, value\)/);
 assert.match(serverJs, /createArtifactTextRegistrationService/);
 assert.match(serverJs, /getArtifactTextRegistrationService\(\)\.compactArtifactsForMessage/);

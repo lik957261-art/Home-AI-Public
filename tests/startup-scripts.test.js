@@ -12,6 +12,7 @@ function read(relativePath) {
 
 const startHermesWeb = read("start-hermes-web.ps1");
 const server = read("mobile-server-runtime.js");
+const mobileRuntimeEnvironmentService = read(path.join("adapters", "mobile-runtime-environment-service.js"));
 const startWorkerHost = read(path.join("scripts", "start-worker-host.ps1"));
 const startGatewayPool = read(path.join("scripts", "start-gateway-pool.ps1"));
 const runAsWorker = read(path.join("scripts", "run-as-worker.ps1"));
@@ -70,10 +71,10 @@ assert.match(startWorkerHost, /start-weixin-mobile-ingress-bridge\.ps1/);
 assert.match(startWorkerHost, /function Start-WeixinFrontGatewayIfNeeded/);
 assert.match(startWorkerHost, /Start-WeixinFrontGatewayIfNeeded\s*\r?\nif \(-not \$CheckOnly\)/);
 
-assert.match(server, /HERMES_MOBILE_WEB_PUSH_START_DELAY_MS/);
-assert.match(server, /HERMES_WEB_TODO_PUSH_START_DELAY_MS/);
-assert.match(server, /HERMES_WEB_AUTOMATION_PUSH_START_DELAY_MS/);
-assert.match(server, /120000/);
+assert.match(mobileRuntimeEnvironmentService, /HERMES_MOBILE_WEB_PUSH_START_DELAY_MS/);
+assert.match(mobileRuntimeEnvironmentService, /HERMES_WEB_TODO_PUSH_START_DELAY_MS/);
+assert.match(mobileRuntimeEnvironmentService, /HERMES_WEB_AUTOMATION_PUSH_START_DELAY_MS/);
+assert.match(mobileRuntimeEnvironmentService, /120000/);
 assert.match(fs.readFileSync("adapters/web-push-delivery-service.js", "utf8"), /function scheduleBackgroundWebPushDispatcher/);
 assert.doesNotMatch(server, /setTimeout\(tick, 8000\)/);
 assert.doesNotMatch(server, /setTimeout\(tick, 12000\)/);

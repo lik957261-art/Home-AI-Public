@@ -7,6 +7,9 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 const RUNTIME_COMPOSITION_FILE = "mobile-server-runtime.js";
+const CORE_PROVIDERS_FILE = "adapters/mobile-runtime-core-providers.js";
+const API_COMPOSITION_FILE = "server-routes/mobile-api-composition.js";
+const WEIXIN_RUNTIME_FILE = "adapters/weixin-runtime-composition-service.js";
 
 function assertContains(file, pattern, message) {
   const text = read(file);
@@ -30,17 +33,17 @@ function assertRouteGuardInFile(file, routePattern, guardPattern) {
 }
 
 function main() {
-  assertContains(RUNTIME_COMPOSITION_FILE, /createPathPolicyProvider/, "path-policy provider must be wired");
-  assertContains(RUNTIME_COMPOSITION_FILE, /createEgressPolicyProvider/, "egress policy provider must be wired");
-  assertContains(RUNTIME_COMPOSITION_FILE, /createAuditEventProvider/, "audit event provider must be wired");
+  assertContains(CORE_PROVIDERS_FILE, /createPathPolicyProvider/, "path-policy provider must be wired");
+  assertContains(CORE_PROVIDERS_FILE, /createEgressPolicyProvider/, "egress policy provider must be wired");
+  assertContains(CORE_PROVIDERS_FILE, /createAuditEventProvider/, "audit event provider must be wired");
   assertContains(RUNTIME_COMPOSITION_FILE, /deriveKanbanWorkflowState/, "study workflow state must be server-derived");
   assertContains(RUNTIME_COMPOSITION_FILE, /createOwnerElevationGrantService/, "Owner elevation grant service must be wired");
   assertContains("adapters/owner-elevation-grant-service.js", /grantId: `owner-(?:once|time)-/, "Owner elevation grants must carry stable grant ids");
   assertContains("adapters/owner-elevation-grant-service.js", /allowedWorkerSecurityLevel: "owner-maintenance"/, "Owner grants must name the allowed worker level");
   assertContains("adapters/owner-elevation-grant-service.js", /delete copy\.token/, "Owner elevation status and audit projections must redact one-shot tokens");
 
-  assertContains(RUNTIME_COMPOSITION_FILE, /createFileArtifactApiRoutes[\s\S]{0,600}resolveArtifactForRequest/, "artifact read must be wired through the file artifact route module");
-  assertContains(RUNTIME_COMPOSITION_FILE, /createFileArtifactApiRoutes[\s\S]{0,600}resolveFileForBrowserRequest/, "file read/preview must be wired through the file artifact route module");
+  assertContains(API_COMPOSITION_FILE, /createFileArtifactApiRoutes[\s\S]{0,600}resolveArtifactForRequest/, "artifact read must be wired through the file artifact route module");
+  assertContains(API_COMPOSITION_FILE, /createFileArtifactApiRoutes[\s\S]{0,600}resolveFileForBrowserRequest/, "file read/preview must be wired through the file artifact route module");
   assertContains("server-routes/mobile-api-dispatcher.js", /key: "fileArtifactApiRoutes"/, "file artifact routes must be installed in the API router");
   assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /artifact-read/, /resolveArtifactForRequest/);
   assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /files-preview/, /resolveFileForBrowserRequest/);
@@ -53,7 +56,7 @@ function main() {
   assertContains("public/app.js", /function todoWorkflowState\(todo\)/, "frontend must prefer server workflow state");
   assertContains("public/app.js", /workflow\.canSubmitStudy/, "study submission button must honor workflow state");
   assertContains("public/app.js", /workflow\.canStartExam/, "assessment start button must honor workflow state");
-  assertContains(RUNTIME_COMPOSITION_FILE, /createWeixinFileForwardService[\s\S]{0,1200}egressPolicyProvider/, "manual Weixin file forwarding must receive the egress policy provider");
+  assertContains(WEIXIN_RUNTIME_FILE, /createWeixinFileForwardService[\s\S]{0,1200}egressPolicyProvider/, "manual Weixin file forwarding must receive the egress policy provider");
   assertContains("adapters/weixin-file-forward-service.js", /egressPolicyProvider\.decide[\s\S]{0,600}operation: "manual_forward"/, "manual Weixin forwarding must use egress policy");
   assertContains("adapters/weixin-file-forward-service.js", /explicitUserApproved: true[\s\S]{0,200}sendsFileContent: true/, "manual Weixin forwarding must declare user approval and file-content egress");
   assertContains("adapters/path-policy-provider.js", /normalizePathForBoundary/, "path policy must normalize traversal before root checks");

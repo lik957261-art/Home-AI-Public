@@ -6,13 +6,14 @@ const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "..");
 const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
+const runtimeEnvironmentJs = fs.readFileSync(path.join(repoRoot, "adapters", "mobile-runtime-environment-service.js"), "utf8");
 const systemRuntimeStatusServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "system-runtime-status-service.js"), "utf8");
 const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
-assert.match(serverJs, /const REASONING_EFFORT_OPTIONS = Object\.freeze\(\[/);
-assert.match(serverJs, /shortLabel: "Xhigh"/);
+assert.match(runtimeEnvironmentJs, /const REASONING_EFFORT_OPTIONS = Object\.freeze\(\[/);
+assert.match(runtimeEnvironmentJs, /shortLabel: "Xhigh"/);
 assert.match(systemRuntimeStatusServiceJs, /function parseAgentRuntimeConfigFromYaml\(text\)/);
 assert.match(serverJs, /function runtimeModelConfigInfo\(\)/);
 assert.match(systemRuntimeStatusServiceJs, /function assistantLabelForRuntimeConfig\(info = \{\}\)/);
