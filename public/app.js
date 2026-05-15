@@ -8477,7 +8477,7 @@ async function loadThreads() {
 }
 
 function kanbanStatusNeedsCompleted(status) {
-  return status === KANBAN_STORY_STATUS || status === "done" || status === "archived";
+  return status === KANBAN_STORY_STATUS || KANBAN_STATUS_ORDER.includes(status);
 }
 
 function shouldLoadCompletedTodos(options = {}) {
@@ -8811,7 +8811,7 @@ function scheduleTodoAutoRefresh() {
 }
 
 function todoListCacheKey(workspaceId, includeCompleted) {
-  return `hermesTodoList:${workspaceId || "owner"}:${includeCompleted ? "all" : "open"}`;
+  return `hermesTodoList:${CLIENT_VERSION}:${workspaceId || "owner"}:${includeCompleted ? "all" : "open"}`;
 }
 
 function readTodoListCache(workspaceId, includeCompleted) {
