@@ -2412,6 +2412,9 @@ const kanbanReadingWorkflowService = createKanbanReadingWorkflowService({
   quizTargetingVersion: KANBAN_READING_QUIZ_TARGETING_VERSION,
   visibleKanbanCaseCards,
 });
+function readingContextForCard(...args) {
+  return kanbanReadingWorkflowService.readingContextForCard(...args);
+}
 const gatewayRunLifecycleService = createGatewayRunLifecycleService();
 const kanbanPlanService = createKanbanPlanService({
   compactText,

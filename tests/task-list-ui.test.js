@@ -609,6 +609,7 @@ assert.match(serverJs, /function resolveKanbanCardAccess\(req, res, workspaceId,
 assert.match(kanbanStudyArtifactServiceJs, /latest-reading-submission\.json/);
 assert.match(kanbanPlanCardCreationServiceJs, /async function createKanbanStudyPlanCards\(workspaceId, input = \{\}\)/);
 assert.match(serverJs, /createKanbanReadingWorkflowService/);
+assert.match(serverJs, /function readingContextForCard\(\.\.\.args\) \{\s+return kanbanReadingWorkflowService\.readingContextForCard\(\.\.\.args\);\s+\}/);
 assert.match(kanbanReadingWorkflowServiceJs, /async function submitKanbanReadingSubmission\(workspaceId, cardId, body = \{\}\)/);
 assert.match(serverJs, /kanbanReadingWorkflowService\.submitKanbanReadingSubmission\(\.\.\.args\)/);
 assert.match(kanbanReadingWorkflowServiceJs, /async function generateKanbanReadingQuiz\(workspaceId, cardId, currentCard, transcription, analysis, notes = ""\)/);
