@@ -247,9 +247,11 @@ function testRefactorModulesExportStableContracts() {
 }
 
 function testServerUsesRequestContextAndSqliteCaseShareMigration() {
-  const server = fileText("server.js");
+  const entrypoint = fileText("server.js");
+  const server = fileText("mobile-server-runtime.js");
   const dispatcher = fileText("server-routes/mobile-api-dispatcher.js");
   const threadRouteService = fileText("adapters/thread-message-run-route-service.js");
+  assert.match(entrypoint, /require\("\.\/mobile-server-runtime"\)/);
   assert.match(server, /createPublicApiRoutes/);
   assert.match(fileText("adapters/local-bridge-wrapper-service.js"), /bridgeCommandProvider\.runJsonCommand/);
   assert.match(fileText("adapters/local-bridge-runtime-service.js"), /createLocalBridgeWrapperService/);
@@ -259,7 +261,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createGatewayRunInstructionService/);
   assert.match(server, /gatewayRunInstructionService\.buildHermesInstructions/);
   assert.match(server, /createGatewayRunLifecycleService/);
-  assert.match(server, /gatewayRunLifecycleService\.withActiveRunAdded/);
+  assert.match(server, /createGatewayRunQueueService/);
+  assert.match(server, /getGatewayRunQueueService\(\)\.addThreadActiveRun/);
   assert.match(server, /gatewayRunLifecycleService\.livenessDecisionAfterCheck/);
   assert.match(server, /createGatewayRunStartService/);
   assert.match(server, /getGatewayRunStartService\(\)\.startRunForThread/);
@@ -469,16 +472,23 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /Service-First Rule/);
   assert.match(doc, /adapters\/<domain>-service\.js/);
   assert.match(doc, /tests\/<domain>-service\.test\.js/);
-  assert.match(doc, /`server\.js` is the HTTP and runtime glue layer/);
+  assert.match(doc, /`server\.js` is the thin process entrypoint/);
+  assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
+  assert.match(doc, /3,000 lines/);
   assert.match(doc, /5,000 lines/);
   assert.match(doc, /430/);
 
   const server = fileText("server.js");
+  const runtime = fileText("mobile-server-runtime.js");
   const serverLineCount = server.split(/\r?\n/).length;
-  const topLevelFunctionCount = (server.match(/^function\s+/gm) || []).length;
-  assert.ok(serverLineCount <= 5000, `server.js line budget exceeded: ${serverLineCount} > 5000`);
-  assert.ok(topLevelFunctionCount <= 430, `server.js top-level function budget exceeded: ${topLevelFunctionCount} > 430`);
+  const serverTopLevelFunctionCount = (server.match(/^function\s+/gm) || []).length;
+  const runtimeLineCount = runtime.split(/\r?\n/).length;
+  const runtimeTopLevelFunctionCount = (runtime.match(/^function\s+/gm) || []).length;
+  assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
+  assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
+  assert.ok(runtimeLineCount <= 5000, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 5000`);
+  assert.ok(runtimeTopLevelFunctionCount <= 430, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 430`);
 }
 
 function testRefactorPlanTracksTwelveWorkPackages() {

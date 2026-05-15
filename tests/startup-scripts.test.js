@@ -11,7 +11,7 @@ function read(relativePath) {
 }
 
 const startHermesWeb = read("start-hermes-web.ps1");
-const server = read("server.js");
+const server = read("mobile-server-runtime.js");
 const startWorkerHost = read(path.join("scripts", "start-worker-host.ps1"));
 const startGatewayPool = read(path.join("scripts", "start-gateway-pool.ps1"));
 const runAsWorker = read(path.join("scripts", "run-as-worker.ps1"));

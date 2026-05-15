@@ -15,7 +15,12 @@ adapters/<domain>-service.js
 tests/<domain>-service.test.js
 ```
 
-`server.js` is the HTTP and runtime glue layer. It may:
+`server.js` is the thin process entrypoint. It should do little more than load
+the runtime composition module and preserve the deployment command surface.
+
+`mobile-server-runtime.js` is the transitional runtime composition root while
+the remaining wiring is split into smaller service and route composition
+modules. It may:
 
 - register routes and route modules;
 - read authenticated request context;
@@ -24,7 +29,7 @@ tests/<domain>-service.test.js
 - stream or return HTTP responses;
 - keep short compatibility wrappers while a larger extraction is in progress.
 
-`server.js` must not own new business behavior such as:
+`server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
 
 - workflow state machines;
 - natural-language interpretation;
@@ -48,19 +53,22 @@ Required baseline for new business services:
 
 ## Server Budget
 
-`server.js` must trend downward during refactors and must not absorb new feature logic.
+`server.js` must stay thin, and `mobile-server-runtime.js` must trend downward
+during refactors and must not absorb new feature logic.
 
 Current CI guardrails:
 
-- `server.js` must stay at or below 5,000 lines;
-- top-level `function` declarations in `server.js` must stay at or below 430;
+- `server.js` must stay at or below 3,000 lines;
+- top-level `function` declarations in `server.js` must stay at or below 5;
+- `mobile-server-runtime.js` must stay at or below 5,000 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 430;
 - if a feature would exceed either budget, extract route modules and services first.
 
 These budgets are intentionally temporary ceilings. Lower them after each successful extraction round.
 
 ## Route Modules
 
-New route groups should live in `server-routes/<domain>-api-routes.js` when they involve more than a trivial endpoint. Route modules should receive dependencies from `server.js` and delegate business decisions to adapters/services.
+New route groups should live in `server-routes/<domain>-api-routes.js` when they involve more than a trivial endpoint. Route modules should receive dependencies from the runtime composition layer and delegate business decisions to adapters/services.
 
 ## Review Checklist
 
@@ -68,7 +76,7 @@ Before committing a new feature or non-trivial bug fix:
 
 - identify the owning service/provider;
 - add or update the service test;
-- keep `server.js` as glue only;
+- keep `server.js` as a thin entrypoint and runtime composition as glue only;
 - run `node tests/architecture-refactor-boundary.test.js`;
 - run the focused service/route tests touched by the change;
 - run `npm.cmd run productization:check` before production or push.

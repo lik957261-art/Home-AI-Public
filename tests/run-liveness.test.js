@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..");
-const serverJs = fs.readFileSync(path.join(repoRoot, "server.js"), "utf8");
+const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
 const streamServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-stream-service.js"), "utf8");
 
 assert.match(serverJs, /const RUN_LIVENESS_STALE_AFTER_MS = Number\(process\.env\.HERMES_WEB_RUN_LIVENESS_STALE_AFTER_MS \|\| "0"\);/);

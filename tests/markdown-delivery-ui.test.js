@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..");
-const serverJs = fs.readFileSync(path.join(repoRoot, "server.js"), "utf8");
+const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
 const systemApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "system-api-routes.js"), "utf8");
 const threadReadUploadApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "thread-read-upload-api-routes.js"), "utf8");
 const mobileApiDispatcher = fs.readFileSync(path.join(repoRoot, "server-routes", "mobile-api-dispatcher.js"), "utf8");
