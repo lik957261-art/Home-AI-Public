@@ -30,6 +30,7 @@ const kanbanStory = require("../adapters/kanban-story-provider");
 const localAutomationBridgeService = require("../adapters/local-automation-bridge-service");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
 const markdownRenderer = require("../adapters/markdown-renderer");
+const naturalLanguageDraftService = require("../adapters/natural-language-draft-service");
 const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
 const runtimeStateRepository = require("../adapters/runtime-state-repository");
 const sharedDirectoryProjectionService = require("../adapters/shared-directory-projection-service");
@@ -121,6 +122,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof localWorkspaceStoreService.workspaceIdSlug, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
+  assert.equal(typeof naturalLanguageDraftService.createNaturalLanguageDraftService, "function");
+  assert.equal(typeof naturalLanguageDraftService.extractJsonObject, "function");
   assert.equal(typeof ownerElevationGrantService.createOwnerElevationGrantService, "function");
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
   assert.equal(typeof sharedDirectoryProjectionService.createSharedDirectoryProjectionService, "function");
@@ -253,6 +256,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createKanbanPlanService/);
   assert.match(server, /kanbanPlanService\.normalizePlan/);
   assert.match(server, /kanbanPlanService\.singleCardCasePayload/);
+  assert.match(server, /createNaturalLanguageDraftService/);
+  assert.match(server, /naturalLanguageDraftService\.interpretAutomationNaturalLanguage/);
+  assert.match(server, /naturalLanguageDraftService\.interpretKanbanNaturalLanguage/);
+  assert.match(server, /naturalLanguageDraftService\.planKanbanMultiAgent/);
   assert.match(server, /createKanbanAssigneePolicy/);
   assert.match(server, /normalizeKanbanNotificationAssignee/);
   assert.match(server, /createKanbanStudyArtifactService/);

@@ -47,6 +47,7 @@ const { createKanbanReadingWorkflowService } = require("./adapters/kanban-readin
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createLocalAutomationBridgeService } = require("./adapters/local-automation-bridge-service");
 const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service");
+const { createNaturalLanguageDraftService } = require("./adapters/natural-language-draft-service");
 const { createAuditEventProvider } = require("./adapters/audit-event-provider");
 const { createEgressPolicyProvider } = require("./adapters/egress-policy-provider");
 const { createPathPolicyProvider } = require("./adapters/path-policy-provider");
@@ -3356,6 +3357,18 @@ const kanbanPlanService = createKanbanPlanService({
   createPlanId: () => `kanban-plan-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
   createSingleCaseId: () => `kanban-single-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
 });
+const naturalLanguageDraftService = createNaturalLanguageDraftService({
+  automationCreateModel: AUTOMATION_CREATE_MODEL,
+  automationTimeoutMs: AUTOMATION_CREATE_TIMEOUT_MS,
+  compactText,
+  createAutomationDeliveryRequirement,
+  createConversationId: (prefix) => `${prefix}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+  hermesModelText,
+  kanbanPlanService,
+  kanbanPlanTimeoutMs: KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS,
+  nowIso,
+  sanitizePolicy,
+});
 const kanbanAssigneePolicy = createKanbanAssigneePolicy({
   workspacePrincipal,
   todoAssigneesForWorkspace,
@@ -4333,18 +4346,7 @@ function responseTextFromValue(value) {
 }
 
 function extractJsonObject(text) {
-  const raw = String(text || "").trim();
-  if (!raw) throw new Error("Hermes model returned an empty automation draft");
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1].trim() : raw;
-  try {
-    return JSON.parse(candidate);
-  } catch (_) {
-    const start = candidate.indexOf("{");
-    const end = candidate.lastIndexOf("}");
-    if (start >= 0 && end > start) return JSON.parse(candidate.slice(start, end + 1));
-    throw new Error("Hermes model did not return valid JSON for the automation draft");
-  }
+  return naturalLanguageDraftService.extractJsonObject(text);
 }
 
 async function hermesModelText(body, timeoutMs = AUTOMATION_CREATE_TIMEOUT_MS) {
@@ -4418,125 +4420,20 @@ function runProcessText(command, args = [], options = {}) {
   });
 }
 
-function arrayOfStrings(value, limit = 12) {
-  const raw = Array.isArray(value) ? value : value ? [value] : [];
-  return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean)).slice(0, limit);
-}
-
-function normalizeAutomationSchedule(value) {
-  if (typeof value === "string") return value.trim();
-  if (!value || typeof value !== "object") return "";
-  return String(value.expr || value.expression || value.cron || value.run_at || value.runAt || value.interval || value.display || "").trim();
-}
-
-function normalizeAutomationRepeat(value, schedule) {
-  if (value == null || value === "" || /^forever$/i.test(String(value))) return null;
-  if (/^once$/i.test(String(value))) return 1;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return /\bevery\b|[*]/i.test(String(schedule || "")) ? null : 1;
-}
-
 function normalizeAutomationDraft(raw, sourceText) {
-  const draft = raw && typeof raw === "object" ? raw : {};
-  if (draft.needs_clarification || draft.needsClarification) {
-    throw new Error(compactText(draft.clarification || draft.question || "Automation request needs clarification", 240));
-  }
-  const schedule = normalizeAutomationSchedule(draft.schedule || draft.scheduleText || draft.schedule_text || draft.cron);
-  if (!schedule) throw new Error("Hermes model did not produce a schedule for the automation");
-  const name = compactText(draft.name || draft.title || sourceText, 80);
-  const promptBase = String(draft.prompt || draft.task || draft.goal || draft.objective || sourceText || "").trim();
-  if (!promptBase) throw new Error("Hermes model did not produce an automation prompt");
-  const prompt = [
-    promptBase,
-    "",
-    createAutomationDeliveryRequirement(),
-  ].join("\n");
-  return {
-    name,
-    prompt,
-    schedule,
-    repeat: normalizeAutomationRepeat(draft.repeat, schedule),
-    deliver: "local",
-    skills: arrayOfStrings(draft.skills),
-    enabled_toolsets: arrayOfStrings(draft.enabled_toolsets || draft.enabledToolsets),
-    model: typeof draft.model === "string" ? draft.model.trim() : "",
-    provider: typeof draft.provider === "string" ? draft.provider.trim() : "",
-  };
+  return naturalLanguageDraftService.normalizeAutomationDraft(raw, sourceText);
 }
 
 async function interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
-  const prompt = [
-    "You interpret a natural-language request into one Hermes CRON automation draft.",
-    "Return strict JSON only. Do not include Markdown fences or prose.",
-    "Use Asia/Shanghai local time. Current server time is " + nowIso() + ".",
-    "The schedule field must be directly accepted by Hermes cron: examples are `30m`, `every 2h`, `0 8 * * *`, or an ISO timestamp.",
-    "For daily/weekly/monthly recurring Chinese requests, prefer a 5-field cron expression in Asia/Shanghai wall-clock time.",
-    "If required schedule or task intent is missing, return {\"needs_clarification\":true,\"clarification\":\"...\"}.",
-    "Schema: {\"name\":\"short title\",\"prompt\":\"self-contained unattended task prompt\",\"schedule\":\"Hermes schedule string\",\"repeat\":null,\"skills\":[],\"enabled_toolsets\":[]}",
-    `Workspace principal: ${ownerPrincipalId}. Workspace label: ${workspace?.label || workspace?.id || ""}.`,
-    "User request:",
-    text,
-  ].join("\n\n");
-  const output = await hermesModelText({
-    input: prompt,
-    stream: true,
-    store: false,
-    model: AUTOMATION_CREATE_MODEL,
-    reasoning_effort: "low",
-    conversation: `hermes_web_automation_create_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
-    instructions: "Extract exactly one automation definition. Return JSON only.",
-    access_policy_context: sanitizePolicy(workspace?.policy || {}),
-  });
-  return normalizeAutomationDraft(extractJsonObject(output), text);
+  return naturalLanguageDraftService.interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId);
 }
 
 function normalizeKanbanDraft(raw, sourceText, workspaceId) {
-  const draft = raw && typeof raw === "object" ? raw : {};
-  if (draft.needs_clarification || draft.needsClarification) {
-    throw new Error(compactText(draft.clarification || draft.question || "Kanban request needs clarification", 240));
-  }
-  const content = compactText(
-    draft.content || draft.title || draft.name || draft.card || draft.task || sourceText,
-    160,
-  );
-  if (!content) throw new Error("Hermes model did not produce Kanban card content");
-  return {
-    content,
-    description: compactText(draft.description || draft.details || draft.notes || "", 4000),
-    assignee: String(draft.assignee || draft.owner || workspaceId || "owner").trim() || "owner",
-    dueTime: String(draft.dueTime || draft.due_time || draft.due || draft.deadline || "").trim(),
-    reason: compactText(draft.reason || "Created from Hermes Mobile natural-language Kanban request.", 240),
-  };
+  return naturalLanguageDraftService.normalizeKanbanDraft(raw, sourceText, workspaceId);
 }
 
 async function interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId) {
-  const prompt = [
-    "You interpret a natural-language request into one Hermes Mobile Kanban card draft.",
-    "Return strict JSON only. Do not include Markdown fences or prose.",
-    "Use Asia/Shanghai local time. Current server time is " + nowIso() + ".",
-    "This is for a Kanban execution board, not a reminder todo list.",
-    "Infer a short actionable card content/title and an optional description.",
-    "Keep proper nouns such as Gmail, Hotmail, MINJI, Hermes in the original language.",
-    "If assignee is omitted, default to the workspace principal.",
-    "If due time is omitted or unclear, leave dueTime empty.",
-    "If required execution intent is missing, return {\"needs_clarification\":true,\"clarification\":\"...\"}.",
-    "Schema: {\"content\":\"short card title\",\"description\":\"optional details\",\"assignee\":\"workspace principal id or empty\",\"dueTime\":\"YYYY-MM-DD HH:mm or empty\",\"reason\":\"optional short note\"}",
-    `Workspace principal: ${ownerPrincipalId}. Workspace label: ${workspace?.label || workspace?.id || ""}.`,
-    "User request:",
-    text,
-  ].join("\n\n");
-  const output = await hermesModelText({
-    input: prompt,
-    stream: true,
-    store: false,
-    model: AUTOMATION_CREATE_MODEL,
-    reasoning_effort: "low",
-    conversation: `hermes_web_kanban_create_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
-    instructions: "Extract exactly one Kanban card draft. Return JSON only.",
-    access_policy_context: sanitizePolicy(workspace?.policy || {}),
-  });
-  return normalizeKanbanDraft(extractJsonObject(output), text, ownerPrincipalId);
+  return naturalLanguageDraftService.interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId);
 }
 
 function kanbanPlanFallbackCards(sourceText) {
@@ -4560,43 +4457,7 @@ function normalizeKanbanPlan(raw, sourceText, workspaceId, options = {}) {
 }
 
 async function planKanbanMultiAgent(text, workspace, ownerPrincipalId, options = {}) {
-  const sourceText = compactText(text, 8000);
-  if (!sourceText) throw new Error("Kanban plan text is required");
-  const maxParallel = normalizeKanbanMaxParallel(options.maxParallel);
-  const reasoningEffort = normalizeKanbanPlanReasoningEffort(options.reasoningEffort || options.reasoning_effort) || "medium";
-  const prompt = [
-    "You are the Hermes Mobile Kanban planner.",
-    "Return strict JSON only. Do not include Markdown fences or prose.",
-    "The user is creating a multi-Agent execution plan for a Kanban board.",
-    `The maximum parallel worker count for this plan is ${maxParallel}. Do not propose more than ${maxParallel} first-wave runnable cards.`,
-    "Create 3 to 8 cards. Make cards independently executable when possible, but add dependencies for integration, verification, or sequential work.",
-    "Every card must have a short actionable title, a description, expected deliverables, acceptance criteria, and dependsOn as 1-based card numbers.",
-    "Add a final integration or verification card when the work has multiple outputs.",
-    "Schema: {\"summary\":\"...\",\"cards\":[{\"title\":\"...\",\"description\":\"...\",\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"dependsOn\":[1]}]}",
-    `Workspace principal: ${ownerPrincipalId}. Workspace label: ${workspace?.label || workspace?.id || ""}.`,
-    "User request:",
-    sourceText,
-  ].join("\n\n");
-  const output = await hermesModelText({
-    input: prompt,
-    stream: true,
-    store: false,
-    model: AUTOMATION_CREATE_MODEL,
-    reasoning_effort: reasoningEffort,
-    conversation: `hermes_web_kanban_plan_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
-    instructions: "Plan a multi-Agent Kanban decomposition. Return JSON only.",
-    access_policy_context: sanitizePolicy(workspace?.policy || {}),
-  }, KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS);
-  try {
-    return normalizeKanbanPlan(extractJsonObject(output), sourceText, workspace?.id || ownerPrincipalId || "owner", { maxParallel, reasoningEffort });
-  } catch (err) {
-    const fallback = normalizeKanbanPlan({
-      summary: sourceText,
-      cards: kanbanPlanFallbackCards(sourceText),
-    }, sourceText, workspace?.id || ownerPrincipalId || "owner", { maxParallel, reasoningEffort });
-    fallback.warning = compactText(`Planner JSON fallback used: ${err.message || String(err)}`, 300);
-    return fallback;
-  }
+  return naturalLanguageDraftService.planKanbanMultiAgent(text, workspace, ownerPrincipalId, options);
 }
 
 function kanbanPlanCardDescription(plan, card) {
