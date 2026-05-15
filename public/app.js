@@ -11243,7 +11243,8 @@ function renderTodoDetail(todo) {
       ${skillRows}
     </details>`
     : `<div class="todo-detail-grid">${gridItems}</div>${skillRows}`;
-  const commentPanel = kanban && open && canComment
+  const showGenericCommentPanel = !readingCard && !assessmentCard;
+  const commentPanel = kanban && open && canComment && showGenericCommentPanel
     ? `<form class="todo-comment-panel" data-todo-comment-form="${escapeHtml(todo.id)}">
       <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写授权范围、限制条件或执行说明">${escapeHtml(state.todoCommentDrafts?.[todo.id] || "")}</textarea>
       <div class="todo-comment-actions">
