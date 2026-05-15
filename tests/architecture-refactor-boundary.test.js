@@ -5,6 +5,7 @@ const fs = require("node:fs");
 
 const assessmentExamService = require("../adapters/assessment-exam-service");
 const bridgeCommandProvider = require("../adapters/bridge-command-provider");
+const conversationHistoryService = require("../adapters/conversation-history-service");
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
 const documentPreviewService = require("../adapters/document-preview-service");
@@ -80,6 +81,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof assessmentExamService.normalizeAssessmentExam, "function");
   assert.equal(typeof bridgeCommandProvider.createBridgeCommandProvider, "function");
   assert.equal(typeof bridgeCommandProvider.runJsonBridgeCommand, "function");
+  assert.equal(typeof conversationHistoryService.createConversationHistoryService, "function");
   assert.equal(typeof routeRegistry.createApiRouteRegistry, "function");
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
   assert.equal(typeof documentPreviewService.createDocumentPreviewService, "function");
@@ -152,6 +154,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const server = fileText("server.js");
   assert.match(server, /createPublicApiRoutes/);
   assert.match(server, /bridgeCommandProvider\.runJsonCommand/);
+  assert.match(server, /createConversationHistoryService/);
+  assert.match(server, /conversationHistoryService\.buildConversationHistory/);
+  assert.match(server, /conversationHistoryService\.deriveTitle/);
   assert.match(server, /createGatewayRunInstructionService/);
   assert.match(server, /gatewayRunInstructionService\.buildHermesInstructions/);
   assert.match(server, /createDirectKanbanCreateService/);

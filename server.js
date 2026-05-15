@@ -8,6 +8,7 @@ const crypto = require("node:crypto");
 const { spawn, spawnSync } = require("node:child_process");
 const webpush = require("web-push");
 const assessmentExamService = require("./adapters/assessment-exam-service");
+const { createConversationHistoryService } = require("./adapters/conversation-history-service");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
 const { createDirectKanbanCreateService } = require("./adapters/direct-kanban-create-service");
 const { createEventFanoutService } = require("./adapters/event-fanout-service");
@@ -8338,6 +8339,15 @@ const gatewayRunInstructionService = createGatewayRunInstructionService({
   semanticProjectRoutingInstructions,
   isKanbanCaseTopicThread,
 });
+const conversationHistoryService = createConversationHistoryService({
+  policyHasToolset,
+  compactText,
+  isSingleWindowConversationTaskGroupId,
+  maxHistoryMessages: MAX_HISTORY_MESSAGES,
+  chatContextMaxMessages: CHAT_CONTEXT_MAX_MESSAGES,
+  chatContextMaxChars: CHAT_CONTEXT_MAX_CHARS,
+  maxApiTextChars: MAX_API_TEXT_CHARS,
+});
 
 function gatewayConversationId(thread, userMessage, runPolicy = {}) {
   return gatewayRunInstructionService.gatewayConversationId(thread, userMessage, runPolicy);
@@ -9609,44 +9619,23 @@ async function getHermesStatus() {
 }
 
 function isToolUnavailableClaimText(text) {
-  const content = String(text || "");
-  if (!content.trim()) return false;
-  return (
-    /not available|unavailable|missing|no callable|no\s+.*tool|cannot call|can't call|unable to call|not exposed/i.test(content)
-    || /\u6ca1\u6709|\u4ecd\u6ca1\u6709|\u672a\u770b\u5230|\u770b\u4e0d\u5230|\u672a\u6302\u8f7d|\u6ca1\u6302\u8f7d|\u7f3a\u5c11|\u4e0d\u53ef\u7528|\u65e0\u6cd5\u8c03\u7528|\u4e0d\u80fd\u8c03\u7528|\u4e0d\u80fd\u6267\u884c/.test(content)
-  );
+  return conversationHistoryService.isToolUnavailableClaimText(text);
 }
 
 function isStaleHttpToolAvailabilityClaim(text) {
-  const content = String(text || "");
-  if (!content.trim()) return false;
-  const mentionsHttpTool = /http_request|web_request|http\s*tool|http\s*function|HTTP\s*(?:工具|函数|方法)|HTTP\/API|API\s*Program/i.test(content);
-  if (!mentionsHttpTool) return false;
-  return isToolUnavailableClaimText(content);
+  return conversationHistoryService.isStaleHttpToolAvailabilityClaim(text);
 }
 
 function isStaleImageToolAvailabilityClaim(text) {
-  const content = String(text || "");
-  if (!content.trim()) return false;
-  const mentionsImageTool = /image_generate|chatgpt_image_edit|chatgpt_image_erase|image_edit|image_erase|image\s*(?:tool|function|edit|erase|editing|retouch|inpainting)|ChatGPT\s*Image|P\s*\u56fe|\u4fee\u56fe|\u56fe\u7247\u7f16\u8f91|\u56fe\u50cf\u7f16\u8f91|\u5c40\u90e8\u64e6\u9664|\u64e6\u9664\u5de5\u5177/i.test(content);
-  if (!mentionsImageTool) return false;
-  return isToolUnavailableClaimText(content);
+  return conversationHistoryService.isStaleImageToolAvailabilityClaim(text);
 }
 
 function isStaleDocxToolAvailabilityClaim(text) {
-  const content = String(text || "");
-  if (!content.trim()) return false;
-  const mentionsDocxTool = /docx_extract_text|DOCX|docm|dotx|dotm|Word\s*(?:tool|function|parser|extract|unpack|document)|Office\s*Open\s*XML|Office\s*(?:tool|function|parser)|\u89e3\u5305|\u89e3\u6790\s*(?:Word|DOCX|docx)|Word\s*\u6587\u6863|\u6587\u6863\u89e3\u6790|\u89e3\u6790\u5de5\u5177/i.test(content);
-  if (!mentionsDocxTool) return false;
-  return isToolUnavailableClaimText(content);
+  return conversationHistoryService.isStaleDocxToolAvailabilityClaim(text);
 }
 
 function isStaleAudioToolAvailabilityClaim(text) {
-  const content = String(text || "");
-  if (!content.trim()) return false;
-  const mentionsAudioTool = /audio_transcribe|audio\s*(?:tool|function|transcrib|transcription|ASR)|voice\s*(?:note|memo|recording)|Whisper|faster[-_ ]?whisper|speech[-_ ]?to[-_ ]?text|mp3|m4a|wav|aac|ogg|opus|amr|flac|video_analyze.*(?:mp3|audio)|(?:mp3|audio).*video_analyze|\u97f3\u9891|\u5f55\u97f3|\u8bed\u97f3|\u8f6c\u5199|\u542c\u5199|\u97f3\u9891\u8f6c\u6587\u5b57|\u590d\u8ff0\u5f55\u97f3/i.test(content);
-  if (!mentionsAudioTool) return false;
-  return isToolUnavailableClaimText(content);
+  return conversationHistoryService.isStaleAudioToolAvailabilityClaim(text);
 }
 
 function isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message = {}) {
@@ -9664,88 +9653,23 @@ function isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message =
 }
 
 function conversationHistoryContentForMessage(msg, policy = {}) {
-  let content = stripDirectoryAliasLinesForChatHistory(msg?.content || "");
-  if (msg?.role === "assistant" && policyHasToolset(policy, "http") && isStaleHttpToolAvailabilityClaim(content)) {
-    content = [
-      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
-      "The current run policy enables the `http` toolset; current callable functions supersede older assistant statements about `http_request` or HTTP/API Program availability.",
-    ].join(" ");
-  } else if (msg?.role === "assistant" && policyHasToolset(policy, "image_gen") && isStaleImageToolAvailabilityClaim(content)) {
-    content = [
-      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
-      "The current run policy enables the `image_gen` toolset; current callable functions supersede older assistant statements about `chatgpt_image_edit`, `chatgpt_image_erase`, `image_edit`, `image_erase`, or image editing availability.",
-    ].join(" ");
-  } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleDocxToolAvailabilityClaim(content)) {
-    content = [
-      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
-      "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `docx_extract_text`, DOCX extraction, or Word parser availability.",
-    ].join(" ");
-  } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleAudioToolAvailabilityClaim(content)) {
-    content = [
-      "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
-      "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `audio_transcribe`, MP3/audio transcription, or video_analyze-as-audio-workaround availability.",
-    ].join(" ");
-  }
-  return content;
+  return conversationHistoryService.conversationHistoryContentForMessage(msg, policy);
 }
 
 function buildConversationHistory(thread, latestUserMessageId, policy = {}) {
-  const allMessages = thread.messages || [];
-  const latestIndex = allMessages.findIndex((msg) => msg.id === latestUserMessageId);
-  const latest = latestIndex >= 0 ? allMessages[latestIndex] : null;
-  if (thread.singleWindow && !latest?.taskGroupId) return [];
-  const messages = allMessages
-    .slice(0, latestIndex >= 0 ? latestIndex : allMessages.length)
-    .filter((msg) => !thread.singleWindow || msg.taskGroupId === latest.taskGroupId)
-    .filter((msg) => (msg.role === "user" || msg.role === "assistant") && msg.status !== "running")
-    .filter((msg) => String(msg.content || "").trim());
-  if (thread.singleWindow && isSingleWindowConversationTaskGroupId(latest?.taskGroupId)) {
-    return compactConversationHistory(messages, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS, policy);
-  }
-  return messages.slice(-MAX_HISTORY_MESSAGES).map((msg) => ({
-    role: msg.role,
-    content: compactText(conversationHistoryContentForMessage(msg, policy), MAX_API_TEXT_CHARS),
-  }));
+  return conversationHistoryService.buildConversationHistory(thread, latestUserMessageId, policy);
 }
 
 function stripDirectoryAliasLinesForChatHistory(text) {
-  return String(text || "")
-    .split(/\r?\n/)
-    .filter((line) => !/^\s*(?:[-*]\s*)?(?:目录别名|Directory aliases?)\s*[:：]/i.test(line))
-    .join("\n")
-    .trim();
+  return conversationHistoryService.stripDirectoryAliasLinesForChatHistory(text);
 }
 
 function compactConversationHistory(messages, maxMessages, maxChars, policy = {}) {
-  const recent = messages.slice(-Math.max(0, maxMessages));
-  const result = [];
-  let remainingChars = Math.max(0, maxChars);
-  for (let index = recent.length - 1; index >= 0; index -= 1) {
-    if (remainingChars <= 0) break;
-    const msg = recent[index];
-    let content = conversationHistoryContentForMessage(msg, policy);
-    if (!content) continue;
-    if (msg.role === "user" && msg.senderLabel) {
-      content = `${msg.senderLabel}: ${content}`;
-    }
-    if (content.length > remainingChars) {
-      const marker = "[Earlier chat content omitted]\n";
-      const allowed = Math.max(0, remainingChars - marker.length);
-      content = allowed > 0 ? `${marker}${content.slice(-allowed)}` : content.slice(-remainingChars);
-    }
-    result.push({
-      role: msg.role,
-      content: compactText(content, Math.min(MAX_API_TEXT_CHARS, CHAT_CONTEXT_MAX_CHARS)),
-    });
-    remainingChars -= content.length;
-  }
-  return result.reverse();
+  return conversationHistoryService.compactConversationHistory(messages, maxMessages, maxChars, policy);
 }
 
 function deriveTitle(text) {
-  const cleaned = String(text || "").replace(/\s+/g, " ").trim();
-  if (!cleaned) return "New thread";
-  return cleaned.length <= 42 ? cleaned : `${cleaned.slice(0, 42)}...`;
+  return conversationHistoryService.deriveTitle(text);
 }
 
 async function startRunForThread(thread, userMessage, assistantMessage, options = {}) {
