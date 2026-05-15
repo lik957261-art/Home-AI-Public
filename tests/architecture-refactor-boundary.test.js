@@ -181,6 +181,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /conversationHistoryService\.deriveTitle/);
   assert.match(server, /createGatewayRunInstructionService/);
   assert.match(server, /gatewayRunInstructionService\.buildHermesInstructions/);
+  assert.match(server, /createGatewayRunLifecycleService/);
+  assert.match(server, /gatewayRunLifecycleService\.withActiveRunAdded/);
+  assert.match(server, /gatewayRunLifecycleService\.livenessDecisionAfterCheck/);
   assert.match(server, /createDirectKanbanCreateService/);
   assert.match(server, /directKanbanCreateService\.detectDirectTodoCreateIntentForWeb/);
   assert.match(server, /directKanbanCreateService\.verifyDirectTodoCreateResult/);
@@ -320,6 +323,23 @@ function testPackageRunsArchitectureContracts() {
   assert.ok(pkg.scripts.test.length < 80);
 }
 
+function testServiceFirstArchitectureContract() {
+  const doc = fileText("docs/ARCHITECTURE_BOUNDARY.md");
+  assert.match(doc, /Service-First Rule/);
+  assert.match(doc, /adapters\/<domain>-service\.js/);
+  assert.match(doc, /tests\/<domain>-service\.test\.js/);
+  assert.match(doc, /`server\.js` is the HTTP and runtime glue layer/);
+  assert.match(doc, /must not own new business behavior/);
+  assert.match(doc, /10,200 lines/);
+  assert.match(doc, /700/);
+
+  const server = fileText("server.js");
+  const serverLineCount = server.split(/\r?\n/).length;
+  const topLevelFunctionCount = (server.match(/^function\s+/gm) || []).length;
+  assert.ok(serverLineCount <= 10200, `server.js line budget exceeded: ${serverLineCount} > 10200`);
+  assert.ok(topLevelFunctionCount <= 700, `server.js top-level function budget exceeded: ${topLevelFunctionCount} > 700`);
+}
+
 function testRefactorPlanTracksTwelveWorkPackages() {
   const doc = fileText("docs/ARCHITECTURE_REFACTOR_PLAN.zh-CN.md");
   assert.match(doc, /4\.1/);
@@ -333,6 +353,7 @@ function testRefactorPlanTracksTwelveWorkPackages() {
 testRefactorModulesExportStableContracts();
 testServerUsesRequestContextAndSqliteCaseShareMigration();
 testPackageRunsArchitectureContracts();
+testServiceFirstArchitectureContract();
 testRefactorPlanTracksTwelveWorkPackages();
 
 console.log("architecture refactor boundary tests passed");

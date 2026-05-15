@@ -28,6 +28,7 @@ const { createFilesystemMountProvider } = require("./adapters/filesystem-mount-p
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service");
+const { createGatewayRunLifecycleService } = require("./adapters/gateway-run-lifecycle-service");
 const { createGatewayStatusProjection, gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createGroupChatSharedAttachmentService } = require("./adapters/group-chat-shared-attachment-service");
@@ -3352,6 +3353,7 @@ const kanbanReadingWorkflowService = createKanbanReadingWorkflowService({
   quizTargetingVersion: KANBAN_READING_QUIZ_TARGETING_VERSION,
   visibleKanbanCaseCards,
 });
+const gatewayRunLifecycleService = createGatewayRunLifecycleService();
 const kanbanPlanService = createKanbanPlanService({
   compactText,
   defaultMaxParallel: KANBAN_MULTI_AGENT_DEFAULT_PARALLEL,
@@ -8598,51 +8600,23 @@ function makePublicTaskId(prefix) {
 }
 
 function addThreadActiveRun(thread, runId) {
-  thread.activeRunIds = dedupe([...(thread.activeRunIds || []), runId]);
-  thread.activeRunId = runId || thread.activeRunIds[thread.activeRunIds.length - 1] || null;
+  Object.assign(thread, gatewayRunLifecycleService.withActiveRunAdded(thread, runId));
 }
 
 function replaceThreadActiveRun(thread, oldRunId, newRunId) {
-  const runs = (thread.activeRunIds || []).map((item) => (item === oldRunId ? newRunId : item));
-  thread.activeRunIds = dedupe(runs.filter(Boolean));
-  if (thread.activeRunId === oldRunId) thread.activeRunId = newRunId;
-  if (!thread.activeRunId && thread.activeRunIds.length) thread.activeRunId = thread.activeRunIds[thread.activeRunIds.length - 1];
+  Object.assign(thread, gatewayRunLifecycleService.withActiveRunReplaced(thread, oldRunId, newRunId));
 }
 
 function removeThreadActiveRun(thread, runId, idleStatus = "idle") {
-  thread.activeRunIds = (thread.activeRunIds || []).filter((item) => item !== runId);
-  if (thread.activeRunId === runId) thread.activeRunId = thread.activeRunIds[thread.activeRunIds.length - 1] || null;
-  thread.status = thread.activeRunIds.length ? "running" : idleStatus;
+  Object.assign(thread, gatewayRunLifecycleService.withActiveRunRemoved(thread, runId, idleStatus));
 }
 
 function taskGroupHasRunningRun(thread, taskGroupId) {
-  const groupId = String(taskGroupId || "");
-  if (!thread || !groupId) return false;
-  return (thread.messages || []).some((message) => (
-    message.role === "assistant"
-    && message.taskGroupId === groupId
-    && message.status === "running"
-  ));
+  return gatewayRunLifecycleService.taskGroupHasRunningRun(thread, taskGroupId);
 }
 
 function nextQueuedRunPairForTaskGroup(thread, taskGroupId) {
-  const groupId = String(taskGroupId || "");
-  if (!thread || !groupId) return null;
-  const messages = thread.messages || [];
-  for (let i = 0; i < messages.length; i += 1) {
-    const assistant = messages[i];
-    if (
-      assistant?.role !== "assistant"
-      || assistant.taskGroupId !== groupId
-      || assistant.status !== "queued"
-      || assistant.runId
-    ) {
-      continue;
-    }
-    const user = messages[i - 1];
-    if (user?.role === "user" && user.taskGroupId === groupId) return { user, assistant };
-  }
-  return null;
+  return gatewayRunLifecycleService.nextQueuedRunPairForTaskGroup(thread, taskGroupId);
 }
 
 function queuedRunInstructions(singleWindowMode) {
@@ -8765,17 +8739,23 @@ async function checkActiveStreamLiveness(publicRunId) {
     stream.livenessMisses = 0;
     stream.lastLivenessWarningAt = 0;
   } catch (err) {
-    if (err.status === 404) {
-      stream.livenessMisses = (stream.livenessMisses || 0) + 1;
-      const elapsedMs = now - stream.lastEventAt;
-      if (RUN_LIVENESS_STALE_AFTER_MS > 0 && elapsedMs >= RUN_LIVENESS_STALE_AFTER_MS) {
-        abortActiveStreamAsFailed(publicRunId, `Hermes Gateway no longer reports run ${stream.realRunId} after ${Math.round(elapsedMs / 1000)} seconds without response events; the Web task was marked stale and the queue was released.`);
-        return;
-      }
-      if (!stream.lastLivenessWarningAt || now - stream.lastLivenessWarningAt >= 300000) {
-        stream.lastLivenessWarningAt = now;
-        console.warn(`Hermes Mobile run liveness check got 404 for ${stream.realRunId}; keeping the active stream open because long-running Gateway tools can be absent from /v1/runs.`);
-      }
+    const decision = gatewayRunLifecycleService.livenessDecisionAfterCheck({
+      status: err.status,
+      nowMs: now,
+      lastEventAtMs: stream.lastEventAt,
+      staleAfterMs: RUN_LIVENESS_STALE_AFTER_MS,
+      livenessMisses: stream.livenessMisses,
+      lastWarningAtMs: stream.lastLivenessWarningAt,
+    });
+    if (decision.action === "ignore_error") return;
+    stream.livenessMisses = decision.livenessMisses;
+    if (decision.shouldAbort) {
+      abortActiveStreamAsFailed(publicRunId, `Hermes Gateway no longer reports run ${stream.realRunId} after ${Math.round(decision.elapsedMs / 1000)} seconds without response events; the Web task was marked stale and the queue was released.`);
+      return;
+    }
+    if (decision.shouldWarn) {
+      stream.lastLivenessWarningAt = decision.lastWarningAt;
+      console.warn(`Hermes Mobile run liveness check got 404 for ${stream.realRunId}; keeping the active stream open because long-running Gateway tools can be absent from /v1/runs.`);
     }
   }
 }
