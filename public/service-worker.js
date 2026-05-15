@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260515-md-font-stepdown";
+const HERMES_SW_VERSION = "20260515-todo-push-target";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,13 +8,13 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260515-md-font-stepdown",
+  "/styles.css?v=20260515-todo-push-target",
   "/app-task-artifact-helpers.js?v=20260515-kanban-story-helpers",
   "/app-kanban-story-helpers.js?v=20260515-kanban-story-helpers",
-  "/app-api-client.js?v=20260515-md-font-stepdown",
-  "/app.js?v=20260515-md-font-stepdown",
+  "/app-api-client.js?v=20260515-todo-push-target",
+  "/app.js?v=20260515-todo-push-target",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260515-md-font-stepdown",
+  "/markdown-renderer-client.js?v=20260515-todo-push-target",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

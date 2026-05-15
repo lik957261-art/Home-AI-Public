@@ -40,6 +40,7 @@ function createKanbanCardProvider(options = {}) {
 
   async function listCards(args = {}) {
     const workspaceId = args.workspaceId || "owner";
+    const targetId = String(args.targetId || args.target_id || "").trim();
     const result = await runBridge({
       action: "list",
       workspace_id: workspaceId,
@@ -48,13 +49,14 @@ function createKanbanCardProvider(options = {}) {
       include_completed: Boolean(args.includeCompleted),
       assignee: args.assignee || "",
       limit: positiveNumber(args.limit, 120),
+      target_id: targetId,
     });
     if (!result?.ok) return { ok: false, result, error: result?.error || "Kanban operation failed" };
 
     const rows = Array.isArray(result.todos) ? result.todos : [];
     const data = rows
       .map((row, index) => publicCard(row, index, rows))
-      .filter((card) => cardMatchesSearch(card, args.search));
+      .filter((card) => cardMatchesSearch(card, args.search) || (targetId && String(card?.id || "") === targetId));
 
     return {
       ok: true,

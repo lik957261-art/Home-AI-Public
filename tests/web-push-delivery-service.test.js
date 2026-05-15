@@ -212,6 +212,10 @@ function testTodoTickReconcilesAndDeliversPendingEvents() {
       assert.equal(result.deliveries.length, 1);
       assert.equal(calls.reconciles[0].workspaceId, "child");
       assert.equal(calls.sends[0].payload.data.todoId, "next");
+      const todoUrl = new URL(calls.sends[0].payload.data.url, "https://example.invalid");
+      assert.equal(todoUrl.searchParams.get("view"), "todos");
+      assert.equal(todoUrl.searchParams.get("workspaceId"), "child");
+      assert.equal(todoUrl.searchParams.get("todoId"), "next");
       assert.equal(marks[0].status, "sent");
     });
   });

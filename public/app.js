@@ -283,6 +283,7 @@ const state = {
   pendingReadingQuizTodoId: "",
   todoAutoRefreshTimer: 0,
   selectedTodoId: "",
+  todoRouteMissingTargetId: "",
   todoCreateOpen: false,
   kanbanComposerText: localStorage.getItem("hermesKanbanComposerDraft") || "",
   kanbanComposerMode: initialKanbanComposerMode(),
@@ -3813,6 +3814,7 @@ function applyRouteParams(params) {
   }
   if (routeView === "todos" && todoId) {
     state.selectedTodoId = todoId;
+    state.todoRouteMissingTargetId = "";
     state.pendingReadingQuizTodoId = readingQuizRequested ? todoId : "";
   } else if (routeView) {
     state.pendingReadingQuizTodoId = "";
@@ -8865,10 +8867,12 @@ async function loadTodos(options = {}) {
   params.set("workspaceId", workspaceId);
   params.set("limit", "120");
   const includeCompleted = shouldLoadCompletedTodos(options);
+  const targetTodoId = String(options.targetId || state.selectedTodoId || "").trim();
   if (includeCompleted) params.set("includeCompleted", "1");
   params.set("scope", "mine");
-  if (options.freshServer) params.set("fresh", "1");
-  const search = currentSearchText();
+  if (targetTodoId) params.set("targetId", targetTodoId);
+  if (options.freshServer || targetTodoId) params.set("fresh", "1");
+  const search = targetTodoId ? "" : currentSearchText();
   if (search) params.set("search", search);
   const conversation = $("conversation");
   const restoreScrollTop = options.preserveScroll && conversation ? conversation.scrollTop : null;
@@ -8896,7 +8900,12 @@ async function loadTodos(options = {}) {
   state.currentThread = null;
   state.currentThreadId = "";
   state.currentTaskGroupId = "";
-  if (state.selectedTodoId && !state.todos.some((todo) => todo.id === state.selectedTodoId)) state.selectedTodoId = "";
+  if (state.selectedTodoId && !state.todos.some((todo) => todo.id === state.selectedTodoId)) {
+    state.todoRouteMissingTargetId = state.selectedTodoId;
+    state.selectedTodoId = "";
+  } else if (targetTodoId) {
+    state.todoRouteMissingTargetId = "";
+  }
   updateSearchButton();
   const finalRestoreScrollTop = options.preserveScroll && conversation ? conversation.scrollTop : restoreScrollTop;
   renderTodos({ preserveScroll: options.preserveScroll, restoreScrollTop: finalRestoreScrollTop });
@@ -9676,6 +9685,12 @@ function renderTodos(options = {}) {
   renderTodoPanel(options);
 }
 
+function renderTodoRouteMissingNotice() {
+  const targetId = String(state.todoRouteMissingTargetId || "").trim();
+  if (!targetId || state.selectedTodoId) return "";
+  return `<div class="empty-state small">\u672a\u627e\u5230\u63a8\u9001\u5bf9\u5e94\u7684\u5f85\u529e\u5361\u7247\uff0c\u5df2\u5237\u65b0\u770b\u677f\u5217\u8868\u3002</div>`;
+}
+
 function renderTodoPanel(options = {}) {
   const conversation = $("conversation");
   const previousScrollTop = conversation ? conversation.scrollTop : 0;
@@ -9709,6 +9724,7 @@ function renderTodoPanel(options = {}) {
   conversation.innerHTML = `
     <section class="todo-shell">
       ${selected || creating ? "" : renderTodoCreatePanel()}
+      ${selected || creating ? "" : renderTodoRouteMissingNotice()}
       ${todoBody}
     </section>
   `;

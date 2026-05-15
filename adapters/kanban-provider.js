@@ -568,6 +568,7 @@ function createKanbanTodoBridge(options = {}) {
   async function list(payload = {}) {
     const board = await ensureBoard(payload);
     const includeCompleted = Boolean(payload.include_completed);
+    const targetId = String(payload.target_id || payload.targetId || "").trim();
     const parsed = await kanbanJson([
       "--board",
       board,
@@ -598,6 +599,19 @@ function createKanbanTodoBridge(options = {}) {
       if (byRecent) return byRecent;
       return String(b.id || "").localeCompare(String(a.id || ""));
     }).slice(0, positiveNumber(payload.limit, 80));
+    if (targetId && !todos.some((todo) => String(todo.id || "") === targetId)) {
+      const shown = await kanbanJson(["--board", board, "show", targetId, "--json"]).catch(() => null);
+      const task = shown?.task && typeof shown.task === "object" ? shown.task : (shown && typeof shown === "object" ? shown : null);
+      if (task && taskIdFrom(task) === targetId) {
+        const meta = store.todos[targetId] || {};
+        const row = (meta.deletedAt || meta.deleted_at) ? null : rowFromTask(task, meta, payload);
+        const rowOpen = row?.status === "open" && OPEN_KANBAN_STATUSES.has(String(row.kanban_status || "").trim().toLowerCase());
+        if (row && (includeCompleted || rowOpen)) {
+          syncMetadataFromRows(store, [row], payload);
+          todos.push(row);
+        }
+      }
+    }
     return { ok: true, todos, source: "kanban", board };
   }
 

@@ -217,6 +217,7 @@ function createKanbanCardApiRoutes(deps = {}) {
     if (!requireKanbanEnabled(res)) return;
     const workspaceId = deps.requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
     if (!workspaceId) return;
+    const targetId = String(url.searchParams.get("targetId") || url.searchParams.get("target_id") || "").trim();
     const listArgs = {
       workspaceId,
       scope: url.searchParams.get("scope") || "mine",
@@ -225,11 +226,13 @@ function createKanbanCardApiRoutes(deps = {}) {
       limit: Number(url.searchParams.get("limit") || "120"),
       search: url.searchParams.get("search") || "",
     };
+    if (targetId) listArgs.targetId = targetId;
     const auth = deps.authenticateRequest(req);
     const sharedCases = deps.kanbanCaseSharesForActor(auth, workspaceId);
     const bypassCache = deps.boolParam(url.searchParams.get("fresh"))
       || deps.boolParam(url.searchParams.get("skipCache"))
-      || deps.boolParam(url.searchParams.get("noCache"));
+      || deps.boolParam(url.searchParams.get("noCache"))
+      || Boolean(targetId);
     if (!bypassCache && !sharedCases.length) {
       const cached = deps.readKanbanCardListCache(listArgs);
       if (cached) {
@@ -257,7 +260,7 @@ function createKanbanCardApiRoutes(deps = {}) {
       maintenance,
       sharedCases: sharedData.length,
     };
-    if (!sharedCases.length) deps.writeKanbanCardListCache(listArgs, payload);
+    if (!sharedCases.length && !targetId) deps.writeKanbanCardListCache(listArgs, payload);
     deps.sendJson(res, 200, payload);
   }
 

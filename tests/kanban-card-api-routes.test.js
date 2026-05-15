@@ -341,6 +341,22 @@ async function testListBypassesCacheForFreshFlagsAndSharedCases() {
   assert.deepEqual(sharedCase.calls.list.map((call) => call.workspaceId), ["child"]);
 }
 
+async function testListTargetBypassesCacheAndForwardsTargetId() {
+  const { routes, calls } = makeRoutes({
+    readKanbanCardListCache(args) {
+      calls.cacheRead.push(args);
+      return { data: [{ id: "should-not-read" }] };
+    },
+  });
+  const got = await request(routes, "GET", "/api/kanban/cards?workspaceId=child&includeCompleted=1&targetId=card-old");
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.cacheRead, []);
+  assert.equal(calls.list.length, 1);
+  assert.equal(calls.list[0].targetId, "card-old");
+  assert.equal(calls.list[0].includeCompleted, true);
+  assert.deepEqual(calls.cacheWrite, []);
+}
+
 async function testOutputRoutesAlwaysUseResolverWithAuthenticatedContext() {
   const auth = { principalId: "principal-output", workspaceId: "child" };
   const { routes, calls } = makeRoutes();
@@ -583,6 +599,7 @@ function testDependencyValidation() {
   await testListProviderSharedMergeAndMaintenance();
   await testListCacheHitAnnotatesAndSchedulesMaintenance();
   await testListBypassesCacheForFreshFlagsAndSharedCases();
+  await testListTargetBypassesCacheAndForwardsTargetId();
   await testOutputRoutesAlwaysUseResolverWithAuthenticatedContext();
   await testDetailAndActionAccessCapabilities();
   await testCreateMapsBodyCasePayloadCacheBroadcastAndVerification();

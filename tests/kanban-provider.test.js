@@ -32,6 +32,22 @@ async function run() {
         const taskId = createCount === 1 ? "t_created" : `t_created_${createCount}`;
         return { code: 0, stdout: JSON.stringify({ task_id: taskId }), stderr: "" };
       }
+      if (joined.includes(" show t_outside ")) {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            task: {
+              id: "t_outside",
+              title: "Outside target",
+              status: "done",
+              assignee: "weixin_stephen",
+              created_at: 1778400100,
+              skills: [],
+            },
+          }),
+          stderr: "",
+        };
+      }
       if (joined.includes(" list ")) {
         return {
           code: 0,
@@ -337,6 +353,18 @@ async function run() {
   assert.equal(closed.kanban_workspace_kind, "dir");
   assert.deepEqual(closed.kanban_skills, ["kanban-worker"]);
   assert.match(closed.created_at, /^2026-/);
+
+  const targeted = await provider.run({
+    action: "list",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    include_completed: true,
+    limit: 1,
+    target_id: "t_outside",
+  });
+  assert.equal(targeted.ok, true);
+  assert.equal(targeted.todos.some((todo) => todo.id === "t_outside"), true);
+  assert.ok(calls.some(([, args]) => args.includes("show") && args.includes("t_outside")));
 
   const pushed = await provider.run({
     action: "web_pending_pushes",
