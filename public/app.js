@@ -8525,7 +8525,9 @@ function kanbanCaseMode(todo) {
 }
 
 function kanbanCardHasExplicitStoryCase(todo) {
-  return Boolean(String(todo?.kanbanCaseId || "").trim() || kanbanCaseMode(todo));
+  const mode = kanbanCaseMode(todo);
+  if (mode === "single-card") return false;
+  return Boolean(String(todo?.kanbanCaseId || "").trim() || mode);
 }
 
 function kanbanCaseTemplate(todo) {
@@ -9627,7 +9629,7 @@ function renderKanbanArchiveStories(items) {
 function renderKanbanStoryTree(items) {
   const cases = kanbanActiveStoryCases(items);
   if (!cases.length) {
-    return `<div class="empty-state small">\u6682\u65e0\u6545\u4e8b\u6811\u3002\u770b\u677f\u5355\u5361\u6216\u591a Agent \u62c6\u89e3\u7684\u4efb\u52a1\u4f1a\u5728\u8fd9\u91cc\u6309\u9700\u6c42\u3001\u62c6\u89e3\u3001\u7ed3\u8bba\u805a\u5408\u3002</div>`;
+    return `<div class="empty-state small">\u6682\u65e0\u6545\u4e8b\u6811\u3002\u5b66\u4e60\u8ba1\u5212\u3001\u8003\u8bd5\u8ba1\u5212\u6216\u591a Agent \u62c6\u89e3\u4f1a\u5728\u8fd9\u91cc\u805a\u5408\uff1b\u666e\u901a\u5355\u4efb\u52a1\u7559\u5728\u5bf9\u5e94\u72b6\u6001\u5217\u3002</div>`;
   }
   return `<div class="kanban-archive-stories">${cases.map((group) => renderKanbanArchiveCase(group, { collapsible: true, archiveAction: true, deleteAction: true })).join("")}</div>`;
 }
@@ -11285,9 +11287,10 @@ function renderTodoDetail(todo) {
   const showGenericCommentPanel = !readingCard && !assessmentCard;
   const commentPanel = kanban && open && canComment && showGenericCommentPanel
     ? `<form class="todo-comment-panel" data-todo-comment-form="${escapeHtml(todo.id)}">
-      <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写授权范围、限制条件或执行说明">${escapeHtml(state.todoCommentDrafts?.[todo.id] || "")}</textarea>
+      <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写评论、完成说明或执行记录，可留空">${escapeHtml(state.todoCommentDrafts?.[todo.id] || "")}</textarea>
       <div class="todo-comment-actions">
         <button type="submit" data-comment-todo="${escapeHtml(todo.id)}">添加评论</button>
+        ${canManage ? `<button type="button" data-comment-complete-todo="${escapeHtml(todo.id)}">完成并记录</button>` : ""}
         ${blocked && canCommentAndManage ? `<button type="button" data-comment-unblock-todo="${escapeHtml(todo.id)}">评论并解除阻塞</button>` : ""}
       </div>
     </form>`
@@ -11492,7 +11495,11 @@ function wireTodoPanel(root) {
   root.querySelectorAll("[data-complete-todo]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      completeTodo(button.dataset.completeTodo).catch(showError);
+      const todoId = button.dataset.completeTodo || "";
+      const commentForm = [...root.querySelectorAll("[data-todo-comment-form]")]
+        .find((form) => form.dataset.todoCommentForm === todoId);
+      const comment = commentForm?.querySelector("#todoCommentText")?.value || state.todoCommentDrafts?.[todoId] || "";
+      completeTodo(todoId, comment).catch(showError);
     });
   });
   root.querySelectorAll("[data-cancel-todo]").forEach((button) => {
@@ -11523,6 +11530,16 @@ function wireTodoPanel(root) {
       event.stopPropagation();
       const todoId = form.dataset.todoCommentForm || form.querySelector("[data-comment-todo]")?.dataset?.commentTodo || "";
       commentTodo(todoId, form.querySelector("#todoCommentText")?.value || "").catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-comment-complete-todo]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = button.dataset.commentCompleteTodo || "";
+      const form = button.closest("[data-todo-comment-form]") || root;
+      const comment = form.querySelector("#todoCommentText")?.value || state.todoCommentDrafts?.[todoId] || "";
+      completeTodo(todoId, comment).catch(showError);
     });
   });
   root.querySelectorAll("[data-todo-revision-form]").forEach((form) => {
@@ -11961,15 +11978,17 @@ async function createTodoFromForm(root) {
   await loadTodos();
 }
 
-async function completeTodo(todoId) {
+async function completeTodo(todoId, comment = "") {
   if (!todoId) return;
   const card = kanbanCardById(todoId);
   if (card && !kanbanCan(card, "canManage")) throw new Error("No permission to manage this card");
+  const commentText = String(comment || state.todoCommentDrafts?.[todoId] || "").trim();
   await api(boardActionApiPath(todoId, "complete"), {
     method: "POST",
-    body: kanbanCardActionBody(todoId),
+    body: kanbanCardActionBody(todoId, commentText ? { comment: commentText } : {}),
   });
   clearTodoListCache(kanbanCardWorkspaceId(todoId));
+  delete state.todoCommentDrafts[todoId];
   state.selectedTodoId = "";
   await loadTodos();
 }

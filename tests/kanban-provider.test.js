@@ -258,9 +258,19 @@ async function run() {
     workspace_id: "weixin_stephen",
     source_principal: "weixin_stephen",
     todo_id: "t_created",
+    comment: "took medicine",
   });
   assert.equal(completed.ok, true);
   assert.equal(completed.status, "completed");
+  assert.equal(completed.kanban_result, "took medicine");
+  assert.ok(calls.some(([, args]) => args.includes("complete") && args.includes("took medicine")));
+  const completedPush = await provider.run({
+    action: "web_pending_pushes",
+    principals: ["weixin_stephen"],
+    limit: 20,
+  });
+  assert.equal(completedPush.ok, true);
+  assert.equal(completedPush.events.some((event) => event.todoId === "t_created" && event.messageType === "due"), false);
 
   const revision = await provider.run({
     action: "revise",

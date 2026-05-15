@@ -437,7 +437,7 @@
   }
 
   function kanbanStoryCases(items, options = {}) {
-    return kanbanArchiveCases(items, options);
+    return kanbanArchiveCases(items, options).filter((group) => group.mode !== "single-card");
   }
 
   function kanbanStoryCaseFullyArchived(group, options = {}) {

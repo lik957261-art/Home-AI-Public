@@ -118,6 +118,18 @@ function baseOptions(extra = {}) {
 }
 
 {
+  const todos = [
+    { id: "single", content: "Take medicine", kanbanStatus: "todo", updatedAt: "2026-01-03T00:00:00Z" },
+    { id: "planned", content: "Planned work", kanbanCaseId: "case-planned", kanbanCaseMode: "multi-agent", kanbanStatus: "todo", updatedAt: "2026-01-04T00:00:00Z" },
+  ];
+  const groups = Helpers.kanbanStoryCases(todos, baseOptions());
+  assert.deepEqual(groups.map((group) => group.id), ["case-planned"]);
+  assert.equal(groups[0].mode, "multi-agent");
+  const active = Helpers.kanbanActiveStoryCases(todos, baseOptions());
+  assert.deepEqual(active.map((group) => group.id), ["case-planned"]);
+}
+
+{
   const group = {
     cards: [
       { todo: { id: "done-1", kanbanStatus: "done", permissions: { canDelete: true } } },
