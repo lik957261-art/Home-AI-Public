@@ -185,6 +185,12 @@ async function main() {
     const autoSingle = await request(baseUrl, "/api/single-window", jsonOptions("POST", ownerKey, {
       workspaceId: "demo-prefill-user",
     }));
+    const emptyMessage = await expectHttpStatus(baseUrl, `/api/threads/${encodeURIComponent(autoSingle.thread.id)}/messages`, jsonOptions("POST", ownerKey, {
+      workspaceId: "demo-prefill-user",
+      text: "",
+      artifacts: [],
+    }), 400);
+    assert.equal(emptyMessage.error, "Message text is required");
     const uploaded = await request(baseUrl, `/api/threads/${encodeURIComponent(autoSingle.thread.id)}/uploads`, jsonOptions("POST", ownerKey, {
       workspaceId: "demo-prefill-user",
       filename: "photo.jpg",

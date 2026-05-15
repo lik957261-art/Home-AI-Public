@@ -457,6 +457,7 @@ const gatewaySkillRoutingForWorkspace = (...args) => ownerElevationRoutingServic
 const modelPermissionApprovalRequest = (...args) => ownerElevationRoutingService.modelPermissionApprovalRequest(...args);
 const ownerElevationInstructions = (...args) => ownerElevationRoutingService.ownerElevationInstructions(...args);
 const precedingUserMessageForAssistant = (...args) => ownerElevationRoutingService.precedingUserMessageForAssistant(...args);
+const sanitizeElevationScope = (...args) => ownerElevationRoutingService.sanitizeElevationScope(...args);
 const stripPermissionApprovalMarkers = (...args) => ownerElevationRoutingService.stripPermissionApprovalMarkers(...args);
 function ownerSetupStatus() {
   return authProvider.ownerSetupStatus();
