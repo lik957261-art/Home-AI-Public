@@ -763,6 +763,11 @@ function selectedSharedTopicGroup() {
   return taskGroupsForThread(state.currentThread).find((group) => group.id === state.currentTaskGroupId && group.sharedTopic) || null;
 }
 
+function currentTaskThreadIsSharedTopicThread() {
+  if (state.viewMode !== "tasks" || !state.currentThreadId || !Array.isArray(state.caseTopicThreads)) return false;
+  return state.caseTopicThreads.some((thread) => thread?.id === state.currentThreadId);
+}
+
 function activeChatTaskGroupId() {
   return isGroupChatView() ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
 }
@@ -1082,7 +1087,12 @@ function renderArtifactWeixinButton(artifact) {
 function openTaskList() {
   clearQuotedReply({ render: false });
   state.skillDetail = null;
+  const reloadTaskWindow = currentTaskThreadIsSharedTopicThread();
   state.currentTaskGroupId = "";
+  if (reloadTaskWindow) {
+    loadSingleWindow({ groupChat: false, weixinChat: false }).catch(showError);
+    return;
+  }
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
 }
