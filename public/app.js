@@ -57,6 +57,7 @@ const KANBAN_MULTI_AGENT_DEFAULT_PARALLEL = 3;
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 8;
 const TaskArtifactHelpers = window.HermesTaskArtifactHelpers || {};
 const KanbanStoryHelpers = window.HermesKanbanStoryHelpers || {};
+const AppApiClient = window.HermesAppApiClient || {};
 
 function initialTodoKanbanStatus() {
   const stored = localStorage.getItem("hermesTodoKanbanStatus") || "";
@@ -3606,37 +3607,18 @@ function scheduleMessageScrollButtonVisibility(root) {
   requestAnimationFrame(() => updateMessageScrollButtonVisibility(root));
 }
 
-async function api(path, options = {}) {
-  const headers = Object.assign({}, options.headers || {});
-  if (state.key) headers["X-Hermes-Web-Key"] = state.key;
-  if (state.clientVersion) headers["X-Hermes-Web-Client-Version"] = state.clientVersion;
-  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
-  const res = await fetch(path, Object.assign({}, options, { headers }));
-  handleClientVersionFromResponse(res);
-  if (res.status === 401) {
+const hermesApiClient = AppApiClient.createApiClient({
+  getAccessKey: () => state.key,
+  getClientVersion: () => state.clientVersion,
+  onClientVersion: (payload, source) => handleClientVersion(payload, source),
+  onUnauthorized: () => {
     clearStoredAccessKey();
     showLogin("Access Key 已失效，请重新输入。");
-    throw new Error("Unauthorized");
-  }
-  if (!res.ok) {
-    let message = `${res.status} ${res.statusText}`;
-    let body = null;
-    try {
-      body = await res.json();
-      if (body.error) message = body.error;
-    } catch (_) {}
-    const err = new Error(message);
-    err.status = res.status;
-    if (body && typeof body === "object") {
-      err.code = body.code || "";
-      err.operatorRequired = Boolean(body.operatorRequired);
-      err.elevationRequired = Boolean(body.elevationRequired);
-      err.elevationScope = body.elevationScope || body.code || "";
-    }
-    throw err;
-  }
-  if (res.status === 204) return null;
-  return res.json();
+  },
+});
+
+async function api(path, options = {}) {
+  return hermesApiClient(path, options);
 }
 
 function clearStoredAccessKey() {
@@ -3654,13 +3636,11 @@ function storeAccessKey(key) {
 }
 
 function handleClientVersionFromResponse(response) {
-  const serverVersion = response?.headers?.get?.("X-Hermes-Web-Version") || "";
-  if (!serverVersion) return;
-  handleClientVersion({
-    version: serverVersion,
-    clientVersion: response.headers.get("X-Hermes-Web-Client-Version") || state.clientVersion,
-    refreshRequired: response.headers.get("X-Hermes-Web-Refresh-Required") === "1",
-  }, "response");
+  return AppApiClient.handleClientVersionFromResponse(response, {
+    getClientVersion: () => state.clientVersion,
+    onClientVersion: (payload, source) => handleClientVersion(payload, source),
+    source: "response",
+  });
 }
 
 function setBootSplashText(message = "正在载入工作区") {
