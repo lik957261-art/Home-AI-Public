@@ -340,36 +340,102 @@ function gradeAssessmentExam(exam = {}, state = {}, body = {}, options = {}) {
   };
 }
 
+function assessmentReportQuestionById(exam = {}) {
+  const byId = new Map();
+  for (const question of Array.isArray(exam.questions) ? exam.questions : []) {
+    const id = String(question?.id || "").trim();
+    if (id) byId.set(id, question);
+  }
+  return byId;
+}
+
+function assessmentChoiceLabel(index) {
+  const value = Number(index);
+  if (!Number.isInteger(value) || value < 0) return "";
+  return String.fromCharCode(65 + value);
+}
+
+function assessmentReportChoiceText(question = {}, index) {
+  const label = assessmentChoiceLabel(index);
+  if (!label) return "未记录";
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  const text = choices[index] ? ` ${choices[index]}` : "";
+  return `${label}.${text}`.trim();
+}
+
+function assessmentReportSkillSummary(results = []) {
+  const stats = new Map();
+  for (const item of results) {
+    const skill = defaultCompactText(item?.skill || "未标注技能", 80);
+    const current = stats.get(skill) || { correct: 0, total: 0 };
+    current.total += 1;
+    if (item?.correct) current.correct += 1;
+    stats.set(skill, current);
+  }
+  return [...stats.entries()]
+    .sort((left, right) => (left[1].correct / Math.max(1, left[1].total)) - (right[1].correct / Math.max(1, right[1].total)) || left[0].localeCompare(right[0]))
+    .map(([skill, stat]) => `- ${skill}: ${stat.correct}/${stat.total}`)
+    .join("\n");
+}
+
 function buildAssessmentExamReportMarkdown(input = {}) {
   const cardTitle = String(input.cardTitle || input.exam?.title || "Assessment Report");
   const cardId = String(input.cardId || "");
   const exam = input.exam || {};
   const attempt = input.attempt || {};
-  const wrong = (Array.isArray(attempt.results) ? attempt.results : []).filter((item) => !item.correct);
+  const results = Array.isArray(attempt.results) ? attempt.results : [];
+  const wrong = results.filter((item) => !item.correct);
+  const byId = assessmentReportQuestionById(exam);
+  const wrongDetails = wrong.length ? wrong.map((item, index) => {
+    const question = byId.get(String(item.id || "")) || {};
+    const selected = assessmentReportChoiceText(question, item.answerIndex);
+    const correct = assessmentReportChoiceText(question, item.correctIndex);
+    return [
+      `### ${index + 1}. ${item.id || `q${index + 1}`}${item.skill ? ` - ${item.skill}` : ""}`,
+      "",
+      `- 题目：${defaultCompactText(question.prompt || "未记录题干", 1200)}`,
+      `- 作答：${selected}`,
+      `- 正确答案：${correct}`,
+      `- 分析：${defaultCompactText(item.explanation || question.explanation || "需要复盘本题对应概念、审题条件和计算过程。", 1200)}`,
+      `- 练习重点：${defaultCompactText(item.skill || question.skill || "回到同类题复盘", 160)}`,
+    ].join("\n");
+  }).join("\n\n") : "无错题。";
+  const skillSummary = assessmentReportSkillSummary(results) || "暂无分项统计。";
   return [
     `# ${cardTitle}`,
     "",
-    `- Card: ${cardId}`,
-    `- Subject: ${exam.subject || ""}`,
-    `- Score: ${Number(attempt.score || 0)}/100`,
-    `- Correct: ${Number(attempt.correctCount || 0)}/${Number(attempt.total || 0)}`,
-    `- Passing score: ${Number(exam.passingScore || attempt.passingScore || 0)}/100`,
-    `- Passed: ${attempt.passed ? "yes" : "no"}`,
-    `- Submitted: ${attempt.submittedAt || ""}`,
+    `- 卡片：${cardId}`,
+    `- 科目：${exam.subject || ""}`,
+    `- 得分：${Number(attempt.score || 0)}/100`,
+    `- 正确：${Number(attempt.correctCount || 0)}/${Number(attempt.total || 0)}`,
+    `- 通过线：${Number(exam.passingScore || attempt.passingScore || 0)}/100`,
+    `- 结果：${attempt.passed ? "通过" : "未通过"}`,
+    `- 提交时间：${attempt.submittedAt || ""}`,
     "",
-    "## Summary",
+    "## 总体评价",
     "",
     attempt.passed
-      ? "This formal assessment reached the passing score."
-      : "This formal assessment did not reach the passing score. Retake is required before the card can complete.",
+      ? "本次正式检测达到通过线。后续建议继续保持正确题对应的解题步骤，并复盘耗时较长的题型。"
+      : "本次正式检测未达到通过线，卡片需要重考。优先处理下方错题对应的概念、审题条件和计算步骤。",
     "",
-    "## Incorrect Items",
+    "## 分项表现",
     "",
-    wrong.length ? wrong.map((item) => `- ${item.id}: ${item.explanation || "Review this skill."}`).join("\n") : "None.",
+    skillSummary,
+    "",
+    "## 错题分析",
+    "",
+    wrongDetails,
+    "",
+    "## 后续复盘建议",
+    "",
+    wrong.length
+      ? "- 先按错题分析逐题复盘：题干条件、选项排除、关键计算或推理步骤。\n- 对错题技能点各补 2-3 道同类题，再重新测试。\n- 重考前只复习本次错题和低正确率技能点，避免无目标刷题。"
+      : "- 本次没有错题。建议保留本次答题节奏，并把耗时较长或不确定的题型作为下次复盘重点。",
   ].join("\n");
 }
 
 module.exports = {
+  assessmentChoiceLabel,
   assessmentChoiceSet,
   assessmentLooksLikeAmc8,
   buildAssessmentExamReportMarkdown,

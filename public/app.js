@@ -717,6 +717,38 @@ function sharedCaseTopicGroupsForTaskList(currentThread) {
     })));
 }
 
+function kanbanStoryCaseId(group) {
+  const first = (group?.cards || [])[0]?.todo || {};
+  return String(group?.id || first.kanbanCaseId || "").trim();
+}
+
+function kanbanStoryGroupForCaseId(caseId) {
+  const id = String(caseId || "").trim();
+  if (!id) return null;
+  return kanbanStoryCases(state.todos || []).find((group) => (
+    kanbanStoryCaseId(group) === id
+    || (group.cards || []).some((item) => String(item?.todo?.kanbanCaseId || "") === id)
+  )) || null;
+}
+
+function kanbanStoryGroupForTopicGroup(group) {
+  return kanbanStoryGroupForCaseId(group?.kanbanCaseId || "");
+}
+
+function kanbanBoundTopicForStoryGroup(group) {
+  const caseId = kanbanStoryCaseId(group);
+  if (!caseId) return null;
+  for (const thread of Array.isArray(state.caseTopicThreads) ? state.caseTopicThreads : []) {
+    const meta = thread?.taskGroupMeta && typeof thread.taskGroupMeta === "object" ? thread.taskGroupMeta : {};
+    for (const [taskGroupId, value] of Object.entries(meta)) {
+      if (String(value?.kanbanCaseId || "").trim() === caseId) {
+        return { threadId: thread.id, taskGroupId, thread, meta: value };
+      }
+    }
+  }
+  return null;
+}
+
 function sharedTopicChatDisabledForSelectedWorkspace(group) {
   if (!group?.sharedTopic) return false;
   const workspaceId = String(state.selectedWorkspaceId || "").trim();
@@ -8352,6 +8384,7 @@ async function loadSingleWindow(options = {}) {
     state.weixinChatThreadId = state.weixinChatThread?.id || result.weixinChatThreadId || "";
   }
   state.caseTopicThreads = Array.isArray(result.caseTopicThreads) ? result.caseTopicThreads : [];
+  if (messageMode === "tasks") await refreshKanbanTopicCardSnapshot().catch(() => {});
   state.groupChatAvailable = Boolean(result.groupChatAvailable || selectedWorkspaceInThreadGroup(state.currentThread));
   state.weixinChatAvailable = Boolean(result.weixinChatAvailable || isThreadWeixinChat(state.currentThread));
   rememberChatScopeThread(state.currentThread);
@@ -8534,6 +8567,32 @@ async function loadThreads() {
   state.threads = result.data || [];
   updateSearchButton();
   renderThreads();
+}
+
+async function refreshCaseTopicThreadsForWorkspace() {
+  const result = await api("/api/single-window", {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: state.selectedWorkspaceId || "owner",
+      messageMode: "tasks",
+    }),
+  });
+  if (Array.isArray(result.caseTopicThreads)) state.caseTopicThreads = result.caseTopicThreads;
+  return state.caseTopicThreads;
+}
+
+async function refreshKanbanTopicCardSnapshot() {
+  if (!isKanbanTodoSource() || !Array.isArray(state.caseTopicThreads) || !state.caseTopicThreads.length) return;
+  const workspaceId = state.selectedWorkspaceId || "owner";
+  const params = new URLSearchParams({
+    workspaceId,
+    limit: "500",
+    includeCompleted: "1",
+    scope: "mine",
+    fresh: "1",
+  });
+  const result = await api(`${boardCollectionApiPath()}?${params.toString()}`);
+  applyTodoListResult(result, true, workspaceId);
 }
 
 function kanbanStatusNeedsCompleted(status) {
@@ -9226,6 +9285,10 @@ function kanbanAssessmentVisibleCardItems(group) {
   return KanbanStoryHelpers.kanbanAssessmentVisibleCardItems(group, kanbanStoryHelperOptions());
 }
 
+function kanbanAssessmentStoryVisibleCardItems(group) {
+  return KanbanStoryHelpers.kanbanAssessmentStoryVisibleCardItems(group, kanbanStoryHelperOptions());
+}
+
 function kanbanReadingBaseCardItems(group) {
   return KanbanStoryHelpers.kanbanReadingBaseCardItems(group);
 }
@@ -9451,7 +9514,7 @@ function scheduleKanbanStoryDetailLoads(items) {
     const cardItems = group.mode === "study-plan"
       ? [kanbanReadingCaseCurrentItem(group)].filter(Boolean)
       : group.mode === "assessment-plan"
-        ? [kanbanAssessmentCaseCurrentItem(group)].filter(Boolean)
+        ? kanbanAssessmentStoryVisibleCardItems(group)
       : (group.cards || []).slice(0, 10);
     for (const item of cardItems) {
       const id = String(item?.todo?.id || "").trim();
@@ -9571,25 +9634,40 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
   const completed = visibleCards.filter((item) => assessmentExamCompleted(item.todo)).length;
   const total = Number(first.kanbanCaseCardCount || visibleCards.length || cards.length || 0) || visibleCards.length || cards.length;
   const summary = assessmentExamSummary(currentTodo) || {};
-  const currentStatus = currentTodo ? kanbanStatusMeta(normalizedKanbanStatus(currentTodo)).shortLabel : "";
-  const lastAttempt = summary.lastAttempt;
-  const currentMeta = [
-    currentStatus,
-    currentTodo?.dueLocal || currentTodo?.dueAt || "",
-    summary.questionCount ? `${summary.questionCount}题/${summary.durationMinutes || 30}分钟` : "",
-    summary.passingScore ? `通过线 ${summary.passingScore}` : "",
-    lastAttempt ? `上次 ${lastAttempt.score}/100` : "",
-  ].filter(Boolean).join(" | ");
+  const storyCards = kanbanAssessmentStoryVisibleCardItems(group);
+  const currentId = String(currentTodo?.id || "");
   const storyState = kanbanStoryCaseRenderState(group, options);
   const swipeState = kanbanStorySwipeRenderState(group, options);
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
-  const currentRow = currentTodo ? `<li>
-    <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
-      <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
-      <strong>${escapeHtml(currentTodo.content || currentTodo.id)}</strong>
-      <small>${escapeHtml([currentMeta, currentTodo?.kanbanRevisionOf ? "\u4fee\u6539\u4efb\u52a1" : ""].filter(Boolean).join(" | "))}</small>
-    </button>
-  </li>` : "";
+  const storyRows = storyCards.map((item) => {
+    const todo = item.todo || {};
+    const itemSummary = assessmentExamSummary(todo) || {};
+    const status = kanbanStatusMeta(normalizedKanbanStatus(todo)).shortLabel;
+    const attempt = itemSummary.lastAttempt || null;
+    const outputCount = kanbanCardOutputs(todo).length;
+    const resultLine = attempt
+      ? `${attempt.passed ? "已通过" : "未通过"} ${Number(attempt.score || 0)}/100`
+      : "";
+    const meta = [
+      status,
+      todo?.dueLocal || todo?.dueAt || "",
+      itemSummary.questionCount ? `${itemSummary.questionCount}题/${itemSummary.durationMinutes || 30}分钟` : "",
+      itemSummary.passingScore ? `通过线 ${itemSummary.passingScore}` : "",
+      resultLine,
+      outputCount ? `交付 ${outputCount}` : "",
+      String(todo.id || "") === currentId ? "当前" : "",
+      todo?.kanbanRevisionOf ? "修改任务" : "",
+    ].filter(Boolean).join(" | ");
+    const feedback = kanbanCardStoryFeedbackLine(todo);
+    return `<li>
+      <button type="button" data-todo-id="${escapeHtml(todo.id)}">
+        <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, item) || item?.info?.cardIndex || todo.kanbanCaseCardIndex || 1))}</span>
+        <strong>${escapeHtml(todo.content || todo.id)}</strong>
+        <small>${escapeHtml(meta)}</small>
+        ${feedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(feedback)}</small>` : ""}
+      </button>
+    </li>`;
+  }).join("");
   return `<article class="kanban-archive-case assessment-plan-case${storyState.caseClass}${swipeState.articleClass}"${swipeState.articleAttrs}>
     ${swipeState.deleteButton}
     <div class="${swipeState.contentClass}"${swipeState.contentAttrs}>
@@ -9614,7 +9692,7 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
         <p>${escapeHtml("正式测试高于日常小测；低于通过线则保持重考，直到通过。")}</p>
       </section>
     </div>
-    <ol class="kanban-archive-card-chain">${currentRow}</ol>
+    <ol class="kanban-archive-card-chain">${storyRows}</ol>
     </div>
   </article>`;
 }
@@ -12318,17 +12396,44 @@ async function deleteKanbanStoryCase(caseKey) {
   if (!group || !items.length) throw new Error("No deletable cards in this story.");
   const title = group.title || key;
   if (!window.confirm(`\u5220\u9664\u6545\u4e8b\uff1a${title}\n\u5c06\u4e00\u6b21\u5220\u9664 ${items.length} \u5f20\u770b\u677f\u5361\u7247\uff0c\u4e0d\u53ef\u901a\u8fc7\u5355\u5361\u5165\u53e3\u64a4\u9500\u3002`)) return false;
+  let boundTopic = kanbanBoundTopicForStoryGroup(group);
+  if (!boundTopic) {
+    await refreshCaseTopicThreadsForWorkspace().catch(() => []);
+    boundTopic = kanbanBoundTopicForStoryGroup(group);
+  }
   for (const item of items) {
     await api(boardActionApiPath(item.todo.id, "delete"), {
       method: "POST",
       body: kanbanCardActionBody(item.todo),
     });
   }
+  let topicCleanupError = "";
+  if (boundTopic?.threadId && boundTopic?.taskGroupId) {
+    try {
+      await api(`/api/threads/${encodeURIComponent(boundTopic.threadId)}/tasks/${encodeURIComponent(boundTopic.taskGroupId)}`, {
+        method: "DELETE",
+      });
+      state.caseTopicThreads = (state.caseTopicThreads || []).map((thread) => {
+        if (thread.id !== boundTopic.threadId) return thread;
+        const taskGroupMeta = Object.assign({}, thread.taskGroupMeta || {});
+        delete taskGroupMeta[boundTopic.taskGroupId];
+        const messages = (thread.messages || []).filter((message) => message.taskGroupId !== boundTopic.taskGroupId);
+        return Object.assign({}, thread, { taskGroupMeta, messages });
+      });
+    } catch (err) {
+      topicCleanupError = err.message || String(err);
+    }
+  }
   clearTodoListCache();
   closeTopMoreMenu();
   state.selectedTodoId = "";
   state.kanbanStoryExpanded = Object.assign({}, state.kanbanStoryExpanded || {}, { [key]: false });
-  showPushToast(`\u5df2\u5220\u9664 ${items.length} \u5f20\u6545\u4e8b\u5361\u7247`, "success");
+  showPushToast(
+    topicCleanupError
+      ? `已删除 ${items.length} 张故事卡片；绑定话题清理失败：${compactDisplayText(topicCleanupError, 80)}`
+      : `已删除 ${items.length} 张故事卡片${boundTopic ? "，并清理绑定话题" : ""}`,
+    topicCleanupError ? "error" : "success",
+  );
   await loadTodos({ skipCache: true, freshServer: true, includeCompleted: true });
   return true;
 }
@@ -13417,10 +13522,89 @@ function renderTaskDetailToolbar(group) {
   wireSkillLinks(toolbar);
 }
 
+function kanbanStoryProgressItems(group) {
+  if (!group) return [];
+  if (group.mode === "assessment-plan") return kanbanAssessmentVisibleCardItems(group);
+  if (group.mode === "study-plan") return kanbanReadingBaseCardItems(group);
+  return group.cards || [];
+}
+
+function kanbanStoryCurrentItemForTopic(group) {
+  if (!group) return null;
+  if (group.mode === "assessment-plan") return kanbanAssessmentCaseCurrentItem(group);
+  if (group.mode === "study-plan") return kanbanReadingCaseCurrentItem(group);
+  return (group.cards || []).find((item) => !["done", "archived"].includes(normalizedKanbanStatus(item.todo))) || (group.cards || [])[0] || null;
+}
+
+function kanbanStoryItemCompletedForProgress(group, item) {
+  const todo = item?.todo || {};
+  if (group?.mode === "assessment-plan") return assessmentExamCompleted(todo);
+  if (group?.mode === "study-plan") return readingSubmissionCompleted(todo);
+  return ["done", "archived"].includes(normalizedKanbanStatus(todo));
+}
+
+function kanbanStoryTopicOutputs(group) {
+  const items = group?.mode === "assessment-plan"
+    ? kanbanAssessmentStoryVisibleCardItems(group)
+    : (group?.cards || []);
+  const seen = new Set();
+  const out = [];
+  for (const item of items || []) {
+    for (const output of kanbanCardOutputs(item.todo)) {
+      const key = String(output?.url || output?.path || output?.name || "").trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(output);
+    }
+  }
+  return out;
+}
+
+function renderKanbanTopicOutputChips(outputs) {
+  const items = (outputs || []).slice(0, 3);
+  if (!items.length) return "";
+  const chips = items.map((output) => {
+    const label = artifactDisplayName(output);
+    return `<a class="kanban-topic-output-chip" href="${escapeHtml(artifactHref(output))}" data-task-doc title="${escapeHtml(label)}">${escapeHtml(iconForArtifact(output))} ${escapeHtml(compactDisplayText(label, 28))}</a>`;
+  }).join("");
+  const extra = outputs.length > items.length ? `<span class="kanban-topic-output-more">+${outputs.length - items.length}</span>` : "";
+  return `<div class="kanban-topic-outputs">${chips}${extra}</div>`;
+}
+
+function renderSharedTopicKanbanProgress(group) {
+  if (!group?.sharedTopic && !group?.sourceThreadId) return "";
+  const storyGroup = kanbanStoryGroupForTopicGroup(group);
+  if (!storyGroup) return "";
+  const cards = kanbanStoryProgressItems(storyGroup);
+  const total = Number(cards[0]?.todo?.kanbanCaseCardCount || storyGroup.cards?.[0]?.todo?.kanbanCaseCardCount || cards.length || 0) || cards.length;
+  const completed = cards.filter((item) => kanbanStoryItemCompletedForProgress(storyGroup, item)).length;
+  const current = kanbanStoryCurrentItemForTopic(storyGroup);
+  const currentTodo = current?.todo || {};
+  const currentLabel = currentTodo.id
+    ? `当前：${compactDisplayText(currentTodo.content || currentTodo.id, 42)}`
+    : "";
+  const outputs = kanbanStoryTopicOutputs(storyGroup);
+  const assessment = (storyGroup.mode === "assessment-plan" ? kanbanAssessmentStoryVisibleCardItems(storyGroup) : [])
+    .map((item) => assessmentExamSummary(item.todo)?.lastAttempt)
+    .filter(Boolean)
+    .pop();
+  const assessmentText = assessment
+    ? `考试评价：${assessment.passed ? "通过" : "未通过"} ${Number(assessment.score || 0)}/100`
+    : "";
+  const feedback = assessmentText || (currentTodo.id ? kanbanCardStoryFeedbackLine(currentTodo) : "");
+  return `<div class="kanban-topic-progress">
+    <span>${escapeHtml(`进度 ${completed}/${total || cards.length || 0}`)}</span>
+    ${currentLabel ? `<span>${escapeHtml(currentLabel)}</span>` : ""}
+    ${feedback ? `<span>${escapeHtml(compactDisplayText(feedback, 80))}</span>` : ""}
+    ${renderKanbanTopicOutputChips(outputs)}
+  </div>`;
+}
+
 function renderTaskCard(group) {
   const latestArtifact = latestTaskListDocument(group);
   const skills = taskSkills(group);
   const sharedTopic = Boolean(group.sharedTopic || group.sourceThreadId);
+  const sharedTopicProgress = renderSharedTopicKanbanProgress(group);
   const artifactChips = latestArtifact ? `<span class="task-doc-item">
     <a class="task-doc-icon doc-${escapeHtml(artifactKind(latestArtifact))}" href="${escapeHtml(artifactHref(latestArtifact))}" target="_blank" rel="noopener" data-task-doc title="${escapeHtml(latestArtifact.name || latestArtifact.id || "document")}" aria-label="${escapeHtml(latestArtifact.name || latestArtifact.id || "document")}">
       ${escapeHtml(iconForArtifact(latestArtifact))}
@@ -13443,6 +13627,7 @@ function renderTaskCard(group) {
         <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled topic")}</span>
         <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}${sharedBadge}</span>
       </button>
+      ${sharedTopicProgress}
       <div class="task-card-assets">
         <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Topic documents">
           ${artifactChips}

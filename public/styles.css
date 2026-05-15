@@ -2764,6 +2764,43 @@ button.directory-alias-chip {
   padding-right: 14px;
 }
 
+.kanban-topic-progress {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  color: var(--muted);
+  font-size: calc(12px * var(--app-font-scale));
+  line-height: 1.35;
+}
+
+.kanban-topic-progress > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kanban-topic-outputs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.kanban-topic-output-chip,
+.kanban-topic-output-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--accent);
+  font-size: calc(12px * var(--app-font-scale));
+  text-decoration: none;
+}
+
 .task-docs {
   min-width: 0;
   max-width: min(34vw, 220px);

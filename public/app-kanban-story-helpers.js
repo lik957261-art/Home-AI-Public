@@ -197,6 +197,29 @@
     return kanbanLatestRevisionReplacementItems(group, (todo) => context.isKanbanAssessmentCard(todo), context);
   }
 
+  function assessmentCardHasStoryEvidence(todo, options = {}) {
+    const context = deps(options);
+    const summary = context.assessmentExamSummary(todo) || {};
+    return Boolean(
+      context.assessmentExamCompleted(todo)
+      || summary.lastAttempt
+      || String(summary.status || "").trim().toLowerCase() === "retake_required"
+      || context.kanbanCardOutputs(todo).length,
+    );
+  }
+
+  function kanbanAssessmentStoryVisibleCardItems(group, options = {}) {
+    const context = deps(options);
+    const cards = kanbanAssessmentVisibleCardItems(group, context);
+    if (!cards.length) return [];
+    const current = kanbanAssessmentCaseCurrentItem(group, context);
+    const currentId = String(current?.todo?.id || "");
+    return cards.filter((item) => {
+      const id = String(item?.todo?.id || "");
+      return Boolean(id && (id === currentId || assessmentCardHasStoryEvidence(item.todo, context)));
+    });
+  }
+
   function kanbanReadingBaseCardItems(group) {
     return (group?.cards || []).filter((item) => !isKanbanReadingRevision(item));
   }
@@ -306,11 +329,16 @@
     const visible = new Set();
     for (const cards of groups.values()) {
       const hasStudyCards = cards.some((item) => context.isKanbanReadingCard(item.todo));
-      const item = hasStudyCards
-        ? kanbanReadingCaseCurrentItem({ cards }, context)
-        : kanbanAssessmentCaseCurrentItem({ cards }, context);
-      const id = String(item?.todo?.id || "");
-      if (id) visible.add(id);
+      if (hasStudyCards) {
+        const item = kanbanReadingCaseCurrentItem({ cards }, context);
+        const id = String(item?.todo?.id || "");
+        if (id) visible.add(id);
+        continue;
+      }
+      for (const item of kanbanAssessmentStoryVisibleCardItems({ cards }, context)) {
+        const id = String(item?.todo?.id || "");
+        if (id) visible.add(id);
+      }
     }
     return visible;
   }
@@ -556,6 +584,8 @@
     kanbanRevisionSortTimestamp,
     kanbanLatestRevisionReplacementItems,
     kanbanAssessmentVisibleCardItems,
+    assessmentCardHasStoryEvidence,
+    kanbanAssessmentStoryVisibleCardItems,
     kanbanReadingBaseCardItems,
     kanbanReadingDisplayCardCount,
     kanbanCasePriorCards,

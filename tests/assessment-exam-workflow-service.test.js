@@ -398,7 +398,7 @@ async function testDefaultReportWriterUsesCardArtifactDirectory() {
   assert.equal(result.ok, true);
   assert.equal(result.reportPath.startsWith(path.join(fixture.root, "artifacts", "owner", "case-1", "card-1")), true);
   assert.equal(fs.existsSync(result.reportPath), true);
-  assert.match(fs.readFileSync(result.reportPath, "utf8"), /Score: 100\/100/);
+  assert.match(fs.readFileSync(result.reportPath, "utf8"), /得分：100\/100/);
   const saved = fixture.states.get(stateKey("owner", "card-1"));
   assert.equal(saved.lastReportPath, result.reportPath);
 }

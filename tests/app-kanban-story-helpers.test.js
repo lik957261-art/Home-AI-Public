@@ -107,6 +107,31 @@ function baseOptions(extra = {}) {
 }
 
 {
+  const cards = [
+    {
+      todo: {
+        id: "a1",
+        kind: "assessment",
+        kanbanCaseId: "exam",
+        kanbanCaseCardIndex: 1,
+        kanbanStatus: "done",
+        examCompleted: true,
+        exam: { status: "completed", lastAttempt: { score: 70, passed: true } },
+        outputs: [{ name: "assessment-report.md", url: "/output/a1" }],
+      },
+      info: { cardIndex: 1 },
+    },
+    { todo: { id: "a2", kind: "assessment", kanbanCaseId: "exam", kanbanCaseCardIndex: 2, kanbanStatus: "todo", canStart: true }, info: { cardIndex: 2 } },
+    { todo: { id: "a3", kind: "assessment", kanbanCaseId: "exam", kanbanCaseCardIndex: 3, kanbanStatus: "blocked" }, info: { cardIndex: 3 } },
+  ];
+  const options = baseOptions();
+  assert.equal(Helpers.kanbanAssessmentCaseCurrentItem({ cards }, options).todo.id, "a2");
+  assert.deepEqual(Helpers.kanbanAssessmentStoryVisibleCardItems({ cards }, options).map((item) => item.todo.id), ["a1", "a2"]);
+  const visibleIds = Helpers.kanbanVisibleReadingTodoIds(cards.map((item) => item.todo), options);
+  assert.deepEqual([...visibleIds], ["a1", "a2"]);
+}
+
+{
   const todos = [
     { id: "old", content: "Old", kanbanCaseId: "case-old", kanbanCaseSummary: "Old case", updatedAt: "2026-01-01T00:00:00Z", kanbanStatus: "done" },
     { id: "new", content: "New", kanbanCaseId: "case-new", kanbanCaseSummary: "New case", updatedAt: "2026-01-02T00:00:00Z", kanbanStatus: "done" },

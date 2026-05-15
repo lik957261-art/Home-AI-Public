@@ -183,7 +183,14 @@ function testBuildAssessmentExamReportMarkdown() {
   const markdown = buildAssessmentExamReportMarkdown({
     cardId: "card-1",
     cardTitle: "Formal Math Check",
-    exam: { subject: "Math", passingScore: 80 },
+    exam: {
+      subject: "Math",
+      passingScore: 80,
+      questions: [
+        { id: "q1", skill: "arithmetic", prompt: "1+1?", choices: ["1", "2"], answerIndex: 1, explanation: "1+1=2" },
+        { id: "q2", skill: "ratio", prompt: "Which ratio is equal?", choices: ["1:2", "2:1"], answerIndex: 0, explanation: "ratio review" },
+      ],
+    },
     attempt: {
       submittedAt: "fixed",
       score: 67,
@@ -191,16 +198,23 @@ function testBuildAssessmentExamReportMarkdown() {
       total: 3,
       passed: false,
       results: [
-        { id: "q1", correct: true, explanation: "ok" },
-        { id: "q2", correct: false, explanation: "review ratio" },
+        { id: "q1", skill: "arithmetic", correct: true, answerIndex: 1, correctIndex: 1, explanation: "ok" },
+        { id: "q2", skill: "ratio", correct: false, answerIndex: 1, correctIndex: 0, explanation: "review ratio" },
       ],
     },
   });
   assert.match(markdown, /^# Formal Math Check/);
-  assert.match(markdown, /- Card: card-1/);
-  assert.match(markdown, /- Score: 67\/100/);
-  assert.match(markdown, /Retake is required/);
-  assert.match(markdown, /- q2: review ratio/);
+  assert.match(markdown, /- 卡片：card-1/);
+  assert.match(markdown, /- 得分：67\/100/);
+  assert.match(markdown, /卡片需要重考/);
+  assert.match(markdown, /## 分项表现/);
+  assert.match(markdown, /- ratio: 0\/1/);
+  assert.match(markdown, /## 错题分析/);
+  assert.match(markdown, /### 1\. q2 - ratio/);
+  assert.match(markdown, /- 题目：Which ratio is equal\?/);
+  assert.match(markdown, /- 作答：B\. 2:1/);
+  assert.match(markdown, /- 正确答案：A\. 1:2/);
+  assert.match(markdown, /- 分析：review ratio/);
   assert.equal(markdown.includes("q1: ok"), false);
 }
 
