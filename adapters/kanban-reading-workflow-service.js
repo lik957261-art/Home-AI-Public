@@ -318,9 +318,13 @@ function createKanbanReadingWorkflowService(deps = {}) {
       readingTemplate
         ? "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, comprehension, retelling quality, English grammar/expression, vocabulary/sentence patterns, comparison with previous sessions, next-session advice, and parent observation points."
         : "Required analysis sections include: score out of 100, deductions, today's weakness and error patterns, quiz targets, subject accuracy, method/process quality, expression/clarity, comparison with previous sessions, next-session advice, and parent observation points.",
-      "Include these sections: 鏈璇勫垎锛?00鍒嗭級, 鏈鐞嗚В, 澶嶈堪璐ㄩ噺, 鑻辫琛ㄨ揪涓庤娉? 璇嶆眹涓庡彞鍨? 涓庡墠娆＄浉姣? 涓嬩竴娆″缓璁? 瀹堕暱鍙瀵熺偣.",
-      "If this is the final session in the reading template, also include sections: 鏁存湰涔︽€荤粨 and 鎬诲垎锛?00鍒嗭級.",
-      "Include these sections: 鏈鐞嗚В, 澶嶈堪璐ㄩ噺, 琛ㄨ揪涓庨€昏緫, 涓庡墠娆＄浉姣? 涓嬩竴娆″缓璁? 瀹堕暱鍙瀵熺偣.",
+      "Use Chinese Markdown headings exactly for the main sections; do not use English headings such as Expression/clarity.",
+      readingTemplate
+        ? "Include these Markdown sections: ## 本次评分（100分）, ## 本次理解, ## 复述质量, ## 英语表达与语法, ## 词汇与句型, ## 与前次相比, ## 下一次建议, ## 家长可观察点."
+        : "Include these Markdown sections: ## 本次评分（100分）, ## 本次理解, ## 复述质量, ## 表达与逻辑, ## 与前次相比, ## 下一次建议, ## 家长可观察点.",
+      readingTemplate
+        ? "If this is the final session in the reading template, also include sections: ## 整本书总结 and ## 总分（100分）."
+        : "",
       `${readingTemplate ? "Reading study plan" : "Study plan"}: ${currentCard?.kanbanCaseSummary || ""}`,
       `Current card: ${currentCard?.content || cardId}`,
       `Session: ${currentCard?.kanbanCaseCardIndex || ""}/${currentCard?.kanbanCaseCardCount || ""}`,
@@ -339,7 +343,28 @@ function createKanbanReadingWorkflowService(deps = {}) {
       instructions: readingTemplate ? "Evaluate the reading retelling transcript. Return Markdown only." : "Evaluate the study submission. Return Markdown only.",
       access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
     }, analysisTimeoutMs);
-    return compactText(output || "", 12000);
+    return repairReadingAnalysisMarkdown(compactText(output || "", 12000));
+  }
+
+  function repairReadingAnalysisMarkdown(markdown = "") {
+    const replacements = [
+      ["鏈璇勫垎锛?00鍒嗭級", "本次评分（100分）"],
+      ["鏈鐞嗚В", "本次理解"],
+      ["澶嶈堪璐ㄩ噺", "复述质量"],
+      ["鑻辫琛ㄨ揪涓庤娉?", "英语表达与语法"],
+      ["璇嶆眹涓庡彞鍨?", "词汇与句型"],
+      ["涓庡墠娆＄浉姣?", "与前次相比"],
+      ["涓嬩竴娆″缓璁?", "下一次建议"],
+      ["瀹堕暱鍙瀵熺偣", "家长可观察点"],
+      ["鏁存湰涔︽€荤粨", "整本书总结"],
+      ["鎬诲垎锛?00鍒嗭級", "总分（100分）"],
+      ["琛ㄨ揪涓庨€昏緫", "表达与逻辑"],
+    ];
+    let text = String(markdown || "");
+    for (const [from, to] of replacements) {
+      text = text.split(from).join(to);
+    }
+    return text;
   }
 
   function normalizeKanbanReadingQuiz(raw = {}) {
@@ -757,6 +782,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
     normalizeKanbanReadingQuiz,
     publicKanbanReadingQuiz,
     readingContextForCard,
+    repairReadingAnalysisMarkdown,
     saveKanbanReadingCoverUpload,
     saveKanbanSourceDocumentUpload,
     saveKanbanReadingAudioUpload,

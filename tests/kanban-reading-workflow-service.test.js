@@ -174,6 +174,33 @@ async function testReadingAudioUsesTranscriptionPath() {
   assert.equal(calls.transcribe.length, 1);
 }
 
+async function testReadingAnalysisHeadingsAreReadable() {
+  const { service, calls } = makeService({
+    cards: [{
+      id: "card-1",
+      content: "Reading",
+      kanbanCaseId: "case-1",
+      kanbanCaseMode: "study-plan",
+      kanbanCaseTemplate: "reading",
+      kanbanCaseCardIndex: 1,
+      kanbanCaseCardCount: 1,
+      kanbanStatus: "todo",
+    }],
+  });
+  await service.submitKanbanReadingSubmission("owner", "card-1", {
+    filename: "voice.m4a",
+    type: "audio/mp4",
+    dataBase64: Buffer.from("audio bytes").toString("base64"),
+  });
+  assert.match(calls.hermes[0].input, /## 本次评分（100分）/);
+  assert.match(calls.hermes[0].input, /## 英语表达与语法/);
+  assert.doesNotMatch(calls.hermes[0].input, /鏈|澶嶈堪|瀹堕暱/);
+  assert.equal(
+    service.repairReadingAnalysisMarkdown("## 鏈璇勫垎锛?00鍒嗭級\n## 澶嶈堪璐ㄩ噺"),
+    "## 本次评分（100分）\n## 复述质量",
+  );
+}
+
 async function testQuizFailureAndPassWorkflow() {
   const fixture = makeService();
   await fixture.service.submitKanbanReadingSubmission("owner", "card-1", {
@@ -343,6 +370,7 @@ function testKanbanSourceDocumentExtraction() {
 async function run() {
   await testTextSubmissionCreatesAnalysisQuizAndComment();
   await testReadingAudioUsesTranscriptionPath();
+  await testReadingAnalysisHeadingsAreReadable();
   await testQuizFailureAndPassWorkflow();
   await testQuizReadRetargetsOldUnattemptedQuiz();
   testNormalizeRejectsInvalidQuiz();
