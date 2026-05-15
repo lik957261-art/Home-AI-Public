@@ -298,6 +298,58 @@ async function testStudyPlanCreatesCoverShareTopicAndSequentialBlocks() {
   });
 }
 
+async function testProgrammingStudyTemplateUsesAssessmentParking() {
+  const { service, calls } = makeHarness({
+    normalizeKanbanStudyPlan(_input, workspaceId) {
+      return {
+        id: "programming-one",
+        mode: "assessment-plan",
+        template: "programming",
+        workspaceId,
+        blueprint: "Programming blueprint",
+        summary: "Programming summary",
+        reminderLeadMinutes: 15,
+        performerWorkspaceIds: ["child"],
+        viewerWorkspaceIds: [],
+        cards: [
+          {
+            clientId: "programming-1",
+            title: "Programming 1",
+            description: "Programming description 1",
+            dueTime: "2026-05-15 20:00",
+            config: { subject: "programming" },
+            deliverables: ["Programming exam"],
+            acceptance: ["Pass"],
+          },
+          {
+            clientId: "programming-2",
+            title: "Programming 2",
+            description: "Programming description 2",
+            dueTime: "2026-05-17 20:00",
+            config: { subject: "programming" },
+            deliverables: ["Programming exam 2"],
+            acceptance: ["Pass 2"],
+          },
+        ],
+      };
+    },
+  });
+  const result = await service.createKanbanStudyPlanCards("owner", {
+    coverImage: { dataBase64: "unused" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(calls.cover.length, 0);
+  assert.equal(calls.add[0].reason, "Created from Hermes Mobile assessment plan.");
+  assert.equal(calls.add[0].caseMode, "assessment-plan");
+  assert.equal(calls.add[0].caseTemplate, "programming");
+  assert.equal(calls.add[0].caseSourceText, "Programming blueprint\n\nCONFIG:programming");
+  assert.equal(calls.block.length, 2);
+  assert.match(calls.block[0].reason, /Manual formal assessment is open/);
+  assert.match(calls.block[1].reason, /previous assessment completion/);
+  assert.deepEqual(result.cards.map((card) => card.blocked), [true, true]);
+}
+
 async function testAssessmentPlanCreatesAndParksAllCards() {
   const { service, calls } = makeHarness();
   const result = await service.createKanbanAssessmentPlanCards("owner", {
@@ -368,6 +420,7 @@ async function run() {
   testHelperExports();
   await testMultiAgentCreationAndParking();
   await testStudyPlanCreatesCoverShareTopicAndSequentialBlocks();
+  await testProgrammingStudyTemplateUsesAssessmentParking();
   await testAssessmentPlanCreatesAndParksAllCards();
   await testProviderAndBlockFailureShapes();
   console.log("kanban-plan-card-creation-service tests passed");

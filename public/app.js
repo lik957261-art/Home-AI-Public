@@ -140,6 +140,37 @@ function defaultKanbanAssessmentDraft() {
   };
 }
 
+function isKanbanProgrammingStudyTemplate(value) {
+  return String(value || "").trim().toLowerCase() === "programming";
+}
+
+function programmingAssessmentDraftFromStudyDraft(studyDraft = {}) {
+  const draft = Object.assign(defaultKanbanReadingDraft(), studyDraft || {});
+  const subject = String(draft.subjectDomain || "").trim() || "Python 编程";
+  const title = String(draft.activityTitle || draft.bookTitle || "").trim() || `${subject} 编程测验计划`;
+  return Object.assign(defaultKanbanAssessmentDraft(), {
+    caseMode: "assessment-plan",
+    subject,
+    learnerName: draft.learnerName || draft.readerName || "",
+    courseLevel: "编程练习",
+    planTitle: title,
+    performerWorkspaceId: draft.performerWorkspaceId || "",
+    viewerWorkspaceIds: draft.viewerWorkspaceIds || "",
+    examCount: draft.sessions || "10",
+    questionCount: "10",
+    durationMinutes: "30",
+    passingScore: "80",
+    intervalDays: "7",
+    startDate: draft.startDate || todayDateInputValue(),
+    timeOfDay: draft.timeOfDay || "21:00",
+    scheduleFrequency: draft.scheduleFrequency || "daily",
+    scheduleWeekdays: draft.scheduleWeekdays || "1",
+    scheduleMonthDay: draft.scheduleMonthDay || "1",
+    reminderLeadMinutes: draft.reminderLeadMinutes || "15",
+    difficulty: "基础40% / 应用40% / 挑战20%",
+  });
+}
+
 function parseWorkspaceIdList(value) {
   const raw = Array.isArray(value)
     ? value
@@ -9981,7 +10012,9 @@ function renderKanbanComposerProgress() {
     : 0;
   const title = state.kanbanComposerProgressKind === "reading"
     ? "正在创建学习计划"
-    : (state.kanbanComposerProgressKind === "create" ? "\u6b63\u5728\u521b\u5efa\u5e76\u542f\u52a8\u4efb\u52a1" : "\u6b63\u5728\u62c6\u89e3\u4efb\u52a1");
+    : (state.kanbanComposerProgressKind === "assessment"
+      ? "正在创建考试计划"
+      : (state.kanbanComposerProgressKind === "create" ? "\u6b63\u5728\u521b\u5efa\u5e76\u542f\u52a8\u4efb\u52a1" : "\u6b63\u5728\u62c6\u89e3\u4efb\u52a1"));
   return `<section class="kanban-create-progress" aria-live="polite">
     <div class="kanban-create-progress-head">
       <strong>${title}</strong>
@@ -10005,7 +10038,9 @@ function kanbanComposerMode() {
 function renderKanbanReadingFields(disabled = false) {
   const draft = Object.assign(defaultKanbanReadingDraft(), state.kanbanReadingDraft || {});
   const attr = disabled ? " disabled" : "";
-  const template = String(draft.studyTemplate || "").trim() === "custom" ? "custom" : "reading";
+  const rawTemplate = String(draft.studyTemplate || "").trim().toLowerCase();
+  const template = rawTemplate === "custom" ? "custom" : (rawTemplate === "programming" ? "programming" : "reading");
+  const programmingTemplate = template === "programming";
   const activityTitle = draft.activityTitle || draft.bookTitle || "";
   const learnerName = draft.learnerName || draft.readerName || "";
   const scheduleFrequency = normalizeKanbanStudyScheduleFrequency(draft.scheduleFrequency);
@@ -10046,12 +10081,13 @@ function renderKanbanReadingFields(disabled = false) {
       <span>学习模板</span>
       <select id="kanbanStudyTemplate" class="todo-input"${attr}>
         <option value="reading"${template === "reading" ? " selected" : ""}>阅读复述</option>
+        <option value="programming"${template === "programming" ? " selected" : ""}>编程测验</option>
         <option value="custom"${template === "custom" ? " selected" : ""}>通用学习</option>
       </select>
     </label>
     <label>
       <span>学科 / 领域</span>
-      <input id="kanbanStudySubject" class="todo-input" type="text" value="${escapeHtml(draft.subjectDomain || "")}" placeholder="英语、数学、科学..."${attr}>
+      <input id="kanbanStudySubject" class="todo-input" type="text" value="${escapeHtml(draft.subjectDomain || (programmingTemplate ? "Python 编程" : ""))}" placeholder="${escapeHtml(programmingTemplate ? "Python 编程、JavaScript、算法..." : "英语、数学、科学...")}"${attr}>
     </label>
     <label>
       <span>学习者 / 目标</span>
@@ -10060,7 +10096,7 @@ function renderKanbanReadingFields(disabled = false) {
     </label>
     <label>
       <span>内容标题</span>
-      <input id="kanbanStudyTitle" class="todo-input" type="text" value="${escapeHtml(activityTitle)}" placeholder="书名、章节、主题或活动"${attr}>
+      <input id="kanbanStudyTitle" class="todo-input" type="text" value="${escapeHtml(activityTitle)}" placeholder="${escapeHtml(programmingTemplate ? "Python 基础测验、循环练习、项目实战..." : "书名、章节、主题或活动")}"${attr}>
       <input id="kanbanReadingBook" type="hidden" value="${escapeHtml(draft.bookTitle || activityTitle)}">
     </label>
     <label>
@@ -10115,17 +10151,20 @@ function renderKanbanReadingFields(disabled = false) {
       <span>提前提醒</span>
       <input id="kanbanReadingReminder" class="todo-input" type="number" min="0" max="1440" step="5" value="${escapeHtml(draft.reminderLeadMinutes || "15")}"${attr}>
     </label>
-    <label class="kanban-reading-cover-field">
+    ${programmingTemplate ? "" : `<label class="kanban-reading-cover-field">
       <span>封面图</span>
       <input id="kanbanReadingCover" class="todo-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif"${attr}>
       <span class="kanban-reading-cover-preview">${coverPreview}</span>
-    </label>
+    </label>`}
   </div>`;
 }
 
 function renderKanbanAssessmentFields(disabled = false) {
   const draft = Object.assign(defaultKanbanAssessmentDraft(), state.kanbanAssessmentDraft || {});
   const attr = disabled ? " disabled" : "";
+  const selectedSubject = String(draft.subject || "").trim();
+  const assessmentSubjects = ["数学", "Python 编程", "英语", "科学", "历史", "中文"];
+  if (selectedSubject && !assessmentSubjects.includes(selectedSubject)) assessmentSubjects.push(selectedSubject);
   const selectedPerformer = String(draft.performerWorkspaceId || "").trim();
   const selectedViewers = new Set(parseWorkspaceIdList(draft.viewerWorkspaceIds));
   const currentWorkspaceId = String(state.selectedWorkspaceId || "").trim();
@@ -10157,7 +10196,7 @@ function renderKanbanAssessmentFields(disabled = false) {
     <label>
       <span>科目</span>
       <select id="kanbanAssessmentSubject" class="todo-input"${attr}>
-        ${["数学", "英语", "科学", "历史", "中文"].map((subject) => `<option value="${escapeHtml(subject)}"${String(draft.subject || "") === subject ? " selected" : ""}>${escapeHtml(subject)}</option>`).join("")}
+        ${assessmentSubjects.map((subject) => `<option value="${escapeHtml(subject)}"${selectedSubject === subject ? " selected" : ""}>${escapeHtml(subject)}</option>`).join("")}
       </select>
     </label>
     <label>
@@ -10231,23 +10270,24 @@ function renderKanbanComposerPanel() {
   const multiActive = mode === "multi";
   const studyActive = mode === "study";
   const assessmentActive = mode === "assessment";
+  const programmingStudyActive = studyActive && isKanbanProgrammingStudyTemplate(state.kanbanReadingDraft?.studyTemplate);
   const modeButton = (mode, label, active) => `<button class="kanban-create-mode-button${active ? " active" : ""}" type="button" data-kanban-composer-mode="${mode}" aria-pressed="${active ? "true" : "false"}"${busy ? " disabled" : ""}>${label}</button>`;
   const submitLabel = assessmentActive
     ? "\u521b\u5efa\u8003\u8bd5\u8ba1\u5212"
     : (studyActive
-      ? "\u521b\u5efa\u5b66\u4e60\u8ba1\u5212"
+      ? (programmingStudyActive ? "\u521b\u5efa\u7f16\u7a0b\u6d4b\u9a8c\u8ba1\u5212" : "\u521b\u5efa\u5b66\u4e60\u8ba1\u5212")
       : (multiActive
         ? (state.kanbanPlanDraft ? "\u91cd\u65b0\u62c6\u89e3" : "\u62c6\u89e3\u4efb\u52a1")
         : "\u521b\u5efa\u4efb\u52a1"));
   const placeholder = assessmentActive
     ? "\u8865\u5145\u8003\u8bd5\u8303\u56f4\u3001\u9898\u578b\u6bd4\u4f8b\u3001\u6559\u6750\u7ae0\u8282\u6216\u8584\u5f31\u70b9"
     : (studyActive
-      ? "\u8865\u5145\u5b66\u4e60\u8303\u56f4\u3001\u5206\u6bb5\u8981\u6c42\u3001\u8bc4\u4ef7\u91cd\u70b9\uff0c\u6216\u7559\u7a7a"
+      ? (programmingStudyActive ? "\u8865\u5145\u7f16\u7a0b\u9879\u76ee\u3001\u8bfe\u5802\u91cd\u70b9\u3001\u7ec3\u4e60\u8303\u56f4\u6216\u51fa\u9898\u8981\u6c42\uff0c\u6216\u7559\u7a7a" : "\u8865\u5145\u5b66\u4e60\u8303\u56f4\u3001\u5206\u6bb5\u8981\u6c42\u3001\u8bc4\u4ef7\u91cd\u70b9\uff0c\u6216\u7559\u7a7a")
       : "\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
   const caption = assessmentActive
     ? "\u56fa\u5b9a\u6b63\u5f0f\u8003\u8bd5\u6a21\u677f\uff1b\u672a\u8fbe\u901a\u8fc7\u7ebf\u4f1a\u4fdd\u7559\u91cd\u8003"
     : (studyActive
-      ? "\u6bcf\u6b21\u5b66\u4e60\u4e00\u5f20\u5361\u7247\uff0c\u6bcf\u65e5\u5c0f\u6d4b\u901a\u8fc7\u540e\u5b8c\u6210\uff1b\u6700\u540e\u6709\u7efc\u5408\u8003\u8bd5"
+      ? (programmingStudyActive ? "\u6309\u5b66\u4e60\u8ba1\u5212\u65e5\u671f\u5f00\u653e\u7f16\u7a0b\u6d4b\u9a8c\u5361\uff1b\u6bcf\u5f20\u5361\u5f00\u653e\u540e\u586b\u5199\u672c\u6b21\u8981\u6c42\u518d\u51fa\u9898" : "\u6bcf\u6b21\u5b66\u4e60\u4e00\u5f20\u5361\u7247\uff0c\u6bcf\u65e5\u5c0f\u6d4b\u901a\u8fc7\u540e\u5b8c\u6210\uff1b\u6700\u540e\u6709\u7efc\u5408\u8003\u8bd5")
       : (multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo"));
   return `<section class="kanban-composer-panel">
     <form id="kanbanComposerForm" class="kanban-composer-form">
@@ -11623,6 +11663,10 @@ function wireTodoPanel(root) {
     input.addEventListener("input", () => syncKanbanReadingDraftFromDom(root));
     input.addEventListener("change", () => syncKanbanReadingDraftFromDom(root));
   });
+  root.querySelector("#kanbanStudyTemplate")?.addEventListener("change", () => {
+    syncKanbanReadingDraftFromDom(root);
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  });
   root.querySelector("#kanbanStudyScheduleFrequency")?.addEventListener("change", () => {
     syncKanbanReadingDraftFromDom(root);
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
@@ -12001,6 +12045,7 @@ async function submitKanbanComposer(root) {
   if (!text && !studyPlan && !assessmentPlan) throw new Error("????????");
   if (studyPlan) syncKanbanReadingDraftFromDom(root);
   if (assessmentPlan) syncKanbanAssessmentDraftFromDom(root);
+  const programmingStudyAssessment = studyPlan && isKanbanProgrammingStudyTemplate(state.kanbanReadingDraft?.studyTemplate);
   if (studyPlan && !String(state.kanbanReadingDraft?.activityTitle || state.kanbanReadingDraft?.bookTitle || "").trim()) throw new Error("????????");
   if (assessmentPlan && !String(state.kanbanAssessmentDraft?.planTitle || state.kanbanAssessmentDraft?.subject || "").trim()) throw new Error("????????");
   const maxParallel = saveKanbanComposerMaxParallel(root.querySelector("#kanbanComposerMaxParallel")?.value || state.kanbanComposerMaxParallel);
@@ -12017,11 +12062,13 @@ async function submitKanbanComposer(root) {
 ${rawText || (documentNames ? `Documents: ${documentNames}` : "")}`.trim()
     : (assessmentPlan ? `${state.kanbanAssessmentDraft.planTitle || state.kanbanAssessmentDraft.subject || ""}
 ${rawText || (documentNames ? `Documents: ${documentNames}` : "")}`.trim() : (rawText || (documentNames ? `Documents: ${documentNames}` : text))));
-  beginKanbanComposerProgress(assessmentPlan ? "assessment" : (studyPlan ? "reading" : (multiAgent ? "plan" : "create")));
+  beginKanbanComposerProgress((assessmentPlan || programmingStudyAssessment) ? "assessment" : (studyPlan ? "reading" : (multiAgent ? "plan" : "create")));
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
-    if (assessmentPlan) {
-      const draft = Object.assign(defaultKanbanAssessmentDraft(), state.kanbanAssessmentDraft || {});
+    if (assessmentPlan || programmingStudyAssessment) {
+      const draft = programmingStudyAssessment
+        ? programmingAssessmentDraftFromStudyDraft(state.kanbanReadingDraft || {})
+        : Object.assign(defaultKanbanAssessmentDraft(), state.kanbanAssessmentDraft || {});
       const viewerWorkspaceIds = parseWorkspaceIdList(draft.viewerWorkspaceIds);
       const result = await api("/api/kanban/cards/assessment-plan", {
         method: "POST",
@@ -12033,16 +12080,20 @@ ${rawText || (documentNames ? `Documents: ${documentNames}` : "")}`.trim() : (ra
           title: draft.planTitle,
           performerWorkspaceId: String(draft.performerWorkspaceId || "").trim(),
           viewerWorkspaceIds,
+          scheduleFrequency: draft.scheduleFrequency,
+          scheduleWeekdays: draft.scheduleWeekdays,
+          scheduleMonthDay: draft.scheduleMonthDay,
           sourceText: text,
         })),
       });
       const cards = Array.isArray(result.cards) ? result.cards : [];
       pushKanbanComposerMessage("assistant", `????????${cards.length} ??????????????????`);
       state.kanbanComposerText = "";
-      state.kanbanAssessmentDraft = defaultKanbanAssessmentDraft();
+      if (programmingStudyAssessment) state.kanbanReadingDraft = defaultKanbanReadingDraft();
+      else state.kanbanAssessmentDraft = defaultKanbanAssessmentDraft();
       clearKanbanComposerDocuments();
       localStorage.removeItem("hermesKanbanComposerDraft");
-      localStorage.removeItem("hermesKanbanAssessmentDraft");
+      localStorage.removeItem(programmingStudyAssessment ? "hermesKanbanReadingDraft" : "hermesKanbanAssessmentDraft");
       finishKanbanComposerProgress();
       clearTodoListCache();
       state.todoKanbanStatus = KANBAN_STORY_STATUS;

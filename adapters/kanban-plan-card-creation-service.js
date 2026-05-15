@@ -227,6 +227,9 @@ function createKanbanPlanCardCreationService(deps = {}) {
   async function createKanbanStudyPlanCards(workspaceId, input = {}) {
     const normalizeKanbanStudyPlan = requireFn("normalizeKanbanStudyPlan");
     const plan = normalizeKanbanStudyPlan(input, workspaceId);
+    if (plan.mode === "assessment-plan") {
+      return createKanbanAssessmentPlanCardsFromPlan(workspaceId, plan, input);
+    }
     const cover = saveKanbanReadingCoverUpload(workspaceId, plan.id, input.coverImage || input.cover_image || input.cover || null);
     if (cover) plan.cover = publicKanbanCoverFile(workspaceId, cover) || cover;
     const directoryInfo = ensureKanbanCaseSharedDirectory(workspaceId, plan);
@@ -314,9 +317,7 @@ function createKanbanPlanCardCreationService(deps = {}) {
     };
   }
 
-  async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options = {}) {
-    const normalizeKanbanAssessmentPlan = requireFn("normalizeKanbanAssessmentPlan");
-    const plan = normalizeKanbanAssessmentPlan(input, workspaceId, options);
+  async function createKanbanAssessmentPlanCardsFromPlan(workspaceId, plan, input = {}) {
     const directoryInfo = ensureKanbanCaseSharedDirectory(workspaceId, plan);
     const topic = ensureKanbanCaseTopicThread(workspaceId, plan, directoryInfo);
     const share = upsertKanbanCaseShare(workspaceId, plan.id, planShareInput({ plan, raw: input }, topic, directoryInfo));
@@ -382,6 +383,12 @@ function createKanbanPlanCardCreationService(deps = {}) {
       topic: publicTopicResult(topic, plan, kanbanCaseTopicTitle),
       sharedDirectory: publicSharedDirectoryResult(directoryInfo),
     };
+  }
+
+  async function createKanbanAssessmentPlanCards(workspaceId, input = {}, options = {}) {
+    const normalizeKanbanAssessmentPlan = requireFn("normalizeKanbanAssessmentPlan");
+    const plan = normalizeKanbanAssessmentPlan(input, workspaceId, options);
+    return createKanbanAssessmentPlanCardsFromPlan(workspaceId, plan, input);
   }
 
   return Object.freeze({

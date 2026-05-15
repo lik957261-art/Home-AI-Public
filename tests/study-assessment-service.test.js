@@ -283,7 +283,7 @@ function testStudyPlanScheduleHelpersMatchServerBehavior() {
   assert.equal(normalizeStudyPlanScheduleFrequency("\u6BCF\u9031"), "weekly");
   assert.equal(normalizeStudyPlanScheduleFrequency("\u6708"), "monthly");
   assert.equal(normalizeStudyPlanScheduleFrequency("anything else"), "daily");
-  assert.deepEqual(normalizeStudyPlanWeekdays("\u5468\u4E00 \u9031\u4E09 7 0", "2026-05-15", { now }), [0, 1, 3]);
+  assert.deepEqual(normalizeStudyPlanWeekdays("\u5468\u4E00 \u9031\u4E09 7 0", "2026-05-15", { now }), [1, 3, 0]);
   assert.deepEqual(normalizeStudyPlanWeekdays("", "2026-05-15", { now }), [5]);
 
   const weekly = normalizeStudyPlanSchedule({
@@ -549,6 +549,34 @@ function testProgrammingAssessmentPlanRequiresPerCardInput() {
   assert.match(plan.cards[0].acceptance.join("\n"), /\u7f16\u7a0b\u65e5\u5fd7/);
 }
 
+function testProgrammingStudyTemplateReusesAssessmentPlanSchedule() {
+  const plan = normalizeKanbanStudyPlan({
+    id: "programming-study-case-1",
+    studyTemplate: "programming",
+    subjectDomain: "Python \u7f16\u7a0b",
+    learnerName: "Learner P",
+    activityTitle: "\u6bcf\u5468 Python \u7ec3\u4e60",
+    sessions: 3,
+    startDate: "2026-05-15",
+    timeOfDay: "20:00",
+    scheduleFrequency: "weekly",
+    scheduleWeekdays: [5, 7],
+    sourceText: "\u6309\u8001\u5e08\u5f53\u5929\u91cd\u70b9\u51fa\u9898\u3002",
+  }, "owner", { now: new Date(2026, 4, 14, 12, 0, 0, 0) });
+
+  assert.equal(plan.mode, "assessment-plan");
+  assert.equal(plan.template, "programming");
+  assert.equal(plan.subjectId, "programming");
+  assert.equal(plan.examCount, 3);
+  assert.equal(plan.questionCount, 10);
+  assert.equal(plan.scheduleFrequency, "weekly");
+  assert.deepEqual(plan.scheduleWeekdays, [5, 7]);
+  assert.equal(plan.cards[0].dueTime, "2026-05-15 20:00");
+  assert.equal(plan.cards[1].dueTime, "2026-05-17 20:00");
+  assert.equal(plan.cards[0].config.requiresRequirementInput, true);
+  assert.match(plan.cards[0].title, /\u7f16\u7a0b\u6d4b\u9a8c/);
+}
+
 function testLinkedStudyAssessmentPlanFinalCard() {
   const plan = normalizeKanbanAssessmentPlan({
     id: "study-case-1",
@@ -584,6 +612,7 @@ testStudyPlanNormalizationCustomDefaultsAndRequiredTitle();
 testAssessmentPlanSubjectNormalization();
 testAssessmentPlanNormalizationMatchesServerPayload();
 testProgrammingAssessmentPlanRequiresPerCardInput();
+testProgrammingStudyTemplateReusesAssessmentPlanSchedule();
 testLinkedStudyAssessmentPlanFinalCard();
 
 console.log("study-assessment-service tests passed");

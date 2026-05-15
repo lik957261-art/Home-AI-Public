@@ -139,6 +139,7 @@ function normalizeKanbanStudyTemplate(raw = {}) {
     "template",
     "kind",
   ]));
+  if (["programming", "coding", "code", "python", "\u7f16\u7a0b", "\u7a0b\u5f0f", "\u7a0b\u5e8f", "\u4ee3\u7801"].includes(value)) return "programming";
   if (["reading", "read", "book", "english-reading", "reading-retell"].includes(value)) return "reading";
   return "custom";
 }
@@ -236,7 +237,7 @@ function normalizeStudyPlanWeekdays(value, startDate = "", options = {}) {
   if (!out.length) {
     out.push(readingPlanStartDateTime(normalizeReadingPlanStartDate(startDate, options), "00:00", options).getDay());
   }
-  return out.sort((a, b) => a - b);
+  return out.sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b));
 }
 
 function studyPlanWeekdayLabel(day) {
@@ -346,6 +347,9 @@ function normalizeStudyPlanWorkspaceIdList(value, options = {}) {
 function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner", options = {}) {
   const mode = "study-plan";
   const template = normalizeKanbanStudyTemplate(raw);
+  if (template === "programming") {
+    return normalizeKanbanAssessmentPlan(programmingAssessmentPlanInputFromStudyInput(raw), workspaceId, options);
+  }
   const readingTemplate = template === "reading";
   const ownerWorkspaceId = String(workspaceId || "owner");
   const contentTitle = compactText(
@@ -462,6 +466,42 @@ function normalizeKanbanStudyPlan(raw = {}, workspaceId = "owner", options = {})
   };
 }
 
+function programmingAssessmentPlanInputFromStudyInput(raw = {}) {
+  const subject = compactText(raw.subject || raw.subjectDomain || raw.subject_domain || raw.domain || raw.course || "Python \u7f16\u7a0b", 80);
+  const title = compactText(
+    raw.planTitle
+    || raw.plan_title
+    || raw.activityTitle
+    || raw.activity_title
+    || raw.bookTitle
+    || raw.book_title
+    || raw.contentTitle
+    || raw.content_title
+    || raw.title
+    || `${subject} \u7f16\u7a0b\u6d4b\u9a8c\u8ba1\u5212`,
+    140,
+  );
+  const sourceText = raw.sourceText || raw.source_text || raw.text || raw.notes || raw.blueprint || raw.examBlueprint || raw.exam_blueprint || "";
+  return Object.assign({}, raw, {
+    caseMode: "assessment-plan",
+    subject,
+    domain: subject,
+    title,
+    planTitle: title,
+    courseLevel: raw.courseLevel || raw.course_level || raw.grade || raw.level || "\u7f16\u7a0b\u7ec3\u4e60",
+    examCount: raw.examCount || raw.exam_count || raw.sessions || raw.sessionCount || raw.session_count || 10,
+    questionCount: raw.questionCount || raw.question_count || 10,
+    durationMinutes: raw.durationMinutes || raw.duration_minutes || 30,
+    passingScore: raw.passingScore || raw.passing_score || 80,
+    intervalDays: raw.intervalDays || raw.interval_days || 7,
+    startDate: raw.startDate || raw.start_date,
+    timeOfDay: raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time,
+    reminderLeadMinutes: raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 30,
+    difficulty: raw.difficulty || raw.difficultyMix || raw.difficulty_mix || "\u57fa\u784040% / \u5e94\u752840% / \u6311\u621820%",
+    blueprint: sourceText || "\u6bcf\u5f20\u5361\u7247\u5f00\u653e\u540e\uff0c\u5148\u586b\u5199\u672c\u6b21\u7f16\u7a0b\u8981\u6c42\u3001\u6559\u5b66\u91cd\u70b9\u3001\u8bfe\u5802\u8868\u73b0\u6216\u9879\u76ee\u80cc\u666f\uff0c\u518d\u751f\u6210\u9488\u5bf9\u6027\u7f16\u7a0b\u6d4b\u9a8c\u3002",
+  });
+}
+
 function normalizeAssessmentPlanWorkspaceIdList(value, options = {}) {
   const normalize = typeof options.normalizeWorkspaceIdList === "function"
     ? options.normalizeWorkspaceIdList
@@ -532,6 +572,7 @@ function normalizeKanbanAssessmentSubjectId(value = "") {
 function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options = {}) {
   const ownerWorkspaceId = cleanString(workspaceId) || "owner";
   const linkedStudyPlan = Boolean(options.linkedStudyPlan);
+  const now = dateNow(options);
   const subject = compactText(raw.subject || raw.domain || raw.course || "\u6570\u5b66", 80);
   const subjectId = normalizeKanbanAssessmentSubjectId(subject);
   const learnerName = compactText(raw.learnerName || raw.learner_name || raw.targetName || raw.target_name || "\u5b66\u4e60\u8005", 80);
@@ -542,8 +583,21 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
   const durationMinutes = Math.max(5, Math.min(180, Number(raw.durationMinutes || raw.duration_minutes || 30) || 30));
   const passingScore = Math.max(50, Math.min(100, Number(raw.passingScore || raw.passing_score || 80) || 80));
   const intervalDays = Math.max(1, Math.min(60, Number(raw.intervalDays || raw.interval_days || raw.examIntervalDays || raw.exam_interval_days || 14) || 14));
-  const startDate = normalizeAssessmentPlanStartDate(raw.startDate || raw.start_date, options);
+  const startDate = normalizeAssessmentPlanStartDate(raw.startDate || raw.start_date, Object.assign({}, options, { now }));
   const timeOfDay = normalizeAssessmentPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
+  const scheduled = own(raw, "scheduleFrequency")
+    || own(raw, "schedule_frequency")
+    || own(raw, "scheduleWeekdays")
+    || own(raw, "schedule_weekdays")
+    || own(raw, "weekdays")
+    || own(raw, "weekday")
+    || own(raw, "weekDays")
+    || own(raw, "week_days")
+    || own(raw, "scheduleMonthDay")
+    || own(raw, "schedule_month_day")
+    || own(raw, "monthDay")
+    || own(raw, "month_day");
+  const schedule = scheduled ? normalizeStudyPlanSchedule(raw, startDate, timeOfDay, Object.assign({}, options, { now })) : null;
   const reminderLeadMinutes = Math.max(0, Math.min(24 * 60, Number(raw.reminderLeadMinutes ?? raw.reminder_lead_minutes ?? 30) || 0));
   const difficulty = compactText(raw.difficulty || raw.difficultyMix || raw.difficulty_mix || "\u57fa\u784030% / \u4e2d\u7b4950% / \u6311\u621820%", 160);
   const blueprint = compactText(raw.blueprint || raw.examBlueprint || raw.exam_blueprint || raw.sourceText || raw.source_text || raw.text || "", 4000);
@@ -617,7 +671,9 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
     return {
       clientId: finalExam ? "final-assessment" : `assessment-exam-${number}`,
       title: cardTitle,
-      dueTime: assessmentPlanDueTime(startDate, timeOfDay, index * intervalDays, options),
+      dueTime: schedule
+        ? readingPlanScheduleDueTime(schedule, index, { now })
+        : assessmentPlanDueTime(startDate, timeOfDay, index * intervalDays, Object.assign({}, options, { now })),
       description,
       config,
       deliverables: subjectId === "programming"
@@ -636,7 +692,7 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
       ],
     };
   });
-  return {
+  return Object.assign({
     id,
     mode: linkedStudyPlan ? "study-plan" : "assessment-plan",
     template: linkedStudyPlan ? "final-assessment" : subjectId,
@@ -661,7 +717,12 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
     performerWorkspaceIds,
     viewerWorkspaceIds,
     cards,
-  };
+  }, schedule ? {
+    scheduleFrequency: schedule.frequency,
+    scheduleWeekdays: schedule.weekdaysOneBased,
+    scheduleMonthDay: schedule.monthDay,
+    scheduleLabel: schedule.label,
+  } : {});
 }
 
 function isStudyKind(kind) {
