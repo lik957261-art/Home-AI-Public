@@ -26,6 +26,7 @@ const kanbanMaintenanceService = require("../adapters/kanban-maintenance-service
 const kanbanPlanService = require("../adapters/kanban-plan-service");
 const kanbanStudyArtifactService = require("../adapters/kanban-study-artifact-service");
 const kanbanStory = require("../adapters/kanban-story-provider");
+const localAutomationBridgeService = require("../adapters/local-automation-bridge-service");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
 const markdownRenderer = require("../adapters/markdown-renderer");
 const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
@@ -111,6 +112,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
   assert.equal(typeof kanbanStory.visibleKanbanCaseCards, "function");
   assert.equal(typeof kanbanStory.kanbanCardEffectiveCaseIndex, "function");
+  assert.equal(typeof localAutomationBridgeService.createLocalAutomationBridgeService, "function");
   assert.equal(typeof localWorkspaceStoreService.createLocalWorkspaceStoreService, "function");
   assert.equal(typeof localWorkspaceStoreService.workspaceIdSlug, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
@@ -210,6 +212,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /threadMessageRunApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createAutomationApiRoutes/);
   assert.match(server, /automationApiRoutes\.handle\(req, res, url/);
+  assert.match(server, /createLocalAutomationBridgeService/);
+  assert.match(server, /getLocalAutomationBridgeService\(\)\.runBridge\(payload\)/);
   assert.match(server, /createDirectoryBrowserApiRoutes/);
   assert.match(server, /directoryBrowserApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createDirectoryMutationApiRoutes/);

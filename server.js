@@ -44,6 +44,7 @@ const {
 } = require("./adapters/kanban-story-provider");
 const { createKanbanStudyArtifactService } = require("./adapters/kanban-study-artifact-service");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
+const { createLocalAutomationBridgeService } = require("./adapters/local-automation-bridge-service");
 const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service");
 const { createAuditEventProvider } = require("./adapters/audit-event-provider");
 const { createEgressPolicyProvider } = require("./adapters/egress-policy-provider");
@@ -484,6 +485,7 @@ const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
 let threadViewService = null;
+let localAutomationBridgeService = null;
 let localWorkspaceStoreService = null;
 let ownerElevationGrantService = null;
 let weixinFileForwardService = null;
@@ -3392,308 +3394,25 @@ const kanbanStudyApiRoutes = createKanbanStudyApiRoutes({
 });
 bootTrace("kanban study api routes ready");
 
-function localAutomationStore() {
-  const raw = readJsonStore(LOCAL_AUTOMATION_STORE_PATH, {});
-  return {
-    schemaVersion: 1,
-    jobs: Array.isArray(raw?.jobs) ? raw.jobs.filter((item) => item && typeof item === "object") : [],
-    updatedAt: String(raw?.updatedAt || ""),
-  };
-}
-
-function saveLocalAutomationStore(store) {
-  writeJsonStore(LOCAL_AUTOMATION_STORE_PATH, Object.assign({}, store, {
-    schemaVersion: 1,
-    updatedAt: nowIso(),
-  }));
-}
-
-function normalizeLocalAutomationSkills(value) {
-  const raw = Array.isArray(value) ? value : String(value || "").split(",");
-  return raw.map((item) => String(item || "").trim()).filter(Boolean);
-}
-
-function localAutomationScheduleText(job) {
-  return String(job.scheduleText || job.schedule || "").trim() || "manual";
-}
-
-function localAutomationStatus(job) {
-  if (!job.enabled) return "paused";
-  if (job.lastError) return "error";
-  return job.status || "scheduled";
-}
-
-function publicLocalAutomationJob(job) {
-  const schedule = localAutomationScheduleText(job);
-  return {
-    id: String(job.id || ""),
-    name: compactText(job.name || job.id || "Automation", 120),
-    prompt: compactText(job.prompt || "", 4000),
-    promptPreview: compactText(job.prompt || "", 220),
-    skills: normalizeLocalAutomationSkills(job.skills),
-    model: compactText(job.model || "", 80),
-    provider: compactText(job.provider || "", 80),
-    schedule,
-    scheduleText: schedule,
-    scheduleKind: String(job.scheduleKind || "local"),
-    repeat: String(job.repeat || "forever"),
-    enabled: job.enabled !== false,
-    state: String(job.state || (job.enabled === false ? "paused" : "scheduled")),
-    status: localAutomationStatus(job),
-    nextRunAt: String(job.nextRunAt || ""),
-    lastRunAt: String(job.lastRunAt || ""),
-    lastStatus: String(job.lastStatus || ""),
-    lastError: compactText(job.lastError || "", 400),
-    lastDeliveryError: compactText(job.lastDeliveryError || "", 400),
-    deliver: compactText(job.deliver || "local", 160),
-    ownerPrincipalId: compactText(job.ownerPrincipalId || "owner", 120),
-    workdir: compactText(job.workdir || "", 600),
-    hasScript: false,
-    hasWorkdir: Boolean(job.workdir),
-    hasContextFrom: false,
-    outputDocuments: Array.isArray(job.outputDocuments) ? job.outputDocuments : [],
-  };
-}
-
-async function runSqliteCronBridge(payload = {}) {
-  const action = String(payload.action || "").trim().toLowerCase();
-  const store = mobileSqliteStore();
-  const now = nowIso();
-
-  if (action === "list") {
-    const includeDisabled = Boolean(payload.include_disabled);
-    const jobs = store.listAutomationJobs({
-      ownerPrincipalId: payload.owner_principal_id || "owner",
-      includeDisabled,
-    }).map(publicLocalAutomationJob).sort(automationListSortByLatestDeliverable);
-    return {
-      ok: true,
-      jobs,
-      source: {
-        name: "sqlite_automations",
-        available: true,
-        jobCount: jobs.length,
-        pathKind: "sqlite",
-      },
-    };
+function getLocalAutomationBridgeService() {
+  if (!localAutomationBridgeService) {
+    localAutomationBridgeService = createLocalAutomationBridgeService({
+      storePath: LOCAL_AUTOMATION_STORE_PATH,
+      readJsonStore,
+      writeJsonStore,
+      sqliteStore: mobileSqliteStore,
+      useSqliteServiceStore,
+      compactText,
+      nowIso,
+      createId: () => `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+      sortJobs: automationListSortByLatestDeliverable,
+    });
   }
-
-  if (action === "create") {
-    const draft = payload.job && typeof payload.job === "object" ? payload.job : {};
-    const ownerPrincipalId = String(payload.owner_principal_id || "owner").trim() || "owner";
-    const schedule = String(draft.schedule || draft.scheduleText || draft.schedule_text || "").trim() || "manual";
-    const job = {
-      id: `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
-      name: compactText(draft.name || draft.title || payload.text || "Automation", 120),
-      prompt: String(draft.prompt || payload.text || "").trim(),
-      schedule,
-      scheduleText: schedule,
-      scheduleKind: "sqlite",
-      repeat: String(draft.repeat || "forever"),
-      enabled: true,
-      state: "scheduled",
-      status: "scheduled",
-      nextRunAt: "",
-      lastRunAt: "",
-      lastStatus: "",
-      lastError: "",
-      lastDeliveryError: "",
-      deliver: String(draft.deliver || "local"),
-      ownerPrincipalId,
-      workdir: String(draft.workdir || ""),
-      skills: normalizeLocalAutomationSkills(draft.skills),
-      model: String(draft.model || ""),
-      provider: String(draft.provider || ""),
-      outputDocuments: [],
-      source: "sqlite",
-      createdAt: now,
-      updatedAt: now,
-    };
-    if (!payload.dry_run) store.importAutomationJob(job);
-    return {
-      ok: true,
-      job: publicLocalAutomationJob(job),
-      source: { name: "sqlite_automations", available: true, pathKind: "sqlite" },
-    };
-  }
-
-  const jobId = String(payload.job_id || "").trim();
-  const job = store.getAutomationJob(jobId);
-  if (["delete", "pause", "resume", "update"].includes(action) && !job) {
-    return { ok: false, error: "Automation job not found" };
-  }
-  if (job && String(job.ownerPrincipalId || "owner") !== String(payload.owner_principal_id || "owner")) {
-    return { ok: false, error: "Automation job is not owned by this workspace" };
-  }
-
-  if (action === "delete") {
-    if (!payload.dry_run) store.deleteAutomationJob(jobId);
-    return {
-      ok: true,
-      deletedJob: publicLocalAutomationJob(job),
-      source: { name: "sqlite_automations", available: true, pathKind: "sqlite" },
-    };
-  }
-  if (action === "pause" || action === "resume") {
-    job.enabled = action === "resume";
-    job.state = job.enabled ? "scheduled" : "paused";
-    job.status = job.state;
-    job.updatedAt = now;
-    if (!payload.dry_run) store.importAutomationJob(job);
-    return {
-      ok: true,
-      job: publicLocalAutomationJob(job),
-      source: { name: "sqlite_automations", available: true, pathKind: "sqlite" },
-    };
-  }
-  if (action === "update") {
-    const patch = payload.patch && typeof payload.patch === "object" ? payload.patch : {};
-    for (const [field, value] of Object.entries({
-      name: patch.name,
-      prompt: patch.prompt,
-      schedule: patch.schedule,
-      scheduleText: patch.schedule,
-      deliver: patch.deliver,
-      model: patch.model,
-      provider: patch.provider,
-      workdir: patch.workdir,
-    })) {
-      if (value !== undefined) job[field] = String(value || "");
-    }
-    if (patch.skills !== undefined) job.skills = normalizeLocalAutomationSkills(patch.skills);
-    job.updatedAt = now;
-    if (!payload.dry_run) store.importAutomationJob(job);
-    return {
-      ok: true,
-      job: publicLocalAutomationJob(job),
-      source: { name: "sqlite_automations", available: true, pathKind: "sqlite" },
-    };
-  }
-
-  return { ok: false, error: `unknown action: ${action}` };
+  return localAutomationBridgeService;
 }
 
 async function runLocalCronBridge(payload = {}) {
-  if (useSqliteServiceStore()) return runSqliteCronBridge(payload);
-  const action = String(payload.action || "").trim().toLowerCase();
-  const store = localAutomationStore();
-  const now = nowIso();
-
-  if (action === "list") {
-    const includeDisabled = Boolean(payload.include_disabled);
-    let jobs = store.jobs.map(publicLocalAutomationJob);
-    if (!includeDisabled) jobs = jobs.filter((job) => job.enabled);
-    return {
-      ok: true,
-      jobs,
-      source: {
-        name: "local_automations",
-        available: true,
-        jobCount: jobs.length,
-        pathKind: "local",
-      },
-    };
-  }
-
-  if (action === "create") {
-    const draft = payload.job && typeof payload.job === "object" ? payload.job : {};
-    const ownerPrincipalId = String(payload.owner_principal_id || "owner").trim() || "owner";
-    const schedule = String(draft.schedule || draft.scheduleText || draft.schedule_text || "").trim() || "manual";
-    const job = {
-      id: `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
-      name: compactText(draft.name || draft.title || payload.text || "Automation", 120),
-      prompt: String(draft.prompt || payload.text || "").trim(),
-      schedule,
-      scheduleText: schedule,
-      scheduleKind: "local",
-      repeat: String(draft.repeat || "forever"),
-      enabled: true,
-      state: "scheduled",
-      status: "scheduled",
-      nextRunAt: "",
-      lastRunAt: "",
-      lastStatus: "",
-      lastError: "",
-      lastDeliveryError: "",
-      deliver: String(draft.deliver || "local"),
-      ownerPrincipalId,
-      workdir: String(draft.workdir || ""),
-      skills: normalizeLocalAutomationSkills(draft.skills),
-      model: String(draft.model || ""),
-      provider: String(draft.provider || ""),
-      outputDocuments: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-    if (!payload.dry_run) {
-      store.jobs.push(job);
-      saveLocalAutomationStore(store);
-    }
-    return {
-      ok: true,
-      job: publicLocalAutomationJob(job),
-      source: { name: "local_automations", available: true, pathKind: "local" },
-    };
-  }
-
-  const jobId = String(payload.job_id || "").trim();
-  const index = store.jobs.findIndex((job) => String(job.id || "") === jobId);
-  const job = index >= 0 ? store.jobs[index] : null;
-  if (["delete", "pause", "resume", "update"].includes(action) && !job) {
-    return { ok: false, error: "Automation job not found" };
-  }
-  if (job && String(job.ownerPrincipalId || "owner") !== String(payload.owner_principal_id || "owner")) {
-    return { ok: false, error: "Automation job is not owned by this workspace" };
-  }
-
-  if (action === "delete") {
-    if (!payload.dry_run) {
-      store.jobs.splice(index, 1);
-      saveLocalAutomationStore(store);
-    }
-    return {
-      ok: true,
-      deletedJob: publicLocalAutomationJob(job),
-      source: { name: "local_automations", available: true, pathKind: "local" },
-    };
-  }
-  if (action === "pause" || action === "resume") {
-    job.enabled = action === "resume";
-    job.state = job.enabled ? "scheduled" : "paused";
-    job.status = job.state;
-    job.updatedAt = now;
-    if (!payload.dry_run) saveLocalAutomationStore(store);
-    return {
-      ok: true,
-      job: publicLocalAutomationJob(job),
-      source: { name: "local_automations", available: true, pathKind: "local" },
-    };
-  }
-  if (action === "update") {
-    const patch = payload.patch && typeof payload.patch === "object" ? payload.patch : {};
-    for (const [field, value] of Object.entries({
-      name: patch.name,
-      prompt: patch.prompt,
-      schedule: patch.schedule,
-      scheduleText: patch.schedule,
-      deliver: patch.deliver,
-      model: patch.model,
-      provider: patch.provider,
-      workdir: patch.workdir,
-    })) {
-      if (value !== undefined) job[field] = String(value || "");
-    }
-    if (patch.skills !== undefined) job.skills = normalizeLocalAutomationSkills(patch.skills);
-    job.updatedAt = now;
-    if (!payload.dry_run) saveLocalAutomationStore(store);
-    return {
-      ok: true,
-      job: publicLocalAutomationJob(job),
-      source: { name: "local_automations", available: true, pathKind: "local" },
-    };
-  }
-
-  return { ok: false, error: `unknown action: ${action}` };
+  return getLocalAutomationBridgeService().runBridge(payload);
 }
 
 function runCronBridge(payload) {
