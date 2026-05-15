@@ -88,14 +88,6 @@ function makeRoutes(overrides = {}) {
       calls.directoryRequestParams.push(body);
       return { path: body.path || "" };
     },
-    shareableRootProjectForPath(workspaceId, displayPath) {
-      calls.rootProject.push({ workspaceId, displayPath });
-      if (displayPath === "Owner/Blocked") return Promise.resolve(null);
-      return Promise.resolve({ id: "project-a", label: "Project A" });
-    },
-    sharedDirectoryLabel(displayPath) {
-      return `label:${displayPath}`;
-    },
     statSync(localPath) {
       calls.stat.push(localPath);
       if (localPath.endsWith("Missing")) throw new Error("ENOENT");
@@ -105,10 +97,6 @@ function makeRoutes(overrides = {}) {
       calls.basename.push(localPath);
       return String(localPath).split("\\").pop();
     },
-    upsertSharedDirectory(record) {
-      calls.upsert.push(record);
-      return Object.assign({ id: "share-a" }, record);
-    },
     nowIso() {
       return "2026-05-14T14:00:00.000Z";
     },
@@ -116,33 +104,11 @@ function makeRoutes(overrides = {}) {
       calls.workspacePrincipal.push(workspaceId);
       return `principal:${workspaceId}`;
     },
-    normalizeSharePermission(value) {
-      calls.normalizePermission.push(value);
-      return value || "read";
-    },
-    normalizeShareScope(value, targets) {
-      calls.normalizeScope.push({ value, targets });
-      return value || "selected";
-    },
-    normalizeShareTargets(body) {
-      calls.normalizeTargets.push(body.targetWorkspaceIds || body.targets || []);
-      return body.targetWorkspaceIds || body.targets || [];
-    },
     invalidateCatalogCache() {
       calls.invalidate += 1;
     },
     clearDynamicProjectCache() {
       calls.cacheClear += 1;
-    },
-    publicSharedDirectory(record, workspaceId) {
-      calls.publicShared.push({ id: record.id, workspaceId });
-      return {
-        id: record.id,
-        path: record.path,
-        label: record.label,
-        workspaceId,
-        permission: record.permission,
-      };
     },
     requireWorkspaceAccess(req, res, workspaceId) {
       calls.workspaceAccess.push(workspaceId);
@@ -152,13 +118,49 @@ function makeRoutes(overrides = {}) {
       }
       return String(workspaceId || "owner");
     },
-    removeSharedDirectoryRecord(idOrPath, workspaceId) {
-      calls.remove.push({ idOrPath, workspaceId });
-      return { id: idOrPath, path: "Owner/Project A", label: "Project A" };
-    },
-    updateSharedDirectoryAccess(idOrPath, workspaceId, body) {
-      calls.update.push({ idOrPath, workspaceId, body });
-      return { id: idOrPath, path: "Owner/Project A", label: "Project A", permission: body.permission };
+    sharedDirectoryProjectionService: {
+      shareableRootProjectForPath(workspaceId, displayPath) {
+        calls.rootProject.push({ workspaceId, displayPath });
+        if (displayPath === "Owner/Blocked") return Promise.resolve(null);
+        return Promise.resolve({ id: "project-a", label: "Project A" });
+      },
+      sharedDirectoryLabel(displayPath) {
+        return `label:${displayPath}`;
+      },
+      upsertSharedDirectory(record) {
+        calls.upsert.push(record);
+        return Object.assign({ id: "share-a" }, record);
+      },
+      normalizeSharePermission(value) {
+        calls.normalizePermission.push(value);
+        return value || "read";
+      },
+      normalizeShareScope(value, targets) {
+        calls.normalizeScope.push({ value, targets });
+        return value || "selected";
+      },
+      normalizeShareTargets(body) {
+        calls.normalizeTargets.push(body.targetWorkspaceIds || body.targets || []);
+        return body.targetWorkspaceIds || body.targets || [];
+      },
+      publicSharedDirectory(record, workspaceId) {
+        calls.publicShared.push({ id: record.id, workspaceId });
+        return {
+          id: record.id,
+          path: record.path,
+          label: record.label,
+          workspaceId,
+          permission: record.permission,
+        };
+      },
+      removeSharedDirectoryRecord(idOrPath, workspaceId) {
+        calls.remove.push({ idOrPath, workspaceId });
+        return { id: idOrPath, path: "Owner/Project A", label: "Project A" };
+      },
+      updateSharedDirectoryAccess(idOrPath, workspaceId, body) {
+        calls.update.push({ idOrPath, workspaceId, body });
+        return { id: idOrPath, path: "Owner/Project A", label: "Project A", permission: body.permission };
+      },
     },
   }, overrides);
   return { routes: createDirectoryShareApiRoutes(deps), calls };
@@ -355,8 +357,18 @@ async function testUnshareAndUpdateBusinessErrors() {
   const removeError = new Error("Shared directory not found");
   removeError.status = 404;
   const unshare = await request(makeRoutes({
-    removeSharedDirectoryRecord() {
-      throw removeError;
+    sharedDirectoryProjectionService: {
+      shareableRootProjectForPath() {},
+      sharedDirectoryLabel() {},
+      upsertSharedDirectory() {},
+      normalizeSharePermission() {},
+      normalizeShareScope() {},
+      normalizeShareTargets() {},
+      publicSharedDirectory() {},
+      removeSharedDirectoryRecord() {
+        throw removeError;
+      },
+      updateSharedDirectoryAccess() {},
     },
   }).routes, "POST", "/api/directories/unshare", { id: "missing" });
   assert.equal(unshare.res.statusCode, 404);
@@ -365,8 +377,18 @@ async function testUnshareAndUpdateBusinessErrors() {
   const updateError = new Error("Invalid permission");
   updateError.status = 400;
   const update = await request(makeRoutes({
-    updateSharedDirectoryAccess() {
-      throw updateError;
+    sharedDirectoryProjectionService: {
+      shareableRootProjectForPath() {},
+      sharedDirectoryLabel() {},
+      upsertSharedDirectory() {},
+      normalizeSharePermission() {},
+      normalizeShareScope() {},
+      normalizeShareTargets() {},
+      publicSharedDirectory() {},
+      removeSharedDirectoryRecord() {},
+      updateSharedDirectoryAccess() {
+        throw updateError;
+      },
     },
   }).routes, "POST", "/api/directories/share/update", { id: "share-a" });
   assert.equal(update.res.statusCode, 400);

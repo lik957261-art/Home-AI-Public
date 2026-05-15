@@ -56,29 +56,21 @@ function makeRoutes(overrides = {}) {
       return String(workspaceId || "owner");
     },
     sendJson,
-    publicProjectsForWorkspace(workspaceId) {
-      calls.projects.push(workspaceId);
-      return Promise.resolve([
-        { id: `${workspaceId}-project-a`, label: "Project A" },
-        { id: `${workspaceId}-project-b`, label: "Project B" },
-      ]);
-    },
-    sharedDirectoriesForWorkspace(workspaceId) {
-      calls.shared.push(workspaceId);
-      return [
-        { id: "share-a", path: "C:\\Data\\A" },
-        { id: "hidden", path: "C:\\Data\\Hidden" },
-        { id: "share-b", path: "C:\\Data\\B" },
-      ];
-    },
-    publicSharedDirectory(record, workspaceId) {
-      calls.publicShared.push({ id: record.id, workspaceId });
-      if (record.id === "hidden") return null;
-      return {
-        id: record.id,
-        workspaceId,
-        path: record.path,
-      };
+    sharedDirectoryProjectionService: {
+      publicProjectsForWorkspace(workspaceId) {
+        calls.projects.push(workspaceId);
+        return Promise.resolve([
+          { id: `${workspaceId}-project-a`, label: "Project A" },
+          { id: `${workspaceId}-project-b`, label: "Project B" },
+        ]);
+      },
+      listPublicSharedDirectories(workspaceId) {
+        calls.shared.push(workspaceId);
+        return [
+          { id: "share-a", workspaceId, path: "C:\\Data\\A" },
+          { id: "share-b", workspaceId, path: "C:\\Data\\B" },
+        ];
+      },
     },
     skillDetailProvider: {
       detail(skill) {
@@ -186,11 +178,7 @@ async function testSharedDirectoriesFilterPublicRecords() {
     ],
   });
   assert.deepEqual(calls.shared, ["child"]);
-  assert.deepEqual(calls.publicShared, [
-    { id: "share-a", workspaceId: "child" },
-    { id: "hidden", workspaceId: "child" },
-    { id: "share-b", workspaceId: "child" },
-  ]);
+  assert.deepEqual(calls.publicShared, []);
 }
 
 async function testSkillRequired() {
@@ -251,10 +239,23 @@ function testDependencyValidation() {
     () => createResourceApiRoutes({
       requireWorkspaceAccess() {},
       sendJson() {},
-      publicProjectsForWorkspace() {},
-      sharedDirectoriesForWorkspace() {},
-      publicSharedDirectory() {},
       compactText() {},
+      sharedDirectoryProjectionService: {
+        publicProjectsForWorkspace() {},
+      },
+      skillDetailProvider: {},
+    }),
+    /resource api routes require sharedDirectoryProjectionService\.listPublicSharedDirectories/,
+  );
+  assert.throws(
+    () => createResourceApiRoutes({
+      requireWorkspaceAccess() {},
+      sendJson() {},
+      compactText() {},
+      sharedDirectoryProjectionService: {
+        publicProjectsForWorkspace() {},
+        listPublicSharedDirectories() {},
+      },
       skillDetailProvider: {},
     }),
     /resource api routes require skillDetailProvider\.detail/,

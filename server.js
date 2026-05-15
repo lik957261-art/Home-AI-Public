@@ -54,6 +54,7 @@ const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provi
 const { createRunConcurrencyPolicy } = require("./adapters/run-concurrency-policy");
 const { createSecurityBoundaryProvider } = require("./adapters/security-boundary-provider");
 const { createSharedDirectoryProvider } = require("./adapters/shared-directory-provider");
+const { createSharedDirectoryProjectionService } = require("./adapters/shared-directory-projection-service");
 const { deriveKanbanWorkflowState } = require("./adapters/study-workflow-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider");
 const { buildRequestContext } = require("./adapters/request-context-provider");
@@ -480,6 +481,7 @@ let gatewayPoolProvider = null;
 let gatewayUsageTelemetryProvider = null;
 let groupChatSharedAttachmentService = null;
 let lastStateBackupAt = 0;
+let sharedDirectoryProjectionService = null;
 let workspaceProjectProvider = null;
 const dynamicProjectCache = new Map();
 const sourceMarkdownSearchCache = new Map();
@@ -729,9 +731,10 @@ const workspaceApiRoutes = createWorkspaceApiRoutes({
 const resourceApiRoutes = createResourceApiRoutes({
   requireWorkspaceAccess,
   sendJson,
-  publicProjectsForWorkspace,
-  sharedDirectoriesForWorkspace,
-  publicSharedDirectory,
+  sharedDirectoryProjectionService: {
+    listPublicSharedDirectories: (...args) => getSharedDirectoryProjectionService().listPublicSharedDirectories(...args),
+    publicProjectsForWorkspace: (...args) => getSharedDirectoryProjectionService().publicProjectsForWorkspace(...args),
+  },
   skillDetailProvider: {
     detail: (...args) => skillDetailProvider.detail(...args),
   },
@@ -761,21 +764,23 @@ const directoryShareApiRoutes = createDirectoryShareApiRoutes({
   directoryRequestParams,
   findDirectoryThreadForRequest,
   invalidateCatalogCache,
-  normalizeSharePermission,
-  normalizeShareScope,
-  normalizeShareTargets,
   nowIso,
-  publicSharedDirectory,
   readBody,
-  removeSharedDirectoryRecord,
   requireWorkspaceAccess,
   resolveBrowserPathAsync,
   sendJson,
-  shareableRootProjectForPath,
-  sharedDirectoryLabel,
+  sharedDirectoryProjectionService: {
+    normalizeSharePermission: (...args) => getSharedDirectoryProjectionService().normalizeSharePermission(...args),
+    normalizeShareScope: (...args) => getSharedDirectoryProjectionService().normalizeShareScope(...args),
+    normalizeShareTargets: (...args) => getSharedDirectoryProjectionService().normalizeShareTargets(...args),
+    publicSharedDirectory: (...args) => getSharedDirectoryProjectionService().publicSharedDirectory(...args),
+    removeSharedDirectoryRecord: (...args) => getSharedDirectoryProjectionService().removeSharedDirectoryRecord(...args),
+    shareableRootProjectForPath: (...args) => getSharedDirectoryProjectionService().shareableRootProjectForPath(...args),
+    sharedDirectoryLabel: (...args) => getSharedDirectoryProjectionService().sharedDirectoryLabel(...args),
+    updateSharedDirectoryAccess: (...args) => getSharedDirectoryProjectionService().updateSharedDirectoryAccess(...args),
+    upsertSharedDirectory: (...args) => getSharedDirectoryProjectionService().upsertSharedDirectory(...args),
+  },
   statSync: (value) => fs.statSync(value),
-  updateSharedDirectoryAccess,
-  upsertSharedDirectory,
   workspacePrincipal,
 });
 const directoryMutationApiRoutes = createDirectoryMutationApiRoutes({
@@ -6742,20 +6747,37 @@ function readJsonFirst(paths, fallback = {}) {
   return { data: fallback, path: "" };
 }
 
+function getSharedDirectoryProjectionService() {
+  if (!sharedDirectoryProjectionService) {
+    sharedDirectoryProjectionService = createSharedDirectoryProjectionService({
+      sharedDirectoryProvider,
+      assertRootNotProtected: (root, message) => securityBoundaryProvider.assertRootNotProtected(root, message),
+      cachedDynamicProjectsForWorkspace,
+      comparablePath,
+      dedupeProjects,
+      isShareableRootProject,
+      loadCatalog,
+      remoteWorkspaceDirectoryProjects,
+      setDynamicProjectsForWorkspace,
+    });
+  }
+  return sharedDirectoryProjectionService;
+}
+
 function sharedDirectoryLabel(rawPath) {
-  return sharedDirectoryProvider.label(rawPath);
+  return getSharedDirectoryProjectionService().sharedDirectoryLabel(rawPath);
 }
 
 function normalizeSharePermission(value) {
-  return sharedDirectoryProvider.normalizePermission(value);
+  return getSharedDirectoryProjectionService().normalizeSharePermission(value);
 }
 
 function normalizeShareTargets(value) {
-  return sharedDirectoryProvider.normalizeTargets(value);
+  return getSharedDirectoryProjectionService().normalizeShareTargets(value);
 }
 
 function normalizeShareScope(value, targets) {
-  return sharedDirectoryProvider.normalizeScope(value, targets);
+  return getSharedDirectoryProjectionService().normalizeShareScope(value, targets);
 }
 
 function normalizeSharedDirectoryRecord(item) {
@@ -6771,7 +6793,7 @@ function saveSharedDirectoryRecords(records) {
 }
 
 function sharedDirectoryRoots(workspaceId = "") {
-  return sharedDirectoryProvider.roots(workspaceId, workspaceId);
+  return getSharedDirectoryProjectionService().roots(workspaceId, workspaceId);
 }
 
 function sharedDirectoryId(record) {
@@ -6795,11 +6817,11 @@ function canManageSharedDirectory(record, workspaceId) {
 }
 
 function publicSharedDirectory(record, workspaceId = "owner") {
-  return sharedDirectoryProvider.publicRecord(record, workspaceId);
+  return getSharedDirectoryProjectionService().publicSharedDirectory(record, workspaceId);
 }
 
 function removeSharedDirectoryRecord(identifier, workspaceId = "owner") {
-  return sharedDirectoryProvider.removeRecord(identifier, workspaceId);
+  return getSharedDirectoryProjectionService().removeSharedDirectoryRecord(identifier, workspaceId);
 }
 
 function aclSharedDirectoryRecords() {
@@ -6815,12 +6837,11 @@ function removeAclSharedDirectoryRecord(identifier, workspaceId = "owner") {
 }
 
 function updateSharedDirectoryAccess(identifier, workspaceId = "owner", updates = {}) {
-  return sharedDirectoryProvider.updateAccess(identifier, workspaceId, updates);
+  return getSharedDirectoryProjectionService().updateSharedDirectoryAccess(identifier, workspaceId, updates);
 }
 
 function upsertSharedDirectory(record) {
-  securityBoundaryProvider.assertRootNotProtected(record?.path || record?.root || "", "Shared directory is blocked by the Hermes Mobile security boundary");
-  return sharedDirectoryProvider.upsert(record);
+  return getSharedDirectoryProjectionService().upsertSharedDirectory(record);
 }
 
 function sanitizePolicy(policy, hardeningOptions = {}) {
@@ -6908,7 +6929,7 @@ function buildAccessPolicy(route, user, project, hardeningOptions = {}) {
 }
 
 function sharedDirectoryProjectsForWorkspace(workspaceId, workspaces = null) {
-  return sharedDirectoryProvider.projectsForWorkspace(workspaceId, workspaces);
+  return getSharedDirectoryProjectionService().sharedDirectoryProjectsForWorkspace(workspaceId, workspaces);
 }
 
 function projectsForWorkspace(workspace, projectEntries, workspaces = null) {
@@ -6932,25 +6953,11 @@ function setDynamicProjectsForWorkspace(workspaceId, projects) {
 }
 
 function allProjectsForWorkspaceSync(workspaceId) {
-  return dedupeProjects([
-    ...loadCatalog().projects.filter((item) => item.workspaceId === workspaceId),
-    ...cachedDynamicProjectsForWorkspace(workspaceId),
-  ]);
+  return getSharedDirectoryProjectionService().allProjectsForWorkspaceSync(workspaceId);
 }
 
 async function publicProjectsForWorkspace(workspaceId) {
-  const catalog = loadCatalog();
-  const workspace = catalog.workspaces.find((item) => item.id === workspaceId);
-  const base = catalog.projects.filter((item) => item.workspaceId === workspaceId);
-  if (!workspace || workspace.id === "owner" || workspace.policy?.access_mode === "unrestricted") return base;
-  const root = String(workspace.defaultWorkspace || workspace.policy?.default_workspace || "").trim();
-  if (!root.startsWith("/volume1/")) return base;
-  let dynamic = cachedDynamicProjectsForWorkspace(workspaceId);
-  if (!dynamic.length) {
-    dynamic = await remoteWorkspaceDirectoryProjects(workspace);
-    setDynamicProjectsForWorkspace(workspaceId, dynamic);
-  }
-  return dedupeProjects([...dynamic, ...base]);
+  return getSharedDirectoryProjectionService().publicProjectsForWorkspace(workspaceId);
 }
 
 function isShareableRootProject(project) {
@@ -6958,10 +6965,7 @@ function isShareableRootProject(project) {
 }
 
 async function shareableRootProjectForPath(workspaceId, displayPath) {
-  const key = comparablePath(displayPath);
-  if (!key) return null;
-  const projects = await publicProjectsForWorkspace(workspaceId);
-  return projects.find((project) => isShareableRootProject(project) && comparablePath(project.root) === key) || null;
+  return getSharedDirectoryProjectionService().shareableRootProjectForPath(workspaceId, displayPath);
 }
 
 async function remoteWorkspaceDirectoryProjects(workspace) {

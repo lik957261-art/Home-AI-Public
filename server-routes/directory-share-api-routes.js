@@ -73,27 +73,37 @@ function createDirectoryShareApiRoutes(deps = {}) {
     "findDirectoryThreadForRequest",
     "resolveBrowserPathAsync",
     "directoryRequestParams",
-    "shareableRootProjectForPath",
-    "sharedDirectoryLabel",
     "statSync",
     "basename",
-    "upsertSharedDirectory",
     "nowIso",
     "workspacePrincipal",
-    "normalizeSharePermission",
-    "normalizeShareScope",
-    "normalizeShareTargets",
     "invalidateCatalogCache",
     "clearDynamicProjectCache",
-    "publicSharedDirectory",
     "requireWorkspaceAccess",
-    "removeSharedDirectoryRecord",
-    "updateSharedDirectoryAccess",
   ]) {
     ensureFunction(deps, name);
   }
+  if (!deps.sharedDirectoryProjectionService) {
+    throw new Error("directory share api routes require sharedDirectoryProjectionService");
+  }
+  for (const name of [
+    "normalizeSharePermission",
+    "normalizeShareScope",
+    "normalizeShareTargets",
+    "publicSharedDirectory",
+    "removeSharedDirectoryRecord",
+    "shareableRootProjectForPath",
+    "sharedDirectoryLabel",
+    "updateSharedDirectoryAccess",
+    "upsertSharedDirectory",
+  ]) {
+    if (typeof deps.sharedDirectoryProjectionService[name] !== "function") {
+      throw new Error(`directory share api routes require sharedDirectoryProjectionService.${name}`);
+    }
+  }
 
   const registry = createApiRouteRegistry(DIRECTORY_SHARE_API_ROUTE_SPECS);
+  const projection = deps.sharedDirectoryProjectionService;
 
   async function readJsonBody(req, res) {
     const body = await deps.readBody(req).catch((err) => ({ __error: err }));
@@ -126,19 +136,19 @@ function createDirectoryShareApiRoutes(deps = {}) {
       return handledResult(route, context);
     }
 
-    const rootProject = await deps.shareableRootProjectForPath(thread.workspaceId, resolved.displayPath);
+    const rootProject = await projection.shareableRootProjectForPath(thread.workspaceId, resolved.displayPath);
     if (!rootProject) {
       deps.sendJson(res, 400, { error: "Only first-level directories on the directory root page can be shared" });
       return handledResult(route, context);
     }
 
-    let label = String(body.name || resolved.label || deps.sharedDirectoryLabel(resolved.displayPath)).trim();
+    let label = String(body.name || resolved.label || projection.sharedDirectoryLabel(resolved.displayPath)).trim();
     if (resolved.remote === "wsl") {
       if (resolved.remoteEntry?.type !== "directory") {
         deps.sendJson(res, 400, { error: "Only directories can be shared" });
         return handledResult(route, context);
       }
-      label = String(rootProject.label || resolved.remoteEntry?.name || label || deps.sharedDirectoryLabel(resolved.displayPath)).trim();
+      label = String(rootProject.label || resolved.remoteEntry?.name || label || projection.sharedDirectoryLabel(resolved.displayPath)).trim();
     } else {
       let stat;
       try {
@@ -151,24 +161,24 @@ function createDirectoryShareApiRoutes(deps = {}) {
         deps.sendJson(res, 400, { error: "Only directories can be shared" });
         return handledResult(route, context);
       }
-      label = String(rootProject.label || deps.basename(resolved.localPath) || label || deps.sharedDirectoryLabel(resolved.displayPath)).trim();
+      label = String(rootProject.label || deps.basename(resolved.localPath) || label || projection.sharedDirectoryLabel(resolved.displayPath)).trim();
     }
 
-    const targets = deps.normalizeShareTargets(body);
-    const record = deps.upsertSharedDirectory({
+    const targets = projection.normalizeShareTargets(body);
+    const record = projection.upsertSharedDirectory({
       path: resolved.displayPath,
       label,
       createdAt: deps.nowIso(),
       createdBy: thread.workspaceId,
       createdByPrincipalId: deps.workspacePrincipal(thread.workspaceId),
-      permission: deps.normalizeSharePermission(body.permission),
-      scope: deps.normalizeShareScope(body.scope, targets),
+      permission: projection.normalizeSharePermission(body.permission),
+      scope: projection.normalizeShareScope(body.scope, targets),
       targetWorkspaceIds: targets,
     });
     clearDirectoryCatalogCaches();
     deps.sendJson(res, 200, {
       ok: true,
-      shared: Object.assign({}, deps.publicSharedDirectory(record, thread.workspaceId), {
+      shared: Object.assign({}, projection.publicSharedDirectory(record, thread.workspaceId), {
         displayPath: resolved.workspacePath,
         workspacePath: resolved.workspacePath,
         source: "hermes-web-shared-directory",
@@ -184,9 +194,9 @@ function createDirectoryShareApiRoutes(deps = {}) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return handledResult(route, context);
     try {
-      const record = deps.removeSharedDirectoryRecord(body.id || body.path, workspaceId);
+      const record = projection.removeSharedDirectoryRecord(body.id || body.path, workspaceId);
       clearDirectoryCatalogCaches();
-      deps.sendJson(res, 200, { ok: true, removed: deps.publicSharedDirectory(record, workspaceId) });
+      deps.sendJson(res, 200, { ok: true, removed: projection.publicSharedDirectory(record, workspaceId) });
     } catch (err) {
       deps.sendJson(res, statusCode(err), { error: errorMessage(err) });
     }
@@ -200,9 +210,9 @@ function createDirectoryShareApiRoutes(deps = {}) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return handledResult(route, context);
     try {
-      const record = deps.updateSharedDirectoryAccess(body.id || body.path, workspaceId, body);
+      const record = projection.updateSharedDirectoryAccess(body.id || body.path, workspaceId, body);
       clearDirectoryCatalogCaches();
-      deps.sendJson(res, 200, { ok: true, shared: deps.publicSharedDirectory(record, workspaceId) });
+      deps.sendJson(res, 200, { ok: true, shared: projection.publicSharedDirectory(record, workspaceId) });
     } catch (err) {
       deps.sendJson(res, statusCode(err), { error: errorMessage(err) });
     }

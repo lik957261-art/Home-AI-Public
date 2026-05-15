@@ -71,11 +71,14 @@ function createResourceApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "requireWorkspaceAccess",
     "sendJson",
-    "publicProjectsForWorkspace",
-    "sharedDirectoriesForWorkspace",
-    "publicSharedDirectory",
     "compactText",
   ]);
+  if (!deps.sharedDirectoryProjectionService || typeof deps.sharedDirectoryProjectionService.publicProjectsForWorkspace !== "function") {
+    throw new Error("resource api routes require sharedDirectoryProjectionService.publicProjectsForWorkspace");
+  }
+  if (typeof deps.sharedDirectoryProjectionService.listPublicSharedDirectories !== "function") {
+    throw new Error("resource api routes require sharedDirectoryProjectionService.listPublicSharedDirectories");
+  }
   if (!deps.skillDetailProvider || typeof deps.skillDetailProvider.detail !== "function") {
     throw new Error("resource api routes require skillDetailProvider.detail");
   }
@@ -83,9 +86,7 @@ function createResourceApiRoutes(deps = {}) {
   const {
     requireWorkspaceAccess,
     sendJson,
-    publicProjectsForWorkspace,
-    sharedDirectoriesForWorkspace,
-    publicSharedDirectory,
+    sharedDirectoryProjectionService,
     skillDetailProvider,
     compactText,
   } = deps;
@@ -99,15 +100,13 @@ function createResourceApiRoutes(deps = {}) {
   async function handleProjects(req, res, url) {
     const workspaceId = requireWorkspaceAccess(req, res, requestedWorkspaceId(url));
     if (!workspaceId) return;
-    sendJson(res, 200, { data: await publicProjectsForWorkspace(workspaceId) });
+    sendJson(res, 200, { data: await sharedDirectoryProjectionService.publicProjectsForWorkspace(workspaceId) });
   }
 
   async function handleSharedDirectories(req, res, url) {
     const workspaceId = requireWorkspaceAccess(req, res, requestedWorkspaceId(url));
     if (!workspaceId) return;
-    const directories = sharedDirectoriesForWorkspace(workspaceId)
-      .map((record) => publicSharedDirectory(record, workspaceId))
-      .filter(Boolean);
+    const directories = sharedDirectoryProjectionService.listPublicSharedDirectories(workspaceId);
     sendJson(res, 200, { ok: true, data: directories });
   }
 

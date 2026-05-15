@@ -31,6 +31,7 @@ const localWorkspaceStoreService = require("../adapters/local-workspace-store-se
 const markdownRenderer = require("../adapters/markdown-renderer");
 const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
 const runtimeStateRepository = require("../adapters/runtime-state-repository");
+const sharedDirectoryProjectionService = require("../adapters/shared-directory-projection-service");
 const studyAssessmentService = require("../adapters/study-assessment-service");
 const threadViewService = require("../adapters/thread-view-service");
 const weixinFileForwardService = require("../adapters/weixin-file-forward-service");
@@ -120,6 +121,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
   assert.equal(typeof ownerElevationGrantService.createOwnerElevationGrantService, "function");
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
+  assert.equal(typeof sharedDirectoryProjectionService.createSharedDirectoryProjectionService, "function");
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(typeof threadViewService.createThreadViewService, "function");
   assert.equal(typeof weixinFileForwardService.createWeixinFileForwardService, "function");
@@ -209,6 +211,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createAccessKeyApiRoutes/);
   assert.match(server, /accessKeyApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createResourceApiRoutes/);
+  assert.match(server, /createSharedDirectoryProjectionService/);
+  assert.match(server, /getSharedDirectoryProjectionService\(\)\.publicProjectsForWorkspace/);
+  assert.match(server, /getSharedDirectoryProjectionService\(\)\.shareableRootProjectForPath/);
   assert.match(server, /resourceApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createSingleWindowGroupChatApiRoutes/);
   assert.match(server, /singleWindowGroupChatApiRoutes\.handle\(req, res, url/);
