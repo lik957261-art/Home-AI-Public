@@ -27,6 +27,17 @@ function run() {
   assert.equal(dir.startsWith(root), true);
   assert.equal(fs.existsSync(dir), true);
   assert.match(dir, /case_one/);
+  const boundRoot = path.join(root, "bound", "case-a");
+  const boundService = createKanbanStudyArtifactService({
+    artifactRoot: root,
+    safeStorageSegment: (value) => String(value || "").replace(/[^A-Za-z0-9_-]+/g, "_") || "item",
+    caseDirectoryPathForCase: (_workspaceId, caseId) => caseId === "case-a" ? boundRoot : "",
+  });
+  const boundDir = boundService.caseDeliverableDirectory("owner", "case-a", "card/1");
+  assert.equal(boundDir, path.join(boundRoot, "deliverables", "card_1"));
+  assert.equal(fs.existsSync(boundDir), true);
+  assert.equal(boundService.caseDeliverableDirectory("owner", "case-missing", "card/1").startsWith(root), true);
+  assert.equal(boundService.assessmentExamReportDirectory("owner", "exam/1", { kanbanCaseId: "case-a" }), path.join(boundRoot, "deliverables", "exam_1"));
 
   assert.equal(service.readingQuizUrl("owner", "card-1"), "/?view=todos&workspaceId=owner&todoId=card-1&readingQuiz=1");
   const readingState = service.writeReadingSubmissionState("owner", "card-1", { kanbanCaseId: "case-a" }, {

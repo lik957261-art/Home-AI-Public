@@ -77,6 +77,13 @@ function createKanbanReadingWorkflowService(deps = {}) {
     return artifactService.readingArtifactDirectory(workspaceId, caseId, cardId);
   }
 
+  function caseDeliverableDirectory(workspaceId, caseId, cardId) {
+    if (typeof artifactService.caseDeliverableDirectory === "function") {
+      return artifactService.caseDeliverableDirectory(workspaceId, caseId, cardId);
+    }
+    return readingArtifactDirectory(workspaceId, caseId, cardId);
+  }
+
   function saveKanbanReadingCoverUpload(workspaceId, planId, rawCover = null) {
     if (!rawCover || typeof rawCover !== "object" || Array.isArray(rawCover)) return null;
     const data = String(rawCover.dataBase64 || rawCover.data_base64 || "");
@@ -538,7 +545,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
   }
 
   function writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes = "") {
-    const dir = readingArtifactDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId);
+    const dir = caseDeliverableDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId);
     const stem = safeFileName(`${currentCard?.kanbanCaseCardIndex || "session"}-${currentCard?.content || cardId}`).replace(/\.[^.]+$/, "");
     const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
     const mdPath = path.join(dir, `${Date.now()}-${stem}-${readingTemplate ? "reading" : "study"}-analysis.md`);

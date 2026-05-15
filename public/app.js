@@ -8405,7 +8405,9 @@ async function loadSingleWindow(options = {}) {
   state.currentThreadId = state.currentThread.id;
   state.threads = [summarizeThread(state.currentThread)];
   if (state.viewMode !== "tasks") state.currentTaskGroupId = "";
-  if (state.currentTaskGroupId && !taskListGroupsForThread(state.currentThread).some((group) => group.id === state.currentTaskGroupId)) {
+  const visibleTaskGroups = taskListGroupsForThread(state.currentThread)
+    .concat(sharedCaseTopicGroupsForTaskList(state.currentThread));
+  if (state.currentTaskGroupId && !visibleTaskGroups.some((group) => group.id === state.currentTaskGroupId)) {
     state.currentTaskGroupId = "";
   }
   renderThreads();

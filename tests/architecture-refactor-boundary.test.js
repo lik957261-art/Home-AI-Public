@@ -163,6 +163,7 @@ function testRefactorModulesExportStableContracts() {
   {
     const artifactService = kanbanStudyArtifactService.createKanbanStudyArtifactService();
     assert.equal(typeof artifactService.assessmentExamReportDirectory, "function");
+    assert.equal(typeof artifactService.caseDeliverableDirectory, "function");
   }
   assert.equal(typeof kanbanStudyPlanService.createKanbanStudyPlanService, "function");
   assert.equal(typeof kanbanTaskDispatchPolicy.createKanbanTaskDispatchPolicy, "function");
@@ -382,6 +383,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(dispatcher, /req\.hermesRequestContext/);
   assert.match(server, /createKanbanCaseShareService/);
   assert.match(fileText("adapters/kanban-case-share-service.js"), /function syncToSqlite/);
+  assert.match(fileText("adapters/kanban-case-share-service.js"), /function shareForCaseDirectoryPath/);
   assert.match(server, /createKanbanMaintenanceService/);
   assert.match(server, /kanbanMaintenanceService\.maybeReconcileDependencyBlocks/);
   assert.match(server, /kanbanMaintenanceService\.readCardListCache/);
@@ -401,9 +403,11 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createKanbanPlanCardCreationService/);
   assert.match(server, /getKanbanPlanCardCreationService\(\)\.createKanbanStudyPlanCards/);
   assert.match(server, /createKanbanStudyArtifactService/);
+  assert.match(server, /caseDirectoryPathForCase: \(\.\.\.args\) => kanbanCaseShareService\.caseDirectoryPathForCase\(\.\.\.args\)/);
   assert.match(server, /kanbanStudyArtifactService\.publicReadingSubmissionSummary/);
   assert.match(server, /createKanbanReadingWorkflowService/);
   assert.match(server, /kanbanReadingWorkflowService\.submitKanbanReadingSubmission/);
+  assert.match(fileText("adapters/kanban-reading-workflow-service.js"), /artifactService\.caseDeliverableDirectory/);
   assert.match(server, /kanbanReadingWorkflowService\.getKanbanReadingQuiz/);
   assert.match(server, /kanbanReadingWorkflowService\.submitKanbanReadingQuiz/);
   assert.match(server, /createGatewayRunEventService/);

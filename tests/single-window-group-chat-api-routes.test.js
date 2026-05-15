@@ -275,14 +275,18 @@ async function main() {
   }
 
   {
-    const { routes } = makeRoutes();
+    const { routes, calls } = makeRoutes();
     const got = await request(routes, "POST", "/api/single-window", {
-      body: { workspaceId: "owner", messageMode: "tasks" },
+      body: { workspaceId: "owner", messageMode: "tasks", taskGroupId: "task-detail-route" },
       auth: { ok: true, workspaceId: "owner" },
     });
     assert.equal(got.res.statusCode, 200);
     assert.equal(got.body.caseTopicThreads.length, 1);
     assert.equal(got.body.caseTopicThreads[0].id, "case-topic");
+    assert.deepEqual(
+      calls.compactWithPage.find((item) => item.threadId === "private-thread").options.taskGroupId,
+      "",
+    );
   }
 
   {

@@ -2376,6 +2376,7 @@ const kanbanStudyArtifactService = createKanbanStudyArtifactService({
   readJsonStore,
   writeJsonStore,
   publicKanbanOutputFile,
+  caseDirectoryPathForCase: (...args) => kanbanCaseShareService.caseDirectoryPathForCase(...args),
   isKanbanStudyCaseMode,
 });
 const kanbanReadingWorkflowService = createKanbanReadingWorkflowService({
@@ -2942,8 +2943,9 @@ function kanbanOutputCaseIdFromPath(workspaceId, rawPath) {
   if (!localPath) return "";
   const root = path.resolve(KANBAN_READING_ARTIFACT_ROOT, safeStorageSegment(workspaceId || "owner"));
   const relative = path.relative(root, localPath);
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return "";
-  return relative.split(/[\\/]+/)[0] || "";
+  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) return relative.split(/[\\/]+/)[0] || "";
+  const share = kanbanCaseShareService.shareForCaseDirectoryPath(workspaceId, localPath);
+  return String(share?.caseId || share?.case_id || "").trim();
 }
 
 function authCanAccessKanbanOutput(auth, workspaceId, rawPath) {
@@ -2961,7 +2963,8 @@ function resolveKanbanOutputFile(workspaceId, rawPath, auth = null) {
   const localPath = normalizeLocalPath(displayPath);
   if (!displayPath || !localPath) return { status: 404, error: "File not found" };
   const thread = kanbanOutputAccessThread(workspace);
-  if (!isPathAllowedForThread(thread, localPath, displayPath)) return { status: 404, error: "File not found or not allowed" };
+  const allowedByCaseDirectory = Boolean(kanbanCaseShareService.shareForCaseDirectoryPath(workspace, localPath));
+  if (!allowedByCaseDirectory && !isPathAllowedForThread(thread, localPath, displayPath)) return { status: 404, error: "File not found or not allowed" };
   let stat;
   try {
     stat = fs.statSync(localPath);

@@ -55,6 +55,7 @@ function makeService(overrides = {}) {
       fs.writeFileSync(file, JSON.stringify(value), "utf8");
     },
     publicKanbanOutputFile: (workspaceId, file) => ({ workspaceId, path: file }),
+    caseDirectoryPathForCase: overrides.caseDirectoryPathForCase || (() => ""),
     isKanbanStudyCaseMode: (mode) => String(mode || "") === "study-plan",
   });
   const transcribeScript = path.join(root, "transcribe.ps1");
@@ -149,6 +150,20 @@ async function testTextSubmissionCreatesAnalysisQuizAndComment() {
   const state = [...stores.values()].find((value) => value && value.quiz);
   assert.equal(state.quizTargetingVersion, "target-v1");
   assert.equal(state.transcription.sourceKind, "text");
+}
+
+async function testAnalysisUsesBoundCaseDeliverableDirectory() {
+  const boundRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-reading-bound-case-"));
+  const { service, calls } = makeService({
+    caseDirectoryPathForCase: (_workspaceId, caseId) => caseId === "case-1" ? boundRoot : "",
+  });
+  const result = await service.submitKanbanReadingSubmission("owner", "card-1", {
+    submissionText: "short study evidence",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.analysisPath.startsWith(path.join(boundRoot, "deliverables", "card-1")), true);
+  assert.equal(fs.existsSync(result.analysisPath), true);
+  assert.match(calls.mutate[0].comment, new RegExp(`MEDIA: ${result.analysisPath.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")}`));
 }
 
 async function testReadingAudioUsesTranscriptionPath() {
@@ -369,6 +384,7 @@ function testKanbanSourceDocumentExtraction() {
 
 async function run() {
   await testTextSubmissionCreatesAnalysisQuizAndComment();
+  await testAnalysisUsesBoundCaseDeliverableDirectory();
   await testReadingAudioUsesTranscriptionPath();
   await testReadingAnalysisHeadingsAreReadable();
   await testQuizFailureAndPassWorkflow();

@@ -146,7 +146,9 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
       ? deps.compactThreadWithMessagePage(thread, {
         mode: messageMode,
         groupChat: groupRequested && !weixinRequested,
-        taskGroupId: body.taskGroupId || body.task_group_id || "",
+        taskGroupId: messageMode === "tasks" || messageMode === "task"
+          ? ""
+          : (body.taskGroupId || body.task_group_id || ""),
         limit: body.messageLimit || body.message_limit || threadMessageInitialLimit,
       })
       : deps.compactThread(thread);

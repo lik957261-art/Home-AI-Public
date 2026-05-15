@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const path = require("node:path");
 const {
   createKanbanCaseShareService,
   kanbanActorPermissions,
@@ -75,6 +76,10 @@ async function run() {
   assert.deepEqual(share.managerWorkspaceIds, ["manager"]);
   assert.equal(getStore().cases["owner::case-a"].topicThreadId, "thread-1");
   assert.equal(service.readShare("owner", "case-a").caseDirectoryPath, "/cases/case-a");
+  assert.deepEqual(service.sharesForOwner("owner").map((item) => item.caseId), ["case-a"]);
+  assert.equal(service.caseDirectoryPathForCase("owner", "case-a"), "/cases/case-a");
+  assert.equal(service.shareForCaseDirectoryPath("owner", path.join("/cases/case-a", "deliverables", "card-1", "report.md")).caseId, "case-a");
+  assert.equal(service.shareForCaseDirectoryPath("owner", path.join("/cases/case-b", "report.md")), null);
 
   assert.equal(service.roleForAuth({ owner: true }, "owner", "case-a"), "manager");
   assert.equal(service.roleForAuth({ workspaceId: "learner" }, "owner", "case-a"), "performer");

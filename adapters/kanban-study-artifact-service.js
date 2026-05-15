@@ -17,6 +17,10 @@ function createKanbanStudyArtifactService(deps = {}) {
   const writeJsonStore = typeof deps.writeJsonStore === "function" ? deps.writeJsonStore : () => {};
   const publicKanbanOutputFile = typeof deps.publicKanbanOutputFile === "function" ? deps.publicKanbanOutputFile : () => null;
   const isKanbanStudyCaseMode = typeof deps.isKanbanStudyCaseMode === "function" ? deps.isKanbanStudyCaseMode : () => false;
+  const caseDirectoryPathForCase = typeof deps.caseDirectoryPathForCase === "function"
+    ? deps.caseDirectoryPathForCase
+    : () => "";
+  const deliverableFolderName = cleanString(deps.deliverableFolderName) || "deliverables";
 
   function readingArtifactDirectory(workspaceId, caseId, cardId) {
     const dir = path.join(
@@ -25,6 +29,15 @@ function createKanbanStudyArtifactService(deps = {}) {
       safeStorageSegment(caseId || "study-plan"),
       safeStorageSegment(cardId || "card"),
     );
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  function caseDeliverableDirectory(workspaceId, caseId, cardId) {
+    const caseDirectory = cleanString(caseDirectoryPathForCase(workspaceId || "owner", caseId || ""));
+    const dir = caseDirectory
+      ? path.join(path.resolve(caseDirectory), deliverableFolderName, safeStorageSegment(cardId || "card"))
+      : readingArtifactDirectory(workspaceId, caseId, cardId);
     fs.mkdirSync(dir, { recursive: true });
     return dir;
   }
@@ -68,7 +81,7 @@ function createKanbanStudyArtifactService(deps = {}) {
   }
 
   function assessmentExamReportDirectory(workspaceId, cardId, currentCard = null) {
-    return assessmentExamArtifactDirectory(workspaceId, cardId, currentCard);
+    return caseDeliverableDirectory(workspaceId, currentCard?.kanbanCaseId || "assessment-plan", cardId);
   }
 
   function readAssessmentExamState(workspaceId, cardId, currentCard = null) {
@@ -146,6 +159,7 @@ function createKanbanStudyArtifactService(deps = {}) {
 
   return {
     readingArtifactDirectory,
+    caseDeliverableDirectory,
     readingQuizUrl,
     readingSubmissionStatePath,
     readReadingSubmissionState,

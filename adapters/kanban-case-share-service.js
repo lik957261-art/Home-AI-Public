@@ -1,7 +1,24 @@
 "use strict";
 
+const path = require("node:path");
+
 function cleanString(value) {
   return String(value ?? "").trim();
+}
+
+function pathApiForPath(...values) {
+  return values.some((value) => /^[A-Za-z]:[\\/]/.test(cleanString(value)) || cleanString(value).includes("\\"))
+    ? path.win32
+    : path;
+}
+
+function pathInsideDirectory(rootPath, candidatePath) {
+  const root = cleanString(rootPath);
+  const candidate = cleanString(candidatePath);
+  if (!root || !candidate) return false;
+  const pathApi = pathApiForPath(root, candidate);
+  const relative = pathApi.relative(pathApi.resolve(root), pathApi.resolve(candidate));
+  return !relative || (!relative.startsWith("..") && !pathApi.isAbsolute(relative));
 }
 
 function normalizeWorkspaceIdList(value, options = {}) {
@@ -140,6 +157,27 @@ function createKanbanCaseShareService(deps = {}) {
   function readShare(ownerWorkspaceId, caseId) {
     const share = store().cases[kanbanCaseShareKey(ownerWorkspaceId, caseId)];
     return share && typeof share === "object" && !Array.isArray(share) ? share : null;
+  }
+
+  function sharesForOwner(ownerWorkspaceId) {
+    const owner = cleanString(ownerWorkspaceId) || "owner";
+    return Object.values(store().cases || {}).filter((share) => {
+      if (!share || typeof share !== "object" || Array.isArray(share)) return false;
+      if (share.deletedAt || share.deleted_at) return false;
+      return (cleanString(share.ownerWorkspaceId || share.owner_workspace_id || "owner") || "owner") === owner;
+    });
+  }
+
+  function caseDirectoryPathForCase(ownerWorkspaceId, caseId) {
+    return cleanString(readShare(ownerWorkspaceId, caseId)?.caseDirectoryPath);
+  }
+
+  function shareForCaseDirectoryPath(ownerWorkspaceId, rawPath) {
+    const localPath = cleanString(rawPath);
+    if (!localPath) return null;
+    return sharesForOwner(ownerWorkspaceId).find((share) => (
+      pathInsideDirectory(share.caseDirectoryPath || share.case_directory_path, localPath)
+    )) || null;
   }
 
   function upsertShare(ownerWorkspaceId, caseId, input = {}) {
@@ -295,6 +333,9 @@ function createKanbanCaseShareService(deps = {}) {
     saveStore,
     key: kanbanCaseShareKey,
     readShare,
+    sharesForOwner,
+    caseDirectoryPathForCase,
+    shareForCaseDirectoryPath,
     upsertShare,
     roleForAuth,
     roleForWorkspaceActor,

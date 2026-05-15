@@ -168,6 +168,9 @@ function makeService(overrides = {}) {
   if (overrides.useDefaultReportWriter) {
     delete deps.writeAssessmentExamReport;
   }
+  if (overrides.artifactService) {
+    deps.artifactService = overrides.artifactService;
+  }
   if (!overrides.useProviderContext) {
     deps.readingContextForCard = async function readingContextForCard(workspaceId, cardId) {
       calls.contexts.push({ workspaceId, cardId });
@@ -210,6 +213,35 @@ async function testMathGenerationUsesDeterministicTemplates() {
   assert.equal(summary.examAvailable, true);
   assert.equal(summary.finalExam, true);
   assert.equal(summary.examUrl, "/?view=todos&workspaceId=owner&todoId=card-1&assessmentExam=1");
+}
+
+async function testDefaultReportWriterUsesBoundDeliverableDirectory() {
+  const boundRoot = fs.mkdtempSync(path.join(os.tmpdir(), "assessment-bound-case-"));
+  const card = makeAssessmentCard("card-1");
+  const states = [[stateKey("owner", "card-1"), {
+    status: "in_progress",
+    exam: parsedExam(5, "Math"),
+    config: { passingScore: 80 },
+  }]];
+  const { service, calls } = makeService({
+    cards: [card],
+    states,
+    useDefaultReportWriter: true,
+    artifactService: {
+      assessmentExamReportDirectory(_workspaceId, cardId) {
+        const dir = path.join(boundRoot, "deliverables", cardId);
+        fs.mkdirSync(dir, { recursive: true });
+        return dir;
+      },
+    },
+  });
+  const result = await service.submitKanbanAssessmentExam("owner", "card-1", {
+    answers: [0, 1, 2, 3, 0],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.reportPath.startsWith(path.join(boundRoot, "deliverables", "card-1")), true);
+  assert.equal(fs.existsSync(result.reportPath), true);
+  assert.match(calls.mutate[0].comment, new RegExp(`MEDIA: ${result.reportPath.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")}`));
 }
 
 async function testModelGenerationUsesInjectedHermesAndSanitizedPrompt() {
@@ -502,6 +534,7 @@ async function run() {
   await testFailedSubmissionWritesRetakeStateAndReport();
   await testPassedSubmissionCompletesCardAndReconciles();
   await testDefaultReportWriterUsesCardArtifactDirectory();
+  await testDefaultReportWriterUsesBoundDeliverableDirectory();
   await testProgrammingPassWritesCompletionLogAndReturnsExplanations();
   await testCompletionFailurePreservesRetakeRequiredState();
   await testInvalidAnswersDoNotWriteReportOrMutate();
