@@ -37,6 +37,7 @@ const kanbanPlanService = require("../adapters/kanban-plan-service");
 const kanbanReadingWorkflowService = require("../adapters/kanban-reading-workflow-service");
 const kanbanStudyArtifactService = require("../adapters/kanban-study-artifact-service");
 const kanbanStudyPlanService = require("../adapters/kanban-study-plan-service");
+const kanbanTaskDispatchPolicy = require("../adapters/kanban-task-dispatch-policy");
 const kanbanStory = require("../adapters/kanban-story-provider");
 const localAutomationBridgeService = require("../adapters/local-automation-bridge-service");
 const localBridgeRuntimeService = require("../adapters/local-bridge-runtime-service");
@@ -159,6 +160,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanReadingWorkflowService.createKanbanReadingWorkflowService, "function");
   assert.equal(typeof kanbanStudyArtifactService.createKanbanStudyArtifactService, "function");
   assert.equal(typeof kanbanStudyPlanService.createKanbanStudyPlanService, "function");
+  assert.equal(typeof kanbanTaskDispatchPolicy.createKanbanTaskDispatchPolicy, "function");
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
   assert.equal(typeof kanbanStory.visibleKanbanCaseCards, "function");
   assert.equal(typeof kanbanStory.kanbanCardEffectiveCaseIndex, "function");

@@ -328,6 +328,7 @@ function createThreadMessageCreateService(options = {}) {
       recurrence: "none",
       recurrenceDays: "",
       recurrenceUntil: "",
+      manualOnly: true,
     };
   }
 

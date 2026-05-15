@@ -37,6 +37,15 @@ function service(options = {}) {
 
 {
   const direct = service();
+  const due = direct.parseWebTodoDueFromText(
+    "\u660e\u5929\u65e9\u4e0a\u63d0\u9192\u6211 10 \u70b9\u5403\u836f\u3002",
+    new Date(2026, 4, 15, 20, 10),
+  );
+  assert.deepEqual(due, { dueTime: "2026-05-16 10:00", raw: "\u660e\u5929\u65e9\u4e0a\u63d0\u9192\u6211 10 \u70b9" });
+}
+
+{
+  const direct = service();
   const intent = direct.detectDirectTodoCreateIntentForWeb(
     "\u8bf7\u7ed9\u51e1\u51e1\u65b0\u589e\u4e00\u5f20\u770b\u677f\u5361\u7247\uff0c\u660e\u5929\u665a\u4e0a8\u70b9\u534a\u9605\u8bfb\u7b2c3\u7ae0",
     "owner",
@@ -47,6 +56,21 @@ function service(options = {}) {
     assigneeLabel: "\u51e1\u51e1",
     dueTime: "2026-05-16 20:30",
     content: "\u9605\u8bfb\u7b2c3\u7ae0",
+  });
+}
+
+{
+  const direct = service();
+  const intent = direct.detectDirectTodoCreateIntentForWeb(
+    "\u660e\u5929\u65e9\u4e0a\u63d0\u9192\u6211 10 \u70b9\u5403\u836f\u3002",
+    "owner",
+    new Date(2026, 4, 15, 20, 10),
+  );
+  assert.deepEqual(intent, {
+    assignee: "owner-principal",
+    assigneeLabel: "owner-principal",
+    dueTime: "2026-05-16 10:00",
+    content: "\u5403\u836f",
   });
 }
 

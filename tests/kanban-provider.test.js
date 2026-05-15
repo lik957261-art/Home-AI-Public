@@ -119,6 +119,7 @@ async function run() {
   assert.ok(createCall[1].includes("--assignee"));
   assert.equal(createCall[1][createCall[1].indexOf("--assignee") + 1], "exec-weixin_stephen");
   assert.ok(createCall[1].includes("dir:/workspaces/weixin_stephen"));
+  assert.match(createCall[1][createCall[1].indexOf("--body") + 1], /Hermes Mobile completion contract/);
 
   const listed = await provider.run({
     action: "list",
@@ -141,6 +142,12 @@ async function run() {
   assert.equal(createdWithoutDue.ok, true);
   assert.equal(createdWithoutDue.due_at, "");
   assert.equal(createdWithoutDue.due_local, "");
+  assert.equal(createdWithoutDue.kanban_assignee, "");
+  assert.equal(createdWithoutDue.kanban_dispatch_mode, "manual");
+  const manualCreateCall = calls.find(([, args]) => args.includes("create") && args.includes("No due Kanban card"));
+  assert.ok(manualCreateCall);
+  assert.equal(manualCreateCall[1].includes("--assignee"), false);
+  assert.doesNotMatch(manualCreateCall[1][manualCreateCall[1].indexOf("--body") + 1], /Hermes Mobile completion contract/);
 
   const blocked = await provider.run({
     action: "block",
@@ -556,6 +563,50 @@ async function run() {
   assert.equal(manualReconciled.ok, true);
   assert.equal(manualReconciled.released.length, 0);
   assert.equal(manualReconcileCalls.some((args) => args.includes("unblock")), false);
+
+  const manualUnblockCalls = [];
+  const manualUnblockProvider = createKanbanTodoBridge({
+    command: "hermes",
+    metadataPath: path.join(tempDir, "manual-unblock-meta.json"),
+    boardForWorkspace: () => "manual-unblock-board",
+    assigneeForWorkspace: () => "exec-owner",
+    async runCommand(command, args) {
+      manualUnblockCalls.push(args);
+      const joined = args.join(" ");
+      if (joined.includes("boards create")) return { code: 0, stdout: "", stderr: "" };
+      if (joined.includes(" create ")) return { code: 0, stdout: JSON.stringify({ task_id: "t_manual_reminder" }), stderr: "" };
+      if (joined.includes(" block ") || joined.includes(" unblock ")) return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+      if (joined.includes(" reassign ")) throw new Error("manual reminders should not be reassigned on unblock");
+      return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+    },
+  });
+  const manualReminder = await manualUnblockProvider.run({
+    action: "add",
+    workspace_id: "owner",
+    source_principal: "owner",
+    assignee: "owner",
+    content: "Take medicine",
+    due_time: "2026-05-16 10:00",
+    manual_only: true,
+  });
+  assert.equal(manualReminder.ok, true);
+  assert.equal(manualReminder.kanban_assignee, "");
+  await manualUnblockProvider.run({
+    action: "block",
+    workspace_id: "owner",
+    source_principal: "owner",
+    todo_id: manualReminder.id,
+    reason: "waiting",
+  });
+  const manualUnblocked = await manualUnblockProvider.run({
+    action: "unblock",
+    workspace_id: "owner",
+    source_principal: "owner",
+    todo_id: manualReminder.id,
+  });
+  assert.equal(manualUnblocked.ok, true);
+  assert.equal(manualUnblocked.kanban_assignee, "");
+  assert.equal(manualUnblockCalls.some((args) => args.includes("reassign")), false);
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 }

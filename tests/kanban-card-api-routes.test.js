@@ -445,6 +445,9 @@ async function testCreateMapsBodyCasePayloadCacheBroadcastAndVerification() {
     reminderLeadMinutes: 30,
     reason: "manual request",
     idempotencyKey: "idem-1",
+    manualOnly: null,
+    autoDispatch: null,
+    kanbanAssignee: "",
     caseId: "single-case",
     caseSourceText: "source document",
   });
@@ -480,6 +483,30 @@ async function testCreateMapsBodyCasePayloadCacheBroadcastAndVerification() {
   assert.equal(explicit.calls.add[0].caseMode, "batch");
   assert.equal(explicit.calls.add[0].caseCardIndex, 2);
   assert.deepEqual(explicit.calls.add[0].caseDependsOn, ["a"]);
+
+  const reminder = makeRoutes({
+    detectDirectTodoCreateIntentForWeb(text, workspaceId) {
+      assert.equal(text, "\u660e\u5929\u65e9\u4e0a\u63d0\u9192\u6211 10 \u70b9\u5403\u836f\u3002");
+      assert.equal(workspaceId, "child");
+      return {
+        assignee: "principal-child",
+        assigneeLabel: "principal-child",
+        dueTime: "2026-05-16 10:00",
+        content: "\u5403\u836f",
+      };
+    },
+  });
+  await request(reminder.routes, "POST", "/api/kanban/cards", {
+    body: {
+      workspaceId: "child",
+      content: "\u660e\u5929\u65e9\u4e0a\u63d0\u9192\u6211 10 \u70b9\u5403\u836f\u3002",
+    },
+  });
+  assert.equal(reminder.calls.add[0].content, "\u5403\u836f");
+  assert.equal(reminder.calls.add[0].dueTime, "2026-05-16 10:00");
+  assert.equal(reminder.calls.add[0].manualOnly, true);
+  assert.equal(reminder.calls.add[0].caseMode, undefined);
+  assert.equal(reminder.calls.casePayload[0].content, "\u5403\u836f");
 }
 
 async function testPlanningAndDocumentRoutesUseWorkspaceScopedFakes() {

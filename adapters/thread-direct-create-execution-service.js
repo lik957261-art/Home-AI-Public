@@ -43,6 +43,7 @@ function defaultBuildDirectTodoAddPayload(plan) {
     recurrence: "none",
     recurrenceDays: "",
     recurrenceUntil: "",
+    manualOnly: true,
   };
 }
 

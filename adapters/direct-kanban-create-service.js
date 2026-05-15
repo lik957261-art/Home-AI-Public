@@ -49,7 +49,7 @@ function createDirectKanbanCreateService(options = {}) {
       date.setHours(Number(iso[4]), Number(iso[5] || 0), 0, 0);
       return { dueTime: formatLocalDateTime(date), raw: iso[0] };
     }
-    const match = raw.match(/(\u4eca\u5929|\u660e\u5929|\u540e\u5929)?\s*(\u4eca\u665a|\u660e\u65e9|\u51cc\u6668|\u65e9\u4e0a|\u4e0a\u5348|\u4e2d\u5348|\u4e0b\u5348|\u665a\u4e0a)?\s*(\d{1,2})\s*(?:\u70b9|[:\uff1a])\s*(\u534a|\d{1,2}\s*\u5206?)?/);
+    const match = raw.match(/(\u4eca\u5929|\u660e\u5929|\u540e\u5929)?\s*(\u4eca\u665a|\u660e\u65e9|\u51cc\u6668|\u65e9\u4e0a|\u4e0a\u5348|\u4e2d\u5348|\u4e0b\u5348|\u665a\u4e0a)?\s*(?:(?:\u63d0\u9192\u6211|\u63d0\u9192|\u53eb\u6211|\u901a\u77e5\u6211|\u5230\u65f6\u5019|\u8bb0\u5f97|please)\s*){0,3}(\d{1,2})\s*(?:\u70b9|[:\uff1a])\s*(\u534a|\d{1,2}\s*\u5206?)?/i);
     if (!match) return null;
     const date = new Date(now);
     const dateWord = match[1] || "";
@@ -73,8 +73,11 @@ function createDirectKanbanCreateService(options = {}) {
 
   function detectDirectTodoCreateIntentForWeb(text, workspaceId, now = new Date()) {
     const rawText = String(text || "").trim();
-    if (!rawText || !/(\u5f85\u529e|\u770b\u677f|\u5361\u7247|kanban|todo|to-do)/i.test(rawText)) return null;
-    if (!/(\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/.test(rawText)) return null;
+    const hasTodoKeyword = /(\u5f85\u529e|\u770b\u677f|\u5361\u7247|kanban|todo|to-do)/i.test(rawText);
+    const reminderRequest = /(\u63d0\u9192\u6211|\u53eb\u6211|\u901a\u77e5\u6211|\u63d0\u9192)/.test(rawText);
+    const hasCreateKeyword = /(\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/.test(rawText);
+    if (!rawText || (!hasTodoKeyword && !reminderRequest)) return null;
+    if (!hasCreateKeyword && !reminderRequest) return null;
     const due = parseWebTodoDueFromText(rawText, now);
     if (!due?.dueTime) return null;
     const assignee = resolveTodoAssigneeFromText(rawText, workspaceId);
@@ -85,8 +88,8 @@ function createDirectKanbanCreateService(options = {}) {
     }
     content = content
       .replace(due.raw, " ")
-      .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)\s*(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
-      .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192|\u52a0)/ig, " ")
+      .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192\u6211|\u53eb\u6211|\u901a\u77e5\u6211|\u63d0\u9192|\u52a0)\s*(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)?/ig, " ")
+      .replace(/(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u6211\u60f3|\u6211\u8981|\u9700\u8981)?\s*(?:\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u5f00\u542f|\u6dfb\u52a0|\u589e\u52a0|\u5b89\u6392|\u63d0\u9192\u6211|\u53eb\u6211|\u901a\u77e5\u6211|\u63d0\u9192|\u52a0)/ig, " ")
       .replace(/(?:\u4e00\u4e2a|\u4e00\u6761|\u4e00\u5f20)?\s*(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
       .replace(/(?:\u5f85\u529e(?:\u4e8b\u9879)?|\u770b\u677f(?:\u5361\u7247)?|\u5361\u7247|kanban|todo|to-do)/ig, " ")
       .replace(/\u7684/g, " ")

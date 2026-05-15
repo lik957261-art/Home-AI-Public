@@ -385,18 +385,27 @@ function createKanbanCardApiRoutes(deps = {}) {
     const body = await deps.readBody(req);
     const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
-    const assignee = normalizeNotificationAssignee(workspaceId, body.assignee || "");
+    const requestedContent = body.content || body.title || "";
+    const reminderIntent = typeof deps.detectDirectTodoCreateIntentForWeb === "function"
+      ? deps.detectDirectTodoCreateIntentForWeb(requestedContent, workspaceId)
+      : null;
+    const content = reminderIntent?.content || requestedContent;
+    const explicitCase = Boolean(body.caseId || body.case_id);
+    const assignee = normalizeNotificationAssignee(workspaceId, body.assignee || reminderIntent?.assignee || "");
     const result = await deps.kanbanCardProvider.addCard({
       workspaceId,
       assignee,
       assigneeLabel: deps.todoAssigneeLabel(workspaceId, assignee),
-      content: body.content || body.title || "",
+      content,
       description: body.description || "",
-      dueTime: body.dueTime || body.due_time || "",
+      dueTime: body.dueTime || body.due_time || reminderIntent?.dueTime || "",
       reminderLeadMinutes: body.reminderLeadMinutes ?? body.reminder_lead_minutes ?? null,
       reason: body.reason || "",
       idempotencyKey: body.idempotencyKey || body.idempotency_key || "",
-      ...(body.caseId || body.case_id ? {
+      manualOnly: body.manualOnly ?? body.manual_only ?? (reminderIntent ? true : null),
+      autoDispatch: body.autoDispatch ?? body.auto_dispatch ?? null,
+      kanbanAssignee: body.kanbanAssignee || body.kanban_assignee || "",
+      ...(explicitCase ? {
         caseId: body.caseId || body.case_id || "",
         caseMode: body.caseMode || body.case_mode || "",
         caseTemplate: body.caseTemplate || body.case_template || "",
@@ -409,7 +418,7 @@ function createKanbanCardApiRoutes(deps = {}) {
         caseDeliverables: body.caseDeliverables || body.case_deliverables || [],
         caseAcceptance: body.caseAcceptance || body.case_acceptance || [],
         caseCardGoal: body.caseCardGoal || body.case_card_goal || "",
-      } : deps.kanbanSingleCardCasePayload(body.content || body.title || "", body.description || "", body.sourceText || body.source_text || "")),
+      } : deps.kanbanSingleCardCasePayload(content, body.description || "", body.sourceText || body.source_text || requestedContent)),
     });
     if (!result?.ok) {
       deps.kanbanErrorResponse(res, result);

@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { StringDecoder } = require("node:string_decoder");
+const { createKanbanTaskDispatchPolicy } = require("./kanban-task-dispatch-policy");
 
 const META_START = "<!-- hermes-mobile-todo ";
 const META_END = " -->";
@@ -218,12 +219,14 @@ function parseEmbeddedMeta(body) {
   }
 }
 
-function bodyWithMeta(content, meta) {
+function bodyWithMeta(content, meta, options = {}) {
   const publicMeta = {
     schema: "hermes-mobile-todo",
     assignee: meta.assignee || "",
     assigneeLabel: meta.assigneeLabel || "",
     kanbanAssignee: meta.kanbanAssignee || "",
+    dispatchMode: meta.dispatchMode || "",
+    manualOnly: Boolean(meta.manualOnly),
     createdBy: meta.createdBy || "",
     description: meta.description || "",
     dueAt: meta.dueAt || "",
@@ -259,7 +262,11 @@ function bodyWithMeta(content, meta) {
     "- The receipt must include: outcome, actions performed, files or deliverables created, links/paths, verification evidence, risks, and follow-up items.",
     "- If no external change was made, state that explicitly and explain why.",
   ].join("\n");
-  const bodyParts = [String(meta.description || "").trim(), String(content || "").trim(), completionContract].filter(Boolean);
+  const bodyParts = [
+    String(meta.description || "").trim(),
+    String(content || "").trim(),
+    options.includeCompletionContract === false ? "" : completionContract,
+  ].filter(Boolean);
   return `${META_START}${JSON.stringify(publicMeta)}${META_END}\n\n${bodyParts.join("\n\n")}`;
 }
 
@@ -335,6 +342,7 @@ function createKanbanTodoBridge(options = {}) {
   const timeoutMs = positiveNumber(options.timeoutMs, 15000);
   const metadataPath = options.metadataPath || "";
   const runCommand = typeof options.runCommand === "function" ? options.runCommand : defaultRunCommand;
+  const dispatchPolicy = options.dispatchPolicy || createKanbanTaskDispatchPolicy();
   const ensuredBoards = new Set();
 
   function metadataStore() {
@@ -433,6 +441,9 @@ function createKanbanTodoBridge(options = {}) {
       ? "completed"
       : (kanbanStatus === "archived" || cancelledAt ? "cancelled" : "open");
     const title = textFromTask(task, "title") || textFromTask(task, "name") || meta.content || id;
+    const dispatchMode = String(meta.dispatchMode || meta.dispatch_mode || "");
+    const taskAssignee = String(textFromTask(task, "assignee") || task.assignee || "").trim();
+    const storedKanbanAssignee = String(meta.kanbanAssignee || meta.kanban_assignee || "").trim();
     return {
       id,
       workspace_id: String(meta.workspaceId || meta.workspace_id || payload.workspace_id || payload.workspaceId || ""),
@@ -441,7 +452,8 @@ function createKanbanTodoBridge(options = {}) {
       status,
       kanban_status: kanbanStatus || "todo",
       kanban_board: meta.board || boardForPayload(payload),
-      kanban_assignee: String(textFromTask(task, "assignee") || task.assignee || meta.kanbanAssignee || meta.kanban_assignee || meta.assignee || ""),
+      kanban_assignee: taskAssignee || storedKanbanAssignee || (dispatchMode === "manual" ? "" : String(meta.assignee || "")),
+      kanban_dispatch_mode: dispatchMode,
       kanban_priority: Number(task.priority ?? task.task?.priority ?? meta.priority ?? 0) || 0,
       kanban_tenant: String(textFromTask(task, "tenant") || task.tenant || meta.tenant || payload.source_principal || ""),
       kanban_workspace_kind: String(meta.workspaceKind || workspaceKindFromTask(task)),
@@ -506,6 +518,8 @@ function createKanbanTodoBridge(options = {}) {
         assignee: String(row.assignee_principal_id || previous.assignee || payload.source_principal || ""),
         assigneeLabel: String(row.assignee_label || previous.assigneeLabel || previous.assignee || ""),
         kanbanAssignee: String(row.kanban_assignee || previous.kanbanAssignee || ""),
+        dispatchMode: String(row.kanban_dispatch_mode || previous.dispatchMode || ""),
+        manualOnly: Boolean(row.kanban_dispatch_mode === "manual" || previous.manualOnly),
         kanbanStatus: String(row.kanban_status || previous.kanbanStatus || "").trim().toLowerCase(),
         caseId: String(row.kanban_case_id || previous.caseId || ""),
         caseMode: String(row.kanban_case_mode || previous.caseMode || ""),
@@ -697,7 +711,12 @@ function createKanbanTodoBridge(options = {}) {
     const board = await ensureBoard(payload);
     const now = nowIso();
     const assignee = String(payload.assignee || source).trim() || source;
-    const kanbanAssignee = kanbanAssigneeForPayload(payload, assignee) || assignee;
+    const executableAssignee = kanbanAssigneeForPayload(payload, assignee) || assignee;
+    const dispatch = dispatchPolicy.resolveKanbanDispatch(payload, {
+      requestedAssignee: assignee,
+      executableAssignee,
+    });
+    const kanbanAssignee = dispatch.officialAssignee;
     const meta = {
       workspaceId,
       board,
@@ -706,6 +725,8 @@ function createKanbanTodoBridge(options = {}) {
       assignee,
       assigneeLabel: String(payload.assignee_label || assignee),
       kanbanAssignee,
+      dispatchMode: dispatch.dispatchMode,
+      manualOnly: dispatch.manualOnly,
       createdBy: source,
       dueAt: dueAt || "",
       dueLocal: dueAt ? dueLocal(dueAt) : "",
@@ -744,11 +765,9 @@ function createKanbanTodoBridge(options = {}) {
       "create",
       content,
       "--body",
-      bodyWithMeta(content, meta),
+      bodyWithMeta(content, meta, { includeCompletionContract: dispatch.includeCompletionContract }),
       "--created-by",
       source,
-      "--assignee",
-      kanbanAssignee,
       "--tenant",
       source,
       "--idempotency-key",
@@ -756,6 +775,9 @@ function createKanbanTodoBridge(options = {}) {
       ...(workspacePath ? ["--workspace", `dir:${workspacePath}`] : []),
       "--json",
     ];
+    if (kanbanAssignee) {
+      createArgs.splice(createArgs.indexOf("--tenant"), 0, "--assignee", kanbanAssignee);
+    }
     const createResult = await kanban(createArgs);
     let parsed = parseJsonOutput(createResult.stdout);
     let id = taskIdFrom(parsed || {}) || taskIdFromText(createResult.stdout);
@@ -842,7 +864,18 @@ function createKanbanTodoBridge(options = {}) {
 
     if (action === "unblock") {
       const accountAssignee = String(meta.assignee || payload.assignee || payload.source_principal || "").trim();
-      const kanbanAssignee = kanbanAssigneeForPayload(payload, accountAssignee);
+      const executableAssignee = kanbanAssigneeForPayload(payload, accountAssignee);
+      const dispatchPayload = Object.assign({}, payload, {
+        case_id: payload.case_id ?? payload.caseId ?? meta.caseId ?? meta.case_id ?? "",
+        case_mode: payload.case_mode ?? payload.caseMode ?? meta.caseMode ?? meta.case_mode ?? "",
+        manual_only: payload.manual_only ?? payload.manualOnly ?? meta.manualOnly ?? (String(meta.dispatchMode || meta.dispatch_mode || "") === "manual"),
+        auto_dispatch: payload.auto_dispatch ?? payload.autoDispatch,
+      });
+      const dispatch = dispatchPolicy.resolveKanbanDispatch(dispatchPayload, {
+        requestedAssignee: accountAssignee,
+        executableAssignee,
+      });
+      const kanbanAssignee = dispatch.officialAssignee;
       if (kanbanAssignee) {
         await kanban(["--board", board, "reassign", todoId, kanbanAssignee, "--reason", "Hermes Mobile mapped workspace account to executable Gateway profile."]);
       }
@@ -854,6 +887,8 @@ function createKanbanTodoBridge(options = {}) {
       }
       store.todos[todoId] = Object.assign({}, meta, {
         kanbanAssignee,
+        dispatchMode: dispatch.dispatchMode,
+        manualOnly: dispatch.manualOnly,
         updatedAt: now,
         kanbanStatus: "todo",
         blockedAt: "",

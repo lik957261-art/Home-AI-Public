@@ -2458,6 +2458,7 @@ const kanbanCardApiRoutes = createKanbanCardApiRoutes({
   clearKanbanCardListCache,
   compactText,
   createKanbanPlanCards,
+  detectDirectTodoCreateIntentForWeb,
   extractKanbanSourceDocumentText: (...args) => kanbanReadingWorkflowService.extractKanbanSourceDocumentText(...args),
   findWorkspace,
   kanbanCardProvider,

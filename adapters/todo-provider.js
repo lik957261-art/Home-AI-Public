@@ -78,6 +78,8 @@ function createTodoProvider(options = {}) {
       recurrence: args.recurrence || "none",
       recurrence_days: args.recurrenceDays || args.recurrence_days || "",
       recurrence_until: args.recurrenceUntil || args.recurrence_until || "",
+      manual_only: args.manualOnly ?? args.manual_only ?? true,
+      auto_dispatch: args.autoDispatch ?? args.auto_dispatch ?? false,
     });
   }
 

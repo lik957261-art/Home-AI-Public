@@ -116,6 +116,7 @@ function makeHarness(overrides = {}) {
         recurrence: "none",
         recurrenceDays: "",
         recurrenceUntil: "",
+        manualOnly: true,
       };
     },
     buildDirectKanbanAddPayload(plan, draft) {
@@ -228,6 +229,7 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
     recurrence: "none",
     recurrenceDays: "",
     recurrenceUntil: "",
+    manualOnly: true,
   });
   assert.deepEqual(calls.broadcasts.map((payload) => payload.type), [
     "thread.updated",

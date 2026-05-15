@@ -38,6 +38,22 @@ async function testTargetIdForwardingAndSearchPreservation() {
   assert.equal(calls[0].source_principal, "principal-child");
   assert.equal(calls[0].include_completed, true);
   assert.deepEqual(listed.data.map((card) => card.id), ["target-card", "other-card"]);
+
+  await provider.addCard({
+    workspaceId: "child",
+    assignee: "child",
+    assigneeLabel: "Child",
+    content: "Take medicine",
+    dueTime: "2026-05-16 10:00",
+    manualOnly: true,
+    autoDispatch: false,
+    kanbanAssignee: "",
+  });
+  assert.equal(calls[1].action, "add");
+  assert.equal(calls[1].manual_only, true);
+  assert.equal(calls[1].auto_dispatch, false);
+  assert.equal(calls[1].kanban_assignee, "");
+  assert.equal(calls[1].due_time, "2026-05-16 10:00");
 }
 
 testTargetIdForwardingAndSearchPreservation()

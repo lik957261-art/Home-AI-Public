@@ -317,6 +317,7 @@ function testDirectCreateRoutingAndPayloads() {
       recurrence: "none",
       recurrenceDays: "",
       recurrenceUntil: "",
+      manualOnly: true,
     });
   }
 }
