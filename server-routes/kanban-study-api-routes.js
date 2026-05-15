@@ -136,6 +136,7 @@ function createKanbanStudyApiRoutes(deps = {}) {
     "requireWorkspaceAccess",
     "resolveKanbanCardAccess",
     "sendJson",
+    "startKanbanAssessmentExam",
     "submitKanbanAssessmentExam",
     "submitKanbanReadingQuiz",
     "submitKanbanReadingSubmission",
@@ -265,15 +266,24 @@ function createKanbanStudyApiRoutes(deps = {}) {
     if (!access) return;
     const workspaceId = access.workspaceId;
     try {
+      const shouldStart = req.method === "POST" && (
+        body.generateOnly
+        || body.generate_only
+        || body.requirement
+        || body.programmingRequirement
+        || body.programming_requirement
+      );
       const result = req.method === "POST"
-        ? await deps.submitKanbanAssessmentExam(workspaceId, cardId, body)
+        ? (shouldStart
+          ? await deps.startKanbanAssessmentExam(workspaceId, cardId, body)
+          : await deps.submitKanbanAssessmentExam(workspaceId, cardId, body))
         : await deps.getKanbanAssessmentExam(workspaceId, cardId);
       if (!result.ok) {
         deps.sendJson(res, result.status || 400, { ok: false, error: result.error || "Assessment exam failed" });
         return;
       }
       if (req.method === "POST") {
-        const action = result.passed ? "assessment-passed" : "assessment-retake";
+        const action = shouldStart ? "assessment-exam-started" : (result.passed ? "assessment-passed" : "assessment-retake");
         broadcastCardUpdate(deps, workspaceId, cardId, action);
       }
       if (result.card) result.card = deps.annotateKanbanCardForAuth(result.card, access.auth);

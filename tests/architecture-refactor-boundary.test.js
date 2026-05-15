@@ -48,6 +48,7 @@ const localWorkspaceStoreService = require("../adapters/local-workspace-store-se
 const markdownRenderer = require("../adapters/markdown-renderer");
 const naturalLanguageDraftService = require("../adapters/natural-language-draft-service");
 const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
+const programmingAssessmentTemplateService = require("../adapters/programming-assessment-template-service");
 const runtimeStateNormalizationService = require("../adapters/runtime-state-normalization-service");
 const runtimeStatePersistenceService = require("../adapters/runtime-state-persistence-service");
 const runtimeStateRepository = require("../adapters/runtime-state-repository");
@@ -181,6 +182,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof naturalLanguageDraftService.createNaturalLanguageDraftService, "function");
   assert.equal(typeof naturalLanguageDraftService.extractJsonObject, "function");
   assert.equal(typeof ownerElevationGrantService.createOwnerElevationGrantService, "function");
+  assert.equal(typeof programmingAssessmentTemplateService.buildProgrammingAssessmentLogMarkdown, "function");
+  assert.equal(typeof programmingAssessmentTemplateService.buildProgrammingAssessmentPromptLines, "function");
   assert.equal(typeof runtimeStateNormalizationService.createRuntimeStateNormalizationService, "function");
   assert.equal(typeof runtimeStateNormalizationService.normalizeStringList, "function");
   assert.equal(typeof runtimeStatePersistenceService.createRuntimeStatePersistenceService, "function");
@@ -413,8 +416,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /assessmentExamService\.generateVerifiedMathAssessmentQuestions/);
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /assessmentExamService\.gradeAssessmentExam/);
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /assessmentExamService\.buildAssessmentExamReportMarkdown/);
+  assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /programmingAssessmentTemplateService\.buildProgrammingAssessmentLogMarkdown/);
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /artifactService\.assessmentExamReportDirectory/);
   assert.match(fileText("adapters/assessment-exam-workflow-service.js"), /artifactService\.publicAssessmentExam/);
+  assert.match(server, /getAssessmentExamWorkflowService\(\)\.startKanbanAssessmentExam/);
   assert.match(server, /getAssessmentExamWorkflowService\(\)\.submitKanbanAssessmentExam/);
   assert.match(server, /studyAssessmentService\.normalizeKanbanAssessmentPlan/);
   assert.match(server, /createSemanticDirectoryAttachmentService/);

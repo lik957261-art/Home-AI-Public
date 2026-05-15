@@ -520,6 +520,7 @@ function assessmentMaxQuestions(options = {}) {
 
 function normalizeKanbanAssessmentSubjectId(value = "") {
   const text = lowerString(value);
+  if (/programming|coding|python|javascript|typescript|java\b|c\+\+|c#|scratch|\u7f16\u7a0b|\u7a0b\u5f0f|\u7a0b\u5e8f|\u4ee3\u7801|\u4ee3\u78bc|\u7b97\u6cd5|\u5f00\u53d1|\u958b\u767c/.test(text)) return "programming";
   if (/math|\u6570\u5b66|\u6578\u5b78|amc/.test(text)) return "math";
   if (/english|\u82f1\u8bed|\u82f1\u6587|reading|language/.test(text)) return "english";
   if (/science|\u79d1\u5b66|\u79d1\u5b78|physics|chemistry|biology/.test(text)) return "science";
@@ -574,6 +575,7 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
   const baseConfig = {
     schemaVersion: 1,
     kind: linkedStudyPlan ? "final-study-assessment" : "assessment-plan",
+    template: subjectId === "programming" ? "programming" : "assessment",
     subject,
     subjectId,
     learnerName,
@@ -583,6 +585,7 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
     passingScore,
     difficulty,
     retakeUntilPass: Boolean(retakeUntilPass),
+    requiresRequirementInput: subjectId === "programming",
   };
   const cards = Array.from({ length: examCount }, (_, index) => {
     const number = index + 1;
@@ -594,7 +597,9 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
     });
     const cardTitle = finalExam
       ? `${learnerName}${subject}\u9636\u6bb5\u7ed3\u675f\u7efc\u5408\u8003\u8bd5`
-      : `${learnerName}${subject}\u7b2c ${number}/${examCount} \u6b21\u6b63\u5f0f\u6d4b\u8bd5`;
+      : (subjectId === "programming"
+        ? `${learnerName}${subject}\u7b2c ${number}/${examCount} \u6b21\u7f16\u7a0b\u6d4b\u9a8c`
+        : `${learnerName}${subject}\u7b2c ${number}/${examCount} \u6b21\u6b63\u5f0f\u6d4b\u8bd5`);
     const description = compactText([
       `\u8003\u8bd5\u8ba1\u5212\uFF1A${summary}`,
       `\u79d1\u76ee\uFF1A${subject}`,
@@ -603,7 +608,9 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
       `\u65F6\u957F\uFF1A${durationMinutes} \u5206\u949F`,
       `\u901A\u8FC7\u7EBF\uFF1A${passingScore} \u5206`,
       `\u96BE\u5EA6\uFF1A${difficulty}`,
-      "\u8FD9\u662F\u6B63\u5F0F\u68C0\u6D4B\u5361\u7247\uFF0C\u96BE\u5EA6\u9AD8\u4E8E\u6BCF\u65E5\u5C0F\u6D4B\uFF1B\u4F4E\u4E8E\u901A\u8FC7\u7EBF\u65F6\u4E0D\u5B8C\u6210\u5361\u7247\uFF0C\u7EE7\u7EED\u4FDD\u6301\u91CD\u8003\u72B6\u6001\u3002",
+      subjectId === "programming"
+        ? "\u8FD9\u662F\u7F16\u7A0B\u6D4B\u9A8C\u5361\u7247\uFF1B\u5F00\u653E\u540E\u5148\u586B\u5199\u672C\u6B21\u7F16\u7A0B\u9700\u6C42\u3001\u6559\u5B66\u91CD\u70B9\u6216\u9879\u76EE\u80CC\u666F\uFF0CHermes Mobile \u518D\u751F\u6210\u9488\u5BF9\u6027\u8003\u9898\u3002\u4F4E\u4E8E\u901A\u8FC7\u7EBF\u65F6\u4E0D\u5B8C\u6210\u5361\u7247\uFF0C\u7EE7\u7EED\u4FDD\u6301\u91CD\u8003\u72B6\u6001\u3002"
+        : "\u8FD9\u662F\u6B63\u5F0F\u68C0\u6D4B\u5361\u7247\uFF0C\u96BE\u5EA6\u9AD8\u4E8E\u6BCF\u65E5\u5C0F\u6D4B\uFF1B\u4F4E\u4E8E\u901A\u8FC7\u7EBF\u65F6\u4E0D\u5B8C\u6210\u5361\u7247\uFF0C\u7EE7\u7EED\u4FDD\u6301\u91CD\u8003\u72B6\u6001\u3002",
       finalExam ? "\u8FD9\u662F\u5B66\u4E60\u8BA1\u5212\u7684\u6700\u7EC8\u9636\u6BB5\u8003\u8BD5\uFF1B\u53EA\u6709\u8FBE\u5230\u901A\u8FC7\u7EBF\u540E\uFF0C\u9636\u6BB5\u5B66\u4E60\u8BA1\u5212\u624D\u7B97\u5B8C\u6210\u3002" : "",
       blueprint ? `\u8003\u8BD5\u84DD\u56FE\uFF1A\n${blueprint}` : "",
     ].filter(Boolean).join("\n\n"), 1800);
@@ -613,8 +620,15 @@ function normalizeKanbanAssessmentPlan(raw = {}, workspaceId = "owner", options 
       dueTime: assessmentPlanDueTime(startDate, timeOfDay, index * intervalDays, options),
       description,
       config,
-      deliverables: ["\u6B63\u5F0F\u8003\u5377", "\u81EA\u52A8\u8BC4\u5206", "\u80FD\u529B\u8BCA\u65AD", "\u9519\u9898\u4E0E\u8865\u5F3A\u5EFA\u8BAE"],
-      acceptance: [
+      deliverables: subjectId === "programming"
+        ? ["\u672C\u6B21\u7F16\u7A0B\u9700\u6C42", "\u9488\u5BF9\u6027\u7F16\u7A0B\u6D4B\u9A8C", "\u81EA\u52A8\u8BC4\u5206", "\u9898\u76EE\u8BB2\u89E3\u548C\u7F16\u7A0B\u65E5\u5FD7"]
+        : ["\u6B63\u5F0F\u8003\u5377", "\u81EA\u52A8\u8BC4\u5206", "\u80FD\u529B\u8BCA\u65AD", "\u9519\u9898\u4E0E\u8865\u5F3A\u5EFA\u8BAE"],
+      acceptance: subjectId === "programming" ? [
+        "\u5DF2\u586B\u5199\u672C\u6B21\u7F16\u7A0B\u9700\u6C42\u6216\u6559\u5B66\u80CC\u666F",
+        `\u5B8C\u6210 ${questionCount} \u9898\u7F16\u7A0B\u6D4B\u9A8C`,
+        `\u5F97\u5206\u8FBE\u5230 ${passingScore}/100`,
+        "\u751F\u6210\u542B\u9898\u76EE\u8BB2\u89E3\u548C\u9700\u6C42\u6E05\u6D17\u7684\u7F16\u7A0B\u65E5\u5FD7",
+      ] : [
         `\u5B8C\u6210 ${questionCount} \u9898\u6B63\u5F0F\u6D4B\u8BD5`,
         `\u5F97\u5206\u8FBE\u5230 ${passingScore}/100`,
         "\u672A\u8FBE\u6807\u5219\u4FDD\u7559\u4E3A\u91CD\u8003\u72B6\u6001",

@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260515-answer-drafts";
+const HERMES_SW_VERSION = "20260515-programming-assessment";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,13 +8,13 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260515-answer-drafts",
+  "/styles.css?v=20260515-programming-assessment",
   "/app-task-artifact-helpers.js?v=20260515-kanban-story-helpers",
-  "/app-kanban-story-helpers.js?v=20260515-answer-drafts",
-  "/app-api-client.js?v=20260515-answer-drafts",
-  "/app.js?v=20260515-answer-drafts",
+  "/app-kanban-story-helpers.js?v=20260515-programming-assessment",
+  "/app-api-client.js?v=20260515-programming-assessment",
+  "/app.js?v=20260515-programming-assessment",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260515-answer-drafts",
+  "/markdown-renderer-client.js?v=20260515-programming-assessment",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

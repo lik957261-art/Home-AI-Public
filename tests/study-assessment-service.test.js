@@ -420,6 +420,7 @@ function testAssessmentPlanSubjectNormalization() {
   assert.equal(normalizeKanbanAssessmentSubjectId("\u79d1\u5b66 physics"), "science");
   assert.equal(normalizeKanbanAssessmentSubjectId("\u5386\u53f2"), "history");
   assert.equal(normalizeKanbanAssessmentSubjectId("\u8bed\u6587"), "chinese");
+  assert.equal(normalizeKanbanAssessmentSubjectId("Python \u7f16\u7a0b"), "programming");
   assert.equal(normalizeKanbanAssessmentSubjectId("Custom Domain"), "custom-domain");
 }
 
@@ -489,6 +490,7 @@ function testAssessmentPlanNormalizationMatchesServerPayload() {
     config: {
       schemaVersion: 1,
       kind: "assessment-plan",
+      template: "assessment",
       subject: "Math",
       subjectId: "math",
       learnerName: "Learner A",
@@ -498,6 +500,7 @@ function testAssessmentPlanNormalizationMatchesServerPayload() {
       passingScore: 85,
       difficulty: "foundation 30 / standard 50 / stretch 20",
       retakeUntilPass: true,
+      requiresRequirementInput: false,
       examIndex: 1,
       examCount: 2,
       finalExam: false,
@@ -514,6 +517,36 @@ function testAssessmentPlanNormalizationMatchesServerPayload() {
   assert.equal(plan.cards[1].title, "Learner AMath\u7b2c 2/2 \u6b21\u6b63\u5f0f\u6d4b\u8bd5");
   assert.equal(plan.cards[1].dueTime, "2026-05-22 19:15");
   assert.equal(plan.cards[1].config.examIndex, 2);
+}
+
+function testProgrammingAssessmentPlanRequiresPerCardInput() {
+  const plan = normalizeKanbanAssessmentPlan({
+    id: "programming-case-1",
+    subject: "Python \u7f16\u7a0b",
+    learnerName: "Learner P",
+    courseLevel: "\u521d\u7ea7 Python",
+    title: "\u7f16\u7a0b\u6545\u4e8b",
+    examCount: 1,
+    questionCount: 10,
+    startDate: "2026-05-15",
+    timeOfDay: "20:00",
+    blueprint: "\u6bcf\u5f20\u5361\u7247\u5f00\u653e\u540e\u586b\u5199\u672c\u6b21\u9700\u6c42\u518d\u51fa\u9898\u3002",
+  }, "owner");
+
+  assert.equal(plan.template, "programming");
+  assert.equal(plan.subjectId, "programming");
+  assert.equal(plan.cards.length, 1);
+  assert.equal(plan.cards[0].config.template, "programming");
+  assert.equal(plan.cards[0].config.requiresRequirementInput, true);
+  assert.match(plan.cards[0].title, /\u7f16\u7a0b\u6d4b\u9a8c/);
+  assert.match(plan.cards[0].description, /\u5148\u586b\u5199\u672c\u6b21\u7f16\u7a0b\u9700\u6c42/);
+  assert.deepEqual(plan.cards[0].deliverables, [
+    "\u672c\u6b21\u7f16\u7a0b\u9700\u6c42",
+    "\u9488\u5bf9\u6027\u7f16\u7a0b\u6d4b\u9a8c",
+    "\u81ea\u52a8\u8bc4\u5206",
+    "\u9898\u76ee\u8bb2\u89e3\u548c\u7f16\u7a0b\u65e5\u5fd7",
+  ]);
+  assert.match(plan.cards[0].acceptance.join("\n"), /\u7f16\u7a0b\u65e5\u5fd7/);
 }
 
 function testLinkedStudyAssessmentPlanFinalCard() {
@@ -550,6 +583,7 @@ testStudyPlanNormalizationMatchesServerPayload();
 testStudyPlanNormalizationCustomDefaultsAndRequiredTitle();
 testAssessmentPlanSubjectNormalization();
 testAssessmentPlanNormalizationMatchesServerPayload();
+testProgrammingAssessmentPlanRequiresPerCardInput();
 testLinkedStudyAssessmentPlanFinalCard();
 
 console.log("study-assessment-service tests passed");

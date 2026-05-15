@@ -280,6 +280,7 @@ const state = {
   todoAssessmentAnswers: {},
   todoAssessmentStep: {},
   todoAssessmentSubmitting: {},
+  todoAssessmentRequirementDrafts: {},
   pendingReadingQuizTodoId: "",
   pendingAssessmentExamTodoId: "",
   todoAutoRefreshTimer: 0,
@@ -8580,6 +8581,21 @@ function isKanbanAssessmentCard(todo) {
   return isKanbanAssessmentCase(todo) || isKanbanFinalStudyAssessment(todo);
 }
 
+function isKanbanProgrammingAssessmentCard(todo) {
+  if (!isKanbanAssessmentCard(todo)) return false;
+  const summary = todo?.assessmentExam && typeof todo.assessmentExam === "object" ? todo.assessmentExam : {};
+  const text = [
+    kanbanCaseTemplate(todo),
+    todo?.kanbanStudyKind,
+    todo?.kanbanAssessmentKind,
+    todo?.kanbanCaseSummary,
+    todo?.content,
+    summary.subject,
+    summary.subjectId,
+  ].filter(Boolean).join("\n");
+  return /programming|coding|python|javascript|typescript|java\b|c\+\+|c#|scratch|编程|程式|程序|代码|代碼|算法|开发|開發/i.test(text);
+}
+
 function kanbanStudyLabels(todo) {
   const reading = isKanbanReadingPlanCase(todo);
   return {
@@ -11004,12 +11020,21 @@ function renderKanbanAssessmentExamPanel(todo) {
       ? `上次 ${last.score}/100，通过线 ${last.passingScore || summary.passingScore || 80}；${last.passed ? "已通过" : "需要重考"}。`
       : (examAvailable ? "考试已生成，可继续查看或答题。" : (startable ? "考试已开放。开始后会生成正式单选考卷。" : "考试尚未开放，需要先通过前一张考试卡。"));
     const canOpenExam = (startable || examAvailable) && (canAnswer || passed);
-    const action = canOpenExam
-      ? `<button type="button" data-load-assessment-exam="${escapeHtml(todo.id)}">${escapeHtml(examAvailable ? "查看考卷" : "开始考试")}</button>`
-      : `<div class="todo-assessment-waiting-action" role="status">${escapeHtml(startable ? "当前账号无答题权限" : "等待前序考试通过")}</div>`;
+    const programming = isKanbanProgrammingAssessmentCard(todo);
+    const draft = state.todoAssessmentRequirementDrafts?.[todo.id] || "";
+    const action = programming && !examAvailable && startable && canAnswer
+      ? `<form class="todo-assessment-requirement-form" data-assessment-requirement-form="${escapeHtml(todo.id)}">
+        <label class="todo-panel-label" for="todoAssessmentRequirementText">本次编程要求</label>
+        <textarea id="todoAssessmentRequirementText" class="todo-input todo-comment-textarea" rows="4" data-assessment-requirement-input="${escapeHtml(todo.id)}" placeholder="填写老师教学重点、课堂表现、项目目标、想测试的知识点或代码练习要求">${escapeHtml(draft)}</textarea>
+        <button type="submit" data-start-assessment-exam="${escapeHtml(todo.id)}">生成编程测验</button>
+      </form>`
+      : (canOpenExam
+        ? `<button type="button" data-load-assessment-exam="${escapeHtml(todo.id)}">${escapeHtml(examAvailable ? "查看考卷" : "开始考试")}</button>`
+        : `<div class="todo-assessment-waiting-action" role="status">${escapeHtml(startable ? "当前账号无答题权限" : "等待前序考试通过")}</div>`);
+    const heading = programming ? "编程测验" : (summary.finalExam ? "最终综合考试" : "正式检测");
     return `<section class="todo-comment-panel todo-assessment-panel">
       <div class="todo-detail-deliverables-head">
-        <strong>${escapeHtml(summary.finalExam ? "最终综合考试" : "正式检测")}</strong>
+        <strong>${escapeHtml(heading)}</strong>
         <span>${escapeHtml(`${summary.questionCount || 20}题 / ${summary.durationMinutes || 30}分钟`)}</span>
       </div>
       <p class="todo-detail-muted">${escapeHtml(text)}</p>
@@ -11055,6 +11080,12 @@ function renderKanbanAssessmentExamPanel(todo) {
       <p>${escapeHtml(currentResult.explanation || "这题需要重新检查。")}</p>
     </div>`
     : "";
+  const passedExplanation = result?.passed && currentResult?.explanation
+    ? `<div class="reading-quiz-feedback" role="status">
+      <strong>第 ${step + 1} 题讲解</strong>
+      <p>${escapeHtml(currentResult.explanation)}</p>
+    </div>`
+    : "";
   return `<form class="todo-comment-panel todo-assessment-panel" data-assessment-exam-form="${escapeHtml(todo.id)}">
     <div class="todo-detail-deliverables-head">
       <strong>${escapeHtml(exam.title || "正式检测")}</strong>
@@ -11067,6 +11098,7 @@ function renderKanbanAssessmentExamPanel(todo) {
       <div class="reading-quiz-choices">${choices}</div>
     </article>
     ${wrongHint}
+    ${passedExplanation}
     <div class="todo-comment-actions">
       <button type="button" data-assessment-exam-prev="${escapeHtml(todo.id)}"${canPrev && !submitting ? "" : " disabled"}>上一题</button>
       <button type="button" data-assessment-exam-next="${escapeHtml(todo.id)}"${canNext && (passed || Number.isInteger(selected)) && !submitting ? "" : " disabled"}>下一题</button>
@@ -11826,6 +11858,19 @@ function wireTodoPanel(root) {
       loadAssessmentExam(button.dataset.loadAssessmentExam || "").catch(showError);
     });
   });
+  root.querySelectorAll("[data-assessment-requirement-form]").forEach((form) => {
+    const todoId = form.dataset.assessmentRequirementForm || "";
+    form.querySelector("[data-assessment-requirement-input]")?.addEventListener("input", (event) => {
+      if (todoId) state.todoAssessmentRequirementDrafts[todoId] = event.target.value || "";
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const requirement = form.querySelector("[data-assessment-requirement-input]")?.value || "";
+      if (todoId) state.todoAssessmentRequirementDrafts[todoId] = requirement;
+      loadAssessmentExam(todoId, { requirement }).catch(showError);
+    });
+  });
   root.querySelectorAll("[data-assessment-exam-choice]").forEach((input) => {
     input.addEventListener("change", () => {
       const todoId = input.dataset.assessmentExamChoice || "";
@@ -12460,14 +12505,24 @@ async function submitReadingQuiz(todoId) {
   }
 }
 
-async function loadAssessmentExam(todoId) {
+async function loadAssessmentExam(todoId, options = {}) {
   if (!todoId) return;
   state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId] || {}, { loading: true, error: "" });
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     const params = new URLSearchParams({ workspaceId: kanbanCardWorkspaceId(todoId) });
-    const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/assessment-exam?${params.toString()}`);
-    state.todoAssessmentExams[todoId] = { exam: result.exam, status: result.status || "", attempts: result.attempts || [] };
+    const requirement = String(options.requirement || "").trim();
+    const result = requirement
+      ? await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/assessment-exam`, {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: kanbanCardWorkspaceId(todoId),
+          generateOnly: true,
+          requirement,
+        }),
+      })
+      : await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/assessment-exam?${params.toString()}`);
+    state.todoAssessmentExams[todoId] = { exam: result.exam, status: result.status || "", attempts: result.attempts || [], result: result.result || null };
     replaceTodoDetailRouteFlag(todoId, "assessmentExam");
     const draft = applyAnswerDraft(
       "AssessmentExam",
@@ -12479,6 +12534,7 @@ async function loadAssessmentExam(todoId) {
     );
     state.todoAssessmentAnswers[todoId] = draft.answers;
     state.todoAssessmentStep[todoId] = draft.step;
+    if (requirement) delete state.todoAssessmentRequirementDrafts[todoId];
   } catch (err) {
     state.todoAssessmentExams[todoId] = { loading: false, error: err.message || String(err) };
   }

@@ -101,6 +101,10 @@ function makeRoutes(overrides = {}) {
       return { workspaceId: workspaceId || "owner", auth: { workspaceId: workspaceId || "owner" } };
     },
     sendJson,
+    async startKanbanAssessmentExam(workspaceId, cardId, body) {
+      calls.exams.push({ mode: "start", workspaceId, cardId, body });
+      return { ok: true, exam: { id: "exam" }, status: "in_progress" };
+    },
     async submitKanbanAssessmentExam(workspaceId, cardId, body) {
       calls.exams.push({ mode: "submit", workspaceId, cardId, body });
       return { ok: true, passed: Boolean(body.passed), card: { id: cardId } };
@@ -185,6 +189,16 @@ async function testAssessmentExamRoutes() {
   assert.equal(submit.res.statusCode, 200);
   assert.equal(calls.access.at(-1).capability, "answerQuiz");
   assert.equal(calls.broadcasts.at(-2).action, "assessment-retake");
+
+  const start = await request(routes, "POST", "/api/kanban/cards/exam-2/assessment-exam", { workspaceId: "owner", generateOnly: true, requirement: "Python loops" });
+  assert.equal(start.res.statusCode, 200);
+  assert.deepEqual(calls.exams.at(-1), {
+    mode: "start",
+    workspaceId: "owner",
+    cardId: "exam-2",
+    body: { workspaceId: "owner", generateOnly: true, requirement: "Python loops" },
+  });
+  assert.equal(calls.broadcasts.at(-2).action, "assessment-exam-started");
 }
 
 async function testDisabledAndBadBody() {

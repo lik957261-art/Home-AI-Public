@@ -2506,6 +2506,7 @@ const kanbanStudyApiRoutes = createKanbanStudyApiRoutes({
   requireWorkspaceAccess,
   resolveKanbanCardAccess,
   sendJson,
+  startKanbanAssessmentExam: (...args) => getAssessmentExamWorkflowService().startKanbanAssessmentExam(...args),
   submitKanbanAssessmentExam: (...args) => getAssessmentExamWorkflowService().submitKanbanAssessmentExam(...args),
   submitKanbanReadingQuiz: (...args) => kanbanReadingWorkflowService.submitKanbanReadingQuiz(...args),
   submitKanbanReadingSubmission: (...args) => kanbanReadingWorkflowService.submitKanbanReadingSubmission(...args),

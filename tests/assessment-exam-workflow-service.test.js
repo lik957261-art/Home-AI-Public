@@ -240,6 +240,40 @@ async function testModelGenerationUsesInjectedHermesAndSanitizedPrompt() {
   assert.match(calls.hermes[0].request.input, /Synthetic level/);
 }
 
+async function testProgrammingAssessmentRequiresPerCardRequirement() {
+  const marker = assessmentConfigLine({
+    subject: "Python 编程",
+    subjectId: "programming",
+    template: "programming",
+    questionCount: 5,
+    requiresRequirementInput: true,
+  });
+  const card = makeAssessmentCard("python-1", {}, {
+    id: "python-1",
+    kanbanCaseTemplate: "programming",
+    kanbanCaseCardGoal: `Generate a programming check.\n${marker}`,
+    kanbanCaseSourceText: `Python story blueprint.\n${marker}`,
+  });
+  const fixture = makeService({ cards: [card], modelSubject: "Python 编程" });
+  const missing = await fixture.service.getKanbanAssessmentExam("owner", "python-1");
+  assert.equal(missing.ok, false);
+  assert.equal(missing.status, 409);
+  assert.equal(missing.code, "programming_requirement_required");
+
+  const started = await fixture.service.startKanbanAssessmentExam("owner", "python-1", {
+    requirement: "根据老师重点生成 for 循环和列表索引题。",
+    context: "课堂表现：索引容易从 1 开始数。",
+  });
+  assert.equal(started.ok, true);
+  assert.equal(started.exam.subjectId, "programming");
+  assert.equal(fixture.calls.hermes.length, 1);
+  assert.match(fixture.calls.hermes[0].request.input, /Programming assessment template/);
+  assert.match(fixture.calls.hermes[0].request.input, /for/);
+  assert.match(fixture.calls.hermes[0].request.input, /list indexing|索引/);
+  const saved = fixture.states.get(stateKey("owner", "python-1"));
+  assert.equal(saved.config.sessionRequirement.requirement, "根据老师重点生成 for 循环和列表索引题。");
+}
+
 async function testPriorAssessmentGateBlocksUntilComplete() {
   const prior = makeAssessmentCard("prior", { subject: "Math", questionCount: 5 }, {
     kanbanCaseCardIndex: 1,
@@ -369,6 +403,45 @@ async function testDefaultReportWriterUsesCardArtifactDirectory() {
   assert.equal(saved.lastReportPath, result.reportPath);
 }
 
+async function testProgrammingPassWritesCompletionLogAndReturnsExplanations() {
+  const exam = parsedExam(5, "Python 编程");
+  const fixture = makeService({
+    useDefaultReportWriter: true,
+    cards: [makeAssessmentCard("python-2", {
+      subject: "Python 编程",
+      subjectId: "programming",
+      template: "programming",
+      questionCount: 5,
+    }, { kanbanCaseTemplate: "programming" })],
+    states: [[stateKey("owner", "python-2"), {
+      status: "in_progress",
+      config: {
+        subject: "Python 编程",
+        subjectId: "programming",
+        template: "programming",
+        questionCount: 5,
+        passingScore: 80,
+        sessionRequirement: { requirement: "测试函数和循环。", context: "项目练习：猜数字。" },
+      },
+      exam,
+      attempts: [],
+      startedAt: "2026-05-15T00:00:00.000Z",
+    }]],
+  });
+  const result = await fixture.service.submitKanbanAssessmentExam("owner", "python-2", {
+    answers: [0, 1, 2, 3, 0],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.passed, true);
+  assert.equal(result.results.length, 5);
+  assert.equal(result.results.every((item) => item.explanation), true);
+  assert.match(path.basename(result.reportPath), /programming-log\.md$/);
+  const markdown = fs.readFileSync(result.reportPath, "utf8");
+  assert.match(markdown, /Cleaned Programming Requirement/);
+  assert.match(markdown, /Question Analysis/);
+  assert.match(markdown, /测试函数和循环/);
+}
+
 async function testCompletionFailurePreservesRetakeRequiredState() {
   const exam = parsedExam(5, "English");
   const fixture = makeService({
@@ -423,11 +496,13 @@ async function run() {
   testPureHelpers();
   await testMathGenerationUsesDeterministicTemplates();
   await testModelGenerationUsesInjectedHermesAndSanitizedPrompt();
+  await testProgrammingAssessmentRequiresPerCardRequirement();
   await testPriorAssessmentGateBlocksUntilComplete();
   await testRevisionUsesOriginalEffectiveCaseIndexForOpenGate();
   await testFailedSubmissionWritesRetakeStateAndReport();
   await testPassedSubmissionCompletesCardAndReconciles();
   await testDefaultReportWriterUsesCardArtifactDirectory();
+  await testProgrammingPassWritesCompletionLogAndReturnsExplanations();
   await testCompletionFailurePreservesRetakeRequiredState();
   await testInvalidAnswersDoNotWriteReportOrMutate();
   console.log("assessment exam workflow service tests passed");

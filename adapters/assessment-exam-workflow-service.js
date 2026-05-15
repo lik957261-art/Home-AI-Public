@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const defaultAssessmentExamService = require("./assessment-exam-service");
+const defaultProgrammingAssessmentTemplateService = require("./programming-assessment-template-service");
 
 const ASSESSMENT_CASE_MODES = new Set(["assessment-plan"]);
 const DEFAULT_MAX_QUESTIONS = 40;
@@ -31,6 +32,7 @@ function safeSlug(value, fallback = "assessment") {
 
 function defaultNormalizeAssessmentSubjectId(value = "") {
   const text = cleanString(value).toLowerCase();
+  if (/programming|coding|python|javascript|typescript|java\b|c\+\+|c#|scratch|\u7f16\u7a0b|\u7a0b\u5f0f|\u7a0b\u5e8f|\u4ee3\u7801|\u4ee3\u78bc|\u7b97\u6cd5|\u5f00\u53d1|\u958b\u767c/.test(text)) return "programming";
   if (/math|\u6570\u5b66|\u6578\u5b78|amc/.test(text)) return "math";
   if (/english|\u82f1\u8bed|\u82f1\u6587|reading|language/.test(text)) return "english";
   if (/science|\u79d1\u5b66|\u79d1\u5b78|physics|chemistry|biology/.test(text)) return "science";
@@ -133,6 +135,8 @@ function publicAssessmentSummaryFromState(workspaceId, cardId, state = {}, confi
     durationMinutes: Number(state?.exam?.durationMinutes || config.durationMinutes || 30) || 30,
     passingScore: Number(state?.exam?.passingScore || config.passingScore || 80) || 80,
     finalExam: Boolean(config.finalExam),
+    requiresRequirementInput: Boolean(config.requiresRequirementInput),
+    requirementSubmitted: Boolean(state?.config?.sessionRequirement),
     verification: String(state?.exam?.verification || ""),
     lastAttempt: lastAttempt ? {
       submittedAt: lastAttempt.submittedAt || "",
@@ -147,6 +151,7 @@ function publicAssessmentSummaryFromState(workspaceId, cardId, state = {}, confi
 
 function createAssessmentExamWorkflowService(deps = {}) {
   const assessmentExamService = deps.assessmentExamService || defaultAssessmentExamService;
+  const programmingAssessmentTemplateService = deps.programmingAssessmentTemplateService || defaultProgrammingAssessmentTemplateService;
   const compactText = typeof deps.compactText === "function" ? deps.compactText : defaultCompactText;
   const normalizeAssessmentSubjectId = typeof deps.normalizeKanbanAssessmentSubjectId === "function"
     ? deps.normalizeKanbanAssessmentSubjectId
@@ -234,9 +239,18 @@ function createAssessmentExamWorkflowService(deps = {}) {
       card.kanban_case_source_text,
     ].filter(Boolean).join("\n")) || {}, input || {});
     const subject = compactText(parsed.subject || card.kanbanCaseTemplate || card.kanban_case_template || "assessment", 80);
+    const subjectId = normalizeAssessmentSubjectId(parsed.subjectId || parsed.subject_id || subject);
+    const template = compactText(parsed.template || parsed.assessmentTemplate || parsed.assessment_template || "", 60);
+    const programming = programmingAssessmentTemplateService.isProgrammingAssessmentConfig(Object.assign({}, parsed, {
+      subject,
+      subjectId,
+      template,
+    }), card);
+    const requiresRequirementInput = parsed.requiresRequirementInput ?? parsed.requires_requirement_input;
     return {
       subject,
-      subjectId: normalizeAssessmentSubjectId(parsed.subjectId || parsed.subject_id || subject),
+      subjectId,
+      template: template || (programming ? "programming" : "assessment"),
       learnerName: compactText(parsed.learnerName || parsed.learner_name || "\u5b66\u4e60\u8005", 80),
       courseLevel: compactText(parsed.courseLevel || parsed.course_level || "\u9636\u6bb5\u68c0\u6d4b", 80),
       questionCount: clampInt(parsed.questionCount || parsed.question_count, 5, maxQuestions, 20),
@@ -247,6 +261,8 @@ function createAssessmentExamWorkflowService(deps = {}) {
       examIndex: Number(parsed.examIndex || parsed.exam_index || card.kanbanCaseCardIndex || card.kanban_case_card_index || 1) || 1,
       examCount: Number(parsed.examCount || parsed.exam_count || card.kanbanCaseCardCount || card.kanban_case_card_count || 1) || 1,
       finalExam: Boolean(parsed.finalExam || parsed.final_exam),
+      requiresRequirementInput: requiresRequirementInput === undefined ? programming : Boolean(requiresRequirementInput),
+      sessionRequirement: parsed.sessionRequirement || parsed.session_requirement || null,
     };
   }
 
@@ -268,6 +284,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
       currentCard?.kanbanRevisionRequest || "",
       config.courseLevel || "",
       config.difficulty || "",
+      JSON.stringify(config.sessionRequirement || {}),
     ].join("\0");
   }
 
@@ -278,6 +295,10 @@ function createAssessmentExamWorkflowService(deps = {}) {
   }
 
   function buildAssessmentExamPrompt(workspaceId, currentCard = {}, config = {}) {
+    const programming = programmingAssessmentTemplateService.isProgrammingAssessmentConfig(config, currentCard);
+    const programmingRequirement = programming
+      ? programmingAssessmentTemplateService.normalizeProgrammingRequirement(config.sessionRequirement || config.requirement || {}, { compactText })
+      : null;
     return [
       "Generate a formal assessment exam as JSON only. No Markdown, no comments, no code fences.",
       "The exam must use single-answer multiple-choice questions.",
@@ -293,6 +314,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
       `Duration minutes: ${config.durationMinutes || 30}`,
       `Passing score: ${config.passingScore || 80}`,
       `Difficulty blueprint: ${config.difficulty || ""}`,
+      programming ? programmingAssessmentTemplateService.buildProgrammingAssessmentPromptLines(programmingRequirement).join("\n") : "",
       currentCard?.kanbanCaseCardGoal ? `Current card instruction:\n${compactText(stripAssessmentConfigMarkers(currentCard.kanbanCaseCardGoal), 1200)}` : "",
       currentCard?.kanbanCaseSourceText ? `Plan blueprint:\n${compactText(stripAssessmentConfigMarkers(currentCard.kanbanCaseSourceText), 5000)}` : "",
     ].filter(Boolean).join("\n\n");
@@ -409,15 +431,44 @@ function createAssessmentExamWorkflowService(deps = {}) {
       return deps.writeAssessmentExamReport(workspaceId, cardId, currentCard, exam, attempt);
     }
     const dir = reportDirectory(workspaceId, cardId, currentCard);
-    const mdPath = path.join(dir, `${nowMs()}-${safeFileName(currentCard?.content || cardId)}-assessment-report.md`);
-    const markdown = assessmentExamService.buildAssessmentExamReportMarkdown({
-      cardId,
-      cardTitle: currentCard?.content || exam.title || "Assessment Report",
-      exam,
-      attempt,
-    });
+    const programming = programmingAssessmentTemplateService.isProgrammingAssessmentConfig(exam || {}, currentCard);
+    const mdPath = path.join(dir, `${nowMs()}-${safeFileName(currentCard?.content || cardId)}-${programming ? "programming-log" : "assessment-report"}.md`);
+    const markdown = programming
+      ? programmingAssessmentTemplateService.buildProgrammingAssessmentLogMarkdown({
+        cardId,
+        cardTitle: currentCard?.content || exam.title || "Programming Assessment Log",
+        exam,
+        attempt,
+        requirement: attempt.sessionRequirement || {},
+      })
+      : assessmentExamService.buildAssessmentExamReportMarkdown({
+        cardId,
+        cardTitle: currentCard?.content || exam.title || "Assessment Report",
+        exam,
+        attempt,
+      });
     writeTextFile(mdPath, markdown);
     return mdPath;
+  }
+
+  function completedAssessmentResult(state = {}) {
+    const attempts = Array.isArray(state.attempts) ? state.attempts : [];
+    const last = attempts.length ? attempts[attempts.length - 1] : null;
+    if (!last || !last.passed) return null;
+    return {
+      passed: true,
+      status: "completed",
+      score: Number(last.score || 0),
+      correctCount: Number(last.correctCount || 0),
+      total: Number(last.total || 0),
+      passingScore: Number(last.passingScore || state.exam?.passingScore || state.config?.passingScore || 80),
+      results: (Array.isArray(last.results) ? last.results : []).map((item) => ({
+        id: item.id,
+        skill: item.skill,
+        correct: Boolean(item.correct),
+        explanation: item.explanation || "",
+      })),
+    };
   }
 
   async function mutateCard(payload) {
@@ -426,7 +477,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
     return { ok: false, error: "Kanban card mutation is not configured" };
   }
 
-  async function getKanbanAssessmentExam(workspaceId, cardId) {
+  async function startKanbanAssessmentExam(workspaceId, cardId, body = {}) {
     const context = await readingContextForCard(workspaceId, cardId);
     const currentCard = context.current || { id: cardId, content: cardId };
     if (!isAssessmentCard(currentCard)) {
@@ -443,21 +494,42 @@ function createAssessmentExamWorkflowService(deps = {}) {
         exam: publicKanbanAssessmentExam(existing.exam, existing),
         status: existing.status || "in_progress",
         attempts: attemptsPublicTail(existing.attempts),
+        result: completedAssessmentResult(existing),
       };
     }
     const config = assessmentConfigFromCard(currentCard);
-    const exam = await generateKanbanAssessmentExam(workspaceId, canonicalCardId, currentCard, config);
+    const programming = programmingAssessmentTemplateService.isProgrammingAssessmentConfig(config, currentCard);
+    let sessionRequirement = null;
+    if (programming) {
+      sessionRequirement = programmingAssessmentTemplateService.normalizeProgrammingRequirement(body, { compactText });
+      if (config.requiresRequirementInput !== false && !programmingAssessmentTemplateService.programmingRequirementHasContent(sessionRequirement)) {
+        return {
+          ok: false,
+          status: 409,
+          code: "programming_requirement_required",
+          error: "Programming assessment requires a current requirement before generating questions.",
+        };
+      }
+    }
+    const generationConfig = programming
+      ? Object.assign({}, config, { sessionRequirement })
+      : config;
+    const exam = await generateKanbanAssessmentExam(workspaceId, canonicalCardId, currentCard, generationConfig);
     const state = writeAssessmentExamState(workspaceId, canonicalCardId, currentCard, {
       status: "in_progress",
       workspaceId,
       cardId: canonicalCardId,
       cardTitle: currentCard.content || cardId,
-      config,
+      config: generationConfig,
       exam,
       startedAt: nowIso(),
       attempts: [],
     });
     return { ok: true, exam: publicKanbanAssessmentExam(exam, state), status: state.status, attempts: [] };
+  }
+
+  async function getKanbanAssessmentExam(workspaceId, cardId) {
+    return startKanbanAssessmentExam(workspaceId, cardId, {});
   }
 
   async function submitKanbanAssessmentExam(workspaceId, cardId, body = {}) {
@@ -468,6 +540,9 @@ function createAssessmentExamWorkflowService(deps = {}) {
     }
     const canonicalCardId = String(currentCard.id || cardId);
     let state = readAssessmentExamState(workspaceId, canonicalCardId, currentCard);
+    if (!state?.exam && (body.generateOnly || body.generate_only)) {
+      return startKanbanAssessmentExam(workspaceId, canonicalCardId, body);
+    }
     if (!state?.exam) {
       const generated = await getKanbanAssessmentExam(workspaceId, canonicalCardId);
       if (!generated.ok) return generated;
@@ -477,6 +552,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
     const graded = assessmentExamService.gradeAssessmentExam(exam, state, body, { nowIso });
     if (!graded.ok) return graded;
     const { attempt, correctCount, passed, passingScore, results, score, total } = graded;
+    attempt.sessionRequirement = state.config?.sessionRequirement || null;
     const reportPath = assessmentExamReportPath(workspaceId, canonicalCardId, currentCard, exam, attempt);
     const nextState = Object.assign({}, state, {
       status: passed ? "in_progress" : "retake_required",
@@ -555,6 +631,12 @@ function createAssessmentExamWorkflowService(deps = {}) {
       total,
       passingScore,
       reportPath,
+      results: results.map((item) => ({
+        id: item.id,
+        skill: item.skill,
+        correct: item.correct,
+        explanation: item.explanation || "",
+      })),
       card: publicTodo(completed),
     };
   }
@@ -585,6 +667,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
     publicKanbanAssessmentExam,
     publicKanbanAssessmentSummary,
     readAssessmentExamState,
+    startKanbanAssessmentExam,
     submitKanbanAssessmentExam,
     writeAssessmentExamState,
   };
