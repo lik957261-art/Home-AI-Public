@@ -16,6 +16,7 @@ const fileArtifactResolverService = require("../adapters/file-artifact-resolver-
 const fileResponseService = require("../adapters/file-response-service");
 const fileResourceService = require("../adapters/file-resource-service");
 const gatewayRunInstructionService = require("../adapters/gateway-run-instruction-service");
+const gatewayRunLifecycleService = require("../adapters/gateway-run-lifecycle-service");
 const gatewayStatusProjection = require("../adapters/gateway-status-projection");
 const groupChatSharedAttachmentService = require("../adapters/group-chat-shared-attachment-service");
 const requestContext = require("../adapters/request-context-provider");
@@ -104,6 +105,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof fileResourceService.publicFileMetadata, "function");
   assert.equal(typeof fileResourceService.previewStrategyForFile, "function");
   assert.equal(typeof gatewayRunInstructionService.createGatewayRunInstructionService, "function");
+  assert.equal(typeof gatewayRunLifecycleService.createGatewayRunLifecycleService, "function");
+  assert.equal(typeof gatewayRunLifecycleService.livenessDecisionAfterCheck, "function");
   assert.equal(typeof gatewayStatusProjection.createGatewayStatusProjection, "function");
   assert.equal(typeof gatewayStatusProjection.gatewayPoolStatusHealthy, "function");
   assert.equal(typeof groupChatSharedAttachmentService.createGroupChatSharedAttachmentService, "function");
