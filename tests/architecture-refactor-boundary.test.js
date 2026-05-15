@@ -26,6 +26,7 @@ const kanbanMaintenanceService = require("../adapters/kanban-maintenance-service
 const kanbanPlanService = require("../adapters/kanban-plan-service");
 const kanbanReadingWorkflowService = require("../adapters/kanban-reading-workflow-service");
 const kanbanStudyArtifactService = require("../adapters/kanban-study-artifact-service");
+const kanbanStudyPlanService = require("../adapters/kanban-study-plan-service");
 const kanbanStory = require("../adapters/kanban-story-provider");
 const localAutomationBridgeService = require("../adapters/local-automation-bridge-service");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
@@ -33,6 +34,7 @@ const markdownRenderer = require("../adapters/markdown-renderer");
 const naturalLanguageDraftService = require("../adapters/natural-language-draft-service");
 const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
 const runtimeStateRepository = require("../adapters/runtime-state-repository");
+const runtimeStateStoreService = require("../adapters/runtime-state-store-service");
 const sharedDirectoryProjectionService = require("../adapters/shared-directory-projection-service");
 const studyAssessmentService = require("../adapters/study-assessment-service");
 const threadViewService = require("../adapters/thread-view-service");
@@ -114,6 +116,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanPlanService.createKanbanPlanService, "function");
   assert.equal(typeof kanbanReadingWorkflowService.createKanbanReadingWorkflowService, "function");
   assert.equal(typeof kanbanStudyArtifactService.createKanbanStudyArtifactService, "function");
+  assert.equal(typeof kanbanStudyPlanService.createKanbanStudyPlanService, "function");
   assert.equal(typeof kanbanStory.groupKanbanCaseCards, "function");
   assert.equal(typeof kanbanStory.visibleKanbanCaseCards, "function");
   assert.equal(typeof kanbanStory.kanbanCardEffectiveCaseIndex, "function");
@@ -126,6 +129,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof naturalLanguageDraftService.extractJsonObject, "function");
   assert.equal(typeof ownerElevationGrantService.createOwnerElevationGrantService, "function");
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
+  assert.equal(typeof runtimeStateStoreService.createRuntimeStateStoreService, "function");
+  assert.equal(typeof runtimeStateStoreService.mergeRuntimeStateWithDefaults, "function");
   assert.equal(typeof sharedDirectoryProjectionService.createSharedDirectoryProjectionService, "function");
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(typeof threadViewService.createThreadViewService, "function");
