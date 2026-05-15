@@ -13571,42 +13571,12 @@ function renderKanbanTopicOutputChips(outputs) {
   return `<div class="kanban-topic-outputs">${chips}${extra}</div>`;
 }
 
-function renderSharedTopicKanbanProgress(group) {
-  if (!group?.sharedTopic && !group?.sourceThreadId) return "";
-  const storyGroup = kanbanStoryGroupForTopicGroup(group);
-  if (!storyGroup) return "";
-  const cards = kanbanStoryProgressItems(storyGroup);
-  const total = Number(cards[0]?.todo?.kanbanCaseCardCount || storyGroup.cards?.[0]?.todo?.kanbanCaseCardCount || cards.length || 0) || cards.length;
-  const completed = cards.filter((item) => kanbanStoryItemCompletedForProgress(storyGroup, item)).length;
-  const current = kanbanStoryCurrentItemForTopic(storyGroup);
-  const currentTodo = current?.todo || {};
-  const currentLabel = currentTodo.id
-    ? `当前：${compactDisplayText(currentTodo.content || currentTodo.id, 42)}`
-    : "";
-  const outputs = kanbanStoryTopicOutputs(storyGroup);
-  const assessment = (storyGroup.mode === "assessment-plan" ? kanbanAssessmentStoryVisibleCardItems(storyGroup) : [])
-    .map((item) => assessmentExamSummary(item.todo)?.lastAttempt)
-    .filter(Boolean)
-    .pop();
-  const assessmentText = assessment
-    ? `考试评价：${assessment.passed ? "通过" : "未通过"} ${Number(assessment.score || 0)}/100`
-    : "";
-  const feedback = assessmentText || (currentTodo.id ? kanbanCardStoryFeedbackLine(currentTodo) : "");
-  return `<div class="kanban-topic-progress">
-    <span>${escapeHtml(`进度 ${completed}/${total || cards.length || 0}`)}</span>
-    ${currentLabel ? `<span>${escapeHtml(currentLabel)}</span>` : ""}
-    ${feedback ? `<span>${escapeHtml(compactDisplayText(feedback, 80))}</span>` : ""}
-    ${renderKanbanTopicOutputChips(outputs)}
-  </div>`;
-}
-
 function renderTaskCard(group) {
-  const latestArtifact = latestTaskListDocument(group);
-  const skills = taskSkills(group);
   const sharedTopic = Boolean(group.sharedTopic || group.sourceThreadId);
-  const sharedTopicProgress = renderSharedTopicKanbanProgress(group);
+  const latestArtifact = sharedTopic ? null : latestTaskListDocument(group);
+  const skills = sharedTopic ? [] : taskSkills(group);
   const artifactChips = latestArtifact ? `<span class="task-doc-item">
-    <a class="task-doc-icon doc-${escapeHtml(artifactKind(latestArtifact))}" href="${escapeHtml(artifactHref(latestArtifact))}" target="_blank" rel="noopener" data-task-doc title="${escapeHtml(latestArtifact.name || latestArtifact.id || "document")}" aria-label="${escapeHtml(latestArtifact.name || latestArtifact.id || "document")}">
+    <a class="task-doc-icon doc-${escapeHtml(artifactKind(latestArtifact))}" href="${escapeHtml(artifactHref(latestArtifact))}" target="_blank" rel="noopener" data-task-doc title="${escapeHtml(artifactDisplayName(latestArtifact))}" aria-label="${escapeHtml(artifactDisplayName(latestArtifact))}">
       ${escapeHtml(iconForArtifact(latestArtifact))}
     </a>
     ${renderArtifactDirectoryButton(latestArtifact, { compact: true })}
@@ -13627,14 +13597,13 @@ function renderTaskCard(group) {
         <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled topic")}</span>
         <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}${sharedBadge}</span>
       </button>
-      ${sharedTopicProgress}
-      <div class="task-card-assets">
+      ${sharedTopic ? "" : `<div class="task-card-assets">
         <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Topic documents">
           ${artifactChips}
         </div>
         ${skillChips}
         ${renderTaskDirectoryBadges(group, { empty: true })}
-      </div>
+      </div>`}
     </div>
   </article>`;
 }
@@ -14522,7 +14491,7 @@ function renderArtifacts(artifacts) {
     <a class="artifact-card doc-${escapeHtml(artifactKind(artifact))}" href="${escapeHtml(artifactHref(artifact))}" target="_blank" rel="noopener" data-task-doc>
       <div class="artifact-icon">${escapeHtml(iconForArtifact(artifact))}</div>
       <div>
-        <div class="artifact-name">${escapeHtml(artifact.name || artifact.id)}</div>
+        <div class="artifact-name">${escapeHtml(artifactDisplayName(artifact))}</div>
         <div class="artifact-meta">${escapeHtml(`${artifact.mime || "file"} | ${formatBytes(artifact.size)}`)}</div>
       </div>
     </a>

@@ -83,6 +83,7 @@ function message(id, role, extra = {}) {
     "data.json",
     "notes.txt",
   ]);
+  assert.equal(helpers.artifactDisplayName({ id: "a1", name: "raw.md", displayName: "Readable Report" }), "Readable Report");
 }
 
 {

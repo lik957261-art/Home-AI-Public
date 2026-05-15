@@ -47,6 +47,9 @@ function createArtifactTextRegistrationService(options = {}) {
     return {
       id: id || stored?.id || "",
       name: value.name || stored?.name || id || "document",
+      displayName: value.displayName || stored?.displayName || "",
+      title: value.title || stored?.title || "",
+      label: value.label || stored?.label || "",
       mime: value.mime || stored?.mime || "",
       size: value.size || stored?.size || 0,
       url: value.url || (stored?.id ? `/api/artifacts/${encodeURIComponent(stored.id)}` : ""),

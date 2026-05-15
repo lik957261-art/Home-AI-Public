@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260515-assessment-story-results";
+const HERMES_SW_VERSION = "20260515-topic-list-lite";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,13 +8,13 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260515-assessment-story-results",
-  "/app-task-artifact-helpers.js?v=20260515-kanban-story-helpers",
-  "/app-kanban-story-helpers.js?v=20260515-assessment-story-results",
-  "/app-api-client.js?v=20260515-assessment-story-results",
-  "/app.js?v=20260515-assessment-story-results",
+  "/styles.css?v=20260515-topic-list-lite",
+  "/app-task-artifact-helpers.js?v=20260515-topic-list-lite",
+  "/app-kanban-story-helpers.js?v=20260515-topic-list-lite",
+  "/app-api-client.js?v=20260515-topic-list-lite",
+  "/app.js?v=20260515-topic-list-lite",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260515-assessment-story-results",
+  "/markdown-renderer-client.js?v=20260515-topic-list-lite",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

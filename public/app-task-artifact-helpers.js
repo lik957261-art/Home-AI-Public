@@ -260,7 +260,7 @@
   }
 
   function artifactDisplayName(artifact) {
-    return String(artifact?.name || artifact?.id || "document").trim();
+    return String(artifact?.displayName || artifact?.title || artifact?.label || artifact?.name || artifact?.id || "document").trim();
   }
 
   function artifactStem(artifact) {

@@ -42,6 +42,7 @@ try {
         path: reportPdf,
         displayPath: reportPdf,
         name: "report.pdf",
+        displayName: "Readable PDF",
         mime: "application/pdf",
         size: 1,
         threadId: "thread1",
@@ -150,6 +151,7 @@ try {
     assert.equal(compacted[0].name, "report.md");
     assert.match(compacted[0].url, /^\/api\/files\?threadId=thread1&path=/);
     assert.equal(compacted[1].id, "pdf1");
+    assert.equal(compacted[1].displayName, "Readable PDF");
   }
 
   {
