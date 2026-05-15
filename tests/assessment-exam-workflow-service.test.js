@@ -12,6 +12,11 @@ const {
   parseAssessmentConfigLine,
   stripAssessmentConfigMarkers,
 } = require("../adapters/assessment-exam-workflow-service");
+const {
+  kanbanCardEffectiveCaseIndex,
+  kanbanCardRevisionOf,
+  visibleKanbanCaseCards,
+} = require("../adapters/kanban-story-provider");
 
 function modelExamJson(count = 5, subject = "English") {
   return JSON.stringify({
@@ -70,11 +75,12 @@ function makeService(overrides = {}) {
     contexts: [],
     hermes: [],
     mutate: [],
+    listCards: [],
     reconcile: [],
     reports: [],
     warnings: [],
   };
-  const service = createAssessmentExamWorkflowService(Object.assign({
+  const deps = {
     automationCreateModel: "unit-model",
     compactText(value, maxChars = 1000) {
       const text = String(value ?? "").trim();
@@ -92,6 +98,10 @@ function makeService(overrides = {}) {
     },
     isKanbanStudyCaseMode: (mode) => String(mode || "") === "study-plan",
     kanbanCardProvider: {
+      async listCards(payload) {
+        calls.listCards.push(payload);
+        return { ok: true, data: cards };
+      },
       async mutateCard(payload) {
         calls.mutate.push(payload);
         if (payload.action === "complete" && overrides.completeFails) {
@@ -116,16 +126,6 @@ function makeService(overrides = {}) {
     randomHex: () => "abc123",
     readAssessmentExamState(workspaceId, cardId) {
       return states.get(stateKey(workspaceId, cardId)) || null;
-    },
-    async readingContextForCard(workspaceId, cardId) {
-      calls.contexts.push({ workspaceId, cardId });
-      const current = cards.find((card) => String(card.id) === String(cardId)) || null;
-      const caseId = String(current?.kanbanCaseId || "");
-      const siblings = caseId ? cards
-        .filter((card) => String(card.kanbanCaseId || "") === caseId)
-        .sort((a, b) => Number(a.kanbanCaseCardIndex || 0) - Number(b.kanbanCaseCardIndex || 0)) : [];
-      const prior = siblings.filter((card) => Number(card.kanbanCaseCardIndex || 0) < Number(current?.kanbanCaseCardIndex || 0));
-      return { current, siblings, rawSiblings: siblings, prior };
     },
     safeFileName(value) {
       return path.basename(String(value || "file")).replace(/[^A-Za-z0-9_.-]+/g, "_") || "file";
@@ -154,7 +154,23 @@ function makeService(overrides = {}) {
         calls.warnings.push({ message, meta });
       },
     },
-  }, overrides.deps || {}));
+    kanbanCardEffectiveCaseIndex,
+    kanbanCardRevisionOf,
+    visibleKanbanCaseCards,
+  };
+  if (!overrides.useProviderContext) {
+    deps.readingContextForCard = async function readingContextForCard(workspaceId, cardId) {
+      calls.contexts.push({ workspaceId, cardId });
+      const current = cards.find((card) => String(card.id) === String(cardId)) || null;
+      const caseId = String(current?.kanbanCaseId || "");
+      const siblings = caseId ? cards
+        .filter((card) => String(card.kanbanCaseId || "") === caseId)
+        .sort((a, b) => Number(a.kanbanCaseCardIndex || 0) - Number(b.kanbanCaseCardIndex || 0)) : [];
+      const prior = siblings.filter((card) => Number(card.kanbanCaseCardIndex || 0) < Number(current?.kanbanCaseCardIndex || 0));
+      return { current, siblings, rawSiblings: siblings, prior };
+    };
+  }
+  const service = createAssessmentExamWorkflowService(Object.assign(deps, overrides.deps || {}));
   return { root, states, cards, calls, service };
 }
 
@@ -230,6 +246,35 @@ async function testPriorAssessmentGateBlocksUntilComplete() {
   fixture.states.set(stateKey("owner", "prior"), { status: "completed", completionError: "" });
   const allowed = await fixture.service.getKanbanAssessmentExam("owner", "current");
   assert.equal(allowed.ok, true);
+}
+
+async function testRevisionUsesOriginalEffectiveCaseIndexForOpenGate() {
+  const original = makeAssessmentCard("exam-1", { subject: "Math", questionCount: 5 }, {
+    kanbanCaseCardIndex: 1,
+    kanbanCaseCardCount: 10,
+    content: "Original first assessment",
+  });
+  const second = makeAssessmentCard("exam-2", { subject: "Math", questionCount: 5 }, {
+    kanbanCaseCardIndex: 2,
+    kanbanCaseCardCount: 10,
+    content: "Second assessment",
+  });
+  const revision = makeAssessmentCard("exam-1-revision", { subject: "Math", questionCount: 5 }, {
+    kanbanCaseCardIndex: 11,
+    kanbanCaseCardCount: 11,
+    kanbanRevisionOf: "exam-1",
+    content: "Revision of first assessment",
+  });
+  const fixture = makeService({
+    cards: [original, second, revision],
+    useProviderContext: true,
+  });
+  const result = await fixture.service.getKanbanAssessmentExam("owner", "exam-1-revision");
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "in_progress");
+  assert.equal(fixture.calls.listCards.length, 1);
+  assert.equal(fixture.states.has(stateKey("owner", "exam-1-revision")), true);
+  assert.equal(fixture.states.has(stateKey("owner", "exam-2")), false);
 }
 
 async function testFailedSubmissionWritesRetakeStateAndReport() {
@@ -345,6 +390,7 @@ async function run() {
   await testMathGenerationUsesDeterministicTemplates();
   await testModelGenerationUsesInjectedHermesAndSanitizedPrompt();
   await testPriorAssessmentGateBlocksUntilComplete();
+  await testRevisionUsesOriginalEffectiveCaseIndexForOpenGate();
   await testFailedSubmissionWritesRetakeStateAndReport();
   await testPassedSubmissionCompletesCardAndReconciles();
   await testCompletionFailurePreservesRetakeRequiredState();

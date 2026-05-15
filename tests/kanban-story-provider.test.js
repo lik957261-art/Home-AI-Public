@@ -308,6 +308,24 @@ function run() {
   assert.equal(kanbanCardEffectiveCaseIndex(rawVisible[0], rawById), 1);
   assert.equal(kanbanCardUpdatedTimestamp(rawVisible[0]), Date.parse("2026-05-14T10:20:00.000Z"));
 
+  const rawAssessmentRevisionCards = [
+    { id: "assessment-base-1", kanbanCaseMode: "assessment-plan", kanbanCaseCardIndex: 1, updatedAt: "2026-05-14T10:00:00.000Z" },
+    { id: "assessment-base-2", kanbanCaseMode: "assessment-plan", kanbanCaseCardIndex: 2, updatedAt: "2026-05-14T10:05:00.000Z" },
+    {
+      id: "assessment-rev-1",
+      kanbanCaseMode: "assessment-plan",
+      kanbanRevisionOf: "assessment-base-1",
+      kanbanRevisionCount: 1,
+      kanbanCaseCardIndex: 11,
+      updatedAt: "2026-05-14T10:10:00.000Z",
+    },
+  ];
+  const rawAssessmentById = new Map(rawAssessmentRevisionCards.map((card) => [card.id, card]));
+  const rawAssessmentVisible = visibleKanbanCaseCards(rawAssessmentRevisionCards);
+  assert.deepEqual(rawAssessmentVisible.map((card) => card.id), ["assessment-rev-1", "assessment-base-2"]);
+  assert.equal(kanbanCardEffectiveCaseIndex(rawAssessmentVisible[0], rawAssessmentById), 1);
+  assert.equal(kanbanCardEffectiveCaseIndex(rawAssessmentVisible[1], rawAssessmentById), 2);
+
   const single = byCaseId(groups, "single-card-direct-card");
   assert.equal(single.caseMode, "single-card");
   assert.equal(single.ownerWorkspaceId, "owner");

@@ -33,14 +33,23 @@ function createService(overrides = {}) {
     publicKanbanAssessmentSummary(_workspaceId, card) {
       if (String(card.id) === "assessment-complete") return { status: "completed" };
       if (String(card.id) === "assessment-passed-attempt") return { status: "retake_required", attempts: [{ passed: true }] };
+      if (String(card.id) === "assessment-locked") return { status: "pending", examAvailable: false };
       return { status: "retake_required", examAvailable: true };
     },
     deriveKanbanWorkflowState(input) {
       calls.workflowInputs.push(input);
       const card = input.card || {};
       if (card.assessmentExam) {
+        const assessment = card.assessmentExam || {};
+        let phase = "locked";
+        if (assessment.status === "completed") phase = "completed";
+        else if (assessment.status === "retake_required") phase = "retake_required";
+        else if (assessment.examAvailable || assessment.status === "in_progress") phase = "in_progress";
+        else if (input.priorComplete === true) phase = "exam_open";
         return {
           kind: card.kanbanCaseTemplate === "final-assessment" ? "final-assessment" : "assessment",
+          phase,
+          completed: phase === "completed",
           priorContextComplete: input.priorComplete,
         };
       }
@@ -176,9 +185,18 @@ function run() {
     completed_at: "2026-05-15T10:00:00Z",
   }));
   assert.equal(blockedAssessment.status, "open");
-  assert.equal(blockedAssessment.kanbanStatus, "blocked");
+  assert.equal(blockedAssessment.kanbanStatus, "running");
   assert.equal(blockedAssessment.kanbanAssessmentKind, "exam");
   assert.equal(blockedAssessment.assessmentWorkflow.kind, "assessment");
+
+  const lockedAssessment = service.publicTodo(row("assessment-locked", {
+    kanban_case_mode: "assessment-plan",
+    kanban_case_template: "exam",
+    kanban_status: "ready",
+    status: "open",
+  }));
+  assert.equal(lockedAssessment.kanbanStatus, "blocked");
+  assert.equal(lockedAssessment.assessmentWorkflow.phase, "locked");
 
   const rows = [
     row("study-complete", {
@@ -233,6 +251,55 @@ function run() {
   const final = service.publicTodo(finalRows[2], 2, finalRows);
   assert.equal(final.assessmentWorkflow.kind, "final-assessment");
   assert.equal(final.assessmentWorkflow.priorContextComplete, false);
+
+  const revisionService = createTodoPublicProjectionService({
+    publicKanbanAssessmentSummary() {
+      return { status: "pending", examAvailable: false };
+    },
+  });
+  const revisionRows = [
+    row("assessment-1", {
+      kanban_case_id: "assessment-revision-case",
+      kanban_case_mode: "assessment-plan",
+      kanban_case_template: "math",
+      kanban_case_card_id: "assessment-exam-1",
+      kanban_case_card_index: 1,
+      kanban_case_card_count: 10,
+      kanban_status: "blocked",
+      status: "open",
+    }),
+    row("assessment-2", {
+      kanban_case_id: "assessment-revision-case",
+      kanban_case_mode: "assessment-plan",
+      kanban_case_template: "math",
+      kanban_case_card_id: "assessment-exam-2",
+      kanban_case_card_index: 2,
+      kanban_case_card_count: 10,
+      kanban_case_depends_on: ["assessment-exam-1"],
+      kanban_status: "blocked",
+      status: "open",
+    }),
+    row("assessment-1-revision", {
+      kanban_case_id: "assessment-revision-case",
+      kanban_case_mode: "assessment-plan",
+      kanban_case_template: "math",
+      kanban_case_card_id: "assessment-exam-1-revision-1",
+      kanban_case_card_index: 11,
+      kanban_case_card_count: 11,
+      kanban_case_depends_on: ["assessment-exam-1"],
+      kanban_revision_of: "assessment-1",
+      kanban_revision_count: 1,
+      kanban_status: "blocked",
+      status: "open",
+    }),
+  ];
+  const projectedRevision = revisionService.publicTodo(revisionRows[2], 2, revisionRows);
+  assert.equal(projectedRevision.assessmentWorkflow.phase, "exam_open");
+  assert.equal(projectedRevision.assessmentWorkflow.priorContextComplete, true);
+  assert.equal(projectedRevision.kanbanStatus, "todo");
+  const projectedSecondAfterRevision = revisionService.publicTodo(revisionRows[1], 1, revisionRows);
+  assert.equal(projectedSecondAfterRevision.assessmentWorkflow.phase, "locked");
+  assert.equal(projectedSecondAfterRevision.kanbanStatus, "blocked");
 
   const passedStudy = service.publicTodo(row("study-passed-attempt", {
     kanban_case_mode: "study-plan",

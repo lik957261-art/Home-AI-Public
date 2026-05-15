@@ -6018,6 +6018,20 @@ button.directory-alias-chip {
   font-weight: 600;
 }
 
+.todo-assessment-waiting-action {
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0 11px;
+  color: var(--muted);
+  background: rgba(20, 32, 39, 0.035);
+  border: 1px solid rgba(20, 32, 39, 0.1);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
 .todo-card-actions [data-cancel-todo],
 .todo-detail-actions [data-cancel-todo] {
   color: var(--danger);

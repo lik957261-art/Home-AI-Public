@@ -8945,6 +8945,14 @@ function todoStatusText(todo) {
 
 function normalizedKanbanStatus(todo) {
   const status = String(todo?.kanbanStatus || todo?.kanban_status || "").trim().toLowerCase();
+  if (isKanbanAssessmentCard(todo)) {
+    const workflow = todoWorkflowState(todo);
+    const phase = String(workflow?.phase || "").trim().toLowerCase();
+    if (phase === "archived") return "archived";
+    if (phase === "locked") return "blocked";
+    if (phase === "exam_open") return "todo";
+    if (phase === "in_progress" || phase === "retake_required") return "running";
+  }
   if (
     isKanbanAssessmentCard(todo)
     && status === "done"
@@ -9209,7 +9217,9 @@ function assessmentPriorComplete(todo) {
 function assessmentCardAcceptsStart(todo) {
   if (!isKanbanAssessmentCard(todo) || assessmentExamCompleted(todo)) return false;
   const workflow = todoWorkflowState(todo);
-  if (workflow && Object.prototype.hasOwnProperty.call(workflow, "canStartExam")) return Boolean(workflow.canStartExam);
+  if (workflow && Object.prototype.hasOwnProperty.call(workflow, "canStartExam")) {
+    return Boolean(workflow.canStartExam || workflow.canAnswerQuiz);
+  }
   const status = normalizedKanbanStatus(todo);
   if (status === "archived") return false;
   return assessmentPriorComplete(todo);
@@ -10782,18 +10792,31 @@ function renderKanbanAssessmentExamPanel(todo) {
   const submitting = Boolean(state.todoAssessmentSubmitting?.[todo.id]);
   const passed = assessmentExamCompleted(todo);
   const startable = assessmentCardAcceptsStart(todo);
+  const workflow = todoWorkflowState(todo);
+  const workflowPhase = String(workflow?.phase || "").trim().toLowerCase();
   if (!examState) {
     const last = summary.lastAttempt;
+    const examAvailable = Boolean(
+      summary.examAvailable
+      || passed
+      || workflowPhase === "in_progress"
+      || workflowPhase === "retake_required"
+      || workflow?.canAnswerQuiz
+    );
     const text = last
       ? `上次 ${last.score}/100，通过线 ${last.passingScore || summary.passingScore || 80}；${last.passed ? "已通过" : "需要重考"}。`
-      : (startable ? "考试已开放。开始后会生成正式单选考卷。" : "考试尚未开放，需要先通过前一张考试卡。");
+      : (examAvailable ? "考试已生成，可继续查看或答题。" : (startable ? "考试已开放。开始后会生成正式单选考卷。" : "考试尚未开放，需要先通过前一张考试卡。"));
+    const canOpenExam = (startable || examAvailable) && (canAnswer || passed);
+    const action = canOpenExam
+      ? `<button type="button" data-load-assessment-exam="${escapeHtml(todo.id)}">${escapeHtml(examAvailable ? "查看考卷" : "开始考试")}</button>`
+      : `<div class="todo-assessment-waiting-action" role="status">${escapeHtml(startable ? "当前账号无答题权限" : "等待前序考试通过")}</div>`;
     return `<section class="todo-comment-panel todo-assessment-panel">
       <div class="todo-detail-deliverables-head">
         <strong>${escapeHtml(summary.finalExam ? "最终综合考试" : "正式检测")}</strong>
         <span>${escapeHtml(`${summary.questionCount || 20}题 / ${summary.durationMinutes || 30}分钟`)}</span>
       </div>
       <p class="todo-detail-muted">${escapeHtml(text)}</p>
-      <button type="button" data-load-assessment-exam="${escapeHtml(todo.id)}"${(!startable && !summary.examAvailable) || (!canAnswer && !passed) ? " disabled" : ""}>${escapeHtml(summary.examAvailable || passed ? "查看考卷" : "开始考试")}</button>
+      ${action}
     </section>`;
   }
   if (examState.loading) {

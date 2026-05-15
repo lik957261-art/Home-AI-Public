@@ -57,6 +57,18 @@ function kanbanWorkflowStateCompleted(state = {}, officialDone = false) {
   return Boolean(officialDone && kanbanHasPassedAttempt(state));
 }
 
+function projectedWorkflowKanbanStatus(payload = {}, workflowState = {}) {
+  const kind = String(workflowState?.kind || "").trim();
+  if (kind !== "assessment" && kind !== "final-assessment") return "";
+  const phase = String(workflowState?.phase || "").trim().toLowerCase();
+  if (!phase || phase === "completed") return "";
+  if (phase === "archived") return "archived";
+  if (phase === "locked") return "blocked";
+  if (phase === "exam_open") return "todo";
+  if (phase === "in_progress" || phase === "retake_required") return "running";
+  return "";
+}
+
 function createTodoPublicProjectionService(options = {}) {
   const publicKanbanOutputsFromText = typeof options.publicKanbanOutputsFromText === "function"
     ? options.publicKanbanOutputsFromText
@@ -273,6 +285,8 @@ function createTodoPublicProjectionService(options = {}) {
       payload.workflowState = workflowState;
       if (workflowState.kind === "reading" || workflowState.kind === "study") payload.studyWorkflow = workflowState;
       if (workflowState.kind === "assessment" || workflowState.kind === "final-assessment") payload.assessmentWorkflow = workflowState;
+      const projectedStatus = projectedWorkflowKanbanStatus(payload, workflowState);
+      if (projectedStatus) payload.kanbanStatus = projectedStatus;
     }
     return payload;
   }
@@ -293,5 +307,6 @@ module.exports = {
   kanbanHasPassedAttempt,
   kanbanWorkflowStateCompleted,
   normalizeStringList,
+  projectedWorkflowKanbanStatus,
   publicTodoOptions,
 };

@@ -295,6 +295,35 @@ async function run() {
   assert.equal(assessmentRevision.kanban_case_card_count, 10);
   assert.deepEqual(assessmentRevision.kanban_case_depends_on, []);
 
+  const firstAssessment = await provider.run({
+    action: "add",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    assignee: "weixin_stephen",
+    content: "Math formal assessment 1",
+    case_id: "assessment-case-first",
+    case_mode: "assessment-plan",
+    case_template: "math",
+    case_card_id: "assessment-exam-1",
+    case_card_index: 1,
+    case_card_count: 10,
+    case_depends_on: [],
+  });
+  assert.equal(firstAssessment.ok, true);
+  const firstAssessmentRevision = await provider.run({
+    action: "revise",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: firstAssessment.id,
+    comment: "adjust the first assessment",
+  });
+  assert.equal(firstAssessmentRevision.ok, true);
+  assert.equal(firstAssessmentRevision.kanban_revision_of, firstAssessment.id);
+  assert.equal(firstAssessmentRevision.kanban_case_mode, "assessment-plan");
+  assert.equal(firstAssessmentRevision.kanban_case_card_index, 1);
+  assert.equal(firstAssessmentRevision.kanban_case_card_count, 10);
+  assert.deepEqual(firstAssessmentRevision.kanban_case_depends_on, []);
+
   const listedWithClosed = await provider.run({
     action: "list",
     workspace_id: "weixin_stephen",
