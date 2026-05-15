@@ -28,6 +28,7 @@ const kanbanStudyArtifactService = require("../adapters/kanban-study-artifact-se
 const kanbanStory = require("../adapters/kanban-story-provider");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
 const markdownRenderer = require("../adapters/markdown-renderer");
+const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
 const runtimeStateRepository = require("../adapters/runtime-state-repository");
 const studyAssessmentService = require("../adapters/study-assessment-service");
 const threadViewService = require("../adapters/thread-view-service");
@@ -114,6 +115,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof localWorkspaceStoreService.workspaceIdSlug, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
+  assert.equal(typeof ownerElevationGrantService.createOwnerElevationGrantService, "function");
   assert.equal(typeof runtimeStateRepository.createRuntimeStateRepository, "function");
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(typeof threadViewService.createThreadViewService, "function");
@@ -193,6 +195,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /webPushDeliveryService\.sendPushNotification/);
   assert.match(server, /createOwnerElevationApiRoutes/);
   assert.match(server, /ownerElevationApiRoutes\.handle\(req, res, url\)/);
+  assert.match(server, /createOwnerElevationGrantService/);
+  assert.match(server, /getOwnerElevationGrantService\(\)\.publicStatus\(auth\)/);
+  assert.match(server, /getOwnerElevationGrantService\(\)\.consumeOnce\(auth, token\)/);
   assert.match(server, /createWorkspaceApiRoutes/);
   assert.match(server, /workspaceApiRoutes\.handle\(req, res, url/);
   assert.match(server, /createAccessKeyApiRoutes/);

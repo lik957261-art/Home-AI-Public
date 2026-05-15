@@ -33,8 +33,10 @@ function main() {
   assertContains("server.js", /createEgressPolicyProvider/, "egress policy provider must be wired");
   assertContains("server.js", /createAuditEventProvider/, "audit event provider must be wired");
   assertContains("server.js", /deriveKanbanWorkflowState/, "study workflow state must be server-derived");
-  assertContains("server.js", /grantId: `owner-(?:once|time)-/, "Owner elevation grants must carry stable grant ids");
-  assertContains("server.js", /allowedWorkerSecurityLevel: "owner-maintenance"/, "Owner grants must name the allowed worker level");
+  assertContains("server.js", /createOwnerElevationGrantService/, "Owner elevation grant service must be wired");
+  assertContains("adapters/owner-elevation-grant-service.js", /grantId: `owner-(?:once|time)-/, "Owner elevation grants must carry stable grant ids");
+  assertContains("adapters/owner-elevation-grant-service.js", /allowedWorkerSecurityLevel: "owner-maintenance"/, "Owner grants must name the allowed worker level");
+  assertContains("adapters/owner-elevation-grant-service.js", /delete copy\.token/, "Owner elevation status and audit projections must redact one-shot tokens");
 
   assertContains("server.js", /createFileArtifactApiRoutes[\s\S]{0,600}resolveArtifactForRequest/, "artifact read must be wired through the file artifact route module");
   assertContains("server.js", /createFileArtifactApiRoutes[\s\S]{0,600}resolveFileForBrowserRequest/, "file read/preview must be wired through the file artifact route module");

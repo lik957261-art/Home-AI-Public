@@ -31,6 +31,7 @@ const { createGatewayRunInstructionService } = require("./adapters/gateway-run-i
 const { createGatewayStatusProjection, gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
 const { createGroupChatSharedAttachmentService } = require("./adapters/group-chat-shared-attachment-service");
+const { createOwnerElevationGrantService } = require("./adapters/owner-elevation-grant-service");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createKanbanAssigneePolicy } = require("./adapters/kanban-assignee-policy");
 const { createKanbanCaseShareService } = require("./adapters/kanban-case-share-service");
@@ -331,8 +332,6 @@ const OWNER_ELEVATION_DURATION_OPTIONS_MINUTES = normalizeOwnerElevationDuration
 const OWNER_ELEVATION_DEFAULT_MINUTES = OWNER_ELEVATION_DURATION_OPTIONS_MINUTES.includes(15)
   ? 15
   : OWNER_ELEVATION_DURATION_OPTIONS_MINUTES[0];
-let ownerElevationGrant = null;
-let ownerElevationOnceGrants = new Map();
 const OWNER_ELEVATION_ONCE_TTL_MS = Number(process.env.HERMES_MOBILE_OWNER_ELEVATION_ONCE_TTL_MS || process.env.HERMES_WEB_OWNER_ELEVATION_ONCE_TTL_MS || "120000");
 const WEB_PUSH_ENABLED = !/^(0|false|no|off)$/i.test(process.env.HERMES_WEB_PUSH_ENABLED || process.env.WEB_PUSH_ENABLED || "1");
 const WEB_PUSH_SUBJECT = process.env.WEB_PUSH_SUBJECT || process.env.HERMES_WEB_PUSH_SUBJECT || "mailto:hermes-mobile@example.invalid";
@@ -486,6 +485,7 @@ let state = null;
 let sqliteServiceStore = null;
 let threadViewService = null;
 let localWorkspaceStoreService = null;
+let ownerElevationGrantService = null;
 let weixinFileForwardService = null;
 let weixinForwardService = null;
 let weixinOutboundDeliveryService = null;
@@ -1654,168 +1654,50 @@ function isOwnerAuth(auth) {
   return authProvider.isOwnerAuth(auth);
 }
 
-function currentOwnerElevationGrant(now = Date.now()) {
-  if (!ownerElevationGrant || !ownerElevationGrant.expiresAtMs || ownerElevationGrant.expiresAtMs <= now) {
-    ownerElevationGrant = null;
-    return null;
+function getOwnerElevationGrantService() {
+  if (!ownerElevationGrantService) {
+    ownerElevationGrantService = createOwnerElevationGrantService({
+      isOwnerAuth,
+      maintenanceRunsEnabled: () => OWNER_MAINTENANCE_RUNS_ENABLED,
+      durationOptionsMinutes: OWNER_ELEVATION_DURATION_OPTIONS_MINUTES,
+      defaultDurationMinutes: OWNER_ELEVATION_DEFAULT_MINUTES,
+      onceTtlMs: OWNER_ELEVATION_ONCE_TTL_MS,
+      audit: (eventType, payload) => auditEventProvider.audit(eventType, payload),
+    });
   }
-  return ownerElevationGrant;
+  return ownerElevationGrantService;
+}
+
+function currentOwnerElevationGrant(now = Date.now()) {
+  return getOwnerElevationGrantService().currentGrant(now);
 }
 
 function isOwnerElevationActive(auth) {
-  return Boolean(isOwnerAuth(auth) && OWNER_MAINTENANCE_RUNS_ENABLED && currentOwnerElevationGrant());
+  return getOwnerElevationGrantService().isActive(auth);
 }
 
 function pruneOwnerElevationOnceGrants(now = Date.now()) {
-  for (const [token, grant] of ownerElevationOnceGrants.entries()) {
-    if (!grant?.expiresAtMs || grant.expiresAtMs <= now) ownerElevationOnceGrants.delete(token);
-  }
+  return getOwnerElevationGrantService().pruneOnceGrants(now);
 }
 
 function grantOwnerElevationOnce(auth) {
-  if (!isOwnerAuth(auth)) {
-    const err = new Error("Owner access is required");
-    err.status = 403;
-    throw err;
-  }
-  if (!OWNER_MAINTENANCE_RUNS_ENABLED) {
-    const err = new Error("Owner maintenance runs are disabled by server configuration");
-    err.status = 409;
-    throw err;
-  }
-  pruneOwnerElevationOnceGrants();
-  const token = crypto.randomBytes(24).toString("base64url");
-  const grantedAtMs = Date.now();
-  const ttlMs = Math.max(30_000, OWNER_ELEVATION_ONCE_TTL_MS || 120_000);
-  const grant = {
-    grantId: `owner-once-${grantedAtMs}-${crypto.randomBytes(3).toString("hex")}`,
-    token,
-    grantedAt: new Date(grantedAtMs).toISOString(),
-    expiresAt: new Date(grantedAtMs + ttlMs).toISOString(),
-    expiresAtMs: grantedAtMs + ttlMs,
-    grantedBy: auth.principalId || auth.workspaceId || "owner",
-    allowedWorkerSecurityLevel: "owner-maintenance",
-    allowedOperations: ["single_run"],
-    maxInvocations: 1,
-  };
-  ownerElevationOnceGrants.set(token, grant);
-  auditEventProvider.audit("owner_elevation_once_granted", {
-    actorWorkspaceId: auth.workspaceId || "owner",
-    actorPrincipalId: auth.principalId || "owner",
-    targetType: "owner_elevation",
-    targetId: grant.grantId,
-    action: "grant_once",
-    decision: "allow",
-    grant,
-  });
-  return grant;
+  return getOwnerElevationGrantService().grantOnce(auth);
 }
 
 function consumeOwnerElevationOnce(auth, token) {
-  if (!isOwnerAuth(auth) || !OWNER_MAINTENANCE_RUNS_ENABLED) return false;
-  const normalized = String(token || "").trim();
-  if (!normalized) return false;
-  pruneOwnerElevationOnceGrants();
-  const grant = ownerElevationOnceGrants.get(normalized);
-  if (!grant) return false;
-  const principal = auth.principalId || auth.workspaceId || "owner";
-  if (grant.grantedBy && grant.grantedBy !== principal) return false;
-  ownerElevationOnceGrants.delete(normalized);
-  auditEventProvider.audit("owner_elevation_once_consumed", {
-    actorWorkspaceId: auth.workspaceId || "owner",
-    actorPrincipalId: principal,
-    targetType: "owner_elevation",
-    targetId: grant.grantId || "owner-once",
-    action: "consume_once",
-    decision: "allow",
-    grant,
-  });
-  return true;
+  return getOwnerElevationGrantService().consumeOnce(auth, token);
 }
 
 function publicOwnerElevationStatus(auth) {
-  const owner = isOwnerAuth(auth);
-  const grant = owner ? currentOwnerElevationGrant() : null;
-  const remainingMs = grant ? Math.max(0, grant.expiresAtMs - Date.now()) : 0;
-  return {
-    available: Boolean(owner && OWNER_MAINTENANCE_RUNS_ENABLED),
-    active: Boolean(grant),
-    currentPermission: grant ? "owner-maintenance" : "standard",
-    grantId: grant?.grantId || "",
-    allowedWorkerSecurityLevel: grant?.allowedWorkerSecurityLevel || "",
-    allowedOperations: Array.isArray(grant?.allowedOperations) ? grant.allowedOperations.slice() : [],
-    maxInvocations: Number(grant?.maxInvocations || 0) || 0,
-    label: grant ? "高权限运行" : "普通权限",
-    expiresAt: grant?.expiresAt || "",
-    grantedAt: grant?.grantedAt || "",
-    remainingMs,
-    durationOptionsMinutes: OWNER_ELEVATION_DURATION_OPTIONS_MINUTES.slice(),
-    defaultDurationMinutes: OWNER_ELEVATION_DEFAULT_MINUTES,
-    reason: !owner
-      ? "Owner access is required"
-      : (OWNER_MAINTENANCE_RUNS_ENABLED ? "" : "Owner maintenance runs are disabled by server configuration"),
-  };
+  return getOwnerElevationGrantService().publicStatus(auth);
 }
 
 function grantOwnerElevation(auth, durationMinutes) {
-  if (!isOwnerAuth(auth)) {
-    const err = new Error("Owner access is required");
-    err.status = 403;
-    throw err;
-  }
-  if (!OWNER_MAINTENANCE_RUNS_ENABLED) {
-    const err = new Error("Owner maintenance runs are disabled by server configuration");
-    err.status = 409;
-    throw err;
-  }
-  const requested = Math.round(Number(durationMinutes || OWNER_ELEVATION_DEFAULT_MINUTES));
-  if (!OWNER_ELEVATION_DURATION_OPTIONS_MINUTES.includes(requested)) {
-    const err = new Error("Unsupported owner elevation duration");
-    err.status = 400;
-    throw err;
-  }
-  const grantedAtMs = Date.now();
-  const expiresAtMs = grantedAtMs + requested * 60 * 1000;
-  ownerElevationGrant = {
-    grantId: `owner-time-${grantedAtMs}-${crypto.randomBytes(3).toString("hex")}`,
-    grantedAt: new Date(grantedAtMs).toISOString(),
-    expiresAt: new Date(expiresAtMs).toISOString(),
-    expiresAtMs,
-    durationMinutes: requested,
-    grantedBy: auth.principalId || auth.workspaceId || "owner",
-    allowedWorkerSecurityLevel: "owner-maintenance",
-    allowedOperations: ["maintenance_run"],
-    maxInvocations: 0,
-  };
-  auditEventProvider.audit("owner_elevation_granted", {
-    actorWorkspaceId: auth.workspaceId || "owner",
-    actorPrincipalId: auth.principalId || "owner",
-    targetType: "owner_elevation",
-    targetId: ownerElevationGrant.grantId,
-    action: "grant_timed",
-    decision: "allow",
-    durationMinutes: requested,
-    grant: ownerElevationGrant,
-  });
-  return ownerElevationGrant;
+  return getOwnerElevationGrantService().grantTimed(auth, durationMinutes);
 }
 
 function revokeOwnerElevation(auth) {
-  if (!isOwnerAuth(auth)) {
-    const err = new Error("Owner access is required");
-    err.status = 403;
-    throw err;
-  }
-  const previousGrant = ownerElevationGrant;
-  ownerElevationGrant = null;
-  auditEventProvider.audit("owner_elevation_revoked", {
-    actorWorkspaceId: auth.workspaceId || "owner",
-    actorPrincipalId: auth.principalId || "owner",
-    targetType: "owner_elevation",
-    targetId: previousGrant?.grantId || "owner-time",
-    action: "revoke",
-    decision: "allow",
-  });
+  return getOwnerElevationGrantService().revoke(auth);
 }
 
 function authCanAccessWorkspace(auth, workspaceId) {
