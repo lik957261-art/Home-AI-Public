@@ -11263,6 +11263,35 @@ function renderTodoDetail(todo) {
       ${state.todoRevisionSubmitting?.[todo.id] ? `<p class="todo-detail-muted">正在创建修改任务，请勿重复提交。</p>` : ""}
     </form>`
     : "";
+  const managementPanel = open && canManage
+    ? `<details class="todo-admin-panel"${readingCard || assessmentCard ? "" : " open"}>
+      <summary>
+        <span>卡片管理</span>
+        <small>阻塞、取消、延期</small>
+      </summary>
+      <div class="todo-admin-panel-body">
+        <div class="todo-detail-actions">
+          ${readingCard || assessmentCard ? "" : `<button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>`}
+          ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
+          ${kanban && blocked ? `<button type="button" data-unblock-todo="${escapeHtml(todo.id)}">解除阻塞</button>` : ""}
+          <button type="button" data-cancel-todo="${escapeHtml(todo.id)}">取消</button>
+        </div>
+        <div class="todo-postpone-panel">
+          <div class="todo-postpone-row">
+            <label class="todo-postpone-field" for="todoPostponeDue">
+              <span>延期到</span>
+              <input id="todoPostponeDue" class="todo-input" type="datetime-local" value="${escapeHtml(todoDueInputValue(todo))}">
+            </label>
+            <button type="button" data-postpone-todo="${escapeHtml(todo.id)}">保存延期</button>
+          </div>
+          <div class="todo-postpone-quick">
+            <button type="button" data-postpone-minutes="60" data-postpone-todo="${escapeHtml(todo.id)}">1 小时后</button>
+            <button type="button" data-postpone-minutes="1440" data-postpone-todo="${escapeHtml(todo.id)}">明天</button>
+          </div>
+        </div>
+      </div>
+    </details>`
+    : "";
   return `<article class="todo-detail-card ${escapeHtml(todoStatusLabel(todo))}">
     <div class="todo-detail-head">
       <div>
@@ -11281,22 +11310,7 @@ function renderTodoDetail(todo) {
     ${metaBlock}
     ${commentPanel}
     ${revisionPanel}
-    ${open && canManage ? `<div class="todo-detail-actions">
-      ${readingCard || assessmentCard ? "" : `<button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>`}
-      ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
-      ${kanban && blocked ? `<button type="button" data-unblock-todo="${escapeHtml(todo.id)}">解除阻塞</button>` : ""}
-      <button type="button" data-cancel-todo="${escapeHtml(todo.id)}">取消</button>
-    </div>
-    <div class="todo-postpone-panel">
-      <div class="todo-postpone-row">
-        <input id="todoPostponeDue" class="todo-input" type="datetime-local" value="${escapeHtml(todoDueInputValue(todo))}">
-        <button type="button" data-postpone-todo="${escapeHtml(todo.id)}">延期</button>
-      </div>
-      <div class="todo-postpone-quick">
-        <button type="button" data-postpone-minutes="60" data-postpone-todo="${escapeHtml(todo.id)}">1小时后</button>
-        <button type="button" data-postpone-minutes="1440" data-postpone-todo="${escapeHtml(todo.id)}">明天</button>
-      </div>
-    </div>` : ""}
+    ${managementPanel}
   </article>`;
 }
 

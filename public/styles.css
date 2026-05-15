@@ -6273,9 +6273,74 @@ button.directory-alias-chip {
 }
 
 .todo-detail-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  flex-wrap: wrap;
+}
+
+.todo-detail-actions:empty {
+  display: none;
+}
+
+.todo-admin-panel {
+  display: grid;
+  gap: 0;
+  padding-top: 2px;
+  border-top: 1px solid rgba(20, 32, 39, 0.08);
+}
+
+.todo-admin-panel > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+
+.todo-admin-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.todo-admin-panel > summary span {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.todo-admin-panel > summary small {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 520;
+  text-align: right;
+}
+
+.todo-admin-panel > summary::after {
+  content: "+";
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid rgba(31, 111, 98, 0.16);
+  border-radius: 999px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.todo-admin-panel[open] > summary::after {
+  content: "-";
+}
+
+.todo-admin-panel-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 6px;
 }
 
 .todo-comment-panel {
@@ -6315,21 +6380,46 @@ button.directory-alias-chip {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 14px;
+  background: rgba(232, 245, 239, 0.34);
 }
 
 .todo-postpone-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 8px;
 }
 
+.todo-postpone-field {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.todo-postpone-field span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.todo-postpone-field input {
+  width: 100%;
+  min-width: 0;
+}
+
 .todo-postpone-quick {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  flex-wrap: wrap;
+}
+
+.todo-detail-actions button,
+.todo-postpone-panel button {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 12px;
 }
 
 .automation-list-card.paused,
