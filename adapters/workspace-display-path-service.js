@@ -40,6 +40,15 @@ function defaultPathInsideAnyRoot(candidate, roots, comparablePath = defaultComp
   });
 }
 
+function canonicalSlashPath(value) {
+  let p = String(value || "").trim().replaceAll("\\", "/");
+  p = p.replace(/^\/\/wsl(?:\.localhost|\$)?\/[^/]+/i, "");
+  p = p.replace(/^\/mnt\/([a-zA-Z])\//, (_, drive) => `${drive.toLowerCase()}:/`);
+  p = p.replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
+  if (p) p = path.posix.normalize(p);
+  return p.replace(/\/+$/g, "");
+}
+
 function createWorkspaceDisplayPathService(options = {}) {
   const comparablePath = typeof options.comparablePath === "function" ? options.comparablePath : defaultComparablePath;
   const pathInsideAnyRoot = typeof options.pathInsideAnyRoot === "function"
@@ -201,6 +210,15 @@ function createWorkspaceDisplayPathService(options = {}) {
       const relative = path.relative(rootLocal, rawLocal);
       if (relative && relative !== "." && !relative.startsWith("..") && !path.isAbsolute(relative)) {
         return relative.split(/[\\/]+/g).filter(Boolean).join(" / ");
+      }
+    }
+    const rawCanonical = canonicalSlashPath(rawLocal || rawPath);
+    const rootCanonical = canonicalSlashPath(rootLocal || rootPath);
+    if (rawCanonical && rootCanonical) {
+      const rawLower = rawCanonical.toLowerCase();
+      const rootLower = rootCanonical.toLowerCase();
+      if (rawLower.startsWith(`${rootLower}/`)) {
+        return rawCanonical.slice(rootCanonical.length + 1).split("/").filter(Boolean).join(" / ");
       }
     }
     const raw = String(rawPath || "").replaceAll("\\", "/");
