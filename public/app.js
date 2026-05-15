@@ -268,6 +268,7 @@ const state = {
   todoReadingSubmissionDrafts: {},
   todoReadingSubmitting: {},
   todoReadingSubmissionProgress: {},
+  todoReadingSubmissionFeedback: {},
   todoReadingRecorders: {},
   todoReadingQuizzes: {},
   todoReadingQuizAnswers: {},
@@ -10496,12 +10497,22 @@ function readingSubmissionCompleted(todo) {
   return String(summary?.status || "") === "completed";
 }
 
+function readingSubmissionFeedback(todoId) {
+  return state.todoReadingSubmissionFeedback?.[todoId] || null;
+}
+
+function setReadingSubmissionFeedback(todoId, feedback = {}) {
+  if (!todoId) return;
+  state.todoReadingSubmissionFeedback[todoId] = Object.assign({ updatedAt: Date.now() }, feedback);
+}
+
 function renderKanbanReadingWorkflowPanel(todo) {
   if (!isKanbanReadingCard(todo)) return "";
   const labels = kanbanStudyLabels(todo);
   const summary = readingSubmissionSummary(todo);
   const submitting = Boolean(state.todoReadingSubmitting?.[todo.id]);
   const progress = String(state.todoReadingSubmissionProgress?.[todo.id] || "");
+  const feedback = readingSubmissionFeedback(todo.id);
   const hasAnalysis = readingSubmissionHasAnalysis(todo);
   const quizState = readingQuizState(todo.id);
   const quizLoaded = Boolean(quizState?.quiz);
@@ -10513,16 +10524,23 @@ function renderKanbanReadingWorkflowPanel(todo) {
   const quizActive = !completed && (hasAnalysis || quizLoaded);
   const progressText = progress === "uploading"
     ? `正在读取${labels.recording}并上传。`
-    : (submitting ? `${labels.recording}已提交，正在分析并生成${labels.quiz}；完成后会自动显示入口。` : "");
+    : (progress === "transcribing"
+      ? `${labels.recording}已上传，正在转写语音、生成${labels.analysis}和${labels.quiz}。`
+      : (submitting ? `${labels.recording}已提交，正在转写语音、生成${labels.analysis}和${labels.quiz}；完成后会自动显示入口。` : ""));
   const summaryText = completed
     ? labels.completed
-    : (hasAnalysis
+    : (feedback?.kind === "success" && hasAnalysis
+      ? feedback.message
+      : (hasAnalysis
       ? `分析已完成；请完成 10 题${labels.quiz}，全部正确后卡片才会完成。`
-      : (canSubmit ? `先${labels.upload}。` : `当前还不能${labels.submit}。`));
+      : (canSubmit ? `先${labels.upload}。` : `当前还不能${labels.submit}。`)));
+  const feedbackBlock = feedback?.kind === "error"
+    ? `<p class="todo-detail-error" role="status">${escapeHtml(feedback.message || "提交失败，请重试。")}</p>`
+    : "";
   return `<section class="todo-reading-workflow" data-reading-workflow="${escapeHtml(todo.id)}">
     <div class="todo-detail-deliverables-head">
       <strong>${escapeHtml(`${labels.item}完成流程`)}</strong>
-      <span>${escapeHtml(completed ? "已完成" : (submitting ? "处理中" : (hasAnalysis ? "待答卷" : `待${labels.recording}`)))}</span>
+      <span>${escapeHtml(completed ? "已完成" : (feedback?.kind === "error" ? "提交失败" : (submitting ? "处理中" : (hasAnalysis ? "待答卷" : `待${labels.recording}`))))}</span>
     </div>
     <ol>
       <li class="${stepClass(uploadDone, !uploadDone && canSubmit)}"><span>1</span><strong>${escapeHtml(labels.submit)}</strong><small>${escapeHtml(uploadDone ? `已收到${labels.recording}` : labels.upload)}</small></li>
@@ -10530,6 +10548,7 @@ function renderKanbanReadingWorkflowPanel(todo) {
       <li class="${stepClass(completed, quizActive)}"><span>3</span><strong>${escapeHtml(labels.quiz)}</strong><small>${escapeHtml(completed ? "10/10 已通过" : (quizActive ? "需要 10 题全对" : "等待分析完成"))}</small></li>
     </ol>
     <p class="todo-detail-muted">${escapeHtml(progressText || summaryText)}</p>
+    ${feedbackBlock}
   </section>`;
 }
 
@@ -10805,14 +10824,12 @@ function renderKanbanReadingRecorderControls(todo, submitting = false) {
   const canToggle = supported && !submitting && !["requesting", "stopping"].includes(status);
   const recordButtonText = status === "recording" ? "停止" : (ready ? "重录" : "录音");
   const recordButtonClass = status === "recording" ? " recording" : (ready ? " ready" : "");
-  const canSubmit = !submitting && ready;
   const playback = ready && recording.url
     ? `<audio class="todo-reading-playback" controls src="${escapeHtml(recording.url)}"></audio>`
     : "";
   return `<div class="todo-reading-recorder" data-reading-recorder="${escapeHtml(todoId)}">
     <div class="todo-reading-recorder-actions">
       <button class="todo-reading-record-button${recordButtonClass}" type="button" data-reading-record-toggle="${escapeHtml(todoId)}"${canToggle ? "" : " disabled"} aria-pressed="${status === "recording" ? "true" : "false"}">${recordButtonText}</button>
-      <button type="button" data-reading-record-submit="${escapeHtml(todoId)}"${canSubmit ? "" : " disabled"}>${submitting ? "处理中" : "提交"}</button>
     </div>
     <div class="todo-detail-muted todo-reading-record-status" data-reading-record-status="${escapeHtml(todoId)}">${escapeHtml(kanbanReadingRecordingStatusText(todoId))}</div>
     ${playback}
@@ -11019,22 +11036,27 @@ function renderKanbanReadingSubmissionPanel(todo) {
   const recorderStatus = String(state.todoReadingRecorders?.[todo.id]?.status || "");
   const recorderBlock = renderKanbanReadingRecorderControls(todo, submitting);
   const progress = String(state.todoReadingSubmissionProgress?.[todo.id] || "");
+  const feedback = readingSubmissionFeedback(todo.id);
   const notes = state.todoReadingSubmissionDrafts?.[todo.id] || "";
   const progressText = progress === "uploading"
     ? `正在上传${labels.recording}。`
-    : `${labels.recording}已提交，正在处理分析与${labels.quiz}。`;
+    : `${labels.recording}已上传，正在转写语音、生成${labels.analysis}和${labels.quiz}。`;
   const idleUploadText = recorderStatus === "recording"
     ? "正在录音；再次点击同一个按钮停止。"
     : (recorderStatus === "ready" ? "已录好待提交；可先回放，也可重录替换。" : "先录音，停止生成音频后才能提交。");
+  const statusText = submitting ? progressText : (feedback?.kind === "error" ? feedback.message : idleUploadText);
+  const statusClass = feedback?.kind === "error" && !submitting
+    ? "todo-detail-error todo-reading-audio-status"
+    : "todo-detail-muted todo-reading-audio-status";
   return `<form class="todo-comment-panel todo-reading-panel" data-reading-submission-form="${escapeHtml(todo.id)}" ${submitting ? 'aria-busy="true"' : ""}>
     <label class="todo-panel-label">${escapeHtml(labels.submit)}</label>
     ${recorderBlock}
-    <div class="todo-detail-muted todo-reading-audio-status" data-reading-audio-status>${submitting ? escapeHtml(progressText) : escapeHtml(idleUploadText)}</div>
+    <div class="${statusClass}" data-reading-audio-status role="status">${escapeHtml(statusText)}</div>
     <textarea id="todoReadingSubmissionNotes" class="todo-input todo-comment-textarea" rows="3" placeholder="补充当天范围、状态或观察，可留空" ${submitting ? "disabled" : ""}>${escapeHtml(notes)}</textarea>
     <div class="todo-comment-actions">
       <button type="submit" data-submit-reading="${escapeHtml(todo.id)}" ${submitting || !state.todoReadingRecorders?.[todo.id]?.file ? "disabled" : ""}>${submitting ? "已提交处理中" : labels.submit}</button>
     </div>
-    <p class="todo-detail-muted">${submitting ? `处理可能需要几十秒到数分钟；完成后会显示分析文件和${labels.quiz}入口。` : `${labels.recording}提交后，Hermes 会生成分析和${labels.quiz}；10 题全对后，本卡片才会完成。`}</p>
+    <p class="todo-detail-muted">${submitting ? `处理可能需要几十秒到数分钟；正在等待语音转写、阅读分析和${labels.quiz}生成。` : `${labels.recording}提交后，Hermes 会先转写语音，再生成分析和${labels.quiz}；10 题全对后，本卡片才会完成。`}</p>
   </form>`;
 }
 
@@ -11342,12 +11364,6 @@ function wireTodoPanel(root) {
       } else {
         startKanbanReadingRecording(todoId).catch(showError);
       }
-    });
-    form.querySelector("[data-reading-record-submit]")?.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const { todoId, notes } = syncReadingSubmissionNotes();
-      submitRecordedReadingSubmission(todoId, notes).catch(showError);
     });
     form.querySelector("#todoReadingSubmissionNotes")?.addEventListener("input", (event) => {
       const todoId = form.dataset.readingSubmissionForm || "";
@@ -11937,11 +11953,19 @@ async function submitReadingSubmission(todoId, file, notes = "") {
   state.todoReadingSubmissionDrafts[todoId] = notes || "";
   state.todoReadingSubmitting[todoId] = true;
   state.todoReadingSubmissionProgress[todoId] = "uploading";
+  setReadingSubmissionFeedback(todoId, {
+    kind: "info",
+    message: `正在上传${labels.recording}。`,
+  });
   showPushToast(`${labels.recording}已开始上传，正在${labels.analysis}`);
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     const dataBase64 = await fileToBase64(file);
-    state.todoReadingSubmissionProgress[todoId] = "analyzing";
+    state.todoReadingSubmissionProgress[todoId] = "transcribing";
+    setReadingSubmissionFeedback(todoId, {
+      kind: "info",
+      message: `${labels.recording}已上传，正在转写语音、生成${labels.analysis}和${labels.quiz}。`,
+    });
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-submission`, {
       method: "POST",
@@ -11966,7 +11990,17 @@ async function submitReadingSubmission(todoId, file, notes = "") {
     delete state.todoReadingSubmissionDrafts[todoId];
     delete state.todoCardDetails[todoId];
     await loadKanbanCardDetail(todoId, { force: true, silent: true });
+    setReadingSubmissionFeedback(todoId, {
+      kind: "success",
+      message: `${labels.analysis}和${labels.quiz}已生成；请完成 10 题，全对后卡片完成。`,
+    });
     showPushToast(`${labels.analysis}和${labels.quiz}已生成；10 题全对后完成卡片。`, "success");
+  } catch (err) {
+    setReadingSubmissionFeedback(todoId, {
+      kind: "error",
+      message: err?.message || `${labels.recording}提交失败，请重试。`,
+    });
+    throw err;
   } finally {
     delete state.todoReadingSubmitting[todoId];
     delete state.todoReadingSubmissionProgress[todoId];

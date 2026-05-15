@@ -4975,7 +4975,7 @@ button.directory-alias-chip {
 
 .todo-reading-recorder-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(88px, 0.42fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -5034,7 +5034,7 @@ button.directory-alias-chip {
 
 @media (max-width: 480px) {
   .todo-reading-recorder-actions {
-    grid-template-columns: minmax(0, 1fr) minmax(82px, 0.45fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
