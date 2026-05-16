@@ -550,6 +550,17 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /17,000 lines/);
   assert.match(doc, /950/);
+  assert.match(doc, /Product Module Boundary/);
+  assert.match(doc, /FANFAN_LEARNING_SYSTEM_ARCHITECTURE\.zh-CN\.md/);
+
+  const learningDoc = fileText("docs/FANFAN_LEARNING_SYSTEM_ARCHITECTURE.zh-CN.md");
+  assert.match(learningDoc, /同仓库、同部署、独立产品入口、复用平台能力/);
+  assert.match(learningDoc, /Hermes Mobile Platform/);
+  assert.match(learningDoc, /Fanfan Learning System/);
+  assert.match(learningDoc, /public\/learning\.html/);
+  assert.match(learningDoc, /\/api\/learning\//);
+  assert.match(learningDoc, /不复制 Hermes Mobile/);
+  assert.match(learningDoc, /studentId/);
 
   const server = fileText("server.js");
   const runtime = fileText("mobile-server-runtime.js");

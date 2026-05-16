@@ -83,6 +83,20 @@ Current CI guardrails:
 These front-end budgets are also ceilings, not targets. Lower them after each
 successful UI extraction round.
 
+## Product Module Boundary
+
+Hermes Mobile is the platform layer for workspace, Chat, topic, Kanban, file
+delivery, Gateway Pool, Web Push, and access-control capabilities. Vertical
+products such as the Fanfan learning/growth system must use those platform
+capabilities through focused services and API contracts instead of copying the
+platform or growing `public/app.js` into a second product shell.
+
+The current learning-system architecture decision is tracked in:
+
+```text
+docs/FANFAN_LEARNING_SYSTEM_ARCHITECTURE.zh-CN.md
+```
+
 ## Route Modules
 
 New route groups should live in `server-routes/<domain>-api-routes.js` when they involve more than a trivial endpoint. Route modules should receive dependencies from the runtime composition layer and delegate business decisions to adapters/services.
