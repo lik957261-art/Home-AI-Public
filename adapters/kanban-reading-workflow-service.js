@@ -58,6 +58,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
     if (!learningCoinAwardService || typeof learningCoinAwardService.safeAwardEvent !== "function") return null;
     return learningCoinAwardService.safeAwardEvent("reading_quiz_passed", {
       workspaceId,
+      executorWorkspaceId: result.executorWorkspaceId || "",
       cardId,
       card: currentCard,
       score: result.score,
@@ -695,6 +696,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
         score: 100,
         correctCount: 10,
         total: 10,
+        executorWorkspaceId: body.executorWorkspaceId || body.executor_workspace_id || "",
       });
       return { ok: true, passed: true, score: 100, status: "completed", canonicalCardId: lookup.cardId, quiz: publicKanbanReadingQuiz(state.quiz), coinAward };
     }
@@ -781,6 +783,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
       score,
       correctCount,
       total: results.length,
+      executorWorkspaceId: body.executorWorkspaceId || body.executor_workspace_id || "",
     });
     await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
     return {

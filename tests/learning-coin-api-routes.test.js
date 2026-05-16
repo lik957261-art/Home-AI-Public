@@ -196,6 +196,13 @@ async function testMetadataAndFallthrough() {
 
 async function testSummaryAndLedgerAreWorkspaceScoped() {
   const { routes, calls, service } = makeRoutes();
+  const ownerChildSummary = await request(routes, "GET", "/api/learning-coins/summary?workspaceId=child&limit=5", {
+    auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
+  });
+  assert.equal(ownerChildSummary.res.statusCode, 200);
+  assert.equal(ownerChildSummary.body.studentId, "child");
+  assert.equal(ownerChildSummary.body.workspaceId, "child");
+
   const summary = await request(routes, "GET", "/api/learning-coins/summary?workspaceId=child&studentId=child&limit=5", {
     auth: { ok: true, workspaceId: "child", principalId: "principal-child", isOwner: false },
   });
@@ -204,7 +211,7 @@ async function testSummaryAndLedgerAreWorkspaceScoped() {
   assert.equal(summary.body.workspaceId, "child");
   assert.equal(summary.body.growth.totalEarnedCoins, 100);
   assert.equal(summary.body.growth.level.toNextLevelCoins, 100);
-  assert.deepEqual(calls.workspaceAccess, ["child"]);
+  assert.deepEqual(calls.workspaceAccess, ["child", "child"]);
 
   const denied = await request(routes, "GET", "/api/learning-coins/ledger?workspaceId=child&studentId=other", {
     auth: { ok: true, workspaceId: "child", principalId: "principal-child", isOwner: false },
@@ -217,9 +224,11 @@ async function testOwnerGrantRewardAndRedemption() {
   const { routes, service } = makeRoutes();
   const grant = await request(routes, "POST", "/api/learning-coins/grants", {
     owner: true,
-    body: { workspaceId: "child", studentId: "child", coinAmount: 25, reason: "done" },
+    body: { workspaceId: "child", coinAmount: 25, reason: "done" },
   });
   assert.equal(grant.res.statusCode, 201);
+  assert.equal(service.state.lastGrant.studentId, "child");
+  assert.equal(service.state.lastGrant.workspaceId, "child");
   assert.equal(service.state.lastGrant.createdByPrincipalId, "owner");
 
   const reward = await request(routes, "POST", "/api/learning-coins/rewards", {

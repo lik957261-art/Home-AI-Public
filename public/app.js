@@ -7850,8 +7850,7 @@ function renderAutomationPlaceholderView() {
 }
 
 function learningCoinStudentId() {
-  const workspaceId = state.selectedWorkspaceId || "owner";
-  return workspaceId === "owner" ? "fanfan" : workspaceId;
+  return state.selectedWorkspaceId || "owner";
 }
 
 function learningCoinRequestParams(options = {}) {

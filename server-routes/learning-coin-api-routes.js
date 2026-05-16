@@ -154,14 +154,14 @@ function requestedWorkspaceId(url, body = {}) {
 
 function requestedStudentId(deps, auth, requested, workspaceId) {
   const studentId = String(requested || "").trim();
-  if (deps.isOwnerAuth(auth)) return studentId || workspaceId || "fanfan";
+  if (deps.isOwnerAuth(auth)) return studentId || workspaceId || "owner";
   const ownWorkspace = String(auth?.workspaceId || workspaceId || "").trim();
   if (studentId && studentId !== ownWorkspace) {
     const err = new Error("Student access is not allowed");
     err.status = 403;
     throw err;
   }
-  return ownWorkspace || workspaceId || "fanfan";
+  return ownWorkspace || workspaceId || "owner";
 }
 
 function sendRouteError(deps, res, err) {
@@ -243,7 +243,7 @@ function createLearningCoinApiRoutes(deps = {}) {
     try {
       const payload = Object.assign({}, body, {
         workspaceId: body.workspaceId || "owner",
-        studentId: body.studentId || body.workspaceId || "fanfan",
+        studentId: body.studentId || body.workspaceId || "owner",
         createdByPrincipalId: ownerAuth.principalId || "owner",
       });
       const result = body.coinDelta

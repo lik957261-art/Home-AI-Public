@@ -3,7 +3,9 @@
 const assert = require("node:assert/strict");
 const {
   createLearningCoinAwardService,
+  executorWorkspaceIdForLearningCard,
   learningCoinAwardKey,
+  learningCoinAwardRecipient,
   learningTemplateForCard,
   studentIdForLearningCard,
 } = require("../adapters/learning-coin-award-service");
@@ -30,9 +32,15 @@ function makeAwardService() {
 }
 
 function testRecipientTemplateAndKeyHelpers() {
-  assert.equal(studentIdForLearningCard({}, "owner"), "fanfan");
+  assert.equal(studentIdForLearningCard({}, "owner"), "owner");
   assert.equal(studentIdForLearningCard({}, "child-1"), "child-1");
   assert.equal(studentIdForLearningCard({ kanbanCaseStudentId: "Fan Fan" }, "owner"), "Fan-Fan");
+  assert.equal(executorWorkspaceIdForLearningCard({ assignee: "child-1" }, "owner"), "child-1");
+  assert.equal(executorWorkspaceIdForLearningCard({ assignee: "lowgw2" }, "owner"), "owner");
+  assert.deepEqual(learningCoinAwardRecipient({
+    workspaceId: "owner",
+    card: { assignee: "child-1" },
+  }), { workspaceId: "child-1", studentId: "child-1", sourceWorkspaceId: "owner" });
   assert.equal(learningTemplateForCard({ kanbanCaseTemplate: "reading" }), "reading");
   assert.equal(learningTemplateForCard({ kanbanCaseTemplate: "programming", kanbanCaseCardGoal: "Python loop" }), "programming-assessment");
   assert.equal(learningTemplateForCard({ kanbanCaseMode: "assessment-plan" }), "assessment");
@@ -47,20 +55,21 @@ function testReadingAwardIsGenericAndBroadcastsOnce() {
   const award = service.awardEvent("reading_quiz_passed", {
     workspaceId: "owner",
     cardId: "card-1",
-    card: { id: "card-1", kanbanCaseId: "case-1", kanbanCaseTemplate: "reading", content: "private title should not be stored" },
+    card: { id: "card-1", assignee: "weixin_stephen", kanbanCaseId: "case-1", kanbanCaseTemplate: "reading", content: "private title should not be stored" },
     score: 100,
     correctCount: 10,
     total: 10,
   });
 
   assert.equal(award.ok, true);
-  assert.equal(award.studentId, "fanfan");
+  assert.equal(award.studentId, "weixin_stephen");
+  assert.equal(award.workspaceId, "weixin_stephen");
   assert.equal(award.coinAmount, 20);
   assert.equal(grants.length, 1);
   assert.equal(grants[0].reason, "\u5b66\u4e60\u6d4b\u9a8c\u901a\u8fc7");
   assert.equal(grants[0].sourceType, "kanban-reading-quiz");
   assert.equal(grants[0].sourceId, "card-1");
-  assert.equal(grants[0].idempotencyKey, "learning:owner:card-1:quiz-passed");
+  assert.equal(grants[0].idempotencyKey, "learning:weixin_stephen:card-1:quiz-passed");
   assert.deepEqual(grants[0].metadata, {
     caseId: "case-1",
     cardId: "card-1",
@@ -70,6 +79,7 @@ function testReadingAwardIsGenericAndBroadcastsOnce() {
     correctCount: 10,
     total: 10,
     passed: true,
+    sourceWorkspaceId: "owner",
   });
   assert.equal(JSON.stringify(grants[0]).includes("private title"), false);
   assert.equal(broadcasts.length, 1);

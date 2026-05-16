@@ -82,10 +82,11 @@ function normalizeMetadata(value) {
 }
 
 function normalizeLedgerEntry(entry = {}) {
+  const workspaceId = normalizeId(entry.workspaceId, "owner");
   return {
     id: normalizeId(entry.id, ""),
-    studentId: normalizeId(entry.studentId, "fanfan"),
-    workspaceId: normalizeId(entry.workspaceId, "owner"),
+    studentId: normalizeId(entry.studentId, workspaceId),
+    workspaceId,
     type: normalizeId(entry.type, "adjustment"),
     coinDelta: Math.round(Number(entry.coinDelta) || 0),
     reason: compactText(entry.reason || "", 140),
@@ -115,10 +116,11 @@ function normalizeReward(reward = {}) {
 }
 
 function normalizeRedemption(redemption = {}) {
+  const workspaceId = normalizeId(redemption.workspaceId, "owner");
   return {
     id: normalizeId(redemption.id, ""),
-    studentId: normalizeId(redemption.studentId, "fanfan"),
-    workspaceId: normalizeId(redemption.workspaceId, "owner"),
+    studentId: normalizeId(redemption.studentId, workspaceId),
+    workspaceId,
     rewardId: normalizeId(redemption.rewardId, ""),
     rewardTitle: compactText(redemption.rewardTitle || "", 80),
     coinCost: Math.max(0, Math.round(Number(redemption.coinCost) || 0)),
@@ -400,8 +402,8 @@ function createLearningCoinService(options = {}) {
 
   function summary(input = {}) {
     const store = readStore();
-    const studentId = normalizeId(input.studentId, "fanfan");
     const workspaceId = normalizeId(input.workspaceId, "owner");
+    const studentId = normalizeId(input.studentId, workspaceId);
     const limit = Math.max(1, Math.min(100, Number(input.limit || 25) || 25));
     return {
       studentId,
@@ -425,8 +427,8 @@ function createLearningCoinService(options = {}) {
 
   function listLedger(input = {}) {
     const store = readStore();
-    const studentId = normalizeId(input.studentId, "fanfan");
     const workspaceId = normalizeId(input.workspaceId, "owner");
+    const studentId = normalizeId(input.studentId, workspaceId);
     const limit = Math.max(1, Math.min(500, Number(input.limit || 100) || 100));
     return store.ledger
       .filter((entry) => entry.studentId === studentId && entry.workspaceId === workspaceId)
@@ -452,8 +454,8 @@ function createLearningCoinService(options = {}) {
   function grantCoins(input = {}) {
     const store = readStore();
     const coinDelta = normalizePositiveInteger(input.coinAmount ?? input.coinDelta, "coinAmount");
-    const studentId = normalizeId(input.studentId, "fanfan");
     const workspaceId = normalizeId(input.workspaceId, "owner");
+    const studentId = normalizeId(input.studentId, workspaceId);
     const { entry, duplicate } = appendLedger(store, {
       studentId,
       workspaceId,
@@ -477,8 +479,8 @@ function createLearningCoinService(options = {}) {
   function adjustCoins(input = {}) {
     const store = readStore();
     const coinDelta = normalizeInteger(input.coinDelta, "coinDelta");
-    const studentId = normalizeId(input.studentId, "fanfan");
     const workspaceId = normalizeId(input.workspaceId, "owner");
+    const studentId = normalizeId(input.studentId, workspaceId);
     if (coinDelta < 0 && balancesFor(store, studentId, workspaceId).availableCoins + coinDelta < 0) {
       const err = new Error("Insufficient coins");
       err.status = 400;
@@ -533,8 +535,8 @@ function createLearningCoinService(options = {}) {
       err.status = 404;
       throw err;
     }
-    const studentId = normalizeId(input.studentId, "fanfan");
     const workspaceId = normalizeId(input.workspaceId, "owner");
+    const studentId = normalizeId(input.studentId, workspaceId);
     const idempotencyKey = compactText(input.idempotencyKey || "", 180);
     if (idempotencyKey) {
       const existing = store.redemptions.find((item) => (

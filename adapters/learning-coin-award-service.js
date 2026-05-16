@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_STUDENT_FOR_OWNER = "fanfan";
+const DEFAULT_EXECUTOR_WORKSPACE_ID = "owner";
 
 const DEFAULT_LEARNING_COIN_AWARD_RULES = Object.freeze({
   reading_submission_analyzed: Object.freeze({
@@ -64,8 +64,29 @@ function textIncludesAny(text, patterns) {
   return patterns.some((pattern) => pattern.test(value));
 }
 
-function studentIdForLearningCard(card = {}, workspaceId = "owner") {
+function isWorkerProfileId(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return /^lowgw\d+$/.test(text)
+    || /^officialclean\d+$/.test(text)
+    || /^hermes(?:[-_\s]?gateway)?[-_\s]?worker/.test(text);
+}
+
+function executorWorkspaceIdForLearningCard(card = {}, workspaceId = DEFAULT_EXECUTOR_WORKSPACE_ID) {
   const direct = firstText(
+    card.executorWorkspaceId,
+    card.executor_workspace_id,
+    card.performerWorkspaceId,
+    card.performer_workspace_id,
+    card.targetWorkspaceId,
+    card.target_workspace_id,
+    card.actorWorkspaceId,
+    card.actor_workspace_id,
+    card.senderWorkspaceId,
+    card.sender_workspace_id,
+    card.studentWorkspaceId,
+    card.student_workspace_id,
+    card.learnerWorkspaceId,
+    card.learner_workspace_id,
     card.studentId,
     card.student_id,
     card.learnerId,
@@ -75,9 +96,20 @@ function studentIdForLearningCard(card = {}, workspaceId = "owner") {
     card.kanbanCaseLearnerId,
     card.kanban_case_learner_id,
   );
-  if (direct) return normalizeId(direct, DEFAULT_STUDENT_FOR_OWNER);
-  const workspace = normalizeId(workspaceId, "owner");
-  return workspace === "owner" ? DEFAULT_STUDENT_FOR_OWNER : workspace;
+  if (direct) return normalizeId(direct, workspaceId || DEFAULT_EXECUTOR_WORKSPACE_ID);
+  const assignee = firstText(
+    card.assignee,
+    card.assignee_principal_id,
+    card.assigneePrincipalId,
+  );
+  if (assignee && !isWorkerProfileId(assignee)) {
+    return normalizeId(assignee, workspaceId || DEFAULT_EXECUTOR_WORKSPACE_ID);
+  }
+  return normalizeId(card.workspaceId || card.workspace_id || workspaceId, DEFAULT_EXECUTOR_WORKSPACE_ID);
+}
+
+function studentIdForLearningCard(card = {}, workspaceId = "owner") {
+  return executorWorkspaceIdForLearningCard(card, workspaceId);
 }
 
 function learningTemplateForCard(card = {}) {
@@ -105,6 +137,41 @@ function learningCoinAwardKey(input = {}) {
   return `learning:${workspaceId}:${cardId}:${stage}`;
 }
 
+function learningCoinAwardRecipient(input = {}) {
+  const card = input.card || {};
+  const requestedWorkspaceId = normalizeId(
+    input.sourceWorkspaceId || input.workspaceId || card.workspaceId || card.workspace_id,
+    DEFAULT_EXECUTOR_WORKSPACE_ID,
+  );
+  const explicitExecutor = firstText(
+    input.executorWorkspaceId,
+    input.executor_workspace_id,
+    input.studentWorkspaceId,
+    input.student_workspace_id,
+    input.studentId,
+    input.student_id,
+  );
+  const executorWorkspaceId = normalizeId(
+    explicitExecutor || executorWorkspaceIdForLearningCard(card, requestedWorkspaceId),
+    requestedWorkspaceId,
+  );
+  const recipientWorkspaceId = normalizeId(
+    input.recipientWorkspaceId
+      || input.recipient_workspace_id
+      || input.studentWorkspaceId
+      || input.student_workspace_id
+      || input.executorWorkspaceId
+      || input.executor_workspace_id
+      || (requestedWorkspaceId === "owner" && executorWorkspaceId !== "owner" ? executorWorkspaceId : requestedWorkspaceId),
+    executorWorkspaceId,
+  );
+  return {
+    workspaceId: recipientWorkspaceId,
+    studentId: executorWorkspaceId,
+    sourceWorkspaceId: requestedWorkspaceId,
+  };
+}
+
 function awardMetadata(input = {}) {
   const card = input.card || {};
   const metadata = {
@@ -119,6 +186,7 @@ function awardMetadata(input = {}) {
     passed: Boolean(input.passed),
     cardIndex: Number(card.kanbanCaseCardIndex || card.kanban_case_card_index || 0) || 0,
     cardCount: Number(card.kanbanCaseCardCount || card.kanban_case_card_count || 0) || 0,
+    sourceWorkspaceId: normalizeId(input.sourceWorkspaceId || "", ""),
   };
   return Object.fromEntries(Object.entries(metadata).filter(([, value]) => value !== "" && value !== 0 && value !== false));
 }
@@ -146,9 +214,10 @@ function createLearningCoinAwardService(options = {}) {
     const card = input.card || {};
     const rule = ruleForEvent(rules, eventType, card);
     if (!rule) return { ok: false, skipped: true, reason: "unsupported_event", eventType };
-    const workspaceId = normalizeId(input.workspaceId, "owner");
+    const recipient = learningCoinAwardRecipient(input);
+    const workspaceId = recipient.workspaceId;
+    const studentId = recipient.studentId;
     const cardId = normalizeId(input.cardId || card.id || card.cardId, "card");
-    const studentId = normalizeId(input.studentId || studentIdForLearningCard(card, workspaceId), DEFAULT_STUDENT_FOR_OWNER);
     const stage = normalizeId(input.stage || rule.stage || eventType, eventType);
     const coinAmount = normalizePositiveInteger(input.coinAmount || rule.coinAmount, 0);
     if (!coinAmount) return { ok: false, skipped: true, reason: "zero_amount", eventType };
@@ -162,7 +231,7 @@ function createLearningCoinAwardService(options = {}) {
       sourceId: cardId,
       idempotencyKey: input.idempotencyKey || learningCoinAwardKey({ workspaceId, cardId, stage }),
       createdByPrincipalId: input.createdByPrincipalId || "system",
-      metadata: awardMetadata(Object.assign({}, input, { card, cardId, eventType, stage, passed: input.passed ?? /passed/i.test(stage) })),
+      metadata: awardMetadata(Object.assign({}, input, { card, cardId, eventType, stage, sourceWorkspaceId: recipient.sourceWorkspaceId, passed: input.passed ?? /passed/i.test(stage) })),
     });
     const award = {
       ok: true,
@@ -211,6 +280,8 @@ function createLearningCoinAwardService(options = {}) {
 module.exports = {
   DEFAULT_LEARNING_COIN_AWARD_RULES,
   createLearningCoinAwardService,
+  executorWorkspaceIdForLearningCard,
+  learningCoinAwardRecipient,
   learningCoinAwardKey,
   learningTemplateForCard,
   studentIdForLearningCard,

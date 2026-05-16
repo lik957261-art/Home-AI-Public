@@ -195,6 +195,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
     if (!learningCoinAwardService || typeof learningCoinAwardService.safeAwardEvent !== "function") return null;
     return learningCoinAwardService.safeAwardEvent("assessment_exam_passed", {
       workspaceId,
+      executorWorkspaceId: result.executorWorkspaceId || "",
       cardId,
       card: currentCard,
       exam: result.exam,
@@ -640,6 +641,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
       score,
       correctCount,
       total,
+      executorWorkspaceId: body.executorWorkspaceId || body.executor_workspace_id || "",
     });
     await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch((err) => {
       if (typeof logger.warn === "function") logger.warn("Assessment exam dependency reconciliation failed", { error: err?.message || String(err) });

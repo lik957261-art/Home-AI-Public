@@ -178,6 +178,27 @@ async function testSubmissionAndQuizRoutes() {
   assert.equal(calls.access.at(-1).capability, "view");
 }
 
+async function testSharedPerformerExecutorIsPropagated() {
+  const fixture = makeRoutes({
+    async resolveKanbanCardAccess(req, res, workspaceId, cardId, capability) {
+      fixture.calls.access.push({ workspaceId, cardId, capability });
+      return {
+        workspaceId,
+        role: "performer",
+        auth: { workspaceId: "weixin_stephen", principalId: "weixin_stephen" },
+      };
+    },
+  });
+
+  const quiz = await request(fixture.routes, "POST", "/api/kanban/cards/card-1/reading-quiz", { workspaceId: "owner", passed: true });
+  assert.equal(quiz.res.statusCode, 200);
+  assert.equal(fixture.calls.quizzes[0].body.executorWorkspaceId, "weixin_stephen");
+
+  const exam = await request(fixture.routes, "POST", "/api/kanban/cards/exam-1/assessment-exam", { workspaceId: "owner", passed: true });
+  assert.equal(exam.res.statusCode, 200);
+  assert.equal(fixture.calls.exams.at(-1).body.executorWorkspaceId, "weixin_stephen");
+}
+
 async function testAssessmentExamRoutes() {
   const { routes, calls } = makeRoutes();
   const read = await request(routes, "GET", "/api/kanban/cards/exam-1/assessment-exam?workspaceId=owner");
@@ -223,6 +244,7 @@ async function run() {
   await testMetadataAndFallthrough();
   await testPlanCreationRoutes();
   await testSubmissionAndQuizRoutes();
+  await testSharedPerformerExecutorIsPropagated();
   await testAssessmentExamRoutes();
   await testDisabledAndBadBody();
   testDependencyValidation();

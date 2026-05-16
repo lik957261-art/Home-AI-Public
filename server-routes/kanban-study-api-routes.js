@@ -121,6 +121,19 @@ function broadcastCardUpdate(deps, workspaceId, cardId, action, todoAction = act
   deps.broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: todoAction });
 }
 
+function executorWorkspaceIdForAccess(access) {
+  const workspaceId = String(access?.auth?.workspaceId || "").trim();
+  return access?.role === "performer" && workspaceId && workspaceId !== "owner" ? workspaceId : "";
+}
+
+function bodyWithExecutorWorkspace(body = {}, access = null) {
+  const executorWorkspaceId = executorWorkspaceIdForAccess(access)
+    || body.executorWorkspaceId
+    || body.executor_workspace_id
+    || "";
+  return executorWorkspaceId ? Object.assign({}, body, { executorWorkspaceId }) : body;
+}
+
 function createKanbanStudyApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "annotateKanbanCardForAuth",
@@ -206,7 +219,7 @@ function createKanbanStudyApiRoutes(deps = {}) {
     if (!access) return;
     const workspaceId = access.workspaceId;
     try {
-      const result = await deps.submitKanbanReadingSubmission(workspaceId, cardId, body);
+      const result = await deps.submitKanbanReadingSubmission(workspaceId, cardId, bodyWithExecutorWorkspace(body, access));
       if (!result.ok) {
         deps.kanbanErrorResponse(res, result, 502);
         return;
@@ -235,7 +248,7 @@ function createKanbanStudyApiRoutes(deps = {}) {
     const workspaceId = access.workspaceId;
     try {
       const result = req.method === "POST"
-        ? await deps.submitKanbanReadingQuiz(workspaceId, cardId, body)
+        ? await deps.submitKanbanReadingQuiz(workspaceId, cardId, bodyWithExecutorWorkspace(body, access))
         : await deps.getKanbanReadingQuiz(workspaceId, cardId);
       if (!result.ok) {
         deps.sendJson(res, result.status || 400, { ok: false, error: result.error || "Reading quiz failed" });
@@ -276,7 +289,7 @@ function createKanbanStudyApiRoutes(deps = {}) {
       const result = req.method === "POST"
         ? (shouldStart
           ? await deps.startKanbanAssessmentExam(workspaceId, cardId, body)
-          : await deps.submitKanbanAssessmentExam(workspaceId, cardId, body))
+          : await deps.submitKanbanAssessmentExam(workspaceId, cardId, bodyWithExecutorWorkspace(body, access)))
         : await deps.getKanbanAssessmentExam(workspaceId, cardId);
       if (!result.ok) {
         deps.sendJson(res, result.status || 400, { ok: false, error: result.error || "Assessment exam failed" });
