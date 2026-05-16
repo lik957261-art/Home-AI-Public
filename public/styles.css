@@ -592,7 +592,7 @@ button {
 
 .section-toggle {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -765,6 +765,28 @@ button {
   border-left: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: rotate(-45deg);
+}
+
+.nav-learning-icon::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.nav-learning-icon::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 8px;
+  width: 6px;
+  height: 10px;
+  border-left: 2px solid currentColor;
+  border-right: 2px solid currentColor;
 }
 
 .nav-automation-icon::before {
@@ -1137,13 +1159,15 @@ button {
 }
 
 .todo-mode .main,
-.automation-mode .main {
+.automation-mode .main,
+.learning-mode .main {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
 .todo-mode .composer,
 .projects-mode .composer,
-.automation-mode .composer {
+.automation-mode .composer,
+.learning-mode .composer {
   display: none;
 }
 
@@ -6473,6 +6497,207 @@ button.directory-alias-chip {
   border-radius: 12px;
 }
 
+.learning-coin-view {
+  display: grid;
+  gap: 16px;
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.learning-coin-hero,
+.learning-coin-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 252, 246, 0.78);
+  box-shadow: var(--shadow-soft);
+}
+
+.learning-coin-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  padding: 20px;
+}
+
+.learning-coin-eyebrow,
+.learning-section-heading span,
+.learning-ledger-meta {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.learning-coin-hero h2 {
+  margin: 6px 0 4px;
+  color: var(--ink);
+  font-size: 40px;
+  line-height: 1.05;
+}
+
+.learning-coin-hero p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.learning-coin-stats {
+  display: grid;
+  gap: 8px;
+  min-width: 156px;
+}
+
+.learning-coin-stats span {
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 12px;
+  background: rgba(236, 249, 245, 0.56);
+}
+
+.learning-coin-stats strong {
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.learning-coin-stats small {
+  color: var(--muted);
+}
+
+.learning-coin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.learning-coin-panel {
+  padding: 16px;
+}
+
+.learning-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.learning-section-heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.learning-reward-list,
+.learning-reward-form {
+  display: grid;
+  gap: 10px;
+}
+
+.learning-reward-card,
+.learning-ledger-row,
+.learning-redemption-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(31, 111, 98, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.learning-reward-card {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.learning-reward-title,
+.learning-ledger-title {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.learning-reward-description {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.learning-reward-meta {
+  display: grid;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.learning-coin-primary {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(31, 111, 98, 0.2);
+  border-radius: 12px;
+  color: #fffaf1;
+  background: var(--accent);
+  font-weight: 700;
+}
+
+.learning-coin-primary:disabled {
+  color: var(--muted);
+  background: rgba(236, 241, 239, 0.72);
+}
+
+.learning-ledger-amount {
+  color: var(--muted);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.learning-ledger-amount.positive {
+  color: var(--accent);
+}
+
+.learning-ledger-amount.negative {
+  color: #9b4c3f;
+}
+
+.learning-coin-empty,
+.learning-coin-loading {
+  padding: 12px;
+  border: 1px dashed rgba(31, 111, 98, 0.18);
+  border-radius: 12px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.learning-reward-form {
+  grid-template-columns: minmax(0, 1.2fr) 96px 128px;
+}
+
+.learning-reward-form textarea,
+.learning-reward-form button {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .learning-coin-view {
+    padding: 12px;
+  }
+
+  .learning-coin-hero,
+  .learning-coin-grid,
+  .learning-reward-card,
+  .learning-reward-form {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-reward-meta {
+    text-align: left;
+  }
+}
+
 .automation-list-card.paused,
 .automation-list-card.done {
   opacity: 0.68;
@@ -7442,7 +7667,7 @@ button.directory-alias-chip {
     z-index: 10;
     height: var(--mobile-bottom-nav-height);
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     align-items: start;
     padding: 4px 8px calc(3px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);

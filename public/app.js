@@ -350,6 +350,10 @@ const state = {
   automationEditOpen: false,
   automationEditJobId: "",
   automationOutputHistoryOpen: false,
+  learningCoins: null,
+  learningCoinsLoading: false,
+  learningCoinsError: "",
+  learningCoinRequestSeq: 0,
   directoryThreadId: "",
   directoryThreadWorkspaceId: "",
   directoryPath: "",
@@ -1066,6 +1070,8 @@ function currentViewerReturnUrl() {
   if (state.viewMode === "automation") {
     params.set("view", "automation");
     if (state.selectedAutomationId) params.set("automationId", state.selectedAutomationId);
+  } else if (state.viewMode === "learning") {
+    params.set("view", "learning");
   } else if (state.viewMode === "todos") {
     params.set("view", "todos");
     if (state.selectedTodoId) params.set("todoId", state.selectedTodoId);
@@ -2199,6 +2205,7 @@ function updateNavigationControls() {
     || (state.viewMode === "projects")
     || (state.viewMode === "todos" && !todoDetail)
     || (state.viewMode === "automation" && !automationDetail)
+    || state.viewMode === "learning"
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
@@ -3893,6 +3900,7 @@ async function bootstrap() {
 function normalizedRouteView(value, fallback = "") {
   const view = String(value || "").trim().toLowerCase();
   if (view === "automation" || view === "automations" || view === "cron") return "automation";
+  if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "todo" || view === "todos") return "todos";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
   if (view === "task" || view === "tasks") return "tasks";
@@ -7747,10 +7755,12 @@ function applyViewMode() {
   const tasks = state.viewMode === "tasks";
   const directory = state.viewMode === "projects";
   const automation = state.viewMode === "automation";
+  const learning = state.viewMode === "learning";
   const todos = state.viewMode === "todos";
   if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("automation-mode", automation);
+  $("app")?.classList.toggle("learning-mode", learning);
   $("app")?.classList.toggle("projects-mode", directory);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
@@ -7763,16 +7773,18 @@ function applyViewMode() {
   $("bottomProjectsMode")?.classList.toggle("active", directory);
   $("automationMode")?.classList.toggle("active", automation);
   $("bottomAutomationMode")?.classList.toggle("active", automation);
+  $("learningMode")?.classList.toggle("active", learning);
+  $("bottomLearningMode")?.classList.toggle("active", learning);
   $("todosMode").classList.toggle("active", todos);
   $("bottomTodosMode")?.classList.toggle("active", todos);
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || directory || todos);
-  $("newThread").disabled = single || tasks || automation || directory || todos;
+  $("newThread").classList.toggle("hidden", single || tasks || automation || learning || directory || todos);
+  $("newThread").disabled = single || tasks || automation || learning || directory || todos;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : todos ? "Search Kanban" : automation ? "Search automations" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search coins" : "Search directories";
   updateSearchButton();
 }
 
@@ -7801,6 +7813,8 @@ async function loadSelectedView() {
     }
   } else if (state.viewMode === "automation") {
     await loadAutomations();
+  } else if (state.viewMode === "learning") {
+    await loadLearningCoins();
   } else if (state.viewMode === "projects") {
     await loadDirectoryView();
   } else {
@@ -7827,6 +7841,213 @@ function renderAutomationPlaceholderView() {
     </div>`;
   updateNavigationControls();
   ensureVerticalScrollAffordance();
+}
+
+function learningCoinStudentId() {
+  const workspaceId = state.selectedWorkspaceId || "owner";
+  return workspaceId === "owner" ? "fanfan" : workspaceId;
+}
+
+function learningCoinRequestParams(options = {}) {
+  const params = new URLSearchParams();
+  params.set("workspaceId", state.selectedWorkspaceId || "owner");
+  params.set("studentId", learningCoinStudentId());
+  params.set("limit", String(options.limit || 30));
+  return params;
+}
+
+function formatCoins(value) {
+  const amount = Number(value || 0);
+  return `${Number.isFinite(amount) ? amount : 0} 金币`;
+}
+
+function formatRmbCents(cents) {
+  if (cents === null || cents === undefined || cents === "") return "人民币规则待设置";
+  const value = Number(cents);
+  if (!Number.isFinite(value)) return "人民币规则待设置";
+  return `¥${(value / 100).toFixed(2)}`;
+}
+
+function learningCoinRewardCards(summary) {
+  const rewards = summary?.rewards || [];
+  if (!rewards.length) {
+    return `<div class="learning-coin-empty">奖励池还没有配置。Owner 可以先添加可兑换项目，人民币结算规则后续再细化。</div>`;
+  }
+  const available = Number(summary?.balances?.availableCoins || 0);
+  return rewards.map((reward) => {
+    const affordable = available >= Number(reward.coinCost || 0);
+    return `<article class="learning-reward-card">
+      <div class="learning-reward-main">
+        <div class="learning-reward-title">${escapeHtml(reward.title || "奖励")}</div>
+        ${reward.description ? `<div class="learning-reward-description">${escapeHtml(reward.description)}</div>` : ""}
+      </div>
+      <div class="learning-reward-meta">
+        <span>${escapeHtml(formatCoins(reward.coinCost))}</span>
+        <span>${escapeHtml(formatRmbCents(reward.rmbCents))}</span>
+      </div>
+      <button class="learning-coin-primary" type="button" data-learning-redeem="${escapeHtml(reward.id)}" ${affordable ? "" : "disabled"}>${affordable ? "申请兑换" : "金币不足"}</button>
+    </article>`;
+  }).join("");
+}
+
+function learningCoinLedgerRows(summary) {
+  const ledger = summary?.ledger || [];
+  if (!ledger.length) return `<div class="learning-coin-empty">暂无金币流水。</div>`;
+  return ledger.map((entry) => {
+    const positive = Number(entry.coinDelta || 0) >= 0;
+    return `<div class="learning-ledger-row">
+      <div>
+        <div class="learning-ledger-title">${escapeHtml(entry.reason || entry.type || "金币记录")}</div>
+        <div class="learning-ledger-meta">${escapeHtml([entry.sourceType, entry.sourceId, formatTime(entry.createdAt)].filter(Boolean).join(" · "))}</div>
+      </div>
+      <div class="learning-ledger-amount ${positive ? "positive" : "negative"}">${positive ? "+" : ""}${escapeHtml(formatCoins(entry.coinDelta))}</div>
+    </div>`;
+  }).join("");
+}
+
+function learningCoinRedemptionRows(summary) {
+  const redemptions = summary?.redemptions || [];
+  if (!redemptions.length) return `<div class="learning-coin-empty">暂无兑换申请。</div>`;
+  return redemptions.map((item) => `<div class="learning-redemption-row">
+    <div>
+      <div class="learning-ledger-title">${escapeHtml(item.rewardTitle || item.rewardId || "兑换申请")}</div>
+      <div class="learning-ledger-meta">${escapeHtml([item.status, formatTime(item.requestedAt)].filter(Boolean).join(" · "))}</div>
+    </div>
+    <div class="learning-ledger-amount negative">${escapeHtml(formatCoins(item.coinCost))}</div>
+  </div>`).join("");
+}
+
+function learningCoinOwnerForm() {
+  if (!state.auth?.isOwner) return "";
+  return `<section class="learning-coin-panel learning-coin-owner-panel">
+    <div class="learning-section-heading">
+      <h3>奖励池</h3>
+      <span>Owner</span>
+    </div>
+    <form id="learningRewardForm" class="learning-reward-form">
+      <input id="learningRewardTitle" class="input" type="text" placeholder="奖励名称" autocomplete="off">
+      <input id="learningRewardCost" class="input" type="number" min="1" step="1" placeholder="金币">
+      <input id="learningRewardRmb" class="input" type="number" min="0" step="0.01" placeholder="人民币，可留空">
+      <textarea id="learningRewardDescription" class="input" rows="2" placeholder="说明，可留空"></textarea>
+      <button class="learning-coin-primary" type="submit">保存奖励</button>
+    </form>
+  </section>`;
+}
+
+function renderLearningCoinsView() {
+  state.currentThread = null;
+  state.currentThreadId = "";
+  state.currentTaskGroupId = "";
+  state.threads = [];
+  const list = $("threadList");
+  if (list) list.innerHTML = `<div class="empty-state small">金币、奖励和兑换集中在这个标签。</div>`;
+  $("threadTitle").textContent = "金币";
+  $("threadMeta").textContent = "Learning coins";
+  $("interruptRun").disabled = true;
+  configureComposer({ enabled: false, placeholder: "金币与兑换" });
+  const summary = state.learningCoins || {};
+  const balances = summary.balances || {};
+  const loading = state.learningCoinsLoading ? `<div class="learning-coin-loading">正在刷新金币...</div>` : "";
+  const error = state.learningCoinsError ? `<div class="automation-error">${escapeHtml(state.learningCoinsError)}</div>` : "";
+  $("conversation").innerHTML = `<div class="learning-coin-view">
+    <section class="learning-coin-hero">
+      <div>
+        <div class="learning-coin-eyebrow">${escapeHtml(summary.studentId || learningCoinStudentId())}</div>
+        <h2>${escapeHtml(formatCoins(balances.availableCoins))}</h2>
+        <p>可用金币。兑换申请会先冻结金币，Owner 审核后再结算。</p>
+      </div>
+      <div class="learning-coin-stats">
+        <span><strong>${escapeHtml(formatCoins(balances.heldCoins))}</strong><small>冻结中</small></span>
+        <span><strong>${escapeHtml(formatCoins(balances.earnedCoins))}</strong><small>累计获得</small></span>
+        <span><strong>${escapeHtml(formatCoins(balances.spentCoins))}</strong><small>已结算</small></span>
+      </div>
+    </section>
+    ${loading}
+    ${error}
+    <section class="learning-coin-panel">
+      <div class="learning-section-heading">
+        <h3>兑换</h3>
+        <span>${escapeHtml(summary?.settlement?.currency || "CNY")}</span>
+      </div>
+      <div class="learning-reward-list">${learningCoinRewardCards(summary)}</div>
+    </section>
+    <section class="learning-coin-grid">
+      <div class="learning-coin-panel">
+        <div class="learning-section-heading"><h3>金币流水</h3><span>最近记录</span></div>
+        ${learningCoinLedgerRows(summary)}
+      </div>
+      <div class="learning-coin-panel">
+        <div class="learning-section-heading"><h3>兑换申请</h3><span>审核状态</span></div>
+        ${learningCoinRedemptionRows(summary)}
+      </div>
+    </section>
+    ${learningCoinOwnerForm()}
+  </div>`;
+  wireLearningCoinsView();
+  updateNavigationControls();
+  ensureVerticalScrollAffordance();
+}
+
+async function loadLearningCoins(options = {}) {
+  const seq = ++state.learningCoinRequestSeq;
+  state.learningCoinsLoading = true;
+  state.learningCoinsError = "";
+  renderLearningCoinsView();
+  try {
+    const result = await api(`/api/learning-coins/summary?${learningCoinRequestParams(options)}`);
+    if (seq !== state.learningCoinRequestSeq) return;
+    state.learningCoins = result;
+  } catch (err) {
+    if (seq !== state.learningCoinRequestSeq) return;
+    state.learningCoinsError = err.message || String(err);
+  } finally {
+    if (seq === state.learningCoinRequestSeq) {
+      state.learningCoinsLoading = false;
+      renderLearningCoinsView();
+    }
+  }
+}
+
+async function requestLearningCoinRedemption(rewardId) {
+  const body = {
+    workspaceId: state.selectedWorkspaceId || "owner",
+    studentId: learningCoinStudentId(),
+    rewardId,
+    idempotencyKey: `redeem:${learningCoinStudentId()}:${rewardId}:${Date.now()}`,
+  };
+  await api("/api/learning-coins/redemptions", { method: "POST", body: JSON.stringify(body) });
+  showPushToast("兑换申请已提交", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function submitLearningRewardForm(event) {
+  event?.preventDefault?.();
+  const title = $("learningRewardTitle")?.value?.trim() || "";
+  const coinCost = Number($("learningRewardCost")?.value || 0);
+  const rmbValue = $("learningRewardRmb")?.value;
+  const description = $("learningRewardDescription")?.value?.trim() || "";
+  if (!title || !coinCost) {
+    showPushToast("奖励名称和金币数不能为空", "error");
+    return;
+  }
+  const body = {
+    title,
+    coinCost,
+    description,
+    rmbCents: rmbValue === "" ? null : Math.round(Number(rmbValue) * 100),
+  };
+  await api("/api/learning-coins/rewards", { method: "POST", body: JSON.stringify(body) });
+  showPushToast("奖励已保存", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+function wireLearningCoinsView() {
+  $("conversation")?.querySelectorAll("[data-learning-redeem]").forEach((button) => {
+    button.addEventListener("click", () => requestLearningCoinRedemption(button.dataset.learningRedeem).catch(showError));
+  });
+  $("learningRewardForm")?.addEventListener("submit", (event) => {
+    submitLearningRewardForm(event).catch(showError);
+  });
 }
 
 function automationRequestParams(options = {}) {
@@ -12958,6 +13179,10 @@ async function createThread() {
     renderAutomationView();
     return;
   }
+  if (state.viewMode === "learning") {
+    renderLearningCoinsView();
+    return;
+  }
   if (state.viewMode === "projects") {
     await loadDirectoryView();
     return;
@@ -13042,6 +13267,10 @@ function composerPlaceholder(fallback) {
 function renderThreads() {
   if (state.viewMode === "automation") {
     renderAutomationView();
+    return;
+  }
+  if (state.viewMode === "learning") {
+    renderLearningCoinsView();
     return;
   }
   if (state.viewMode === "todos") {
@@ -15081,6 +15310,12 @@ function applyEvent(payload) {
     }
     return;
   }
+  if (payload.type === "learning-coins.updated") {
+    if (state.viewMode === "learning" && (!payload.workspaceId || payload.workspaceId === state.selectedWorkspaceId)) {
+      loadLearningCoins({ limit: 30 }).catch(showError);
+    }
+    return;
+  }
   if (payload.type === "snapshot") {
     const drafts = state.threads.filter(isDraftThread).filter(threadMatchesSelection);
     const incoming = (payload.threads || state.threads).filter(threadMatchesSelection);
@@ -16185,6 +16420,24 @@ function wireUi() {
   $("bottomAutomationMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
     state.viewMode = "automation";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
+  $("learningMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    state.viewMode = "learning";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
+  $("bottomLearningMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    state.viewMode = "learning";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;

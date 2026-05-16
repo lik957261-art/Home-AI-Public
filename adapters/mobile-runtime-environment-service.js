@@ -87,6 +87,7 @@ function createMobileRuntimeEnvironment(options = {}) {
   const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
   const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
   const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
+  const LEARNING_COIN_STORE_PATH = path.resolve(env.HERMES_MOBILE_LEARNING_COIN_STORE_PATH || env.HERMES_WEB_LEARNING_COIN_STORE_PATH || path.join(DATA_DIR, "learning-coins.json"));
   const WEIXIN_INGRESS_KEY_PATHS = [
     env.HERMES_MOBILE_WEIXIN_INGRESS_KEY_PATH,
     env.HERMES_WEB_WEIXIN_INGRESS_KEY_PATH,
@@ -446,6 +447,7 @@ function createMobileRuntimeEnvironment(options = {}) {
     ACCESS_KEYS_PATH,
     LOCAL_WORKSPACES_PATH,
     RUNTIME_CONFIG_PATH,
+    LEARNING_COIN_STORE_PATH,
     WEIXIN_INGRESS_KEY_PATHS,
     WEIXIN_INGRESS_DEFAULT_WORKSPACE,
     GROUP_DELIVERIES_DIR,

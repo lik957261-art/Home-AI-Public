@@ -10,6 +10,7 @@ const { createFileArtifactResolverService } = require("./file-artifact-resolver-
 const { createFileResponseService } = require("./file-response-service");
 const { createFilesystemMountProvider } = require("./filesystem-mount-provider");
 const { createGatewayStatusProjection } = require("./gateway-status-projection");
+const { createLearningCoinService } = require("./learning-coin-service");
 const { createPathPolicyProvider } = require("./path-policy-provider");
 const { createProjectDiscoveryProvider } = require("./project-discovery-provider");
 const { createRunConcurrencyPolicy } = require("./run-concurrency-policy");
@@ -75,6 +76,7 @@ function createMobileRuntimeCoreProviders(deps = {}) {
       runtimeEnv.ACCESS_KEYS_PATH,
       runtimeEnv.LOCAL_WORKSPACES_PATH,
       runtimeEnv.RUNTIME_CONFIG_PATH,
+      runtimeEnv.LEARNING_COIN_STORE_PATH,
       runtimeEnv.SHARED_DIRECTORIES_PATH,
       runtimeEnv.AUTH_KEY_PATH,
       runtimeEnv.WEB_PUSH_VAPID_PATH,
@@ -192,6 +194,17 @@ function createMobileRuntimeCoreProviders(deps = {}) {
   });
   deps.bootTrace?.("egress policy ready");
 
+  const learningCoinService = createLearningCoinService({
+    fs: deps.fs,
+    path: deps.path,
+    storagePath: runtimeEnv.LEARNING_COIN_STORE_PATH,
+    ensureDataDir: deps.ensureDataDir,
+    makeId: deps.makeId,
+    nowIso: deps.nowIso,
+    audit: (eventType, payload) => auditEventProvider.audit(eventType, payload),
+  });
+  deps.bootTrace?.("learning coins ready");
+
   const pathPolicyProvider = createPathPolicyProvider({
     normalizeLocalPath: deps.normalizeLocalPath,
     isProtectedPath: (value) => securityBoundaryProvider.isProtectedPath(value),
@@ -257,6 +270,7 @@ function createMobileRuntimeCoreProviders(deps = {}) {
     fileResponseService,
     filesystemMountProvider,
     gatewayStatusProjection,
+    learningCoinService,
     pathPolicyProvider,
     projectDiscoveryProvider,
     runConcurrencyPolicy,

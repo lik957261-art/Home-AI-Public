@@ -269,6 +269,43 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["todo"],
   })),
 
+  exact("learning-coins-summary", "GET", "/api/learning-coins/summary", "learning-coins", routeOptions("learning-coins", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-coin", "reward", "redemption"],
+  })),
+  exact("learning-coins-ledger", "GET", "/api/learning-coins/ledger", "learning-coins", routeOptions("learning-coins", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-coin", "ledger"],
+  })),
+  exact("learning-coins-rewards", "GET", "/api/learning-coins/rewards", "learning-coins", routeOptions("learning-coins", {
+    resourceTypes: ["reward"],
+  })),
+  exact("learning-coins-grant", "POST", "/api/learning-coins/grants", "learning-coins", routeOptions("learning-coins", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-coin", "ledger"],
+  })),
+  exact("learning-coins-reward-upsert", "POST", "/api/learning-coins/rewards", "learning-coins", routeOptions("learning-coins", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["reward"],
+  })),
+  exact("learning-coins-redemption-request", "POST", "/api/learning-coins/redemptions", "learning-coins", routeOptions("learning-coins", {
+    workspaceScoped: true,
+    riskLevel: "medium",
+    resourceTypes: ["redemption", "reward", "learning-coin"],
+  })),
+  regex("learning-coins-redemption-cancel", "POST", /^\/api\/learning-coins\/redemptions\/[^/]+\/cancel$/, "learning-coins", routeOptions("learning-coins", {
+    workspaceScoped: true,
+    riskLevel: "medium",
+    resourceTypes: ["redemption", "learning-coin"],
+  })),
+  regex("learning-coins-redemption-owner-action", "POST", /^\/api\/learning-coins\/redemptions\/[^/]+\/(?:approve|reject|settle)$/, "learning-coins", routeOptions("learning-coins", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["redemption", "learning-coin"],
+  })),
+
   exact("kanban-cards-list", "GET", "/api/kanban/cards", "kanban", routeOptions("kanban", {
     workspaceScoped: true,
     resourceTypes: ["kanban", "card"],

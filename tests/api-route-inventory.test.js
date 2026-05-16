@@ -216,6 +216,17 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "learning-coin-api-routes",
+    exportName: "createLearningCoinApiRoutes",
+    required: false,
+    minRoutes: 8,
+    probes: [
+      { method: "GET", path: "/api/learning-coins/summary", id: "learning-coins-summary" },
+      { method: "POST", path: "/api/learning-coins/redemptions/redeem-1/approve", id: "learning-coins-redemption-owner-action" },
+      { method: "POST", path: "/api/learning-coins/redemptions/redeem-1/cancel", id: "learning-coins-redemption-cancel" },
+    ],
+  },
+  {
     key: "file-artifact-api-routes",
     exportName: "createFileArtifactApiRoutes",
     required: false,
@@ -294,6 +305,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/kanban/cards/card-1/assessment-exam" }).id, "kanban-assessment-exam");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-coins/summary" }).id, "learning-coins-summary");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/threads/thread-1/uploads" }).id, "thread-uploads-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/share/update" }).id, "directories-share-update");
@@ -318,6 +330,7 @@ function testGroupingProducesModuleWorkPackages() {
   const modules = new Map(groups.map((group) => [group.key, group]));
   assert.ok(modules.has("kanban"));
   assert.ok(modules.has("kanban-study"));
+  assert.ok(modules.has("learning-coins"));
   assert.ok(modules.has("thread-message"));
   assert.ok(modules.has("single-window"));
   assert.ok(modules.has("group-chat"));

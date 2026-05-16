@@ -50,6 +50,7 @@ const localBridgeWrapperService = require("../adapters/local-bridge-wrapper-serv
 const localProcessRunnerService = require("../adapters/local-process-runner-service");
 const localTodoBridgeService = require("../adapters/local-todo-bridge-service");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
+const learningCoinService = require("../adapters/learning-coin-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
 const mobileRuntimeEnvironmentService = require("../adapters/mobile-runtime-environment-service");
@@ -97,6 +98,7 @@ const eventStreamApiRoutes = require("../server-routes/event-stream-api-routes")
 const fileArtifactApiRoutes = require("../server-routes/file-artifact-api-routes");
 const kanbanCardApiRoutes = require("../server-routes/kanban-card-api-routes");
 const kanbanStudyApiRoutes = require("../server-routes/kanban-study-api-routes");
+const learningCoinApiRoutes = require("../server-routes/learning-coin-api-routes");
 const mobileApiDispatcher = require("../server-routes/mobile-api-dispatcher");
 const mobileApiComposition = require("../server-routes/mobile-api-composition");
 const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
@@ -198,6 +200,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof localTodoBridgeService.parseLocalTodoDue, "function");
   assert.equal(typeof localWorkspaceStoreService.createLocalWorkspaceStoreService, "function");
   assert.equal(typeof localWorkspaceStoreService.workspaceIdSlug, "function");
+  assert.equal(typeof learningCoinService.createLearningCoinService, "function");
+  assert.equal(typeof learningCoinService.normalizeStore, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");
   assert.equal(typeof mobileRuntimeEnvironmentService.createMobileRuntimeEnvironment, "function");
@@ -272,6 +276,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof todoPublicProjectionService.createTodoPublicProjectionService, "function");
   assert.equal(typeof kanbanCardApiRoutes.createKanbanCardApiRoutes, "function");
   assert.equal(typeof kanbanStudyApiRoutes.createKanbanStudyApiRoutes, "function");
+  assert.equal(typeof learningCoinApiRoutes.createLearningCoinApiRoutes, "function");
   assert.equal(typeof mobileApiComposition.createMobileApiComposition, "function");
   assert.equal(typeof mobileApiDispatcher.createMobileApiDispatcher, "function");
   assert.equal(typeof fileArtifactApiRoutes.createFileArtifactApiRoutes, "function");
@@ -416,6 +421,12 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(dispatcher, /key: "kanbanCardApiRoutes"/);
   assert.match(mobileComposition, /createKanbanStudyApiRoutes/);
   assert.match(dispatcher, /key: "kanbanStudyApiRoutes"/);
+  assert.match(coreProviders, /createLearningCoinService/);
+  assert.match(coreProviders, /LEARNING_COIN_STORE_PATH/);
+  assert.match(server, /learningCoinService/);
+  assert.match(mobileComposition, /createLearningCoinApiRoutes/);
+  assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
+  assert.match(dispatcher, /key: "learningCoinApiRoutes"/);
   assert.match(mobileComposition, /createFileArtifactApiRoutes/);
   assert.match(dispatcher, /key: "fileArtifactApiRoutes"/);
   assert.match(server, /createArtifactTextRegistrationService/);
