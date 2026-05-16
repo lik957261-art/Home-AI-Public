@@ -5286,9 +5286,19 @@ button.directory-alias-chip {
 }
 
 .learning-guidance-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.learning-guidance-actions button {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  padding-inline: 8px;
+  white-space: nowrap;
 }
 
 .learning-answer-review {
