@@ -1232,7 +1232,7 @@ function publicTodo(row, contextOrIndex = null, maybeRows = null) {
   return getTodoPublicProjectionService().publicTodo(row, contextOrIndex, maybeRows);
 }
 const { kanbanAssigneePolicy, kanbanCaseShareService, kanbanMaintenanceService, kanbanPlanService,
-  kanbanReadingWorkflowService, kanbanStudyArtifactService, naturalLanguageDraftService } = createKanbanRuntimeServices({
+  kanbanReadingWorkflowService, kanbanStudyArtifactService, learningCardGuidanceService, naturalLanguageDraftService } = createKanbanRuntimeServices({
   authCanAccessWorkspace, automationCreateModel: AUTOMATION_CREATE_MODEL, automationTimeoutMs: AUTOMATION_CREATE_TIMEOUT_MS,
   broadcast, compactText, createAutomationDeliveryRequirement, dataDir: DATA_DIR, extractDocxText,
   extractJsonObject, fileExists: fs.existsSync, findWorkspace, hermesModelText, isKanbanStudyCaseMode, isOwnerAuth,
@@ -2434,7 +2434,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher } = createMobileApiComposition
   grantOwnerElevationOnce, consumeOwnerElevationOnce, groupAiReplyRevokedText: GROUP_AI_REPLY_REVOKED_TEXT, groupAssistantReplyForUserMessage, groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT, groupMessageRevoker,
   includeStatusCatalog: STATUS_INCLUDE_CATALOG, interpretAutomationNaturalLanguage, invalidateCatalogCache, isDirectoryBrowserPathAllowedForThread, isOwnerAuth, isOwnerElevationActive,
   isSingleWindowConversationTaskGroupId, joinLocalPath: (parent, name) => path.join(parent, name), kanbanCardProvider, kanbanCaseShareService, kanbanErrorResponse,
-  kanbanReadingWorkflowService, kanbanSingleCardCasePayload, learningCoinService, listWorkspaceAccessKeyStatuses, loadCatalog, localWorkspaceDefaults,
+  kanbanReadingWorkflowService, kanbanSingleCardCasePayload, learningCardGuidanceService, learningCoinService, listWorkspaceAccessKeyStatuses, loadCatalog, localWorkspaceDefaults,
   makeId, maxUploadBytes: MAX_UPLOAD_BYTES, maybeReconcileKanbanDependencyBlocks, mimeFor, mkdir: (value) => fs.mkdirSync(value),
   normalizeChatGroup, normalizeKanbanMaxParallel, normalizeKanbanNotificationAssignee, normalizeKanbanPlanReasoningEffort, normalizeStringList,
   nowIso, ownerSetupStatus, pendingWeixinOutboundDeliveries, planKanbanMultiAgent, publicConcurrencyForAuth,

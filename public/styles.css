@@ -5240,6 +5240,73 @@ button.directory-alias-chip {
   overflow-wrap: anywhere;
 }
 
+.learning-guidance-panel,
+.learning-answer-review {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(31, 111, 98, 0.16);
+  border-radius: 10px;
+  background: rgba(246, 252, 249, 0.7);
+}
+
+.learning-guidance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.learning-guidance-head strong,
+.learning-answer-review strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.learning-guidance-head span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.learning-guidance-hint {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #276257;
+  background: rgba(31, 111, 98, 0.08);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.learning-guidance-reflection {
+  min-height: 64px;
+  resize: vertical;
+}
+
+.learning-guidance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.learning-answer-review {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.learning-answer-review.open {
+  color: #276257;
+  background: rgba(236, 249, 245, 0.72);
+}
+
+.learning-answer-review p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .kanban-composer-toolbar,
 .kanban-plan-actions {
   display: flex;

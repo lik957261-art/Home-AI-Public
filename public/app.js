@@ -308,11 +308,16 @@ const state = {
   todoReadingQuizAnswers: {},
   todoReadingQuizStep: {},
   todoReadingQuizSubmitting: {},
+  todoReadingQuizReviewOpen: {},
   todoAssessmentExams: {},
   todoAssessmentAnswers: {},
   todoAssessmentStep: {},
   todoAssessmentSubmitting: {},
+  todoAssessmentReviewOpen: {},
   todoAssessmentRequirementDrafts: {},
+  todoLearningGuidance: {},
+  todoLearningGuidanceDrafts: {},
+  todoLearningGuidanceSubmitting: {},
   pendingReadingQuizTodoId: "",
   pendingAssessmentExamTodoId: "",
   todoAutoRefreshTimer: 0,
@@ -11497,6 +11502,7 @@ function renderKanbanReadingQuizPanel(todo) {
   const canPrev = step > 0;
   const canNext = step < questions.length - 1;
   const answeredCount = answers.filter((value) => Number.isInteger(Number(value))).length;
+  const reviewOpen = Boolean(state.todoReadingQuizReviewOpen?.[todo.id]);
   const status = result
     ? (result.passed ? "已全对，卡片已完成。" : `本次 ${result.correctCount || 0}/${result.total || 10}，请修改错误题后再提交。`)
     : (passed ? "已通过，可查看题目。" : `已答 ${answeredCount}/${questions.length}`);
@@ -11506,6 +11512,16 @@ function renderKanbanReadingQuizPanel(todo) {
       <p>${escapeHtml(currentResult.explanation || "这题需要重新检查，修改后再提交。")}</p>
     </div>`
     : "";
+  const guidanceBlock = renderLearningGuidancePanel(todo.id, "reading-quiz", step, question, {
+    disabled: submitting || passed || !canAnswer,
+    title: "\u7b54\u9898\u5f15\u5bfc",
+  });
+  const reviewBlock = renderAnswerReviewGate(todo.id, "reading-quiz", answeredCount, questions.length, reviewOpen);
+  const submitControls = passed
+    ? `<button type="submit" disabled>${escapeHtml("\u5df2\u901a\u8fc7")}</button>`
+    : (reviewOpen
+      ? `<button type="submit"${canAnswer && answeredCount === questions.length && !submitting ? "" : " disabled"}>${escapeHtml(submitting ? "\u6b63\u5728\u5224\u5377..." : "\u786e\u8ba4\u63d0\u4ea4")}</button>`
+      : `<button type="button" data-reading-quiz-review="${escapeHtml(todo.id)}"${canAnswer && answeredCount === questions.length && !submitting ? "" : " disabled"}>${escapeHtml("\u590d\u6838\u7b54\u6848")}</button>`);
   return `<form class="todo-comment-panel todo-reading-quiz-panel" data-reading-quiz-form="${escapeHtml(todo.id)}">
     <div class="todo-detail-deliverables-head">
       <strong>${escapeHtml(quiz.title || labels.quiz)}</strong>
@@ -11518,10 +11534,12 @@ function renderKanbanReadingQuizPanel(todo) {
       <div class="reading-quiz-choices">${choices}</div>
     </article>
     ${wrongHint}
+    ${guidanceBlock}
+    ${reviewBlock}
     <div class="todo-comment-actions">
       <button type="button" data-reading-quiz-prev="${escapeHtml(todo.id)}"${canPrev && !submitting ? "" : " disabled"}>上一题</button>
       <button type="button" data-reading-quiz-next="${escapeHtml(todo.id)}"${canNext && (passed || Number.isInteger(selected)) && !submitting ? "" : " disabled"}>下一题</button>
-      <button type="submit"${canAnswer && !passed && answeredCount === questions.length && !submitting ? "" : " disabled"}>${passed ? "已通过" : (submitting ? "正在判卷..." : "提交")}</button>
+      ${submitControls}
     </div>
   </form>`;
 }
@@ -11542,6 +11560,145 @@ function writeAssessmentExamDraft(todoId) {
 
 function clearAssessmentExamDrafts(todoId) {
   clearAnswerDrafts("AssessmentExam", kanbanCardWorkspaceId(todoId), todoId);
+}
+
+function learningGuidanceKey(todoId, mode) {
+  return `${String(todoId || "")}:${String(mode || "")}`;
+}
+
+function learningGuidanceDraftKey(todoId, mode, index) {
+  return `${learningGuidanceKey(todoId, mode)}:${Number(index) || 0}`;
+}
+
+function learningGuidanceQuestionRecord(todoId, mode, question, index) {
+  const session = state.todoLearningGuidance?.[learningGuidanceKey(todoId, mode)]?.guidance || null;
+  const questions = Array.isArray(session?.questions) ? session.questions : [];
+  const questionId = String(question?.id || `q${Number(index || 0) + 1}`);
+  return questions.find((item) => String(item.questionId || "") === questionId)
+    || questions.find((item) => Number(item.questionIndex || 0) === Number(index || 0))
+    || null;
+}
+
+function learningGuidanceModeForAssessment(todo) {
+  return isKanbanProgrammingAssessmentCard(todo) ? "programming-assessment" : "assessment-exam";
+}
+
+function selectedLearningAnswer(todoId, mode, index) {
+  const answers = mode === "reading-quiz"
+    ? state.todoReadingQuizAnswers?.[todoId]
+    : state.todoAssessmentAnswers?.[todoId];
+  const value = Array.isArray(answers) ? Number(answers[index]) : NaN;
+  return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function learningGuidanceQuestionPayload(question = {}, index = 0) {
+  return {
+    id: String(question.id || `q${Number(index || 0) + 1}`),
+    index: Number(index) || 0,
+    skill: String(question.skill || ""),
+    prompt: String(question.prompt || ""),
+    choices: Array.isArray(question.choices) ? question.choices.map((choice) => String(choice || "")) : [],
+  };
+}
+
+function learningGuidanceReflectionValue(todoId, mode, index, record = null) {
+  const key = learningGuidanceDraftKey(todoId, mode, index);
+  if (Object.prototype.hasOwnProperty.call(state.todoLearningGuidanceDrafts, key)) {
+    return state.todoLearningGuidanceDrafts[key] || "";
+  }
+  return record?.reflection || "";
+}
+
+function renderLearningGuidancePanel(todoId, mode, index, question, options = {}) {
+  const record = learningGuidanceQuestionRecord(todoId, mode, question, index);
+  const selected = selectedLearningAnswer(todoId, mode, index);
+  const draft = learningGuidanceReflectionValue(todoId, mode, index, record);
+  const submitKey = learningGuidanceDraftKey(todoId, mode, index);
+  const submitting = Boolean(state.todoLearningGuidanceSubmitting?.[submitKey]);
+  const disabled = Boolean(options.disabled);
+  const hint = record?.lastHint || "";
+  const reflectionSaved = Boolean(record?.reflection);
+  const reviewed = Boolean(record?.reviewedAt);
+  return `<div class="learning-guidance-panel" data-learning-guidance-panel="${escapeHtml(submitKey)}">
+    <div class="learning-guidance-head">
+      <strong>${escapeHtml(options.title || "\u601d\u8def\u4e0e\u63d0\u793a")}</strong>
+      <span>${escapeHtml(reviewed ? "\u5df2\u590d\u6838" : (reflectionSaved ? "\u5df2\u8bb0\u5f55\u601d\u8def" : "\u53ef\u5148\u5199\u601d\u8def"))}</span>
+    </div>
+    ${hint ? `<div class="learning-guidance-hint" role="status">${escapeHtml(hint)}</div>` : ""}
+    <textarea class="todo-input learning-guidance-reflection" rows="2" data-learning-guidance-reflection="${escapeHtml(submitKey)}" placeholder="${escapeHtml("\u5199\u4e00\u53e5\uff1a\u6211\u4e3a\u4ec0\u4e48\u8fd9\u6837\u9009\uff1f\u54ea\u4e2a\u5730\u65b9\u8fd8\u4e0d\u786e\u5b9a\uff1f")}"${disabled || submitting ? " disabled" : ""}>${escapeHtml(draft)}</textarea>
+    <div class="learning-guidance-actions">
+      <button type="button" data-learning-guidance-action="hint" data-learning-guidance-mode="${escapeHtml(mode)}" data-learning-guidance-todo="${escapeHtml(todoId)}" data-question-index="${Number(index) || 0}"${disabled || submitting ? " disabled" : ""}>${escapeHtml(submitting ? "\u5904\u7406\u4e2d..." : "\u7ed9\u6211\u63d0\u793a")}</button>
+      <button type="button" data-learning-guidance-action="reflection" data-learning-guidance-mode="${escapeHtml(mode)}" data-learning-guidance-todo="${escapeHtml(todoId)}" data-question-index="${Number(index) || 0}"${disabled || submitting ? " disabled" : ""}>${escapeHtml("\u4fdd\u5b58\u601d\u8def")}</button>
+      <button type="button" data-learning-guidance-action="review" data-learning-guidance-mode="${escapeHtml(mode)}" data-learning-guidance-todo="${escapeHtml(todoId)}" data-question-index="${Number(index) || 0}"${disabled || submitting || selected === null ? " disabled" : ""}>${escapeHtml(reviewed ? "\u66f4\u65b0\u590d\u6838" : "\u52a0\u5165\u590d\u6838")}</button>
+    </div>
+  </div>`;
+}
+
+function renderAnswerReviewGate(todoId, mode, answeredCount, total, open) {
+  if (!total || answeredCount < total) return "";
+  const reviewedCount = (state.todoLearningGuidance?.[learningGuidanceKey(todoId, mode)]?.guidance?.questions || [])
+    .filter((item) => item.reviewedAt).length;
+  if (open) {
+    return `<div class="learning-answer-review open" role="status">
+      <strong>${escapeHtml("\u63d0\u4ea4\u524d\u590d\u6838")}</strong>
+      <p>${escapeHtml(`\u5df2\u7b54 ${answeredCount}/${total}\uff1b\u5df2\u6807\u8bb0\u590d\u6838 ${reviewedCount}/${total}\u3002\u53ef\u4ee5\u8fd4\u56de\u4fee\u6539\uff0c\u786e\u8ba4\u540e\u518d\u5224\u5377\u3002`)}</p>
+    </div>`;
+  }
+  return `<div class="learning-answer-review" role="status">
+    <strong>${escapeHtml("\u5148\u590d\u6838\uff0c\u518d\u5224\u5377")}</strong>
+    <p>${escapeHtml(`\u5df2\u7b54 ${answeredCount}/${total}\u3002\u70b9\u51fb\u590d\u6838\u540e\uff0c\u518d\u505a\u6700\u7ec8\u63d0\u4ea4\u3002`)}</p>
+  </div>`;
+}
+
+function questionForLearningGuidance(todoId, mode, index) {
+  const source = mode === "reading-quiz"
+    ? state.todoReadingQuizzes?.[todoId]?.quiz
+    : state.todoAssessmentExams?.[todoId]?.exam;
+  const questions = Array.isArray(source?.questions) ? source.questions : [];
+  return questions[Math.max(0, Number(index) || 0)] || null;
+}
+
+async function requestLearningGuidance(todoId, mode, action, index) {
+  const normalizedTodoId = String(todoId || "");
+  const normalizedMode = String(mode || "");
+  const questionIndex = Math.max(0, Number(index) || 0);
+  const question = questionForLearningGuidance(normalizedTodoId, normalizedMode, questionIndex);
+  if (!normalizedTodoId || !question) return;
+  const submitKey = learningGuidanceDraftKey(normalizedTodoId, normalizedMode, questionIndex);
+  if (state.todoLearningGuidanceSubmitting?.[submitKey]) return;
+  state.todoLearningGuidanceSubmitting[submitKey] = true;
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const result = await api(`/api/kanban/cards/${encodeURIComponent(normalizedTodoId)}/learning-guidance`, {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: kanbanCardWorkspaceId(normalizedTodoId),
+        mode: normalizedMode,
+        action,
+        question: learningGuidanceQuestionPayload(question, questionIndex),
+        reflection: state.todoLearningGuidanceDrafts?.[submitKey] || "",
+        selectedAnswerIndex: selectedLearningAnswer(normalizedTodoId, normalizedMode, questionIndex),
+      }),
+    });
+    state.todoLearningGuidance[learningGuidanceKey(normalizedTodoId, normalizedMode)] = result;
+    if (action === "hint") showPushToast("\u5df2\u751f\u6210\u63d0\u793a", "success");
+    if (action === "reflection") showPushToast("\u5df2\u4fdd\u5b58\u601d\u8def", "success");
+  } finally {
+    delete state.todoLearningGuidanceSubmitting[submitKey];
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
+}
+
+async function loadLearningGuidanceSession(todoId, mode) {
+  const normalizedTodoId = String(todoId || "");
+  const normalizedMode = String(mode || "");
+  if (!normalizedTodoId || !normalizedMode) return;
+  const params = new URLSearchParams({
+    workspaceId: kanbanCardWorkspaceId(normalizedTodoId),
+    mode: normalizedMode,
+  });
+  const result = await api(`/api/kanban/cards/${encodeURIComponent(normalizedTodoId)}/learning-guidance?${params.toString()}`);
+  state.todoLearningGuidance[learningGuidanceKey(normalizedTodoId, normalizedMode)] = result;
 }
 
 function renderKanbanAssessmentExamPanel(todo) {
@@ -11618,6 +11775,8 @@ function renderKanbanAssessmentExamPanel(todo) {
   const canPrev = step > 0;
   const canNext = step < questions.length - 1;
   const answeredCount = answers.filter((value) => Number.isInteger(Number(value))).length;
+  const guidanceMode = learningGuidanceModeForAssessment(todo);
+  const reviewOpen = Boolean(state.todoAssessmentReviewOpen?.[todo.id]);
   const status = result
     ? (result.passed ? `已通过：${result.score}/100` : `本次 ${result.score}/100，未达通过线，请修正后重考。`)
     : (passed ? "已通过，可查看题目。" : `已答 ${answeredCount}/${questions.length}；通过线 ${exam.passingScore || summary.passingScore || 80}`);
@@ -11633,6 +11792,16 @@ function renderKanbanAssessmentExamPanel(todo) {
       <p>${escapeHtml(currentResult.explanation)}</p>
     </div>`
     : "";
+  const guidanceBlock = renderLearningGuidancePanel(todo.id, guidanceMode, step, question, {
+    disabled: submitting || passed || !canAnswer,
+    title: "\u6d4b\u9a8c\u5f15\u5bfc",
+  });
+  const reviewBlock = renderAnswerReviewGate(todo.id, guidanceMode, answeredCount, questions.length, reviewOpen);
+  const submitControls = passed
+    ? `<button type="submit" disabled>${escapeHtml("\u5df2\u901a\u8fc7")}</button>`
+    : (reviewOpen
+      ? `<button type="submit"${canAnswer && answeredCount === questions.length && !submitting ? "" : " disabled"}>${escapeHtml(submitting ? "\u6b63\u5728\u5224\u5377..." : "\u786e\u8ba4\u63d0\u4ea4")}</button>`
+      : `<button type="button" data-assessment-exam-review="${escapeHtml(todo.id)}"${canAnswer && answeredCount === questions.length && !submitting ? "" : " disabled"}>${escapeHtml("\u590d\u6838\u7b54\u6848")}</button>`);
   return `<form class="todo-comment-panel todo-assessment-panel" data-assessment-exam-form="${escapeHtml(todo.id)}">
     <div class="todo-detail-deliverables-head">
       <strong>${escapeHtml(exam.title || "正式检测")}</strong>
@@ -11646,10 +11815,12 @@ function renderKanbanAssessmentExamPanel(todo) {
     </article>
     ${wrongHint}
     ${passedExplanation}
+    ${guidanceBlock}
+    ${reviewBlock}
     <div class="todo-comment-actions">
       <button type="button" data-assessment-exam-prev="${escapeHtml(todo.id)}"${canPrev && !submitting ? "" : " disabled"}>上一题</button>
       <button type="button" data-assessment-exam-next="${escapeHtml(todo.id)}"${canNext && (passed || Number.isInteger(selected)) && !submitting ? "" : " disabled"}>下一题</button>
-      <button type="submit"${canAnswer && !passed && answeredCount === questions.length && !submitting ? "" : " disabled"}>${passed ? "已通过" : (submitting ? "正在判卷..." : "提交考试")}</button>
+      ${submitControls}
     </div>
   </form>`;
 }
@@ -12366,6 +12537,7 @@ function wireTodoPanel(root) {
       if (!todoId || !Number.isFinite(index)) return;
       if (!Array.isArray(state.todoReadingQuizAnswers[todoId])) state.todoReadingQuizAnswers[todoId] = [];
       state.todoReadingQuizAnswers[todoId][index] = Number(input.value);
+      delete state.todoReadingQuizReviewOpen[todoId];
       writeReadingQuizDraft(todoId);
       if (state.todoReadingQuizzes[todoId]?.result && !state.todoReadingQuizzes[todoId]?.result?.passed) {
         state.todoReadingQuizzes[todoId] = Object.assign({}, state.todoReadingQuizzes[todoId], { result: null });
@@ -12392,6 +12564,15 @@ function wireTodoPanel(root) {
       const total = Array.isArray(quiz.questions) ? quiz.questions.length : 10;
       state.todoReadingQuizStep[todoId] = Math.min(total - 1, Number(state.todoReadingQuizStep[todoId] || 0) + 1);
       writeReadingQuizDraft(todoId);
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  });
+  root.querySelectorAll("[data-reading-quiz-review]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = button.dataset.readingQuizReview || "";
+      if (todoId) state.todoReadingQuizReviewOpen[todoId] = true;
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
   });
@@ -12429,6 +12610,7 @@ function wireTodoPanel(root) {
       if (!todoId || !Number.isFinite(index)) return;
       if (!Array.isArray(state.todoAssessmentAnswers[todoId])) state.todoAssessmentAnswers[todoId] = [];
       state.todoAssessmentAnswers[todoId][index] = Number(input.value);
+      delete state.todoAssessmentReviewOpen[todoId];
       writeAssessmentExamDraft(todoId);
       if (state.todoAssessmentExams[todoId]?.result && !state.todoAssessmentExams[todoId]?.result?.passed) {
         state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId], { result: null });
@@ -12458,11 +12640,38 @@ function wireTodoPanel(root) {
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
   });
+  root.querySelectorAll("[data-assessment-exam-review]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = button.dataset.assessmentExamReview || "";
+      if (todoId) state.todoAssessmentReviewOpen[todoId] = true;
+      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    });
+  });
   root.querySelectorAll("[data-assessment-exam-form]").forEach((form) => {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       event.stopPropagation();
       submitAssessmentExam(form.dataset.assessmentExamForm || "").catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-learning-guidance-reflection]").forEach((input) => {
+    input.addEventListener("input", () => {
+      const key = input.dataset.learningGuidanceReflection || "";
+      if (key) state.todoLearningGuidanceDrafts[key] = input.value || "";
+    });
+  });
+  root.querySelectorAll("[data-learning-guidance-action]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      requestLearningGuidance(
+        button.dataset.learningGuidanceTodo || "",
+        button.dataset.learningGuidanceMode || "",
+        button.dataset.learningGuidanceAction || "",
+        Number(button.dataset.questionIndex || 0),
+      ).catch(showError);
     });
   });
   root.querySelectorAll("[data-comment-unblock-todo]").forEach((button) => {
@@ -13049,7 +13258,9 @@ async function loadReadingQuiz(todoId) {
     const params = new URLSearchParams({ workspaceId: kanbanCardWorkspaceId(todoId) });
     const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-quiz?${params.toString()}`);
     applyReadingQuizResult(todoId, result);
-    replaceTodoDetailRouteFlag(String(result.canonicalCardId || todoId || "").trim() || todoId, "readingQuiz");
+    const canonicalId = String(result.canonicalCardId || todoId || "").trim() || todoId;
+    await loadLearningGuidanceSession(canonicalId, "reading-quiz").catch(() => {});
+    replaceTodoDetailRouteFlag(canonicalId, "readingQuiz");
   } catch (err) {
     state.todoReadingQuizzes[todoId] = { loading: false, error: err.message || String(err) };
   }
@@ -13069,6 +13280,7 @@ async function submitReadingQuiz(todoId) {
       body: JSON.stringify({ workspaceId: kanbanCardWorkspaceId(todoId), answers }),
     });
     state.todoReadingQuizzes[todoId] = Object.assign({}, state.todoReadingQuizzes[todoId] || {}, { result, status: result.status || "" });
+    delete state.todoReadingQuizReviewOpen[todoId];
     const canonicalId = String(result.canonicalCardId || todoId || "").trim() || todoId;
     if (result.passed) {
       clearTodoListCache(kanbanCardWorkspaceId(todoId));
@@ -13092,6 +13304,7 @@ async function submitReadingQuiz(todoId) {
 
 async function loadAssessmentExam(todoId, options = {}) {
   if (!todoId) return;
+  const card = kanbanCardById(todoId) || {};
   state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId] || {}, { loading: true, error: "" });
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
@@ -13119,6 +13332,7 @@ async function loadAssessmentExam(todoId, options = {}) {
     );
     state.todoAssessmentAnswers[todoId] = draft.answers;
     state.todoAssessmentStep[todoId] = draft.step;
+    await loadLearningGuidanceSession(todoId, learningGuidanceModeForAssessment(card || { id: todoId })).catch(() => {});
     if (requirement) delete state.todoAssessmentRequirementDrafts[todoId];
   } catch (err) {
     state.todoAssessmentExams[todoId] = { loading: false, error: err.message || String(err) };
@@ -13139,6 +13353,7 @@ async function submitAssessmentExam(todoId) {
       body: JSON.stringify({ workspaceId: kanbanCardWorkspaceId(todoId), answers }),
     });
     state.todoAssessmentExams[todoId] = Object.assign({}, state.todoAssessmentExams[todoId] || {}, { result, status: result.status || "" });
+    delete state.todoAssessmentReviewOpen[todoId];
     clearTodoListCache(kanbanCardWorkspaceId(todoId));
     if (result.passed) {
       clearAssessmentExamDrafts(todoId);

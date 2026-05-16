@@ -8,6 +8,7 @@ const { createDirectoryShareApiRoutes } = require("./directory-share-api-routes"
 const { createEventStreamApiRoutes } = require("./event-stream-api-routes");
 const { createFileArtifactApiRoutes } = require("./file-artifact-api-routes");
 const { createKanbanCardApiRoutes } = require("./kanban-card-api-routes");
+const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-guidance-api-routes");
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
 const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
@@ -436,6 +437,16 @@ function createMobileApiComposition(deps = {}) {
   });
   callBootTrace(deps, "kanban study api routes ready");
 
+  const kanbanLearningGuidanceApiRoutes = createKanbanLearningGuidanceApiRoutes({
+    compactText: deps.compactText,
+    learningCardGuidanceService: deps.learningCardGuidanceService,
+    readBody: deps.readBody,
+    resolveKanbanCardAccess: deps.resolveKanbanCardAccess,
+    sendJson: deps.sendJson,
+    useKanbanTodoBackend: deps.useKanbanTodoBackend,
+  });
+  callBootTrace(deps, "kanban learning guidance api routes ready");
+
   const learningCoinApiRoutes = createLearningCoinApiRoutes({
     broadcast: deps.broadcast,
     isOwnerAuth: deps.isOwnerAuth,
@@ -486,6 +497,7 @@ function createMobileApiComposition(deps = {}) {
     fileArtifactApiRoutes,
     getUrl: deps.getUrl,
     kanbanCardApiRoutes,
+    kanbanLearningGuidanceApiRoutes,
     kanbanStudyApiRoutes,
     learningCoinApiRoutes,
     ownerElevationApiRoutes,
@@ -517,6 +529,7 @@ function createMobileApiComposition(deps = {}) {
       directoryShareApiRoutes,
       fileArtifactApiRoutes,
       kanbanCardApiRoutes,
+      kanbanLearningGuidanceApiRoutes,
       kanbanStudyApiRoutes,
       learningCoinApiRoutes,
       ownerElevationApiRoutes,

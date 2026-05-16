@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260516-learning-coin-growth";
+const HERMES_SW_VERSION = "20260516-learning-guidance";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,13 +8,13 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260516-learning-coin-growth",
-  "/app-task-artifact-helpers.js?v=20260516-learning-coin-growth",
-  "/app-kanban-story-helpers.js?v=20260516-learning-coin-growth",
-  "/app-api-client.js?v=20260516-learning-coin-growth",
-  "/app.js?v=20260516-learning-coin-growth",
+  "/styles.css?v=20260516-learning-guidance",
+  "/app-task-artifact-helpers.js?v=20260516-learning-guidance",
+  "/app-kanban-story-helpers.js?v=20260516-learning-guidance",
+  "/app-api-client.js?v=20260516-learning-guidance",
+  "/app.js?v=20260516-learning-guidance",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260516-learning-coin-growth",
+  "/markdown-renderer-client.js?v=20260516-learning-guidance",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

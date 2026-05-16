@@ -6,6 +6,7 @@ const { createKanbanAssigneePolicy } = require("./kanban-assignee-policy");
 const { createKanbanCaseShareService } = require("./kanban-case-share-service");
 const { createKanbanMaintenanceService } = require("./kanban-maintenance-service");
 const { createKanbanPlanService } = require("./kanban-plan-service");
+const { createLearningCardGuidanceService } = require("./learning-card-guidance-service");
 const { createKanbanReadingWorkflowService } = require("./kanban-reading-workflow-service");
 const { createKanbanStudyArtifactService } = require("./kanban-study-artifact-service");
 const { createNaturalLanguageDraftService } = require("./natural-language-draft-service");
@@ -81,6 +82,12 @@ function createKanbanRuntimeServices(deps = {}) {
     quizTargetingVersion: deps.kanbanReadingQuizTargetingVersion,
     visibleKanbanCaseCards: deps.visibleKanbanCaseCards,
   });
+  const learningCardGuidanceService = createLearningCardGuidanceService({
+    artifactService: kanbanStudyArtifactService,
+    nowIso: deps.nowIso,
+    readJsonStore: deps.readJsonStore,
+    writeJsonStore: deps.writeJsonStore,
+  });
   const kanbanPlanService = createKanbanPlanService({
     compactText: deps.compactText,
     defaultMaxParallel: deps.kanbanMultiAgentDefaultParallel,
@@ -99,6 +106,7 @@ function createKanbanRuntimeServices(deps = {}) {
     kanbanMaintenanceService,
     kanbanPlanService,
     kanbanReadingWorkflowService,
+    learningCardGuidanceService,
     kanbanStudyArtifactService,
     naturalLanguageDraftService: createNaturalLanguageDraftService({
       automationCreateModel: deps.automationCreateModel,
