@@ -29,17 +29,35 @@ function createService(root, overrides = {}) {
 async function testCreateDraftApprovePublish() {
   const root = tempRoot();
   const { service, publishCalls, repository } = createService(root);
+  const source = service.saveSource({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    sourceType: "school",
+    title: "School English summary",
+    summary: "Teacher summary only.",
+  });
+  const goal = service.saveGoal({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    title: "English output",
+    domain: "english",
+    focusAreas: ["speaking", "writing"],
+    targetSummary: "Improve output.",
+    sourceBasisRefs: [source.sourceRef],
+  });
   const program = service.createProgram({
     workspaceId: "weixin_stephen",
     learnerId: "weixin_stephen",
     title: "English growth",
     goalSummary: "Improve reading, speaking, writing, and active vocabulary.",
     focusAreas: ["reading", "speaking", "writing", "vocabulary"],
-    sourceBasisRefs: ["parent_config:test"],
     minutesPerDay: 30,
   });
   assert.equal(program.domain, "english");
   assert.ok(program.focusAreas.includes("english_speaking_retell"));
+  assert.ok(program.sourceBasisRefs.includes(source.sourceRef));
+  assert.ok(program.sourceBasisRefs.includes(goal.goalRef));
+  assert.ok(program.curriculumRefs.includes("cefr-a2-b1-english-growth"));
 
   const drafted = service.draftPlan(program.programId);
   assert.equal(drafted.ok, true);
@@ -58,6 +76,13 @@ async function testCreateDraftApprovePublish() {
   assert.equal(published.ok, true);
   assert.equal(publishCalls.length, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).publications, 1);
+  const profile = service.rebuildLearnerProfile({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.ok(profile.skillStates.some((state) => state.skillId === "english_short_writing"));
+  const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(overview.sources.length, 1);
+  assert.equal(overview.goals.length, 1);
+  assert.ok(overview.curriculumReferences.length >= 3);
+  assert.equal(overview.learnerProfile.learnerId, "weixin_stephen");
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }

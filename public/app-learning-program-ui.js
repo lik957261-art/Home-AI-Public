@@ -48,6 +48,78 @@
     return asArray(focusAreas).map((id) => labels[id] || id).join(" / ");
   }
 
+  function renderSourceGoalForms(options = {}) {
+    const state = options.state || {};
+    if (!state.auth?.isOwner) return "";
+    return `<div class="learning-foundation-owner-grid">
+      <form id="learningSourceForm" class="learning-program-form" data-learning-source-create>
+        <div class="learning-section-heading">
+          <h3>\u8d44\u6599\u6765\u6e90</h3>
+          <span>SQLite</span>
+        </div>
+        <select id="learningSourceType" class="input">
+          <option value="parent_config">\u5bb6\u957f\u5f55\u5165</option>
+          <option value="school">\u5b66\u6821</option>
+          <option value="tutor">\u79c1\u6559</option>
+          <option value="cleaned_history">\u5386\u53f2\u6e05\u6d17</option>
+          <option value="assessment_summary">\u6d4b\u8bc4\u6458\u8981</option>
+        </select>
+        <input id="learningSourceTitle" class="input" type="text" autocomplete="off" placeholder="\u6765\u6e90\u540d\u79f0">
+        <textarea id="learningSourceSummary" class="input" rows="3" placeholder="\u53ea\u5199\u6458\u8981\u548c\u7ed3\u8bba\uff0c\u4e0d\u7c98\u8d34\u5b69\u5b50\u5b8c\u6574\u4f5c\u7b54\u6216\u8f6c\u5199"></textarea>
+        <input id="learningSourceTags" class="input" type="text" autocomplete="off" placeholder="\u6807\u7b7e\uff0c\u7528\u9017\u53f7\u5206\u9694">
+        <button class="learning-coin-primary" type="submit">\u4fdd\u5b58\u6765\u6e90</button>
+      </form>
+      <form id="learningGoalForm" class="learning-program-form" data-learning-goal-create>
+        <div class="learning-section-heading">
+          <h3>\u5b66\u4e60\u76ee\u6807</h3>
+          <span>Goal</span>
+        </div>
+        <input id="learningGoalTitle" class="input" type="text" autocomplete="off" placeholder="\u76ee\u6807\u540d\u79f0">
+        <textarea id="learningGoalSummary" class="input" rows="3" placeholder="\u76ee\u6807\u3001\u8303\u56f4\u3001\u8981\u6c42\u548c\u9a8c\u6536\u6807\u51c6"></textarea>
+        <div class="learning-program-field-grid">
+          <label><span>\u9886\u57df</span><select id="learningGoalDomain" class="input"><option value="english">English</option><option value="math">Math</option><option value="programming">Programming</option></select></label>
+          <label><span>\u4f18\u5148\u7ea7</span><input id="learningGoalPriority" class="input" type="number" min="0" max="100" value="80"></label>
+          <label><span>\u622a\u6b62\u65e5\u671f</span><input id="learningGoalTargetDate" class="input" type="date"></label>
+        </div>
+        <input id="learningGoalFocus" class="input" type="text" autocomplete="off" placeholder="\u80fd\u529b\u8303\u56f4\uff1areading, speaking, writing">
+        <button class="learning-coin-primary" type="submit">\u4fdd\u5b58\u76ee\u6807</button>
+      </form>
+    </div>`;
+  }
+
+  function renderFoundationPanel(data = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const sources = asArray(data.sources).slice(0, 5);
+    const goals = asArray(data.goals).slice(0, 5);
+    const refs = asArray(data.curriculumReferences).slice(0, 5);
+    const profile = data.learnerProfile || null;
+    return `<section class="learning-coin-panel learning-foundation-panel" data-learning-foundation>
+      <div class="learning-section-heading">
+        <h3>\u5b66\u4e60\u57fa\u7840\u6570\u636e</h3>
+        <button type="button" data-learning-profile-rebuild>\u91cd\u5efa\u753b\u50cf</button>
+      </div>
+      ${renderSourceGoalForms(options)}
+      <div class="learning-foundation-grid">
+        <article>
+          <strong>\u5b66\u4e60\u753b\u50cf</strong>
+          <p>${escapeHtml(profile?.profileSummary || "\u5c1a\u672a\u91cd\u5efa\u753b\u50cf")}</p>
+        </article>
+        <article>
+          <strong>\u76ee\u6807</strong>
+          ${goals.length ? goals.map((goal) => `<p>${escapeHtml(goal.title || goal.goalId)} · ${escapeHtml(goal.domain || "")}</p>`).join("") : `<p>\u8fd8\u6ca1\u6709\u76ee\u6807</p>`}
+        </article>
+        <article>
+          <strong>\u8d44\u6599\u6765\u6e90</strong>
+          ${sources.length ? sources.map((source) => `<p>${escapeHtml(source.title || source.sourceId)} · ${escapeHtml(source.sourceType || "")}</p>`).join("") : `<p>\u8fd8\u6ca1\u6709\u6765\u6e90\u6458\u8981</p>`}
+        </article>
+        <article>
+          <strong>\u516c\u5f00\u8bfe\u7a0b\u53c2\u8003</strong>
+          ${refs.length ? refs.map((ref) => `<p>${escapeHtml(ref.title || ref.referenceId)}</p>`).join("") : `<p>\u8bfe\u7a0b\u53c2\u8003\u672a\u521d\u59cb\u5316</p>`}
+        </article>
+      </div>
+    </section>`;
+  }
+
   function renderProgramForm(options = {}) {
     const state = options.state || {};
     if (!state.auth?.isOwner) return "";
@@ -155,6 +227,7 @@
     const programs = options.programs || {};
     const data = programs.programs ? programs : {};
     return `<section class="learning-program-section" data-learning-growth-module="programs">
+      ${renderFoundationPanel(data, options)}
       ${renderProgramForm(options)}
       <section class="learning-coin-panel">
         <div class="learning-section-heading">
@@ -169,6 +242,7 @@
 
   return {
     compactFocus,
+    renderFoundationPanel,
     renderProgramCards,
     renderProgramForm,
     renderProgramSubsystem,

@@ -53,6 +53,38 @@ function makeRoutes(overrides = {}) {
       calls.push(["update", programId, input]);
       return { programId, title: input.title };
     },
+    listSources(input) {
+      calls.push(["listSources", input]);
+      return [{ sourceId: "source-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
+    },
+    saveSource(input) {
+      calls.push(["saveSource", input]);
+      return { sourceId: "source-1", workspaceId: input.workspaceId, learnerId: input.learnerId };
+    },
+    listGoals(input) {
+      calls.push(["listGoals", input]);
+      return [{ goalId: "goal-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
+    },
+    saveGoal(input) {
+      calls.push(["saveGoal", input]);
+      return { goalId: "goal-1", workspaceId: input.workspaceId, learnerId: input.learnerId };
+    },
+    updateGoal(goalId, input) {
+      calls.push(["updateGoal", goalId, input]);
+      return { goalId, title: input.title };
+    },
+    getLearnerProfile(input) {
+      calls.push(["profile", input]);
+      return { profile: { learnerId: input.learnerId }, skillStates: [] };
+    },
+    rebuildLearnerProfile(input) {
+      calls.push(["rebuildProfile", input]);
+      return { profile: { learnerId: input.learnerId }, skillStates: [] };
+    },
+    listCurriculumReferences(input) {
+      calls.push(["curriculum", input]);
+      return [{ referenceId: "cefr-a2-b1-english-growth", domain: "english" }];
+    },
     draftPlan(programId) {
       calls.push(["draft", programId]);
       return { ok: true, draft: { draftId: "draft-1", programId } };
@@ -106,11 +138,13 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 8);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 16);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 8);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 16);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -151,11 +185,37 @@ async function testReviewDecision() {
   assert.equal(calls.at(-1)[0], "decide");
 }
 
+async function testFoundationRoutes() {
+  const { routes, calls } = makeRoutes();
+  const sourceCreated = await request(routes, "POST", "/api/learning/sources", {
+    body: { workspaceId: "weixin_stephen", learnerId: "weixin_stephen", title: "source" },
+  });
+  assert.equal(sourceCreated.res.statusCode, 201);
+  assert.equal(sourceCreated.body.source.sourceId, "source-1");
+
+  const goals = await request(routes, "GET", "/api/learning/goals?workspaceId=weixin_stephen&learnerId=weixin_stephen");
+  assert.equal(goals.res.statusCode, 200);
+  assert.equal(goals.body.goals[0].goalId, "goal-1");
+
+  const profile = await request(routes, "POST", "/api/learning/profile/rebuild?workspaceId=weixin_stephen", {
+    body: { learnerId: "weixin_stephen" },
+  });
+  assert.equal(profile.res.statusCode, 200);
+  assert.equal(profile.body.profile.learnerId, "weixin_stephen");
+
+  const refs = await request(routes, "GET", "/api/learning/curriculum-references?domain=english");
+  assert.equal(refs.res.statusCode, 200);
+  assert.equal(refs.body.curriculumReferences[0].referenceId, "cefr-a2-b1-english-growth");
+  assert.ok(calls.some((call) => call[0] === "saveSource"));
+  assert.ok(calls.some((call) => call[0] === "rebuildProfile"));
+}
+
 (async () => {
   await testMetadata();
   await testCreateAndDraftRequireOwner();
   await testStudentCannotReadAnotherLearner();
   await testReviewDecision();
+  await testFoundationRoutes();
   console.log("learning program api routes tests passed");
 })().catch((err) => {
   console.error(err);

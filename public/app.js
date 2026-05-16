@@ -7968,10 +7968,7 @@ function learningProgramFormBody() {
   const focusAreas = [...document.querySelectorAll("input[name='learningProgramFocus']:checked")]
     .map((input) => input.value)
     .filter(Boolean);
-  const sourceBasisRefs = ($("learningProgramSourceRefs")?.value || "")
-    .split(/\r?\n|[;；、]/)
-    .map((value) => value.trim())
-    .filter(Boolean);
+  const sourceBasisRefs = learningInputList("learningProgramSourceRefs");
   return {
     workspaceId: learningGrowthLearnerWorkspaceId(),
     learnerId: learningCoinStudentId(),
@@ -7990,6 +7987,42 @@ function learningProgramFormBody() {
   };
 }
 
+function learningInputList(id) {
+  return ($(`${id}`)?.value || "")
+    .split(/\r?\n|[,;]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function learningLearnerBody() {
+  return {
+    workspaceId: learningGrowthLearnerWorkspaceId(),
+    learnerId: learningCoinStudentId(),
+    learnerName: "Fanfan",
+  };
+}
+
+function learningSourceFormBody() {
+  return Object.assign(learningLearnerBody(), {
+    sourceType: $("learningSourceType")?.value || "manual_note",
+    title: $("learningSourceTitle")?.value?.trim() || "",
+    summary: $("learningSourceSummary")?.value?.trim() || "",
+    tags: learningInputList("learningSourceTags"),
+    confidence: 0.75,
+  });
+}
+
+function learningGoalFormBody() {
+  return Object.assign(learningLearnerBody(), {
+    title: $("learningGoalTitle")?.value?.trim() || "",
+    targetSummary: $("learningGoalSummary")?.value?.trim() || "",
+    domain: $("learningGoalDomain")?.value || "english",
+    priority: Number($("learningGoalPriority")?.value || 80),
+    targetDate: $("learningGoalTargetDate")?.value || "",
+    focusAreas: learningInputList("learningGoalFocus"),
+  });
+}
+
 async function submitLearningProgramForm(event) {
   event?.preventDefault?.();
   const body = learningProgramFormBody();
@@ -7999,6 +8032,39 @@ async function submitLearningProgramForm(event) {
   }
   await api("/api/learning/programs", { method: "POST", body: JSON.stringify(body) });
   showPushToast("学习范围已保存", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function submitLearningSourceForm(event) {
+  event?.preventDefault?.();
+  const body = learningSourceFormBody();
+  if (!body.title || !body.summary) {
+    showPushToast("\u6765\u6e90\u540d\u79f0\u548c\u6458\u8981\u4e0d\u80fd\u4e3a\u7a7a", "error");
+    return;
+  }
+  await api("/api/learning/sources", { method: "POST", body: JSON.stringify(body) });
+  showPushToast("\u5b66\u4e60\u6765\u6e90\u5df2\u4fdd\u5b58", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function submitLearningGoalForm(event) {
+  event?.preventDefault?.();
+  const body = learningGoalFormBody();
+  if (!body.title || !body.targetSummary) {
+    showPushToast("\u76ee\u6807\u540d\u79f0\u548c\u6458\u8981\u4e0d\u80fd\u4e3a\u7a7a", "error");
+    return;
+  }
+  await api("/api/learning/goals", { method: "POST", body: JSON.stringify(body) });
+  showPushToast("\u5b66\u4e60\u76ee\u6807\u5df2\u4fdd\u5b58", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function rebuildLearningProfile() {
+  await api(`/api/learning/profile/rebuild?${learningCoinRequestParams({ limit: 30 })}`, {
+    method: "POST",
+    body: JSON.stringify(learningLearnerBody()),
+  });
+  showPushToast("\u5b66\u4e60\u753b\u50cf\u5df2\u91cd\u5efa", "success");
   await loadLearningCoins({ limit: 30 });
 }
 
@@ -8047,6 +8113,15 @@ async function submitLearningRewardForm(event) {
 function wireLearningCoinsView() {
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);
+  });
+  $("learningSourceForm")?.addEventListener("submit", (event) => {
+    submitLearningSourceForm(event).catch(showError);
+  });
+  $("learningGoalForm")?.addEventListener("submit", (event) => {
+    submitLearningGoalForm(event).catch(showError);
+  });
+  $("conversation")?.querySelector("[data-learning-profile-rebuild]")?.addEventListener("click", () => {
+    rebuildLearningProfile().catch(showError);
   });
   $("conversation")?.querySelectorAll("[data-learning-program-draft-action]").forEach((button) => {
     button.addEventListener("click", () => draftLearningProgram(button.dataset.learningProgramDraftAction).catch(showError));

@@ -229,9 +229,12 @@ const ROUTE_MODULES = Object.freeze([
     key: "learning-program-api-routes",
     exportName: "createLearningProgramApiRoutes",
     required: true,
-    minRoutes: 8,
+    minRoutes: 16,
     probes: [
       { method: "GET", path: "/api/learning/programs", id: "learning-programs-list" },
+      { method: "POST", path: "/api/learning/sources", id: "learning-sources-create" },
+      { method: "GET", path: "/api/learning/profile", id: "learning-profile-read" },
+      { method: "GET", path: "/api/learning/curriculum-references", id: "learning-curriculum-references-list" },
       { method: "POST", path: "/api/learning/programs/program-1/draft-plan", id: "learning-program-draft-plan" },
       { method: "POST", path: "/api/learning/review-queue/review-1/decision", id: "learning-review-queue-decision" },
     ],
@@ -328,6 +331,10 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/kanban/cards/card-1/assessment-exam" }).id, "kanban-assessment-exam");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-growth/overview" }).id, "learning-growth-overview");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/overview" }).id, "learning-overview");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/sources" }).id, "learning-sources-list");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/goals" }).id, "learning-goals-create");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/profile/rebuild" }).id, "learning-profile-rebuild");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/curriculum-references" }).id, "learning-curriculum-references-list");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/programs/program-1/publish" }).id, "learning-program-publish");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-coins/summary" }).id, "learning-coins-summary");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
@@ -347,7 +354,7 @@ function testSummarySeparatesRuntimeAuthDomains() {
   assert.equal(summary.byGroup.kanban > summary.byGroup.todo, true);
   assert.equal(summary.byGroup.learning >= 1, true);
   assert.equal(summary.byGroup["learning-growth"] >= 1, true);
-  assert.equal(summary.byGroup["learning-program"] >= 8, true);
+  assert.equal(summary.byGroup["learning-program"] >= 16, true);
   assert.equal(summary.byModule["kanban-study"] >= 4, true);
   assert.equal(summary.byMethod.GET > 20, true);
 }

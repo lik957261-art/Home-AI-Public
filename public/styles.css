@@ -6704,6 +6704,38 @@ button.directory-alias-chip {
   gap: 14px;
 }
 
+.learning-foundation-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.learning-foundation-owner-grid,
+.learning-foundation-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.learning-foundation-grid article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(22, 128, 107, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.learning-foundation-grid strong {
+  color: var(--ink);
+}
+
+.learning-foundation-grid p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .learning-program-form {
   display: grid;
   gap: 10px;
@@ -7191,6 +7223,8 @@ button.directory-alias-chip {
   }
 
   .learning-growth-shell-hero,
+  .learning-foundation-owner-grid,
+  .learning-foundation-grid,
   .learning-growth-modules {
     grid-template-columns: 1fr;
   }

@@ -49,6 +49,126 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "program"],
   },
   {
+    id: "learning-sources-list",
+    method: "GET",
+    path: "/api/learning/sources",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "listSources",
+    summary: "Read sanitized learner source summaries from SQLite.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-source"],
+    tags: ["learning", "source", "sqlite"],
+  },
+  {
+    id: "learning-sources-create",
+    method: "POST",
+    path: "/api/learning/sources",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "saveSource",
+    summary: "Owner records a summarized learning source in SQLite.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-source"],
+    tags: ["learning", "source", "owner", "sqlite"],
+  },
+  {
+    id: "learning-goals-list",
+    method: "GET",
+    path: "/api/learning/goals",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "listGoals",
+    summary: "Read learner goals from SQLite.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-goal"],
+    tags: ["learning", "goal", "sqlite"],
+  },
+  {
+    id: "learning-goals-create",
+    method: "POST",
+    path: "/api/learning/goals",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "saveGoal",
+    summary: "Owner records a learner goal in SQLite.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-goal"],
+    tags: ["learning", "goal", "owner", "sqlite"],
+  },
+  {
+    id: "learning-goal-update",
+    method: "PATCH",
+    pathRegex: /^\/api\/learning\/goals\/[^/]+$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "updateGoal",
+    summary: "Owner updates one learner goal.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-goal"],
+    tags: ["learning", "goal", "owner"],
+  },
+  {
+    id: "learning-profile-read",
+    method: "GET",
+    path: "/api/learning/profile",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "getLearnerProfile",
+    summary: "Read the sanitized learner profile and skill states.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learner-profile", "skill-state"],
+    tags: ["learning", "profile"],
+  },
+  {
+    id: "learning-profile-rebuild",
+    method: "POST",
+    path: "/api/learning/profile/rebuild",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "rebuildLearnerProfile",
+    summary: "Owner rebuilds learner profile summaries from SQLite source and goal records.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learner-profile", "skill-state"],
+    tags: ["learning", "profile", "owner"],
+  },
+  {
+    id: "learning-curriculum-references-list",
+    method: "GET",
+    path: "/api/learning/curriculum-references",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "listCurriculumReferences",
+    summary: "Read public curriculum reference metadata used for learning planning.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: false,
+    resourceTypes: ["curriculum-reference"],
+    tags: ["learning", "curriculum", "reference"],
+  },
+  {
     id: "learning-program-update",
     method: "PATCH",
     pathRegex: /^\/api\/learning\/programs\/[^/]+$/,
@@ -194,6 +314,121 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, programs: service.listPrograms(query) });
   }
 
+  async function handleSourceList(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    deps.sendJson(res, 200, { ok: true, sources: service.listSources(query) });
+  }
+
+  async function handleSourceCreate(req, res, auth) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      deps.sendJson(res, 201, {
+        ok: true,
+        source: service.saveSource(Object.assign({}, body, {
+          createdByPrincipalId: auth?.principalId || owner.principalId || "owner",
+        })),
+      });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleGoalList(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    deps.sendJson(res, 200, { ok: true, goals: service.listGoals(query) });
+  }
+
+  async function handleGoalCreate(req, res, auth) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      deps.sendJson(res, 201, {
+        ok: true,
+        goal: service.saveGoal(Object.assign({}, body, {
+          createdByPrincipalId: auth?.principalId || owner.principalId || "owner",
+        })),
+      });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleGoalUpdate(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const goalId = pathId(url.pathname, /^\/api\/learning\/goals\/([^/]+)$/);
+      deps.sendJson(res, 200, { ok: true, goal: service.updateGoal(goalId, body) });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleProfileRead(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    deps.sendJson(res, 200, Object.assign({ ok: true }, service.getLearnerProfile(query)));
+  }
+
+  async function handleProfileRebuild(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 120000).catch(() => ({}));
+    try {
+      const workspaceId = requestedWorkspaceId(url, body.workspaceId || "weixin_stephen");
+      const learnerId = cleanString(body.learnerId || body.studentId || url.searchParams.get("learnerId") || url.searchParams.get("studentId")) || workspaceId;
+      deps.sendJson(res, 200, Object.assign({ ok: true }, service.rebuildLearnerProfile(Object.assign({}, body, { workspaceId, learnerId }))));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleCurriculumReferences(req, res, url) {
+    deps.sendJson(res, 200, {
+      ok: true,
+      curriculumReferences: service.listCurriculumReferences({
+        domain: cleanString(url.searchParams.get("domain")),
+        limit: url.searchParams.get("limit") || 100,
+      }),
+    });
+  }
+
   async function handleCreate(req, res, auth) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -308,6 +543,14 @@ function createLearningProgramApiRoutes(deps = {}) {
     if (route.id === "learning-programs-list") await handleList(req, res, url, auth);
     else if (route.id === "learning-programs-create") await handleCreate(req, res, auth);
     else if (route.id === "learning-program-read") await handleRead(req, res, url, auth);
+    else if (route.id === "learning-sources-list") await handleSourceList(req, res, url, auth);
+    else if (route.id === "learning-sources-create") await handleSourceCreate(req, res, auth);
+    else if (route.id === "learning-goals-list") await handleGoalList(req, res, url, auth);
+    else if (route.id === "learning-goals-create") await handleGoalCreate(req, res, auth);
+    else if (route.id === "learning-goal-update") await handleGoalUpdate(req, res, url);
+    else if (route.id === "learning-profile-read") await handleProfileRead(req, res, url, auth);
+    else if (route.id === "learning-profile-rebuild") await handleProfileRebuild(req, res, url);
+    else if (route.id === "learning-curriculum-references-list") await handleCurriculumReferences(req, res, url);
     else if (route.id === "learning-program-update") await handleUpdate(req, res, url);
     else if (route.id === "learning-program-draft-plan") await handleDraft(req, res, url);
     else if (route.id === "learning-program-publish") await handlePublish(req, res, url);

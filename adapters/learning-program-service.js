@@ -1,10 +1,14 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { createCurriculumReferenceService } = require("./curriculum-reference-service");
+const { createLearnerProfileService } = require("./learner-profile-service");
 const { createLearningAiReliabilityGuardService } = require("./learning-ai-reliability-guard-service");
+const { createLearningGoalService } = require("./learning-goal-service");
 const { createLearningParentReviewQueueService } = require("./learning-parent-review-queue-service");
 const { createLearningPlanDecompositionService } = require("./learning-plan-decomposition-service");
 const { createLearningSkillTaxonomyService } = require("./learning-skill-taxonomy-service");
+const { createLearningSourceService } = require("./learning-source-service");
 const { createLearningTemplateRegistryService } = require("./learning-template-registry-service");
 
 function cleanString(value) {
@@ -126,11 +130,46 @@ function createLearningProgramService(options = {}) {
   const reliabilityGuard = options.reliabilityGuard || createLearningAiReliabilityGuardService();
   const reviewQueue = options.reviewQueue || createLearningParentReviewQueueService({ repository });
   const publishService = options.publishService || null;
+  const sourceService = options.sourceService || createLearningSourceService({ repository });
+  const goalService = options.goalService || createLearningGoalService({ repository, taxonomy });
+  const curriculumReferenceService = options.curriculumReferenceService || createCurriculumReferenceService({ repository });
+  const learnerProfileService = options.learnerProfileService || createLearnerProfileService({ repository });
 
   function createProgram(input = {}) {
     const program = normalizeProgramInput(input, { taxonomy });
+    const explicitCurriculumRefs = uniqueStrings(input.curriculumRefs || input.curriculum_refs);
+    if (!explicitCurriculumRefs.length) {
+      program.curriculumRefs = curriculumReferenceService.referenceIds({
+        domain: program.domain,
+        focusAreas: program.focusAreas,
+        limit: 5,
+      });
+    }
     if (!program.sourceBasisRefs.length) {
-      program.sourceBasisRefs = [`parent_config:${program.programId}`];
+      const existingRefs = sourceService.basisRefs({
+        learnerId: program.learnerId,
+        workspaceId: program.workspaceId,
+        limit: 20,
+      });
+      const goalRefs = goalService.list({
+        learnerId: program.learnerId,
+        workspaceId: program.workspaceId,
+        status: "active",
+        limit: 20,
+      }).map((goal) => goal.goalRef).filter(Boolean);
+      program.sourceBasisRefs = uniqueStrings(existingRefs.concat(goalRefs)).slice(0, 40);
+      if (!program.sourceBasisRefs.length) {
+        const parentSource = sourceService.save({
+          workspaceId: program.workspaceId,
+          learnerId: program.learnerId,
+          sourceType: "parent_config",
+          title: program.title,
+          summary: program.goalSummary,
+          confidence: 0.75,
+          tags: ["program_seed"],
+        });
+        program.sourceBasisRefs = [parentSource.sourceRef];
+      }
     }
     return repository.upsertProgram(program);
   }
@@ -147,6 +186,14 @@ function createLearningProgramService(options = {}) {
 
   function listPrograms(filters = {}) {
     return repository.listPrograms(filters);
+  }
+
+  function listSources(filters = {}) {
+    return sourceService.list(filters);
+  }
+
+  function listGoals(filters = {}) {
+    return goalService.list(filters);
   }
 
   function getProgram(programId) {
@@ -253,11 +300,20 @@ function createLearningProgramService(options = {}) {
     const programs = repository.listPrograms({ learnerId, workspaceId, limit: input.limit || 20 });
     const latestDrafts = programs.map((program) => repository.latestDraftForProgram(program.programId)).filter(Boolean).map(summarizeDraft);
     const reviewItems = repository.listReviewItems({ learnerId, status: "pending", limit: 20 });
+    const sources = sourceService.list({ learnerId, workspaceId, limit: 30 });
+    const goals = goalService.list({ learnerId, workspaceId, limit: 30 });
+    const profile = learnerProfileService.get({ learnerId, workspaceId });
+    const curriculumReferences = curriculumReferenceService.listReferences({ limit: 20 });
     return {
       counts: repository.counts({ learnerId }),
       programs,
       latestDrafts,
       reviewItems,
+      sources,
+      goals,
+      learnerProfile: profile.profile,
+      skillStates: profile.skillStates,
+      curriculumReferences,
       taxonomy: {
         domains: ["english", "math", "programming"],
         englishSkills: taxonomy.skillSummary(taxonomy.normalizeFocusAreas([], { domain: "english" })),
@@ -271,16 +327,48 @@ function createLearningProgramService(options = {}) {
     };
   }
 
+  function saveSource(input = {}) {
+    return sourceService.save(input);
+  }
+
+  function saveGoal(input = {}) {
+    return goalService.save(input);
+  }
+
+  function updateGoal(goalId, patch = {}) {
+    return goalService.update(goalId, patch);
+  }
+
+  function getLearnerProfile(input = {}) {
+    return learnerProfileService.get(input);
+  }
+
+  function rebuildLearnerProfile(input = {}) {
+    return learnerProfileService.rebuild(input);
+  }
+
+  function listCurriculumReferences(filters = {}) {
+    return curriculumReferenceService.listReferences(filters);
+  }
+
   return {
     createProgram,
     decideReview,
     draftPlan,
     getProgram,
+    getLearnerProfile,
     listPrograms,
+    listGoals,
+    listSources,
+    listCurriculumReferences,
     overview,
     publishProgram,
+    rebuildLearnerProfile,
     repository,
     reviewQueue: reviewQueueList,
+    saveGoal,
+    saveSource,
+    updateGoal,
     updateProgram,
   };
 }

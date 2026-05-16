@@ -29,6 +29,10 @@ const programs = {
     summary: "review needed",
     riskFlags: [{ code: "missing_curriculum_refs" }],
   }],
+  sources: [{ sourceId: "source-1", title: "School summary", sourceType: "school" }],
+  goals: [{ goalId: "goal-1", title: "English output", domain: "english" }],
+  learnerProfile: { learnerId: "weixin_stephen", profileSummary: "sources=1; goals=1" },
+  curriculumReferences: [{ referenceId: "cefr-a2-b1-english-growth", title: "CEFR A2-B1 English growth bridge" }],
 };
 
 function testOwnerFormAndActionsRender() {
@@ -37,11 +41,18 @@ function testOwnerFormAndActionsRender() {
     state: { auth: { isOwner: true } },
   });
   assert.match(html, /data-learning-growth-module="programs"/);
+  assert.match(html, /data-learning-foundation/);
+  assert.match(html, /data-learning-source-create/);
+  assert.match(html, /data-learning-goal-create/);
+  assert.match(html, /data-learning-profile-rebuild/);
   assert.match(html, /data-learning-program-create/);
   assert.match(html, /data-learning-program-draft-action="program-1"/);
   assert.match(html, /data-learning-program-publish="program-1"/);
   assert.match(html, /data-learning-review-decision="review-1"/);
   assert.match(html, /english_reading_comprehension/);
+  assert.match(html, /School summary/);
+  assert.match(html, /English output/);
+  assert.match(html, /CEFR A2-B1 English growth bridge/);
   assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
 }
 
@@ -51,6 +62,8 @@ function testNonOwnerCannotSeeCreateForm() {
     state: { auth: { isOwner: false } },
   });
   assert.doesNotMatch(html, /data-learning-program-create/);
+  assert.doesNotMatch(html, /data-learning-source-create/);
+  assert.doesNotMatch(html, /data-learning-goal-create/);
   assert.match(html, /data-learning-program-id="program-1"/);
 }
 

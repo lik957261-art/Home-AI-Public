@@ -290,6 +290,41 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-program"],
   })),
+  exact("learning-sources-list", "GET", "/api/learning/sources", "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-source"],
+  })),
+  exact("learning-sources-create", "POST", "/api/learning/sources", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-source"],
+  })),
+  exact("learning-goals-list", "GET", "/api/learning/goals", "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-goal"],
+  })),
+  exact("learning-goals-create", "POST", "/api/learning/goals", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-goal"],
+  })),
+  regex("learning-goal-update", "PATCH", /^\/api\/learning\/goals\/[^/]+$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-goal"],
+  })),
+  exact("learning-profile-read", "GET", "/api/learning/profile", "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learner-profile", "skill-state"],
+  })),
+  exact("learning-profile-rebuild", "POST", "/api/learning/profile/rebuild", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learner-profile", "skill-state"],
+  })),
+  exact("learning-curriculum-references-list", "GET", "/api/learning/curriculum-references", "learning-program", routeOptions("learning-program", {
+    resourceTypes: ["curriculum-reference"],
+  })),
   regex("learning-program-update", "PATCH", /^\/api\/learning\/programs\/[^/]+$/, "learning-program", routeOptions("learning-program", {
     riskLevel: "owner",
     ownerOnly: true,

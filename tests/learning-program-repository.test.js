@@ -87,8 +87,87 @@ function testMigrationAndPersistence() {
     kanbanResult: { ok: true, cards: [{ clientId: "safe-id" }] },
   });
   assert.equal(publication.status, "published");
+  const source = repository.upsertSource({
+    sourceId: "source-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    sourceType: "school",
+    title: "School summary",
+    summary: "Teacher summary only.",
+    confidence: 0.8,
+    sourceDate: "2026-05-16",
+    tags: ["school"],
+    refs: [],
+    rawTranscript: "must not be exposed",
+  });
+  assert.equal(source.sourceRef, "school:source-1");
+  assert.equal(source.rawTranscript, "[redacted]");
+
+  const goal = repository.upsertGoal({
+    goalId: "goal-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    title: "English output",
+    domain: "english",
+    focusAreas: ["english_short_writing"],
+    targetSummary: "Improve short writing.",
+    priority: 80,
+    horizon: "short_term",
+    startDate: "2026-05-16",
+    targetDate: "2026-06-16",
+    status: "active",
+    successMetrics: ["weekly writing repair"],
+    constraints: {},
+    sourceBasisRefs: [source.sourceRef],
+  });
+  assert.equal(goal.goalRef, "goal:goal-1");
+
+  const curriculum = repository.upsertCurriculumReference({
+    referenceId: "cefr-test",
+    domain: "english",
+    title: "CEFR test reference",
+    stage: "bridge",
+    summary: "reference only",
+    focusAreas: ["english_short_writing"],
+    tags: ["cefr"],
+  });
+  assert.equal(curriculum.referenceId, "cefr-test");
+
+  const skill = repository.upsertSkillState({
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    skillId: "english_short_writing",
+    domain: "english",
+    level: "baseline",
+    confidence: 0.66,
+    lastEvidenceRef: source.sourceRef,
+    sourceBasisRefs: [source.sourceRef, goal.goalRef],
+  });
+  assert.equal(skill.skillId, "english_short_writing");
+
+  const profile = repository.upsertLearnerProfile({
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    displayName: "Fanfan",
+    profileSummary: "sources=1; goals=1",
+    strengths: [],
+    weaknesses: ["english_short_writing"],
+    priorities: [{ goalId: goal.goalId }],
+    skillStateSummary: [{ skillId: skill.skillId }],
+    sourceBasisRefs: [source.sourceRef, goal.goalRef],
+  });
+  assert.equal(profile.learnerId, "weixin_stephen");
+
   assert.equal(repository.listPrograms({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listSources({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listGoals({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listSkillStates({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listCurriculumReferences({ domain: "english" }).length, 1);
   assert.equal(repository.latestDraftForProgram("program-1").draftId, "draft-1");
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).sources, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).goals, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).profiles, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).skillStates, 1);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
