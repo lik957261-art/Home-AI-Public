@@ -214,6 +214,111 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "program", "publish", "owner"],
   },
   {
+    id: "learning-task-cards-list",
+    method: "GET",
+    path: "/api/learning/task-cards",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "listTaskCards",
+    summary: "Read summarized SQLite learning task cards.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card"],
+    tags: ["learning", "task-card", "sqlite"],
+  },
+  {
+    id: "learning-task-card-read",
+    method: "GET",
+    pathRegex: /^\/api\/learning\/task-cards\/[^/]+$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "getTaskCard",
+    summary: "Read one summarized SQLite learning task card.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card"],
+    tags: ["learning", "task-card"],
+  },
+  {
+    id: "learning-task-card-session-start",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/sessions$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "startTaskSession",
+    summary: "Owner starts a summary-only learning interaction session for a task card.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-task-card", "learning-interaction-session"],
+    tags: ["learning", "task-card", "session", "owner"],
+  },
+  {
+    id: "learning-sessions-list",
+    method: "GET",
+    path: "/api/learning/sessions",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "listInteractionSessions",
+    summary: "Read summarized learning interaction sessions.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-interaction-session"],
+    tags: ["learning", "session", "sqlite"],
+  },
+  {
+    id: "learning-session-advance",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/sessions\/[^/]+\/advance$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "advanceInteractionSession",
+    summary: "Owner advances a summary-only learning interaction session state machine.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-interaction-session"],
+    tags: ["learning", "session", "owner"],
+  },
+  {
+    id: "learning-session-evaluation-create",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/sessions\/[^/]+\/evaluations$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "recordEvaluation",
+    summary: "Owner records a summary-only learning evaluation without writing coin ledger entries.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-evaluation"],
+    tags: ["learning", "evaluation", "owner"],
+  },
+  {
+    id: "learning-evaluations-list",
+    method: "GET",
+    path: "/api/learning/evaluations",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "listEvaluations",
+    summary: "Read summarized learning evaluation records.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-evaluation"],
+    tags: ["learning", "evaluation", "sqlite"],
+  },
+  {
     id: "learning-review-queue-list",
     method: "GET",
     path: "/api/learning/review-queue",
@@ -299,6 +404,11 @@ function createLearningProgramApiRoutes(deps = {}) {
       workspaceId,
       learnerId,
       limit: url.searchParams.get("limit"),
+      status: cleanString(url.searchParams.get("status")),
+      programId: cleanString(url.searchParams.get("programId")),
+      draftId: cleanString(url.searchParams.get("draftId")),
+      taskCardId: cleanString(url.searchParams.get("taskCardId")),
+      sessionId: cleanString(url.searchParams.get("sessionId")),
     };
   }
 
@@ -463,6 +573,20 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, program });
   }
 
+  function authorizeRecord(req, res, auth, record, missingMessage) {
+    if (!record) {
+      deps.sendJson(res, 404, { ok: false, error: missingMessage });
+      return false;
+    }
+    const allowed = deps.requireWorkspaceAccess(req, res, record.workspaceId);
+    if (!allowed) return false;
+    if (!deps.isOwnerAuth(auth) && record.learnerId !== auth?.workspaceId) {
+      deps.sendJson(res, 403, { ok: false, error: "Learner access is not allowed" });
+      return false;
+    }
+    return true;
+  }
+
   async function handleUpdate(req, res, url) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -501,6 +625,103 @@ function createLearningProgramApiRoutes(deps = {}) {
     } catch (err) {
       sendRouteError(deps, res, err);
     }
+  }
+
+  async function handleTaskCardsList(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    deps.sendJson(res, 200, { ok: true, taskCards: service.listTaskCards(query) });
+  }
+
+  async function handleTaskCardRead(req, res, url, auth) {
+    const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)$/);
+    const taskCard = service.getTaskCard(taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    deps.sendJson(res, 200, { ok: true, taskCard });
+  }
+
+  async function handleTaskSessionStart(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/sessions$/);
+      deps.sendJson(res, 201, {
+        ok: true,
+        session: service.startTaskSession(taskCardId, Object.assign({}, body, { actor: owner.principalId || "owner" })),
+      });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleSessionsList(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    deps.sendJson(res, 200, { ok: true, sessions: service.listInteractionSessions(query) });
+  }
+
+  async function handleSessionAdvance(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const sessionId = pathId(url.pathname, /^\/api\/learning\/sessions\/([^/]+)\/advance$/);
+      deps.sendJson(res, 200, {
+        ok: true,
+        session: service.advanceInteractionSession(sessionId, Object.assign({}, body, { actor: owner.principalId || "owner" })),
+      });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleEvaluationCreate(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const sessionId = pathId(url.pathname, /^\/api\/learning\/sessions\/([^/]+)\/evaluations$/);
+      deps.sendJson(res, 201, { ok: true, evaluation: service.recordEvaluation(sessionId, body) });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleEvaluationsList(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    deps.sendJson(res, 200, { ok: true, evaluations: service.listEvaluations(query) });
   }
 
   async function handleReviewList(req, res, url, auth) {
@@ -554,6 +775,13 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-program-update") await handleUpdate(req, res, url);
     else if (route.id === "learning-program-draft-plan") await handleDraft(req, res, url);
     else if (route.id === "learning-program-publish") await handlePublish(req, res, url);
+    else if (route.id === "learning-task-cards-list") await handleTaskCardsList(req, res, url, auth);
+    else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
+    else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url);
+    else if (route.id === "learning-sessions-list") await handleSessionsList(req, res, url, auth);
+    else if (route.id === "learning-session-advance") await handleSessionAdvance(req, res, url);
+    else if (route.id === "learning-session-evaluation-create") await handleEvaluationCreate(req, res, url);
+    else if (route.id === "learning-evaluations-list") await handleEvaluationsList(req, res, url, auth);
     else if (route.id === "learning-review-queue-list") await handleReviewList(req, res, url, auth);
     else if (route.id === "learning-review-queue-decision") await handleReviewDecision(req, res, url);
     else return { handled: false };

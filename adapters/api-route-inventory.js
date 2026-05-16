@@ -340,6 +340,37 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["learning-program", "kanban"],
   })),
+  exact("learning-task-cards-list", "GET", "/api/learning/task-cards", "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card"],
+  })),
+  regex("learning-task-card-read", "GET", /^\/api\/learning\/task-cards\/[^/]+$/, "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card"],
+  })),
+  regex("learning-task-card-session-start", "POST", /^\/api\/learning\/task-cards\/[^/]+\/sessions$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-task-card", "learning-interaction-session"],
+  })),
+  exact("learning-sessions-list", "GET", "/api/learning/sessions", "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-interaction-session"],
+  })),
+  regex("learning-session-advance", "POST", /^\/api\/learning\/sessions\/[^/]+\/advance$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-interaction-session"],
+  })),
+  regex("learning-session-evaluation-create", "POST", /^\/api\/learning\/sessions\/[^/]+\/evaluations$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-evaluation"],
+  })),
+  exact("learning-evaluations-list", "GET", "/api/learning/evaluations", "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-evaluation"],
+  })),
   exact("learning-review-queue-list", "GET", "/api/learning/review-queue", "learning-program", routeOptions("learning-program", {
     riskLevel: "owner",
     ownerOnly: true,

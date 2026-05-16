@@ -525,3 +525,33 @@ cancelled
 - 计划、草稿、审核、发布记录的主状态归 Learning Program SQLite 表所有；Kanban/Todo 只承载下发执行卡片。
 - 自动生成内容只保存摘要、引用、任务类型、模板 id、状态和风险标记，不保存完整儿童回答、录音转写、题目全文或答案全文。
 - 发布前必须通过可靠性护栏；被 `publishBlocked` 的草稿不能写入 Kanban。
+
+## 14. V0.3 SQLite task/session/evaluation records (2026-05-17)
+
+V0.3 extends the SQLite-first learning-growth domain from plan drafting into the execution record foundation.
+
+New durable tables:
+- `learning_task_cards`: canonical learning task-card records materialized from a plan draft. Kanban card ids are optional platform references, not the source of truth.
+- `learning_interaction_sessions`: summary-only state-machine sessions for each task card.
+- `learning_evaluations`: summary-only evaluation records with score, pass status, confidence, skill result summaries, source refs, and reward-policy metadata.
+
+New services:
+- `adapters/learning-task-card-service.js`: materializes draft tasks into SQLite task cards.
+- `adapters/learning-interaction-session-service.js`: starts and advances task-card interaction state machines.
+- `adapters/learning-evaluation-service.js`: records summary-only evaluations and marks reward review eligibility without writing coin ledger entries.
+- `adapters/learning-record-privacy-service.js`: rejects raw private payload keys such as answers, transcripts, question text, answer keys, prompts, credentials, endpoints, and local paths.
+
+New API surface under the existing `learning-program` route module:
+- `GET /api/learning/task-cards`
+- `GET /api/learning/task-cards/:taskCardId`
+- `POST /api/learning/task-cards/:taskCardId/sessions`
+- `GET /api/learning/sessions`
+- `POST /api/learning/sessions/:sessionId/advance`
+- `POST /api/learning/sessions/:sessionId/evaluations`
+- `GET /api/learning/evaluations`
+
+Current boundary:
+- Read APIs are workspace/learner scoped.
+- Mutating session and evaluation APIs are Owner-only in V0.3.
+- Evaluation records do not grant coins directly; reward settlement remains owned by the reward/coin services.
+- No full child answers, full transcripts, question text, answer keys, prompts, secrets, endpoints, or local file paths should be accepted or persisted in these learning record APIs.

@@ -62,6 +62,8 @@ async function testCreateDraftApprovePublish() {
   const drafted = service.draftPlan(program.programId);
   assert.equal(drafted.ok, true);
   assert.equal(drafted.draft.status, "review_required");
+  assert.equal(drafted.taskCards.length, drafted.draft.taskCount);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskCards, drafted.draft.taskCount);
   assert.equal(drafted.reviewItem.status, "pending");
   assert.ok(drafted.draft.dailyPlans.flatMap((day) => day.tasks).some((task) => task.skillIds.includes("english_short_writing")));
 
@@ -81,6 +83,9 @@ async function testCreateDraftApprovePublish() {
   const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
   assert.equal(overview.sources.length, 1);
   assert.equal(overview.goals.length, 1);
+  assert.equal(overview.taskCards.length, drafted.draft.taskCount);
+  assert.equal(overview.interactionSessions.length, 0);
+  assert.equal(overview.evaluations.length, 0);
   assert.ok(overview.curriculumReferences.length >= 3);
   assert.equal(overview.learnerProfile.learnerId, "weixin_stephen");
   repository.close();

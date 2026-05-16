@@ -62,6 +62,65 @@ function testMigrationAndPersistence() {
   });
   assert.equal(draft.taskCount, 2);
 
+  const taskCard = repository.upsertTaskCard({
+    taskCardId: "task-1",
+    programId: "program-1",
+    draftId: "draft-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    title: "Speaking task",
+    domain: "english",
+    taskCardType: "single_subject",
+    status: "planned",
+    plannedDate: "2026-05-16",
+    plannedMinutes: 15,
+    skillIds: ["english_speaking_retell"],
+    templateId: "english-speaking-retell-v1",
+    interactionStateMachine: ["receive_task", "learner_attempt", "ai_evaluation"],
+    sourceBasisRefs: ["parent_config:program-1"],
+    curriculumRefs: ["cefr-a2-b1-growth-track"],
+    privacyLevel: "summary_only",
+    reliability: { confidence: 0.8 },
+    learnerAnswer: "must not be exposed",
+  });
+  assert.equal(taskCard.taskCardId, "task-1");
+  assert.equal(taskCard.learnerAnswer, "[redacted]");
+
+  const session = repository.saveInteractionSession({
+    sessionId: "session-1",
+    taskCardId: "task-1",
+    programId: "program-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    status: "active",
+    currentStep: "learner_attempt",
+    stepHistory: [{ step: "receive_task", summary: "started" }],
+    summary: "summary only",
+    rawTranscript: "must not be exposed",
+  });
+  assert.equal(session.sessionId, "session-1");
+  assert.equal(session.rawTranscript, "[redacted]");
+
+  const evaluation = repository.saveEvaluation({
+    evaluationId: "eval-1",
+    taskCardId: "task-1",
+    sessionId: "session-1",
+    programId: "program-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    status: "passed",
+    score: 82,
+    passed: true,
+    confidence: 0.81,
+    summary: "summary only",
+    skillResults: [{ skillId: "english_speaking_retell", score: 82 }],
+    rewardPolicy: { coinLedgerWrite: "disabled_in_evaluation_service" },
+    sourceBasisRefs: ["parent_config:program-1"],
+    questionText: "must not be exposed",
+  });
+  assert.equal(evaluation.evaluationId, "eval-1");
+  assert.equal(evaluation.questionText, "[redacted]");
+
   const review = repository.saveReviewItem({
     reviewId: "review-1",
     programId: "program-1",
@@ -163,11 +222,17 @@ function testMigrationAndPersistence() {
   assert.equal(repository.listGoals({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listSkillStates({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listCurriculumReferences({ domain: "english" }).length, 1);
+  assert.equal(repository.listTaskCards({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listInteractionSessions({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.latestDraftForProgram("program-1").draftId, "draft-1");
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).sources, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).goals, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).profiles, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).skillStates, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskCards, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).interactionSessions, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).evaluations, 1);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
@@ -176,6 +241,7 @@ function testPrivateFieldStripping() {
   const stripped = stripPrivateLearningFields({
     summary: "safe",
     rawTranscript: "child full transcript",
+    learnerAnswer: "child full answer",
     nested: {
       questionText: "full question",
       sourceBasisRefs: ["safe-ref"],
@@ -184,6 +250,7 @@ function testPrivateFieldStripping() {
   });
   assert.equal(stripped.summary, "safe");
   assert.equal(stripped.rawTranscript, "[redacted]");
+  assert.equal(stripped.learnerAnswer, "[redacted]");
   assert.equal(stripped.nested.questionText, "[redacted]");
   assert.equal(stripped.nested.answerKey, "[redacted]");
   assert.deepEqual(stripped.nested.sourceBasisRefs, ["safe-ref"]);

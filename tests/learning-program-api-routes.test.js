@@ -87,7 +87,7 @@ function makeRoutes(overrides = {}) {
     },
     draftPlan(programId) {
       calls.push(["draft", programId]);
-      return { ok: true, draft: { draftId: "draft-1", programId } };
+      return { ok: true, draft: { draftId: "draft-1", programId }, taskCards: [{ taskCardId: "task-1" }] };
     },
     async publishProgram(programId, input) {
       calls.push(["publish", programId, input]);
@@ -100,6 +100,34 @@ function makeRoutes(overrides = {}) {
     decideReview(reviewId, input) {
       calls.push(["decide", reviewId, input]);
       return { reviewId, status: input.decision };
+    },
+    listTaskCards(input) {
+      calls.push(["listTaskCards", input]);
+      return [{ taskCardId: "task-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
+    },
+    getTaskCard(taskCardId) {
+      calls.push(["getTaskCard", taskCardId]);
+      return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen" };
+    },
+    startTaskSession(taskCardId, input) {
+      calls.push(["startTaskSession", taskCardId, input]);
+      return { sessionId: "session-1", taskCardId, currentStep: "receive_task" };
+    },
+    listInteractionSessions(input) {
+      calls.push(["listSessions", input]);
+      return [{ sessionId: "session-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
+    },
+    advanceInteractionSession(sessionId, input) {
+      calls.push(["advanceSession", sessionId, input]);
+      return { sessionId, currentStep: input.step || "learner_attempt" };
+    },
+    recordEvaluation(sessionId, input) {
+      calls.push(["recordEvaluation", sessionId, input]);
+      return { evaluationId: "eval-1", sessionId, score: input.score };
+    },
+    listEvaluations(input) {
+      calls.push(["listEvaluations", input]);
+      return [{ evaluationId: "eval-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
     },
   }, overrides.service || {});
   const deps = Object.assign({
@@ -138,13 +166,16 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 16);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 23);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 16);
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 23);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -164,6 +195,7 @@ async function testCreateAndDraftRequireOwner() {
   const drafted = await request(routes, "POST", "/api/learning/programs/program-1/draft-plan");
   assert.equal(drafted.res.statusCode, 201);
   assert.equal(calls.at(-1)[0], "draft");
+  assert.equal(drafted.body.taskCards[0].taskCardId, "task-1");
 }
 
 async function testStudentCannotReadAnotherLearner() {
@@ -210,12 +242,48 @@ async function testFoundationRoutes() {
   assert.ok(calls.some((call) => call[0] === "rebuildProfile"));
 }
 
+async function testTaskSessionEvaluationRoutes() {
+  const { routes, calls } = makeRoutes();
+  const taskList = await request(routes, "GET", "/api/learning/task-cards?workspaceId=weixin_stephen&learnerId=weixin_stephen");
+  assert.equal(taskList.res.statusCode, 200);
+  assert.equal(taskList.body.taskCards[0].taskCardId, "task-1");
+
+  const task = await request(routes, "GET", "/api/learning/task-cards/task-1", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(task.res.statusCode, 200);
+  assert.equal(task.body.taskCard.taskCardId, "task-1");
+
+  const session = await request(routes, "POST", "/api/learning/task-cards/task-1/sessions", {
+    body: { summary: "start" },
+  });
+  assert.equal(session.res.statusCode, 201);
+  assert.equal(session.body.session.sessionId, "session-1");
+
+  const advanced = await request(routes, "POST", "/api/learning/sessions/session-1/advance", {
+    body: { step: "learner_attempt", summary: "summary only" },
+  });
+  assert.equal(advanced.res.statusCode, 200);
+  assert.equal(advanced.body.session.currentStep, "learner_attempt");
+
+  const evaluation = await request(routes, "POST", "/api/learning/sessions/session-1/evaluations", {
+    body: { score: 88, summary: "summary only" },
+  });
+  assert.equal(evaluation.res.statusCode, 201);
+  assert.equal(evaluation.body.evaluation.score, 88);
+
+  const evaluations = await request(routes, "GET", "/api/learning/evaluations?workspaceId=weixin_stephen&learnerId=weixin_stephen");
+  assert.equal(evaluations.res.statusCode, 200);
+  assert.ok(calls.some((call) => call[0] === "recordEvaluation"));
+}
+
 (async () => {
   await testMetadata();
   await testCreateAndDraftRequireOwner();
   await testStudentCannotReadAnotherLearner();
   await testReviewDecision();
   await testFoundationRoutes();
+  await testTaskSessionEvaluationRoutes();
   console.log("learning program api routes tests passed");
 })().catch((err) => {
   console.error(err);

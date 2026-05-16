@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 2;
+const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 3;
 
 function nowIso() {
   return new Date().toISOString();
@@ -30,9 +30,18 @@ function stripPrivateLearningFields(value, depth = 0) {
     "rawAnswer",
     "rawAnswers",
     "rawResponse",
+    "learnerAnswer",
+    "learnerAnswers",
+    "learnerResponse",
+    "childAnswer",
+    "childResponse",
+    "submissionText",
     "rawTranscript",
     "transcript",
     "fullTranscript",
+    "audioTranscript",
+    "recordingTranscript",
+    "question",
     "questionText",
     "questions",
     "answerKey",
@@ -48,6 +57,9 @@ function stripPrivateLearningFields(value, depth = 0) {
     "endpoint",
     "filePath",
     "localPath",
+    "mediaPath",
+    "recordingPath",
+    "attachmentPath",
   ]);
   const out = {};
   for (const [key, item] of Object.entries(value)) {
@@ -249,6 +261,71 @@ function publicCurriculumReferenceFromRow(row) {
   });
 }
 
+function publicTaskCardFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    taskCardId: row.id,
+    programId: row.program_id,
+    draftId: row.draft_id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    kanbanCardId: row.kanban_card_id || "",
+    title: row.title,
+    domain: row.domain,
+    taskCardType: row.task_card_type,
+    status: row.status,
+    plannedDate: row.planned_date,
+    plannedMinutes: Number(row.planned_minutes || 0),
+    skillIds: parseJson(row.skill_ids_json, []),
+    templateId: row.template_id,
+    interactionStateMachine: parseJson(row.interaction_state_machine_json, []),
+    sourceBasisRefs: parseJson(row.source_basis_refs_json, []),
+    curriculumRefs: parseJson(row.curriculum_refs_json, []),
+    privacyLevel: row.privacy_level,
+    reliability: parseJson(row.reliability_json, null),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+function publicInteractionSessionFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    sessionId: row.id,
+    taskCardId: row.task_card_id,
+    programId: row.program_id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    status: row.status,
+    currentStep: row.current_step,
+    stepHistory: parseJson(row.step_history_json, []),
+    summary: row.summary,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+function publicEvaluationFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    evaluationId: row.id,
+    taskCardId: row.task_card_id,
+    sessionId: row.session_id,
+    programId: row.program_id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    status: row.status,
+    score: Number(row.score || 0),
+    passed: Boolean(Number(row.passed || 0)),
+    confidence: Number(row.confidence || 0),
+    summary: row.summary,
+    skillResults: parseJson(row.skill_results_json, []),
+    rewardPolicy: parseJson(row.reward_policy_json, null),
+    sourceBasisRefs: parseJson(row.source_basis_refs_json, []),
+    createdAt: row.created_at,
+  });
+}
+
 function createLearningProgramRepository(options = {}) {
   const dataDir = path.resolve(String(options.dataDir || process.env.HERMES_WEB_DATA_DIR || path.join(process.cwd(), "workspace", "hermes-web")));
   const dbPath = path.resolve(String(options.dbPath || process.env.HERMES_MOBILE_LEARNING_DB_PATH || process.env.HERMES_WEB_LEARNING_DB_PATH || path.join(dataDir, "learning-growth.sqlite3")));
@@ -438,6 +515,72 @@ function createLearningProgramRepository(options = {}) {
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS learning_task_cards (
+        id TEXT PRIMARY KEY,
+        program_id TEXT NOT NULL,
+        draft_id TEXT NOT NULL,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        kanban_card_id TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        task_card_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        planned_date TEXT NOT NULL,
+        planned_minutes INTEGER NOT NULL,
+        skill_ids_json TEXT NOT NULL,
+        template_id TEXT NOT NULL,
+        interaction_state_machine_json TEXT NOT NULL,
+        source_basis_refs_json TEXT NOT NULL,
+        curriculum_refs_json TEXT NOT NULL,
+        privacy_level TEXT NOT NULL,
+        reliability_json TEXT,
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE,
+        FOREIGN KEY(draft_id) REFERENCES learning_plan_drafts(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS learning_interaction_sessions (
+        id TEXT PRIMARY KEY,
+        task_card_id TEXT NOT NULL,
+        program_id TEXT NOT NULL,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        current_step TEXT NOT NULL,
+        step_history_json TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(task_card_id) REFERENCES learning_task_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS learning_evaluations (
+        id TEXT PRIMARY KEY,
+        task_card_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        program_id TEXT NOT NULL,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        score REAL NOT NULL,
+        passed INTEGER NOT NULL,
+        confidence REAL NOT NULL,
+        summary TEXT NOT NULL,
+        skill_results_json TEXT NOT NULL,
+        reward_policy_json TEXT NOT NULL,
+        source_basis_refs_json TEXT NOT NULL,
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(task_card_id) REFERENCES learning_task_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY(session_id) REFERENCES learning_interaction_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS idx_learning_programs_learner ON learning_programs(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_drafts_program ON learning_plan_drafts(program_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_reviews_status ON learning_parent_review_items(status, updated_at);
@@ -447,12 +590,18 @@ function createLearningProgramRepository(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_learning_profiles_learner ON learner_profiles(learner_id, updated_at);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_skill_states_unique ON learner_skill_states(learner_id, skill_id);
       CREATE INDEX IF NOT EXISTS idx_learning_curriculum_domain ON learning_curriculum_references(domain, stage);
+      CREATE INDEX IF NOT EXISTS idx_learning_task_cards_learner ON learning_task_cards(learner_id, status, planned_date);
+      CREATE INDEX IF NOT EXISTS idx_learning_task_cards_draft ON learning_task_cards(draft_id, planned_date);
+      CREATE INDEX IF NOT EXISTS idx_learning_sessions_task ON learning_interaction_sessions(task_card_id, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_sessions_learner ON learning_interaction_sessions(learner_id, status, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_evaluations_task ON learning_evaluations(task_card_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_evaluations_learner ON learning_evaluations(learner_id, created_at);
     `);
     const row = database.prepare("SELECT version FROM learning_schema_migrations WHERE version = ?").get(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION);
     if (!row) {
       database.prepare("INSERT INTO learning_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
         CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION,
-        "learning foundation v0.2",
+        "learning task records v0.3",
         nowIso(),
       );
     }
@@ -1000,6 +1149,257 @@ function createLearningProgramRepository(options = {}) {
     return open().prepare(sql).all(...values, limit).map(publicCurriculumReferenceFromRow);
   }
 
+  function upsertTaskCard(card) {
+    migrate();
+    const now = nowIso();
+    const cardId = cleanString(card.taskCardId || card.id);
+    const current = getTaskCard(cardId);
+    const createdAt = current?.createdAt || card.createdAt || now;
+    const updatedAt = card.updatedAt || now;
+    const row = Object.assign({}, card, { taskCardId: cardId, createdAt, updatedAt });
+    open().prepare(`
+      INSERT INTO learning_task_cards(
+        id, program_id, draft_id, learner_id, workspace_id, kanban_card_id,
+        title, domain, task_card_type, status, planned_date, planned_minutes,
+        skill_ids_json, template_id, interaction_state_machine_json,
+        source_basis_refs_json, curriculum_refs_json, privacy_level,
+        reliability_json, raw_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        program_id=excluded.program_id,
+        draft_id=excluded.draft_id,
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        kanban_card_id=excluded.kanban_card_id,
+        title=excluded.title,
+        domain=excluded.domain,
+        task_card_type=excluded.task_card_type,
+        status=excluded.status,
+        planned_date=excluded.planned_date,
+        planned_minutes=excluded.planned_minutes,
+        skill_ids_json=excluded.skill_ids_json,
+        template_id=excluded.template_id,
+        interaction_state_machine_json=excluded.interaction_state_machine_json,
+        source_basis_refs_json=excluded.source_basis_refs_json,
+        curriculum_refs_json=excluded.curriculum_refs_json,
+        privacy_level=excluded.privacy_level,
+        reliability_json=excluded.reliability_json,
+        raw_json=excluded.raw_json,
+        updated_at=excluded.updated_at
+    `).run(
+      row.taskCardId,
+      row.programId,
+      row.draftId,
+      row.learnerId,
+      row.workspaceId,
+      row.kanbanCardId || "",
+      row.title || "",
+      row.domain || "",
+      row.taskCardType || "",
+      row.status || "planned",
+      row.plannedDate || "",
+      Number(row.plannedMinutes || 0),
+      stableJson(row.skillIds || []),
+      row.templateId || "",
+      stableJson(row.interactionStateMachine || []),
+      stableJson(row.sourceBasisRefs || []),
+      stableJson(row.curriculumRefs || []),
+      row.privacyLevel || "summary_only",
+      stableJson(row.reliability || null),
+      stableJson(stripPrivateLearningFields(row)),
+      createdAt,
+      updatedAt,
+    );
+    return getTaskCard(row.taskCardId);
+  }
+
+  function getTaskCard(taskCardId) {
+    migrate();
+    return publicTaskCardFromRow(open().prepare("SELECT * FROM learning_task_cards WHERE id = ?").get(cleanString(taskCardId)));
+  }
+
+  function listTaskCards(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.programId) {
+      where.push("program_id = ?");
+      values.push(cleanString(filters.programId));
+    }
+    if (filters.draftId) {
+      where.push("draft_id = ?");
+      values.push(cleanString(filters.draftId));
+    }
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.status) {
+      where.push("status = ?");
+      values.push(cleanString(filters.status));
+    }
+    const limit = Math.max(1, Math.min(300, Number(filters.limit || 100) || 100));
+    const sql = `SELECT * FROM learning_task_cards ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY planned_date ASC, created_at ASC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicTaskCardFromRow);
+  }
+
+  function saveInteractionSession(session) {
+    migrate();
+    const now = nowIso();
+    const sessionId = cleanString(session.sessionId || session.id);
+    const current = getInteractionSession(sessionId);
+    const createdAt = current?.createdAt || session.createdAt || now;
+    const updatedAt = session.updatedAt || now;
+    const row = Object.assign({}, session, { sessionId, createdAt, updatedAt });
+    open().prepare(`
+      INSERT INTO learning_interaction_sessions(
+        id, task_card_id, program_id, learner_id, workspace_id, status,
+        current_step, step_history_json, summary, raw_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        task_card_id=excluded.task_card_id,
+        program_id=excluded.program_id,
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        status=excluded.status,
+        current_step=excluded.current_step,
+        step_history_json=excluded.step_history_json,
+        summary=excluded.summary,
+        raw_json=excluded.raw_json,
+        updated_at=excluded.updated_at
+    `).run(
+      row.sessionId,
+      row.taskCardId,
+      row.programId,
+      row.learnerId,
+      row.workspaceId,
+      row.status || "active",
+      row.currentStep || "",
+      stableJson(row.stepHistory || []),
+      row.summary || "",
+      stableJson(stripPrivateLearningFields(row)),
+      createdAt,
+      updatedAt,
+    );
+    return getInteractionSession(row.sessionId);
+  }
+
+  function getInteractionSession(sessionId) {
+    migrate();
+    return publicInteractionSessionFromRow(open().prepare("SELECT * FROM learning_interaction_sessions WHERE id = ?").get(cleanString(sessionId)));
+  }
+
+  function listInteractionSessions(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.taskCardId) {
+      where.push("task_card_id = ?");
+      values.push(cleanString(filters.taskCardId));
+    }
+    if (filters.programId) {
+      where.push("program_id = ?");
+      values.push(cleanString(filters.programId));
+    }
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.status) {
+      where.push("status = ?");
+      values.push(cleanString(filters.status));
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    const sql = `SELECT * FROM learning_interaction_sessions ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY updated_at DESC, created_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicInteractionSessionFromRow);
+  }
+
+  function saveEvaluation(evaluation) {
+    migrate();
+    const createdAt = evaluation.createdAt || nowIso();
+    const row = Object.assign({}, evaluation, {
+      evaluationId: cleanString(evaluation.evaluationId || evaluation.id),
+      createdAt,
+    });
+    open().prepare(`
+      INSERT INTO learning_evaluations(
+        id, task_card_id, session_id, program_id, learner_id, workspace_id,
+        status, score, passed, confidence, summary, skill_results_json,
+        reward_policy_json, source_basis_refs_json, raw_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status=excluded.status,
+        score=excluded.score,
+        passed=excluded.passed,
+        confidence=excluded.confidence,
+        summary=excluded.summary,
+        skill_results_json=excluded.skill_results_json,
+        reward_policy_json=excluded.reward_policy_json,
+        source_basis_refs_json=excluded.source_basis_refs_json,
+        raw_json=excluded.raw_json
+    `).run(
+      row.evaluationId,
+      row.taskCardId,
+      row.sessionId,
+      row.programId,
+      row.learnerId,
+      row.workspaceId,
+      row.status || "recorded",
+      Number(row.score || 0),
+      row.passed ? 1 : 0,
+      Number(row.confidence || 0),
+      row.summary || "",
+      stableJson(row.skillResults || []),
+      stableJson(row.rewardPolicy || {}),
+      stableJson(row.sourceBasisRefs || []),
+      stableJson(stripPrivateLearningFields(row)),
+      createdAt,
+    );
+    return getEvaluation(row.evaluationId);
+  }
+
+  function getEvaluation(evaluationId) {
+    migrate();
+    return publicEvaluationFromRow(open().prepare("SELECT * FROM learning_evaluations WHERE id = ?").get(cleanString(evaluationId)));
+  }
+
+  function listEvaluations(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.taskCardId) {
+      where.push("task_card_id = ?");
+      values.push(cleanString(filters.taskCardId));
+    }
+    if (filters.sessionId) {
+      where.push("session_id = ?");
+      values.push(cleanString(filters.sessionId));
+    }
+    if (filters.programId) {
+      where.push("program_id = ?");
+      values.push(cleanString(filters.programId));
+    }
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    const sql = `SELECT * FROM learning_evaluations ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicEvaluationFromRow);
+  }
+
   function counts(filters = {}) {
     migrate();
     const learnerId = cleanString(filters.learnerId);
@@ -1019,6 +1419,9 @@ function createLearningProgramRepository(options = {}) {
       profiles: count("learner_profiles"),
       skillStates: count("learner_skill_states"),
       curriculumReferences,
+      taskCards: count("learning_task_cards"),
+      interactionSessions: count("learning_interaction_sessions"),
+      evaluations: count("learning_evaluations"),
     };
   }
 
@@ -1037,26 +1440,35 @@ function createLearningProgramRepository(options = {}) {
     close,
     counts,
     dbPath,
+    getEvaluation,
     getGoal,
+    getInteractionSession,
     getLearnerProfile,
     getPlanDraft,
     getProgram,
     getReviewItem,
     getSource,
+    getTaskCard,
     integritySummary,
     latestDraftForProgram,
     listCurriculumReferences,
+    listEvaluations,
     listGoals,
+    listInteractionSessions,
     listPlanDrafts,
     listPrograms,
     listReviewItems,
     listSkillStates,
     listSources,
+    listTaskCards,
     migrate,
     open,
+    saveEvaluation,
+    saveInteractionSession,
     savePlanDraft,
     savePublication,
     saveReviewItem,
+    upsertTaskCard,
     upsertCurriculumReference,
     upsertGoal,
     upsertLearnerProfile,
@@ -1071,10 +1483,13 @@ module.exports = {
   createLearningProgramRepository,
   publicCurriculumReferenceFromRow,
   publicDraftFromRow,
+  publicEvaluationFromRow,
   publicGoalFromRow,
+  publicInteractionSessionFromRow,
   publicLearnerProfileFromRow,
   publicProgramFromRow,
   publicReviewItemFromRow,
   publicSourceFromRow,
+  publicTaskCardFromRow,
   stripPrivateLearningFields,
 };

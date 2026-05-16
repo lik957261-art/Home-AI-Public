@@ -4,11 +4,14 @@ const crypto = require("node:crypto");
 const { createCurriculumReferenceService } = require("./curriculum-reference-service");
 const { createLearnerProfileService } = require("./learner-profile-service");
 const { createLearningAiReliabilityGuardService } = require("./learning-ai-reliability-guard-service");
+const { createLearningEvaluationService } = require("./learning-evaluation-service");
 const { createLearningGoalService } = require("./learning-goal-service");
+const { createLearningInteractionSessionService } = require("./learning-interaction-session-service");
 const { createLearningParentReviewQueueService } = require("./learning-parent-review-queue-service");
 const { createLearningPlanDecompositionService } = require("./learning-plan-decomposition-service");
 const { createLearningSkillTaxonomyService } = require("./learning-skill-taxonomy-service");
 const { createLearningSourceService } = require("./learning-source-service");
+const { createLearningTaskCardService } = require("./learning-task-card-service");
 const { createLearningTemplateRegistryService } = require("./learning-template-registry-service");
 
 function cleanString(value) {
@@ -134,6 +137,9 @@ function createLearningProgramService(options = {}) {
   const goalService = options.goalService || createLearningGoalService({ repository, taxonomy });
   const curriculumReferenceService = options.curriculumReferenceService || createCurriculumReferenceService({ repository });
   const learnerProfileService = options.learnerProfileService || createLearnerProfileService({ repository });
+  const taskCardService = options.taskCardService || createLearningTaskCardService({ repository });
+  const interactionSessionService = options.interactionSessionService || createLearningInteractionSessionService({ repository });
+  const evaluationService = options.evaluationService || createLearningEvaluationService({ repository });
 
   function createProgram(input = {}) {
     const program = normalizeProgramInput(input, { taxonomy });
@@ -220,6 +226,7 @@ function createLearningProgramService(options = {}) {
       reliability,
       status: reliability.publishBlocked ? "blocked" : (reliability.parentReviewRequired ? "review_required" : "ready"),
     }));
+    const taskCards = taskCardService.materializeDraft({ program, draft });
     let reviewItem = null;
     if (reliability.parentReviewRequired) {
       reviewItem = reviewQueue.createReviewItem({
@@ -234,7 +241,7 @@ function createLearningProgramService(options = {}) {
         allowedActions: reliability.allowedActions,
       });
     }
-    return { ok: true, program, draft, reviewItem };
+    return { ok: true, program, draft, taskCards, reviewItem };
   }
 
   async function publishProgram(programId, input = {}) {
@@ -304,6 +311,9 @@ function createLearningProgramService(options = {}) {
     const goals = goalService.list({ learnerId, workspaceId, limit: 30 });
     const profile = learnerProfileService.get({ learnerId, workspaceId });
     const curriculumReferences = curriculumReferenceService.listReferences({ limit: 20 });
+    const taskCards = taskCardService.list({ learnerId, workspaceId, limit: input.limit || 20 });
+    const interactionSessions = interactionSessionService.list({ learnerId, workspaceId, limit: input.limit || 20 });
+    const evaluations = evaluationService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     return {
       counts: repository.counts({ learnerId }),
       programs,
@@ -311,6 +321,9 @@ function createLearningProgramService(options = {}) {
       reviewItems,
       sources,
       goals,
+      taskCards,
+      interactionSessions,
+      evaluations,
       learnerProfile: profile.profile,
       skillStates: profile.skillStates,
       curriculumReferences,
@@ -351,23 +364,58 @@ function createLearningProgramService(options = {}) {
     return curriculumReferenceService.listReferences(filters);
   }
 
+  function listTaskCards(filters = {}) {
+    return taskCardService.list(filters);
+  }
+
+  function getTaskCard(taskCardId) {
+    return taskCardService.get(taskCardId);
+  }
+
+  function startTaskSession(taskCardId, input = {}) {
+    return interactionSessionService.startSession(taskCardId, input);
+  }
+
+  function listInteractionSessions(filters = {}) {
+    return interactionSessionService.list(filters);
+  }
+
+  function advanceInteractionSession(sessionId, input = {}) {
+    return interactionSessionService.advanceSession(sessionId, input);
+  }
+
+  function recordEvaluation(sessionId, input = {}) {
+    return evaluationService.recordEvaluation(sessionId, input);
+  }
+
+  function listEvaluations(filters = {}) {
+    return evaluationService.list(filters);
+  }
+
   return {
     createProgram,
     decideReview,
     draftPlan,
     getProgram,
     getLearnerProfile,
+    getTaskCard,
+    listEvaluations,
+    listInteractionSessions,
     listPrograms,
     listGoals,
     listSources,
+    listTaskCards,
     listCurriculumReferences,
     overview,
     publishProgram,
     rebuildLearnerProfile,
+    recordEvaluation,
     repository,
     reviewQueue: reviewQueueList,
     saveGoal,
     saveSource,
+    startTaskSession,
+    advanceInteractionSession,
     updateGoal,
     updateProgram,
   };
