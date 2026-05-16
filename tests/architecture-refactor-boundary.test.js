@@ -118,6 +118,7 @@ const todoApiRoutes = require("../server-routes/todo-api-routes");
 const todoPublicProjectionService = require("../adapters/todo-public-projection-service");
 const weixinApiRoutes = require("../server-routes/weixin-api-routes");
 const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
+const appLearningReadingUi = require("../public/app-learning-reading-ui");
 
 function fileText(file) {
   return fs.readFileSync(file, "utf8");
@@ -289,6 +290,9 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileApiComposition.createMobileApiComposition, "function");
   assert.equal(typeof mobileApiDispatcher.createMobileApiDispatcher, "function");
   assert.equal(typeof fileArtifactApiRoutes.createFileArtifactApiRoutes, "function");
+  assert.equal(typeof appLearningReadingUi.renderKanbanReadingQuizPanel, "function");
+  assert.equal(typeof appLearningReadingUi.renderKanbanReadingSubmissionPanel, "function");
+  assert.equal(typeof appLearningReadingUi.renderKanbanReadingWorkflowPanel, "function");
 }
 
 function testServerUsesRequestContextAndSqliteCaseShareMigration() {
@@ -543,17 +547,25 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /3,000 lines/);
   assert.match(doc, /2,500 lines/);
   assert.match(doc, /430/);
+  assert.match(doc, /public\/app\.js/);
+  assert.match(doc, /17,000 lines/);
+  assert.match(doc, /950/);
 
   const server = fileText("server.js");
   const runtime = fileText("mobile-server-runtime.js");
+  const app = fileText("public/app.js");
   const serverLineCount = server.split(/\r?\n/).length;
   const serverTopLevelFunctionCount = (server.match(/^function\s+/gm) || []).length;
   const runtimeLineCount = runtime.split(/\r?\n/).length;
   const runtimeTopLevelFunctionCount = (runtime.match(/^function\s+/gm) || []).length;
+  const appLineCount = app.split(/\r?\n/).length;
+  const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
   assert.ok(runtimeLineCount <= 2500, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2500`);
   assert.ok(runtimeTopLevelFunctionCount <= 430, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 430`);
+  assert.ok(appLineCount <= 17000, `public/app.js line budget exceeded: ${appLineCount} > 17000`);
+  assert.ok(appTopLevelFunctionCount <= 950, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 950`);
 }
 
 function testRefactorPlanTracksTwelveWorkPackages() {

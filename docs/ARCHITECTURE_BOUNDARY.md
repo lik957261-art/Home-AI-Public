@@ -66,6 +66,23 @@ Current CI guardrails:
 
 These budgets are intentionally temporary ceilings. Lower them after each successful extraction round.
 
+## Frontend Boundary
+
+`public/app.js` is also a transitional UI composition root. New feature UI
+should move reusable rendering, view-model derivation, and deterministic client
+state projection into focused `public/app-<domain>.js` helpers before it is
+wired back into `app.js`.
+
+Current CI guardrails:
+
+- `public/app.js` must stay at or below 17,000 lines;
+- top-level `function` declarations in `public/app.js` must stay at or below 950;
+- front-end helper modules should expose stable `window.Hermes<Domain>` helpers
+  and have focused tests under `tests/app-<domain>.test.js`.
+
+These front-end budgets are also ceilings, not targets. Lower them after each
+successful UI extraction round.
+
 ## Route Modules
 
 New route groups should live in `server-routes/<domain>-api-routes.js` when they involve more than a trivial endpoint. Route modules should receive dependencies from the runtime composition layer and delegate business decisions to adapters/services.
