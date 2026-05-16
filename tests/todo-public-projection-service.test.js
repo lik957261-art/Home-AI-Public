@@ -6,6 +6,7 @@ const {
   kanbanHasPassedAttempt,
   kanbanWorkflowStateCompleted,
   normalizeStringList,
+  projectedWorkflowKanbanStatus,
   publicTodoOptions,
 } = require("../adapters/todo-public-projection-service");
 
@@ -134,6 +135,12 @@ function run() {
   assert.equal(kanbanWorkflowStateCompleted({ status: "completed" }, false), true);
   assert.equal(kanbanWorkflowStateCompleted({ status: "completed", completionError: "failed" }, false), false);
   assert.equal(kanbanWorkflowStateCompleted({ attempts: [{ passed: true }] }, true), true);
+  assert.equal(projectedWorkflowKanbanStatus({}, { kind: "reading", phase: "submission_open" }), "todo");
+  assert.equal(projectedWorkflowKanbanStatus({}, { kind: "study", phase: "analysis_pending" }), "running");
+  assert.equal(projectedWorkflowKanbanStatus({}, { kind: "reading", phase: "quiz_pending" }), "running");
+  assert.equal(projectedWorkflowKanbanStatus({}, { kind: "study", phase: "quiz_retry_required" }), "running");
+  assert.equal(projectedWorkflowKanbanStatus({}, { kind: "reading", phase: "locked" }), "blocked");
+  assert.equal(projectedWorkflowKanbanStatus({}, { kind: "reading", phase: "completed" }), "");
 
   const { service, calls } = createService();
   const projected = service.publicTodo(row("basic"));
@@ -251,6 +258,54 @@ function run() {
   const final = service.publicTodo(finalRows[2], 2, finalRows);
   assert.equal(final.assessmentWorkflow.kind, "final-assessment");
   assert.equal(final.assessmentWorkflow.priorContextComplete, false);
+
+  const studyProjectionService = createTodoPublicProjectionService({
+    publicKanbanReadingSubmissionSummary(_workspaceId, card) {
+      if (String(card.id) === "study-done") return { status: "completed" };
+      if (String(card.id) === "study-submitted") return { status: "submitted" };
+      if (String(card.id) === "study-quiz") return { status: "quiz_pending", quiz: { questions: [] } };
+      return { status: "not_started" };
+    },
+  });
+  const studyRows = [
+    row("study-done", {
+      kanban_case_mode: "study-plan",
+      kanban_case_template: "reading",
+      kanban_case_card_index: 1,
+      kanban_status: "done",
+      status: "completed",
+    }),
+    row("study-next", {
+      kanban_case_mode: "study-plan",
+      kanban_case_template: "reading",
+      kanban_case_card_index: 2,
+      kanban_status: "blocked",
+      status: "open",
+    }),
+  ];
+  const projectedStudyNext = studyProjectionService.publicTodo(studyRows[1], 1, studyRows);
+  assert.equal(projectedStudyNext.workflowState.phase, "submission_open");
+  assert.equal(projectedStudyNext.kanbanStatus, "todo");
+
+  const projectedStudySubmitted = studyProjectionService.publicTodo(row("study-submitted", {
+    kanban_case_mode: "study-plan",
+    kanban_case_template: "reading",
+    kanban_case_card_index: 1,
+    kanban_status: "blocked",
+    status: "open",
+  }));
+  assert.equal(projectedStudySubmitted.workflowState.phase, "analysis_pending");
+  assert.equal(projectedStudySubmitted.kanbanStatus, "running");
+
+  const projectedStudyQuiz = studyProjectionService.publicTodo(row("study-quiz", {
+    kanban_case_mode: "study-plan",
+    kanban_case_template: "reading",
+    kanban_case_card_index: 1,
+    kanban_status: "blocked",
+    status: "open",
+  }));
+  assert.equal(projectedStudyQuiz.workflowState.phase, "quiz_pending");
+  assert.equal(projectedStudyQuiz.kanbanStatus, "running");
 
   const revisionService = createTodoPublicProjectionService({
     publicKanbanAssessmentSummary() {

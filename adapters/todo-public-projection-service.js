@@ -59,8 +59,16 @@ function kanbanWorkflowStateCompleted(state = {}, officialDone = false) {
 
 function projectedWorkflowKanbanStatus(payload = {}, workflowState = {}) {
   const kind = String(workflowState?.kind || "").trim();
-  if (kind !== "assessment" && kind !== "final-assessment") return "";
   const phase = String(workflowState?.phase || "").trim().toLowerCase();
+  if (kind === "reading" || kind === "study") {
+    if (!phase || phase === "completed") return "";
+    if (phase === "archived") return "archived";
+    if (phase === "locked") return "blocked";
+    if (phase === "submission_open") return "todo";
+    if (phase === "analysis_pending" || phase === "quiz_pending" || phase === "quiz_retry_required") return "running";
+    return "";
+  }
+  if (kind !== "assessment" && kind !== "final-assessment") return "";
   if (!phase || phase === "completed") return "";
   if (phase === "archived") return "archived";
   if (phase === "locked") return "blocked";
