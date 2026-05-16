@@ -78,10 +78,13 @@ function testRecordEvaluation() {
     summary: "summary only",
     skillResults: [{ skillId: "english_speaking_retell", score: 86, summary: "stable retell" }],
   });
-  assert.equal(evaluation.status, "passed");
+  assert.equal(evaluation.status, "needs_review");
   assert.equal(evaluation.passed, true);
+  assert.equal(evaluation.verification.status, "model_only");
+  assert.equal(evaluation.reviewRequest.status, "pending");
   assert.equal(evaluation.rewardPolicy.coinLedgerWrite, "disabled_in_evaluation_service");
-  assert.equal(evaluation.rewardPolicy.eligibleForRewardReview, true);
+  assert.equal(evaluation.rewardPolicy.eligibleForRewardReview, false);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).reviewRequests, 1);
   assert.equal(service.list({ learnerId: "weixin_stephen" }).length, 1);
   assert.throws(
     () => service.recordEvaluation(session.sessionId, { score: 90, rawTranscript: "full transcript" }),

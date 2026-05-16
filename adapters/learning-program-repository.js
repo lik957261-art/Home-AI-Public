@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 3;
+const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 4;
 
 function nowIso() {
   return new Date().toISOString();
@@ -326,6 +326,30 @@ function publicEvaluationFromRow(row) {
   });
 }
 
+function publicReviewRequestFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    reviewRequestId: row.id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    programId: row.program_id,
+    requestType: row.request_type,
+    resourceType: row.resource_type,
+    resourceId: row.resource_id,
+    idempotencyKey: row.idempotency_key || "",
+    status: row.status,
+    reason: row.reason,
+    summary: row.summary,
+    riskFlags: parseJson(row.risk_flags_json, []),
+    allowedActions: parseJson(row.allowed_actions_json, []),
+    sourceBasisRefs: parseJson(row.source_basis_refs_json, []),
+    decision: parseJson(row.decision_json, null),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    decidedAt: row.decided_at || "",
+  });
+}
+
 function createLearningProgramRepository(options = {}) {
   const dataDir = path.resolve(String(options.dataDir || process.env.HERMES_WEB_DATA_DIR || path.join(process.cwd(), "workspace", "hermes-web")));
   const dbPath = path.resolve(String(options.dbPath || process.env.HERMES_MOBILE_LEARNING_DB_PATH || process.env.HERMES_WEB_LEARNING_DB_PATH || path.join(dataDir, "learning-growth.sqlite3")));
@@ -581,6 +605,28 @@ function createLearningProgramRepository(options = {}) {
         FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS learning_parent_review_requests (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        program_id TEXT NOT NULL,
+        request_type TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        risk_flags_json TEXT NOT NULL,
+        allowed_actions_json TEXT NOT NULL,
+        source_basis_refs_json TEXT NOT NULL,
+        decision_json TEXT,
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        decided_at TEXT NOT NULL DEFAULT ''
+      );
+
       CREATE INDEX IF NOT EXISTS idx_learning_programs_learner ON learning_programs(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_drafts_program ON learning_plan_drafts(program_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_reviews_status ON learning_parent_review_items(status, updated_at);
@@ -596,12 +642,15 @@ function createLearningProgramRepository(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_learning_sessions_learner ON learning_interaction_sessions(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_evaluations_task ON learning_evaluations(task_card_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_evaluations_learner ON learning_evaluations(learner_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_parent_review_requests_learner ON learning_parent_review_requests(learner_id, status, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_parent_review_requests_resource ON learning_parent_review_requests(resource_type, resource_id, updated_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_parent_review_requests_idempotency ON learning_parent_review_requests(idempotency_key) WHERE idempotency_key <> '';
     `);
     const row = database.prepare("SELECT version FROM learning_schema_migrations WHERE version = ?").get(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION);
     if (!row) {
       database.prepare("INSERT INTO learning_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
         CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION,
-        "learning task records v0.3",
+        "learning verification review requests v0.4",
         nowIso(),
       );
     }
@@ -1400,6 +1449,104 @@ function createLearningProgramRepository(options = {}) {
     return open().prepare(sql).all(...values, limit).map(publicEvaluationFromRow);
   }
 
+  function saveReviewRequest(request) {
+    migrate();
+    const now = nowIso();
+    const requestId = cleanString(request.reviewRequestId || request.id);
+    const current = getReviewRequest(requestId);
+    const createdAt = current?.createdAt || request.createdAt || now;
+    const updatedAt = request.updatedAt || now;
+    const row = Object.assign({}, request, { reviewRequestId: requestId, createdAt, updatedAt });
+    open().prepare(`
+      INSERT INTO learning_parent_review_requests(
+        id, learner_id, workspace_id, program_id, request_type, resource_type, resource_id,
+        idempotency_key, status, reason, summary, risk_flags_json, allowed_actions_json,
+        source_basis_refs_json, decision_json, raw_json, created_at, updated_at, decided_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        program_id=excluded.program_id,
+        request_type=excluded.request_type,
+        resource_type=excluded.resource_type,
+        resource_id=excluded.resource_id,
+        idempotency_key=excluded.idempotency_key,
+        status=excluded.status,
+        reason=excluded.reason,
+        summary=excluded.summary,
+        risk_flags_json=excluded.risk_flags_json,
+        allowed_actions_json=excluded.allowed_actions_json,
+        source_basis_refs_json=excluded.source_basis_refs_json,
+        decision_json=excluded.decision_json,
+        raw_json=excluded.raw_json,
+        updated_at=excluded.updated_at,
+        decided_at=excluded.decided_at
+    `).run(
+      row.reviewRequestId,
+      row.learnerId,
+      row.workspaceId,
+      row.programId || "",
+      row.requestType || "",
+      row.resourceType || "",
+      row.resourceId || "",
+      row.idempotencyKey || "",
+      row.status || "pending",
+      row.reason || "",
+      row.summary || "",
+      stableJson(row.riskFlags || []),
+      stableJson(row.allowedActions || []),
+      stableJson(row.sourceBasisRefs || []),
+      stableJson(row.decision || null),
+      stableJson(stripPrivateLearningFields(row)),
+      createdAt,
+      updatedAt,
+      row.decidedAt || "",
+    );
+    return getReviewRequest(row.reviewRequestId);
+  }
+
+  function getReviewRequest(reviewRequestId) {
+    migrate();
+    return publicReviewRequestFromRow(open().prepare("SELECT * FROM learning_parent_review_requests WHERE id = ?").get(cleanString(reviewRequestId)));
+  }
+
+  function listReviewRequests(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.status) {
+      where.push("status = ?");
+      values.push(cleanString(filters.status));
+    }
+    if (filters.resourceType) {
+      where.push("resource_type = ?");
+      values.push(cleanString(filters.resourceType));
+    }
+    if (filters.requestType) {
+      where.push("request_type = ?");
+      values.push(cleanString(filters.requestType));
+    }
+    if (filters.resourceId) {
+      where.push("resource_id = ?");
+      values.push(cleanString(filters.resourceId));
+    }
+    if (filters.idempotencyKey) {
+      where.push("idempotency_key = ?");
+      values.push(cleanString(filters.idempotencyKey));
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    const sql = `SELECT * FROM learning_parent_review_requests ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY updated_at DESC, created_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicReviewRequestFromRow);
+  }
+
   function counts(filters = {}) {
     migrate();
     const learnerId = cleanString(filters.learnerId);
@@ -1422,6 +1569,7 @@ function createLearningProgramRepository(options = {}) {
       taskCards: count("learning_task_cards"),
       interactionSessions: count("learning_interaction_sessions"),
       evaluations: count("learning_evaluations"),
+      reviewRequests: count("learning_parent_review_requests"),
     };
   }
 
@@ -1447,6 +1595,7 @@ function createLearningProgramRepository(options = {}) {
     getPlanDraft,
     getProgram,
     getReviewItem,
+    getReviewRequest,
     getSource,
     getTaskCard,
     integritySummary,
@@ -1458,6 +1607,7 @@ function createLearningProgramRepository(options = {}) {
     listPlanDrafts,
     listPrograms,
     listReviewItems,
+    listReviewRequests,
     listSkillStates,
     listSources,
     listTaskCards,
@@ -1468,6 +1618,7 @@ function createLearningProgramRepository(options = {}) {
     savePlanDraft,
     savePublication,
     saveReviewItem,
+    saveReviewRequest,
     upsertTaskCard,
     upsertCurriculumReference,
     upsertGoal,
@@ -1489,6 +1640,7 @@ module.exports = {
   publicLearnerProfileFromRow,
   publicProgramFromRow,
   publicReviewItemFromRow,
+  publicReviewRequestFromRow,
   publicSourceFromRow,
   publicTaskCardFromRow,
   stripPrivateLearningFields,

@@ -121,6 +121,26 @@ function testMigrationAndPersistence() {
   assert.equal(evaluation.evaluationId, "eval-1");
   assert.equal(evaluation.questionText, "[redacted]");
 
+  const reviewRequest = repository.saveReviewRequest({
+    reviewRequestId: "review-request-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    programId: "program-1",
+    requestType: "evaluation_review",
+    resourceType: "evaluation",
+    resourceId: "eval-1",
+    idempotencyKey: "evaluation:eval-1:verification",
+    status: "pending",
+    reason: "model_only_verification",
+    summary: "summary only",
+    riskFlags: [{ code: "model_only_verification" }],
+    allowedActions: ["approve", "reject"],
+    sourceBasisRefs: ["parent_config:program-1"],
+    answerText: "must not be exposed",
+  });
+  assert.equal(reviewRequest.reviewRequestId, "review-request-1");
+  assert.equal(reviewRequest.answerText, "[redacted]");
+
   const review = repository.saveReviewItem({
     reviewId: "review-1",
     programId: "program-1",
@@ -225,6 +245,7 @@ function testMigrationAndPersistence() {
   assert.equal(repository.listTaskCards({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listInteractionSessions({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listReviewRequests({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.latestDraftForProgram("program-1").draftId, "draft-1");
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).sources, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).goals, 1);
@@ -233,6 +254,7 @@ function testMigrationAndPersistence() {
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskCards, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).interactionSessions, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).evaluations, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).reviewRequests, 1);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }

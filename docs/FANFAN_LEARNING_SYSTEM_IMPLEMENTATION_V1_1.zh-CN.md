@@ -555,3 +555,32 @@ Current boundary:
 - Mutating session and evaluation APIs are Owner-only in V0.3.
 - Evaluation records do not grant coins directly; reward settlement remains owned by the reward/coin services.
 - No full child answers, full transcripts, question text, answer keys, prompts, secrets, endpoints, or local file paths should be accepted or persisted in these learning record APIs.
+
+## 15. V0.4 evaluation verifier and parent review guard (2026-05-17)
+
+V0.4 adds a reliability guard for learning evaluations before future reward settlement and autonomous task loops.
+
+New durable table:
+- `learning_parent_review_requests`: generic parent-review requests for evaluation/reward/settlement guardrails. This does not replace the legacy plan-draft review table.
+
+New services:
+- `adapters/learning-evaluation-verifier-service.js`: separates learning result status from verification status.
+- `adapters/learning-parent-review-request-service.js`: owns summary-only parent review request creation, deduplication, listing, and decision transitions.
+
+Verification object contract:
+- `verification.method`: `deterministic_template`, `answer_key_match`, `python_execution`, `python_static_review`, `english_rubric_evidence_check`, `model_only`, or `parent_review`.
+- `verification.status`: `verified`, `model_only`, `needs_review`, `failed`, `blocked`, or `error`.
+- `passed` and `score` describe learning result only; they do not prove verification.
+- `model_only` and low-confidence passed evaluations create parent review requests.
+- Python evaluation can only be `python_execution` when execution evidence refs exist; otherwise it is static/model review.
+- Reward metadata remains advisory. Coin ledger writes stay owned by reward/coin services.
+
+New API surface:
+- `GET /api/learning/parent-review-requests`
+- `GET /api/learning/parent-review-requests/:requestId`
+- `POST /api/learning/parent-review-requests/:requestId/decision`
+
+Boundary:
+- Parent review request APIs are Owner-only in V0.4.
+- Request payloads and decisions reject raw answers, transcripts, question text, answer keys, prompts, credentials, endpoints, and local paths.
+- Existing `/api/learning/review-queue` remains the plan-draft publish review queue and is not repurposed for evaluations.

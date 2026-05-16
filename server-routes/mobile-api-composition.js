@@ -12,8 +12,10 @@ const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-gui
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
 const { createLearningApiRoutes } = require("./learning-api-routes");
 const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
+const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
+const { createLearningParentReviewRequestService } = require("../adapters/learning-parent-review-request-service");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
 const { createLearningProgramService } = require("../adapters/learning-program-service");
@@ -460,9 +462,13 @@ function createMobileApiComposition(deps = {}) {
   const learningProgramPublishService = createLearningProgramPublishService({
     createKanbanStudyPlanCards: (...args) => deps.getKanbanPlanCardCreationService().createKanbanStudyPlanCards(...args),
   });
+  const learningParentReviewRequestService = createLearningParentReviewRequestService({
+    repository: learningProgramRepository,
+  });
   const learningProgramService = createLearningProgramService({
     repository: learningProgramRepository,
     publishService: learningProgramPublishService,
+    parentReviewRequestService: learningParentReviewRequestService,
   });
 
   const learningApiRoutes = createLearningApiRoutes({
@@ -486,6 +492,14 @@ function createMobileApiComposition(deps = {}) {
     sendJson: deps.sendJson,
   });
   callBootTrace(deps, "learning program api routes ready");
+
+  const learningParentReviewApiRoutes = createLearningParentReviewApiRoutes({
+    learningParentReviewRequestService,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "learning parent review api routes ready");
 
   const learningCoinApiRoutes = createLearningCoinApiRoutes({
     broadcast: deps.broadcast,
@@ -541,6 +555,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanStudyApiRoutes,
     learningApiRoutes,
     learningCoinApiRoutes,
+    learningParentReviewApiRoutes,
     learningProgramApiRoutes,
     ownerElevationApiRoutes,
     publicApiRoutes,
@@ -575,6 +590,7 @@ function createMobileApiComposition(deps = {}) {
       kanbanStudyApiRoutes,
       learningApiRoutes,
       learningCoinApiRoutes,
+      learningParentReviewApiRoutes,
       learningProgramApiRoutes,
       ownerElevationApiRoutes,
       publicApiRoutes,

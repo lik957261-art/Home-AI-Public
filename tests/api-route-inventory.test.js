@@ -243,6 +243,17 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "learning-parent-review-api-routes",
+    exportName: "createLearningParentReviewApiRoutes",
+    required: true,
+    minRoutes: 3,
+    probes: [
+      { method: "GET", path: "/api/learning/parent-review-requests", id: "learning-parent-review-requests-list" },
+      { method: "GET", path: "/api/learning/parent-review-requests/req-1", id: "learning-parent-review-request-read" },
+      { method: "POST", path: "/api/learning/parent-review-requests/req-1/decision", id: "learning-parent-review-request-decision" },
+    ],
+  },
+  {
     key: "learning-coin-api-routes",
     exportName: "createLearningCoinApiRoutes",
     required: false,
@@ -343,6 +354,8 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-cards/task-1" }).id, "learning-task-card-read");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/sessions/session-1/advance" }).id, "learning-session-advance");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/evaluations" }).id, "learning-evaluations-list");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/parent-review-requests" }).id, "learning-parent-review-requests-list");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/parent-review-requests/req-1/decision" }).id, "learning-parent-review-request-decision");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-coins/summary" }).id, "learning-coins-summary");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/threads/thread-1/uploads" }).id, "thread-uploads-create");
@@ -362,6 +375,7 @@ function testSummarySeparatesRuntimeAuthDomains() {
   assert.equal(summary.byGroup.learning >= 1, true);
   assert.equal(summary.byGroup["learning-growth"] >= 1, true);
   assert.equal(summary.byGroup["learning-program"] >= 23, true);
+  assert.equal(summary.byGroup["learning-parent-review"] >= 3, true);
   assert.equal(summary.byModule["kanban-study"] >= 4, true);
   assert.equal(summary.byMethod.GET > 20, true);
 }
@@ -372,6 +386,7 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("kanban"));
   assert.ok(modules.has("kanban-study"));
   assert.ok(modules.has("learning-program"));
+  assert.ok(modules.has("learning-parent-review"));
   assert.ok(modules.has("learning-coins"));
   assert.ok(modules.has("thread-message"));
   assert.ok(modules.has("single-window"));

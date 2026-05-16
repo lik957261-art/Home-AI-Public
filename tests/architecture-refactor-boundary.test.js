@@ -58,9 +58,11 @@ const learningAiReliabilityGuardService = require("../adapters/learning-ai-relia
 const learningCoinAwardService = require("../adapters/learning-coin-award-service");
 const learningCoinService = require("../adapters/learning-coin-service");
 const learningEvaluationService = require("../adapters/learning-evaluation-service");
+const learningEvaluationVerifierService = require("../adapters/learning-evaluation-verifier-service");
 const learningGoalService = require("../adapters/learning-goal-service");
 const learningInteractionSessionService = require("../adapters/learning-interaction-session-service");
 const learningParentReviewQueueService = require("../adapters/learning-parent-review-queue-service");
+const learningParentReviewRequestService = require("../adapters/learning-parent-review-request-service");
 const learningPlanDecompositionService = require("../adapters/learning-plan-decomposition-service");
 const learningProgramPublishService = require("../adapters/learning-program-publish-service");
 const learningProgramRepository = require("../adapters/learning-program-repository");
@@ -120,6 +122,7 @@ const kanbanLearningGuidanceApiRoutes = require("../server-routes/kanban-learnin
 const kanbanStudyApiRoutes = require("../server-routes/kanban-study-api-routes");
 const learningApiRoutes = require("../server-routes/learning-api-routes");
 const learningCoinApiRoutes = require("../server-routes/learning-coin-api-routes");
+const learningParentReviewApiRoutes = require("../server-routes/learning-parent-review-api-routes");
 const learningProgramApiRoutes = require("../server-routes/learning-program-api-routes");
 const mobileApiDispatcher = require("../server-routes/mobile-api-dispatcher");
 const mobileApiComposition = require("../server-routes/mobile-api-composition");
@@ -239,9 +242,11 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningCoinService.learningCoinGrowthProfile, "function");
   assert.equal(typeof learningCoinService.normalizeStore, "function");
   assert.equal(typeof learningEvaluationService.createLearningEvaluationService, "function");
+  assert.equal(typeof learningEvaluationVerifierService.createLearningEvaluationVerifierService, "function");
   assert.equal(typeof learningGoalService.createLearningGoalService, "function");
   assert.equal(typeof learningInteractionSessionService.createLearningInteractionSessionService, "function");
   assert.equal(typeof learningParentReviewQueueService.createLearningParentReviewQueueService, "function");
+  assert.equal(typeof learningParentReviewRequestService.createLearningParentReviewRequestService, "function");
   assert.equal(typeof learningPlanDecompositionService.createLearningPlanDecompositionService, "function");
   assert.equal(typeof learningProgramPublishService.createLearningProgramPublishService, "function");
   assert.equal(typeof learningProgramRepository.createLearningProgramRepository, "function");
@@ -328,6 +333,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanStudyApiRoutes.createKanbanStudyApiRoutes, "function");
   assert.equal(typeof learningApiRoutes.createLearningApiRoutes, "function");
   assert.equal(typeof learningCoinApiRoutes.createLearningCoinApiRoutes, "function");
+  assert.equal(typeof learningParentReviewApiRoutes.createLearningParentReviewApiRoutes, "function");
   assert.equal(typeof learningProgramApiRoutes.createLearningProgramApiRoutes, "function");
   assert.equal(typeof mobileApiComposition.createMobileApiComposition, "function");
   assert.equal(typeof mobileApiDispatcher.createMobileApiDispatcher, "function");
@@ -495,6 +501,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobileComposition, /createLearningProgramService/);
   assert.match(mobileComposition, /createLearningProgramRepository/);
   assert.match(dispatcher, /key: "learningProgramApiRoutes"/);
+  assert.match(mobileComposition, /createLearningParentReviewApiRoutes/);
+  assert.match(mobileComposition, /createLearningParentReviewRequestService/);
+  assert.match(dispatcher, /key: "learningParentReviewApiRoutes"/);
   assert.match(mobileComposition, /createLearningCoinApiRoutes/);
   assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningCoinApiRoutes"/);

@@ -1,6 +1,8 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { createLearningEvaluationVerifierService } = require("./learning-evaluation-verifier-service");
+const { createLearningParentReviewRequestService } = require("./learning-parent-review-request-service");
 const {
   assertNoPrivateLearningPayload,
   clampLearningConfidence,
@@ -43,12 +45,15 @@ function rewardPolicyForEvaluation(input = {}) {
   const score = clampLearningScore(input.score, 0);
   const confidence = clampLearningConfidence(input.confidence, 0.7);
   const passed = input.passed == null ? score >= 70 : Boolean(input.passed);
+  const verification = input.verification || {};
+  const rewardEligible = passed && verification.status === "verified" && confidence >= 0.75 && !verification.parentReviewRequired;
   return {
     rewardDomain: "learning-growth",
     coinLedgerWrite: "disabled_in_evaluation_service",
-    eligibleForRewardReview: passed && confidence >= 0.75,
+    eligibleForRewardReview: rewardEligible,
     requiresRewardService: true,
-    reason: passed ? "evaluation_recorded_summary_only" : "repair_required_before_reward",
+    verificationStatus: verification.status || "unknown",
+    reason: rewardEligible ? "evaluation_verified_summary_only" : (passed ? "parent_review_required_before_reward" : "repair_required_before_reward"),
   };
 }
 
@@ -58,6 +63,9 @@ function createLearningEvaluationService(options = {}) {
   if (!repository || typeof repository.saveEvaluation !== "function") {
     throw new Error("learning evaluation service requires repository");
   }
+  const verifier = options.verifier || createLearningEvaluationVerifierService();
+  const reviewRequestService = options.reviewRequestService
+    || (typeof repository.saveReviewRequest === "function" ? createLearningParentReviewRequestService({ repository }) : null);
 
   function recordEvaluation(sessionId, input = {}) {
     assertNoPrivateLearningPayload(input, "learning evaluation");
@@ -68,7 +76,19 @@ function createLearningEvaluationService(options = {}) {
     const score = clampLearningScore(input.score, 0);
     const confidence = clampLearningConfidence(input.confidence, 0.7);
     const passed = input.passed == null ? score >= 70 : Boolean(input.passed);
-    const status = cleanString(input.status) || (confidence < 0.6 ? "needs_review" : (passed ? "passed" : "needs_repair"));
+    const sourceBasisRefs = asArray(input.sourceBasisRefs).length ? asArray(input.sourceBasisRefs) : asArray(task.sourceBasisRefs);
+    const verification = verifier.verifyEvaluation({
+      task,
+      session,
+      evaluation: Object.assign({}, input, {
+        score,
+        confidence,
+        passed,
+        sourceBasisRefs,
+      }),
+    });
+    const status = cleanString(input.status)
+      || (verification.parentReviewRequired ? "needs_review" : (passed ? "passed" : "needs_repair"));
     const at = now().toISOString();
     const evaluation = repository.saveEvaluation({
       evaluationId: cleanString(input.evaluationId) || createId("leval"),
@@ -83,19 +103,38 @@ function createLearningEvaluationService(options = {}) {
       confidence,
       summary: compactLearningSummary(input.summary || "", 700),
       skillResults: normalizeSkillResults(input.skillResults, task),
-      rewardPolicy: rewardPolicyForEvaluation({ score, confidence, passed }),
-      sourceBasisRefs: asArray(input.sourceBasisRefs).length ? asArray(input.sourceBasisRefs) : asArray(task.sourceBasisRefs),
+      rewardPolicy: rewardPolicyForEvaluation({ score, confidence, passed, verification }),
+      verification,
+      sourceBasisRefs,
       createdAt: at,
     });
+    let reviewRequest = null;
+    if (verification.parentReviewRequired && reviewRequestService) {
+      reviewRequest = reviewRequestService.createRequest({
+        learnerId: task.learnerId,
+        workspaceId: task.workspaceId,
+        programId: task.programId,
+        requestType: "evaluation_review",
+        resourceType: "evaluation",
+        resourceId: evaluation.evaluationId,
+        idempotencyKey: `evaluation:${evaluation.evaluationId}:verification`,
+        status: "pending",
+        reason: "evaluation_verification_review",
+        summary: compactLearningSummary(input.summary || "Evaluation needs parent review.", 700),
+        riskFlags: verification.riskFlags,
+        allowedActions: ["approve", "reject", "return_for_revision"],
+        sourceBasisRefs,
+      });
+    }
     if (session.status !== "completed") {
       repository.saveInteractionSession(Object.assign({}, session, {
-        status: passed ? "completed" : "needs_review",
-        currentStep: passed ? "reward_settlement" : "mistake_explanation",
+        status: verification.parentReviewRequired ? "needs_review" : (passed ? "completed" : "needs_review"),
+        currentStep: verification.parentReviewRequired ? "ai_evaluation" : (passed ? "reward_settlement" : "mistake_explanation"),
         summary: compactLearningSummary(input.summary || session.summary || "", 600),
         updatedAt: at,
       }));
     }
-    return evaluation;
+    return reviewRequest ? Object.assign({}, evaluation, { reviewRequest }) : evaluation;
   }
 
   function list(filters = {}) {
