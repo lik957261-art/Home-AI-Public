@@ -94,8 +94,9 @@ function baseOptions(extra = {}) {
   ];
   const current = Helpers.kanbanReadingCaseCurrentItem({ cards }, baseOptions());
   assert.equal(current.todo.id, "r2");
+  assert.deepEqual(Helpers.kanbanReadingStoryVisibleCardItems({ cards }, baseOptions()).map((item) => item.todo.id), ["r1", "r2"]);
   const visibleIds = Helpers.kanbanVisibleReadingTodoIds(cards.map((item) => item.todo), baseOptions());
-  assert.deepEqual([...visibleIds], ["r2"]);
+  assert.deepEqual([...visibleIds], ["r1", "r2"]);
 }
 
 {

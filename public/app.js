@@ -9301,6 +9301,10 @@ function kanbanAssessmentStoryVisibleCardItems(group) {
   return KanbanStoryHelpers.kanbanAssessmentStoryVisibleCardItems(group, kanbanStoryHelperOptions());
 }
 
+function kanbanReadingStoryVisibleCardItems(group) {
+  return KanbanStoryHelpers.kanbanReadingStoryVisibleCardItems(group, kanbanStoryHelperOptions());
+}
+
 function kanbanReadingBaseCardItems(group) {
   return KanbanStoryHelpers.kanbanReadingBaseCardItems(group);
 }
@@ -9548,10 +9552,12 @@ function scheduleKanbanStoryDetailLoads(items) {
 function renderKanbanReadingArchiveCase(group, options = {}) {
   const cards = group.cards || [];
   const baseCards = kanbanReadingBaseCardItems(group);
+  const visibleCards = kanbanReadingStoryVisibleCardItems(group);
   const first = cards[0]?.todo || {};
   const labels = kanbanStudyLabels(first);
   const current = kanbanReadingCaseCurrentItem(group);
   const currentTodo = current?.todo || first;
+  const currentId = String(currentTodo?.id || "");
   const cover = cards.map((item) => kanbanCaseCover(item.todo)).find(Boolean);
   const requirement = compactDisplayText(group.sourceText || group.title || first.content || "", 320);
   const statusSummary = kanbanArchiveStatusSummary(group);
@@ -9560,25 +9566,30 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
   const total = kanbanReadingDisplayCardCount(group) || baseCards.length || cards.length;
   const progress = `${completed}/${total} \u5df2\u5b8c\u6210${statusSummary ? ` | ${statusSummary}` : ""}`;
   const conclusion = kanbanArchiveConclusion(group);
-  const currentStatus = currentTodo ? kanbanStatusMeta(normalizedKanbanStatus(currentTodo)).shortLabel : "";
-  const currentFeedback = currentTodo ? kanbanCardStoryFeedbackLine(currentTodo) : "";
-  const currentOutputCount = currentTodo ? kanbanCardOutputs(currentTodo).length : 0;
-  const currentMeta = [
-    currentStatus,
-    currentTodo?.dueLocal || currentTodo?.dueAt || "",
-    currentOutputCount ? `\u4ea4\u4ed8 ${currentOutputCount}` : "",
-  ].filter(Boolean).join(" | ");
   const storyState = kanbanStoryCaseRenderState(group, options);
   const swipeState = kanbanStorySwipeRenderState(group, options);
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
-  const currentRow = currentTodo ? `<li>
-    <button type="button" data-todo-id="${escapeHtml(currentTodo.id)}">
-      <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, current) || current?.info?.cardIndex || currentTodo.kanbanCaseCardIndex || 1))}</span>
-      <strong>${escapeHtml(currentTodo.content || currentTodo.id)}</strong>
-      <small>${escapeHtml([currentMeta, currentTodo?.kanbanRevisionOf ? "\u4fee\u6539\u4efb\u52a1" : ""].filter(Boolean).join(" | "))}</small>
-      ${currentFeedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(currentFeedback)}</small>` : ""}
-    </button>
-  </li>` : "";
+  const storyRows = visibleCards.map((item) => {
+    const todo = item.todo || {};
+    const status = kanbanStatusMeta(normalizedKanbanStatus(todo)).shortLabel;
+    const feedback = kanbanCardStoryFeedbackLine(todo);
+    const outputCount = kanbanCardOutputs(todo).length;
+    const meta = [
+      status,
+      todo?.dueLocal || todo?.dueAt || "",
+      outputCount ? `\u4ea4\u4ed8 ${outputCount}` : "",
+      String(todo.id || "") === currentId ? "\u5f53\u524d" : "",
+      todo?.kanbanRevisionOf ? "\u4fee\u6539\u4efb\u52a1" : "",
+    ].filter(Boolean).join(" | ");
+    return `<li>
+      <button type="button" data-todo-id="${escapeHtml(todo.id)}">
+        <span>${escapeHtml(String(kanbanReadingDisplayCardIndex(group, item) || item?.info?.cardIndex || todo.kanbanCaseCardIndex || 1))}</span>
+        <strong>${escapeHtml(todo.content || todo.id)}</strong>
+        <small>${escapeHtml(meta)}</small>
+        ${feedback ? `<small class="kanban-archive-card-feedback">${escapeHtml(feedback)}</small>` : ""}
+      </button>
+    </li>`;
+  }).join("");
   return `<article class="kanban-archive-case study-plan-case${storyState.caseClass}${swipeState.articleClass}"${swipeState.articleAttrs}>
     ${swipeState.deleteButton}
     <div class="${swipeState.contentClass}"${swipeState.contentAttrs}>
@@ -9604,7 +9615,7 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
         <p>${escapeHtml(conclusion)}</p>
       </section>
     </div>
-    <ol class="kanban-archive-card-chain">${currentRow}</ol>
+    <ol class="kanban-archive-card-chain">${storyRows}</ol>
     </div>
   </article>`;
 }

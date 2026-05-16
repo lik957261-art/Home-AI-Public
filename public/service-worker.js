@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260515-topic-back-list";
+const HERMES_SW_VERSION = "20260516-reading-history-cards";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,13 +8,13 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260515-topic-back-list",
-  "/app-task-artifact-helpers.js?v=20260515-topic-back-list",
-  "/app-kanban-story-helpers.js?v=20260515-topic-back-list",
-  "/app-api-client.js?v=20260515-topic-back-list",
-  "/app.js?v=20260515-topic-back-list",
+  "/styles.css?v=20260516-reading-history-cards",
+  "/app-task-artifact-helpers.js?v=20260516-reading-history-cards",
+  "/app-kanban-story-helpers.js?v=20260516-reading-history-cards",
+  "/app-api-client.js?v=20260516-reading-history-cards",
+  "/app.js?v=20260516-reading-history-cards",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260515-topic-back-list",
+  "/markdown-renderer-client.js?v=20260516-reading-history-cards",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

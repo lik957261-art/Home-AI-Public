@@ -220,6 +220,28 @@
     });
   }
 
+  function readingCardHasStoryEvidence(todo, options = {}) {
+    const context = deps(options);
+    return Boolean(
+      context.readingSubmissionCompleted(todo)
+      || context.readingSubmissionHasAnalysis(todo)
+      || context.kanbanCardOutputs(todo).length
+      || kanbanCardStoryFeedback(todo, context)
+    );
+  }
+
+  function kanbanReadingStoryVisibleCardItems(group, options = {}) {
+    const context = deps(options);
+    const cards = kanbanLatestRevisionReplacementItems(group, (todo) => context.isKanbanReadingCard(todo), context);
+    if (!cards.length) return [];
+    const current = kanbanReadingCaseCurrentItem(group, context);
+    const currentId = String(current?.todo?.id || "");
+    return cards.filter((item) => {
+      const id = String(item?.todo?.id || "");
+      return Boolean(id && (id === currentId || readingCardHasStoryEvidence(item.todo, context)));
+    });
+  }
+
   function kanbanReadingBaseCardItems(group) {
     return (group?.cards || []).filter((item) => !isKanbanReadingRevision(item));
   }
@@ -330,9 +352,10 @@
     for (const cards of groups.values()) {
       const hasStudyCards = cards.some((item) => context.isKanbanReadingCard(item.todo));
       if (hasStudyCards) {
-        const item = kanbanReadingCaseCurrentItem({ cards }, context);
-        const id = String(item?.todo?.id || "");
-        if (id) visible.add(id);
+        for (const item of kanbanReadingStoryVisibleCardItems({ cards }, context)) {
+          const id = String(item?.todo?.id || "");
+          if (id) visible.add(id);
+        }
         continue;
       }
       for (const item of kanbanAssessmentStoryVisibleCardItems({ cards }, context)) {
@@ -586,6 +609,8 @@
     kanbanAssessmentVisibleCardItems,
     assessmentCardHasStoryEvidence,
     kanbanAssessmentStoryVisibleCardItems,
+    readingCardHasStoryEvidence,
+    kanbanReadingStoryVisibleCardItems,
     kanbanReadingBaseCardItems,
     kanbanReadingDisplayCardCount,
     kanbanCasePriorCards,
