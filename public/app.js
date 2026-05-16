@@ -49,6 +49,7 @@ const CHAT_HISTORY_LOAD_TOP_PX = 220;
 const TASK_MESSAGE_INITIAL_LIMIT = 300;
 const TODO_AUTO_REFRESH_INTERVAL_MS = 8000;
 const TODO_LIST_CACHE_MAX_AGE_MS = 30 * 60 * 1000;
+const KANBAN_TOPIC_CARD_SNAPSHOT_CACHE_MS = 60 * 1000;
 const CHAT_SCOPE_SESSION_STARTED_AT = Date.now();
 const KANBAN_STORY_STATUS = "story";
 const KANBAN_STORY_DEFAULT_VERSION = "20260513-story-tree";
@@ -429,7 +430,12 @@ const state = {
   groupChatAvailable: false,
   groupChatThread: null,
   groupChatThreadId: "",
+  taskListThread: null,
+  taskListThreadId: "",
+  taskListWindowRefreshLoading: false,
   caseTopicThreads: [],
+  kanbanTopicCardSnapshotLoading: false,
+  kanbanTopicCardSnapshotLoadedAt: 0,
   groupChatManagerOpen: false,
   groupChatMemberDraft: [],
   groupMentionOpen: false,
@@ -768,6 +774,46 @@ function currentTaskThreadIsSharedTopicThread() {
   return state.caseTopicThreads.some((thread) => thread?.id === state.currentThreadId);
 }
 
+function rememberTaskListThread(thread = state.currentThread) {
+  if (state.viewMode !== "tasks" || !thread?.singleWindow || !thread.id) return;
+  const isSharedTopicThread = (Array.isArray(state.caseTopicThreads) ? state.caseTopicThreads : [])
+    .some((item) => item?.id === thread.id);
+  if (isSharedTopicThread) return;
+  state.taskListThread = thread;
+  state.taskListThreadId = thread.id;
+}
+
+function restoreTaskListThreadFromCache(options = {}) {
+  const cached = state.taskListThread;
+  if (!cached?.id) return false;
+  const workspaceId = String(state.selectedWorkspaceId || "").trim();
+  if (workspaceId && cached.workspaceId !== workspaceId && !threadGroupMemberIds(cached).includes(workspaceId)) return false;
+  state.currentThread = cached;
+  state.currentThreadId = cached.id;
+  state.threads = [summarizeThread(cached)];
+  state.currentTaskGroupId = "";
+  renderThreads();
+  renderCurrentThread({ stickToBottom: options.stickToBottom !== false });
+  setComposerEnabled(true);
+  return true;
+}
+
+function scheduleTaskListWindowRefresh() {
+  if (state.taskListWindowRefreshLoading) return;
+  state.taskListWindowRefreshLoading = true;
+  window.setTimeout(() => {
+    if (state.viewMode !== "tasks" || state.currentTaskGroupId) {
+      state.taskListWindowRefreshLoading = false;
+      return;
+    }
+    loadSingleWindow({ groupChat: false, weixinChat: false })
+      .catch(showError)
+      .finally(() => {
+        state.taskListWindowRefreshLoading = false;
+      });
+  }, 0);
+}
+
 function activeChatTaskGroupId() {
   return isGroupChatView() ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
 }
@@ -1090,6 +1136,10 @@ function openTaskList() {
   const reloadTaskWindow = currentTaskThreadIsSharedTopicThread();
   state.currentTaskGroupId = "";
   if (reloadTaskWindow) {
+    if (restoreTaskListThreadFromCache({ stickToBottom: true })) {
+      scheduleTaskListWindowRefresh();
+      return;
+    }
     loadSingleWindow({ groupChat: false, weixinChat: false }).catch(showError);
     return;
   }
@@ -3049,6 +3099,7 @@ function commitTaskSwipeDelete(row, taskGroupId) {
 
 function openTaskGroupFromList(taskGroupId) {
   if (!taskGroupId) return;
+  rememberTaskListThread();
   state.pendingTaskReasoningEffort = "";
   state.pendingTaskReasoningExplicit = false;
   clearRouteScrollTarget();
@@ -3059,6 +3110,7 @@ function openTaskGroupFromList(taskGroupId) {
 
 async function openSharedTaskGroupFromList(threadId, taskGroupId) {
   if (!threadId || !taskGroupId) return;
+  rememberTaskListThread();
   const params = new URLSearchParams({
     messageMode: "tasks",
     taskGroupId,
@@ -7702,6 +7754,10 @@ async function loadSelectedView() {
   applyViewMode();
   if (state.viewMode !== "tasks") state.skillDetail = null;
   if (state.viewMode === "single" || state.viewMode === "tasks") {
+    if (state.viewMode === "tasks" && !state.currentTaskGroupId && restoreTaskListThreadFromCache({ stickToBottom: true })) {
+      scheduleTaskListWindowRefresh();
+      return;
+    }
     await loadSingleWindow();
   } else if (state.viewMode === "todos") {
     await loadTodos({ preferCache: true });
@@ -8394,7 +8450,7 @@ async function loadSingleWindow(options = {}) {
     state.weixinChatThreadId = state.weixinChatThread?.id || result.weixinChatThreadId || "";
   }
   state.caseTopicThreads = Array.isArray(result.caseTopicThreads) ? result.caseTopicThreads : [];
-  if (messageMode === "tasks") await refreshKanbanTopicCardSnapshot().catch(() => {});
+  if (messageMode === "tasks") scheduleKanbanTopicCardSnapshotRefresh();
   state.groupChatAvailable = Boolean(result.groupChatAvailable || selectedWorkspaceInThreadGroup(state.currentThread));
   state.weixinChatAvailable = Boolean(result.weixinChatAvailable || isThreadWeixinChat(state.currentThread));
   rememberChatScopeThread(state.currentThread);
@@ -8415,11 +8471,7 @@ async function loadSingleWindow(options = {}) {
   state.currentThreadId = state.currentThread.id;
   state.threads = [summarizeThread(state.currentThread)];
   if (state.viewMode !== "tasks") state.currentTaskGroupId = "";
-  const visibleTaskGroups = taskListGroupsForThread(state.currentThread)
-    .concat(sharedCaseTopicGroupsForTaskList(state.currentThread));
-  if (state.currentTaskGroupId && !visibleTaskGroups.some((group) => group.id === state.currentTaskGroupId)) {
-    state.currentTaskGroupId = "";
-  }
+  if (messageMode === "tasks") rememberTaskListThread(state.currentThread);
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
   setComposerEnabled(true);
@@ -8601,10 +8653,27 @@ async function refreshKanbanTopicCardSnapshot() {
     limit: "500",
     includeCompleted: "1",
     scope: "mine",
-    fresh: "1",
   });
   const result = await api(`${boardCollectionApiPath()}?${params.toString()}`);
   applyTodoListResult(result, true, workspaceId);
+  state.kanbanTopicCardSnapshotLoadedAt = Date.now();
+}
+
+function scheduleKanbanTopicCardSnapshotRefresh(options = {}) {
+  if (!isKanbanTodoSource() || !Array.isArray(state.caseTopicThreads) || !state.caseTopicThreads.length) return;
+  if (state.kanbanTopicCardSnapshotLoading) return;
+  const now = Date.now();
+  const maxAge = Number(options.maxAgeMs ?? KANBAN_TOPIC_CARD_SNAPSHOT_CACHE_MS);
+  if (!options.force && state.kanbanTopicCardSnapshotLoadedAt && now - state.kanbanTopicCardSnapshotLoadedAt < maxAge) return;
+  state.kanbanTopicCardSnapshotLoading = true;
+  window.setTimeout(() => {
+    refreshKanbanTopicCardSnapshot()
+      .catch(() => {})
+      .finally(() => {
+        state.kanbanTopicCardSnapshotLoading = false;
+        if (state.viewMode === "tasks" && !state.currentTaskGroupId) renderCurrentThread({ stickToBottom: false });
+      });
+  }, 0);
 }
 
 function kanbanStatusNeedsCompleted(status) {
@@ -14849,6 +14918,9 @@ function upsertMessage(message) {
   if (index >= 0) messages[index] = mergeServerMessage(messages[index], message);
   else messages.push(message);
   state.currentThread.messages = messages;
+  if (state.viewMode === "tasks" && state.currentThread?.singleWindow && !currentTaskThreadIsSharedTopicThread()) {
+    rememberTaskListThread(state.currentThread);
+  }
   const mergedMessage = index >= 0 ? messages[index] : message;
   offerOwnerElevationForMessage(mergedMessage).catch(showError);
   if (state.viewMode === "tasks") renderThreads();
