@@ -7332,14 +7332,42 @@ async function deleteDirectoryEntry(button) {
   const name = button.dataset.deleteDirectoryName || "item";
   const type = button.dataset.deleteDirectoryType || "file";
   const message = type === "directory"
-    ? `删除空目录“${name}”？非空目录不会被删除。`
+    ? `删除目录“${name}”？如果目录非空，需要 Owner 高权限批准后才会递归删除。`
     : `删除文件“${name}”？`;
   if (!window.confirm(message)) return;
   const threadId = await ensureDirectoryThread();
-  await api("/api/directories/delete", {
-    method: "POST",
-    body: JSON.stringify({ threadId, path }),
-  });
+  const body = { threadId, path };
+  try {
+    await api("/api/directories/delete", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    if (!shouldOfferOwnerElevation(err)) throw err;
+    const ok = await openOwnerElevationApprovalDialog({
+      title: "Owner Approval",
+      message: ownerElevationConfirmMessage(err),
+      detail: err.elevationReason || "",
+    });
+    if (!ok) return;
+    let ownerElevationOnceRequested = false;
+    try {
+      let onceToken = "";
+      if (!ownerElevationActive()) {
+        await activateOwnerElevationOnce({ confirm: false });
+        onceToken = state.ownerElevationOnceToken;
+        ownerElevationOnceRequested = true;
+      }
+      const elevatedBody = Object.assign({}, body);
+      if (onceToken) elevatedBody.ownerElevationOnceToken = onceToken;
+      await api("/api/directories/delete", {
+        method: "POST",
+        body: JSON.stringify(elevatedBody),
+      });
+    } finally {
+      if (ownerElevationOnceRequested) clearOwnerElevationOnce();
+    }
+  }
   if (!directoryActivePath() || wasRootListProject) await loadProjects();
   await loadDirectoryView();
 }

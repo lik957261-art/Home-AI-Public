@@ -12,6 +12,7 @@ const routeInventory = require("../adapters/api-route-inventory");
 const documentPreviewService = require("../adapters/document-preview-service");
 const directKanbanCreateService = require("../adapters/direct-kanban-create-service");
 const directoryBrowserBoundaryService = require("../adapters/directory-browser-boundary-service");
+const directoryDeletePolicyService = require("../adapters/directory-delete-policy-service");
 const eventFanoutService = require("../adapters/event-fanout-service");
 const artifactTextRegistrationService = require("../adapters/artifact-text-registration-service");
 const fileArtifactAccessService = require("../adapters/file-artifact-access-service");
@@ -143,6 +144,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof documentPreviewService.extractDocxTextFromBuffer, "function");
   assert.equal(typeof directKanbanCreateService.createDirectKanbanCreateService, "function");
   assert.equal(typeof directoryBrowserBoundaryService.createDirectoryBrowserBoundaryService, "function");
+  assert.equal(typeof directoryDeletePolicyService.createDirectoryDeletePolicyService, "function");
+  assert.equal(typeof directoryDeletePolicyService.isDirectoryNotEmptyError, "function");
   assert.equal(typeof eventFanoutService.createEventFanoutService, "function");
   assert.equal(typeof eventFanoutService.payloadWorkspaceId, "function");
   assert.equal(typeof artifactTextRegistrationService.createArtifactTextRegistrationService, "function");

@@ -54,6 +54,7 @@ function makeRoutes(overrides = {}) {
     remoteEntries: [],
     resolve: [],
     rmdir: [],
+    rmDirRecursive: [],
     runDirectoryBridge: [],
     stat: [],
     unlink: [],
@@ -154,7 +155,7 @@ function makeRoutes(overrides = {}) {
     },
     authenticateRequest(req) {
       calls.auth.push(req.headers || {});
-      return { ok: true, workspaceId: "owner" };
+      return req.auth || { ok: true, workspaceId: "owner" };
     },
     exists(targetPath) {
       calls.exists.push(targetPath);
@@ -173,8 +174,20 @@ function makeRoutes(overrides = {}) {
     rmdir(targetPath) {
       calls.rmdir.push(targetPath);
     },
+    rmDirRecursive(targetPath) {
+      calls.rmDirRecursive.push(targetPath);
+    },
     unlink(targetPath) {
       calls.unlink.push(targetPath);
+    },
+    isOwnerAuth(auth) {
+      return Boolean(auth?.isOwner || auth?.workspaceId === "owner");
+    },
+    isOwnerElevationActive(auth) {
+      return Boolean(auth?.ownerElevationActive);
+    },
+    consumeOwnerElevationOnce(auth, token) {
+      return Boolean(auth?.consumeOwnerElevationOnce && token === "once-token");
     },
     maxUploadBytes: 1024,
   }, overrides);
@@ -183,7 +196,7 @@ function makeRoutes(overrides = {}) {
 
 async function request(routes, method, path, body = {}, auth = { workspaceId: "owner" }) {
   const res = makeResponse();
-  const result = await routes.handle({ method, url: path, body, headers: { "x-test": "yes" } }, res, makeUrl(path), { auth });
+  const result = await routes.handle({ method, url: path, body, auth, headers: { "x-test": "yes" } }, res, makeUrl(path), { auth });
   return { result, res, body: parseBody(res) };
 }
 
@@ -344,6 +357,67 @@ async function testDeleteLocalDirectory() {
   assert.equal(got.body.deleted.type, "directory");
 }
 
+async function testDeleteNonEmptyLocalDirectoryRequiresOwnerElevation() {
+  const { routes, calls } = makeRoutes({
+    rmdir(targetPath) {
+      calls.rmdir.push(targetPath);
+      const err = new Error("directory not empty");
+      err.code = "ENOTEMPTY";
+      throw err;
+    },
+  });
+  const got = await request(routes, "POST", "/api/directories/delete", {
+    threadId: "thread-1",
+    path: "C:\\Data\\docs",
+  }, { isOwner: true, workspaceId: "owner" });
+
+  assert.equal(got.res.statusCode, 409);
+  assert.equal(got.body.code, "owner_high_privilege_required");
+  assert.equal(got.body.elevationRequired, true);
+  assert.equal(got.body.elevationScope, "owner_high_privilege");
+  assert.deepEqual(calls.rmdir, ["C:\\Data\\docs"]);
+  assert.deepEqual(calls.rmDirRecursive, []);
+}
+
+async function testDeleteNonEmptyLocalDirectoryWithOwnerElevation() {
+  const { routes, calls } = makeRoutes({
+    rmdir(targetPath) {
+      calls.rmdir.push(targetPath);
+      const err = new Error("directory not empty");
+      err.code = "ENOTEMPTY";
+      throw err;
+    },
+  });
+  const got = await request(routes, "POST", "/api/directories/delete", {
+    threadId: "thread-1",
+    path: "C:\\Data\\docs",
+  }, { isOwner: true, workspaceId: "owner", ownerElevationActive: true });
+
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.rmdir, ["C:\\Data\\docs"]);
+  assert.deepEqual(calls.rmDirRecursive, ["C:\\Data\\docs"]);
+  assert.equal(got.body.deleted.type, "directory");
+}
+
+async function testDeleteNonEmptyLocalDirectoryWithOwnerElevationOnce() {
+  const { routes, calls } = makeRoutes({
+    rmdir(targetPath) {
+      calls.rmdir.push(targetPath);
+      const err = new Error("directory not empty");
+      err.code = "ENOTEMPTY";
+      throw err;
+    },
+  });
+  const got = await request(routes, "POST", "/api/directories/delete", {
+    threadId: "thread-1",
+    path: "C:\\Data\\docs",
+    ownerElevationOnceToken: "once-token",
+  }, { isOwner: true, workspaceId: "owner", consumeOwnerElevationOnce: true });
+
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.rmDirRecursive, ["C:\\Data\\docs"]);
+}
+
 async function testDeleteRemote() {
   const { routes, calls } = makeRoutes();
   const got = await request(routes, "POST", "/api/directories/delete", {
@@ -360,6 +434,30 @@ async function testDeleteRemote() {
     name: "shared",
     type: "directory",
   });
+}
+
+async function testDeleteNonEmptyRemoteDirectoryWithOwnerElevation() {
+  const { routes, calls } = makeRoutes({
+    runDirectoryBridge(payload) {
+      calls.runDirectoryBridge.push(payload);
+      if (payload.action === "delete" && !payload.recursive) {
+        return Promise.resolve({ ok: false, error: "Directory not empty" });
+      }
+      if (payload.action === "delete" && payload.recursive) return Promise.resolve({ ok: true });
+      return Promise.resolve({ ok: false, error: "unsupported" });
+    },
+  });
+  const got = await request(routes, "POST", "/api/directories/delete", {
+    threadId: "thread-1",
+    path: "/volume1/shared",
+  }, { isOwner: true, workspaceId: "owner", ownerElevationActive: true });
+
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.runDirectoryBridge, [
+    { action: "delete", path: "/volume1/shared" },
+    { action: "delete", path: "/volume1/shared", recursive: true },
+  ]);
+  assert.equal(got.body.deleted.type, "directory");
 }
 
 async function testReadOnlySharedDirectoryInterceptsMutation() {
@@ -494,9 +592,10 @@ async function testOtherValidationAndErrors() {
   const notEmptyGot = await request(notEmpty.routes, "POST", "/api/directories/delete", {
     threadId: "thread-1",
     path: "C:\\Data\\docs",
-  });
+  }, { isOwner: true, workspaceId: "owner" });
   assert.equal(notEmptyGot.res.statusCode, 409);
-  assert.deepEqual(notEmptyGot.body, { error: "Directory is not empty" });
+  assert.equal(notEmptyGot.body.code, "owner_high_privilege_required");
+  assert.equal(notEmptyGot.body.elevationRequired, true);
 }
 
 function testDependencyValidation() {
@@ -532,7 +631,11 @@ function testDependencyValidation() {
     "mkdir",
     "write",
     "rmdir",
+    "rmDirRecursive",
     "unlink",
+    "isOwnerAuth",
+    "isOwnerElevationActive",
+    "consumeOwnerElevationOnce",
   ];
   const deps = Object.fromEntries(required.map((name) => [name, () => {}]));
   delete deps.unlink;
@@ -550,7 +653,11 @@ async function run() {
   await testUploadRemote();
   await testDeleteLocalFile();
   await testDeleteLocalDirectory();
+  await testDeleteNonEmptyLocalDirectoryRequiresOwnerElevation();
+  await testDeleteNonEmptyLocalDirectoryWithOwnerElevation();
+  await testDeleteNonEmptyLocalDirectoryWithOwnerElevationOnce();
   await testDeleteRemote();
+  await testDeleteNonEmptyRemoteDirectoryWithOwnerElevation();
   await testReadOnlySharedDirectoryInterceptsMutation();
   await testProtectedRootDeleteInterceptsLocalAndRemote();
   await testBodyParseError();

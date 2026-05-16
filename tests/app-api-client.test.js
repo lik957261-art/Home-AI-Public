@@ -84,6 +84,7 @@ function response({
         code: "owner_high_privilege",
         operatorRequired: true,
         elevationRequired: true,
+        elevationReason: "Non-empty directory delete requested.",
       },
     }),
   });
@@ -96,6 +97,7 @@ function response({
       assert.equal(err.operatorRequired, true);
       assert.equal(err.elevationRequired, true);
       assert.equal(err.elevationScope, "owner_high_privilege");
+      assert.equal(err.elevationReason, "Non-empty directory delete requested.");
       return true;
     },
   );

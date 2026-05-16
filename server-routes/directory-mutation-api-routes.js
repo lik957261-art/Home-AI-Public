@@ -1,6 +1,11 @@
 "use strict";
 
 const { createApiRouteRegistry } = require("../adapters/api-route-registry");
+const {
+  createDirectoryDeletePolicyService,
+  directoryDeleteElevationBody,
+  isDirectoryNotEmptyError,
+} = require("../adapters/directory-delete-policy-service");
 
 const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -62,10 +67,6 @@ function errorMessage(err) {
 
 function statusCode(err) {
   return err?.status || 500;
-}
-
-function isNotEmptyError(err) {
-  return err?.code === "ENOTEMPTY" || err?.code === "EEXIST" || /not empty/i.test(errorMessage(err));
 }
 
 function isAlreadyExistsError(err) {
@@ -130,7 +131,11 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     "mkdir",
     "write",
     "rmdir",
+    "rmDirRecursive",
     "unlink",
+    "isOwnerAuth",
+    "isOwnerElevationActive",
+    "consumeOwnerElevationOnce",
   ]) {
     ensureFunction(deps, name);
   }
@@ -139,6 +144,11 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     ? deps.maxUploadBytes
     : DEFAULT_MAX_UPLOAD_BYTES;
   const registry = createApiRouteRegistry(DIRECTORY_MUTATION_API_ROUTE_SPECS);
+  const directoryDeletePolicyService = createDirectoryDeletePolicyService({
+    isOwnerAuth: deps.isOwnerAuth,
+    isOwnerElevationActive: deps.isOwnerElevationActive,
+    consumeOwnerElevationOnce: deps.consumeOwnerElevationOnce,
+  });
 
   async function readJsonBody(req, res, limit) {
     const body = await deps.readBody(req, limit).catch((err) => ({ __error: err }));
@@ -339,7 +349,36 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     return handledResult(route, context);
   }
 
-  async function handleRemoteDelete(reqCtx, res) {
+  function deletedPayload(reqCtx, options = {}) {
+    const { resolved } = reqCtx;
+    return {
+      path: resolved.displayPath,
+      displayPath: resolved.workspacePath,
+      workspacePath: resolved.workspacePath,
+      name: options.name || localBasename(resolved.localPath || "") || posixBasename(resolved.displayPath),
+      type: options.type || "file",
+    };
+  }
+
+  function nonEmptyDirectoryDeleteAuthorization(reqCtx, body) {
+    return directoryDeletePolicyService.nonEmptyDirectoryDeleteAuthorization(reqCtx.auth, {
+      path: reqCtx.resolved?.displayPath,
+      displayPath: reqCtx.resolved?.workspacePath || reqCtx.resolved?.displayPath,
+      name: reqCtx.resolved?.remoteEntry?.name || localBasename(reqCtx.resolved?.localPath || "") || posixBasename(reqCtx.resolved?.displayPath || ""),
+      ownerElevationOnceToken: body?.ownerElevationOnceToken,
+      owner_elevation_once_token: body?.owner_elevation_once_token,
+    });
+  }
+
+  function sendDeleted(reqCtx, res, payloadOptions = {}) {
+    clearDirectoryCatalogCaches(deps, reqCtx.thread);
+    deps.sendJson(res, 200, {
+      ok: true,
+      deleted: deletedPayload(reqCtx, payloadOptions),
+    });
+  }
+
+  async function handleRemoteDelete(reqCtx, res, body) {
     const { thread, resolved } = reqCtx;
     const isDirectory = resolved.remoteEntry?.type === "directory";
     if (!ensureWritable(reqCtx, res)) return;
@@ -349,27 +388,38 @@ function createDirectoryMutationApiRoutes(deps = {}) {
       deps.sendJson(res, 400, { error: "Cannot delete a project/workspace root directory" });
       return;
     }
-    const result = await deps.runDirectoryBridge({ action: "delete", path: resolved.displayPath })
+    const result = await deps.runDirectoryBridge(directoryDeletePolicyService.remoteDeletePayload(resolved.displayPath))
       .catch((err) => ({ ok: false, error: errorMessage(err) }));
     if (!result?.ok) {
-      const code = /not empty/i.test(result?.error || "") ? 409 : 500;
-      deps.sendJson(res, code, { error: /not empty/i.test(result?.error || "") ? "Directory is not empty" : (result?.error || "Delete failed") });
+      if (isDirectory && /not empty|directory not empty/i.test(result?.error || "")) {
+        const authorization = nonEmptyDirectoryDeleteAuthorization(reqCtx, body);
+        if (!authorization.allowed) {
+          deps.sendJson(res, authorization.status, authorization.body || directoryDeleteElevationBody({ path: resolved.displayPath }));
+          return;
+        }
+        const elevated = await deps.runDirectoryBridge(directoryDeletePolicyService.remoteDeletePayload(resolved.displayPath, { recursive: true }))
+          .catch((err) => ({ ok: false, error: errorMessage(err) }));
+        if (!elevated?.ok) {
+          deps.sendJson(res, 500, { error: elevated?.error || "Delete failed" });
+          return;
+        }
+        sendDeleted(reqCtx, res, {
+          name: resolved.remoteEntry?.name || posixBasename(resolved.displayPath),
+          type: "directory",
+        });
+        return;
+      }
+      const code = /not empty|directory not empty/i.test(result?.error || "") ? 409 : 500;
+      deps.sendJson(res, code, { error: /not empty|directory not empty/i.test(result?.error || "") ? "Directory is not empty" : (result?.error || "Delete failed") });
       return;
     }
-    clearDirectoryCatalogCaches(deps, thread);
-    deps.sendJson(res, 200, {
-      ok: true,
-      deleted: {
-        path: resolved.displayPath,
-        displayPath: resolved.workspacePath,
-        workspacePath: resolved.workspacePath,
-        name: resolved.remoteEntry?.name || posixBasename(resolved.displayPath),
-        type: isDirectory ? "directory" : "file",
-      },
+    sendDeleted(reqCtx, res, {
+      name: resolved.remoteEntry?.name || posixBasename(resolved.displayPath),
+      type: isDirectory ? "directory" : "file",
     });
   }
 
-  async function handleLocalDelete(reqCtx, res) {
+  async function handleLocalDelete(reqCtx, res, body) {
     const { thread, resolved } = reqCtx;
     let stat;
     try {
@@ -388,20 +438,31 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     try {
       if (stat.isDirectory()) await maybeAwait(deps.rmdir(resolved.localPath));
       else await maybeAwait(deps.unlink(resolved.localPath));
-      clearDirectoryCatalogCaches(deps, thread);
-      deps.sendJson(res, 200, {
-        ok: true,
-        deleted: {
-          path: resolved.displayPath,
-          displayPath: resolved.workspacePath,
-          workspacePath: resolved.workspacePath,
-          name: localBasename(resolved.localPath),
-          type: stat.isDirectory() ? "directory" : "file",
-        },
+      sendDeleted(reqCtx, res, {
+        name: localBasename(resolved.localPath),
+        type: stat.isDirectory() ? "directory" : "file",
       });
     } catch (err) {
-      deps.sendJson(res, isNotEmptyError(err) ? 409 : 500, {
-        error: err?.code === "ENOTEMPTY" || /not empty/i.test(errorMessage(err)) ? "Directory is not empty" : errorMessage(err),
+      if (stat.isDirectory() && isDirectoryNotEmptyError(err)) {
+        const authorization = nonEmptyDirectoryDeleteAuthorization(reqCtx, body);
+        if (!authorization.allowed) {
+          deps.sendJson(res, authorization.status, authorization.body || directoryDeleteElevationBody({ path: resolved.displayPath }));
+          return;
+        }
+        try {
+          await maybeAwait(deps.rmDirRecursive(resolved.localPath));
+          sendDeleted(reqCtx, res, {
+            name: localBasename(resolved.localPath),
+            type: "directory",
+          });
+          return;
+        } catch (recursiveErr) {
+          deps.sendJson(res, 500, { error: errorMessage(recursiveErr) });
+          return;
+        }
+      }
+      deps.sendJson(res, isDirectoryNotEmptyError(err) ? 409 : 500, {
+        error: isDirectoryNotEmptyError(err) ? "Directory is not empty" : errorMessage(err),
       });
     }
   }
@@ -411,8 +472,8 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     if (!bodyResult.ok) return handledResult(route, context);
     const reqCtx = await requestContext(req, res, bodyResult.body, "Path not found or not allowed");
     if (!reqCtx) return handledResult(route, context);
-    if (reqCtx.resolved.remote === "wsl") await handleRemoteDelete(reqCtx, res);
-    else await handleLocalDelete(reqCtx, res);
+    if (reqCtx.resolved.remote === "wsl") await handleRemoteDelete(reqCtx, res, bodyResult.body);
+    else await handleLocalDelete(reqCtx, res, bodyResult.body);
     return handledResult(route, context);
   }
 

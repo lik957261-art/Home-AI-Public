@@ -225,6 +225,7 @@ function createMobileApiComposition(deps = {}) {
     readBody: deps.readBody,
     resolveBrowserPathAsync: (...args) => deps.getDirectoryBrowserBoundaryService().resolveBrowserPathAsync(...args),
     rmdir: deps.rmdir,
+    rmDirRecursive: deps.rmDirRecursive,
     runDirectoryBridge: deps.runDirectoryBridge,
     safeDirectoryName: deps.safeDirectoryName,
     safeFileName: deps.safeFileName,
@@ -232,6 +233,9 @@ function createMobileApiComposition(deps = {}) {
     stat: deps.statSync,
     uniqueChildPath: deps.uniqueChildPath,
     unlink: deps.unlink,
+    isOwnerAuth: deps.isOwnerAuth,
+    isOwnerElevationActive: deps.isOwnerElevationActive,
+    consumeOwnerElevationOnce: deps.consumeOwnerElevationOnce,
     write: deps.writeFile,
   });
 

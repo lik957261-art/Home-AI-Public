@@ -47,6 +47,7 @@
       err.operatorRequired = Boolean(body.operatorRequired);
       err.elevationRequired = Boolean(body.elevationRequired);
       err.elevationScope = body.elevationScope || body.code || "";
+      err.elevationReason = body.elevationReason || "";
     }
     return err;
   }
