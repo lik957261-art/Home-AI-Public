@@ -266,6 +266,25 @@ async function testQuizCompletionFailureDoesNotAwardCoins() {
   assert.equal(fixture.calls.awards.length, 0);
 }
 
+async function testCompletedQuizReconcilesOfficialCardAndDependencies() {
+  const fixture = makeService();
+  await fixture.service.submitKanbanReadingSubmission("owner", "card-1", {
+    submissionText: "evidence",
+  });
+  await fixture.service.submitKanbanReadingQuiz("owner", "card-1", {
+    answers: Array.from({ length: 10 }, (_, index) => index % 4),
+  });
+  fixture.calls.mutate.length = 0;
+  fixture.calls.reconcile.length = 0;
+
+  const result = await fixture.service.getKanbanReadingQuiz("owner", "card-1");
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "completed");
+  assert.equal(fixture.calls.mutate.length, 1);
+  assert.equal(fixture.calls.mutate[0].action, "complete");
+  assert.equal(fixture.calls.reconcile.length, 1);
+}
+
 async function testQuizReadRetargetsOldUnattemptedQuiz() {
   const fixture = makeService();
   await fixture.service.submitKanbanReadingSubmission("owner", "card-1", {
@@ -416,6 +435,7 @@ async function run() {
   await testReadingAnalysisHeadingsAreReadable();
   await testQuizFailureAndPassWorkflow();
   await testQuizCompletionFailureDoesNotAwardCoins();
+  await testCompletedQuizReconcilesOfficialCardAndDependencies();
   await testQuizReadRetargetsOldUnattemptedQuiz();
   testNormalizeRejectsInvalidQuiz();
   testReadingCoverUploadHelpers();

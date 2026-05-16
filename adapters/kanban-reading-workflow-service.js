@@ -530,6 +530,12 @@ function createKanbanReadingWorkflowService(deps = {}) {
     return status !== "done" && status !== "completed";
   }
 
+  function kanbanReadingCardOfficiallyCompleted(card = {}) {
+    const kanbanStatus = String(card?.kanbanStatus || card?.kanban_status || "").trim().toLowerCase();
+    const status = String(card?.status || "").trim().toLowerCase();
+    return kanbanStatus === "done" || status === "completed";
+  }
+
   function kanbanReadingQuizNeedsRetarget(state = {}) {
     if (!state?.quiz) return false;
     if (String(state.quizTargetingVersion || "") === quizTargetingVersion) return false;
@@ -667,6 +673,10 @@ function createKanbanReadingWorkflowService(deps = {}) {
     if (!state?.quiz) return { ok: false, status: 404, error: "Reading quiz is not available yet" };
     const targeted = await ensureKanbanReadingQuizTargeted(workspaceId, lookup.cardId, lookup.card || context.current, state);
     state = targeted.state;
+    if (String(state.status || "") === "completed") {
+      const reconciled = await reconcileCompletedKanbanReadingCard(workspaceId, lookup.cardId, lookup.card || context.current || {}, state);
+      if (!reconciled.ok) return reconciled;
+    }
     return {
       ok: true,
       canonicalCardId: lookup.cardId,
@@ -685,6 +695,42 @@ function createKanbanReadingWorkflowService(deps = {}) {
     };
   }
 
+  function kanbanReadingQuizCompletionResultText(currentCard = {}, state = {}) {
+    const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
+    return [
+      readingTemplate ? "Reading retelling quiz passed." : "Study submission quiz passed.",
+      "Quiz score: 100/100.",
+      "",
+      `MEDIA: ${state.analysisPath}`,
+    ].join("\n");
+  }
+
+  async function reconcileCompletedKanbanReadingCard(workspaceId, cardId, currentCard = {}, state = {}) {
+    let completedCard = currentCard;
+    if (!kanbanReadingCardOfficiallyCompleted(currentCard)) {
+      const completed = await kanbanCardProvider.mutateCard({
+        action: "complete",
+        workspaceId,
+        cardId,
+        result: kanbanReadingQuizCompletionResultText(currentCard, state),
+        author: "Hermes Mobile",
+      });
+      if (!completed?.ok) {
+        writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, Object.assign({}, state, {
+          completionError: completed?.error || "Reading card completion failed",
+        }));
+        return { ok: false, status: 409, error: completed?.error || "Reading card completion failed" };
+      }
+      completedCard = completed;
+      writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, Object.assign({}, state, {
+        completionError: "",
+        completedAt: state.completedAt || nowIso(),
+      }));
+    }
+    await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
+    return { ok: true, card: completedCard };
+  }
+
   async function submitKanbanReadingQuiz(workspaceId, cardId, body = {}) {
     const context = await readingContextForCard(workspaceId, cardId);
     const lookup = findKanbanReadingSubmissionState(workspaceId, cardId, context);
@@ -692,13 +738,15 @@ function createKanbanReadingWorkflowService(deps = {}) {
     const state = lookup.state;
     if (!state?.quiz) return { ok: false, status: 404, error: "Reading quiz is not available yet" };
     if (String(state.status || "") === "completed") {
+      const reconciled = await reconcileCompletedKanbanReadingCard(workspaceId, lookup.cardId, currentCard, state);
+      if (!reconciled.ok) return reconciled;
       const coinAward = awardReadingQuizPassed(workspaceId, lookup.cardId, currentCard, {
         score: 100,
         correctCount: 10,
         total: 10,
         executorWorkspaceId: body.executorWorkspaceId || body.executor_workspace_id || "",
       });
-      return { ok: true, passed: true, score: 100, status: "completed", canonicalCardId: lookup.cardId, quiz: publicKanbanReadingQuiz(state.quiz), coinAward };
+      return { ok: true, passed: true, score: 100, status: "completed", canonicalCardId: lookup.cardId, quiz: publicKanbanReadingQuiz(state.quiz), coinAward, card: publicTodo(reconciled.card) };
     }
     const answers = Array.isArray(body.answers)
       ? body.answers
@@ -748,12 +796,6 @@ function createKanbanReadingWorkflowService(deps = {}) {
       };
     }
     const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
-    const resultText = [
-      readingTemplate ? "Reading retelling quiz passed." : "Study submission quiz passed.",
-      "Quiz score: 100/100.",
-      "",
-      `MEDIA: ${state.analysisPath}`,
-    ].join("\n");
     await kanbanCardProvider.mutateCard({
       action: "comment",
       workspaceId,
@@ -765,7 +807,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
       action: "complete",
       workspaceId,
       cardId: lookup.cardId,
-      result: resultText,
+      result: kanbanReadingQuizCompletionResultText(currentCard, state),
       author: "Hermes Mobile",
     });
     if (!completed?.ok) {

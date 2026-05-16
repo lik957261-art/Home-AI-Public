@@ -9783,6 +9783,21 @@ function readingCasePriorComplete(todo) {
   return KanbanStoryHelpers.readingCasePriorComplete(todo, kanbanStoryHelperOptions());
 }
 
+function nextReadingCaseTodo(todo) {
+  if (!isKanbanReadingCard(todo)) return null;
+  const caseId = String(todo?.kanbanCaseId || "").trim();
+  const currentIndex = Number(todo?.kanbanCaseCardIndex || 0) || 0;
+  if (!caseId || !currentIndex) return null;
+  return (state.todos || [])
+    .filter((item) => (
+      isKanbanReadingCard(item)
+      && String(item?.kanbanCaseId || "").trim() === caseId
+      && (Number(item?.kanbanCaseCardIndex || 0) || 0) > currentIndex
+      && !["done", "archived"].includes(normalizedKanbanStatus(item))
+    ))
+    .sort((left, right) => (Number(left?.kanbanCaseCardIndex || 0) || 0) - (Number(right?.kanbanCaseCardIndex || 0) || 0))[0] || null;
+}
+
 function assessmentPriorComplete(todo) {
   return KanbanStoryHelpers.assessmentPriorComplete(todo, kanbanStoryHelperOptions());
 }
@@ -11484,6 +11499,20 @@ function renderKanbanReadingQuizPanel(todo) {
   if (!questions.length) return "";
   const answers = state.todoReadingQuizAnswers?.[todo.id] || [];
   const passed = readingSubmissionCompleted(todo);
+  if (passed) {
+    const nextCard = nextReadingCaseTodo(todo);
+    return `<section class="todo-comment-panel todo-reading-quiz-panel">
+      <div class="todo-detail-deliverables-head">
+        <strong>${escapeHtml(quiz.title || labels.quiz)}</strong>
+        <span>${escapeHtml("已通过")}</span>
+      </div>
+      <p class="todo-detail-muted">${escapeHtml("本卡片已通过，答卷已锁定；继续下一张卡片或查看下方卡片信息和交付文件。")}</p>
+      <div class="todo-comment-actions">
+        ${nextCard ? `<button type="button" data-todo-id="${escapeHtml(nextCard.id)}">${escapeHtml("打开下一张")}</button>` : ""}
+        <button type="button" data-load-reading-quiz="${escapeHtml(todo.id)}">${escapeHtml("刷新状态")}</button>
+      </div>
+    </section>`;
+  }
   const step = Math.max(0, Math.min(questions.length - 1, Number(state.todoReadingQuizStep?.[todo.id] || 0)));
   const question = questions[step] || questions[0];
   const selected = Number(answers[step]);
@@ -13258,6 +13287,13 @@ async function loadReadingQuiz(todoId) {
     const result = await api(`/api/kanban/cards/${encodeURIComponent(todoId)}/reading-quiz?${params.toString()}`);
     applyReadingQuizResult(todoId, result);
     const canonicalId = String(result.canonicalCardId || todoId || "").trim() || todoId;
+    const completed = String(result.status || "").trim().toLowerCase() === "completed"
+      || (Array.isArray(result.attempts) && result.attempts.some((attempt) => attempt?.passed));
+    if (completed) {
+      clearTodoListCache(kanbanCardWorkspaceId(canonicalId));
+      await loadTodos({ skipCache: true, includeCompleted: true, freshServer: true, preserveScroll: true });
+      state.selectedTodoId = canonicalId;
+    }
     await loadLearningGuidanceSession(canonicalId, "reading-quiz").catch(() => {});
     replaceTodoDetailRouteFlag(canonicalId, "readingQuiz");
   } catch (err) {
@@ -13286,7 +13322,7 @@ async function submitReadingQuiz(todoId) {
       clearReadingQuizDrafts(canonicalId);
       if (canonicalId !== todoId) clearReadingQuizDrafts(todoId);
       delete state.todoCardDetails[todoId];
-      await loadTodos({ skipCache: true, includeCompleted: true });
+      await loadTodos({ skipCache: true, includeCompleted: true, freshServer: true });
       state.selectedTodoId = state.todos.some((todo) => todo.id === canonicalId) ? canonicalId : todoId;
       showPushToast("考卷 10/10，全对，阅读卡片已完成。", "success");
     } else {

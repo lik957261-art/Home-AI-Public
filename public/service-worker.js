@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260516-learning-guidance-layout";
+const HERMES_SW_VERSION = "20260516-reading-card-unlock";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,13 +8,13 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260516-learning-guidance-layout",
-  "/app-task-artifact-helpers.js?v=20260516-learning-guidance-layout",
-  "/app-kanban-story-helpers.js?v=20260516-learning-guidance-layout",
-  "/app-api-client.js?v=20260516-learning-guidance-layout",
-  "/app.js?v=20260516-learning-guidance-layout",
+  "/styles.css?v=20260516-reading-card-unlock",
+  "/app-task-artifact-helpers.js?v=20260516-reading-card-unlock",
+  "/app-kanban-story-helpers.js?v=20260516-reading-card-unlock",
+  "/app-api-client.js?v=20260516-reading-card-unlock",
+  "/app.js?v=20260516-reading-card-unlock",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260516-learning-guidance-layout",
+  "/markdown-renderer-client.js?v=20260516-reading-card-unlock",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",
