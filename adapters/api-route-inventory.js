@@ -275,7 +275,45 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
   })),
   exact("learning-growth-overview", "GET", "/api/learning-growth/overview", "learning-growth", routeOptions("learning-growth", {
     workspaceScoped: true,
-    resourceTypes: ["learning-growth", "learning-coin"],
+    resourceTypes: ["learning-growth", "learning-coin", "learning-program"],
+  })),
+  exact("learning-programs-list", "GET", "/api/learning/programs", "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-program"],
+  })),
+  exact("learning-programs-create", "POST", "/api/learning/programs", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-program"],
+  })),
+  regex("learning-program-read", "GET", /^\/api\/learning\/programs\/[^/]+$/, "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-program"],
+  })),
+  regex("learning-program-update", "PATCH", /^\/api\/learning\/programs\/[^/]+$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-program"],
+  })),
+  regex("learning-program-draft-plan", "POST", /^\/api\/learning\/programs\/[^/]+\/draft-plan$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-program", "learning-plan-draft"],
+  })),
+  regex("learning-program-publish", "POST", /^\/api\/learning\/programs\/[^/]+\/publish$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-program", "kanban"],
+  })),
+  exact("learning-review-queue-list", "GET", "/api/learning/review-queue", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-review"],
+  })),
+  regex("learning-review-queue-decision", "POST", /^\/api\/learning\/review-queue\/[^/]+\/decision$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-review"],
   })),
 
   exact("learning-coins-summary", "GET", "/api/learning-coins/summary", "learning-coins", routeOptions("learning-coins", {

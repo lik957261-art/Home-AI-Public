@@ -52,8 +52,16 @@ const localProcessRunnerService = require("../adapters/local-process-runner-serv
 const localTodoBridgeService = require("../adapters/local-todo-bridge-service");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
 const learningGrowthService = require("../adapters/learning-growth-service");
+const learningAiReliabilityGuardService = require("../adapters/learning-ai-reliability-guard-service");
 const learningCoinAwardService = require("../adapters/learning-coin-award-service");
 const learningCoinService = require("../adapters/learning-coin-service");
+const learningParentReviewQueueService = require("../adapters/learning-parent-review-queue-service");
+const learningPlanDecompositionService = require("../adapters/learning-plan-decomposition-service");
+const learningProgramPublishService = require("../adapters/learning-program-publish-service");
+const learningProgramRepository = require("../adapters/learning-program-repository");
+const learningProgramService = require("../adapters/learning-program-service");
+const learningSkillTaxonomyService = require("../adapters/learning-skill-taxonomy-service");
+const learningTemplateRegistryService = require("../adapters/learning-template-registry-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
 const mobileRuntimeEnvironmentService = require("../adapters/mobile-runtime-environment-service");
@@ -104,6 +112,7 @@ const kanbanLearningGuidanceApiRoutes = require("../server-routes/kanban-learnin
 const kanbanStudyApiRoutes = require("../server-routes/kanban-study-api-routes");
 const learningApiRoutes = require("../server-routes/learning-api-routes");
 const learningCoinApiRoutes = require("../server-routes/learning-coin-api-routes");
+const learningProgramApiRoutes = require("../server-routes/learning-program-api-routes");
 const mobileApiDispatcher = require("../server-routes/mobile-api-dispatcher");
 const mobileApiComposition = require("../server-routes/mobile-api-composition");
 const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
@@ -122,6 +131,7 @@ const weixinApiRoutes = require("../server-routes/weixin-api-routes");
 const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
 const appLearningCoinsUi = require("../public/app-learning-coins-ui");
 const appLearningGrowthUi = require("../public/app-learning-growth-ui");
+const appLearningProgramUi = require("../public/app-learning-program-ui");
 const appLearningReadingUi = require("../public/app-learning-reading-ui");
 
 function fileText(file) {
@@ -210,6 +220,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof localWorkspaceStoreService.workspaceIdSlug, "function");
   assert.equal(typeof learningGrowthService.createLearningGrowthService, "function");
   assert.equal(typeof learningGrowthService.buildLearningGrowthOverview, "function");
+  assert.equal(typeof learningAiReliabilityGuardService.createLearningAiReliabilityGuardService, "function");
   assert.equal(typeof learningCardGuidanceService.createLearningCardGuidanceService, "function");
   assert.equal(typeof learningCardGuidanceService.normalizeMode, "function");
   assert.equal(typeof learningCoinAwardService.createLearningCoinAwardService, "function");
@@ -217,6 +228,13 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningCoinService.createLearningCoinService, "function");
   assert.equal(typeof learningCoinService.learningCoinGrowthProfile, "function");
   assert.equal(typeof learningCoinService.normalizeStore, "function");
+  assert.equal(typeof learningParentReviewQueueService.createLearningParentReviewQueueService, "function");
+  assert.equal(typeof learningPlanDecompositionService.createLearningPlanDecompositionService, "function");
+  assert.equal(typeof learningProgramPublishService.createLearningProgramPublishService, "function");
+  assert.equal(typeof learningProgramRepository.createLearningProgramRepository, "function");
+  assert.equal(typeof learningProgramService.createLearningProgramService, "function");
+  assert.equal(typeof learningSkillTaxonomyService.createLearningSkillTaxonomyService, "function");
+  assert.equal(typeof learningTemplateRegistryService.createLearningTemplateRegistryService, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");
   assert.equal(typeof mobileRuntimeEnvironmentService.createMobileRuntimeEnvironment, "function");
@@ -294,11 +312,13 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanStudyApiRoutes.createKanbanStudyApiRoutes, "function");
   assert.equal(typeof learningApiRoutes.createLearningApiRoutes, "function");
   assert.equal(typeof learningCoinApiRoutes.createLearningCoinApiRoutes, "function");
+  assert.equal(typeof learningProgramApiRoutes.createLearningProgramApiRoutes, "function");
   assert.equal(typeof mobileApiComposition.createMobileApiComposition, "function");
   assert.equal(typeof mobileApiDispatcher.createMobileApiDispatcher, "function");
   assert.equal(typeof fileArtifactApiRoutes.createFileArtifactApiRoutes, "function");
   assert.equal(typeof appLearningCoinsUi.renderCoinsSubsystem, "function");
   assert.equal(typeof appLearningGrowthUi.renderLearningGrowthView, "function");
+  assert.equal(typeof appLearningProgramUi.renderProgramSubsystem, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingQuizPanel, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingSubmissionPanel, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingWorkflowPanel, "function");
@@ -455,6 +475,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobileComposition, /createLearningApiRoutes/);
   assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningApiRoutes"/);
+  assert.match(mobileComposition, /createLearningProgramApiRoutes/);
+  assert.match(mobileComposition, /createLearningProgramService/);
+  assert.match(mobileComposition, /createLearningProgramRepository/);
+  assert.match(dispatcher, /key: "learningProgramApiRoutes"/);
   assert.match(mobileComposition, /createLearningCoinApiRoutes/);
   assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningCoinApiRoutes"/);

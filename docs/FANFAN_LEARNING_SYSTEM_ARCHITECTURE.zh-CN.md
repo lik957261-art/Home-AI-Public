@@ -202,3 +202,13 @@ v1.1 新增并固化：
 - MVP 第一阶段 API 与 repository/table 清单；
 - AI 可靠性与幻觉防控：`draft -> guard -> review/publish`、`submit -> verify -> reward/review`，低置信度、缺来源、大额奖励和异常评价进入家长审核；
 - 儿童隐私与日志最小化：日志只记 ID、分数、摘要、事件类型和引用，不记录完整儿童回答、录音转写、题目或答案全文。
+## 当前 V0.1 落地状态（2026-05-16）
+
+第一版工程实现已把 Learning Program 纳入 `learning-growth` 垂直域，并明确采用 SQLite 持久化，不使用 JSON 文件作为主存储。
+
+- 学习计划主库：`<HERMES_WEB_DATA_DIR>/learning-growth.sqlite3`，可通过 `HERMES_MOBILE_LEARNING_DB_PATH` / `HERMES_WEB_LEARNING_DB_PATH` 覆盖。
+- 后端边界：`learning-program-repository`、`learning-program-service`、`learning-plan-decomposition-service`、`learning-ai-reliability-guard-service`、`learning-parent-review-queue-service`、`learning-program-publish-service`。
+- API 边界：`server-routes/learning-program-api-routes.js`，全部挂在 `/api/learning/...` 命名空间。
+- 前端边界：`public/app-learning-program-ui.js` 渲染计划配置、周计划草稿和家长审核队列；`public/app.js` 只保留事件绑定和 API 调用胶水。
+- 英语能力体系在 V0.1 中不是只支持阅读，已预留阅读、听力、口语复述、发音跟读、写作、词汇活用、语法表达和演讲项目。
+- Kanban/Todo 只承载下发执行卡片；计划、草稿、审核、发布流水的主记录归 Learning Program SQLite 表所有。

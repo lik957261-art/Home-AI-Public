@@ -12,6 +12,11 @@ const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-gui
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
 const { createLearningApiRoutes } = require("./learning-api-routes");
 const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
+const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
+const { createLearningGrowthService } = require("../adapters/learning-growth-service");
+const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
+const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
+const { createLearningProgramService } = require("../adapters/learning-program-service");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
 const { createPublicApiRoutes } = require("./public-api-routes");
@@ -448,13 +453,39 @@ function createMobileApiComposition(deps = {}) {
   });
   callBootTrace(deps, "kanban learning guidance api routes ready");
 
+  const learningProgramRepository = createLearningProgramRepository({
+    dataDir: deps.dataDir,
+    dbPath: deps.learningProgramDbPath,
+  });
+  const learningProgramPublishService = createLearningProgramPublishService({
+    createKanbanStudyPlanCards: (...args) => deps.getKanbanPlanCardCreationService().createKanbanStudyPlanCards(...args),
+  });
+  const learningProgramService = createLearningProgramService({
+    repository: learningProgramRepository,
+    publishService: learningProgramPublishService,
+  });
+
   const learningApiRoutes = createLearningApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
     learningCoinService: deps.learningCoinService,
+    learningGrowthService: createLearningGrowthService({
+      learningCoinService: deps.learningCoinService,
+      learningProgramService,
+    }),
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
   });
   callBootTrace(deps, "learning api routes ready");
+
+  const learningProgramApiRoutes = createLearningProgramApiRoutes({
+    isOwnerAuth: deps.isOwnerAuth,
+    learningProgramService,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "learning program api routes ready");
 
   const learningCoinApiRoutes = createLearningCoinApiRoutes({
     broadcast: deps.broadcast,
@@ -510,6 +541,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanStudyApiRoutes,
     learningApiRoutes,
     learningCoinApiRoutes,
+    learningProgramApiRoutes,
     ownerElevationApiRoutes,
     publicApiRoutes,
     pushApiRoutes,
@@ -543,6 +575,7 @@ function createMobileApiComposition(deps = {}) {
       kanbanStudyApiRoutes,
       learningApiRoutes,
       learningCoinApiRoutes,
+      learningProgramApiRoutes,
       ownerElevationApiRoutes,
       publicApiRoutes,
       pushApiRoutes,

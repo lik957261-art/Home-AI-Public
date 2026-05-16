@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const CoinsUi = require("../public/app-learning-coins-ui");
 const GrowthUi = require("../public/app-learning-growth-ui");
+const ProgramUi = require("../public/app-learning-program-ui");
 
 const overview = {
   module: { title: "凡凡成长系统", currentEntry: "金币标签" },
@@ -34,6 +35,11 @@ const overview = {
     redemptions: [],
     ledger: [],
   },
+  programs: {
+    programs: [{ programId: "program-1", title: "English growth", status: "active", domain: "english", focusAreas: ["english_speaking_retell"], minutesPerDay: 30, daysPerWeek: 5 }],
+    latestDrafts: [],
+    reviewItems: [],
+  },
   nextModules: [{ id: "learning-profile", title: "学习档案与目标录入", status: "next" }],
 };
 
@@ -47,7 +53,7 @@ function testCoinSubsystemRendererIsStandalone() {
 }
 
 function testGrowthRendererContainsProductShellAndNestedCoins() {
-  const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, state: { auth: { isOwner: false } } });
+  const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: false } } });
   assert.match(html, /data-learning-product="fanfan-growth"/);
   assert.match(html, /凡凡成长系统/);
   assert.match(html, /当前复用 Hermes Mobile 平台能力/);
@@ -58,7 +64,14 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /学习档案与目标录入/);
 }
 
+function testGrowthRendererContainsProgramSubsystem() {
+  const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: false } } });
+  assert.match(html, /data-learning-growth-module="programs"/);
+  assert.match(html, /data-learning-program-id="program-1"/);
+}
+
 testCoinSubsystemRendererIsStandalone();
 testGrowthRendererContainsProductShellAndNestedCoins();
+testGrowthRendererContainsProgramSubsystem();
 
 console.log("app learning growth ui tests passed");

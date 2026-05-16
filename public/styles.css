@@ -6699,6 +6699,157 @@ button.directory-alias-chip {
   gap: 14px;
 }
 
+.learning-program-section {
+  display: grid;
+  gap: 14px;
+}
+
+.learning-program-form {
+  display: grid;
+  gap: 10px;
+}
+
+.learning-program-field-grid,
+.learning-program-focus-grid,
+.learning-program-meta-grid,
+.learning-program-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-program-field-grid {
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+}
+
+.learning-program-field-grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-program-focus-grid {
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  padding: 10px;
+  border: 1px solid rgba(31, 111, 98, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.learning-program-focus-grid label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.learning-program-list,
+.learning-program-review-list,
+.learning-program-task-days {
+  display: grid;
+  gap: 10px;
+}
+
+.learning-program-card,
+.learning-program-review-item,
+.learning-program-draft {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(31, 111, 98, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.learning-program-card-top,
+.learning-program-draft-top,
+.learning-program-review-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.learning-program-card h3,
+.learning-program-card p,
+.learning-program-review-item p {
+  margin: 0;
+}
+
+.learning-program-card h3 {
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.learning-program-card p,
+.learning-program-review-item p,
+.learning-program-focus {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.learning-program-card-top > span,
+.learning-program-draft-top > span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.1);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.learning-program-meta-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.learning-program-meta-grid span {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid rgba(31, 111, 98, 0.1);
+  border-radius: 12px;
+  background: rgba(236, 249, 245, 0.42);
+}
+
+.learning-program-meta-grid strong {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.learning-program-meta-grid small,
+.learning-program-task-days span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.learning-program-actions {
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+}
+
+.learning-program-actions button {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 12px;
+  color: var(--accent);
+  background: rgba(236, 249, 245, 0.72);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.learning-program-actions button:disabled {
+  color: var(--muted);
+  background: rgba(236, 241, 239, 0.72);
+}
+
 .learning-growth-next-list {
   display: grid;
   gap: 8px;
@@ -7061,7 +7212,9 @@ button.directory-alias-chip {
   .learning-coin-grid,
   .learning-growth-summary,
   .learning-reward-card,
-  .learning-reward-form {
+  .learning-reward-form,
+  .learning-program-card-top,
+  .learning-program-review-item {
     grid-template-columns: 1fr;
   }
 

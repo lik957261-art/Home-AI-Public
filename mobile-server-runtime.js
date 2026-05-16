@@ -2422,7 +2422,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher } = createMobileApiComposition
   buildRequestContext, canRevokeGroupChatMessage, chatGroupMemberWorkspaceIds, clearCronListCache, clearDynamicProjectCache: () => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(),
   clearDynamicProjectCacheForWorkspace: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId), clearKanbanCardListCache, clientVersionInfo, compactMessage, compactText,
   compactThread, compactThreadWithMessagePage, contentDisposition, createInitialOwnerKey, createKanbanPlanCards,
-  createWeixinFileForwardDelivery, cronJobMatchesOwner, cronJobMatchesSearch, dedupe, deleteLocalWorkspace, detectDirectTodoCreateIntentForWeb,
+  createWeixinFileForwardDelivery, cronJobMatchesOwner, cronJobMatchesSearch, dataDir: DATA_DIR, dedupe, deleteLocalWorkspace, detectDirectTodoCreateIntentForWeb,
   display: {
     ownerLabel: OWNER_LABEL,
     ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,

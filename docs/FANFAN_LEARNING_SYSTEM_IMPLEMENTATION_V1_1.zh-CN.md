@@ -484,3 +484,44 @@ cancelled
 13. `learning-badge-service` 和金币家长后台。
 
 每一步都必须有 focused tests 和 schema fixtures；新增前端只进 `public/app-learning-*.js`，不扩大 `public/app.js` 主体。
+## 12. V0.1 SQLite-first 实施落地
+
+2026-05-16 的 V0.1 实施从一开始采用 SQLite 作为学习增长域持久层，不使用 JSON 文件作为主存储。
+
+新增模块：
+
+- `adapters/learning-program-repository.js`
+  - 默认数据库：`<HERMES_WEB_DATA_DIR>/learning-growth.sqlite3`。
+  - 可通过 `HERMES_MOBILE_LEARNING_DB_PATH` 或 `HERMES_WEB_LEARNING_DB_PATH` 覆盖。
+  - 表：`learning_programs`、`learning_plan_drafts`、`learning_parent_review_items`、`learning_publications`、`learning_schema_migrations`。
+- `adapters/learning-skill-taxonomy-service.js`
+  - 先落英语能力体系，覆盖阅读、听力、口语复述、发音跟读、写作、词汇活用、语法表达、演讲项目。
+- `adapters/learning-template-registry-service.js`
+  - 固定英语 reading/oral-retell/shadowing/writing/vocabulary/repair 模板注册表。
+- `adapters/learning-plan-decomposition-service.js`
+  - 根据后台配置的范围、要求、起止时间、每周天数和每天分钟数拆出周计划草稿。
+- `adapters/learning-ai-reliability-guard-service.js`
+  - 校验来源依据、课程参考、任务卡类型、任务置信度和每日负载。
+- `adapters/learning-parent-review-queue-service.js`
+  - 将需要家长兜底的计划草稿写入 SQLite 审核队列。
+- `adapters/learning-program-publish-service.js`
+  - 只作为学习域到 Hermes Mobile Kanban 的薄发布适配层，不复制 Kanban 创建逻辑。
+- `adapters/learning-program-service.js`
+  - 聚合 program 创建、计划草稿、审核、发布和 overview。
+- `server-routes/learning-program-api-routes.js`
+  - `/api/learning/programs`
+  - `/api/learning/programs/:programId`
+  - `/api/learning/programs/:programId/draft-plan`
+  - `/api/learning/programs/:programId/publish`
+  - `/api/learning/review-queue`
+  - `/api/learning/review-queue/:reviewId/decision`
+- `public/app-learning-program-ui.js`
+  - 成长系统内的计划配置、周计划、审核队列渲染 helper。
+
+当前 V0.1 的工程边界：
+
+- Learning Program 是 `learning-growth` 垂直域的一部分，暂时挂在原“金币”入口下，但金币已作为子模块收敛。
+- 前台仍复用 Hermes Mobile 登录、workspace、Kanban、topic、Web Push 和 client-version 能力。
+- 计划、草稿、审核、发布记录的主状态归 Learning Program SQLite 表所有；Kanban/Todo 只承载下发执行卡片。
+- 自动生成内容只保存摘要、引用、任务类型、模板 id、状态和风险标记，不保存完整儿童回答、录音转写、题目全文或答案全文。
+- 发布前必须通过可靠性护栏；被 `publishBlocked` 的草稿不能写入 Kanban。

@@ -7918,6 +7918,7 @@ function renderLearningCoinsView() {
     escapeHtml,
     formatTime,
     learnerId: learningCoinStudentId(),
+    programUi: window.HermesLearningProgramUi,
   });
   wireLearningCoinsView();
   updateNavigationControls();
@@ -7963,6 +7964,65 @@ async function requestLearningCoinRedemption(rewardId) {
   await loadLearningCoins({ limit: 30 });
 }
 
+function learningProgramFormBody() {
+  const focusAreas = [...document.querySelectorAll("input[name='learningProgramFocus']:checked")]
+    .map((input) => input.value)
+    .filter(Boolean);
+  const sourceBasisRefs = ($("learningProgramSourceRefs")?.value || "")
+    .split(/\r?\n|[;；、]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return {
+    workspaceId: learningGrowthLearnerWorkspaceId(),
+    learnerId: learningCoinStudentId(),
+    learnerName: "凡凡",
+    title: $("learningProgramTitle")?.value?.trim() || "",
+    domain: $("learningProgramDomain")?.value || "english",
+    focusAreas,
+    goalSummary: $("learningProgramGoal")?.value?.trim() || "",
+    requirements: $("learningProgramGoal")?.value?.trim() || "",
+    startDate: $("learningProgramStartDate")?.value || "",
+    durationDays: Number($("learningProgramDurationDays")?.value || 28),
+    daysPerWeek: Number($("learningProgramDaysPerWeek")?.value || 5),
+    minutesPerDay: Number($("learningProgramMinutesPerDay")?.value || 30),
+    timeOfDay: $("learningProgramTimeOfDay")?.value || "19:30",
+    sourceBasisRefs,
+  };
+}
+
+async function submitLearningProgramForm(event) {
+  event?.preventDefault?.();
+  const body = learningProgramFormBody();
+  if (!body.title || !body.goalSummary) {
+    showPushToast("计划名称和目标要求不能为空", "error");
+    return;
+  }
+  await api("/api/learning/programs", { method: "POST", body: JSON.stringify(body) });
+  showPushToast("学习范围已保存", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function draftLearningProgram(programId) {
+  await api(`/api/learning/programs/${encodeURIComponent(programId)}/draft-plan`, { method: "POST", body: JSON.stringify({}) });
+  showPushToast("学习周计划已生成", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function publishLearningProgram(programId) {
+  await api(`/api/learning/programs/${encodeURIComponent(programId)}/publish`, { method: "POST", body: JSON.stringify({}) });
+  showPushToast("学习任务已下发", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function decideLearningReview(reviewId, decision) {
+  await api(`/api/learning/review-queue/${encodeURIComponent(reviewId)}/decision`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
+  showPushToast("审核状态已更新", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
 async function submitLearningRewardForm(event) {
   event?.preventDefault?.();
   const title = $("learningRewardTitle")?.value?.trim() || "";
@@ -7985,6 +8045,18 @@ async function submitLearningRewardForm(event) {
 }
 
 function wireLearningCoinsView() {
+  $("learningProgramForm")?.addEventListener("submit", (event) => {
+    submitLearningProgramForm(event).catch(showError);
+  });
+  $("conversation")?.querySelectorAll("[data-learning-program-draft-action]").forEach((button) => {
+    button.addEventListener("click", () => draftLearningProgram(button.dataset.learningProgramDraftAction).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-program-publish]").forEach((button) => {
+    button.addEventListener("click", () => publishLearningProgram(button.dataset.learningProgramPublish).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-review-decision]").forEach((button) => {
+    button.addEventListener("click", () => decideLearningReview(button.dataset.learningReviewDecision, button.dataset.decision).catch(showError));
+  });
   $("conversation")?.querySelectorAll("[data-learning-redeem]").forEach((button) => {
     button.addEventListener("click", () => requestLearningCoinRedemption(button.dataset.learningRedeem).catch(showError));
   });

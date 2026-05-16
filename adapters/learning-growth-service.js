@@ -128,9 +128,18 @@ function learningGrowthReliabilitySummary() {
 function buildLearningGrowthOverview(input = {}, deps = {}) {
   const request = normalizeLearningGrowthRequest(input);
   const learningCoinService = deps.learningCoinService || null;
+  const learningProgramService = deps.learningProgramService || null;
   const coins = learningCoinService && typeof learningCoinService.summary === "function"
     ? learningCoinService.summary({
         workspaceId: request.workspaceId,
+        studentId: request.learnerId,
+        limit: request.limit,
+      })
+    : null;
+  const programs = learningProgramService && typeof learningProgramService.overview === "function"
+    ? learningProgramService.overview({
+        workspaceId: request.workspaceId,
+        learnerId: request.learnerId,
         studentId: request.learnerId,
         limit: request.limit,
       })
@@ -155,6 +164,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
     capabilities: learningGrowthCapabilityMap(metrics),
     platformCapabilities: learningGrowthPlatformCapabilities(),
     reliability: learningGrowthReliabilitySummary(),
+    programs,
     coins,
     nextModules: [
       { id: "learning-profile", title: "学习档案与目标录入", status: "next" },
@@ -168,9 +178,10 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
 
 function createLearningGrowthService(options = {}) {
   const learningCoinService = options.learningCoinService || null;
+  const learningProgramService = options.learningProgramService || null;
   return {
     overview(input = {}) {
-      return buildLearningGrowthOverview(input, { learningCoinService });
+      return buildLearningGrowthOverview(input, { learningCoinService, learningProgramService });
     },
   };
 }

@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260516-learning-growth-shell";
+const HERMES_SW_VERSION = "20260516-learning-programs-sqlite";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,16 +8,17 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260516-learning-growth-shell",
-  "/app-task-artifact-helpers.js?v=20260516-learning-growth-shell",
-  "/app-kanban-story-helpers.js?v=20260516-learning-growth-shell",
-  "/app-learning-reading-ui.js?v=20260516-learning-growth-shell",
-  "/app-learning-coins-ui.js?v=20260516-learning-growth-shell",
-  "/app-learning-growth-ui.js?v=20260516-learning-growth-shell",
-  "/app-api-client.js?v=20260516-learning-growth-shell",
-  "/app.js?v=20260516-learning-growth-shell",
+  "/styles.css?v=20260516-learning-programs-sqlite",
+  "/app-task-artifact-helpers.js?v=20260516-learning-programs-sqlite",
+  "/app-kanban-story-helpers.js?v=20260516-learning-programs-sqlite",
+  "/app-learning-reading-ui.js?v=20260516-learning-programs-sqlite",
+  "/app-learning-coins-ui.js?v=20260516-learning-programs-sqlite",
+  "/app-learning-program-ui.js?v=20260516-learning-programs-sqlite",
+  "/app-learning-growth-ui.js?v=20260516-learning-programs-sqlite",
+  "/app-api-client.js?v=20260516-learning-programs-sqlite",
+  "/app.js?v=20260516-learning-programs-sqlite",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260516-learning-growth-shell",
+  "/markdown-renderer-client.js?v=20260516-learning-programs-sqlite",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

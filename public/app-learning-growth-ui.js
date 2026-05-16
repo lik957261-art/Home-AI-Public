@@ -2,11 +2,11 @@
 
 (function (root, factory) {
   if (typeof module === "object" && module.exports) {
-    module.exports = factory(require("./app-learning-coins-ui"));
+    module.exports = factory(require("./app-learning-coins-ui"), require("./app-learning-program-ui"));
   } else {
-    root.HermesLearningGrowthUi = factory(root.HermesLearningCoinsUi);
+    root.HermesLearningGrowthUi = factory(root.HermesLearningCoinsUi, root.HermesLearningProgramUi);
   }
-}(typeof globalThis !== "undefined" ? globalThis : this, function (CoinsUi) {
+}(typeof globalThis !== "undefined" ? globalThis : this, function (CoinsUi, ProgramUi) {
   function defaultEscapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -80,6 +80,13 @@
       || "Learner";
     const coins = options.coins || overview.coins || {};
     const coinsUi = options.coinsUi || CoinsUi;
+    const programUi = options.programUi || ProgramUi;
+    const programsHtml = programUi && typeof programUi.renderProgramSubsystem === "function"
+      ? programUi.renderProgramSubsystem(Object.assign({}, options, {
+          programs: overview.programs || {},
+          learnerId: learner.id || options.learnerId,
+        }))
+      : "";
     const coinsHtml = coinsUi && typeof coinsUi.renderCoinsSubsystem === "function"
       ? coinsUi.renderCoinsSubsystem(Object.assign({}, options, {
           summary: coins,
@@ -103,6 +110,7 @@
       <section class="learning-growth-modules">
         ${renderCapabilityCards(overview.capabilities || [], options)}
       </section>
+      ${programsHtml}
       ${coinsHtml}
       ${renderNextModules(overview.nextModules || [], options)}
     </div>`;
