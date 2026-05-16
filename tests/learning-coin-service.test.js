@@ -190,9 +190,95 @@ function testRedemptionIdempotencyIsScoped() {
   }
 }
 
+function testSummaryIncludesDerivedGrowthProfile() {
+  const store = tempStore();
+  try {
+    const { service } = makeService(store, {
+      nowIso() {
+        return "2026-05-16T12:00:00Z";
+      },
+    });
+    service.grantCoins({
+      studentId: "fanfan",
+      workspaceId: "owner",
+      coinAmount: 120,
+      reason: "reading pass",
+      sourceType: "reading_quiz",
+      idempotencyKey: "reading-1",
+      createdAt: "2026-05-15T08:00:00Z",
+    });
+    service.grantCoins({
+      studentId: "fanfan",
+      workspaceId: "owner",
+      coinAmount: 90,
+      reason: "assessment pass",
+      sourceType: "assessment_exam",
+      idempotencyKey: "assessment-1",
+      createdAt: "2026-05-16T08:00:00Z",
+    });
+    service.upsertReward({ id: "book", title: "Book", coinCost: 300, rmbCents: 3000 });
+
+    const summary = service.summary({ studentId: "fanfan", workspaceId: "owner" });
+
+    assert.equal(summary.growth.totalEarnedCoins, 210);
+    assert.equal(summary.growth.level.current.level, 2);
+    assert.equal(summary.growth.level.next.level, 3);
+    assert.equal(summary.growth.level.toNextLevelCoins, 290);
+    assert.equal(summary.growth.sevenDayCoins, 210);
+    assert.equal(summary.growth.activeDaysInLast7, 2);
+    assert.equal(summary.growth.streakDays, 2);
+    assert.deepEqual(summary.growth.recentDays.slice(-2), [
+      { date: "2026-05-15", coins: 120 },
+      { date: "2026-05-16", coins: 90 },
+    ]);
+    assert.deepEqual(summary.growth.rewardProgress[0], {
+      id: "book",
+      title: "Book",
+      coinCost: 300,
+      rmbCents: 3000,
+      affordable: false,
+      remainingCoins: 90,
+      progressPct: 70,
+    });
+    assert.equal(summary.growth.bestRewardProgress.id, "book");
+    assert.equal(summary.growth.sourceBreakdown[0].sourceType, "reading_quiz");
+  } finally {
+    store.cleanup();
+  }
+}
+
+function testGrowthProfileIgnoresRedemptionAndInactiveRewards() {
+  const store = tempStore();
+  try {
+    const { service } = makeService(store, {
+      nowIso() {
+        return "2026-05-16T12:00:00Z";
+      },
+    });
+    service.grantCoins({ studentId: "fanfan", workspaceId: "owner", coinAmount: 4000, idempotencyKey: "seed" });
+    service.upsertReward({ id: "active", title: "Active", coinCost: 100 });
+    service.upsertReward({ id: "inactive", title: "Inactive", coinCost: 10, active: false });
+    const requested = service.requestRedemption({ studentId: "fanfan", workspaceId: "owner", rewardId: "active" });
+    service.transitionRedemption(requested.redemption.id, "reject", { actorPrincipalId: "owner" });
+
+    const summary = service.summary({ studentId: "fanfan", workspaceId: "owner" });
+
+    assert.equal(summary.growth.level.current.level, 6);
+    assert.equal(summary.growth.level.next, null);
+    assert.equal(summary.growth.level.progressPct, 100);
+    assert.equal(summary.growth.totalEarnedCoins, 4000);
+    assert.equal(summary.growth.rewardProgress.some((reward) => reward.id === "inactive"), false);
+    assert.equal(summary.growth.sourceBreakdown.some((source) => source.sourceType === "redemption"), false);
+  } finally {
+    store.cleanup();
+  }
+}
+
 testGrantIsIdempotentAndSanitized();
 testRewardRedemptionHoldsAndReleasesCoins();
 testApproveAndSettleKeepCoinsReserved();
 testInsufficientCoinsCannotRedeem();
 testRedemptionIdempotencyIsScoped();
+testSummaryIncludesDerivedGrowthProfile();
+testGrowthProfileIgnoresRedemptionAndInactiveRewards();
 console.log("learning coin service tests passed");

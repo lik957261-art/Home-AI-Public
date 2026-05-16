@@ -54,6 +54,16 @@ function makeLearningCoinService() {
         workspaceId: input.workspaceId,
         settlement: { currency: "CNY", rulesStatus: "unset", coinsPerCny: null },
         balances: { availableCoins: 100, heldCoins: 0, totalCoins: 100, earnedCoins: 100, spentCoins: 0 },
+        growth: {
+          totalEarnedCoins: 100,
+          level: { current: { level: 1, title: "New" }, next: { level: 2, title: "Next" }, progressPct: 50, toNextLevelCoins: 100 },
+          recentDays: [],
+          sevenDayCoins: 100,
+          activeDaysInLast7: 1,
+          streakDays: 1,
+          rewardProgress: [],
+          bestRewardProgress: null,
+        },
         rewards: this.listRewards({}),
         redemptions: state.redemptions,
         ledger: state.ledger,
@@ -192,6 +202,8 @@ async function testSummaryAndLedgerAreWorkspaceScoped() {
   assert.equal(summary.res.statusCode, 200);
   assert.equal(summary.body.studentId, "child");
   assert.equal(summary.body.workspaceId, "child");
+  assert.equal(summary.body.growth.totalEarnedCoins, 100);
+  assert.equal(summary.body.growth.level.toNextLevelCoins, 100);
   assert.deepEqual(calls.workspaceAccess, ["child"]);
 
   const denied = await request(routes, "GET", "/api/learning-coins/ledger?workspaceId=child&studentId=other", {

@@ -204,6 +204,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningCoinAwardService.createLearningCoinAwardService, "function");
   assert.equal(typeof learningCoinAwardService.learningCoinAwardKey, "function");
   assert.equal(typeof learningCoinService.createLearningCoinService, "function");
+  assert.equal(typeof learningCoinService.learningCoinGrowthProfile, "function");
   assert.equal(typeof learningCoinService.normalizeStore, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");

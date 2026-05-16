@@ -14,6 +14,15 @@ const DEFAULT_STORE = Object.freeze({
   redemptions: Object.freeze([]),
 });
 
+const LEARNING_COIN_LEVELS = Object.freeze([
+  Object.freeze({ id: "lv1", level: 1, title: "新手探险家", minCoins: 0 }),
+  Object.freeze({ id: "lv2", level: 2, title: "稳定闯关者", minCoins: 200 }),
+  Object.freeze({ id: "lv3", level: 3, title: "错题修复师", minCoins: 500 }),
+  Object.freeze({ id: "lv4", level: 4, title: "逻辑训练师", minCoins: 1000 }),
+  Object.freeze({ id: "lv5", level: 5, title: "项目建造者", minCoins: 2000 }),
+  Object.freeze({ id: "lv6", level: 6, title: "自主学习者", minCoins: 4000 }),
+]);
+
 function compactText(value, maxChars = 160) {
   const text = String(value ?? "").replace(/\s+/g, " ").trim();
   if (!text) return "";
@@ -231,6 +240,110 @@ function balancesFor(store, studentId, workspaceId) {
   };
 }
 
+function safeDate(value) {
+  const date = new Date(value || "");
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function utcDayKey(date) {
+  if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function dayOffsetKey(baseDate, offsetDays) {
+  const date = new Date(baseDate.getTime());
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return utcDayKey(date);
+}
+
+function earningLedgerEntries(store, studentId, workspaceId) {
+  return store.ledger.filter((entry) => (
+    entry.studentId === studentId
+    && entry.workspaceId === workspaceId
+    && entry.coinDelta > 0
+    && entry.sourceType !== "redemption"
+    && ["grant", "adjustment"].includes(entry.type)
+  ));
+}
+
+function levelForCoins(totalCoins) {
+  const total = Math.max(0, Math.round(Number(totalCoins) || 0));
+  let current = LEARNING_COIN_LEVELS[0];
+  let next = null;
+  for (let index = 0; index < LEARNING_COIN_LEVELS.length; index += 1) {
+    const level = LEARNING_COIN_LEVELS[index];
+    if (total >= level.minCoins) {
+      current = level;
+      next = LEARNING_COIN_LEVELS[index + 1] || null;
+    }
+  }
+  const progressPct = next
+    ? Math.max(0, Math.min(100, Math.round(((total - current.minCoins) / (next.minCoins - current.minCoins)) * 100)))
+    : 100;
+  return {
+    current: Object.assign({}, current),
+    next: next ? Object.assign({}, next) : null,
+    progressPct,
+    toNextLevelCoins: next ? Math.max(0, next.minCoins - total) : 0,
+  };
+}
+
+function learningCoinGrowthProfile(store, studentId, workspaceId, options = {}) {
+  const now = safeDate(options.nowIso) || new Date();
+  const earningEntries = earningLedgerEntries(store, studentId, workspaceId);
+  const totalEarnedCoins = earningEntries.reduce((sum, entry) => sum + entry.coinDelta, 0);
+  const dailyMap = new Map();
+  const sourceMap = new Map();
+  for (const entry of earningEntries) {
+    const date = safeDate(entry.createdAt);
+    const day = utcDayKey(date);
+    if (day) dailyMap.set(day, (dailyMap.get(day) || 0) + entry.coinDelta);
+    const source = entry.sourceType || entry.type || "learning";
+    sourceMap.set(source, (sourceMap.get(source) || 0) + entry.coinDelta);
+  }
+  const recentDays = [];
+  for (let offset = -6; offset <= 0; offset += 1) {
+    const date = dayOffsetKey(now, offset);
+    recentDays.push({ date, coins: dailyMap.get(date) || 0 });
+  }
+  let streakDays = 0;
+  for (let offset = 0; offset > -366; offset -= 1) {
+    if ((dailyMap.get(dayOffsetKey(now, offset)) || 0) <= 0) break;
+    streakDays += 1;
+  }
+  const balances = balancesFor(store, studentId, workspaceId);
+  const rewardProgress = store.rewards
+    .filter((reward) => reward.active && reward.coinCost > 0)
+    .map((reward) => {
+      const remainingCoins = Math.max(0, reward.coinCost - balances.availableCoins);
+      return {
+        id: reward.id,
+        title: reward.title,
+        coinCost: reward.coinCost,
+        rmbCents: reward.rmbCents,
+        affordable: remainingCoins === 0,
+        remainingCoins,
+        progressPct: Math.max(0, Math.min(100, Math.round((balances.availableCoins / reward.coinCost) * 100))),
+      };
+    })
+    .sort((a, b) => a.remainingCoins - b.remainingCoins || a.coinCost - b.coinCost || a.title.localeCompare(b.title))
+    .slice(0, 4);
+  return {
+    totalEarnedCoins,
+    level: levelForCoins(totalEarnedCoins),
+    recentDays,
+    sevenDayCoins: recentDays.reduce((sum, day) => sum + day.coins, 0),
+    activeDaysInLast7: recentDays.filter((day) => day.coins > 0).length,
+    streakDays,
+    sourceBreakdown: Array.from(sourceMap.entries())
+      .map(([sourceType, coins]) => ({ sourceType, coins }))
+      .sort((a, b) => b.coins - a.coins || a.sourceType.localeCompare(b.sourceType))
+      .slice(0, 8),
+    rewardProgress,
+    bestRewardProgress: rewardProgress[0] || null,
+  };
+}
+
 function createLearningCoinService(options = {}) {
   const fs = options.fs || require("node:fs");
   const path = options.path || require("node:path");
@@ -295,6 +408,7 @@ function createLearningCoinService(options = {}) {
       workspaceId,
       settlement: store.settlement,
       balances: balancesFor(store, studentId, workspaceId),
+      growth: learningCoinGrowthProfile(store, studentId, workspaceId, { nowIso: nowIso() }),
       rewards: store.rewards.filter((reward) => reward.active).map(publicReward),
       redemptions: store.redemptions
         .filter((item) => item.studentId === studentId && item.workspaceId === workspaceId)
@@ -349,6 +463,7 @@ function createLearningCoinService(options = {}) {
       sourceType: input.sourceType || "manual",
       sourceId: input.sourceId || "",
       idempotencyKey: input.idempotencyKey || "",
+      createdAt: input.createdAt || "",
       createdByPrincipalId: input.createdByPrincipalId || "",
       metadata: input.metadata,
     });
@@ -378,6 +493,7 @@ function createLearningCoinService(options = {}) {
       sourceType: input.sourceType || "manual",
       sourceId: input.sourceId || "",
       idempotencyKey: input.idempotencyKey || "",
+      createdAt: input.createdAt || "",
       createdByPrincipalId: input.createdByPrincipalId || "",
       metadata: input.metadata,
     });
@@ -546,8 +662,10 @@ function createLearningCoinService(options = {}) {
 }
 
 module.exports = {
+  LEARNING_COIN_LEVELS,
   balancesFor,
   createLearningCoinService,
+  learningCoinGrowthProfile,
   normalizeStore,
   publicLedgerEntry,
   publicRedemption,

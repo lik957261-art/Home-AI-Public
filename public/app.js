@@ -7929,6 +7929,76 @@ function learningCoinRedemptionRows(summary) {
   </div>`).join("");
 }
 
+function learningCoinDailyBars(growth) {
+  const days = Array.isArray(growth?.recentDays) ? growth.recentDays : [];
+  if (!days.length) return `<div class="learning-coin-empty">暂无最近 7 天记录。</div>`;
+  const maxCoins = Math.max(1, ...days.map((day) => Number(day.coins || 0)));
+  return `<div class="learning-growth-days">${days.map((day) => {
+    const coins = Number(day.coins || 0);
+    const pct = Math.max(4, Math.round((coins / maxCoins) * 100));
+    return `<div class="learning-growth-day">
+      <div class="learning-growth-bar" style="height:${pct}%"></div>
+      <span>${escapeHtml(String(day.date || "").slice(5) || "--")}</span>
+      <strong>${escapeHtml(String(coins))}</strong>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function learningCoinRewardProgress(growth) {
+  const bestReward = growth?.bestRewardProgress || null;
+  const allRewards = Array.isArray(growth?.rewardProgress) ? growth.rewardProgress : [];
+  const rewards = bestReward
+    ? [bestReward].concat(allRewards.filter((reward) => reward?.id !== bestReward.id)).slice(0, 4)
+    : allRewards;
+  if (!rewards.length) return `<div class="learning-coin-empty">配置奖励后会显示兑换进度。</div>`;
+  return rewards.map((reward) => {
+    const pct = Math.max(0, Math.min(100, Number(reward.progressPct || 0)));
+    const status = reward.affordable ? "可兑换" : `还差 ${formatCoins(reward.remainingCoins)}`;
+    return `<div class="learning-growth-reward">
+      <div class="learning-growth-reward-top">
+        <strong>${escapeHtml(reward.title || reward.id || "奖励")}</strong>
+        <span>${escapeHtml(status)}</span>
+      </div>
+      <div class="learning-growth-progress" aria-label="${escapeHtml(`${pct}%`)}"><span style="width:${pct}%"></span></div>
+      <div class="learning-ledger-meta">${escapeHtml(`${formatCoins(reward.coinCost)} · ${formatRmbCents(reward.rmbCents)}`)}</div>
+    </div>`;
+  }).join("");
+}
+
+function learningCoinGrowthPanel(summary) {
+  const growth = summary?.growth || {};
+  const level = growth.level || {};
+  const current = level.current || {};
+  const next = level.next || null;
+  const levelTitle = current.title ? `Lv.${current.level} ${current.title}` : "Lv.1 新手探险家";
+  const nextText = next ? `距离 Lv.${next.level} ${next.title} 还差 ${formatCoins(level.toNextLevelCoins)}` : "已达到当前最高等级";
+  const progress = Math.max(0, Math.min(100, Number(level.progressPct || 0)));
+  return `<section class="learning-coin-panel learning-growth-panel">
+    <div class="learning-section-heading">
+      <h3>成长档案</h3>
+      <span>最近 7 天</span>
+    </div>
+    <div class="learning-growth-summary">
+      <div class="learning-growth-level">
+        <div class="learning-coin-eyebrow">${escapeHtml(levelTitle)}</div>
+        <strong>${escapeHtml(formatCoins(growth.totalEarnedCoins))}</strong>
+        <div class="learning-growth-progress" aria-label="${escapeHtml(`${progress}%`)}"><span style="width:${progress}%"></span></div>
+        <small>${escapeHtml(nextText)}</small>
+      </div>
+      <div class="learning-growth-metrics">
+        <span><strong>${escapeHtml(formatCoins(growth.sevenDayCoins))}</strong><small>7 天获得</small></span>
+        <span><strong>${escapeHtml(String(growth.activeDaysInLast7 || 0))} 天</strong><small>7 天活跃</small></span>
+        <span><strong>${escapeHtml(String(growth.streakDays || 0))} 天</strong><small>连续获得</small></span>
+      </div>
+    </div>
+    ${learningCoinDailyBars(growth)}
+    <div class="learning-growth-rewards">
+      <div class="learning-section-heading compact"><h3>兑换进度</h3><span>按差额排序</span></div>
+      ${learningCoinRewardProgress(growth)}
+    </div>
+  </section>`;
+}
+
 function learningCoinOwnerForm() {
   if (!state.auth?.isOwner) return "";
   return `<section class="learning-coin-panel learning-coin-owner-panel">
@@ -7976,6 +8046,7 @@ function renderLearningCoinsView() {
     </section>
     ${loading}
     ${error}
+    ${learningCoinGrowthPanel(summary)}
     <section class="learning-coin-panel">
       <div class="learning-section-heading">
         <h3>兑换</h3>
