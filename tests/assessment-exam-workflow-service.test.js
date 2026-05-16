@@ -469,9 +469,15 @@ async function testProgrammingPassWritesCompletionLogAndReturnsExplanations() {
   assert.equal(result.results.every((item) => item.explanation), true);
   assert.match(path.basename(result.reportPath), /programming-log\.md$/);
   const markdown = fs.readFileSync(result.reportPath, "utf8");
-  assert.match(markdown, /Cleaned Programming Requirement/);
-  assert.match(markdown, /Question Analysis/);
-  assert.match(markdown, /测试函数和循环/);
+  assert.match(markdown, /## 结论/);
+  assert.match(markdown, /## 本次输入要求清洗/);
+  assert.match(markdown, /## 错题清单/);
+  assert.match(markdown, /## 薄弱点总结/);
+  assert.match(markdown, /## 后续复习建议/);
+  assert.match(markdown, /## 逐题讲解/);
+  assert.match(markdown, /本次没有错题/);
+  assert.doesNotMatch(markdown, /Cleaned Programming Requirement/);
+  assert.doesNotMatch(markdown, /Question Analysis/);
 }
 
 async function testCompletionFailurePreservesRetakeRequiredState() {

@@ -69,6 +69,7 @@ const singleWindowMigrationService = require("../adapters/single-window-migratio
 const singleWindowThreadService = require("../adapters/single-window-thread-service");
 const systemRuntimeStatusService = require("../adapters/system-runtime-status-service");
 const studyAssessmentService = require("../adapters/study-assessment-service");
+const studyTemplateSkillService = require("../adapters/study-template-skill-service");
 const threadDirectCreateExecutionService = require("../adapters/thread-direct-create-execution-service");
 const threadMessageCreateService = require("../adapters/thread-message-create-service");
 const threadMessageRunRouteService = require("../adapters/thread-message-run-route-service");
@@ -223,6 +224,9 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof studyAssessmentService.deriveSubmissionWorkflowState, "function");
   assert.equal(typeof studyAssessmentService.normalizeKanbanAssessmentPlan, "function");
   assert.equal(typeof studyAssessmentService.normalizeKanbanAssessmentSubjectId, "function");
+  assert.equal(typeof studyTemplateSkillService.loadTemplateSkill, "function");
+  assert.equal(typeof studyTemplateSkillService.templateSkillInstruction, "function");
+  assert.equal(Boolean(studyTemplateSkillService.TEMPLATE_SKILL_REGISTRY["programming-assessment"]), true);
   assert.equal(typeof threadDirectCreateExecutionService.createThreadDirectCreateExecutionService, "function");
   assert.equal(typeof threadMessageCreateService.createThreadMessageCreateService, "function");
   assert.equal(typeof threadMessageRunRouteService.createThreadMessageRunRouteService, "function");
