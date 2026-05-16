@@ -338,8 +338,21 @@ function createSecurityBoundaryProvider(options = {}) {
   function classifyMaintenanceIntent(text) {
     const compact = String(text || "").toLowerCase();
     if (!compact.trim()) return null;
-    const product = /(hermes\s*(?:mobile|web)|server\.js|cron_bridge|todo_bridge|skill_bridge|directory_bridge|service[-_ ]worker|gateway\s*pool|listener|source\s*checkout|productization|源码|源代码|代码库|私有库|public\s*repo|private\s*repo|生产版本|部署|提交|推送|重启)/i.test(compact);
-    const action = /(fix|change|modify|patch|commit|push|deploy|restart|publish|refactor|migrate|upgrade|修|改|提交|推送|发布|重启|迁移|升级|清理|产品化|打不开|不显示|排序|通知)/i.test(compact);
+    const product = (
+      /(hermes\s*(?:mobile|web)|server\.js|cron_bridge|todo_bridge|skill_bridge|directory_bridge|service[-_ ]worker|gateway\s*pool|listener|source\s*checkout|productization|public\s*repo|private\s*repo)/i.test(compact)
+      || /(?:\u6e90\u7801|\u6e90\u4ee3\u7801|\u4ee3\u7801\u5e93|\u79c1\u6709\u5e93|\u751f\u4ea7\u7248\u672c|\u90e8\u7f72|\u63d0\u4ea4|\u91cd\u542f)/.test(compact)
+    );
+    const gitPush = (
+      /(?:git|github|origin|repo|repository|public\s*repo|private\s*repo).{0,24}\bpush\b/i.test(compact)
+      || /\bpush\b.{0,24}(?:git|github|origin|repo|repository|public\s*repo|private\s*repo)/i.test(compact)
+      || /(?:git|github|origin|repo|repository|public\s*repo|private\s*repo|\u4ee3\u7801|\u4ed3\u5e93|\u79c1\u6709\u5e93).{0,24}\u63a8\u9001/.test(compact)
+      || /\u63a8\u9001.{0,24}(?:git|github|origin|repo|repository|public\s*repo|private\s*repo|\u4ee3\u7801|\u4ed3\u5e93|\u79c1\u6709\u5e93)/.test(compact)
+    );
+    const action = (
+      /(fix|change|modify|patch|commit|deploy|restart|publish|refactor|migrate|upgrade)/i.test(compact)
+      || /(?:\u4fee\u590d|\u4fee\u6539|\u6539\u52a8|\u6539\u4e00\u4e0b|\u6253\u8865\u4e01|\u63d0\u4ea4|\u53d1\u5e03|\u90e8\u7f72|\u91cd\u542f|\u91cd\u6784|\u8fc1\u79fb|\u5347\u7ea7|\u6e05\u7406|\u4ea7\u54c1\u5316|\u6253\u4e0d\u5f00|\u4e0d\u663e\u793a|\u6392\u5e8f)/.test(compact)
+      || gitPush
+    );
     if (product && action) {
       return {
         category: "product_maintenance",

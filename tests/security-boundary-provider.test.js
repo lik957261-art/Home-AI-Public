@@ -131,6 +131,27 @@ function run() {
   );
   assert.strictEqual(classifySharedSkillWriteIntent("\u67e5\u4e00\u4e0b\u7a7f\u642d skill \u600e\u4e48\u7528"), null);
 
+  assert.strictEqual(
+    provider.classifyMaintenanceIntent("\u901a\u8fc7 Hermes \u67d0\u8868\u63a5\u5165\u3001\u63a8\u9001\u3001\u5f15\u5bfc\u51e1\u51e1\u53bb\u5b8c\u6210"),
+    null,
+  );
+  assert.strictEqual(
+    provider.classifyMaintenanceIntent("Hermes Mobile \u5b66\u4e60\u7cfb\u7edf\u63a8\u9001"),
+    null,
+  );
+  assert.strictEqual(
+    provider.classifyMaintenanceIntent("deploy Hermes Mobile")?.category,
+    "product_maintenance",
+  );
+  assert.strictEqual(
+    provider.classifyMaintenanceIntent("push Hermes Mobile to GitHub")?.category,
+    "product_maintenance",
+  );
+  assert.strictEqual(
+    provider.classifyMaintenanceIntent("\u63a8\u9001 Hermes Mobile \u4ee3\u7801\u5230 GitHub")?.category,
+    "product_maintenance",
+  );
+
   const permissionInstructions = permissionBoundarySkillInstructions({
     access_mode: "restricted",
     allowed_roots: ["/workspace/a"],
