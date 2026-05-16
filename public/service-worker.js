@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260516-reading-ui-module";
+const HERMES_SW_VERSION = "20260516-long-message-guard";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,14 +8,14 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260516-reading-ui-module",
-  "/app-task-artifact-helpers.js?v=20260516-reading-ui-module",
-  "/app-kanban-story-helpers.js?v=20260516-reading-ui-module",
-  "/app-learning-reading-ui.js?v=20260516-reading-ui-module",
-  "/app-api-client.js?v=20260516-reading-ui-module",
-  "/app.js?v=20260516-reading-ui-module",
+  "/styles.css?v=20260516-long-message-guard",
+  "/app-task-artifact-helpers.js?v=20260516-long-message-guard",
+  "/app-kanban-story-helpers.js?v=20260516-long-message-guard",
+  "/app-learning-reading-ui.js?v=20260516-long-message-guard",
+  "/app-api-client.js?v=20260516-long-message-guard",
+  "/app.js?v=20260516-long-message-guard",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260516-reading-ui-module",
+  "/markdown-renderer-client.js?v=20260516-long-message-guard",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

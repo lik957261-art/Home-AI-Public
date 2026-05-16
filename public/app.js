@@ -46,6 +46,8 @@ const CHAT_MESSAGE_INITIAL_LIMIT = 60;
 const CHAT_MESSAGE_PAGE_LIMIT = 40;
 const CHAT_MESSAGE_SEARCH_LIMIT = 120;
 const CHAT_HISTORY_LOAD_TOP_PX = 220;
+const COMPOSER_MAX_TEXT_CHARS = 240000;
+const COMPOSER_MAX_BODY_BYTES = 1900000;
 const TASK_MESSAGE_INITIAL_LIMIT = 300;
 const TODO_AUTO_REFRESH_INTERVAL_MS = 8000;
 const TODO_LIST_CACHE_MAX_AGE_MS = 30 * 60 * 1000;
@@ -15582,7 +15584,6 @@ async function sendMessage(event) {
     ownerElevationOnceRequested = true;
   }
   closeGroupMentionMenu();
-  setComposerText("");
   $("sendMessage").disabled = true;
   let requestBody = null;
   let createsNewTask = false;
@@ -15630,9 +15631,16 @@ async function sendMessage(event) {
       if (directory?.projectId) body.directory = directory;
     }
     requestBody = body;
+    const serializedBody = JSON.stringify(body);
+    const sizeError = composerRequestSizeError(text, serializedBody);
+    if (sizeError) {
+      showError(new Error(sizeError));
+      return;
+    }
+    setComposerText("");
     const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
       method: "POST",
-      body: JSON.stringify(body),
+      body: serializedBody,
     });
     handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
   } catch (err) {
@@ -15657,9 +15665,12 @@ async function sendMessage(event) {
             elevationScope: err.elevationScope || err.code || "shared_skill_write",
           });
           if (onceToken) elevatedBody.ownerElevationOnceToken = onceToken;
+          const serializedElevatedBody = JSON.stringify(elevatedBody);
+          const elevatedSizeError = composerRequestSizeError(elevatedBody.text || "", serializedElevatedBody);
+          if (elevatedSizeError) throw new Error(elevatedSizeError);
           const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
             method: "POST",
-            body: JSON.stringify(elevatedBody),
+            body: serializedElevatedBody,
           });
           handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
           return;
@@ -16107,6 +16118,24 @@ function getComposerText() {
   const input = $("messageInput");
   if (input && "value" in input) return String(input.value || "").replace(/\u00a0/g, " ");
   return String(input?.innerText || "").replace(/\u00a0/g, " ");
+}
+
+function utf8ByteLength(text) {
+  const value = String(text || "");
+  if (!value) return 0;
+  if (typeof TextEncoder === "function") return new TextEncoder().encode(value).length;
+  if (typeof Blob === "function") return new Blob([value]).size;
+  return unescape(encodeURIComponent(value)).length;
+}
+
+function composerRequestSizeError(text, serializedBody) {
+  if (String(text || "").length > COMPOSER_MAX_TEXT_CHARS) {
+    return "内容太长，单条消息最多约 24 万字，请拆成几条发送，或作为文件上传。";
+  }
+  if (utf8ByteLength(serializedBody) > COMPOSER_MAX_BODY_BYTES) {
+    return "内容太长，当前消息包超过发送上限，请拆成几条发送，或作为文件上传。";
+  }
+  return "";
 }
 
 function setComposerText(text) {

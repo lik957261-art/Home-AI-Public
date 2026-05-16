@@ -8,6 +8,13 @@ function createMobileHttpRuntimeService(options = {}) {
   const mimeByExt = options.mimeByExt || {};
   const publicRoot = String(options.publicRoot || "");
 
+  function bodyReadError(message, status, code) {
+    const err = new Error(message);
+    err.status = status;
+    err.code = code;
+    return err;
+  }
+
   function getUrl(req) {
     return new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   }
@@ -38,25 +45,39 @@ function createMobileHttpRuntimeService(options = {}) {
     return new Promise((resolve, reject) => {
       const chunks = [];
       let size = 0;
+      let settled = false;
+      const fail = (err) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
       req.on("data", (chunk) => {
+        if (settled) return;
         size += chunk.length;
         if (size > maxBytes) {
-          reject(new Error("request body too large"));
-          req.destroy();
+          chunks.length = 0;
+          fail(bodyReadError("request body too large", 413, "request_body_too_large"));
           return;
         }
         chunks.push(chunk);
       });
       req.on("end", () => {
+        if (settled) return;
         const raw = Buffer.concat(chunks).toString("utf8").trim();
-        if (!raw) return resolve({});
+        if (!raw) {
+          settled = true;
+          resolve({});
+          return;
+        }
         try {
-          resolve(JSON.parse(raw));
+          const parsed = JSON.parse(raw);
+          settled = true;
+          resolve(parsed);
         } catch (_) {
-          reject(new Error("invalid JSON body"));
+          fail(bodyReadError("invalid JSON body", 400, "invalid_json_body"));
         }
       });
-      req.on("error", reject);
+      req.on("error", fail);
     });
   }
 

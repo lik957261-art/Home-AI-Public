@@ -56,6 +56,7 @@ function createThreadRuntimeCompositionService(deps = {}) {
         kanbanCaseTopicPermissionsForTaskGroup: deps.kanbanCaseTopicPermissionsForTaskGroup,
         kanbanSingleCardCasePayload: deps.kanbanSingleCardCasePayload,
         makeId: deps.makeId,
+        maxUserMessageChars: deps.maxMessageChars,
         normalizeTaskGroupMeta: deps.normalizeTaskGroupMeta,
         notifyGroupChatMentions: deps.notifyGroupChatMentions,
         notifyTodoCreated: deps.notifyTodoCreated,

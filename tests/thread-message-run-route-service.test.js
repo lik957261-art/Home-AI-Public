@@ -180,6 +180,52 @@ async function testCreateValidationFailureUsesPlanResponse() {
   assert.equal(calls.attach.length, 0);
 }
 
+async function testCreateBodyReadErrorsUseControlledResponses() {
+  {
+    const { calls, routeService } = makeRouteHarness({ readThrows: "request body too large" });
+    const res = makeResponse();
+    const result = await routeService.handleThreadMessageCreate(
+      { id: "req-too-large" },
+      res,
+      null,
+      { threadId: "thread-1" },
+    );
+
+    assert.equal(result.status, 413);
+    assert.deepEqual(res.sends, [{
+      status: 413,
+      payload: {
+        error: "Message is too large. Please attach it as a file or split it into smaller messages.",
+        code: "message_body_too_large",
+      },
+    }]);
+    assert.equal(calls.auth.length, 0);
+    assert.equal(calls.attach.length, 0);
+  }
+
+  {
+    const { calls, routeService } = makeRouteHarness({ readThrows: "invalid JSON body" });
+    const res = makeResponse();
+    const result = await routeService.handleThreadMessageCreate(
+      { id: "req-bad-json" },
+      res,
+      null,
+      { threadId: "thread-1" },
+    );
+
+    assert.equal(result.status, 400);
+    assert.deepEqual(res.sends, [{
+      status: 400,
+      payload: {
+        error: "invalid JSON body",
+        code: "invalid_request_body",
+      },
+    }]);
+    assert.equal(calls.auth.length, 0);
+    assert.equal(calls.attach.length, 0);
+  }
+}
+
 async function testPlainMessageUsesContextAuthAndCompactDescriptor() {
   const thread = baseThread({ messages: [] });
   const plan = {
@@ -394,6 +440,7 @@ async function testOwnerElevationDelegatesToRetryService() {
 (async () => {
   testCompactThreadForMessageCreatePlan();
   await testCreateValidationFailureUsesPlanResponse();
+  await testCreateBodyReadErrorsUseControlledResponses();
   await testPlainMessageUsesContextAuthAndCompactDescriptor();
   await testDirectCreateReceivesCompactResponseCallback();
   await testRunDispatchSuccessAndFailurePayloads();

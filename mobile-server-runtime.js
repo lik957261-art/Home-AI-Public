@@ -2373,6 +2373,7 @@ function getThreadRuntimeCompositionService() {
       kanbanCaseTopicPermissionsForTaskGroup,
       kanbanSingleCardCasePayload,
       makeId,
+      maxMessageChars: MAX_MESSAGE_CHARS,
       normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
       notifyGroupChatMentions: webPushDeliveryService.notifyGroupChatMentions,
       notifyTodoCreated: webPushDeliveryService.notifyTodoCreated,

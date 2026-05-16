@@ -3,6 +3,7 @@
 const DEFAULT_SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const DEFAULT_SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const DEFAULT_VALID_REASONING_EFFORTS = new Set(["none", "low", "medium", "high"]);
+const DEFAULT_MAX_USER_MESSAGE_CHARS = 240_000;
 
 function cleanString(value, fallback = "") {
   const text = String(value || "").trim();
@@ -15,6 +16,11 @@ function objectValue(value, fallback = {}) {
 
 function maybeCall(fn, fallback) {
   return typeof fn === "function" ? fn : fallback;
+}
+
+function positiveInteger(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : fallback;
 }
 
 function normalizeSingleWindowMode(value) {
@@ -55,6 +61,10 @@ function errorResult(status, error, extra = {}) {
 function createThreadMessageCreateService(options = {}) {
   const groupChatTaskGroupId = cleanString(options.groupChatTaskGroupId, DEFAULT_SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID);
   const validReasoningEfforts = options.validReasoningEfforts || DEFAULT_VALID_REASONING_EFFORTS;
+  const maxUserMessageChars = positiveInteger(
+    options.maxUserMessageChars || options.maxMessageChars,
+    DEFAULT_MAX_USER_MESSAGE_CHARS,
+  );
 
   const authCanAccessWorkspace = maybeCall(options.authCanAccessWorkspace, () => false);
   const buildUserMessageContent = maybeCall(options.buildUserMessageContent, (text) => cleanString(text));
@@ -401,6 +411,12 @@ function createThreadMessageCreateService(options = {}) {
     const normalized = normalizeBody(body);
     if (!normalized.text && !normalized.uploadArtifacts.length) {
       return errorResult(400, "Message text is required");
+    }
+    if (normalized.text && normalized.text.length > maxUserMessageChars) {
+      return errorResult(413, "Message is too large. Please attach it as a file or split it into smaller messages.", {
+        code: "message_text_too_large",
+        maxChars: maxUserMessageChars,
+      });
     }
 
     const auth = objectValue(input.auth, null);

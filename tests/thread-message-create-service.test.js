@@ -154,6 +154,35 @@ function testValidationAndGatewayErrorShape() {
   assert.equal(blocked.response.elevationScope, "owner_high_privilege");
 }
 
+function testPlannerParagraphIsAcceptedAndOversizeTextIsRejected() {
+  const plannerText = "我们继续完善凡凡成长系统，我的总目标是基于以前凡凡清洗出来的学习数据，包含学校的数据、私教的数据。根据我们的目标，比如说大学的目标还有各科的目标，这些东西的话，以清洗的数据为准，我也可以来录入。有了这些基础数据之后，后边的这一系列的能力提升，我希望 AI 全面地出方案、出内容，并且以下发任务的形式，通过 Hermes 某表接入、推送、引导凡凡去完成、互动评价、给出激励，形成一个完全以 AI 为核心的学习系统。";
+  {
+    const { service } = makeHarness({ serviceOptions: { maxUserMessageChars: 1000 } });
+    const plan = service.prepareThreadMessageCreate({
+      thread: baseThread(),
+      body: { text: plannerText },
+      auth: {},
+    });
+
+    assert.equal(plan.ok, true);
+    assert.equal(plan.text, plannerText);
+    assert.equal(plan.nextAction, "start-run");
+  }
+
+  {
+    const { service } = makeHarness({ serviceOptions: { maxUserMessageChars: 10 } });
+    const result = service.prepareThreadMessageCreate({
+      thread: baseThread(),
+      body: { text: "this message is too long" },
+      auth: {},
+    });
+
+    assert.equal(result.status, 413);
+    assert.equal(result.response.code, "message_text_too_large");
+    assert.equal(result.response.maxChars, 10);
+  }
+}
+
 function testSingleWindowGroupChatPlainMessageCommit() {
   const { calls, service } = makeHarness();
   const thread = baseThread({
@@ -412,6 +441,7 @@ function testConcurrencyErrorBeforeStateMutation() {
 (async () => {
   testPureDefaults();
   testValidationAndGatewayErrorShape();
+  testPlannerParagraphIsAcceptedAndOversizeTextIsRejected();
   testSingleWindowGroupChatPlainMessageCommit();
   testTaskGroupAndCaseTopicValidation();
   testDirectoryAttachmentPrecedence();

@@ -1,6 +1,7 @@
 "use strict";
 
 const DEFAULT_THREAD_MESSAGE_INITIAL_LIMIT = 60;
+const MESSAGE_BODY_TOO_LARGE_ERROR = "Message is too large. Please attach it as a file or split it into smaller messages.";
 
 function asObject(value, fallback = {}) {
   return value && typeof value === "object" ? value : fallback;
@@ -25,6 +26,27 @@ function serviceGetter(options, getterName, serviceName) {
 function normalizeInitialLimit(value) {
   const numeric = Number(value || DEFAULT_THREAD_MESSAGE_INITIAL_LIMIT);
   return Number.isFinite(numeric) && numeric > 0 ? numeric : DEFAULT_THREAD_MESSAGE_INITIAL_LIMIT;
+}
+
+function requestBodyErrorResponse(err) {
+  const message = err?.message || String(err || "Invalid request body");
+  const code = err?.code || "";
+  if (err?.status === 413 || code === "request_body_too_large" || /too large/i.test(message)) {
+    return {
+      status: 413,
+      payload: {
+        error: MESSAGE_BODY_TOO_LARGE_ERROR,
+        code: "message_body_too_large",
+      },
+    };
+  }
+  return {
+    status: err?.status && err.status >= 400 && err.status < 500 ? err.status : 400,
+    payload: {
+      error: message || "Invalid request body",
+      code: "invalid_request_body",
+    },
+  };
 }
 
 function createCompactThreadForMessageCreatePlan(options = {}) {
@@ -81,7 +103,16 @@ function createThreadMessageRunRouteService(options = {}) {
 
   async function handleThreadMessageCreate(req, res, _url, context = {}) {
     const thread = findThreadForRequest(req, context.threadId || "");
-    const body = await readBody(req);
+    let body = null;
+    try {
+      body = await readBody(req);
+    } catch (err) {
+      const response = requestBodyErrorResponse(err);
+      return Object.assign(send(response.status, response.payload, res), {
+        ok: false,
+        code: response.payload.code,
+      });
+    }
     const auth = context.auth || authenticateRequest(req);
     const service = getThreadMessageCreateService();
     const plan = service.prepareThreadMessageCreate({ thread, body, auth, createdAt: nowIso() });
