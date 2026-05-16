@@ -78,6 +78,7 @@ function makeService(overrides = {}) {
     listCards: [],
     reconcile: [],
     reports: [],
+    awards: [],
     warnings: [],
   };
   const deps = {
@@ -97,6 +98,12 @@ function makeService(overrides = {}) {
       return overrides.modelOutput || modelExamJson(overrides.modelQuestionCount || 5, overrides.modelSubject || "English");
     },
     isKanbanStudyCaseMode: (mode) => String(mode || "") === "study-plan",
+    learningCoinAwardService: overrides.learningCoinAwardService || {
+      safeAwardEvent(eventType, payload) {
+        calls.awards.push({ eventType, payload });
+        return { ok: true, eventType, coinAmount: 25, duplicate: false };
+      },
+    },
     kanbanCardProvider: {
       async listCards(payload) {
         calls.listCards.push(payload);
@@ -382,6 +389,7 @@ async function testFailedSubmissionWritesRetakeStateAndReport() {
   assert.equal(saved.lastReportPath, fixture.calls.reports[0].filePath);
   assert.equal(result.results.every((item) => item.correct === false && item.explanation), true);
   assert.equal(Object.hasOwn(result.exam.questions[0], "answerIndex"), false);
+  assert.equal(fixture.calls.awards.length, 0);
 }
 
 async function testPassedSubmissionCompletesCardAndReconciles() {
@@ -409,6 +417,10 @@ async function testPassedSubmissionCompletesCardAndReconciles() {
   const saved = fixture.states.get(stateKey("owner", "card-1"));
   assert.equal(saved.status, "completed");
   assert.equal(saved.completionError, "");
+  assert.equal(fixture.calls.awards.length, 1);
+  assert.equal(fixture.calls.awards[0].eventType, "assessment_exam_passed");
+  assert.equal(fixture.calls.awards[0].payload.cardId, "card-1");
+  assert.equal(fixture.calls.awards[0].payload.score, 100);
 }
 
 async function testDefaultReportWriterUsesCardArtifactDirectory() {
@@ -478,6 +490,9 @@ async function testProgrammingPassWritesCompletionLogAndReturnsExplanations() {
   assert.match(markdown, /本次没有错题/);
   assert.doesNotMatch(markdown, /Cleaned Programming Requirement/);
   assert.doesNotMatch(markdown, /Question Analysis/);
+  assert.equal(fixture.calls.awards.length, 1);
+  assert.equal(fixture.calls.awards[0].eventType, "assessment_exam_passed");
+  assert.equal(fixture.calls.awards[0].payload.card.kanbanCaseTemplate, "programming");
 }
 
 async function testCompletionFailurePreservesRetakeRequiredState() {
@@ -501,6 +516,7 @@ async function testCompletionFailurePreservesRetakeRequiredState() {
   const saved = fixture.states.get(stateKey("owner", "card-1"));
   assert.equal(saved.status, "retake_required");
   assert.equal(saved.completionError, "Synthetic completion failure");
+  assert.equal(fixture.calls.awards.length, 0);
 }
 
 async function testInvalidAnswersDoNotWriteReportOrMutate() {

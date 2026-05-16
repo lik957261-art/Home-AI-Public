@@ -154,6 +154,15 @@ function isActiveRedemption(redemption) {
   return ["requested", "approved"].includes(String(redemption?.status || ""));
 }
 
+function redemptionMatchesScope(redemption, scope = {}) {
+  if (!redemption) return false;
+  const workspaceId = normalizeId(scope.workspaceId, "");
+  const studentId = normalizeId(scope.studentId, "");
+  if (workspaceId && redemption.workspaceId !== workspaceId) return false;
+  if (studentId && redemption.studentId !== studentId) return false;
+  return true;
+}
+
 function publicLedgerEntry(entry) {
   return {
     id: entry.id,
@@ -319,11 +328,11 @@ function createLearningCoinService(options = {}) {
       .map(publicReward);
   }
 
-  function getRedemption(redemptionId) {
+  function getRedemption(redemptionId, scope = {}) {
     const id = normalizeId(redemptionId, "");
     const store = readStore();
     const redemption = store.redemptions.find((item) => item.id === id);
-    return redemption ? publicRedemption(redemption) : null;
+    return redemptionMatchesScope(redemption, scope) ? publicRedemption(redemption) : null;
   }
 
   function grantCoins(input = {}) {
@@ -401,11 +410,6 @@ function createLearningCoinService(options = {}) {
 
   function requestRedemption(input = {}) {
     const store = readStore();
-    const idempotencyKey = compactText(input.idempotencyKey || "", 180);
-    if (idempotencyKey) {
-      const existing = store.redemptions.find((item) => item.idempotencyKey === idempotencyKey);
-      if (existing) return { redemption: publicRedemption(existing), duplicate: true, balances: balancesFor(store, existing.studentId, existing.workspaceId) };
-    }
     const rewardId = normalizeId(input.rewardId, "");
     const reward = store.rewards.find((item) => item.id === rewardId && item.active);
     if (!reward) {
@@ -415,6 +419,16 @@ function createLearningCoinService(options = {}) {
     }
     const studentId = normalizeId(input.studentId, "fanfan");
     const workspaceId = normalizeId(input.workspaceId, "owner");
+    const idempotencyKey = compactText(input.idempotencyKey || "", 180);
+    if (idempotencyKey) {
+      const existing = store.redemptions.find((item) => (
+        item.idempotencyKey === idempotencyKey
+        && item.studentId === studentId
+        && item.workspaceId === workspaceId
+        && item.rewardId === rewardId
+      ));
+      if (existing) return { redemption: publicRedemption(existing), duplicate: true, balances: balancesFor(store, existing.studentId, existing.workspaceId) };
+    }
     const balances = balancesFor(store, studentId, workspaceId);
     if (balances.availableCoins < reward.coinCost) {
       const err = new Error("Insufficient coins");
@@ -460,6 +474,11 @@ function createLearningCoinService(options = {}) {
     const id = normalizeId(redemptionId, "");
     const redemption = store.redemptions.find((item) => item.id === id);
     if (!redemption) {
+      const err = new Error("Redemption was not found");
+      err.status = 404;
+      throw err;
+    }
+    if (!redemptionMatchesScope(redemption, input)) {
       const err = new Error("Redemption was not found");
       err.status = 404;
       throw err;

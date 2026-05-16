@@ -62,6 +62,7 @@ function createKanbanRuntimeServices(deps = {}) {
     kanbanCardRevisionOf: deps.kanbanCardRevisionOf,
     kanbanCardUsesReadingTemplate: deps.kanbanCardUsesReadingTemplate,
     kanbanWorkflowStateCompleted: deps.kanbanWorkflowStateCompleted,
+    learningCoinAwardService: deps.learningCoinAwardService,
     maxUploadBytes: deps.maxUploadBytes,
     maybeReconcileKanbanDependencyBlocks: deps.maybeReconcileKanbanDependencyBlocks,
     maxCoverBytes: deps.kanbanReadingCoverMaxBytes,

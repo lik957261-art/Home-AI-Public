@@ -27,6 +27,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
   const transcribeScript = path.resolve(deps.transcribeScript || path.join(process.cwd(), "scripts", "transcribe-reading-audio.ps1"));
   const quizTargetingVersion = String(deps.quizTargetingVersion || "reading-quiz-v1");
   const logger = deps.logger || console;
+  const learningCoinAwardService = deps.learningCoinAwardService || null;
 
   function requireFunction(name) {
     if (typeof deps[name] !== "function") throw new Error(`kanban reading workflow service requires ${name}`);
@@ -52,6 +53,19 @@ function createKanbanReadingWorkflowService(deps = {}) {
   const extractDocxText = requireFunction("extractDocxText");
   const textFilePreview = requireFunction("textFilePreview");
   const maybeReconcileKanbanDependencyBlocks = requireFunction("maybeReconcileKanbanDependencyBlocks");
+
+  function awardReadingQuizPassed(workspaceId, cardId, currentCard, result = {}) {
+    if (!learningCoinAwardService || typeof learningCoinAwardService.safeAwardEvent !== "function") return null;
+    return learningCoinAwardService.safeAwardEvent("reading_quiz_passed", {
+      workspaceId,
+      cardId,
+      card: currentCard,
+      score: result.score,
+      correctCount: result.correctCount,
+      total: result.total,
+      passed: true,
+    });
+  }
 
   function isReadingAudioUpload(filename, mime) {
     const ext = path.extname(String(filename || "")).toLowerCase();
@@ -677,7 +691,12 @@ function createKanbanReadingWorkflowService(deps = {}) {
     const state = lookup.state;
     if (!state?.quiz) return { ok: false, status: 404, error: "Reading quiz is not available yet" };
     if (String(state.status || "") === "completed") {
-      return { ok: true, passed: true, score: 100, status: "completed", canonicalCardId: lookup.cardId, quiz: publicKanbanReadingQuiz(state.quiz) };
+      const coinAward = awardReadingQuizPassed(workspaceId, lookup.cardId, currentCard, {
+        score: 100,
+        correctCount: 10,
+        total: 10,
+      });
+      return { ok: true, passed: true, score: 100, status: "completed", canonicalCardId: lookup.cardId, quiz: publicKanbanReadingQuiz(state.quiz), coinAward };
     }
     const answers = Array.isArray(body.answers)
       ? body.answers
@@ -758,6 +777,11 @@ function createKanbanReadingWorkflowService(deps = {}) {
       completedAt: nowIso(),
       completionError: "",
     }));
+    const coinAward = awardReadingQuizPassed(workspaceId, lookup.cardId, currentCard, {
+      score,
+      correctCount,
+      total: results.length,
+    });
     await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch(() => null);
     return {
       ok: true,
@@ -766,6 +790,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
       score,
       correctCount,
       total: results.length,
+      coinAward,
       card: publicTodo(completed),
       status: "completed",
     };

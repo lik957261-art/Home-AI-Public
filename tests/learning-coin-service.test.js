@@ -155,8 +155,44 @@ function testInsufficientCoinsCannotRedeem() {
   }
 }
 
+function testRedemptionIdempotencyIsScoped() {
+  const store = tempStore();
+  try {
+    const { service } = makeService(store);
+    service.grantCoins({ studentId: "child-a", workspaceId: "child-a", coinAmount: 100, idempotencyKey: "seed-a" });
+    service.grantCoins({ studentId: "child-b", workspaceId: "child-b", coinAmount: 100, idempotencyKey: "seed-b" });
+    service.upsertReward({ id: "snack", title: "Snack", coinCost: 40 });
+    const first = service.requestRedemption({
+      studentId: "child-a",
+      workspaceId: "child-a",
+      rewardId: "snack",
+      idempotencyKey: "same-client-key",
+    });
+    const second = service.requestRedemption({
+      studentId: "child-b",
+      workspaceId: "child-b",
+      rewardId: "snack",
+      idempotencyKey: "same-client-key",
+    });
+
+    assert.equal(first.duplicate, false);
+    assert.equal(second.duplicate, false);
+    assert.notEqual(first.redemption.id, second.redemption.id);
+    assert.equal(first.redemption.workspaceId, "child-a");
+    assert.equal(second.redemption.workspaceId, "child-b");
+    assert.equal(service.getRedemption(first.redemption.id, { workspaceId: "child-b", studentId: "child-b" }), null);
+    assert.throws(
+      () => service.transitionRedemption(first.redemption.id, "cancel", { workspaceId: "child-b", studentId: "child-b" }),
+      /Redemption was not found/,
+    );
+  } finally {
+    store.cleanup();
+  }
+}
+
 testGrantIsIdempotentAndSanitized();
 testRewardRedemptionHoldsAndReleasesCoins();
 testApproveAndSettleKeepCoinsReserved();
 testInsufficientCoinsCannotRedeem();
+testRedemptionIdempotencyIsScoped();
 console.log("learning coin service tests passed");

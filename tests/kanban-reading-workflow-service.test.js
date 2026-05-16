@@ -32,6 +32,7 @@ function makeService(overrides = {}) {
     reconcile: [],
     textPreview: [],
     transcribe: [],
+    awards: [],
     warnings: [],
   };
   const cards = overrides.cards || [{
@@ -91,12 +92,21 @@ function makeService(overrides = {}) {
       },
       async mutateCard(payload) {
         calls.mutate.push(payload);
+        if (payload.action === "complete" && overrides.completeFails) {
+          return { ok: false, error: "Synthetic completion failure" };
+        }
         return { ok: true, id: payload.cardId, payload };
       },
     },
     kanbanCardRevisionOf: (card) => String(card?.kanbanRevisionOf || ""),
     kanbanCardUsesReadingTemplate: (card) => String(card?.kanbanCaseTemplate || "") === "reading",
     kanbanWorkflowStateCompleted: (state) => String(state?.status || "") === "completed",
+    learningCoinAwardService: overrides.learningCoinAwardService || {
+      safeAwardEvent(eventType, payload) {
+        calls.awards.push({ eventType, payload });
+        return { ok: true, eventType, coinAmount: 20, duplicate: false };
+      },
+    },
     maxCoverBytes: 64,
     maxFilePreviewChars: 12,
     maxSourceDocumentBytes: 64,
@@ -228,6 +238,7 @@ async function testQuizFailureAndPassWorkflow() {
   assert.equal(failed.passed, false);
   assert.equal(failed.score, 0);
   assert.equal(failed.results.length, 10);
+  assert.equal(fixture.calls.awards.length, 0);
 
   const passed = await fixture.service.submitKanbanReadingQuiz("owner", "card-1", {
     answers: Array.from({ length: 10 }, (_, index) => index % 4),
@@ -237,6 +248,22 @@ async function testQuizFailureAndPassWorkflow() {
   assert.equal(passed.status, "completed");
   assert.equal(fixture.calls.mutate.at(-1).action, "complete");
   assert.equal(fixture.calls.reconcile.length, 1);
+  assert.equal(fixture.calls.awards.length, 1);
+  assert.equal(fixture.calls.awards[0].eventType, "reading_quiz_passed");
+  assert.equal(fixture.calls.awards[0].payload.cardId, "card-1");
+  assert.equal(fixture.calls.awards[0].payload.score, 100);
+}
+
+async function testQuizCompletionFailureDoesNotAwardCoins() {
+  const fixture = makeService({ completeFails: true });
+  await fixture.service.submitKanbanReadingSubmission("owner", "card-1", {
+    submissionText: "evidence",
+  });
+  const result = await fixture.service.submitKanbanReadingQuiz("owner", "card-1", {
+    answers: Array.from({ length: 10 }, (_, index) => index % 4),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(fixture.calls.awards.length, 0);
 }
 
 async function testQuizReadRetargetsOldUnattemptedQuiz() {
@@ -388,6 +415,7 @@ async function run() {
   await testReadingAudioUsesTranscriptionPath();
   await testReadingAnalysisHeadingsAreReadable();
   await testQuizFailureAndPassWorkflow();
+  await testQuizCompletionFailureDoesNotAwardCoins();
   await testQuizReadRetargetsOldUnattemptedQuiz();
   testNormalizeRejectsInvalidQuiz();
   testReadingCoverUploadHelpers();

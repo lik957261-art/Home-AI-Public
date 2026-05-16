@@ -295,27 +295,30 @@ function createLearningCoinApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { error: "Not found" });
       return;
     }
-    const redemption = service.getRedemption(parsed.redemptionId);
+    let actorAuth = auth || {};
+    let scope = {};
+    if (parsed.action !== "cancel") {
+      const ownerAuth = deps.requireOwner(req, res);
+      if (!ownerAuth) return;
+      actorAuth = ownerAuth;
+    } else if (deps.isOwnerAuth(auth)) {
+      scope = {};
+    } else if (!deps.isOwnerAuth(auth)) {
+      const workspaceId = deps.requireWorkspaceAccess(req, res, auth?.workspaceId || "owner");
+      if (!workspaceId) return;
+      scope = { workspaceId, studentId: workspaceId };
+    }
+    const redemption = service.getRedemption(parsed.redemptionId, scope);
     if (!redemption) {
       deps.sendJson(res, 404, { error: "Redemption was not found" });
       return;
     }
-    if (parsed.action !== "cancel") {
-      if (!deps.requireOwner(req, res)) return;
-    } else if (!deps.isOwnerAuth(auth)) {
-      const workspaceId = deps.requireWorkspaceAccess(req, res, redemption.workspaceId);
-      if (!workspaceId) return;
-      if (String(auth?.workspaceId || "") !== redemption.workspaceId) {
-        deps.sendJson(res, 403, { error: "Redemption access is not allowed" });
-        return;
-      }
-    }
     const body = await deps.readBody(req).catch(() => ({}));
     try {
-      const result = service.transitionRedemption(parsed.redemptionId, parsed.action, {
-        actorPrincipalId: auth?.principalId || "owner",
+      const result = service.transitionRedemption(parsed.redemptionId, parsed.action, Object.assign({}, scope, {
+        actorPrincipalId: actorAuth?.principalId || "owner",
         note: body.note || "",
-      });
+      }));
       broadcastCoinUpdate(deps, { workspaceId: result.redemption?.workspaceId, studentId: result.redemption?.studentId });
       deps.sendJson(res, 200, Object.assign({ ok: true }, result));
     } catch (err) {

@@ -97,8 +97,12 @@ function makeLearningCoinService() {
       state.redemptions.push(redemption);
       return { redemption, duplicate: false, balances: { availableCoins: 60, heldCoins: 40 } };
     },
-    getRedemption(id) {
-      return state.redemptions.find((item) => item.id === id) || null;
+    getRedemption(id, scope = {}) {
+      const redemption = state.redemptions.find((item) => item.id === id) || null;
+      if (!redemption) return null;
+      if (scope.workspaceId && redemption.workspaceId !== scope.workspaceId) return null;
+      if (scope.studentId && redemption.studentId !== scope.studentId) return null;
+      return redemption;
     },
     transitionRedemption(id, action, input) {
       state.lastTransition = { id, action, input };
@@ -245,11 +249,29 @@ async function testChildCanCancelOwnRedemptionOnly() {
   assert.equal(reject.res.statusCode, 403);
 }
 
+async function testRedemptionActionDoesNotDiscloseOtherScopes() {
+  const service = makeLearningCoinService();
+  service.state.redemptions.push({ id: "owner-redeem", studentId: "owner", workspaceId: "owner", status: "requested", coinCost: 40 });
+  const { routes } = makeRoutes({ learningCoinService: service });
+
+  const cancelOther = await request(routes, "POST", "/api/learning-coins/redemptions/owner-redeem/cancel", {
+    auth: { ok: true, workspaceId: "child", principalId: "principal-child", isOwner: false },
+  });
+  assert.equal(cancelOther.res.statusCode, 404);
+  assert.equal(service.state.lastTransition, undefined);
+
+  const missing = await request(routes, "POST", "/api/learning-coins/redemptions/missing-redemption/cancel", {
+    auth: { ok: true, workspaceId: "child", principalId: "principal-child", isOwner: false },
+  });
+  assert.equal(missing.res.statusCode, 404);
+}
+
 (async () => {
   await testMetadataAndFallthrough();
   await testSummaryAndLedgerAreWorkspaceScoped();
   await testOwnerGrantRewardAndRedemption();
   await testChildCanCancelOwnRedemptionOnly();
+  await testRedemptionActionDoesNotDiscloseOtherScopes();
   console.log("learning coin api route tests passed");
 })().catch((err) => {
   console.error(err);

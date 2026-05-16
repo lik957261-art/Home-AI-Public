@@ -41,6 +41,7 @@ const { createKanbanOutputAccessService } = require("./adapters/kanban-output-ac
 const { createKanbanOutputProjectionService } = require("./adapters/kanban-output-projection-service");
 const { createKanbanPlanCardCreationService } = require("./adapters/kanban-plan-card-creation-service");
 const { createKanbanRuntimeServices } = require("./adapters/kanban-runtime-services");
+const { createLearningCoinAwardService } = require("./adapters/learning-coin-award-service");
 const {
   kanbanCardEffectiveCaseIndex,
   kanbanCardRevisionOf,
@@ -222,6 +223,11 @@ const {
   runDirectoryBridge, runtimeEnv, sendJson, sharedDirectoryProjectsForWorkspace, sharedDirectoryRoots,
   state: () => state, textBufferPreview, textFilePreview, uploadRootsForThread, useSqliteServiceStore,
   windowsPathToWsl, workspacePrincipal,
+});
+const learningCoinAwardService = createLearningCoinAwardService({
+  learningCoinService,
+  logger: console,
+  onAward: (award) => broadcast({ type: "learning-coins.updated", workspaceId: award.workspaceId, studentId: award.studentId }),
 });
 const runtimeConfigProvider = createRuntimeConfigProvider({
   storagePath: () => RUNTIME_CONFIG_PATH, ensureDataDir, nowIso, defaultHermesApiBase: () => HERMES_API_BASE,
@@ -1238,7 +1244,7 @@ const { kanbanAssigneePolicy, kanbanCaseShareService, kanbanMaintenanceService, 
   kanbanReadingAnalysisTimeoutMs: KANBAN_READING_ANALYSIS_TIMEOUT_MS, kanbanReadingArtifactRoot: KANBAN_READING_ARTIFACT_ROOT,
   kanbanReadingCoverMaxBytes: KANBAN_READING_COVER_MAX_BYTES, kanbanReadingQuizTargetingVersion: KANBAN_READING_QUIZ_TARGETING_VERSION,
   kanbanReadingTranscribeScript: KANBAN_READING_TRANSCRIBE_SCRIPT, kanbanReadingTranscribeTimeoutMs: KANBAN_READING_TRANSCRIBE_TIMEOUT_MS,
-  kanbanSourceDocumentMaxBytes: KANBAN_SOURCE_DOCUMENT_MAX_BYTES, kanbanWorkflowStateCompleted, logger: console,
+  kanbanSourceDocumentMaxBytes: KANBAN_SOURCE_DOCUMENT_MAX_BYTES, kanbanWorkflowStateCompleted, learningCoinAwardService, logger: console,
   maxFilePreviewChars: MAX_FILE_PREVIEW_CHARS, maxUploadBytes: MAX_UPLOAD_BYTES, maybeReconcileKanbanDependencyBlocks,
   mimeFor, mobileSqliteStore, nowIso, publicKanbanOutputFile, publicTodo, readJsonStore, runProcessText,
   safeFileName, safeStorageSegment, sanitizePolicy, textFilePreview, todoAssigneesForWorkspace, useKanbanTodoBackend,
@@ -1509,6 +1515,7 @@ function getAssessmentExamWorkflowService() {
       kanbanCardProvider,
       kanbanCardRevisionOf,
       kanbanWorkflowStateCompleted,
+      learningCoinAwardService,
       logger: console,
       maxQuestions: KANBAN_ASSESSMENT_MAX_QUESTIONS,
       maybeReconcileKanbanDependencyBlocks,

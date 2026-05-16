@@ -170,6 +170,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
   const artifactService = deps.artifactService || {};
   const kanbanCardProvider = deps.kanbanCardProvider || {};
   const logger = deps.logger || {};
+  const learningCoinAwardService = deps.learningCoinAwardService || null;
 
   function optionalFunction(name, fallback = null) {
     return typeof deps[name] === "function" ? deps[name] : fallback;
@@ -189,6 +190,21 @@ function createAssessmentExamWorkflowService(deps = {}) {
     return cleanString(state?.status).toLowerCase() === "completed" || Boolean(cardDone);
   });
   const maybeReconcileKanbanDependencyBlocks = optionalFunction("maybeReconcileKanbanDependencyBlocks", async () => null);
+
+  function awardAssessmentExamPassed(workspaceId, cardId, currentCard, result = {}) {
+    if (!learningCoinAwardService || typeof learningCoinAwardService.safeAwardEvent !== "function") return null;
+    return learningCoinAwardService.safeAwardEvent("assessment_exam_passed", {
+      workspaceId,
+      cardId,
+      card: currentCard,
+      exam: result.exam,
+      config: result.config,
+      score: result.score,
+      correctCount: result.correctCount,
+      total: result.total,
+      passed: true,
+    });
+  }
 
   function readAssessmentExamState(workspaceId, cardId, currentCard = null) {
     if (typeof deps.readAssessmentExamState === "function") {
@@ -618,6 +634,13 @@ function createAssessmentExamWorkflowService(deps = {}) {
       completedAt: nowIso(),
       completionError: "",
     }));
+    const coinAward = awardAssessmentExamPassed(workspaceId, canonicalCardId, currentCard, {
+      exam,
+      config: state.config,
+      score,
+      correctCount,
+      total,
+    });
     await maybeReconcileKanbanDependencyBlocks(workspaceId, { force: true, limit: 500 }).catch((err) => {
       if (typeof logger.warn === "function") logger.warn("Assessment exam dependency reconciliation failed", { error: err?.message || String(err) });
       return null;
@@ -631,6 +654,7 @@ function createAssessmentExamWorkflowService(deps = {}) {
       total,
       passingScore,
       reportPath,
+      coinAward,
       results: results.map((item) => ({
         id: item.id,
         skill: item.skill,

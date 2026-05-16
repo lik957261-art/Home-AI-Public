@@ -50,6 +50,7 @@ const localBridgeWrapperService = require("../adapters/local-bridge-wrapper-serv
 const localProcessRunnerService = require("../adapters/local-process-runner-service");
 const localTodoBridgeService = require("../adapters/local-todo-bridge-service");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
+const learningCoinAwardService = require("../adapters/learning-coin-award-service");
 const learningCoinService = require("../adapters/learning-coin-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
@@ -200,6 +201,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof localTodoBridgeService.parseLocalTodoDue, "function");
   assert.equal(typeof localWorkspaceStoreService.createLocalWorkspaceStoreService, "function");
   assert.equal(typeof localWorkspaceStoreService.workspaceIdSlug, "function");
+  assert.equal(typeof learningCoinAwardService.createLearningCoinAwardService, "function");
+  assert.equal(typeof learningCoinAwardService.learningCoinAwardKey, "function");
   assert.equal(typeof learningCoinService.createLearningCoinService, "function");
   assert.equal(typeof learningCoinService.normalizeStore, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
@@ -424,6 +427,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(coreProviders, /createLearningCoinService/);
   assert.match(coreProviders, /LEARNING_COIN_STORE_PATH/);
   assert.match(server, /learningCoinService/);
+  assert.match(server, /createLearningCoinAwardService/);
+  assert.match(server, /learningCoinAwardService/);
   assert.match(mobileComposition, /createLearningCoinApiRoutes/);
   assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningCoinApiRoutes"/);
@@ -458,6 +463,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(kanbanRuntime, /caseDirectoryPathForCase: \(\.\.\.args\) => kanbanCaseShareService\.caseDirectoryPathForCase\(\.\.\.args\)/);
   assert.match(server, /kanbanStudyArtifactService\.publicReadingSubmissionSummary/);
   assert.match(kanbanRuntime, /createKanbanReadingWorkflowService/);
+  assert.match(kanbanRuntime, /learningCoinAwardService: deps\.learningCoinAwardService/);
   assert.match(mobileComposition, /kanbanReadingWorkflowService\.submitKanbanReadingSubmission/);
   assert.match(fileText("adapters/kanban-reading-workflow-service.js"), /artifactService\.caseDeliverableDirectory/);
   assert.match(mobileComposition, /kanbanReadingWorkflowService\.getKanbanReadingQuiz/);

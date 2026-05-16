@@ -351,6 +351,7 @@ const state = {
   automationEditJobId: "",
   automationOutputHistoryOpen: false,
   learningCoins: null,
+  learningCoinScopeKey: "",
   learningCoinsLoading: false,
   learningCoinsError: "",
   learningCoinRequestSeq: 0,
@@ -7856,6 +7857,17 @@ function learningCoinRequestParams(options = {}) {
   return params;
 }
 
+function learningCoinCurrentScopeKey() {
+  return `${state.selectedWorkspaceId || "owner"}:${learningCoinStudentId()}`;
+}
+
+function resetLearningCoinsState() {
+  state.learningCoinRequestSeq += 1;
+  state.learningCoins = null;
+  state.learningCoinsError = "";
+  state.learningCoinScopeKey = learningCoinCurrentScopeKey();
+}
+
 function formatCoins(value) {
   const amount = Number(value || 0);
   return `${Number.isFinite(amount) ? amount : 0} 金币`;
@@ -7990,15 +8002,20 @@ function renderLearningCoinsView() {
 
 async function loadLearningCoins(options = {}) {
   const seq = ++state.learningCoinRequestSeq;
+  const scopeKey = learningCoinCurrentScopeKey();
+  if (state.learningCoinScopeKey !== scopeKey) {
+    state.learningCoins = null;
+    state.learningCoinScopeKey = scopeKey;
+  }
   state.learningCoinsLoading = true;
   state.learningCoinsError = "";
   renderLearningCoinsView();
   try {
     const result = await api(`/api/learning-coins/summary?${learningCoinRequestParams(options)}`);
-    if (seq !== state.learningCoinRequestSeq) return;
+    if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
     state.learningCoins = result;
   } catch (err) {
-    if (seq !== state.learningCoinRequestSeq) return;
+    if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
     state.learningCoinsError = err.message || String(err);
   } finally {
     if (seq === state.learningCoinRequestSeq) {
@@ -16294,6 +16311,7 @@ function wireUi() {
     state.groupChatThread = null;
     state.groupChatThreadId = "";
     state.groupChatAvailable = false;
+    resetLearningCoinsState();
     localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
     renderWorkspaceAccessPanel();
     state.directoryThreadId = "";
