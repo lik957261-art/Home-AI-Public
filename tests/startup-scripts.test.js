@@ -404,6 +404,9 @@ assert.doesNotMatch(gatewayToolSchemaSmoke, /console\.log\(.*api[_-]?key/i);
 
 assert.match(transcribeReadingAudio, /HermesGatewayWorker/);
 assert.match(transcribeReadingAudio, /faster_whisper/);
+assert.match(transcribeReadingAudio, /fast-whisper-v3-service/);
+assert.match(transcribeReadingAudio, /127\.0\.0\.1:8001\/v1\/audio\/transcriptions/);
+assert.match(transcribeReadingAudio, /falling back to worker STT/);
 assert.match(transcribeReadingAudio, /PYTHONPATH="\/opt\/hermes-gateway-runtime\/official-clean"/);
 assert.match(transcribeReadingAudio, /HF_HUB_OFFLINE="1"/);
 assert.match(transcribeReadingAudio, /\[string\]\$Language = "auto"/);
