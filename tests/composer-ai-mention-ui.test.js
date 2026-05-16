@@ -76,6 +76,9 @@ assert.match(appJs, /if \(input && "value" in input\) return String\(input\.valu
 assert.match(appJs, /input\.setRangeText\(text, start, end, "end"\)/);
 assert.match(appJs, /state\.composerComposing = true/);
 assert.match(appJs, /state\.composerSendAfterComposition = true/);
+assert.match(appJs, /function scheduleComposerSendAfterCompositionFallback\(\)/);
+assert.match(appJs, /state\.composerComposing = false;\s+state\.composerSendAfterComposition = false;\s+updateComposerAction\(\);\s+updateGroupMentionMenu\(\);\s+void sendMessage\(\);/);
+assert.match(appJs, /clearComposerSendAfterCompositionFallback\(\);/);
 assert.match(stylesCss, /resize: none/);
 assert.match(appJs, /const SHARE_IMAGE_WIDTH = 1440/);
 assert.match(appJs, /const SHARE_IMAGE_SCALE = 3/);

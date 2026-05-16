@@ -405,6 +405,7 @@ const state = {
   composerFocused: false,
   composerComposing: false,
   composerSendAfterComposition: false,
+  composerSendAfterCompositionTimer: null,
   keyboardContextMode: false,
   keyboardContextTopPx: 0,
   keyboardViewportActive: false,
@@ -15541,6 +15542,7 @@ async function sendMessage(event) {
   if (state.composerComposing) {
     state.composerSendAfterComposition = true;
     $("messageInput")?.blur();
+    scheduleComposerSendAfterCompositionFallback();
     return;
   }
   if (isChatSearchMode()) {
@@ -16136,6 +16138,25 @@ function composerRequestSizeError(text, serializedBody) {
     return "内容太长，当前消息包超过发送上限，请拆成几条发送，或作为文件上传。";
   }
   return "";
+}
+
+function clearComposerSendAfterCompositionFallback() {
+  if (!state.composerSendAfterCompositionTimer) return;
+  clearTimeout(state.composerSendAfterCompositionTimer);
+  state.composerSendAfterCompositionTimer = null;
+}
+
+function scheduleComposerSendAfterCompositionFallback() {
+  clearComposerSendAfterCompositionFallback();
+  state.composerSendAfterCompositionTimer = setTimeout(() => {
+    state.composerSendAfterCompositionTimer = null;
+    if (!state.composerSendAfterComposition) return;
+    state.composerComposing = false;
+    state.composerSendAfterComposition = false;
+    updateComposerAction();
+    updateGroupMentionMenu();
+    void sendMessage();
+  }, 450);
 }
 
 function setComposerText(text) {
@@ -16780,6 +16801,7 @@ function wireUi() {
   });
   $("messageInput").addEventListener("compositionend", () => {
     state.composerComposing = false;
+    clearComposerSendAfterCompositionFallback();
     updateComposerAction();
     updateGroupMentionMenu();
     if (state.composerSendAfterComposition) {
