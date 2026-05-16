@@ -51,6 +51,7 @@ const localBridgeWrapperService = require("../adapters/local-bridge-wrapper-serv
 const localProcessRunnerService = require("../adapters/local-process-runner-service");
 const localTodoBridgeService = require("../adapters/local-todo-bridge-service");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
+const learningGrowthService = require("../adapters/learning-growth-service");
 const learningCoinAwardService = require("../adapters/learning-coin-award-service");
 const learningCoinService = require("../adapters/learning-coin-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
@@ -101,6 +102,7 @@ const fileArtifactApiRoutes = require("../server-routes/file-artifact-api-routes
 const kanbanCardApiRoutes = require("../server-routes/kanban-card-api-routes");
 const kanbanLearningGuidanceApiRoutes = require("../server-routes/kanban-learning-guidance-api-routes");
 const kanbanStudyApiRoutes = require("../server-routes/kanban-study-api-routes");
+const learningApiRoutes = require("../server-routes/learning-api-routes");
 const learningCoinApiRoutes = require("../server-routes/learning-coin-api-routes");
 const mobileApiDispatcher = require("../server-routes/mobile-api-dispatcher");
 const mobileApiComposition = require("../server-routes/mobile-api-composition");
@@ -118,6 +120,8 @@ const todoApiRoutes = require("../server-routes/todo-api-routes");
 const todoPublicProjectionService = require("../adapters/todo-public-projection-service");
 const weixinApiRoutes = require("../server-routes/weixin-api-routes");
 const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
+const appLearningCoinsUi = require("../public/app-learning-coins-ui");
+const appLearningGrowthUi = require("../public/app-learning-growth-ui");
 const appLearningReadingUi = require("../public/app-learning-reading-ui");
 
 function fileText(file) {
@@ -204,6 +208,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof localTodoBridgeService.parseLocalTodoDue, "function");
   assert.equal(typeof localWorkspaceStoreService.createLocalWorkspaceStoreService, "function");
   assert.equal(typeof localWorkspaceStoreService.workspaceIdSlug, "function");
+  assert.equal(typeof learningGrowthService.createLearningGrowthService, "function");
+  assert.equal(typeof learningGrowthService.buildLearningGrowthOverview, "function");
   assert.equal(typeof learningCardGuidanceService.createLearningCardGuidanceService, "function");
   assert.equal(typeof learningCardGuidanceService.normalizeMode, "function");
   assert.equal(typeof learningCoinAwardService.createLearningCoinAwardService, "function");
@@ -286,10 +292,13 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanCardApiRoutes.createKanbanCardApiRoutes, "function");
   assert.equal(typeof kanbanLearningGuidanceApiRoutes.createKanbanLearningGuidanceApiRoutes, "function");
   assert.equal(typeof kanbanStudyApiRoutes.createKanbanStudyApiRoutes, "function");
+  assert.equal(typeof learningApiRoutes.createLearningApiRoutes, "function");
   assert.equal(typeof learningCoinApiRoutes.createLearningCoinApiRoutes, "function");
   assert.equal(typeof mobileApiComposition.createMobileApiComposition, "function");
   assert.equal(typeof mobileApiDispatcher.createMobileApiDispatcher, "function");
   assert.equal(typeof fileArtifactApiRoutes.createFileArtifactApiRoutes, "function");
+  assert.equal(typeof appLearningCoinsUi.renderCoinsSubsystem, "function");
+  assert.equal(typeof appLearningGrowthUi.renderLearningGrowthView, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingQuizPanel, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingSubmissionPanel, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingWorkflowPanel, "function");
@@ -443,6 +452,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobileComposition, /createKanbanLearningGuidanceApiRoutes/);
   assert.match(mobileComposition, /learningCardGuidanceService: deps\.learningCardGuidanceService/);
   assert.match(dispatcher, /key: "kanbanLearningGuidanceApiRoutes"/);
+  assert.match(mobileComposition, /createLearningApiRoutes/);
+  assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
+  assert.match(dispatcher, /key: "learningApiRoutes"/);
   assert.match(mobileComposition, /createLearningCoinApiRoutes/);
   assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningCoinApiRoutes"/);

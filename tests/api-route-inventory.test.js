@@ -216,6 +216,16 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "learning-api-routes",
+    exportName: "createLearningApiRoutes",
+    required: true,
+    minRoutes: 2,
+    probes: [
+      { method: "GET", path: "/api/learning-growth/overview", id: "learning-growth-overview" },
+      { method: "GET", path: "/api/learning/overview", id: "learning-overview" },
+    ],
+  },
+  {
     key: "learning-coin-api-routes",
     exportName: "createLearningCoinApiRoutes",
     required: false,
@@ -305,6 +315,8 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/kanban/cards/card-1/assessment-exam" }).id, "kanban-assessment-exam");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-growth/overview" }).id, "learning-growth-overview");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/overview" }).id, "learning-overview");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-coins/summary" }).id, "learning-coins-summary");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/threads/thread-1/uploads" }).id, "thread-uploads-create");
@@ -321,6 +333,8 @@ function testSummarySeparatesRuntimeAuthDomains() {
   assert.equal(summary.byAuthMode.ingress, 3);
   assert.equal(summary.byAuthMode.owner > 10, true);
   assert.equal(summary.byGroup.kanban > summary.byGroup.todo, true);
+  assert.equal(summary.byGroup.learning >= 1, true);
+  assert.equal(summary.byGroup["learning-growth"] >= 1, true);
   assert.equal(summary.byModule["kanban-study"] >= 4, true);
   assert.equal(summary.byMethod.GET > 20, true);
 }

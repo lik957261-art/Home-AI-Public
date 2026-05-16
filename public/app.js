@@ -58,6 +58,7 @@ const KANBAN_STORY_DEFAULT_VERSION = "20260513-story-tree";
 const KANBAN_STORY_DETAIL_LOAD_LIMIT = 6;
 const KANBAN_MULTI_AGENT_DEFAULT_PARALLEL = 3;
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 8;
+const LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID = "weixin_stephen";
 const TaskArtifactHelpers = window.HermesTaskArtifactHelpers || {};
 const KanbanStoryHelpers = window.HermesKanbanStoryHelpers || {};
 const LearningReadingUi = window.HermesLearningReadingUi || {};
@@ -358,6 +359,7 @@ const state = {
   automationEditOpen: false,
   automationEditJobId: "",
   automationOutputHistoryOpen: false,
+  learningGrowth: null,
   learningCoins: null,
   learningCoinScopeKey: "",
   learningCoinsLoading: false,
@@ -7794,7 +7796,7 @@ function applyViewMode() {
   $("newThread").classList.toggle("hidden", single || tasks || automation || learning || directory || todos);
   $("newThread").disabled = single || tasks || automation || learning || directory || todos;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search coins" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search growth" : "Search directories";
   updateSearchButton();
 }
 
@@ -7853,175 +7855,36 @@ function renderAutomationPlaceholderView() {
   ensureVerticalScrollAffordance();
 }
 
+function learningGrowthLearnerWorkspaceId() {
+  const selected = String(state.selectedWorkspaceId || "").trim();
+  if (state.auth?.isOwner && (!selected || selected === "owner")) {
+    return LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
+  }
+  return selected || state.auth?.workspaceId || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
+}
+
 function learningCoinStudentId() {
-  return state.selectedWorkspaceId || "owner";
+  return learningGrowthLearnerWorkspaceId();
 }
 
 function learningCoinRequestParams(options = {}) {
   const params = new URLSearchParams();
-  params.set("workspaceId", state.selectedWorkspaceId || "owner");
+  params.set("workspaceId", learningGrowthLearnerWorkspaceId());
   params.set("studentId", learningCoinStudentId());
   params.set("limit", String(options.limit || 30));
   return params;
 }
 
 function learningCoinCurrentScopeKey() {
-  return `${state.selectedWorkspaceId || "owner"}:${learningCoinStudentId()}`;
+  return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`;
 }
 
 function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
+  state.learningGrowth = null;
   state.learningCoins = null;
   state.learningCoinsError = "";
   state.learningCoinScopeKey = learningCoinCurrentScopeKey();
-}
-
-function formatCoins(value) {
-  const amount = Number(value || 0);
-  return `${Number.isFinite(amount) ? amount : 0} 金币`;
-}
-
-function formatRmbCents(cents) {
-  if (cents === null || cents === undefined || cents === "") return "人民币规则待设置";
-  const value = Number(cents);
-  if (!Number.isFinite(value)) return "人民币规则待设置";
-  return `¥${(value / 100).toFixed(2)}`;
-}
-
-function learningCoinRewardCards(summary) {
-  const rewards = summary?.rewards || [];
-  if (!rewards.length) {
-    return `<div class="learning-coin-empty">奖励池还没有配置。Owner 可以先添加可兑换项目，人民币结算规则后续再细化。</div>`;
-  }
-  const available = Number(summary?.balances?.availableCoins || 0);
-  return rewards.map((reward) => {
-    const affordable = available >= Number(reward.coinCost || 0);
-    return `<article class="learning-reward-card">
-      <div class="learning-reward-main">
-        <div class="learning-reward-title">${escapeHtml(reward.title || "奖励")}</div>
-        ${reward.description ? `<div class="learning-reward-description">${escapeHtml(reward.description)}</div>` : ""}
-      </div>
-      <div class="learning-reward-meta">
-        <span>${escapeHtml(formatCoins(reward.coinCost))}</span>
-        <span>${escapeHtml(formatRmbCents(reward.rmbCents))}</span>
-      </div>
-      <button class="learning-coin-primary" type="button" data-learning-redeem="${escapeHtml(reward.id)}" ${affordable ? "" : "disabled"}>${affordable ? "申请兑换" : "金币不足"}</button>
-    </article>`;
-  }).join("");
-}
-
-function learningCoinLedgerRows(summary) {
-  const ledger = summary?.ledger || [];
-  if (!ledger.length) return `<div class="learning-coin-empty">暂无金币流水。</div>`;
-  return ledger.map((entry) => {
-    const positive = Number(entry.coinDelta || 0) >= 0;
-    return `<div class="learning-ledger-row">
-      <div>
-        <div class="learning-ledger-title">${escapeHtml(entry.reason || entry.type || "金币记录")}</div>
-        <div class="learning-ledger-meta">${escapeHtml([entry.sourceType, entry.sourceId, formatTime(entry.createdAt)].filter(Boolean).join(" · "))}</div>
-      </div>
-      <div class="learning-ledger-amount ${positive ? "positive" : "negative"}">${positive ? "+" : ""}${escapeHtml(formatCoins(entry.coinDelta))}</div>
-    </div>`;
-  }).join("");
-}
-
-function learningCoinRedemptionRows(summary) {
-  const redemptions = summary?.redemptions || [];
-  if (!redemptions.length) return `<div class="learning-coin-empty">暂无兑换申请。</div>`;
-  return redemptions.map((item) => `<div class="learning-redemption-row">
-    <div>
-      <div class="learning-ledger-title">${escapeHtml(item.rewardTitle || item.rewardId || "兑换申请")}</div>
-      <div class="learning-ledger-meta">${escapeHtml([item.status, formatTime(item.requestedAt)].filter(Boolean).join(" · "))}</div>
-    </div>
-    <div class="learning-ledger-amount negative">${escapeHtml(formatCoins(item.coinCost))}</div>
-  </div>`).join("");
-}
-
-function learningCoinDailyBars(growth) {
-  const days = Array.isArray(growth?.recentDays) ? growth.recentDays : [];
-  if (!days.length) return `<div class="learning-coin-empty">暂无最近 7 天记录。</div>`;
-  const maxCoins = Math.max(1, ...days.map((day) => Number(day.coins || 0)));
-  return `<div class="learning-growth-days">${days.map((day) => {
-    const coins = Number(day.coins || 0);
-    const pct = Math.max(4, Math.round((coins / maxCoins) * 100));
-    return `<div class="learning-growth-day">
-      <div class="learning-growth-bar" style="height:${pct}%"></div>
-      <span>${escapeHtml(String(day.date || "").slice(5) || "--")}</span>
-      <strong>${escapeHtml(String(coins))}</strong>
-    </div>`;
-  }).join("")}</div>`;
-}
-
-function learningCoinRewardProgress(growth) {
-  const bestReward = growth?.bestRewardProgress || null;
-  const allRewards = Array.isArray(growth?.rewardProgress) ? growth.rewardProgress : [];
-  const rewards = bestReward
-    ? [bestReward].concat(allRewards.filter((reward) => reward?.id !== bestReward.id)).slice(0, 4)
-    : allRewards;
-  if (!rewards.length) return `<div class="learning-coin-empty">配置奖励后会显示兑换进度。</div>`;
-  return rewards.map((reward) => {
-    const pct = Math.max(0, Math.min(100, Number(reward.progressPct || 0)));
-    const status = reward.affordable ? "可兑换" : `还差 ${formatCoins(reward.remainingCoins)}`;
-    return `<div class="learning-growth-reward">
-      <div class="learning-growth-reward-top">
-        <strong>${escapeHtml(reward.title || reward.id || "奖励")}</strong>
-        <span>${escapeHtml(status)}</span>
-      </div>
-      <div class="learning-growth-progress" aria-label="${escapeHtml(`${pct}%`)}"><span style="width:${pct}%"></span></div>
-      <div class="learning-ledger-meta">${escapeHtml(`${formatCoins(reward.coinCost)} · ${formatRmbCents(reward.rmbCents)}`)}</div>
-    </div>`;
-  }).join("");
-}
-
-function learningCoinGrowthPanel(summary) {
-  const growth = summary?.growth || {};
-  const level = growth.level || {};
-  const current = level.current || {};
-  const next = level.next || null;
-  const levelTitle = current.title ? `Lv.${current.level} ${current.title}` : "Lv.1 新手探险家";
-  const nextText = next ? `距离 Lv.${next.level} ${next.title} 还差 ${formatCoins(level.toNextLevelCoins)}` : "已达到当前最高等级";
-  const progress = Math.max(0, Math.min(100, Number(level.progressPct || 0)));
-  return `<section class="learning-coin-panel learning-growth-panel">
-    <div class="learning-section-heading">
-      <h3>成长档案</h3>
-      <span>最近 7 天</span>
-    </div>
-    <div class="learning-growth-summary">
-      <div class="learning-growth-level">
-        <div class="learning-coin-eyebrow">${escapeHtml(levelTitle)}</div>
-        <strong>${escapeHtml(formatCoins(growth.totalEarnedCoins))}</strong>
-        <div class="learning-growth-progress" aria-label="${escapeHtml(`${progress}%`)}"><span style="width:${progress}%"></span></div>
-        <small>${escapeHtml(nextText)}</small>
-      </div>
-      <div class="learning-growth-metrics">
-        <span><strong>${escapeHtml(formatCoins(growth.sevenDayCoins))}</strong><small>7 天获得</small></span>
-        <span><strong>${escapeHtml(String(growth.activeDaysInLast7 || 0))} 天</strong><small>7 天活跃</small></span>
-        <span><strong>${escapeHtml(String(growth.streakDays || 0))} 天</strong><small>连续获得</small></span>
-      </div>
-    </div>
-    ${learningCoinDailyBars(growth)}
-    <div class="learning-growth-rewards">
-      <div class="learning-section-heading compact"><h3>兑换进度</h3><span>按差额排序</span></div>
-      ${learningCoinRewardProgress(growth)}
-    </div>
-  </section>`;
-}
-
-function learningCoinOwnerForm() {
-  if (!state.auth?.isOwner) return "";
-  return `<section class="learning-coin-panel learning-coin-owner-panel">
-    <div class="learning-section-heading">
-      <h3>奖励池</h3>
-      <span>Owner</span>
-    </div>
-    <form id="learningRewardForm" class="learning-reward-form">
-      <input id="learningRewardTitle" class="input" type="text" placeholder="奖励名称" autocomplete="off">
-      <input id="learningRewardCost" class="input" type="number" min="1" step="1" placeholder="金币">
-      <input id="learningRewardRmb" class="input" type="number" min="0" step="0.01" placeholder="人民币，可留空">
-      <textarea id="learningRewardDescription" class="input" rows="2" placeholder="说明，可留空"></textarea>
-      <button class="learning-coin-primary" type="submit">保存奖励</button>
-    </form>
-  </section>`;
 }
 
 function renderLearningCoinsView() {
@@ -8030,53 +7893,36 @@ function renderLearningCoinsView() {
   state.currentTaskGroupId = "";
   state.threads = [];
   const list = $("threadList");
-  if (list) list.innerHTML = `<div class="empty-state small">金币、奖励和兑换集中在这个标签。</div>`;
-  $("threadTitle").textContent = "金币";
-  $("threadMeta").textContent = "Learning coins";
+  const growthUi = window.HermesLearningGrowthUi;
+  if (!growthUi || typeof growthUi.renderLearningGrowthView !== "function") {
+    if (list) list.innerHTML = `<div class="empty-state small">凡凡成长系统模块正在加载。</div>`;
+    $("threadTitle").textContent = "凡凡成长";
+    $("threadMeta").textContent = "Fanfan Growth";
+    $("interruptRun").disabled = true;
+    configureComposer({ enabled: false, placeholder: "凡凡成长系统" });
+    $("conversation").innerHTML = `<div class="learning-growth-view"><div class="empty-state">成长系统前端模块未加载，请刷新客户端。</div></div>`;
+    return;
+  }
+  if (list) list.innerHTML = `<div class="empty-state small">凡凡成长系统入口。金币已经收敛为学习激励子模块。</div>`;
+  $("threadTitle").textContent = "凡凡成长";
+  $("threadMeta").textContent = "Fanfan Growth";
   $("interruptRun").disabled = true;
-  configureComposer({ enabled: false, placeholder: "金币与兑换" });
-  const summary = state.learningCoins || {};
-  const balances = summary.balances || {};
-  const loading = state.learningCoinsLoading ? `<div class="learning-coin-loading">正在刷新金币...</div>` : "";
-  const error = state.learningCoinsError ? `<div class="automation-error">${escapeHtml(state.learningCoinsError)}</div>` : "";
-  $("conversation").innerHTML = `<div class="learning-coin-view">
-    <section class="learning-coin-hero">
-      <div>
-        <div class="learning-coin-eyebrow">${escapeHtml(summary.studentId || learningCoinStudentId())}</div>
-        <h2>${escapeHtml(formatCoins(balances.availableCoins))}</h2>
-        <p>可用金币。兑换申请会先冻结金币，Owner 审核后再结算。</p>
-      </div>
-      <div class="learning-coin-stats">
-        <span><strong>${escapeHtml(formatCoins(balances.heldCoins))}</strong><small>冻结中</small></span>
-        <span><strong>${escapeHtml(formatCoins(balances.earnedCoins))}</strong><small>累计获得</small></span>
-        <span><strong>${escapeHtml(formatCoins(balances.spentCoins))}</strong><small>已结算</small></span>
-      </div>
-    </section>
-    ${loading}
-    ${error}
-    ${learningCoinGrowthPanel(summary)}
-    <section class="learning-coin-panel">
-      <div class="learning-section-heading">
-        <h3>兑换</h3>
-        <span>${escapeHtml(summary?.settlement?.currency || "CNY")}</span>
-      </div>
-      <div class="learning-reward-list">${learningCoinRewardCards(summary)}</div>
-    </section>
-    <section class="learning-coin-grid">
-      <div class="learning-coin-panel">
-        <div class="learning-section-heading"><h3>金币流水</h3><span>最近记录</span></div>
-        ${learningCoinLedgerRows(summary)}
-      </div>
-      <div class="learning-coin-panel">
-        <div class="learning-section-heading"><h3>兑换申请</h3><span>审核状态</span></div>
-        ${learningCoinRedemptionRows(summary)}
-      </div>
-    </section>
-    ${learningCoinOwnerForm()}
-  </div>`;
+  configureComposer({ enabled: false, placeholder: "凡凡成长系统" });
+  const overview = state.learningGrowth || {};
+  $("conversation").innerHTML = growthUi.renderLearningGrowthView({
+    overview,
+    coins: state.learningCoins || overview.coins || {},
+    loading: state.learningCoinsLoading,
+    error: state.learningCoinsError,
+    state,
+    escapeHtml,
+    formatTime,
+    learnerId: learningCoinStudentId(),
+  });
   wireLearningCoinsView();
   updateNavigationControls();
   ensureVerticalScrollAffordance();
+  return;
 }
 
 async function loadLearningCoins(options = {}) {
@@ -8090,9 +7936,10 @@ async function loadLearningCoins(options = {}) {
   state.learningCoinsError = "";
   renderLearningCoinsView();
   try {
-    const result = await api(`/api/learning-coins/summary?${learningCoinRequestParams(options)}`);
+    const result = await api(`/api/learning-growth/overview?${learningCoinRequestParams(options)}`);
     if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
-    state.learningCoins = result;
+    state.learningGrowth = result;
+    state.learningCoins = result?.coins || result?.coinSummary || {};
   } catch (err) {
     if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
     state.learningCoinsError = err.message || String(err);
@@ -8106,7 +7953,7 @@ async function loadLearningCoins(options = {}) {
 
 async function requestLearningCoinRedemption(rewardId) {
   const body = {
-    workspaceId: state.selectedWorkspaceId || "owner",
+    workspaceId: learningGrowthLearnerWorkspaceId(),
     studentId: learningCoinStudentId(),
     rewardId,
     idempotencyKey: `redeem:${learningCoinStudentId()}:${rewardId}:${Date.now()}`,

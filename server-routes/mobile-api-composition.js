@@ -10,6 +10,7 @@ const { createFileArtifactApiRoutes } = require("./file-artifact-api-routes");
 const { createKanbanCardApiRoutes } = require("./kanban-card-api-routes");
 const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-guidance-api-routes");
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
+const { createLearningApiRoutes } = require("./learning-api-routes");
 const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
@@ -447,6 +448,14 @@ function createMobileApiComposition(deps = {}) {
   });
   callBootTrace(deps, "kanban learning guidance api routes ready");
 
+  const learningApiRoutes = createLearningApiRoutes({
+    isOwnerAuth: deps.isOwnerAuth,
+    learningCoinService: deps.learningCoinService,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "learning api routes ready");
+
   const learningCoinApiRoutes = createLearningCoinApiRoutes({
     broadcast: deps.broadcast,
     isOwnerAuth: deps.isOwnerAuth,
@@ -499,6 +508,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanCardApiRoutes,
     kanbanLearningGuidanceApiRoutes,
     kanbanStudyApiRoutes,
+    learningApiRoutes,
     learningCoinApiRoutes,
     ownerElevationApiRoutes,
     publicApiRoutes,
@@ -531,6 +541,7 @@ function createMobileApiComposition(deps = {}) {
       kanbanCardApiRoutes,
       kanbanLearningGuidanceApiRoutes,
       kanbanStudyApiRoutes,
+      learningApiRoutes,
       learningCoinApiRoutes,
       ownerElevationApiRoutes,
       publicApiRoutes,

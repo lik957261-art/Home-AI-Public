@@ -6574,6 +6574,157 @@ button.directory-alias-chip {
   border-radius: 12px;
 }
 
+.learning-growth-view {
+  display: grid;
+  gap: 16px;
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.learning-growth-shell-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(250, 253, 255, 0.82);
+  box-shadow: var(--shadow-soft);
+}
+
+.learning-growth-shell-hero h2 {
+  margin: 6px 0;
+  color: var(--ink);
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.learning-growth-shell-hero p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.learning-growth-shell-metrics {
+  display: grid;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.learning-growth-shell-metrics span {
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.learning-growth-shell-metrics strong {
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.learning-growth-shell-metrics small {
+  color: var(--muted);
+}
+
+.learning-growth-platform-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.learning-growth-platform-strip span {
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 12px;
+  color: var(--accent);
+  background: rgba(236, 249, 245, 0.55);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.learning-growth-modules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.learning-growth-module-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 252, 246, 0.76);
+}
+
+.learning-growth-module-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.learning-growth-module-top h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.learning-growth-module-top span {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.1);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-growth-module-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.learning-growth-coin-section {
+  display: grid;
+  gap: 14px;
+}
+
+.learning-growth-next-list {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-growth-next-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(31, 111, 98, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.learning-growth-next-row strong {
+  color: var(--ink);
+}
+
+.learning-growth-next-row span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .learning-coin-view {
   display: grid;
   gap: 16px;
@@ -6884,6 +7035,24 @@ button.directory-alias-chip {
 }
 
 @media (max-width: 760px) {
+  .learning-growth-view {
+    padding: 12px;
+  }
+
+  .learning-growth-shell-hero,
+  .learning-growth-modules {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-growth-platform-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .learning-growth-shell-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-width: 0;
+  }
+
   .learning-coin-view {
     padding: 12px;
   }

@@ -269,6 +269,15 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["todo"],
   })),
 
+  exact("learning-overview", "GET", "/api/learning/overview", "learning", routeOptions("learning", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-growth", "learning-coin"],
+  })),
+  exact("learning-growth-overview", "GET", "/api/learning-growth/overview", "learning-growth", routeOptions("learning-growth", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-growth", "learning-coin"],
+  })),
+
   exact("learning-coins-summary", "GET", "/api/learning-coins/summary", "learning-coins", routeOptions("learning-coins", {
     workspaceScoped: true,
     resourceTypes: ["learning-coin", "reward", "redemption"],

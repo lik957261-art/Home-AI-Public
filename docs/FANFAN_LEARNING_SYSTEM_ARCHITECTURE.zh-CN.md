@@ -15,7 +15,7 @@
 采用：
 
 - Hermes Mobile 作为平台底座；
-- 凡凡成长系统作为垂直产品模块；
+- 凡凡成长系统作为 `learning-growth` 垂直产品域，拥有自己的服务、路由、数据模型和前端入口；
 - 学习系统拥有自己的前端入口、API 命名空间、服务层和 UI helper；
 - 平台能力通过稳定服务/API 被调用，而不是被复制。
 
@@ -36,7 +36,8 @@ Fanfan Learning System 负责学习域：
 - AMC8/数学评估：正式测验、错题分析、复习建议；
 - Python/编程评估：按本次要求生成题目、答题、解释、编程日志；
 - 学习互动：提示、追问、回答、复盘、变式题、弱点修复；
-- 金币成长：自动奖励、流水、成长档案、兑换申请；
+- 金币成长：自动奖励、流水、成长档案、兑换申请；金币收敛为凡凡成长系统的 reward/growth 子域，不再作为通用工作台主轴扩张；
+- AI 可靠性护栏：来源依据、结构化校验、置信度、异常拦截、家长审核队列和审计流水；
 - 家长/Owner 后台：审批、完成、拒绝、审计和未来结算扩展点。
 
 学习域可以使用平台的 Kanban/topic/deliverable 能力，但不能把学习业务规则反向写进平台入口文件或通用 Kanban UI。
@@ -187,3 +188,17 @@ LearningParentReview
 短期最优选择不是独立 fork，而是建立独立学习产品入口和服务边界。这样可以复用 Hermes Mobile 已有的主题、聊天、看板、文件交付、Gateway、Web Push 和权限体系，同时避免学习系统继续污染个人工作台主界面。
 
 如果未来凡凡成长系统需要独立发布，也应优先独立前端打包并调用 Hermes Mobile Platform API，而不是复制平台代码。
+
+## v1.1 实施补充
+
+详细补充见 `docs/FANFAN_LEARNING_SYSTEM_IMPLEMENTATION_V1_1.zh-CN.md`。
+
+v1.1 新增并固化：
+
+- `Curriculum Reference Service`：公开课程标准、公开样题风格、阅读分级、CS/Python 阶梯、AMC8/Math Kangaroo 风格参考和版权边界；
+- 任务卡类型体系：`single_subject`、`cross_subject`、`project_card`、`mistake_repair_card`、`challenge_card`、`review_card`、`habit_card`；
+- 凡凡端任务状态机：接收任务、目标解释、作答、提示、修改、评分、错题讲解、复述错因、变式修复、金币结算、反馈回流；
+- AI 编排输入/输出 JSON Schema：服务层只传摘要和引用，校验后才落任务；
+- MVP 第一阶段 API 与 repository/table 清单；
+- AI 可靠性与幻觉防控：`draft -> guard -> review/publish`、`submit -> verify -> reward/review`，低置信度、缺来源、大额奖励和异常评价进入家长审核；
+- 儿童隐私与日志最小化：日志只记 ID、分数、摘要、事件类型和引用，不记录完整儿童回答、录音转写、题目或答案全文。
