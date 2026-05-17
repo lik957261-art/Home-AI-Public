@@ -333,6 +333,7 @@ function createLearningProgramService(options = {}) {
     const taskCards = taskCardService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     const interactionSessions = interactionSessionService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     const evaluations = evaluationService.list({ learnerId, workspaceId, limit: input.limit || 20 });
+    const currentDailyPlan = dailyPlanService.dailyPlan({ learnerId, workspaceId, days: input.days || 7, limit: input.limit || 50 });
     const parentReviewRequests = parentReviewRequestService.list({ learnerId, workspaceId, status: input.reviewStatus || "pending", limit: input.limit || 20 });
     const rewardSettlements = rewardSettlementService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     return {
@@ -342,6 +343,7 @@ function createLearningProgramService(options = {}) {
       reviewItems,
       sources,
       goals,
+      dailyPlan: currentDailyPlan,
       taskCards,
       interactionSessions,
       evaluations,

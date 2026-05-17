@@ -100,6 +100,8 @@ async function testCreateDraftApprovePublish() {
   assert.equal(overview.sources.length, 1);
   assert.equal(overview.goals.length, 1);
   assert.equal(overview.taskCards.length, drafted.draft.taskCount);
+  assert.equal(overview.dailyPlan.summary.totalTasks, drafted.draft.taskCount);
+  assert.equal(overview.dailyPlan.privacyLevel, "summary_only");
   assert.equal(overview.interactionSessions.length, 0);
   assert.equal(overview.evaluations.length, 0);
   assert.equal(overview.rewardSettlements.length, 0);

@@ -291,9 +291,11 @@
   function renderTaskRows(taskCards = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const tasks = asArray(taskCards).slice(0, 8);
+    const sessions = asArray(options.sessions);
     if (!tasks.length) return `<div class="learning-coin-empty">\u6682\u65e0\u5f85\u6267\u884c\u4efb\u52a1\u3002</div>`;
     return `<div class="learning-program-task-list">
       ${tasks.map((task) => {
+        const session = latestSessionForTask(task, sessions);
         const skills = compactFocus(task.skillIds || []).slice(0, 80);
         const meta = [
           task.plannedDate,
@@ -306,6 +308,7 @@
             <p>${escapeHtml(meta || task.taskCardType || "")}</p>
           </div>
           <span>${escapeHtml(taskStatusText(task.status, options))}</span>
+          ${renderTaskAction(task, session, options)}
         </article>`;
       }).join("")}
     </div>`;
@@ -338,20 +341,96 @@
     </div>`;
   }
 
+  function sessionStepText(step) {
+    const value = String(step || "");
+    const labels = {
+      receive_task: "\u63a5\u6536\u4efb\u52a1",
+      ai_goal_explain: "\u76ee\u6807\u8bf4\u660e",
+      learner_attempt: "\u4f5c\u7b54\u4e2d",
+      ai_hint: "\u63d0\u793a",
+      learner_revision: "\u4fee\u6539\u4e2d",
+      ai_evaluation: "\u8bc4\u4f30",
+      mistake_explanation: "\u9519\u56e0\u590d\u76d8",
+      variant_repair: "\u53d8\u5f0f\u4fee\u590d",
+      reward_settlement: "\u7ed3\u7b97",
+    };
+    return labels[value] || value || "\u8fdb\u884c\u4e2d";
+  }
+
+  function latestSessionForTask(task, sessions = []) {
+    const taskCardId = String(task?.taskCardId || "");
+    const matches = asArray(sessions).filter((session) => String(session?.taskCardId || "") === taskCardId);
+    if (!matches.length) return null;
+    return matches.slice().sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
+  }
+
+  function renderTaskAction(task, session, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    const status = String(task?.status || "");
+    if (!taskCardId || ["completed", "archived", "blocked"].includes(status)) return "";
+    if (!session) {
+      const canStart = status === "published" || status === "active";
+      if (!canStart) return "";
+      return `<div class="learning-program-task-actions">
+        <button type="button" data-learning-task-start="${escapeHtml(taskCardId)}">\u5f00\u59cb</button>
+      </div>`;
+    }
+    const sessionStatus = String(session.status || "active");
+    const complete = sessionStatus === "completed";
+    return `<div class="learning-program-task-actions" data-learning-session-id="${escapeHtml(session.sessionId || "")}">
+      <span class="learning-program-status-chip">${escapeHtml([sessionStatus, sessionStepText(session.currentStep)].filter(Boolean).join(" / "))}</span>
+      ${complete ? "" : `<button type="button" data-learning-session-advance="${escapeHtml(session.sessionId || "")}">\u4e0b\u4e00\u6b65</button>`}
+      ${complete ? "" : `<form class="learning-evaluation-inline-form" data-learning-evaluation-form="${escapeHtml(session.sessionId || "")}">
+        <input class="input" name="score" type="number" min="0" max="100" placeholder="\u5f97\u5206">
+        <input class="input" name="summary" type="text" autocomplete="off" maxlength="280" placeholder="\u53ea\u5199\u8bc4\u4ef7\u6458\u8981">
+        <button type="submit">\u8bb0\u5f55\u8bc4\u4ef7</button>
+      </form>`}
+    </div>`;
+  }
+
+  function renderDailyPlanPanel(dailyPlan = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!dailyPlan || typeof dailyPlan !== "object") return "";
+    const summary = dailyPlan.summary || {};
+    const activeDays = asArray(dailyPlan.days).filter((day) => asArray(day.tasks).length).slice(0, 5);
+    const nextTask = dailyPlan.nextTask || null;
+    return `<section class="learning-coin-panel learning-daily-plan-panel" data-learning-daily-plan>
+      <div class="learning-section-heading">
+        <h3>\u4eca\u65e5\u4e0e\u8fd1\u671f\u8ba1\u5212</h3>
+        <span>${escapeHtml(String(summary.pendingTasks || 0))} \u5f85\u6267\u884c</span>
+      </div>
+      <div class="learning-daily-plan-summary">
+        <span><strong>${escapeHtml(String(summary.totalTasks || 0))}</strong><small>\u4efb\u52a1</small></span>
+        <span><strong>${escapeHtml(String(summary.totalMinutes || 0))}</strong><small>\u5206\u949f</small></span>
+        <span><strong>${escapeHtml(String(summary.activeDays || 0))}</strong><small>\u6709\u5b89\u6392\u5929</small></span>
+      </div>
+      ${nextTask ? `<p class="learning-program-guidance-copy">\u4e0b\u4e00\u4e2a\uff1a${escapeHtml(nextTask.title || nextTask.taskCardId || "")}</p>` : ""}
+      ${activeDays.length ? `<div class="learning-daily-plan-list">
+        ${activeDays.map((day) => `<article>
+          <strong>${escapeHtml(day.date || "")}</strong>
+          <span>${escapeHtml(String(day.pendingCount || asArray(day.tasks).length))} \u9879 / ${escapeHtml(String(day.totalMinutes || 0))} min</span>
+        </article>`).join("")}
+      </div>` : `<div class="learning-coin-empty">\u8fd1\u671f\u6682\u65e0\u53ef\u6267\u884c\u5b66\u4e60\u4efb\u52a1\u3002</div>`}
+    </section>`;
+  }
+
   function renderExecutionOverview(data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const tasks = asArray(data.taskCards);
     const programs = asArray(data.programs);
+    const taskOptions = Object.assign({}, options, { sessions: data.interactionSessions || [] });
     const pendingCount = tasks.filter((task) => !["completed", "archived"].includes(String(task.status || ""))).length || programs.length;
     return `<section class="learning-growth-category learning-program-execution-panel" data-learning-growth-category="execution">
       <div class="learning-growth-category-heading">
         <h3>\u6267\u884c\u6982\u89c8 / \u5f85\u6267\u884c</h3>
         <span>${escapeHtml(String(pendingCount))} \u9879</span>
       </div>
+      ${renderDailyPlanPanel(data.dailyPlan || {}, options)}
       <div class="learning-program-execution-grid">
         <section class="learning-coin-panel">
           <div class="learning-section-heading"><h3>\u4efb\u52a1\u72b6\u6001</h3><span>Task</span></div>
-          ${renderTaskRows(tasks, options)}
+          ${renderTaskRows(tasks, taskOptions)}
         </section>
         <section class="learning-coin-panel">
           <div class="learning-section-heading"><h3>${isOwner(options) ? "\u5b66\u4e60\u8ba1\u5212" : "\u5b66\u4e60\u5b89\u6392"}</h3><span>${escapeHtml(String(programs.length))}</span></div>
@@ -514,6 +593,7 @@
 
   return {
     compactFocus,
+    renderDailyPlanPanel,
     renderExecutionOverview,
     renderFoundationPanel,
     renderGuidancePanel,

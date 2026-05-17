@@ -92,8 +92,8 @@ function projectInteractionSessionForExecutor(session) {
     "taskCardId",
     "learnerId",
     "workspaceId",
-    "state",
-    "phase",
+    "status",
+    "currentStep",
     "summary",
     "updatedAt",
   ]);
@@ -139,6 +139,7 @@ function projectProgramOverviewForExecutor(programs) {
   return {
     counts: copyFields(programs.counts, ["programs", "taskCards", "evaluations", "skillStates"]),
     programs: arrayValue(programs.programs).map(projectProgramForExecutor),
+    dailyPlan: programs.dailyPlan || null,
     taskCards: arrayValue(programs.taskCards).map(projectTaskCardForExecutor),
     interactionSessions: arrayValue(programs.interactionSessions).map(projectInteractionSessionForExecutor),
     evaluations: arrayValue(programs.evaluations).map(projectEvaluationForExecutor),

@@ -58,7 +58,12 @@ function makeProgramService() {
           skillIds: ["english_speaking_retell"],
           answerKey: "hidden",
         }],
-        interactionSessions: [{ sessionId: "session-1", taskCardId: "task-1", state: "active", rawTranscript: "hidden" }],
+        dailyPlan: {
+          summary: { totalTasks: 1, pendingTasks: 1 },
+          nextTask: { taskCardId: "task-1", title: "Task" },
+          privacyLevel: "summary_only",
+        },
+        interactionSessions: [{ sessionId: "session-1", taskCardId: "task-1", status: "active", currentStep: "learner_attempt", rawTranscript: "hidden" }],
         evaluations: [{ evaluationId: "eval-1", score: 90, passed: true, summary: "summary", answerKey: "hidden" }],
         parentReviewRequests: [{ reviewRequestId: "parent-review-1", summary: "owner parent review" }],
         rewardSettlements: [{ rewardSettlementId: "settle-1", coinAmount: 20 }],
@@ -149,6 +154,9 @@ function testExecutorOverviewStripsOwnerManagementData() {
     minutesPerDay: 30,
     daysPerWeek: 5,
   });
+  assert.equal(overview.programs.dailyPlan.summary.totalTasks, 1);
+  assert.equal(overview.programs.interactionSessions[0].status, "active");
+  assert.equal(overview.programs.interactionSessions[0].currentStep, "learner_attempt");
   assert.equal(overview.programs.taskCards[0].answerKey, undefined);
   assert.equal(overview.programs.interactionSessions[0].rawTranscript, undefined);
   assert.equal(overview.programs.evaluations[0].answerKey, undefined);

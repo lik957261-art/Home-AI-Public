@@ -43,6 +43,12 @@ const overview = {
     parentReviewRequests: [{ reviewRequestId: "parent-review-1", status: "pending", summary: "parent review" }],
     rewardSettlements: [{ rewardSettlementId: "settle-1", status: "pending_review", coinAmount: 10 }],
     taskCards: [{ taskCardId: "task-1", title: "Task status", status: "published", plannedDate: "2026-05-17", skillIds: ["english_speaking_retell"] }],
+    interactionSessions: [{ sessionId: "session-1", taskCardId: "task-1", status: "active", currentStep: "learner_attempt" }],
+    dailyPlan: {
+      summary: { totalTasks: 1, pendingTasks: 1, totalMinutes: 30, activeDays: 1 },
+      nextTask: { taskCardId: "task-1", title: "Task status" },
+      days: [{ date: "2026-05-17", pendingCount: 1, totalMinutes: 30, tasks: [{ taskCardId: "task-1" }] }],
+    },
     evaluations: [{ evaluationId: "eval-1", status: "passed", score: 90, passed: true, summary: "summary only" }],
     skillStates: [{ skillId: "english_speaking_retell", level: "baseline", confidence: 0.7 }],
   },
@@ -88,6 +94,9 @@ function testGrowthRendererContainsProgramSubsystem() {
   assert.match(html, /data-learning-growth-module="programs"/);
   assert.match(html, /data-learning-program-id="program-1"/);
   assert.match(html, /data-learning-task-card-id="task-1"/);
+  assert.match(html, /data-learning-daily-plan/);
+  assert.match(html, /data-learning-session-advance="session-1"/);
+  assert.match(html, /data-learning-evaluation-form="session-1"/);
   assert.match(html, /data-learning-evaluation-summary="eval-1"/);
 }
 

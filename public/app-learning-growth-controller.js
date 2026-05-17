@@ -346,6 +346,59 @@ async function submitLearningRewardForm(event) {
   await loadLearningCoins({ limit: 30 });
 }
 
+async function startLearningTaskSession(taskCardId) {
+  if (!taskCardId) return;
+  await api(`/api/learning/task-cards/${encodeURIComponent(taskCardId)}/sessions`, {
+    method: "POST",
+    body: JSON.stringify(Object.assign(learningLearnerBody(), {
+      summary: "\u4ece\u6210\u957f\u9875\u5f00\u59cb\u5b66\u4e60\u4efb\u52a1",
+    })),
+  });
+  showPushToast("\u5b66\u4e60\u4efb\u52a1\u5df2\u5f00\u59cb", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function advanceLearningSession(sessionId) {
+  if (!sessionId) return;
+  await api(`/api/learning/sessions/${encodeURIComponent(sessionId)}/advance`, {
+    method: "POST",
+    body: JSON.stringify({
+      summary: "\u4ece\u6210\u957f\u9875\u63a8\u8fdb\u4e92\u52a8\u9636\u6bb5",
+    }),
+  });
+  showPushToast("\u5b66\u4e60\u9636\u6bb5\u5df2\u63a8\u8fdb", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
+async function submitLearningEvaluationForm(event, sessionId) {
+  event?.preventDefault?.();
+  if (!sessionId) return;
+  const form = event?.target;
+  const formData = new FormData(form);
+  const score = Number(formData.get("score") || 0);
+  const summary = String(formData.get("summary") || "").trim();
+  if (!summary) {
+    showPushToast("\u8bc4\u4ef7\u6458\u8981\u4e0d\u80fd\u4e3a\u7a7a", "error");
+    return;
+  }
+  if (!Number.isFinite(score) || score < 0 || score > 100) {
+    showPushToast("\u5f97\u5206\u9700\u8981\u5728 0-100 \u4e4b\u95f4", "error");
+    return;
+  }
+  await api(`/api/learning/sessions/${encodeURIComponent(sessionId)}/evaluations`, {
+    method: "POST",
+    body: JSON.stringify({
+      score,
+      summary,
+      confidence: 0.72,
+      verificationMethod: "english_rubric_evidence_check",
+      verificationSummary: summary,
+    }),
+  });
+  showPushToast("\u5b66\u4e60\u8bc4\u4ef7\u5df2\u8bb0\u5f55", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
 function wireLearningCoinsView() {
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);
@@ -376,6 +429,15 @@ function wireLearningCoinsView() {
   });
   $("conversation")?.querySelectorAll("[data-learning-parent-review-decision]").forEach((button) => {
     button.addEventListener("click", () => decideLearningParentReviewRequest(button.dataset.learningParentReviewDecision, button.dataset.decision).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-task-start]").forEach((button) => {
+    button.addEventListener("click", () => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-session-advance]").forEach((button) => {
+    button.addEventListener("click", () => advanceLearningSession(button.dataset.learningSessionAdvance).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-evaluation-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => submitLearningEvaluationForm(event, form.dataset.learningEvaluationForm).catch(showError));
   });
   $("conversation")?.querySelectorAll("[data-learning-redeem]").forEach((button) => {
     button.addEventListener("click", () => requestLearningCoinRedemption(button.dataset.learningRedeem).catch(showError));

@@ -6809,7 +6809,8 @@ button.directory-alias-chip {
 
 .learning-program-list,
 .learning-program-review-list,
-.learning-program-task-days {
+.learning-program-task-days,
+.learning-daily-plan-list {
   display: grid;
   gap: 10px;
 }
@@ -6879,6 +6880,38 @@ button.directory-alias-chip {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.learning-daily-plan-panel {
+  margin-bottom: 14px;
+}
+
+.learning-daily-plan-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.learning-daily-plan-summary span,
+.learning-daily-plan-list article {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid rgba(31, 111, 98, 0.1);
+  border-radius: 12px;
+  background: rgba(236, 249, 245, 0.42);
+}
+
+.learning-daily-plan-summary strong,
+.learning-daily-plan-list strong {
+  color: var(--accent);
+  font-size: 15px;
+}
+
+.learning-daily-plan-summary small,
+.learning-daily-plan-list span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .learning-program-report-grid span {
@@ -6968,6 +7001,33 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.48);
+}
+
+.learning-program-task-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, max-content));
+  gap: 8px;
+  align-items: center;
+}
+
+.learning-program-task-actions button,
+.learning-evaluation-inline-form button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 12px;
+  color: var(--accent);
+  background: rgba(236, 249, 245, 0.72);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.learning-evaluation-inline-form {
+  display: grid;
+  grid-template-columns: 82px minmax(150px, 1fr) auto;
+  gap: 8px;
+  min-width: min(100%, 420px);
 }
 
 .learning-program-task-item strong {
@@ -7384,6 +7444,8 @@ button.directory-alias-chip {
   .learning-reward-card,
   .learning-reward-form,
   .learning-program-report-grid,
+  .learning-daily-plan-summary,
+  .learning-evaluation-inline-form,
   .learning-program-task-item,
   .learning-program-card-top,
   .learning-program-review-item {

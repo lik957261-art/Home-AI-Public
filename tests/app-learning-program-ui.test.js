@@ -49,7 +49,29 @@ const programs = {
     plannedDate: "2026-05-17",
     plannedMinutes: 30,
     skillIds: ["english_speaking_retell"],
+  }, {
+    taskCardId: "task-2",
+    title: "Writing repair task",
+    status: "published",
+    plannedDate: "2026-05-18",
+    plannedMinutes: 20,
+    skillIds: ["english_short_writing"],
   }],
+  interactionSessions: [{
+    sessionId: "session-1",
+    taskCardId: "task-1",
+    status: "active",
+    currentStep: "learner_attempt",
+    summary: "started",
+  }],
+  dailyPlan: {
+    summary: { totalTasks: 2, pendingTasks: 2, totalMinutes: 50, activeDays: 2 },
+    nextTask: { taskCardId: "task-1", title: "Reading output task" },
+    days: [
+      { date: "2026-05-17", pendingCount: 1, totalMinutes: 30, tasks: [{ taskCardId: "task-1" }] },
+      { date: "2026-05-18", pendingCount: 1, totalMinutes: 20, tasks: [{ taskCardId: "task-2" }] },
+    ],
+  },
   evaluations: [{
     evaluationId: "eval-1",
     status: "passed",
@@ -83,6 +105,11 @@ function testOwnerFormAndActionsRender() {
   assert.match(html, /data-learning-growth-category="guidance"/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
   assert.match(html, /data-learning-task-card-id="task-1"/);
+  assert.match(html, /data-learning-task-card-id="task-2"/);
+  assert.match(html, /data-learning-daily-plan/);
+  assert.match(html, /data-learning-session-advance="session-1"/);
+  assert.match(html, /data-learning-evaluation-form="session-1"/);
+  assert.match(html, /data-learning-task-start="task-2"/);
   assert.match(html, /data-learning-evaluation-summary="eval-1"/);
   assert.match(html, /data-learning-foundation/);
   assert.match(html, /data-learning-source-create/);
@@ -128,6 +155,11 @@ function testNonOwnerCannotSeeCreateForm() {
   assert.match(html, /data-learning-growth-category="execution"/);
   assert.match(html, /data-learning-growth-category="guidance"/);
   assert.match(html, /data-learning-task-card-id="task-1"/);
+  assert.match(html, /data-learning-task-card-id="task-2"/);
+  assert.match(html, /data-learning-daily-plan/);
+  assert.match(html, /data-learning-session-advance="session-1"/);
+  assert.match(html, /data-learning-evaluation-form="session-1"/);
+  assert.match(html, /data-learning-task-start="task-2"/);
   assert.match(html, /data-learning-evaluation-summary="eval-1"/);
   assert.match(html, /data-learning-program-id="program-1"/);
 }
