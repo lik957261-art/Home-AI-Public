@@ -1,7 +1,10 @@
 "use strict";
 
 function isKanbanReadingCard(todo) {
-  return isKanbanStudyCase(todo) && !isKanbanFinalStudyAssessment(todo) && !isKanbanLearningGrowthCard(todo);
+  if (!isKanbanStudyCase(todo) || isKanbanFinalStudyAssessment(todo) || isKanbanLearningGrowthCard(todo)) return false;
+  const template = kanbanCaseTemplate(todo);
+  if (template === "reading" || template === "english-reading" || template === "reading-recording") return true;
+  return Boolean(todo?.readingSubmission || todo?.studySubmission);
 }
 
 function renderKanbanLearningGrowthTodoPanel(todo) {
