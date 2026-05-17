@@ -614,7 +614,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
   assert.match(doc, /120/);
-  assert.match(doc, /900 lines/);
+  assert.match(doc, /700 lines/);
   assert.match(doc, /Product Module Boundary/);
   assert.match(doc, /FANFAN_LEARNING_SYSTEM_ARCHITECTURE\.zh-CN\.md/);
 
@@ -647,6 +647,8 @@ function testServiceFirstArchitectureContract() {
     "public/app-shell-ui.js",
     "public/app-task-groups-ui.js",
     "public/app-chat-composer-ui.js",
+    "public/app-composer-context-ui.js",
+    "public/app-run-progress-ui.js",
     "public/app-navigation-search-ui.js",
     "public/app-sidebar-task-ui.js",
     "public/app-message-actions-ui.js",
@@ -690,7 +692,7 @@ function testServiceFirstArchitectureContract() {
   ];
   for (const frontendModule of frontendRuntimeModules) {
     const moduleLineCount = fileText(frontendModule).split(/\r?\n/).length;
-    assert.ok(moduleLineCount <= 900, `${frontendModule} line budget exceeded: ${moduleLineCount} > 900`);
+    assert.ok(moduleLineCount <= 700, `${frontendModule} line budget exceeded: ${moduleLineCount} > 700`);
   }
 }
 
