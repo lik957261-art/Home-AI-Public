@@ -13,6 +13,7 @@ const PYTHON_COMPILE_FILES = [
   "scripts/weixin-ingress-sidecar.py",
   "scripts/weixin-mobile-ingress-bridge.py",
   "scripts/migrate-workspace-roots.py",
+  "gateway-plugins/hermes-mobile-http/__init__.py",
   "gateway-plugins/hermes-mobile-web/__init__.py",
   "gateway-plugins/hermes-mobile-image/__init__.py",
   "gateway-plugins/hermes-mobile-docx/__init__.py",

@@ -32,6 +32,8 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_extract_text, audio_transcribe/);
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
+  assert.match(summary, /http_request\.file_body/);
+  assert.match(summary, /http_request\.multipart_files/);
   assert.match(summary, /For Word DOCX text extraction, use `docx_extract_text`/);
   assert.match(summary, /For MP3\/M4A\/WAV\/AAC\/OGG\/OPUS\/AMR\/FLAC voice notes/);
   assert.match(summary, /External connector profiles: google, outlook/);
@@ -44,6 +46,8 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   });
 
   assert.match(text, /`http` toolset is enabled/);
+  assert.match(text, /`file_body` or `multipart_files`/);
+  assert.match(text, /never claim upload success after sending only a local path string/);
   assert.match(text, /Word DOCX text extraction is available as `docx_extract_text`/);
   assert.match(text, /audio transcription.*`audio_transcribe`/);
   assert.match(text, /Prefer callable function names `mobile_web_search` and `mobile_web_extract`/);
@@ -58,7 +62,7 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260513-audio-file-v1",
+    "session_a_group_1_20260517-http-file-upload-v1",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),

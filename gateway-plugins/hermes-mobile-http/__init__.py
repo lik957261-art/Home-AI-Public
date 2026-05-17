@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 import re
+import secrets
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,6 +23,17 @@ DEFAULT_CREDENTIAL_ROOTS = (
 )
 TOKEN_RE = re.compile(r"\bwd_live_[A-Za-z0-9._-]{12,}\b")
 MAX_RESPONSE_BYTES = 1024 * 1024
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+UPLOAD_ALLOWED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"}
+UPLOAD_CONTENT_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
+}
 
 
 HTTP_REQUEST_SCHEMA = {
@@ -57,6 +70,63 @@ HTTP_REQUEST_SCHEMA = {
             "body": {
                 "type": "string",
                 "description": "Optional raw UTF-8 request body. Prefer json for JSON APIs.",
+            },
+            "file_body": {
+                "type": "object",
+                "description": (
+                    "Optional in-scope local image file to send as the raw request body. "
+                    "Use this for endpoints such as POST /api/v1/items/{code}/photos with Content-Type image/jpeg. "
+                    "The HTTP request carries file bytes; the target API does not receive a local path string."
+                ),
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "In-scope local image path under HERMES_MOBILE_HTTP_FILE_ROOTS.",
+                    },
+                    "content_type": {
+                        "type": "string",
+                        "description": "Image content type, for example image/jpeg. Inferred from suffix when omitted.",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Optional filename to send as X-Filename; defaults to the local file name.",
+                    },
+                },
+                "required": ["path"],
+            },
+            "multipart_fields": {
+                "type": "object",
+                "description": "Optional non-file multipart form fields. Use with multipart_files.",
+                "additionalProperties": {"type": ["string", "number", "boolean"]},
+            },
+            "multipart_files": {
+                "type": "array",
+                "description": (
+                    "Optional in-scope local image files to send as multipart/form-data file parts. "
+                    "Use for Program APIs that accept photos[] / photo / file parts."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "field": {
+                            "type": "string",
+                            "description": "Multipart field name. Defaults to file.",
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "In-scope local image path under HERMES_MOBILE_HTTP_FILE_ROOTS.",
+                        },
+                        "content_type": {
+                            "type": "string",
+                            "description": "Image content type. Inferred from suffix when omitted.",
+                        },
+                        "filename": {
+                            "type": "string",
+                            "description": "Multipart filename. Defaults to the local file name.",
+                        },
+                    },
+                    "required": ["path"],
+                },
             },
             "credential_path": {
                 "type": "string",
@@ -153,6 +223,16 @@ def _credential_roots() -> list[Path]:
     return roots
 
 
+def _file_roots() -> list[Path]:
+    roots = []
+    for item in _split_env_list("HERMES_MOBILE_HTTP_FILE_ROOTS", DEFAULT_CREDENTIAL_ROOTS):
+        try:
+            roots.append(Path(_windows_to_wsl_path(item)).resolve())
+        except Exception:
+            continue
+    return roots
+
+
 def _inside_roots(path: Path, roots: list[Path]) -> bool:
     try:
         resolved = path.resolve()
@@ -196,7 +276,9 @@ def _clean_headers(value: Any) -> dict[str, str]:
         "authorization",
         "cookie",
         "host",
+        "content-length",
         "proxy-authorization",
+        "transfer-encoding",
         "x-forwarded-for",
         "x-real-ip",
     }
@@ -229,14 +311,164 @@ def _max_bytes(value: Any) -> int:
     return max(1024, min(MAX_RESPONSE_BYTES, number))
 
 
-def _body(args: dict[str, Any], headers: dict[str, str]) -> bytes | None:
+def _max_upload_bytes() -> int:
+    try:
+        number = int(os.environ.get("HERMES_MOBILE_HTTP_FILE_MAX_BYTES", str(MAX_UPLOAD_BYTES)))
+    except Exception:
+        number = MAX_UPLOAD_BYTES
+    return max(1024, min(80 * 1024 * 1024, number))
+
+
+def _safe_form_name(value: Any, default: str = "file") -> str:
+    name = str(value or default).strip()
+    if not re.match(r"^[A-Za-z0-9_.\-\[\]]{1,80}$", name):
+        raise ValueError(f"invalid_multipart_field: {name}")
+    return name
+
+
+def _safe_filename(value: Any, fallback: str) -> str:
+    name = Path(str(value or fallback).strip().replace("\\", "/")).name
+    name = re.sub(r"[\r\n\x00]+", "", name).strip()
+    if not name:
+        name = fallback
+    return name[:160]
+
+
+def _upload_content_type(path: Path, supplied: Any) -> str:
+    content_type = str(supplied or "").split(";", 1)[0].strip().lower()
+    if not content_type:
+        content_type = UPLOAD_CONTENT_TYPES.get(path.suffix.lower()) or (mimetypes.guess_type(path.name)[0] or "")
+    if not content_type:
+        content_type = "application/octet-stream"
+    return content_type
+
+
+def _load_upload_file(spec: Any, index: int = 1) -> dict[str, Any]:
+    if not isinstance(spec, dict):
+        raise ValueError(f"upload_file_{index}_invalid")
+    path_text = str(spec.get("path") or "").strip()
+    if not path_text:
+        raise ValueError(f"upload_file_{index}_missing_path")
+    path = Path(_windows_to_wsl_path(path_text))
+    if not _inside_roots(path, _file_roots()):
+        raise PermissionError("file_path_outside_allowed_roots")
+    try:
+        resolved = path.resolve()
+        stat = resolved.stat()
+    except FileNotFoundError:
+        raise FileNotFoundError("file_path_not_found") from None
+    if not resolved.is_file():
+        raise ValueError("file_path_not_file")
+    suffix = resolved.suffix.lower()
+    if suffix not in UPLOAD_ALLOWED_SUFFIXES:
+        raise ValueError(f"unsupported_file_suffix: {suffix or '<none>'}")
+    limit = _max_upload_bytes()
+    if stat.st_size > limit:
+        raise ValueError("file_too_large")
+    content_type = _upload_content_type(resolved, spec.get("content_type"))
+    if not content_type.startswith("image/"):
+        raise ValueError(f"unsupported_file_content_type: {content_type}")
+    content = resolved.read_bytes()
+    if len(content) > limit:
+        raise ValueError("file_too_large")
+    return {
+        "filename": _safe_filename(spec.get("filename"), resolved.name),
+        "content_type": content_type,
+        "content": content,
+        "bytes": len(content),
+    }
+
+
+def _body_mode_count(args: dict[str, Any]) -> int:
+    return sum(
+        1
+        for present in (
+            "json" in args and args.get("json") is not None,
+            args.get("body") is not None,
+            args.get("file_body") is not None,
+            bool(args.get("multipart_files")),
+        )
+        if present
+    )
+
+
+def _multipart_body(args: dict[str, Any], headers: dict[str, str]) -> tuple[bytes, dict[str, Any]]:
+    files = args.get("multipart_files")
+    if not isinstance(files, list) or not files:
+        raise ValueError("multipart_files_required")
+    fields = args.get("multipart_fields") or {}
+    if not isinstance(fields, dict):
+        raise ValueError("multipart_fields_must_be_object")
+    boundary = f"----HermesMobileHTTP{secrets.token_hex(16)}"
+    chunks: list[bytes] = []
+    for raw_name, raw_value in fields.items():
+        name = _safe_form_name(raw_name, "field")
+        chunks.extend(
+            [
+                f"--{boundary}\r\n".encode("ascii"),
+                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("ascii"),
+                str(raw_value).encode("utf-8"),
+                b"\r\n",
+            ]
+        )
+    file_names: list[str] = []
+    total_file_bytes = 0
+    for index, spec in enumerate(files, start=1):
+        if not isinstance(spec, dict):
+            raise ValueError(f"multipart_file_{index}_invalid")
+        field = _safe_form_name(spec.get("field"), "file")
+        loaded = _load_upload_file(spec, index)
+        file_names.append(loaded["filename"])
+        total_file_bytes += int(loaded["bytes"])
+        chunks.extend(
+            [
+                f"--{boundary}\r\n".encode("ascii"),
+                (
+                    f'Content-Disposition: form-data; name="{field}"; '
+                    f'filename="{loaded["filename"]}"\r\n'
+                ).encode("utf-8"),
+                f'Content-Type: {loaded["content_type"]}\r\n\r\n'.encode("ascii"),
+                loaded["content"],
+                b"\r\n",
+            ]
+        )
+    chunks.append(f"--{boundary}--\r\n".encode("ascii"))
+    body = b"".join(chunks)
+    if total_file_bytes > _max_upload_bytes() or len(body) > _max_upload_bytes() + 1024 * 1024:
+        raise ValueError("multipart_body_too_large")
+    headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+    return body, {
+        "request_body_mode": "multipart",
+        "request_file_count": len(file_names),
+        "request_file_names": file_names,
+        "request_body_bytes": len(body),
+    }
+
+
+def _body(args: dict[str, Any], headers: dict[str, str]) -> tuple[bytes | None, dict[str, Any]]:
+    if _body_mode_count(args) > 1:
+        raise ValueError("multiple_request_bodies")
+    if args.get("multipart_files"):
+        return _multipart_body(args, headers)
+    if args.get("file_body") is not None:
+        loaded = _load_upload_file(args.get("file_body"), 1)
+        headers.setdefault("Content-Type", loaded["content_type"])
+        headers.setdefault("X-Filename", loaded["filename"])
+        return loaded["content"], {
+            "request_body_mode": "file_body",
+            "request_file_count": 1,
+            "request_file_names": [loaded["filename"]],
+            "request_body_bytes": int(loaded["bytes"]),
+        }
     if "json" in args and args.get("json") is not None:
         headers.setdefault("Content-Type", "application/json")
-        return json.dumps(args.get("json"), ensure_ascii=False).encode("utf-8")
+        body = json.dumps(args.get("json"), ensure_ascii=False).encode("utf-8")
+        return body, {"request_body_mode": "json", "request_body_bytes": len(body)}
     body = args.get("body")
     if body is None:
-        return None
-    return str(body).encode("utf-8")
+        return None, {"request_body_mode": "none", "request_body_bytes": 0}
+    encoded = str(body).encode("utf-8")
+    return encoded, {"request_body_mode": "text", "request_body_bytes": len(encoded)}
 
 
 def _parse_response(data: bytes, content_type: str) -> dict[str, Any]:
@@ -268,7 +500,7 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
             headers["Authorization"] = f"Bearer {token}"
         headers.setdefault("Accept", "application/json, text/plain;q=0.9, */*;q=0.1")
         headers.setdefault("User-Agent", "HermesMobileHTTP/1.0")
-        data = _body(args, headers)
+        data, request_meta = _body(args, headers)
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         opener = urllib.request.build_opener(_NoRedirect)
         limit = _max_bytes(args.get("max_bytes"))
@@ -290,6 +522,7 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
                     "credential_loaded": bool(token),
                     "credential_path": credential_path or "",
                 }
+                payload.update(request_meta)
                 if method != "HEAD":
                     payload.update(_parse_response(raw, content_type))
                 return _json(payload)
@@ -310,6 +543,7 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
                 "credential_loaded": bool(token),
                 "credential_path": credential_path or "",
             }
+            payload.update(request_meta)
             payload.update(_parse_response(raw, content_type))
             return _json(payload)
     except Exception as error:
