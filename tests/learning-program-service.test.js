@@ -198,10 +198,45 @@ function testFoundationRecordsRejectPrivatePayloadKeys() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function testSourceDirectoryBootstrapCreatesEditableFoundation() {
+  const root = tempRoot();
+  const ownerDriveRoot = path.join(root, "owner-drive");
+  seedFanfanSourceDirectory(ownerDriveRoot);
+  const { service, repository } = createService(root, { ownerDriveRoot });
+  const bootstrapped = service.bootstrapFromSourceDirectory({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+  });
+  assert.equal(bootstrapped.ok, true);
+  assert.equal(bootstrapped.created.sources, 2);
+  assert.equal(bootstrapped.created.goal, 1);
+  assert.equal(bootstrapped.created.program, 1);
+  assert.equal(bootstrapped.created.profile, 1);
+  assert.equal(repository.listSources({ learnerId: "weixin_stephen" }).length, 2);
+  assert.equal(repository.listGoals({ learnerId: "weixin_stephen", status: "active" }).length, 1);
+  assert.equal(repository.listPrograms({ learnerId: "weixin_stephen" }).length, 1);
+  assert.ok(bootstrapped.program.focusAreas.includes("english_short_writing"));
+  assert.doesNotMatch(JSON.stringify(bootstrapped), /rawTranscript|questionText|answerKey|prompt|fullTranscript/);
+
+  const repeated = service.bootstrapFromSourceDirectory({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+  });
+  assert.equal(repeated.created.goal, 0);
+  assert.equal(repeated.created.program, 0);
+  assert.equal(repeated.reused.goal, 1);
+  assert.equal(repeated.reused.program, 1);
+  assert.equal(repository.listGoals({ learnerId: "weixin_stephen", status: "active" }).length, 1);
+  assert.equal(repository.listPrograms({ learnerId: "weixin_stephen" }).length, 1);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 (async () => {
   await testCreateDraftApprovePublish();
   await testBlockedDraftDoesNotPublish();
   testFoundationRecordsRejectPrivatePayloadKeys();
+  testSourceDirectoryBootstrapCreatesEditableFoundation();
   console.log("learning program service tests passed");
 })().catch((err) => {
   console.error(err);

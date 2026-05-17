@@ -149,6 +149,7 @@ function testOwnerFormAndActionsRender() {
   assert.match(html, /data-learning-foundation/);
   assert.match(html, /data-learning-source-directories/);
   assert.match(html, /data-learning-source-directory-import="learning-materials:weixin_stephen"/);
+  assert.match(html, /data-learning-source-directory-bootstrap="learning-materials:weixin_stephen"/);
   assert.match(html, /data-learning-source-create/);
   assert.match(html, /data-learning-goal-create/);
   assert.match(html, /data-learning-foundation-import/);
@@ -180,6 +181,7 @@ function testNonOwnerCannotSeeCreateForm() {
   assert.doesNotMatch(html, /data-learning-source-create/);
   assert.doesNotMatch(html, /data-learning-source-directories/);
   assert.doesNotMatch(html, /data-learning-source-directory-import/);
+  assert.doesNotMatch(html, /data-learning-source-directory-bootstrap/);
   assert.doesNotMatch(html, /data-learning-goal-create/);
   assert.doesNotMatch(html, /data-learning-foundation-import/);
   assert.doesNotMatch(html, /data-learning-parent-report/);

@@ -6769,6 +6769,11 @@ button.directory-alias-chip {
   line-height: 1.4;
 }
 
+.learning-source-directory-actions {
+  display: grid;
+  gap: 8px;
+}
+
 .learning-foundation-owner-grid,
 .learning-foundation-grid {
   display: grid;
@@ -7568,6 +7573,7 @@ button.directory-alias-chip {
 
   .learning-growth-shell-hero,
   .learning-source-directory-card,
+  .learning-source-directory-actions,
   .learning-foundation-owner-grid,
   .learning-foundation-grid,
   .learning-program-execution-grid,

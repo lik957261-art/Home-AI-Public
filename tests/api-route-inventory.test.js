@@ -231,11 +231,12 @@ const ROUTE_MODULES = Object.freeze([
     key: "learning-program-api-routes",
     exportName: "createLearningProgramApiRoutes",
     required: true,
-    minRoutes: 31,
+    minRoutes: 32,
     probes: [
       { method: "GET", path: "/api/learning/programs", id: "learning-programs-list" },
       { method: "POST", path: "/api/learning/sources", id: "learning-sources-create" },
       { method: "POST", path: "/api/learning/source-directory/import", id: "learning-source-directory-import" },
+      { method: "POST", path: "/api/learning/source-directory/bootstrap", id: "learning-source-directory-bootstrap" },
       { method: "GET", path: "/api/learning/profile", id: "learning-profile-read" },
       { method: "GET", path: "/api/learning/curriculum-references", id: "learning-curriculum-references-list" },
       { method: "POST", path: "/api/learning/foundation-import", id: "learning-foundation-import" },
@@ -357,6 +358,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/status" }).id, "learning-status");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/sources" }).id, "learning-sources-list");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/source-directory/import" }).id, "learning-source-directory-import");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/source-directory/bootstrap" }).id, "learning-source-directory-bootstrap");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/goals" }).id, "learning-goals-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/profile/rebuild" }).id, "learning-profile-rebuild");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/curriculum-references" }).id, "learning-curriculum-references-list");
@@ -385,7 +387,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
 function testLearningProgramInventoryMatchesRouteModuleSpecs() {
   const inventoryById = new Map(listHermesMobileApiRoutes().map((route) => [route.id, route]));
   const moduleRoutes = createApiRouteRegistry(LEARNING_PROGRAM_API_ROUTE_SPECS).list();
-  assert.equal(moduleRoutes.length, 31);
+  assert.equal(moduleRoutes.length, 32);
   for (const expected of moduleRoutes) {
     const actual = inventoryById.get(expected.id);
     assert.ok(actual, `global inventory is missing ${expected.id}`);

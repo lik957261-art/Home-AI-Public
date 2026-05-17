@@ -190,7 +190,10 @@
             <p>${escapeHtml(`Summary only / ${available} summaries / ${directory.policy || "summary_only_cleaned_data"}`)}</p>
             <small>${escapeHtml(fileMeta)}</small>
           </div>
-          <button type="button" data-learning-source-directory-import="${escapeHtml(directory.bindingId || "")}">\u5bfc\u5165\u6e05\u6d17\u6458\u8981</button>
+          <div class="learning-source-directory-actions">
+            <button type="button" data-learning-source-directory-import="${escapeHtml(directory.bindingId || "")}">\u5bfc\u5165\u6e05\u6d17\u6458\u8981</button>
+            <button type="button" data-learning-source-directory-bootstrap="${escapeHtml(directory.bindingId || "")}">\u521d\u59cb\u5316\u76ee\u6807\u8ba1\u5212</button>
+          </div>
         </article>`;
       }).join("")}
     </div>`;

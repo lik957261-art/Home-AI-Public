@@ -319,6 +319,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-source", "learning-source-directory"],
   })),
+  exact("learning-source-directory-bootstrap", "POST", "/api/learning/source-directory/bootstrap", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-source", "learning-goal", "learning-program", "learner-profile"],
+  })),
   exact("learning-goals-list", "GET", "/api/learning/goals", "learning-program", routeOptions("learning-program", {
     riskLevel: "owner",
     ownerOnly: true,

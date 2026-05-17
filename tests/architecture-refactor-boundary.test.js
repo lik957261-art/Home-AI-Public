@@ -71,6 +71,7 @@ const learningProgramService = require("../adapters/learning-program-service");
 const learningRecordPrivacyService = require("../adapters/learning-record-privacy-service");
 const learningRewardSettlementService = require("../adapters/learning-reward-settlement-service");
 const learningSkillTaxonomyService = require("../adapters/learning-skill-taxonomy-service");
+const learningSourceBootstrapService = require("../adapters/learning-source-bootstrap-service");
 const learningSourceDirectoryService = require("../adapters/learning-source-directory-service");
 const learningSourceService = require("../adapters/learning-source-service");
 const learningTaskCardService = require("../adapters/learning-task-card-service");
@@ -258,6 +259,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningRecordPrivacyService.assertNoPrivateLearningPayload, "function");
   assert.equal(typeof learningRewardSettlementService.createLearningRewardSettlementService, "function");
   assert.equal(typeof learningSkillTaxonomyService.createLearningSkillTaxonomyService, "function");
+  assert.equal(typeof learningSourceBootstrapService.createLearningSourceBootstrapService, "function");
+  assert.equal(typeof learningSourceBootstrapService.defaultEnglishFocusAreas, "function");
   assert.equal(typeof learningSourceDirectoryService.createLearningSourceDirectoryService, "function");
   assert.equal(typeof learningSourceDirectoryService.defaultLearningSourceDirectoryBindings, "function");
   assert.equal(typeof learningSourceService.createLearningSourceService, "function");

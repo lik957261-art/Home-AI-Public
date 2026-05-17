@@ -97,6 +97,15 @@ function makeRoutes(overrides = {}) {
         counts: { sources: 2, importedSources: 2 },
       };
     },
+    bootstrapFromSourceDirectory(input) {
+      calls.push(["bootstrapFromSourceDirectory", input]);
+      return {
+        ok: true,
+        created: { sources: 2, goal: 1, program: 1, profile: 1 },
+        goal: { goalId: "goal-1", domain: "english" },
+        program: { programId: "program-1", domain: "english" },
+      };
+    },
     generateParentReport(input) {
       calls.push(["generateParentReport", input]);
       return { ok: true, reportType: "parent_weekly_summary", workspaceId: input.workspaceId, learnerId: input.learnerId };
@@ -216,11 +225,12 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 31);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 32);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/source-directory/import" }).id, "learning-source-directory-import");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/source-directory/bootstrap" }).id, "learning-source-directory-bootstrap");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
@@ -232,7 +242,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 31);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 32);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -285,6 +295,13 @@ async function testStudentCannotReadManagementSurfaces() {
   });
   assert.equal(importDenied.res.statusCode, 403);
   assert.equal(importDenied.body.error, "Owner access required");
+
+  const bootstrapDenied = await request(routes, "POST", "/api/learning/source-directory/bootstrap", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { workspaceId: "weixin_stephen", learnerId: "weixin_stephen" },
+  });
+  assert.equal(bootstrapDenied.res.statusCode, 403);
+  assert.equal(bootstrapDenied.body.error, "Owner access required");
 }
 
 async function testReviewDecision() {
@@ -338,6 +355,16 @@ async function testFoundationRoutes() {
   assert.equal(directoryImport.body.counts.sources, 2);
   assert.equal(directoryImport.body.binding.directoryLabel, "\u5b66\u4e60\u8d44\u6599");
   assert.equal(calls.at(-1)[0], "importSourceDirectory");
+  assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
+  assert.equal(calls.at(-1)[1].learnerId, "weixin_stephen");
+
+  const bootstrap = await request(routes, "POST", "/api/learning/source-directory/bootstrap?workspaceId=weixin_stephen", {
+    body: { learnerId: "weixin_stephen", bindingId: "learning-materials:weixin_stephen" },
+  });
+  assert.equal(bootstrap.res.statusCode, 201);
+  assert.equal(bootstrap.body.created.goal, 1);
+  assert.equal(bootstrap.body.created.program, 1);
+  assert.equal(calls.at(-1)[0], "bootstrapFromSourceDirectory");
   assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
   assert.equal(calls.at(-1)[1].learnerId, "weixin_stephen");
 

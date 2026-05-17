@@ -99,6 +99,22 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "source", "directory", "owner", "sqlite"],
   },
   {
+    id: "learning-source-directory-bootstrap",
+    method: "POST",
+    path: "/api/learning/source-directory/bootstrap",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "bootstrapFromSourceDirectory",
+    summary: "Owner bootstraps learner goals, profile, and editable program scope from managed cleaned summaries.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-source", "learning-goal", "learning-program", "learner-profile"],
+    tags: ["learning", "source", "bootstrap", "owner", "sqlite"],
+  },
+  {
     id: "learning-goals-list",
     method: "GET",
     path: "/api/learning/goals",
@@ -616,6 +632,29 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
   }
 
+  async function handleSourceDirectoryBootstrap(req, res, url, auth) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const requestedWorkspace = cleanString(body.workspaceId || url.searchParams.get("workspaceId")) || "weixin_stephen";
+      const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspace);
+      if (!workspaceId) return;
+      const learnerId = cleanString(body.learnerId || body.studentId || url.searchParams.get("learnerId") || url.searchParams.get("studentId")) || workspaceId;
+      deps.sendJson(res, 201, service.bootstrapFromSourceDirectory(Object.assign({}, body, {
+        workspaceId,
+        learnerId,
+        importedByPrincipalId: auth?.principalId || owner.principalId || "owner",
+      })));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
   async function handleGoalList(req, res, url, auth) {
     let query;
     try {
@@ -1052,6 +1091,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-sources-list") await handleSourceList(req, res, url, auth);
     else if (route.id === "learning-sources-create") await handleSourceCreate(req, res, auth);
     else if (route.id === "learning-source-directory-import") await handleSourceDirectoryImport(req, res, url, auth);
+    else if (route.id === "learning-source-directory-bootstrap") await handleSourceDirectoryBootstrap(req, res, url, auth);
     else if (route.id === "learning-goals-list") await handleGoalList(req, res, url, auth);
     else if (route.id === "learning-goals-create") await handleGoalCreate(req, res, auth);
     else if (route.id === "learning-goal-update") await handleGoalUpdate(req, res, url);

@@ -15,6 +15,7 @@ const { createLearningParentReviewRequestService } = require("./learning-parent-
 const { createLearningPlanDecompositionService } = require("./learning-plan-decomposition-service");
 const { createLearningRewardSettlementService } = require("./learning-reward-settlement-service");
 const { createLearningSkillTaxonomyService } = require("./learning-skill-taxonomy-service");
+const { createLearningSourceBootstrapService } = require("./learning-source-bootstrap-service");
 const { createLearningSourceDirectoryService } = require("./learning-source-directory-service");
 const { createLearningSourceService } = require("./learning-source-service");
 const { createLearningTaskCardService } = require("./learning-task-card-service");
@@ -165,6 +166,13 @@ function createLearningProgramService(options = {}) {
     repository,
     sourceService,
     goalService,
+  });
+  const sourceBootstrapService = options.sourceBootstrapService || createLearningSourceBootstrapService({
+    sourceDirectoryService,
+    goalService,
+    learnerProfileService,
+    listPrograms,
+    createProgram,
   });
   const parentReportService = options.parentReportService || createLearningParentReportService({ repository });
 
@@ -388,6 +396,10 @@ function createLearningProgramService(options = {}) {
     return sourceDirectoryService.importSummaries(input);
   }
 
+  function bootstrapFromSourceDirectory(input = {}) {
+    return sourceBootstrapService.bootstrap(input);
+  }
+
   function saveGoal(input = {}) {
     return goalService.save(input);
   }
@@ -512,6 +524,7 @@ function createLearningProgramService(options = {}) {
     saveSource,
     startTaskSession,
     advanceInteractionSession,
+    bootstrapFromSourceDirectory,
     updateGoal,
     updateProgram,
   };
