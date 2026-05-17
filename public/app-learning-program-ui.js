@@ -171,6 +171,31 @@
     </form>`;
   }
 
+  function renderSourceDirectoryPanel(sourceDirectories = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!isOwner(options)) return "";
+    const directories = asArray(sourceDirectories);
+    if (!directories.length) return "";
+    return `<div class="learning-source-directory-panel" data-learning-source-directories>
+      ${directories.map((directory) => {
+        const summaryFiles = asArray(directory.summaryFiles);
+        const available = Number(directory.availableSummaryCount || summaryFiles.filter((item) => item.exists).length || 0);
+        const label = directory.directoryLabel || "\u5b66\u4e60\u8d44\u6599";
+        const fileMeta = summaryFiles.length
+          ? summaryFiles.map((item) => `${item.exists ? "\u5df2\u8bc6\u522b" : "\u672a\u627e\u5230"}:${item.role || item.ref || ""}`).join(" / ")
+          : "\u5c1a\u672a\u68c0\u6d4b\u5230\u6e05\u6d17\u6458\u8981";
+        return `<article class="learning-source-directory-card" data-learning-source-directory="${escapeHtml(directory.bindingId || "")}">
+          <div>
+            <strong>${escapeHtml(label)} 路 ${escapeHtml(directory.displayName || directory.learnerId || "")}</strong>
+            <p>${escapeHtml(`Summary only / ${available} summaries / ${directory.policy || "summary_only_cleaned_data"}`)}</p>
+            <small>${escapeHtml(fileMeta)}</small>
+          </div>
+          <button type="button" data-learning-source-directory-import="${escapeHtml(directory.bindingId || "")}">\u5bfc\u5165\u6e05\u6d17\u6458\u8981</button>
+        </article>`;
+      }).join("")}
+    </div>`;
+  }
+
   function renderFoundationPanel(data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     if (!isOwner(options)) return "";
@@ -183,6 +208,7 @@
         <h3>\u5b66\u4e60\u57fa\u7840\u6570\u636e</h3>
         <button type="button" data-learning-profile-rebuild>\u91cd\u5efa\u753b\u50cf</button>
       </div>
+      ${renderSourceDirectoryPanel(data.sourceDirectories || [], options)}
       ${renderSourceGoalForms(options)}
       ${renderFoundationImportForm(options)}
       <div class="learning-foundation-grid">
@@ -692,5 +718,6 @@
     renderParentReviewRequests,
     renderReviewQueue,
     renderRewardSettlements,
+    renderSourceDirectoryPanel,
   };
 }));

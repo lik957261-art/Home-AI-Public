@@ -26,9 +26,25 @@ function createService(root, overrides = {}) {
   return { service, repository, publishCalls };
 }
 
+function seedFanfanSourceDirectory(ownerDriveRoot) {
+  const fanfanRoot = path.join(ownerDriveRoot, "Hermes-\u5f90\u6b23", "\u51e1\u51e1");
+  fs.mkdirSync(path.join(fanfanRoot, ".hermes-cleaned"), { recursive: true });
+  fs.mkdirSync(path.join(fanfanRoot, "\u5b66\u4e60\u8ba1\u5212", ".hermes-cleaned"), { recursive: true });
+  fs.writeFileSync(path.join(fanfanRoot, ".hermes-cleaned", "summary.md"), "Cumulative cleaned learning summary only.", "utf8");
+  fs.writeFileSync(path.join(fanfanRoot, "\u5b66\u4e60\u8ba1\u5212", ".hermes-cleaned", "summary.md"), "Learning plan cleaned summary only.", "utf8");
+}
+
 async function testCreateDraftApprovePublish() {
   const root = tempRoot();
-  const { service, publishCalls, repository } = createService(root);
+  const ownerDriveRoot = path.join(root, "owner-drive");
+  seedFanfanSourceDirectory(ownerDriveRoot);
+  const { service, publishCalls, repository } = createService(root, { ownerDriveRoot });
+  const directoryImport = service.importSourceDirectory({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+  });
+  assert.equal(directoryImport.counts.sources, 2);
+  assert.equal(directoryImport.binding.directoryLabel, "\u5b66\u4e60\u8d44\u6599");
   const source = service.saveSource({
     workspaceId: "weixin_stephen",
     learnerId: "weixin_stephen",
@@ -97,7 +113,7 @@ async function testCreateDraftApprovePublish() {
   const profile = service.rebuildLearnerProfile({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
   assert.ok(profile.skillStates.some((state) => state.skillId === "english_short_writing"));
   const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
-  assert.equal(overview.sources.length, 1);
+  assert.equal(overview.sources.length, 3);
   assert.equal(overview.goals.length, 1);
   assert.equal(overview.taskCards.length, drafted.draft.taskCount);
   assert.equal(overview.dailyPlan.summary.totalTasks, drafted.draft.taskCount);
@@ -111,6 +127,8 @@ async function testCreateDraftApprovePublish() {
   const loadedSession = service.getInteractionSession(startedSession.sessionId);
   assert.equal(loadedSession.sessionId, startedSession.sessionId);
   assert.equal(loadedSession.learnerId, "weixin_stephen");
+  assert.equal(overview.sourceDirectories[0].directoryLabel, "\u5b66\u4e60\u8d44\u6599");
+  assert.equal(overview.sourceDirectories[0].availableSummaryCount, 2);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }

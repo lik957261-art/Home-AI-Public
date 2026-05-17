@@ -270,6 +270,13 @@ async function submitLearningFoundationImportForm(event) {
   await loadLearningCoins({ limit: 30 });
 }
 
+async function importLearningSourceDirectory(bindingId) {
+  const body = Object.assign(learningLearnerBody(), { bindingId });
+  await api("/api/learning/source-directory/import", { method: "POST", body: JSON.stringify(body) });
+  showPushToast("\u5b66\u4e60\u8d44\u6599\u6e05\u6d17\u6458\u8981\u5df2\u5bfc\u5165", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
 async function rebuildLearningProfile() {
   await api(`/api/learning/profile/rebuild?${learningCoinRequestParams({ limit: 30 })}`, {
     method: "POST",
@@ -421,6 +428,9 @@ function wireLearningCoinsView() {
   });
   $("learningFoundationImportForm")?.addEventListener("submit", (event) => {
     submitLearningFoundationImportForm(event).catch(showError);
+  });
+  $("conversation")?.querySelectorAll("[data-learning-source-directory-import]").forEach((button) => {
+    button.addEventListener("click", () => importLearningSourceDirectory(button.dataset.learningSourceDirectoryImport).catch(showError));
   });
   $("conversation")?.querySelector("[data-learning-profile-rebuild]")?.addEventListener("click", () => {
     rebuildLearningProfile().catch(showError);

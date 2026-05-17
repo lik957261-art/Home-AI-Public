@@ -89,6 +89,14 @@ function makeRoutes(overrides = {}) {
       calls.push(["importFoundationData", input]);
       return { ok: true, counts: { sources: 1 }, workspaceId: input.workspaceId, learnerId: input.learnerId };
     },
+    importSourceDirectory(input) {
+      calls.push(["importSourceDirectory", input]);
+      return {
+        ok: true,
+        binding: { bindingId: input.bindingId || "learning-materials:weixin_stephen", directoryLabel: "\u5b66\u4e60\u8d44\u6599" },
+        counts: { sources: 2, importedSources: 2 },
+      };
+    },
     generateParentReport(input) {
       calls.push(["generateParentReport", input]);
       return { ok: true, reportType: "parent_weekly_summary", workspaceId: input.workspaceId, learnerId: input.learnerId };
@@ -208,10 +216,11 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 30);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 31);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/source-directory/import" }).id, "learning-source-directory-import");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
@@ -223,7 +232,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 30);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 31);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -269,6 +278,13 @@ async function testStudentCannotReadManagementSurfaces() {
     assert.equal(response.res.statusCode, 403, path);
     assert.equal(response.body.error, "Owner access required", path);
   }
+
+  const importDenied = await request(routes, "POST", "/api/learning/source-directory/import", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { workspaceId: "weixin_stephen", learnerId: "weixin_stephen" },
+  });
+  assert.equal(importDenied.res.statusCode, 403);
+  assert.equal(importDenied.body.error, "Owner access required");
 }
 
 async function testReviewDecision() {
@@ -314,6 +330,16 @@ async function testFoundationRoutes() {
   assert.equal(imported.res.statusCode, 201);
   assert.equal(imported.body.counts.sources, 1);
   assert.equal(calls.at(-1)[0], "importFoundationData");
+
+  const directoryImport = await request(routes, "POST", "/api/learning/source-directory/import?workspaceId=weixin_stephen", {
+    body: { learnerId: "weixin_stephen", bindingId: "learning-materials:weixin_stephen" },
+  });
+  assert.equal(directoryImport.res.statusCode, 201);
+  assert.equal(directoryImport.body.counts.sources, 2);
+  assert.equal(directoryImport.body.binding.directoryLabel, "\u5b66\u4e60\u8d44\u6599");
+  assert.equal(calls.at(-1)[0], "importSourceDirectory");
+  assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
+  assert.equal(calls.at(-1)[1].learnerId, "weixin_stephen");
 
   const report = await request(routes, "GET", "/api/learning/reports/parent?workspaceId=weixin_stephen&learnerId=weixin_stephen&startDate=2026-05-11&endDate=2026-05-17");
   assert.equal(report.res.statusCode, 200);

@@ -109,6 +109,17 @@ const programs = {
     confidence: 0.64,
   }],
   sources: [{ sourceId: "source-1", title: "School summary", sourceType: "school" }],
+  sourceDirectories: [{
+    bindingId: "learning-materials:weixin_stephen",
+    directoryLabel: "\u5b66\u4e60\u8d44\u6599",
+    displayName: "\u51e1\u51e1",
+    availableSummaryCount: 2,
+    policy: "summary_only_cleaned_data",
+    summaryFiles: [
+      { role: "parent_cumulative_cleaned_summary", exists: true },
+      { role: "learning_plan_cleaned_summary", exists: true },
+    ],
+  }],
   goals: [{ goalId: "goal-1", title: "English output", domain: "english" }],
   learnerProfile: { learnerId: "weixin_stephen", profileSummary: "sources=1; goals=1" },
   curriculumReferences: [{ referenceId: "cefr-a2-b1-english-growth", title: "CEFR A2-B1 English growth bridge" }],
@@ -136,6 +147,8 @@ function testOwnerFormAndActionsRender() {
   assert.match(html, /data-learning-task-start="task-2"/);
   assert.match(html, /data-learning-evaluation-summary="eval-1"/);
   assert.match(html, /data-learning-foundation/);
+  assert.match(html, /data-learning-source-directories/);
+  assert.match(html, /data-learning-source-directory-import="learning-materials:weixin_stephen"/);
   assert.match(html, /data-learning-source-create/);
   assert.match(html, /data-learning-goal-create/);
   assert.match(html, /data-learning-foundation-import/);
@@ -165,6 +178,8 @@ function testNonOwnerCannotSeeCreateForm() {
   });
   assert.doesNotMatch(html, /data-learning-program-create/);
   assert.doesNotMatch(html, /data-learning-source-create/);
+  assert.doesNotMatch(html, /data-learning-source-directories/);
+  assert.doesNotMatch(html, /data-learning-source-directory-import/);
   assert.doesNotMatch(html, /data-learning-goal-create/);
   assert.doesNotMatch(html, /data-learning-foundation-import/);
   assert.doesNotMatch(html, /data-learning-parent-report/);

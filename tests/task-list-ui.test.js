@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260517-learning-launch-ops";
+const CLIENT_VERSION = "20260517-learning-source-directory";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -74,6 +74,7 @@ const appLearningReadingUiJs = fs.readFileSync(path.join(repoRoot, "public", "ap
 const appLearningCoinsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-coins-ui.js"), "utf8");
 const appLearningProgramUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-program-ui.js"), "utf8");
 const appLearningGrowthUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ui.js"), "utf8");
+const appLearningGrowthControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-controller.js"), "utf8");
 const appApiClientJs = fs.readFileSync(path.join(repoRoot, "public", "app-api-client.js"), "utf8");
 
 assert.match(appJs, /function taskGroupsForThread\(thread\)/);
@@ -799,6 +800,8 @@ assert.match(appJs, /params\.set\("workspaceId", learningGrowthLearnerWorkspaceI
 assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
   assert.match(appJs, /function learningProgramFormBody\(\)/);
   assert.match(appJs, /function learningSourceFormBody\(\)/);
+  assert.match(appLearningGrowthControllerJs, /function importLearningSourceDirectory\(/);
+  assert.match(appLearningGrowthControllerJs, /\/api\/learning\/source-directory\/import/);
   assert.match(appJs, /function learningGoalFormBody\(\)/);
   assert.match(appJs, /function rebuildLearningProfile\(\)/);
   assert.match(appJs, /function decideLearningParentReviewRequest\(reviewRequestId, decision\)/);
@@ -835,6 +838,8 @@ assert.match(appLearningGrowthUiJs, /Learning V1 readiness/);
   assert.match(appLearningProgramUiJs, /renderGuidancePanel/);
   assert.match(appLearningProgramUiJs, /renderParentAdminPanel/);
   assert.match(appLearningProgramUiJs, /renderFoundationPanel/);
+  assert.match(appLearningProgramUiJs, /renderSourceDirectoryPanel/);
+  assert.match(appLearningProgramUiJs, /data-learning-source-directory-import/);
   assert.match(appLearningProgramUiJs, /data-learning-source-create/);
   assert.match(appLearningProgramUiJs, /data-learning-goal-create/);
   assert.match(appLearningProgramUiJs, /data-learning-program-create/);
@@ -858,6 +863,7 @@ assert.match(stylesCss, /\.learning-evaluation-inline-form/);
 assert.match(stylesCss, /\.nav-learning-icon::before \{[\s\S]*?box-shadow: 7px -4px 0 currentColor, 14px -9px 0 currentColor;/);
 assert.match(stylesCss, /\.learning-growth-panel/);
   assert.match(stylesCss, /\.learning-foundation-grid/);
+  assert.match(stylesCss, /\.learning-source-directory-card/);
   assert.match(stylesCss, /\.learning-program-actions \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(92px, 1fr\)\)/);
 assert.match(stylesCss, /\.learning-program-focus-grid \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(92px, 1fr\)\)/);
 assert.match(stylesCss, /\.learning-growth-progress/);

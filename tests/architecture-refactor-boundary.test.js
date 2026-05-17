@@ -71,6 +71,7 @@ const learningProgramService = require("../adapters/learning-program-service");
 const learningRecordPrivacyService = require("../adapters/learning-record-privacy-service");
 const learningRewardSettlementService = require("../adapters/learning-reward-settlement-service");
 const learningSkillTaxonomyService = require("../adapters/learning-skill-taxonomy-service");
+const learningSourceDirectoryService = require("../adapters/learning-source-directory-service");
 const learningSourceService = require("../adapters/learning-source-service");
 const learningTaskCardService = require("../adapters/learning-task-card-service");
 const learningTemplateRegistryService = require("../adapters/learning-template-registry-service");
@@ -257,6 +258,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningRecordPrivacyService.assertNoPrivateLearningPayload, "function");
   assert.equal(typeof learningRewardSettlementService.createLearningRewardSettlementService, "function");
   assert.equal(typeof learningSkillTaxonomyService.createLearningSkillTaxonomyService, "function");
+  assert.equal(typeof learningSourceDirectoryService.createLearningSourceDirectoryService, "function");
+  assert.equal(typeof learningSourceDirectoryService.defaultLearningSourceDirectoryBindings, "function");
   assert.equal(typeof learningSourceService.createLearningSourceService, "function");
   assert.equal(typeof learningTaskCardService.createLearningTaskCardService, "function");
   assert.equal(typeof learningTemplateRegistryService.createLearningTemplateRegistryService, "function");
@@ -345,6 +348,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof appLearningCoinsUi.renderCoinsSubsystem, "function");
   assert.equal(typeof appLearningGrowthUi.renderLearningGrowthView, "function");
   assert.equal(typeof appLearningProgramUi.renderProgramSubsystem, "function");
+  assert.equal(typeof appLearningProgramUi.renderSourceDirectoryPanel, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingQuizPanel, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingSubmissionPanel, "function");
   assert.equal(typeof appLearningReadingUi.renderKanbanReadingWorkflowPanel, "function");

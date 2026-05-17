@@ -15,6 +15,7 @@ const { createLearningParentReviewRequestService } = require("./learning-parent-
 const { createLearningPlanDecompositionService } = require("./learning-plan-decomposition-service");
 const { createLearningRewardSettlementService } = require("./learning-reward-settlement-service");
 const { createLearningSkillTaxonomyService } = require("./learning-skill-taxonomy-service");
+const { createLearningSourceDirectoryService } = require("./learning-source-directory-service");
 const { createLearningSourceService } = require("./learning-source-service");
 const { createLearningTaskCardService } = require("./learning-task-card-service");
 const { createLearningTemplateRegistryService } = require("./learning-template-registry-service");
@@ -141,6 +142,12 @@ function createLearningProgramService(options = {}) {
   const reviewQueue = options.reviewQueue || createLearningParentReviewQueueService({ repository });
   const publishService = options.publishService || null;
   const sourceService = options.sourceService || createLearningSourceService({ repository });
+  const sourceDirectoryService = options.sourceDirectoryService || createLearningSourceDirectoryService({
+    sourceService,
+    dataDir: options.dataDir,
+    ownerDriveRoot: options.ownerDriveRoot,
+    bindings: options.sourceDirectoryBindings,
+  });
   const goalService = options.goalService || createLearningGoalService({ repository, taxonomy });
   const curriculumReferenceService = options.curriculumReferenceService || createCurriculumReferenceService({ repository });
   const learnerProfileService = options.learnerProfileService || createLearnerProfileService({ repository });
@@ -329,6 +336,7 @@ function createLearningProgramService(options = {}) {
     const latestDrafts = programs.map((program) => repository.latestDraftForProgram(program.programId)).filter(Boolean).map(summarizeDraft);
     const reviewItems = repository.listReviewItems({ learnerId, status: "pending", limit: 20 });
     const sources = sourceService.list({ learnerId, workspaceId, limit: 30 });
+    const sourceDirectories = sourceDirectoryService.listBindings({ learnerId, workspaceId });
     const goals = goalService.list({ learnerId, workspaceId, limit: 30 });
     const profile = learnerProfileService.get({ learnerId, workspaceId });
     const curriculumReferences = curriculumReferenceService.listReferences({ limit: 20 });
@@ -344,6 +352,7 @@ function createLearningProgramService(options = {}) {
       latestDrafts,
       reviewItems,
       sources,
+      sourceDirectories,
       goals,
       dailyPlan: currentDailyPlan,
       taskCards,
@@ -369,6 +378,14 @@ function createLearningProgramService(options = {}) {
 
   function saveSource(input = {}) {
     return sourceService.save(input);
+  }
+
+  function listSourceDirectories(filters = {}) {
+    return sourceDirectoryService.listBindings(filters);
+  }
+
+  function importSourceDirectory(input = {}) {
+    return sourceDirectoryService.importSummaries(input);
   }
 
   function saveGoal(input = {}) {
@@ -472,6 +489,7 @@ function createLearningProgramService(options = {}) {
     getRewardSettlement,
     getTaskCard,
     importFoundationData,
+    importSourceDirectory,
     listEvaluations,
     listExecutorTaskQueue,
     listInteractionSessions,
@@ -479,6 +497,7 @@ function createLearningProgramService(options = {}) {
     listPrograms,
     listRewardSettlements,
     listGoals,
+    listSourceDirectories,
     listSources,
     listTaskCards,
     listCurriculumReferences,
