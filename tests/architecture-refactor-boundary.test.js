@@ -614,7 +614,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
   assert.match(doc, /120/);
-  assert.match(doc, /1,500 lines/);
+  assert.match(doc, /1,200 lines/);
   assert.match(doc, /Product Module Boundary/);
   assert.match(doc, /FANFAN_LEARNING_SYSTEM_ARCHITECTURE\.zh-CN\.md/);
 
@@ -651,10 +651,21 @@ function testServiceFirstArchitectureContract() {
     "public/app-sidebar-task-ui.js",
     "public/app-message-actions-ui.js",
     "public/app-platform-ui.js",
+    "public/app-pwa-settings-push-ui.js",
     "public/app-workspace-admin-ui.js",
+    "public/app-access-key-manager-ui.js",
+    "public/app-share-image-ui.js",
+    "public/app-draft-thread-ui.js",
     "public/app-directory-automation-ui.js",
+    "public/app-shared-directory-ui.js",
+    "public/app-automation-ui.js",
     "public/app-learning-growth-controller.js",
+    "public/app-automation-controller-ui.js",
+    "public/app-thread-state-ui.js",
+    "public/app-group-topic-ui.js",
     "public/app-kanban-core-ui.js",
+    "public/app-kanban-story-core-ui.js",
+    "public/app-kanban-todo-core-ui.js",
     "public/app-kanban-render-ui.js",
     "public/app-kanban-list-ui.js",
     "public/app-kanban-learning-panel-ui.js",
@@ -676,7 +687,7 @@ function testServiceFirstArchitectureContract() {
   ];
   for (const frontendModule of frontendRuntimeModules) {
     const moduleLineCount = fileText(frontendModule).split(/\r?\n/).length;
-    assert.ok(moduleLineCount <= 1500, `${frontendModule} line budget exceeded: ${moduleLineCount} > 1500`);
+    assert.ok(moduleLineCount <= 1200, `${frontendModule} line budget exceeded: ${moduleLineCount} > 1200`);
   }
 }
 
