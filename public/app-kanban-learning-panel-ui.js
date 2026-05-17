@@ -15,6 +15,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const submitting = Boolean(state.todoLearningGrowthSubmissionSubmitting?.[todo.id]);
   const feedback = state.todoLearningGrowthSubmissionFeedback?.[todo.id] || null;
   const submitted = todo?.learningGrowthSubmission || null;
+  const evaluation = todo?.learningGrowthEvaluation || null;
   const goal = String(todo?.kanbanCaseCardGoal || todo?.description || "").trim();
   const goalText = `${String(todo?.content || "")}\n${goal}`;
   const hasConcretePrompt = /Task instruction:/i.test(goal) || /Task prompt:/i.test(goal) || /first draft|rewrite|Interaction flow:/i.test(goal);
@@ -44,8 +45,19 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const submittedBlock = submitted
     ? `<div class="todo-learning-growth-status" data-learning-growth-submission-status="${escapeHtml(submitted.status || "submitted")}">
       <strong>\u5df2\u6536\u5230\u4f5c\u7b54</strong>
-      <p>\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\u3002\u5f53\u524d\u8fd8\u6ca1\u6709 AI \u6279\u6539\u7ed3\u679c\uff0c\u540e\u7eed\u5e94\u8fdb\u5165 AI \u8bc4\u4ef7\u6216\u5bb6\u957f\u590d\u6838\u3002</p>
+      <p>${escapeHtml(evaluation ? "\u5df2\u751f\u6210 AI \u6279\u6539\u7ed3\u679c\u3002" : "\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\u6216\u5bb6\u957f\u590d\u6838\u3002")}</p>
       ${submitted.submittedAt ? `<small>${escapeHtml(formatTime(submitted.submittedAt) || submitted.submittedAt)}</small>` : ""}
+    </div>`
+    : "";
+  const evaluationBlock = evaluation
+    ? `<div class="todo-learning-growth-evaluation" data-learning-growth-evaluation-status="${escapeHtml(evaluation.status || "")}">
+      <div class="todo-learning-growth-score"><strong>${escapeHtml(String(evaluation.score ?? 0))}</strong><span>/ ${escapeHtml(String(evaluation.maxScore || 100))}</span></div>
+      <div>
+        <strong>${escapeHtml(evaluation.passed ? "\u5df2\u901a\u8fc7" : "\u9700\u8981\u4fee\u6539")}</strong>
+        ${evaluation.summary ? `<p>${escapeHtml(evaluation.summary)}</p>` : ""}
+        ${Array.isArray(evaluation.revisionRequirements) && evaluation.revisionRequirements.length ? `<ul>${evaluation.revisionRequirements.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+        ${evaluation.reward ? `<p class="todo-detail-muted">\u91d1\u5e01\uff1a${escapeHtml(evaluation.reward.status || "not_eligible")} ${Number(evaluation.reward.coinAmount || 0) ? `${escapeHtml(String(evaluation.reward.coinAmount))} \u679a` : ""}</p>` : ""}
+      </div>
     </div>`
     : "";
   return `<section class="todo-comment-panel todo-learning-growth-panel" data-learning-growth-kanban-card="${escapeHtml(todo.id || "")}">
@@ -53,6 +65,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     <p class="todo-detail-muted">${escapeHtml(blocked ? "等待前置任务完成后自动开放。" : "该任务由凡凡成长系统下发，按任务说明完成；不需要走阅读录音模板。")}</p>
     ${details || `<p class="todo-detail-muted">${escapeHtml(todo?.kanbanCaseSummary || "打开成长页查看任务、分析和指导。")}</p>`}
     ${submittedBlock}
+    ${evaluationBlock}
     ${submissionForm}
     ${feedbackBlock}
   </section>`;

@@ -37,6 +37,13 @@ function normalizeStringList(value, limit) {
   return items.map((item) => String(item || "")).filter(Boolean).slice(0, limit);
 }
 
+function boolValue(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  const text = String(value ?? "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(text);
+}
+
 function publicTodoOptions(contextOrIndex = null, maybeRows = null) {
   if (typeof contextOrIndex === "number" && Array.isArray(maybeRows)) {
     return { listIndex: contextOrIndex, listRows: maybeRows };
@@ -250,6 +257,17 @@ function createTodoPublicProjectionService(options = {}) {
       learningGrowthSubmissionAt: String(row.learning_growth_submission_at || row.learningGrowthSubmissionAt || ""),
       learningGrowthEvaluationStatus: String(row.learning_growth_evaluation_status || row.learningGrowthEvaluationStatus || ""),
       learningGrowthEvaluationAt: String(row.learning_growth_evaluation_at || row.learningGrowthEvaluationAt || ""),
+      learningGrowthScore: Number(row.learning_growth_score ?? row.learningGrowthScore ?? 0) || 0,
+      learningGrowthMaxScore: Number(row.learning_growth_max_score ?? row.learningGrowthMaxScore ?? 100) || 100,
+      learningGrowthPassed: boolValue(row.learning_growth_passed ?? row.learningGrowthPassed),
+      learningGrowthFeedbackSummary: String(row.learning_growth_feedback_summary || row.learningGrowthFeedbackSummary || ""),
+      learningGrowthRevisionRequirements: normalizeStringList(row.learning_growth_revision_requirements || row.learningGrowthRevisionRequirements, 8),
+      learningGrowthRewardStatus: String(row.learning_growth_reward_status || row.learningGrowthRewardStatus || ""),
+      learningGrowthRewardCoins: Number(row.learning_growth_reward_coins ?? row.learningGrowthRewardCoins ?? 0) || 0,
+      learningGrowthRewardEntryId: String(row.learning_growth_reward_entry_id || row.learningGrowthRewardEntryId || ""),
+      learningProgramId: String(row.learning_program_id || row.learningProgramId || ""),
+      learningDraftId: String(row.learning_draft_id || row.learningDraftId || ""),
+      learningTaskCardId: String(row.learning_task_card_id || row.learningTaskCardId || ""),
       kanbanRevisionOf: String(row.kanban_revision_of || row.kanbanRevisionOf || ""),
       kanbanRevisionRequest: String(row.kanban_revision_request || row.kanbanRevisionRequest || ""),
       kanbanRevisionRequestedAt: String(row.kanban_revision_requested_at || row.kanbanRevisionRequestedAt || ""),
@@ -282,15 +300,34 @@ function createTodoPublicProjectionService(options = {}) {
       const submittedAt = payload.learningGrowthSubmissionAt || payload.kanbanLastCommentAt;
       if (payload.learningGrowthSubmissionStatus || submittedAt) {
         const evaluationStatus = payload.learningGrowthEvaluationStatus || "pending";
+        const analysisAvailable = ["completed", "needs_revision", "review_required", "pending_review"].includes(evaluationStatus);
         payload.learningGrowthSubmission = {
           status: payload.learningGrowthSubmissionStatus || "submitted",
           kind: payload.learningGrowthSubmissionKind || "writing",
           submittedAt,
           evaluationStatus,
           evaluationAt: payload.learningGrowthEvaluationAt,
-          analysisAvailable: evaluationStatus === "completed",
-          nextStep: evaluationStatus === "completed" ? "review_feedback" : "pending_evaluation",
+          analysisAvailable,
+          nextStep: evaluationStatus === "completed"
+            ? "completed"
+            : (evaluationStatus === "needs_revision" ? "revise_and_resubmit" : "pending_evaluation"),
         };
+        if (analysisAvailable) {
+          payload.learningGrowthEvaluation = {
+            status: evaluationStatus,
+            score: payload.learningGrowthScore,
+            maxScore: payload.learningGrowthMaxScore,
+            passed: payload.learningGrowthPassed,
+            summary: payload.learningGrowthFeedbackSummary,
+            revisionRequirements: payload.learningGrowthRevisionRequirements,
+            evaluatedAt: payload.learningGrowthEvaluationAt,
+            reward: {
+              status: payload.learningGrowthRewardStatus,
+              coinAmount: payload.learningGrowthRewardCoins,
+              entryId: payload.learningGrowthRewardEntryId,
+            },
+          };
+        }
       }
     }
     if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {

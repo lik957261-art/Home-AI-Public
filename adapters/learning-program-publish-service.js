@@ -1,5 +1,7 @@
 "use strict";
 
+const { stableTaskCardId } = require("./learning-task-card-service");
+
 function cleanString(value) {
   return String(value ?? "").trim();
 }
@@ -60,6 +62,9 @@ function learningGrowthKanbanCards(program = {}, draft = {}) {
       const description = taskCardDescription(task);
       cards.push({
         clientId,
+        learningProgramId: cleanString(program.programId),
+        learningDraftId: cleanString(draft.draftId),
+        learningTaskCardId: cleanString(draft.draftId) ? stableTaskCardId(draft.draftId, clientId) : "",
         title,
         day: Number(day.dayIndex || dayOffset + 1) || dayOffset + 1,
         dueTime: date ? `${date} ${addMinutesToTime(timeOfDay, taskOffset * 5)}` : "",

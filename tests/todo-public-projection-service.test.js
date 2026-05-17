@@ -337,6 +337,39 @@ function run() {
     analysisAvailable: false,
     nextStep: "pending_evaluation",
   });
+  const projectedLearningGrowthEvaluated = studyProjectionService.publicTodo(row("learning-growth-evaluated", {
+    kanban_case_mode: "study-plan",
+    kanban_case_template: "learning-growth",
+    kanban_status: "ready",
+    status: "open",
+    learning_growth_submission_status: "submitted",
+    learning_growth_submission_kind: "writing",
+    learning_growth_submission_at: "2026-05-17T15:00:00.000Z",
+    learning_growth_evaluation_status: "needs_revision",
+    learning_growth_evaluation_at: "2026-05-17T15:10:00.000Z",
+    learning_growth_score: 62,
+    learning_growth_max_score: 100,
+    learning_growth_passed: false,
+    learning_growth_feedback_summary: "Needs more details.",
+    learning_growth_revision_requirements: ["Add one example."],
+    learning_growth_reward_status: "not_eligible",
+  }));
+  assert.equal(projectedLearningGrowthEvaluated.learningGrowthSubmission.analysisAvailable, true);
+  assert.equal(projectedLearningGrowthEvaluated.learningGrowthSubmission.nextStep, "revise_and_resubmit");
+  assert.deepEqual(projectedLearningGrowthEvaluated.learningGrowthEvaluation, {
+    status: "needs_revision",
+    score: 62,
+    maxScore: 100,
+    passed: false,
+    summary: "Needs more details.",
+    revisionRequirements: ["Add one example."],
+    evaluatedAt: "2026-05-17T15:10:00.000Z",
+    reward: {
+      status: "not_eligible",
+      coinAmount: 0,
+      entryId: "",
+    },
+  });
   const projectedLearningGrowthLegacySubmitted = studyProjectionService.publicTodo(row("learning-growth-legacy-submitted", {
     kanban_case_mode: "study-plan",
     kanban_case_template: "learning-growth",

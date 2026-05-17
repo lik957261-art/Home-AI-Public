@@ -387,6 +387,8 @@ function createMobileApiComposition(deps = {}) {
   });
   const learningGrowthWritingSubmissionService = createLearningGrowthWritingSubmissionService({
     kanbanCardProvider: deps.kanbanCardProvider,
+    getLearningProgramService: () => learningProgramService,
+    learningCoinService: deps.learningCoinService,
   });
 
   const kanbanCardApiRoutes = createKanbanCardApiRoutes({

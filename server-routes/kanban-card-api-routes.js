@@ -545,7 +545,15 @@ function createKanbanCardApiRoutes(deps = {}) {
     deps.clearKanbanCardListCache(workspaceId);
     deps.broadcast({ type: "kanban.updated", workspaceId, cardId, action: "learning-growth-submission" });
     deps.broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "learning-growth-submission" });
-    deps.sendJson(res, 200, { ok: true, cardId, status: result.status || "submitted", result: result.result || { ok: true } });
+    if (result?.result?.completed) deps.scheduleKanbanDependencyReconcile(workspaceId);
+    deps.sendJson(res, 200, {
+      ok: true,
+      cardId,
+      status: result.status || "submitted",
+      evaluation: result.evaluation || null,
+      reward: result.reward || null,
+      result: result.result || { ok: true },
+    });
   }
 
   async function handle(req, res, url, context = {}) {

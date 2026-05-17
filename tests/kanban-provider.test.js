@@ -262,6 +262,29 @@ async function run() {
   assert.equal(growthSubmitted.learning_growth_submission_kind, "writing");
   assert.equal(growthSubmitted.learning_growth_evaluation_status, "pending");
 
+  const growthEvaluated = await provider.run({
+    action: "comment",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+    comment: "AI writing evaluation summary",
+    learningGrowthEvaluation: {
+      status: "completed",
+      score: 88,
+      maxScore: 100,
+      passed: true,
+      summary: "Writing passed.",
+      revisionRequirements: ["Add one more example."],
+      evaluatedAt: "2026-05-17T15:30:00.000Z",
+      reward: { status: "settled", coinAmount: 15, entryId: "coin-1" },
+    },
+  });
+  assert.equal(growthEvaluated.learning_growth_evaluation_status, "completed");
+  assert.equal(growthEvaluated.learning_growth_score, 88);
+  assert.equal(growthEvaluated.learning_growth_passed, true);
+  assert.deepEqual(growthEvaluated.learning_growth_revision_requirements, ["Add one more example."]);
+  assert.equal(growthEvaluated.learning_growth_reward_status, "settled");
+
   const unblocked = await provider.run({
     action: "unblock",
     workspace_id: "weixin_stephen",

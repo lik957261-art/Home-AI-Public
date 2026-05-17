@@ -190,7 +190,7 @@ async function submitLearningGrowthWriting(todoId, text) {
   state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "info", message: "\u6b63\u5728\u63d0\u4ea4\u672c\u6b21\u4f5c\u7b54..." };
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
-    await api(boardActionApiPath(todoId, "learning-growth-submission"), {
+    const response = await api(boardActionApiPath(todoId, "learning-growth-submission"), {
       method: "POST",
       body: kanbanCardActionBody(todoId, {
         text: submission,
@@ -198,7 +198,14 @@ async function submitLearningGrowthWriting(todoId, text) {
     });
     clearTodoListCache(kanbanCardWorkspaceId(todoId));
     delete state.todoLearningGrowthSubmissionDrafts[todoId];
-    state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "success", message: "\u5df2\u6536\u5230\u4f5c\u7b54\u3002\u5f53\u524d\u8fd8\u6ca1\u6709 AI \u6279\u6539\u7ed3\u679c\uff0c\u540e\u7eed\u5e94\u8fdb\u5165 AI \u8bc4\u4ef7\u6216\u5bb6\u957f\u590d\u6838\u3002" };
+    const score = response?.evaluation?.score;
+    const reward = response?.reward;
+    state.todoLearningGrowthSubmissionFeedback[todoId] = {
+      kind: "success",
+      message: response?.evaluation
+        ? `AI \u6279\u6539\u5df2\u5b8c\u6210${score == null ? "" : `\uff0c\u8bc4\u5206 ${score}/100`}${reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
+        : "\u5df2\u6536\u5230\u4f5c\u7b54\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\u6216\u5bb6\u957f\u590d\u6838\u3002",
+    };
     await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
     state.selectedTodoId = todoId;
     showPushToast("\u6210\u957f\u4efb\u52a1\u4f5c\u7b54\u5df2\u63d0\u4ea4", "success");
