@@ -281,6 +281,21 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "task-card", "executor", "summary-only"],
   },
   {
+    id: "learning-daily-plan",
+    method: "GET",
+    path: "/api/learning/daily-plan",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "dailyPlan",
+    summary: "Read a summary-only daily learning plan derived from SQLite task cards.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-daily-plan"],
+    tags: ["learning", "daily-plan", "executor", "sqlite", "summary-only"],
+  },
+  {
     id: "learning-task-card-read",
     method: "GET",
     pathRegex: /^\/api\/learning\/task-cards\/[^/]+$/,
@@ -793,6 +808,27 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, taskCards: service.listExecutorTaskQueue(query) });
   }
 
+  async function handleDailyPlan(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    const ownerAuth = deps.isOwnerAuth(auth);
+    deps.sendJson(res, 200, {
+      ok: true,
+      dailyPlan: service.dailyPlan(Object.assign({}, query, {
+        status: ownerAuth ? query.status : "published",
+        startDate: cleanString(url.searchParams.get("startDate") || url.searchParams.get("start_date")),
+        days: url.searchParams.get("days"),
+        includeAllStatuses: ownerAuth && (url.searchParams.get("includeAllStatuses") === "1" || url.searchParams.get("include_all_statuses") === "1"),
+      })),
+    });
+  }
+
   async function handleTaskCardRead(req, res, url, auth) {
     const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)$/);
     const taskCard = service.getTaskCard(taskCardId);
@@ -972,6 +1008,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-program-publish") await handlePublish(req, res, url);
     else if (route.id === "learning-task-cards-list") await handleTaskCardsList(req, res, url, auth);
     else if (route.id === "learning-task-execution-queue") await handleTaskExecutionQueue(req, res, url, auth);
+    else if (route.id === "learning-daily-plan") await handleDailyPlan(req, res, url, auth);
     else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url);
     else if (route.id === "learning-sessions-list") await handleSessionsList(req, res, url, auth);

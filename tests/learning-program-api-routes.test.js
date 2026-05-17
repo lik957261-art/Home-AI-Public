@@ -117,6 +117,20 @@ function makeRoutes(overrides = {}) {
       calls.push(["listExecutorTaskQueue", input]);
       return [{ taskCardId: "task-1", workspaceId: input.workspaceId, learnerId: input.learnerId, status: "published", executionStatus: "pending_execution", summary: "summary only" }];
     },
+    dailyPlan(input) {
+      calls.push(["dailyPlan", input]);
+      return {
+        workspaceId: input.workspaceId,
+        learnerId: input.learnerId,
+        startDate: input.startDate || "2026-05-17",
+        endDate: "2026-05-23",
+        days: [{ date: input.startDate || "2026-05-17", tasks: [{ taskCardId: "task-1", executionStatus: "pending_execution", privacyLevel: "summary_only" }] }],
+        nextTask: { taskCardId: "task-1", executionStatus: "pending_execution", privacyLevel: "summary_only" },
+        summary: { totalTasks: 1 },
+        guidance: { suggestedAction: "start_next_task", privacyLevel: "summary_only" },
+        privacyLevel: "summary_only",
+      };
+    },
     getTaskCard(taskCardId) {
       calls.push(["getTaskCard", taskCardId]);
       return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen" };
@@ -190,7 +204,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 29);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 30);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -200,11 +214,12 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/daily-plan" }).id, "learning-daily-plan");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 29);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 30);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -316,6 +331,22 @@ async function testTaskSessionEvaluationRoutes() {
   assert.equal(executionQueue.res.statusCode, 200);
   assert.equal(executionQueue.body.taskCards[0].executionStatus, "pending_execution");
   assert.equal(calls.at(-1)[0], "listExecutorTaskQueue");
+
+  const dailyPlan = await request(routes, "GET", "/api/learning/daily-plan?workspaceId=weixin_stephen&learnerId=weixin_stephen&startDate=2026-05-17&days=7&status=review_required", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(dailyPlan.res.statusCode, 200);
+  assert.equal(dailyPlan.body.dailyPlan.nextTask.executionStatus, "pending_execution");
+  assert.equal(dailyPlan.body.dailyPlan.privacyLevel, "summary_only");
+  assert.equal(calls.at(-1)[0], "dailyPlan");
+  assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
+  assert.equal(calls.at(-1)[1].learnerId, "weixin_stephen");
+  assert.equal(calls.at(-1)[1].status, "published");
+
+  const ownerDailyPlan = await request(routes, "GET", "/api/learning/daily-plan?workspaceId=weixin_stephen&learnerId=weixin_stephen&includeAllStatuses=1");
+  assert.equal(ownerDailyPlan.res.statusCode, 200);
+  assert.equal(calls.at(-1)[0], "dailyPlan");
+  assert.equal(calls.at(-1)[1].includeAllStatuses, true);
 
   const task = await request(routes, "GET", "/api/learning/task-cards/task-1", {
     auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },

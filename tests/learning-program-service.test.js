@@ -84,6 +84,16 @@ async function testCreateDraftApprovePublish() {
   assert.equal(executorQueue.length, drafted.draft.taskCount);
   assert.ok(executorQueue.every((task) => task.executionStatus === "pending_execution"));
   assert.doesNotMatch(JSON.stringify(executorQueue), /questions|answerKey|learnerAnswer|fullTranscript|prompt/);
+  const dailyPlan = service.dailyPlan({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    startDate: drafted.draft.weekStart,
+    days: 7,
+  });
+  assert.equal(dailyPlan.summary.totalTasks, drafted.draft.taskCount);
+  assert.equal(dailyPlan.nextTask.executionStatus, "pending_execution");
+  assert.equal(dailyPlan.privacyLevel, "summary_only");
+  assert.doesNotMatch(JSON.stringify(dailyPlan), /questions|answerKey|learnerAnswer|fullTranscript|prompt/);
   const profile = service.rebuildLearnerProfile({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
   assert.ok(profile.skillStates.some((state) => state.skillId === "english_short_writing"));
   const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });

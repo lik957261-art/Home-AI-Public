@@ -8,6 +8,7 @@ const { createLearningEvaluationService } = require("./learning-evaluation-servi
 const { createLearningFoundationImportService } = require("./learning-foundation-import-service");
 const { createLearningGoalService } = require("./learning-goal-service");
 const { createLearningInteractionSessionService } = require("./learning-interaction-session-service");
+const { createLearningDailyPlanService } = require("./learning-daily-plan-service");
 const { createLearningParentReportService } = require("./learning-parent-report-service");
 const { createLearningParentReviewQueueService } = require("./learning-parent-review-queue-service");
 const { createLearningParentReviewRequestService } = require("./learning-parent-review-request-service");
@@ -142,6 +143,7 @@ function createLearningProgramService(options = {}) {
   const curriculumReferenceService = options.curriculumReferenceService || createCurriculumReferenceService({ repository });
   const learnerProfileService = options.learnerProfileService || createLearnerProfileService({ repository });
   const taskCardService = options.taskCardService || createLearningTaskCardService({ repository });
+  const dailyPlanService = options.dailyPlanService || createLearningDailyPlanService({ taskCardService });
   const interactionSessionService = options.interactionSessionService || createLearningInteractionSessionService({ repository });
   const parentReviewRequestService = options.parentReviewRequestService || createLearningParentReviewRequestService({ repository });
   const evaluationService = options.evaluationService || createLearningEvaluationService({ repository, reviewRequestService: parentReviewRequestService });
@@ -393,6 +395,10 @@ function createLearningProgramService(options = {}) {
     return taskCardService.listExecutorQueue(filters);
   }
 
+  function dailyPlan(filters = {}) {
+    return dailyPlanService.dailyPlan(filters);
+  }
+
   function getTaskCard(taskCardId) {
     return taskCardService.get(taskCardId);
   }
@@ -447,6 +453,7 @@ function createLearningProgramService(options = {}) {
 
   return {
     createProgram,
+    dailyPlan,
     decideParentReviewRequest,
     decideReview,
     draftPlan,
