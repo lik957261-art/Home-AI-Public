@@ -110,6 +110,37 @@ function message(id, role, extra = {}) {
     path: "a/b",
     namespace: "a",
   });
+  assert.deepStrictEqual(
+    helpers.skillEntryFromText("/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations/SKILL.md"),
+    {
+      id: "wardrobe-style-operations",
+      label: "wardrobe-style-operations",
+      path: "productivity/wardrobe-style-operations",
+      namespace: "productivity",
+    },
+  );
+  assert.deepStrictEqual(
+    helpers.skillEntryFromText("mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations"),
+    {
+      id: "wardrobe-style-operations",
+      label: "wardrobe-style-operations",
+      path: "productivity/wardrobe-style-operations",
+      namespace: "productivity",
+    },
+  );
+}
+
+{
+  const group = {
+    messages: [
+      message("1", "assistant", {
+        content: "共享 Skill: /mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations/SKILL.md",
+      }),
+    ],
+  };
+  assert.deepStrictEqual(helpers.taskSkills(group).map((skill) => skill.path), [
+    "productivity/wardrobe-style-operations",
+  ]);
 }
 
 {

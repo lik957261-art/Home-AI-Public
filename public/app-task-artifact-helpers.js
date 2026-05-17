@@ -182,10 +182,15 @@
       .replace(/[,\.;\uFF0C\u3002\uFF1B\u3001\)\]\s]+$/g, "")
       .trim();
     if (!text) return "";
-    const lower = text.toLowerCase();
-    const skillRoot = ".hermes/skills/";
-    const rootIndex = lower.indexOf(skillRoot);
-    if (rootIndex >= 0) text = text.slice(rootIndex + skillRoot.length);
+    let lower = text.toLowerCase();
+    for (const skillRoot of [".hermes/skills/", "/skills/", "skills/"]) {
+      const rootIndex = lower.lastIndexOf(skillRoot);
+      if (rootIndex >= 0) {
+        text = text.slice(rootIndex + skillRoot.length);
+        lower = text.toLowerCase();
+        break;
+      }
+    }
     text = text.replace(/^\/+|\/+$/g, "");
     if (text.toLowerCase().endsWith("/skill.md")) text = text.slice(0, -"/SKILL.md".length);
     text = text.replace(/^\/+|\/+$/g, "");
@@ -222,6 +227,8 @@
     const skillRootPattern = /\.hermes\/skills\/([^\s`<>"'\],;\uFF0C\u3002\uFF1B\u3001\)]+)/gi;
     let match = null;
     while ((match = skillRootPattern.exec(text))) addSkill(match[1]);
+    const sharedSkillRootPattern = /(?:^|[\s`"'\(\[\uFF08])((?:[A-Za-z]:)?\/?[^\s`<>"'\],;\uFF0C\u3002\uFF1B\u3001\)]+\/skills\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+(?:\/SKILL\.md)?)/gi;
+    while ((match = sharedSkillRootPattern.exec(text))) addSkill(match[1]);
     const skillFilePattern = /`?([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+)\/SKILL\.md`?/gi;
     while ((match = skillFilePattern.exec(text))) addSkill(match[1]);
     const labeledSkillPattern = /(?:Skill|\u6280\u80fd)\s*[:\uFF1A]\s*`?([A-Za-z0-9][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_.-]+)+)`?/gi;

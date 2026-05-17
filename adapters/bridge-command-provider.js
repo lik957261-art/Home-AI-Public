@@ -35,11 +35,22 @@ function isWslAbsolutePath(value) {
   return /^\//.test(String(value || "").trim());
 }
 
+function windowsPathToWslPath(value) {
+  const text = String(value || "").trim();
+  const driveMatch = text.match(/^([A-Za-z]):[\\/](.*)$/);
+  if (driveMatch) {
+    return `/mnt/${driveMatch[1].toLowerCase()}/${driveMatch[2].replaceAll("\\", "/")}`;
+  }
+  const unc = uncWslToPath(text);
+  if (unc) return unc;
+  return text.replaceAll("\\", "/");
+}
+
 function createBridgeCommandProvider(options = {}) {
   const env = options.env || process.env;
   const platform = options.platform || process.platform;
   const wslDistro = options.wslDistro || (() => "Ubuntu-24.04");
-  const windowsPathToWsl = options.windowsPathToWsl || ((value) => String(value || "").replaceAll("\\", "/"));
+  const windowsPathToWsl = options.windowsPathToWsl || windowsPathToWslPath;
 
   function script(envName, defaultPath) {
     return resolveScriptPath(env, envName, defaultPath);
@@ -60,7 +71,8 @@ function createBridgeCommandProvider(options = {}) {
       if (!key) continue;
       const value = envValue(env, key);
       if (!value) continue;
-      entries.push(`${key}=${value}`);
+      const wslValue = isWslAbsolutePath(value) ? value : windowsPathToWsl(value);
+      entries.push(`${key}=${wslValue}`);
     }
     return entries;
   }

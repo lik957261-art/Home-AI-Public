@@ -23,18 +23,16 @@ function testWindowsWslCommandUsesEnvAndPathConversions() {
     env: {
       HERMES_WEB_HERMES_HOME: "/home/example/.hermes",
       HERMES_WEB_TODO_PLUGIN_NAME: "hermes_todos",
+      HERMES_WEB_SKILLS_ROOT: "C:\\ProgramData\\HermesMobile\\data\\skill-profiles\\owner-full\\skills",
     },
     wslDistro: "Ubuntu-Test",
-    windowsPathToWsl: (value) => {
-      const match = String(value).match(/^([A-Za-z]):\\(.+)$/);
-      return match ? `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}` : String(value);
-    },
   });
-  const command = provider.python("C:\\repo\\todo_bridge.py", ["HERMES_WEB_TODO_PLUGIN_NAME"]);
+  const command = provider.python("C:\\repo\\todo_bridge.py", ["HERMES_WEB_TODO_PLUGIN_NAME", "HERMES_WEB_SKILLS_ROOT"]);
   assert.equal(command.command, "wsl.exe");
   assert.deepEqual(command.args.slice(0, 4), ["-d", "Ubuntu-Test", "--", "env"]);
   assert.ok(command.args.includes("HERMES_WEB_HERMES_HOME=/home/example/.hermes"));
   assert.ok(command.args.includes("HERMES_WEB_TODO_PLUGIN_NAME=hermes_todos"));
+  assert.ok(command.args.includes("HERMES_WEB_SKILLS_ROOT=/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills"));
   assert.equal(command.args.at(-1), "/mnt/c/repo/todo_bridge.py");
 }
 

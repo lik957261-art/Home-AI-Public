@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 function runSkillBridge(root, skill) {
-  const result = spawnSync("python", [path.join(__dirname, "..", "skill_bridge.py")], {
+  const result = spawnSync(process.env.PYTHON || "python3", [path.join(__dirname, "..", "skill_bridge.py")], {
     input: JSON.stringify({ skill }),
     encoding: "utf8",
     env: Object.assign({}, process.env, {
@@ -36,6 +36,14 @@ try {
   const full = runSkillBridge(tempRoot, "productivity/demo-skill");
   assert.equal(full.ok, true);
   assert.equal(full.skill.path, "productivity/demo-skill");
+
+  const sharedAbsolute = runSkillBridge(tempRoot, "/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills/productivity/demo-skill/SKILL.md");
+  assert.equal(sharedAbsolute.ok, true);
+  assert.equal(sharedAbsolute.skill.path, "productivity/demo-skill");
+
+  const sharedMissingSlash = runSkillBridge(tempRoot, "mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills/productivity/demo-skill");
+  assert.equal(sharedMissingSlash.ok, true);
+  assert.equal(sharedMissingSlash.skill.path, "productivity/demo-skill");
 
   writeSkill(tempRoot, ".archive/old/demo-skill");
   const archiveIgnored = runSkillBridge(tempRoot, "demo-skill");
