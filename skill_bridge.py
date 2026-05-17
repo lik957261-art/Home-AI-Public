@@ -11,6 +11,20 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
+def configure_standard_streams() -> None:
+    for stream_name in ("stdin", "stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not callable(reconfigure):
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (TypeError, ValueError):
+            continue
+
+
+configure_standard_streams()
+
 HERMES_HOME = Path(os.environ.get("HERMES_HOME") or os.environ.get("HERMES_WEB_HERMES_HOME") or (Path.home() / ".hermes"))
 SKILL_ROOTS = [
     Path(os.environ["HERMES_WEB_SKILLS_ROOT"]) if os.environ.get("HERMES_WEB_SKILLS_ROOT") else None,

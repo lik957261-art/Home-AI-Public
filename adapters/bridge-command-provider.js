@@ -85,13 +85,15 @@ function createBridgeCommandProvider(options = {}) {
         "PYTHONPATH",
         ...envNames,
       ]);
+      const pythonEnvArgs = ["PYTHONIOENCODING=utf-8", ...envArgs];
       return {
         command: "wsl.exe",
         args: [
           "-d",
           String(valueFrom(wslDistro) || "Ubuntu-24.04"),
           "--",
-          ...(envArgs.length ? ["env", ...envArgs] : []),
+          "env",
+          ...pythonEnvArgs,
           "python3",
           scriptPathForWsl(scriptPath),
         ],

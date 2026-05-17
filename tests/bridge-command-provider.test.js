@@ -30,6 +30,7 @@ function testWindowsWslCommandUsesEnvAndPathConversions() {
   const command = provider.python("C:\\repo\\todo_bridge.py", ["HERMES_WEB_TODO_PLUGIN_NAME", "HERMES_WEB_SKILLS_ROOT"]);
   assert.equal(command.command, "wsl.exe");
   assert.deepEqual(command.args.slice(0, 4), ["-d", "Ubuntu-Test", "--", "env"]);
+  assert.ok(command.args.includes("PYTHONIOENCODING=utf-8"));
   assert.ok(command.args.includes("HERMES_WEB_HERMES_HOME=/home/example/.hermes"));
   assert.ok(command.args.includes("HERMES_WEB_TODO_PLUGIN_NAME=hermes_todos"));
   assert.ok(command.args.includes("HERMES_WEB_SKILLS_ROOT=/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills"));
