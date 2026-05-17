@@ -1,0 +1,98 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const {
+  createLearningGrowthKanbanTaskService,
+  isLearningGrowthKanbanCard,
+  projectLearningGrowthKanbanTask,
+} = require("../adapters/learning-growth-kanban-task-service");
+
+async function testProjectsOnlyLearningGrowthKanbanCards() {
+  const calls = [];
+  const service = createLearningGrowthKanbanTaskService({
+    kanbanCardProvider: {
+      async listCards(input) {
+        calls.push(input);
+        return {
+          ok: true,
+          source: "hermes_kanban",
+          board: "workspace-child",
+          data: [
+            {
+              id: "t_growth",
+              status: "open",
+              content: "English writing task",
+              assignee: "child",
+              workspaceId: "child",
+              kanbanCaseTemplate: "learning-growth",
+              kanbanStudyKind: "learning-growth",
+              kanbanCaseMode: "study-plan",
+              kanbanCaseCardId: "writing-1",
+              kanbanCaseCardGoal: "short instruction",
+              dueLocal: "2026-05-17 19:30",
+            },
+            {
+              id: "t_reading",
+              status: "open",
+              content: "Reading task",
+              assignee: "child",
+              workspaceId: "child",
+              kanbanCaseTemplate: "reading",
+            },
+            {
+              id: "t_done",
+              status: "done",
+              content: "Done growth task",
+              assignee: "child",
+              workspaceId: "child",
+              kanbanCaseTemplate: "learning-growth",
+            },
+          ],
+        };
+      },
+    },
+  });
+  const result = await service.listExecutableTasks({ workspaceId: "child", learnerId: "child", limit: 10 });
+  assert.equal(result.ok, true);
+  assert.equal(result.tasks.length, 1);
+  assert.equal(result.tasks[0].taskCardId, "t_growth");
+  assert.equal(result.tasks[0].todoId, "t_growth");
+  assert.equal(result.tasks[0].source, "kanban");
+  assert.equal(result.tasks[0].status, "published");
+  assert.equal(result.tasks[0].kanbanStatus, "open");
+  assert.equal(result.tasks[0].workspaceId, "child");
+  assert.equal(result.tasks[0].learnerId, "child");
+  assert.equal(result.tasks[0].hasInstruction, true);
+  assert.match(result.tasks[0].openUrl, /view=todos/);
+  assert.deepEqual(calls[0], {
+    workspaceId: "child",
+    scope: "mine",
+    includeCompleted: false,
+    limit: 120,
+    search: "",
+  });
+}
+
+function testHelpers() {
+  assert.equal(isLearningGrowthKanbanCard({ kanbanCaseTemplate: "learning-growth" }), true);
+  assert.equal(isLearningGrowthKanbanCard({ kanbanStudyKind: "learning-growth" }), true);
+  assert.equal(isLearningGrowthKanbanCard({ kanbanCaseTemplate: "reading" }), false);
+  const task = projectLearningGrowthKanbanTask({
+    id: "t1",
+    status: "running",
+    content: "Task",
+    workspaceId: "child",
+    kanbanCaseTemplate: "learning-growth",
+  }, { workspaceId: "child", learnerId: "child" });
+  assert.equal(task.status, "active");
+  assert.equal(task.domain, "english");
+}
+
+(async () => {
+  testHelpers();
+  await testProjectsOnlyLearningGrowthKanbanCards();
+  console.log("learning growth kanban task service tests passed");
+})().catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});

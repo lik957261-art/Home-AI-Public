@@ -86,6 +86,7 @@ function createLearningApiRoutes(deps = {}) {
   const learningGrowthService = deps.learningGrowthService || createLearningGrowthService({
     learningCoinService: deps.learningCoinService,
   });
+  const learningGrowthTaskService = deps.learningGrowthTaskService || null;
   if (!learningGrowthService || typeof learningGrowthService.overview !== "function") {
     throw new Error("learning api routes require learningGrowthService.overview");
   }
@@ -118,10 +119,21 @@ function createLearningApiRoutes(deps = {}) {
     }
     if (!input) return;
     const owner = deps.isOwnerAuth(auth);
-    deps.sendJson(res, 200, Object.assign({ ok: true }, learningGrowthService.overview(Object.assign({}, input, {
+    let executableTasks = [];
+    if (learningGrowthTaskService && typeof learningGrowthTaskService.listExecutableTasks === "function") {
+      const listed = await learningGrowthTaskService.listExecutableTasks(input).catch((err) => ({
+        ok: false,
+        error: err?.message || String(err),
+        tasks: [],
+      }));
+      executableTasks = Array.isArray(listed?.tasks) ? listed.tasks : [];
+    }
+    const overviewInput = Object.assign({}, input, {
       owner,
       viewerRole: owner ? "owner" : "executor",
-    }))));
+    });
+    if (executableTasks.length) overviewInput.executableTasks = executableTasks;
+    deps.sendJson(res, 200, Object.assign({ ok: true }, learningGrowthService.overview(overviewInput)));
   }
 
   async function handleStatus(req, res, url, auth) {

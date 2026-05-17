@@ -122,6 +122,25 @@ async function loadLearningCoins(options = {}) {
   }
 }
 
+async function openLearningKanbanCard(todoId, workspaceId = "") {
+  const id = String(todoId || "").trim();
+  if (!id) return;
+  const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId();
+  if (state.workspaces.some((item) => item.id === targetWorkspaceId)) {
+    state.selectedWorkspaceId = targetWorkspaceId;
+    localStorage.setItem("hermesWebWorkspace", targetWorkspaceId);
+    if ($("workspaceSelect")) $("workspaceSelect").value = targetWorkspaceId;
+  }
+  state.viewMode = "todos";
+  localStorage.setItem("hermesWebViewMode", "todos");
+  state.selectedTodoId = id;
+  state.todoRouteMissingTargetId = "";
+  state.pendingReadingQuizTodoId = "";
+  state.pendingAssessmentExamTodoId = "";
+  await loadProjects();
+  await loadTodos({ skipCache: true, freshServer: true, targetId: id });
+}
+
 async function requestLearningCoinRedemption(rewardId) {
   const body = {
     workspaceId: learningGrowthLearnerWorkspaceId(),
@@ -493,6 +512,12 @@ function wireLearningCoinsView() {
   });
   $("conversation")?.querySelectorAll("[data-learning-task-start]").forEach((button) => {
     button.addEventListener("click", () => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-open-kanban-card]").forEach((button) => {
+    button.addEventListener("click", () => openLearningKanbanCard(
+      button.dataset.learningOpenKanbanCard,
+      button.dataset.workspaceId,
+    ).catch(showError));
   });
   $("conversation")?.querySelectorAll("[data-learning-session-advance]").forEach((button) => {
     button.addEventListener("click", () => advanceLearningSession(button.dataset.learningSessionAdvance).catch(showError));

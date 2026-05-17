@@ -527,7 +527,15 @@
   function renderTaskAction(task, session, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(task?.taskCardId || "");
+    const todoId = String(task?.todoId || "");
+    const workspaceId = String(task?.workspaceId || "");
     const status = String(task?.status || "");
+    if (todoId || task?.source === "kanban") {
+      if (!todoId || ["completed", "archived", "blocked"].includes(status)) return "";
+      return `<div class="learning-program-task-actions">
+        <button type="button" data-learning-open-kanban-card="${escapeHtml(todoId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u6253\u5f00\u4efb\u52a1</button>
+      </div>`;
+    }
     if (!taskCardId || ["completed", "archived", "blocked"].includes(status)) return "";
     if (!session) {
       const canStart = status === "published" || status === "active";
@@ -547,6 +555,33 @@
         <button type="submit">\u8bb0\u5f55\u8bc4\u4ef7</button>
       </form>`}
     </div>`;
+  }
+
+  function renderExecutableTaskRows(tasks = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const items = asArray(tasks).slice(0, 8);
+    if (!items.length) return "";
+    return `<section class="learning-coin-panel learning-program-executable-panel" data-learning-executable-tasks>
+      <div class="learning-section-heading"><h3>\u5df2\u4e0b\u53d1\u4efb\u52a1</h3><span>${escapeHtml(String(items.length))}</span></div>
+      <div class="learning-program-task-list">
+        ${items.map((task) => {
+          const skills = compactFocus(task.skillIds || []).slice(0, 80);
+          const meta = [
+            task.dueLocal || task.plannedDate,
+            task.kanbanStatus ? `Kanban: ${task.kanbanStatus}` : "",
+            skills,
+          ].filter(Boolean).join(" / ");
+          return `<article class="learning-program-task-item" data-learning-executable-task-id="${escapeHtml(task.todoId || task.taskCardId || "")}">
+            <div>
+              <strong>${escapeHtml(task.title || task.taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
+              <p>${escapeHtml(meta || task.taskCardType || "")}</p>
+            </div>
+            <span>${escapeHtml(taskStatusText(task.status, options))}</span>
+            ${renderTaskAction(task, null, options)}
+          </article>`;
+        }).join("")}
+      </div>
+    </section>`;
   }
 
   function renderDailyPlanPanel(dailyPlan = {}, options = {}) {
@@ -578,15 +613,18 @@
   function renderExecutionOverview(data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const tasks = asArray(data.taskCards);
+    const executableTasks = asArray(data.executableTasks);
     const programs = asArray(data.programs);
     const taskOptions = Object.assign({}, options, { sessions: data.interactionSessions || [] });
-    const pendingCount = tasks.filter((task) => !["completed", "archived"].includes(String(task.status || ""))).length || programs.length;
+    const pendingCount = executableTasks.length
+      + (tasks.filter((task) => !["completed", "archived"].includes(String(task.status || ""))).length || programs.length);
     return `<section class="learning-growth-category learning-program-execution-panel" data-learning-growth-category="execution">
       <div class="learning-growth-category-heading">
         <h3>\u6267\u884c\u6982\u89c8 / \u5f85\u6267\u884c</h3>
         <span>${escapeHtml(String(pendingCount))} \u9879</span>
       </div>
       ${renderDailyPlanPanel(data.dailyPlan || {}, options)}
+      ${renderExecutableTaskRows(executableTasks, taskOptions)}
       <div class="learning-program-execution-grid">
         <section class="learning-coin-panel">
           <div class="learning-section-heading"><h3>\u4efb\u52a1\u72b6\u6001</h3><span>Task</span></div>

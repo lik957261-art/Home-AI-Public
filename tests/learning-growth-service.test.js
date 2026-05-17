@@ -122,6 +122,13 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   assert.equal(overview.launchOperations.version, "learning-growth-launch-ops-v1");
   assert.equal(overview.launchOperations.counts.pendingRedemptions, 1);
   assert.equal(overview.programs.launchOperations.version, "learning-growth-launch-ops-v1");
+  const withExecutable = service.overview({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    executableTasks: [{ taskCardId: "t_growth", todoId: "t_growth", source: "kanban", title: "Visible task", status: "published" }],
+  });
+  assert.equal(withExecutable.programs.counts.executableTasks, 1);
+  assert.equal(withExecutable.programs.executableTasks[0].todoId, "t_growth");
   assert.ok(overview.nextModules.some((item) => item.id === "ai-reliability-guard-service"));
   assert.deepEqual(coinService.calls[0], { workspaceId: "weixin_stephen", studentId: "weixin_stephen", limit: 5 });
 }
@@ -167,6 +174,7 @@ function testExecutorOverviewStripsOwnerManagementData() {
     daysPerWeek: 5,
   });
   assert.equal(overview.programs.dailyPlan.summary.totalTasks, 1);
+  assert.deepEqual(overview.programs.executableTasks || [], []);
   assert.equal(overview.programs.interactionSessions[0].status, "active");
   assert.equal(overview.programs.interactionSessions[0].currentStep, "learner_attempt");
   assert.equal(overview.programs.taskCards[0].answerKey, undefined);

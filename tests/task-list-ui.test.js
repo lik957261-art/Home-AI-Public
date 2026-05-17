@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260517-viewer-network-first";
+const CLIENT_VERSION = "20260517-growth-kanban-tasks";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -817,6 +817,9 @@ assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
   assert.match(appJs, /function rebuildLearningProfile\(\)/);
   assert.match(appJs, /function decideLearningParentReviewRequest\(reviewRequestId, decision\)/);
   assert.match(appJs, /function startLearningTaskSession\(taskCardId\)/);
+  assert.match(appJs, /function openLearningKanbanCard\(todoId, workspaceId = ""\)/);
+  assert.match(appJs, /data-learning-open-kanban-card/);
+  assert.match(appJs, /state\.viewMode = "todos"/);
   assert.match(appJs, /function advanceLearningSession\(sessionId\)/);
   assert.match(appJs, /function submitLearningEvaluationForm\(event, sessionId\)/);
   assert.match(appJs, /\/api\/learning\/programs/);

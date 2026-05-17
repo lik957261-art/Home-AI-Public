@@ -89,6 +89,33 @@ function projectTaskCardForExecutor(task) {
   ]);
 }
 
+function projectExecutableTaskForExecutor(task) {
+  return copyFields(task, [
+    "taskCardId",
+    "todoId",
+    "source",
+    "title",
+    "status",
+    "kanbanStatus",
+    "taskCardType",
+    "domain",
+    "workspaceId",
+    "learnerId",
+    "assignee",
+    "plannedDate",
+    "plannedMinutes",
+    "dueAt",
+    "dueLocal",
+    "skillIds",
+    "kanbanCaseTemplate",
+    "kanbanStudyKind",
+    "kanbanCaseMode",
+    "kanbanCaseCardId",
+    "hasInstruction",
+    "openUrl",
+  ]);
+}
+
 function projectInteractionSessionForExecutor(session) {
   return copyFields(session, [
     "sessionId",
@@ -143,6 +170,7 @@ function projectProgramOverviewForExecutor(programs) {
     counts: copyFields(programs.counts, ["programs", "taskCards", "evaluations", "skillStates"]),
     programs: arrayValue(programs.programs).map(projectProgramForExecutor),
     dailyPlan: programs.dailyPlan || null,
+    executableTasks: arrayValue(programs.executableTasks).map(projectExecutableTaskForExecutor),
     taskCards: arrayValue(programs.taskCards).map(projectTaskCardForExecutor),
     interactionSessions: arrayValue(programs.interactionSessions).map(projectInteractionSessionForExecutor),
     evaluations: arrayValue(programs.evaluations).map(projectEvaluationForExecutor),
@@ -295,13 +323,22 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
         limit: request.limit,
       })
     : null;
+  const executableTasks = arrayValue(input.executableTasks);
   const metrics = coinMetric(coins || {});
   const launchOperations = programOverview
     ? buildLearningLaunchOperations({ programs: programOverview, coins, metrics })
     : null;
   const programs = programOverview && typeof programOverview === "object"
-    ? Object.assign({}, programOverview, { launchOperations })
-    : programOverview;
+    ? Object.assign({}, programOverview, {
+        executableTasks,
+        counts: Object.assign({}, programOverview.counts || {}, { executableTasks: executableTasks.length }),
+        launchOperations,
+      })
+    : (executableTasks.length ? {
+        counts: { executableTasks: executableTasks.length },
+        executableTasks,
+        launchOperations,
+      } : programOverview);
   const operationalReadiness = readinessService.evaluate({
     programs,
     coins,

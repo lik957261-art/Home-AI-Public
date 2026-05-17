@@ -15,6 +15,7 @@ const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
 const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
+const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningParentReviewRequestService } = require("../adapters/learning-parent-review-request-service");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
@@ -472,6 +473,9 @@ function createMobileApiComposition(deps = {}) {
     parentReviewRequestService: learningParentReviewRequestService,
     learningCoinService: deps.learningCoinService,
   });
+  const learningGrowthTaskService = createLearningGrowthKanbanTaskService({
+    kanbanCardProvider: deps.kanbanCardProvider,
+  });
 
   const learningApiRoutes = createLearningApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
@@ -480,6 +484,7 @@ function createMobileApiComposition(deps = {}) {
       learningCoinService: deps.learningCoinService,
       learningProgramService,
     }),
+    learningGrowthTaskService,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
   });
