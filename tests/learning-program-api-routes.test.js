@@ -419,6 +419,59 @@ async function testExecutorCannotStartUnpublishedTask() {
   assert.equal(calls.some((call) => call[0] === "startTaskSession"), false);
 }
 
+async function testExecutorTaskReadUsesSummaryProjectionOnly() {
+  const { routes } = makeRoutes({
+    service: {
+      getTaskCard(taskCardId) {
+        return {
+          taskCardId,
+          programId: "program-1",
+          draftId: "draft-1",
+          workspaceId: "weixin_stephen",
+          learnerId: "weixin_stephen",
+          title: "Task",
+          domain: "english",
+          taskCardType: "single_subject",
+          status: "published",
+          plannedDate: "2026-05-17",
+          plannedMinutes: 30,
+          skillIds: ["english_speaking_retell"],
+          summary: "summary only",
+          sourceBasisRefs: ["source-1"],
+          curriculumRefs: ["cefr-a2-b1"],
+          reliability: { confidence: 0.9 },
+          interactionStateMachine: ["receive_task", "learner_attempt"],
+        };
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning/task-cards/task-1", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.body.taskCard.privacyLevel, "summary_only");
+  assert.equal(response.body.taskCard.executionStatus, "pending_execution");
+  assert.equal(response.body.taskCard.sourceBasisRefs, undefined);
+  assert.equal(response.body.taskCard.curriculumRefs, undefined);
+  assert.equal(response.body.taskCard.reliability, undefined);
+  assert.equal(response.body.taskCard.interactionStateMachine, undefined);
+}
+
+async function testExecutorCannotReadUnpublishedTaskDetail() {
+  const { routes } = makeRoutes({
+    service: {
+      getTaskCard(taskCardId) {
+        return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "planned" };
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning/task-cards/task-1", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(response.res.statusCode, 409);
+  assert.equal(response.body.error, "Learning task is not executable");
+}
+
 async function testExecutorCannotEvaluateOtherLearnerSession() {
   const { routes, calls } = makeRoutes({
     service: {
@@ -444,6 +497,8 @@ async function testExecutorCannotEvaluateOtherLearnerSession() {
   await testReviewDecision();
   await testFoundationRoutes();
   await testTaskSessionEvaluationRoutes();
+  await testExecutorTaskReadUsesSummaryProjectionOnly();
+  await testExecutorCannotReadUnpublishedTaskDetail();
   await testExecutorCannotStartUnpublishedTask();
   await testExecutorCannotEvaluateOtherLearnerSession();
   console.log("learning program api routes tests passed");

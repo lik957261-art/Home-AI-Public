@@ -154,9 +154,36 @@ async function testBlockedDraftDoesNotPublish() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function testFoundationRecordsRejectPrivatePayloadKeys() {
+  const root = tempRoot();
+  const { service, repository } = createService(root);
+  assert.throws(() => service.saveSource({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    title: "bad",
+    summary: "summary",
+    rawTranscript: "not allowed",
+  }), /summary-only fields/);
+  assert.throws(() => service.saveGoal({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    title: "bad",
+    questionText: "not allowed",
+  }), /summary-only fields/);
+  assert.throws(() => service.createProgram({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    title: "bad",
+    answerKey: "not allowed",
+  }), /summary-only fields/);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 (async () => {
   await testCreateDraftApprovePublish();
   await testBlockedDraftDoesNotPublish();
+  testFoundationRecordsRejectPrivatePayloadKeys();
   console.log("learning program service tests passed");
 })().catch((err) => {
   console.error(err);

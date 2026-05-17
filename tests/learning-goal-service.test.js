@@ -28,6 +28,7 @@ function testNormalizeSaveAndUpdate() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
   const service = createLearningGoalService({ repository });
+  assert.throws(() => service.save(Object.assign({}, normalized, { questionText: "hidden" })), /summary-only fields/);
   const goal = service.save(normalized);
   assert.equal(goal.goalRef, `goal:${goal.goalId}`);
   const updated = service.update(goal.goalId, { priority: 40, status: "paused" });

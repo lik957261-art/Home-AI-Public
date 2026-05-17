@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { assertNoPrivateLearningPayload } = require("./learning-record-privacy-service");
 
 const LEARNING_SOURCE_TYPES = Object.freeze([
   "parent_config",
@@ -42,6 +43,7 @@ function normalizeSourceType(value) {
 }
 
 function normalizeLearningSourceInput(input = {}) {
+  assertNoPrivateLearningPayload(input, "learning source");
   const workspaceId = cleanString(input.workspaceId) || "weixin_stephen";
   const learnerId = cleanString(input.learnerId || input.studentId || input.performerWorkspaceId) || workspaceId;
   const sourceType = normalizeSourceType(input.sourceType || input.type);

@@ -77,15 +77,60 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadataAndFallthrough() {
-  assert.deepEqual(LEARNING_API_ROUTE_SPECS.map((route) => route.id), ["learning-growth-overview", "learning-overview"]);
+  assert.deepEqual(LEARNING_API_ROUTE_SPECS.map((route) => route.id), ["learning-growth-overview", "learning-overview", "learning-status"]);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning-growth/overview" }).id, "learning-growth-overview");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/overview" }).id, "learning-overview");
-  assert.equal(routes.summary({ public: true }).total, 2);
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/status" }).id, "learning-status");
+  assert.equal(routes.summary({ public: true }).total, 3);
 
   const miss = await request(routes, "GET", "/api/status");
   assert.equal(miss.result.handled, false);
   assert.equal(miss.res.statusCode, 0);
+}
+
+async function testOwnerCanReadLearningStatusReadiness() {
+  const { routes, growthInputs } = makeRoutes({
+    learningGrowthService: {
+      overview(input) {
+        growthInputs.push(input);
+        return {
+          module: { id: "fanfan-growth" },
+          learner: { id: input.learnerId, workspaceId: input.workspaceId },
+          operationalReadiness: {
+            version: "learning-growth-v1",
+            status: "operational_ready",
+            operationalTestReady: true,
+          },
+        };
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning/status?workspaceId=weixin_stephen&learnerId=weixin_stephen", {
+    auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.body.ok, true);
+  assert.equal(response.body.learning.moduleId, "fanfan-growth");
+  assert.equal(response.body.learning.readiness.status, "operational_ready");
+  assert.deepEqual(growthInputs[0], {
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    studentId: "weixin_stephen",
+    limit: null,
+    owner: true,
+    viewerRole: "owner",
+  });
+}
+
+async function testExecutorCannotReadLearningStatus() {
+  const { routes, growthInputs } = makeRoutes();
+  const response = await request(routes, "GET", "/api/learning/status?workspaceId=child&learnerId=child", {
+    auth: { ok: true, workspaceId: "child", principalId: "child", isOwner: false },
+  });
+  assert.equal(response.res.statusCode, 403);
+  assert.equal(response.body.error, "Owner access is required");
+  assert.equal(growthInputs.length, 0);
 }
 
 async function testOverviewUsesRequestedExecutorWorkspaceForOwner() {
@@ -156,6 +201,8 @@ async function testStudentCannotReadAnotherLearner() {
   await testOwnerDefaultOverviewUsesFanfanLearnerBinding();
   await testStudentReadsOwnOverviewAsExecutor();
   await testStudentCannotReadAnotherLearner();
+  await testOwnerCanReadLearningStatusReadiness();
+  await testExecutorCannotReadLearningStatus();
   console.log("learning api route tests passed");
 })().catch((err) => {
   console.error(err);

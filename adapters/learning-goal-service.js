@@ -2,6 +2,7 @@
 
 const crypto = require("node:crypto");
 const { createLearningSkillTaxonomyService } = require("./learning-skill-taxonomy-service");
+const { assertNoPrivateLearningPayload } = require("./learning-record-privacy-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -38,6 +39,7 @@ function normalizeGoalStatus(value) {
 }
 
 function normalizeLearningGoalInput(input = {}, deps = {}) {
+  assertNoPrivateLearningPayload(input, "learning goal");
   const taxonomy = deps.taxonomy || createLearningSkillTaxonomyService();
   const workspaceId = cleanString(input.workspaceId) || "weixin_stephen";
   const learnerId = cleanString(input.learnerId || input.studentId || input.performerWorkspaceId) || workspaceId;

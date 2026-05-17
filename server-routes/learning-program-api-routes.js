@@ -1,6 +1,7 @@
 "use strict";
 
 const { createApiRouteRegistry } = require("../adapters/api-route-registry");
+const { executionQueueSummary } = require("../adapters/learning-task-card-service");
 
 const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
   {
@@ -844,7 +845,8 @@ function createLearningProgramApiRoutes(deps = {}) {
     const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)$/);
     const taskCard = service.getTaskCard(taskCardId);
     if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
-    deps.sendJson(res, 200, { ok: true, taskCard });
+    if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
+    deps.sendJson(res, 200, { ok: true, taskCard: deps.isOwnerAuth(auth) ? taskCard : executionQueueSummary(taskCard) });
   }
 
   async function handleTaskSessionStart(req, res, url, auth) {

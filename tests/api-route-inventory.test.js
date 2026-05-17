@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { validateRouteRegistry } = require("../adapters/api-route-registry");
+const { createApiRouteRegistry, validateRouteRegistry } = require("../adapters/api-route-registry");
 const {
   createHermesMobileApiRouteInventory,
   groupHermesMobileApiRoutes,
@@ -13,6 +13,7 @@ const {
   summarizeHermesMobileApiRoutes,
   validateHermesMobileApiRouteInventory,
 } = require("../adapters/api-route-inventory");
+const { LEARNING_PROGRAM_API_ROUTE_SPECS } = require("../server-routes/learning-program-api-routes");
 
 const ROUTE_MODULES = Object.freeze([
   {
@@ -219,17 +220,18 @@ const ROUTE_MODULES = Object.freeze([
     key: "learning-api-routes",
     exportName: "createLearningApiRoutes",
     required: true,
-    minRoutes: 2,
+    minRoutes: 3,
     probes: [
       { method: "GET", path: "/api/learning-growth/overview", id: "learning-growth-overview" },
       { method: "GET", path: "/api/learning/overview", id: "learning-overview" },
+      { method: "GET", path: "/api/learning/status", id: "learning-status" },
     ],
   },
   {
     key: "learning-program-api-routes",
     exportName: "createLearningProgramApiRoutes",
     required: true,
-    minRoutes: 29,
+    minRoutes: 30,
     probes: [
       { method: "GET", path: "/api/learning/programs", id: "learning-programs-list" },
       { method: "POST", path: "/api/learning/sources", id: "learning-sources-create" },
@@ -240,6 +242,7 @@ const ROUTE_MODULES = Object.freeze([
       { method: "POST", path: "/api/learning/programs/program-1/draft-plan", id: "learning-program-draft-plan" },
       { method: "GET", path: "/api/learning/task-cards", id: "learning-task-cards-list" },
       { method: "GET", path: "/api/learning/task-execution-queue", id: "learning-task-execution-queue" },
+      { method: "GET", path: "/api/learning/daily-plan", id: "learning-daily-plan" },
       { method: "POST", path: "/api/learning/task-cards/task-1/sessions", id: "learning-task-card-session-start" },
       { method: "POST", path: "/api/learning/sessions/session-1/evaluations", id: "learning-session-evaluation-create" },
       { method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement", id: "learning-evaluation-reward-settle" },
@@ -350,6 +353,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/kanban/cards/card-1/assessment-exam" }).id, "kanban-assessment-exam");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-growth/overview" }).id, "learning-growth-overview");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/overview" }).id, "learning-overview");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/status" }).id, "learning-status");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/sources" }).id, "learning-sources-list");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/goals" }).id, "learning-goals-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/profile/rebuild" }).id, "learning-profile-rebuild");
@@ -359,6 +363,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/programs/program-1/publish" }).id, "learning-program-publish");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/daily-plan" }).id, "learning-daily-plan");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-cards/task-1" }).id, "learning-task-card-read");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/sessions/session-1/advance" }).id, "learning-session-advance");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/evaluations" }).id, "learning-evaluations-list");
@@ -373,6 +378,24 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "DELETE", path: "/api/threads/thread-1/tasks/task-1" }).id, "thread-task-delete");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/artifacts/art-1?download=1" }).id, "artifact-read");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/unknown" }), null);
+}
+
+function testLearningProgramInventoryMatchesRouteModuleSpecs() {
+  const inventoryById = new Map(listHermesMobileApiRoutes().map((route) => [route.id, route]));
+  const moduleRoutes = createApiRouteRegistry(LEARNING_PROGRAM_API_ROUTE_SPECS).list();
+  assert.equal(moduleRoutes.length, 30);
+  for (const expected of moduleRoutes) {
+    const actual = inventoryById.get(expected.id);
+    assert.ok(actual, `global inventory is missing ${expected.id}`);
+    assert.deepEqual(actual.method, expected.method, `${expected.id} method`);
+    assert.equal(matcherSignature(actual), matcherSignature(expected), `${expected.id} matcher`);
+    assert.equal(actual.riskLevel, expected.riskLevel, `${expected.id} risk`);
+    assert.equal(actual.authMode, expected.authMode, `${expected.id} authMode`);
+    assert.equal(actual.authRequired, expected.authRequired, `${expected.id} authRequired`);
+    assert.equal(actual.ownerOnly, expected.ownerOnly, `${expected.id} ownerOnly`);
+    assert.equal(actual.workspaceScoped, expected.workspaceScoped, `${expected.id} workspaceScoped`);
+    assert.deepEqual(actual.resourceTypes, expected.resourceTypes, `${expected.id} resourceTypes`);
+  }
 }
 
 function testSummarySeparatesRuntimeAuthDomains() {
@@ -496,6 +519,7 @@ function testRouteModuleIdsAndMethodPathsAreUniqueAcrossLoadedModules() {
 
 testInventoryBuildsAValidRegistry();
 testInventoryMatchesCurrentServerRouteShapes();
+testLearningProgramInventoryMatchesRouteModuleSpecs();
 testSummarySeparatesRuntimeAuthDomains();
 testGroupingProducesModuleWorkPackages();
 testPublicRouteListRedactsPathMatchers();

@@ -106,6 +106,7 @@ function createLearningParentReportService(options = {}) {
     return {
       ok: true,
       reportType: "parent_weekly_summary",
+      privacyLevel: "summary_only",
       generatedAt: now().toISOString(),
       workspaceId,
       learnerId,

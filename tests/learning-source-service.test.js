@@ -28,7 +28,8 @@ function testNormalizeAndSave() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
   const service = createLearningSourceService({ repository });
-  const source = service.save(Object.assign({}, normalized, { rawTranscript: "hidden" }));
+  assert.throws(() => service.save(Object.assign({}, normalized, { rawTranscript: "hidden" })), /summary-only fields/);
+  const source = service.save(normalized);
   assert.equal(source.sourceRef, `school:${source.sourceId}`);
   assert.equal(service.basisRefs({ learnerId: "weixin_stephen" })[0], source.sourceRef);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).sources, 1);

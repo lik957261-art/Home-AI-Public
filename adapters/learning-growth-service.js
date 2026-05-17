@@ -1,5 +1,7 @@
 "use strict";
 
+const { createLearningV1ReadinessService } = require("./learning-v1-readiness-service");
+
 const LEARNING_GROWTH_MODULE_ID = "fanfan-growth";
 
 function cleanString(value) {
@@ -276,6 +278,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
   const viewerRole = normalizeViewerRole(input);
   const learningCoinService = deps.learningCoinService || null;
   const learningProgramService = deps.learningProgramService || null;
+  const readinessService = deps.readinessService || createLearningV1ReadinessService();
   const coins = learningCoinService && typeof learningCoinService.summary === "function"
     ? learningCoinService.summary({
         workspaceId: request.workspaceId,
@@ -292,6 +295,14 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
       })
     : null;
   const metrics = coinMetric(coins || {});
+  const operationalReadiness = readinessService.evaluate({
+    programs,
+    coins,
+    metrics,
+    learnerId: request.learnerId,
+    workspaceId: request.workspaceId,
+    viewerRole,
+  });
   const overview = {
     viewerRole,
     module: {
@@ -312,6 +323,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
     capabilities: learningGrowthCapabilityMap(metrics),
     platformCapabilities: learningGrowthPlatformCapabilities(),
     reliability: learningGrowthReliabilitySummary(),
+    operationalReadiness,
     programs,
     coins,
     nextModules: [
@@ -328,9 +340,10 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
 function createLearningGrowthService(options = {}) {
   const learningCoinService = options.learningCoinService || null;
   const learningProgramService = options.learningProgramService || null;
+  const readinessService = options.readinessService || createLearningV1ReadinessService();
   return {
     overview(input = {}) {
-      return buildLearningGrowthOverview(input, { learningCoinService, learningProgramService });
+      return buildLearningGrowthOverview(input, { learningCoinService, learningProgramService, readinessService });
     },
   };
 }

@@ -72,6 +72,67 @@
     </section>`;
   }
 
+  function readinessStatusText(status) {
+    const value = String(status || "");
+    if (value === "operational_ready") return "Operational ready";
+    if (value === "system_ready") return "System ready";
+    if (value === "blocked") return "Blocked";
+    return value || "Unknown";
+  }
+
+  function renderReadinessMetric(label, value, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const percent = Math.max(0, Math.min(100, Number(value || 0)));
+    return `<span>
+      <strong>${escapeHtml(`${percent}%`)}</strong>
+      <small>${escapeHtml(label)}</small>
+    </span>`;
+  }
+
+  function renderReadinessCheckRows(checks = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    return (checks || []).map((item) => `<li class="learning-readiness-check-row" data-learning-readiness-check="${escapeHtml(item.id || "")}" data-ready="${item.ready ? "1" : "0"}">
+      <span>${item.ready ? "OK" : "TODO"}</span>
+      <strong>${escapeHtml(item.label || item.id || "")}</strong>
+    </li>`).join("");
+  }
+
+  function renderReadinessPanel(readiness = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!readiness || typeof readiness !== "object") return "";
+    const systemChecks = readiness.checks?.system || [];
+    const learnerChecks = readiness.checks?.learnerData || [];
+    const nextActions = readiness.nextActions || [];
+    return `<section class="learning-coin-panel learning-readiness-panel" data-learning-operational-readiness>
+      <div class="learning-section-heading">
+        <h3>Learning V1 readiness</h3>
+        <span>${escapeHtml(readinessStatusText(readiness.status))}</span>
+      </div>
+      <div class="learning-readiness-grid">
+        ${renderReadinessMetric("System gates", readiness.systemReadinessPercent, options)}
+        ${renderReadinessMetric("Learner data", readiness.learnerDataReadinessPercent, options)}
+        <span>
+          <strong>${readiness.operationalTestReady ? "Yes" : "No"}</strong>
+          <small>Operational test</small>
+        </span>
+      </div>
+      <div class="learning-readiness-checks">
+        <div>
+          <strong>System</strong>
+          <ul class="learning-readiness-check-list">${renderReadinessCheckRows(systemChecks, options)}</ul>
+        </div>
+        <div>
+          <strong>Learner data</strong>
+          <ul class="learning-readiness-check-list">${renderReadinessCheckRows(learnerChecks, options)}</ul>
+        </div>
+      </div>
+      ${nextActions.length ? `<div class="learning-readiness-next">
+        <strong>Next actions</strong>
+        <ul>${nextActions.map((item) => `<li>${escapeHtml(item.reason || item.checkId || "")}</li>`).join("")}</ul>
+      </div>` : ""}
+    </section>`;
+  }
+
   function renderOwnerSystemPanel(overview = {}, options = {}) {
     if (!isOwner(options)) return "";
     return `<section class="learning-growth-category learning-growth-owner-system" data-learning-growth-category="owner-system">
@@ -79,6 +140,7 @@
         <h3>后台与平台能力</h3>
         <span>Owner</span>
       </div>
+      ${renderReadinessPanel(overview.operationalReadiness, options)}
       ${renderPlatformStrip(overview.platformCapabilities || [], options)}
       <section class="learning-growth-modules">
         ${renderCapabilityCards(overview.capabilities || [], options)}
@@ -138,5 +200,6 @@
     renderNextModules,
     renderOwnerSystemPanel,
     renderPlatformStrip,
+    renderReadinessPanel,
   };
 }));

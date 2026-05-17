@@ -19,6 +19,22 @@ const overview = {
     { id: "chat", title: "聊天与主题" },
     { id: "push", title: "Web Push 提醒" },
   ],
+  operationalReadiness: {
+    version: "learning-growth-v1",
+    status: "operational_ready",
+    operationalTestReady: true,
+    systemReadinessPercent: 100,
+    learnerDataReadinessPercent: 100,
+    checks: {
+      system: [
+        { id: "sqlite-learning-domain", label: "SQLite learning domain services", ready: true },
+      ],
+      learnerData: [
+        { id: "daily-plan-data", label: "Daily plan has executable tasks", ready: true },
+      ],
+    },
+    nextActions: [],
+  },
   coins: {
     studentId: "weixin_stephen",
     balances: { availableCoins: 70, heldCoins: 0, earnedCoins: 70, spentCoins: 0 },
@@ -83,6 +99,7 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-learning-growth-module="coins"/);
   assert.doesNotMatch(html, /data-learning-growth-category="parent-admin"/);
   assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
+  assert.doesNotMatch(html, /data-learning-operational-readiness/);
   assert.doesNotMatch(html, /data-learning-growth-capability="parent-review"/);
   assert.doesNotMatch(html, /data-learning-review-decision/);
   assert.doesNotMatch(html, /Owner|家长|结算|后台与平台能力|learningRewardForm|人民币/);
@@ -105,10 +122,20 @@ function testOwnerRendererKeepsManagementSections() {
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
   assert.match(html, /data-learning-growth-category="owner-system"/);
+  assert.match(html, /data-learning-operational-readiness/);
+  assert.match(html, /Learning V1 readiness/);
+  assert.match(html, /Operational ready/);
   assert.match(html, /data-learning-growth-capability="parent-review"/);
   assert.match(html, /data-learning-review-decision="review-1"/);
   assert.match(html, /data-learning-parent-review-decision="parent-review-1"/);
   assert.match(html, /data-learning-reward-settlement-id="settle-1"/);
+}
+
+function testReadinessPanelRenderer() {
+  const html = GrowthUi.renderReadinessPanel(overview.operationalReadiness);
+  assert.match(html, /data-learning-operational-readiness/);
+  assert.match(html, /data-learning-readiness-check="sqlite-learning-domain"/);
+  assert.match(html, /100%/);
 }
 
 testCoinSubsystemRendererIsStandalone();
@@ -116,5 +143,6 @@ testExecutorCoinSubsystemHidesOwnerSettlementDetails();
 testGrowthRendererContainsProductShellAndNestedCoins();
 testGrowthRendererContainsProgramSubsystem();
 testOwnerRendererKeepsManagementSections();
+testReadinessPanelRenderer();
 
 console.log("app learning growth ui tests passed");

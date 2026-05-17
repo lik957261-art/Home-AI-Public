@@ -18,6 +18,7 @@ const { createLearningSkillTaxonomyService } = require("./learning-skill-taxonom
 const { createLearningSourceService } = require("./learning-source-service");
 const { createLearningTaskCardService } = require("./learning-task-card-service");
 const { createLearningTemplateRegistryService } = require("./learning-template-registry-service");
+const { assertNoPrivateLearningPayload } = require("./learning-record-privacy-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -56,6 +57,7 @@ function clampInt(value, min, max, fallback) {
 }
 
 function normalizeProgramInput(input = {}, deps = {}) {
+  assertNoPrivateLearningPayload(input, "learning program");
   const taxonomy = deps.taxonomy;
   const domain = taxonomy.normalizeDomain(input.domain || input.subject || "english");
   const workspaceId = cleanString(input.workspaceId) || "weixin_stephen";

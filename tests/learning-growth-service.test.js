@@ -56,18 +56,17 @@ function makeProgramService() {
           title: "Task",
           status: "published",
           skillIds: ["english_speaking_retell"],
-          answerKey: "hidden",
         }],
         dailyPlan: {
           summary: { totalTasks: 1, pendingTasks: 1 },
           nextTask: { taskCardId: "task-1", title: "Task" },
           privacyLevel: "summary_only",
         },
-        interactionSessions: [{ sessionId: "session-1", taskCardId: "task-1", status: "active", currentStep: "learner_attempt", rawTranscript: "hidden" }],
-        evaluations: [{ evaluationId: "eval-1", score: 90, passed: true, summary: "summary", answerKey: "hidden" }],
+        interactionSessions: [{ sessionId: "session-1", taskCardId: "task-1", status: "active", currentStep: "learner_attempt" }],
+        evaluations: [{ evaluationId: "eval-1", score: 90, passed: true, summary: "summary" }],
         parentReviewRequests: [{ reviewRequestId: "parent-review-1", summary: "owner parent review" }],
         rewardSettlements: [{ rewardSettlementId: "settle-1", coinAmount: 20 }],
-        learnerProfile: { learnerId: "weixin_stephen", profileSummary: "summary", rawNotes: "hidden" },
+        learnerProfile: { learnerId: "weixin_stephen", profileSummary: "summary" },
         skillStates: [{ skillId: "english_speaking_retell", confidence: 0.7 }],
         curriculumReferences: [{ referenceId: "cefr-a2-b1", title: "CEFR" }],
         parentReport: { reportType: "parent_weekly_summary" },
@@ -94,7 +93,10 @@ function testRequestNormalizationKeepsExecutorAccountId() {
 
 function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   const coinService = makeCoinService();
-  const service = createLearningGrowthService({ learningCoinService: coinService });
+  const service = createLearningGrowthService({
+    learningCoinService: coinService,
+    learningProgramService: makeProgramService(),
+  });
   const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen", limit: 5 });
 
   assert.equal(overview.module.id, "fanfan-growth");
@@ -113,6 +115,10 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   assert.equal(overview.reliability.guardLevel, "ai-draft-system-verify-parent-audit");
   assert.ok(overview.reliability.gates.includes("parent_review"));
   assert.ok(overview.reliability.reviewTriggers.includes("missing_source_basis"));
+  assert.equal(overview.operationalReadiness.version, "learning-growth-v1");
+  assert.equal(overview.operationalReadiness.systemReadinessPercent, 100);
+  assert.equal(overview.operationalReadiness.learnerDataReadinessPercent, 100);
+  assert.equal(overview.operationalReadiness.operationalTestReady, true);
   assert.ok(overview.nextModules.some((item) => item.id === "ai-reliability-guard-service"));
   assert.deepEqual(coinService.calls[0], { workspaceId: "weixin_stephen", studentId: "weixin_stephen", limit: 5 });
 }
@@ -133,6 +139,7 @@ function testExecutorOverviewStripsOwnerManagementData() {
   assert.equal(overview.capabilities, undefined);
   assert.equal(overview.platformCapabilities, undefined);
   assert.equal(overview.reliability, undefined);
+  assert.equal(overview.operationalReadiness, undefined);
   assert.equal(overview.nextModules, undefined);
   assert.equal(overview.coins.settlement, undefined);
   assert.equal(overview.programs.sources, undefined);

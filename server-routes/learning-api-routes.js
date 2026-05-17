@@ -34,6 +34,22 @@ const LEARNING_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["learning-growth", "learning-coin"],
     tags: ["learning", "growth", "coins"],
   },
+  {
+    id: "learning-status",
+    method: "GET",
+    path: "/api/learning/status",
+    group: "learning",
+    moduleKey: "learning",
+    handlerKey: "status",
+    summary: "Owner reads non-secret Fanfan learning V1 operational readiness.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-growth", "learning-program", "learning-readiness"],
+    tags: ["learning", "growth", "status", "readiness", "owner"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -108,6 +124,34 @@ function createLearningApiRoutes(deps = {}) {
     }))));
   }
 
+  async function handleStatus(req, res, url, auth) {
+    if (!deps.isOwnerAuth(auth)) {
+      deps.sendJson(res, 403, { error: "Owner access is required" });
+      return;
+    }
+    let input;
+    try {
+      input = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!input) return;
+    const overview = learningGrowthService.overview(Object.assign({}, input, {
+      owner: true,
+      viewerRole: "owner",
+    }));
+    deps.sendJson(res, 200, {
+      ok: true,
+      learning: {
+        moduleId: overview.module?.id || "fanfan-growth",
+        learnerId: overview.learner?.id || input.learnerId,
+        workspaceId: overview.learner?.workspaceId || input.workspaceId,
+        readiness: overview.operationalReadiness || null,
+      },
+    });
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -117,6 +161,7 @@ function createLearningApiRoutes(deps = {}) {
 
     const auth = context.auth || null;
     if (route.id === "learning-growth-overview" || route.id === "learning-overview") await handleOverview(req, res, url, auth);
+    else if (route.id === "learning-status") await handleStatus(req, res, url, auth);
     else return { handled: false };
 
     return { handled: true, route, auth };

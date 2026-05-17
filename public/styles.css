@@ -7102,6 +7102,92 @@ button.directory-alias-chip {
   white-space: nowrap;
 }
 
+.learning-readiness-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.learning-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.learning-readiness-grid span {
+  display: grid;
+  gap: 2px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.learning-readiness-grid strong {
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.learning-readiness-grid small,
+.learning-readiness-next li {
+  color: var(--muted);
+}
+
+.learning-readiness-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.learning-readiness-checks > div {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.learning-readiness-check-list,
+.learning-readiness-next ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.learning-readiness-check-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(31, 111, 98, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.learning-readiness-check-row span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.learning-readiness-check-row[data-ready="0"] span {
+  color: var(--muted);
+}
+
+.learning-readiness-check-row strong,
+.learning-readiness-next strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.learning-readiness-next {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
 .learning-coin-view {
   display: grid;
   gap: 16px;
@@ -7421,6 +7507,7 @@ button.directory-alias-chip {
   .learning-foundation-grid,
   .learning-program-execution-grid,
   .learning-program-guidance-grid,
+  .learning-readiness-checks,
   .learning-growth-modules {
     grid-template-columns: 1fr;
   }
@@ -7432,6 +7519,10 @@ button.directory-alias-chip {
   .learning-growth-shell-metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     min-width: 0;
+  }
+
+  .learning-readiness-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .learning-coin-view {
