@@ -156,6 +156,21 @@
     </div>`;
   }
 
+  function renderFoundationImportForm(options = {}) {
+    const state = options.state || {};
+    if (!state.auth?.isOwner) return "";
+    return `<form id="learningFoundationImportForm" class="learning-program-form learning-foundation-import-form" data-learning-foundation-import>
+      <div class="learning-section-heading">
+        <h3>\u6279\u91cf\u57fa\u7840\u5bfc\u5165</h3>
+        <span>Summary only</span>
+      </div>
+      <textarea id="learningFoundationImportSources" class="input" rows="3" placeholder="\u6765\u6e90\uff0c\u6bcf\u884c\uff1a\u7c7b\u578b | \u6807\u9898 | \u6458\u8981 | \u6807\u7b7e"></textarea>
+      <textarea id="learningFoundationImportGoals" class="input" rows="3" placeholder="\u76ee\u6807\uff0c\u6bcf\u884c\uff1a\u9886\u57df | \u6807\u9898 | \u76ee\u6807\u6458\u8981 | \u80fd\u529b\u6807\u7b7e"></textarea>
+      <textarea id="learningFoundationImportProfile" class="input" rows="2" placeholder="\u5b66\u4e60\u753b\u50cf\u6458\u8981\uff1a\u53ea\u5199\u7ed3\u8bba\uff0c\u4e0d\u7c98\u8d34\u5b8c\u6574\u4f5c\u7b54\u6216\u8f6c\u5199"></textarea>
+      <button class="learning-coin-primary" type="submit">\u5bfc\u5165\u6458\u8981</button>
+    </form>`;
+  }
+
   function renderFoundationPanel(data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     if (!isOwner(options)) return "";
@@ -169,6 +184,7 @@
         <button type="button" data-learning-profile-rebuild>\u91cd\u5efa\u753b\u50cf</button>
       </div>
       ${renderSourceGoalForms(options)}
+      ${renderFoundationImportForm(options)}
       <div class="learning-foundation-grid">
         <article>
           <strong>\u5b66\u4e60\u753b\u50cf</strong>
@@ -445,6 +461,31 @@
     </section>`;
   }
 
+  function renderParentReportPanel(data = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!isOwner(options)) return "";
+    const report = options.parentReport || data.parentReport || null;
+    const loading = Boolean(options.parentReportLoading);
+    const error = String(options.parentReportError || "");
+    const counts = report?.counts || {};
+    return `<section class="learning-coin-panel learning-parent-report-panel" data-learning-parent-report>
+      <div class="learning-section-heading">
+        <h3>\u5bb6\u957f\u5468\u62a5</h3>
+        <button type="button" data-learning-parent-report-refresh>${loading ? "\u751f\u6210\u4e2d" : "\u5237\u65b0\u5468\u62a5"}</button>
+      </div>
+      ${error ? `<div class="learning-coin-empty">${escapeHtml(error)}</div>` : ""}
+      ${report ? `<div class="learning-program-report-grid">
+        <span><strong>${escapeHtml(String(counts.plannedTasks || 0))}</strong><small>\u672c\u5468\u4efb\u52a1</small></span>
+        <span><strong>${escapeHtml(String(counts.passedEvaluations || 0))}</strong><small>\u901a\u8fc7\u8bc4\u4f30</small></span>
+        <span><strong>${escapeHtml(String(counts.coinsSettled || 0))}</strong><small>\u7ed3\u7b97\u91d1\u5e01</small></span>
+        <span><strong>${escapeHtml(String(counts.pendingReviews || 0))}</strong><small>\u5f85\u5ba1\u6838</small></span>
+      </div>
+      <div class="learning-program-report-actions">
+        ${asArray(report.nextActions).slice(0, 4).map((item) => `<p>${escapeHtml([item.reason, item.resourceType, item.resourceId].filter(Boolean).join(" / "))}</p>`).join("") || `<p>\u6682\u65e0\u5f85\u5904\u7406\u9879</p>`}
+      </div>` : `<div class="learning-coin-empty">\u70b9\u51fb\u5237\u65b0\u540e\u751f\u6210\u672c\u5468\u6458\u8981\u62a5\u544a\u3002</div>`}
+    </section>`;
+  }
+
   function renderParentAdminPanel(data = {}, options = {}) {
     if (!isOwner(options)) return "";
     return `<section class="learning-growth-category learning-program-parent-admin" data-learning-growth-category="parent-admin">
@@ -454,6 +495,7 @@
       </div>
       ${renderFoundationPanel(data, options)}
       ${renderProgramForm(options)}
+      ${renderParentReportPanel(data, options)}
       ${renderReviewQueue(data.reviewItems || [], options)}
       ${renderParentReviewRequests(data.parentReviewRequests || [], options)}
       ${renderRewardSettlements(data.rewardSettlements || [], options)}
@@ -476,6 +518,7 @@
     renderFoundationPanel,
     renderGuidancePanel,
     renderParentAdminPanel,
+    renderParentReportPanel,
     renderProgramCards,
     renderProgramForm,
     renderProgramSubsystem,

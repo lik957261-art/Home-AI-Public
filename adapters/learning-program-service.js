@@ -5,8 +5,10 @@ const { createCurriculumReferenceService } = require("./curriculum-reference-ser
 const { createLearnerProfileService } = require("./learner-profile-service");
 const { createLearningAiReliabilityGuardService } = require("./learning-ai-reliability-guard-service");
 const { createLearningEvaluationService } = require("./learning-evaluation-service");
+const { createLearningFoundationImportService } = require("./learning-foundation-import-service");
 const { createLearningGoalService } = require("./learning-goal-service");
 const { createLearningInteractionSessionService } = require("./learning-interaction-session-service");
+const { createLearningParentReportService } = require("./learning-parent-report-service");
 const { createLearningParentReviewQueueService } = require("./learning-parent-review-queue-service");
 const { createLearningParentReviewRequestService } = require("./learning-parent-review-request-service");
 const { createLearningPlanDecompositionService } = require("./learning-plan-decomposition-service");
@@ -148,6 +150,12 @@ function createLearningProgramService(options = {}) {
     learningCoinService: options.learningCoinService || null,
     parentReviewRequestService,
   });
+  const foundationImportService = options.foundationImportService || createLearningFoundationImportService({
+    repository,
+    sourceService,
+    goalService,
+  });
+  const parentReportService = options.parentReportService || createLearningParentReportService({ repository });
 
   function createProgram(input = {}) {
     const program = normalizeProgramInput(input, { taxonomy });
@@ -288,6 +296,7 @@ function createLearningProgramService(options = {}) {
       status: result.ok ? "published" : "publish_failed",
       publishedAt: result.ok ? now : draft.publishedAt,
     }));
+    const taskCards = result.ok ? taskCardService.materializeDraft({ program, draft: savedDraft }) : [];
     const publication = repository.savePublication({
       publicationId: createId("lpub"),
       programId: program.programId,
@@ -298,7 +307,7 @@ function createLearningProgramService(options = {}) {
       kanbanResult: result.kanbanResult || result,
       createdAt: now,
     });
-    return { ok: result.ok, program, draft: savedDraft, publication, result };
+    return { ok: result.ok, program, draft: savedDraft, publication, result, taskCards };
   }
 
   function reviewQueueList(filters = {}) {
@@ -380,6 +389,10 @@ function createLearningProgramService(options = {}) {
     return taskCardService.list(filters);
   }
 
+  function listExecutorTaskQueue(filters = {}) {
+    return taskCardService.listExecutorQueue(filters);
+  }
+
   function getTaskCard(taskCardId) {
     return taskCardService.get(taskCardId);
   }
@@ -424,16 +437,27 @@ function createLearningProgramService(options = {}) {
     return parentReviewRequestService.decide(reviewRequestId, input);
   }
 
+  function importFoundationData(input = {}) {
+    return foundationImportService.importFoundation(input);
+  }
+
+  function generateParentReport(input = {}) {
+    return parentReportService.generateReport(input);
+  }
+
   return {
     createProgram,
     decideParentReviewRequest,
     decideReview,
     draftPlan,
+    generateParentReport,
     getProgram,
     getLearnerProfile,
     getRewardSettlement,
     getTaskCard,
+    importFoundationData,
     listEvaluations,
+    listExecutorTaskQueue,
     listInteractionSessions,
     listParentReviewRequests,
     listPrograms,

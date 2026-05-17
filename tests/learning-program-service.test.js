@@ -78,6 +78,12 @@ async function testCreateDraftApprovePublish() {
   assert.equal(published.ok, true);
   assert.equal(publishCalls.length, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).publications, 1);
+  assert.equal(published.taskCards.length, drafted.draft.taskCount);
+  assert.ok(published.taskCards.every((task) => task.status === "published"));
+  const executorQueue = service.listExecutorTaskQueue({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(executorQueue.length, drafted.draft.taskCount);
+  assert.ok(executorQueue.every((task) => task.executionStatus === "pending_execution"));
+  assert.doesNotMatch(JSON.stringify(executorQueue), /questions|answerKey|learnerAnswer|fullTranscript|prompt/);
   const profile = service.rebuildLearnerProfile({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
   assert.ok(profile.skillStates.some((state) => state.skillId === "english_short_writing"));
   const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });

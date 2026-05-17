@@ -66,6 +66,11 @@ const programs = {
   goals: [{ goalId: "goal-1", title: "English output", domain: "english" }],
   learnerProfile: { learnerId: "weixin_stephen", profileSummary: "sources=1; goals=1" },
   curriculumReferences: [{ referenceId: "cefr-a2-b1-english-growth", title: "CEFR A2-B1 English growth bridge" }],
+  parentReport: {
+    reportType: "parent_weekly_summary",
+    counts: { plannedTasks: 3, passedEvaluations: 1, coinsSettled: 20, pendingReviews: 1 },
+    nextActions: [{ reason: "parent_review_required", resourceType: "evaluation", resourceId: "eval-1" }],
+  },
 };
 
 function testOwnerFormAndActionsRender() {
@@ -82,7 +87,10 @@ function testOwnerFormAndActionsRender() {
   assert.match(html, /data-learning-foundation/);
   assert.match(html, /data-learning-source-create/);
   assert.match(html, /data-learning-goal-create/);
+  assert.match(html, /data-learning-foundation-import/);
   assert.match(html, /data-learning-profile-rebuild/);
+  assert.match(html, /data-learning-parent-report/);
+  assert.match(html, /data-learning-parent-report-refresh/);
   assert.match(html, /data-learning-program-create/);
   assert.match(html, /data-learning-program-draft-action="program-1"/);
   assert.match(html, /data-learning-program-publish="program-1"/);
@@ -104,6 +112,8 @@ function testNonOwnerCannotSeeCreateForm() {
   assert.doesNotMatch(html, /data-learning-program-create/);
   assert.doesNotMatch(html, /data-learning-source-create/);
   assert.doesNotMatch(html, /data-learning-goal-create/);
+  assert.doesNotMatch(html, /data-learning-foundation-import/);
+  assert.doesNotMatch(html, /data-learning-parent-report/);
   assert.doesNotMatch(html, /data-learning-review-queue/);
   assert.doesNotMatch(html, /data-learning-parent-review-requests/);
   assert.doesNotMatch(html, /data-learning-reward-settlements/);

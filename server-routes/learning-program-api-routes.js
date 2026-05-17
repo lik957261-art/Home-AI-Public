@@ -169,6 +169,36 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "curriculum", "reference"],
   },
   {
+    id: "learning-foundation-import",
+    method: "POST",
+    path: "/api/learning/foundation-import",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "importFoundationData",
+    summary: "Owner imports summary-only learning sources, goals, curriculum references, and learner profile data.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-source", "learning-goal", "curriculum-reference", "learner-profile"],
+    tags: ["learning", "foundation", "import", "owner", "sqlite"],
+  },
+  {
+    id: "learning-parent-report-read",
+    method: "GET",
+    path: "/api/learning/reports/parent",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "generateParentReport",
+    summary: "Owner reads a summary-only parent report generated from learning program records.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-report", "learning-task-card", "learning-evaluation", "learning-reward-settlement"],
+    tags: ["learning", "report", "parent", "summary-only", "owner"],
+  },
+  {
     id: "learning-program-update",
     method: "PATCH",
     pathRegex: /^\/api\/learning\/programs\/[^/]+$/,
@@ -227,6 +257,21 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-task-card"],
     tags: ["learning", "task-card", "sqlite"],
+  },
+  {
+    id: "learning-task-execution-queue",
+    method: "GET",
+    path: "/api/learning/task-execution-queue",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "listExecutorTaskQueue",
+    summary: "Read summary-only published learning tasks pending executor action.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card"],
+    tags: ["learning", "task-card", "executor", "summary-only"],
   },
   {
     id: "learning-task-card-read",
@@ -585,6 +630,41 @@ function createLearningProgramApiRoutes(deps = {}) {
     });
   }
 
+  async function handleFoundationImport(req, res) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 500000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      deps.sendJson(res, 201, service.importFoundationData(Object.assign({}, body, {
+        importedByPrincipalId: owner.principalId || "owner",
+      })));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleParentReport(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    try {
+      const workspaceId = requestedWorkspaceId(url, "weixin_stephen");
+      const learnerId = requestedLearnerId(url, workspaceId);
+      deps.sendJson(res, 200, service.generateParentReport({
+        workspaceId,
+        learnerId,
+        startDate: cleanString(url.searchParams.get("startDate") || url.searchParams.get("weekStart")),
+        endDate: cleanString(url.searchParams.get("endDate") || url.searchParams.get("weekEnd")),
+        limit: url.searchParams.get("limit"),
+      }));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
   async function handleCreate(req, res, auth) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -683,6 +763,18 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
     if (!query) return;
     deps.sendJson(res, 200, { ok: true, taskCards: service.listTaskCards(query) });
+  }
+
+  async function handleTaskExecutionQueue(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    deps.sendJson(res, 200, { ok: true, taskCards: service.listExecutorTaskQueue(query) });
   }
 
   async function handleTaskCardRead(req, res, url, auth) {
@@ -856,10 +948,13 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-profile-read") await handleProfileRead(req, res, url, auth);
     else if (route.id === "learning-profile-rebuild") await handleProfileRebuild(req, res, url);
     else if (route.id === "learning-curriculum-references-list") await handleCurriculumReferences(req, res, url);
+    else if (route.id === "learning-foundation-import") await handleFoundationImport(req, res, url);
+    else if (route.id === "learning-parent-report-read") await handleParentReport(req, res, url);
     else if (route.id === "learning-program-update") await handleUpdate(req, res, url);
     else if (route.id === "learning-program-draft-plan") await handleDraft(req, res, url);
     else if (route.id === "learning-program-publish") await handlePublish(req, res, url);
     else if (route.id === "learning-task-cards-list") await handleTaskCardsList(req, res, url, auth);
+    else if (route.id === "learning-task-execution-queue") await handleTaskExecutionQueue(req, res, url, auth);
     else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url);
     else if (route.id === "learning-sessions-list") await handleSessionsList(req, res, url, auth);

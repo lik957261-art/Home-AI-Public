@@ -85,6 +85,14 @@ function makeRoutes(overrides = {}) {
       calls.push(["curriculum", input]);
       return [{ referenceId: "cefr-a2-b1-english-growth", domain: "english" }];
     },
+    importFoundationData(input) {
+      calls.push(["importFoundationData", input]);
+      return { ok: true, counts: { sources: 1 }, workspaceId: input.workspaceId, learnerId: input.learnerId };
+    },
+    generateParentReport(input) {
+      calls.push(["generateParentReport", input]);
+      return { ok: true, reportType: "parent_weekly_summary", workspaceId: input.workspaceId, learnerId: input.learnerId };
+    },
     draftPlan(programId) {
       calls.push(["draft", programId]);
       return { ok: true, draft: { draftId: "draft-1", programId }, taskCards: [{ taskCardId: "task-1" }] };
@@ -104,6 +112,10 @@ function makeRoutes(overrides = {}) {
     listTaskCards(input) {
       calls.push(["listTaskCards", input]);
       return [{ taskCardId: "task-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
+    },
+    listExecutorTaskQueue(input) {
+      calls.push(["listExecutorTaskQueue", input]);
+      return [{ taskCardId: "task-1", workspaceId: input.workspaceId, learnerId: input.learnerId, status: "published", executionStatus: "pending_execution", summary: "summary only" }];
     },
     getTaskCard(taskCardId) {
       calls.push(["getTaskCard", taskCardId]);
@@ -178,18 +190,21 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 26);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 29);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 26);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 29);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -252,6 +267,23 @@ async function testFoundationRoutes() {
   const refs = await request(routes, "GET", "/api/learning/curriculum-references?domain=english");
   assert.equal(refs.res.statusCode, 200);
   assert.equal(refs.body.curriculumReferences[0].referenceId, "cefr-a2-b1-english-growth");
+
+  const imported = await request(routes, "POST", "/api/learning/foundation-import", {
+    body: {
+      workspaceId: "weixin_stephen",
+      learnerId: "weixin_stephen",
+      sources: [{ title: "summary only" }],
+      goals: [{ title: "goal summary" }],
+    },
+  });
+  assert.equal(imported.res.statusCode, 201);
+  assert.equal(imported.body.counts.sources, 1);
+  assert.equal(calls.at(-1)[0], "importFoundationData");
+
+  const report = await request(routes, "GET", "/api/learning/reports/parent?workspaceId=weixin_stephen&learnerId=weixin_stephen&startDate=2026-05-11&endDate=2026-05-17");
+  assert.equal(report.res.statusCode, 200);
+  assert.equal(report.body.reportType, "parent_weekly_summary");
+  assert.equal(calls.at(-1)[0], "generateParentReport");
   assert.ok(calls.some((call) => call[0] === "saveSource"));
   assert.ok(calls.some((call) => call[0] === "rebuildProfile"));
 }
@@ -261,6 +293,13 @@ async function testTaskSessionEvaluationRoutes() {
   const taskList = await request(routes, "GET", "/api/learning/task-cards?workspaceId=weixin_stephen&learnerId=weixin_stephen");
   assert.equal(taskList.res.statusCode, 200);
   assert.equal(taskList.body.taskCards[0].taskCardId, "task-1");
+
+  const executionQueue = await request(routes, "GET", "/api/learning/task-execution-queue?workspaceId=weixin_stephen&learnerId=weixin_stephen", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(executionQueue.res.statusCode, 200);
+  assert.equal(executionQueue.body.taskCards[0].executionStatus, "pending_execution");
+  assert.equal(calls.at(-1)[0], "listExecutorTaskQueue");
 
   const task = await request(routes, "GET", "/api/learning/task-cards/task-1", {
     auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },

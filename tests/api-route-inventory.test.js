@@ -229,14 +229,17 @@ const ROUTE_MODULES = Object.freeze([
     key: "learning-program-api-routes",
     exportName: "createLearningProgramApiRoutes",
     required: true,
-    minRoutes: 26,
+    minRoutes: 29,
     probes: [
       { method: "GET", path: "/api/learning/programs", id: "learning-programs-list" },
       { method: "POST", path: "/api/learning/sources", id: "learning-sources-create" },
       { method: "GET", path: "/api/learning/profile", id: "learning-profile-read" },
       { method: "GET", path: "/api/learning/curriculum-references", id: "learning-curriculum-references-list" },
+      { method: "POST", path: "/api/learning/foundation-import", id: "learning-foundation-import" },
+      { method: "GET", path: "/api/learning/reports/parent", id: "learning-parent-report-read" },
       { method: "POST", path: "/api/learning/programs/program-1/draft-plan", id: "learning-program-draft-plan" },
       { method: "GET", path: "/api/learning/task-cards", id: "learning-task-cards-list" },
+      { method: "GET", path: "/api/learning/task-execution-queue", id: "learning-task-execution-queue" },
       { method: "POST", path: "/api/learning/task-cards/task-1/sessions", id: "learning-task-card-session-start" },
       { method: "POST", path: "/api/learning/sessions/session-1/evaluations", id: "learning-session-evaluation-create" },
       { method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement", id: "learning-evaluation-reward-settle" },
@@ -351,8 +354,11 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/goals" }).id, "learning-goals-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/profile/rebuild" }).id, "learning-profile-rebuild");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/curriculum-references" }).id, "learning-curriculum-references-list");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/programs/program-1/publish" }).id, "learning-program-publish");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-cards/task-1" }).id, "learning-task-card-read");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/sessions/session-1/advance" }).id, "learning-session-advance");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/evaluations" }).id, "learning-evaluations-list");

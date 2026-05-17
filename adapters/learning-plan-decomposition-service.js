@@ -44,25 +44,30 @@ function taskId(programId, dayIndex, order) {
 }
 
 function titleForSkill(skillId) {
+  if (skillId === "english_listening_input") return "Listening key points and replay";
   if (skillId === "english_speaking_retell") return "Oral retell and follow-up";
   if (skillId === "english_pronunciation_shadowing") return "Shadowing and pronunciation repair";
   if (skillId === "english_short_writing") return "Short writing with rewrite";
   if (skillId === "english_vocabulary_active_use") return "Active vocabulary use";
   if (skillId === "english_grammar_in_expression") return "Grammar in expression repair";
+  if (skillId === "english_presentation") return "Presentation outline and rehearsal";
   return "Reading comprehension and explanation";
 }
 
 function templateForSkill(skillId, templates = []) {
-  return templates.find((template) => Array.isArray(template.skillIds) && template.skillIds.includes(skillId))
+  return templates.find((template) => Array.isArray(template.skillIds) && template.skillIds.length === 1 && template.skillIds[0] === skillId)
+    || templates.find((template) => Array.isArray(template.skillIds) && template.skillIds.includes(skillId))
     || templates.find((template) => template.id === "english-mistake-repair-v1")
     || null;
 }
 
 function cardTypeForSkill(skillId, dayIndex) {
+  if (skillId === "english_listening_input") return "review_card";
   if (skillId === "english_speaking_retell") return dayIndex % 3 === 2 ? "challenge_card" : "single_subject";
   if (skillId === "english_short_writing") return dayIndex % 2 === 1 ? "project_card" : "single_subject";
   if (skillId === "english_pronunciation_shadowing" || skillId === "english_vocabulary_active_use") return "review_card";
   if (skillId === "english_grammar_in_expression") return "mistake_repair_card";
+  if (skillId === "english_presentation") return "project_card";
   return "single_subject";
 }
 
@@ -76,7 +81,33 @@ function buildEnglishSkillRotation(program) {
   if (!focus.length || focusIncludes(program, "english_short_writing")) rotation.push("english_short_writing");
   if (!focus.length || focusIncludes(program, "english_vocabulary_active_use")) rotation.push("english_vocabulary_active_use");
   if (focusIncludes(program, "english_grammar_in_expression")) rotation.push("english_grammar_in_expression");
+  if (focusIncludes(program, "english_presentation")) rotation.push("english_presentation");
   return rotation.length ? rotation : ["english_reading_comprehension", "english_speaking_retell", "english_short_writing"];
+}
+
+function stateMachineForSkill(skillId) {
+  if (skillId === "english_listening_input") {
+    return ["receive_task", "ai_sets_listening_goal", "learner_listens", "learner_key_points", "ai_replays_gap", "learner_retries", "ai_evaluation", "next_task_feedback"];
+  }
+  if (skillId === "english_speaking_retell") {
+    return ["receive_task", "ai_explains_goal", "learner_retells", "ai_hint", "learner_retries_retell", "ai_evaluation", "mistake_explanation", "next_task_feedback"];
+  }
+  if (skillId === "english_pronunciation_shadowing") {
+    return ["receive_task", "ai_models_pronunciation", "learner_shadows", "ai_marks_pronunciation_gap", "learner_repeats", "ai_evaluation", "next_task_feedback"];
+  }
+  if (skillId === "english_short_writing") {
+    return ["receive_task", "ai_explains_goal", "learner_drafts", "ai_feedback", "learner_rewrites", "ai_evaluation", "learner_reflects", "next_task_feedback"];
+  }
+  if (skillId === "english_vocabulary_active_use") {
+    return ["receive_task", "ai_sets_word_context", "learner_uses_words", "ai_feedback", "learner_repairs_sentence", "ai_evaluation", "next_task_feedback"];
+  }
+  if (skillId === "english_grammar_in_expression") {
+    return ["receive_task", "ai_spots_pattern", "learner_repairs_expression", "ai_explains_rule", "learner_variant_repair", "ai_evaluation", "next_task_feedback"];
+  }
+  if (skillId === "english_presentation") {
+    return ["receive_task", "ai_sets_project_goal", "learner_outlines", "ai_feedback", "learner_rehearses", "ai_evaluation", "learner_reflects", "next_task_feedback"];
+  }
+  return ["receive_task", "ai_explains_goal", "learner_attempt", "ai_hint", "learner_revision", "ai_evaluation", "mistake_explanation", "learner_restates_reason", "variant_repair", "reward_settlement", "next_task_feedback"];
 }
 
 function buildTask(program, options = {}) {
@@ -94,19 +125,7 @@ function buildTask(program, options = {}) {
     templateId: template?.id || "",
     skillPath: template?.skillPath || "",
     plannedMinutes: minutes,
-    interactionStateMachine: [
-      "receive_task",
-      "ai_explains_goal",
-      "learner_attempt",
-      "ai_hint",
-      "learner_revision",
-      "ai_evaluation",
-      "mistake_explanation",
-      "learner_restates_reason",
-      "variant_repair",
-      "reward_settlement",
-      "next_task_feedback",
-    ],
+    interactionStateMachine: stateMachineForSkill(options.skillId),
     sourceBasisRefs,
     curriculumRefs,
     confidence: sourceBasisRefs.length && curriculumRefs.length ? 0.78 : 0.45,

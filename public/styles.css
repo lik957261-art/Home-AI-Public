@@ -6875,6 +6875,42 @@ button.directory-alias-chip {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.learning-program-report-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.learning-program-report-grid span {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid rgba(31, 111, 98, 0.1);
+  border-radius: 12px;
+  background: rgba(236, 249, 245, 0.42);
+}
+
+.learning-program-report-grid strong {
+  color: var(--accent);
+  font-size: 16px;
+}
+
+.learning-program-report-grid small,
+.learning-program-report-actions p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.learning-program-report-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.learning-program-report-actions p {
+  margin: 0;
+}
+
 .learning-program-meta-grid span {
   display: grid;
   gap: 2px;
@@ -7347,6 +7383,7 @@ button.directory-alias-chip {
   .learning-growth-summary,
   .learning-reward-card,
   .learning-reward-form,
+  .learning-program-report-grid,
   .learning-program-task-item,
   .learning-program-card-top,
   .learning-program-review-item {

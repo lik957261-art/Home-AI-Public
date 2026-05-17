@@ -7,7 +7,9 @@ function cleanString(value) {
 }
 
 function asArray(value) {
-  return Array.isArray(value) ? value : [];
+  if (Array.isArray(value)) return value;
+  if (value == null || value === "") return [];
+  return String(value).split(/\s*,\s*|\s+/);
 }
 
 function stableTaskCardId(draftId, taskId) {
@@ -20,6 +22,28 @@ function draftStatusToTaskStatus(status) {
   if (status === "review_required") return "review_required";
   if (status === "published") return "published";
   return "planned";
+}
+
+function executionQueueSummary(task = {}) {
+  return {
+    taskCardId: task.taskCardId,
+    programId: task.programId,
+    draftId: task.draftId,
+    kanbanCardId: task.kanbanCardId,
+    learnerId: task.learnerId,
+    workspaceId: task.workspaceId,
+    title: task.title,
+    domain: task.domain,
+    taskCardType: task.taskCardType,
+    status: task.status,
+    executionStatus: task.status === "published" ? "pending_execution" : task.status,
+    plannedDate: task.plannedDate,
+    plannedMinutes: task.plannedMinutes,
+    skillIds: task.skillIds,
+    templateId: task.templateId,
+    privacyLevel: "summary_only",
+    summary: task.summary,
+  };
 }
 
 function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
@@ -82,15 +106,33 @@ function createLearningTaskCardService(options = {}) {
     return repository.getTaskCard(taskCardId);
   }
 
+  function listExecutorQueue(filters = {}) {
+    const statuses = asArray(filters.status).length
+      ? asArray(filters.status).map(cleanString).filter(Boolean)
+      : ["published"];
+    const seen = new Set();
+    const cards = [];
+    for (const status of statuses) {
+      for (const card of repository.listTaskCards(Object.assign({}, filters, { status }))) {
+        if (seen.has(card.taskCardId)) continue;
+        seen.add(card.taskCardId);
+        cards.push(executionQueueSummary(card));
+      }
+    }
+    return cards.slice(0, Math.max(1, Math.min(200, Number(filters.limit || 50) || 50)));
+  }
+
   return {
     get,
     list,
+    listExecutorQueue,
     materializeDraft,
   };
 }
 
 module.exports = {
   createLearningTaskCardService,
+  executionQueueSummary,
   materializeTask,
   stableTaskCardId,
 };

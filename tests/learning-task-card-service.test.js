@@ -75,5 +75,48 @@ function testMaterializeDraft() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function testExecutorQueueIsSummaryOnly() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const draft = seed(repository);
+  const service = createLearningTaskCardService({ repository });
+  service.materializeDraft({
+    program: repository.getProgram("program-1"),
+    draft: Object.assign({}, draft, {
+      status: "published",
+      dailyPlans: [{
+        date: "2026-05-16",
+        tasks: [{
+          taskId: "task-a",
+          title: "Oral retell",
+          domain: "english",
+          taskCardType: "single_subject",
+          plannedMinutes: 15,
+          skillIds: ["english_speaking_retell"],
+          templateId: "english-speaking-retell-v1",
+          interactionStateMachine: ["receive_task", "learner_retells", "ai_evaluation"],
+          sourceBasisRefs: ["parent_config:program-1"],
+          curriculumRefs: ["cefr-a2-b1-english-growth"],
+          confidence: 0.8,
+          questions: [{ prompt: "private prompt", answer: "private answer" }],
+          learnerAnswer: "private answer",
+          fullTranscript: "private transcript",
+          summary: "summary only",
+        }],
+      }],
+    }),
+  });
+  const queue = service.listExecutorQueue({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].status, "published");
+  assert.equal(queue[0].executionStatus, "pending_execution");
+  assert.equal(queue[0].summary, "summary only");
+  const serialized = JSON.stringify(queue);
+  assert.doesNotMatch(serialized, /private prompt|private answer|private transcript|questions|learnerAnswer|fullTranscript/);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 testMaterializeDraft();
+testExecutorQueueIsSummaryOnly();
 console.log("learning task card service tests passed");

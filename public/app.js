@@ -364,6 +364,9 @@ const state = {
   learningCoinScopeKey: "",
   learningCoinsLoading: false,
   learningCoinsError: "",
+  learningParentReport: null,
+  learningParentReportLoading: false,
+  learningParentReportError: "",
   learningCoinRequestSeq: 0,
   directoryThreadId: "",
   directoryThreadWorkspaceId: "",
@@ -7884,6 +7887,9 @@ function resetLearningCoinsState() {
   state.learningGrowth = null;
   state.learningCoins = null;
   state.learningCoinsError = "";
+  state.learningParentReport = null;
+  state.learningParentReportError = "";
+  state.learningParentReportLoading = false;
   state.learningCoinScopeKey = learningCoinCurrentScopeKey();
 }
 
@@ -7919,6 +7925,9 @@ function renderLearningCoinsView() {
     formatTime,
     learnerId: learningCoinStudentId(),
     programUi: window.HermesLearningProgramUi,
+    parentReport: state.learningParentReport,
+    parentReportLoading: state.learningParentReportLoading,
+    parentReportError: state.learningParentReportError,
   });
   wireLearningCoinsView();
   updateNavigationControls();
@@ -7994,6 +8003,50 @@ function learningInputList(id) {
     .filter(Boolean);
 }
 
+function learningSplitLines(id) {
+  return ($(`${id}`)?.value || "")
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function learningCsvList(text) {
+  return String(text || "")
+    .split(/[,;]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function learningFoundationImportBody() {
+  const scope = learningLearnerBody();
+  const sources = learningSplitLines("learningFoundationImportSources").map((line) => {
+    const parts = line.split("|").map((value) => value.trim());
+    return Object.assign({}, scope, {
+      sourceType: parts[0] || "manual_note",
+      title: parts[1] || parts[0] || "",
+      summary: parts[2] || parts[1] || parts[0] || "",
+      tags: learningCsvList(parts[3] || ""),
+      confidence: 0.7,
+    });
+  });
+  const goals = learningSplitLines("learningFoundationImportGoals").map((line) => {
+    const parts = line.split("|").map((value) => value.trim());
+    return Object.assign({}, scope, {
+      domain: parts[0] || "english",
+      title: parts[1] || parts[0] || "",
+      targetSummary: parts[2] || parts[1] || parts[0] || "",
+      focusAreas: learningCsvList(parts[3] || ""),
+      priority: 80,
+    });
+  });
+  const profileSummary = $("learningFoundationImportProfile")?.value?.trim() || "";
+  return Object.assign({}, scope, {
+    sources,
+    goals,
+    profile: profileSummary ? { profileSummary, displayName: "Fanfan" } : null,
+  });
+}
+
 function learningLearnerBody() {
   return {
     workspaceId: learningGrowthLearnerWorkspaceId(),
@@ -8059,6 +8112,19 @@ async function submitLearningGoalForm(event) {
   await loadLearningCoins({ limit: 30 });
 }
 
+async function submitLearningFoundationImportForm(event) {
+  event?.preventDefault?.();
+  const body = learningFoundationImportBody();
+  const hasProfile = Boolean(body.profile?.profileSummary);
+  if (!body.sources.length && !body.goals.length && !hasProfile) {
+    showPushToast("\u81f3\u5c11\u586b\u5199\u4e00\u6761\u57fa\u7840\u6458\u8981", "error");
+    return;
+  }
+  await api("/api/learning/foundation-import", { method: "POST", body: JSON.stringify(body) });
+  showPushToast("\u5b66\u4e60\u57fa\u7840\u6458\u8981\u5df2\u5bfc\u5165", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
 async function rebuildLearningProfile() {
   await api(`/api/learning/profile/rebuild?${learningCoinRequestParams({ limit: 30 })}`, {
     method: "POST",
@@ -8078,6 +8144,22 @@ async function publishLearningProgram(programId) {
   await api(`/api/learning/programs/${encodeURIComponent(programId)}/publish`, { method: "POST", body: JSON.stringify({}) });
   showPushToast("学习任务已下发", "success");
   await loadLearningCoins({ limit: 30 });
+}
+
+async function loadLearningParentReport() {
+  state.learningParentReportLoading = true;
+  state.learningParentReportError = "";
+  renderLearningCoinsView();
+  try {
+    state.learningParentReport = await api(`/api/learning/reports/parent?${learningCoinRequestParams({ limit: 100 })}`);
+    showPushToast("\u5bb6\u957f\u5468\u62a5\u5df2\u5237\u65b0", "success");
+  } catch (err) {
+    state.learningParentReportError = err.message || String(err);
+    showError(err);
+  } finally {
+    state.learningParentReportLoading = false;
+    renderLearningCoinsView();
+  }
 }
 
 async function decideLearningReview(reviewId, decision) {
@@ -8129,8 +8211,14 @@ function wireLearningCoinsView() {
   $("learningGoalForm")?.addEventListener("submit", (event) => {
     submitLearningGoalForm(event).catch(showError);
   });
+  $("learningFoundationImportForm")?.addEventListener("submit", (event) => {
+    submitLearningFoundationImportForm(event).catch(showError);
+  });
   $("conversation")?.querySelector("[data-learning-profile-rebuild]")?.addEventListener("click", () => {
     rebuildLearningProfile().catch(showError);
+  });
+  $("conversation")?.querySelector("[data-learning-parent-report-refresh]")?.addEventListener("click", () => {
+    loadLearningParentReport().catch(showError);
   });
   $("conversation")?.querySelectorAll("[data-learning-program-draft-action]").forEach((button) => {
     button.addEventListener("click", () => draftLearningProgram(button.dataset.learningProgramDraftAction).catch(showError));
