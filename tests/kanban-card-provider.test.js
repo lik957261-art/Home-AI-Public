@@ -49,13 +49,37 @@ async function testTargetIdForwardingAndSearchPreservation() {
     autoDispatch: false,
     kanbanAssignee: "",
     caseTemplate: "learning-growth",
+    learningProgramId: "program-1",
+    learningDraftId: "draft-1",
+    learningTaskCardId: "task-1",
   });
   assert.equal(calls[1].action, "add");
   assert.equal(calls[1].manual_only, true);
   assert.equal(calls[1].auto_dispatch, false);
   assert.equal(calls[1].kanban_assignee, "");
   assert.equal(calls[1].case_template, "learning-growth");
+  assert.equal(calls[1].learning_program_id, "program-1");
+  assert.equal(calls[1].learning_draft_id, "draft-1");
+  assert.equal(calls[1].learning_task_card_id, "task-1");
   assert.equal(calls[1].due_time, "2026-05-16 10:00");
+
+  await provider.mutateCard({
+    workspaceId: "child",
+    cardId: "target-card",
+    action: "comment",
+    comment: "feedback",
+    learningGrowthSubmission: true,
+    submissionKind: "writing",
+    learningGrowthEvaluation: {
+      status: "completed",
+      score: 88,
+      reward: { status: "settled", coinAmount: 15 },
+    },
+  });
+  assert.equal(calls[2].action, "comment");
+  assert.equal(calls[2].learningGrowthSubmission, true);
+  assert.equal(calls[2].submissionKind, "writing");
+  assert.equal(calls[2].learningGrowthEvaluation.status, "completed");
 }
 
 testTargetIdForwardingAndSearchPreservation()

@@ -98,6 +98,9 @@ function createKanbanCardProvider(options = {}) {
       case_deliverables: args.caseDeliverables || args.case_deliverables || [],
       case_acceptance: args.caseAcceptance || args.case_acceptance || [],
       case_card_goal: args.caseCardGoal || args.case_card_goal || "",
+      learning_program_id: args.learningProgramId || args.learning_program_id || "",
+      learning_draft_id: args.learningDraftId || args.learning_draft_id || "",
+      learning_task_card_id: args.learningTaskCardId || args.learning_task_card_id || "",
     });
   }
 
@@ -116,6 +119,9 @@ function createKanbanCardProvider(options = {}) {
       content: args.content || args.title || "",
       description: args.description || "",
       author: args.author || "",
+      learningGrowthSubmission: args.learningGrowthSubmission || args.learning_growth_submission || false,
+      submissionKind: args.submissionKind || args.submission_kind || "",
+      learningGrowthEvaluation: args.learningGrowthEvaluation || args.learning_growth_evaluation || null,
     });
   }
 
