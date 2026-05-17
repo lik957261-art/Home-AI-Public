@@ -101,7 +101,11 @@ function createLearningApiRoutes(deps = {}) {
       return;
     }
     if (!input) return;
-    deps.sendJson(res, 200, Object.assign({ ok: true }, learningGrowthService.overview(input)));
+    const owner = deps.isOwnerAuth(auth);
+    deps.sendJson(res, 200, Object.assign({ ok: true }, learningGrowthService.overview(Object.assign({}, input, {
+      owner,
+      viewerRole: owner ? "owner" : "executor",
+    }))));
   }
 
   async function handle(req, res, url, context = {}) {

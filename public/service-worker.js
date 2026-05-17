@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260517-learning-growth-foundation-ui";
+const HERMES_SW_VERSION = "20260517-learning-growth-executor-scope";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,17 +8,17 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260517-learning-growth-foundation-ui",
-  "/app-task-artifact-helpers.js?v=20260517-learning-growth-foundation-ui",
-  "/app-kanban-story-helpers.js?v=20260517-learning-growth-foundation-ui",
-  "/app-learning-reading-ui.js?v=20260517-learning-growth-foundation-ui",
-  "/app-learning-coins-ui.js?v=20260517-learning-growth-foundation-ui",
-  "/app-learning-program-ui.js?v=20260517-learning-growth-foundation-ui",
-  "/app-learning-growth-ui.js?v=20260517-learning-growth-foundation-ui",
-  "/app-api-client.js?v=20260517-learning-growth-foundation-ui",
-  "/app.js?v=20260517-learning-growth-foundation-ui",
+  "/styles.css?v=20260517-learning-growth-executor-scope",
+  "/app-task-artifact-helpers.js?v=20260517-learning-growth-executor-scope",
+  "/app-kanban-story-helpers.js?v=20260517-learning-growth-executor-scope",
+  "/app-learning-reading-ui.js?v=20260517-learning-growth-executor-scope",
+  "/app-learning-coins-ui.js?v=20260517-learning-growth-executor-scope",
+  "/app-learning-program-ui.js?v=20260517-learning-growth-executor-scope",
+  "/app-learning-growth-ui.js?v=20260517-learning-growth-executor-scope",
+  "/app-api-client.js?v=20260517-learning-growth-executor-scope",
+  "/app.js?v=20260517-learning-growth-executor-scope",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260517-learning-growth-foundation-ui",
+  "/markdown-renderer-client.js?v=20260517-learning-growth-executor-scope",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

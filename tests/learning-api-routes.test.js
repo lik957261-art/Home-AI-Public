@@ -45,6 +45,7 @@ function makeRoutes(overrides = {}) {
       overview(input) {
         growthInputs.push(input);
         return {
+          viewerRole: input.viewerRole,
           module: { id: "fanfan-growth", currentEntry: "成长标签" },
           learner: { id: input.learnerId, studentId: input.studentId, workspaceId: input.workspaceId },
           coins: { studentId: input.studentId },
@@ -100,6 +101,8 @@ async function testOverviewUsesRequestedExecutorWorkspaceForOwner() {
     learnerId: "weixin_stephen",
     studentId: "weixin_stephen",
     limit: "5",
+    owner: true,
+    viewerRole: "owner",
   });
 }
 
@@ -115,6 +118,25 @@ async function testOwnerDefaultOverviewUsesFanfanLearnerBinding() {
     learnerId: "weixin_stephen",
     studentId: "weixin_stephen",
     limit: null,
+    owner: true,
+    viewerRole: "owner",
+  });
+}
+
+async function testStudentReadsOwnOverviewAsExecutor() {
+  const { routes, growthInputs } = makeRoutes();
+  const response = await request(routes, "GET", "/api/learning-growth/overview?workspaceId=child&studentId=child&limit=7", {
+    auth: { ok: true, workspaceId: "child", principalId: "principal-child", isOwner: false },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.body.viewerRole, "executor");
+  assert.deepEqual(growthInputs[0], {
+    workspaceId: "child",
+    learnerId: "child",
+    studentId: "child",
+    limit: "7",
+    owner: false,
+    viewerRole: "executor",
   });
 }
 
@@ -132,6 +154,7 @@ async function testStudentCannotReadAnotherLearner() {
   await testMetadataAndFallthrough();
   await testOverviewUsesRequestedExecutorWorkspaceForOwner();
   await testOwnerDefaultOverviewUsesFanfanLearnerBinding();
+  await testStudentReadsOwnOverviewAsExecutor();
   await testStudentCannotReadAnotherLearner();
   console.log("learning api route tests passed");
 })().catch((err) => {

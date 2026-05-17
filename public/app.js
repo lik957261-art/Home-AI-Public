@@ -5103,9 +5103,10 @@ async function loadWorkspaces() {
   const result = await api("/api/workspaces");
   state.workspaces = result.data || [];
   state.auth = result.auth || null;
-  if (!state.workspaces.some((item) => item.id === state.selectedWorkspaceId)) {
-    state.selectedWorkspaceId = state.workspaces[0]?.id || "";
-  }
+  if (!state.auth?.isOwner && state.auth?.workspaceId) state.selectedWorkspaceId = state.auth.workspaceId;
+  else if (!state.workspaces.some((item) => item.id === state.selectedWorkspaceId)) state.selectedWorkspaceId = state.workspaces[0]?.id || "";
+  if (state.selectedWorkspaceId) localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
+  if (!state.auth?.isOwner) { state.accessKeyManagerOpen = state.runtimeConfigOpen = false; document.querySelectorAll("#accessKeyOverlay,#runtimeConfigOverlay,#ownerElevationApprovalOverlay").forEach((node) => { node.classList.add("hidden"); node.innerHTML = ""; }); }
   const select = $("workspaceSelect");
   select.innerHTML = state.workspaces.map((ws) => `<option value="${escapeHtml(ws.id)}">${escapeHtml(ws.label || ws.id)}</option>`).join("");
   select.value = state.selectedWorkspaceId;
@@ -5213,6 +5214,7 @@ function workspaceAccessRows() {
 function renderWorkspaceAccessPanel() {
   const panel = $("workspaceAccessPanel");
   if (!panel) return;
+  if (!state.auth?.isOwner) { panel.hidden = true; panel.innerHTML = ""; return; }
   const accessRows = workspaceAccessRows();
   const show = accessRows.length > 0;
   panel.hidden = !show;
@@ -7860,10 +7862,12 @@ function renderAutomationPlaceholderView() {
 
 function learningGrowthLearnerWorkspaceId() {
   const selected = String(state.selectedWorkspaceId || "").trim();
+  const authWorkspace = String(state.auth?.workspaceId || "").trim();
+  if (state.auth && !state.auth.isOwner) return authWorkspace || selected;
   if (state.auth?.isOwner && (!selected || selected === "owner")) {
     return LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
   }
-  return selected || state.auth?.workspaceId || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
+  return selected || authWorkspace || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
 }
 
 function learningCoinStudentId() {
@@ -7939,7 +7943,7 @@ async function loadLearningCoins(options = {}) {
   const seq = ++state.learningCoinRequestSeq;
   const scopeKey = learningCoinCurrentScopeKey();
   if (state.learningCoinScopeKey !== scopeKey) {
-    state.learningCoins = null;
+    state.learningGrowth = null; state.learningCoins = null;
     state.learningCoinScopeKey = scopeKey;
   }
   state.learningCoinsLoading = true;

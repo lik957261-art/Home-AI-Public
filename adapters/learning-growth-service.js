@@ -26,6 +26,151 @@ function normalizeLearningGrowthRequest(input = {}) {
   };
 }
 
+function normalizeViewerRole(input = {}) {
+  const explicit = cleanString(input.viewerRole || input.role).toLowerCase();
+  if (explicit === "owner") return "owner";
+  if (explicit === "executor" || explicit === "learner" || explicit === "student") return "executor";
+  if (input.owner === false || input.isOwner === false) return "executor";
+  return "owner";
+}
+
+function arrayValue(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function copyFields(source, fields) {
+  const record = source && typeof source === "object" ? source : {};
+  const out = {};
+  for (const field of fields) {
+    if (Object.prototype.hasOwnProperty.call(record, field) && record[field] !== undefined) {
+      out[field] = record[field];
+    }
+  }
+  return out;
+}
+
+function projectProgramForExecutor(program) {
+  return copyFields(program, [
+    "programId",
+    "learnerId",
+    "workspaceId",
+    "title",
+    "status",
+    "domain",
+    "focusAreas",
+    "minutesPerDay",
+    "daysPerWeek",
+    "startDate",
+    "endDate",
+    "timeOfDay",
+    "createdAt",
+    "updatedAt",
+  ]);
+}
+
+function projectTaskCardForExecutor(task) {
+  return copyFields(task, [
+    "taskCardId",
+    "programId",
+    "learnerId",
+    "workspaceId",
+    "title",
+    "status",
+    "taskCardType",
+    "domain",
+    "plannedDate",
+    "plannedMinutes",
+    "skillIds",
+    "createdAt",
+    "updatedAt",
+  ]);
+}
+
+function projectInteractionSessionForExecutor(session) {
+  return copyFields(session, [
+    "sessionId",
+    "taskCardId",
+    "learnerId",
+    "workspaceId",
+    "state",
+    "phase",
+    "summary",
+    "updatedAt",
+  ]);
+}
+
+function projectEvaluationForExecutor(evaluation) {
+  return copyFields(evaluation, [
+    "evaluationId",
+    "taskCardId",
+    "learnerId",
+    "workspaceId",
+    "status",
+    "score",
+    "passed",
+    "summary",
+    "skillId",
+    "createdAt",
+  ]);
+}
+
+function projectSkillStateForExecutor(skill) {
+  return copyFields(skill, [
+    "skillId",
+    "domain",
+    "level",
+    "confidence",
+    "summary",
+    "updatedAt",
+  ]);
+}
+
+function projectLearnerProfileForExecutor(profile) {
+  return copyFields(profile, [
+    "learnerId",
+    "workspaceId",
+    "profileSummary",
+    "updatedAt",
+  ]);
+}
+
+function projectProgramOverviewForExecutor(programs) {
+  if (!programs || typeof programs !== "object") return programs || null;
+  return {
+    counts: copyFields(programs.counts, ["programs", "taskCards", "evaluations", "skillStates"]),
+    programs: arrayValue(programs.programs).map(projectProgramForExecutor),
+    taskCards: arrayValue(programs.taskCards).map(projectTaskCardForExecutor),
+    interactionSessions: arrayValue(programs.interactionSessions).map(projectInteractionSessionForExecutor),
+    evaluations: arrayValue(programs.evaluations).map(projectEvaluationForExecutor),
+    learnerProfile: projectLearnerProfileForExecutor(programs.learnerProfile),
+    skillStates: arrayValue(programs.skillStates).map(projectSkillStateForExecutor),
+  };
+}
+
+function projectCoinSummaryForExecutor(coins) {
+  if (!coins || typeof coins !== "object") return coins || null;
+  return copyFields(coins, [
+    "studentId",
+    "workspaceId",
+    "balances",
+    "growth",
+    "rewards",
+    "redemptions",
+    "ledger",
+  ]);
+}
+
+function projectGrowthOverviewForExecutor(overview) {
+  return {
+    viewerRole: "executor",
+    module: copyFields(overview.module, ["id", "title", "hostView", "currentEntry", "standaloneReady"]),
+    learner: copyFields(overview.learner, ["id", "studentId", "workspaceId", "displayName"]),
+    metrics: overview.metrics || {},
+    programs: projectProgramOverviewForExecutor(overview.programs),
+    coins: projectCoinSummaryForExecutor(overview.coins),
+  };
+}
+
 function numberValue(value) {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -127,6 +272,7 @@ function learningGrowthReliabilitySummary() {
 
 function buildLearningGrowthOverview(input = {}, deps = {}) {
   const request = normalizeLearningGrowthRequest(input);
+  const viewerRole = normalizeViewerRole(input);
   const learningCoinService = deps.learningCoinService || null;
   const learningProgramService = deps.learningProgramService || null;
   const coins = learningCoinService && typeof learningCoinService.summary === "function"
@@ -145,7 +291,8 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
       })
     : null;
   const metrics = coinMetric(coins || {});
-  return {
+  const overview = {
+    viewerRole,
     module: {
       id: LEARNING_GROWTH_MODULE_ID,
       title: "凡凡成长系统",
@@ -174,6 +321,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
       { id: "coin-parent-admin", title: "金币兑换家长后台", status: "next" },
     ],
   };
+  return viewerRole === "owner" ? overview : projectGrowthOverviewForExecutor(overview);
 }
 
 function createLearningGrowthService(options = {}) {
@@ -192,4 +340,7 @@ module.exports = {
   createLearningGrowthService,
   learningGrowthReliabilitySummary,
   normalizeLearningGrowthRequest,
+  normalizeViewerRole,
+  projectGrowthOverviewForExecutor,
+  projectProgramOverviewForExecutor,
 };
