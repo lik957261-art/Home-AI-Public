@@ -411,6 +411,10 @@ function createLearningProgramService(options = {}) {
     return interactionSessionService.list(filters);
   }
 
+  function getInteractionSession(sessionId) {
+    return interactionSessionService.get(sessionId);
+  }
+
   function advanceInteractionSession(sessionId, input = {}) {
     return interactionSessionService.advanceSession(sessionId, input);
   }
@@ -460,6 +464,7 @@ function createLearningProgramService(options = {}) {
     generateParentReport,
     getProgram,
     getLearnerProfile,
+    getInteractionSession,
     getRewardSettlement,
     getTaskCard,
     importFoundationData,

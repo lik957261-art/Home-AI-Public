@@ -317,13 +317,13 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     group: "learning-program",
     moduleKey: "learning-program",
     handlerKey: "startTaskSession",
-    summary: "Owner starts a summary-only learning interaction session for a task card.",
-    riskLevel: "owner",
-    authMode: "owner",
+    summary: "Start a summary-only learning interaction session for an executable task card.",
+    riskLevel: "low",
+    authMode: "access-key",
     authRequired: true,
-    ownerOnly: true,
+    workspaceScoped: true,
     resourceTypes: ["learning-task-card", "learning-interaction-session"],
-    tags: ["learning", "task-card", "session", "owner"],
+    tags: ["learning", "task-card", "session", "executor", "summary-only"],
   },
   {
     id: "learning-sessions-list",
@@ -347,13 +347,13 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     group: "learning-program",
     moduleKey: "learning-program",
     handlerKey: "advanceInteractionSession",
-    summary: "Owner advances a summary-only learning interaction session state machine.",
-    riskLevel: "owner",
-    authMode: "owner",
+    summary: "Advance a summary-only learning interaction session state machine.",
+    riskLevel: "low",
+    authMode: "access-key",
     authRequired: true,
-    ownerOnly: true,
+    workspaceScoped: true,
     resourceTypes: ["learning-interaction-session"],
-    tags: ["learning", "session", "owner"],
+    tags: ["learning", "session", "executor", "summary-only"],
   },
   {
     id: "learning-session-evaluation-create",
@@ -744,6 +744,17 @@ function createLearningProgramApiRoutes(deps = {}) {
     return true;
   }
 
+  function actorFromAuth(auth) {
+    if (deps.isOwnerAuth(auth)) return auth?.principalId || "owner";
+    return auth?.principalId || auth?.workspaceId || "executor";
+  }
+
+  function assertExecutableTaskForAuth(res, auth, taskCard) {
+    if (deps.isOwnerAuth(auth) || taskCard?.status === "published") return true;
+    deps.sendJson(res, 409, { ok: false, error: "Learning task is not executable" });
+    return false;
+  }
+
   async function handleUpdate(req, res, url) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -836,19 +847,20 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, taskCard });
   }
 
-  async function handleTaskSessionStart(req, res, url) {
-    const owner = deps.requireOwner(req, res);
-    if (!owner) return;
+  async function handleTaskSessionStart(req, res, url, auth) {
+    const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/sessions$/);
+    const taskCard = service.getTaskCard(taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
     const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
       return;
     }
     try {
-      const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/sessions$/);
       deps.sendJson(res, 201, {
         ok: true,
-        session: service.startTaskSession(taskCardId, Object.assign({}, body, { actor: owner.principalId || "owner" })),
+        session: service.startTaskSession(taskCardId, Object.assign({}, body, { actor: actorFromAuth(auth) })),
       });
     } catch (err) {
       sendRouteError(deps, res, err);
@@ -867,19 +879,19 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, sessions: service.listInteractionSessions(query) });
   }
 
-  async function handleSessionAdvance(req, res, url) {
-    const owner = deps.requireOwner(req, res);
-    if (!owner) return;
+  async function handleSessionAdvance(req, res, url, auth) {
+    const sessionId = pathId(url.pathname, /^\/api\/learning\/sessions\/([^/]+)\/advance$/);
+    const session = service.getInteractionSession(sessionId);
+    if (!authorizeRecord(req, res, auth, session, "Learning interaction session not found")) return;
     const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
       return;
     }
     try {
-      const sessionId = pathId(url.pathname, /^\/api\/learning\/sessions\/([^/]+)\/advance$/);
       deps.sendJson(res, 200, {
         ok: true,
-        session: service.advanceInteractionSession(sessionId, Object.assign({}, body, { actor: owner.principalId || "owner" })),
+        session: service.advanceInteractionSession(sessionId, Object.assign({}, body, { actor: actorFromAuth(auth) })),
       });
     } catch (err) {
       sendRouteError(deps, res, err);
@@ -1010,9 +1022,9 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-task-execution-queue") await handleTaskExecutionQueue(req, res, url, auth);
     else if (route.id === "learning-daily-plan") await handleDailyPlan(req, res, url, auth);
     else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
-    else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url);
+    else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url, auth);
     else if (route.id === "learning-sessions-list") await handleSessionsList(req, res, url, auth);
-    else if (route.id === "learning-session-advance") await handleSessionAdvance(req, res, url);
+    else if (route.id === "learning-session-advance") await handleSessionAdvance(req, res, url, auth);
     else if (route.id === "learning-session-evaluation-create") await handleEvaluationCreate(req, res, url);
     else if (route.id === "learning-evaluations-list") await handleEvaluationsList(req, res, url, auth);
     else if (route.id === "learning-evaluation-reward-settle") await handleRewardSettlementCreate(req, res, url);

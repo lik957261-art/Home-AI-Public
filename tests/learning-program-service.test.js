@@ -105,6 +105,10 @@ async function testCreateDraftApprovePublish() {
   assert.equal(overview.rewardSettlements.length, 0);
   assert.ok(overview.curriculumReferences.length >= 3);
   assert.equal(overview.learnerProfile.learnerId, "weixin_stephen");
+  const startedSession = service.startTaskSession(published.taskCards[0].taskCardId, { summary: "started summary", actor: "child" });
+  const loadedSession = service.getInteractionSession(startedSession.sessionId);
+  assert.equal(loadedSession.sessionId, startedSession.sessionId);
+  assert.equal(loadedSession.learnerId, "weixin_stephen");
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }

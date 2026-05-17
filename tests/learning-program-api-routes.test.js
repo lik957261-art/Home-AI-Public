@@ -133,7 +133,7 @@ function makeRoutes(overrides = {}) {
     },
     getTaskCard(taskCardId) {
       calls.push(["getTaskCard", taskCardId]);
-      return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen" };
+      return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published" };
     },
     startTaskSession(taskCardId, input) {
       calls.push(["startTaskSession", taskCardId, input]);
@@ -142,6 +142,10 @@ function makeRoutes(overrides = {}) {
     listInteractionSessions(input) {
       calls.push(["listSessions", input]);
       return [{ sessionId: "session-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
+    },
+    getInteractionSession(sessionId) {
+      calls.push(["getSession", sessionId]);
+      return { sessionId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen" };
     },
     advanceInteractionSession(sessionId, input) {
       calls.push(["advanceSession", sessionId, input]);
@@ -355,16 +359,22 @@ async function testTaskSessionEvaluationRoutes() {
   assert.equal(task.body.taskCard.taskCardId, "task-1");
 
   const session = await request(routes, "POST", "/api/learning/task-cards/task-1/sessions", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
     body: { summary: "start" },
   });
   assert.equal(session.res.statusCode, 201);
   assert.equal(session.body.session.sessionId, "session-1");
+  assert.equal(calls.at(-1)[0], "startTaskSession");
+  assert.equal(calls.at(-1)[2].actor, "child");
 
   const advanced = await request(routes, "POST", "/api/learning/sessions/session-1/advance", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
     body: { step: "learner_attempt", summary: "summary only" },
   });
   assert.equal(advanced.res.statusCode, 200);
   assert.equal(advanced.body.session.currentStep, "learner_attempt");
+  assert.equal(calls.at(-1)[0], "advanceSession");
+  assert.equal(calls.at(-1)[2].actor, "child");
 
   const evaluation = await request(routes, "POST", "/api/learning/sessions/session-1/evaluations", {
     body: { score: 88, summary: "summary only" },
@@ -388,6 +398,24 @@ async function testTaskSessionEvaluationRoutes() {
   assert.ok(calls.some((call) => call[0] === "settleEvaluationReward"));
 }
 
+async function testExecutorCannotStartUnpublishedTask() {
+  const { routes, calls } = makeRoutes({
+    service: {
+      getTaskCard(taskCardId) {
+        calls.push(["getTaskCard", taskCardId]);
+        return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "planned" };
+      },
+    },
+  });
+  const response = await request(routes, "POST", "/api/learning/task-cards/task-1/sessions", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { summary: "start" },
+  });
+  assert.equal(response.res.statusCode, 409);
+  assert.equal(response.body.error, "Learning task is not executable");
+  assert.equal(calls.some((call) => call[0] === "startTaskSession"), false);
+}
+
 (async () => {
   await testMetadata();
   await testCreateAndDraftRequireOwner();
@@ -395,6 +423,7 @@ async function testTaskSessionEvaluationRoutes() {
   await testReviewDecision();
   await testFoundationRoutes();
   await testTaskSessionEvaluationRoutes();
+  await testExecutorCannotStartUnpublishedTask();
   console.log("learning program api routes tests passed");
 })().catch((err) => {
   console.error(err);
