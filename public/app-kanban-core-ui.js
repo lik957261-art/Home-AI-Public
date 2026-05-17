@@ -69,6 +69,10 @@ function isKanbanReadingPlanCase(todo) {
   return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "reading";
 }
 
+function isKanbanLearningGrowthCard(todo) {
+  return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "learning-growth";
+}
+
 function isKanbanFinalStudyAssessment(todo) {
   return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "final-assessment";
 }

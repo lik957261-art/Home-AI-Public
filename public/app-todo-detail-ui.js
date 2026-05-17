@@ -40,6 +40,7 @@ function renderTodoDetail(todo) {
   const assessmentExamBlock = kanban ? renderKanbanAssessmentExamPanel(todo) : "";
   const resultBlock = kanban ? renderKanbanDetailReport(todo) : "";
   const readingPanel = kanban ? renderKanbanReadingSubmissionPanel(todo) : "";
+  const learningGrowthPanel = kanban ? renderKanbanLearningGrowthTodoPanel(todo) : "";
   const metaBlock = kanban
     ? `<details class="todo-detail-meta">
       <summary>卡片信息</summary>
@@ -109,6 +110,7 @@ function renderTodoDetail(todo) {
     ${readingWorkflowBlock}
     ${deliveryBlock}
     ${resultBlock}
+    ${learningGrowthPanel}
     ${readingPanel}
     ${readingQuizBlock}
     ${assessmentExamBlock}

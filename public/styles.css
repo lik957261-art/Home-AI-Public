@@ -6548,6 +6548,27 @@ button.directory-alias-chip {
   background: rgba(232, 245, 239, 0.52);
 }
 
+.todo-learning-growth-panel {
+  border-color: rgba(31, 111, 98, 0.24);
+  background: rgba(236, 249, 245, 0.48);
+}
+
+.todo-detail-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.todo-detail-chip-row span {
+  padding: 5px 8px;
+  border: 1px solid rgba(31, 111, 98, 0.16);
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .todo-panel-label {
   color: var(--text);
   font-size: 13px;
@@ -6764,6 +6785,48 @@ button.directory-alias-chip {
 }
 
 .learning-program-section {
+  display: grid;
+  gap: 14px;
+}
+
+.learning-growth-tabs {
+  display: grid;
+  gap: 14px;
+}
+
+.learning-growth-tab-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 14px;
+  background: rgba(248, 251, 249, 0.84);
+}
+
+.learning-growth-tab-list button {
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.learning-growth-tab-list button.active {
+  border-color: rgba(31, 111, 98, 0.28);
+  color: var(--accent);
+  background: rgba(236, 249, 245, 0.9);
+  box-shadow: 0 6px 16px rgba(31, 111, 98, 0.08);
+}
+
+.learning-growth-tab-panel {
+  display: none;
+}
+
+.learning-growth-tab-panel.active {
   display: grid;
   gap: 14px;
 }
@@ -7695,6 +7758,10 @@ button.directory-alias-chip {
   }
 
   .learning-growth-platform-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .learning-growth-tab-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 

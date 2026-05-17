@@ -307,6 +307,17 @@ function run() {
   assert.equal(projectedStudyQuiz.workflowState.phase, "quiz_pending");
   assert.equal(projectedStudyQuiz.kanbanStatus, "running");
 
+  const projectedLearningGrowth = studyProjectionService.publicTodo(row("learning-growth-task", {
+    kanban_case_mode: "study-plan",
+    kanban_case_template: "learning-growth",
+    kanban_status: "ready",
+    status: "open",
+  }));
+  assert.equal(projectedLearningGrowth.kanbanStudyKind, "learning-growth");
+  assert.equal(projectedLearningGrowth.readingSubmission, undefined);
+  assert.equal(projectedLearningGrowth.studyWorkflow, undefined);
+  assert.equal(projectedLearningGrowth.workflowState, undefined);
+
   const revisionService = createTodoPublicProjectionService({
     publicKanbanAssessmentSummary() {
       return { status: "pending", examAvailable: false };

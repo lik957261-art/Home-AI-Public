@@ -122,16 +122,18 @@ async function testLearningGrowthV1OperationalLoop() {
     assert.ok(drafted.taskCards.length >= 5);
     assert.ok(drafted.taskCards.some((task) => task.skillIds.includes("english_short_writing")));
     assert.ok(drafted.taskCards.some((task) => task.skillIds.includes("english_speaking_retell") || task.skillIds.includes("english_pronunciation_accuracy")));
-    programService.decideReview(drafted.reviewItem.reviewId, {
+    const decision = await programService.decideReview(drafted.reviewItem.reviewId, {
       decision: "approved",
       principalId: "owner",
       note: "Synthetic smoke approval.",
     });
+    assert.equal(decision.autoPublish.ok, true);
 
-    const published = await programService.publishProgram(program.programId, { draftId: drafted.draft.draftId });
+    const published = decision.autoPublish;
     assert.equal(published.ok, true);
     assert.equal(publishCalls.length, 1);
     assert.ok(published.taskCards.every((task) => task.status === "published"));
+    assert.equal(published.publishedSessions.length, published.taskCards.length);
 
     const queue = programService.listExecutorTaskQueue({
       workspaceId: "weixin_stephen",

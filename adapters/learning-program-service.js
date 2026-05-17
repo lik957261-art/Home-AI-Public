@@ -343,6 +343,23 @@ function createLearningProgramService(options = {}) {
       err.status = 409;
       throw err;
     }
+    if (String(draft.status || "") === "published") {
+      const taskCards = taskCardService.materializeDraft({ program, draft });
+      const publishedSessions = ensurePublishedTaskSessions(taskCards, input);
+      const existingPublication = typeof repository.listPublications === "function"
+        ? repository.listPublications({ draftId: draft.draftId, limit: 1 })[0] || null
+        : null;
+      return {
+        ok: true,
+        alreadyPublished: true,
+        program,
+        draft,
+        publication: existingPublication,
+        result: { ok: true, alreadyPublished: true },
+        taskCards,
+        publishedSessions,
+      };
+    }
     const pendingReviews = reviewQueue.list({ learnerId: program.learnerId, status: "pending", limit: 50 })
       .filter((item) => item.programId === program.programId && item.draftId === draft.draftId);
     if (pendingReviews.length && !input.force) {
@@ -357,6 +374,7 @@ function createLearningProgramService(options = {}) {
       publishedAt: result.ok ? now : draft.publishedAt,
     }));
     const taskCards = result.ok ? taskCardService.materializeDraft({ program, draft: savedDraft }) : [];
+    const publishedSessions = result.ok ? ensurePublishedTaskSessions(taskCards, input) : [];
     const publication = repository.savePublication({
       publicationId: createId("lpub"),
       programId: program.programId,
@@ -367,15 +385,52 @@ function createLearningProgramService(options = {}) {
       kanbanResult: result.kanbanResult || result,
       createdAt: now,
     });
-    return { ok: result.ok, program, draft: savedDraft, publication, result, taskCards };
+    return { ok: result.ok, program, draft: savedDraft, publication, result, taskCards, publishedSessions };
   }
 
   function reviewQueueList(filters = {}) {
     return reviewQueue.list(filters);
   }
 
-  function decideReview(reviewId, decisionInput = {}) {
-    return reviewQueue.decide(reviewId, decisionInput);
+  function ensurePublishedTaskSessions(taskCards = [], input = {}) {
+    if (input.autoStartSessions === false || input.auto_start_sessions === false) return [];
+    const sessions = [];
+    for (const task of Array.isArray(taskCards) ? taskCards : []) {
+      if (!task?.taskCardId || String(task.status || "") !== "published") continue;
+      const existing = repository.listInteractionSessions({ taskCardId: task.taskCardId, limit: 1 })[0];
+      if (existing) {
+        sessions.push(existing);
+        continue;
+      }
+      sessions.push(interactionSessionService.startSession(task.taskCardId, {
+        actor: cleanString(input.actor || input.principalId) || "system",
+        summary: `Published learning task: ${task.title || task.taskCardId}`,
+      }));
+    }
+    return sessions;
+  }
+
+  async function decideReview(reviewId, decisionInput = {}) {
+    const reviewItem = reviewQueue.decide(reviewId, decisionInput);
+    const decision = cleanString(decisionInput.decision || decisionInput.status);
+    const response = {
+      reviewItem,
+      autoPublish: null,
+    };
+    if (decision !== "approved" || !reviewItem?.programId || !reviewItem?.draftId) return response;
+    const draft = repository.getPlanDraft(reviewItem.draftId);
+    const program = getProgram(reviewItem.programId);
+    if (!draft || !program || draft.reliability?.publishBlocked) return response;
+    const remainingReviews = reviewQueue.list({ learnerId: program.learnerId, status: "pending", limit: 50 })
+      .filter((item) => item.programId === program.programId && item.draftId === draft.draftId);
+    if (remainingReviews.length) return response;
+    response.autoPublish = await publishProgram(program.programId, {
+      draftId: draft.draftId,
+      principalId: decisionInput.principalId,
+      actor: decisionInput.principalId || "owner",
+      autoStartSessions: decisionInput.autoStartSessions !== false,
+    });
+    return response;
   }
 
   function overview(input = {}) {

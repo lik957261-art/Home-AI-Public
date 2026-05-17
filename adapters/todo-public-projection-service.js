@@ -111,7 +111,8 @@ function createTodoPublicProjectionService(options = {}) {
   function publicTodoWorkflowCompleted(payload = {}) {
     const status = String(payload.kanbanStatus || payload.status || "").trim().toLowerCase();
     const officialDone = status === "done" || status === "completed";
-    if (isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment") {
+    const studyKind = String(payload.kanbanCaseTemplate || "").trim().toLowerCase();
+    if (isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment" && studyKind !== "learning-growth") {
       const reading = payload.readingSubmission || payload.studySubmission || {};
       return kanbanWorkflowStateCompleted(reading, officialDone);
     }
@@ -155,7 +156,9 @@ function createTodoPublicProjectionService(options = {}) {
           });
         }
         const completed = publicTodoWorkflowCompleted(payload);
-        const isStudy = isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment";
+        const isStudy = isKanbanStudyCaseMode(payload.kanbanCaseMode)
+          && payload.kanbanCaseTemplate !== "final-assessment"
+          && String(payload.kanbanCaseTemplate || "").trim().toLowerCase() !== "learning-growth";
         const isAssessment = isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment";
         if (isStudy) {
           studyPriorComplete = studyPriorComplete && completed;
@@ -251,10 +254,12 @@ function createTodoPublicProjectionService(options = {}) {
       completedAt: String(row.completed_at || ""),
       cancelledAt: String(row.cancelled_at || ""),
     };
-    if (isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment") {
+    const studyKind = String(payload.kanbanCaseTemplate || "custom").trim().toLowerCase() || "custom";
+    const learningGrowthStudy = studyKind === "learning-growth";
+    if (isKanbanStudyCaseMode(payload.kanbanCaseMode) && payload.kanbanCaseTemplate !== "final-assessment" && !learningGrowthStudy) {
       payload.readingSubmission = publicKanbanReadingSubmissionSummary(workspaceId, payload);
       payload.studySubmission = payload.readingSubmission;
-      payload.kanbanStudyKind = payload.kanbanCaseTemplate || "custom";
+      payload.kanbanStudyKind = studyKind;
       const rawStudyStatus = String(row.kanban_status || row.kanbanStatus || row.status || "").trim().toLowerCase();
       const rawStudyCompleted = rawStudyStatus === "done" || rawStudyStatus === "completed";
       if (rawStudyCompleted && !publicTodoWorkflowCompleted(payload)) {
@@ -266,6 +271,7 @@ function createTodoPublicProjectionService(options = {}) {
         payload.kanbanOutputs = [];
       }
     }
+    if (learningGrowthStudy) payload.kanbanStudyKind = "learning-growth";
     if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
       payload.assessmentExam = publicKanbanAssessmentSummary(workspaceId, payload);
       payload.kanbanAssessmentKind = payload.kanbanCaseTemplate || "assessment";
@@ -278,7 +284,7 @@ function createTodoPublicProjectionService(options = {}) {
         payload.kanbanOutputs = [];
       }
     }
-    if (optionsForTodo.skipWorkflow) return payload;
+    if (learningGrowthStudy || optionsForTodo.skipWorkflow) return payload;
     const workflowInput = {
       card: payload,
       readingState: payload.readingSubmission || payload.studySubmission || null,

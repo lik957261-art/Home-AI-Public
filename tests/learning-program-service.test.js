@@ -89,13 +89,20 @@ async function testCreateDraftApprovePublish() {
   );
   assert.equal(publishCalls.length, 0);
 
-  service.decideReview(drafted.reviewItem.reviewId, { decision: "approved", principalId: "owner" });
-  const published = await service.publishProgram(program.programId, { draftId: drafted.draft.draftId });
+  const decision = await service.decideReview(drafted.reviewItem.reviewId, { decision: "approved", principalId: "owner" });
+  assert.equal(decision.reviewItem.status, "approved");
+  assert.equal(decision.autoPublish.ok, true);
+  const published = decision.autoPublish;
   assert.equal(published.ok, true);
   assert.equal(publishCalls.length, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).publications, 1);
   assert.equal(published.taskCards.length, drafted.draft.taskCount);
   assert.ok(published.taskCards.every((task) => task.status === "published"));
+  assert.equal(published.publishedSessions.length, drafted.draft.taskCount);
+  const repeatedPublish = await service.publishProgram(program.programId, { draftId: drafted.draft.draftId });
+  assert.equal(repeatedPublish.alreadyPublished, true);
+  assert.equal(publishCalls.length, 1);
+  assert.equal(repeatedPublish.publishedSessions.length, drafted.draft.taskCount);
   const executorQueue = service.listExecutorTaskQueue({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
   assert.equal(executorQueue.length, drafted.draft.taskCount);
   assert.ok(executorQueue.every((task) => task.executionStatus === "pending_execution"));
@@ -118,14 +125,13 @@ async function testCreateDraftApprovePublish() {
   assert.equal(overview.taskCards.length, drafted.draft.taskCount);
   assert.equal(overview.dailyPlan.summary.totalTasks, drafted.draft.taskCount);
   assert.equal(overview.dailyPlan.privacyLevel, "summary_only");
-  assert.equal(overview.interactionSessions.length, 0);
+  assert.equal(overview.interactionSessions.length, drafted.draft.taskCount);
   assert.equal(overview.evaluations.length, 0);
   assert.equal(overview.rewardSettlements.length, 0);
   assert.ok(overview.curriculumReferences.length >= 3);
   assert.equal(overview.learnerProfile.learnerId, "weixin_stephen");
-  const startedSession = service.startTaskSession(published.taskCards[0].taskCardId, { summary: "started summary", actor: "child" });
-  const loadedSession = service.getInteractionSession(startedSession.sessionId);
-  assert.equal(loadedSession.sessionId, startedSession.sessionId);
+  const loadedSession = service.getInteractionSession(published.publishedSessions[0].sessionId);
+  assert.equal(loadedSession.sessionId, published.publishedSessions[0].sessionId);
   assert.equal(loadedSession.learnerId, "weixin_stephen");
   assert.equal(overview.sourceDirectories[0].directoryLabel, "\u5b66\u4e60\u8d44\u6599");
   assert.equal(overview.sourceDirectories[0].availableSummaryCount, 2);
@@ -210,8 +216,8 @@ async function testRebuildDraftBlocksPublishedPlan() {
     sourceBasisRefs: ["parent_config:summary"],
   });
   const drafted = service.draftPlan(program.programId);
-  service.decideReview(drafted.reviewItem.reviewId, { decision: "approved", principalId: "owner" });
-  await service.publishProgram(program.programId, { draftId: drafted.draft.draftId });
+  const decision = await service.decideReview(drafted.reviewItem.reviewId, { decision: "approved", principalId: "owner" });
+  assert.equal(decision.autoPublish.ok, true);
   assert.throws(() => service.rebuildDraftPlan(program.programId), /published or executable records/);
   assert.equal(repository.getPlanDraft(drafted.draft.draftId).status, "published");
   repository.close();

@@ -126,9 +126,12 @@ function makeRoutes(overrides = {}) {
       calls.push(["reviewQueue", input]);
       return [{ reviewId: "review-1", status: "pending" }];
     },
-    decideReview(reviewId, input) {
+    async decideReview(reviewId, input) {
       calls.push(["decide", reviewId, input]);
-      return { reviewId, status: input.decision };
+      return {
+        reviewItem: { reviewId, status: input.decision },
+        autoPublish: { ok: true, publishedSessions: [{ sessionId: "session-1" }] },
+      };
     },
     listTaskCards(input) {
       calls.push(["listTaskCards", input]);
@@ -324,6 +327,8 @@ async function testReviewDecision() {
   });
   assert.equal(response.res.statusCode, 200);
   assert.equal(response.body.reviewItem.status, "approved");
+  assert.equal(response.body.autoPublish.ok, true);
+  assert.equal(response.body.autoPublish.publishedSessions.length, 1);
   assert.equal(calls.at(-1)[0], "decide");
 }
 

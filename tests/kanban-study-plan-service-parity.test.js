@@ -163,6 +163,8 @@ function testPureStudyAssessmentHelpersAreReadyForServerWiring() {
     [{ studyTemplate: "reading" }, "reading"],
     [{ study_template: "read" }, "reading"],
     [{ caseTemplate: "english-reading" }, "reading"],
+    [{ caseTemplate: "learning-growth" }, "learning-growth"],
+    [{ studyTemplate: "fanfan-growth" }, "learning-growth"],
     [{ template: "custom-project" }, "custom"],
     [{ kind: "" }, "custom"],
   ];

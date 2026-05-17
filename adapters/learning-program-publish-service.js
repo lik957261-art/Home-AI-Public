@@ -41,12 +41,13 @@ function createLearningProgramPublishService(options = {}) {
     ].filter(Boolean).join("\n");
     const result = await createKanbanStudyPlanCards(workspaceId, {
       workspaceId,
-      studyTemplate: "study",
+      studyTemplate: "learning-growth",
+      caseTemplate: "learning-growth",
       title: cleanString(program.title) || "Fanfan learning growth plan",
       learnerName: cleanString(program.learnerName) || "\u51e1\u51e1",
       subject: program.domain === "english" ? "English Growth" : cleanString(program.domain) || "Learning Growth",
       activity: "AI-guided daily learning tasks with explanation, revision, repair, and reward settlement.",
-      submissionLabel: "recording, short writing, answers, reflection",
+      submissionLabel: "answer, short writing, reflection, or oral response inside Fanfan Growth",
       sourceText,
       sessions: asArray(draft.dailyPlans).length || Number(program.daysPerWeek || 5),
       startDate: program.startDate || draft.weekStart || "",

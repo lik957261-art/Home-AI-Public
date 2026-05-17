@@ -1,7 +1,25 @@
 "use strict";
 
 function isKanbanReadingCard(todo) {
-  return isKanbanStudyCase(todo) && !isKanbanFinalStudyAssessment(todo);
+  return isKanbanStudyCase(todo) && !isKanbanFinalStudyAssessment(todo) && !isKanbanLearningGrowthCard(todo);
+}
+
+function renderKanbanLearningGrowthTodoPanel(todo) {
+  if (!isKanbanLearningGrowthCard(todo) || !todoMatchesOpen(todo)) return "";
+  const blocked = normalizedKanbanStatus(todo) === "blocked";
+  const goal = String(todo?.kanbanCaseCardGoal || todo?.description || "").trim();
+  const deliverables = Array.isArray(todo?.kanbanCaseDeliverables) ? todo.kanbanCaseDeliverables : [];
+  const acceptance = Array.isArray(todo?.kanbanCaseAcceptance) ? todo.kanbanCaseAcceptance : [];
+  const details = [
+    goal ? `<p>${escapeHtml(goal)}</p>` : "",
+    deliverables.length ? `<div class="todo-detail-chip-row">${deliverables.slice(0, 4).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : "",
+    acceptance.length ? `<ul>${acceptance.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "",
+  ].filter(Boolean).join("");
+  return `<section class="todo-comment-panel todo-learning-growth-panel" data-learning-growth-kanban-card="${escapeHtml(todo.id || "")}">
+    <label class="todo-panel-label">成长任务</label>
+    <p class="todo-detail-muted">${escapeHtml(blocked ? "等待前置任务完成后自动开放。" : "该任务由凡凡成长系统下发，按任务说明完成；不需要走阅读录音模板。")}</p>
+    ${details || `<p class="todo-detail-muted">${escapeHtml(todo?.kanbanCaseSummary || "打开成长页查看任务、分析和指导。")}</p>`}
+  </section>`;
 }
 
 function readingSubmissionSummary(todo) {

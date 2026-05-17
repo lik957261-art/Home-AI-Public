@@ -80,6 +80,22 @@ function renderLearningCoinsView() {
   return;
 }
 
+function selectLearningGrowthTab(tabId) {
+  const id = String(tabId || "").trim();
+  const root = $("conversation");
+  if (!root || !id) return;
+  root.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
+    const active = button.dataset.learningGrowthTab === id;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  root.querySelectorAll("[data-learning-growth-tab-panel]").forEach((panel) => {
+    const active = panel.dataset.learningGrowthTabPanel === id;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  });
+}
+
 async function loadLearningCoins(options = {}) {
   const seq = ++state.learningCoinRequestSeq;
   const scopeKey = learningCoinCurrentScopeKey();
@@ -430,6 +446,9 @@ async function submitLearningEvaluationForm(event, sessionId) {
 }
 
 function wireLearningCoinsView() {
+  $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
+    button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
+  });
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);
   });

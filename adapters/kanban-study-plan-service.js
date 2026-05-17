@@ -236,6 +236,7 @@ function normalizeKanbanStudyTemplate(raw = {}) {
     || raw.kind
     || "",
   ).toLowerCase();
+  if (["learning-growth", "fanfan-growth", "growth", "learner-growth"].includes(value)) return "learning-growth";
   if (["reading", "read", "book", "english-reading", "reading-retell"].includes(value)) return "reading";
   return "custom";
 }

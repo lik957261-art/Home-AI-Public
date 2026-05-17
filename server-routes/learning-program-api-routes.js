@@ -1096,9 +1096,11 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
     try {
       const reviewId = pathId(url.pathname, /^\/api\/learning\/review-queue\/([^/]+)\/decision$/);
+      const decision = await service.decideReview(reviewId, Object.assign({}, body, { principalId: owner.principalId || "owner" }));
       deps.sendJson(res, 200, {
         ok: true,
-        reviewItem: service.decideReview(reviewId, Object.assign({}, body, { principalId: owner.principalId || "owner" })),
+        reviewItem: decision.reviewItem || decision,
+        autoPublish: decision.autoPublish || null,
       });
     } catch (err) {
       sendRouteError(deps, res, err);

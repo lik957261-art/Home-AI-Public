@@ -412,6 +412,7 @@
       const draft = draftByProgram.get(program.programId);
       const needsRebuild = owner && draftNeedsRebuild(data, draft);
       const canRebuild = owner && draftCanBeRebuilt(data, draft);
+      const draftPublished = String(draft?.status || "") === "published";
       return `<article class="learning-program-card" data-learning-program-id="${escapeHtml(program.programId)}">
         <div class="learning-program-card-top">
           <div>
@@ -431,7 +432,7 @@
         ${owner ? `<div class="learning-program-actions">
           <button type="button" data-learning-program-draft-action="${escapeHtml(program.programId)}">\u751f\u6210\u5468\u8ba1\u5212</button>
           ${canRebuild ? `<button type="button" data-learning-program-rebuild-draft="${escapeHtml(program.programId)}">\u4f5c\u5e9f\u5e76\u91cd\u5efa</button>` : ""}
-          <button type="button" data-learning-program-publish="${escapeHtml(program.programId)}" ${draft && !draft.reliability?.publishBlocked && !needsRebuild ? "" : "disabled"}>\u4e0b\u53d1\u4efb\u52a1</button>
+          <button type="button" data-learning-program-publish="${escapeHtml(program.programId)}" ${draft && !draft.reliability?.publishBlocked && !needsRebuild && !draftPublished ? "" : "disabled"}>${draftPublished ? "\u5df2\u81ea\u52a8\u4e0b\u53d1" : "\u4e0b\u53d1\u4efb\u52a1"}</button>
         </div>` : ""}
       </article>`;
     }).join("");

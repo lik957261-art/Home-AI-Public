@@ -140,6 +140,7 @@ function normalizeKanbanStudyTemplate(raw = {}) {
     "kind",
   ]));
   if (["programming", "coding", "code", "python", "\u7f16\u7a0b", "\u7a0b\u5f0f", "\u7a0b\u5e8f", "\u4ee3\u7801"].includes(value)) return "programming";
+  if (["learning-growth", "fanfan-growth", "growth", "learner-growth"].includes(value)) return "learning-growth";
   if (["reading", "read", "book", "english-reading", "reading-retell"].includes(value)) return "reading";
   return "custom";
 }

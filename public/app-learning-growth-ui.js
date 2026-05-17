@@ -149,6 +149,72 @@
     </section>`;
   }
 
+  function renderLearningGrowthTabs(tabs = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const visible = tabs.filter((tab) => tab && tab.html);
+    if (!visible.length) return "";
+    const first = visible[0].id;
+    return `<section class="learning-growth-tabs" data-learning-growth-tabs>
+      <div class="learning-growth-tab-list" role="tablist" aria-label="Learning growth sections">
+        ${visible.map((tab, index) => `<button type="button" role="tab" data-learning-growth-tab="${escapeHtml(tab.id)}" aria-selected="${index === 0 ? "true" : "false"}" class="${index === 0 ? "active" : ""}">${escapeHtml(tab.label)}</button>`).join("")}
+      </div>
+      ${visible.map((tab) => `<section class="learning-growth-tab-panel${tab.id === first ? " active" : ""}" data-learning-growth-tab-panel="${escapeHtml(tab.id)}" role="tabpanel"${tab.id === first ? "" : " hidden"}>
+        ${tab.html}
+      </section>`).join("")}
+    </section>`;
+  }
+
+  function renderOwnerProgramTabs(programUi, coinsHtml, overview = {}, options = {}) {
+    const data = overview.programs || {};
+    const programOptions = Object.assign({}, options, {
+      programs: data,
+      launchOperations: overview.launchOperations,
+      learnerId: overview.learner?.id || options.learnerId,
+    });
+    const execution = programUi.renderExecutionOverview(data, programOptions);
+    const guidance = programUi.renderGuidancePanel(data, programOptions);
+    const config = [
+      programUi.renderFoundationPanel(data, programOptions),
+      programUi.renderProgramForm(data, programOptions),
+    ].join("");
+    const review = [
+      programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions),
+      programUi.renderParentReportPanel(data, programOptions),
+      programUi.renderReviewQueue(data.reviewItems || [], programOptions),
+      programUi.renderParentReviewRequests(data.parentReviewRequests || [], programOptions),
+    ].join("");
+    const rewards = [
+      guidance,
+      coinsHtml,
+      programUi.renderRewardSettlements(data.rewardSettlements || [], programOptions),
+    ].join("");
+    const system = renderOwnerSystemPanel(overview, options);
+    return `<section class="learning-program-section learning-program-parent-admin" data-learning-growth-module="programs" data-learning-growth-category="parent-admin">
+      ${renderLearningGrowthTabs([
+        { id: "execution", label: "\u6267\u884c", html: execution },
+        { id: "config", label: "\u914d\u7f6e", html: config },
+        { id: "review", label: "\u5ba1\u6838", html: review },
+        { id: "rewards", label: "\u5956\u52b1", html: rewards },
+        { id: "system", label: "\u7cfb\u7edf", html: system },
+      ], options)}
+    </section>`;
+  }
+
+  function renderExecutorProgramTabs(programUi, coinsHtml, overview = {}, options = {}) {
+    const data = overview.programs || {};
+    const programOptions = Object.assign({}, options, {
+      programs: data,
+      learnerId: overview.learner?.id || options.learnerId,
+    });
+    return `<section class="learning-program-section" data-learning-growth-module="programs">
+      ${renderLearningGrowthTabs([
+        { id: "execution", label: "\u6267\u884c", html: programUi.renderExecutionOverview(data, programOptions) },
+        { id: "guidance", label: "\u5206\u6790", html: programUi.renderGuidancePanel(data, programOptions) },
+        { id: "coins", label: "\u91d1\u5e01", html: coinsHtml },
+      ], options)}
+    </section>`;
+  }
+
   function renderLearningGrowthView(options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const overview = options.overview || {};
@@ -162,13 +228,6 @@
     const coins = options.coins || overview.coins || {};
     const coinsUi = options.coinsUi || CoinsUi;
     const programUi = options.programUi || ProgramUi;
-    const programsHtml = programUi && typeof programUi.renderProgramSubsystem === "function"
-      ? programUi.renderProgramSubsystem(Object.assign({}, options, {
-          programs: overview.programs || {},
-          launchOperations: overview.launchOperations,
-          learnerId: learner.id || options.learnerId,
-        }))
-      : "";
     const coinsHtml = coinsUi && typeof coinsUi.renderCoinsSubsystem === "function"
       ? coinsUi.renderCoinsSubsystem(Object.assign({}, options, {
           summary: coins,
@@ -177,6 +236,11 @@
         }))
       : `<div class="learning-coin-empty">金币子模块未加载。</div>`;
     const owner = isOwner(options);
+    const programsHtml = programUi && typeof programUi.renderExecutionOverview === "function"
+      ? (owner
+          ? renderOwnerProgramTabs(programUi, coinsHtml, overview, options)
+          : renderExecutorProgramTabs(programUi, coinsHtml, overview, options))
+      : "";
     return `<div class="learning-growth-view" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
       <section class="learning-growth-shell-hero">
         <div>
@@ -191,13 +255,12 @@
         </div>
       </section>
       ${programsHtml}
-      ${coinsHtml}
-      ${renderOwnerSystemPanel(overview, options)}
     </div>`;
   }
 
   return {
     renderCapabilityCards,
+    renderLearningGrowthTabs,
     renderLearningGrowthView,
     renderNextModules,
     renderOwnerSystemPanel,

@@ -105,6 +105,13 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: false } } });
   assert.match(html, /data-learning-product="fanfan-growth"/);
   assert.match(html, /data-learning-role="executor"/);
+  assert.match(html, /data-learning-growth-tabs/);
+  assert.match(html, /data-learning-growth-tab="execution"/);
+  assert.match(html, /data-learning-growth-tab="guidance"/);
+  assert.match(html, /data-learning-growth-tab="coins"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="config"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="review"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
   assert.match(html, /凡凡成长系统/);
   assert.match(html, /金币情况、待执行任务状态、分析与指导/);
   assert.match(html, /data-learning-growth-category="execution"/);
@@ -135,6 +142,12 @@ function testGrowthRendererContainsProgramSubsystem() {
 function testOwnerRendererKeepsManagementSections() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: true } } });
   assert.match(html, /data-learning-role="owner"/);
+  assert.match(html, /data-learning-growth-tabs/);
+  assert.match(html, /data-learning-growth-tab="execution"/);
+  assert.match(html, /data-learning-growth-tab="config"/);
+  assert.match(html, /data-learning-growth-tab="review"/);
+  assert.match(html, /data-learning-growth-tab="rewards"/);
+  assert.match(html, /data-learning-growth-tab="system"/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
   assert.match(html, /data-learning-growth-category="owner-system"/);
   assert.match(html, /data-learning-operational-readiness/);
