@@ -16,6 +16,7 @@ const { createLearningParentReviewApiRoutes } = require("./learning-parent-revie
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
+const { createLearningGrowthWritingSubmissionService } = require("../adapters/learning-growth-writing-submission-service");
 const { createLearningParentReviewRequestService } = require("../adapters/learning-parent-review-request-service");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
@@ -381,6 +382,13 @@ function createMobileApiComposition(deps = {}) {
   });
   callBootTrace(deps, "todo api routes ready");
 
+  const learningGrowthTaskService = createLearningGrowthKanbanTaskService({
+    kanbanCardProvider: deps.kanbanCardProvider,
+  });
+  const learningGrowthWritingSubmissionService = createLearningGrowthWritingSubmissionService({
+    kanbanCardProvider: deps.kanbanCardProvider,
+  });
+
   const kanbanCardApiRoutes = createKanbanCardApiRoutes({
     annotateKanbanCardsForAuth: (...args) => deps.kanbanCaseShareService.annotateCardsForAuth(...args),
     authenticateRequest: deps.authenticateRequest,
@@ -392,10 +400,13 @@ function createMobileApiComposition(deps = {}) {
     detectDirectTodoCreateIntentForWeb: deps.detectDirectTodoCreateIntentForWeb,
     extractKanbanSourceDocumentText: (...args) => deps.kanbanReadingWorkflowService.extractKanbanSourceDocumentText(...args),
     findWorkspace: deps.findWorkspace,
+    isOwnerAuth: deps.isOwnerAuth,
     kanbanCardProvider: deps.kanbanCardProvider,
     kanbanCaseSharesForActor: (...args) => deps.kanbanCaseShareService.sharesForActor(...args),
     kanbanErrorResponse: deps.kanbanErrorResponse,
     kanbanSingleCardCasePayload: deps.kanbanSingleCardCasePayload,
+    learningGrowthKanbanTaskService: learningGrowthTaskService,
+    learningGrowthWritingSubmissionService,
     normalizeKanbanNotificationAssignee: deps.normalizeKanbanNotificationAssignee,
     normalizeKanbanMaxParallel: deps.normalizeKanbanMaxParallel,
     normalizeKanbanPlanReasoningEffort: deps.normalizeKanbanPlanReasoningEffort,
@@ -472,9 +483,6 @@ function createMobileApiComposition(deps = {}) {
     publishService: learningProgramPublishService,
     parentReviewRequestService: learningParentReviewRequestService,
     learningCoinService: deps.learningCoinService,
-  });
-  const learningGrowthTaskService = createLearningGrowthKanbanTaskService({
-    kanbanCardProvider: deps.kanbanCardProvider,
   });
 
   const learningApiRoutes = createLearningApiRoutes({

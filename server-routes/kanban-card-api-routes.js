@@ -138,6 +138,21 @@ const KANBAN_CARD_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["kanban", "card"],
     tags: ["kanban", "mutate"],
   },
+  {
+    id: "kanban-card-learning-growth-submission",
+    method: "POST",
+    pathRegex: /^\/api\/kanban\/cards\/[^/]+\/learning-growth-submission$/,
+    group: "kanban",
+    moduleKey: "kanban",
+    handlerKey: "submitLearningGrowthWriting",
+    summary: "Submit one authorized Growth learning writing answer.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["kanban", "card", "learning"],
+    tags: ["kanban", "learning-growth", "submit"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -155,6 +170,19 @@ function actionCapability(action) {
   if (action === "revise") return "revise";
   if (action === "delete" || action === "cancel") return "delete";
   return "manage";
+}
+
+function dedupeCardsById(cards = []) {
+  const seen = new Set();
+  const result = [];
+  for (const card of Array.isArray(cards) ? cards : []) {
+    const id = String(card?.id || card?.todo_id || card?.todoId || "").trim();
+    const key = id || JSON.stringify(card || {});
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(card);
+  }
+  return result;
 }
 
 function createKanbanCardApiRoutes(deps = {}) {
@@ -196,6 +224,9 @@ function createKanbanCardApiRoutes(deps = {}) {
   if (!deps.kanbanCardProvider || typeof deps.kanbanCardProvider.listCards !== "function" || typeof deps.kanbanCardProvider.addCard !== "function" || typeof deps.kanbanCardProvider.cardDetail !== "function" || typeof deps.kanbanCardProvider.mutateCard !== "function") {
     throw new Error("kanban card api routes require kanbanCardProvider list/add/detail/mutate");
   }
+  if (!deps.learningGrowthWritingSubmissionService || typeof deps.learningGrowthWritingSubmissionService.submitWriting !== "function") {
+    throw new Error("kanban card api routes require learningGrowthWritingSubmissionService.submitWriting");
+  }
 
   const sourceDocumentMaxBytes = Math.max(1, Number(deps.sourceDocumentMaxBytes || 20 * 1024 * 1024));
   const registry = createApiRouteRegistry(KANBAN_CARD_API_ROUTE_SPECS);
@@ -228,11 +259,18 @@ function createKanbanCardApiRoutes(deps = {}) {
     };
     if (targetId) listArgs.targetId = targetId;
     const auth = deps.authenticateRequest(req);
+    const isOwner = typeof deps.isOwnerAuth === "function" ? deps.isOwnerAuth(auth) : false;
+    const includeOwnerGrowth = Boolean(
+      deps.learningGrowthKanbanTaskService
+      && typeof deps.learningGrowthKanbanTaskService.shouldIncludeOwnerKanbanCards === "function"
+      && deps.learningGrowthKanbanTaskService.shouldIncludeOwnerKanbanCards({ auth, isOwner, workspaceId, listArgs }),
+    );
     const sharedCases = deps.kanbanCaseSharesForActor(auth, workspaceId);
     const bypassCache = deps.boolParam(url.searchParams.get("fresh"))
       || deps.boolParam(url.searchParams.get("skipCache"))
       || deps.boolParam(url.searchParams.get("noCache"))
-      || Boolean(targetId);
+      || Boolean(targetId)
+      || includeOwnerGrowth;
     if (!bypassCache && !sharedCases.length) {
       const cached = deps.readKanbanCardListCache(listArgs);
       if (cached) {
@@ -250,7 +288,12 @@ function createKanbanCardApiRoutes(deps = {}) {
       return;
     }
     const sharedData = await deps.sharedKanbanCardsForAuth(auth, workspaceId, listArgs);
-    const data = deps.annotateKanbanCardsForAuth(result.data, auth).concat(sharedData);
+    let ownerGrowthData = [];
+    if (includeOwnerGrowth && typeof deps.learningGrowthKanbanTaskService.listOwnerManagedKanbanCards === "function") {
+      const ownerGrowth = await deps.learningGrowthKanbanTaskService.listOwnerManagedKanbanCards({ auth, isOwner, workspaceId, listArgs });
+      ownerGrowthData = deps.annotateKanbanCardsForAuth(ownerGrowth.cards || [], auth);
+    }
+    const data = dedupeCardsById(deps.annotateKanbanCardsForAuth(result.data, auth).concat(sharedData, ownerGrowthData));
     const payload = {
       data,
       assignees: result.assignees,
@@ -259,8 +302,9 @@ function createKanbanCardApiRoutes(deps = {}) {
       result: result.result,
       maintenance,
       sharedCases: sharedData.length,
+      ownerManagedGrowthCards: ownerGrowthData.length,
     };
-    if (!sharedCases.length && !targetId) deps.writeKanbanCardListCache(listArgs, payload);
+    if (!sharedCases.length && !targetId && !includeOwnerGrowth) deps.writeKanbanCardListCache(listArgs, payload);
     deps.sendJson(res, 200, payload);
   }
 
@@ -474,6 +518,36 @@ function createKanbanCardApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, result });
   }
 
+  async function handleLearningGrowthSubmission(req, res, url) {
+    if (!requireKanbanEnabled(res)) return;
+    const match = cardPathMatch(url.pathname, "learning-growth-submission");
+    const body = await deps.readBody(req).catch(() => ({}));
+    const cardId = decodeURIComponent(match?.[1] || "");
+    const access = await deps.resolveKanbanCardAccess(
+      req,
+      res,
+      body.workspaceId || url.searchParams.get("workspaceId") || "owner",
+      cardId,
+      "comment",
+    );
+    if (!access) return;
+    const workspaceId = access.workspaceId;
+    const result = await deps.learningGrowthWritingSubmissionService.submitWriting({
+      workspaceId,
+      cardId,
+      text: body.text || body.submission || body.comment || "",
+      author: body.author || "",
+    });
+    if (!result?.ok) {
+      deps.kanbanErrorResponse(res, result);
+      return;
+    }
+    deps.clearKanbanCardListCache(workspaceId);
+    deps.broadcast({ type: "kanban.updated", workspaceId, cardId, action: "learning-growth-submission" });
+    deps.broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "learning-growth-submission" });
+    deps.sendJson(res, 200, { ok: true, cardId, status: result.status || "submitted", result: result.result || { ok: true } });
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -490,6 +564,7 @@ function createKanbanCardApiRoutes(deps = {}) {
     else if (route.id === "kanban-card-plan") await handlePlan(req, res);
     else if (route.id === "kanban-card-batch") await handleBatch(req, res);
     else if (route.id === "kanban-card-action") await handleAction(req, res, url);
+    else if (route.id === "kanban-card-learning-growth-submission") await handleLearningGrowthSubmission(req, res, url);
     else return { handled: false };
 
     return { handled: true, route, auth: context.auth };

@@ -196,11 +196,12 @@ const ROUTE_MODULES = Object.freeze([
     key: "kanban-card-api-routes",
     exportName: "createKanbanCardApiRoutes",
     required: false,
-    minRoutes: 9,
+    minRoutes: 10,
     probes: [
       { method: "GET", path: "/api/kanban/cards", id: "kanban-cards-list" },
       { method: "GET", path: "/api/kanban/cards/card-1/detail", id: "kanban-card-detail" },
       { method: "POST", path: "/api/kanban/cards/card-1/comment", id: "kanban-card-action" },
+      { method: "POST", path: "/api/kanban/cards/card-1/learning-growth-submission", id: "kanban-card-learning-growth-submission" },
     ],
   },
   {

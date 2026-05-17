@@ -73,6 +73,63 @@ async function testProjectsOnlyLearningGrowthKanbanCards() {
   });
 }
 
+async function testOwnerManagedKanbanCardsIncludeOnlyGrowthCards() {
+  const calls = [];
+  const service = createLearningGrowthKanbanTaskService({
+    managedLearnerWorkspaceIds: ["child", "child"],
+    kanbanCardProvider: {
+      async listCards(input) {
+        calls.push(input);
+        return {
+          ok: true,
+          source: "hermes_kanban",
+          data: [
+            {
+              id: "t_growth",
+              status: "todo",
+              content: "Writing task",
+              workspaceId: "child",
+              kanbanCaseTemplate: "learning-growth",
+              kanbanCaseMode: "study-plan",
+            },
+            {
+              id: "t_reading",
+              status: "todo",
+              content: "Reading task",
+              workspaceId: "child",
+              kanbanCaseTemplate: "reading",
+            },
+          ],
+        };
+      },
+    },
+  });
+  assert.equal(service.shouldIncludeOwnerKanbanCards({ isOwner: true, workspaceId: "owner" }), true);
+  assert.equal(service.shouldIncludeOwnerKanbanCards({ isOwner: false, workspaceId: "owner" }), false);
+  assert.equal(service.shouldIncludeOwnerKanbanCards({ isOwner: true, workspaceId: "child" }), false);
+  const result = await service.listOwnerManagedKanbanCards({
+    isOwner: true,
+    workspaceId: "owner",
+    listArgs: { includeCompleted: false, limit: 20, search: "writing", targetId: "t_growth" },
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.cards.map((card) => card.id), ["t_growth"]);
+  assert.equal(result.cards[0].ownerManagedLearnerWorkspaceId, "child");
+  assert.deepEqual(calls, [{
+    workspaceId: "child",
+    scope: "mine",
+    includeCompleted: false,
+    assignee: "",
+    limit: 120,
+    search: "writing",
+    targetId: "t_growth",
+  }]);
+
+  const skipped = await service.listOwnerManagedKanbanCards({ isOwner: false, workspaceId: "owner" });
+  assert.equal(skipped.cards.length, 0);
+  assert.equal(calls.length, 1);
+}
+
 function testHelpers() {
   assert.equal(isLearningGrowthKanbanCard({ kanbanCaseTemplate: "learning-growth" }), true);
   assert.equal(isLearningGrowthKanbanCard({ kanbanStudyKind: "learning-growth" }), true);
@@ -91,6 +148,7 @@ function testHelpers() {
 (async () => {
   testHelpers();
   await testProjectsOnlyLearningGrowthKanbanCards();
+  await testOwnerManagedKanbanCardsIncludeOnlyGrowthCards();
   console.log("learning growth kanban task service tests passed");
 })().catch((err) => {
   console.error(err);

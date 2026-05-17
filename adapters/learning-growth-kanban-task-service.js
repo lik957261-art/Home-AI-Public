@@ -49,6 +49,22 @@ function isClosedKanbanStatus(status) {
   return ["done", "archived", "cancelled", "canceled", "completed"].includes(cleanString(status).toLowerCase());
 }
 
+function defaultManagedLearnerWorkspaceIds() {
+  return ["weixin_stephen"];
+}
+
+function uniqueCleanStrings(values = []) {
+  const seen = new Set();
+  const result = [];
+  for (const value of arrayValue(values)) {
+    const text = cleanString(value);
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    result.push(text);
+  }
+  return result;
+}
+
 function publicTaskStatus(card = {}) {
   const status = cardStatus(card);
   if (isClosedKanbanStatus(status)) return "completed";
@@ -100,6 +116,52 @@ function projectLearningGrowthKanbanTask(card = {}, input = {}) {
 
 function createLearningGrowthKanbanTaskService(options = {}) {
   const kanbanCardProvider = options.kanbanCardProvider || null;
+  const managedLearnerWorkspaceIds = uniqueCleanStrings(options.managedLearnerWorkspaceIds || defaultManagedLearnerWorkspaceIds());
+
+  function shouldIncludeOwnerKanbanCards(input = {}) {
+    return Boolean(input.isOwner) && cleanString(input.workspaceId || input.selectedWorkspaceId) === "owner";
+  }
+
+  async function listOwnerManagedKanbanCards(input = {}) {
+    if (!kanbanCardProvider || typeof kanbanCardProvider.listCards !== "function") {
+      return { ok: true, cards: [], source: "kanban-unavailable" };
+    }
+    if (!shouldIncludeOwnerKanbanCards(input)) return { ok: true, cards: [], source: "kanban-skipped" };
+    const listArgs = input.listArgs || {};
+    const includeCompleted = Boolean(listArgs.includeCompleted);
+    const limit = positiveInteger(listArgs.limit, 120);
+    const cards = [];
+    const errors = [];
+    for (const learnerWorkspaceId of managedLearnerWorkspaceIds) {
+      const result = await kanbanCardProvider.listCards({
+        workspaceId: learnerWorkspaceId,
+        scope: "mine",
+        includeCompleted,
+        assignee: listArgs.assignee || "",
+        limit: Math.max(limit, 120),
+        search: listArgs.search || "",
+        ...(listArgs.targetId ? { targetId: listArgs.targetId } : {}),
+      });
+      if (!result?.ok) {
+        errors.push(cleanString(result?.error || result?.result?.error || `Kanban lookup failed for ${learnerWorkspaceId}`));
+        continue;
+      }
+      for (const card of arrayValue(result.data)) {
+        if (!isLearningGrowthKanbanCard(card)) continue;
+        if (!includeCompleted && isClosedKanbanStatus(cardStatus(card))) continue;
+        cards.push(Object.assign({
+          workspaceId: learnerWorkspaceId,
+          ownerManagedLearnerWorkspaceId: learnerWorkspaceId,
+        }, card));
+      }
+    }
+    return {
+      ok: errors.length === 0,
+      cards: cards.slice(0, limit),
+      source: "owner-managed-learning-growth",
+      errors,
+    };
+  }
 
   async function listExecutableTasks(input = {}) {
     if (!kanbanCardProvider || typeof kanbanCardProvider.listCards !== "function") {
@@ -139,6 +201,8 @@ function createLearningGrowthKanbanTaskService(options = {}) {
 
   return {
     listExecutableTasks,
+    listOwnerManagedKanbanCards,
+    shouldIncludeOwnerKanbanCards,
   };
 }
 

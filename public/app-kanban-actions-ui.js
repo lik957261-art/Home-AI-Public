@@ -191,6 +191,20 @@ function wireTodoPanel(root) {
       completeTodo(todoId, comment).catch(showError);
     });
   });
+  root.querySelectorAll("[data-learning-growth-submission-form]").forEach((form) => {
+    const resolveTodoId = () => form.dataset.learningGrowthSubmissionForm || form.querySelector("[data-submit-learning-growth-writing]")?.dataset?.submitLearningGrowthWriting || "";
+    form.querySelector("#todoLearningGrowthSubmissionText")?.addEventListener("input", (event) => {
+      const todoId = resolveTodoId();
+      if (todoId) state.todoLearningGrowthSubmissionDrafts[todoId] = event.target.value || "";
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const todoId = resolveTodoId();
+      const text = form.querySelector("#todoLearningGrowthSubmissionText")?.value || "";
+      submitLearningGrowthWriting(todoId, text).catch(showError);
+    });
+  });
   root.querySelectorAll("[data-todo-revision-form]").forEach((form) => {
     form.querySelector("#todoRevisionText")?.addEventListener("input", (event) => {
       const todoId = form.dataset.todoRevisionForm || "";

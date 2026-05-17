@@ -118,14 +118,16 @@ function renderTodoCreatePanel() {
 
 function syncTodoDetailDraftFromDom(input = null) {
   const target = input || document.activeElement;
-  if (!target || !["todoCommentText", "todoRevisionText", "todoReadingSubmissionNotes"].includes(target.id)) return;
-  const form = target.closest?.("[data-todo-comment-form], [data-todo-revision-form], [data-reading-submission-form]");
+  if (!target || !["todoCommentText", "todoRevisionText", "todoReadingSubmissionNotes", "todoLearningGrowthSubmissionText"].includes(target.id)) return;
+  const form = target.closest?.("[data-todo-comment-form], [data-todo-revision-form], [data-reading-submission-form], [data-learning-growth-submission-form]");
   const commentId = form?.dataset?.todoCommentForm || "";
   const revisionId = form?.dataset?.todoRevisionForm || "";
   const readingId = form?.dataset?.readingSubmissionForm || "";
+  const growthId = form?.dataset?.learningGrowthSubmissionForm || "";
   if (target.id === "todoCommentText" && commentId) state.todoCommentDrafts[commentId] = target.value || "";
   if (target.id === "todoRevisionText" && revisionId) state.todoRevisionDrafts[revisionId] = target.value || "";
   if (target.id === "todoReadingSubmissionNotes" && readingId) state.todoReadingSubmissionDrafts[readingId] = target.value || "";
+  if (target.id === "todoLearningGrowthSubmissionText" && growthId) state.todoLearningGrowthSubmissionDrafts[growthId] = target.value || "";
 }
 
 function restoreTodoDetailDraftFocus(focus = null) {

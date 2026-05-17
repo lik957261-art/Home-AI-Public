@@ -178,6 +178,40 @@ async function commentTodo(todoId, comment) {
   renderTodos();
 }
 
+async function submitLearningGrowthWriting(todoId, text) {
+  if (!todoId) return;
+  const card = kanbanCardById(todoId);
+  if (card && !kanbanCan(card, "canComment")) throw new Error("No permission to submit this Growth task");
+  if (state.todoLearningGrowthSubmissionSubmitting?.[todoId]) return;
+  const submission = String(text || state.todoLearningGrowthSubmissionDrafts?.[todoId] || "").trim();
+  if (!submission) throw new Error("\u8bf7\u5148\u5199\u4e0b\u672c\u6b21\u4f5c\u7b54\u5185\u5bb9");
+  state.todoLearningGrowthSubmissionDrafts[todoId] = submission;
+  state.todoLearningGrowthSubmissionSubmitting[todoId] = true;
+  state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "info", message: "\u6b63\u5728\u63d0\u4ea4\u672c\u6b21\u4f5c\u7b54..." };
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    await api(boardActionApiPath(todoId, "learning-growth-submission"), {
+      method: "POST",
+      body: kanbanCardActionBody(todoId, {
+        text: submission,
+      }),
+    });
+    clearTodoListCache(kanbanCardWorkspaceId(todoId));
+    delete state.todoLearningGrowthSubmissionDrafts[todoId];
+    state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "success", message: "\u5df2\u63d0\u4ea4\u672c\u6b21\u4f5c\u7b54\uff0c\u53ef\u7b49\u5f85 AI \u8bc4\u4ef7\u6216\u5bb6\u957f\u590d\u6838\u3002" };
+    await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
+    state.selectedTodoId = todoId;
+    showPushToast("\u6210\u957f\u4efb\u52a1\u4f5c\u7b54\u5df2\u63d0\u4ea4", "success");
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  } catch (err) {
+    state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "error", message: err.message || String(err) };
+    throw err;
+  } finally {
+    delete state.todoLearningGrowthSubmissionSubmitting[todoId];
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
+}
+
 async function commentAndUnblockTodo(todoId, comment) {
   if (!todoId) return;
   const card = kanbanCardById(todoId);

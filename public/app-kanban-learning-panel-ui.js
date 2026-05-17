@@ -10,22 +10,42 @@ function isKanbanReadingCard(todo) {
 function renderKanbanLearningGrowthTodoPanel(todo) {
   if (!isKanbanLearningGrowthCard(todo) || !todoMatchesOpen(todo)) return "";
   const blocked = normalizedKanbanStatus(todo) === "blocked";
+  const completed = ["done", "archived", "cancelled", "canceled", "completed"].includes(normalizedKanbanStatus(todo));
+  const canSubmit = !blocked && !completed && kanbanCan(todo, "canComment");
+  const submitting = Boolean(state.todoLearningGrowthSubmissionSubmitting?.[todo.id]);
+  const feedback = state.todoLearningGrowthSubmissionFeedback?.[todo.id] || null;
   const goal = String(todo?.kanbanCaseCardGoal || todo?.description || "").trim();
   const goalText = `${String(todo?.content || "")}\n${goal}`;
   const hasConcretePrompt = /Task instruction:/i.test(goal) || /Task prompt:/i.test(goal) || /first draft|rewrite|Interaction flow:/i.test(goal);
   const looksGenericSubmitCard = /submit output|study output|Submission:/i.test(goalText) && !hasConcretePrompt;
   const deliverables = Array.isArray(todo?.kanbanCaseDeliverables) ? todo.kanbanCaseDeliverables : [];
   const acceptance = Array.isArray(todo?.kanbanCaseAcceptance) ? todo.kanbanCaseAcceptance : [];
+  const draft = state.todoLearningGrowthSubmissionDrafts?.[todo.id] || "";
   const details = [
     looksGenericSubmitCard ? `<p class="todo-detail-muted">This Growth card has no concrete task prompt. Regenerate or republish the Growth plan before the learner submits work.</p>` : "",
     goal ? `<div class="todo-learning-growth-prompt"><strong>Task instruction</strong><p>${escapeHtml(goal)}</p></div>` : "",
     deliverables.length ? `<div class="todo-detail-chip-row">${deliverables.slice(0, 4).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : "",
     acceptance.length ? `<ul>${acceptance.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "",
   ].filter(Boolean).join("");
+  const submissionForm = canSubmit
+    ? `<form class="todo-learning-growth-submit" data-learning-growth-submission-form="${escapeHtml(todo.id)}">
+      <label class="todo-panel-label" for="todoLearningGrowthSubmissionText">\u672c\u6b21\u4f5c\u7b54</label>
+      <textarea id="todoLearningGrowthSubmissionText" class="todo-input todo-comment-textarea" rows="7" placeholder="\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u3001\u6539\u5199\u3001\u590d\u76d8\u6216\u4efb\u52a1\u7b54\u6848\u3002" ${submitting ? "disabled" : ""}>${escapeHtml(draft)}</textarea>
+      <div class="todo-comment-actions">
+        <button type="submit" data-submit-learning-growth-writing="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${submitting ? "\u6b63\u5728\u63d0\u4ea4..." : "\u63d0\u4ea4\u4f5c\u7b54"}</button>
+      </div>
+      <p class="todo-detail-muted">\u63d0\u4ea4\u540e\u4f1a\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\u7684\u5b66\u4e60\u8bb0\u5f55\uff0c\u540e\u7eed\u7528\u4e8e AI \u8bc4\u4ef7\u3001\u4fee\u6539\u548c\u91d1\u5e01\u7ed3\u7b97\u3002</p>
+    </form>`
+    : "";
+  const feedbackBlock = feedback?.message
+    ? `<p class="todo-detail-muted ${feedback.kind === "error" ? "todo-detail-error" : ""}">${escapeHtml(feedback.message)}</p>`
+    : "";
   return `<section class="todo-comment-panel todo-learning-growth-panel" data-learning-growth-kanban-card="${escapeHtml(todo.id || "")}">
     <label class="todo-panel-label">成长任务</label>
     <p class="todo-detail-muted">${escapeHtml(blocked ? "等待前置任务完成后自动开放。" : "该任务由凡凡成长系统下发，按任务说明完成；不需要走阅读录音模板。")}</p>
     ${details || `<p class="todo-detail-muted">${escapeHtml(todo?.kanbanCaseSummary || "打开成长页查看任务、分析和指导。")}</p>`}
+    ${submissionForm}
+    ${feedbackBlock}
   </section>`;
 }
 

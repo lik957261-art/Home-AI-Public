@@ -56,6 +56,7 @@ function makeRoutes(overrides = {}) {
     errors: [],
     file: [],
     filePreview: [],
+    growthSubmit: [],
     list: [],
     mutate: [],
     outputResolve: [],
@@ -131,6 +132,27 @@ function makeRoutes(overrides = {}) {
       mutateCard(payload) {
         calls.mutate.push(payload);
         return Promise.resolve({ ok: true, id: payload.cardId, action: payload.action });
+      },
+    },
+    isOwnerAuth(auth) {
+      return Boolean(auth?.isOwner);
+    },
+    learningGrowthKanbanTaskService: {
+      shouldIncludeOwnerKanbanCards(input) {
+        return Boolean(input.isOwner) && input.workspaceId === "owner";
+      },
+      listOwnerManagedKanbanCards(input) {
+        calls.shared.push(Object.assign({ ownerGrowth: true }, input));
+        return Promise.resolve({
+          ok: true,
+          cards: [{ id: "growth-1", workspaceId: "child", kanbanCaseTemplate: "learning-growth" }],
+        });
+      },
+    },
+    learningGrowthWritingSubmissionService: {
+      submitWriting(input) {
+        calls.growthSubmit.push(input);
+        return Promise.resolve({ ok: true, cardId: input.cardId, status: "submitted", result: { ok: true, id: input.cardId } });
       },
     },
     normalizeKanbanMaxParallel(value) {
@@ -241,6 +263,7 @@ async function testRouteMetadataMatchingAndFallthrough() {
     "kanban-card-plan",
     "kanban-card-batch",
     "kanban-card-action",
+    "kanban-card-learning-growth-submission",
   ]);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/kanban/cards" }).id, "kanban-cards-list");
@@ -252,11 +275,12 @@ async function testRouteMetadataMatchingAndFallthrough() {
   assert.equal(routes.match({ method: "POST", path: "/api/kanban/cards/plan" }).id, "kanban-card-plan");
   assert.equal(routes.match({ method: "POST", path: "/api/kanban/cards/batch" }).id, "kanban-card-batch");
   assert.equal(routes.match({ method: "POST", path: "/api/kanban/cards/card%2F1/comment" }).id, "kanban-card-action");
+  assert.equal(routes.match({ method: "POST", path: "/api/kanban/cards/card%2F1/learning-growth-submission" }).id, "kanban-card-learning-growth-submission");
   assert.equal(routes.match({ method: "GET", path: "/api/kanban/cards/card-1/comment" }), null);
 
   const summary = routes.summary({ public: true });
-  assert.equal(summary.total, 9);
-  assert.deepEqual(summary.byAuthMode, { "access-key": 9 });
+  assert.equal(summary.total, 10);
+  assert.deepEqual(summary.byAuthMode, { "access-key": 10 });
   assert.equal(JSON.stringify(summary).includes("/api/kanban/cards"), false);
 
   const miss = await request(routes, "GET", "/api/status");
@@ -341,6 +365,27 @@ async function testListBypassesCacheForFreshFlagsAndSharedCases() {
   assert.deepEqual(sharedCase.calls.list.map((call) => call.workspaceId), ["child"]);
 }
 
+async function testOwnerListIncludesManagedLearningGrowthCardsWithoutCache() {
+  const ownerAuth = { principalId: "owner", workspaceId: "owner", isOwner: true };
+  const { routes, calls } = makeRoutes({
+    readKanbanCardListCache(args) {
+      calls.cacheRead.push(args);
+      return { data: [{ id: "should-not-read" }] };
+    },
+  });
+  const got = await request(routes, "GET", "/api/kanban/cards?workspaceId=owner&limit=20&fresh=0", { auth: ownerAuth });
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.cacheRead, []);
+  assert.deepEqual(calls.cacheWrite, []);
+  assert.equal(calls.list[0].workspaceId, "owner");
+  assert.deepEqual(got.body.data.map((card) => card.id), ["card-1", "shared-1", "growth-1"]);
+  assert.equal(got.body.ownerManagedGrowthCards, 1);
+  const ownerGrowthCall = calls.shared.find((call) => call.ownerGrowth);
+  assert.equal(ownerGrowthCall.workspaceId, "owner");
+  assert.equal(ownerGrowthCall.isOwner, true);
+  assert.equal(ownerGrowthCall.listArgs.limit, 20);
+}
+
 async function testListTargetBypassesCacheAndForwardsTargetId() {
   const { routes, calls } = makeRoutes({
     readKanbanCardListCache(args) {
@@ -355,6 +400,27 @@ async function testListTargetBypassesCacheAndForwardsTargetId() {
   assert.equal(calls.list[0].targetId, "card-old");
   assert.equal(calls.list[0].includeCompleted, true);
   assert.deepEqual(calls.cacheWrite, []);
+}
+
+async function testLearningGrowthSubmissionUsesCommentCapabilityAndService() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-submission?workspaceId=query-workspace", {
+    body: { workspaceId: "child", text: "draft", author: "learner" },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.access.at(-1), { workspaceId: "child", cardId: "t_growth", capability: "comment" });
+  assert.deepEqual(calls.growthSubmit, [{
+    workspaceId: "child",
+    cardId: "t_growth",
+    text: "draft",
+    author: "learner",
+  }]);
+  assert.deepEqual(calls.cacheClear, ["child"]);
+  assert.deepEqual(calls.broadcast.slice(-2), [
+    { type: "kanban.updated", workspaceId: "child", cardId: "t_growth", action: "learning-growth-submission" },
+    { type: "todos.updated", workspaceId: "child", todoId: "t_growth", action: "learning-growth-submission" },
+  ]);
+  assert.equal(got.body.status, "submitted");
 }
 
 async function testOutputRoutesAlwaysUseResolverWithAuthenticatedContext() {
@@ -626,7 +692,9 @@ function testDependencyValidation() {
   await testListProviderSharedMergeAndMaintenance();
   await testListCacheHitAnnotatesAndSchedulesMaintenance();
   await testListBypassesCacheForFreshFlagsAndSharedCases();
+  await testOwnerListIncludesManagedLearningGrowthCardsWithoutCache();
   await testListTargetBypassesCacheAndForwardsTargetId();
+  await testLearningGrowthSubmissionUsesCommentCapabilityAndService();
   await testOutputRoutesAlwaysUseResolverWithAuthenticatedContext();
   await testDetailAndActionAccessCapabilities();
   await testCreateMapsBodyCasePayloadCacheBroadcastAndVerification();
