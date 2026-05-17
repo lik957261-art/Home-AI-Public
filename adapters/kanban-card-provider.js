@@ -87,6 +87,7 @@ function createKanbanCardProvider(options = {}) {
       kanban_assignee: args.kanbanAssignee || args.kanban_assignee || "",
       case_id: args.caseId || args.case_id || "",
       case_mode: args.caseMode || args.case_mode || "",
+      case_template: args.caseTemplate || args.case_template || "",
       case_source_text: args.caseSourceText || args.case_source_text || "",
       case_summary: args.caseSummary || args.case_summary || "",
       case_cover: args.caseCover || args.case_cover || null,

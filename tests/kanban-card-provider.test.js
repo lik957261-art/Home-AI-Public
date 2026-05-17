@@ -48,11 +48,13 @@ async function testTargetIdForwardingAndSearchPreservation() {
     manualOnly: true,
     autoDispatch: false,
     kanbanAssignee: "",
+    caseTemplate: "learning-growth",
   });
   assert.equal(calls[1].action, "add");
   assert.equal(calls[1].manual_only, true);
   assert.equal(calls[1].auto_dispatch, false);
   assert.equal(calls[1].kanban_assignee, "");
+  assert.equal(calls[1].case_template, "learning-growth");
   assert.equal(calls[1].due_time, "2026-05-16 10:00");
 }
 
