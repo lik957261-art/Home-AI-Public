@@ -5,6 +5,11 @@ const path = require("path");
 
 const appSplitModuleFiles = Object.freeze([
   "app-shell-ui.js",
+  "app-task-groups-ui.js",
+  "app-chat-composer-ui.js",
+  "app-navigation-search-ui.js",
+  "app-sidebar-task-ui.js",
+  "app-message-actions-ui.js",
   "app-platform-ui.js",
   "app-workspace-admin-ui.js",
   "app-directory-automation-ui.js",

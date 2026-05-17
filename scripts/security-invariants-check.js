@@ -13,6 +13,11 @@ const WEIXIN_RUNTIME_FILE = "adapters/weixin-runtime-composition-service.js";
 const APP_FRONTEND_FILES = [
   "public/app.js",
   "public/app-shell-ui.js",
+  "public/app-task-groups-ui.js",
+  "public/app-chat-composer-ui.js",
+  "public/app-navigation-search-ui.js",
+  "public/app-sidebar-task-ui.js",
+  "public/app-message-actions-ui.js",
   "public/app-platform-ui.js",
   "public/app-workspace-admin-ui.js",
   "public/app-directory-automation-ui.js",
