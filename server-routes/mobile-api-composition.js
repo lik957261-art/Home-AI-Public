@@ -469,6 +469,7 @@ function createMobileApiComposition(deps = {}) {
     repository: learningProgramRepository,
     publishService: learningProgramPublishService,
     parentReviewRequestService: learningParentReviewRequestService,
+    learningCoinService: deps.learningCoinService,
   });
 
   const learningApiRoutes = createLearningApiRoutes({

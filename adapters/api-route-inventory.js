@@ -371,6 +371,19 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-evaluation"],
   })),
+  regex("learning-evaluation-reward-settle", "POST", /^\/api\/learning\/evaluations\/[^/]+\/reward-settlement$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-evaluation", "learning-reward-settlement", "learning-coin"],
+  })),
+  exact("learning-reward-settlements-list", "GET", "/api/learning/reward-settlements", "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-reward-settlement"],
+  })),
+  regex("learning-reward-settlement-read", "GET", /^\/api\/learning\/reward-settlements\/[^/]+$/, "learning-program", routeOptions("learning-program", {
+    workspaceScoped: true,
+    resourceTypes: ["learning-reward-settlement"],
+  })),
   exact("learning-parent-review-requests-list", "GET", "/api/learning/parent-review-requests", "learning-parent-review", routeOptions("learning-parent-review", {
     riskLevel: "owner",
     ownerOnly: true,

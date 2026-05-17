@@ -68,6 +68,7 @@ const learningProgramPublishService = require("../adapters/learning-program-publ
 const learningProgramRepository = require("../adapters/learning-program-repository");
 const learningProgramService = require("../adapters/learning-program-service");
 const learningRecordPrivacyService = require("../adapters/learning-record-privacy-service");
+const learningRewardSettlementService = require("../adapters/learning-reward-settlement-service");
 const learningSkillTaxonomyService = require("../adapters/learning-skill-taxonomy-service");
 const learningSourceService = require("../adapters/learning-source-service");
 const learningTaskCardService = require("../adapters/learning-task-card-service");
@@ -252,6 +253,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningProgramRepository.createLearningProgramRepository, "function");
   assert.equal(typeof learningProgramService.createLearningProgramService, "function");
   assert.equal(typeof learningRecordPrivacyService.assertNoPrivateLearningPayload, "function");
+  assert.equal(typeof learningRewardSettlementService.createLearningRewardSettlementService, "function");
   assert.equal(typeof learningSkillTaxonomyService.createLearningSkillTaxonomyService, "function");
   assert.equal(typeof learningSourceService.createLearningSourceService, "function");
   assert.equal(typeof learningTaskCardService.createLearningTaskCardService, "function");
@@ -500,6 +502,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobileComposition, /createLearningProgramApiRoutes/);
   assert.match(mobileComposition, /createLearningProgramService/);
   assert.match(mobileComposition, /createLearningProgramRepository/);
+  assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningProgramApiRoutes"/);
   assert.match(mobileComposition, /createLearningParentReviewApiRoutes/);
   assert.match(mobileComposition, /createLearningParentReviewRequestService/);

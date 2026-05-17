@@ -10,6 +10,7 @@ const { createLearningInteractionSessionService } = require("./learning-interact
 const { createLearningParentReviewQueueService } = require("./learning-parent-review-queue-service");
 const { createLearningParentReviewRequestService } = require("./learning-parent-review-request-service");
 const { createLearningPlanDecompositionService } = require("./learning-plan-decomposition-service");
+const { createLearningRewardSettlementService } = require("./learning-reward-settlement-service");
 const { createLearningSkillTaxonomyService } = require("./learning-skill-taxonomy-service");
 const { createLearningSourceService } = require("./learning-source-service");
 const { createLearningTaskCardService } = require("./learning-task-card-service");
@@ -142,6 +143,11 @@ function createLearningProgramService(options = {}) {
   const interactionSessionService = options.interactionSessionService || createLearningInteractionSessionService({ repository });
   const parentReviewRequestService = options.parentReviewRequestService || createLearningParentReviewRequestService({ repository });
   const evaluationService = options.evaluationService || createLearningEvaluationService({ repository, reviewRequestService: parentReviewRequestService });
+  const rewardSettlementService = options.rewardSettlementService || createLearningRewardSettlementService({
+    repository,
+    learningCoinService: options.learningCoinService || null,
+    parentReviewRequestService,
+  });
 
   function createProgram(input = {}) {
     const program = normalizeProgramInput(input, { taxonomy });
@@ -317,6 +323,7 @@ function createLearningProgramService(options = {}) {
     const interactionSessions = interactionSessionService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     const evaluations = evaluationService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     const parentReviewRequests = parentReviewRequestService.list({ learnerId, workspaceId, status: input.reviewStatus || "pending", limit: input.limit || 20 });
+    const rewardSettlements = rewardSettlementService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     return {
       counts: repository.counts({ learnerId }),
       programs,
@@ -328,6 +335,7 @@ function createLearningProgramService(options = {}) {
       interactionSessions,
       evaluations,
       parentReviewRequests,
+      rewardSettlements,
       learnerProfile: profile.profile,
       skillStates: profile.skillStates,
       curriculumReferences,
@@ -396,6 +404,18 @@ function createLearningProgramService(options = {}) {
     return evaluationService.list(filters);
   }
 
+  function settleEvaluationReward(evaluationId, input = {}) {
+    return rewardSettlementService.settleEvaluationReward(evaluationId, input);
+  }
+
+  function listRewardSettlements(filters = {}) {
+    return rewardSettlementService.list(filters);
+  }
+
+  function getRewardSettlement(rewardSettlementId) {
+    return rewardSettlementService.get(rewardSettlementId);
+  }
+
   function listParentReviewRequests(filters = {}) {
     return parentReviewRequestService.list(filters);
   }
@@ -411,11 +431,13 @@ function createLearningProgramService(options = {}) {
     draftPlan,
     getProgram,
     getLearnerProfile,
+    getRewardSettlement,
     getTaskCard,
     listEvaluations,
     listInteractionSessions,
     listParentReviewRequests,
     listPrograms,
+    listRewardSettlements,
     listGoals,
     listSources,
     listTaskCards,
@@ -424,6 +446,7 @@ function createLearningProgramService(options = {}) {
     publishProgram,
     rebuildLearnerProfile,
     recordEvaluation,
+    settleEvaluationReward,
     repository,
     reviewQueue: reviewQueueList,
     saveGoal,

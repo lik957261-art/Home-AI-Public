@@ -319,6 +319,51 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "evaluation", "sqlite"],
   },
   {
+    id: "learning-evaluation-reward-settle",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/evaluations\/[^/]+\/reward-settlement$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "settleEvaluationReward",
+    summary: "Owner settles a verified learning evaluation reward through the reward service.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-evaluation", "learning-reward-settlement", "learning-coin"],
+    tags: ["learning", "evaluation", "reward", "owner"],
+  },
+  {
+    id: "learning-reward-settlements-list",
+    method: "GET",
+    path: "/api/learning/reward-settlements",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "listRewardSettlements",
+    summary: "Read summarized learning reward settlement records.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-reward-settlement"],
+    tags: ["learning", "reward", "settlement"],
+  },
+  {
+    id: "learning-reward-settlement-read",
+    method: "GET",
+    pathRegex: /^\/api\/learning\/reward-settlements\/[^/]+$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "getRewardSettlement",
+    summary: "Read one summarized learning reward settlement.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-reward-settlement"],
+    tags: ["learning", "reward", "settlement"],
+  },
+  {
     id: "learning-review-queue-list",
     method: "GET",
     path: "/api/learning/review-queue",
@@ -409,6 +454,7 @@ function createLearningProgramApiRoutes(deps = {}) {
       draftId: cleanString(url.searchParams.get("draftId")),
       taskCardId: cleanString(url.searchParams.get("taskCardId")),
       sessionId: cleanString(url.searchParams.get("sessionId")),
+      evaluationId: cleanString(url.searchParams.get("evaluationId")),
     };
   }
 
@@ -724,6 +770,44 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, evaluations: service.listEvaluations(query) });
   }
 
+  async function handleRewardSettlementCreate(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const evaluationId = pathId(url.pathname, /^\/api\/learning\/evaluations\/([^/]+)\/reward-settlement$/);
+      deps.sendJson(res, 201, {
+        ok: true,
+        rewardSettlement: service.settleEvaluationReward(evaluationId, Object.assign({}, body, { principalId: owner.principalId || "owner" })),
+      });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleRewardSettlementsList(req, res, url, auth) {
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    deps.sendJson(res, 200, { ok: true, rewardSettlements: service.listRewardSettlements(query) });
+  }
+
+  async function handleRewardSettlementRead(req, res, url, auth) {
+    const rewardSettlementId = pathId(url.pathname, /^\/api\/learning\/reward-settlements\/([^/]+)$/);
+    const rewardSettlement = service.getRewardSettlement(rewardSettlementId);
+    if (!authorizeRecord(req, res, auth, rewardSettlement, "Learning reward settlement not found")) return;
+    deps.sendJson(res, 200, { ok: true, rewardSettlement });
+  }
+
   async function handleReviewList(req, res, url, auth) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -782,6 +866,9 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-session-advance") await handleSessionAdvance(req, res, url);
     else if (route.id === "learning-session-evaluation-create") await handleEvaluationCreate(req, res, url);
     else if (route.id === "learning-evaluations-list") await handleEvaluationsList(req, res, url, auth);
+    else if (route.id === "learning-evaluation-reward-settle") await handleRewardSettlementCreate(req, res, url);
+    else if (route.id === "learning-reward-settlements-list") await handleRewardSettlementsList(req, res, url, auth);
+    else if (route.id === "learning-reward-settlement-read") await handleRewardSettlementRead(req, res, url, auth);
     else if (route.id === "learning-review-queue-list") await handleReviewList(req, res, url, auth);
     else if (route.id === "learning-review-queue-decision") await handleReviewDecision(req, res, url);
     else return { handled: false };

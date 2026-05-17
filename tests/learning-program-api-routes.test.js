@@ -129,6 +129,18 @@ function makeRoutes(overrides = {}) {
       calls.push(["listEvaluations", input]);
       return [{ evaluationId: "eval-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
     },
+    settleEvaluationReward(evaluationId, input) {
+      calls.push(["settleEvaluationReward", evaluationId, input]);
+      return { rewardSettlementId: "settle-1", evaluationId, status: "settled", workspaceId: "weixin_stephen", learnerId: "weixin_stephen" };
+    },
+    listRewardSettlements(input) {
+      calls.push(["listRewardSettlements", input]);
+      return [{ rewardSettlementId: "settle-1", evaluationId: "eval-1", workspaceId: input.workspaceId, learnerId: input.learnerId }];
+    },
+    getRewardSettlement(rewardSettlementId) {
+      calls.push(["getRewardSettlement", rewardSettlementId]);
+      return { rewardSettlementId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen" };
+    },
   }, overrides.service || {});
   const deps = Object.assign({
     isOwnerAuth(auth) {
@@ -166,7 +178,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 23);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 26);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -175,7 +187,9 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 23);
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 26);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -274,7 +288,20 @@ async function testTaskSessionEvaluationRoutes() {
 
   const evaluations = await request(routes, "GET", "/api/learning/evaluations?workspaceId=weixin_stephen&learnerId=weixin_stephen");
   assert.equal(evaluations.res.statusCode, 200);
+  const reward = await request(routes, "POST", "/api/learning/evaluations/eval-1/reward-settlement", {
+    body: { reason: "summary only" },
+  });
+  assert.equal(reward.res.statusCode, 201);
+  assert.equal(reward.body.rewardSettlement.status, "settled");
+  const rewards = await request(routes, "GET", "/api/learning/reward-settlements?workspaceId=weixin_stephen&learnerId=weixin_stephen");
+  assert.equal(rewards.res.statusCode, 200);
+  assert.equal(rewards.body.rewardSettlements[0].rewardSettlementId, "settle-1");
+  const rewardRead = await request(routes, "GET", "/api/learning/reward-settlements/settle-1", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(rewardRead.res.statusCode, 200);
   assert.ok(calls.some((call) => call[0] === "recordEvaluation"));
+  assert.ok(calls.some((call) => call[0] === "settleEvaluationReward"));
 }
 
 (async () => {

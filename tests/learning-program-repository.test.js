@@ -141,6 +141,26 @@ function testMigrationAndPersistence() {
   assert.equal(reviewRequest.reviewRequestId, "review-request-1");
   assert.equal(reviewRequest.answerText, "[redacted]");
 
+  const rewardSettlement = repository.saveRewardSettlement({
+    rewardSettlementId: "settle-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    programId: "program-1",
+    taskCardId: "task-1",
+    sessionId: "session-1",
+    evaluationId: "eval-1",
+    status: "settled",
+    coinAmount: 15,
+    reason: "summary only reward",
+    sourceType: "learning-growth-evaluation",
+    sourceId: "eval-1",
+    idempotencyKey: "learning-growth:evaluation:eval-1:reward",
+    ledgerEntry: { id: "coin-1", coinDelta: 15 },
+    answerText: "must not be exposed",
+  });
+  assert.equal(rewardSettlement.rewardSettlementId, "settle-1");
+  assert.equal(rewardSettlement.answerText, "[redacted]");
+
   const review = repository.saveReviewItem({
     reviewId: "review-1",
     programId: "program-1",
@@ -246,6 +266,8 @@ function testMigrationAndPersistence() {
   assert.equal(repository.listInteractionSessions({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listReviewRequests({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.getRewardSettlement("settle-1").coinAmount, 15);
   assert.equal(repository.latestDraftForProgram("program-1").draftId, "draft-1");
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).sources, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).goals, 1);
@@ -255,6 +277,7 @@ function testMigrationAndPersistence() {
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).interactionSessions, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).evaluations, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).reviewRequests, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).rewardSettlements, 1);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }

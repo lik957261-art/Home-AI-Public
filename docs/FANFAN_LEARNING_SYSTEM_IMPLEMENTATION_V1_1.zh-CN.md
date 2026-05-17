@@ -584,3 +584,27 @@ Boundary:
 - Parent review request APIs are Owner-only in V0.4.
 - Request payloads and decisions reject raw answers, transcripts, question text, answer keys, prompts, credentials, endpoints, and local paths.
 - Existing `/api/learning/review-queue` remains the plan-draft publish review queue and is not repurposed for evaluations.
+
+## 16. V0.5 reward settlement service boundary (2026-05-17)
+
+V0.5 adds the first service-owned bridge from verified learning evaluations to the existing learning coin ledger.
+
+New durable table:
+- `learning_reward_settlements`: summary-only reward settlement records keyed by evaluation and idempotency key. It records settlement status, coin amount, review request id, and the sanitized coin ledger entry reference.
+
+New service:
+- `adapters/learning-reward-settlement-service.js`: owns evaluation reward settlement, idempotency, parent-review gating, and coin ledger delegation.
+
+New API surface under the existing `learning-program` route module:
+- `POST /api/learning/evaluations/:evaluationId/reward-settlement`
+- `GET /api/learning/reward-settlements`
+- `GET /api/learning/reward-settlements/:rewardSettlementId`
+
+Boundary:
+- `learning-evaluation-service` still never writes the coin ledger.
+- Coin ledger writes can happen only through `learning-reward-settlement-service`, which delegates to `learning-coin-service.grantCoins`.
+- Auto-settlement requires a passed evaluation with `verification.status="verified"`, no parent-review requirement, and a reward amount within the auto-settlement limit.
+- `model_only`, low-confidence, missing-evidence, or large-reward settlements create or reuse parent-review requests and do not write coins until approved.
+- Hard verifier states such as `blocked`, `failed`, or `error` remain blocked even if a generic review record exists.
+- The settlement idempotency key is the coin grant idempotency key, so repeated settlement attempts cannot duplicate ledger rows.
+- Request and record payloads remain summary-only and must not include child answers, full transcripts, questions, answer keys, raw prompts, paths, endpoints, or credentials.

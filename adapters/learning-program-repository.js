@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 4;
+const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 5;
 
 function nowIso() {
   return new Date().toISOString();
@@ -350,6 +350,30 @@ function publicReviewRequestFromRow(row) {
   });
 }
 
+function publicRewardSettlementFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    rewardSettlementId: row.id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    programId: row.program_id,
+    taskCardId: row.task_card_id,
+    sessionId: row.session_id,
+    evaluationId: row.evaluation_id,
+    status: row.status,
+    coinAmount: Number(row.coin_amount || 0),
+    reason: row.reason,
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    idempotencyKey: row.idempotency_key || "",
+    reviewRequestId: row.review_request_id || "",
+    ledgerEntry: parseJson(row.ledger_entry_json, null),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    settledAt: row.settled_at || "",
+  });
+}
+
 function createLearningProgramRepository(options = {}) {
   const dataDir = path.resolve(String(options.dataDir || process.env.HERMES_WEB_DATA_DIR || path.join(process.cwd(), "workspace", "hermes-web")));
   const dbPath = path.resolve(String(options.dbPath || process.env.HERMES_MOBILE_LEARNING_DB_PATH || process.env.HERMES_WEB_LEARNING_DB_PATH || path.join(dataDir, "learning-growth.sqlite3")));
@@ -627,6 +651,32 @@ function createLearningProgramRepository(options = {}) {
         decided_at TEXT NOT NULL DEFAULT ''
       );
 
+      CREATE TABLE IF NOT EXISTS learning_reward_settlements (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        program_id TEXT NOT NULL,
+        task_card_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        evaluation_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        coin_amount INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL DEFAULT '',
+        review_request_id TEXT NOT NULL DEFAULT '',
+        ledger_entry_json TEXT,
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        settled_at TEXT NOT NULL DEFAULT '',
+        FOREIGN KEY(evaluation_id) REFERENCES learning_evaluations(id) ON DELETE CASCADE,
+        FOREIGN KEY(session_id) REFERENCES learning_interaction_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY(task_card_id) REFERENCES learning_task_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS idx_learning_programs_learner ON learning_programs(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_drafts_program ON learning_plan_drafts(program_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_reviews_status ON learning_parent_review_items(status, updated_at);
@@ -645,12 +695,16 @@ function createLearningProgramRepository(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_learning_parent_review_requests_learner ON learning_parent_review_requests(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_parent_review_requests_resource ON learning_parent_review_requests(resource_type, resource_id, updated_at);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_parent_review_requests_idempotency ON learning_parent_review_requests(idempotency_key) WHERE idempotency_key <> '';
+      CREATE INDEX IF NOT EXISTS idx_learning_reward_settlements_learner ON learning_reward_settlements(learner_id, status, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_reward_settlements_evaluation ON learning_reward_settlements(evaluation_id, updated_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_reward_settlements_unique_evaluation ON learning_reward_settlements(evaluation_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_reward_settlements_idempotency ON learning_reward_settlements(idempotency_key) WHERE idempotency_key <> '';
     `);
     const row = database.prepare("SELECT version FROM learning_schema_migrations WHERE version = ?").get(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION);
     if (!row) {
       database.prepare("INSERT INTO learning_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
         CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION,
-        "learning verification review requests v0.4",
+        "learning reward settlements v0.5",
         nowIso(),
       );
     }
@@ -1547,6 +1601,108 @@ function createLearningProgramRepository(options = {}) {
     return open().prepare(sql).all(...values, limit).map(publicReviewRequestFromRow);
   }
 
+  function saveRewardSettlement(settlement) {
+    migrate();
+    const now = nowIso();
+    const settlementId = cleanString(settlement.rewardSettlementId || settlement.id);
+    const current = getRewardSettlement(settlementId);
+    const createdAt = current?.createdAt || settlement.createdAt || now;
+    const updatedAt = settlement.updatedAt || now;
+    const row = Object.assign({}, settlement, { rewardSettlementId: settlementId, createdAt, updatedAt });
+    open().prepare(`
+      INSERT INTO learning_reward_settlements(
+        id, learner_id, workspace_id, program_id, task_card_id, session_id, evaluation_id,
+        status, coin_amount, reason, source_type, source_id, idempotency_key,
+        review_request_id, ledger_entry_json, raw_json, created_at, updated_at, settled_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        program_id=excluded.program_id,
+        task_card_id=excluded.task_card_id,
+        session_id=excluded.session_id,
+        evaluation_id=excluded.evaluation_id,
+        status=excluded.status,
+        coin_amount=excluded.coin_amount,
+        reason=excluded.reason,
+        source_type=excluded.source_type,
+        source_id=excluded.source_id,
+        idempotency_key=excluded.idempotency_key,
+        review_request_id=excluded.review_request_id,
+        ledger_entry_json=excluded.ledger_entry_json,
+        raw_json=excluded.raw_json,
+        updated_at=excluded.updated_at,
+        settled_at=excluded.settled_at
+    `).run(
+      row.rewardSettlementId,
+      row.learnerId,
+      row.workspaceId,
+      row.programId || "",
+      row.taskCardId || "",
+      row.sessionId || "",
+      row.evaluationId || "",
+      row.status || "ready",
+      Number(row.coinAmount || 0),
+      row.reason || "",
+      row.sourceType || "",
+      row.sourceId || "",
+      row.idempotencyKey || "",
+      row.reviewRequestId || "",
+      stableJson(row.ledgerEntry || null),
+      stableJson(stripPrivateLearningFields(row)),
+      createdAt,
+      updatedAt,
+      row.settledAt || "",
+    );
+    return getRewardSettlement(row.rewardSettlementId);
+  }
+
+  function getRewardSettlement(rewardSettlementId) {
+    migrate();
+    return publicRewardSettlementFromRow(open().prepare("SELECT * FROM learning_reward_settlements WHERE id = ?").get(cleanString(rewardSettlementId)));
+  }
+
+  function listRewardSettlements(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.programId) {
+      where.push("program_id = ?");
+      values.push(cleanString(filters.programId));
+    }
+    if (filters.taskCardId) {
+      where.push("task_card_id = ?");
+      values.push(cleanString(filters.taskCardId));
+    }
+    if (filters.sessionId) {
+      where.push("session_id = ?");
+      values.push(cleanString(filters.sessionId));
+    }
+    if (filters.evaluationId) {
+      where.push("evaluation_id = ?");
+      values.push(cleanString(filters.evaluationId));
+    }
+    if (filters.status) {
+      where.push("status = ?");
+      values.push(cleanString(filters.status));
+    }
+    if (filters.idempotencyKey) {
+      where.push("idempotency_key = ?");
+      values.push(cleanString(filters.idempotencyKey));
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    const sql = `SELECT * FROM learning_reward_settlements ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY updated_at DESC, created_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicRewardSettlementFromRow);
+  }
+
   function counts(filters = {}) {
     migrate();
     const learnerId = cleanString(filters.learnerId);
@@ -1570,6 +1726,7 @@ function createLearningProgramRepository(options = {}) {
       interactionSessions: count("learning_interaction_sessions"),
       evaluations: count("learning_evaluations"),
       reviewRequests: count("learning_parent_review_requests"),
+      rewardSettlements: count("learning_reward_settlements"),
     };
   }
 
@@ -1596,6 +1753,7 @@ function createLearningProgramRepository(options = {}) {
     getProgram,
     getReviewItem,
     getReviewRequest,
+    getRewardSettlement,
     getSource,
     getTaskCard,
     integritySummary,
@@ -1608,6 +1766,7 @@ function createLearningProgramRepository(options = {}) {
     listPrograms,
     listReviewItems,
     listReviewRequests,
+    listRewardSettlements,
     listSkillStates,
     listSources,
     listTaskCards,
@@ -1619,6 +1778,7 @@ function createLearningProgramRepository(options = {}) {
     savePublication,
     saveReviewItem,
     saveReviewRequest,
+    saveRewardSettlement,
     upsertTaskCard,
     upsertCurriculumReference,
     upsertGoal,
@@ -1641,6 +1801,7 @@ module.exports = {
   publicProgramFromRow,
   publicReviewItemFromRow,
   publicReviewRequestFromRow,
+  publicRewardSettlementFromRow,
   publicSourceFromRow,
   publicTaskCardFromRow,
   stripPrivateLearningFields,
