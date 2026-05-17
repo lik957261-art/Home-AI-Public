@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const {
+  DEFAULT_GRADE7_CURRICULUM_REFS,
   createLearningSourceBootstrapService,
   defaultEnglishFocusAreas,
   defaultGoalInput,
@@ -60,6 +61,13 @@ function makeBootstrapService() {
       programs.push(program);
       return program;
     },
+    updateProgram(programId, patch) {
+      calls.push(["updateProgram", programId, patch]);
+      const index = programs.findIndex((program) => program.programId === programId);
+      if (index < 0) throw new Error("program not found");
+      programs[index] = Object.assign({}, programs[index], patch);
+      return programs[index];
+    },
   });
   return { calls, goals, programs, service };
 }
@@ -76,6 +84,9 @@ function testDefaultContractsAreEnglishGrowthReady() {
   assert.equal(program.domain, "english");
   assert.equal(program.reviewPolicy.parentReviewRequired, true);
   assert.deepEqual(program.sourceBasisRefs, ["cleaned_history:source-1"]);
+  assert.deepEqual(program.curriculumRefs, DEFAULT_GRADE7_CURRICULUM_REFS);
+  assert.equal(program.constraints.learnerStage.gradeBand, "grade7");
+  assert.equal(program.constraints.learnerStage.languageLevel, "5.5-6");
 }
 
 function testBootstrapCreatesGoalProgramAndProfileOnce() {
@@ -91,6 +102,7 @@ function testBootstrapCreatesGoalProgramAndProfileOnce() {
   assert.equal(goals.length, 1);
   assert.equal(programs.length, 1);
   assert.ok(result.program.focusAreas.includes("english_short_writing"));
+  assert.ok(result.program.curriculumRefs.includes("school-english-grade7-current"));
   assert.ok(calls.some((call) => call[0] === "rebuildProfile"));
   assert.doesNotMatch(JSON.stringify(result), /rawTranscript|questionText|answerKey|prompt|fullTranscript/);
 
@@ -101,6 +113,29 @@ function testBootstrapCreatesGoalProgramAndProfileOnce() {
   assert.equal(repeated.reused.program, 1);
   assert.equal(goals.length, 1);
   assert.equal(programs.length, 1);
+}
+
+function testBootstrapRefreshesExistingProgramStageRefs() {
+  const { calls, programs, service } = makeBootstrapService();
+  programs.push({
+    programId: "program-existing",
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    domain: "english",
+    status: "active",
+    curriculumRefs: ["cambridge-primary-english-reference", "school-english-current-grade"],
+    sourceBasisRefs: ["old:source"],
+    constraints: { old: true },
+  });
+  const result = service.bootstrap({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(result.created.program, 0);
+  assert.equal(result.created.programRefreshed, 1);
+  assert.equal(result.reused.program, 1);
+  assert.ok(result.program.curriculumRefs.includes("school-english-grade7-current"));
+  assert.equal(result.program.curriculumRefs.includes("cambridge-primary-english-reference"), false);
+  assert.equal(result.program.constraints.learnerStage.gradeBand, "grade7");
+  assert.ok(result.program.sourceBasisRefs.includes("old:source"));
+  assert.ok(calls.some((call) => call[0] === "updateProgram"));
 }
 
 function testDryRunDoesNotPersistGoalProgramOrProfile() {
@@ -129,6 +164,7 @@ function testBootstrapRejectsPrivatePayloadKeys() {
 
 testDefaultContractsAreEnglishGrowthReady();
 testBootstrapCreatesGoalProgramAndProfileOnce();
+testBootstrapRefreshesExistingProgramStageRefs();
 testDryRunDoesNotPersistGoalProgramOrProfile();
 testBootstrapRejectsPrivatePayloadKeys();
 

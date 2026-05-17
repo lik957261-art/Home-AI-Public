@@ -18,6 +18,9 @@ function testSeedAndSelect() {
   const englishRefs = service.listReferences({ domain: "english" });
   assert.ok(englishRefs.length >= 3);
   assert.ok(englishRefs.every((ref) => ref.copyrightPolicy === "reference_only_no_copied_questions"));
+  assert.ok(englishRefs.some((ref) => ref.stage === "grade7-language-5_5-6"));
+  assert.ok(englishRefs.some((ref) => ref.stage === "grade7"));
+  assert.doesNotMatch(JSON.stringify(englishRefs), /Grade 4-5|grade4-5|upper-primary/);
   const selected = service.selectReferences({
     domain: "english",
     focusAreas: ["english_short_writing"],

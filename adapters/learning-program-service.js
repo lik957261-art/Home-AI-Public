@@ -173,6 +173,7 @@ function createLearningProgramService(options = {}) {
     learnerProfileService,
     listPrograms,
     createProgram,
+    updateProgram,
   });
   const parentReportService = options.parentReportService || createLearningParentReportService({ repository });
 

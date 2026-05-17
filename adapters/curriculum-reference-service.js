@@ -12,9 +12,9 @@ const DEFAULT_CURRICULUM_REFERENCES = Object.freeze([
   {
     referenceId: "cefr-a2-b1-english-growth",
     domain: "english",
-    title: "CEFR A2-B1 English growth bridge",
-    stage: "upper-primary-bridge",
-    summary: "Reference track for balanced reading, listening, speaking, and short writing growth.",
+    title: "Grade 7 language level 5.5-6 English growth bridge",
+    stage: "grade7-language-5_5-6",
+    summary: "Reference track for Grade 7 English growth toward stable B1 output across reading, listening, speaking, and short writing.",
     focusAreas: [
       "english_reading_comprehension",
       "english_listening_input",
@@ -23,28 +23,28 @@ const DEFAULT_CURRICULUM_REFERENCES = Object.freeze([
       "english_vocabulary_active_use",
       "english_grammar_in_expression",
     ],
-    tags: ["cefr", "english", "a2", "b1", "growth"],
+    tags: ["cefr", "english", "b1-bridge", "grade7", "language-level-5_5-6", "growth"],
   },
   {
     referenceId: "cambridge-young-learners-ket-bridge",
     domain: "english",
-    title: "Cambridge young learners to KET style bridge",
-    stage: "upper-primary-bridge",
-    summary: "Reference style for public task formats, short reading passages, listening prompts, and speaking responses without copying proprietary questions.",
+    title: "Cambridge B1 Preliminary style bridge",
+    stage: "grade7-b1-bridge",
+    summary: "Reference style for public middle-school English task formats, reading passages, listening prompts, speaking responses, and short writing without copying proprietary questions.",
     focusAreas: [
       "english_reading_comprehension",
       "english_listening_input",
       "english_speaking_retell",
       "english_pronunciation_shadowing",
     ],
-    tags: ["cambridge-style", "english", "speaking", "listening"],
+    tags: ["cambridge-style", "english", "grade7", "b1-bridge", "speaking", "listening"],
   },
   {
-    referenceId: "ccss-grade4-5-reading-writing",
+    referenceId: "ccss-grade7-reading-writing",
     domain: "english",
-    title: "Grade 4-5 reading and writing reference skills",
-    stage: "grade4-5",
-    summary: "Reference layer for main idea, evidence, retelling, grammar in expression, vocabulary use, and paragraph writing.",
+    title: "Grade 7 reading and writing reference skills",
+    stage: "grade7",
+    summary: "Reference layer for middle-school main idea, textual evidence, retelling, grammar in expression, active vocabulary use, paragraph writing, and short argument/explanation writing.",
     focusAreas: [
       "english_reading_comprehension",
       "english_short_writing",
@@ -52,7 +52,7 @@ const DEFAULT_CURRICULUM_REFERENCES = Object.freeze([
       "english_grammar_in_expression",
       "english_presentation",
     ],
-    tags: ["reading", "writing", "evidence", "paragraph"],
+    tags: ["grade7", "middle-school", "reading", "writing", "evidence", "paragraph"],
   },
   {
     referenceId: "amc8-foundation-spiral",
@@ -72,6 +72,9 @@ const DEFAULT_CURRICULUM_REFERENCES = Object.freeze([
     focusAreas: ["python_syntax", "python_control_flow", "python_debugging", "python_project_explanation"],
     tags: ["python", "programming", "project"],
   },
+]);
+const LEGACY_CURRICULUM_REFERENCE_IDS = new Set([
+  "ccss-grade4-5-reading-writing",
 ]);
 
 function withDefaults(reference = {}) {
@@ -109,7 +112,7 @@ function createCurriculumReferenceService(options = {}) {
     const refs = repository && typeof repository.listCurriculumReferences === "function"
       ? repository.listCurriculumReferences({ domain, limit: filters.limit || 100 })
       : DEFAULT_CURRICULUM_REFERENCES.map(withDefaults).filter((item) => !domain || item.domain === domain);
-    return refs;
+    return refs.filter((reference) => !LEGACY_CURRICULUM_REFERENCE_IDS.has(reference.referenceId));
   }
 
   function selectReferences(input = {}) {

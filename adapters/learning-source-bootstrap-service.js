@@ -4,6 +4,19 @@ const { assertNoPrivateLearningPayload } = require("./learning-record-privacy-se
 
 const DEFAULT_WORKSPACE_ID = "weixin_stephen";
 const DEFAULT_LEARNER_ID = "weixin_stephen";
+const DEFAULT_LEARNER_STAGE = Object.freeze({
+  gradeBand: "grade7",
+  schoolStage: "middle_school",
+  languageLevel: "5.5-6",
+  cefrBand: "b1_bridge",
+});
+const DEFAULT_GRADE7_CURRICULUM_REFS = Object.freeze([
+  "cefr-b1-grade7-english-growth",
+  "language-level-5_5-6-growth-track",
+  "school-english-grade7-current",
+  "cefr-b1-reading-bridge",
+  "school-english-grade7-writing",
+]);
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -67,6 +80,7 @@ function defaultGoalInput(input = {}, sourceRefs = []) {
     constraints: {
       sourceDirectoryBootstrap: true,
       summaryOnly: true,
+      learnerStage: DEFAULT_LEARNER_STAGE,
     },
   });
 }
@@ -87,10 +101,12 @@ function defaultProgramInput(input = {}, goal, sourceRefs = []) {
     minutesPerDay: Number(input.minutesPerDay || input.minutes_per_day || 30),
     timeOfDay: cleanString(input.timeOfDay || input.time_of_day) || "19:30",
     sourceBasisRefs: sourceRefs,
+    curriculumRefs: uniqueStrings(input.curriculumRefs || input.curriculum_refs || DEFAULT_GRADE7_CURRICULUM_REFS),
     constraints: {
       sourceDirectoryBootstrap: true,
       summaryOnly: true,
       parentReviewBeforePublish: true,
+      learnerStage: DEFAULT_LEARNER_STAGE,
     },
     reviewPolicy: {
       parentReviewRequired: true,
@@ -106,6 +122,7 @@ function createLearningSourceBootstrapService(options = {}) {
   const learnerProfileService = options.learnerProfileService;
   const listPrograms = options.listPrograms;
   const createProgram = options.createProgram;
+  const updateProgram = options.updateProgram;
   if (!sourceDirectoryService || typeof sourceDirectoryService.importSummaries !== "function") {
     throw new Error("learning source bootstrap service requires sourceDirectoryService");
   }
@@ -141,8 +158,17 @@ function createLearningSourceBootstrapService(options = {}) {
       .filter((program) => cleanString(program.status) !== "archived");
     const existingEnglishProgram = existingPrograms.find((program) => cleanString(program.domain) === "english") || null;
     const plannedProgram = defaultProgramInput(input, goal, sourceRefs);
-    const program = existingEnglishProgram || (dryRun ? plannedProgram : createProgram(plannedProgram));
+    let program = existingEnglishProgram || (dryRun ? plannedProgram : createProgram(plannedProgram));
     const programCreated = !existingEnglishProgram && !dryRun;
+    let programRefreshed = false;
+    if (existingEnglishProgram && !dryRun && input.refreshProgram !== false && typeof updateProgram === "function") {
+      program = updateProgram(existingEnglishProgram.programId, {
+        curriculumRefs: plannedProgram.curriculumRefs,
+        constraints: Object.assign({}, existingEnglishProgram.constraints || {}, plannedProgram.constraints || {}),
+        sourceBasisRefs: uniqueStrings(asArray(existingEnglishProgram.sourceBasisRefs).concat(sourceRefs)),
+      });
+      programRefreshed = true;
+    }
 
     const profile = dryRun || input.rebuildProfile === false
       ? null
@@ -162,6 +188,7 @@ function createLearningSourceBootstrapService(options = {}) {
         goal: goalCreated ? 1 : 0,
         program: programCreated ? 1 : 0,
         profile: profile ? 1 : 0,
+        programRefreshed: programRefreshed ? 1 : 0,
       },
       reused: {
         goal: existingEnglishGoal ? 1 : 0,
@@ -182,6 +209,8 @@ function createLearningSourceBootstrapService(options = {}) {
 
 module.exports = {
   createLearningSourceBootstrapService,
+  DEFAULT_GRADE7_CURRICULUM_REFS,
+  DEFAULT_LEARNER_STAGE,
   defaultEnglishFocusAreas,
   defaultGoalInput,
   defaultProgramInput,

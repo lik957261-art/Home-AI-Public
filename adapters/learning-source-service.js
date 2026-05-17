@@ -9,6 +9,7 @@ const LEARNING_SOURCE_TYPES = Object.freeze([
   "tutor",
   "cleaned_history",
   "assessment_summary",
+  "learner_profile_signal",
   "public_reference",
   "manual_note",
 ]);

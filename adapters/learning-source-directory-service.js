@@ -13,6 +13,10 @@ const LEARNING_MATERIALS_LABEL = "\u5b66\u4e60\u8d44\u6599";
 const OWNER_ROOT_LABEL = "owner-learning-materials";
 const FANFAN_OWNER_RELATIVE_PARTS = ["Hermes-\u5f90\u6b23", "\u51e1\u51e1"];
 const LEARNING_PLAN_DIR = "\u5b66\u4e60\u8ba1\u5212";
+const ACADEMIC_PLANNING_DIR = "\u0030\u0035_\u5b66\u4e1a\u5347\u5b66";
+const PROFILE_SIGNAL_ROLE = "learner_profile_signal";
+const MAX_PROFILE_SIGNAL_FILES = 160;
+const MAX_PROFILE_SIGNAL_FILE_BYTES = 1024 * 1024;
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -94,6 +98,10 @@ function publicRefForCandidate(binding, candidate) {
   return `${OWNER_ROOT_LABEL}:${binding.learnerId}:${candidate.role}:${String(candidate.relativePath || "").replace(/\\/g, "/")}`;
 }
 
+function publicProfileSignalRef(binding) {
+  return `${OWNER_ROOT_LABEL}:${binding.learnerId}:${PROFILE_SIGNAL_ROLE}:summary-only`;
+}
+
 function compactDirectorySummary(value) {
   const compact = compactLearningSummary(value, 1200);
   return compact.length > 3600 ? `${compact.slice(0, 3599)}...` : compact;
@@ -160,6 +168,132 @@ function readCandidateSummary(binding, candidate, ownerDriveRoot) {
   };
 }
 
+function walkFiles(root, options = {}) {
+  const maxFiles = Math.max(1, Number(options.maxFiles || MAX_PROFILE_SIGNAL_FILES));
+  const out = [];
+  const stack = [root];
+  while (stack.length && out.length < maxFiles) {
+    const current = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (/^(?:\.git|node_modules|\.venv|venv|__pycache__|archive)$/i.test(entry.name)) continue;
+        stack.push(full);
+      } else if (entry.isFile()) {
+        out.push(full);
+        if (out.length >= maxFiles) break;
+      }
+    }
+  }
+  return out;
+}
+
+function normalizedRelativePath(root, fullPath) {
+  return path.relative(root, fullPath).replace(/\\/g, "/");
+}
+
+function profileSignalAllowedPrefixes(binding) {
+  const base = String(binding.ownerRelativePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+  return [
+    `${base}/${LEARNING_MATERIALS_LABEL}/`,
+    `${base}/${LEARNING_PLAN_DIR}/`,
+    `${base}/${ACADEMIC_PLANNING_DIR}/`,
+  ];
+}
+
+function isProfileSignalFileAllowed(binding, relativePath) {
+  const rel = String(relativePath || "").replace(/\\/g, "/");
+  if (!/\.(?:md|txt)$/i.test(rel)) return false;
+  if (/(?:^|\/)(?:\.agent-context|\.git|node_modules|\.venv|venv|__pycache__|archive|raw|原始|转写文本)(?:\/|$)/i.test(rel)) return false;
+  return profileSignalAllowedPrefixes(binding).some((prefix) => rel.startsWith(prefix));
+}
+
+function detectLearnerSignals(text) {
+  const value = String(text || "");
+  const hasEnglishContext = /English|英语|英文|语言|language|CEFR|reading|writing|speaking|listening/i.test(value);
+  const signals = {};
+  if (/(?:七年级|7年级|Grade\s*7|G7|初一)/i.test(value)) {
+    signals.gradeBand = "grade7";
+    signals.schoolStage = "middle_school";
+  }
+  if (hasEnglishContext && /(?:5\.5\s*(?:-|~|to|到|至)\s*6(?:\.0)?|5\.5|6\.0)/i.test(value)) {
+    signals.languageLevel = "5.5-6";
+  }
+  if (hasEnglishContext && /\bB1\b/i.test(value)) {
+    signals.cefrBand = "b1_bridge";
+  }
+  return signals;
+}
+
+function mergeSignals(target, next) {
+  for (const [key, value] of Object.entries(next || {})) {
+    if (!target[key] && value) target[key] = value;
+  }
+  return target;
+}
+
+function collectProfileSignalSource(binding, ownerDriveRoot) {
+  const learnerRoot = path.resolve(ownerDriveRoot, String(binding.ownerRelativePath || ""));
+  assertInsideRoot(ownerDriveRoot, learnerRoot);
+  let stat = null;
+  try {
+    stat = fs.statSync(learnerRoot);
+  } catch (_) {
+    stat = null;
+  }
+  if (!stat || !stat.isDirectory()) return null;
+  const signals = {};
+  let evidenceFiles = 0;
+  let latestMtime = 0;
+  for (const fullPath of walkFiles(learnerRoot)) {
+    const relativeToOwner = normalizedRelativePath(ownerDriveRoot, fullPath);
+    if (!isProfileSignalFileAllowed(binding, relativeToOwner)) continue;
+    let fileStat = null;
+    try {
+      fileStat = fs.statSync(fullPath);
+    } catch (_) {
+      fileStat = null;
+    }
+    if (!fileStat || !fileStat.isFile() || fileStat.size > MAX_PROFILE_SIGNAL_FILE_BYTES) continue;
+    const text = fs.readFileSync(fullPath, "utf8").replace(/^\uFEFF/, "");
+    const detected = detectLearnerSignals(text);
+    if (!Object.keys(detected).length) continue;
+    evidenceFiles += 1;
+    latestMtime = Math.max(latestMtime, fileStat.mtimeMs);
+    mergeSignals(signals, detected);
+  }
+  if (!signals.gradeBand && !signals.languageLevel && !signals.cefrBand) return null;
+  const summaryParts = ["Structured learner signals only"];
+  if (signals.gradeBand) summaryParts.push(`gradeBand=${signals.gradeBand}`);
+  if (signals.schoolStage) summaryParts.push(`schoolStage=${signals.schoolStage}`);
+  if (signals.languageLevel) summaryParts.push(`languageLevel=${signals.languageLevel}`);
+  if (signals.cefrBand) summaryParts.push(`cefrBand=${signals.cefrBand}`);
+  summaryParts.push(`evidenceFiles=${evidenceFiles}`);
+  const sourceDate = latestMtime ? new Date(latestMtime).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const tags = ["summary_only", "learning_materials", "learner_profile_signal"];
+  if (signals.gradeBand) tags.push(signals.gradeBand);
+  if (signals.languageLevel) tags.push("language_level_5_5_6");
+  if (signals.cefrBand) tags.push(signals.cefrBand);
+  return {
+    sourceId: stableId("lsource_signal", [binding.bindingId, sourceDate, signals]),
+    workspaceId: binding.workspaceId,
+    learnerId: binding.learnerId,
+    sourceType: "learner_profile_signal",
+    title: `${binding.displayName || binding.learnerId} ${binding.directoryLabel || LEARNING_MATERIALS_LABEL} learner stage and language signal`,
+    summary: summaryParts.join("; "),
+    confidence: 0.86,
+    sourceDate,
+    tags,
+    refs: [publicProfileSignalRef(binding)],
+  };
+}
+
 function createLearningSourceDirectoryService(options = {}) {
   const sourceService = options.sourceService;
   if (!sourceService || typeof sourceService.save !== "function" || typeof sourceService.normalize !== "function") {
@@ -196,9 +330,11 @@ function createLearningSourceDirectoryService(options = {}) {
 
   function collectSummaries(input = {}) {
     const binding = resolveBinding(input);
-    const sources = asArray(binding.summaryCandidates)
+    const summarySources = asArray(binding.summaryCandidates)
       .map((candidate) => readCandidateSummary(binding, candidate, ownerDriveRoot))
-      .filter(Boolean)
+      .filter(Boolean);
+    const profileSignalSource = collectProfileSignalSource(binding, ownerDriveRoot);
+    const sources = summarySources.concat(profileSignalSource ? [profileSignalSource] : [])
       .map((source) => sourceService.normalize(source));
     return {
       binding: publicBinding(binding, ownerDriveRoot),

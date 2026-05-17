@@ -6,21 +6,21 @@ const ENGLISH_SKILL_TAXONOMY = Object.freeze([
     domain: "english",
     label: "English reading comprehension",
     taskTypes: ["single_subject", "review_card", "mistake_repair_card"],
-    curriculumRefs: ["cefr-a2-b1-reading", "cambridge-primary-reading", "school-english-reading"],
+    curriculumRefs: ["cefr-b1-reading-bridge", "cambridge-b1-reading", "school-english-grade7-reading"],
   }),
   Object.freeze({
     id: "english_listening_input",
     domain: "english",
     label: "English listening input",
     taskTypes: ["single_subject", "review_card"],
-    curriculumRefs: ["cefr-a2-listening", "cambridge-primary-listening"],
+    curriculumRefs: ["cefr-b1-listening-bridge", "cambridge-b1-listening"],
   }),
   Object.freeze({
     id: "english_speaking_retell",
     domain: "english",
     label: "English speaking retell",
     taskTypes: ["single_subject", "challenge_card", "mistake_repair_card"],
-    curriculumRefs: ["cefr-a2-b1-speaking", "cambridge-primary-speaking"],
+    curriculumRefs: ["cefr-b1-speaking-bridge", "cambridge-b1-speaking"],
   }),
   Object.freeze({
     id: "english_pronunciation_shadowing",
@@ -34,21 +34,21 @@ const ENGLISH_SKILL_TAXONOMY = Object.freeze([
     domain: "english",
     label: "Short writing",
     taskTypes: ["single_subject", "project_card", "mistake_repair_card"],
-    curriculumRefs: ["cefr-a2-b1-writing", "cambridge-primary-writing"],
+    curriculumRefs: ["cefr-b1-writing-bridge", "school-english-grade7-writing"],
   }),
   Object.freeze({
     id: "english_vocabulary_active_use",
     domain: "english",
     label: "Active vocabulary use",
     taskTypes: ["single_subject", "review_card", "mistake_repair_card"],
-    curriculumRefs: ["cefr-a2-vocabulary", "school-english-core-words"],
+    curriculumRefs: ["cefr-b1-vocabulary-bridge", "school-english-grade7-core-words"],
   }),
   Object.freeze({
     id: "english_grammar_in_expression",
     domain: "english",
     label: "Grammar in expression",
     taskTypes: ["single_subject", "mistake_repair_card"],
-    curriculumRefs: ["cefr-a2-b1-grammar", "school-grammar-usage"],
+    curriculumRefs: ["cefr-b1-grammar-bridge", "school-english-grade7-grammar-usage"],
   }),
   Object.freeze({
     id: "english_presentation",
@@ -146,7 +146,7 @@ function createLearningSkillTaxonomyService() {
     const normalized = normalizeDomain(domain || "english");
     const refs = [];
     if (normalized === "english") {
-      refs.push("cefr-a2-b1-growth-track", "cambridge-primary-english-reference", "school-english-current-grade");
+      refs.push("cefr-b1-grade7-english-growth", "language-level-5_5-6-growth-track", "school-english-grade7-current");
     }
     for (const id of normalizeFocusAreas(focusAreas, { domain: normalized })) {
       const skill = skillById.get(id);
