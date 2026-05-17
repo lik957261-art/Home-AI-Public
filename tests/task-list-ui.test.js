@@ -83,6 +83,10 @@ assert.match(appJs, /const LearningReadingUi = window\.HermesLearningReadingUi \
 assert.match(appJs, /const AppApiClient = window\.HermesAppApiClient \|\| \{\};/);
 assert.match(appJs, /const hermesApiClient = AppApiClient\.createApiClient\(/);
 assert.match(appJs, /async function api\(path, options = \{\}\) \{\s+return hermesApiClient\(path, options\);\s+\}/);
+assert.match(appJs, /function initialFontSizePreference\(value\)/);
+assert.match(appJs, /function initialFontFamilyPreference\(value\)/);
+assert.equal(appJs.includes("fontSize: normalizeFontSizePreference("), false);
+assert.equal(appJs.includes("fontFamily: normalizeFontFamilyPreference("), false);
 assert.match(appApiClientJs, /root\.HermesAppApiClient = factory\(\);/);
 assert.match(appApiClientJs, /X-Hermes-Web-Client-Version/);
 assert.match(appApiClientJs, /X-Hermes-Web-Refresh-Required/);

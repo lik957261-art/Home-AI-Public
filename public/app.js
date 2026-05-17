@@ -64,6 +64,16 @@ const KanbanStoryHelpers = window.HermesKanbanStoryHelpers || {};
 const LearningReadingUi = window.HermesLearningReadingUi || {};
 const AppApiClient = window.HermesAppApiClient || {};
 
+function initialFontSizePreference(value) {
+  const id = String(value || "").trim();
+  return FONT_SIZE_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_SIZE;
+}
+
+function initialFontFamilyPreference(value) {
+  const id = String(value || "").trim();
+  return FONT_FAMILY_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_FAMILY;
+}
+
 function initialTodoKanbanStatus() {
   const stored = localStorage.getItem("hermesTodoKanbanStatus") || "";
   const migrated = localStorage.getItem("hermesTodoKanbanStoryDefaultVersion") === KANBAN_STORY_DEFAULT_VERSION;
@@ -480,8 +490,8 @@ const state = {
   pwaServiceWorkerReady: false,
   pwaServiceWorkerError: "",
   settingsOpen: false,
-  fontSize: normalizeFontSizePreference(localStorage.getItem("hermesWebFontSize") || DEFAULT_FONT_SIZE),
-  fontFamily: normalizeFontFamilyPreference(localStorage.getItem("hermesWebFontFamily") || DEFAULT_FONT_FAMILY),
+  fontSize: initialFontSizePreference(localStorage.getItem("hermesWebFontSize") || DEFAULT_FONT_SIZE),
+  fontFamily: initialFontFamilyPreference(localStorage.getItem("hermesWebFontFamily") || DEFAULT_FONT_FAMILY),
   readingFullscreen: false,
   transientProjectRoute: null,
   quotedReply: null,
