@@ -362,13 +362,13 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     group: "learning-program",
     moduleKey: "learning-program",
     handlerKey: "recordEvaluation",
-    summary: "Owner records a summary-only learning evaluation without writing coin ledger entries.",
-    riskLevel: "owner",
-    authMode: "owner",
+    summary: "Record a summary-only learning evaluation without writing coin ledger entries.",
+    riskLevel: "low",
+    authMode: "access-key",
     authRequired: true,
-    ownerOnly: true,
+    workspaceScoped: true,
     resourceTypes: ["learning-evaluation"],
-    tags: ["learning", "evaluation", "owner"],
+    tags: ["learning", "evaluation", "executor", "summary-only"],
   },
   {
     id: "learning-evaluations-list",
@@ -898,17 +898,20 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
   }
 
-  async function handleEvaluationCreate(req, res, url) {
-    const owner = deps.requireOwner(req, res);
-    if (!owner) return;
+  async function handleEvaluationCreate(req, res, url, auth) {
+    const sessionId = pathId(url.pathname, /^\/api\/learning\/sessions\/([^/]+)\/evaluations$/);
+    const session = service.getInteractionSession(sessionId);
+    if (!authorizeRecord(req, res, auth, session, "Learning interaction session not found")) return;
     const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
       return;
     }
     try {
-      const sessionId = pathId(url.pathname, /^\/api\/learning\/sessions\/([^/]+)\/evaluations$/);
-      deps.sendJson(res, 201, { ok: true, evaluation: service.recordEvaluation(sessionId, body) });
+      deps.sendJson(res, 201, {
+        ok: true,
+        evaluation: service.recordEvaluation(sessionId, Object.assign({}, body, { actor: actorFromAuth(auth) })),
+      });
     } catch (err) {
       sendRouteError(deps, res, err);
     }
@@ -1025,7 +1028,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url, auth);
     else if (route.id === "learning-sessions-list") await handleSessionsList(req, res, url, auth);
     else if (route.id === "learning-session-advance") await handleSessionAdvance(req, res, url, auth);
-    else if (route.id === "learning-session-evaluation-create") await handleEvaluationCreate(req, res, url);
+    else if (route.id === "learning-session-evaluation-create") await handleEvaluationCreate(req, res, url, auth);
     else if (route.id === "learning-evaluations-list") await handleEvaluationsList(req, res, url, auth);
     else if (route.id === "learning-evaluation-reward-settle") await handleRewardSettlementCreate(req, res, url);
     else if (route.id === "learning-reward-settlements-list") await handleRewardSettlementsList(req, res, url, auth);

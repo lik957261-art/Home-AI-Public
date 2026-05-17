@@ -377,10 +377,13 @@ async function testTaskSessionEvaluationRoutes() {
   assert.equal(calls.at(-1)[2].actor, "child");
 
   const evaluation = await request(routes, "POST", "/api/learning/sessions/session-1/evaluations", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
     body: { score: 88, summary: "summary only" },
   });
   assert.equal(evaluation.res.statusCode, 201);
   assert.equal(evaluation.body.evaluation.score, 88);
+  assert.equal(calls.at(-1)[0], "recordEvaluation");
+  assert.equal(calls.at(-1)[2].actor, "child");
 
   const evaluations = await request(routes, "GET", "/api/learning/evaluations?workspaceId=weixin_stephen&learnerId=weixin_stephen");
   assert.equal(evaluations.res.statusCode, 200);
@@ -416,6 +419,24 @@ async function testExecutorCannotStartUnpublishedTask() {
   assert.equal(calls.some((call) => call[0] === "startTaskSession"), false);
 }
 
+async function testExecutorCannotEvaluateOtherLearnerSession() {
+  const { routes, calls } = makeRoutes({
+    service: {
+      getInteractionSession(sessionId) {
+        calls.push(["getSession", sessionId]);
+        return { sessionId, workspaceId: "owner", learnerId: "owner" };
+      },
+    },
+  });
+  const response = await request(routes, "POST", "/api/learning/sessions/session-1/evaluations", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { score: 88, summary: "summary only" },
+  });
+  assert.equal(response.res.statusCode, 403);
+  assert.equal(response.body.error, "Learner access is not allowed");
+  assert.equal(calls.some((call) => call[0] === "recordEvaluation"), false);
+}
+
 (async () => {
   await testMetadata();
   await testCreateAndDraftRequireOwner();
@@ -424,6 +445,7 @@ async function testExecutorCannotStartUnpublishedTask() {
   await testFoundationRoutes();
   await testTaskSessionEvaluationRoutes();
   await testExecutorCannotStartUnpublishedTask();
+  await testExecutorCannotEvaluateOtherLearnerSession();
   console.log("learning program api routes tests passed");
 })().catch((err) => {
   console.error(err);
