@@ -244,6 +244,12 @@ function createTodoPublicProjectionService(options = {}) {
       kanbanCaseDeliverables: normalizeStringList(row.kanban_case_deliverables || row.kanbanCaseDeliverables, 8),
       kanbanCaseAcceptance: normalizeStringList(row.kanban_case_acceptance || row.kanbanCaseAcceptance, 8),
       kanbanCaseCardGoal: String(row.kanban_case_card_goal || row.kanbanCaseCardGoal || ""),
+      kanbanLastCommentAt: String(row.kanban_last_comment_at || row.kanbanLastCommentAt || ""),
+      learningGrowthSubmissionStatus: String(row.learning_growth_submission_status || row.learningGrowthSubmissionStatus || ""),
+      learningGrowthSubmissionKind: String(row.learning_growth_submission_kind || row.learningGrowthSubmissionKind || ""),
+      learningGrowthSubmissionAt: String(row.learning_growth_submission_at || row.learningGrowthSubmissionAt || ""),
+      learningGrowthEvaluationStatus: String(row.learning_growth_evaluation_status || row.learningGrowthEvaluationStatus || ""),
+      learningGrowthEvaluationAt: String(row.learning_growth_evaluation_at || row.learningGrowthEvaluationAt || ""),
       kanbanRevisionOf: String(row.kanban_revision_of || row.kanbanRevisionOf || ""),
       kanbanRevisionRequest: String(row.kanban_revision_request || row.kanbanRevisionRequest || ""),
       kanbanRevisionRequestedAt: String(row.kanban_revision_requested_at || row.kanbanRevisionRequestedAt || ""),
@@ -271,7 +277,22 @@ function createTodoPublicProjectionService(options = {}) {
         payload.kanbanOutputs = [];
       }
     }
-    if (learningGrowthStudy) payload.kanbanStudyKind = "learning-growth";
+    if (learningGrowthStudy) {
+      payload.kanbanStudyKind = "learning-growth";
+      const submittedAt = payload.learningGrowthSubmissionAt || payload.kanbanLastCommentAt;
+      if (payload.learningGrowthSubmissionStatus || submittedAt) {
+        const evaluationStatus = payload.learningGrowthEvaluationStatus || "pending";
+        payload.learningGrowthSubmission = {
+          status: payload.learningGrowthSubmissionStatus || "submitted",
+          kind: payload.learningGrowthSubmissionKind || "writing",
+          submittedAt,
+          evaluationStatus,
+          evaluationAt: payload.learningGrowthEvaluationAt,
+          analysisAvailable: evaluationStatus === "completed",
+          nextStep: evaluationStatus === "completed" ? "review_feedback" : "pending_evaluation",
+        };
+      }
+    }
     if (isKanbanAssessmentCaseMode(payload.kanbanCaseMode) || payload.kanbanCaseTemplate === "final-assessment") {
       payload.assessmentExam = publicKanbanAssessmentSummary(workspaceId, payload);
       payload.kanbanAssessmentKind = payload.kanbanCaseTemplate || "assessment";

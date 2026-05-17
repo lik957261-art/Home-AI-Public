@@ -6571,6 +6571,28 @@ button.directory-alias-chip {
   white-space: pre-wrap;
 }
 
+.todo-learning-growth-status {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.todo-learning-growth-status strong {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.todo-learning-growth-status p {
+  margin: 0;
+}
+
+.todo-learning-growth-status small {
+  color: var(--muted);
+}
+
 .todo-detail-chip-row {
   display: flex;
   flex-wrap: wrap;

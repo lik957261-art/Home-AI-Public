@@ -198,7 +198,7 @@ async function submitLearningGrowthWriting(todoId, text) {
     });
     clearTodoListCache(kanbanCardWorkspaceId(todoId));
     delete state.todoLearningGrowthSubmissionDrafts[todoId];
-    state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "success", message: "\u5df2\u63d0\u4ea4\u672c\u6b21\u4f5c\u7b54\uff0c\u53ef\u7b49\u5f85 AI \u8bc4\u4ef7\u6216\u5bb6\u957f\u590d\u6838\u3002" };
+    state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "success", message: "\u5df2\u6536\u5230\u4f5c\u7b54\u3002\u5f53\u524d\u8fd8\u6ca1\u6709 AI \u6279\u6539\u7ed3\u679c\uff0c\u540e\u7eed\u5e94\u8fdb\u5165 AI \u8bc4\u4ef7\u6216\u5bb6\u957f\u590d\u6838\u3002" };
     await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
     state.selectedTodoId = todoId;
     showPushToast("\u6210\u957f\u4efb\u52a1\u4f5c\u7b54\u5df2\u63d0\u4ea4", "success");

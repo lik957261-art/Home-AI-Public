@@ -54,6 +54,8 @@ async function testSubmitWritingStoresAsKanbanComment() {
       cardId: "t_growth",
       comment: "My first draft.",
       author: "child",
+      learningGrowthSubmission: true,
+      submissionKind: "writing",
     },
   });
 }

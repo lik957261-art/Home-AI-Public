@@ -58,6 +58,8 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       cardId: cardIdValue,
       comment: text,
       author: cleanString(input.author) || "learning-growth",
+      learningGrowthSubmission: true,
+      submissionKind: "writing",
     });
     if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit writing"));
     return {

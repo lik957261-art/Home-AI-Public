@@ -318,6 +318,33 @@ function run() {
   assert.equal(projectedLearningGrowth.studyWorkflow, undefined);
   assert.equal(projectedLearningGrowth.workflowState, undefined);
 
+  const projectedLearningGrowthSubmitted = studyProjectionService.publicTodo(row("learning-growth-submitted", {
+    kanban_case_mode: "study-plan",
+    kanban_case_template: "learning-growth",
+    kanban_status: "ready",
+    status: "open",
+    learning_growth_submission_status: "submitted",
+    learning_growth_submission_kind: "writing",
+    learning_growth_submission_at: "2026-05-17T15:00:00.000Z",
+    learning_growth_evaluation_status: "pending",
+  }));
+  assert.deepEqual(projectedLearningGrowthSubmitted.learningGrowthSubmission, {
+    status: "submitted",
+    kind: "writing",
+    submittedAt: "2026-05-17T15:00:00.000Z",
+    evaluationStatus: "pending",
+    evaluationAt: "",
+    analysisAvailable: false,
+    nextStep: "pending_evaluation",
+  });
+  const projectedLearningGrowthLegacySubmitted = studyProjectionService.publicTodo(row("learning-growth-legacy-submitted", {
+    kanban_case_mode: "study-plan",
+    kanban_case_template: "learning-growth",
+    kanban_last_comment_at: "2026-05-17T15:05:00.000Z",
+  }));
+  assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthSubmission.status, "submitted");
+  assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthSubmission.submittedAt, "2026-05-17T15:05:00.000Z");
+
   const revisionService = createTodoPublicProjectionService({
     publicKanbanAssessmentSummary() {
       return { status: "pending", examAvailable: false };

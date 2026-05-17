@@ -489,6 +489,12 @@ function createKanbanTodoBridge(options = {}) {
       kanban_case_deliverables: arrayFromValue(meta.caseDeliverables || meta.case_deliverables, 8),
       kanban_case_acceptance: arrayFromValue(meta.caseAcceptance || meta.case_acceptance, 8),
       kanban_case_card_goal: String(meta.caseCardGoal || meta.case_card_goal || ""),
+      kanban_last_comment_at: String(meta.lastCommentAt || meta.last_comment_at || ""),
+      learning_growth_submission_status: String(meta.learningGrowthSubmissionStatus || meta.learning_growth_submission_status || ""),
+      learning_growth_submission_kind: String(meta.learningGrowthSubmissionKind || meta.learning_growth_submission_kind || ""),
+      learning_growth_submission_at: String(meta.learningGrowthSubmissionAt || meta.learning_growth_submission_at || ""),
+      learning_growth_evaluation_status: String(meta.learningGrowthEvaluationStatus || meta.learning_growth_evaluation_status || ""),
+      learning_growth_evaluation_at: String(meta.learningGrowthEvaluationAt || meta.learning_growth_evaluation_at || ""),
       kanban_revision_of: String(meta.revisionOf || meta.revision_of || ""),
       kanban_revision_request: String(meta.revisionRequest || meta.revision_request || ""),
       kanban_revision_requested_at: String(meta.revisionRequestedAt || meta.revision_requested_at || ""),
@@ -902,10 +908,18 @@ function createKanbanTodoBridge(options = {}) {
       const comment = String(payload.comment || payload.text || payload.reason || "").trim();
       if (!comment) return { ok: false, error: "comment is required" };
       const author = String(payload.author || payload.source_principal || "Hermes Mobile").trim() || "Hermes Mobile";
+      const isLearningGrowthSubmission = bool(payload.learningGrowthSubmission || payload.learning_growth_submission);
       await kanban(["--board", board, "comment", todoId, comment, "--author", author]);
       store.todos[todoId] = Object.assign({}, meta, {
         lastComment: comment,
         lastCommentAt: now,
+        ...(isLearningGrowthSubmission ? {
+          learningGrowthSubmissionStatus: "submitted",
+          learningGrowthSubmissionKind: String(payload.submissionKind || payload.submission_kind || "writing").trim() || "writing",
+          learningGrowthSubmissionAt: now,
+          learningGrowthEvaluationStatus: "pending",
+          learningGrowthEvaluationAt: "",
+        } : {}),
         updatedAt: now,
       });
       saveMetadataStore(store);

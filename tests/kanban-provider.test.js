@@ -248,6 +248,20 @@ async function run() {
   assert.ok(commentCall);
   assert.ok(commentCall[1].includes("--author"));
 
+  const growthSubmitted = await provider.run({
+    action: "comment",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+    comment: "first draft",
+    learningGrowthSubmission: true,
+    submissionKind: "writing",
+  });
+  assert.equal(growthSubmitted.ok, true);
+  assert.equal(growthSubmitted.learning_growth_submission_status, "submitted");
+  assert.equal(growthSubmitted.learning_growth_submission_kind, "writing");
+  assert.equal(growthSubmitted.learning_growth_evaluation_status, "pending");
+
   const unblocked = await provider.run({
     action: "unblock",
     workspace_id: "weixin_stephen",

@@ -14,6 +14,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const canSubmit = !blocked && !completed && kanbanCan(todo, "canComment");
   const submitting = Boolean(state.todoLearningGrowthSubmissionSubmitting?.[todo.id]);
   const feedback = state.todoLearningGrowthSubmissionFeedback?.[todo.id] || null;
+  const submitted = todo?.learningGrowthSubmission || null;
   const goal = String(todo?.kanbanCaseCardGoal || todo?.description || "").trim();
   const goalText = `${String(todo?.content || "")}\n${goal}`;
   const hasConcretePrompt = /Task instruction:/i.test(goal) || /Task prompt:/i.test(goal) || /first draft|rewrite|Interaction flow:/i.test(goal);
@@ -34,16 +35,24 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
       <div class="todo-comment-actions">
         <button type="submit" data-submit-learning-growth-writing="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${submitting ? "\u6b63\u5728\u63d0\u4ea4..." : "\u63d0\u4ea4\u4f5c\u7b54"}</button>
       </div>
-      <p class="todo-detail-muted">\u63d0\u4ea4\u540e\u4f1a\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\u7684\u5b66\u4e60\u8bb0\u5f55\uff0c\u540e\u7eed\u7528\u4e8e AI \u8bc4\u4ef7\u3001\u4fee\u6539\u548c\u91d1\u5e01\u7ed3\u7b97\u3002</p>
+      <p class="todo-detail-muted">\u63d0\u4ea4\u540e\u4f1a\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u5e76\u663e\u793a\u4e3a\u7b49\u5f85 AI \u8bc4\u4ef7\u6216\u5bb6\u957f\u590d\u6838\u3002</p>
     </form>`
     : "";
   const feedbackBlock = feedback?.message
     ? `<p class="todo-detail-muted ${feedback.kind === "error" ? "todo-detail-error" : ""}">${escapeHtml(feedback.message)}</p>`
     : "";
+  const submittedBlock = submitted
+    ? `<div class="todo-learning-growth-status" data-learning-growth-submission-status="${escapeHtml(submitted.status || "submitted")}">
+      <strong>\u5df2\u6536\u5230\u4f5c\u7b54</strong>
+      <p>\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\u3002\u5f53\u524d\u8fd8\u6ca1\u6709 AI \u6279\u6539\u7ed3\u679c\uff0c\u540e\u7eed\u5e94\u8fdb\u5165 AI \u8bc4\u4ef7\u6216\u5bb6\u957f\u590d\u6838\u3002</p>
+      ${submitted.submittedAt ? `<small>${escapeHtml(formatTime(submitted.submittedAt) || submitted.submittedAt)}</small>` : ""}
+    </div>`
+    : "";
   return `<section class="todo-comment-panel todo-learning-growth-panel" data-learning-growth-kanban-card="${escapeHtml(todo.id || "")}">
     <label class="todo-panel-label">成长任务</label>
     <p class="todo-detail-muted">${escapeHtml(blocked ? "等待前置任务完成后自动开放。" : "该任务由凡凡成长系统下发，按任务说明完成；不需要走阅读录音模板。")}</p>
     ${details || `<p class="todo-detail-muted">${escapeHtml(todo?.kanbanCaseSummary || "打开成长页查看任务、分析和指导。")}</p>`}
+    ${submittedBlock}
     ${submissionForm}
     ${feedbackBlock}
   </section>`;
