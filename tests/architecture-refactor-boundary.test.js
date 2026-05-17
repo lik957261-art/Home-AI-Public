@@ -612,8 +612,9 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /2,500 lines/);
   assert.match(doc, /430/);
   assert.match(doc, /public\/app\.js/);
-  assert.match(doc, /17,000 lines/);
-  assert.match(doc, /950/);
+  assert.match(doc, /10,000 lines/);
+  assert.match(doc, /120/);
+  assert.match(doc, /3,500 lines/);
   assert.match(doc, /Product Module Boundary/);
   assert.match(doc, /FANFAN_LEARNING_SYSTEM_ARCHITECTURE\.zh-CN\.md/);
 
@@ -639,8 +640,26 @@ function testServiceFirstArchitectureContract() {
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
   assert.ok(runtimeLineCount <= 2500, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2500`);
   assert.ok(runtimeTopLevelFunctionCount <= 430, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 430`);
-  assert.ok(appLineCount <= 17000, `public/app.js line budget exceeded: ${appLineCount} > 17000`);
-  assert.ok(appTopLevelFunctionCount <= 950, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 950`);
+  assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
+  assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);
+
+  const frontendRuntimeModules = [
+    "public/app-shell-ui.js",
+    "public/app-platform-ui.js",
+    "public/app-workspace-admin-ui.js",
+    "public/app-directory-automation-ui.js",
+    "public/app-learning-growth-controller.js",
+    "public/app-kanban-core-ui.js",
+    "public/app-kanban-render-ui.js",
+    "public/app-kanban-actions-ui.js",
+    "public/app-thread-message-ui.js",
+    "public/app-events-composer-ui.js",
+    "public/app-start.js",
+  ];
+  for (const frontendModule of frontendRuntimeModules) {
+    const moduleLineCount = fileText(frontendModule).split(/\r?\n/).length;
+    assert.ok(moduleLineCount <= 3500, `${frontendModule} line budget exceeded: ${moduleLineCount} > 3500`);
+  }
 }
 
 function testRefactorPlanTracksTwelveWorkPackages() {

@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
 const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
@@ -18,7 +19,7 @@ const runtimeStateThreadServiceJs = fs.readFileSync(path.join(repoRoot, "adapter
 const gatewayRunInstructionServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-instruction-service.js"), "utf8");
 const systemRuntimeStatusServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "system-runtime-status-service.js"), "utf8");
 const webPushDeliveryServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "web-push-delivery-service.js"), "utf8");
-const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
+const appJs = readAppShellSource(repoRoot);
 const taskArtifactHelpersJs = fs.readFileSync(path.join(repoRoot, "public", "app-task-artifact-helpers.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 const fileViewer = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");

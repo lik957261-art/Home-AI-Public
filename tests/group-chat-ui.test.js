@@ -3,9 +3,10 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const { readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
+const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 

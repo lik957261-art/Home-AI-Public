@@ -3,9 +3,11 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
+const CLIENT_VERSION = "20260517-appjs-split";
+const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
 const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
@@ -86,15 +88,27 @@ assert.match(appApiClientJs, /X-Hermes-Web-Client-Version/);
 assert.match(appApiClientJs, /X-Hermes-Web-Refresh-Required/);
 assert.match(appApiClientJs, /function createHttpError\(response, body\)/);
 assert.match(appJs, /return TaskArtifactHelpers\.taskGroupsForThread\(thread\);/);
-assert.match(indexHtml, /app-task-artifact-helpers\.js\?v=20260517-learning-growth-executor-only/);
-assert.match(indexHtml, /app-kanban-story-helpers\.js\?v=20260517-learning-growth-executor-only[\s\S]*app-learning-reading-ui\.js\?v=20260517-learning-growth-executor-only[\s\S]*app-learning-coins-ui\.js\?v=20260517-learning-growth-executor-only[\s\S]*app-learning-program-ui\.js\?v=20260517-learning-growth-executor-only[\s\S]*app-learning-growth-ui\.js\?v=20260517-learning-growth-executor-only[\s\S]*app-api-client\.js\?v=20260517-learning-growth-executor-only[\s\S]*app\.js\?v=20260517-learning-growth-executor-only/);
-assert.match(serviceWorkerJs, /app-task-artifact-helpers\.js\?v=20260517-learning-growth-executor-only/);
-assert.match(serviceWorkerJs, /app-kanban-story-helpers\.js\?v=20260517-learning-growth-executor-only/);
-assert.match(serviceWorkerJs, /app-learning-reading-ui\.js\?v=20260517-learning-growth-executor-only/);
-assert.match(serviceWorkerJs, /app-learning-coins-ui\.js\?v=20260517-learning-growth-executor-only/);
-assert.match(serviceWorkerJs, /app-learning-program-ui\.js\?v=20260517-learning-growth-executor-only/);
-assert.match(serviceWorkerJs, /app-learning-growth-ui\.js\?v=20260517-learning-growth-executor-only/);
-assert.match(serviceWorkerJs, /app-api-client\.js\?v=20260517-learning-growth-executor-only/);
+const appShellFiles = [
+  "app-task-artifact-helpers.js",
+  "app-kanban-story-helpers.js",
+  "app-learning-reading-ui.js",
+  "app-learning-coins-ui.js",
+  "app-learning-program-ui.js",
+  "app-learning-growth-ui.js",
+  "app-api-client.js",
+  "app.js",
+  ...appSplitModuleFiles,
+];
+for (const file of appShellFiles) {
+  assert.ok(indexHtml.includes(`/${file}?v=${CLIENT_VERSION}`), `${file} is missing from index.html`);
+  assert.ok(serviceWorkerJs.includes(`/${file}?v=${CLIENT_VERSION}`), `${file} is missing from service worker shell cache`);
+}
+let previousScriptOffset = -1;
+for (const file of appShellFiles) {
+  const scriptOffset = indexHtml.indexOf(`/${file}?v=${CLIENT_VERSION}`);
+  assert.ok(scriptOffset > previousScriptOffset, `${file} script order is invalid`);
+  previousScriptOffset = scriptOffset;
+}
 assert.match(taskArtifactHelpersJs, /return \[\.\.\.groups\.values\(\)\]\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\);/);
 assert.match(appJs, /const allGroups = taskListGroupsForThread\(thread\)\s+\.concat\(sharedCaseTopicGroupsForTaskList\(thread\)\)\s+\.sort/);
 assert.match(appJs, /const displayGroups = allGroups\.slice\(\);/);
@@ -829,8 +843,8 @@ assert.match(stylesCss, /\.learning-answer-review/);
 assert.ok(appJs.includes("Topic ID"));
 assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*aria-label="&#25104;&#38271;"/);
 assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>/);
-assert.ok(indexHtml.includes("20260517-learning-growth-executor-only"));
-assert.ok(serviceWorkerJs.includes("20260517-learning-growth-executor-only"));
+assert.ok(indexHtml.includes(CLIENT_VERSION));
+assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);
 assert.match(appJs, /function composerRequestSizeError\(text, serializedBody\)/);

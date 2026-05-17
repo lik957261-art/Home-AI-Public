@@ -10,10 +10,29 @@ const RUNTIME_COMPOSITION_FILE = "mobile-server-runtime.js";
 const CORE_PROVIDERS_FILE = "adapters/mobile-runtime-core-providers.js";
 const API_COMPOSITION_FILE = "server-routes/mobile-api-composition.js";
 const WEIXIN_RUNTIME_FILE = "adapters/weixin-runtime-composition-service.js";
+const APP_FRONTEND_FILES = [
+  "public/app.js",
+  "public/app-shell-ui.js",
+  "public/app-platform-ui.js",
+  "public/app-workspace-admin-ui.js",
+  "public/app-directory-automation-ui.js",
+  "public/app-learning-growth-controller.js",
+  "public/app-kanban-core-ui.js",
+  "public/app-kanban-render-ui.js",
+  "public/app-kanban-actions-ui.js",
+  "public/app-thread-message-ui.js",
+  "public/app-events-composer-ui.js",
+  "public/app-start.js",
+];
 
 function assertContains(file, pattern, message) {
   const text = read(file);
   assert.match(text, pattern, `${file}: ${message || pattern}`);
+}
+
+function assertFrontendContains(pattern, message) {
+  const text = APP_FRONTEND_FILES.map(read).join("\n");
+  assert.match(text, pattern, `app frontend shell: ${message || pattern}`);
 }
 
 function assertRouteGuard(routePattern, guardPattern) {
@@ -53,9 +72,9 @@ function main() {
   assertRouteGuardInFile("server-routes/weixin-api-routes.js", /\/api\/ingress\/weixin\/outbound/, /requireWeixinIngress/);
   assertRouteGuardInFile("server-routes/owner-elevation-api-routes.js", /\/api\/owner-elevation\/once/, /requireOwner/);
 
-  assertContains("public/app.js", /function todoWorkflowState\(todo\)/, "frontend must prefer server workflow state");
-  assertContains("public/app.js", /workflow\.canSubmitStudy/, "study submission button must honor workflow state");
-  assertContains("public/app.js", /workflow\.canStartExam/, "assessment start button must honor workflow state");
+  assertFrontendContains(/function todoWorkflowState\(todo\)/, "frontend must prefer server workflow state");
+  assertFrontendContains(/workflow\.canSubmitStudy/, "study submission button must honor workflow state");
+  assertFrontendContains(/workflow\.canStartExam/, "assessment start button must honor workflow state");
   assertContains(WEIXIN_RUNTIME_FILE, /createWeixinFileForwardService[\s\S]{0,1200}egressPolicyProvider/, "manual Weixin file forwarding must receive the egress policy provider");
   assertContains("adapters/weixin-file-forward-service.js", /egressPolicyProvider\.decide[\s\S]{0,600}operation: "manual_forward"/, "manual Weixin forwarding must use egress policy");
   assertContains("adapters/weixin-file-forward-service.js", /explicitUserApproved: true[\s\S]{0,200}sendsFileContent: true/, "manual Weixin forwarding must declare user approval and file-content egress");

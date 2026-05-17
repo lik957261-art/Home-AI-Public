@@ -68,17 +68,21 @@ These budgets are intentionally temporary ceilings. Lower them after each succes
 
 ## Frontend Boundary
 
-`public/app.js` is also a transitional UI composition root. New feature UI
-should move reusable rendering, view-model derivation, and deterministic client
-state projection into focused `public/app-<domain>.js` helpers before it is
-wired back into `app.js`.
+`public/app.js` is also a transitional UI shell. It should keep shared client
+state, constants, and bootstrap references only. Feature UI should move
+reusable rendering, view-model derivation, deterministic client state
+projection, controller glue, and page-specific event wiring into focused
+`public/app-<domain>.js` helpers before it is wired back into the shell.
 
 Current CI guardrails:
 
-- `public/app.js` must stay at or below 17,000 lines;
-- top-level `function` declarations in `public/app.js` must stay at or below 950;
+- `public/app.js` must stay at or below 10,000 lines;
+- top-level `function` declarations in `public/app.js` must stay at or below 120;
+- extracted front-end runtime modules must stay at or below 3,500 lines each;
 - front-end helper modules should expose stable `window.Hermes<Domain>` helpers
   and have focused tests under `tests/app-<domain>.test.js`.
+- front-end runtime split modules loaded by `index.html` must remain cohesive by
+  platform area and must not become a single replacement monolith for `app.js`.
 
 These front-end budgets are also ceilings, not targets. Lower them after each
 successful UI extraction round.

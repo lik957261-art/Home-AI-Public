@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260517-learning-growth-executor-only";
+const HERMES_SW_VERSION = "20260517-appjs-split";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,17 +8,28 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260517-learning-growth-executor-only",
-  "/app-task-artifact-helpers.js?v=20260517-learning-growth-executor-only",
-  "/app-kanban-story-helpers.js?v=20260517-learning-growth-executor-only",
-  "/app-learning-reading-ui.js?v=20260517-learning-growth-executor-only",
-  "/app-learning-coins-ui.js?v=20260517-learning-growth-executor-only",
-  "/app-learning-program-ui.js?v=20260517-learning-growth-executor-only",
-  "/app-learning-growth-ui.js?v=20260517-learning-growth-executor-only",
-  "/app-api-client.js?v=20260517-learning-growth-executor-only",
-  "/app.js?v=20260517-learning-growth-executor-only",
+  "/styles.css?v=20260517-appjs-split",
+  "/app-task-artifact-helpers.js?v=20260517-appjs-split",
+  "/app-kanban-story-helpers.js?v=20260517-appjs-split",
+  "/app-learning-reading-ui.js?v=20260517-appjs-split",
+  "/app-learning-coins-ui.js?v=20260517-appjs-split",
+  "/app-learning-program-ui.js?v=20260517-appjs-split",
+  "/app-learning-growth-ui.js?v=20260517-appjs-split",
+  "/app-api-client.js?v=20260517-appjs-split",
+  "/app.js?v=20260517-appjs-split",
+  "/app-shell-ui.js?v=20260517-appjs-split",
+  "/app-platform-ui.js?v=20260517-appjs-split",
+  "/app-workspace-admin-ui.js?v=20260517-appjs-split",
+  "/app-directory-automation-ui.js?v=20260517-appjs-split",
+  "/app-learning-growth-controller.js?v=20260517-appjs-split",
+  "/app-kanban-core-ui.js?v=20260517-appjs-split",
+  "/app-kanban-render-ui.js?v=20260517-appjs-split",
+  "/app-kanban-actions-ui.js?v=20260517-appjs-split",
+  "/app-thread-message-ui.js?v=20260517-appjs-split",
+  "/app-events-composer-ui.js?v=20260517-appjs-split",
+  "/app-start.js?v=20260517-appjs-split",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260517-learning-growth-executor-only",
+  "/markdown-renderer-client.js?v=20260517-appjs-split",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",
