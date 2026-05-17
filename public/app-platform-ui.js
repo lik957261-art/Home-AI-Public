@@ -185,7 +185,7 @@ function applyRouteParams(params) {
   const assessmentExamRequested = ["1", "true", "yes"].includes(String(params.get("assessmentExam") || params.get("assessment_exam") || "").trim().toLowerCase());
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
-  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : ""); if (state.auth && !state.auth.isOwner && routeView && routeView !== "learning") routeView = "learning";
+  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && state.workspaces.some((item) => item.id === workspaceId)) {
     state.selectedWorkspaceId = workspaceId;
@@ -299,7 +299,7 @@ async function openNotificationRoute(value) {
   await loadSelectedView();
 }
 
-function applyDefaultLaunchView() { state.viewMode = state.auth?.isOwner ? "single" : "learning";
+function applyDefaultLaunchView() { state.viewMode = "single";
   setSingleWindowMode("chat");
   state.weixinChatOpen = false;
   state.currentTaskGroupId = "";

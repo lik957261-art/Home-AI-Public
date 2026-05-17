@@ -208,7 +208,7 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = Boolean(state.auth && !state.auth.isOwner); node.disabled = Boolean(state.auth && !state.auth.isOwner); } });
+  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = false; node.disabled = false; } });
   updateTopMoreControls();
 }
 
