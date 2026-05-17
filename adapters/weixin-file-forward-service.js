@@ -2,6 +2,9 @@
 
 const path = require("node:path");
 
+const DEFAULT_INLINE_FORWARD_MAX_BYTES = 2 * 1024 * 1024;
+const INLINE_FORWARD_MIME_PATTERN = /^(text\/markdown|text\/plain)(?:\s*;|$)/i;
+
 function safeString(value) {
   return String(value || "").trim();
 }
@@ -29,6 +32,30 @@ function fileResultFromResolvedForwardSource(resolved, workspaceId, fallbackErro
   if (resolved?.file) return { file: resolved.file };
   if (resolved?.bridgeFile) return { bridgeFile: resolved.bridgeFile, bridgeWorkspaceId: workspaceId };
   return { status: resolved?.status || 404, error: resolved?.error || fallbackError || "File not found" };
+}
+
+function normalizeInlineForwardFile(source = {}, deps = {}) {
+  const inline = source.inlineFile || source.inline_file || null;
+  if (!inline || typeof inline !== "object") return null;
+  const contentBase64 = safeString(inline.contentBase64 || inline.content_base64 || inline.dataBase64 || inline.data_base64);
+  if (!contentBase64) return { status: 400, error: "Inline file data is missing" };
+  if (!/^[A-Za-z0-9+/=\r\n]+$/.test(contentBase64)) return { status: 400, error: "Inline file data is invalid" };
+  const buffer = Buffer.from(contentBase64, "base64");
+  const maxBytes = Number(deps.inlineForwardMaxBytes || DEFAULT_INLINE_FORWARD_MAX_BYTES);
+  if (!buffer.length) return { status: 400, error: "Inline file data is empty" };
+  if (buffer.length > maxBytes) return { status: 413, error: "Inline file is too large" };
+  const name = deps.safeFileName(safeString(inline.filename || inline.fileName || inline.name) || "document.md");
+  const mime = safeString(inline.mime || inline.type || inline.contentType || inline.content_type) || "text/markdown; charset=utf-8";
+  if (!INLINE_FORWARD_MIME_PATTERN.test(mime)) return { status: 400, error: "Inline file type is not supported" };
+  return {
+    bridgeFile: {
+      name,
+      displayPath: name,
+      mime,
+      size: buffer.length,
+      contentBase64: buffer.toString("base64"),
+    },
+  };
 }
 
 function createWeixinFileForwardService(deps = {}) {
@@ -71,6 +98,7 @@ function createWeixinFileForwardService(deps = {}) {
   const singleWindowChatTaskGroupId = safeString(deps.singleWindowChatTaskGroupId) || "chat";
   const state = typeof deps.state === "function" ? deps.state : (() => deps.state || {});
   const deliveryId = typeof deps.deliveryId === "function" ? deps.deliveryId : null;
+  const inlineForwardMaxBytes = Number(deps.inlineForwardMaxBytes || DEFAULT_INLINE_FORWARD_MAX_BYTES) || DEFAULT_INLINE_FORWARD_MAX_BYTES;
 
   if (!fs || typeof fs.existsSync !== "function" || typeof fs.statSync !== "function") {
     throw new Error("weixin file forward service requires fs.existsSync/statSync");
@@ -142,6 +170,8 @@ function createWeixinFileForwardService(deps = {}) {
       const params = new URLSearchParams({ threadId, path: displayPath });
       return resolveFileForBrowserRequest(params, auth);
     }
+    const inlineFile = normalizeInlineForwardFile(source, { inlineForwardMaxBytes, safeFileName });
+    if (inlineFile) return inlineFile;
     return { status: 400, error: "Missing artifactId, sourceUrl, or threadId/path" };
   }
 
@@ -300,4 +330,5 @@ module.exports = {
   createWeixinFileForwardService,
   createArtifactForwardFile,
   fileResultFromResolvedForwardSource,
+  normalizeInlineForwardFile,
 };

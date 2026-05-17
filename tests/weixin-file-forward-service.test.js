@@ -201,6 +201,16 @@ async function testResolveDirectInputs() {
   assert.equal(byThreadPath.file.localPath, "/virtual/browser-file.txt");
   assert.deepEqual(calls.browserFile.at(-1), { threadId: "thread-1", path: "docs/a.txt" });
 
+  const byInline = await service.resolveWeixinForwardFile({
+    inlineFile: {
+      filename: "notes.md",
+      contentType: "text/markdown; charset=utf-8",
+      contentBase64: Buffer.from("# Notes\n", "utf8").toString("base64"),
+    },
+  }, auth);
+  assert.equal(byInline.bridgeFile.name, "notes.md");
+  assert.equal(byInline.bridgeFile.mime, "text/markdown; charset=utf-8");
+
   const missing = await service.resolveWeixinForwardFile({}, auth);
   assert.deepEqual(missing, { status: 400, error: "Missing artifactId, sourceUrl, or threadId/path" });
 }
@@ -276,6 +286,25 @@ async function testCreateDeliveryFromBridgeFileAndRequestedThread() {
   assert.equal(calls.materialize[0].file.localPath, "/virtual/bridge-output.pdf");
 }
 
+async function testCreateDeliveryFromInlineMarkdownFile() {
+  const { service, calls, thread } = makeService();
+  const auth = { ok: true, workspaceId: "child" };
+  const result = await service.createWeixinFileForwardDelivery(auth, {
+    workspaceId: "child",
+    inlineFile: {
+      filename: "notes.md",
+      contentType: "text/markdown; charset=utf-8",
+      contentBase64: Buffer.from("# Notes\n", "utf8").toString("base64"),
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(thread.messages.length, 1);
+  assert.equal(calls.bridge.length, 1);
+  assert.equal(calls.bridge[0].bridgeFile.name, "notes.md");
+  assert.equal(calls.materialize[0].file.localPath, "/virtual/bridge-output.pdf");
+}
+
 async function testAccessAndEgressFailuresUseGenericMessages() {
   const deniedAccess = makeService().service.createWeixinFileForwardDelivery(
     { ok: true, workspaceId: "child" },
@@ -302,6 +331,7 @@ async function run() {
   testPublicArtifactRegistersWithoutRealFilesystem();
   await testCreateDeliveryFromArtifact();
   await testCreateDeliveryFromBridgeFileAndRequestedThread();
+  await testCreateDeliveryFromInlineMarkdownFile();
   await testAccessAndEgressFailuresUseGenericMessages();
   console.log("weixin file forward service tests passed");
 }

@@ -193,7 +193,7 @@ function createWeixinApiRoutes(deps = {}) {
 
   async function handleForwardFile(req, res, route, auth) {
     if (!requireForwardAuth(res, route, auth)) return { handled: true, route };
-    const body = await deps.readBody(req).catch((err) => ({ __error: err }));
+    const body = await deps.readBody(req, 3 * 1024 * 1024).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, bodyReadErrorPayload(body.__error, false));
       return { handled: true, route, auth };

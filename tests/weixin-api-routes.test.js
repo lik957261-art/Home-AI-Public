@@ -41,6 +41,7 @@ function makeRoutes(overrides = {}) {
     access: [],
     targets: [],
     forwardFile: [],
+    readLimits: [],
   };
 
   const deps = Object.assign({
@@ -50,7 +51,8 @@ function makeRoutes(overrides = {}) {
       sendJson(res, 401, { ok: false, error: "Unauthorized" });
       return null;
     },
-    readBody(req) {
+    readBody(req, limit) {
+      calls.readLimits.push(limit || 0);
       return Promise.resolve(req.body || {});
     },
     sendJson,
@@ -310,6 +312,7 @@ async function testForwardFileSuccessAndErrors() {
   });
   assert.equal(success.res.statusCode, 202);
   assert.deepEqual(calls.forwardFile, [{ auth, body: { workspaceId: "child", filePath: "workspace/file.pdf" } }]);
+  assert.equal(calls.readLimits.at(-1), 3 * 1024 * 1024);
   assert.deepEqual(success.body, {
     ok: true,
     delivery: { deliveryId: "file-delivery-1" },

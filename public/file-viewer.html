@@ -182,7 +182,7 @@
 
     .viewer-toast {
       position: fixed;
-      z-index: 6;
+      z-index: 30;
       left: 50%;
       bottom: calc(18px + env(safe-area-inset-bottom));
       transform: translateX(-50%);
@@ -562,6 +562,22 @@
       background: transparent;
     }
 
+    .viewer-sheet-status {
+      min-height: 18px;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .viewer-sheet-status.error {
+      color: #9f1239;
+    }
+
+    .viewer-sheet-status.success {
+      color: #047857;
+    }
+
     .hidden {
       display: none !important;
     }
@@ -743,6 +759,7 @@
         <button type="button" data-markdown-share="raw">Share raw .md explicitly</button>
         <button class="subtle" type="button" data-markdown-share="close">Cancel</button>
       </div>
+      <p id="markdownShareStatus" class="viewer-sheet-status" role="status" aria-live="polite"></p>
     </div>
   </div>
   <main class="shell">
@@ -1305,6 +1322,24 @@
       return btoa(binary);
     }
 
+    function markdownShareStatusElement() {
+      return document.getElementById("markdownShareStatus");
+    }
+
+    function setMarkdownShareStatus(message, kind = "") {
+      const status = markdownShareStatusElement();
+      if (!status) return;
+      status.textContent = message || "";
+      status.classList.toggle("error", kind === "error");
+      status.classList.toggle("success", kind === "success");
+    }
+
+    function setMarkdownShareBusy(button, busy) {
+      if (!button) return;
+      button.disabled = Boolean(busy);
+      button.setAttribute("aria-busy", busy ? "true" : "false");
+    }
+
     async function forwardMarkdownToGroup() {
       const text = await ensureMarkdownPreviewText();
       if (!text.trim()) throw new Error("Markdown preview is empty.");
@@ -1345,6 +1380,25 @@
       if (!src) throw new Error("No file URL is available.");
       const workspaceId = workspaceIdForForward();
       setTransientStatus("\u6b63\u5728\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217...");
+      if (isMarkdownDocument()) {
+        const text = await ensureMarkdownPreviewText();
+        if (!text.trim()) throw new Error("Markdown preview is empty.");
+        const filename = String(name || "").toLowerCase().endsWith(".md") ? name : markdownBaseName("md");
+        await apiJson("/api/weixin/forward-file", {
+          method: "POST",
+          body: JSON.stringify({
+            workspaceId,
+            inlineFile: {
+              filename,
+              contentType: "text/markdown; charset=utf-8",
+              contentBase64: bytesToBase64(new TextEncoder().encode(text)),
+            },
+            caption: `\u6587\u4ef6\u8f6c\u53d1\uff1a${filename}`,
+          }),
+        });
+        setTransientStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217");
+        return;
+      }
       await apiJson("/api/weixin/forward-file", {
         method: "POST",
         body: JSON.stringify({
@@ -1471,17 +1525,21 @@ window.addEventListener("load", function () {
 
     function hideMarkdownShareSheet() {
       document.getElementById("markdownShareSheet")?.classList.add("hidden");
+      setMarkdownShareStatus("");
     }
 
     function showMarkdownShareSheet() {
+      setMarkdownShareStatus("");
       document.getElementById("markdownShareSheet")?.classList.remove("hidden");
     }
 
-    async function handleMarkdownShareAction(action) {
+    async function handleMarkdownShareAction(action, button = null) {
       if (!action || action === "close") {
         hideMarkdownShareSheet();
         return;
       }
+      setMarkdownShareBusy(button, true);
+      setMarkdownShareStatus(action === "weixin" ? "\u6b63\u5728\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217..." : "");
       try {
         if (action === "html") await shareGeneratedMarkdownFile("html");
         else if (action === "word") await shareGeneratedMarkdownFile("word");
@@ -1490,9 +1548,16 @@ window.addEventListener("load", function () {
         else if (action === "group") await forwardMarkdownToGroup();
         else if (action === "weixin") await forwardFileToWeixin();
         else if (action === "raw") await shareOriginalFile();
+        if (action === "weixin") setMarkdownShareStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217", "success");
         hideMarkdownShareSheet();
       } catch (err) {
-        if (!isUserCancelledShare(err)) setTransientStatus(err.message || "Share failed.");
+        if (!isUserCancelledShare(err)) {
+          const message = err.message || "Share failed.";
+          setMarkdownShareStatus(message, "error");
+          setTransientStatus(message);
+        }
+      } finally {
+        setMarkdownShareBusy(button, false);
       }
     }
 
@@ -1505,7 +1570,7 @@ window.addEventListener("load", function () {
           if (event.target === sheet) hideMarkdownShareSheet();
           return;
         }
-        handleMarkdownShareAction(button.dataset.markdownShare || "");
+        handleMarkdownShareAction(button.dataset.markdownShare || "", button);
       });
     }
 
