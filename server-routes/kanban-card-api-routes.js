@@ -244,6 +244,25 @@ function createKanbanCardApiRoutes(deps = {}) {
     return candidates.map((item) => String(item || "").trim()).find(Boolean) || "";
   }
 
+  function hasExplicitCasePayload(body = {}) {
+    return Boolean(
+      body.caseId
+      || body.case_id
+      || body.caseMode
+      || body.case_mode
+      || body.caseTemplate
+      || body.case_template
+      || body.caseCardGoal
+      || body.case_card_goal
+      || body.learningProgramId
+      || body.learning_program_id
+      || body.learningDraftId
+      || body.learning_draft_id
+      || body.learningTaskCardId
+      || body.learning_task_card_id
+    );
+  }
+
   async function handleList(req, res, url) {
     if (!requireKanbanEnabled(res)) return;
     const workspaceId = deps.requireWorkspaceAccess(req, res, url.searchParams.get("workspaceId") || "owner");
@@ -434,7 +453,7 @@ function createKanbanCardApiRoutes(deps = {}) {
       ? deps.detectDirectTodoCreateIntentForWeb(requestedContent, workspaceId)
       : null;
     const content = reminderIntent?.content || requestedContent;
-    const explicitCase = Boolean(body.caseId || body.case_id);
+    const explicitCase = hasExplicitCasePayload(body);
     const assignee = normalizeNotificationAssignee(workspaceId, body.assignee || reminderIntent?.assignee || "");
     const result = await deps.kanbanCardProvider.addCard({
       workspaceId,
@@ -462,6 +481,10 @@ function createKanbanCardApiRoutes(deps = {}) {
         caseDeliverables: body.caseDeliverables || body.case_deliverables || [],
         caseAcceptance: body.caseAcceptance || body.case_acceptance || [],
         caseCardGoal: body.caseCardGoal || body.case_card_goal || "",
+        caseCreationSkillId: body.caseCreationSkillId || body.case_creation_skill_id || "",
+        learningProgramId: body.learningProgramId || body.learning_program_id || "",
+        learningDraftId: body.learningDraftId || body.learning_draft_id || "",
+        learningTaskCardId: body.learningTaskCardId || body.learning_task_card_id || "",
       } : deps.kanbanSingleCardCasePayload(content, body.description || "", body.sourceText || body.source_text || requestedContent)),
     });
     if (!result?.ok) {

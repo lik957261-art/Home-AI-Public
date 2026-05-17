@@ -304,6 +304,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof studyTemplateSkillService.loadTemplateSkill, "function");
   assert.equal(typeof studyTemplateSkillService.templateSkillInstruction, "function");
   assert.equal(Boolean(studyTemplateSkillService.TEMPLATE_SKILL_REGISTRY["programming-assessment"]), true);
+  assert.equal(Boolean(studyTemplateSkillService.TEMPLATE_SKILL_REGISTRY["learning-growth-card-creation"]), true);
   assert.equal(typeof threadDirectCreateExecutionService.createThreadDirectCreateExecutionService, "function");
   assert.equal(typeof threadMessageCreateService.createThreadMessageCreateService, "function");
   assert.equal(typeof threadMessageRunRouteService.createThreadMessageRunRouteService, "function");

@@ -273,6 +273,7 @@ function createKanbanPlanCardCreationService(deps = {}) {
           card.config ? assessmentConfigLine(card.config) : "",
           card.description,
         ].filter(Boolean).join("\n\n"), 1800),
+        caseCreationSkillId: card.cardCreationSkillId || input.cardCreationSkillId || input.card_creation_skill_id || "",
         learningProgramId: card.learningProgramId || input.learningProgramId || input.learning_program_id || "",
         learningDraftId: card.learningDraftId || input.learningDraftId || input.learning_draft_id || "",
         learningTaskCardId: card.learningTaskCardId || input.learningTaskCardId || input.learning_task_card_id || "",

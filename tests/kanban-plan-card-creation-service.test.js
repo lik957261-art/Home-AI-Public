@@ -175,6 +175,10 @@ function makeHarness(overrides = {}) {
             dueTime: "2026-05-16 20:00",
             deliverables: ["Audio"],
             acceptance: ["Quiz"],
+            learningProgramId: "program-1",
+            learningDraftId: "draft-1",
+            learningTaskCardId: "task-card-1",
+            cardCreationSkillId: "learning-growth-card-creation",
           },
           {
             clientId: "reading-session-2",
@@ -281,6 +285,10 @@ async function testStudyPlanCreatesCoverShareTopicAndSequentialBlocks() {
   assert.equal(calls.add[0].assigneeLabel, "owner:principal-child");
   assert.match(calls.add[0].description, /Hermes Mobile/);
   assert.equal(calls.add[0].caseCover.name, "cover.png");
+  assert.equal(calls.add[0].learningProgramId, "program-1");
+  assert.equal(calls.add[0].learningDraftId, "draft-1");
+  assert.equal(calls.add[0].learningTaskCardId, "task-card-1");
+  assert.equal(calls.add[0].caseCreationSkillId, "learning-growth-card-creation");
   assert.equal(calls.add[0].idempotencyKey, idempotency("study-plan", "study-one", "reading-session-1"));
   assert.equal(calls.add[1].caseDependsOn[0], "reading-session-1");
   assert.equal(calls.block.length, 1);

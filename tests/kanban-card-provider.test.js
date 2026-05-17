@@ -49,6 +49,7 @@ async function testTargetIdForwardingAndSearchPreservation() {
     autoDispatch: false,
     kanbanAssignee: "",
     caseTemplate: "learning-growth",
+    caseCreationSkillId: "learning-growth-card-creation",
     learningProgramId: "program-1",
     learningDraftId: "draft-1",
     learningTaskCardId: "task-1",
@@ -58,6 +59,7 @@ async function testTargetIdForwardingAndSearchPreservation() {
   assert.equal(calls[1].auto_dispatch, false);
   assert.equal(calls[1].kanban_assignee, "");
   assert.equal(calls[1].case_template, "learning-growth");
+  assert.equal(calls[1].case_creation_skill_id, "learning-growth-card-creation");
   assert.equal(calls[1].learning_program_id, "program-1");
   assert.equal(calls[1].learning_draft_id, "draft-1");
   assert.equal(calls[1].learning_task_card_id, "task-1");

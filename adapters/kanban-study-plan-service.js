@@ -364,6 +364,16 @@ function createKanbanStudyPlanService(options = {}) {
         deliverables: Array.isArray(card?.deliverables) ? card.deliverables.map(cleanString).filter(Boolean) : [],
         acceptance: Array.isArray(card?.acceptance) ? card.acceptance.map(cleanString).filter(Boolean) : [],
         caseTemplate: cleanString(card?.caseTemplate || card?.case_template || template),
+        learningProgramId: cleanString(card?.learningProgramId || card?.learning_program_id),
+        learningDraftId: cleanString(card?.learningDraftId || card?.learning_draft_id),
+        learningTaskCardId: cleanString(card?.learningTaskCardId || card?.learning_task_card_id),
+        skillIds: Array.isArray(card?.skillIds || card?.skill_ids) ? (card.skillIds || card.skill_ids).map(cleanString).filter(Boolean) : [],
+        templateId: cleanString(card?.templateId || card?.template_id),
+        taskCardType: cleanString(card?.taskCardType || card?.task_card_type),
+        interactionStateMachine: Array.isArray(card?.interactionStateMachine || card?.interaction_state_machine)
+          ? (card.interactionStateMachine || card.interaction_state_machine).map(cleanString).filter(Boolean)
+          : [],
+        cardCreationSkillId: cleanString(card?.cardCreationSkillId || card?.card_creation_skill_id),
       };
     }).filter((card) => card.title && card.description);
     const sessions = normalizedProvidedCards.length || requestedSessions;
@@ -573,6 +583,10 @@ function createKanbanStudyPlanService(options = {}) {
         caseDeliverables: Array.isArray(card.deliverables) ? card.deliverables.map(cleanString).filter(Boolean) : [],
         caseAcceptance: Array.isArray(card.acceptance) ? card.acceptance.map(cleanString).filter(Boolean) : [],
         caseCardGoal: compactText(card.description || card.title || "", 1800),
+        caseCreationSkillId: cleanString(card.cardCreationSkillId || card.card_creation_skill_id),
+        learningProgramId: cleanString(card.learningProgramId || card.learning_program_id),
+        learningDraftId: cleanString(card.learningDraftId || card.learning_draft_id),
+        learningTaskCardId: cleanString(card.learningTaskCardId || card.learning_task_card_id),
       };
     });
   }

@@ -1,6 +1,9 @@
 "use strict";
 
 const { stableTaskCardId } = require("./learning-task-card-service");
+const {
+  LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
+} = require("./learning-plan-decomposition-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -65,6 +68,11 @@ function learningGrowthKanbanCards(program = {}, draft = {}) {
         learningProgramId: cleanString(program.programId),
         learningDraftId: cleanString(draft.draftId),
         learningTaskCardId: cleanString(draft.draftId) ? stableTaskCardId(draft.draftId, clientId) : "",
+        skillIds: asArray(task.skillIds).map(cleanString).filter(Boolean),
+        templateId: cleanString(task.templateId),
+        taskCardType: cleanString(task.taskCardType),
+        interactionStateMachine: asArray(task.interactionStateMachine).map(cleanString).filter(Boolean),
+        cardCreationSkillId: cleanString(task.cardCreationSkillId) || LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
         title,
         day: Number(day.dayIndex || dayOffset + 1) || dayOffset + 1,
         dueTime: date ? `${date} ${addMinutesToTime(timeOfDay, taskOffset * 5)}` : "",
@@ -100,6 +108,7 @@ function createLearningProgramPublishService(options = {}) {
       `Goal: ${cleanString(program.goalSummary)}`,
       `Scope: ${asArray(program.focusAreas).join(", ")}`,
       `Week: ${draft.weekStart || ""} to ${draft.weekEnd || ""}`,
+      `Card creation skill: study-templates/${LEARNING_GROWTH_CARD_CREATION_SKILL_ID}`,
       compactTaskSummary(draft),
     ].filter(Boolean).join("\n");
     const cards = learningGrowthKanbanCards(program, draft);

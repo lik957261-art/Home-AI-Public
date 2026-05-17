@@ -19,6 +19,11 @@ const TEMPLATE_SKILL_REGISTRY = Object.freeze({
     template: "assessment",
     kind: "assessment",
   },
+  "learning-growth-card-creation": {
+    path: path.join("skills", "study-templates", "learning-growth-card-creation", "SKILL.md"),
+    template: "learning-growth",
+    kind: "kanban-card-creation",
+  },
 });
 
 function cleanString(value) {

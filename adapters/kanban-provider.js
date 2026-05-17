@@ -160,6 +160,22 @@ function textFromTask(task, key) {
   return String(task[key] || task.task?.[key] || "").trim();
 }
 
+function looksQuestionMarkMojibake(value) {
+  const compact = String(value || "").trim().replace(/\s+/g, "");
+  if (!compact) return false;
+  const questionMarks = (compact.match(/\?/g) || []).length;
+  return questionMarks >= Math.max(4, Math.ceil(compact.length * 0.6));
+}
+
+function preferStoredText(stored, observed, fallback = "") {
+  const storedText = String(stored || "").trim();
+  const observedText = String(observed || "").trim();
+  if (storedText && looksQuestionMarkMojibake(observedText) && !looksQuestionMarkMojibake(storedText)) {
+    return storedText;
+  }
+  return observedText || storedText || String(fallback || "").trim();
+}
+
 function arrayFromTask(task, key) {
   if (!task || typeof task !== "object") return [];
   const value = task[key] || task.task?.[key];
@@ -248,6 +264,7 @@ function bodyWithMeta(content, meta, options = {}) {
     caseDeliverables: arrayFromValue(meta.caseDeliverables, 8),
     caseAcceptance: arrayFromValue(meta.caseAcceptance, 8),
     caseCardGoal: meta.caseCardGoal || "",
+    caseCreationSkillId: meta.caseCreationSkillId || "",
     revisionOf: meta.revisionOf || "",
     revisionRequest: meta.revisionRequest || "",
     revisionRequestedAt: meta.revisionRequestedAt || "",
@@ -440,14 +457,15 @@ function createKanbanTodoBridge(options = {}) {
     const status = kanbanStatus === "done"
       ? "completed"
       : (kanbanStatus === "archived" || cancelledAt ? "cancelled" : "open");
-    const title = textFromTask(task, "title") || textFromTask(task, "name") || meta.content || id;
+    const observedTitle = textFromTask(task, "title") || textFromTask(task, "name");
+    const title = preferStoredText(meta.content, observedTitle, id);
     const dispatchMode = String(meta.dispatchMode || meta.dispatch_mode || "");
     const taskAssignee = String(textFromTask(task, "assignee") || task.assignee || "").trim();
     const storedKanbanAssignee = String(meta.kanbanAssignee || meta.kanban_assignee || "").trim();
     return {
       id,
       workspace_id: String(meta.workspaceId || meta.workspace_id || payload.workspace_id || payload.workspaceId || ""),
-      content: String(meta.content || title || id),
+      content: String(preferStoredText(meta.content, title, id)),
       description: String(meta.description || ""),
       status,
       kanban_status: kanbanStatus || "todo",
@@ -489,6 +507,7 @@ function createKanbanTodoBridge(options = {}) {
       kanban_case_deliverables: arrayFromValue(meta.caseDeliverables || meta.case_deliverables, 8),
       kanban_case_acceptance: arrayFromValue(meta.caseAcceptance || meta.case_acceptance, 8),
       kanban_case_card_goal: String(meta.caseCardGoal || meta.case_card_goal || ""),
+      kanban_case_creation_skill_id: String(meta.caseCreationSkillId || meta.case_creation_skill_id || ""),
       kanban_last_comment_at: String(meta.lastCommentAt || meta.last_comment_at || ""),
       learning_growth_submission_status: String(meta.learningGrowthSubmissionStatus || meta.learning_growth_submission_status || ""),
       learning_growth_submission_kind: String(meta.learningGrowthSubmissionKind || meta.learning_growth_submission_kind || ""),
@@ -529,7 +548,7 @@ function createKanbanTodoBridge(options = {}) {
       const previous = store.todos[id] || {};
       const next = Object.assign({}, previous, {
         id,
-        content: String(row.content || previous.content || id),
+        content: String(preferStoredText(previous.content, row.content, id)),
         workspaceId: workspaceId || previous.workspaceId || "",
         board: String(row.kanban_board || previous.board || boardForPayload(payload)),
         assignee: String(row.assignee_principal_id || previous.assignee || payload.source_principal || ""),
@@ -551,6 +570,7 @@ function createKanbanTodoBridge(options = {}) {
         caseDeliverables: arrayFromValue(row.kanban_case_deliverables || previous.caseDeliverables, 8),
         caseAcceptance: arrayFromValue(row.kanban_case_acceptance || previous.caseAcceptance, 8),
         caseCardGoal: String(row.kanban_case_card_goal || previous.caseCardGoal || ""),
+        caseCreationSkillId: String(row.kanban_case_creation_skill_id || previous.caseCreationSkillId || ""),
         learningGrowthSubmissionStatus: String(row.learning_growth_submission_status || previous.learningGrowthSubmissionStatus || ""),
         learningGrowthSubmissionKind: String(row.learning_growth_submission_kind || previous.learningGrowthSubmissionKind || ""),
         learningGrowthSubmissionAt: String(row.learning_growth_submission_at || previous.learningGrowthSubmissionAt || ""),
@@ -781,6 +801,7 @@ function createKanbanTodoBridge(options = {}) {
       caseDeliverables: arrayFromValue(payload.case_deliverables || payload.caseDeliverables, 8),
       caseAcceptance: arrayFromValue(payload.case_acceptance || payload.caseAcceptance, 8),
       caseCardGoal: String(payload.case_card_goal || payload.caseCardGoal || "").trim(),
+      caseCreationSkillId: String(payload.case_creation_skill_id || payload.caseCreationSkillId || "").trim(),
       learningProgramId: String(payload.learning_program_id || payload.learningProgramId || "").trim(),
       learningDraftId: String(payload.learning_draft_id || payload.learningDraftId || "").trim(),
       learningTaskCardId: String(payload.learning_task_card_id || payload.learningTaskCardId || "").trim(),
@@ -1160,7 +1181,9 @@ function createKanbanTodoBridge(options = {}) {
 
 module.exports = {
   createKanbanTodoBridge,
+  looksQuestionMarkMojibake,
   parseJsonOutput,
   parseCommandArgs,
+  preferStoredText,
   safeSlug,
 };

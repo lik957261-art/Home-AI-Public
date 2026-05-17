@@ -1,6 +1,7 @@
 "use strict";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const LEARNING_GROWTH_CARD_CREATION_SKILL_ID = "learning-growth-card-creation";
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -212,6 +213,7 @@ function buildTask(program, options = {}) {
     skillIds: [options.skillId],
     templateId: template?.id || "",
     skillPath: template?.skillPath || "",
+    cardCreationSkillId: LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
     plannedMinutes: minutes,
     interactionStateMachine: stateMachineForSkill(options.skillId),
     sourceBasisRefs,
@@ -297,5 +299,6 @@ function createLearningPlanDecompositionService(options = {}) {
 }
 
 module.exports = {
+  LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
   createLearningPlanDecompositionService,
 };

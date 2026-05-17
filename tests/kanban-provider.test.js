@@ -4,13 +4,22 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { createKanbanTodoBridge, parseJsonOutput, parseCommandArgs, safeSlug } = require("../adapters/kanban-provider");
+const {
+  createKanbanTodoBridge,
+  looksQuestionMarkMojibake,
+  parseJsonOutput,
+  parseCommandArgs,
+  preferStoredText,
+  safeSlug,
+} = require("../adapters/kanban-provider");
 
 async function run() {
   assert.deepEqual(parseCommandArgs("a,b,c"), ["a", "b", "c"]);
   assert.deepEqual(parseCommandArgs('["-d","Ubuntu","--","hermes"]'), ["-d", "Ubuntu", "--", "hermes"]);
   assert.equal(safeSlug("Weixin Stephen / Reading"), "weixin-stephen-reading");
   assert.deepEqual(parseJsonOutput('prefix\n[{"id":"t_one","skills":[]}]\ntrailer'), [{ id: "t_one", skills: [] }]);
+  assert.equal(looksQuestionMarkMojibake("????????"), true);
+  assert.equal(preferStoredText("英语写作任务", "????????", "fallback"), "英语写作任务");
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-kanban-provider-"));
   const calls = [];
@@ -53,7 +62,7 @@ async function run() {
           code: 0,
           stdout: JSON.stringify({
             tasks: [
-              { id: "t_created", title: "Read chapter", status: "todo", skills: [] },
+              { id: "t_created", title: "????????", status: "todo", skills: [] },
               {
                 id: "t_done",
                 title: "Closed",
@@ -130,6 +139,7 @@ async function run() {
   assert.equal(listed.ok, true);
   assert.equal(listed.todos.length, 1);
   assert.equal(listed.todos[0].id, "t_created");
+  assert.equal(listed.todos[0].content, "Read chapter");
   assert.equal(listed.todos[0].due_local.startsWith("2026-05-10"), true);
 
   const createdWithoutDue = await provider.run({

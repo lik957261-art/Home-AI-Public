@@ -251,6 +251,7 @@ function createTodoPublicProjectionService(options = {}) {
       kanbanCaseDeliverables: normalizeStringList(row.kanban_case_deliverables || row.kanbanCaseDeliverables, 8),
       kanbanCaseAcceptance: normalizeStringList(row.kanban_case_acceptance || row.kanbanCaseAcceptance, 8),
       kanbanCaseCardGoal: String(row.kanban_case_card_goal || row.kanbanCaseCardGoal || ""),
+      kanbanCaseCreationSkillId: String(row.kanban_case_creation_skill_id || row.kanbanCaseCreationSkillId || ""),
       kanbanLastCommentAt: String(row.kanban_last_comment_at || row.kanbanLastCommentAt || ""),
       learningGrowthSubmissionStatus: String(row.learning_growth_submission_status || row.learningGrowthSubmissionStatus || ""),
       learningGrowthSubmissionKind: String(row.learning_growth_submission_kind || row.learningGrowthSubmissionKind || ""),

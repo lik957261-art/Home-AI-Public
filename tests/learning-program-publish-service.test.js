@@ -41,6 +41,9 @@ async function run() {
             acceptance: ["first draft submitted", "rewrite submitted"],
             interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback", "learner_rewrites"],
             plannedMinutes: 15,
+            skillIds: ["english_short_writing"],
+            templateId: "english-short-writing-v1",
+            taskCardType: "single_subject",
           }],
         },
         { date: "2026-05-18", tasks: [{ taskId: "task-2", title: "Task two", instruction: "Answer the second instruction." }] },
@@ -62,9 +65,17 @@ async function run() {
   assert.equal(calls[0].input.cards[0].clientId, "task-1");
   assert.equal(calls[0].input.cards[0].title, "Short writing");
   assert.equal(calls[0].input.cards[0].dueTime, "2026-05-17 19:30");
+  assert.equal(calls[0].input.cards[0].learningProgramId, "program-1");
+  assert.equal(calls[0].input.cards[0].learningDraftId, "draft-1");
+  assert.equal(calls[0].input.cards[0].learningTaskCardId, "ltask_8a035c15cad45436");
+  assert.deepEqual(calls[0].input.cards[0].skillIds, ["english_short_writing"]);
+  assert.equal(calls[0].input.cards[0].templateId, "english-short-writing-v1");
+  assert.equal(calls[0].input.cards[0].taskCardType, "single_subject");
+  assert.equal(calls[0].input.cards[0].cardCreationSkillId, "learning-growth-card-creation");
   assert.equal(calls[0].input.cards[0].deliverables[0], "first English draft");
   assert.match(calls[0].input.cards[0].description, /Task instruction:\nWrite a first draft/);
   assert.match(calls[0].input.cards[0].description, /Interaction flow:/);
+  assert.match(calls[0].input.sourceText, /Card creation skill: study-templates\/learning-growth-card-creation/);
 }
 
 run().then(() => {

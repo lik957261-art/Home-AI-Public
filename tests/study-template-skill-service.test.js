@@ -13,10 +13,12 @@ const {
 function testRegistryDefinesCurrentStudyTemplateSkills() {
   assert.deepEqual(Object.keys(TEMPLATE_SKILL_REGISTRY).sort(), [
     "general-assessment",
+    "learning-growth-card-creation",
     "programming-assessment",
     "reading-analysis",
   ]);
   assert.equal(TEMPLATE_SKILL_REGISTRY["programming-assessment"].template, "programming");
+  assert.equal(TEMPLATE_SKILL_REGISTRY["learning-growth-card-creation"].template, "learning-growth");
 }
 
 function testSkillPathAndLoading() {
@@ -27,6 +29,11 @@ function testSkillPathAndLoading() {
   assert.match(loaded.text, /Programming Assessment Template/);
   assert.match(loaded.text, /## Delivery Report Rules/);
   assert.doesNotMatch(loaded.text, /^---/);
+  const growth = loadTemplateSkill("learning-growth-card-creation");
+  assert.equal(growth.ok, true);
+  assert.match(growth.text, /Learning Growth Card Creation/);
+  assert.match(growth.text, /caseTemplate: "learning-growth"/);
+  assert.match(growth.text, /Preserve the original Unicode title/);
 }
 
 function testInstructionFormattingAndFrontmatterStripping() {

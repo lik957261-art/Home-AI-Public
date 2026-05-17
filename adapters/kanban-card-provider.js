@@ -98,6 +98,7 @@ function createKanbanCardProvider(options = {}) {
       case_deliverables: args.caseDeliverables || args.case_deliverables || [],
       case_acceptance: args.caseAcceptance || args.case_acceptance || [],
       case_card_goal: args.caseCardGoal || args.case_card_goal || "",
+      case_creation_skill_id: args.caseCreationSkillId || args.case_creation_skill_id || "",
       learning_program_id: args.learningProgramId || args.learning_program_id || "",
       learning_draft_id: args.learningDraftId || args.learning_draft_id || "",
       learning_task_card_id: args.learningTaskCardId || args.learning_task_card_id || "",

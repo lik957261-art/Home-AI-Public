@@ -550,6 +550,30 @@ async function testCreateMapsBodyCasePayloadCacheBroadcastAndVerification() {
   assert.equal(explicit.calls.add[0].caseCardIndex, 2);
   assert.deepEqual(explicit.calls.add[0].caseDependsOn, ["a"]);
 
+  const growthWithoutCaseId = makeRoutes();
+  await request(growthWithoutCaseId.routes, "POST", "/api/kanban/cards", {
+    body: {
+      workspaceId: "child",
+      content: "Growth writing task",
+      case_mode: "study-plan",
+      case_template: "learning-growth",
+      case_card_goal: "Task instruction:\nWrite a first draft.",
+      case_creation_skill_id: "learning-growth-card-creation",
+      learning_program_id: "program-1",
+      learning_draft_id: "draft-1",
+      learning_task_card_id: "task-1",
+    },
+  });
+  assert.deepEqual(growthWithoutCaseId.calls.casePayload, []);
+  assert.equal(growthWithoutCaseId.calls.add[0].caseId, "");
+  assert.equal(growthWithoutCaseId.calls.add[0].caseMode, "study-plan");
+  assert.equal(growthWithoutCaseId.calls.add[0].caseTemplate, "learning-growth");
+  assert.equal(growthWithoutCaseId.calls.add[0].caseCardGoal, "Task instruction:\nWrite a first draft.");
+  assert.equal(growthWithoutCaseId.calls.add[0].caseCreationSkillId, "learning-growth-card-creation");
+  assert.equal(growthWithoutCaseId.calls.add[0].learningProgramId, "program-1");
+  assert.equal(growthWithoutCaseId.calls.add[0].learningDraftId, "draft-1");
+  assert.equal(growthWithoutCaseId.calls.add[0].learningTaskCardId, "task-1");
+
   const reminder = makeRoutes({
     detectDirectTodoCreateIntentForWeb(text, workspaceId) {
       assert.equal(text, "\u660e\u5929\u65e9\u4e0a\u63d0\u9192\u6211 10 \u70b9\u5403\u836f\u3002");

@@ -99,6 +99,14 @@ function testLearningGrowthPlanUsesProvidedTaskCards() {
       deliverables: ["first English draft", "rewritten draft"],
       acceptance: ["first draft submitted", "rewrite submitted"],
       dueTime: "2026-05-15 19:30",
+      learningProgramId: "program-1",
+      learningDraftId: "draft-1",
+      learningTaskCardId: "ltask-1",
+      skillIds: ["english_short_writing"],
+      templateId: "english-short-writing-v1",
+      taskCardType: "single_subject",
+      interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback"],
+      cardCreationSkillId: "learning-growth-card-creation",
     }],
   }, "owner");
 
@@ -109,9 +117,21 @@ function testLearningGrowthPlanUsesProvidedTaskCards() {
   assert.equal(plan.cards[0].title, "Short writing");
   assert.match(plan.cards[0].description, /Write a first draft/);
   assert.deepEqual(plan.cards[0].deliverables, ["first English draft", "rewritten draft"]);
+  assert.equal(plan.cards[0].learningProgramId, "program-1");
+  assert.equal(plan.cards[0].learningDraftId, "draft-1");
+  assert.equal(plan.cards[0].learningTaskCardId, "ltask-1");
+  assert.deepEqual(plan.cards[0].skillIds, ["english_short_writing"]);
+  assert.equal(plan.cards[0].templateId, "english-short-writing-v1");
+  assert.equal(plan.cards[0].taskCardType, "single_subject");
+  assert.deepEqual(plan.cards[0].interactionStateMachine, ["receive_task", "learner_drafts", "ai_feedback"]);
+  assert.equal(plan.cards[0].cardCreationSkillId, "learning-growth-card-creation");
   const payloads = service.buildStudyPlanCardPayloads(plan, { assignee: "principal-learner" });
   assert.match(payloads[0].content, /Short writing/);
   assert.match(payloads[0].caseCardGoal, /Task instruction:/);
+  assert.equal(payloads[0].caseCreationSkillId, "learning-growth-card-creation");
+  assert.equal(payloads[0].learningProgramId, "program-1");
+  assert.equal(payloads[0].learningDraftId, "draft-1");
+  assert.equal(payloads[0].learningTaskCardId, "ltask-1");
   assert.doesNotMatch(payloads[0].content, /submit output/);
 }
 

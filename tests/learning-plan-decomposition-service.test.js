@@ -53,6 +53,7 @@ function testEnglishPlanIncludesExtensibleSkillCards() {
   assert.match(writingTask.summary, /Task instruction:/);
   assert.ok(writingTask.deliverables.includes("first English draft"));
   assert.ok(writingTask.acceptance.some((item) => /6-8 English sentences/.test(item)));
+  assert.equal(writingTask.cardCreationSkillId, "learning-growth-card-creation");
   assert.ok(tasks.some((task) => task.interactionStateMachine.includes("learner_listens")));
   assert.ok(tasks.some((task) => task.interactionStateMachine.includes("learner_rehearses")));
   assert.ok(tasks.every((task) => task.sourceBasisRefs.includes("parent_config:program-1")));
