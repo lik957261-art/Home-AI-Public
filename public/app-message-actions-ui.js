@@ -19,6 +19,51 @@ function scrollConversationToBottom() {
   if (!conversation) return;
   conversation.scrollTop = conversation.scrollHeight;
   state.conversationPinnedToBottom = true;
+  updateConversationJumpBottomButton();
+}
+
+function scrollConversationToBottomSmooth() {
+  const conversation = $("conversation");
+  if (!conversation) return;
+  const top = conversation.scrollHeight;
+  if (typeof conversation.scrollTo === "function") {
+    conversation.scrollTo({ top, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  } else {
+    conversation.scrollTop = top;
+  }
+  state.conversationPinnedToBottom = true;
+  window.setTimeout(updateConversationJumpBottomButton, prefersReducedMotion() ? 0 : 260);
+}
+
+function conversationJumpBottomApplies() {
+  if (isChatSearchMode()) return false;
+  return isTaskDetailView() || isSingleWindowChatView() || (isSingleWindowView() && state.singleWindowMode === "task");
+}
+
+function updateConversationJumpBottomButton() {
+  const button = $("conversationJumpBottom");
+  const conversation = $("conversation");
+  if (!button) return;
+  const shouldShow = Boolean(
+    conversation
+    && conversationJumpBottomApplies()
+    && conversation.scrollHeight > conversation.clientHeight + 120
+    && conversationBottomOffset(conversation) > 240
+  );
+  button.classList.toggle("hidden", !shouldShow);
+  button.disabled = !shouldShow;
+  button.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+}
+
+function wireConversationJumpBottomButton() {
+  const button = $("conversationJumpBottom");
+  if (!button || button.dataset.boundJumpBottom) return;
+  button.dataset.boundJumpBottom = "1";
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    scrollConversationToBottomSmooth();
+  });
 }
 
 function scheduleConversationBottomStick() {
@@ -40,6 +85,7 @@ function handleConversationScrollState() {
   if (Date.now() < state.suppressConversationPinUntil) return;
   state.conversationPinnedToBottom = isNearBottom();
   maybeLoadOlderChatMessages();
+  updateConversationJumpBottomButton();
 }
 
 function maybeLoadOlderChatMessages() {
@@ -77,6 +123,7 @@ function handleViewportLayoutChange() {
   updateNavigationControls();
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));
+  updateConversationJumpBottomButton();
   if (!shouldStickConversationOnViewportChange()) return;
   if (!state.conversationPinnedToBottom && !isNearBottom(160)) return;
   scheduleConversationBottomStick();
@@ -451,5 +498,9 @@ function updateMessageScrollButtonVisibility(root) {
 
 function scheduleMessageScrollButtonVisibility(root) {
   updateMessageScrollButtonVisibility(root);
-  requestAnimationFrame(() => updateMessageScrollButtonVisibility(root));
+  updateConversationJumpBottomButton();
+  requestAnimationFrame(() => {
+    updateMessageScrollButtonVisibility(root);
+    updateConversationJumpBottomButton();
+  });
 }

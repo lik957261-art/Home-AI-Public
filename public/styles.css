@@ -1136,6 +1136,7 @@ button {
 }
 
 .main {
+  position: relative;
   min-width: 0;
   min-height: 0;
   display: grid;
@@ -1598,6 +1599,42 @@ button {
   padding: 22px 18px 28px;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+.conversation-jump-bottom {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 32;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: #fffaf1;
+  background: rgba(31, 111, 98, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.54);
+  border-radius: 50%;
+  box-shadow: 0 14px 32px rgba(31, 43, 51, 0.20);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  backdrop-filter: blur(12px);
+}
+
+.conversation-jump-bottom:active {
+  transform: translateY(1px);
+  background: rgba(23, 77, 69, 0.96);
+}
+
+.conversation-jump-bottom:disabled {
+  pointer-events: none;
+}
+
+.reading-fullscreen-mode .conversation-jump-bottom {
+  bottom: calc(16px + env(safe-area-inset-bottom));
 }
 
 .scroll-affordance-spacer {

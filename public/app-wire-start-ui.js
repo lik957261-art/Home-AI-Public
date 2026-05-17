@@ -6,6 +6,7 @@ function wireUi() {
   wireRightSwipeGuard();
   wireSidebarSwipe();
   wireConversationScrollFeedback();
+  wireConversationJumpBottomButton();
   $("refreshNow")?.addEventListener("click", reloadForClientUpdate);
   $("refreshLater")?.addEventListener("click", () => {
     state.refreshNoticeDismissedVersion = state.serverClientVersion;

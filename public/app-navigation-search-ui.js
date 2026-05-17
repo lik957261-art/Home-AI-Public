@@ -196,6 +196,7 @@ function updateNavigationControls() {
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);
   app?.classList.toggle("main-back-visible", mainBack);
   app?.classList.toggle("reading-fullscreen-mode", state.readingFullscreen);
+  if (typeof updateConversationJumpBottomButton === "function") updateConversationJumpBottomButton();
   if (taskToolbar) {
     taskToolbar.hidden = !taskDetail;
     if (!taskDetail) taskToolbar.innerHTML = "";
