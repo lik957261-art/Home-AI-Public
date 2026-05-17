@@ -173,6 +173,23 @@ async function testOwnerDefaultOverviewUsesFanfanLearnerBinding() {
   });
 }
 
+async function testOwnerWorkspaceWithLearnerUsesExecutorWorkspace() {
+  const { routes, growthInputs } = makeRoutes();
+  const response = await request(routes, "GET", "/api/learning-growth/overview?workspaceId=owner&studentId=weixin_stephen", {
+    auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.body.learner.workspaceId, "weixin_stephen");
+  assert.deepEqual(growthInputs[0], {
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    studentId: "weixin_stephen",
+    limit: null,
+    owner: true,
+    viewerRole: "owner",
+  });
+}
+
 async function testStudentReadsOwnOverviewAsExecutor() {
   const { routes, growthInputs } = makeRoutes();
   const response = await request(routes, "GET", "/api/learning-growth/overview?workspaceId=child&studentId=child&limit=7", {
@@ -226,6 +243,7 @@ async function testStudentCannotReadAnotherLearner() {
   await testMetadataAndFallthrough();
   await testOverviewUsesRequestedExecutorWorkspaceForOwner();
   await testOwnerDefaultOverviewUsesFanfanLearnerBinding();
+  await testOwnerWorkspaceWithLearnerUsesExecutorWorkspace();
   await testStudentReadsOwnOverviewAsExecutor();
   await testOverviewIncludesExecutableKanbanTasksWhenAvailable();
   await testStudentCannotReadAnotherLearner();

@@ -93,7 +93,7 @@ function createLearningApiRoutes(deps = {}) {
   const registry = createApiRouteRegistry(LEARNING_API_ROUTE_SPECS);
 
   function authorizeQuery(req, res, url, auth) {
-    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(deps, auth, url));
+    let workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(deps, auth, url));
     if (!workspaceId) return null;
     const learnerId = requestedLearnerId(
       deps,
@@ -101,6 +101,10 @@ function createLearningApiRoutes(deps = {}) {
       url.searchParams.get("learnerId") || url.searchParams.get("studentId"),
       workspaceId,
     );
+    if (deps.isOwnerAuth(auth) && workspaceId === "owner" && learnerId && learnerId !== "owner") {
+      workspaceId = deps.requireWorkspaceAccess(req, res, learnerId);
+      if (!workspaceId) return null;
+    }
     return {
       workspaceId,
       learnerId,
