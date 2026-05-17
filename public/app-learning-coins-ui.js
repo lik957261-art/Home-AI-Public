@@ -67,14 +67,18 @@
   function renderLedgerRows(summary, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const formatTime = optionFn(options, "formatTime", (value) => String(value || ""));
+    const owner = isOwner(options);
     const ledger = summary?.ledger || [];
     if (!ledger.length) return `<div class="learning-coin-empty">暂无金币流水。</div>`;
     return ledger.map((entry) => {
       const positive = Number(entry.coinDelta || 0) >= 0;
+      const meta = owner
+        ? [entry.sourceType, entry.sourceId, formatTime(entry.createdAt)].filter(Boolean).join(" · ")
+        : [formatTime(entry.createdAt)].filter(Boolean).join(" · ");
       return `<div class="learning-ledger-row">
         <div>
           <div class="learning-ledger-title">${escapeHtml(entry.reason || entry.type || "金币记录")}</div>
-          <div class="learning-ledger-meta">${escapeHtml([entry.sourceType, entry.sourceId, formatTime(entry.createdAt)].filter(Boolean).join(" · "))}</div>
+          <div class="learning-ledger-meta">${escapeHtml(meta)}</div>
         </div>
         <div class="learning-ledger-amount ${positive ? "positive" : "negative"}">${positive ? "+" : ""}${escapeHtml(formatCoins(entry.coinDelta))}</div>
       </div>`;
@@ -193,6 +197,9 @@
     const owner = isOwner(options);
     const summary = options.summary || state.learningCoins || {};
     const balances = summary.balances || {};
+    const learnerLabel = owner
+      ? (summary.studentId || options.learnerId || "")
+      : (options.learnerName || summary.displayName || "成长档案");
     const loading = options.loading ? `<div class="learning-coin-loading">正在刷新成长数据...</div>` : "";
     const error = options.error ? `<div class="automation-error">${escapeHtml(options.error)}</div>` : "";
     return `<section class="learning-growth-coin-section" data-learning-growth-module="coins">
@@ -202,7 +209,7 @@
       </div>
       <section class="learning-coin-hero">
         <div>
-          <div class="learning-coin-eyebrow">${escapeHtml(summary.studentId || options.learnerId || "")}</div>
+          <div class="learning-coin-eyebrow">${escapeHtml(learnerLabel)}</div>
           <h2>${escapeHtml(formatCoins(balances.availableCoins))}</h2>
           <p>${escapeHtml(owner ? "金币只作为学习成长系统的激励、兑换和奖励池管理凭证。" : "金币只作为学习成长系统的激励与兑换凭证。")}</p>
         </div>

@@ -102,6 +102,10 @@ async function testOwnerCanReadLearningStatusReadiness() {
             status: "operational_ready",
             operationalTestReady: true,
           },
+          launchOperations: {
+            version: "learning-growth-launch-ops-v1",
+            status: "ready",
+          },
         };
       },
     },
@@ -113,6 +117,7 @@ async function testOwnerCanReadLearningStatusReadiness() {
   assert.equal(response.body.ok, true);
   assert.equal(response.body.learning.moduleId, "fanfan-growth");
   assert.equal(response.body.learning.readiness.status, "operational_ready");
+  assert.equal(response.body.learning.launchOperations.status, "ready");
   assert.deepEqual(growthInputs[0], {
     workspaceId: "weixin_stephen",
     learnerId: "weixin_stephen",

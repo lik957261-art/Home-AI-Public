@@ -148,6 +148,7 @@ function createLearningApiRoutes(deps = {}) {
         learnerId: overview.learner?.id || input.learnerId,
         workspaceId: overview.learner?.workspaceId || input.workspaceId,
         readiness: overview.operationalReadiness || null,
+        launchOperations: overview.launchOperations || null,
       },
     });
   }

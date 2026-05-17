@@ -119,6 +119,9 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   assert.equal(overview.operationalReadiness.systemReadinessPercent, 100);
   assert.equal(overview.operationalReadiness.learnerDataReadinessPercent, 100);
   assert.equal(overview.operationalReadiness.operationalTestReady, true);
+  assert.equal(overview.launchOperations.version, "learning-growth-launch-ops-v1");
+  assert.equal(overview.launchOperations.counts.pendingRedemptions, 1);
+  assert.equal(overview.programs.launchOperations.version, "learning-growth-launch-ops-v1");
   assert.ok(overview.nextModules.some((item) => item.id === "ai-reliability-guard-service"));
   assert.deepEqual(coinService.calls[0], { workspaceId: "weixin_stephen", studentId: "weixin_stephen", limit: 5 });
 }
@@ -140,6 +143,7 @@ function testExecutorOverviewStripsOwnerManagementData() {
   assert.equal(overview.platformCapabilities, undefined);
   assert.equal(overview.reliability, undefined);
   assert.equal(overview.operationalReadiness, undefined);
+  assert.equal(overview.launchOperations, undefined);
   assert.equal(overview.nextModules, undefined);
   assert.equal(overview.coins.settlement, undefined);
   assert.equal(overview.programs.sources, undefined);
@@ -148,6 +152,7 @@ function testExecutorOverviewStripsOwnerManagementData() {
   assert.equal(overview.programs.reviewItems, undefined);
   assert.equal(overview.programs.parentReviewRequests, undefined);
   assert.equal(overview.programs.rewardSettlements, undefined);
+  assert.equal(overview.programs.launchOperations, undefined);
   assert.equal(overview.programs.curriculumReferences, undefined);
   assert.equal(overview.programs.parentReport, undefined);
   assert.equal(overview.programs.taxonomy, undefined);

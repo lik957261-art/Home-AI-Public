@@ -165,6 +165,7 @@
     const programsHtml = programUi && typeof programUi.renderProgramSubsystem === "function"
       ? programUi.renderProgramSubsystem(Object.assign({}, options, {
           programs: overview.programs || {},
+          launchOperations: overview.launchOperations,
           learnerId: learner.id || options.learnerId,
         }))
       : "";
@@ -172,6 +173,7 @@
       ? coinsUi.renderCoinsSubsystem(Object.assign({}, options, {
           summary: coins,
           learnerId: learner.id || options.learnerId,
+          learnerName: learnerLabel,
         }))
       : `<div class="learning-coin-empty">金币子模块未加载。</div>`;
     const owner = isOwner(options);

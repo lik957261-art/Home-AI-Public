@@ -6985,6 +6985,37 @@ button.directory-alias-chip {
   background: rgba(236, 241, 239, 0.72);
 }
 
+.learning-program-review-item > button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 10px;
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.08);
+  font-weight: 800;
+}
+
+.learning-launch-operations-panel,
+.learning-launch-queue,
+.learning-launch-next-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.learning-launch-next-actions {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.learning-launch-next-actions span {
+  padding: 8px 10px;
+  border: 1px solid rgba(31, 111, 98, 0.12);
+  border-radius: 10px;
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.07);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .learning-program-task-list,
 .learning-program-skill-list,
 .learning-program-evaluation-list {

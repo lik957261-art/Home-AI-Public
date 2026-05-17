@@ -50,9 +50,21 @@ const overview = {
     },
     rewards: [],
     redemptions: [],
-    ledger: [],
+    ledger: [{ id: "ledger-1", reason: "task reward", sourceType: "learning-growth-evaluation", sourceId: "eval-internal-1", createdAt: "2026-05-17T00:00:00.000Z", coinDelta: 10 }],
   },
   programs: {
+    launchOperations: {
+      version: "learning-growth-launch-ops-v1",
+      status: "attention_required",
+      counts: { publishedTasks: 1, activeSessions: 1, pendingPlanReviews: 1, pendingParentReviews: 1, pendingRewardSettlements: 1, rewardCandidates: 1 },
+      queues: {
+        blockers: [],
+        approvals: [{ resourceType: "plan_review", resourceId: "review-1", title: "review-1", reasonCode: "pending_parent_review" }],
+        execution: [{ resourceType: "task_card", resourceId: "task-1", title: "Task status", reasonCode: "task_ready_for_executor" }],
+        rewards: [{ resourceType: "evaluation", resourceId: "eval-1", title: "eval-1", reasonCode: "passed_evaluation_needs_reward_settlement" }],
+      },
+      nextActions: [{ id: "settle-learning-rewards", reasonCode: "pending_reward_settlement" }],
+    },
     programs: [{ programId: "program-1", title: "English growth", status: "active", domain: "english", focusAreas: ["english_speaking_retell"], minutesPerDay: 30, daysPerWeek: 5 }],
     latestDrafts: [],
     reviewItems: [{ reviewId: "review-1", status: "pending", summary: "review" }],
@@ -86,6 +98,7 @@ function testExecutorCoinSubsystemHidesOwnerSettlementDetails() {
   assert.match(html, /学习奖励/);
   assert.doesNotMatch(html, /learningRewardForm/);
   assert.doesNotMatch(html, /CNY|人民币|Owner/);
+  assert.doesNotMatch(html, /eval-internal-1|learning-growth-evaluation|weixin_stephen/);
 }
 
 function testGrowthRendererContainsProductShellAndNestedCoins() {
@@ -100,8 +113,10 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-growth-category="parent-admin"/);
   assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
   assert.doesNotMatch(html, /data-learning-operational-readiness/);
+  assert.doesNotMatch(html, /data-learning-launch-operations/);
   assert.doesNotMatch(html, /data-learning-growth-capability="parent-review"/);
   assert.doesNotMatch(html, /data-learning-review-decision/);
+  assert.doesNotMatch(html, /data-learning-evaluation-settle/);
   assert.doesNotMatch(html, /Owner|家长|结算|后台与平台能力|learningRewardForm|人民币/);
   assert.doesNotMatch(html, /学习档案与目标录入/);
 }
@@ -113,7 +128,7 @@ function testGrowthRendererContainsProgramSubsystem() {
   assert.match(html, /data-learning-task-card-id="task-1"/);
   assert.match(html, /data-learning-daily-plan/);
   assert.match(html, /data-learning-session-advance="session-1"/);
-  assert.match(html, /data-learning-evaluation-form="session-1"/);
+  assert.doesNotMatch(html, /data-learning-evaluation-form="session-1"/);
   assert.match(html, /data-learning-evaluation-summary="eval-1"/);
 }
 
@@ -129,6 +144,9 @@ function testOwnerRendererKeepsManagementSections() {
   assert.match(html, /data-learning-review-decision="review-1"/);
   assert.match(html, /data-learning-parent-review-decision="parent-review-1"/);
   assert.match(html, /data-learning-reward-settlement-id="settle-1"/);
+  assert.match(html, /data-learning-launch-operations/);
+  assert.match(html, /data-learning-launch-next-action="settle-learning-rewards"/);
+  assert.match(html, /data-learning-evaluation-settle="eval-1"/);
 }
 
 function testReadinessPanelRenderer() {

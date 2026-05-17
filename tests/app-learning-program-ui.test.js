@@ -41,7 +41,31 @@ const programs = {
     status: "pending_review",
     coinAmount: 20,
     reason: "verified summary",
+    evaluationId: "eval-1",
   }],
+  launchOperations: {
+    version: "learning-growth-launch-ops-v1",
+    status: "attention_required",
+    officialLaunchReady: true,
+    counts: {
+      publishedTasks: 2,
+      activeSessions: 1,
+      pendingPlanReviews: 1,
+      pendingParentReviews: 1,
+      pendingRewardSettlements: 1,
+      rewardCandidates: 1,
+    },
+    queues: {
+      blockers: [],
+      approvals: [{ resourceType: "plan_review", resourceId: "review-1", title: "review-1", reasonCode: "pending_parent_review", priority: "high" }],
+      execution: [{ resourceType: "task_card", resourceId: "task-1", title: "Reading output task", reasonCode: "task_ready_for_executor", priority: "normal" }],
+      rewards: [{ resourceType: "evaluation", resourceId: "eval-1", title: "eval-1", reasonCode: "passed_evaluation_needs_reward_settlement", priority: "normal" }],
+    },
+    nextActions: [
+      { id: "decide-parent-reviews", reasonCode: "pending_parent_review" },
+      { id: "settle-learning-rewards", reasonCode: "pending_reward_settlement" },
+    ],
+  },
   taskCards: [{
     taskCardId: "task-1",
     title: "Reading output task",
@@ -124,6 +148,9 @@ function testOwnerFormAndActionsRender() {
   assert.match(html, /data-learning-review-decision="review-1"/);
   assert.match(html, /data-learning-parent-review-decision="parent-review-1"/);
   assert.match(html, /data-learning-reward-settlement-id="settle-1"/);
+  assert.match(html, /data-learning-launch-operations/);
+  assert.match(html, /data-learning-launch-next-action="settle-learning-rewards"/);
+  assert.match(html, /data-learning-evaluation-settle="eval-1"/);
   assert.match(html, /english_reading_comprehension/);
   assert.match(html, /School summary/);
   assert.match(html, /English output/);
@@ -144,8 +171,10 @@ function testNonOwnerCannotSeeCreateForm() {
   assert.doesNotMatch(html, /data-learning-review-queue/);
   assert.doesNotMatch(html, /data-learning-parent-review-requests/);
   assert.doesNotMatch(html, /data-learning-reward-settlements/);
+  assert.doesNotMatch(html, /data-learning-launch-operations/);
   assert.doesNotMatch(html, /data-learning-parent-review-decision/);
   assert.doesNotMatch(html, /data-learning-reward-settlement-id/);
+  assert.doesNotMatch(html, /data-learning-evaluation-settle/);
   assert.doesNotMatch(html, /data-learning-program-draft-action/);
   assert.doesNotMatch(html, /data-learning-program-publish/);
   assert.doesNotMatch(html, /School summary/);
@@ -158,7 +187,7 @@ function testNonOwnerCannotSeeCreateForm() {
   assert.match(html, /data-learning-task-card-id="task-2"/);
   assert.match(html, /data-learning-daily-plan/);
   assert.match(html, /data-learning-session-advance="session-1"/);
-  assert.match(html, /data-learning-evaluation-form="session-1"/);
+  assert.doesNotMatch(html, /data-learning-evaluation-form="session-1"/);
   assert.match(html, /data-learning-task-start="task-2"/);
   assert.match(html, /data-learning-evaluation-summary="eval-1"/);
   assert.match(html, /data-learning-program-id="program-1"/);

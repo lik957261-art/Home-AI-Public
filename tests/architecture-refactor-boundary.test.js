@@ -61,6 +61,7 @@ const learningEvaluationService = require("../adapters/learning-evaluation-servi
 const learningEvaluationVerifierService = require("../adapters/learning-evaluation-verifier-service");
 const learningGoalService = require("../adapters/learning-goal-service");
 const learningInteractionSessionService = require("../adapters/learning-interaction-session-service");
+const learningLaunchOperationsService = require("../adapters/learning-launch-operations-service");
 const learningParentReviewQueueService = require("../adapters/learning-parent-review-queue-service");
 const learningParentReviewRequestService = require("../adapters/learning-parent-review-request-service");
 const learningPlanDecompositionService = require("../adapters/learning-plan-decomposition-service");
@@ -246,6 +247,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningEvaluationVerifierService.createLearningEvaluationVerifierService, "function");
   assert.equal(typeof learningGoalService.createLearningGoalService, "function");
   assert.equal(typeof learningInteractionSessionService.createLearningInteractionSessionService, "function");
+  assert.equal(typeof learningLaunchOperationsService.buildLearningLaunchOperations, "function");
   assert.equal(typeof learningParentReviewQueueService.createLearningParentReviewQueueService, "function");
   assert.equal(typeof learningParentReviewRequestService.createLearningParentReviewRequestService, "function");
   assert.equal(typeof learningPlanDecompositionService.createLearningPlanDecompositionService, "function");

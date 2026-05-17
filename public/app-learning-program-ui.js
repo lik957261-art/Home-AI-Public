@@ -41,7 +41,7 @@
   function taskStatusText(status, options = {}) {
     const value = String(status || "");
     if (value === "planned") return "\u5f85\u6267\u884c";
-    if (value === "published") return "\u5df2\u4e0b\u53d1";
+    if (value === "published") return isOwner(options) ? "\u5df2\u4e0b\u53d1" : "\u5f85\u6267\u884c";
     if (value === "active") return "\u8fdb\u884c\u4e2d";
     if (value === "completed") return "\u5df2\u5b8c\u6210";
     if (value === "needs_review") return "\u5f85\u590d\u76d8";
@@ -330,19 +330,29 @@
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const items = asArray(evaluations).slice(0, 5);
     if (!items.length) return `<div class="learning-coin-empty">\u6682\u65e0\u8bc4\u4f30\u6458\u8981\u3002</div>`;
+    const settlements = asArray(options.rewardSettlements);
+    const settlementByEvaluation = new Map(settlements.map((item) => [String(item?.evaluationId || ""), item]).filter(([id]) => id));
     return `<div class="learning-program-evaluation-list">
-      ${items.map((item) => `<article class="learning-program-review-item" data-learning-evaluation-summary="${escapeHtml(item.evaluationId)}">
+      ${items.map((item) => {
+        const settlement = settlementByEvaluation.get(String(item.evaluationId || ""));
+        const canSettle = isOwner(options) && item.passed && (!settlement || String(settlement.status || "") !== "settled");
+        const publicStatus = settlement && !isOwner(options)
+          ? "\u5f85\u786e\u8ba4"
+          : (settlement ? settlementStatusText(settlement.status) : (item.passed ? "\u901a\u8fc7" : "\u5f85\u4fee\u590d"));
+        return `<article class="learning-program-review-item" data-learning-evaluation-summary="${escapeHtml(item.evaluationId)}">
         <div>
           <strong>${escapeHtml([evaluationStatusText(item.status), item.score || item.score === 0 ? `${item.score}` : ""].filter(Boolean).join(" / "))}</strong>
           <p>${escapeHtml(item.summary || "\u672a\u586b\u5199\u8bc4\u4f30\u6458\u8981")}</p>
         </div>
-        <span class="learning-program-status-chip">${escapeHtml(item.passed ? "\u901a\u8fc7" : "\u5f85\u4fee\u590d")}</span>
-      </article>`).join("")}
+        ${canSettle ? `<button type="button" data-learning-evaluation-settle="${escapeHtml(item.evaluationId)}">\u7ed3\u7b97\u91d1\u5e01</button>` : `<span class="learning-program-status-chip">${escapeHtml(publicStatus)}</span>`}
+      </article>`;
+      }).join("")}
     </div>`;
   }
 
-  function sessionStepText(step) {
+  function sessionStepText(step, options = {}) {
     const value = String(step || "");
+    if (!isOwner(options) && value === "reward_settlement") return "\u5df2\u5b8c\u6210 / \u7b49\u5f85\u786e\u8ba4";
     const labels = {
       receive_task: "\u63a5\u6536\u4efb\u52a1",
       ai_goal_explain: "\u76ee\u6807\u8bf4\u660e",
@@ -379,9 +389,9 @@
     const sessionStatus = String(session.status || "active");
     const complete = sessionStatus === "completed";
     return `<div class="learning-program-task-actions" data-learning-session-id="${escapeHtml(session.sessionId || "")}">
-      <span class="learning-program-status-chip">${escapeHtml([sessionStatus, sessionStepText(session.currentStep)].filter(Boolean).join(" / "))}</span>
+      <span class="learning-program-status-chip">${escapeHtml([sessionStatus, sessionStepText(session.currentStep, options)].filter(Boolean).join(" / "))}</span>
       ${complete ? "" : `<button type="button" data-learning-session-advance="${escapeHtml(session.sessionId || "")}">\u4e0b\u4e00\u6b65</button>`}
-      ${complete ? "" : `<form class="learning-evaluation-inline-form" data-learning-evaluation-form="${escapeHtml(session.sessionId || "")}">
+      ${complete || !isOwner(options) ? "" : `<form class="learning-evaluation-inline-form" data-learning-evaluation-form="${escapeHtml(session.sessionId || "")}">
         <input class="input" name="score" type="number" min="0" max="100" placeholder="\u5f97\u5206">
         <input class="input" name="summary" type="text" autocomplete="off" maxlength="280" placeholder="\u53ea\u5199\u8bc4\u4ef7\u6458\u8981">
         <button type="submit">\u8bb0\u5f55\u8bc4\u4ef7</button>
@@ -457,7 +467,7 @@
         </section>
         <section class="learning-coin-panel">
           <div class="learning-section-heading"><h3>\u8fd1\u671f\u8bc4\u4f30</h3><span>\u7ed3\u8bba</span></div>
-          ${renderEvaluationRows(data.evaluations || [], options)}
+          ${renderEvaluationRows(data.evaluations || [], Object.assign({}, options, { rewardSettlements: data.rewardSettlements || [] }))}
         </section>
       </div>
     </section>`;
@@ -540,6 +550,81 @@
     </section>`;
   }
 
+  function launchStatusText(status) {
+    const value = String(status || "");
+    if (value === "ready") return "\u5df2\u5c31\u7eea";
+    if (value === "attention_required") return "\u9700\u5904\u7406";
+    if (value === "blocked") return "\u5df2\u963b\u65ad";
+    return value || "\u5f85\u786e\u8ba4";
+  }
+
+  function operationReasonText(reasonCode) {
+    const value = String(reasonCode || "");
+    const labels = {
+      missing_learning_source_or_goal: "\u8865\u5145\u5b66\u4e60\u6765\u6e90\u6216\u76ee\u6807",
+      missing_learning_program: "\u521b\u5efa\u5b66\u4e60\u8ba1\u5212",
+      launch_blockers_present: "\u5148\u5904\u7406\u963b\u65ad\u9879",
+      pending_parent_review: "\u5904\u7406\u5bb6\u957f\u5ba1\u6838",
+      pending_reward_settlement: "\u5904\u7406\u5956\u52b1\u7ed3\u7b97",
+      no_published_learning_tasks: "\u4e0b\u53d1\u9996\u6279\u5b66\u4e60\u4efb\u52a1",
+      pending_coin_redemptions: "\u5ba1\u6838\u5151\u6362\u7533\u8bf7",
+      task_ready_for_executor: "\u5df2\u4e0b\u53d1\u7ed9\u6267\u884c\u8005",
+      session_in_progress: "\u5b66\u4e60\u4e2d",
+      passed_evaluation_needs_reward_settlement: "\u901a\u8fc7\u540e\u5f85\u7ed3\u7b97",
+      reward_settlement_pending: "\u5956\u52b1\u5f85\u5904\u7406",
+      draft_blocked_by_reliability: "\u8ba1\u5212\u88ab\u53ef\u9760\u6027\u62e6\u622a",
+      task_blocked: "\u4efb\u52a1\u963b\u65ad",
+      evaluation_requires_repair: "\u8bc4\u4f30\u9700\u4fee\u590d",
+      reward_settlement_blocked: "\u5956\u52b1\u7ed3\u7b97\u963b\u65ad",
+    };
+    return labels[value] || value || "\u5f85\u5904\u7406";
+  }
+
+  function renderLaunchQueue(title, items = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const list = asArray(items).slice(0, 4);
+    if (!list.length) return "";
+    return `<div class="learning-launch-queue">
+      <strong>${escapeHtml(title)}</strong>
+      <div class="learning-program-review-list">
+        ${list.map((item) => `<article class="learning-program-review-item" data-learning-launch-operation-item="${escapeHtml(item.resourceType || item.type || "")}:${escapeHtml(item.resourceId || "")}">
+          <div>
+            <strong>${escapeHtml(item.title || item.resourceId || item.resourceType || "")}</strong>
+            <p>${escapeHtml(operationReasonText(item.reasonCode))}</p>
+          </div>
+          <span class="learning-program-status-chip">${escapeHtml(item.priority || item.status || "normal")}</span>
+        </article>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  function renderLaunchOperationsPanel(launchOperations = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!isOwner(options) || !launchOperations || typeof launchOperations !== "object") return "";
+    const counts = launchOperations.counts || {};
+    const queues = launchOperations.queues || {};
+    const nextActions = asArray(launchOperations.nextActions).slice(0, 5);
+    return `<section class="learning-coin-panel learning-launch-operations-panel" data-learning-launch-operations data-launch-status="${escapeHtml(launchOperations.status || "")}">
+      <div class="learning-section-heading">
+        <h3>\u6b63\u5f0f\u4e0a\u7ebf\u8fd0\u8425\u53f0</h3>
+        <span>${escapeHtml(launchStatusText(launchOperations.status))}</span>
+      </div>
+      <div class="learning-program-report-grid">
+        <span><strong>${escapeHtml(String(counts.publishedTasks || 0))}</strong><small>\u5df2\u4e0b\u53d1\u4efb\u52a1</small></span>
+        <span><strong>${escapeHtml(String(counts.activeSessions || 0))}</strong><small>\u8fdb\u884c\u4e2d</small></span>
+        <span><strong>${escapeHtml(String((counts.pendingPlanReviews || 0) + (counts.pendingParentReviews || 0)))}</strong><small>\u5f85\u5ba1\u6838</small></span>
+        <span><strong>${escapeHtml(String((counts.pendingRewardSettlements || 0) + (counts.rewardCandidates || 0)))}</strong><small>\u5f85\u7ed3\u7b97</small></span>
+      </div>
+      <div class="learning-launch-next-actions">
+        ${nextActions.length ? nextActions.map((item) => `<span data-learning-launch-next-action="${escapeHtml(item.id || "")}">${escapeHtml(operationReasonText(item.reasonCode))}</span>`).join("") : `<span>\u5f53\u524d\u65e0\u5fc5\u5904\u7406\u9879</span>`}
+      </div>
+      ${renderLaunchQueue("\u963b\u65ad\u9879", queues.blockers || [], options)}
+      ${renderLaunchQueue("\u5ba1\u6838\u961f\u5217", queues.approvals || [], options)}
+      ${renderLaunchQueue("\u6267\u884c\u961f\u5217", queues.execution || [], options)}
+      ${renderLaunchQueue("\u5956\u52b1\u961f\u5217", queues.rewards || [], options)}
+    </section>`;
+  }
+
   function renderParentReportPanel(data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     if (!isOwner(options)) return "";
@@ -572,6 +657,7 @@
         <h3>\u5bb6\u957f\u914d\u7f6e / \u5ba1\u6838</h3>
         <span>Owner</span>
       </div>
+      ${renderLaunchOperationsPanel(data.launchOperations || options.launchOperations || {}, options)}
       ${renderFoundationPanel(data, options)}
       ${renderProgramForm(options)}
       ${renderParentReportPanel(data, options)}
@@ -602,6 +688,7 @@
     renderProgramCards,
     renderProgramForm,
     renderProgramSubsystem,
+    renderLaunchOperationsPanel,
     renderParentReviewRequests,
     renderReviewQueue,
     renderRewardSettlements,

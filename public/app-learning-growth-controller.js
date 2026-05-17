@@ -325,6 +325,16 @@ async function decideLearningParentReviewRequest(reviewRequestId, decision) {
   await loadLearningCoins({ limit: 30 });
 }
 
+async function settleLearningEvaluationReward(evaluationId) {
+  if (!evaluationId) return;
+  await api(`/api/learning/evaluations/${encodeURIComponent(evaluationId)}/reward-settlement`, {
+    method: "POST",
+    body: JSON.stringify({ reason: "owner_learning_growth_settlement" }),
+  });
+  showPushToast("\u5b66\u4e60\u5956\u52b1\u7ed3\u7b97\u5df2\u5904\u7406", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
 async function submitLearningRewardForm(event) {
   event?.preventDefault?.();
   const title = $("learningRewardTitle")?.value?.trim() || "";
@@ -429,6 +439,9 @@ function wireLearningCoinsView() {
   });
   $("conversation")?.querySelectorAll("[data-learning-parent-review-decision]").forEach((button) => {
     button.addEventListener("click", () => decideLearningParentReviewRequest(button.dataset.learningParentReviewDecision, button.dataset.decision).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-evaluation-settle]").forEach((button) => {
+    button.addEventListener("click", () => settleLearningEvaluationReward(button.dataset.learningEvaluationSettle).catch(showError));
   });
   $("conversation")?.querySelectorAll("[data-learning-task-start]").forEach((button) => {
     button.addEventListener("click", () => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));

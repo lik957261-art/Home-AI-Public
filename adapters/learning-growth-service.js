@@ -1,6 +1,7 @@
 "use strict";
 
 const { createLearningV1ReadinessService } = require("./learning-v1-readiness-service");
+const { buildLearningLaunchOperations } = require("./learning-launch-operations-service");
 
 const LEARNING_GROWTH_MODULE_ID = "fanfan-growth";
 
@@ -286,7 +287,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
         limit: request.limit,
       })
     : null;
-  const programs = learningProgramService && typeof learningProgramService.overview === "function"
+  const programOverview = learningProgramService && typeof learningProgramService.overview === "function"
     ? learningProgramService.overview({
         workspaceId: request.workspaceId,
         learnerId: request.learnerId,
@@ -295,6 +296,12 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
       })
     : null;
   const metrics = coinMetric(coins || {});
+  const launchOperations = programOverview
+    ? buildLearningLaunchOperations({ programs: programOverview, coins, metrics })
+    : null;
+  const programs = programOverview && typeof programOverview === "object"
+    ? Object.assign({}, programOverview, { launchOperations })
+    : programOverview;
   const operationalReadiness = readinessService.evaluate({
     programs,
     coins,
@@ -324,6 +331,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
     platformCapabilities: learningGrowthPlatformCapabilities(),
     reliability: learningGrowthReliabilitySummary(),
     operationalReadiness,
+    launchOperations,
     programs,
     coins,
     nextModules: [
