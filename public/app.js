@@ -2243,6 +2243,7 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
+  ["projectsMode", "bottomProjectsMode", "automationMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = Boolean(state.auth && !state.auth.isOwner); node.disabled = Boolean(state.auth && !state.auth.isOwner); } });
   updateTopMoreControls();
 }
 
@@ -3945,7 +3946,7 @@ function applyRouteParams(params) {
   const assessmentExamRequested = ["1", "true", "yes"].includes(String(params.get("assessmentExam") || params.get("assessment_exam") || "").trim().toLowerCase());
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
-  const routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
+  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : ""); if (state.auth && !state.auth.isOwner && (routeView === "projects" || routeView === "automation")) routeView = "learning";
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && state.workspaces.some((item) => item.id === workspaceId)) {
     state.selectedWorkspaceId = workspaceId;
@@ -4059,8 +4060,7 @@ async function openNotificationRoute(value) {
   await loadSelectedView();
 }
 
-function applyDefaultLaunchView() {
-  state.viewMode = "single";
+function applyDefaultLaunchView() { state.viewMode = state.auth?.isOwner ? "single" : "learning";
   setSingleWindowMode("chat");
   state.weixinChatOpen = false;
   state.currentTaskGroupId = "";
