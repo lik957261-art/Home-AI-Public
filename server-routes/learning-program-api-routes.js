@@ -11,9 +11,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "listPrograms",
     summary: "Read sanitized learning program configs stored in SQLite.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-program"],
     tags: ["learning", "program", "sqlite"],
@@ -41,9 +42,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "getProgram",
     summary: "Read one sanitized learning program.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-program"],
     tags: ["learning", "program"],
@@ -56,9 +58,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "listSources",
     summary: "Read sanitized learner source summaries from SQLite.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-source"],
     tags: ["learning", "source", "sqlite"],
@@ -86,9 +89,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "listGoals",
     summary: "Read learner goals from SQLite.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-goal"],
     tags: ["learning", "goal", "sqlite"],
@@ -131,9 +135,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "getLearnerProfile",
     summary: "Read the sanitized learner profile and skill states.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learner-profile", "skill-state"],
     tags: ["learning", "profile"],
@@ -161,9 +166,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "listCurriculumReferences",
     summary: "Read public curriculum reference metadata used for learning planning.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: false,
     resourceTypes: ["curriculum-reference"],
     tags: ["learning", "curriculum", "reference"],
@@ -251,9 +257,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "listTaskCards",
     summary: "Read summarized SQLite learning task cards.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-task-card"],
     tags: ["learning", "task-card", "sqlite"],
@@ -386,9 +393,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "listRewardSettlements",
     summary: "Read summarized learning reward settlement records.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-reward-settlement"],
     tags: ["learning", "reward", "settlement"],
@@ -401,9 +409,10 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "learning-program",
     handlerKey: "getRewardSettlement",
     summary: "Read one summarized learning reward settlement.",
-    riskLevel: "low",
-    authMode: "access-key",
+    riskLevel: "owner",
+    authMode: "owner",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-reward-settlement"],
     tags: ["learning", "reward", "settlement"],
@@ -503,10 +512,15 @@ function createLearningProgramApiRoutes(deps = {}) {
     };
   }
 
+  function authorizeOwnerQuery(req, res, url, auth) {
+    if (!deps.requireOwner(req, res)) return null;
+    return authorizeQuery(req, res, url, auth);
+  }
+
   async function handleList(req, res, url, auth) {
     let query;
     try {
-      query = authorizeQuery(req, res, url, auth);
+      query = authorizeOwnerQuery(req, res, url, auth);
     } catch (err) {
       sendRouteError(deps, res, err);
       return;
@@ -518,7 +532,7 @@ function createLearningProgramApiRoutes(deps = {}) {
   async function handleSourceList(req, res, url, auth) {
     let query;
     try {
-      query = authorizeQuery(req, res, url, auth);
+      query = authorizeOwnerQuery(req, res, url, auth);
     } catch (err) {
       sendRouteError(deps, res, err);
       return;
@@ -550,7 +564,7 @@ function createLearningProgramApiRoutes(deps = {}) {
   async function handleGoalList(req, res, url, auth) {
     let query;
     try {
-      query = authorizeQuery(req, res, url, auth);
+      query = authorizeOwnerQuery(req, res, url, auth);
     } catch (err) {
       sendRouteError(deps, res, err);
       return;
@@ -598,7 +612,7 @@ function createLearningProgramApiRoutes(deps = {}) {
   async function handleProfileRead(req, res, url, auth) {
     let query;
     try {
-      query = authorizeQuery(req, res, url, auth);
+      query = authorizeOwnerQuery(req, res, url, auth);
     } catch (err) {
       sendRouteError(deps, res, err);
       return;
@@ -621,6 +635,7 @@ function createLearningProgramApiRoutes(deps = {}) {
   }
 
   async function handleCurriculumReferences(req, res, url) {
+    if (!deps.requireOwner(req, res)) return;
     deps.sendJson(res, 200, {
       ok: true,
       curriculumReferences: service.listCurriculumReferences({
@@ -684,6 +699,7 @@ function createLearningProgramApiRoutes(deps = {}) {
   }
 
   async function handleRead(req, res, url, auth) {
+    if (!deps.requireOwner(req, res)) return;
     const programId = pathId(url.pathname, /^\/api\/learning\/programs\/([^/]+)$/);
     const program = service.getProgram(programId);
     if (!program) {
@@ -756,7 +772,7 @@ function createLearningProgramApiRoutes(deps = {}) {
   async function handleTaskCardsList(req, res, url, auth) {
     let query;
     try {
-      query = authorizeQuery(req, res, url, auth);
+      query = authorizeOwnerQuery(req, res, url, auth);
     } catch (err) {
       sendRouteError(deps, res, err);
       return;
@@ -884,7 +900,7 @@ function createLearningProgramApiRoutes(deps = {}) {
   async function handleRewardSettlementsList(req, res, url, auth) {
     let query;
     try {
-      query = authorizeQuery(req, res, url, auth);
+      query = authorizeOwnerQuery(req, res, url, auth);
     } catch (err) {
       sendRouteError(deps, res, err);
       return;
@@ -894,6 +910,7 @@ function createLearningProgramApiRoutes(deps = {}) {
   }
 
   async function handleRewardSettlementRead(req, res, url, auth) {
+    if (!deps.requireOwner(req, res)) return;
     const rewardSettlementId = pathId(url.pathname, /^\/api\/learning\/reward-settlements\/([^/]+)$/);
     const rewardSettlement = service.getRewardSettlement(rewardSettlementId);
     if (!authorizeRecord(req, res, auth, rewardSettlement, "Learning reward settlement not found")) return;

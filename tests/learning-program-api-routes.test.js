@@ -227,13 +227,29 @@ async function testCreateAndDraftRequireOwner() {
   assert.equal(drafted.body.taskCards[0].taskCardId, "task-1");
 }
 
-async function testStudentCannotReadAnotherLearner() {
+async function testStudentCannotReadManagementSurfaces() {
   const { routes } = makeRoutes();
-  const denied = await request(routes, "GET", "/api/learning/programs?workspaceId=weixin_stephen&learnerId=other", {
+  const denied = await request(routes, "GET", "/api/learning/programs?workspaceId=weixin_stephen&learnerId=weixin_stephen", {
     auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
   });
   assert.equal(denied.res.statusCode, 403);
-  assert.equal(denied.body.error, "Learner access is not allowed");
+  assert.equal(denied.body.error, "Owner access required");
+
+  for (const path of [
+    "/api/learning/sources?workspaceId=weixin_stephen&learnerId=weixin_stephen",
+    "/api/learning/goals?workspaceId=weixin_stephen&learnerId=weixin_stephen",
+    "/api/learning/profile?workspaceId=weixin_stephen&learnerId=weixin_stephen",
+    "/api/learning/curriculum-references?domain=english",
+    "/api/learning/task-cards?workspaceId=weixin_stephen&learnerId=weixin_stephen",
+    "/api/learning/reward-settlements?workspaceId=weixin_stephen&learnerId=weixin_stephen",
+    "/api/learning/reward-settlements/settle-1",
+  ]) {
+    const response = await request(routes, "GET", path, {
+      auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    });
+    assert.equal(response.res.statusCode, 403, path);
+    assert.equal(response.body.error, "Owner access required", path);
+  }
 }
 
 async function testReviewDecision() {
@@ -335,9 +351,7 @@ async function testTaskSessionEvaluationRoutes() {
   const rewards = await request(routes, "GET", "/api/learning/reward-settlements?workspaceId=weixin_stephen&learnerId=weixin_stephen");
   assert.equal(rewards.res.statusCode, 200);
   assert.equal(rewards.body.rewardSettlements[0].rewardSettlementId, "settle-1");
-  const rewardRead = await request(routes, "GET", "/api/learning/reward-settlements/settle-1", {
-    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
-  });
+  const rewardRead = await request(routes, "GET", "/api/learning/reward-settlements/settle-1");
   assert.equal(rewardRead.res.statusCode, 200);
   assert.ok(calls.some((call) => call[0] === "recordEvaluation"));
   assert.ok(calls.some((call) => call[0] === "settleEvaluationReward"));
@@ -346,7 +360,7 @@ async function testTaskSessionEvaluationRoutes() {
 (async () => {
   await testMetadata();
   await testCreateAndDraftRequireOwner();
-  await testStudentCannotReadAnotherLearner();
+  await testStudentCannotReadManagementSurfaces();
   await testReviewDecision();
   await testFoundationRoutes();
   await testTaskSessionEvaluationRoutes();

@@ -278,6 +278,8 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["learning-growth", "learning-coin", "learning-program"],
   })),
   exact("learning-programs-list", "GET", "/api/learning/programs", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-program"],
   })),
@@ -287,10 +289,14 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["learning-program"],
   })),
   regex("learning-program-read", "GET", /^\/api\/learning\/programs\/[^/]+$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-program"],
   })),
   exact("learning-sources-list", "GET", "/api/learning/sources", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-source"],
   })),
@@ -300,6 +306,8 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["learning-source"],
   })),
   exact("learning-goals-list", "GET", "/api/learning/goals", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-goal"],
   })),
@@ -314,6 +322,8 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["learning-goal"],
   })),
   exact("learning-profile-read", "GET", "/api/learning/profile", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learner-profile", "skill-state"],
   })),
@@ -323,6 +333,8 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["learner-profile", "skill-state"],
   })),
   exact("learning-curriculum-references-list", "GET", "/api/learning/curriculum-references", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     resourceTypes: ["curriculum-reference"],
   })),
   exact("learning-foundation-import", "POST", "/api/learning/foundation-import", "learning-program", routeOptions("learning-program", {
@@ -351,6 +363,8 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["learning-program", "kanban"],
   })),
   exact("learning-task-cards-list", "GET", "/api/learning/task-cards", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-task-card"],
   })),
@@ -391,10 +405,14 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["learning-evaluation", "learning-reward-settlement", "learning-coin"],
   })),
   exact("learning-reward-settlements-list", "GET", "/api/learning/reward-settlements", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-reward-settlement"],
   })),
   regex("learning-reward-settlement-read", "GET", /^\/api\/learning\/reward-settlements\/[^/]+$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["learning-reward-settlement"],
   })),
