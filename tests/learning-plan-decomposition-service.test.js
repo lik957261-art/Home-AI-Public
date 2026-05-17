@@ -47,6 +47,12 @@ function testEnglishPlanIncludesExtensibleSkillCards() {
   assert.ok(tasks.some((task) => task.templateId === "english-presentation-project-v1"));
   assert.ok(tasks.some((task) => task.taskCardType === "project_card"));
   assert.ok(tasks.some((task) => task.taskCardType === "mistake_repair_card"));
+  const writingTask = tasks.find((task) => task.skillIds.includes("english_short_writing"));
+  assert.ok(writingTask);
+  assert.match(writingTask.learnerInstruction, /Write a first draft of 6-8 English sentences/);
+  assert.match(writingTask.summary, /Task instruction:/);
+  assert.ok(writingTask.deliverables.includes("first English draft"));
+  assert.ok(writingTask.acceptance.some((item) => /6-8 English sentences/.test(item)));
   assert.ok(tasks.some((task) => task.interactionStateMachine.includes("learner_listens")));
   assert.ok(tasks.some((task) => task.interactionStateMachine.includes("learner_rehearses")));
   assert.ok(tasks.every((task) => task.sourceBasisRefs.includes("parent_config:program-1")));

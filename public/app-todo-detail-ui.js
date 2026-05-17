@@ -8,6 +8,7 @@ function renderTodoDetail(todo) {
   const completed = kanban && (kanbanStatus === "done" || todo.status === "completed");
   const readingCard = kanban && isKanbanReadingCard(todo);
   const assessmentCard = kanban && isKanbanAssessmentCard(todo);
+  const learningGrowthCard = kanban && isKanbanLearningGrowthCard(todo);
   const canManage = !kanban || kanbanCan(todo, "canManage");
   const canRevise = !kanban || kanbanCan(todo, "canRevise");
   const canComment = !kanban || kanbanCan(todo, "canComment");
@@ -48,7 +49,7 @@ function renderTodoDetail(todo) {
       ${skillRows}
     </details>`
     : `<div class="todo-detail-grid">${gridItems}</div>${skillRows}`;
-  const showGenericCommentPanel = !readingCard && !assessmentCard;
+  const showGenericCommentPanel = !readingCard && !assessmentCard && !learningGrowthCard;
   const commentPanel = kanban && open && canComment && showGenericCommentPanel
     ? `<form class="todo-comment-panel" data-todo-comment-form="${escapeHtml(todo.id)}">
       <textarea id="todoCommentText" class="todo-input todo-comment-textarea" rows="4" placeholder="写评论、完成说明或执行记录，可留空">${escapeHtml(state.todoCommentDrafts?.[todo.id] || "")}</textarea>
@@ -70,14 +71,14 @@ function renderTodoDetail(todo) {
     </form>`
     : "";
   const managementPanel = open && canManage
-    ? `<details class="todo-admin-panel"${readingCard || assessmentCard ? "" : " open"}>
+    ? `<details class="todo-admin-panel"${readingCard || assessmentCard || learningGrowthCard ? "" : " open"}>
       <summary>
         <span>卡片管理</span>
         <small>阻塞、取消、延期</small>
       </summary>
       <div class="todo-admin-panel-body">
         <div class="todo-detail-actions">
-          ${readingCard || assessmentCard ? "" : `<button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>`}
+          ${readingCard || assessmentCard || learningGrowthCard ? "" : `<button type="button" data-complete-todo="${escapeHtml(todo.id)}">完成</button>`}
           ${kanban && !blocked ? `<button type="button" data-block-todo="${escapeHtml(todo.id)}">标记阻塞</button>` : ""}
           ${kanban && blocked ? `<button type="button" data-unblock-todo="${escapeHtml(todo.id)}">解除阻塞</button>` : ""}
           <button type="button" data-cancel-todo="${escapeHtml(todo.id)}">取消</button>

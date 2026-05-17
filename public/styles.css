@@ -6553,6 +6553,24 @@ button.directory-alias-chip {
   background: rgba(236, 249, 245, 0.48);
 }
 
+.todo-learning-growth-prompt {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.todo-learning-growth-prompt strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.todo-learning-growth-prompt p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .todo-detail-chip-row {
   display: flex;
   flex-wrap: wrap;

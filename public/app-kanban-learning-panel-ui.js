@@ -11,10 +11,14 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   if (!isKanbanLearningGrowthCard(todo) || !todoMatchesOpen(todo)) return "";
   const blocked = normalizedKanbanStatus(todo) === "blocked";
   const goal = String(todo?.kanbanCaseCardGoal || todo?.description || "").trim();
+  const goalText = `${String(todo?.content || "")}\n${goal}`;
+  const hasConcretePrompt = /Task instruction:/i.test(goal) || /Task prompt:/i.test(goal) || /first draft|rewrite|Interaction flow:/i.test(goal);
+  const looksGenericSubmitCard = /submit output|study output|Submission:/i.test(goalText) && !hasConcretePrompt;
   const deliverables = Array.isArray(todo?.kanbanCaseDeliverables) ? todo.kanbanCaseDeliverables : [];
   const acceptance = Array.isArray(todo?.kanbanCaseAcceptance) ? todo.kanbanCaseAcceptance : [];
   const details = [
-    goal ? `<p>${escapeHtml(goal)}</p>` : "",
+    looksGenericSubmitCard ? `<p class="todo-detail-muted">This Growth card has no concrete task prompt. Regenerate or republish the Growth plan before the learner submits work.</p>` : "",
+    goal ? `<div class="todo-learning-growth-prompt"><strong>Task instruction</strong><p>${escapeHtml(goal)}</p></div>` : "",
     deliverables.length ? `<div class="todo-detail-chip-row">${deliverables.slice(0, 4).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : "",
     acceptance.length ? `<ul>${acceptance.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "",
   ].filter(Boolean).join("");

@@ -110,11 +110,99 @@ function stateMachineForSkill(skillId) {
   return ["receive_task", "ai_explains_goal", "learner_attempt", "ai_hint", "learner_revision", "ai_evaluation", "mistake_explanation", "learner_restates_reason", "variant_repair", "reward_settlement", "next_task_feedback"];
 }
 
+function learnerPromptForSkill(skillId, program = {}, options = {}) {
+  const goal = cleanString(program.goalSummary);
+  const minutes = clampInt(options.minutes, 8, 45, 15);
+  if (skillId === "english_short_writing") {
+    return [
+      "Write a first draft of 6-8 English sentences.",
+      "Topic: one real school or daily-life moment from this week.",
+      "Requirements: include one clear opinion, one reason, one concrete example, and at least three active vocabulary words.",
+      "Submit the first draft in the Growth task flow, then rewrite it after AI feedback.",
+      "Do not submit only a completion note; the answer must be the actual English draft.",
+      goal ? `Focus for this program: ${goal}` : "",
+    ].filter(Boolean).join(" ");
+  }
+  if (skillId === "english_vocabulary_active_use") {
+    return [
+      "Write 5 original English sentences using the target vocabulary in a school or daily-life context.",
+      "Each sentence should be specific enough for AI feedback and later correction.",
+      "After feedback, repair at least two sentences.",
+    ].join(" ");
+  }
+  if (skillId === "english_grammar_in_expression") {
+    return [
+      "Repair the target grammar pattern in short English expressions.",
+      "Write 4 corrected sentences, explain the pattern in one simple sentence, then complete one variant repair.",
+    ].join(" ");
+  }
+  if (skillId === "english_listening_input") {
+    return [
+      "Listen to the assigned short input inside the Growth task flow.",
+      "Write 3-5 key points in English, then retry the missed part after AI replay guidance.",
+    ].join(" ");
+  }
+  if (skillId === "english_speaking_retell") {
+    return [
+      "Retell the assigned short material inside the Growth task flow.",
+      "First give the main idea, then two details, then retry after AI hints.",
+    ].join(" ");
+  }
+  if (skillId === "english_pronunciation_shadowing") {
+    return [
+      "Shadow the assigned sentence group inside the Growth task flow.",
+      "Repeat after AI marks pronunciation gaps, then submit the repaired attempt.",
+    ].join(" ");
+  }
+  if (skillId === "english_presentation") {
+    return [
+      "Prepare a short English presentation outline with opening, two main points, and closing.",
+      "Rehearse it inside the Growth task flow and improve after AI feedback.",
+    ].join(" ");
+  }
+  return [
+    "Complete the assigned English comprehension task inside the Growth task flow.",
+    `Spend about ${minutes} minutes, answer the task instruction, revise after hints, and finish the repair step.`,
+  ].join(" ");
+}
+
+function deliverablesForSkill(skillId) {
+  if (skillId === "english_short_writing") return ["first English draft", "AI feedback", "rewritten draft", "one-sentence reflection"];
+  if (skillId === "english_vocabulary_active_use") return ["original vocabulary sentences", "AI feedback", "repaired sentences"];
+  if (skillId === "english_grammar_in_expression") return ["grammar repair answers", "rule explanation", "variant repair"];
+  if (skillId === "english_listening_input") return ["key-point notes", "gap replay feedback", "retry answer"];
+  if (skillId === "english_speaking_retell") return ["retell attempt", "AI hint record", "retry retell"];
+  if (skillId === "english_pronunciation_shadowing") return ["shadowing attempt", "pronunciation gap feedback", "repaired repeat"];
+  if (skillId === "english_presentation") return ["presentation outline", "rehearsal attempt", "feedback-based repair"];
+  return ["learner answer", "AI hint", "revision", "repair step"];
+}
+
+function acceptanceForSkill(skillId) {
+  if (skillId === "english_short_writing") {
+    return [
+      "first draft contains 6-8 English sentences",
+      "draft includes opinion, reason, example, and three active vocabulary words",
+      "rewrite responds to AI feedback",
+      "final evaluation and reward settlement are recorded",
+    ];
+  }
+  if (skillId === "english_vocabulary_active_use") return ["5 original sentences submitted", "at least 2 sentences repaired after feedback", "evaluation recorded"];
+  if (skillId === "english_grammar_in_expression") return ["4 corrected sentences submitted", "pattern explanation submitted", "variant repair completed"];
+  if (skillId === "english_listening_input") return ["key points submitted", "missed part retried", "evaluation recorded"];
+  if (skillId === "english_speaking_retell") return ["retell attempt submitted", "retry after hint completed", "evaluation recorded"];
+  if (skillId === "english_pronunciation_shadowing") return ["shadowing attempt submitted", "pronunciation repair completed", "evaluation recorded"];
+  if (skillId === "english_presentation") return ["outline submitted", "rehearsal completed", "feedback repair completed"];
+  return ["answer submitted", "AI feedback generated", "revision completed", "evaluation recorded"];
+}
+
 function buildTask(program, options = {}) {
   const template = templateForSkill(options.skillId, options.templates);
   const sourceBasisRefs = uniqueStrings(program.sourceBasisRefs);
   const curriculumRefs = uniqueStrings(program.curriculumRefs);
   const minutes = clampInt(options.minutes, 8, 45, 15);
+  const learnerPrompt = learnerPromptForSkill(options.skillId, program, { minutes });
+  const deliverables = deliverablesForSkill(options.skillId);
+  const acceptance = acceptanceForSkill(options.skillId);
   return {
     taskId: taskId(program.programId, options.dayIndex, options.order),
     title: titleForSkill(options.skillId),
@@ -132,7 +220,11 @@ function buildTask(program, options = {}) {
     privacyLevel: "summary_only",
     aiInputContract: "learning_task_generation_input_v1",
     aiOutputContract: "learning_task_card_v1",
-    summary: `${titleForSkill(options.skillId)}; use only referenced source summaries and curriculum references.`,
+    learnerInstruction: learnerPrompt,
+    instruction: learnerPrompt,
+    deliverables,
+    acceptance,
+    summary: `${titleForSkill(options.skillId)}. Task instruction: ${learnerPrompt}`,
   };
 }
 

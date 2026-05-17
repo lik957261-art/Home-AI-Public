@@ -145,6 +145,7 @@ assert.match(fileViewer, /\.viewer-toast \{[\s\S]*?z-index: 30;/);
 assert.match(fileViewer, /\.viewer-sheet \{[\s\S]*?z-index: 20;/);
 assert.match(fileViewer, /\.viewer-sheet-status\.error/);
 assert.match(fileViewer, /function forwardMarkdownToGroup\(\)/);
+assert.doesNotMatch(fileViewer, /resolveWeixinForwardTarget/);
 assert.match(fileViewer, /\/api\/single-window/);
 assert.match(fileViewer, /taskGroupId: "group-chat"/);
 assert.match(fileViewer, /messageKind: "plain"/);

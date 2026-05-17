@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260517-shared-skill-path";
+const HERMES_SW_VERSION = "20260517-viewer-network-first";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,62 +8,62 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260517-shared-skill-path",
-  "/app-task-artifact-helpers.js?v=20260517-shared-skill-path",
-  "/app-kanban-story-helpers.js?v=20260517-shared-skill-path",
-  "/app-learning-reading-ui.js?v=20260517-shared-skill-path",
-  "/app-learning-coins-ui.js?v=20260517-shared-skill-path",
-  "/app-learning-program-ui.js?v=20260517-shared-skill-path",
-  "/app-learning-growth-ui.js?v=20260517-shared-skill-path",
-  "/app-api-client.js?v=20260517-shared-skill-path",
-  "/app.js?v=20260517-shared-skill-path",
-  "/app-shell-ui.js?v=20260517-shared-skill-path",
-  "/app-task-groups-ui.js?v=20260517-shared-skill-path",
-  "/app-chat-composer-ui.js?v=20260517-shared-skill-path",
-  "/app-composer-context-ui.js?v=20260517-shared-skill-path",
-  "/app-run-progress-ui.js?v=20260517-shared-skill-path",
-  "/app-navigation-search-ui.js?v=20260517-shared-skill-path",
-  "/app-sidebar-task-ui.js?v=20260517-shared-skill-path",
-  "/app-message-actions-ui.js?v=20260517-shared-skill-path",
-  "/app-platform-ui.js?v=20260517-shared-skill-path",
-  "/app-pwa-settings-push-ui.js?v=20260517-shared-skill-path",
-  "/app-workspace-admin-ui.js?v=20260517-shared-skill-path",
-  "/app-access-key-manager-ui.js?v=20260517-shared-skill-path",
-  "/app-share-image-ui.js?v=20260517-shared-skill-path",
-  "/app-draft-thread-ui.js?v=20260517-shared-skill-path",
-  "/app-directory-automation-ui.js?v=20260517-shared-skill-path",
-  "/app-shared-directory-ui.js?v=20260517-shared-skill-path",
-  "/app-automation-ui.js?v=20260517-shared-skill-path",
-  "/app-learning-growth-controller.js?v=20260517-shared-skill-path",
-  "/app-automation-controller-ui.js?v=20260517-shared-skill-path",
-  "/app-thread-state-ui.js?v=20260517-shared-skill-path",
-  "/app-group-topic-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-core-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-story-core-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-todo-core-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-render-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-list-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-learning-panel-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-recorder-ui.js?v=20260517-shared-skill-path",
-  "/app-todo-detail-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-actions-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-composer-actions-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-card-actions-ui.js?v=20260517-shared-skill-path",
-  "/app-kanban-study-actions-ui.js?v=20260517-shared-skill-path",
-  "/app-thread-message-ui.js?v=20260517-shared-skill-path",
-  "/app-thread-list-ui.js?v=20260517-shared-skill-path",
-  "/app-thread-directory-ui.js?v=20260517-shared-skill-path",
-  "/app-thread-card-message-ui.js?v=20260517-shared-skill-path",
-  "/app-rich-text-directory-ui.js?v=20260517-shared-skill-path",
-  "/app-message-usage-ui.js?v=20260517-shared-skill-path",
-  "/app-events-composer-ui.js?v=20260517-shared-skill-path",
-  "/app-event-stream-ui.js?v=20260517-shared-skill-path",
-  "/app-upload-sidebar-ui.js?v=20260517-shared-skill-path",
-  "/app-composer-send-ui.js?v=20260517-shared-skill-path",
-  "/app-wire-start-ui.js?v=20260517-shared-skill-path",
-  "/app-start.js?v=20260517-shared-skill-path",
+  "/styles.css?v=20260517-viewer-network-first",
+  "/app-task-artifact-helpers.js?v=20260517-viewer-network-first",
+  "/app-kanban-story-helpers.js?v=20260517-viewer-network-first",
+  "/app-learning-reading-ui.js?v=20260517-viewer-network-first",
+  "/app-learning-coins-ui.js?v=20260517-viewer-network-first",
+  "/app-learning-program-ui.js?v=20260517-viewer-network-first",
+  "/app-learning-growth-ui.js?v=20260517-viewer-network-first",
+  "/app-api-client.js?v=20260517-viewer-network-first",
+  "/app.js?v=20260517-viewer-network-first",
+  "/app-shell-ui.js?v=20260517-viewer-network-first",
+  "/app-task-groups-ui.js?v=20260517-viewer-network-first",
+  "/app-chat-composer-ui.js?v=20260517-viewer-network-first",
+  "/app-composer-context-ui.js?v=20260517-viewer-network-first",
+  "/app-run-progress-ui.js?v=20260517-viewer-network-first",
+  "/app-navigation-search-ui.js?v=20260517-viewer-network-first",
+  "/app-sidebar-task-ui.js?v=20260517-viewer-network-first",
+  "/app-message-actions-ui.js?v=20260517-viewer-network-first",
+  "/app-platform-ui.js?v=20260517-viewer-network-first",
+  "/app-pwa-settings-push-ui.js?v=20260517-viewer-network-first",
+  "/app-workspace-admin-ui.js?v=20260517-viewer-network-first",
+  "/app-access-key-manager-ui.js?v=20260517-viewer-network-first",
+  "/app-share-image-ui.js?v=20260517-viewer-network-first",
+  "/app-draft-thread-ui.js?v=20260517-viewer-network-first",
+  "/app-directory-automation-ui.js?v=20260517-viewer-network-first",
+  "/app-shared-directory-ui.js?v=20260517-viewer-network-first",
+  "/app-automation-ui.js?v=20260517-viewer-network-first",
+  "/app-learning-growth-controller.js?v=20260517-viewer-network-first",
+  "/app-automation-controller-ui.js?v=20260517-viewer-network-first",
+  "/app-thread-state-ui.js?v=20260517-viewer-network-first",
+  "/app-group-topic-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-core-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-story-core-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-todo-core-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-render-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-list-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-learning-panel-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-recorder-ui.js?v=20260517-viewer-network-first",
+  "/app-todo-detail-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-actions-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-composer-actions-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-card-actions-ui.js?v=20260517-viewer-network-first",
+  "/app-kanban-study-actions-ui.js?v=20260517-viewer-network-first",
+  "/app-thread-message-ui.js?v=20260517-viewer-network-first",
+  "/app-thread-list-ui.js?v=20260517-viewer-network-first",
+  "/app-thread-directory-ui.js?v=20260517-viewer-network-first",
+  "/app-thread-card-message-ui.js?v=20260517-viewer-network-first",
+  "/app-rich-text-directory-ui.js?v=20260517-viewer-network-first",
+  "/app-message-usage-ui.js?v=20260517-viewer-network-first",
+  "/app-events-composer-ui.js?v=20260517-viewer-network-first",
+  "/app-event-stream-ui.js?v=20260517-viewer-network-first",
+  "/app-upload-sidebar-ui.js?v=20260517-viewer-network-first",
+  "/app-composer-send-ui.js?v=20260517-viewer-network-first",
+  "/app-wire-start-ui.js?v=20260517-viewer-network-first",
+  "/app-start.js?v=20260517-viewer-network-first",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260517-shared-skill-path",
+  "/markdown-renderer-client.js?v=20260517-viewer-network-first",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",
@@ -94,6 +94,9 @@ self.addEventListener("activate", (event) => {
         .slice(0, Math.max(0, shellKeys.length - HERMES_MAX_SHELL_CACHES));
       await Promise.all(removable
         .map((key) => caches.delete(key)));
+      await Promise.all(shellKeys
+        .filter((key) => key !== HERMES_APP_SHELL_CACHE && !removable.includes(key))
+        .map(async (key) => deleteCachedViewerShell(await caches.open(key))));
     } catch (_) {
       // Cache cleanup is best-effort.
     }
@@ -127,6 +130,23 @@ async function matchCachedStatic(request) {
     || null;
 }
 
+function isViewerShellRequest(url) {
+  return url.pathname === "/file-viewer.html";
+}
+
+async function deleteCachedViewerShell(cache) {
+  const requests = await cache.keys();
+  await Promise.all(requests
+    .filter((request) => {
+      try {
+        return new URL(request.url).pathname === "/file-viewer.html";
+      } catch (_) {
+        return false;
+      }
+    })
+    .map((request) => cache.delete(request)));
+}
+
 async function networkFirst(request, fallbackUrl = "/") {
   const cache = await caches.open(HERMES_APP_SHELL_CACHE);
   try {
@@ -158,6 +178,21 @@ async function networkFirstStatic(request) {
   }
 }
 
+async function networkFirstViewerShell(request) {
+  const cache = await caches.open(HERMES_APP_SHELL_CACHE);
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response && response.ok) cache.put("/file-viewer.html", response.clone()).catch(() => {});
+    return response;
+  } catch (_) {
+    return (await cache.match("/file-viewer.html"))
+      || new Response("Hermes Mobile file viewer is unavailable.", {
+        status: 503,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+  }
+}
+
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(HERMES_APP_SHELL_CACHE);
   const cached = await matchCachedStatic(request);
@@ -176,6 +211,10 @@ self.addEventListener("fetch", (event) => {
   if (isApiOrEventRequest(url)) return;
   if (request.mode === "navigate") {
     event.respondWith(networkFirst(request, "/"));
+    return;
+  }
+  if (isViewerShellRequest(url)) {
+    event.respondWith(networkFirstViewerShell(request));
     return;
   }
   if (isCriticalStaticRequest(url)) {

@@ -31,8 +31,19 @@ async function run() {
       weekEnd: "2026-05-23",
       taskCount: 2,
       dailyPlans: [
-        { date: "2026-05-17", tasks: [{ taskId: "task-1", title: "Task one" }] },
-        { date: "2026-05-18", tasks: [{ taskId: "task-2", title: "Task two" }] },
+        {
+          date: "2026-05-17",
+          tasks: [{
+            taskId: "task-1",
+            title: "Short writing",
+            learnerInstruction: "Write a first draft of 6-8 English sentences.",
+            deliverables: ["first English draft", "rewritten draft"],
+            acceptance: ["first draft submitted", "rewrite submitted"],
+            interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback", "learner_rewrites"],
+            plannedMinutes: 15,
+          }],
+        },
+        { date: "2026-05-18", tasks: [{ taskId: "task-2", title: "Task two", instruction: "Answer the second instruction." }] },
       ],
     },
   });
@@ -46,6 +57,14 @@ async function run() {
   assert.equal(calls[0].input.performerWorkspaceIds[0], "weixin_stephen");
   assert.equal(calls[0].input.viewerWorkspaceIds[0], "weixin_stephen");
   assert.match(calls[0].input.submissionLabel, /Fanfan Growth/);
+  assert.equal(calls[0].input.sessions, 2);
+  assert.equal(calls[0].input.cards.length, 2);
+  assert.equal(calls[0].input.cards[0].clientId, "task-1");
+  assert.equal(calls[0].input.cards[0].title, "Short writing");
+  assert.equal(calls[0].input.cards[0].dueTime, "2026-05-17 19:30");
+  assert.equal(calls[0].input.cards[0].deliverables[0], "first English draft");
+  assert.match(calls[0].input.cards[0].description, /Task instruction:\nWrite a first draft/);
+  assert.match(calls[0].input.cards[0].description, /Interaction flow:/);
 }
 
 run().then(() => {

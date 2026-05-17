@@ -81,6 +81,40 @@ function testStudyPlanNormalizationAndPayloadsDoNotNeedSideEffects() {
   assert.match(payloads[0].idempotencyKey, /^hm-study-plan-/);
 }
 
+function testLearningGrowthPlanUsesProvidedTaskCards() {
+  const service = makeService();
+  const plan = service.normalizeStudyPlan({
+    template: "learning-growth",
+    contentTitle: "English Growth Week",
+    learnerName: "Learner A",
+    subject: "English Growth",
+    sessions: 5,
+    startDate: "2026-05-15",
+    timeOfDay: "19:30",
+    performerWorkspaceIds: "learner",
+    cards: [{
+      taskId: "growth-task-1",
+      title: "Short writing",
+      learnerInstruction: "Task instruction:\nWrite a first draft of 6-8 English sentences.",
+      deliverables: ["first English draft", "rewritten draft"],
+      acceptance: ["first draft submitted", "rewrite submitted"],
+      dueTime: "2026-05-15 19:30",
+    }],
+  }, "owner");
+
+  assert.equal(plan.template, "learning-growth");
+  assert.equal(plan.sessions, 1);
+  assert.equal(plan.cards.length, 1);
+  assert.equal(plan.cards[0].clientId, "growth-task-1");
+  assert.equal(plan.cards[0].title, "Short writing");
+  assert.match(plan.cards[0].description, /Write a first draft/);
+  assert.deepEqual(plan.cards[0].deliverables, ["first English draft", "rewritten draft"]);
+  const payloads = service.buildStudyPlanCardPayloads(plan, { assignee: "principal-learner" });
+  assert.match(payloads[0].content, /Short writing/);
+  assert.match(payloads[0].caseCardGoal, /Task instruction:/);
+  assert.doesNotMatch(payloads[0].content, /submit output/);
+}
+
 function testCaseNamingAndDirectorySummary() {
   const root = path.join("C:\\", "workspace", "owner");
   const baseCase = path.join(root, "Learner A", "study-plan", "Short Stories");
@@ -156,6 +190,7 @@ function testStandaloneHelpers() {
 
 testScheduleNormalization();
 testStudyPlanNormalizationAndPayloadsDoNotNeedSideEffects();
+testLearningGrowthPlanUsesProvidedTaskCards();
 testCaseNamingAndDirectorySummary();
 testShareAndCardStatusSummaries();
 testStandaloneHelpers();

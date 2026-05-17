@@ -307,7 +307,7 @@ function createKanbanStudyPlanService(options = {}) {
     const subject = compactText(raw.subject || raw.domain || (readingTemplate ? "reading" : "study"), 80);
     const activity = compactText(raw.activity || raw.activityType || raw.activity_type || (readingTemplate ? "reading retell" : "submit and review"), 120);
     const submissionLabel = compactText(raw.submissionLabel || raw.submission_label || (readingTemplate ? "retell audio" : "study output"), 120);
-    const sessions = Math.max(1, Math.min(maxSessions, Number(raw.sessions || raw.sessionCount || raw.session_count || 10) || 10));
+    const requestedSessions = Math.max(1, Math.min(maxSessions, Number(raw.sessions || raw.sessionCount || raw.session_count || 10) || 10));
     const startDate = normalizeReadingPlanStartDate(raw.startDate || raw.start_date, { now: nowDate() });
     const timeOfDay = normalizeReadingPlanTime(raw.timeOfDay || raw.time_of_day || raw.startTime || raw.start_time);
     const schedule = normalizeStudyPlanSchedule(raw, startDate, timeOfDay, { now: nowDate() });
@@ -333,7 +333,41 @@ function createKanbanStudyPlanService(options = {}) {
     ).filter((id) => id !== owner && !performerWorkspaceIds.includes(id));
     const summary = compactText(`${learnerName}: ${subject} - ${contentTitle}`, 180);
     const id = cleanString(raw.id) || createCaseId();
-    const cards = Array.from({ length: sessions }, (_, index) => {
+    const providedCards = Array.isArray(raw.cards)
+      ? raw.cards
+      : (Array.isArray(raw.taskCards) ? raw.taskCards : (Array.isArray(raw.task_cards) ? raw.task_cards : []));
+    const normalizedProvidedCards = providedCards.slice(0, maxSessions).map((card, index) => {
+      const day = Math.max(1, Number(card?.day || card?.dayIndex || card?.day_index || index + 1) || index + 1);
+      const title = compactText(card?.title || card?.content || `${learnerName} ${subject} ${day}: learning task`, 160);
+      const taskInstruction = compactText(
+        card?.description
+        || card?.taskInstruction
+        || card?.task_instruction
+        || card?.learnerInstruction
+        || card?.learner_instruction
+        || card?.taskPrompt
+        || card?.task_prompt
+        || card?.learnerPrompt
+        || card?.learner_prompt
+        || card?.prompt
+        || card?.summary
+        || title,
+        1800,
+      );
+      return {
+        clientId: cleanString(card?.clientId || card?.client_id || card?.taskId || card?.task_id || `${template}-task-${index + 1}`),
+        title,
+        day,
+        dueTime: cleanString(card?.dueTime || card?.due_time)
+          || readingPlanScheduleDueTime(schedule, index, { now: nowDate() }),
+        description: taskInstruction,
+        deliverables: Array.isArray(card?.deliverables) ? card.deliverables.map(cleanString).filter(Boolean) : [],
+        acceptance: Array.isArray(card?.acceptance) ? card.acceptance.map(cleanString).filter(Boolean) : [],
+        caseTemplate: cleanString(card?.caseTemplate || card?.case_template || template),
+      };
+    }).filter((card) => card.title && card.description);
+    const sessions = normalizedProvidedCards.length || requestedSessions;
+    const cards = normalizedProvidedCards.length ? normalizedProvidedCards : Array.from({ length: sessions }, (_, index) => {
       const day = index + 1;
       const title = readingTemplate
         ? `${learnerName} reading ${contentTitle} ${day}/${sessions}: retell`
