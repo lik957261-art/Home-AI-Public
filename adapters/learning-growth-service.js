@@ -150,7 +150,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
       id: LEARNING_GROWTH_MODULE_ID,
       title: "凡凡成长系统",
       hostView: "learning",
-      currentEntry: "金币标签",
+      currentEntry: "成长标签",
       standaloneReady: true,
       architecture: "same-repo-same-deploy-independent-product-entry",
     },

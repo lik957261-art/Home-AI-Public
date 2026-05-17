@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260517-learning-foundation-sqlite";
+const HERMES_SW_VERSION = "20260517-learning-growth-role-ui";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,17 +8,17 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260517-learning-foundation-sqlite",
-  "/app-task-artifact-helpers.js?v=20260517-learning-foundation-sqlite",
-  "/app-kanban-story-helpers.js?v=20260517-learning-foundation-sqlite",
-  "/app-learning-reading-ui.js?v=20260517-learning-foundation-sqlite",
-  "/app-learning-coins-ui.js?v=20260517-learning-foundation-sqlite",
-  "/app-learning-program-ui.js?v=20260517-learning-foundation-sqlite",
-  "/app-learning-growth-ui.js?v=20260517-learning-foundation-sqlite",
-  "/app-api-client.js?v=20260517-learning-foundation-sqlite",
-  "/app.js?v=20260517-learning-foundation-sqlite",
+  "/styles.css?v=20260517-learning-growth-role-ui",
+  "/app-task-artifact-helpers.js?v=20260517-learning-growth-role-ui",
+  "/app-kanban-story-helpers.js?v=20260517-learning-growth-role-ui",
+  "/app-learning-reading-ui.js?v=20260517-learning-growth-role-ui",
+  "/app-learning-coins-ui.js?v=20260517-learning-growth-role-ui",
+  "/app-learning-program-ui.js?v=20260517-learning-growth-role-ui",
+  "/app-learning-growth-ui.js?v=20260517-learning-growth-role-ui",
+  "/app-api-client.js?v=20260517-learning-growth-role-ui",
+  "/app.js?v=20260517-learning-growth-role-ui",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260517-learning-foundation-sqlite",
+  "/markdown-renderer-client.js?v=20260517-learning-growth-role-ui",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",

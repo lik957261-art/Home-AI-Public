@@ -20,6 +20,10 @@
     return typeof options[name] === "function" ? options[name] : fallback;
   }
 
+  function isOwner(options = {}) {
+    return Boolean(options.state?.auth?.isOwner);
+  }
+
   function statusText(status) {
     const value = String(status || "");
     if (value === "active") return "已接入";
@@ -68,6 +72,21 @@
     </section>`;
   }
 
+  function renderOwnerSystemPanel(overview = {}, options = {}) {
+    if (!isOwner(options)) return "";
+    return `<section class="learning-growth-category learning-growth-owner-system" data-learning-growth-category="owner-system">
+      <div class="learning-growth-category-heading">
+        <h3>后台与平台能力</h3>
+        <span>Owner</span>
+      </div>
+      ${renderPlatformStrip(overview.platformCapabilities || [], options)}
+      <section class="learning-growth-modules">
+        ${renderCapabilityCards(overview.capabilities || [], options)}
+      </section>
+      ${renderNextModules(overview.nextModules || [], options)}
+    </section>`;
+  }
+
   function renderLearningGrowthView(options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const overview = options.overview || {};
@@ -93,26 +112,23 @@
           learnerId: learner.id || options.learnerId,
         }))
       : `<div class="learning-coin-empty">金币子模块未加载。</div>`;
-    return `<div class="learning-growth-view" data-learning-product="fanfan-growth">
+    const owner = isOwner(options);
+    return `<div class="learning-growth-view" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
       <section class="learning-growth-shell-hero">
         <div>
-          <div class="learning-coin-eyebrow">${escapeHtml(moduleInfo.currentEntry || "金币标签")}</div>
+          <div class="learning-coin-eyebrow">${escapeHtml(owner ? (moduleInfo.currentEntry || "成长入口") : "成长")}</div>
           <h2>${escapeHtml(moduleInfo.title || "凡凡成长系统")}</h2>
-          <p>这是学习成长系统的独立产品入口。当前复用 Hermes Mobile 平台能力，金币已经收敛为成长系统内的激励子模块，后续可以拆成独立 APP。</p>
+          <p>${escapeHtml(owner ? "按执行、金币、分析和家长配置分区查看；金币仍是成长系统内部激励子模块。" : "这里只显示金币情况、待执行任务状态、分析与指导。")}</p>
         </div>
         <div class="learning-growth-shell-metrics">
           <span><strong>${escapeHtml(learnerLabel)}</strong><small>学习对象</small></span>
           <span><strong>${escapeHtml(String(metrics.sevenDayCoins || 0))}</strong><small>7 天金币</small></span>
-          <span><strong>${escapeHtml(String(metrics.pendingRedemptions || 0))}</strong><small>待审兑换</small></span>
+          <span><strong>${escapeHtml(String(metrics.pendingRedemptions || 0))}</strong><small>${owner ? "待审兑换" : "申请中"}</small></span>
         </div>
-      </section>
-      ${renderPlatformStrip(overview.platformCapabilities || [], options)}
-      <section class="learning-growth-modules">
-        ${renderCapabilityCards(overview.capabilities || [], options)}
       </section>
       ${programsHtml}
       ${coinsHtml}
-      ${renderNextModules(overview.nextModules || [], options)}
+      ${renderOwnerSystemPanel(overview, options)}
     </div>`;
   }
 
@@ -120,6 +136,7 @@
     renderCapabilityCards,
     renderLearningGrowthView,
     renderNextModules,
+    renderOwnerSystemPanel,
     renderPlatformStrip,
   };
 }));

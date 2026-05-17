@@ -455,7 +455,7 @@ cancelled
 
 ## 12. 独立 App 演进边界
 
-当前阶段可继续使用 Hermes Mobile 的 `learning` view 和“金币标签”作为入口，但产品语义是“凡凡成长系统”。金币只是其中一个子模块。
+当前阶段继续使用 Hermes Mobile 的 `learning` view，但底部入口显示为“成长”。金币只是凡凡成长系统内部的激励子模块。
 
 后续拆独立 App 时：
 

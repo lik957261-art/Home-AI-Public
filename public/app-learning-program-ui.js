@@ -24,17 +24,77 @@
     return Array.isArray(value) ? value : [];
   }
 
-  function programStatusText(status) {
+  function isOwner(options = {}) {
+    return Boolean(options.state?.auth?.isOwner);
+  }
+
+  function programStatusText(status, options = {}) {
     const value = String(status || "");
     if (value === "active") return "\u8fdb\u884c\u4e2d";
     if (value === "draft") return "\u8349\u7a3f";
-    if (value === "review_required") return "\u5f85\u5bb6\u957f\u5ba1\u6838";
-    if (value === "published") return "\u5df2\u4e0b\u53d1";
-    if (value === "blocked") return "\u5df2\u62e6\u622a";
+    if (value === "review_required") return isOwner(options) ? "\u5f85\u5bb6\u957f\u5ba1\u6838" : "\u5f85\u786e\u8ba4";
+    if (value === "published") return isOwner(options) ? "\u5df2\u4e0b\u53d1" : "\u5f85\u6267\u884c";
+    if (value === "blocked") return isOwner(options) ? "\u5df2\u62e6\u622a" : "\u6682\u4e0d\u53ef\u6267\u884c";
     return value || "\u672a\u5b9a";
   }
 
-  function compactFocus(focusAreas = []) {
+  function taskStatusText(status, options = {}) {
+    const value = String(status || "");
+    if (value === "planned") return "\u5f85\u6267\u884c";
+    if (value === "published") return "\u5df2\u4e0b\u53d1";
+    if (value === "active") return "\u8fdb\u884c\u4e2d";
+    if (value === "completed") return "\u5df2\u5b8c\u6210";
+    if (value === "needs_review") return "\u5f85\u590d\u76d8";
+    if (value === "review_required") return isOwner(options) ? "\u5f85\u5bb6\u957f\u5ba1\u6838" : "\u5f85\u786e\u8ba4";
+    if (value === "blocked") return isOwner(options) ? "\u5df2\u62e6\u622a" : "\u6682\u4e0d\u53ef\u6267\u884c";
+    return value || "\u5f85\u6267\u884c";
+  }
+
+  function evaluationStatusText(status) {
+    const value = String(status || "");
+    if (value === "passed") return "\u5df2\u901a\u8fc7";
+    if (value === "needs_repair") return "\u9700\u4fee\u590d";
+    if (value === "needs_review") return "\u5f85\u590d\u76d8";
+    if (value === "recorded") return "\u5df2\u8bb0\u5f55";
+    return value || "\u672a\u8bb0\u5f55";
+  }
+
+  function reviewStatusText(status) {
+    const value = String(status || "");
+    if (value === "pending") return "\u5f85\u5bb6\u957f\u5ba1\u6838";
+    if (value === "approved") return "\u5df2\u901a\u8fc7";
+    if (value === "rejected") return "\u5df2\u62d2\u7edd";
+    if (value === "returned_for_revision") return "\u5df2\u8fd4\u56de\u4fee\u6539";
+    if (value === "cancelled") return "\u5df2\u53d6\u6d88";
+    return value || "\u672a\u5b9a";
+  }
+
+  function parentReviewTypeText(type) {
+    const value = String(type || "");
+    if (value === "evaluation_review") return "\u8bc4\u4ef7\u590d\u6838";
+    if (value === "reward_settlement_review") return "\u5956\u52b1\u7ed3\u7b97\u590d\u6838";
+    return value || "\u5bb6\u957f\u5ba1\u6838";
+  }
+
+  function settlementStatusText(status) {
+    const value = String(status || "");
+    if (value === "settled") return "\u5df2\u7ed3\u7b97";
+    if (value === "pending_review") return "\u5f85\u5bb6\u957f\u590d\u6838";
+    if (value === "blocked") return "\u5df2\u62e6\u622a";
+    if (value === "skipped") return "\u5df2\u8df3\u8fc7";
+    return value || "\u672a\u5b9a";
+  }
+
+  function formatCoinAmount(value) {
+    const amount = Number(value || 0);
+    return `${Number.isFinite(amount) ? amount : 0} \u91d1\u5e01`;
+  }
+
+  function compactRiskFlags(flags = []) {
+    return asArray(flags).map((flag) => (flag && typeof flag === "object" ? (flag.code || flag.reason || "") : flag)).filter(Boolean).join(" / ");
+  }
+
+  function focusLabel(id) {
     const labels = {
       english_reading_comprehension: "\u9605\u8bfb",
       english_listening_input: "\u542c\u529b",
@@ -45,7 +105,16 @@
       english_grammar_in_expression: "\u8bed\u6cd5\u8868\u8fbe",
       english_presentation: "\u6f14\u8bb2\u9879\u76ee",
     };
-    return asArray(focusAreas).map((id) => labels[id] || id).join(" / ");
+    return labels[id] || id;
+  }
+
+  function compactFocus(focusAreas = []) {
+    return asArray(focusAreas).map((id) => focusLabel(id)).join(" / ");
+  }
+
+  function formatPercent(value) {
+    const number = Number(value || 0);
+    return `${Math.round(Math.max(0, Math.min(1, Number.isFinite(number) ? number : 0)) * 100)}%`;
   }
 
   function renderSourceGoalForms(options = {}) {
@@ -89,6 +158,7 @@
 
   function renderFoundationPanel(data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!isOwner(options)) return "";
     const sources = asArray(data.sources).slice(0, 5);
     const goals = asArray(data.goals).slice(0, 5);
     const refs = asArray(data.curriculumReferences).slice(0, 5);
@@ -162,7 +232,7 @@
     return `<div class="learning-program-draft" data-learning-program-draft="${escapeHtml(draft.draftId)}">
       <div class="learning-program-draft-top">
         <strong>${escapeHtml(`${draft.weekStart || ""} - ${draft.weekEnd || ""}`)}</strong>
-        <span>${escapeHtml(programStatusText(draft.status))}</span>
+        <span>${escapeHtml(programStatusText(draft.status, options))}</span>
       </div>
       <div class="learning-program-task-days">
         ${days.map((day) => `<span>${escapeHtml(day.date || "")}: ${escapeHtml(String(asArray(day.tasks).length))} \u9879</span>`).join("")}
@@ -172,7 +242,10 @@
 
   function renderProgramCards(programs = [], latestDrafts = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    if (!programs.length) return `<div class="learning-coin-empty">\u8fd8\u6ca1\u6709\u5b66\u4e60\u8303\u56f4\u914d\u7f6e\u3002</div>`;
+    const owner = isOwner(options);
+    if (!programs.length) {
+      return `<div class="learning-coin-empty">${owner ? "\u8fd8\u6ca1\u6709\u5b66\u4e60\u8303\u56f4\u914d\u7f6e\u3002" : "\u6682\u65e0\u5b66\u4e60\u5b89\u6392\u3002"}</div>`;
+    }
     const draftByProgram = new Map(latestDrafts.map((draft) => [draft.programId, draft]));
     return programs.map((program) => {
       const draft = draftByProgram.get(program.programId);
@@ -180,27 +253,124 @@
         <div class="learning-program-card-top">
           <div>
             <h3>${escapeHtml(program.title || program.programId)}</h3>
-            <p>${escapeHtml(program.goalSummary || "")}</p>
+            ${owner && program.goalSummary ? `<p>${escapeHtml(program.goalSummary)}</p>` : ""}
           </div>
-          <span>${escapeHtml(programStatusText(program.status))}</span>
+          <span>${escapeHtml(programStatusText(program.status, options))}</span>
         </div>
         <div class="learning-program-meta-grid">
           <span><strong>${escapeHtml(program.domain || "")}</strong><small>\u9886\u57df</small></span>
           <span><strong>${escapeHtml(String(program.minutesPerDay || 0))}</strong><small>\u6bcf\u5929\u5206\u949f</small></span>
           <span><strong>${escapeHtml(String(program.daysPerWeek || 0))}</strong><small>\u6bcf\u5468\u5929\u6570</small></span>
         </div>
-        <div class="learning-program-focus">${escapeHtml(compactFocus(program.focusAreas))}</div>
-        ${renderDraftSummary(draft, options)}
-        <div class="learning-program-actions">
+        ${owner ? `<div class="learning-program-focus">${escapeHtml(compactFocus(program.focusAreas))}</div>` : ""}
+        ${owner ? renderDraftSummary(draft, options) : ""}
+        ${owner ? `<div class="learning-program-actions">
           <button type="button" data-learning-program-draft-action="${escapeHtml(program.programId)}">\u751f\u6210\u5468\u8ba1\u5212</button>
           <button type="button" data-learning-program-publish="${escapeHtml(program.programId)}" ${draft && !draft.reliability?.publishBlocked ? "" : "disabled"}>\u4e0b\u53d1\u4efb\u52a1</button>
-        </div>
+        </div>` : ""}
       </article>`;
     }).join("");
   }
 
+  function renderTaskRows(taskCards = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const tasks = asArray(taskCards).slice(0, 8);
+    if (!tasks.length) return `<div class="learning-coin-empty">\u6682\u65e0\u5f85\u6267\u884c\u4efb\u52a1\u3002</div>`;
+    return `<div class="learning-program-task-list">
+      ${tasks.map((task) => {
+        const skills = compactFocus(task.skillIds || []).slice(0, 80);
+        const meta = [
+          task.plannedDate,
+          task.plannedMinutes ? `${task.plannedMinutes} min` : "",
+          skills,
+        ].filter(Boolean).join(" / ");
+        return `<article class="learning-program-task-item" data-learning-task-card-id="${escapeHtml(task.taskCardId)}">
+          <div>
+            <strong>${escapeHtml(task.title || task.taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
+            <p>${escapeHtml(meta || task.taskCardType || "")}</p>
+          </div>
+          <span>${escapeHtml(taskStatusText(task.status, options))}</span>
+        </article>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderSkillChips(skillStates = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const items = asArray(skillStates).slice(0, 8);
+    if (!items.length) return `<div class="learning-coin-empty">\u5b8c\u6210\u4efb\u52a1\u540e\u4f1a\u663e\u793a\u80fd\u529b\u8ddf\u8e2a\u3002</div>`;
+    return `<div class="learning-program-skill-list">
+      ${items.map((item) => `<span class="learning-program-skill-chip">
+        <strong>${escapeHtml(focusLabel(item.skillId || ""))}</strong>
+        <small>${escapeHtml([item.level, formatPercent(item.confidence)].filter(Boolean).join(" / "))}</small>
+      </span>`).join("")}
+    </div>`;
+  }
+
+  function renderEvaluationRows(evaluations = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const items = asArray(evaluations).slice(0, 5);
+    if (!items.length) return `<div class="learning-coin-empty">\u6682\u65e0\u8bc4\u4f30\u6458\u8981\u3002</div>`;
+    return `<div class="learning-program-evaluation-list">
+      ${items.map((item) => `<article class="learning-program-review-item" data-learning-evaluation-summary="${escapeHtml(item.evaluationId)}">
+        <div>
+          <strong>${escapeHtml([evaluationStatusText(item.status), item.score || item.score === 0 ? `${item.score}` : ""].filter(Boolean).join(" / "))}</strong>
+          <p>${escapeHtml(item.summary || "\u672a\u586b\u5199\u8bc4\u4f30\u6458\u8981")}</p>
+        </div>
+        <span class="learning-program-status-chip">${escapeHtml(item.passed ? "\u901a\u8fc7" : "\u5f85\u4fee\u590d")}</span>
+      </article>`).join("")}
+    </div>`;
+  }
+
+  function renderExecutionOverview(data = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const tasks = asArray(data.taskCards);
+    const programs = asArray(data.programs);
+    const pendingCount = tasks.filter((task) => !["completed", "archived"].includes(String(task.status || ""))).length || programs.length;
+    return `<section class="learning-growth-category learning-program-execution-panel" data-learning-growth-category="execution">
+      <div class="learning-growth-category-heading">
+        <h3>\u6267\u884c\u6982\u89c8 / \u5f85\u6267\u884c</h3>
+        <span>${escapeHtml(String(pendingCount))} \u9879</span>
+      </div>
+      <div class="learning-program-execution-grid">
+        <section class="learning-coin-panel">
+          <div class="learning-section-heading"><h3>\u4efb\u52a1\u72b6\u6001</h3><span>Task</span></div>
+          ${renderTaskRows(tasks, options)}
+        </section>
+        <section class="learning-coin-panel">
+          <div class="learning-section-heading"><h3>${isOwner(options) ? "\u5b66\u4e60\u8ba1\u5212" : "\u5b66\u4e60\u5b89\u6392"}</h3><span>${escapeHtml(String(programs.length))}</span></div>
+          <div class="learning-program-list">${renderProgramCards(programs, data.latestDrafts || [], options)}</div>
+        </section>
+      </div>
+    </section>`;
+  }
+
+  function renderGuidancePanel(data = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const profile = data.learnerProfile || {};
+    const summary = profile.profileSummary || "\u6682\u65e0\u5206\u6790\u6458\u8981\uff0c\u5b8c\u6210\u4efb\u52a1\u540e\u4f1a\u66f4\u65b0\u4e0b\u4e00\u6b65\u6307\u5bfc\u3002";
+    return `<section class="learning-growth-category learning-program-guidance-panel" data-learning-growth-category="guidance">
+      <div class="learning-growth-category-heading">
+        <h3>\u5206\u6790\u4e0e\u6307\u5bfc</h3>
+        <span>Summary</span>
+      </div>
+      <div class="learning-program-guidance-grid">
+        <section class="learning-coin-panel">
+          <div class="learning-section-heading"><h3>\u80fd\u529b\u8ddf\u8e2a</h3><span>\u6458\u8981</span></div>
+          <p class="learning-program-guidance-copy">${escapeHtml(summary)}</p>
+          ${renderSkillChips(data.skillStates || [], options)}
+        </section>
+        <section class="learning-coin-panel">
+          <div class="learning-section-heading"><h3>\u8fd1\u671f\u8bc4\u4f30</h3><span>\u7ed3\u8bba</span></div>
+          ${renderEvaluationRows(data.evaluations || [], options)}
+        </section>
+      </div>
+    </section>`;
+  }
+
   function renderReviewQueue(reviewItems = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!isOwner(options)) return "";
     if (!reviewItems.length) return "";
     return `<section class="learning-coin-panel learning-program-review-panel" data-learning-review-queue>
       <div class="learning-section-heading">
@@ -223,29 +393,94 @@
     </section>`;
   }
 
+  function renderParentReviewRequests(reviewRequests = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!isOwner(options)) return "";
+    const items = asArray(reviewRequests);
+    if (!items.length) return "";
+    return `<section class="learning-coin-panel learning-program-review-panel" data-learning-parent-review-requests>
+      <div class="learning-section-heading">
+        <h3>\u5bb6\u957f\u590d\u6838</h3>
+        <span>${escapeHtml(String(items.length))}</span>
+      </div>
+      <div class="learning-program-review-list">
+        ${items.map((item) => {
+          const riskText = compactRiskFlags(item.riskFlags);
+          const canDecide = String(item.status || "") === "pending";
+          return `<article class="learning-program-review-item" data-learning-parent-review-request-id="${escapeHtml(item.reviewRequestId)}">
+            <div>
+              <strong>${escapeHtml(item.summary || item.reason || item.reviewRequestId)}</strong>
+              <p>${escapeHtml([parentReviewTypeText(item.requestType), reviewStatusText(item.status), riskText].filter(Boolean).join(" / "))}</p>
+            </div>
+            ${canDecide ? `<div class="learning-program-actions">
+              <button type="button" data-learning-parent-review-decision="${escapeHtml(item.reviewRequestId)}" data-decision="approved">\u901a\u8fc7</button>
+              <button type="button" data-learning-parent-review-decision="${escapeHtml(item.reviewRequestId)}" data-decision="returned_for_revision">\u8fd4\u56de\u4fee\u6539</button>
+              <button type="button" data-learning-parent-review-decision="${escapeHtml(item.reviewRequestId)}" data-decision="rejected">\u62d2\u7edd</button>
+            </div>` : `<span class="learning-program-status-chip">${escapeHtml(reviewStatusText(item.status))}</span>`}
+          </article>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
+  function renderRewardSettlements(rewardSettlements = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!isOwner(options)) return "";
+    const items = asArray(rewardSettlements);
+    if (!items.length) return "";
+    return `<section class="learning-coin-panel learning-program-review-panel" data-learning-reward-settlements>
+      <div class="learning-section-heading">
+        <h3>\u5956\u52b1\u7ed3\u7b97</h3>
+        <span>${escapeHtml(String(items.length))}</span>
+      </div>
+      <div class="learning-program-review-list">
+        ${items.map((item) => `<article class="learning-program-review-item" data-learning-reward-settlement-id="${escapeHtml(item.rewardSettlementId)}">
+          <div>
+            <strong>${escapeHtml([settlementStatusText(item.status), formatCoinAmount(item.coinAmount)].join(" / "))}</strong>
+            <p>${escapeHtml([item.reason, item.sourceType, item.evaluationId].filter(Boolean).join(" / "))}</p>
+          </div>
+          <span class="learning-program-status-chip">${escapeHtml(settlementStatusText(item.status))}</span>
+        </article>`).join("")}
+      </div>
+    </section>`;
+  }
+
+  function renderParentAdminPanel(data = {}, options = {}) {
+    if (!isOwner(options)) return "";
+    return `<section class="learning-growth-category learning-program-parent-admin" data-learning-growth-category="parent-admin">
+      <div class="learning-growth-category-heading">
+        <h3>\u5bb6\u957f\u914d\u7f6e / \u5ba1\u6838</h3>
+        <span>Owner</span>
+      </div>
+      ${renderFoundationPanel(data, options)}
+      ${renderProgramForm(options)}
+      ${renderReviewQueue(data.reviewItems || [], options)}
+      ${renderParentReviewRequests(data.parentReviewRequests || [], options)}
+      ${renderRewardSettlements(data.rewardSettlements || [], options)}
+    </section>`;
+  }
+
   function renderProgramSubsystem(options = {}) {
     const programs = options.programs || {};
     const data = programs.programs ? programs : {};
     return `<section class="learning-program-section" data-learning-growth-module="programs">
-      ${renderFoundationPanel(data, options)}
-      ${renderProgramForm(options)}
-      <section class="learning-coin-panel">
-        <div class="learning-section-heading">
-          <h3>\u5b66\u4e60\u8ba1\u5212</h3>
-          <span>\u53ef\u6269\u5c55\u8303\u56f4</span>
-        </div>
-        <div class="learning-program-list">${renderProgramCards(data.programs || [], data.latestDrafts || [], options)}</div>
-      </section>
-      ${renderReviewQueue(data.reviewItems || [], options)}
+      ${renderExecutionOverview(data, options)}
+      ${renderGuidancePanel(data, options)}
+      ${renderParentAdminPanel(data, options)}
     </section>`;
   }
 
   return {
     compactFocus,
+    renderExecutionOverview,
     renderFoundationPanel,
+    renderGuidancePanel,
+    renderParentAdminPanel,
     renderProgramCards,
     renderProgramForm,
     renderProgramSubsystem,
+    renderParentReviewRequests,
     renderReviewQueue,
+    renderRewardSettlements,
   };
 }));

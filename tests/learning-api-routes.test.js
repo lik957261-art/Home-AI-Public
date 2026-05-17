@@ -45,7 +45,7 @@ function makeRoutes(overrides = {}) {
       overview(input) {
         growthInputs.push(input);
         return {
-          module: { id: "fanfan-growth", currentEntry: "金币标签" },
+          module: { id: "fanfan-growth", currentEntry: "成长标签" },
           learner: { id: input.learnerId, studentId: input.studentId, workspaceId: input.workspaceId },
           coins: { studentId: input.studentId },
         };

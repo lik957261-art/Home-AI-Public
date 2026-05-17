@@ -24,6 +24,10 @@
     return options.state && typeof options.state === "object" ? options.state : {};
   }
 
+  function isOwner(options = {}) {
+    return Boolean(optionState(options).auth?.isOwner);
+  }
+
   function formatCoins(value) {
     const amount = Number(value || 0);
     return `${Number.isFinite(amount) ? amount : 0} 金币`;
@@ -38,9 +42,10 @@
 
   function renderRewardCards(summary, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const owner = isOwner(options);
     const rewards = summary?.rewards || [];
     if (!rewards.length) {
-      return `<div class="learning-coin-empty">奖励池还没有配置。Owner 可以先添加可兑换项目，人民币结算规则后续再细化。</div>`;
+      return `<div class="learning-coin-empty">${owner ? "奖励池还没有配置。" : "暂无可申请的奖励。"}</div>`;
     }
     const available = Number(summary?.balances?.availableCoins || 0);
     return rewards.map((reward) => {
@@ -52,7 +57,7 @@
         </div>
         <div class="learning-reward-meta">
           <span>${escapeHtml(formatCoins(reward.coinCost))}</span>
-          <span>${escapeHtml(formatRmbCents(reward.rmbCents))}</span>
+          ${owner ? `<span>${escapeHtml(formatRmbCents(reward.rmbCents))}</span>` : ""}
         </div>
         <button class="learning-coin-primary" type="button" data-learning-redeem="${escapeHtml(reward.id)}" ${affordable ? "" : "disabled"}>${affordable ? "申请兑换" : "金币不足"}</button>
       </article>`;
@@ -108,6 +113,7 @@
 
   function renderRewardProgress(growth, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const owner = isOwner(options);
     const bestReward = growth?.bestRewardProgress || null;
     const allRewards = Array.isArray(growth?.rewardProgress) ? growth.rewardProgress : [];
     const rewards = bestReward
@@ -123,7 +129,7 @@
           <span>${escapeHtml(status)}</span>
         </div>
         <div class="learning-growth-progress" aria-label="${escapeHtml(`${pct}%`)}"><span style="width:${pct}%"></span></div>
-        <div class="learning-ledger-meta">${escapeHtml(`${formatCoins(reward.coinCost)} · ${formatRmbCents(reward.rmbCents)}`)}</div>
+        <div class="learning-ledger-meta">${escapeHtml(owner ? `${formatCoins(reward.coinCost)} · ${formatRmbCents(reward.rmbCents)}` : formatCoins(reward.coinCost))}</div>
       </div>`;
     }).join("");
   }
@@ -184,25 +190,26 @@
   function renderCoinsSubsystem(options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const state = optionState(options);
+    const owner = isOwner(options);
     const summary = options.summary || state.learningCoins || {};
     const balances = summary.balances || {};
     const loading = options.loading ? `<div class="learning-coin-loading">正在刷新成长数据...</div>` : "";
     const error = options.error ? `<div class="automation-error">${escapeHtml(options.error)}</div>` : "";
     return `<section class="learning-growth-coin-section" data-learning-growth-module="coins">
       <div class="learning-section-heading">
-        <h3>金币激励</h3>
+        <h3>金币与奖励</h3>
         <span>成长系统子模块</span>
       </div>
       <section class="learning-coin-hero">
         <div>
           <div class="learning-coin-eyebrow">${escapeHtml(summary.studentId || options.learnerId || "")}</div>
           <h2>${escapeHtml(formatCoins(balances.availableCoins))}</h2>
-          <p>金币只作为学习成长系统的激励与兑换凭证。兑换申请会先冻结金币，Owner 审核后再结算。</p>
+          <p>${escapeHtml(owner ? "金币只作为学习成长系统的激励、兑换和奖励池管理凭证。" : "金币只作为学习成长系统的激励与兑换凭证。")}</p>
         </div>
         <div class="learning-coin-stats">
           <span><strong>${escapeHtml(formatCoins(balances.heldCoins))}</strong><small>冻结中</small></span>
           <span><strong>${escapeHtml(formatCoins(balances.earnedCoins))}</strong><small>累计获得</small></span>
-          <span><strong>${escapeHtml(formatCoins(balances.spentCoins))}</strong><small>已结算</small></span>
+          <span><strong>${escapeHtml(formatCoins(balances.spentCoins))}</strong><small>${owner ? "已结算" : "已使用"}</small></span>
         </div>
       </section>
       ${loading}
@@ -211,7 +218,7 @@
       <section class="learning-coin-panel" data-learning-growth-coins="rewards">
         <div class="learning-section-heading">
           <h3>兑换</h3>
-          <span>${escapeHtml(summary?.settlement?.currency || "CNY")}</span>
+          <span>${escapeHtml(owner ? (summary?.settlement?.currency || "CNY") : "学习奖励")}</span>
         </div>
         <div class="learning-reward-list">${renderRewardCards(summary, options)}</div>
       </section>
@@ -221,7 +228,7 @@
           ${renderLedgerRows(summary, options)}
         </div>
         <div class="learning-coin-panel" data-learning-growth-coins="redemptions">
-          <div class="learning-section-heading"><h3>兑换申请</h3><span>审核状态</span></div>
+          <div class="learning-section-heading"><h3>兑换申请</h3><span>${owner ? "审核状态" : "申请状态"}</span></div>
           ${renderRedemptionRows(summary, options)}
         </div>
       </section>

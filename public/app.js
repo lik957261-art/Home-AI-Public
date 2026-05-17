@@ -8089,6 +8089,15 @@ async function decideLearningReview(reviewId, decision) {
   await loadLearningCoins({ limit: 30 });
 }
 
+async function decideLearningParentReviewRequest(reviewRequestId, decision) {
+  await api(`/api/learning/parent-review-requests/${encodeURIComponent(reviewRequestId)}/decision`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
+  showPushToast("家长复核状态已更新", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
 async function submitLearningRewardForm(event) {
   event?.preventDefault?.();
   const title = $("learningRewardTitle")?.value?.trim() || "";
@@ -8131,6 +8140,9 @@ function wireLearningCoinsView() {
   });
   $("conversation")?.querySelectorAll("[data-learning-review-decision]").forEach((button) => {
     button.addEventListener("click", () => decideLearningReview(button.dataset.learningReviewDecision, button.dataset.decision).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-parent-review-decision]").forEach((button) => {
+    button.addEventListener("click", () => decideLearningParentReviewRequest(button.dataset.learningParentReviewDecision, button.dataset.decision).catch(showError));
   });
   $("conversation")?.querySelectorAll("[data-learning-redeem]").forEach((button) => {
     button.addEventListener("click", () => requestLearningCoinRedemption(button.dataset.learningRedeem).catch(showError));

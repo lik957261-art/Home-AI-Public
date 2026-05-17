@@ -50,7 +50,7 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
 
   assert.equal(overview.module.id, "fanfan-growth");
   assert.equal(overview.module.hostView, "learning");
-  assert.equal(overview.module.currentEntry, "金币标签");
+  assert.equal(overview.module.currentEntry, "成长标签");
   assert.equal(overview.module.standaloneReady, true);
   assert.equal(overview.learner.id, "weixin_stephen");
   assert.equal(overview.learner.studentId, "weixin_stephen");
