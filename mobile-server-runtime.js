@@ -2435,7 +2435,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher } = createMobileApiComposition
   grantOwnerElevationOnce, consumeOwnerElevationOnce, groupAiReplyRevokedText: GROUP_AI_REPLY_REVOKED_TEXT, groupAssistantReplyForUserMessage, groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT, groupMessageRevoker,
   includeStatusCatalog: STATUS_INCLUDE_CATALOG, interpretAutomationNaturalLanguage, invalidateCatalogCache, isDirectoryBrowserPathAllowedForThread, isOwnerAuth, isOwnerElevationActive,
   isSingleWindowConversationTaskGroupId, joinLocalPath: (parent, name) => path.join(parent, name), kanbanCardProvider, kanbanCaseShareService, kanbanErrorResponse,
-  kanbanReadingWorkflowService, kanbanSingleCardCasePayload, learningCardGuidanceService, learningCoinService, listWorkspaceAccessKeyStatuses, loadCatalog, localWorkspaceDefaults,
+  kanbanReadingWorkflowService, kanbanSingleCardCasePayload, kanbanStudyArtifactService, learningCardGuidanceService, learningCoinService, listWorkspaceAccessKeyStatuses, loadCatalog, localWorkspaceDefaults,
   makeId, maxUploadBytes: MAX_UPLOAD_BYTES, maybeReconcileKanbanDependencyBlocks, mimeFor, mkdir: (value) => fs.mkdirSync(value),
   normalizeChatGroup, normalizeKanbanMaxParallel, normalizeKanbanNotificationAssignee, normalizeKanbanPlanReasoningEffort, normalizeStringList,
   nowIso, ownerSetupStatus, pendingWeixinOutboundDeliveries, planKanbanMultiAgent, publicConcurrencyForAuth,

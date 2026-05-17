@@ -7,6 +7,26 @@ function isKanbanReadingCard(todo) {
   return Boolean(todo?.readingSubmission || todo?.studySubmission);
 }
 
+function learningGrowthEvaluationLabel(evaluation = {}) {
+  const status = String(evaluation.status || "");
+  const nextStep = String(evaluation.nextStep || "");
+  if (nextStep === "rewrite_and_reflect" || status === "draft_feedback") return "\u8349\u7a3f\u6279\u6539";
+  return nextStep === "completed" || status === "completed" ? "\u5df2\u5b8c\u6210" : "\u7ee7\u7eed\u4fee\u6539";
+}
+
+function learningGrowthSubmissionPrompt(evaluation = {}) {
+  const nextStep = String(evaluation.nextStep || "");
+  if (nextStep === "rewrite_and_reflect") return "\u5199\u4e0b\u6539\u5199\u540e\u7684\u7248\u672c\uff0c\u5e76\u8865\u4e00\u53e5\u590d\u76d8\uff1a\u6211\u6539\u4e86\u4ec0\u4e48\uff0c\u4e3a\u4ec0\u4e48\u3002";
+  if (nextStep === "revise_and_resubmit") return "\u6309\u6279\u6539\u62a5\u544a\u518d\u6539\u4e00\u7248\uff0c\u7136\u540e\u63d0\u4ea4\u3002";
+  return "\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u6216\u4efb\u52a1\u7b54\u6848\u3002";
+}
+
+function renderLearningGrowthFeedbackList(title, items) {
+  const list = Array.isArray(items) ? items.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 5) : [];
+  if (!list.length) return "";
+  return `<div class="todo-learning-growth-feedback-list"><strong>${escapeHtml(title)}</strong><ul>${list.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+}
+
 function renderKanbanLearningGrowthTodoPanel(todo) {
   if (!isKanbanLearningGrowthCard(todo) || !todoMatchesOpen(todo)) return "";
   const blocked = normalizedKanbanStatus(todo) === "blocked";
@@ -23,6 +43,9 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const deliverables = Array.isArray(todo?.kanbanCaseDeliverables) ? todo.kanbanCaseDeliverables : [];
   const acceptance = Array.isArray(todo?.kanbanCaseAcceptance) ? todo.kanbanCaseAcceptance : [];
   const draft = state.todoLearningGrowthSubmissionDrafts?.[todo.id] || "";
+  const feedbackSections = evaluation?.feedbackSections || {};
+  const reportLinks = evaluation?.report ? renderKanbanOutputLinks([evaluation.report], "todo-detail-outputs compact") : "";
+  const submitLabel = submitting ? "\u6b63\u5728\u63d0\u4ea4..." : (["rewrite_and_reflect", "revise_and_resubmit"].includes(String(evaluation?.nextStep || "")) ? "\u63d0\u4ea4\u6539\u5199\u548c\u590d\u76d8" : "\u63d0\u4ea4\u8349\u7a3f");
   const details = [
     looksGenericSubmitCard ? `<p class="todo-detail-muted">This Growth card has no concrete task prompt. Regenerate or republish the Growth plan before the learner submits work.</p>` : "",
     goal ? `<div class="todo-learning-growth-prompt"><strong>Task instruction</strong><p>${escapeHtml(goal)}</p></div>` : "",
@@ -31,12 +54,12 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   ].filter(Boolean).join("");
   const submissionForm = canSubmit
     ? `<form class="todo-learning-growth-submit" data-learning-growth-submission-form="${escapeHtml(todo.id)}">
-      <label class="todo-panel-label" for="todoLearningGrowthSubmissionText">\u672c\u6b21\u4f5c\u7b54</label>
-      <textarea id="todoLearningGrowthSubmissionText" class="todo-input todo-comment-textarea" rows="7" placeholder="\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u3001\u6539\u5199\u3001\u590d\u76d8\u6216\u4efb\u52a1\u7b54\u6848\u3002" ${submitting ? "disabled" : ""}>${escapeHtml(draft)}</textarea>
+      <label class="todo-panel-label" for="todoLearningGrowthSubmissionText">${escapeHtml(evaluation ? "\u4e0b\u4e00\u7248\u4f5c\u7b54" : "\u672c\u6b21\u8349\u7a3f")}</label>
+      <textarea id="todoLearningGrowthSubmissionText" class="todo-input todo-comment-textarea" rows="7" placeholder="${escapeHtml(learningGrowthSubmissionPrompt(evaluation || {}))}" ${submitting ? "disabled" : ""}>${escapeHtml(draft)}</textarea>
       <div class="todo-comment-actions">
-        <button type="submit" data-submit-learning-growth-writing="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${submitting ? "\u6b63\u5728\u63d0\u4ea4..." : "\u63d0\u4ea4\u4f5c\u7b54"}</button>
+        <button type="submit" data-submit-learning-growth-writing="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${escapeHtml(submitLabel)}</button>
       </div>
-      <p class="todo-detail-muted">\u63d0\u4ea4\u540e\u4f1a\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u5e76\u663e\u793a\u4e3a\u7b49\u5f85 AI \u8bc4\u4ef7\u6216\u5bb6\u957f\u590d\u6838\u3002</p>
+      <p class="todo-detail-muted">${escapeHtml(evaluation ? "\u63d0\u4ea4\u6539\u5199\u540e\u624d\u4f1a\u8fdb\u5165\u6700\u7ec8\u901a\u8fc7\u548c\u91d1\u5e01\u7ed3\u7b97\u3002" : "\u9996\u6b21\u63d0\u4ea4\u540e\u4f1a\u751f\u6210 AI \u6279\u6539\u548c Markdown \u62a5\u544a\uff0c\u4e0d\u4f1a\u7acb\u523b\u7ed3\u7b97\u5b8c\u6210\u3002")}</p>
     </form>`
     : "";
   const feedbackBlock = feedback?.message
@@ -45,7 +68,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const submittedBlock = submitted
     ? `<div class="todo-learning-growth-status" data-learning-growth-submission-status="${escapeHtml(submitted.status || "submitted")}">
       <strong>\u5df2\u6536\u5230\u4f5c\u7b54</strong>
-      <p>${escapeHtml(evaluation ? "\u5df2\u751f\u6210 AI \u6279\u6539\u7ed3\u679c\u3002" : "\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\u6216\u5bb6\u957f\u590d\u6838\u3002")}</p>
+      <p>${escapeHtml(evaluation ? (evaluation.nextStep === "completed" ? "\u6700\u7ec8\u6279\u6539\u5df2\u5b8c\u6210\u3002" : "\u5df2\u751f\u6210 AI \u6279\u6539\u548c\u6539\u5199\u8981\u6c42\uff0c\u8bf7\u7ee7\u7eed\u5b8c\u6210\u4e0b\u4e00\u7248\u3002") : "\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\u6216\u5bb6\u957f\u590d\u6838\u3002")}</p>
       ${submitted.submittedAt ? `<small>${escapeHtml(formatTime(submitted.submittedAt) || submitted.submittedAt)}</small>` : ""}
     </div>`
     : "";
@@ -53,9 +76,13 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     ? `<div class="todo-learning-growth-evaluation" data-learning-growth-evaluation-status="${escapeHtml(evaluation.status || "")}">
       <div class="todo-learning-growth-score"><strong>${escapeHtml(String(evaluation.score ?? 0))}</strong><span>/ ${escapeHtml(String(evaluation.maxScore || 100))}</span></div>
       <div>
-        <strong>${escapeHtml(evaluation.passed ? "\u5df2\u901a\u8fc7" : "\u9700\u8981\u4fee\u6539")}</strong>
+        <strong>${escapeHtml(learningGrowthEvaluationLabel(evaluation))}</strong>
         ${evaluation.summary ? `<p>${escapeHtml(evaluation.summary)}</p>` : ""}
-        ${Array.isArray(evaluation.revisionRequirements) && evaluation.revisionRequirements.length ? `<ul>${evaluation.revisionRequirements.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+        ${reportLinks}
+        ${renderLearningGrowthFeedbackList("\u4f18\u70b9", feedbackSections.strengths)}
+        ${renderLearningGrowthFeedbackList("\u91cd\u70b9\u4fee\u6539", feedbackSections.focusAreas || evaluation.revisionRequirements)}
+        ${renderLearningGrowthFeedbackList("\u6539\u5199\u6e05\u5355", feedbackSections.rewriteChecklist)}
+        ${renderLearningGrowthFeedbackList("\u590d\u76d8\u95ee\u9898", feedbackSections.reflectionPrompts)}
         ${evaluation.reward ? `<p class="todo-detail-muted">\u91d1\u5e01\uff1a${escapeHtml(evaluation.reward.status || "not_eligible")} ${Number(evaluation.reward.coinAmount || 0) ? `${escapeHtml(String(evaluation.reward.coinAmount))} \u679a` : ""}</p>` : ""}
       </div>
     </div>`

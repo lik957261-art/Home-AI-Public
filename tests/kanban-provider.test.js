@@ -285,6 +285,14 @@ async function run() {
       passed: true,
       summary: "Writing passed.",
       revisionRequirements: ["Add one more example."],
+      nextStep: "completed",
+      report: { path: "C:\\reports\\writing-feedback.md", name: "writing-feedback.md" },
+      feedbackSections: {
+        strengths: ["Clear topic."],
+        focusAreas: ["Add one more example."],
+        rewriteChecklist: ["Check the ending."],
+        reflectionPrompts: ["What changed?"],
+      },
       evaluatedAt: "2026-05-17T15:30:00.000Z",
       reward: { status: "settled", coinAmount: 15, entryId: "coin-1" },
     },
@@ -293,6 +301,9 @@ async function run() {
   assert.equal(growthEvaluated.learning_growth_score, 88);
   assert.equal(growthEvaluated.learning_growth_passed, true);
   assert.deepEqual(growthEvaluated.learning_growth_revision_requirements, ["Add one more example."]);
+  assert.equal(growthEvaluated.learning_growth_next_step, "completed");
+  assert.equal(growthEvaluated.learning_growth_report_name, "writing-feedback.md");
+  assert.deepEqual(growthEvaluated.learning_growth_rewrite_checklist, ["Check the ending."]);
   assert.equal(growthEvaluated.learning_growth_reward_status, "settled");
 
   const unblocked = await provider.run({

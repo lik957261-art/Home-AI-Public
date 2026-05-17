@@ -263,6 +263,13 @@ function createTodoPublicProjectionService(options = {}) {
       learningGrowthPassed: boolValue(row.learning_growth_passed ?? row.learningGrowthPassed),
       learningGrowthFeedbackSummary: String(row.learning_growth_feedback_summary || row.learningGrowthFeedbackSummary || ""),
       learningGrowthRevisionRequirements: normalizeStringList(row.learning_growth_revision_requirements || row.learningGrowthRevisionRequirements, 8),
+      learningGrowthNextStep: String(row.learning_growth_next_step || row.learningGrowthNextStep || ""),
+      learningGrowthReportPath: String(row.learning_growth_report_path || row.learningGrowthReportPath || ""),
+      learningGrowthReportName: String(row.learning_growth_report_name || row.learningGrowthReportName || ""),
+      learningGrowthStrengths: normalizeStringList(row.learning_growth_strengths || row.learningGrowthStrengths, 8),
+      learningGrowthFocusAreas: normalizeStringList(row.learning_growth_focus_areas || row.learningGrowthFocusAreas, 8),
+      learningGrowthRewriteChecklist: normalizeStringList(row.learning_growth_rewrite_checklist || row.learningGrowthRewriteChecklist, 8),
+      learningGrowthReflectionPrompts: normalizeStringList(row.learning_growth_reflection_prompts || row.learningGrowthReflectionPrompts, 8),
       learningGrowthRewardStatus: String(row.learning_growth_reward_status || row.learningGrowthRewardStatus || ""),
       learningGrowthRewardCoins: Number(row.learning_growth_reward_coins ?? row.learningGrowthRewardCoins ?? 0) || 0,
       learningGrowthRewardEntryId: String(row.learning_growth_reward_entry_id || row.learningGrowthRewardEntryId || ""),
@@ -301,7 +308,20 @@ function createTodoPublicProjectionService(options = {}) {
       const submittedAt = payload.learningGrowthSubmissionAt || payload.kanbanLastCommentAt;
       if (payload.learningGrowthSubmissionStatus || submittedAt) {
         const evaluationStatus = payload.learningGrowthEvaluationStatus || "pending";
-        const analysisAvailable = ["completed", "needs_revision", "review_required", "pending_review"].includes(evaluationStatus);
+        const analysisAvailable = ["completed", "draft_feedback", "needs_revision", "review_required", "pending_review"].includes(evaluationStatus);
+        const reportOutput = payload.learningGrowthReportPath
+          ? (publicKanbanOutputsFromText(workspaceId, `MEDIA: ${payload.learningGrowthReportPath}`)[0] || null)
+          : null;
+        const reportKey = reportOutput ? String(reportOutput.path || reportOutput.url || payload.learningGrowthReportPath || reportOutput.name || "") : "";
+        if (reportOutput && !payload.kanbanOutputs.some((item) => String(item?.path || item?.url || item?.name || "") === reportKey)) {
+          payload.kanbanOutputs = payload.kanbanOutputs.concat([Object.assign({}, reportOutput, {
+            name: payload.learningGrowthReportName || reportOutput.name,
+            role: "learning-growth-writing-report",
+          })]);
+        }
+        const nextStep = payload.learningGrowthNextStep || (evaluationStatus === "completed"
+          ? "completed"
+          : (evaluationStatus === "draft_feedback" ? "rewrite_and_reflect" : (evaluationStatus === "needs_revision" ? "revise_and_resubmit" : "pending_evaluation")));
         payload.learningGrowthSubmission = {
           status: payload.learningGrowthSubmissionStatus || "submitted",
           kind: payload.learningGrowthSubmissionKind || "writing",
@@ -309,9 +329,7 @@ function createTodoPublicProjectionService(options = {}) {
           evaluationStatus,
           evaluationAt: payload.learningGrowthEvaluationAt,
           analysisAvailable,
-          nextStep: evaluationStatus === "completed"
-            ? "completed"
-            : (evaluationStatus === "needs_revision" ? "revise_and_resubmit" : "pending_evaluation"),
+          nextStep,
         };
         if (analysisAvailable) {
           payload.learningGrowthEvaluation = {
@@ -321,7 +339,18 @@ function createTodoPublicProjectionService(options = {}) {
             passed: payload.learningGrowthPassed,
             summary: payload.learningGrowthFeedbackSummary,
             revisionRequirements: payload.learningGrowthRevisionRequirements,
+            feedbackSections: {
+              strengths: payload.learningGrowthStrengths,
+              focusAreas: payload.learningGrowthFocusAreas,
+              rewriteChecklist: payload.learningGrowthRewriteChecklist,
+              reflectionPrompts: payload.learningGrowthReflectionPrompts,
+            },
+            nextStep,
             evaluatedAt: payload.learningGrowthEvaluationAt,
+            report: reportOutput ? Object.assign({}, reportOutput, {
+              name: payload.learningGrowthReportName || reportOutput.name,
+              role: "learning-growth-writing-report",
+            }) : null,
             reward: {
               status: payload.learningGrowthRewardStatus,
               coinAmount: payload.learningGrowthRewardCoins,

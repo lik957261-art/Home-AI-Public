@@ -6632,6 +6632,24 @@ button.directory-alias-chip {
   padding-left: 18px;
 }
 
+.todo-learning-growth-feedback-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.todo-learning-growth-feedback-list strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.todo-learning-growth-feedback-list ul {
+  margin: 0;
+}
+
 .todo-detail-chip-row {
   display: flex;
   flex-wrap: wrap;

@@ -260,6 +260,9 @@ function run() {
   assert.equal(final.assessmentWorkflow.priorContextComplete, false);
 
   const studyProjectionService = createTodoPublicProjectionService({
+    publicKanbanOutputsFromText(workspaceId, text) {
+      return text ? [{ name: "result.md", path: text.replace(/^MEDIA:\s*/, ""), workspaceId }] : [];
+    },
     publicKanbanReadingSubmissionSummary(_workspaceId, card) {
       if (String(card.id) === "study-done") return { status: "completed" };
       if (String(card.id) === "study-submitted") return { status: "submitted" };
@@ -363,13 +366,49 @@ function run() {
     passed: false,
     summary: "Needs more details.",
     revisionRequirements: ["Add one example."],
+    feedbackSections: {
+      strengths: [],
+      focusAreas: [],
+      rewriteChecklist: [],
+      reflectionPrompts: [],
+    },
+    nextStep: "revise_and_resubmit",
     evaluatedAt: "2026-05-17T15:10:00.000Z",
+    report: null,
     reward: {
       status: "not_eligible",
       coinAmount: 0,
       entryId: "",
     },
   });
+  const projectedLearningGrowthDraftFeedback = studyProjectionService.publicTodo(row("learning-growth-draft-feedback", {
+    kanban_case_mode: "study-plan",
+    kanban_case_template: "learning-growth",
+    kanban_status: "ready",
+    status: "open",
+    learning_growth_submission_status: "submitted",
+    learning_growth_submission_kind: "writing_draft",
+    learning_growth_submission_at: "2026-05-17T15:00:00.000Z",
+    learning_growth_evaluation_status: "draft_feedback",
+    learning_growth_evaluation_at: "2026-05-17T15:10:00.000Z",
+    learning_growth_score: 79,
+    learning_growth_max_score: 100,
+    learning_growth_feedback_summary: "Draft feedback ready.",
+    learning_growth_revision_requirements: ["Add one concrete example."],
+    learning_growth_next_step: "rewrite_and_reflect",
+    learning_growth_report_path: "C:\\reports\\draft-feedback.md",
+    learning_growth_report_name: "draft-feedback.md",
+    learning_growth_strengths: ["Clear topic."],
+    learning_growth_focus_areas: ["Add one example."],
+    learning_growth_rewrite_checklist: ["Rewrite two sentences."],
+    learning_growth_reflection_prompts: ["What did I change?"],
+    learning_growth_reward_status: "not_eligible",
+  }));
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthSubmission.analysisAvailable, true);
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthSubmission.nextStep, "rewrite_and_reflect");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.report.name, "draft-feedback.md");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackSections.rewriteChecklist[0], "Rewrite two sentences.");
+  assert.equal(projectedLearningGrowthDraftFeedback.kanbanOutputs.at(-1).role, "learning-growth-writing-report");
   const projectedLearningGrowthLegacySubmitted = studyProjectionService.publicTodo(row("learning-growth-legacy-submitted", {
     kanban_case_mode: "study-plan",
     kanban_case_template: "learning-growth",

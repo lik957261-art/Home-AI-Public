@@ -6,6 +6,9 @@ const {
 const {
   createLearningGrowthWritingEvaluationService,
 } = require("./learning-growth-writing-evaluation-service");
+const {
+  createLearningGrowthWritingReportService,
+} = require("./learning-growth-writing-report-service");
 const { stableTaskCardId } = require("./learning-task-card-service");
 
 function cleanString(value) {
@@ -40,6 +43,19 @@ function resolveTaskCardId(card = {}) {
   return draftId && caseCardId ? stableTaskCardId(draftId, caseCardId) : "";
 }
 
+function learningGrowthEvaluationStatus(card = {}) {
+  return cardField(card, "learningGrowthEvaluationStatus", "learning_growth_evaluation_status").toLowerCase();
+}
+
+function submissionStageForCard(card = {}, input = {}) {
+  const explicit = cleanString(input.stage || input.submissionStage || input.submissionKind).toLowerCase();
+  if (["final", "rewrite", "revision", "resubmission"].includes(explicit)) return "final";
+  if (["draft", "first_draft", "initial"].includes(explicit)) return "draft";
+  const status = learningGrowthEvaluationStatus(card);
+  if (["draft_feedback", "needs_revision", "review_required", "pending_review"].includes(status)) return "final";
+  return "draft";
+}
+
 function getProgramService(options = {}) {
   if (typeof options.getLearningProgramService === "function") return options.getLearningProgramService();
   return options.learningProgramService || null;
@@ -48,13 +64,27 @@ function getProgramService(options = {}) {
 function publicEvaluation(evaluation = {}, settlement = null) {
   return {
     evaluationId: cleanString(evaluation.evaluationId),
+    stage: cleanString(evaluation.stage),
     status: cleanString(evaluation.status),
     score: Number(evaluation.score || 0),
     maxScore: Number(evaluation.maxScore || 100),
     passed: Boolean(evaluation.passed),
     summary: cleanString(evaluation.summary),
     revisionRequirements: asArray(evaluation.revisionRequirements).map(cleanString).filter(Boolean),
+    feedbackSections: {
+      strengths: asArray(evaluation.feedbackSections?.strengths).map(cleanString).filter(Boolean),
+      focusAreas: asArray(evaluation.feedbackSections?.focusAreas).map(cleanString).filter(Boolean),
+      rewriteChecklist: asArray(evaluation.feedbackSections?.rewriteChecklist).map(cleanString).filter(Boolean),
+      reflectionPrompts: asArray(evaluation.feedbackSections?.reflectionPrompts).map(cleanString).filter(Boolean),
+    },
+    nextStep: cleanString(evaluation.nextStep),
     evaluatedAt: cleanString(evaluation.evaluatedAt),
+    report: evaluation.report && typeof evaluation.report === "object" ? {
+      path: cleanString(evaluation.report.path),
+      name: cleanString(evaluation.report.name),
+      mime: cleanString(evaluation.report.mime),
+      size: Number(evaluation.report.size || 0) || 0,
+    } : null,
     reward: {
       eligible: Boolean(evaluation.reward?.eligible),
       coinAmount: Number(evaluation.reward?.coinAmount || 0),
@@ -155,6 +185,9 @@ function settleViaCoinService(learningCoinService, card, evaluation, input = {})
 function createLearningGrowthWritingSubmissionService(options = {}) {
   const kanbanCardProvider = options.kanbanCardProvider || null;
   const evaluationService = options.evaluationService || createLearningGrowthWritingEvaluationService();
+  const reportService = options.reportService || createLearningGrowthWritingReportService({
+    artifactService: options.artifactService,
+  });
   const learningCoinService = options.learningCoinService || null;
   const maxSubmissionChars = Math.max(1000, Number(options.maxSubmissionChars || 12000));
   if (!kanbanCardProvider || typeof kanbanCardProvider.listCards !== "function" || typeof kanbanCardProvider.mutateCard !== "function") {
@@ -186,6 +219,7 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
     if (text.length > maxSubmissionChars) return createError(413, `Writing submission is too long; keep it under ${maxSubmissionChars} characters`);
     const loaded = await loadGrowthCard(workspaceId, cardIdValue);
     if (!loaded.ok) return loaded;
+    const stage = submissionStageForCard(loaded.card, input);
     const mutated = await kanbanCardProvider.mutateCard({
       action: "comment",
       workspaceId,
@@ -193,14 +227,24 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       comment: text,
       author: cleanString(input.author) || "learning-growth",
       learningGrowthSubmission: true,
-      submissionKind: "writing",
+      submissionKind: stage === "draft" ? "writing_draft" : "writing_revision",
     });
     if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit writing"));
     const evaluation = evaluationService.evaluate({
       card: loaded.card,
       cardId: cardIdValue,
       text,
+      stage,
     });
+    let report = null;
+    try {
+      report = reportService && typeof reportService.writeReport === "function"
+        ? reportService.writeReport({ workspaceId, cardId: cardIdValue, card: loaded.card, evaluation })
+        : null;
+      if (report) evaluation.report = report;
+    } catch (err) {
+      evaluation.reportError = cleanString(err.message || err);
+    }
     let settlement = null;
     try {
       settlement = await settleViaProgramService(getProgramService(options), loaded.card, evaluation, { workspaceId, author: input.author });
@@ -215,11 +259,15 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       }
     }
     const publicEval = publicEvaluation(evaluation, settlement);
+    const evaluationText = [
+      evaluationComment(evaluation, settlement),
+      report?.path ? `MEDIA: ${report.path}` : "",
+    ].filter(Boolean).join("\n\n");
     const evaluationMutation = await kanbanCardProvider.mutateCard({
       action: "comment",
       workspaceId,
       cardId: cardIdValue,
-      comment: evaluationComment(evaluation, settlement),
+      comment: evaluationText,
       author: "learning-growth-evaluator",
       learningGrowthEvaluation: publicEval,
     });
@@ -259,4 +307,5 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
 module.exports = {
   createLearningGrowthWritingSubmissionService,
   evaluationComment,
+  submissionStageForCard,
 };
