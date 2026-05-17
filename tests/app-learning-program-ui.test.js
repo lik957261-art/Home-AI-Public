@@ -68,13 +68,16 @@ const programs = {
   },
   taskCards: [{
     taskCardId: "task-1",
+    draftId: "draft-1",
     title: "Reading output task",
-    status: "published",
+    status: "review_required",
     plannedDate: "2026-05-17",
     plannedMinutes: 30,
     skillIds: ["english_speaking_retell"],
+    curriculumRefs: ["cambridge-primary-english-reference"],
   }, {
     taskCardId: "task-2",
+    draftId: "published-draft",
     title: "Writing repair task",
     status: "published",
     plannedDate: "2026-05-18",
@@ -139,6 +142,8 @@ function testOwnerFormAndActionsRender() {
   assert.match(html, /data-learning-growth-category="execution"/);
   assert.match(html, /data-learning-growth-category="guidance"/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
+  assert.match(html, /data-learning-owner-step="learner"/);
+  assert.match(html, /data-learning-owner-step="scope"/);
   assert.match(html, /data-learning-task-card-id="task-1"/);
   assert.match(html, /data-learning-task-card-id="task-2"/);
   assert.match(html, /data-learning-daily-plan/);
@@ -157,7 +162,11 @@ function testOwnerFormAndActionsRender() {
   assert.match(html, /data-learning-parent-report/);
   assert.match(html, /data-learning-parent-report-refresh/);
   assert.match(html, /data-learning-program-create/);
+  assert.match(html, /English growth/);
+  assert.match(html, /Improve English output/);
   assert.match(html, /data-learning-program-draft-action="program-1"/);
+  assert.match(html, /data-learning-program-rebuild-draft="program-1"/);
+  assert.match(html, /data-learning-program-stale-draft="draft-1"/);
   assert.match(html, /data-learning-program-publish="program-1"/);
   assert.match(html, /data-learning-review-decision="review-1"/);
   assert.match(html, /data-learning-parent-review-decision="parent-review-1"/);
@@ -193,6 +202,7 @@ function testNonOwnerCannotSeeCreateForm() {
   assert.doesNotMatch(html, /data-learning-reward-settlement-id/);
   assert.doesNotMatch(html, /data-learning-evaluation-settle/);
   assert.doesNotMatch(html, /data-learning-program-draft-action/);
+  assert.doesNotMatch(html, /data-learning-program-rebuild-draft/);
   assert.doesNotMatch(html, /data-learning-program-publish/);
   assert.doesNotMatch(html, /School summary/);
   assert.doesNotMatch(html, /English output/);

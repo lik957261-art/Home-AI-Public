@@ -268,6 +268,21 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "program", "draft", "owner"],
   },
   {
+    id: "learning-program-rebuild-draft-plan",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/programs\/[^/]+\/rebuild-draft-plan$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "rebuildDraftPlan",
+    summary: "Owner discards a safe unpublished learning draft and generates a fresh one.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["learning-program", "learning-plan-draft"],
+    tags: ["learning", "program", "draft", "rebuild", "owner"],
+  },
+  {
     id: "learning-program-publish",
     method: "POST",
     pathRegex: /^\/api\/learning\/programs\/[^/]+\/publish$/,
@@ -861,6 +876,18 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
   }
 
+  async function handleRebuildDraft(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const body = await deps.readBody(req, 120000).catch(() => ({}));
+    try {
+      const programId = pathId(url.pathname, /^\/api\/learning\/programs\/([^/]+)\/rebuild-draft-plan$/);
+      deps.sendJson(res, 201, service.rebuildDraftPlan(programId, body || {}));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
   async function handlePublish(req, res, url) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -1102,6 +1129,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-parent-report-read") await handleParentReport(req, res, url);
     else if (route.id === "learning-program-update") await handleUpdate(req, res, url);
     else if (route.id === "learning-program-draft-plan") await handleDraft(req, res, url);
+    else if (route.id === "learning-program-rebuild-draft-plan") await handleRebuildDraft(req, res, url);
     else if (route.id === "learning-program-publish") await handlePublish(req, res, url);
     else if (route.id === "learning-task-cards-list") await handleTaskCardsList(req, res, url, auth);
     else if (route.id === "learning-task-execution-queue") await handleTaskExecutionQueue(req, res, url, auth);

@@ -114,6 +114,10 @@ function makeRoutes(overrides = {}) {
       calls.push(["draft", programId]);
       return { ok: true, draft: { draftId: "draft-1", programId }, taskCards: [{ taskCardId: "task-1" }] };
     },
+    rebuildDraftPlan(programId, input) {
+      calls.push(["rebuildDraft", programId, input]);
+      return { ok: true, rebuilt: true, removed: { draftId: "draft-old", taskCards: 6, reviewItems: 1 }, draft: { draftId: "draft-2", programId }, taskCards: [{ taskCardId: "task-2" }] };
+    },
     async publishProgram(programId, input) {
       calls.push(["publish", programId, input]);
       return { ok: true, publication: { publicationId: "pub-1" } };
@@ -225,7 +229,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 32);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 33);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -235,6 +239,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/rebuild-draft-plan" }).id, "learning-program-rebuild-draft-plan");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/daily-plan" }).id, "learning-daily-plan");
@@ -242,7 +247,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 32);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 33);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -263,6 +268,14 @@ async function testCreateAndDraftRequireOwner() {
   assert.equal(drafted.res.statusCode, 201);
   assert.equal(calls.at(-1)[0], "draft");
   assert.equal(drafted.body.taskCards[0].taskCardId, "task-1");
+
+  const rebuilt = await request(routes, "POST", "/api/learning/programs/program-1/rebuild-draft-plan", {
+    body: { draftId: "draft-old" },
+  });
+  assert.equal(rebuilt.res.statusCode, 201);
+  assert.equal(rebuilt.body.rebuilt, true);
+  assert.equal(rebuilt.body.removed.taskCards, 6);
+  assert.equal(calls.at(-1)[0], "rebuildDraft");
 }
 
 async function testStudentCannotReadManagementSurfaces() {

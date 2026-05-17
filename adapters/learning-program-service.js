@@ -131,6 +131,22 @@ function summarizeDraft(draft = {}) {
   };
 }
 
+function assertDraftCanBeRebuilt(repository, draft = {}) {
+  if (!draft?.draftId) return { taskCards: [], publications: [] };
+  const taskCards = repository.listTaskCards({ draftId: draft.draftId, limit: 300 });
+  const publications = typeof repository.listPublications === "function"
+    ? repository.listPublications({ draftId: draft.draftId, limit: 20 })
+    : [];
+  const unsafeTask = taskCards.find((task) => !["planned", "review_required", "blocked"].includes(String(task.status || "")));
+  const unsafeDraftStatus = ["published", "publish_failed"].includes(String(draft.status || ""));
+  if (unsafeTask || unsafeDraftStatus || publications.length) {
+    const err = new Error("Learning draft already has published or executable records");
+    err.status = 409;
+    throw err;
+  }
+  return { taskCards, publications };
+}
+
 function createLearningProgramService(options = {}) {
   const repository = options.repository;
   if (!repository || typeof repository.upsertProgram !== "function") {
@@ -278,6 +294,30 @@ function createLearningProgramService(options = {}) {
       });
     }
     return { ok: true, program, draft, taskCards, reviewItem };
+  }
+
+  function rebuildDraftPlan(programId, input = {}) {
+    const program = getProgram(programId);
+    if (!program) {
+      const err = new Error("Learning program not found");
+      err.status = 404;
+      throw err;
+    }
+    const currentDraft = input.draftId ? repository.getPlanDraft(input.draftId) : repository.latestDraftForProgram(programId);
+    const removed = {
+      draftId: currentDraft?.draftId || "",
+      taskCards: 0,
+      reviewItems: 0,
+    };
+    if (currentDraft) {
+      const safety = assertDraftCanBeRebuilt(repository, currentDraft);
+      removed.taskCards = safety.taskCards.length;
+      removed.reviewItems = repository.listReviewItems({ learnerId: program.learnerId, status: "pending", limit: 200 })
+        .filter((item) => item.draftId === currentDraft.draftId).length;
+      repository.deletePlanDraft(currentDraft.draftId);
+    }
+    const rebuilt = draftPlan(programId);
+    return Object.assign({ rebuilt: true, removed }, rebuilt);
   }
 
   async function publishProgram(programId, input = {}) {
@@ -495,6 +535,7 @@ function createLearningProgramService(options = {}) {
     decideParentReviewRequest,
     decideReview,
     draftPlan,
+    rebuildDraftPlan,
     generateParentReport,
     getProgram,
     getLearnerProfile,

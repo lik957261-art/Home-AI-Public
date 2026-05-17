@@ -231,7 +231,7 @@ const ROUTE_MODULES = Object.freeze([
     key: "learning-program-api-routes",
     exportName: "createLearningProgramApiRoutes",
     required: true,
-    minRoutes: 32,
+    minRoutes: 33,
     probes: [
       { method: "GET", path: "/api/learning/programs", id: "learning-programs-list" },
       { method: "POST", path: "/api/learning/sources", id: "learning-sources-create" },
@@ -242,6 +242,7 @@ const ROUTE_MODULES = Object.freeze([
       { method: "POST", path: "/api/learning/foundation-import", id: "learning-foundation-import" },
       { method: "GET", path: "/api/learning/reports/parent", id: "learning-parent-report-read" },
       { method: "POST", path: "/api/learning/programs/program-1/draft-plan", id: "learning-program-draft-plan" },
+      { method: "POST", path: "/api/learning/programs/program-1/rebuild-draft-plan", id: "learning-program-rebuild-draft-plan" },
       { method: "GET", path: "/api/learning/task-cards", id: "learning-task-cards-list" },
       { method: "GET", path: "/api/learning/task-execution-queue", id: "learning-task-execution-queue" },
       { method: "GET", path: "/api/learning/daily-plan", id: "learning-daily-plan" },
@@ -364,6 +365,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/curriculum-references" }).id, "learning-curriculum-references-list");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/programs/program-1/rebuild-draft-plan" }).id, "learning-program-rebuild-draft-plan");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/programs/program-1/publish" }).id, "learning-program-publish");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
@@ -387,7 +389,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
 function testLearningProgramInventoryMatchesRouteModuleSpecs() {
   const inventoryById = new Map(listHermesMobileApiRoutes().map((route) => [route.id, route]));
   const moduleRoutes = createApiRouteRegistry(LEARNING_PROGRAM_API_ROUTE_SPECS).list();
-  assert.equal(moduleRoutes.length, 32);
+  assert.equal(moduleRoutes.length, 33);
   for (const expected of moduleRoutes) {
     const actual = inventoryById.get(expected.id);
     assert.ok(actual, `global inventory is missing ${expected.id}`);

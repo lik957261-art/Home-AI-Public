@@ -843,6 +843,14 @@ function createLearningProgramRepository(options = {}) {
     return publicDraftFromRow(open().prepare("SELECT * FROM learning_plan_drafts WHERE program_id = ? ORDER BY created_at DESC LIMIT 1").get(cleanString(programId)));
   }
 
+  function deletePlanDraft(draftId) {
+    migrate();
+    const existing = getPlanDraft(draftId);
+    if (!existing) return null;
+    open().prepare("DELETE FROM learning_plan_drafts WHERE id = ?").run(cleanString(draftId));
+    return existing;
+  }
+
   function listPlanDrafts(filters = {}) {
     migrate();
     const values = [];
@@ -941,6 +949,35 @@ function createLearningProgramRepository(options = {}) {
       createdAt,
     );
     return publicPublicationFromRow(open().prepare("SELECT * FROM learning_publications WHERE id = ?").get(publication.publicationId));
+  }
+
+  function listPublications(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.programId) {
+      where.push("program_id = ?");
+      values.push(cleanString(filters.programId));
+    }
+    if (filters.draftId) {
+      where.push("draft_id = ?");
+      values.push(cleanString(filters.draftId));
+    }
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.status) {
+      where.push("status = ?");
+      values.push(cleanString(filters.status));
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    const sql = `SELECT * FROM learning_publications ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicPublicationFromRow);
   }
 
   function upsertSource(source) {
@@ -1745,6 +1782,7 @@ function createLearningProgramRepository(options = {}) {
     close,
     counts,
     dbPath,
+    deletePlanDraft,
     getEvaluation,
     getGoal,
     getInteractionSession,
@@ -1764,6 +1802,7 @@ function createLearningProgramRepository(options = {}) {
     listInteractionSessions,
     listPlanDrafts,
     listPrograms,
+    listPublications,
     listReviewItems,
     listReviewRequests,
     listRewardSettlements,

@@ -6736,6 +6736,61 @@ button.directory-alias-chip {
   gap: 12px;
 }
 
+.learning-owner-step {
+  border-left: 4px solid rgba(31, 111, 98, 0.58);
+}
+
+.learning-owner-fact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.learning-owner-fact-grid span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(31, 111, 98, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.learning-owner-fact-grid strong {
+  color: var(--accent);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.learning-owner-fact-grid small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.learning-owner-advanced {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px dashed rgba(31, 111, 98, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.learning-owner-advanced.compact {
+  padding: 8px 10px;
+}
+
+.learning-owner-advanced summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.learning-owner-advanced[open] summary {
+  margin-bottom: 10px;
+}
+
 .learning-source-directory-panel {
   display: grid;
   gap: 10px;
@@ -6804,6 +6859,14 @@ button.directory-alias-chip {
 .learning-program-form {
   display: grid;
   gap: 10px;
+}
+
+.learning-program-wide-field {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .learning-program-field-grid,
@@ -6908,6 +6971,16 @@ button.directory-alias-chip {
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.learning-program-rebuild-warning {
+  padding: 9px 10px;
+  border: 1px solid rgba(151, 99, 47, 0.22);
+  border-radius: 8px;
+  color: #72511f;
+  background: rgba(255, 247, 225, 0.86);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .learning-program-meta-grid {
@@ -7576,6 +7649,7 @@ button.directory-alias-chip {
   .learning-source-directory-actions,
   .learning-foundation-owner-grid,
   .learning-foundation-grid,
+  .learning-owner-fact-grid,
   .learning-program-execution-grid,
   .learning-program-guidance-grid,
   .learning-readiness-checks,

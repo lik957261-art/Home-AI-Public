@@ -108,6 +108,107 @@
     return labels[id] || id;
   }
 
+  const ENGLISH_FOCUS_IDS = Object.freeze([
+    "english_reading_comprehension",
+    "english_listening_input",
+    "english_speaking_retell",
+    "english_pronunciation_shadowing",
+    "english_short_writing",
+    "english_vocabulary_active_use",
+    "english_grammar_in_expression",
+    "english_presentation",
+  ]);
+
+  const DEFAULT_OWNER_PROGRAM = Object.freeze({
+    title: "\u82f1\u8bed\u5feb\u901f\u63d0\u5347\u8ba1\u5212",
+    goalSummary: "\u56f4\u7ed5\u4e03\u5e74\u7ea7\u548c\u8bed\u8a00\u6c34\u5e73 5.5-6 / B1 \u8fc7\u6e21\uff0c\u7528 8 \u5468\u5feb\u901f\u63d0\u5347\u9605\u8bfb\u7406\u89e3\u3001\u53e3\u8bed\u590d\u8ff0\u3001\u5199\u4f5c\u8868\u8fbe\u3001\u8bcd\u6c47\u548c\u8bed\u6cd5\u8f93\u51fa\u3002",
+    durationDays: 56,
+    daysPerWeek: 5,
+    minutesPerDay: 30,
+    timeOfDay: "19:30",
+    focusAreas: [
+      "english_reading_comprehension",
+      "english_listening_input",
+      "english_speaking_retell",
+      "english_short_writing",
+      "english_vocabulary_active_use",
+      "english_grammar_in_expression",
+    ],
+  });
+
+  function firstItem(items = []) {
+    return asArray(items).find(Boolean) || null;
+  }
+
+  function selectedAttr(value, expected) {
+    return String(value || "") === expected ? " selected" : "";
+  }
+
+  function checkedAttr(values = [], id, fallback = false) {
+    const list = asArray(values).map(String);
+    return (list.length ? list.includes(id) : fallback) ? " checked" : "";
+  }
+
+  function latestDraftForProgram(program = {}, drafts = []) {
+    const programId = String(program.programId || "");
+    return asArray(drafts).find((draft) => String(draft.programId || "") === programId) || null;
+  }
+
+  function taskCardsForDraft(taskCards = [], draft = {}) {
+    const draftId = String(draft?.draftId || "");
+    return asArray(taskCards).filter((task) => String(task?.draftId || "") === draftId);
+  }
+
+  function hasLegacyCurriculumRef(ref) {
+    const text = String(ref || "").toLowerCase();
+    return text.includes("grade4-5")
+      || text.includes("upper-primary")
+      || text.includes("cambridge-primary")
+      || text.includes("cefr-a2-b1")
+      || text.includes("school-english-current-grade");
+  }
+
+  function draftNeedsRebuild(data = {}, draft = {}) {
+    if (!draft) return false;
+    const taskRefs = taskCardsForDraft(data.taskCards || [], draft).flatMap((task) => asArray(task.curriculumRefs));
+    const draftRefs = asArray(draft.curriculumRefs);
+    return draftRefs.concat(taskRefs).some(hasLegacyCurriculumRef);
+  }
+
+  function draftCanBeRebuilt(data = {}, draft = {}) {
+    if (!draft) return false;
+    if (["published", "publish_failed"].includes(String(draft.status || ""))) return false;
+    return taskCardsForDraft(data.taskCards || [], draft)
+      .every((task) => ["planned", "review_required", "blocked"].includes(String(task.status || "")));
+  }
+
+  function learnerFacts(data = {}) {
+    const profile = data.learnerProfile || {};
+    const refs = asArray(data.curriculumReferences);
+    const sources = asArray(data.sources);
+    const programs = asArray(data.programs);
+    const refText = refs.concat(programs).map((item) => JSON.stringify(item || {})).join(" ").toLowerCase();
+    const sourceText = sources.map((item) => JSON.stringify(item || {})).join(" ").toLowerCase();
+    const grade = refText.includes("grade7") || sourceText.includes("grade7") ? "\u4e03\u5e74\u7ea7" : "\u5f85\u786e\u8ba4";
+    const level = refText.includes("5_5-6") || refText.includes("5.5-6") || sourceText.includes("5.5-6")
+      ? "5.5-6 / B1 \u8fc7\u6e21"
+      : "\u5f85\u786e\u8ba4";
+    return {
+      displayName: profile.displayName || profile.learnerId || "\u51e1\u51e1",
+      grade,
+      level,
+      sourceCount: sources.length,
+      goalCount: asArray(data.goals).length,
+      programCount: programs.length,
+    };
+  }
+
+  function sourceRefsForProgram(data = {}, program = {}) {
+    const refs = asArray(program.sourceBasisRefs);
+    if (refs.length) return refs.join("\n");
+    return asArray(data.sources).map((source) => source.sourceRef || source.sourceId).filter(Boolean).slice(0, 20).join("\n");
+  }
+
   function compactFocus(focusAreas = []) {
     return asArray(focusAreas).map((id) => focusLabel(id)).join(" / ");
   }
@@ -206,14 +307,19 @@
     const goals = asArray(data.goals).slice(0, 5);
     const refs = asArray(data.curriculumReferences).slice(0, 5);
     const profile = data.learnerProfile || null;
-    return `<section class="learning-coin-panel learning-foundation-panel" data-learning-foundation>
+    const facts = learnerFacts(data);
+    return `<section class="learning-coin-panel learning-foundation-panel learning-owner-step" data-learning-foundation data-learning-owner-step="learner">
       <div class="learning-section-heading">
-        <h3>\u5b66\u4e60\u57fa\u7840\u6570\u636e</h3>
+        <h3>1. \u786e\u8ba4\u5b66\u4e60\u5bf9\u8c61</h3>
         <button type="button" data-learning-profile-rebuild>\u91cd\u5efa\u753b\u50cf</button>
       </div>
+      <div class="learning-owner-fact-grid">
+        <span><strong>${escapeHtml(facts.displayName)}</strong><small>\u5b66\u4e60\u5bf9\u8c61</small></span>
+        <span><strong>${escapeHtml(facts.grade)}</strong><small>\u5e74\u7ea7</small></span>
+        <span><strong>${escapeHtml(facts.level)}</strong><small>\u82f1\u8bed\u6c34\u5e73</small></span>
+        <span><strong>${escapeHtml(String(facts.sourceCount))}</strong><small>\u6458\u8981\u6765\u6e90</small></span>
+      </div>
       ${renderSourceDirectoryPanel(data.sourceDirectories || [], options)}
-      ${renderSourceGoalForms(options)}
-      ${renderFoundationImportForm(options)}
       <div class="learning-foundation-grid">
         <article>
           <strong>\u5b66\u4e60\u753b\u50cf</strong>
@@ -232,40 +338,49 @@
           ${refs.length ? refs.map((ref) => `<p>${escapeHtml(ref.title || ref.referenceId)}</p>`).join("") : `<p>\u8bfe\u7a0b\u53c2\u8003\u672a\u521d\u59cb\u5316</p>`}
         </article>
       </div>
+      <details class="learning-owner-advanced">
+        <summary>\u624b\u52a8\u8865\u5145\u6765\u6e90\u3001\u76ee\u6807\u6216\u6458\u8981</summary>
+        ${renderSourceGoalForms(options)}
+        ${renderFoundationImportForm(options)}
+      </details>
     </section>`;
   }
 
-  function renderProgramForm(options = {}) {
+  function renderProgramForm(data = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const state = options.state || {};
     if (!state.auth?.isOwner) return "";
-    return `<section class="learning-coin-panel learning-program-owner-panel" data-learning-program-owner>
+    const program = firstItem(data.programs) || {};
+    const goal = firstItem(data.goals) || {};
+    const focusAreas = asArray(program.focusAreas).length ? asArray(program.focusAreas) : DEFAULT_OWNER_PROGRAM.focusAreas;
+    const title = program.title || goal.title || DEFAULT_OWNER_PROGRAM.title;
+    const goalSummary = program.goalSummary || goal.targetSummary || DEFAULT_OWNER_PROGRAM.goalSummary;
+    const sourceRefs = sourceRefsForProgram(data, program);
+    const domain = program.domain || goal.domain || "english";
+    return `<section class="learning-coin-panel learning-program-owner-panel learning-owner-step" data-learning-program-owner data-learning-owner-step="scope">
       <div class="learning-section-heading">
-        <h3>\u5b66\u4e60\u8303\u56f4\u914d\u7f6e</h3>
-        <span>SQLite</span>
+        <h3>2-3. \u9636\u6bb5\u76ee\u6807\u4e0e\u5185\u5bb9\u8303\u56f4</h3>
+        <span>\u5df2\u9884\u586b</span>
       </div>
       <form id="learningProgramForm" class="learning-program-form" data-learning-program-create>
-        <input id="learningProgramTitle" class="input" type="text" autocomplete="off" placeholder="\u8ba1\u5212\u540d\u79f0\uff0c\u4f8b\uff1a\u82f1\u8bed\u5feb\u901f\u63d0\u5347">
-        <textarea id="learningProgramGoal" class="input" rows="3" placeholder="\u76ee\u6807\u548c\u8981\u6c42\uff1a\u60f3\u5b66\u4ec0\u4e48\u8303\u56f4\uff0c\u4ec0\u4e48\u8981\u6c42\uff0c\u591a\u957f\u65f6\u95f4"></textarea>
+        <label class="learning-program-wide-field"><span>\u9636\u6bb5\u76ee\u6807</span><input id="learningProgramTitle" class="input" type="text" autocomplete="off" value="${escapeHtml(title)}" placeholder="\u8ba1\u5212\u540d\u79f0\uff0c\u4f8b\uff1a\u82f1\u8bed\u5feb\u901f\u63d0\u5347"></label>
+        <label class="learning-program-wide-field"><span>\u8981\u8fbe\u5230\u7684\u7ed3\u679c</span><textarea id="learningProgramGoal" class="input" rows="3" placeholder="\u9636\u6bb5\u76ee\u6807\u3001\u9a8c\u6536\u6807\u51c6\u548c\u7279\u6b8a\u8981\u6c42">${escapeHtml(goalSummary)}</textarea></label>
         <div class="learning-program-field-grid">
-          <label><span>\u9886\u57df</span><select id="learningProgramDomain" class="input"><option value="english">English</option><option value="math">Math</option><option value="programming">Programming</option></select></label>
-          <label><span>\u5f00\u59cb</span><input id="learningProgramStartDate" class="input" type="date"></label>
-          <label><span>\u5468\u671f\u5929\u6570</span><input id="learningProgramDurationDays" class="input" type="number" min="7" max="366" value="28"></label>
-          <label><span>\u6bcf\u5468\u5929\u6570</span><input id="learningProgramDaysPerWeek" class="input" type="number" min="1" max="7" value="5"></label>
-          <label><span>\u6bcf\u5929\u5206\u949f</span><input id="learningProgramMinutesPerDay" class="input" type="number" min="10" max="90" value="30"></label>
-          <label><span>\u63d0\u9192\u65f6\u95f4</span><input id="learningProgramTimeOfDay" class="input" type="time" value="19:30"></label>
+          <label><span>\u9886\u57df</span><select id="learningProgramDomain" class="input"><option value="english"${selectedAttr(domain, "english")}>English</option><option value="math"${selectedAttr(domain, "math")}>Math</option><option value="programming"${selectedAttr(domain, "programming")}>Programming</option></select></label>
+          <label><span>\u5f00\u59cb</span><input id="learningProgramStartDate" class="input" type="date" value="${escapeHtml(program.startDate || "")}"></label>
+          <label><span>\u5468\u671f\u5929\u6570</span><input id="learningProgramDurationDays" class="input" type="number" min="7" max="366" value="${escapeHtml(String(program.durationDays || DEFAULT_OWNER_PROGRAM.durationDays))}"></label>
+          <label><span>\u6bcf\u5468\u5929\u6570</span><input id="learningProgramDaysPerWeek" class="input" type="number" min="1" max="7" value="${escapeHtml(String(program.daysPerWeek || DEFAULT_OWNER_PROGRAM.daysPerWeek))}"></label>
+          <label><span>\u6bcf\u5929\u5206\u949f</span><input id="learningProgramMinutesPerDay" class="input" type="number" min="10" max="90" value="${escapeHtml(String(program.minutesPerDay || DEFAULT_OWNER_PROGRAM.minutesPerDay))}"></label>
+          <label><span>\u63d0\u9192\u65f6\u95f4</span><input id="learningProgramTimeOfDay" class="input" type="time" value="${escapeHtml(program.timeOfDay || DEFAULT_OWNER_PROGRAM.timeOfDay)}"></label>
         </div>
         <fieldset class="learning-program-focus-grid" aria-label="\u82f1\u8bed\u80fd\u529b\u8303\u56f4">
-          <label><input type="checkbox" name="learningProgramFocus" value="english_reading_comprehension" checked> \u9605\u8bfb</label>
-          <label><input type="checkbox" name="learningProgramFocus" value="english_listening_input"> \u542c\u529b</label>
-          <label><input type="checkbox" name="learningProgramFocus" value="english_speaking_retell" checked> \u53e3\u8bed</label>
-          <label><input type="checkbox" name="learningProgramFocus" value="english_pronunciation_shadowing"> \u53d1\u97f3</label>
-          <label><input type="checkbox" name="learningProgramFocus" value="english_short_writing" checked> \u5199\u4f5c</label>
-          <label><input type="checkbox" name="learningProgramFocus" value="english_vocabulary_active_use" checked> \u8bcd\u6c47</label>
-          <label><input type="checkbox" name="learningProgramFocus" value="english_grammar_in_expression"> \u8bed\u6cd5</label>
-          <label><input type="checkbox" name="learningProgramFocus" value="english_presentation"> \u6f14\u8bb2</label>
+          ${ENGLISH_FOCUS_IDS.map((id) => `<label><input type="checkbox" name="learningProgramFocus" value="${escapeHtml(id)}"${checkedAttr(focusAreas, id, DEFAULT_OWNER_PROGRAM.focusAreas.includes(id))}> ${escapeHtml(focusLabel(id))}</label>`).join("")}
         </fieldset>
-        <textarea id="learningProgramSourceRefs" class="input" rows="2" placeholder="\u4f9d\u636e\u6765\u6e90\u6458\u8981\uff0c\u4e00\u884c\u4e00\u4e2a\uff1a\u5b66\u6821\u3001\u79c1\u6559\u3001\u5386\u53f2\u6e05\u6d17\u8d44\u6599\u3001\u5bb6\u957f\u76ee\u6807"></textarea>
-        <button class="learning-coin-primary" type="submit">\u4fdd\u5b58\u8303\u56f4</button>
+        <details class="learning-owner-advanced compact">
+          <summary>\u67e5\u770b\u5185\u5bb9\u4f9d\u636e\u5f15\u7528</summary>
+          <textarea id="learningProgramSourceRefs" class="input" rows="2" placeholder="\u4f9d\u636e\u6765\u6e90\u6458\u8981\uff0c\u4e00\u884c\u4e00\u4e2a">${escapeHtml(sourceRefs)}</textarea>
+        </details>
+        <button class="learning-coin-primary" type="submit">\u4fdd\u5b58\u9636\u6bb5\u76ee\u6807\u548c\u5185\u5bb9\u8303\u56f4</button>
       </form>
     </section>`;
   }
@@ -288,12 +403,15 @@
   function renderProgramCards(programs = [], latestDrafts = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const owner = isOwner(options);
+    const data = options.programsData || {};
     if (!programs.length) {
       return `<div class="learning-coin-empty">${owner ? "\u8fd8\u6ca1\u6709\u5b66\u4e60\u8303\u56f4\u914d\u7f6e\u3002" : "\u6682\u65e0\u5b66\u4e60\u5b89\u6392\u3002"}</div>`;
     }
     const draftByProgram = new Map(latestDrafts.map((draft) => [draft.programId, draft]));
     return programs.map((program) => {
       const draft = draftByProgram.get(program.programId);
+      const needsRebuild = owner && draftNeedsRebuild(data, draft);
+      const canRebuild = owner && draftCanBeRebuilt(data, draft);
       return `<article class="learning-program-card" data-learning-program-id="${escapeHtml(program.programId)}">
         <div class="learning-program-card-top">
           <div>
@@ -309,9 +427,11 @@
         </div>
         ${owner ? `<div class="learning-program-focus">${escapeHtml(compactFocus(program.focusAreas))}</div>` : ""}
         ${owner ? renderDraftSummary(draft, options) : ""}
+        ${needsRebuild ? `<div class="learning-program-rebuild-warning" data-learning-program-stale-draft="${escapeHtml(draft.draftId || "")}">\u68c0\u6d4b\u5230\u65e7\u8bfe\u7a0b\u53c2\u8003\u5c42\uff0c\u5efa\u8bae\u4f5c\u5e9f\u5f53\u524d\u5f85\u5ba1\u6838\u5468\u8ba1\u5212\u5e76\u91cd\u65b0\u751f\u6210\u3002</div>` : ""}
         ${owner ? `<div class="learning-program-actions">
           <button type="button" data-learning-program-draft-action="${escapeHtml(program.programId)}">\u751f\u6210\u5468\u8ba1\u5212</button>
-          <button type="button" data-learning-program-publish="${escapeHtml(program.programId)}" ${draft && !draft.reliability?.publishBlocked ? "" : "disabled"}>\u4e0b\u53d1\u4efb\u52a1</button>
+          ${canRebuild ? `<button type="button" data-learning-program-rebuild-draft="${escapeHtml(program.programId)}">\u4f5c\u5e9f\u5e76\u91cd\u5efa</button>` : ""}
+          <button type="button" data-learning-program-publish="${escapeHtml(program.programId)}" ${draft && !draft.reliability?.publishBlocked && !needsRebuild ? "" : "disabled"}>\u4e0b\u53d1\u4efb\u52a1</button>
         </div>` : ""}
       </article>`;
     }).join("");
@@ -473,7 +593,7 @@
         </section>
         <section class="learning-coin-panel">
           <div class="learning-section-heading"><h3>${isOwner(options) ? "\u5b66\u4e60\u8ba1\u5212" : "\u5b66\u4e60\u5b89\u6392"}</h3><span>${escapeHtml(String(programs.length))}</span></div>
-          <div class="learning-program-list">${renderProgramCards(programs, data.latestDrafts || [], options)}</div>
+          <div class="learning-program-list">${renderProgramCards(programs, data.latestDrafts || [], Object.assign({}, options, { programsData: data }))}</div>
         </section>
       </div>
     </section>`;
@@ -635,7 +755,7 @@
     const nextActions = asArray(launchOperations.nextActions).slice(0, 5);
     return `<section class="learning-coin-panel learning-launch-operations-panel" data-learning-launch-operations data-launch-status="${escapeHtml(launchOperations.status || "")}">
       <div class="learning-section-heading">
-        <h3>\u6b63\u5f0f\u4e0a\u7ebf\u8fd0\u8425\u53f0</h3>
+        <h3>4. \u751f\u6210\u8ba1\u5212\u5e76\u5ba1\u6838</h3>
         <span>${escapeHtml(launchStatusText(launchOperations.status))}</span>
       </div>
       <div class="learning-program-report-grid">
@@ -683,12 +803,12 @@
     if (!isOwner(options)) return "";
     return `<section class="learning-growth-category learning-program-parent-admin" data-learning-growth-category="parent-admin">
       <div class="learning-growth-category-heading">
-        <h3>\u5bb6\u957f\u914d\u7f6e / \u5ba1\u6838</h3>
-        <span>Owner</span>
+        <h3>\u5bb6\u957f\u914d\u7f6e\u5411\u5bfc</h3>
+        <span>4 steps</span>
       </div>
       ${renderLaunchOperationsPanel(data.launchOperations || options.launchOperations || {}, options)}
       ${renderFoundationPanel(data, options)}
-      ${renderProgramForm(options)}
+      ${renderProgramForm(data, options)}
       ${renderParentReportPanel(data, options)}
       ${renderReviewQueue(data.reviewItems || [], options)}
       ${renderParentReviewRequests(data.parentReviewRequests || [], options)}
@@ -699,10 +819,15 @@
   function renderProgramSubsystem(options = {}) {
     const programs = options.programs || {};
     const data = programs.programs ? programs : {};
+    const owner = isOwner(options);
+    const parentAdmin = renderParentAdminPanel(data, options);
+    const execution = renderExecutionOverview(data, options);
+    const guidance = renderGuidancePanel(data, options);
     return `<section class="learning-program-section" data-learning-growth-module="programs">
-      ${renderExecutionOverview(data, options)}
-      ${renderGuidancePanel(data, options)}
-      ${renderParentAdminPanel(data, options)}
+      ${owner ? parentAdmin : ""}
+      ${execution}
+      ${guidance}
+      ${owner ? "" : parentAdmin}
     </section>`;
   }
 

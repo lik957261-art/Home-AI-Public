@@ -377,6 +377,11 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["learning-program", "learning-plan-draft"],
   })),
+  regex("learning-program-rebuild-draft-plan", "POST", /^\/api\/learning\/programs\/[^/]+\/rebuild-draft-plan$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["learning-program", "learning-plan-draft"],
+  })),
   regex("learning-program-publish", "POST", /^\/api\/learning\/programs\/[^/]+\/publish$/, "learning-program", routeOptions("learning-program", {
     riskLevel: "owner",
     ownerOnly: true,

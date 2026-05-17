@@ -299,6 +299,12 @@ async function draftLearningProgram(programId) {
   await loadLearningCoins({ limit: 30 });
 }
 
+async function rebuildLearningProgramDraft(programId) {
+  await api(`/api/learning/programs/${encodeURIComponent(programId)}/rebuild-draft-plan`, { method: "POST", body: JSON.stringify({}) });
+  showPushToast("旧周计划已作废并重新生成", "success");
+  await loadLearningCoins({ limit: 30 });
+}
+
 async function publishLearningProgram(programId) {
   await api(`/api/learning/programs/${encodeURIComponent(programId)}/publish`, { method: "POST", body: JSON.stringify({}) });
   showPushToast("学习任务已下发", "success");
@@ -450,6 +456,9 @@ function wireLearningCoinsView() {
   });
   $("conversation")?.querySelectorAll("[data-learning-program-draft-action]").forEach((button) => {
     button.addEventListener("click", () => draftLearningProgram(button.dataset.learningProgramDraftAction).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-program-rebuild-draft]").forEach((button) => {
+    button.addEventListener("click", () => rebuildLearningProgramDraft(button.dataset.learningProgramRebuildDraft).catch(showError));
   });
   $("conversation")?.querySelectorAll("[data-learning-program-publish]").forEach((button) => {
     button.addEventListener("click", () => publishLearningProgram(button.dataset.learningProgramPublish).catch(showError));

@@ -172,6 +172,52 @@ async function testBlockedDraftDoesNotPublish() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function testRebuildDraftRemovesOnlyUnpublishedPlan() {
+  const root = tempRoot();
+  const { service, repository } = createService(root);
+  const program = service.createProgram({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    title: "Rebuildable English growth",
+    goalSummary: "Improve Grade 7 English output.",
+    sourceBasisRefs: ["parent_config:summary"],
+  });
+  const first = service.draftPlan(program.programId);
+  assert.equal(first.draft.status, "review_required");
+  assert.equal(repository.getPlanDraft(first.draft.draftId).draftId, first.draft.draftId);
+  const rebuilt = service.rebuildDraftPlan(program.programId);
+  assert.equal(rebuilt.rebuilt, true);
+  assert.equal(rebuilt.removed.draftId, first.draft.draftId);
+  assert.equal(rebuilt.removed.taskCards, first.taskCards.length);
+  assert.equal(rebuilt.removed.reviewItems, 1);
+  assert.equal(repository.getPlanDraft(first.draft.draftId), null);
+  assert.notEqual(rebuilt.draft.draftId, first.draft.draftId);
+  assert.equal(repository.latestDraftForProgram(program.programId).draftId, rebuilt.draft.draftId);
+  assert.equal(repository.listReviewItems({ learnerId: "weixin_stephen", status: "pending" }).length, 1);
+  assert.equal(repository.listTaskCards({ draftId: rebuilt.draft.draftId }).length, rebuilt.taskCards.length);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+async function testRebuildDraftBlocksPublishedPlan() {
+  const root = tempRoot();
+  const { service, repository } = createService(root);
+  const program = service.createProgram({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    title: "Published English growth",
+    goalSummary: "Improve English output.",
+    sourceBasisRefs: ["parent_config:summary"],
+  });
+  const drafted = service.draftPlan(program.programId);
+  service.decideReview(drafted.reviewItem.reviewId, { decision: "approved", principalId: "owner" });
+  await service.publishProgram(program.programId, { draftId: drafted.draft.draftId });
+  assert.throws(() => service.rebuildDraftPlan(program.programId), /published or executable records/);
+  assert.equal(repository.getPlanDraft(drafted.draft.draftId).status, "published");
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 function testFoundationRecordsRejectPrivatePayloadKeys() {
   const root = tempRoot();
   const { service, repository } = createService(root);
@@ -235,6 +281,8 @@ function testSourceDirectoryBootstrapCreatesEditableFoundation() {
 (async () => {
   await testCreateDraftApprovePublish();
   await testBlockedDraftDoesNotPublish();
+  testRebuildDraftRemovesOnlyUnpublishedPlan();
+  await testRebuildDraftBlocksPublishedPlan();
   testFoundationRecordsRejectPrivatePayloadKeys();
   testSourceDirectoryBootstrapCreatesEditableFoundation();
   console.log("learning program service tests passed");
