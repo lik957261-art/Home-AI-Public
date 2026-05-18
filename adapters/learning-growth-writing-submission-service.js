@@ -146,7 +146,10 @@ function readableCompletionComment(evaluation = {}, publicEval = {}) {
   const rewardText = reward.status === "settled"
     ? `\u5df2\u7ed3\u7b97 ${Number(reward.coinAmount || 0)} \u91d1\u5e01\u3002`
     : "\u91d1\u5e01\u5f85\u590d\u6838\u6216\u7a0d\u540e\u91cd\u8bd5\u3002";
-  return `${cleanString(evaluation.summary)} ${rewardText}`.trim();
+  const reportText = publicEval.report?.name
+    ? `\u004d\u0061\u0072\u006b\u0064\u006f\u0077\u006e \u4ea4\u4ed8\u62a5\u544a\u5df2\u751f\u6210\uff1a${publicEval.report.name}\u3002`
+    : "\u004d\u0061\u0072\u006b\u0064\u006f\u0077\u006e \u4ea4\u4ed8\u62a5\u544a\u672a\u751f\u6210\uff0c\u8bf7\u5237\u65b0\u8fc7\u7a0b\u6216\u8054\u7cfb\u5bb6\u957f\u590d\u6838\u3002";
+  return `\u6700\u7ec8\u7ed3\u8bba\uff1a${cleanString(evaluation.summary)} ${reportText} ${rewardText}`.trim();
 }
 
 function evaluationComment(evaluation = {}, settlement = null) {
@@ -291,15 +294,6 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       text,
       stage,
     });
-    let report = null;
-    try {
-      report = reportService && typeof reportService.writeReport === "function"
-        ? reportService.writeReport({ workspaceId, cardId: cardIdValue, card: loaded.card, evaluation })
-        : null;
-      if (report) evaluation.report = report;
-    } catch (err) {
-      evaluation.reportError = cleanString(err.message || err);
-    }
     let settlement = null;
     try {
       settlement = await settleViaProgramService(getProgramService(options), loaded.card, evaluation, { workspaceId, author: input.author });
@@ -312,6 +306,15 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       } catch (err) {
         settlement = { status: "coin_settlement_error", error: cleanString(err.message || err) };
       }
+    }
+    let report = null;
+    try {
+      report = reportService && typeof reportService.writeReport === "function"
+        ? reportService.writeReport({ workspaceId, cardId: cardIdValue, card: loaded.card, evaluation, settlement })
+        : null;
+      if (report) evaluation.report = report;
+    } catch (err) {
+      evaluation.reportError = cleanString(err.message || err);
     }
     const publicEval = publicEvaluation(evaluation, settlement);
     const evaluationText = [

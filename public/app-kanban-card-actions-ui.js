@@ -201,10 +201,11 @@ async function submitLearningGrowthWriting(todoId, text) {
     const score = response?.evaluation?.score;
     const reward = response?.reward;
     const nextStep = response?.evaluation?.nextStep || "";
+    const reportReady = Boolean(response?.evaluation?.report?.url || response?.evaluation?.report?.path || response?.evaluation?.report?.name);
     state.todoLearningGrowthSubmissionFeedback[todoId] = {
       kind: "success",
       message: response?.evaluation
-        ? `AI \u6279\u6539\u5df2\u5b8c\u6210${score == null ? "" : `\uff0c\u8bc4\u5206 ${score}/100`}${nextStep === "rewrite_and_reflect" ? "\uff0c\u8bf7\u7ee7\u7eed\u6539\u5199\u548c\u590d\u76d8" : ""}${reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
+        ? `AI \u6279\u6539\u5df2\u5b8c\u6210${score == null ? "" : `\uff0c\u8bc4\u5206 ${score}/100`}${nextStep === "rewrite_and_reflect" ? "\uff0c\u8bf7\u7ee7\u7eed\u6539\u5199\u548c\u590d\u76d8" : ""}${nextStep === "completed" ? "\uff0c\u5df2\u751f\u6210\u6700\u7ec8\u7ed3\u8bba" : ""}${reportReady ? "\uff0cMarkdown \u62a5\u544a\u5df2\u751f\u6210" : ""}${reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
         : "\u5df2\u6536\u5230\u4f5c\u7b54\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\u6216\u5bb6\u957f\u590d\u6838\u3002",
     };
     await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });

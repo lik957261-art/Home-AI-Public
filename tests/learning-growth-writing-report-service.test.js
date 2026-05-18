@@ -33,7 +33,42 @@ function testBuildMarkdownOmitsRawSubmission() {
   assert.match(markdown, /Writing card/);
   assert.match(markdown, /Draft feedback ready/);
   assert.match(markdown, /Add one concrete example/);
+  assert.match(markdown, /改写任务/);
+  assert.match(markdown, /金币结算/);
   assert.doesNotMatch(markdown, /Last week I joined/);
+}
+
+function testBuildFinalMarkdownIncludesConclusionAndSettlement() {
+  const markdown = buildWritingFeedbackMarkdown({
+    cardId: "t_growth",
+    card: { content: "Writing card" },
+    settlement: { status: "settled" },
+    evaluation: {
+      stage: "final",
+      status: "completed",
+      passed: true,
+      score: 91,
+      maxScore: 100,
+      summary: "Final evaluation ready.",
+      evaluatedAt: "2026-05-17T16:00:00.000Z",
+      nextStep: "completed",
+      wordCount: 96,
+      sentenceCount: 6,
+      targetMinWords: 80,
+      targetMaxWords: 120,
+      reward: { eligible: true, coinAmount: 15 },
+      feedbackSections: {
+        strengths: ["Clear final version."],
+        focusAreas: ["Keep adding concrete examples."],
+        rewriteChecklist: ["Reuse this outline next time."],
+        reflectionPrompts: ["What will I do first next time?"],
+      },
+    },
+  });
+  assert.match(markdown, /最终结论/);
+  assert.match(markdown, /最终判定/);
+  assert.match(markdown, /服务层已结算 15 金币/);
+  assert.doesNotMatch(markdown, /Final answer raw text/);
 }
 
 function testWriteReportUsesArtifactDirectory() {
@@ -63,5 +98,6 @@ function testWriteReportUsesArtifactDirectory() {
 }
 
 testBuildMarkdownOmitsRawSubmission();
+testBuildFinalMarkdownIncludesConclusionAndSettlement();
 testWriteReportUsesArtifactDirectory();
 console.log("learning growth writing report service tests passed");

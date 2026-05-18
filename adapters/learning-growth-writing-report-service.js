@@ -42,6 +42,22 @@ function reportStageLabel(evaluation = {}) {
   return "\u8349\u7a3f\u6279\u6539";
 }
 
+function reportConclusionTitle(evaluation = {}) {
+  const stage = cleanString(evaluation.stage);
+  if (stage === "final" && evaluation.passed) return "\u6700\u7ec8\u7ed3\u8bba";
+  if (stage === "final") return "\u518d\u6539\u7ed3\u8bba";
+  return "\u9996\u7a3f\u6279\u6539\u7ed3\u8bba";
+}
+
+function rewardLine(evaluation = {}, settlement = null) {
+  const eligible = Boolean(evaluation.reward?.eligible);
+  const coins = Number(evaluation.reward?.coinAmount || 0) || 0;
+  const status = cleanString(settlement?.status || evaluation.reward?.status || "");
+  if (!eligible) return "\u672c\u9636\u6bb5\u4e0d\u7ed3\u7b97\u91d1\u5e01\uff1b\u9700\u5b8c\u6210\u6700\u7ec8\u6539\u5199\u5e76\u8fbe\u5230\u901a\u8fc7\u7ebf\u3002";
+  if (status === "settled") return `\u670d\u52a1\u5c42\u5df2\u7ed3\u7b97 ${coins} \u91d1\u5e01\u3002`;
+  return `\u672c\u5361\u8fbe\u5230\u91d1\u5e01\u6761\u4ef6\uff0c\u9884\u8ba1 ${coins} \u91d1\u5e01\uff1b\u6700\u7ec8\u72b6\u6001\u4ee5\u670d\u52a1\u5c42\u6d41\u6c34\u4e3a\u51c6\u3002`;
+}
+
 function nextStepText(evaluation = {}) {
   const next = cleanString(evaluation.nextStep);
   if (next === "completed") return "\u672c\u5361\u7247\u5df2\u5b8c\u6210\uff0c\u91d1\u5e01\u7ed3\u7b97\u4ee5\u670d\u52a1\u5c42\u8bb0\u5f55\u4e3a\u51c6\u3002";
@@ -53,8 +69,11 @@ function nextStepText(evaluation = {}) {
 function buildWritingFeedbackMarkdown(input = {}) {
   const card = input.card || {};
   const evaluation = input.evaluation || {};
+  const settlement = input.settlement || null;
   const feedback = evaluation.feedbackSections || {};
   const title = cardTitle(card, input.cardId || "Growth writing card");
+  const finalStage = cleanString(evaluation.stage) === "final";
+  const passed = Boolean(evaluation.passed);
   const lines = [
     `# ${title} - \u82f1\u8bed\u5199\u4f5c\u6279\u6539\u62a5\u544a`,
     "",
@@ -64,9 +83,17 @@ function buildWritingFeedbackMarkdown(input = {}) {
     `- Status: ${cleanString(evaluation.status || "pending")}`,
     `- Evaluated at: ${cleanString(evaluation.evaluatedAt)}`,
     "",
-    "## \u6279\u6539\u7ed3\u8bba",
+    `## ${reportConclusionTitle(evaluation)}`,
     "",
     cleanString(evaluation.summary) || "\u5df2\u751f\u6210\u5199\u4f5c\u6279\u6539\u7ed3\u679c\u3002",
+    "",
+    finalStage ? "## \u6700\u7ec8\u5224\u5b9a" : "## \u6539\u5199\u4efb\u52a1",
+    "",
+    finalStage
+      ? (passed
+        ? "\u672c\u5361\u5df2\u8fbe\u5230\u901a\u8fc7\u7ebf\u3002\u8bf7\u628a\u672c\u6b21\u6700\u6709\u6548\u7684\u6539\u5199\u65b9\u6cd5\u7559\u5230\u4e0b\u4e00\u5f20\u5199\u4f5c\u5361\u7ee7\u7eed\u4f7f\u7528\u3002"
+        : "\u672c\u5361\u8fd8\u672a\u8fbe\u5230\u901a\u8fc7\u7ebf\u3002\u8bf7\u6309\u4e0b\u65b9\u4fee\u6539\u8981\u6c42\u518d\u63d0\u4ea4\u4e00\u7248\u3002")
+      : "\u8bf7\u628a\u8fd9\u4efd\u62a5\u544a\u5f53\u4f5c\u6539\u5199\u6e05\u5355\uff0c\u4e0d\u8981\u76f4\u63a5\u70b9\u5b8c\u6210\u3002\u6539\u5199\u7248\u9700\u8981\u8ba9\u4fee\u6539\u75d5\u8ff9\u53ef\u89c1\uff0c\u5e76\u8865\u4e00\u53e5\u590d\u76d8\u3002",
     "",
     "## \u4f18\u70b9",
     "",
@@ -87,6 +114,10 @@ function buildWritingFeedbackMarkdown(input = {}) {
     "## \u4e0b\u4e00\u6b65",
     "",
     nextStepText(evaluation),
+    "",
+    "## \u91d1\u5e01\u7ed3\u7b97",
+    "",
+    rewardLine(evaluation, settlement),
     "",
     "## \u8bc4\u5206\u4f9d\u636e",
     "",

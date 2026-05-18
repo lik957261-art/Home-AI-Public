@@ -58,6 +58,9 @@ function testDraftFeedbackDoesNotSettleOrComplete() {
   assert.equal(evaluation.reward.eligible, false);
   assert.equal(evaluation.reward.coinAmount, 0);
   assert.ok(evaluation.feedbackSections.reflectionPrompts.length >= 1);
+  assert.ok(evaluation.feedbackSections.focusAreas.length >= 3);
+  assert.ok(evaluation.feedbackSections.rewriteChecklist.some((item) => item.includes("复盘")));
+  assert.match(evaluation.summary, /不是最终结论/);
 }
 
 function testRequiresRevisionForShortWriting() {

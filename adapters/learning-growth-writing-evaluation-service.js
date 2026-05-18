@@ -45,19 +45,26 @@ function targetWordRange(card = {}) {
   const text = [
     card.kanbanCaseCardGoal,
     card.kanban_case_card_goal,
+    card.learningTaskModel?.learnerInstruction,
     card.description,
     card.content,
   ].map(cleanString).filter(Boolean).join("\n");
-  const explicit = text.match(/(\d{2,3})\s*(?:-|to|~|至|到)\s*(\d{2,3})\s*(?:words?|词|字)/i);
+  const explicit = text.match(/(\d{2,3})\s*(?:-|–|—|~|to|至|到)\s*(\d{2,3})\s*(?:words?|词|个词)?/i);
   if (explicit) {
     const min = Math.max(20, Math.min(300, Number(explicit[1]) || 80));
     const max = Math.max(min, Math.min(500, Number(explicit[2]) || min + 80));
     return { min, max };
   }
-  const single = text.match(/(?:at least|不少于|至少)\s*(\d{2,3})\s*(?:words?|词|字)/i);
+  const single = text.match(/(?:at least|不少于|至少)\s*(\d{2,3})\s*(?:words?|词|个词)/i);
   if (single) {
     const min = Math.max(20, Math.min(300, Number(single[1]) || 80));
     return { min, max: Math.max(min + 60, min * 2) };
+  }
+  const sentenceRange = text.match(/(\d)\s*(?:-|–|—|~|to|至|到)\s*(\d)\s*(?:English\s*)?(?:sentences?|句)/i);
+  if (sentenceRange) {
+    const minSentences = Math.max(3, Number(sentenceRange[1]) || 6);
+    const maxSentences = Math.max(minSentences, Number(sentenceRange[2]) || minSentences + 2);
+    return { min: Math.max(50, minSentences * 10), max: Math.max(140, maxSentences * 24) };
   }
   if (/summary|reflection|复盘|总结|answer/i.test(text)) return { min: 40, max: 180 };
   return { min: 80, max: 220 };
@@ -67,12 +74,13 @@ function keywordOverlap(card = {}, text = "") {
   const goal = [
     card.kanbanCaseCardGoal,
     card.kanban_case_card_goal,
+    card.learningTaskModel?.learnerInstruction,
     card.description,
     card.content,
   ].map(cleanString).join(" ").toLowerCase();
   const answer = String(text || "").toLowerCase();
   const candidates = [...new Set((goal.match(/[a-z]{5,}/g) || [])
-    .filter((word) => !["task", "instruction", "complete", "growth", "minutes", "planned", "words"].includes(word))
+    .filter((word) => !["task", "instruction", "complete", "growth", "minutes", "planned", "words", "english", "draft"].includes(word))
     .slice(0, 12))];
   if (!candidates.length) return 1;
   const matched = candidates.filter((word) => answer.includes(word)).length;
@@ -87,26 +95,34 @@ function writingIssues(input = {}) {
   const ratio = letterRatio(text);
   const target = input.target || { min: 80, max: 220 };
   const issues = [];
-  if (count < Math.ceil(target.min * 0.5)) issues.push({ code: "too_short", severity: "block", message: `本次作答只有 ${count} 个英文词，先补足到至少 ${target.min} 个词。` });
+  if (count < Math.ceil(target.min * 0.5)) issues.push({ code: "too_short", severity: "block", message: `本次英文词数只有 ${count} 个，先补足到至少 ${target.min} 个词。` });
   else if (count < target.min) issues.push({ code: "below_target_length", severity: "revision", message: `篇幅偏短，建议补充到 ${target.min}-${target.max} 个英文词。` });
-  if (ratio < 0.75) issues.push({ code: "low_english_ratio", severity: "revision", message: "英文占比偏低，批改只接受以英文为主体的作答。" });
+  if (ratio < 0.75) issues.push({ code: "low_english_ratio", severity: "revision", message: "英文占比偏低，本卡需要以英文作答为主体。" });
   if (sentences < 3) issues.push({ code: "few_sentences", severity: "revision", message: "句子数量偏少，至少写出开头、展开和收束三部分。" });
-  if (!/[.!?]\s*$/.test(text)) issues.push({ code: "missing_sentence_end", severity: "minor", message: "最后一句需要使用英文句号、问号或感叹号收尾。" });
-  if (!/[A-Z]/.test(text.slice(0, 3)) && /^[a-z]/.test(text)) issues.push({ code: "capitalization", severity: "minor", message: "句首大小写需要修正。" });
+  if (!/[.!?]\s*$/.test(text)) issues.push({ code: "missing_sentence_end", severity: "minor", message: "最后一句需要用英文句号、问号或感叹号收尾。" });
+  if (!/[A-Z]/.test(text.slice(0, 3)) && /^[a-z]/.test(text)) issues.push({ code: "capitalization", severity: "minor", message: "开头首字母大小写需要修正。" });
   const repeated = wordList.some((word, index) => index > 1 && word.toLowerCase() === wordList[index - 1].toLowerCase() && word.toLowerCase() === wordList[index - 2].toLowerCase());
   if (repeated) issues.push({ code: "repeated_words", severity: "minor", message: "有连续重复词，提交前需要通读修正。" });
   return issues;
 }
 
-function revisionRequirements(issues = [], score = 0) {
+function revisionRequirements(issues = [], score = 0, stage = "final") {
   const requirements = issues
     .filter((issue) => issue.severity !== "minor" || score < 85)
     .map((issue) => issue.message)
     .slice(0, 5);
-  if (!requirements.length && score < 90) {
-    requirements.push("下一版把理由或细节再展开一层，避免只写结论。");
+  if (stage === "draft") {
+    requirements.push(
+      "改写时先确认是否同时回答了观点、理由、具体例子和本卡要求的词汇/句式。",
+      "至少重写两处句子：一处让理由更清楚，一处让例子更具体。",
+      "最后补一句复盘：我改了什么，为什么这样改。",
+    );
+  } else if (!requirements.length && score < 90) {
+    requirements.push("下一次把理由或细节再展开一层，避免只写结论。");
+  } else if (!requirements.length) {
+    requirements.push("最终稿达到本卡通过线；下一次重点提高表达层次和具体细节。");
   }
-  return requirements;
+  return [...new Set(requirements)].slice(0, 6);
 }
 
 function scoreWriting(input = {}) {
@@ -161,26 +177,36 @@ function learningNextStep(stage, passed) {
 
 function feedbackSections(scored = {}, requirements = [], stage = "final") {
   const strengths = [];
-  if (scored.wordCount >= scored.targetMinWords) strengths.push("\u7bc7\u5e45\u5df2\u8fbe\u5230\u672c\u6b21\u4efb\u52a1\u7684\u57fa\u672c\u8981\u6c42\u3002");
-  if (scored.sentenceCount >= 3) strengths.push("\u5df2\u5199\u51fa\u591a\u4e2a\u53e5\u5b50\uff0c\u53ef\u4ee5\u7ee7\u7eed\u6253\u78e8\u8fde\u63a5\u548c\u5c42\u6b21\u3002");
-  if (scored.score >= 70) strengths.push("\u4efb\u52a1\u8d34\u5408\u5ea6\u8fbe\u5230\u7ec3\u4e60\u57fa\u7ebf\uff0c\u4e0b\u4e00\u6b65\u91cd\u70b9\u662f\u628a\u8868\u8fbe\u6539\u5f97\u66f4\u6e05\u695a\u3002");
-  if (!strengths.length) strengths.push("\u5df2\u5b8c\u6210\u4e00\u6b21\u53ef\u6279\u6539\u7684\u5199\u4f5c\u63d0\u4ea4\uff0c\u53ef\u4ee5\u5728\u4e0b\u4e00\u7248\u91cc\u8865\u8db3\u4fe1\u606f\u3002");
-  const focusAreas = asArray(requirements).length
+  if (scored.wordCount >= scored.targetMinWords) strengths.push("篇幅已达到本次任务的基本要求。");
+  if (scored.sentenceCount >= 3) strengths.push("已写出多个句子，可以继续打磨连接和层次。");
+  if (scored.score >= 70) strengths.push("任务贴合度达到练习基线，下一步重点是把表达改得更清楚。");
+  if (!strengths.length) strengths.push("已完成一次可批改的写作提交，可以在下一版里补足信息。");
+
+  const focusAreas = (asArray(requirements).length
     ? asArray(requirements)
-    : ["\u68c0\u67e5\u4efb\u52a1\u8981\u6c42\u662f\u5426\u90fd\u6709\u56de\u5e94\u3002", "\u628a\u6700\u91cd\u8981\u7684\u4e00\u4e2a\u7406\u7531\u6216\u7ec6\u8282\u5199\u5f97\u66f4\u5177\u4f53\u3002"];
-  const rewriteChecklist = [
-    "\u4fdd\u7559\u539f\u6587\u4e2d\u6700\u6e05\u695a\u7684\u53e5\u5b50\u3002",
-    "\u6839\u636e\u4e0a\u9762\u4fee\u6539\u8981\u6c42\u81f3\u5c11\u6539\u5199\u4e24\u5904\u3002",
-    "\u8865\u4e00\u53e5\u590d\u76d8\uff1a\u6211\u6539\u4e86\u4ec0\u4e48\uff0c\u4e3a\u4ec0\u4e48\u8fd9\u6837\u6539\u3002",
-  ];
-  if (stage === "final") rewriteChecklist.push("\u6700\u540e\u68c0\u67e5\u5927\u5199\u3001\u53e5\u53f7\u548c\u7ed3\u5c3e\u662f\u5426\u5b8c\u6574\u3002");
+    : ["检查任务要求是否都已回应。", "把最重要的一个理由或细节写得更具体。"])
+    .concat(stage === "draft" ? ["改写不是重新随便写一篇；要针对上面的反馈做可见修改。"] : [])
+    .slice(0, 6);
+  const rewriteChecklist = stage === "draft"
+    ? [
+      "先保留首稿里最清楚的一到两句，不要整篇推倒重来。",
+      "把观点句、理由句、例子句分清楚，避免多个意思挤在一个句子里。",
+      "至少补一个具体学校或日常生活细节，让读者知道发生了什么。",
+      "把一个普通词替换成更准确的 active vocabulary，并检查搭配。",
+      "最后写一句复盘：我改了什么，为什么这样改。",
+    ]
+    : [
+      "保留这次最终稿中最清楚的表达，作为下次写作的可复用句式。",
+      "下次写同类短文前，先列出观点、理由、例子三行提纲。",
+      "继续检查大写、句号、连接词和结尾是否完整。",
+    ];
   return {
     strengths,
     focusAreas,
     rewriteChecklist,
     reflectionPrompts: [
-      "\u6211\u8fd9\u6b21\u6700\u91cd\u8981\u7684\u4e00\u5904\u4fee\u6539\u662f\u4ec0\u4e48\uff1f",
-      "\u4e0b\u6b21\u5199\u540c\u7c7b\u6587\u7ae0\u65f6\uff0c\u6211\u8981\u5148\u6ce8\u610f\u54ea\u4e00\u70b9\uff1f",
+      "我这次最重要的一处修改是什么？",
+      "下次写同类文章时，我要先注意哪一点？",
     ],
   };
 }
@@ -194,20 +220,17 @@ function createLearningGrowthWritingEvaluationService(options = {}) {
     const cardId = cleanString(input.cardId || card.id || card.todoId || card.todo_id);
     const stage = normalizeEvaluationStage(input.stage || input.submissionStage || input.submissionKind, "final");
     const scored = scoreWriting({ text, card });
-    const requirements = revisionRequirements(scored.issues, scored.score);
+    const requirements = revisionRequirements(scored.issues, scored.score, stage);
     const passed = stage === "final" && scored.passed;
     const status = stage === "draft" ? "draft_feedback" : (passed ? "completed" : "needs_revision");
     const coinAmount = passed ? rewardCoinsForScore(scored.score) : 0;
     const at = now().toISOString();
-    const learningSummary = stage === "draft"
-      ? `\u8349\u7a3f\u5df2\u6279\u6539\uff1a${scored.score}/100\u3002\u4e0b\u4e00\u6b65\u8bf7\u6309\u6e05\u5355\u6539\u5199\uff0c\u5e76\u8865\u4e00\u53e5\u590d\u76d8\u540e\u518d\u63d0\u4ea4\u3002`
+    const summary = stage === "draft"
+      ? `首稿已批改：${scored.score}/100。这不是最终结论；请按“重点修改”和“改写清单”完成一版 Rewritten，并补一句复盘后再提交。`
       : (passed
-        ? `\u5199\u4f5c\u5df2\u901a\u8fc7\uff1a${scored.score}/100\u3002\u5df2\u5b8c\u6210\u6539\u5199\u548c\u590d\u76d8\uff0c\u91d1\u5e01\u7ed3\u7b97\u4ee5\u670d\u52a1\u5c42\u8bb0\u5f55\u4e3a\u51c6\u3002`
-        : `\u5199\u4f5c\u9700\u8981\u7ee7\u7eed\u4fee\u6539\uff1a${scored.score}/100\u3002\u8bf7\u6839\u636e\u6279\u6539\u62a5\u544a\u518d\u63d0\u4ea4\u4e00\u7248\u3002`);
+        ? `最终批改完成：${scored.score}/100。本卡已达到通过线；最终结论、改写成效和下一次训练重点会写入 Markdown 交付报告。`
+        : `改写仍需继续：${scored.score}/100。请根据批改报告再提交一版，重点补足阻碍通过的项目。`);
     const nextStep = learningNextStep(stage, passed);
-    const summary = scored.passed
-      ? `\u5199\u4f5c\u5df2\u901a\u8fc7\uff1a${scored.score}/100\u3002\u91cd\u70b9\u7ee7\u7eed\u4fdd\u6301\u4efb\u52a1\u8d34\u5408\u5ea6\u548c\u53e5\u5b50\u5b8c\u6574\u5ea6\u3002`
-      : `\u5199\u4f5c\u9700\u8981\u4fee\u6539\uff1a${scored.score}/100\u3002\u5148\u6309\u4fee\u6539\u8981\u6c42\u8865\u8db3\u5185\u5bb9\u540e\u518d\u63d0\u4ea4\u3002`;
     return {
       evaluationId: createEvaluationId(cardId, text),
       submissionDigest: submissionDigest(text),
@@ -217,7 +240,7 @@ function createLearningGrowthWritingEvaluationService(options = {}) {
       maxScore: scored.maxScore,
       passed,
       confidence: scored.confidence,
-      summary: learningSummary,
+      summary,
       wordCount: scored.wordCount,
       sentenceCount: scored.sentenceCount,
       targetMinWords: scored.targetMinWords,
@@ -226,7 +249,7 @@ function createLearningGrowthWritingEvaluationService(options = {}) {
       feedbackSections: feedbackSections(scored, requirements, stage),
       nextStep,
       verificationMethod: "deterministic_template",
-      evidenceRefs: ["learning-growth-writing-rubric:v1", `writing-stage:${stage}`, `word-count-band:${Math.floor(scored.wordCount / 20) * 20}`],
+      evidenceRefs: ["learning-growth-writing-rubric:v2", `writing-stage:${stage}`, `word-count-band:${Math.floor(scored.wordCount / 20) * 20}`],
       reward: {
         eligible: passed && coinAmount > 0,
         coinAmount,

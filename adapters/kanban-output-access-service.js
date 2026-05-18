@@ -35,6 +35,13 @@ function createKanbanOutputAccessService(options = {}) {
     return String(share?.caseId || share?.case_id || "").trim();
   }
 
+  function pathInsideWorkspaceArtifactRoot(workspaceId, localPath) {
+    if (!artifactRoot || !localPath) return false;
+    const root = path.resolve(artifactRoot, safeStorageSegment(workspaceId || "owner"));
+    const relative = path.relative(root, localPath);
+    return Boolean(relative && !relative.startsWith("..") && !path.isAbsolute(relative));
+  }
+
   function authCanAccess(auth, workspaceId, rawPath) {
     const workspace = String(workspaceId || "owner").trim() || "owner";
     if (authCanAccessWorkspace(auth, workspace)) return true;
@@ -51,7 +58,8 @@ function createKanbanOutputAccessService(options = {}) {
     if (!displayPath || !localPath) return { status: 404, error: "File not found" };
     const thread = accessThread(workspace);
     const allowedByCaseDirectory = Boolean(caseShareService.shareForCaseDirectoryPath?.(workspace, localPath));
-    if (!allowedByCaseDirectory && !isPathAllowedForThread(thread, localPath, displayPath)) {
+    const allowedByArtifactRoot = pathInsideWorkspaceArtifactRoot(workspace, localPath);
+    if (!allowedByCaseDirectory && !allowedByArtifactRoot && !isPathAllowedForThread(thread, localPath, displayPath)) {
       return { status: 404, error: "File not found or not allowed" };
     }
     let stat;
@@ -77,6 +85,7 @@ function createKanbanOutputAccessService(options = {}) {
     accessThread,
     authCanAccess,
     caseIdFromPath,
+    pathInsideWorkspaceArtifactRoot,
     resolveFile,
   };
 }

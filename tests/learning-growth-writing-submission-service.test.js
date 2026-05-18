@@ -137,6 +137,8 @@ async function testFinalRewriteSettlesAndCompletes() {
   assert.equal(calls[1].learningGrowthEvaluation.status, "completed");
   assert.equal(calls[2].action, "complete");
   assert.match(calls[2].comment, /金币/);
+  assert.match(calls[2].comment, /最终结论/);
+  assert.match(calls[2].comment, /Markdown/);
   assert.doesNotMatch(calls[2].comment, /[�]/);
 }
 
