@@ -9,6 +9,7 @@ async function testSubmitWritingStoresAsKanbanComment() {
   const calls = [];
   const grants = [];
   const materialized = [];
+  const progressSyncs = [];
   const service = createLearningGrowthWritingSubmissionService({
     reportService: {
       writeReport() {
@@ -19,6 +20,12 @@ async function testSubmitWritingStoresAsKanbanComment() {
       materializeWritingEvaluation(input) {
         materialized.push(input);
         return { directory: "learning-plan-dir", summaryPath: "summary.md" };
+      },
+    },
+    progressSyncService: {
+      syncAfterMaterialization(input) {
+        progressSyncs.push(input);
+        return { ok: true, importedSources: 3, profileRebuilt: true, programsRefreshed: 1 };
       },
     },
     learningCoinService: {
@@ -72,6 +79,9 @@ async function testSubmitWritingStoresAsKanbanComment() {
   assert.equal(materialized.length, 1);
   assert.equal(materialized[0].cardId, "t_growth");
   assert.equal(materialized[0].evaluation.status, "draft_feedback");
+  assert.equal(progressSyncs.length, 1);
+  assert.equal(progressSyncs[0].materialized.summaryPath, "summary.md");
+  assert.equal(result.result.progressSync.importedSources, 3);
   assert.deepEqual(calls[0], {
     type: "list",
     input: {
@@ -241,10 +251,20 @@ async function testRejectsMissingNonGrowthAndOversizedSubmissions() {
 async function testUsesLearningProgramSettlementWhenTaskLinked() {
   const calls = [];
   const programCalls = [];
+  const program = {
+    programId: "program-1",
+    sourceBasisRefs: ["source:1"],
+    constraints: {},
+  };
   const service = createLearningGrowthWritingSubmissionService({
     reportService: {
       writeReport() {
         return { path: "C:\\tmp\\growth-writing-program.md", name: "growth-writing-program.md", mime: "text/markdown; charset=utf-8", size: 120 };
+      },
+    },
+    directoryMaterializationService: {
+      materializeTaskEvaluation() {
+        return { directory: "learning-plan-dir", summaryPath: "summary.md" };
       },
     },
     getLearningProgramService: () => ({
@@ -275,6 +295,26 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
       settleEvaluationReward(evaluationId, input) {
         programCalls.push(["settleEvaluationReward", evaluationId, input]);
         return { status: "settled", ledgerEntry: { entryId: "ledger-1" } };
+      },
+      importSourceDirectory(input) {
+        programCalls.push(["importSourceDirectory", input]);
+        return {
+          counts: { importedSources: 1 },
+          sources: [{ sourceRef: "cleaned_history:growth-progress" }],
+        };
+      },
+      rebuildLearnerProfile(input) {
+        programCalls.push(["rebuildLearnerProfile", input]);
+        return { profile: { learnerId: input.learnerId, profileSummary: "sources=4" } };
+      },
+      getProgram(programId) {
+        programCalls.push(["getProgram", programId]);
+        return program;
+      },
+      updateProgram(programId, patch) {
+        programCalls.push(["updateProgram", programId, patch]);
+        Object.assign(program, patch);
+        return program;
       },
     }),
     learningCoinService: {
@@ -316,6 +356,9 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
   assert.equal(result.reward.entryId, "ledger-1");
   assert.ok(programCalls.some((call) => call[0] === "recordEvaluation"));
   assert.ok(programCalls.some((call) => call[0] === "getTaskCardForKanbanCard"));
+  assert.ok(programCalls.some((call) => call[0] === "importSourceDirectory"));
+  assert.ok(programCalls.some((call) => call[0] === "rebuildLearnerProfile"));
+  assert.ok(program.sourceBasisRefs.includes("cleaned_history:growth-progress"));
   assert.equal(calls.at(-1).action, "complete");
 }
 

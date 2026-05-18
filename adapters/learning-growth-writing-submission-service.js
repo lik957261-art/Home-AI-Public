@@ -17,6 +17,9 @@ const { stableTaskCardId } = require("./learning-task-card-service");
 const {
   inferLearningTaskModelFromCard,
 } = require("./learning-task-model-service");
+const {
+  createLearningGrowthProgressSyncService,
+} = require("./learning-growth-progress-sync-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -305,6 +308,7 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
   });
   const learningCoinService = options.learningCoinService || null;
   const aiFeedbackService = options.aiFeedbackService || null;
+  const progressSyncService = options.progressSyncService || createLearningGrowthProgressSyncService();
   const maxSubmissionChars = Math.max(1000, Number(options.maxSubmissionChars || 12000));
   if (!kanbanCardProvider || typeof kanbanCardProvider.listCards !== "function" || typeof kanbanCardProvider.mutateCard !== "function") {
     throw new Error("learning growth writing submission service requires kanbanCardProvider list/mutate");
@@ -418,6 +422,27 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
         evaluation.directoryMaterializationError = cleanString(err.message || err);
       }
     }
+    let progressSync = null;
+    if (materialized && progressSyncService && typeof progressSyncService.syncAfterMaterialization === "function") {
+      try {
+        progressSync = progressSyncService.syncAfterMaterialization({
+          programService: getProgramService(options),
+          workspaceId,
+          learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
+          programId: cardField(loaded.card, "learningProgramId", "learning_program_id"),
+          card: loaded.card,
+          cardId: cardIdValue,
+          evaluation,
+          report,
+          materialized,
+        });
+      } catch (err) {
+        progressSync = {
+          ok: false,
+          errors: [{ step: "progress_sync", message: cleanString(err.message || err) }],
+        };
+      }
+    }
     const evaluationText = [
       evaluationComment(evaluation, settlement),
       report?.path ? `MEDIA: ${report.path}` : "",
@@ -455,6 +480,7 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
         evaluation: publicEval,
         completed: Boolean(completion?.ok),
         materialized,
+        progressSync,
       },
     };
   }
