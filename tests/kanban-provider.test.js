@@ -73,6 +73,18 @@ async function run() {
                 workspace: "dir:/workspaces/weixin_stephen",
                 created_by: "weixin_stephen",
                 created_at: 1778400000,
+                completed_at: "2026-05-16T08:00:00.000Z",
+                updated_at: "2026-05-18T21:00:00.000Z",
+                skills: ["kanban-worker"],
+              },
+              {
+                id: "t_done_recent",
+                title: "Recent closed",
+                status: "done",
+                assignee: "weixin_stephen",
+                created_at: 1778400000,
+                completed_at: "2026-05-18T08:00:00.000Z",
+                updated_at: "2026-05-17T08:00:00.000Z",
                 skills: ["kanban-worker"],
               },
             ],
@@ -145,6 +157,18 @@ async function run() {
   assert.equal(listed.todos[0].content, "Read chapter");
   assert.equal(listed.todos[0].due_local.startsWith("2026-05-10"), true);
   assert.equal(listed.todos[0].learning_task_model.skillId, "english_short_writing");
+
+  const listedWithCompleted = await provider.run({
+    action: "list",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    include_completed: true,
+  });
+  assert.equal(listedWithCompleted.ok, true);
+  assert.deepEqual(
+    listedWithCompleted.todos.filter((todo) => todo.kanban_status === "done").map((todo) => todo.id),
+    ["t_done_recent", "t_done"],
+  );
 
   const createdWithoutDue = await provider.run({
     action: "add",

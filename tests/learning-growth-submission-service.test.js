@@ -1,9 +1,70 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const {
   createLearningGrowthSubmissionService,
 } = require("../adapters/learning-growth-submission-service");
+const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
+const { createLearningProgramService } = require("../adapters/learning-program-service");
+
+function tempRoot() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "learning-growth-submission-"));
+}
+
+function seedGrowthProgram(repository) {
+  repository.upsertProgram({
+    programId: "program-growth",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    title: "English growth",
+    domain: "english",
+    focusAreas: ["english_grammar"],
+    goalSummary: "summary only",
+    startDate: "2026-05-18",
+    endDate: "2026-05-25",
+    daysPerWeek: 5,
+    minutesPerDay: 20,
+    intensity: "normal",
+    status: "active",
+    sourceBasisRefs: ["source:growth-summary"],
+    curriculumRefs: ["cefr-b1"],
+    constraints: {},
+    reviewPolicy: {},
+  });
+  repository.savePlanDraft({
+    draftId: "draft-growth",
+    programId: "program-growth",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    status: "published",
+    weekStart: "2026-05-18",
+    weekEnd: "2026-05-25",
+    dailyPlans: [],
+  });
+  repository.upsertTaskCard({
+    taskCardId: "task-growth",
+    programId: "program-growth",
+    draftId: "draft-growth",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    kanbanCardId: "t_growth",
+    title: "Grammar task",
+    domain: "english",
+    taskCardType: "single_subject",
+    status: "published",
+    plannedDate: "2026-05-18",
+    plannedMinutes: 15,
+    skillIds: ["english_grammar"],
+    templateId: "english-grammar-v1",
+    interactionStateMachine: ["receive_task", "learner_attempt", "ai_evaluation", "reward_settlement"],
+    sourceBasisRefs: ["source:growth-summary"],
+    curriculumRefs: ["cefr-b1"],
+    privacyLevel: "summary_only",
+  });
+}
 
 async function testGenericGrammarSubmissionUsesTaskModelAndReport() {
   const calls = [];
@@ -160,6 +221,101 @@ async function testModelFeedbackServiceIsActivityGeneric() {
   assert.doesNotMatch(JSON.stringify(result.evaluation), /my presentation explains/);
 }
 
+async function testFinalGenericGrowthSubmissionSettlesCoinsThroughProgramService() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const grants = [];
+  try {
+    seedGrowthProgram(repository);
+    const programService = createLearningProgramService({
+      repository,
+      learningCoinService: {
+        grantCoins(input) {
+          grants.push(input);
+          return {
+            entry: {
+              entryId: `coin-${grants.length}`,
+              id: `coin-${grants.length}`,
+              studentId: input.studentId,
+              workspaceId: input.workspaceId,
+              coinDelta: input.coinAmount,
+              sourceType: input.sourceType,
+              sourceId: input.sourceId,
+              createdAt: "2026-05-18T10:00:00.000Z",
+            },
+            balances: { availableCoins: input.coinAmount },
+            duplicate: false,
+          };
+        },
+      },
+    });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      reportService: {
+        writeReport() {
+          return {
+            path: "C:\\tmp\\growth-grammar-feedback.md",
+            name: "growth-grammar-feedback.md",
+            mime: "text/markdown; charset=utf-8",
+            size: 180,
+          };
+        },
+      },
+      kanbanCardProvider: {
+        async listCards() {
+          return {
+            ok: true,
+            data: [{
+              id: "t_growth",
+              workspaceId: "weixin_stephen",
+              kanbanCaseTemplate: "learning-growth",
+              learningTaskCardId: "task-growth",
+              learningGrowthEvaluationStatus: "draft_feedback",
+              learningTaskModel: {
+                version: "learning-task-model-v1",
+                activityType: "grammar",
+                skillId: "english_grammar",
+                learnerInstruction: "Repair grammar and explain why.",
+              },
+            }],
+          };
+        },
+        async mutateCard(input) {
+          return { ok: true, id: input.cardId, action: input.action };
+        },
+      },
+    });
+    const text = [
+      "First, I repair the grammar because the verb must match the subject.",
+      "Then I add a school example and explain why the article changes.",
+      "Finally, I write the corrected sentence and reflect on the pattern.",
+    ].join("\n");
+    const result = await service.submitTask({
+      workspaceId: "weixin_stephen",
+      cardId: "t_growth",
+      stage: "final",
+      text,
+      author: "weixin_stephen",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.reward.status, "settled");
+    assert.ok(result.reward.entryId);
+    assert.equal(grants.length, 1);
+    assert.equal(grants[0].studentId, "weixin_stephen");
+    assert.equal(grants[0].workspaceId, "weixin_stephen");
+    assert.equal(grants[0].sourceType, "learning-growth-evaluation");
+    const settlement = repository.listRewardSettlements({ learnerId: "weixin_stephen", limit: 1 })[0];
+    assert.equal(settlement.status, "settled");
+    assert.equal(settlement.ledgerEntry.entryId, "coin-1");
+    const evaluation = repository.listEvaluations({ learnerId: "weixin_stephen", limit: 1 })[0];
+    assert.equal(evaluation.verification.method, "deterministic_growth_task_template");
+    assert.equal(evaluation.verification.status, "verified");
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createLearningGrowthSubmissionService({ kanbanCardProvider: { listCards() {} } }),
@@ -171,6 +327,7 @@ function testDependencyValidation() {
   testDependencyValidation();
   await testGenericGrammarSubmissionUsesTaskModelAndReport();
   await testModelFeedbackServiceIsActivityGeneric();
+  await testFinalGenericGrowthSubmissionSettlesCoinsThroughProgramService();
   console.log("learning growth submission service tests passed");
 })().catch((err) => {
   console.error(err);

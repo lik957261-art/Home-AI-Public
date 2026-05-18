@@ -7,9 +7,15 @@ const {
   compactLearningSummary,
 } = require("./learning-record-privacy-service");
 
-const VERIFIED_METHODS = new Set(["deterministic_template", "answer_key_match", "python_execution"]);
+const VERIFIED_METHODS = new Set([
+  "deterministic_template",
+  "deterministic_growth_task_template",
+  "answer_key_match",
+  "python_execution",
+]);
 const KNOWN_METHODS = new Set([
   "deterministic_template",
+  "deterministic_growth_task_template",
   "answer_key_match",
   "python_execution",
   "python_static_review",

@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { StringDecoder } = require("node:string_decoder");
+const { compareKanbanRowsForList } = require("./kanban-card-order-service");
 const { createKanbanTaskDispatchPolicy } = require("./kanban-task-dispatch-policy");
 
 const META_START = "<!-- hermes-mobile-todo ";
@@ -486,6 +487,7 @@ function createKanbanTodoBridge(options = {}) {
     const kanbanStatus = String(textFromTask(task, "status") || task.status || "").trim().toLowerCase();
     const cancelledAt = String(meta.cancelledAt || meta.cancelled_at || "");
     const completedAt = String(meta.completedAt || meta.completed_at || "");
+    const kanbanCompletedAt = dateStringFromTask(task.completed_at || task.completedAt || meta.completedAt || meta.completed_at || "");
     const status = kanbanStatus === "done"
       ? "completed"
       : (kanbanStatus === "archived" || cancelledAt ? "cancelled" : "open");
@@ -509,7 +511,7 @@ function createKanbanTodoBridge(options = {}) {
       kanban_workspace_kind: String(meta.workspaceKind || workspaceKindFromTask(task)),
       kanban_created_by: String(textFromTask(task, "created_by") || textFromTask(task, "createdBy") || meta.createdBy || payload.source_principal || ""),
       kanban_started_at: dateStringFromTask(task.started_at || task.startedAt || meta.startedAt || meta.started_at || ""),
-      kanban_completed_at: dateStringFromTask(task.completed_at || task.completedAt || meta.completedAt || meta.completed_at || ""),
+      kanban_completed_at: kanbanCompletedAt,
       kanban_result: String(textFromTask(task, "result") || task.result || meta.result || ""),
       kanban_block_reason: String(meta.blockReason || meta.block_reason || ""),
       kanban_max_retries: Number(task.max_retries ?? task.task?.max_retries ?? meta.maxRetries ?? meta.max_retries ?? 0) || 0,
@@ -579,7 +581,7 @@ function createKanbanTodoBridge(options = {}) {
       kanban_revision_count: Number(meta.revisionCount ?? meta.revision_count ?? 0) || 0,
       created_at: dateStringFromTask(meta.createdAt || meta.created_at || task.created_at || task.createdAt || ""),
       updated_at: dateStringFromTask(meta.updatedAt || meta.updated_at || task.updated_at || task.updatedAt || ""),
-      completed_at: completedAt || (kanbanStatus === "done" ? dateStringFromTask(task.completed_at || task.completedAt || task.updated_at || task.updatedAt || "") : ""),
+      completed_at: kanbanCompletedAt || completedAt || (kanbanStatus === "done" ? dateStringFromTask(task.updated_at || task.updatedAt || "") : ""),
       cancelled_at: cancelledAt,
       source: "kanban",
       ok: true,
@@ -801,16 +803,9 @@ function createKanbanTodoBridge(options = {}) {
       todos = todos.filter((todo) => !shouldHideFutureLearningCard(todo, visibilityLookup));
     }
     if (!includeCompleted) todos = todos.filter((todo) => todo.status === "open" && OPEN_KANBAN_STATUSES.has(todo.kanban_status));
-    todos = todos.sort((a, b) => {
-      const leftOpen = a.status === "open" && OPEN_KANBAN_STATUSES.has(String(a.kanban_status || "").trim().toLowerCase());
-      const rightOpen = b.status === "open" && OPEN_KANBAN_STATUSES.has(String(b.kanban_status || "").trim().toLowerCase());
-      if (leftOpen !== rightOpen) return leftOpen ? -1 : 1;
-      const left = a.updated_at || a.created_at || a.due_at || "";
-      const right = b.updated_at || b.created_at || b.due_at || "";
-      const byRecent = String(right).localeCompare(String(left));
-      if (byRecent) return byRecent;
-      return String(b.id || "").localeCompare(String(a.id || ""));
-    }).slice(0, positiveNumber(payload.limit, 80));
+    todos = todos
+      .sort((a, b) => compareKanbanRowsForList(a, b, { openStatuses: OPEN_KANBAN_STATUSES }))
+      .slice(0, positiveNumber(payload.limit, 80));
     if (targetId && !todos.some((todo) => String(todo.id || "") === targetId)) {
       const shown = await kanbanJson(["--board", board, "show", targetId, "--json"]).catch(() => null);
       const task = shown?.task && typeof shown.task === "object" ? shown.task : (shown && typeof shown === "object" ? shown : null);

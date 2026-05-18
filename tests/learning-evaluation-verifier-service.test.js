@@ -45,6 +45,25 @@ function testModelOnlyEnglishRequiresReview() {
   assert.equal(result.rewardEligible, false);
 }
 
+function testDeterministicGrowthTaskTemplateSettlesWithoutParentReview() {
+  const result = verifier().verifyEvaluation({
+    task: { domain: "english", sourceBasisRefs: ["source:growth-summary"], skillIds: ["english_grammar"] },
+    evaluation: {
+      score: 84,
+      confidence: 0.86,
+      passed: true,
+      verificationMethod: "deterministic_growth_task_template",
+      evidenceRefs: ["learning-growth-task-rubric:v1", "activity:grammar", "stage:final"],
+      sourceBasisRefs: ["source:growth-summary"],
+      summary: "summary only",
+    },
+  });
+  assert.equal(result.method, "deterministic_growth_task_template");
+  assert.equal(result.status, "verified");
+  assert.equal(result.parentReviewRequired, false);
+  assert.equal(result.rewardEligible, true);
+}
+
 function testPythonExecutionRequiresEvidence() {
   const staticOnly = verifier().verifyEvaluation({
     task: { domain: "programming", sourceBasisRefs: ["goal:python"], skillIds: ["python_basics"] },
@@ -80,6 +99,7 @@ function testPrivatePayloadRejected() {
 
 testVerifiedObjectiveEvaluation();
 testModelOnlyEnglishRequiresReview();
+testDeterministicGrowthTaskTemplateSettlesWithoutParentReview();
 testPythonExecutionRequiresEvidence();
 testPrivatePayloadRejected();
 console.log("learning evaluation verifier service tests passed");
