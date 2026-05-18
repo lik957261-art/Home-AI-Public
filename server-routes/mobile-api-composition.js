@@ -23,6 +23,7 @@ const { createLearningParentReviewRequestService } = require("../adapters/learni
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
 const { createLearningProgramService } = require("../adapters/learning-program-service");
+const { createKanbanCaseTopicDeliveryService } = require("../adapters/kanban-case-topic-delivery-service");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
 const { createPublicApiRoutes } = require("./public-api-routes");
@@ -405,6 +406,15 @@ function createMobileApiComposition(deps = {}) {
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
   });
+  const kanbanCaseTopicDeliveryService = createKanbanCaseTopicDeliveryService({
+    broadcast: deps.broadcast,
+    makeId: deps.makeId,
+    normalizeTaskGroupMeta: (...args) => deps.getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
+    nowIso: deps.nowIso,
+    saveState: deps.saveState,
+    state: deps.state,
+    threadSummary: deps.threadSummary,
+  });
 
   const kanbanCardApiRoutes = createKanbanCardApiRoutes({
     annotateKanbanCardsForAuth: (...args) => deps.kanbanCaseShareService.annotateCardsForAuth(...args),
@@ -420,6 +430,7 @@ function createMobileApiComposition(deps = {}) {
     isOwnerAuth: deps.isOwnerAuth,
     kanbanCardProvider: deps.kanbanCardProvider,
     kanbanCaseSharesForActor: (...args) => deps.kanbanCaseShareService.sharesForActor(...args),
+    kanbanCaseTopicDeliveryService,
     kanbanErrorResponse: deps.kanbanErrorResponse,
     kanbanSingleCardCasePayload: deps.kanbanSingleCardCasePayload,
     learningGrowthKanbanTaskService: learningGrowthTaskService,
@@ -460,6 +471,7 @@ function createMobileApiComposition(deps = {}) {
     getKanbanAssessmentExam: (...args) => deps.getAssessmentExamWorkflowService().getKanbanAssessmentExam(...args),
     getKanbanReadingQuiz: (...args) => deps.kanbanReadingWorkflowService.getKanbanReadingQuiz(...args),
     kanbanErrorResponse: deps.kanbanErrorResponse,
+    kanbanCaseTopicDeliveryService,
     maxUploadBytes: deps.maxUploadBytes,
     readBody: deps.readBody,
     readingCoverMaxBytes: deps.readingCoverMaxBytes,

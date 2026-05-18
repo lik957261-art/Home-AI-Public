@@ -63,6 +63,7 @@ function makeRoutes(overrides = {}) {
     plan: [],
     reconcile: [],
     shared: [],
+    topicDelivery: [],
     workspaceAccess: [],
   };
   const deps = Object.assign({
@@ -505,6 +506,44 @@ async function testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback() {
   assert.equal(calls.growthSubmit.at(-1).cardId, "t_growth");
 }
 
+async function testCompletedCardsSyncToTopicDeliveryService() {
+  const { routes, calls } = makeRoutes({
+    kanbanCaseTopicDeliveryService: {
+      syncCompletedCard(card) {
+        calls.topicDelivery.push(card);
+        return { ok: true, delivered: true };
+      },
+    },
+    kanbanCardProvider: {
+      listCards(payload) {
+        calls.list.push(payload);
+        return Promise.resolve({
+          ok: true,
+          data: [{
+            id: payload.targetId,
+            workspaceId: payload.workspaceId,
+            status: "completed",
+            kanbanStatus: "done",
+            topicThreadId: "thread-topic",
+            topicTaskGroupId: "case_case_a",
+          }],
+        });
+      },
+      addCard() {},
+      cardDetail() {},
+      mutateCard(payload) {
+        calls.mutate.push(payload);
+        return Promise.resolve({ ok: true, id: payload.cardId, action: payload.action, status: "completed", kanbanStatus: "done" });
+      },
+    },
+  });
+
+  await request(routes, "POST", "/api/kanban/cards/card-1/complete?workspaceId=child");
+  assert.equal(calls.topicDelivery.length, 1);
+  assert.equal(calls.topicDelivery[0].id, "card-1");
+  assert.equal(calls.topicDelivery[0].topicThreadId, "thread-topic");
+}
+
 async function testOutputRoutesAlwaysUseResolverWithAuthenticatedContext() {
   const auth = { principalId: "principal-output", workspaceId: "child" };
   const { routes, calls } = makeRoutes();
@@ -804,6 +843,7 @@ function testDependencyValidation() {
   await testListTargetBypassesCacheAndForwardsTargetId();
   await testLearningGrowthSubmissionUsesCommentCapabilityAndService();
   await testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback();
+  await testCompletedCardsSyncToTopicDeliveryService();
   await testOutputRoutesAlwaysUseResolverWithAuthenticatedContext();
   await testDetailAndActionAccessCapabilities();
   await testCreateMapsBodyCasePayloadCacheBroadcastAndVerification();

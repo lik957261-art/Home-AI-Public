@@ -1,81 +1,7 @@
 "use strict";
 
-function kanbanStoryProgressItems(group) {
-  if (!group) return [];
-  if (group.mode === "assessment-plan") return kanbanAssessmentVisibleCardItems(group);
-  if (String(group.caseTemplate || "").trim().toLowerCase() === "learning-growth") return group.cards || [];
-  if (group.mode === "study-plan") return kanbanReadingBaseCardItems(group);
-  return group.cards || [];
-}
-
-function kanbanStoryCurrentItemForTopic(group) {
-  if (!group) return null;
-  if (group.mode === "assessment-plan") return kanbanAssessmentCaseCurrentItem(group);
-  if (String(group.caseTemplate || "").trim().toLowerCase() === "learning-growth") {
-    return (group.cards || []).find((item) => !["done", "archived"].includes(normalizedKanbanStatus(item.todo))) || (group.cards || [])[0] || null;
-  }
-  if (group.mode === "study-plan") return kanbanReadingCaseCurrentItem(group);
-  return (group.cards || []).find((item) => !["done", "archived"].includes(normalizedKanbanStatus(item.todo))) || (group.cards || [])[0] || null;
-}
-
-function kanbanStoryItemCompletedForProgress(group, item) {
-  const todo = item?.todo || {};
-  if (group?.mode === "assessment-plan") return assessmentExamCompleted(todo);
-  if (String(group?.caseTemplate || "").trim().toLowerCase() === "learning-growth") return ["done", "archived"].includes(normalizedKanbanStatus(todo));
-  if (group?.mode === "study-plan") return readingSubmissionCompleted(todo);
-  return ["done", "archived"].includes(normalizedKanbanStatus(todo));
-}
-
-function kanbanStoryTopicOutputs(group) {
-  const items = group?.mode === "assessment-plan"
-    ? kanbanAssessmentStoryVisibleCardItems(group)
-    : (group?.cards || []);
-  const seen = new Set();
-  const out = [];
-  for (const item of items || []) {
-    for (const output of kanbanCardOutputs(item.todo)) {
-      const key = String(output?.url || output?.path || output?.name || "").trim();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      out.push(output);
-    }
-  }
-  return out;
-}
-
-function renderKanbanTopicOutputChips(outputs) {
-  const items = (outputs || []).slice(0, 3);
-  if (!items.length) return "";
-  const chips = items.map((output) => {
-    const label = artifactDisplayName(output);
-    return `<a class="kanban-topic-output-chip" href="${escapeHtml(artifactHref(output))}" data-task-doc title="${escapeHtml(label)}">${escapeHtml(iconForArtifact(output))} ${escapeHtml(compactDisplayText(label, 28))}</a>`;
-  }).join("");
-  const extra = outputs.length > items.length ? `<span class="kanban-topic-output-more">+${outputs.length - items.length}</span>` : "";
-  return `<div class="kanban-topic-outputs">${chips}${extra}</div>`;
-}
-
-function renderKanbanTopicProgress(group) {
-  if (!group) return "";
-  const items = kanbanStoryProgressItems(group);
-  const outputs = kanbanStoryTopicOutputs(group);
-  if (!items.length && !outputs.length) return "";
-  const first = items[0]?.todo || group.cards?.[0]?.todo || {};
-  const total = Number(first.kanbanCaseCardCount || group.cardCount || items.length || 0) || items.length;
-  const completed = items.filter((item) => kanbanStoryItemCompletedForProgress(group, item)).length;
-  const current = kanbanStoryCurrentItemForTopic(group)?.todo || null;
-  const currentTitle = current ? compactDisplayText(current.content || current.id || "", 48) : "";
-  const parts = [
-    items.length ? `<span>${escapeHtml(`${completed}/${total || items.length} \u5df2\u5b8c\u6210`)}</span>` : "",
-    currentTitle ? `<span>${escapeHtml(`\u5f53\u524d\uff1a${currentTitle}`)}</span>` : "",
-    renderKanbanTopicOutputChips(outputs),
-  ].filter(Boolean).join("");
-  return parts ? `<div class="kanban-topic-progress">${parts}</div>` : "";
-}
-
 function renderTaskCard(group) {
   const sharedTopic = Boolean(group.sharedTopic || group.sourceThreadId);
-  const storyGroup = sharedTopic ? kanbanStoryGroupForTopicGroup(group) : null;
-  const sharedTopicProgress = sharedTopic ? renderKanbanTopicProgress(storyGroup) : "";
   const latestArtifact = sharedTopic ? null : latestTaskListDocument(group);
   const skills = sharedTopic ? [] : taskSkills(group);
   const artifactChips = latestArtifact ? `<span class="task-doc-item">
@@ -100,7 +26,6 @@ function renderTaskCard(group) {
         <span class="task-title-line">${escapeHtml(taskTitle(group) || "Untitled topic")}</span>
         <span class="task-row-meta">${escapeHtml(formatTime(group.updatedAt))}${sharedBadge}</span>
       </button>
-      ${sharedTopicProgress}
       ${sharedTopic ? "" : `<div class="task-card-assets">
         <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Topic documents">
           ${artifactChips}

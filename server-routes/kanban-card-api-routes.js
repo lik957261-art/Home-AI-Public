@@ -509,6 +509,29 @@ function createKanbanCardApiRoutes(deps = {}) {
     deps.sendJson(res, 201, { card, result, verification });
   }
 
+  async function syncCompletedCardToTopic(workspaceId, cardId, auth, card = null) {
+    const service = deps.kanbanCaseTopicDeliveryService;
+    if (!service || typeof service.syncCompletedCard !== "function") return null;
+    try {
+      let target = card;
+      if (!target || !String(target.topicThreadId || target.topic_thread_id || "").trim()) {
+        const listed = await deps.kanbanCardProvider.listCards({
+          workspaceId,
+          targetId: cardId,
+          includeCompleted: true,
+          limit: 1,
+          scope: "mine",
+        });
+        target = (listed?.data || []).find((item) => String(item?.id || "") === String(cardId)) || target;
+      }
+      if (!target) return null;
+      const annotated = deps.annotateKanbanCardsForAuth([target], auth)[0] || target;
+      return service.syncCompletedCard(annotated);
+    } catch (_) {
+      return null;
+    }
+  }
+
   async function handleAction(req, res, url) {
     if (!requireKanbanEnabled(res)) return;
     const match = cardPathMatch(url.pathname, "(complete|cancel|postpone|delete|block|unblock|comment|revise)");
@@ -541,6 +564,7 @@ function createKanbanCardApiRoutes(deps = {}) {
       return;
     }
     const resultCardId = String(result.id || cardId);
+    if (action === "complete") await syncCompletedCardToTopic(workspaceId, resultCardId, access.auth, result);
     deps.clearKanbanCardListCache(workspaceId);
     deps.broadcast({ type: "kanban.updated", workspaceId, cardId: resultCardId, action });
     deps.broadcast({ type: "todos.updated", workspaceId, todoId: resultCardId, action });
@@ -577,7 +601,10 @@ function createKanbanCardApiRoutes(deps = {}) {
     deps.clearKanbanCardListCache(workspaceId);
     deps.broadcast({ type: "kanban.updated", workspaceId, cardId, action: "learning-growth-submission" });
     deps.broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "learning-growth-submission" });
-    if (result?.result?.completed) deps.scheduleKanbanDependencyReconcile(workspaceId);
+    if (result?.result?.completed) {
+      await syncCompletedCardToTopic(workspaceId, cardId, access.auth);
+      deps.scheduleKanbanDependencyReconcile(workspaceId);
+    }
     deps.sendJson(res, 200, {
       ok: true,
       cardId,

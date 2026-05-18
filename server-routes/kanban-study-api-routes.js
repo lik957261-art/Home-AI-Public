@@ -134,6 +134,16 @@ function bodyWithExecutorWorkspace(body = {}, access = null) {
   return executorWorkspaceId ? Object.assign({}, body, { executorWorkspaceId }) : body;
 }
 
+function syncCompletedCardToTopic(deps, card) {
+  const service = deps.kanbanCaseTopicDeliveryService;
+  if (!service || typeof service.syncCompletedCard !== "function" || !card) return null;
+  try {
+    return service.syncCompletedCard(card);
+  } catch (_) {
+    return null;
+  }
+}
+
 function createKanbanStudyApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "annotateKanbanCardForAuth",
@@ -258,6 +268,7 @@ function createKanbanStudyApiRoutes(deps = {}) {
         broadcastCardUpdate(deps, workspaceId, cardId, "reading-quiz-passed");
       }
       if (result.card) result.card = deps.annotateKanbanCardForAuth(result.card, access.auth);
+      if (req.method === "POST" && result.passed && result.card) syncCompletedCardToTopic(deps, result.card);
       deps.sendJson(res, 200, result);
     } catch (err) {
       jsonError(deps, res, err);
@@ -300,6 +311,7 @@ function createKanbanStudyApiRoutes(deps = {}) {
         broadcastCardUpdate(deps, workspaceId, cardId, action);
       }
       if (result.card) result.card = deps.annotateKanbanCardForAuth(result.card, access.auth);
+      if (req.method === "POST" && result.passed && result.card) syncCompletedCardToTopic(deps, result.card);
       deps.sendJson(res, 200, result);
     } catch (err) {
       jsonError(deps, res, err);
