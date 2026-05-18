@@ -170,7 +170,15 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
     getLearningProgramService: () => ({
       getTaskCard(taskCardId) {
         programCalls.push(["getTaskCard", taskCardId]);
-        return { taskCardId, title: "Writing task", sourceBasisRefs: ["source:1"] };
+        return null;
+      },
+      getTaskCardForKanbanCard(kanbanCardId, filters) {
+        programCalls.push(["getTaskCardForKanbanCard", kanbanCardId, filters]);
+        return {
+          taskCardId: "ltask_from_kanban",
+          title: "Writing task",
+          sourceBasisRefs: ["source:1"],
+        };
       },
       listInteractionSessions(filters) {
         programCalls.push(["listInteractionSessions", filters]);
@@ -203,7 +211,8 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
             workspaceId: "child",
             kanbanCaseMode: "study-plan",
             kanbanCaseTemplate: "learning-growth",
-            learningTaskCardId: "ltask_1",
+            learningProgramId: "program-1",
+            learningDraftId: "draft-1",
             kanbanCaseCardGoal: "Write 80-120 words about a school activity.",
             learningGrowthEvaluationStatus: "draft_feedback",
           }],
@@ -226,6 +235,7 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
   assert.equal(result.reward.status, "settled");
   assert.equal(result.reward.entryId, "ledger-1");
   assert.ok(programCalls.some((call) => call[0] === "recordEvaluation"));
+  assert.ok(programCalls.some((call) => call[0] === "getTaskCardForKanbanCard"));
   assert.equal(calls.at(-1).action, "complete");
 }
 

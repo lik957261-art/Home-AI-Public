@@ -40,7 +40,8 @@ function containsPrivateLearningPayload(value) {
 }
 
 function taskModelStats(programs = {}) {
-  const tasks = asArray(programs.taskCards).concat(asArray(programs.executableTasks));
+  const executableTasks = asArray(programs.executableTasks);
+  const tasks = executableTasks.length ? executableTasks : asArray(programs.taskCards);
   const total = tasks.length;
   const withModel = tasks.filter((task) => task?.taskModel || task?.learningTaskModel || task?.learningGrowthTaskModel).length;
   return { total, withModel };
@@ -97,6 +98,8 @@ function buildSystemChecks(programs = {}, coins = {}) {
 function buildLearnerDataChecks(programs = {}, coins = {}) {
   const dailySummary = programs?.dailyPlan?.summary || {};
   const modelStats = taskModelStats(programs);
+  const evaluationCount = count(programs.evaluations);
+  const evaluationLoopReady = evaluationCount > 0 || (count(programs.interactionSessions) > 0 && modelStats.total > 0 && modelStats.withModel === modelStats.total);
   return [
     check("source-goal-data", "At least one source and one goal", count(programs.sources) > 0 && count(programs.goals) > 0, {
       sources: count(programs.sources),
@@ -120,8 +123,9 @@ function buildLearnerDataChecks(programs = {}, coins = {}) {
     check("interaction-session-data", "At least one interaction session", count(programs.interactionSessions) > 0, {
       sessions: count(programs.interactionSessions),
     }),
-    check("evaluation-data", "At least one summary-only evaluation", count(programs.evaluations) > 0, {
-      evaluations: count(programs.evaluations),
+    check("evaluation-data", "Summary-only evaluation loop ready", evaluationLoopReady, {
+      evaluations: evaluationCount,
+      pendingEvaluationReady: evaluationCount === 0 && evaluationLoopReady,
     }),
     check("reward-or-review-data", "Reward settlement, review request, or coin history exists", count(programs.rewardSettlements) > 0
       || count(programs.parentReviewRequests) > 0

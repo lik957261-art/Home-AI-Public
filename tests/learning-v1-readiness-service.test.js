@@ -59,6 +59,28 @@ function testLearnerDataCheckFindsTasksWithoutModels() {
   assert.deepEqual(modelCheck.details, { taskCount: 1, withTaskModel: 0 });
 }
 
+function testTaskModelStatsPreferExecutableTasksWhenProjected() {
+  const programs = readyProgramsFixture();
+  programs.taskCards = [{ taskCardId: "task-1", status: "published" }];
+  programs.executableTasks = [{ taskCardId: "task-1", taskModel: { skillId: "english_short_writing" } }];
+  assert.deepEqual(taskModelStats(programs), { total: 1, withModel: 1 });
+  const checks = buildLearnerDataChecks(programs, readyCoinsFixture());
+  const modelCheck = checks.find((item) => item.id === "task-model-data");
+  assert.equal(modelCheck.ready, true);
+}
+
+function testReadinessAllowsPreEvaluationLaunchWhenEvaluationLoopReady() {
+  const programs = readyProgramsFixture();
+  programs.evaluations = [];
+  programs.rewardSettlements = [];
+  programs.executableTasks = [{ taskCardId: "task-1", taskModel: { skillId: "english_short_writing" } }];
+  const checks = buildLearnerDataChecks(programs, readyCoinsFixture());
+  const evaluationCheck = checks.find((item) => item.id === "evaluation-data");
+  assert.equal(evaluationCheck.ready, true);
+  assert.equal(evaluationCheck.details.evaluations, 0);
+  assert.equal(evaluationCheck.details.pendingEvaluationReady, true);
+}
+
 function testReadinessBlocksPrivatePayloadProjection() {
   const programs = readyProgramsFixture();
   programs.taskCards = [{ taskCardId: "task-1", questionText: "must not be exposed" }];
@@ -89,6 +111,8 @@ function testReadinessReportsFullOperationalReadyState() {
 testSystemReadinessChecksPassForCompleteProjection();
 testLearnerDataChecksPassForCompleteOperationalLoop();
 testLearnerDataCheckFindsTasksWithoutModels();
+testTaskModelStatsPreferExecutableTasksWhenProjected();
+testReadinessAllowsPreEvaluationLaunchWhenEvaluationLoopReady();
 testReadinessBlocksPrivatePayloadProjection();
 testReadinessReportsFullOperationalReadyState();
 

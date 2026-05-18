@@ -1378,6 +1378,10 @@ function createLearningProgramRepository(options = {}) {
       where.push("workspace_id = ?");
       values.push(cleanString(filters.workspaceId));
     }
+    if (filters.kanbanCardId) {
+      where.push("kanban_card_id = ?");
+      values.push(cleanString(filters.kanbanCardId));
+    }
     if (filters.status) {
       where.push("status = ?");
       values.push(cleanString(filters.status));

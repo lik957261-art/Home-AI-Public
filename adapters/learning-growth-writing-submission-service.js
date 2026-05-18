@@ -43,6 +43,33 @@ function resolveTaskCardId(card = {}) {
   return draftId && caseCardId ? stableTaskCardId(draftId, caseCardId) : "";
 }
 
+function resolveProgramTaskCard(programService, card = {}) {
+  if (!programService) return null;
+  const explicit = resolveTaskCardId(card);
+  if (explicit && typeof programService.getTaskCard === "function") {
+    const task = programService.getTaskCard(explicit);
+    if (task) return task;
+  }
+  const kanbanCardId = cardId(card);
+  const workspaceId = cardField(card, "workspaceId", "workspace_id");
+  const filters = {
+    workspaceId,
+    learnerId: cardField(card, "learnerId", "studentId") || workspaceId,
+    programId: cardField(card, "learningProgramId", "learning_program_id"),
+    draftId: cardField(card, "learningDraftId", "learning_draft_id"),
+  };
+  if (kanbanCardId && typeof programService.getTaskCardForKanbanCard === "function") {
+    const task = programService.getTaskCardForKanbanCard(kanbanCardId, filters);
+    if (task) return task;
+  }
+  if (kanbanCardId && typeof programService.listTaskCards === "function") {
+    const candidates = programService.listTaskCards(Object.assign({}, filters, { limit: 100 }));
+    const task = asArray(candidates).find((item) => item.kanbanCardId === kanbanCardId);
+    if (task) return task;
+  }
+  return null;
+}
+
 function learningGrowthEvaluationStatus(card = {}) {
   return cardField(card, "learningGrowthEvaluationStatus", "learning_growth_evaluation_status").toLowerCase();
 }
@@ -146,10 +173,10 @@ async function settleViaProgramService(programService, card, evaluation, input =
   if (!programService || typeof programService.recordEvaluation !== "function" || typeof programService.settleEvaluationReward !== "function") {
     return null;
   }
-  const taskCardId = resolveTaskCardId(card);
-  if (!taskCardId || typeof programService.getTaskCard !== "function") return null;
-  const task = programService.getTaskCard(taskCardId);
+  const task = resolveProgramTaskCard(programService, card);
   if (!task) return null;
+  const taskCardId = task.taskCardId;
+  if (!taskCardId) return null;
   const existing = typeof programService.listInteractionSessions === "function"
     ? programService.listInteractionSessions({ taskCardId, limit: 1 })[0]
     : null;

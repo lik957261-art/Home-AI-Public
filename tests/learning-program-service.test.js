@@ -19,7 +19,17 @@ function createService(root, overrides = {}) {
     publishService: {
       async publish(input) {
         publishCalls.push(input);
-        return { ok: true, kanbanResult: { ok: true, cards: [{ card: { id: "k1" } }] } };
+        const tasks = (input.draft?.dailyPlans || []).flatMap((day) => day.tasks || []);
+        return {
+          ok: true,
+          kanbanResult: {
+            ok: true,
+            cards: tasks.map((task, index) => ({
+              clientId: task.taskId,
+              card: { id: `k${index + 1}` },
+            })),
+          },
+        };
       },
     },
   }, overrides));
@@ -98,10 +108,15 @@ async function testCreateDraftApprovePublish() {
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).publications, 1);
   assert.equal(published.taskCards.length, drafted.draft.taskCount);
   assert.ok(published.taskCards.every((task) => task.status === "published"));
+  assert.ok(published.taskCards.every((task) => task.kanbanCardId));
+  assert.equal(service.getTaskCardForKanbanCard(published.taskCards[0].kanbanCardId).taskCardId, published.taskCards[0].taskCardId);
+  assert.equal(service.getTaskCardForKanbanCard(published.taskCards[1].kanbanCardId).taskCardId, published.taskCards[1].taskCardId);
+  assert.equal(service.getTaskCardForKanbanCard("missing-card", { draftId: drafted.draft.draftId }), null);
   assert.equal(published.publishedSessions.length, drafted.draft.taskCount);
   const repeatedPublish = await service.publishProgram(program.programId, { draftId: drafted.draft.draftId });
   assert.equal(repeatedPublish.alreadyPublished, true);
   assert.equal(publishCalls.length, 1);
+  assert.ok(repeatedPublish.taskCards.every((task) => task.kanbanCardId));
   assert.equal(repeatedPublish.publishedSessions.length, drafted.draft.taskCount);
   const executorQueue = service.listExecutorTaskQueue({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
   assert.equal(executorQueue.length, drafted.draft.taskCount);

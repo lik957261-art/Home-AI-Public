@@ -18,7 +18,7 @@ const { createLearningSkillTaxonomyService } = require("./learning-skill-taxonom
 const { createLearningSourceBootstrapService } = require("./learning-source-bootstrap-service");
 const { createLearningSourceDirectoryService } = require("./learning-source-directory-service");
 const { createLearningSourceService } = require("./learning-source-service");
-const { createLearningTaskCardService } = require("./learning-task-card-service");
+const { createLearningTaskCardService, stableTaskCardId } = require("./learning-task-card-service");
 const { createLearningTemplateRegistryService } = require("./learning-template-registry-service");
 const { assertNoPrivateLearningPayload } = require("./learning-record-privacy-service");
 
@@ -145,6 +145,16 @@ function assertDraftCanBeRebuilt(repository, draft = {}) {
     throw err;
   }
   return { taskCards, publications };
+}
+
+function publishResultCards(result = {}) {
+  if (Array.isArray(result?.kanbanResult?.cards)) return result.kanbanResult.cards;
+  if (Array.isArray(result?.cards)) return result.cards;
+  return [];
+}
+
+function publicKanbanCardId(entry = {}) {
+  return cleanString(entry.card?.id || entry.cardId || entry.id || entry.todoId || entry.todo_id);
 }
 
 function createLearningProgramService(options = {}) {
@@ -345,10 +355,11 @@ function createLearningProgramService(options = {}) {
     }
     if (String(draft.status || "") === "published") {
       const taskCards = taskCardService.materializeDraft({ program, draft });
-      const publishedSessions = ensurePublishedTaskSessions(taskCards, input);
       const existingPublication = typeof repository.listPublications === "function"
         ? repository.listPublications({ draftId: draft.draftId, limit: 1 })[0] || null
         : null;
+      const linkedTaskCards = linkPublishedKanbanCards({ draft, taskCards, publication: existingPublication });
+      const publishedSessions = ensurePublishedTaskSessions(linkedTaskCards, input);
       return {
         ok: true,
         alreadyPublished: true,
@@ -356,7 +367,7 @@ function createLearningProgramService(options = {}) {
         draft,
         publication: existingPublication,
         result: { ok: true, alreadyPublished: true },
-        taskCards,
+        taskCards: linkedTaskCards,
         publishedSessions,
       };
     }
@@ -373,8 +384,6 @@ function createLearningProgramService(options = {}) {
       status: result.ok ? "published" : "publish_failed",
       publishedAt: result.ok ? now : draft.publishedAt,
     }));
-    const taskCards = result.ok ? taskCardService.materializeDraft({ program, draft: savedDraft }) : [];
-    const publishedSessions = result.ok ? ensurePublishedTaskSessions(taskCards, input) : [];
     const publication = repository.savePublication({
       publicationId: createId("lpub"),
       programId: program.programId,
@@ -385,11 +394,34 @@ function createLearningProgramService(options = {}) {
       kanbanResult: result.kanbanResult || result,
       createdAt: now,
     });
-    return { ok: result.ok, program, draft: savedDraft, publication, result, taskCards, publishedSessions };
+    const taskCards = result.ok ? taskCardService.materializeDraft({ program, draft: savedDraft }) : [];
+    const linkedTaskCards = result.ok ? linkPublishedKanbanCards({ draft: savedDraft, taskCards, publication }) : taskCards;
+    const publishedSessions = result.ok ? ensurePublishedTaskSessions(linkedTaskCards, input) : [];
+    return { ok: result.ok, program, draft: savedDraft, publication, result, taskCards: linkedTaskCards, publishedSessions };
   }
 
   function reviewQueueList(filters = {}) {
     return reviewQueue.list(filters);
+  }
+
+  function linkPublishedKanbanCards(input = {}) {
+    const draft = input.draft || {};
+    const taskCards = Array.isArray(input.taskCards) ? input.taskCards : [];
+    const resultCards = publishResultCards(input.publication || {});
+    if (!taskCards.length || !resultCards.length) return taskCards;
+    const updated = taskCards.slice();
+    resultCards.forEach((entry, index) => {
+      const cardId = publicKanbanCardId(entry);
+      if (!cardId) return;
+      const clientId = cleanString(entry.clientId || entry.caseCardId || entry.card?.kanbanCaseCardId || entry.card?.caseCardId);
+      const stableId = clientId && draft.draftId ? stableTaskCardId(draft.draftId, clientId) : "";
+      const stableIndex = stableId ? updated.findIndex((task) => task.taskCardId === stableId) : -1;
+      const taskIndex = stableIndex >= 0 ? stableIndex : index;
+      const task = updated[taskIndex];
+      if (!task?.taskCardId || task.kanbanCardId === cardId) return;
+      updated[taskIndex] = repository.upsertTaskCard(Object.assign({}, task, { kanbanCardId: cardId }));
+    });
+    return updated;
   }
 
   function ensurePublishedTaskSessions(taskCards = [], input = {}) {
@@ -532,6 +564,12 @@ function createLearningProgramService(options = {}) {
     return taskCardService.get(taskCardId);
   }
 
+  function getTaskCardForKanbanCard(kanbanCardId, filters = {}) {
+    const id = cleanString(kanbanCardId);
+    if (!id) return null;
+    return repository.listTaskCards(Object.assign({}, filters, { kanbanCardId: id, limit: 1 }))[0] || null;
+  }
+
   function startTaskSession(taskCardId, input = {}) {
     return interactionSessionService.startSession(taskCardId, input);
   }
@@ -597,6 +635,7 @@ function createLearningProgramService(options = {}) {
     getInteractionSession,
     getRewardSettlement,
     getTaskCard,
+    getTaskCardForKanbanCard,
     importFoundationData,
     importSourceDirectory,
     listEvaluations,
