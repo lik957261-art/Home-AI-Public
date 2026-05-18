@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const {
+  activityLabel,
   createLearningGrowthTaskEvaluationService,
   scoreGeneric,
 } = require("../adapters/learning-growth-task-evaluation-service");
@@ -87,6 +88,38 @@ function testTooShortGenericAnswerBlocksFinalPass() {
   assert.ok(scored.issues.some((issue) => issue.code === "too_short"));
 }
 
+function testRewriteAndWeeklyChallengeHaveSpecificRuntimeContracts() {
+  assert.equal(activityLabel("rewriting"), "Rewrite improvement");
+  assert.equal(activityLabel("weekly_challenge"), "Weekly integrated challenge");
+  const rewrite = scoreGeneric({
+    activityType: "rewriting",
+    model: {
+      activityType: "rewriting",
+      learnerInstruction: "Rewrite the target paragraph and explain what changed.",
+    },
+    text: [
+      "First, I rewrote the sentence because the old version was too general.",
+      "Then I added one school detail and fixed the unclear verb phrase.",
+      "Finally, I wrote a variant repair to show that I can use the pattern again.",
+    ].join("\n"),
+  });
+  assert.equal(rewrite.passed, true);
+  const weekly = scoreGeneric({
+    activityType: "weekly_challenge",
+    model: {
+      activityType: "weekly_challenge",
+      learnerInstruction: "Complete one integrated weekly challenge using reading, vocabulary, and expression repair.",
+    },
+    text: [
+      "First, this week I used the reading detail to explain the main idea.",
+      "Because my old sentence was not clear, I changed it with a stronger vocabulary word.",
+      "Then I added one grammar repair and connected it to my answer.",
+      "Finally, I can remember to use evidence before I finish the next task.",
+    ].join("\n"),
+  });
+  assert.equal(weekly.passed, true);
+}
+
 function testWritingDelegatesToWritingEvaluator() {
   const service = createLearningGrowthTaskEvaluationService({
     now: () => new Date("2026-05-18T03:00:00.000Z"),
@@ -117,5 +150,6 @@ function testWritingDelegatesToWritingEvaluator() {
 testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak();
 testGenericFinalPassSettlesRewardRange();
 testTooShortGenericAnswerBlocksFinalPass();
+testRewriteAndWeeklyChallengeHaveSpecificRuntimeContracts();
 testWritingDelegatesToWritingEvaluator();
 console.log("learning growth task evaluation service tests passed");

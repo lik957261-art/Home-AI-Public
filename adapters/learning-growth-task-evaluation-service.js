@@ -51,7 +51,9 @@ function activityLabel(activityType) {
   if (value === "pronunciation") return "Pronunciation shadowing";
   if (value === "vocabulary") return "Active vocabulary";
   if (value === "grammar") return "Grammar in expression";
+  if (value === "rewriting") return "Rewrite improvement";
   if (value === "presentation") return "Presentation rehearsal";
+  if (value === "weekly_challenge") return "Weekly integrated challenge";
   return value || "Learning task";
 }
 
@@ -61,7 +63,9 @@ function activityThreshold(activityType) {
   if (activityType === "pronunciation") return { minWords: 12, minLines: 1 };
   if (activityType === "vocabulary") return { minWords: 30, minLines: 5 };
   if (activityType === "grammar") return { minWords: 24, minLines: 4 };
+  if (activityType === "rewriting") return { minWords: 28, minLines: 3 };
   if (activityType === "presentation") return { minWords: 45, minLines: 3 };
+  if (activityType === "weekly_challenge") return { minWords: 50, minLines: 3 };
   return { minWords: 35, minLines: 2 };
 }
 
