@@ -1,0 +1,209 @@
+"use strict";
+
+function cleanString(value) {
+  return String(value ?? "").trim();
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function compactText(value, maxChars = 800) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  return text.length > maxChars ? text.slice(0, maxChars).trim() : text;
+}
+
+function compactArray(value, maxItems = 5, maxChars = 240) {
+  return asArray(value)
+    .map((item) => compactText(item, maxChars))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function parseJsonObject(text = "", extractJsonObject = null) {
+  const raw = cleanString(text);
+  if (!raw) return null;
+  if (typeof extractJsonObject === "function") {
+    const extracted = extractJsonObject(raw);
+    if (extracted && typeof extracted === "object") return extracted;
+    if (typeof extracted === "string") {
+      try {
+        return JSON.parse(extracted);
+      } catch (_) {}
+    }
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (_) {}
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(raw.slice(start, end + 1));
+    } catch (_) {}
+  }
+  return null;
+}
+
+function taskModelFromCard(card = {}) {
+  const model = card.learningTaskModel || card.learningGrowthTaskModel || {};
+  return model && typeof model === "object" ? model : {};
+}
+
+function cardInstruction(card = {}) {
+  const model = taskModelFromCard(card);
+  return [
+    model.learnerInstruction,
+    card.kanbanCaseCardGoal,
+    card.kanban_case_card_goal,
+    card.description,
+    card.content,
+  ].map(cleanString).filter(Boolean).join("\n");
+}
+
+function normalizeSentenceFeedback(items = []) {
+  return asArray(items)
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const issue = compactText(item.issue, 160);
+      const fix = compactText(item.fix || item.revision || item.suggestion, 220);
+      const example = compactText(item.example || item.modelSentence, 180);
+      const evidence = compactText(item.evidence || item.phrase || "", 120);
+      const why = compactText(item.whyItMatters || item.why || "", 180);
+      if (!issue && !fix && !example) return null;
+      return { evidence, issue, whyItMatters: why, fix, example };
+    })
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function normalizeFeedback(parsed = {}, stage = "draft") {
+  const feedback = parsed.feedback && typeof parsed.feedback === "object" ? parsed.feedback : parsed;
+  const summary = compactText(feedback.summary || parsed.summary, 360);
+  const finalConclusion = compactText(feedback.finalConclusion || parsed.finalConclusion, 360);
+  const nextPractice = compactText(feedback.nextPractice || parsed.nextPractice, 360);
+  const parentNote = compactText(feedback.parentNote || parsed.parentNote, 360);
+  const strengths = compactArray(feedback.strengths || parsed.strengths, 4, 220);
+  const focusAreas = compactArray(feedback.focusAreas || feedback.revisionFocus || parsed.focusAreas, 5, 260);
+  const rewriteChecklist = compactArray(feedback.rewriteChecklist || parsed.rewriteChecklist, 6, 260);
+  const reflectionPrompts = compactArray(feedback.reflectionPrompts || parsed.reflectionPrompts, 3, 180);
+  const sentenceFeedback = normalizeSentenceFeedback(feedback.sentenceFeedback || parsed.sentenceFeedback);
+  return {
+    modelAssisted: true,
+    stage,
+    summary,
+    finalConclusion,
+    nextPractice,
+    parentNote,
+    strengths,
+    focusAreas,
+    rewriteChecklist,
+    reflectionPrompts,
+    sentenceFeedback,
+  };
+}
+
+function buildWritingFeedbackPrompt(input = {}) {
+  const card = input.card || {};
+  const model = taskModelFromCard(card);
+  const evaluation = input.evaluation || {};
+  const stage = cleanString(input.stage || evaluation.stage || "draft");
+  const payload = {
+    stage,
+    deterministicScore: Number(evaluation.score || 0),
+    deterministicStatus: cleanString(evaluation.status),
+    deterministicIssues: asArray(evaluation.revisionRequirements).slice(0, 8),
+    learnerProfile: {
+      gradeBand: "grade7",
+      languageLevel: "5.5-6 / B1 bridge",
+      priority: "English fast improvement",
+    },
+    task: {
+      title: cleanString(card.content || card.title),
+      instruction: cardInstruction(card),
+      activityType: cleanString(model.activityType),
+      skillId: cleanString(model.skillId),
+      deliverables: asArray(model.deliverables || card.kanbanCaseDeliverables).slice(0, 8),
+      acceptance: asArray(model.acceptance || card.kanbanCaseAcceptance).slice(0, 8),
+    },
+    studentAnswer: String(input.text || ""),
+  };
+  return [
+    "You are an English writing coach for a Grade 7 learner at B1 bridge level.",
+    "Analyze the student's current answer against the task. Give specific teaching feedback, not generic encouragement.",
+    "Return strict JSON only. Do not use Markdown fences.",
+    "Do not copy the full student answer. Evidence phrases must be short, at most 12 words each.",
+    "Do not invent errors or content not supported by the answer and task.",
+    "For draft stage: explain what to rewrite before final submission.",
+    "For final stage: give a final conclusion, what improved, and the next practice focus.",
+    "Use Chinese for explanations, but include short corrected English examples where useful.",
+    "JSON schema: {\"summary\":\"...\",\"finalConclusion\":\"...\",\"strengths\":[\"...\"],\"focusAreas\":[\"...\"],\"sentenceFeedback\":[{\"evidence\":\"short phrase\",\"issue\":\"...\",\"whyItMatters\":\"...\",\"fix\":\"...\",\"example\":\"short corrected English example\"}],\"rewriteChecklist\":[\"...\"],\"reflectionPrompts\":[\"...\"],\"nextPractice\":\"...\",\"parentNote\":\"...\"}",
+    JSON.stringify(payload),
+  ].join("\n\n");
+}
+
+function applyAiWritingFeedback(evaluation = {}, aiFeedback = {}) {
+  if (!aiFeedback || !aiFeedback.modelAssisted) return evaluation;
+  const sections = evaluation.feedbackSections || {};
+  const merged = Object.assign({}, evaluation, {
+    feedbackMethod: "model_assisted",
+    aiFeedbackStatus: "completed",
+    aiFeedbackAt: cleanString(aiFeedback.generatedAt || new Date().toISOString()),
+    summary: aiFeedback.summary || aiFeedback.finalConclusion || evaluation.summary,
+    feedbackSections: Object.assign({}, sections, {
+      strengths: aiFeedback.strengths.length ? aiFeedback.strengths : asArray(sections.strengths),
+      focusAreas: aiFeedback.focusAreas.length ? aiFeedback.focusAreas : asArray(sections.focusAreas),
+      rewriteChecklist: aiFeedback.rewriteChecklist.length ? aiFeedback.rewriteChecklist : asArray(sections.rewriteChecklist),
+      reflectionPrompts: aiFeedback.reflectionPrompts.length ? aiFeedback.reflectionPrompts : asArray(sections.reflectionPrompts),
+      sentenceFeedback: aiFeedback.sentenceFeedback,
+      finalConclusion: aiFeedback.finalConclusion,
+      nextPractice: aiFeedback.nextPractice,
+      parentNote: aiFeedback.parentNote,
+    }),
+    evidenceRefs: [...new Set(asArray(evaluation.evidenceRefs).concat("learning-growth-writing-ai-feedback:v1"))],
+  });
+  return merged;
+}
+
+function createLearningGrowthWritingAiFeedbackService(options = {}) {
+  const hermesModelText = typeof options.hermesModelText === "function" ? options.hermesModelText : null;
+  const extractJsonObject = typeof options.extractJsonObject === "function" ? options.extractJsonObject : null;
+  const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
+  const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000));
+  const model = cleanString(options.model || options.automationCreateModel || "automation-create");
+
+  async function analyze(input = {}) {
+    if (!hermesModelText) return { ok: false, status: "unavailable", error: "model feedback service is not configured" };
+    const workspaceId = cleanString(input.workspaceId || "owner") || "owner";
+    const prompt = buildWritingFeedbackPrompt(input);
+    const output = await hermesModelText({
+      input: prompt,
+      stream: true,
+      store: false,
+      model,
+      reasoning_effort: "medium",
+      conversation: `learning_growth_writing_feedback_${Date.now()}`,
+      instructions: "Return strict JSON writing feedback only.",
+      access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+    }, timeoutMs);
+    const parsed = parseJsonObject(output, extractJsonObject);
+    if (!parsed) return { ok: false, status: "parse_error", error: "model feedback was not valid JSON" };
+    const feedback = normalizeFeedback(parsed, cleanString(input.stage || input.evaluation?.stage || "draft"));
+    feedback.generatedAt = new Date().toISOString();
+    return { ok: true, status: "completed", feedback };
+  }
+
+  return {
+    analyze,
+    buildWritingFeedbackPrompt,
+  };
+}
+
+module.exports = {
+  applyAiWritingFeedback,
+  buildWritingFeedbackPrompt,
+  createLearningGrowthWritingAiFeedbackService,
+  normalizeFeedback,
+  parseJsonObject,
+};

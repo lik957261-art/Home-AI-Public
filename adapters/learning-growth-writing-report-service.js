@@ -36,6 +36,25 @@ function markdownList(items, fallback) {
   return list.map((item) => `- ${item}`);
 }
 
+function sentenceFeedbackLines(items = []) {
+  const list = asArray(items)
+    .filter((item) => item && typeof item === "object")
+    .slice(0, 5);
+  if (!list.length) return ["- No sentence-level model feedback was generated."];
+  return list.flatMap((item, index) => {
+    const heading = cleanString(item.evidence)
+      ? `${index + 1}. Evidence: ${item.evidence}`
+      : `${index + 1}. Sentence guidance`;
+    return [
+      `- ${heading}`,
+      cleanString(item.issue) ? `  - Issue: ${item.issue}` : "",
+      cleanString(item.whyItMatters) ? `  - Why it matters: ${item.whyItMatters}` : "",
+      cleanString(item.fix) ? `  - Fix: ${item.fix}` : "",
+      cleanString(item.example) ? `  - Example: ${item.example}` : "",
+    ].filter(Boolean);
+  });
+}
+
 function reportStageLabel(evaluation = {}) {
   const stage = cleanString(evaluation.stage || evaluation.submissionStage || "");
   if (stage === "final") return "\u6700\u7ec8\u63d0\u4ea4";
@@ -103,6 +122,10 @@ function buildWritingFeedbackMarkdown(input = {}) {
     "",
     ...markdownList(feedback.focusAreas || evaluation.revisionRequirements, "\u6682\u65e0\u5fc5\u987b\u4fee\u6539\u9879\uff0c\u4f46\u4ecd\u5efa\u8bae\u518d\u505a\u4e00\u8f6e\u8868\u8fbe\u4f18\u5316\u3002"),
     "",
+    "## AI \u53e5\u5b50\u7ea7\u6307\u5bfc",
+    "",
+    ...sentenceFeedbackLines(feedback.sentenceFeedback),
+    "",
     "## \u6539\u5199\u6e05\u5355",
     "",
     ...markdownList(feedback.rewriteChecklist || evaluation.revisionRequirements, "\u68c0\u67e5\u4efb\u52a1\u8d34\u5408\u5ea6\u3001\u53e5\u5b50\u5b8c\u6574\u5ea6\u548c\u7ed3\u5c3e\u6807\u70b9\u3002"),
@@ -113,7 +136,8 @@ function buildWritingFeedbackMarkdown(input = {}) {
     "",
     "## \u4e0b\u4e00\u6b65",
     "",
-    nextStepText(evaluation),
+    cleanString(feedback.nextPractice) || nextStepText(evaluation),
+    cleanString(feedback.parentNote) ? `\nParent note: ${cleanString(feedback.parentNote)}` : "",
     "",
     "## \u91d1\u5e01\u7ed3\u7b97",
     "",

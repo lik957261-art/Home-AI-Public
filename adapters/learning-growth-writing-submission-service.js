@@ -9,6 +9,9 @@ const {
 const {
   createLearningGrowthWritingReportService,
 } = require("./learning-growth-writing-report-service");
+const {
+  applyAiWritingFeedback,
+} = require("./learning-growth-writing-ai-feedback-service");
 const { stableTaskCardId } = require("./learning-task-card-service");
 
 function cleanString(value) {
@@ -89,6 +92,7 @@ function getProgramService(options = {}) {
 }
 
 function publicEvaluation(evaluation = {}, settlement = null) {
+  const sections = evaluation.feedbackSections || {};
   return {
     evaluationId: cleanString(evaluation.evaluationId),
     stage: cleanString(evaluation.stage),
@@ -99,11 +103,23 @@ function publicEvaluation(evaluation = {}, settlement = null) {
     summary: cleanString(evaluation.summary),
     revisionRequirements: asArray(evaluation.revisionRequirements).map(cleanString).filter(Boolean),
     feedbackSections: {
-      strengths: asArray(evaluation.feedbackSections?.strengths).map(cleanString).filter(Boolean),
-      focusAreas: asArray(evaluation.feedbackSections?.focusAreas).map(cleanString).filter(Boolean),
-      rewriteChecklist: asArray(evaluation.feedbackSections?.rewriteChecklist).map(cleanString).filter(Boolean),
-      reflectionPrompts: asArray(evaluation.feedbackSections?.reflectionPrompts).map(cleanString).filter(Boolean),
+      strengths: asArray(sections.strengths).map(cleanString).filter(Boolean),
+      focusAreas: asArray(sections.focusAreas).map(cleanString).filter(Boolean),
+      rewriteChecklist: asArray(sections.rewriteChecklist).map(cleanString).filter(Boolean),
+      reflectionPrompts: asArray(sections.reflectionPrompts).map(cleanString).filter(Boolean),
+      sentenceFeedback: asArray(sections.sentenceFeedback).map((item) => ({
+        evidence: cleanString(item?.evidence),
+        issue: cleanString(item?.issue),
+        whyItMatters: cleanString(item?.whyItMatters),
+        fix: cleanString(item?.fix),
+        example: cleanString(item?.example),
+      })).filter((item) => item.issue || item.fix || item.example),
+      finalConclusion: cleanString(sections.finalConclusion),
+      nextPractice: cleanString(sections.nextPractice),
+      parentNote: cleanString(sections.parentNote),
     },
+    feedbackMethod: cleanString(evaluation.feedbackMethod || evaluation.verificationMethod),
+    aiFeedbackStatus: cleanString(evaluation.aiFeedbackStatus),
     nextStep: cleanString(evaluation.nextStep),
     evaluatedAt: cleanString(evaluation.evaluatedAt),
     report: evaluation.report && typeof evaluation.report === "object" ? {
@@ -247,6 +263,7 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
     artifactService: options.artifactService,
   });
   const learningCoinService = options.learningCoinService || null;
+  const aiFeedbackService = options.aiFeedbackService || null;
   const maxSubmissionChars = Math.max(1000, Number(options.maxSubmissionChars || 12000));
   if (!kanbanCardProvider || typeof kanbanCardProvider.listCards !== "function" || typeof kanbanCardProvider.mutateCard !== "function") {
     throw new Error("learning growth writing submission service requires kanbanCardProvider list/mutate");
@@ -288,12 +305,34 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       submissionKind: stage === "draft" ? "writing_draft" : "writing_revision",
     });
     if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit writing"));
-    const evaluation = evaluationService.evaluate({
+    let evaluation = evaluationService.evaluate({
       card: loaded.card,
       cardId: cardIdValue,
       text,
       stage,
     });
+    if (aiFeedbackService && typeof aiFeedbackService.analyze === "function") {
+      try {
+        const aiFeedback = await aiFeedbackService.analyze({
+          workspaceId,
+          card: loaded.card,
+          cardId: cardIdValue,
+          text,
+          stage,
+          evaluation,
+        });
+        if (aiFeedback?.ok && aiFeedback.feedback) {
+          evaluation = applyAiWritingFeedback(evaluation, aiFeedback.feedback);
+        } else {
+          evaluation.aiFeedbackStatus = cleanString(aiFeedback?.status || "unavailable");
+        }
+      } catch (err) {
+        evaluation.aiFeedbackStatus = "error";
+        evaluation.aiFeedbackError = cleanString(err.message || err);
+      }
+    } else {
+      evaluation.aiFeedbackStatus = "unavailable";
+    }
     let settlement = null;
     try {
       settlement = await settleViaProgramService(getProgramService(options), loaded.card, evaluation, { workspaceId, author: input.author });

@@ -142,6 +142,73 @@ async function testFinalRewriteSettlesAndCompletes() {
   assert.doesNotMatch(calls[2].comment, /[�]/);
 }
 
+async function testModelFeedbackEnhancesPublicEvaluation() {
+  const calls = [];
+  const service = createLearningGrowthWritingSubmissionService({
+    aiFeedbackService: {
+      async analyze(input) {
+        assert.equal(input.stage, "draft");
+        return {
+          ok: true,
+          feedback: {
+            modelAssisted: true,
+            summary: "AI draft feedback is specific.",
+            strengths: ["Clear topic sentence."],
+            focusAreas: ["Add a concrete classroom example."],
+            sentenceFeedback: [{
+              evidence: "teamwork is good",
+              issue: "Too general.",
+              whyItMatters: "The reader cannot see the scene.",
+              fix: "Name the activity and the role.",
+              example: "Teamwork helped our group finish the science poster.",
+            }],
+            rewriteChecklist: ["Rewrite one reason sentence with a concrete example."],
+            reflectionPrompts: ["What detail did I add?"],
+            nextPractice: "Use a three-line outline before writing.",
+          },
+        };
+      },
+    },
+    reportService: {
+      writeReport(input) {
+        assert.equal(input.evaluation.feedbackMethod, "model_assisted");
+        return { path: "C:\\tmp\\growth-writing-ai.md", name: "growth-writing-ai.md", mime: "text/markdown; charset=utf-8", size: 120 };
+      },
+    },
+    kanbanCardProvider: {
+      async listCards() {
+        return {
+          ok: true,
+          data: [{
+            id: "t_growth_ai",
+            workspaceId: "child",
+            kanbanCaseMode: "study-plan",
+            kanbanCaseTemplate: "learning-growth",
+            kanbanCaseCardGoal: "Write 80-120 words about a school activity.",
+          }],
+        };
+      },
+      async mutateCard(input) {
+        calls.push(input);
+        return { ok: true, id: input.cardId, action: input.action };
+      },
+    },
+  });
+  const text = [
+    "Last week I joined a class activity about teamwork.",
+    "First, I wrote down three steps and asked each classmate to choose one job.",
+    "Finally, we finished the poster on time, and I learned that good communication can make a hard task easier.",
+  ].join(" ");
+  const result = await service.submitWriting({ workspaceId: "child", cardId: "t_growth_ai", text, author: "child" });
+  assert.equal(result.ok, true);
+  assert.equal(result.evaluation.feedbackMethod, "model_assisted");
+  assert.equal(result.evaluation.aiFeedbackStatus, "completed");
+  assert.equal(result.evaluation.summary, "AI draft feedback is specific.");
+  assert.equal(result.evaluation.feedbackSections.sentenceFeedback[0].example, "Teamwork helped our group finish the science poster.");
+  assert.doesNotMatch(JSON.stringify(result.evaluation), /Last week I joined/);
+  assert.equal(calls[1].learningGrowthEvaluation.feedbackSections.sentenceFeedback.length, 1);
+}
+
 async function testRejectsMissingNonGrowthAndOversizedSubmissions() {
   const service = createLearningGrowthWritingSubmissionService({
     maxSubmissionChars: 1000,
@@ -251,6 +318,7 @@ function testDependencyValidation() {
 (async () => {
   testDependencyValidation();
   await testSubmitWritingStoresAsKanbanComment();
+  await testModelFeedbackEnhancesPublicEvaluation();
   await testFinalRewriteSettlesAndCompletes();
   await testUsesLearningProgramSettlementWhenTaskLinked();
   await testRejectsMissingNonGrowthAndOversizedSubmissions();

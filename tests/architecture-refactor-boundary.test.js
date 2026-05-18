@@ -55,6 +55,7 @@ const curriculumReferenceService = require("../adapters/curriculum-reference-ser
 const learnerProfileService = require("../adapters/learner-profile-service");
 const learningGrowthService = require("../adapters/learning-growth-service");
 const learningGrowthKanbanTaskService = require("../adapters/learning-growth-kanban-task-service");
+const learningGrowthWritingAiFeedbackService = require("../adapters/learning-growth-writing-ai-feedback-service");
 const learningGrowthWritingEvaluationService = require("../adapters/learning-growth-writing-evaluation-service");
 const learningGrowthWritingSubmissionService = require("../adapters/learning-growth-writing-submission-service");
 const learningAiReliabilityGuardService = require("../adapters/learning-ai-reliability-guard-service");
@@ -242,6 +243,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningGrowthService.createLearningGrowthService, "function");
   assert.equal(typeof learningGrowthService.buildLearningGrowthOverview, "function");
   assert.equal(typeof learningGrowthKanbanTaskService.createLearningGrowthKanbanTaskService, "function");
+  assert.equal(typeof learningGrowthWritingAiFeedbackService.createLearningGrowthWritingAiFeedbackService, "function");
+  assert.equal(typeof learningGrowthWritingAiFeedbackService.applyAiWritingFeedback, "function");
   assert.equal(typeof learningGrowthWritingEvaluationService.createLearningGrowthWritingEvaluationService, "function");
   assert.equal(typeof learningGrowthWritingSubmissionService.createLearningGrowthWritingSubmissionService, "function");
   assert.equal(typeof learningAiReliabilityGuardService.createLearningAiReliabilityGuardService, "function");

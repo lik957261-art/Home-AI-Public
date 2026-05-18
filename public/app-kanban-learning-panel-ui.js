@@ -23,7 +23,6 @@ function renderLearningGrowthFeedbackList(title, items) {
   if (!list.length) return "";
   return `<div class="todo-learning-growth-feedback-list"><strong>${escapeHtml(title)}</strong><ul>${list.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
 }
-
 function renderKanbanLearningGrowthTodoPanel(todo) {
   if (!isKanbanLearningGrowthCard(todo) || !todoMatchesOpen(todo)) return "";
   const blocked = normalizedKanbanStatus(todo) === "blocked";
@@ -82,8 +81,10 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
         ${reportLinks}
         ${renderLearningGrowthFeedbackList("\u4f18\u70b9", feedbackSections.strengths)}
         ${renderLearningGrowthFeedbackList("\u91cd\u70b9\u4fee\u6539", feedbackSections.focusAreas || evaluation.revisionRequirements)}
+        ${renderLearningGrowthFeedbackList("AI \u53e5\u5b50\u7ea7\u6307\u5bfc", Array.isArray(feedbackSections.sentenceFeedback) ? feedbackSections.sentenceFeedback.map((item) => [item.evidence ? `\u8bc1\u636e\uff1a${item.evidence}` : "", item.issue ? `\u95ee\u9898\uff1a${item.issue}` : "", item.fix ? `\u4fee\u6539\uff1a${item.fix}` : "", item.example ? `\u793a\u4f8b\uff1a${item.example}` : ""].filter(Boolean).join("\uff1b")) : [])}
         ${renderLearningGrowthFeedbackList("\u6539\u5199\u6e05\u5355", feedbackSections.rewriteChecklist)}
         ${renderLearningGrowthFeedbackList("\u590d\u76d8\u95ee\u9898", feedbackSections.reflectionPrompts)}
+        ${feedbackSections.nextPractice ? `<p><strong>${escapeHtml("下一次训练")}</strong><br>${escapeHtml(feedbackSections.nextPractice)}</p>` : ""}
         ${evaluation.reward ? `<p class="todo-detail-muted">\u91d1\u5e01\uff1a${escapeHtml(evaluation.reward.status || "not_eligible")} ${Number(evaluation.reward.coinAmount || 0) ? `${escapeHtml(String(evaluation.reward.coinAmount))} \u679a` : ""}</p>` : ""}
       </div>
     </div>`

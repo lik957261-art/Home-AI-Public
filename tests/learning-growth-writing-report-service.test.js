@@ -25,14 +25,23 @@ function testBuildMarkdownOmitsRawSubmission() {
       feedbackSections: {
         strengths: ["Clear topic."],
         focusAreas: ["Add one concrete example."],
+        sentenceFeedback: [{
+          evidence: "good communication",
+          issue: "Too general.",
+          fix: "Add who did what.",
+          example: "Clear communication helped our group finish the poster.",
+        }],
         rewriteChecklist: ["Rewrite two sentences."],
         reflectionPrompts: ["What did I change?"],
+        nextPractice: "Use a three-line outline first.",
       },
     },
   });
   assert.match(markdown, /Writing card/);
   assert.match(markdown, /Draft feedback ready/);
   assert.match(markdown, /Add one concrete example/);
+  assert.match(markdown, /Clear communication helped our group finish the poster/);
+  assert.match(markdown, /Use a three-line outline first/);
   assert.match(markdown, /改写任务/);
   assert.match(markdown, /金币结算/);
   assert.doesNotMatch(markdown, /Last week I joined/);

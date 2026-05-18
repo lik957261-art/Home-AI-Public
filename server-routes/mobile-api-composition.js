@@ -16,6 +16,7 @@ const { createLearningParentReviewApiRoutes } = require("./learning-parent-revie
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
+const { createLearningGrowthWritingAiFeedbackService } = require("../adapters/learning-growth-writing-ai-feedback-service");
 const { createLearningGrowthWritingSubmissionService } = require("../adapters/learning-growth-writing-submission-service");
 const { createLearningParentReviewRequestService } = require("../adapters/learning-parent-review-request-service");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
@@ -385,7 +386,15 @@ function createMobileApiComposition(deps = {}) {
   const learningGrowthTaskService = createLearningGrowthKanbanTaskService({
     kanbanCardProvider: deps.kanbanCardProvider,
   });
+  const learningGrowthWritingAiFeedbackService = createLearningGrowthWritingAiFeedbackService({
+    extractJsonObject: deps.extractJsonObject,
+    findWorkspace: deps.findWorkspace,
+    hermesModelText: deps.hermesModelText,
+    model: deps.automationCreateModel,
+    sanitizePolicy: deps.sanitizePolicy,
+  });
   const learningGrowthWritingSubmissionService = createLearningGrowthWritingSubmissionService({
+    aiFeedbackService: learningGrowthWritingAiFeedbackService,
     artifactService: deps.kanbanStudyArtifactService,
     kanbanCardProvider: deps.kanbanCardProvider,
     getLearningProgramService: () => learningProgramService,
