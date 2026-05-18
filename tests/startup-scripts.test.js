@@ -67,6 +67,9 @@ assert.match(startWorkerHost, /healthy authenticated API endpoint with ready Gat
 assert.match(startWorkerHost, /MinGatewayPoolWorkers/);
 assert.match(startWorkerHost, /GatewayPoolPorts/);
 assert.match(startWorkerHost, /WeixinFrontGateway/);
+assert.match(startWorkerHost, /function Resolve-WeixinFrontGatewayMode/);
+assert.match(startWorkerHost, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY/);
+assert.match(startWorkerHost, /return "auto"/);
 assert.match(startWorkerHost, /start-weixin-mobile-ingress-bridge\.ps1/);
 assert.match(startWorkerHost, /function Start-WeixinFrontGatewayIfNeeded/);
 assert.match(startWorkerHost, /Start-WeixinFrontGatewayIfNeeded\s*\r?\nif \(-not \$CheckOnly\)/);

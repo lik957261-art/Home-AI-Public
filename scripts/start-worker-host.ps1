@@ -262,16 +262,20 @@ function Start-BridgeHost {
     throw "Bridge host did not become healthy on port $ListenPort."
 }
 
-function Test-WeixinFrontGatewayDisabled {
+function Resolve-WeixinFrontGatewayMode {
     $value = [string]$WeixinFrontGateway
     if (-not $value) { $value = [string]$env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY }
-    if (-not $value) { return $true }
+    if (-not $value) { return "auto" }
+    return $value
+}
+
+function Test-WeixinFrontGatewayDisabled {
+    $value = Resolve-WeixinFrontGatewayMode
     return ($value -match '^(0|false|off|disabled|none)$')
 }
 
 function Test-WeixinFrontGatewayRequired {
-    $value = [string]$WeixinFrontGateway
-    if (-not $value) { $value = [string]$env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY }
+    $value = Resolve-WeixinFrontGatewayMode
     return ($value -match '^(required|require|strict)$')
 }
 

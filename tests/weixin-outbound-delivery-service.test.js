@@ -186,6 +186,27 @@ function testRetMinusTwoWaitsForInboundWake() {
   assert.equal(calls.save, 2);
 }
 
+function testManualForwardRetMinusTwoUsesTimedRetry() {
+  const { service, thread, message } = createFixture();
+  service.enqueueForTerminalMessage(thread, message, "done");
+  message.externalDelivery.terminalStatus = "manual_forward";
+
+  const failed = service.ackDelivery("delivery:thread_1:msg_1", {
+    status: "failed",
+    error: "send failed ret=-2",
+    acknowledgedAt: "2026-05-15T00:00:00.000Z",
+  });
+
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.retryAfterInbound, false);
+  assert.equal(failed.nextRetryAt, "2026-05-15T00:00:01.000Z");
+  assert.equal(service.pendingDeliveries({
+    status: "pending",
+    limit: 10,
+    nowMs: Date.parse("2026-05-15T00:00:01.000Z"),
+  }).length, 1);
+}
+
 function testPendingDeliveryFiltersAndRetryExhaustion() {
   const { service, thread, message } = createFixture();
   service.enqueueForTerminalMessage(thread, message, "done");
@@ -216,6 +237,7 @@ testEnqueueCreatesPendingDelivery();
 testEnqueueSkipsInternalFailuresAndDeniedEgress();
 testAckSentAndFailedRetryStates();
 testRetMinusTwoWaitsForInboundWake();
+testManualForwardRetMinusTwoUsesTimedRetry();
 testPendingDeliveryFiltersAndRetryExhaustion();
 
 console.log("weixin-outbound-delivery-service tests passed");

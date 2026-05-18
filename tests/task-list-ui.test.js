@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260518-owner-case-topics-v17";
+const CLIENT_VERSION = "20260518-weixin-file-only-v18";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -252,6 +252,7 @@ assert.match(weixinRuntimeCompositionServiceJs, /createWeixinFileForwardDelivery
 assert.match(weixinRuntimeCompositionServiceJs, /resolveWeixinForwardTarget: \(\.\.\.args\) => getForwardService\(\)\.resolveTarget\(\.\.\.args\)/);
 assert.doesNotMatch(weixinRuntimeCompositionServiceJs, /resolveWeixinForwardTarget,\s*\n/);
 assert.match(weixinFileForwardServiceJs, /const caption = String\(body\.caption \?\? body\.text \?\? ""\)\.trim\(\)/);
+assert.doesNotMatch(fileViewerHtml, /caption:\s*`\\u6587\\u4ef6\\u8f6c\\u53d1/);
 assert.doesNotMatch(serverJs, /Weixin file forwarding:/);
 assert.match(weixinRuntimeCompositionServiceJs, /function materializeForwardFile\(file, workspaceId\)/);
 assert.match(weixinRuntimeCompositionServiceJs, /weixinMarkdownForwardService\.materializeWeixinForwardFile\(file, workspaceId/);

@@ -1393,7 +1393,6 @@
               contentType: "text/markdown; charset=utf-8",
               contentBase64: bytesToBase64(new TextEncoder().encode(text)),
             },
-            caption: `\u6587\u4ef6\u8f6c\u53d1\uff1a${filename}`,
           }),
         });
         setTransientStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217");
@@ -1404,7 +1403,6 @@
         body: JSON.stringify({
           workspaceId,
           sourceUrl: src,
-          caption: `\u6587\u4ef6\u8f6c\u53d1\uff1a${name}`,
         }),
       });
       setTransientStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217");

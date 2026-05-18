@@ -52,6 +52,11 @@ function createWeixinOutboundDeliveryService(options = {}) {
       || /(?:^|[^A-Za-z0-9_])ret\s+-2(?:[^0-9]|$)/i.test(text);
   }
 
+  function requiresInboundWakeForFailure(delivery, ack = {}) {
+    if (!isInboundWakeRequiredFailure(ack)) return false;
+    return String(delivery?.terminalStatus || "").trim() !== "manual_forward";
+  }
+
   function isDeliveryRetryable(delivery, nowMs = Date.now()) {
     if (!delivery || delivery.source !== "weixin" || delivery.status !== "failed") return false;
     if (delivery.retryAfterInbound || delivery.retry_after_inbound) return false;
@@ -240,7 +245,7 @@ function createWeixinOutboundDeliveryService(options = {}) {
       if (!delivery || candidateId !== id) continue;
       const acknowledgedAt = ack.acknowledgedAt || nowIso();
       const failureRetryCount = ack.status === "failed" ? deliveryRetryCount(delivery) + 1 : deliveryRetryCount(delivery);
-      const waitForInbound = ack.status === "failed" && isInboundWakeRequiredFailure(ack);
+      const waitForInbound = ack.status === "failed" && requiresInboundWakeForFailure(delivery, ack);
       const retryExhausted = ack.status === "failed"
         && !waitForInbound
         && retryLimit > 0
