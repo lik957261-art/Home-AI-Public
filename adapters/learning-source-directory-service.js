@@ -90,6 +90,14 @@ function defaultLearningSourceDirectoryBindings() {
         title: `${FANFAN_DISPLAY_NAME} ${LEARNING_MATERIALS_LABEL} \u5b66\u4e60\u8ba1\u5212\u6458\u8981`,
         tags: ["learning_materials", "learning_plan", "cleaned_summary"],
       },
+      {
+        role: "learning_growth_progress_signals",
+        relativePath: `${ownerRelativePath}/${LEARNING_PLAN_DIR}/.hermes-cleaned/learning-growth-progress.md`,
+        sourceType: "cleaned_history",
+        title: `${FANFAN_DISPLAY_NAME} Growth \u5b66\u4e60\u8fdb\u5ea6\u4fe1\u53f7`,
+        tags: ["learning_materials", "learning_plan", "growth_progress", "cleaned_summary"],
+        optional: true,
+      },
     ],
   }];
 }

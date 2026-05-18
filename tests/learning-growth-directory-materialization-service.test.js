@@ -145,6 +145,13 @@ function testWritingEvaluationUsesVisibleDirectoryAndCopiesReport() {
   assert.match(cleaned, /Keep concrete examples/);
   assert.match(cleaned, /does not store the full student answer/);
   assert.doesNotMatch(cleaned, /Last week I joined/);
+  assert.ok(materialized.progress);
+  assert.ok(fs.existsSync(materialized.progress.rootProgressPath));
+  assert.ok(fs.existsSync(materialized.progress.programProgressPath));
+  const progress = read(materialized.progress.rootProgressPath);
+  assert.match(progress, /Final guidance summary/);
+  assert.match(progress, /writing-feedback\.md/);
+  assert.doesNotMatch(progress, /Last week I joined/);
 }
 
 testMaterializesProgramSummaryWithoutRawAnswers();

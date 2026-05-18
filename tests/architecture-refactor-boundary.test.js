@@ -55,6 +55,7 @@ const curriculumReferenceService = require("../adapters/curriculum-reference-ser
 const learnerProfileService = require("../adapters/learner-profile-service");
 const learningGrowthService = require("../adapters/learning-growth-service");
 const learningGrowthKanbanTaskService = require("../adapters/learning-growth-kanban-task-service");
+const learningGrowthProgressRecordService = require("../adapters/learning-growth-progress-record-service");
 const learningGrowthTaskEvaluationService = require("../adapters/learning-growth-task-evaluation-service");
 const learningGrowthTaskReportService = require("../adapters/learning-growth-task-report-service");
 const learningGrowthWritingAiFeedbackService = require("../adapters/learning-growth-writing-ai-feedback-service");
@@ -246,6 +247,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningGrowthService.createLearningGrowthService, "function");
   assert.equal(typeof learningGrowthService.buildLearningGrowthOverview, "function");
   assert.equal(typeof learningGrowthKanbanTaskService.createLearningGrowthKanbanTaskService, "function");
+  assert.equal(typeof learningGrowthProgressRecordService.createLearningGrowthProgressRecordService, "function");
   assert.equal(typeof learningGrowthTaskEvaluationService.createLearningGrowthTaskEvaluationService, "function");
   assert.equal(typeof learningGrowthTaskReportService.createLearningGrowthTaskReportService, "function");
   assert.equal(typeof learningGrowthWritingAiFeedbackService.createLearningGrowthWritingAiFeedbackService, "function");

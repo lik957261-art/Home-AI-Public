@@ -4,6 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { defaultOwnerDriveRoot } = require("./learning-source-directory-service");
+const {
+  createLearningGrowthProgressRecordService,
+} = require("./learning-growth-progress-record-service");
 
 const FANFAN_WORKSPACE_ID = "weixin_stephen";
 const FANFAN_LEARNING_PLAN_PARTS = [
@@ -138,6 +141,7 @@ function createLearningGrowthDirectoryMaterializationService(options = {}) {
     [FANFAN_WORKSPACE_ID]: path.join(ownerDriveRoot, ...FANFAN_LEARNING_PLAN_PARTS),
   }, options.learnerDirectories || {});
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
+  const progressRecordService = options.progressRecordService || createLearningGrowthProgressRecordService({ nowIso });
 
   function learningPlanRoot(workspaceId = FANFAN_WORKSPACE_ID) {
     const configured = cleanString(learnerDirectories[cleanString(workspaceId) || FANFAN_WORKSPACE_ID]);
@@ -283,10 +287,24 @@ function createLearningGrowthDirectoryMaterializationService(options = {}) {
     const summaryPath = writeText(path.join(cleanedDir, "summary.md"), summary);
     const programDir = path.dirname(path.dirname(reportDir));
     writeRootSummary(path.dirname(programDir), `Latest Growth evaluation: ${path.basename(programDir)} / ${cardId}\n\n- Status: ${cleanString(evaluation.status)}\n- Score: ${Number(evaluation.score || 0)}/${Number(evaluation.maxScore || 100)}\n- Report: ${visibleReportPath ? path.basename(visibleReportPath) : "not generated"}`);
+    let progress = null;
+    if (progressRecordService && typeof progressRecordService.recordEvaluation === "function") {
+      progress = progressRecordService.recordEvaluation({
+        learnerRoot: path.dirname(programDir),
+        programDir,
+        card,
+        cardId,
+        evaluation,
+        report,
+        reportPath: visibleReportPath,
+        reportName: visibleReportPath ? path.basename(visibleReportPath) : "",
+      });
+    }
     return {
       directory: reportDir,
       summaryPath,
       reportPath: visibleReportPath,
+      progress,
     };
   }
 

@@ -116,8 +116,10 @@ function fakeRepository() {
 function testMaterializeCallsProgramAndReportMaterializers() {
   const dataDir = tempDir();
   const artifactReport = path.join(dataDir, "artifacts", "kanban-reading", "weixin_stephen", "case-1", "t_1", "task-writing-feedback.md");
+  const genericReport = path.join(dataDir, "artifacts", "kanban-reading", "weixin_stephen", "case-1", "t_1", "task-vocabulary-feedback.md");
   fs.mkdirSync(path.dirname(artifactReport), { recursive: true });
   fs.writeFileSync(artifactReport, "# Report\n", "utf8");
+  fs.writeFileSync(genericReport, "# Generic Report\n", "utf8");
   const calls = { programs: [], reports: [] };
   const counts = materialize({
     dataDir,
@@ -135,12 +137,13 @@ function testMaterializeCallsProgramAndReportMaterializers() {
   });
   assert.equal(counts.programsScanned, 1);
   assert.equal(counts.programsMaterialized, 1);
-  assert.equal(counts.reportFilesScanned, 1);
-  assert.equal(counts.reportsMaterialized, 1);
+  assert.equal(counts.reportFilesScanned, 2);
+  assert.equal(counts.reportsMaterialized, 2);
   assert.equal(calls.programs[0].program.programId, "program-1");
   assert.equal(calls.reports[0].cardId, "t_1");
   assert.equal(calls.reports[0].evaluation.score, 91);
-  assert.equal(calls.reports[0].report.name, "task-writing-feedback.md");
+  assert.ok(calls.reports.some((call) => call.report.name === "task-writing-feedback.md"));
+  assert.ok(calls.reports.some((call) => call.report.name === "task-vocabulary-feedback.md"));
 }
 
 function testDryRunDoesNotWriteThroughMaterializer() {

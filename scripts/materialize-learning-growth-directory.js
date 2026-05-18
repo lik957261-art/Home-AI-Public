@@ -74,7 +74,7 @@ function walkMarkdownReports(root) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(fullPath);
-      } else if (entry.isFile() && /writing-feedback\.md$/i.test(entry.name)) {
+      } else if (entry.isFile() && /(?:writing-|task-|vocabulary-|grammar-|reading-|listening-|speaking-|pronunciation-|presentation-)?feedback\.md$/i.test(entry.name)) {
         reports.push(fullPath);
       }
     }
