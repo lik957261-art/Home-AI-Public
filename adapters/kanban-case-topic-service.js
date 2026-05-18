@@ -283,7 +283,6 @@ function createKanbanCaseTopicService(deps = {}) {
   function ensureTopicThread(ownerWorkspaceId, plan = {}, directoryInfo = null) {
     const owner = cleanString(ownerWorkspaceId) || "owner";
     const members = memberWorkspaceIds(plan, owner);
-    if (members.length <= 1) return null;
     const now = nowIso();
     const topicKey = caseTopicKey(owner, plan);
     const state = getState();

@@ -210,8 +210,39 @@ function testEnsureTopicThreadUpdatesExistingWithoutDuplicateSeedMessage() {
   assert.equal(result.thread.taskGroupMeta["case_case-1"].title, "Fractions");
 }
 
+function testEnsureTopicThreadCreatesOwnerOnlyLearningPlanTopic() {
+  const state = { threads: [] };
+  const service = makeService({
+    state,
+    createSingleWindowThread: (workspaceId, overrides) => Object.assign({
+      id: "thread-owner-only",
+      workspaceId,
+      singleWindow: true,
+      messages: [],
+      taskGroupMeta: {},
+    }, overrides),
+  });
+
+  const result = service.ensureTopicThread("weixin_stephen", {
+    id: "study-plan-owner-only",
+    mode: "study-plan",
+    template: "learning-growth",
+    learnerName: "StePhen",
+    contentTitle: "English Growth",
+    performerWorkspaceIds: ["weixin_stephen"],
+  });
+
+  assert.equal(result.taskGroupId, "case_study-plan-owner-only");
+  assert.equal(state.threads.length, 1);
+  assert.deepEqual(state.threads[0].chatGroup.memberWorkspaceIds, ["weixin_stephen"]);
+  assert.equal(state.threads[0].taskGroupMeta["case_study-plan-owner-only"].sharedTopic, true);
+  assert.equal(state.threads[0].taskGroupMeta["case_study-plan-owner-only"].kanbanCaseId, "study-plan-owner-only");
+  assert.equal(state.threads[0].messages.length, 1);
+}
+
 testPathAndNameProjection();
 testExplicitLearnerRootSelection();
 testEnsureSharedDirectory();
 testEnsureTopicThreadCreatesAndBroadcasts();
 testEnsureTopicThreadUpdatesExistingWithoutDuplicateSeedMessage();
+testEnsureTopicThreadCreatesOwnerOnlyLearningPlanTopic();
