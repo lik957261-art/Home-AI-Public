@@ -1,27 +1,25 @@
 "use strict";
-
 const LearningGrowthTaskUi = typeof window !== "undefined" ? (window.HermesLearningGrowthTaskUi || {}) : {};
 function isKanbanReadingCard(todo) {
   if (!isKanbanStudyCase(todo) || isKanbanFinalStudyAssessment(todo) || isKanbanLearningGrowthCard(todo)) return false;
-  const template = kanbanCaseTemplate(todo);
-  if (template === "reading" || template === "english-reading" || template === "reading-recording") return true;
-  return Boolean(todo?.readingSubmission || todo?.studySubmission);
+  return isKanbanReadingPlanCase(todo) || Boolean(todo?.readingSubmission || todo?.studySubmission);
 }
 function learningGrowthEvaluationLabel(evaluation = {}) {
-  const status = String(evaluation.status || "");
-  const nextStep = String(evaluation.nextStep || "");
+  const status = String(evaluation.status || ""), nextStep = String(evaluation.nextStep || "");
   if (nextStep === "rewrite_and_reflect" || status === "draft_feedback") return "\u8349\u7a3f\u6279\u6539";
   return nextStep === "completed" || status === "completed" ? "\u5df2\u5b8c\u6210" : "\u7ee7\u7eed\u4fee\u6539";
 }
-function learningGrowthSubmissionPrompt(evaluation = {}, todo = {}) {
-  return typeof LearningGrowthTaskUi.submissionPrompt === "function"
-    ? LearningGrowthTaskUi.submissionPrompt(evaluation, todo)
-    : "\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u6216\u4efb\u52a1\u7b54\u6848\u3002";
-}
+function learningGrowthSubmissionPrompt(evaluation = {}, todo = {}) { return typeof LearningGrowthTaskUi.submissionPrompt === "function" ? LearningGrowthTaskUi.submissionPrompt(evaluation, todo) : "\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u6216\u4efb\u52a1\u7b54\u6848\u3002"; }
 function renderLearningGrowthFeedbackList(title, items) {
   const list = Array.isArray(items) ? items.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 5) : [];
-  if (!list.length) return "";
-  return `<div class="todo-learning-growth-feedback-list"><strong>${escapeHtml(title)}</strong><ul>${list.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+  return list.length ? `<div class="todo-learning-growth-feedback-list"><strong>${escapeHtml(title)}</strong><ul>${list.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : "";
+}
+function renderLearningGrowthRewardPolicy(todo = {}, taskModel = {}) {
+  const policy = todo?.learningGrowthRewardPolicy || taskModel?.rewardPolicy || todo?.learningTaskModel?.rewardPolicy || {};
+  const maxCoins = Number(policy.maxCoins || 0), minCoins = Number(policy.minCoins || 0);
+  if (!maxCoins) return "";
+  const summary = String(policy.summary || "").trim() || `\u9a8c\u8bc1\u901a\u8fc7\u540e\u6309\u5b8c\u6210\u8d28\u91cf\u3001\u65f6\u6548\u548c\u4e92\u52a8\u8bc1\u636e\u7ed3\u7b97 ${minCoins ? `${minCoins}-${maxCoins}` : maxCoins} \u679a\u91d1\u5e01\u3002`;
+  return `<div class="todo-learning-growth-reward-policy" data-learning-growth-reward-policy="${escapeHtml(String(maxCoins))}"><strong>${escapeHtml("\u79ef\u5206\u89c4\u5219")}</strong><p>${escapeHtml(summary)}</p><span>${escapeHtml(`\u6700\u9ad8 ${maxCoins} \u679a\u91d1\u5e01`)}</span></div>`;
 }
 function renderKanbanLearningGrowthTodoPanel(todo) {
   if (!isKanbanLearningGrowthCard(todo) || !todoMatchesOpen(todo)) return "";
@@ -49,6 +47,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     taskModel ? `<div class="todo-detail-chip-row" data-learning-growth-task-model="${escapeHtml(taskModel.skillId || "")}"><span>${escapeHtml(typeof LearningGrowthTaskUi.activityLabel === "function" ? LearningGrowthTaskUi.activityLabel(taskModel.activityType) : (taskModel.activityType || "\u7ec3\u4e60"))}</span><span>${escapeHtml(typeof LearningGrowthTaskUi.nextActionLabel === "function" ? LearningGrowthTaskUi.nextActionLabel(nextAction) : nextAction)}</span>${taskModel.plannedMinutes ? `<span>${escapeHtml(String(taskModel.plannedMinutes))} min</span>` : ""}</div>` : "",
     looksGenericSubmitCard ? `<p class="todo-detail-muted">\u8fd9\u5f20\u6210\u957f\u5361\u8fd8\u6ca1\u6709\u5177\u4f53\u4efb\u52a1\u8bf4\u660e\uff0c\u8bf7\u91cd\u65b0\u751f\u6210\u6216\u91cd\u65b0\u4e0b\u53d1\u8ba1\u5212\u540e\u518d\u63d0\u4ea4\u3002</p>` : "",
     instruction ? `<div class="todo-learning-growth-prompt"><strong>\u4efb\u52a1\u8bf4\u660e</strong><p>${escapeHtml(instruction)}</p></div>` : "",
+    renderLearningGrowthRewardPolicy(todo, taskModel),
     deliverables.length ? `<div class="todo-detail-chip-row">${deliverables.slice(0, 4).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : "",
     acceptance.length ? `<ul>${acceptance.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "",
   ].filter(Boolean).join("");
@@ -91,7 +90,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     : "";
   return `<section class="todo-comment-panel todo-learning-growth-panel" data-learning-growth-kanban-card="${escapeHtml(todo.id || "")}">
     <label class="todo-panel-label">\u6210\u957f\u4efb\u52a1</label>
-    <p class="todo-detail-muted">${escapeHtml(blocked ? "\u7b49\u5f85\u524d\u7f6e\u4efb\u52a1\u5b8c\u6210\u540e\u81ea\u52a8\u5f00\u653e\u3002" : "\u8fd9\u5f20\u5361\u7531\u51e1\u51e1\u6210\u957f\u7cfb\u7edf\u4e0b\u53d1\uff0c\u6309\u4efb\u52a1\u6a21\u578b\u5b8c\u6210\uff1b\u4e0d\u8d70\u9605\u8bfb\u5f55\u97f3\u6a21\u677f\u3002")}</p>
+    <p class="todo-detail-muted">${escapeHtml(blocked ? "\u7b49\u5f85\u524d\u7f6e\u4efb\u52a1\u5b8c\u6210\u540e\u81ea\u52a8\u5f00\u653e\u3002" : "\u6309\u4efb\u52a1\u8bf4\u660e\u5b8c\u6210\u5e76\u63d0\u4ea4\u672c\u5361\u4f5c\u7b54\u3002")}</p>
     ${details || `<p class="todo-detail-muted">${escapeHtml(todo?.kanbanCaseSummary || "\u6253\u5f00\u6210\u957f\u9875\u67e5\u770b\u4efb\u52a1\u3001\u5206\u6790\u548c\u6307\u5bfc\u3002")}</p>`}
     ${submittedBlock}
     ${evaluationBlock}

@@ -7,6 +7,7 @@ const {
   inferLearningTaskModelFromCard,
   inferSkillIdFromText,
   learningTaskModelSummary,
+  normalizeRewardPolicy,
   nextActionForTaskModel,
   normalizeTaskCardType,
 } = require("../adapters/learning-task-model-service");
@@ -27,6 +28,10 @@ function run() {
   assert.equal(writing.submissionContract.revisionRequiredAfterFeedback, true);
   assert.equal(writing.completionPolicy.firstSubmissionCompletesTask, false);
   assert.equal(writing.evaluationContract.requiresMarkdownReport, true);
+  assert.equal(writing.rewardPolicy.minCoins, 40);
+  assert.equal(writing.rewardPolicy.maxCoins, 100);
+  assert.match(writing.rewardPolicy.summary, /40-100 coins/);
+  assert.equal(writing.rewardPolicy.basis, "verified_pass_score_timeliness_interaction");
   assert.ok(writing.interactionStateMachine.includes("learner_rewrites"));
   assert.ok(writing.evidenceContract.forbiddenInLogs.includes("full_transcript"));
   assert.doesNotMatch(JSON.stringify(writing), /private answer|private transcript|full child answer|question fixture/);
@@ -44,11 +49,14 @@ function run() {
     "activityType",
     "completionPolicy",
     "interactionStateMachine",
+    "rewardPolicy",
     "skillId",
     "submissionContract",
     "taskCardType",
     "version",
   ].sort());
+  assert.equal(summary.rewardPolicy.maxCoins, 100);
+  assert.equal(normalizeRewardPolicy({ rewardPolicy: { minCoins: 20, maxCoins: 120, basis: "custom_template_rubric", summary: "Custom rubric up to 120 coins." } }).maxCoins, 120);
   assert.equal(nextActionForTaskModel(writing, {}), "submit_first_attempt");
   assert.equal(nextActionForTaskModel(writing, { evaluationStatus: "draft_feedback" }), "submit_revision_and_reflection");
   assert.equal(nextActionForTaskModel(writing, { nextStep: "revise_and_resubmit" }), "submit_revision");

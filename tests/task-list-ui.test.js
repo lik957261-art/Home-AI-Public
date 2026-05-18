@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260518-growth-writing-ai-feedback";
+const CLIENT_VERSION = "20260518-reading-sequence";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -535,6 +535,8 @@ assert.match(appJs, /return KanbanStoryHelpers\.kanbanVisibleReadingTodoIds\(tod
 assert.match(appJs, /function kanbanVisibleBoardTodos\(todos\)/);
 assert.match(appJs, /function readingCardAcceptsSubmission\(todo\)/);
 assert.match(appJs, /function readingCasePriorComplete\(todo\)/);
+assert.match(appJs, /function kanbanCaseLooksLikeReadingPlan\(todo\)/);
+assert.match(appJs, /reading-session\|reading retell\|retell audio/);
 assert.match(appJs, /status === "blocked" && !readingCasePriorComplete\(todo\)/);
 assert.match(appJs, /function kanbanReadingRevisionOriginal\(group, item\)/);
 assert.match(appJs, /function kanbanReadingDisplayCardIndex\(group, item\)/);
@@ -899,6 +901,12 @@ assert.match(appJs, /const learningGrowthCard = kanban && isKanbanLearningGrowth
 assert.match(appJs, /looksGenericSubmitCard/);
 assert.match(appJs, /HermesLearningGrowthTaskUi/);
 assert.match(appJs, /data-learning-growth-task-model/);
+assert.match(appJs, /function renderLearningGrowthRewardPolicy\(todo = \{\}, taskModel = \{\}\)/);
+assert.match(appJs, /data-learning-growth-reward-policy/);
+assert.match(appJs, /\\u79ef\\u5206\\u89c4\\u5219/);
+assert.match(appJs, /\\u6700\\u9ad8 \$\{maxCoins\} \\u679a\\u91d1\\u5e01/);
+assert.equal(appJs.includes("\\u8fd9\\u5f20\\u5361\\u7531\\u51e1\\u51e1\\u6210\\u957f\\u7cfb\\u7edf"), false);
+assert.equal(appJs.includes("\\u4e0d\\u8d70\\u9605\\u8bfb\\u5f55\\u97f3\\u6a21\\u677f"), false);
 assert.match(appJs, /nextActionLabel/);
 assert.match(appJs, /Task instruction/);
 assert.match(appJs, /todoLearningGrowthSubmissionDrafts/);

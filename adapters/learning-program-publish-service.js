@@ -32,6 +32,12 @@ function addMinutesToTime(timeOfDay, offsetMinutes = 0) {
   return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
 }
 
+function plannedDateTime(date, timeOfDay) {
+  const day = cleanString(date);
+  const time = normalizeTime(timeOfDay);
+  return day ? `${day} ${time}` : "";
+}
+
 function compactTaskSummary(draft = {}) {
   return asArray(draft.dailyPlans).map((day) => {
     const titles = asArray(day.tasks).slice(0, 4).map((task) => cleanString(task.title || task.taskId)).filter(Boolean);
@@ -50,7 +56,6 @@ function taskCardDescription(task = {}) {
     instruction ? `Task instruction:\n${instruction}` : "",
     Number(task.plannedMinutes) ? `Planned time: ${Number(task.plannedMinutes)} minutes.` : "",
     flow ? `Interaction flow: ${flow}.` : "",
-    "Complete this task in the Fanfan Growth flow before marking it done.",
   ].filter(Boolean).join("\n\n");
 }
 
@@ -63,8 +68,16 @@ function learningGrowthKanbanCards(program = {}, draft = {}) {
       const clientId = cleanString(task.taskId) || `growth-day-${dayOffset + 1}-task-${taskOffset + 1}`;
       const title = cleanString(task.title) || `Growth task ${cards.length + 1}`;
       const description = taskCardDescription(task);
+      const plannedTime = addMinutesToTime(timeOfDay, taskOffset * 5);
+      const scheduledAt = plannedDateTime(date, plannedTime);
+      const previousCard = cards[cards.length - 1] || null;
+      const dependsOn = previousCard ? [previousCard.clientId] : [];
       cards.push({
         clientId,
+        sequenceIndex: cards.length + 1,
+        dependsOn,
+        caseDependsOn: dependsOn,
+        kanbanCaseDependsOn: dependsOn,
         learningProgramId: cleanString(program.programId),
         learningDraftId: cleanString(draft.draftId),
         learningTaskCardId: cleanString(draft.draftId) ? stableTaskCardId(draft.draftId, clientId) : "",
@@ -76,7 +89,13 @@ function learningGrowthKanbanCards(program = {}, draft = {}) {
         cardCreationSkillId: cleanString(task.cardCreationSkillId) || LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
         title,
         day: Number(day.dayIndex || dayOffset + 1) || dayOffset + 1,
-        dueTime: date ? `${date} ${addMinutesToTime(timeOfDay, taskOffset * 5)}` : "",
+        plannedDate: date,
+        plannedTime,
+        dueTime: scheduledAt,
+        releaseAt: scheduledAt,
+        openAt: scheduledAt,
+        availableAt: scheduledAt,
+        scheduledAt,
         description,
         deliverables: asArray(task.deliverables).map(cleanString).filter(Boolean),
         acceptance: asArray(task.acceptance).map(cleanString).filter(Boolean),

@@ -33,6 +33,21 @@ const policy = createKanbanTaskDispatchPolicy();
 }
 
 {
+  const studyDispatch = policy.resolveKanbanDispatch(
+    { content: "Reading task", case_id: "study-case", case_mode: "study-plan", case_template: "reading" },
+    { requestedAssignee: "weixin_stephen", executableAssignee: "lowgw7" },
+  );
+  assert.equal(studyDispatch.manualOnly, true);
+  assert.equal(studyDispatch.officialAssignee, "");
+  const assessmentDispatch = policy.resolveKanbanDispatch(
+    { content: "AMC8 task", case_id: "exam-case", case_mode: "assessment-plan", case_template: "amc8" },
+    { requestedAssignee: "weixin_stephen", executableAssignee: "lowgw7" },
+  );
+  assert.equal(assessmentDispatch.manualOnly, true);
+  assert.equal(assessmentDispatch.officialAssignee, "");
+}
+
+{
   const dispatch = policy.resolveKanbanDispatch(
     { content: "Growth task", case_id: "growth-case", case_mode: "study-plan", case_template: "learning-growth" },
     { requestedAssignee: "weixin_stephen", executableAssignee: "lowgw7" },

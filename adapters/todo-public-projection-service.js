@@ -353,6 +353,7 @@ function createTodoPublicProjectionService(options = {}) {
         payload.kanbanCaseAcceptance = payload.learningTaskModel.acceptance.slice(0, 8);
       }
       payload.learningGrowthTaskModel = learningTaskModelSummary(payload.learningTaskModel);
+      payload.learningGrowthRewardPolicy = payload.learningGrowthTaskModel.rewardPolicy;
       payload.learningGrowthNextAction = nextActionForTaskModel(payload.learningTaskModel, {
         status: payload.learningGrowthEvaluationStatus,
         nextStep: payload.learningGrowthNextStep,
@@ -417,6 +418,7 @@ function createTodoPublicProjectionService(options = {}) {
               status: payload.learningGrowthRewardStatus,
               coinAmount: payload.learningGrowthRewardCoins,
               entryId: payload.learningGrowthRewardEntryId,
+              policy: payload.learningGrowthRewardPolicy,
             },
           };
         }

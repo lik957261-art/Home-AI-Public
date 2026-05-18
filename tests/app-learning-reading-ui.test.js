@@ -121,9 +121,32 @@ function testSubmissionPanelRendersRecorderAndSubmitGate() {
   assert.doesNotMatch(html, /disabled>提交录音/);
 }
 
+function testSubmissionPanelTrustsServerWorkflowState() {
+  const options = baseOptions({
+    state: {
+      todos: [
+        { id: "card-3", kanbanCaseId: "case-a", kanbanCaseCardIndex: 3, kanbanCaseMode: "study-plan", kanbanStatus: "todo", workflowState: { kind: "study", phase: "submission_open", canSubmitStudy: true, priorContextComplete: true, priorContextAvailable: true } },
+      ],
+      todoReadingQuizzes: {},
+      todoReadingRecorders: {
+        "card-3": { status: "ready", file: { name: "reading.webm" }, url: "blob:reading" },
+      },
+    },
+    isKanbanReadingCard: () => true,
+    readingSubmissionHasAnalysis: () => false,
+    readingSubmissionCompleted: () => false,
+    readingCardAcceptsSubmission: (todo) => Boolean(todo?.workflowState?.canSubmitStudy),
+  });
+  const html = ReadingUi.renderKanbanReadingSubmissionPanel(options.state.todos[0], options);
+  assert.match(html, /data-reading-submission-form="card-3"/);
+  assert.match(html, /data-reading-record-toggle="card-3"/);
+  assert.doesNotMatch(html, /data-reading-submission-waiting/);
+}
+
 testExports();
 testCompletedQuizSummaryOpensNextCard();
 testActiveQuizRendersChoicesAndReviewGate();
 testSubmissionPanelRendersRecorderAndSubmitGate();
+testSubmissionPanelTrustsServerWorkflowState();
 
 console.log("app learning reading UI tests passed");

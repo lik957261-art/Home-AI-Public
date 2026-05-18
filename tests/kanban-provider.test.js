@@ -518,6 +518,101 @@ async function run() {
   assert.equal(fallbackCreated.ok, true);
   assert.equal(fallbackCreated.id, "t_fallback");
 
+  const learningVisibilityCalls = [];
+  const learningMeta = (value) => `<!-- hermes-mobile-todo ${JSON.stringify(value)} -->`;
+  const learningVisibilityTasks = [
+    {
+      id: "t_learning_current",
+      title: "Learning current",
+      status: "todo",
+      body: learningMeta({
+        content: "Learning current",
+        assignee: "owner",
+        caseId: "case-learning",
+        caseMode: "learning-growth",
+        caseCardId: "learning-card-1",
+        caseCardIndex: 1,
+        caseCardCount: 2,
+      }),
+      updated_at: 1778600000,
+    },
+    {
+      id: "t_learning_future",
+      title: "Learning future",
+      status: "blocked",
+      body: learningMeta({
+        content: "Learning future",
+        assignee: "owner",
+        caseId: "case-learning",
+        caseMode: "learning-growth",
+        caseCardId: "learning-card-2",
+        caseCardIndex: 2,
+        caseCardCount: 2,
+        caseDependsOn: ["learning-card-1"],
+      }),
+      updated_at: 1778600100,
+    },
+  ];
+  const learningVisibilityProvider = createKanbanTodoBridge({
+    command: "hermes",
+    metadataPath: path.join(tempDir, "learning-visibility-meta.json"),
+    boardForWorkspace: () => "learning-visibility-board",
+    assigneeForWorkspace: () => "exec-owner",
+    async runCommand(command, args) {
+      learningVisibilityCalls.push(args);
+      const joined = args.join(" ");
+      if (joined.includes("boards create")) return { code: 0, stdout: "", stderr: "" };
+      if (joined.includes(" list ")) return { code: 0, stdout: JSON.stringify({ tasks: learningVisibilityTasks }), stderr: "" };
+      if (joined.includes(" show t_learning_future ")) return { code: 0, stdout: JSON.stringify({ task: learningVisibilityTasks[1] }), stderr: "" };
+      if (joined.includes(" unblock ")) {
+        learningVisibilityTasks[1].status = "todo";
+        return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+      }
+      if (joined.includes(" reassign ") || joined.includes(" comment ")) return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+      return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+    },
+  });
+  const visibleLearning = await learningVisibilityProvider.run({
+    action: "list",
+    workspace_id: "owner",
+    source_principal: "owner",
+    limit: 20,
+  });
+  assert.equal(visibleLearning.ok, true);
+  assert.equal(visibleLearning.todos.some((todo) => todo.id === "t_learning_current"), true);
+  assert.equal(visibleLearning.todos.some((todo) => todo.id === "t_learning_future"), false);
+  const visibleLearningForManagement = await learningVisibilityProvider.run({
+    action: "list",
+    workspace_id: "owner",
+    source_principal: "owner",
+    include_completed: true,
+    limit: 20,
+  });
+  assert.equal(visibleLearningForManagement.ok, true);
+  assert.equal(visibleLearningForManagement.todos.some((todo) => todo.id === "t_learning_future"), true);
+  const targetedLearning = await learningVisibilityProvider.run({
+    action: "list",
+    workspace_id: "owner",
+    source_principal: "owner",
+    target_id: "t_learning_future",
+    limit: 20,
+  });
+  assert.equal(targetedLearning.ok, true);
+  assert.equal(targetedLearning.todos.some((todo) => todo.id === "t_learning_future"), true);
+  assert.ok(learningVisibilityCalls.some((args) => args.includes("show") && args.includes("t_learning_future")));
+  learningVisibilityTasks[0].status = "done";
+  learningVisibilityTasks[0].completed_at = 1778600200;
+  const learningReconciled = await learningVisibilityProvider.run({
+    action: "reconcile_dependency_blocks",
+    workspace_id: "owner",
+    source_principal: "owner",
+    limit: 20,
+  });
+  assert.equal(learningReconciled.ok, true);
+  assert.equal(learningReconciled.released.length, 1);
+  assert.equal(learningReconciled.released[0].id, "t_learning_future");
+  assert.equal(learningVisibilityTasks[1].status, "todo");
+
   const reconcileCalls = [];
   const meta = (value) => `<!-- hermes-mobile-todo ${JSON.stringify(value)} -->`;
   const reconcileTasks = [
@@ -593,6 +688,7 @@ async function run() {
         assignee: "owner",
         caseId: "case-manual",
         caseMode: "assessment-plan",
+        caseTemplate: "learning-growth",
         caseCardId: "exam-1",
         caseCardIndex: 1,
         caseCardCount: 2,
@@ -609,6 +705,7 @@ async function run() {
         assignee: "owner",
         caseId: "case-manual",
         caseMode: "assessment-plan",
+        caseTemplate: "learning-growth",
         caseCardId: "exam-2",
         caseCardIndex: 2,
         caseCardCount: 2,
@@ -627,7 +724,12 @@ async function run() {
       const joined = args.join(" ");
       if (joined.includes("boards create")) return { code: 0, stdout: "", stderr: "" };
       if (joined.includes(" list ")) return { code: 0, stdout: JSON.stringify({ tasks: manualTasks }), stderr: "" };
-      if (joined.includes(" unblock ")) throw new Error("manual assessment plan should not be auto-unblocked");
+      if (joined.includes(" unblock ")) {
+        manualTasks[1].status = "todo";
+        return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+      }
+      if (joined.includes(" reassign ")) throw new Error("manual assessment release should not assign a worker");
+      if (joined.includes(" comment ")) return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
       return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
     },
   });
@@ -638,8 +740,10 @@ async function run() {
     limit: 20,
   });
   assert.equal(manualReconciled.ok, true);
-  assert.equal(manualReconciled.released.length, 0);
-  assert.equal(manualReconcileCalls.some((args) => args.includes("unblock")), false);
+  assert.equal(manualReconciled.released.length, 1);
+  assert.equal(manualReconciled.released[0].id, "t_manual_downstream");
+  assert.equal(manualTasks[1].status, "todo");
+  assert.equal(manualReconcileCalls.some((args) => args.includes("reassign")), false);
 
   const manualUnblockCalls = [];
   const manualUnblockProvider = createKanbanTodoBridge({

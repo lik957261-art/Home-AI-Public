@@ -692,6 +692,34 @@ function createKanbanTodoBridge(options = {}) {
     return { byId, byCaseCard };
   }
 
+  function isLearningSequenceCase(row) {
+    const caseMode = String(row?.kanban_case_mode || row?.kanbanCaseMode || "").trim().toLowerCase();
+    return caseMode === "study-plan" || caseMode === "assessment-plan" || caseMode === "learning-growth";
+  }
+
+  function dependencyRowsFor(row, lookup) {
+    const caseId = String(row?.kanban_case_id || row?.kanbanCaseId || "").trim();
+    const dependsOn = arrayFromValue(row?.kanban_case_depends_on || row?.kanbanCaseDependsOn, 12);
+    if (!dependsOn.length) return { dependsOn, rows: [] };
+    return {
+      dependsOn,
+      rows: dependsOn.map((dependencyId) => (
+        (caseId ? lookup.byCaseCard.get(`${caseId}\0${dependencyId}`) : null)
+        || lookup.byId.get(String(dependencyId || "").trim())
+        || null
+      )),
+    };
+  }
+
+  function shouldHideFutureLearningCard(row, lookup) {
+    if (!isLearningSequenceCase(row)) return false;
+    const { dependsOn, rows } = dependencyRowsFor(row, lookup);
+    if (!dependsOn.length) return false;
+    const kanbanStatus = String(row?.kanban_status || row?.kanbanStatus || "").trim().toLowerCase();
+    if (rows.some((dependency) => !dependencyComplete(dependency))) return true;
+    return kanbanStatus === "blocked" && rows.some((dependency) => !dependency);
+  }
+
   async function list(payload = {}) {
     const board = await ensureBoard(payload);
     const includeCompleted = Boolean(payload.include_completed);
@@ -715,7 +743,11 @@ function createKanbanTodoBridge(options = {}) {
     syncMetadataFromRows(store, todos, payload);
     const assignee = String(payload.assignee || "").trim();
     if (assignee) todos = todos.filter((todo) => todo.assignee_principal_id === assignee);
+    const visibilityLookup = dependencyLookup(todos);
     if (!includeCompleted) todos = todos.filter((todo) => todo.status === "open" && OPEN_KANBAN_STATUSES.has(todo.kanban_status));
+    if (!includeCompleted && !bool(payload.include_future_learning_cards || payload.includeFutureLearningCards)) {
+      todos = todos.filter((todo) => !shouldHideFutureLearningCard(todo, visibilityLookup));
+    }
     todos = todos.sort((a, b) => {
       const leftOpen = a.status === "open" && OPEN_KANBAN_STATUSES.has(String(a.kanban_status || "").trim().toLowerCase());
       const rightOpen = b.status === "open" && OPEN_KANBAN_STATUSES.has(String(b.kanban_status || "").trim().toLowerCase());
@@ -755,7 +787,6 @@ function createKanbanTodoBridge(options = {}) {
     for (const row of rows) {
       if (String(row.kanban_status || "").trim().toLowerCase() !== "blocked") continue;
       const caseMode = String(row.kanban_case_mode || "").trim().toLowerCase();
-      if (caseMode === "study-plan" || caseMode === "assessment-plan") continue;
       const caseId = String(row.kanban_case_id || "").trim();
       const dependsOn = arrayFromValue(row.kanban_case_depends_on, 12);
       if (!caseId || !dependsOn.length) continue;

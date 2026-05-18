@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  DEFAULT_MAX_CARD_COINS,
+  DEFAULT_MIN_CARD_COINS,
+} = require("./learning-card-reward-policy-service");
+
 const TASK_MODEL_VERSION = "learning-task-model-v1";
 
 const TASK_CARD_TYPES = new Set([
@@ -227,6 +232,30 @@ function interactionPhases(steps) {
   }));
 }
 
+function positiveInt(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.round(parsed));
+}
+
+function normalizeRewardPolicy(input = {}) {
+  const raw = input.rewardPolicy || input.reward_policy || {};
+  const minCoins = positiveInt(input.minCoins ?? input.min_coins ?? raw.minCoins ?? raw.min_coins, DEFAULT_MIN_CARD_COINS);
+  const maxCoins = Math.max(minCoins, positiveInt(input.maxCoins ?? input.max_coins ?? raw.maxCoins ?? raw.max_coins, DEFAULT_MAX_CARD_COINS));
+  const basis = cleanString(input.rewardBasis || input.reward_basis || raw.basis || raw.rewardBasis)
+    || "verified_pass_score_timeliness_interaction";
+  const summary = cleanString(input.rewardSummary || input.reward_summary || raw.summary || raw.ruleSummary)
+    || `Verified pass earns ${minCoins}-${maxCoins} coins; score, timeliness, and interaction evidence can raise the award.`;
+  return {
+    eligibleAfterVerifiedPass: raw.eligibleAfterVerifiedPass !== undefined ? Boolean(raw.eligibleAfterVerifiedPass) : true,
+    serviceOwned: raw.serviceOwned !== undefined ? Boolean(raw.serviceOwned) : true,
+    minCoins,
+    maxCoins,
+    basis,
+    summary,
+  };
+}
+
 function buildLearningTaskModel(input = {}) {
   const skillId = primarySkillId(input);
   const base = SKILL_MODELS[skillId] || SKILL_MODELS.english_reading_comprehension;
@@ -274,10 +303,7 @@ function buildLearningTaskModel(input = {}) {
       completeAfterStep: interactionStateMachine.includes("reward_settlement") ? "reward_settlement" : "ai_evaluation",
       requiresFinalEvaluation: true,
     },
-    rewardPolicy: {
-      eligibleAfterVerifiedPass: true,
-      serviceOwned: true,
-    },
+    rewardPolicy: normalizeRewardPolicy(input),
   };
 }
 
@@ -360,6 +386,7 @@ function learningTaskModelSummary(model = {}) {
       completeAfterStep: cleanString(safe.completionPolicy?.completeAfterStep),
       requiresFinalEvaluation: Boolean(safe.completionPolicy?.requiresFinalEvaluation),
     },
+    rewardPolicy: normalizeRewardPolicy(safe),
   };
 }
 
@@ -383,4 +410,5 @@ module.exports = {
   learningTaskModelSummary,
   nextActionForTaskModel,
   normalizeTaskCardType,
+  normalizeRewardPolicy,
 };

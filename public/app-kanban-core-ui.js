@@ -57,6 +57,22 @@ function kanbanCaseTemplate(todo) {
   return String(todo?.kanbanCaseTemplate || todo?.kanbanStudyKind || "").trim().toLowerCase();
 }
 
+function kanbanCaseLooksLikeReadingPlan(todo) {
+  const template = kanbanCaseTemplate(todo);
+  if (["reading", "english-reading", "reading-recording"].includes(template)) return true;
+  if (template === "final-assessment" || template === "learning-growth") return false;
+  const text = [
+    todo?.kanbanCaseCardId,
+    todo?.kanbanCaseSummary,
+    todo?.kanbanCaseCardGoal,
+    todo?.content,
+    todo?.description,
+    ...(Array.isArray(todo?.kanbanCaseDeliverables) ? todo.kanbanCaseDeliverables : []),
+    ...(Array.isArray(todo?.kanbanCaseAcceptance) ? todo.kanbanCaseAcceptance : []),
+  ].filter(Boolean).join("\n");
+  return /reading-session|reading retell|retell audio|reading feedback|reading analysis|next reading guidance|读后复述|复述录音|阅读评价|阅读分析|阅读指导|转写/.test(text);
+}
+
 function isKanbanStudyCase(todo) {
   return kanbanCaseMode(todo) === "study-plan";
 }
@@ -66,7 +82,7 @@ function isKanbanAssessmentCase(todo) {
 }
 
 function isKanbanReadingPlanCase(todo) {
-  return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "reading";
+  return isKanbanStudyCase(todo) && kanbanCaseLooksLikeReadingPlan(todo);
 }
 
 function isKanbanLearningGrowthCard(todo) {

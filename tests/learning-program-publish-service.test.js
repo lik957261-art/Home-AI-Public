@@ -73,7 +73,15 @@ async function run() {
   assert.equal(calls[0].input.cards.length, 2);
   assert.equal(calls[0].input.cards[0].clientId, "task-1");
   assert.equal(calls[0].input.cards[0].title, "Short writing");
+  assert.deepEqual(calls[0].input.cards[0].dependsOn, []);
+  assert.deepEqual(calls[0].input.cards[0].caseDependsOn, []);
   assert.equal(calls[0].input.cards[0].dueTime, "2026-05-17 19:30");
+  assert.equal(calls[0].input.cards[0].plannedDate, "2026-05-17");
+  assert.equal(calls[0].input.cards[0].plannedTime, "19:30");
+  assert.equal(calls[0].input.cards[0].releaseAt, "2026-05-17 19:30");
+  assert.equal(calls[0].input.cards[0].openAt, "2026-05-17 19:30");
+  assert.equal(calls[0].input.cards[0].availableAt, "2026-05-17 19:30");
+  assert.equal(calls[0].input.cards[0].scheduledAt, "2026-05-17 19:30");
   assert.equal(calls[0].input.cards[0].learningProgramId, "program-1");
   assert.equal(calls[0].input.cards[0].learningDraftId, "draft-1");
   assert.equal(calls[0].input.cards[0].learningTaskCardId, "ltask_8a035c15cad45436");
@@ -85,6 +93,16 @@ async function run() {
   assert.equal(calls[0].input.cards[0].deliverables[0], "first English draft");
   assert.match(calls[0].input.cards[0].description, /Task instruction:\nWrite a first draft/);
   assert.match(calls[0].input.cards[0].description, /Interaction flow:/);
+  assert.doesNotMatch(calls[0].input.cards[0].description, /Complete this task in the Fanfan Growth flow/i);
+  assert.equal(calls[0].input.cards[1].sequenceIndex, 2);
+  assert.deepEqual(calls[0].input.cards[1].dependsOn, ["task-1"]);
+  assert.deepEqual(calls[0].input.cards[1].caseDependsOn, ["task-1"]);
+  assert.deepEqual(calls[0].input.cards[1].kanbanCaseDependsOn, ["task-1"]);
+  assert.equal(calls[0].input.cards[1].plannedDate, "2026-05-18");
+  assert.equal(calls[0].input.cards[1].dueTime, "2026-05-18 19:30");
+  assert.equal(calls[0].input.cards[1].releaseAt, "2026-05-18 19:30");
+  assert.equal(calls[0].input.cards[1].openAt, "2026-05-18 19:30");
+  assert.doesNotMatch(calls[0].input.cards[1].description, /Complete this task in the Fanfan Growth flow/i);
   assert.match(calls[0].input.sourceText, /Card creation skill: study-templates\/learning-growth-card-creation/);
 }
 

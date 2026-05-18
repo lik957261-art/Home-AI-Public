@@ -1,7 +1,7 @@
 "use strict";
 
 const AUTO_DISPATCH_CASE_MODES = new Set(["multi-agent", "manual-revision"]);
-const MANUAL_ONLY_CASE_MODES = new Set(["single-card"]);
+const MANUAL_ONLY_CASE_MODES = new Set(["single-card", "study-plan", "assessment-plan"]);
 const MANUAL_ONLY_CASE_TEMPLATES = new Set(["learning-growth"]);
 
 function bool(value) {

@@ -323,10 +323,19 @@ function run() {
       interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback", "learner_rewrites"],
       submissionContract: { firstSubmissionKind: "writing_draft", revisionSubmissionKind: "writing_revision" },
       completionPolicy: { firstSubmissionCompletesTask: false, completeAfterStep: "ai_evaluation", requiresFinalEvaluation: true },
+      rewardPolicy: { minCoins: 50, maxCoins: 120, basis: "custom_template_rubric", summary: "Custom rubric up to 120 coins." },
     },
   }));
   assert.equal(projectedLearningGrowth.kanbanStudyKind, "learning-growth");
   assert.equal(projectedLearningGrowth.learningGrowthTaskModel.skillId, "english_short_writing");
+  assert.deepEqual(projectedLearningGrowth.learningGrowthRewardPolicy, {
+    eligibleAfterVerifiedPass: true,
+    serviceOwned: true,
+    minCoins: 50,
+    maxCoins: 120,
+    basis: "custom_template_rubric",
+    summary: "Custom rubric up to 120 coins.",
+  });
   assert.equal(projectedLearningGrowth.learningGrowthNextAction, "submit_first_attempt");
   assert.equal(projectedLearningGrowth.readingSubmission, undefined);
   assert.equal(projectedLearningGrowth.studyWorkflow, undefined);
@@ -396,6 +405,14 @@ function run() {
       status: "not_eligible",
       coinAmount: 0,
       entryId: "",
+      policy: {
+        eligibleAfterVerifiedPass: true,
+        serviceOwned: true,
+        minCoins: 40,
+        maxCoins: 100,
+        basis: "verified_pass_score_timeliness_interaction",
+        summary: "Verified pass earns 40-100 coins; score, timeliness, and interaction evidence can raise the award.",
+      },
     },
   });
   const projectedLearningGrowthDraftFeedback = studyProjectionService.publicTodo(row("learning-growth-draft-feedback", {
@@ -465,6 +482,8 @@ function run() {
   assert.equal(projectedLearningGrowthLegacySubmitted.kanbanCaseDeliverables[0], "first English draft");
   assert.equal(projectedLearningGrowthLegacySubmitted.kanbanCaseAcceptance[0], "first draft contains 6-8 English sentences");
   assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthTaskModel.activityType, "writing");
+  assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthRewardPolicy.maxCoins, 100);
+  assert.match(projectedLearningGrowthLegacySubmitted.learningGrowthRewardPolicy.summary, /40-100 coins/);
   assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthNextAction, "wait_for_feedback");
 
   const revisionService = createTodoPublicProjectionService({
