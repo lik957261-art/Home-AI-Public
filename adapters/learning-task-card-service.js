@@ -133,6 +133,7 @@ function createLearningTaskCardService(options = {}) {
     const cards = [];
     for (const status of statuses) {
       for (const card of repository.listTaskCards(Object.assign({}, filters, { status }))) {
+        if (status === "published" && !cleanString(card.kanbanCardId)) continue;
         if (seen.has(card.taskCardId)) continue;
         seen.add(card.taskCardId);
         cards.push(executionQueueSummary(card));

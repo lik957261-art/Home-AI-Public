@@ -91,6 +91,7 @@ function testExecutorQueueIsSummaryOnly() {
         tasks: [{
           taskId: "task-a",
           title: "Oral retell",
+          kanbanCardId: "kanban-1",
           domain: "english",
           taskCardType: "single_subject",
           plannedMinutes: 15,
@@ -121,6 +122,34 @@ function testExecutorQueueIsSummaryOnly() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function testExecutorQueueExcludesUnpublishedKanbanLinks() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const draft = seed(repository);
+  const service = createLearningTaskCardService({ repository });
+  service.materializeDraft({
+    program: repository.getProgram("program-1"),
+    draft: Object.assign({}, draft, {
+      status: "published",
+      dailyPlans: [{
+        date: "2026-05-16",
+        tasks: [{
+          taskId: "task-a",
+          title: "Oral retell",
+          domain: "english",
+          taskCardType: "single_subject",
+          plannedMinutes: 15,
+          skillIds: ["english_speaking_retell"],
+        }],
+      }],
+    }),
+  });
+  assert.equal(service.listExecutorQueue({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" }).length, 0);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 testMaterializeDraft();
 testExecutorQueueIsSummaryOnly();
+testExecutorQueueExcludesUnpublishedKanbanLinks();
 console.log("learning task card service tests passed");

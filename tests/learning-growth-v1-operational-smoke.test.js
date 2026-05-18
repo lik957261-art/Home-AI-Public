@@ -72,11 +72,15 @@ async function testLearningGrowthV1OperationalLoop() {
       publishService: {
         async publish(input) {
           publishCalls.push(input);
+          const tasks = (input.draft?.dailyPlans || []).flatMap((day) => day.tasks || []);
           return {
             ok: true,
             kanbanResult: {
               ok: true,
-              cards: [{ card: { id: "synthetic-kanban-card" } }],
+              cards: tasks.map((task, index) => ({
+                clientId: task.taskId,
+                card: { id: `synthetic-kanban-card-${index + 1}` },
+              })),
             },
           };
         },
