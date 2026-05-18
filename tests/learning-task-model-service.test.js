@@ -66,6 +66,23 @@ function run() {
   assert.equal(inferred.skillId, "english_short_writing");
   assert.equal(inferred.activityType, "writing");
   assert.match(inferred.learnerInstruction, /Write a short paragraph/);
+
+  const legacyGrowthWriting = inferLearningTaskModelFromCard({
+    content: "English writing task",
+    learningProgramId: "lprogram_legacy",
+    kanbanCaseTemplate: "learning-growth",
+    kanbanCaseCardGoal: "Write a short paragraph and rewrite after feedback.",
+    kanbanCaseDeliverables: ["\u5b66\u4e60\u6210\u679c\u63d0\u4ea4"],
+    kanbanCaseAcceptance: ["study output", "AI feedback", "targeted quiz", "next study guidance"],
+  });
+  assert.equal(legacyGrowthWriting.skillId, "english_short_writing");
+  assert.deepEqual(legacyGrowthWriting.deliverables, [
+    "first English draft",
+    "AI feedback",
+    "rewritten draft",
+    "one-sentence reflection",
+  ]);
+  assert.notDeepEqual(legacyGrowthWriting.acceptance, ["study output", "AI feedback", "targeted quiz", "next study guidance"]);
 }
 
 run();

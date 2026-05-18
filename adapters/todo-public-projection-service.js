@@ -326,6 +326,12 @@ function createTodoPublicProjectionService(options = {}) {
     if (learningGrowthStudy) {
       payload.kanbanStudyKind = "learning-growth";
       payload.learningTaskModel = payload.learningTaskModel || inferLearningTaskModelFromCard(payload);
+      if (Array.isArray(payload.learningTaskModel?.deliverables) && payload.learningTaskModel.deliverables.length) {
+        payload.kanbanCaseDeliverables = payload.learningTaskModel.deliverables.slice(0, 8);
+      }
+      if (Array.isArray(payload.learningTaskModel?.acceptance) && payload.learningTaskModel.acceptance.length) {
+        payload.kanbanCaseAcceptance = payload.learningTaskModel.acceptance.slice(0, 8);
+      }
       payload.learningGrowthTaskModel = learningTaskModelSummary(payload.learningTaskModel);
       payload.learningGrowthNextAction = nextActionForTaskModel(payload.learningTaskModel, {
         status: payload.learningGrowthEvaluationStatus,

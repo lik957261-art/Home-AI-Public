@@ -26,6 +26,32 @@ function cleanList(value, limit = 12) {
   return asArray(value).map(cleanString).filter(Boolean).slice(0, limit);
 }
 
+function isLearningGrowthCard(input = {}) {
+  return cleanString(input.kanbanCaseTemplate || input.kanban_case_template || input.caseTemplate || input.case_template).toLowerCase() === "learning-growth"
+    || Boolean(cleanString(input.learningProgramId || input.learning_program_id || input.learningDraftId || input.learning_draft_id));
+}
+
+function isGenericStudyPlanItem(value) {
+  const text = cleanString(value).toLowerCase();
+  if (!text) return false;
+  return text === "study output"
+    || text === "ai feedback"
+    || text === "targeted quiz"
+    || text === "next study guidance"
+    || text === "\u5b66\u4e60\u6210\u679c\u63d0\u4ea4"
+    || text === "\u63d0\u4ea4\u5b66\u4e60\u6210\u679c"
+    || text === "\u4eba\u5de5\u667a\u80fd\u53cd\u9988"
+    || text === "\u9488\u5bf9\u6027\u6d4b\u9a8c"
+    || text === "\u4e0b\u4e00\u6b65\u5b66\u4e60\u6307\u5bfc";
+}
+
+function learningGrowthSpecificList(value, owner = {}) {
+  const items = cleanList(value, 12);
+  if (!items.length) return undefined;
+  if (isLearningGrowthCard(owner) && items.every(isGenericStudyPlanItem)) return undefined;
+  return items;
+}
+
 function clampInt(value, min, max, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -300,7 +326,8 @@ function inferSkillIdFromText(input = {}) {
 function inferLearningTaskModelFromCard(card = {}, input = {}) {
   const existing = card.learningTaskModel || card.learning_task_model || input.learningTaskModel || input.learning_task_model;
   if (existing && typeof existing === "object" && cleanString(existing.skillId)) return existing;
-  const skillId = inferSkillIdFromText(Object.assign({}, card, input));
+  const merged = Object.assign({}, card, input);
+  const skillId = inferSkillIdFromText(merged);
   return buildLearningTaskModel({
     domain: cleanString(card.domain || input.domain) || "english",
     skillId,
@@ -310,8 +337,8 @@ function inferLearningTaskModelFromCard(card = {}, input = {}) {
     dayIndex: card.dayIndex || card.day_index || card.kanbanCaseCardIndex || card.kanban_case_card_index,
     taskCardType: card.taskCardType || card.task_card_type,
     learnerInstruction: card.learnerInstruction || card.learner_instruction || card.kanbanCaseCardGoal || card.kanban_case_card_goal,
-    deliverables: card.kanbanCaseDeliverables || card.kanban_case_deliverables,
-    acceptance: card.kanbanCaseAcceptance || card.kanban_case_acceptance,
+    deliverables: learningGrowthSpecificList(card.kanbanCaseDeliverables || card.kanban_case_deliverables, merged),
+    acceptance: learningGrowthSpecificList(card.kanbanCaseAcceptance || card.kanban_case_acceptance, merged),
   });
 }
 
