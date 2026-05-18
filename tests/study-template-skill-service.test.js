@@ -11,14 +11,28 @@ const {
 } = require("../adapters/study-template-skill-service");
 
 function testRegistryDefinesCurrentStudyTemplateSkills() {
-  assert.deepEqual(Object.keys(TEMPLATE_SKILL_REGISTRY).sort(), [
+  for (const key of [
+    "english-grammar-expression",
+    "english-listening-input",
+    "english-mistake-repair",
+    "english-presentation-project",
+    "english-reading-comprehension",
+    "english-rewrite-improvement",
+    "english-shadowing-pronunciation",
+    "english-short-writing",
+    "english-speaking-retell",
+    "english-vocabulary-active-use",
+    "english-weekly-challenge",
     "general-assessment",
     "learning-growth-card-creation",
     "programming-assessment",
     "reading-analysis",
-  ]);
+  ]) {
+    assert.ok(TEMPLATE_SKILL_REGISTRY[key], `missing ${key}`);
+  }
   assert.equal(TEMPLATE_SKILL_REGISTRY["programming-assessment"].template, "programming");
   assert.equal(TEMPLATE_SKILL_REGISTRY["learning-growth-card-creation"].template, "learning-growth");
+  assert.equal(TEMPLATE_SKILL_REGISTRY["english-weekly-challenge"].template, "english-weekly-challenge-v1");
 }
 
 function testSkillPathAndLoading() {
@@ -34,6 +48,10 @@ function testSkillPathAndLoading() {
   assert.match(growth.text, /Learning Growth Card Creation/);
   assert.match(growth.text, /caseTemplate: "learning-growth"/);
   assert.match(growth.text, /Preserve the original Unicode title/);
+  const weekly = loadTemplateSkill("english-weekly-challenge");
+  assert.equal(weekly.ok, true);
+  assert.match(weekly.text, /English Weekly Challenge Template/);
+  assert.match(weekly.text, /score alone|weekly signal summaries/);
 }
 
 function testInstructionFormattingAndFrontmatterStripping() {

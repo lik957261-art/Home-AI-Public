@@ -22,12 +22,16 @@ function run() {
     plannedMinutes: 18,
   });
   assert.equal(writing.version, TASK_MODEL_VERSION);
+  assert.equal(writing.templatePackVersion, "english-template-pack-v1");
+  assert.equal(writing.templateId, "english-short-writing-v1");
   assert.equal(writing.activityType, "writing");
   assert.equal(writing.taskCardType, "project_card");
   assert.equal(writing.submissionContract.firstSubmissionKind, "writing_draft");
   assert.equal(writing.submissionContract.revisionRequiredAfterFeedback, true);
   assert.equal(writing.completionPolicy.firstSubmissionCompletesTask, false);
   assert.equal(writing.evaluationContract.requiresMarkdownReport, true);
+  assert.equal(writing.feedbackContract.scoreOnlyFeedbackAllowed, false);
+  assert.ok(writing.rubricDimensions.some((item) => item.id === "rewrite_quality"));
   assert.equal(writing.rewardPolicy.minCoins, 40);
   assert.equal(writing.rewardPolicy.maxCoins, 100);
   assert.match(writing.rewardPolicy.summary, /40-100 coins/);
@@ -48,11 +52,15 @@ function run() {
   assert.deepEqual(Object.keys(summary).sort(), [
     "activityType",
     "completionPolicy",
+    "feedbackContract",
     "interactionStateMachine",
+    "rubricDimensions",
     "rewardPolicy",
     "skillId",
     "submissionContract",
     "taskCardType",
+    "templateId",
+    "templatePackVersion",
     "version",
   ].sort());
   assert.equal(summary.rewardPolicy.maxCoins, 100);
@@ -64,6 +72,8 @@ function run() {
 
   assert.equal(inferSkillIdFromText({ kanbanSkills: ["writing"] }), "english_short_writing");
   assert.equal(inferSkillIdFromText({ content: "English vocabulary active use task" }), "english_vocabulary_active_use");
+  assert.equal(inferSkillIdFromText({ content: "Rewrite this sentence and explain the revision" }), "english_rewrite_improvement");
+  assert.equal(inferSkillIdFromText({ content: "Weekly integrated challenge using this week's repairs" }), "english_weekly_challenge");
   assert.equal(inferSkillIdFromText({ content: "Retell this school story orally" }), "english_speaking_retell");
   const inferred = inferLearningTaskModelFromCard({
     content: "English writing task",

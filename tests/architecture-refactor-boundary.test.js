@@ -53,6 +53,7 @@ const localTodoBridgeService = require("../adapters/local-todo-bridge-service");
 const localWorkspaceStoreService = require("../adapters/local-workspace-store-service");
 const curriculumReferenceService = require("../adapters/curriculum-reference-service");
 const learnerProfileService = require("../adapters/learner-profile-service");
+const learningEnglishTemplatePackService = require("../adapters/learning-english-template-pack-service");
 const learningGrowthService = require("../adapters/learning-growth-service");
 const learningGrowthKanbanTaskService = require("../adapters/learning-growth-kanban-task-service");
 const learningGrowthProgressRecordService = require("../adapters/learning-growth-progress-record-service");
@@ -245,6 +246,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof localWorkspaceStoreService.workspaceIdSlug, "function");
   assert.equal(typeof curriculumReferenceService.createCurriculumReferenceService, "function");
   assert.equal(typeof learnerProfileService.createLearnerProfileService, "function");
+  assert.equal(typeof learningEnglishTemplatePackService.englishTemplateRegistryEntries, "function");
+  assert.equal(typeof learningEnglishTemplatePackService.englishTaskModelContract, "function");
   assert.equal(typeof learningGrowthService.createLearningGrowthService, "function");
   assert.equal(typeof learningGrowthService.buildLearningGrowthOverview, "function");
   assert.equal(typeof learningGrowthKanbanTaskService.createLearningGrowthKanbanTaskService, "function");

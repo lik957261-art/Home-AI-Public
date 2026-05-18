@@ -37,6 +37,13 @@ const ENGLISH_SKILL_TAXONOMY = Object.freeze([
     curriculumRefs: ["cefr-b1-writing-bridge", "school-english-grade7-writing"],
   }),
   Object.freeze({
+    id: "english_rewrite_improvement",
+    domain: "english",
+    label: "Rewrite improvement",
+    taskTypes: ["mistake_repair_card", "review_card"],
+    curriculumRefs: ["cefr-b1-writing-bridge", "school-english-grade7-writing-revision"],
+  }),
+  Object.freeze({
     id: "english_vocabulary_active_use",
     domain: "english",
     label: "Active vocabulary use",
@@ -57,6 +64,13 @@ const ENGLISH_SKILL_TAXONOMY = Object.freeze([
     taskTypes: ["project_card", "cross_subject", "challenge_card"],
     curriculumRefs: ["cefr-b1-spoken-production", "project-based-learning-output"],
   }),
+  Object.freeze({
+    id: "english_weekly_challenge",
+    domain: "english",
+    label: "Weekly integrated English challenge",
+    taskTypes: ["challenge_card", "cross_subject", "project_card"],
+    curriculumRefs: ["cefr-b1-integrated-skills", "school-english-grade7-current"],
+  }),
 ]);
 
 const ALIASES = Object.freeze({
@@ -73,20 +87,27 @@ const ALIASES = Object.freeze({
   shadowing: "english_pronunciation_shadowing",
   writing: "english_short_writing",
   write: "english_short_writing",
+  rewrite: "english_rewrite_improvement",
+  revise: "english_rewrite_improvement",
+  revision: "english_rewrite_improvement",
   vocabulary: "english_vocabulary_active_use",
   vocab: "english_vocabulary_active_use",
   grammar: "english_grammar_in_expression",
   presentation: "english_presentation",
   project: "english_presentation",
+  challenge: "english_weekly_challenge",
+  weekly: "english_weekly_challenge",
   "\u9605\u8bfb": "english_reading_comprehension",
   "\u542c\u529b": "english_listening_input",
   "\u53e3\u8bed": "english_speaking_retell",
   "\u590d\u8ff0": "english_speaking_retell",
   "\u53d1\u97f3": "english_pronunciation_shadowing",
   "\u5199\u4f5c": "english_short_writing",
+  "\u6539\u5199": "english_rewrite_improvement",
   "\u8bcd\u6c47": "english_vocabulary_active_use",
   "\u8bed\u6cd5": "english_grammar_in_expression",
   "\u6f14\u8bb2": "english_presentation",
+  "\u6311\u6218": "english_weekly_challenge",
   python: "python_foundation",
   coding: "python_foundation",
   programming: "python_foundation",
@@ -134,9 +155,15 @@ function createLearningSkillTaxonomyService() {
     if (domain === "english") {
       return [
         "english_reading_comprehension",
+        "english_listening_input",
         "english_speaking_retell",
+        "english_pronunciation_shadowing",
         "english_short_writing",
+        "english_rewrite_improvement",
         "english_vocabulary_active_use",
+        "english_grammar_in_expression",
+        "english_presentation",
+        "english_weekly_challenge",
       ];
     }
     return [];

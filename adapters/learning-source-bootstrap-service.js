@@ -53,9 +53,11 @@ function defaultEnglishFocusAreas(input = {}) {
     "english_speaking_retell",
     "english_pronunciation_shadowing",
     "english_short_writing",
+    "english_rewrite_improvement",
     "english_vocabulary_active_use",
     "english_grammar_in_expression",
     "english_presentation",
+    "english_weekly_challenge",
   ];
 }
 

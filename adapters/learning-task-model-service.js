@@ -4,6 +4,11 @@ const {
   DEFAULT_MAX_CARD_COINS,
   DEFAULT_MIN_CARD_COINS,
 } = require("./learning-card-reward-policy-service");
+const {
+  ENGLISH_TEMPLATE_PACK_VERSION,
+  englishTaskModelContract,
+  englishTemplateForSkill,
+} = require("./learning-english-template-pack-service");
 
 const TASK_MODEL_VERSION = "learning-task-model-v1";
 
@@ -87,12 +92,21 @@ const SKILL_ID_ALIASES = Object.freeze({
   english_writing: "english_short_writing",
   writing_draft: "english_short_writing",
   writing_revision: "english_short_writing",
+  rewrite: "english_rewrite_improvement",
+  rewriting: "english_rewrite_improvement",
+  revision: "english_rewrite_improvement",
+  english_rewrite: "english_rewrite_improvement",
+  english_rewriting: "english_rewrite_improvement",
   vocabulary: "english_vocabulary_active_use",
   english_vocabulary: "english_vocabulary_active_use",
   grammar: "english_grammar_in_expression",
   english_grammar: "english_grammar_in_expression",
   presentation: "english_presentation",
   english_presentation_project: "english_presentation",
+  challenge: "english_weekly_challenge",
+  weekly: "english_weekly_challenge",
+  weekly_challenge: "english_weekly_challenge",
+  english_weekly: "english_weekly_challenge",
 });
 
 function normalizeSkillId(value) {
@@ -208,6 +222,11 @@ const SKILL_MODELS = {
   },
 };
 
+function isKnownEnglishSkillId(value) {
+  const id = cleanString(value);
+  return Boolean(SKILL_MODELS[id] || englishTemplateForSkill(id));
+}
+
 function taskTypeOverride(skillId, dayIndex, fallback) {
   if (skillId === "english_speaking_retell" && dayIndex % 3 === 2) return "challenge_card";
   if (skillId === "english_short_writing" && dayIndex % 2 === 1) return "project_card";
@@ -258,7 +277,7 @@ function normalizeRewardPolicy(input = {}) {
 
 function buildLearningTaskModel(input = {}) {
   const skillId = primarySkillId(input);
-  const base = SKILL_MODELS[skillId] || SKILL_MODELS.english_reading_comprehension;
+  const base = englishTaskModelContract(skillId) || SKILL_MODELS[skillId] || SKILL_MODELS.english_reading_comprehension;
   const minutes = clampInt(input.plannedMinutes || input.minutes, 5, 120, 15);
   const dayIndex = Math.max(0, Number(input.dayIndex || input.day_index || 0) || 0);
   const taskCardType = normalizeTaskCardType(
@@ -269,6 +288,8 @@ function buildLearningTaskModel(input = {}) {
   const learnerInstruction = cleanString(input.learnerInstruction || input.learner_instruction || input.instruction || base.learnerInstruction);
   return {
     version: TASK_MODEL_VERSION,
+    templatePackVersion: ENGLISH_TEMPLATE_PACK_VERSION,
+    templateId: cleanString(input.templateId || input.template_id || base.id),
     domain: cleanString(input.domain) || "english",
     skillId,
     title: cleanString(input.title || base.title),
@@ -290,10 +311,22 @@ function buildLearningTaskModel(input = {}) {
     },
     evaluationContract: {
       requiresStructuredFeedback: true,
-      requiresMarkdownReport: Boolean(base.draftFeedback || input.requiresMarkdownReport),
+      requiresMarkdownReport: input.requiresMarkdownReport === undefined ? true : Boolean(input.requiresMarkdownReport),
       requiresEvidenceRefs: true,
       verifier: cleanString(input.verifier || "learning-evaluation-verifier"),
     },
+    feedbackContract: {
+      schema: ["strengths", "focusAreas", "whyItMatters", "fix", "example", "rewriteChecklist", "reflectionItems", "nextPractice"],
+      learnerActionRequired: true,
+      scoreOnlyFeedbackAllowed: false,
+    },
+    rubricDimensions: Array.isArray(input.rubricDimensions || base.rubricDimensions)
+      ? (input.rubricDimensions || base.rubricDimensions).map((item) => ({
+        id: cleanString(item?.id),
+        label: cleanString(item?.label),
+        weight: Number(item?.weight || 0) || 0,
+      })).filter((item) => item.id || item.label)
+      : [],
     evidenceContract: {
       required: cleanList(input.evidenceRequired || input.evidence_required || base.evidenceRequired, 12),
       forbiddenInLogs: ["raw_answer", "full_transcript", "question_text", "answer_key"],
@@ -331,20 +364,22 @@ function inferSkillIdFromText(input = {}) {
   for (const candidate of textCandidates(input)) {
     const direct = cleanString(candidate).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
     const normalized = normalizeSkillId(candidate);
-    if (direct === normalized && SKILL_MODELS[normalized]) return normalized;
+    if (direct === normalized && isKnownEnglishSkillId(normalized)) return normalized;
   }
   const haystack = textCandidates(input).join(" ").toLowerCase();
   if (!haystack) return "english_reading_comprehension";
-  if (/\b(write|writing|draft|rewrite|essay|paragraph|composition)\b|写作|作文|改写/.test(haystack)) return "english_short_writing";
+  if (/\b(write|writing|draft|essay|paragraph|composition)\b|写作|作文/.test(haystack)) return "english_short_writing";
+  if (/\b(rewrite|rewriting|revision|revise|improve sentence)\b|改写/.test(haystack)) return "english_rewrite_improvement";
   if (/\b(listen|listening|audio|key points?)\b|听力/.test(haystack)) return "english_listening_input";
   if (/\b(speak|speaking|oral|retell|retelling)\b|口语|复述/.test(haystack)) return "english_speaking_retell";
   if (/\b(pronunciation|shadow|shadowing)\b|发音|跟读/.test(haystack)) return "english_pronunciation_shadowing";
   if (/\b(vocab|vocabulary|word use)\b|词汇/.test(haystack)) return "english_vocabulary_active_use";
   if (/\b(grammar|sentence repair)\b|语法/.test(haystack)) return "english_grammar_in_expression";
   if (/\b(presentation|speech|outline)\b|演讲|展示/.test(haystack)) return "english_presentation";
+  if (/\b(weekly challenge|integrated challenge|weekly review)\b/.test(haystack)) return "english_weekly_challenge";
   for (const candidate of textCandidates(input)) {
     const normalized = normalizeSkillId(candidate);
-    if (SKILL_MODELS[normalized]) return normalized;
+    if (isKnownEnglishSkillId(normalized)) return normalized;
   }
   return "english_reading_comprehension";
 }
@@ -372,6 +407,8 @@ function learningTaskModelSummary(model = {}) {
   const safe = model && typeof model === "object" ? model : {};
   return {
     version: cleanString(safe.version || TASK_MODEL_VERSION),
+    templatePackVersion: cleanString(safe.templatePackVersion || ENGLISH_TEMPLATE_PACK_VERSION),
+    templateId: cleanString(safe.templateId),
     skillId: cleanString(safe.skillId),
     activityType: cleanString(safe.activityType),
     taskCardType: normalizeTaskCardType(safe.taskCardType),
@@ -386,6 +423,16 @@ function learningTaskModelSummary(model = {}) {
       completeAfterStep: cleanString(safe.completionPolicy?.completeAfterStep),
       requiresFinalEvaluation: Boolean(safe.completionPolicy?.requiresFinalEvaluation),
     },
+    feedbackContract: {
+      scoreOnlyFeedbackAllowed: Boolean(safe.feedbackContract?.scoreOnlyFeedbackAllowed),
+      learnerActionRequired: Boolean(safe.feedbackContract?.learnerActionRequired),
+    },
+    rubricDimensions: Array.isArray(safe.rubricDimensions)
+      ? safe.rubricDimensions.map((item) => ({
+        id: cleanString(item?.id),
+        weight: Number(item?.weight || 0) || 0,
+      })).filter((item) => item.id)
+      : [],
     rewardPolicy: normalizeRewardPolicy(safe),
   };
 }

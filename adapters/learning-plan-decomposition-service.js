@@ -51,9 +51,11 @@ function titleForSkill(skillId) {
   if (skillId === "english_speaking_retell") return "Oral retell and follow-up";
   if (skillId === "english_pronunciation_shadowing") return "Shadowing and pronunciation repair";
   if (skillId === "english_short_writing") return "Short writing with rewrite";
+  if (skillId === "english_rewrite_improvement") return "Rewrite improvement";
   if (skillId === "english_vocabulary_active_use") return "Active vocabulary use";
   if (skillId === "english_grammar_in_expression") return "Grammar in expression repair";
   if (skillId === "english_presentation") return "Presentation outline and rehearsal";
+  if (skillId === "english_weekly_challenge") return "Weekly integrated English challenge";
   return "Reading comprehension and explanation";
 }
 
@@ -68,9 +70,11 @@ function cardTypeForSkill(skillId, dayIndex) {
   if (skillId === "english_listening_input") return "review_card";
   if (skillId === "english_speaking_retell") return dayIndex % 3 === 2 ? "challenge_card" : "single_subject";
   if (skillId === "english_short_writing") return dayIndex % 2 === 1 ? "project_card" : "single_subject";
+  if (skillId === "english_rewrite_improvement") return "mistake_repair_card";
   if (skillId === "english_pronunciation_shadowing" || skillId === "english_vocabulary_active_use") return "review_card";
   if (skillId === "english_grammar_in_expression") return "mistake_repair_card";
   if (skillId === "english_presentation") return "project_card";
+  if (skillId === "english_weekly_challenge") return "challenge_card";
   return "single_subject";
 }
 
@@ -82,9 +86,11 @@ function buildEnglishSkillRotation(program) {
   if (!focus.length || focusIncludes(program, "english_speaking_retell")) rotation.push("english_speaking_retell");
   if (focusIncludes(program, "english_pronunciation_shadowing")) rotation.push("english_pronunciation_shadowing");
   if (!focus.length || focusIncludes(program, "english_short_writing")) rotation.push("english_short_writing");
+  if (!focus.length || focusIncludes(program, "english_rewrite_improvement")) rotation.push("english_rewrite_improvement");
   if (!focus.length || focusIncludes(program, "english_vocabulary_active_use")) rotation.push("english_vocabulary_active_use");
   if (focusIncludes(program, "english_grammar_in_expression")) rotation.push("english_grammar_in_expression");
   if (focusIncludes(program, "english_presentation")) rotation.push("english_presentation");
+  if (focusIncludes(program, "english_weekly_challenge")) rotation.push("english_weekly_challenge");
   return rotation.length ? rotation : ["english_reading_comprehension", "english_speaking_retell", "english_short_writing"];
 }
 
@@ -101,6 +107,13 @@ function stateMachineForSkill(skillId) {
   if (skillId === "english_short_writing") {
     return ["receive_task", "ai_explains_goal", "learner_drafts", "ai_feedback", "learner_rewrites", "ai_evaluation", "learner_reflects", "next_task_feedback"];
   }
+  if (skillId === "english_rewrite_improvement") {
+    return [
+      "Rewrite the assigned sentence or short paragraph.",
+      "Explain what changed and why.",
+      "Complete one variant repair after AI feedback.",
+    ].join(" ");
+  }
   if (skillId === "english_vocabulary_active_use") {
     return ["receive_task", "ai_sets_word_context", "learner_uses_words", "ai_feedback", "learner_repairs_sentence", "ai_evaluation", "next_task_feedback"];
   }
@@ -109,6 +122,12 @@ function stateMachineForSkill(skillId) {
   }
   if (skillId === "english_presentation") {
     return ["receive_task", "ai_sets_project_goal", "learner_outlines", "ai_feedback", "learner_rehearses", "ai_evaluation", "learner_reflects", "next_task_feedback"];
+  }
+  if (skillId === "english_weekly_challenge") {
+    return [
+      "Complete one integrated weekly English challenge using this week's reading, vocabulary, and expression repairs.",
+      "Submit a short answer, one improved sentence, and one reflection.",
+    ].join(" ");
   }
   return ["receive_task", "ai_explains_goal", "learner_attempt", "ai_hint", "learner_revision", "ai_evaluation", "mistake_explanation", "learner_restates_reason", "variant_repair", "reward_settlement", "next_task_feedback"];
 }
@@ -171,12 +190,14 @@ function learnerPromptForSkill(skillId, program = {}, options = {}) {
 
 function deliverablesForSkill(skillId) {
   if (skillId === "english_short_writing") return ["first English draft", "AI feedback", "rewritten draft", "one-sentence reflection"];
+  if (skillId === "english_rewrite_improvement") return ["rewritten text", "change explanation", "variant repair"];
   if (skillId === "english_vocabulary_active_use") return ["original vocabulary sentences", "AI feedback", "repaired sentences"];
   if (skillId === "english_grammar_in_expression") return ["grammar repair answers", "rule explanation", "variant repair"];
   if (skillId === "english_listening_input") return ["key-point notes", "gap replay feedback", "retry answer"];
   if (skillId === "english_speaking_retell") return ["retell attempt", "AI hint record", "retry retell"];
   if (skillId === "english_pronunciation_shadowing") return ["shadowing attempt", "pronunciation gap feedback", "repaired repeat"];
   if (skillId === "english_presentation") return ["presentation outline", "rehearsal attempt", "feedback-based repair"];
+  if (skillId === "english_weekly_challenge") return ["integrated answer", "improved sentence", "one-sentence reflection"];
   return ["learner answer", "AI hint", "revision", "repair step"];
 }
 
@@ -190,11 +211,13 @@ function acceptanceForSkill(skillId) {
     ];
   }
   if (skillId === "english_vocabulary_active_use") return ["5 original sentences submitted", "at least 2 sentences repaired after feedback", "evaluation recorded"];
+  if (skillId === "english_rewrite_improvement") return ["rewrite improves clarity or accuracy", "change explanation submitted", "variant repair completed"];
   if (skillId === "english_grammar_in_expression") return ["4 corrected sentences submitted", "pattern explanation submitted", "variant repair completed"];
   if (skillId === "english_listening_input") return ["key points submitted", "missed part retried", "evaluation recorded"];
   if (skillId === "english_speaking_retell") return ["retell attempt submitted", "retry after hint completed", "evaluation recorded"];
   if (skillId === "english_pronunciation_shadowing") return ["shadowing attempt submitted", "pronunciation repair completed", "evaluation recorded"];
   if (skillId === "english_presentation") return ["outline submitted", "rehearsal completed", "feedback repair completed"];
+  if (skillId === "english_weekly_challenge") return ["integrated answer uses this week's focus", "one sentence improved", "reflection submitted"];
   return ["answer submitted", "AI feedback generated", "revision completed", "evaluation recorded"];
 }
 
@@ -278,12 +301,19 @@ function createLearningPlanDecompositionService(options = {}) {
         tasks.push(buildTask(program, {
           dayIndex,
           order: tasks.length + 1,
-          skillId: "english_grammar_in_expression",
+          skillId: focusIncludes(program, "english_weekly_challenge") || !uniqueStrings(program.focusAreas).length
+            ? "english_weekly_challenge"
+            : "english_grammar_in_expression",
           templates,
           minutes: 10,
         }));
-        tasks[tasks.length - 1].taskCardType = "mistake_repair_card";
-        tasks[tasks.length - 1].title = "Weekly mistake repair and variant check";
+        if (tasks[tasks.length - 1].skillIds.includes("english_weekly_challenge")) {
+          tasks[tasks.length - 1].taskCardType = "challenge_card";
+          tasks[tasks.length - 1].title = "Weekly integrated English challenge";
+        } else {
+          tasks[tasks.length - 1].taskCardType = "mistake_repair_card";
+          tasks[tasks.length - 1].title = "Weekly mistake repair and variant check";
+        }
       }
       dailyPlans.push({
         date: isoDate(date),
