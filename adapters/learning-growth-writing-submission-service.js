@@ -273,8 +273,12 @@ function settleViaCoinService(learningCoinService, card, evaluation, input = {})
 function createLearningGrowthWritingSubmissionService(options = {}) {
   const kanbanCardProvider = options.kanbanCardProvider || null;
   const evaluationService = options.evaluationService || createLearningGrowthWritingEvaluationService();
+  const directoryMaterializationService = options.directoryMaterializationService || null;
   const reportService = options.reportService || createLearningGrowthWritingReportService({
     artifactService: options.artifactService,
+    reportDirectory: typeof directoryMaterializationService?.reportDirectoryForCard === "function"
+      ? (workspaceId, cardIdValue, card) => directoryMaterializationService.reportDirectoryForCard(workspaceId, cardIdValue, card)
+      : undefined,
   });
   const learningCoinService = options.learningCoinService || null;
   const aiFeedbackService = options.aiFeedbackService || null;
@@ -370,6 +374,20 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       evaluation.reportError = cleanString(err.message || err);
     }
     const publicEval = publicEvaluation(evaluation, settlement);
+    let materialized = null;
+    if (directoryMaterializationService && typeof directoryMaterializationService.materializeWritingEvaluation === "function") {
+      try {
+        materialized = directoryMaterializationService.materializeWritingEvaluation({
+          workspaceId,
+          cardId: cardIdValue,
+          card: loaded.card,
+          evaluation,
+          report,
+        });
+      } catch (err) {
+        evaluation.directoryMaterializationError = cleanString(err.message || err);
+      }
+    }
     const evaluationText = [
       evaluationComment(evaluation, settlement),
       report?.path ? `MEDIA: ${report.path}` : "",
@@ -406,6 +424,7 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
         action: "comment",
         evaluation: publicEval,
         completed: Boolean(completion?.ok),
+        materialized,
       },
     };
   }

@@ -15,6 +15,7 @@ const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
 const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
+const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningGrowthWritingAiFeedbackService } = require("../adapters/learning-growth-writing-ai-feedback-service");
 const { createLearningGrowthWritingSubmissionService } = require("../adapters/learning-growth-writing-submission-service");
@@ -393,9 +394,13 @@ function createMobileApiComposition(deps = {}) {
     model: deps.automationCreateModel,
     sanitizePolicy: deps.sanitizePolicy,
   });
+  const learningGrowthDirectoryMaterializationService = createLearningGrowthDirectoryMaterializationService({
+    dataDir: deps.dataDir,
+  });
   const learningGrowthWritingSubmissionService = createLearningGrowthWritingSubmissionService({
     aiFeedbackService: learningGrowthWritingAiFeedbackService,
     artifactService: deps.kanbanStudyArtifactService,
+    directoryMaterializationService: learningGrowthDirectoryMaterializationService,
     kanbanCardProvider: deps.kanbanCardProvider,
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
@@ -485,6 +490,7 @@ function createMobileApiComposition(deps = {}) {
   });
   const learningProgramPublishService = createLearningProgramPublishService({
     createKanbanStudyPlanCards: (...args) => deps.getKanbanPlanCardCreationService().createKanbanStudyPlanCards(...args),
+    directoryMaterializationService: learningGrowthDirectoryMaterializationService,
   });
   const learningParentReviewRequestService = createLearningParentReviewRequestService({
     repository: learningProgramRepository,

@@ -111,6 +111,7 @@ function createLearningProgramPublishService(options = {}) {
   if (typeof createKanbanStudyPlanCards !== "function") {
     throw new Error("learning program publish service requires createKanbanStudyPlanCards");
   }
+  const directoryMaterializationService = options.directoryMaterializationService || null;
 
   async function publish(input = {}) {
     const program = input.program || {};
@@ -154,12 +155,27 @@ function createLearningProgramPublishService(options = {}) {
       learningDraftId: draft.draftId,
       learningTaskCount: draft.taskCount,
     });
+    let materialized = null;
+    if (directoryMaterializationService && typeof directoryMaterializationService.materializeProgram === "function") {
+      try {
+        materialized = directoryMaterializationService.materializeProgram({
+          workspaceId,
+          learnerId,
+          program,
+          draft,
+          kanbanResult: result,
+        });
+      } catch (err) {
+        materialized = { ok: false, error: cleanString(err.message || err) };
+      }
+    }
     return {
       ok: Boolean(result?.ok),
       source: "learning-program",
       workspaceId,
       learnerId,
       kanbanResult: result,
+      materialized,
     };
   }
 

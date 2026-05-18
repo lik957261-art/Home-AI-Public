@@ -5,10 +5,17 @@ const { createLearningProgramPublishService } = require("../adapters/learning-pr
 
 async function run() {
   const calls = [];
+  const materialized = [];
   const service = createLearningProgramPublishService({
     async createKanbanStudyPlanCards(workspaceId, input) {
       calls.push({ workspaceId, input });
       return { ok: true, cards: [{ card: { id: "kanban-1" } }] };
+    },
+    directoryMaterializationService: {
+      materializeProgram(input) {
+        materialized.push(input);
+        return { directory: "learning-plan-dir", summaryPath: "summary.md" };
+      },
     },
   });
 
@@ -62,7 +69,12 @@ async function run() {
 
   assert.equal(result.ok, true);
   assert.equal(result.workspaceId, "weixin_stephen");
+  assert.equal(result.materialized.summaryPath, "summary.md");
   assert.equal(calls.length, 1);
+  assert.equal(materialized.length, 1);
+  assert.equal(materialized[0].workspaceId, "weixin_stephen");
+  assert.equal(materialized[0].program.programId, "program-1");
+  assert.equal(materialized[0].draft.draftId, "draft-1");
   assert.equal(calls[0].workspaceId, "weixin_stephen");
   assert.equal(calls[0].input.studyTemplate, "learning-growth");
   assert.equal(calls[0].input.caseTemplate, "learning-growth");

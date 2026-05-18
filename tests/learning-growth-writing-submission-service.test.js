@@ -8,10 +8,17 @@ const {
 async function testSubmitWritingStoresAsKanbanComment() {
   const calls = [];
   const grants = [];
+  const materialized = [];
   const service = createLearningGrowthWritingSubmissionService({
     reportService: {
       writeReport() {
         return { path: "C:\\tmp\\growth-writing-feedback.md", name: "growth-writing-feedback.md", mime: "text/markdown; charset=utf-8", size: 120 };
+      },
+    },
+    directoryMaterializationService: {
+      materializeWritingEvaluation(input) {
+        materialized.push(input);
+        return { directory: "learning-plan-dir", summaryPath: "summary.md" };
       },
     },
     learningCoinService: {
@@ -59,8 +66,12 @@ async function testSubmitWritingStoresAsKanbanComment() {
   assert.equal(result.evaluation.passed, false);
   assert.equal(result.reward.status, "not_eligible");
   assert.equal(result.result.completed, false);
+  assert.equal(result.result.materialized.summaryPath, "summary.md");
   assert.equal(result.evaluation.report.name, "growth-writing-feedback.md");
   assert.equal(grants.length, 0);
+  assert.equal(materialized.length, 1);
+  assert.equal(materialized[0].cardId, "t_growth");
+  assert.equal(materialized[0].evaluation.status, "draft_feedback");
   assert.deepEqual(calls[0], {
     type: "list",
     input: {
