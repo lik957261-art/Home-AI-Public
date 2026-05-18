@@ -72,6 +72,8 @@ assert.match(startWorkerHost, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY/);
 assert.match(startWorkerHost, /return "auto"/);
 assert.match(startWorkerHost, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY_WSL_USER/);
 assert.match(startWorkerHost, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY_HERMES_HOME/);
+assert.match(startWorkerHost, /if \(-not \$resolvedWslUser\) \{ \$resolvedWslUser = "xuxin" \}/);
+assert.match(startWorkerHost, /if \(-not \$resolvedHermesHome\) \{ \$resolvedHermesHome = "\/home\/\$resolvedWslUser\/\.hermes" \}/);
 assert.match(startWorkerHost, /start-weixin-mobile-ingress-bridge\.ps1/);
 assert.match(startWorkerHost, /function Start-WeixinFrontGatewayIfNeeded/);
 assert.match(startWorkerHost, /Start-WeixinFrontGatewayIfNeeded\s*\r?\nif \(-not \$CheckOnly\)/);
