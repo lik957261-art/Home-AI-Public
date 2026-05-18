@@ -288,6 +288,7 @@ function createTodoPublicProjectionService(options = {}) {
       kanbanCaseCardGoal: String(row.kanban_case_card_goal || row.kanbanCaseCardGoal || ""),
       kanbanCaseCreationSkillId: String(row.kanban_case_creation_skill_id || row.kanbanCaseCreationSkillId || ""),
       kanbanLastCommentAt: String(row.kanban_last_comment_at || row.kanbanLastCommentAt || ""),
+      learningGrowthSubmissionText: String(row.learning_growth_submission_text || row.learningGrowthSubmissionText || ""),
       learningGrowthSubmissionStatus: String(row.learning_growth_submission_status || row.learningGrowthSubmissionStatus || ""),
       learningGrowthSubmissionKind: String(row.learning_growth_submission_kind || row.learningGrowthSubmissionKind || ""),
       learningGrowthSubmissionAt: String(row.learning_growth_submission_at || row.learningGrowthSubmissionAt || ""),
@@ -398,6 +399,7 @@ function createTodoPublicProjectionService(options = {}) {
           analysisAvailable,
           nextStep,
         };
+        if (payload.learningGrowthSubmissionText) payload.learningGrowthSubmission.text = payload.learningGrowthSubmissionText;
         if (analysisAvailable) {
           payload.learningGrowthEvaluation = {
             status: evaluationStatus,

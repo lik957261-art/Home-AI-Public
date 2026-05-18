@@ -351,6 +351,7 @@ function run() {
     learning_growth_submission_status: "submitted",
     learning_growth_submission_kind: "writing",
     learning_growth_submission_at: "2026-05-17T15:00:00.000Z",
+    learning_growth_submission_text: "My first public projected draft.",
     learning_growth_evaluation_status: "pending",
   }));
   assert.deepEqual(projectedLearningGrowthSubmitted.learningGrowthSubmission, {
@@ -361,6 +362,7 @@ function run() {
     evaluationAt: "",
     analysisAvailable: false,
     nextStep: "pending_evaluation",
+    text: "My first public projected draft.",
   });
   assert.equal(projectedLearningGrowthSubmitted.learningGrowthInteractionState.phase, "awaiting_feedback");
   assert.equal(projectedLearningGrowthSubmitted.learningGrowthInteractionState.nextAction, "wait_for_feedback");

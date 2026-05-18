@@ -274,6 +274,7 @@ async function run() {
   assert.equal(growthSubmitted.ok, true);
   assert.equal(growthSubmitted.learning_growth_submission_status, "submitted");
   assert.equal(growthSubmitted.learning_growth_submission_kind, "writing");
+  assert.equal(growthSubmitted.learning_growth_submission_text, "first draft");
   assert.equal(growthSubmitted.learning_growth_evaluation_status, "pending");
 
   const growthEvaluated = await provider.run({
