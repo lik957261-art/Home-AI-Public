@@ -532,7 +532,7 @@ async function run() {
         caseMode: "learning-growth",
         caseCardId: "learning-card-1",
         caseCardIndex: 1,
-        caseCardCount: 2,
+        caseCardCount: 3,
       }),
       updated_at: 1778600000,
     },
@@ -547,10 +547,25 @@ async function run() {
         caseMode: "learning-growth",
         caseCardId: "learning-card-2",
         caseCardIndex: 2,
-        caseCardCount: 2,
+        caseCardCount: 3,
         caseDependsOn: ["learning-card-1"],
       }),
       updated_at: 1778600100,
+    },
+    {
+      id: "t_learning_skipped",
+      title: "Learning skipped",
+      status: "ready",
+      body: learningMeta({
+        content: "Learning skipped",
+        assignee: "owner",
+        caseId: "case-learning",
+        caseMode: "learning-growth",
+        caseCardId: "learning-card-3",
+        caseCardIndex: 3,
+        caseCardCount: 3,
+      }),
+      updated_at: 1778600200,
     },
   ];
   const learningVisibilityProvider = createKanbanTodoBridge({
@@ -581,6 +596,7 @@ async function run() {
   assert.equal(visibleLearning.ok, true);
   assert.equal(visibleLearning.todos.some((todo) => todo.id === "t_learning_current"), true);
   assert.equal(visibleLearning.todos.some((todo) => todo.id === "t_learning_future"), false);
+  assert.equal(visibleLearning.todos.some((todo) => todo.id === "t_learning_skipped"), false);
   const visibleLearningWithCompleted = await learningVisibilityProvider.run({
     action: "list",
     workspace_id: "owner",
@@ -590,6 +606,7 @@ async function run() {
   });
   assert.equal(visibleLearningWithCompleted.ok, true);
   assert.equal(visibleLearningWithCompleted.todos.some((todo) => todo.id === "t_learning_future"), false);
+  assert.equal(visibleLearningWithCompleted.todos.some((todo) => todo.id === "t_learning_skipped"), false);
   const visibleLearningForInternalMaintenance = await learningVisibilityProvider.run({
     action: "list",
     workspace_id: "owner",
@@ -600,6 +617,7 @@ async function run() {
   });
   assert.equal(visibleLearningForInternalMaintenance.ok, true);
   assert.equal(visibleLearningForInternalMaintenance.todos.some((todo) => todo.id === "t_learning_future"), true);
+  assert.equal(visibleLearningForInternalMaintenance.todos.some((todo) => todo.id === "t_learning_skipped"), true);
   const targetedLearning = await learningVisibilityProvider.run({
     action: "list",
     workspace_id: "owner",
@@ -621,6 +639,22 @@ async function run() {
   assert.equal(learningReconciled.released.length, 1);
   assert.equal(learningReconciled.released[0].id, "t_learning_future");
   assert.equal(learningVisibilityTasks[1].status, "todo");
+  const visibleLearningBeforeSecondComplete = await learningVisibilityProvider.run({
+    action: "list",
+    workspace_id: "owner",
+    source_principal: "owner",
+    limit: 20,
+  });
+  assert.equal(visibleLearningBeforeSecondComplete.todos.some((todo) => todo.id === "t_learning_skipped"), false);
+  learningVisibilityTasks[1].status = "done";
+  learningVisibilityTasks[1].completed_at = 1778600300;
+  const visibleLearningAfterSecondComplete = await learningVisibilityProvider.run({
+    action: "list",
+    workspace_id: "owner",
+    source_principal: "owner",
+    limit: 20,
+  });
+  assert.equal(visibleLearningAfterSecondComplete.todos.some((todo) => todo.id === "t_learning_skipped"), true);
 
   const reconcileCalls = [];
   const meta = (value) => `<!-- hermes-mobile-todo ${JSON.stringify(value)} -->`;

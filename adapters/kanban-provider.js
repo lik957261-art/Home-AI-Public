@@ -679,27 +679,78 @@ function createKanbanTodoBridge(options = {}) {
     return status === "completed" || DONE_KANBAN_STATUSES.has(kanbanStatus);
   }
 
+  function caseIdFromRow(row) {
+    return String(row?.kanban_case_id || row?.kanbanCaseId || row?.caseId || "").trim();
+  }
+
+  function caseCardIdFromRow(row) {
+    return String(row?.kanban_case_card_id || row?.kanbanCaseCardId || row?.caseCardId || "").trim();
+  }
+
+  function caseCardIndexFromRow(row) {
+    return Number(row?.kanban_case_card_index ?? row?.kanbanCaseCardIndex ?? row?.caseCardIndex ?? 0) || 0;
+  }
+
   function dependencyLookup(rows = []) {
     const byId = new Map();
     const byCaseCard = new Map();
+    const byCaseId = new Map();
     for (const row of rows) {
       const id = String(row?.id || "").trim();
       if (id) byId.set(id, row);
-      const caseId = String(row?.kanban_case_id || row?.kanbanCaseId || "").trim();
-      const caseCardId = String(row?.kanban_case_card_id || row?.kanbanCaseCardId || "").trim();
+      const caseId = caseIdFromRow(row);
+      const caseCardId = caseCardIdFromRow(row);
       if (caseId && caseCardId) byCaseCard.set(`${caseId}\0${caseCardId}`, row);
+      if (caseId) {
+        if (!byCaseId.has(caseId)) byCaseId.set(caseId, []);
+        byCaseId.get(caseId).push(row);
+      }
     }
-    return { byId, byCaseCard };
+    return { byId, byCaseCard, byCaseId };
   }
 
   function isLearningSequenceCase(row) {
-    const caseMode = String(row?.kanban_case_mode || row?.kanbanCaseMode || "").trim().toLowerCase();
+    const caseMode = String(row?.kanban_case_mode || row?.kanbanCaseMode || row?.caseMode || "").trim().toLowerCase();
     return caseMode === "study-plan" || caseMode === "assessment-plan" || caseMode === "learning-growth";
   }
 
+  function priorSequenceRowsFor(row, lookup) {
+    if (!isLearningSequenceCase(row)) return [];
+    const caseId = caseIdFromRow(row);
+    const caseCardIndex = caseCardIndexFromRow(row);
+    if (!caseId || caseCardIndex <= 1) return [];
+    const rowId = String(row?.id || "").trim();
+    const seen = new Set();
+    return (lookup.byCaseId.get(caseId) || [])
+      .filter((candidate) => {
+        const candidateId = String(candidate?.id || "").trim();
+        const candidateIndex = caseCardIndexFromRow(candidate);
+        if (!candidateIndex || candidateIndex >= caseCardIndex) return false;
+        if (candidateId && candidateId === rowId) return false;
+        const key = candidateId || `${caseId}:${candidateIndex}:${caseCardIdFromRow(candidate)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+
+  function incompletePriorSequenceRowsFor(row, lookup) {
+    const byIndex = new Map();
+    for (const candidate of priorSequenceRowsFor(row, lookup)) {
+      const index = caseCardIndexFromRow(candidate);
+      if (!byIndex.has(index)) byIndex.set(index, []);
+      byIndex.get(index).push(candidate);
+    }
+    const incomplete = [];
+    for (const candidates of byIndex.values()) {
+      if (!candidates.some((candidate) => dependencyComplete(candidate))) incomplete.push(...candidates);
+    }
+    return incomplete;
+  }
+
   function dependencyRowsFor(row, lookup) {
-    const caseId = String(row?.kanban_case_id || row?.kanbanCaseId || "").trim();
-    const dependsOn = arrayFromValue(row?.kanban_case_depends_on || row?.kanbanCaseDependsOn, 12);
+    const caseId = caseIdFromRow(row);
+    const dependsOn = arrayFromValue(row?.kanban_case_depends_on || row?.kanbanCaseDependsOn || row?.caseDependsOn, 12);
     if (!dependsOn.length) return { dependsOn, rows: [] };
     return {
       dependsOn,
@@ -713,6 +764,7 @@ function createKanbanTodoBridge(options = {}) {
 
   function shouldHideFutureLearningCard(row, lookup) {
     if (!isLearningSequenceCase(row)) return false;
+    if (incompletePriorSequenceRowsFor(row, lookup).length) return true;
     const { dependsOn, rows } = dependencyRowsFor(row, lookup);
     if (!dependsOn.length) return false;
     const kanbanStatus = String(row?.kanban_status || row?.kanbanStatus || "").trim().toLowerCase();
@@ -782,7 +834,7 @@ function createKanbanTodoBridge(options = {}) {
     }));
     if (!listed?.ok) return listed;
     const rows = Array.isArray(listed.todos) ? listed.todos : [];
-    const { byId, byCaseCard } = dependencyLookup(rows);
+    const lookup = dependencyLookup(rows);
     const released = [];
     const errors = [];
     for (const row of rows) {
@@ -790,9 +842,12 @@ function createKanbanTodoBridge(options = {}) {
       const caseMode = String(row.kanban_case_mode || "").trim().toLowerCase();
       const caseId = String(row.kanban_case_id || "").trim();
       const dependsOn = arrayFromValue(row.kanban_case_depends_on, 12);
-      if (!caseId || !dependsOn.length) continue;
+      if (!caseId) continue;
+      if (incompletePriorSequenceRowsFor(row, lookup).length) continue;
+      const hasPriorSequence = priorSequenceRowsFor(row, lookup).length > 0;
+      if (!dependsOn.length && !hasPriorSequence) continue;
       const dependencyRows = dependsOn.map((dependencyId) => (
-        byCaseCard.get(`${caseId}\0${dependencyId}`) || byId.get(String(dependencyId || "").trim()) || null
+        lookup.byCaseCard.get(`${caseId}\0${dependencyId}`) || lookup.byId.get(String(dependencyId || "").trim()) || null
       ));
       if (dependencyRows.some((dependency) => !dependencyComplete(dependency))) continue;
       const reason = "All planned upstream cards completed; Hermes Mobile released dependency block.";
