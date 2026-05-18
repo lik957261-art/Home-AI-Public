@@ -30,7 +30,10 @@ function testScoresPassingWritingAndReward() {
   assert.ok(evaluation.score >= 70);
   assert.equal(evaluation.reward.eligible, true);
   assert.ok(evaluation.feedbackSections.rewriteChecklist.length >= 3);
-  assert.ok(evaluation.reward.coinAmount >= 10);
+  assert.ok(evaluation.reward.coinAmount >= 40);
+  assert.ok(evaluation.reward.coinAmount <= 100);
+  assert.equal(evaluation.reward.maxCoinAmount, 100);
+  assert.ok(evaluation.reward.breakdown.accuracyCoins > 0);
   assert.equal(evaluation.verificationMethod, "deterministic_template");
   assert.equal(evaluation.evaluatedAt, "2026-05-17T15:30:00.000Z");
   assert.doesNotMatch(JSON.stringify(evaluation), /Last week I joined|school activity about teamwork/);

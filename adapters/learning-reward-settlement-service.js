@@ -5,8 +5,12 @@ const {
   assertNoPrivateLearningPayload,
   compactLearningSummary,
 } = require("./learning-record-privacy-service");
+const {
+  calculateLearningCardReward,
+  clampLearningCardRewardAmount,
+} = require("./learning-card-reward-policy-service");
 
-const DEFAULT_AUTO_REWARD_LIMIT = 30;
+const DEFAULT_AUTO_REWARD_LIMIT = 100;
 const DEFAULT_REWARD_REASON = "Learning growth evaluation reward";
 
 function cleanString(value) {
@@ -29,11 +33,18 @@ function positiveInteger(value, fallback = 0) {
 
 function rewardAmountForEvaluation(evaluation = {}, input = {}) {
   const explicit = positiveInteger(input.coinAmount || evaluation.rewardPolicy?.coinAmount || evaluation.rewardPolicy?.suggestedCoinAmount, 0);
-  if (explicit) return Math.min(200, explicit);
-  const score = Number(evaluation.score || 0);
-  if (score >= 95) return 20;
-  if (score >= 85) return 15;
-  return 10;
+  if (explicit) return clampLearningCardRewardAmount(explicit);
+  return calculateLearningCardReward({
+    evaluation,
+    score: evaluation.score,
+    passed: Boolean(evaluation.passed),
+    submittedAt: input.submittedAt,
+    completedAt: input.completedAt,
+    evaluatedAt: evaluation.evaluatedAt,
+    dueAt: input.dueAt || evaluation.dueAt,
+    interactionQualityScore: input.interactionQualityScore,
+    interactionEvidence: input.interactionEvidence,
+  }).coinAmount;
 }
 
 function rewardSettlementKey(evaluationId) {

@@ -123,7 +123,7 @@ function testVerifiedEvaluationSettlesOnce() {
   const first = service.settleEvaluationReward("eval-verified", { principalId: "owner" });
   const second = service.settleEvaluationReward("eval-verified", { idempotencyKey: "custom-key" });
   assert.equal(first.status, "settled");
-  assert.equal(first.coinAmount, 15);
+  assert.equal(first.coinAmount, 77);
   assert.equal(second.status, "settled");
   assert.equal(coinService.grants.length, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).rewardSettlements, 1);

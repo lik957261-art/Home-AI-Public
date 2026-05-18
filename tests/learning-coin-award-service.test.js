@@ -64,7 +64,7 @@ function testReadingAwardIsGenericAndBroadcastsOnce() {
   assert.equal(award.ok, true);
   assert.equal(award.studentId, "weixin_stephen");
   assert.equal(award.workspaceId, "weixin_stephen");
-  assert.equal(award.coinAmount, 20);
+  assert.equal(award.coinAmount, 85);
   assert.equal(grants.length, 1);
   assert.equal(grants[0].reason, "\u5b66\u4e60\u6d4b\u9a8c\u901a\u8fc7");
   assert.equal(grants[0].sourceType, "kanban-reading-quiz");

@@ -1,6 +1,9 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const {
+  calculateLearningCardReward,
+} = require("./learning-card-reward-policy-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -156,11 +159,11 @@ function scoreWriting(input = {}) {
   };
 }
 
-function rewardCoinsForScore(score) {
-  if (score >= 95) return 20;
-  if (score >= 85) return 15;
-  if (score >= 70) return 10;
-  return 0;
+function rewardCoinsForScore(score, input = {}) {
+  return calculateLearningCardReward(Object.assign({}, input, {
+    score,
+    passed: Number(score) >= 70,
+  })).coinAmount;
 }
 
 function normalizeEvaluationStage(value, fallback = "final") {
@@ -223,8 +226,17 @@ function createLearningGrowthWritingEvaluationService(options = {}) {
     const requirements = revisionRequirements(scored.issues, scored.score, stage);
     const passed = stage === "final" && scored.passed;
     const status = stage === "draft" ? "draft_feedback" : (passed ? "completed" : "needs_revision");
-    const coinAmount = passed ? rewardCoinsForScore(scored.score) : 0;
     const at = now().toISOString();
+    const reward = calculateLearningCardReward({
+      card,
+      evaluation: { stage, score: scored.score, passed },
+      stage,
+      score: scored.score,
+      passed,
+      evaluatedAt: at,
+      completedAt: at,
+    });
+    const coinAmount = reward.coinAmount;
     const summary = stage === "draft"
       ? `首稿已批改：${scored.score}/100。这不是最终结论；请按“重点修改”和“改写清单”完成一版 Rewritten，并补一句复盘后再提交。`
       : (passed
@@ -253,6 +265,9 @@ function createLearningGrowthWritingEvaluationService(options = {}) {
       reward: {
         eligible: passed && coinAmount > 0,
         coinAmount,
+        minCoinAmount: reward.minCoins,
+        maxCoinAmount: reward.maxCoins,
+        breakdown: reward.breakdown,
         reason: passed ? "learning_growth_writing_passed" : "revision_required_before_reward",
       },
       evaluatedAt: at,

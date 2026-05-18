@@ -131,6 +131,20 @@ function publicEvaluation(evaluation = {}, settlement = null) {
     reward: {
       eligible: Boolean(evaluation.reward?.eligible),
       coinAmount: Number(evaluation.reward?.coinAmount || 0),
+      minCoinAmount: Number(evaluation.reward?.minCoinAmount || 0),
+      maxCoinAmount: Number(evaluation.reward?.maxCoinAmount || 0),
+      breakdown: evaluation.reward?.breakdown && typeof evaluation.reward.breakdown === "object"
+        ? {
+          baseCoins: Number(evaluation.reward.breakdown.baseCoins || 0),
+          accuracyCoins: Number(evaluation.reward.breakdown.accuracyCoins || 0),
+          timelinessCoins: Number(evaluation.reward.breakdown.timelinessCoins || 0),
+          interactionCoins: Number(evaluation.reward.breakdown.interactionCoins || 0),
+          score: Number(evaluation.reward.breakdown.score || 0),
+          timelinessStatus: cleanString(evaluation.reward.breakdown.timelinessStatus),
+          interactionStatus: cleanString(evaluation.reward.breakdown.interactionStatus),
+          interactionIndicators: asArray(evaluation.reward.breakdown.interactionIndicators).map(cleanString).filter(Boolean),
+        }
+        : null,
       status: cleanString(settlement?.status || evaluation.reward?.status || (evaluation.reward?.eligible ? "pending" : "not_eligible")),
       entryId: cleanString(settlement?.ledgerEntry?.entryId || settlement?.entry?.entryId || ""),
       reason: cleanString(settlement?.reason || evaluation.reward?.reason || ""),

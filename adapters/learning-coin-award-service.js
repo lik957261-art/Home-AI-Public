@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  calculateLearningCardReward,
+  clampLearningCardRewardAmount,
+} = require("./learning-card-reward-policy-service");
+
 const DEFAULT_EXECUTOR_WORKSPACE_ID = "owner";
 
 const DEFAULT_LEARNING_COIN_AWARD_RULES = Object.freeze({
@@ -195,6 +200,31 @@ function normalizeAwardRules(input = {}) {
   return Object.assign({}, DEFAULT_LEARNING_COIN_AWARD_RULES, input || {});
 }
 
+function passedAwardEvent(eventType, input = {}) {
+  if (typeof input.passed === "boolean") return input.passed;
+  return /(?:^|_)passed$/i.test(String(eventType || "")) || Number(input.correctCount || 0) > 0 || Number(input.score || 0) >= 70;
+}
+
+function coinAmountForAward(rule = {}, eventType = "", input = {}) {
+  const explicit = normalizePositiveInteger(input.coinAmount, 0);
+  if (explicit) return clampLearningCardRewardAmount(explicit);
+  const passed = passedAwardEvent(eventType, input);
+  if (passed) {
+    return calculateLearningCardReward({
+      card: input.card || {},
+      score: input.score,
+      correctCount: input.correctCount,
+      total: input.total,
+      passed: true,
+      dueAt: input.dueAt || input.due_at,
+      completedAt: input.completedAt || input.completed_at || input.submittedAt || input.submitted_at,
+      interactionQualityScore: input.interactionQualityScore,
+      interactionEvidence: input.interactionEvidence,
+    }).coinAmount;
+  }
+  return normalizePositiveInteger(rule.coinAmount, 0);
+}
+
 function createLearningCoinAwardService(options = {}) {
   const learningCoinService = options.learningCoinService;
   const logger = options.logger || {};
@@ -219,7 +249,7 @@ function createLearningCoinAwardService(options = {}) {
     const studentId = recipient.studentId;
     const cardId = normalizeId(input.cardId || card.id || card.cardId, "card");
     const stage = normalizeId(input.stage || rule.stage || eventType, eventType);
-    const coinAmount = normalizePositiveInteger(input.coinAmount || rule.coinAmount, 0);
+    const coinAmount = coinAmountForAward(rule, eventType, Object.assign({}, input, { card }));
     if (!coinAmount) return { ok: false, skipped: true, reason: "zero_amount", eventType };
 
     const result = requireCoinService().grantCoins({

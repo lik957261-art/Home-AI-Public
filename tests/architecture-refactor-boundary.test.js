@@ -59,6 +59,7 @@ const learningGrowthWritingAiFeedbackService = require("../adapters/learning-gro
 const learningGrowthWritingEvaluationService = require("../adapters/learning-growth-writing-evaluation-service");
 const learningGrowthWritingSubmissionService = require("../adapters/learning-growth-writing-submission-service");
 const learningAiReliabilityGuardService = require("../adapters/learning-ai-reliability-guard-service");
+const learningCardRewardPolicyService = require("../adapters/learning-card-reward-policy-service");
 const learningCoinAwardService = require("../adapters/learning-coin-award-service");
 const learningCoinService = require("../adapters/learning-coin-service");
 const learningEvaluationService = require("../adapters/learning-evaluation-service");
@@ -250,6 +251,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningAiReliabilityGuardService.createLearningAiReliabilityGuardService, "function");
   assert.equal(typeof learningCardGuidanceService.createLearningCardGuidanceService, "function");
   assert.equal(typeof learningCardGuidanceService.normalizeMode, "function");
+  assert.equal(typeof learningCardRewardPolicyService.calculateLearningCardReward, "function");
   assert.equal(typeof learningCoinAwardService.createLearningCoinAwardService, "function");
   assert.equal(typeof learningCoinAwardService.learningCoinAwardKey, "function");
   assert.equal(typeof learningCoinService.createLearningCoinService, "function");
