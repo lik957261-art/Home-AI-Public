@@ -68,6 +68,8 @@ async function run() {
     viewerWorkspaceIds: ["viewer", "learner", "missing"],
     managerWorkspaceIds: ["manager"],
     topicThreadId: "thread-1",
+    topicTaskGroupId: "case_case-a",
+    sharedDirectoryPath: "/shared/case-a",
     caseDirectoryPath: "/cases/case-a",
   });
   assert.equal(writes.length, 1);
@@ -94,11 +96,16 @@ async function run() {
   );
   assert.equal(annotated.kanbanActorRole, "performer");
   assert.equal(annotated.kanbanActorPermissions.canSubmitStudy, true);
+  assert.equal(annotated.topicThreadId, "thread-1");
+  assert.equal(annotated.topicTaskGroupId, "case_case-a");
+  assert.equal(annotated.sharedDirectoryPath, "/shared/case-a");
+  assert.equal(annotated.caseDirectoryPath, "/cases/case-a");
 
   const viewerCards = await service.sharedCardsForAuth({ workspaceId: "viewer" }, "viewer", { limit: 5 });
   assert.equal(viewerCards.length, 1);
   assert.equal(viewerCards[0].id, "card-1");
   assert.equal(viewerCards[0].kanbanActorRole, "viewer");
+  assert.equal(viewerCards[0].topicThreadId, "thread-1");
   assert.equal(viewerCards[0].kanbanActorPermissions.canSubmitStudy, false);
 
   let sqliteStore = {

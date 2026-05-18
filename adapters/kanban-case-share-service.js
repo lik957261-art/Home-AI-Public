@@ -262,6 +262,7 @@ function createKanbanCaseShareService(deps = {}) {
     if (!card || typeof card !== "object") return card;
     const workspaceId = cleanString(card.workspaceId || card.workspace_id) || "owner";
     const caseId = cleanString(card.kanbanCaseId || card.kanban_case_id);
+    const share = caseId ? readShare(workspaceId, caseId) : null;
     const role = caseId
       ? (options.actorWorkspaceId
         ? roleForWorkspaceActor(options.actorWorkspaceId, workspaceId, caseId, auth)
@@ -269,6 +270,10 @@ function createKanbanCaseShareService(deps = {}) {
       : (deps.authCanAccessWorkspace?.(auth, workspaceId) ? "manager" : "");
     if (!role) return card;
     return Object.assign({}, card, {
+      topicThreadId: cleanString(card.topicThreadId || card.topic_thread_id) || cleanString(share?.topicThreadId),
+      topicTaskGroupId: cleanString(card.topicTaskGroupId || card.topic_task_group_id) || cleanString(share?.topicTaskGroupId),
+      sharedDirectoryPath: cleanString(card.sharedDirectoryPath || card.shared_directory_path) || cleanString(share?.sharedDirectoryPath),
+      caseDirectoryPath: cleanString(card.caseDirectoryPath || card.case_directory_path) || cleanString(share?.caseDirectoryPath),
       kanbanActorRole: role,
       kanbanActorPermissions: kanbanActorPermissions(role),
       kanbanShareOwnerWorkspaceId: workspaceId,
