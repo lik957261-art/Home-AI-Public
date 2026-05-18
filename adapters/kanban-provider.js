@@ -744,10 +744,10 @@ function createKanbanTodoBridge(options = {}) {
     const assignee = String(payload.assignee || "").trim();
     if (assignee) todos = todos.filter((todo) => todo.assignee_principal_id === assignee);
     const visibilityLookup = dependencyLookup(todos);
-    if (!includeCompleted) todos = todos.filter((todo) => todo.status === "open" && OPEN_KANBAN_STATUSES.has(todo.kanban_status));
-    if (!includeCompleted && !bool(payload.include_future_learning_cards || payload.includeFutureLearningCards)) {
+    if (!bool(payload.include_future_learning_cards || payload.includeFutureLearningCards) && !targetId) {
       todos = todos.filter((todo) => !shouldHideFutureLearningCard(todo, visibilityLookup));
     }
+    if (!includeCompleted) todos = todos.filter((todo) => todo.status === "open" && OPEN_KANBAN_STATUSES.has(todo.kanban_status));
     todos = todos.sort((a, b) => {
       const leftOpen = a.status === "open" && OPEN_KANBAN_STATUSES.has(String(a.kanban_status || "").trim().toLowerCase());
       const rightOpen = b.status === "open" && OPEN_KANBAN_STATUSES.has(String(b.kanban_status || "").trim().toLowerCase());
@@ -777,6 +777,7 @@ function createKanbanTodoBridge(options = {}) {
   async function reconcileDependencyBlocks(payload = {}) {
     const listed = await list(Object.assign({}, payload, {
       include_completed: true,
+      include_future_learning_cards: true,
       limit: positiveNumber(payload.limit, 500),
     }));
     if (!listed?.ok) return listed;

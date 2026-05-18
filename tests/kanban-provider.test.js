@@ -581,15 +581,25 @@ async function run() {
   assert.equal(visibleLearning.ok, true);
   assert.equal(visibleLearning.todos.some((todo) => todo.id === "t_learning_current"), true);
   assert.equal(visibleLearning.todos.some((todo) => todo.id === "t_learning_future"), false);
-  const visibleLearningForManagement = await learningVisibilityProvider.run({
+  const visibleLearningWithCompleted = await learningVisibilityProvider.run({
     action: "list",
     workspace_id: "owner",
     source_principal: "owner",
     include_completed: true,
     limit: 20,
   });
-  assert.equal(visibleLearningForManagement.ok, true);
-  assert.equal(visibleLearningForManagement.todos.some((todo) => todo.id === "t_learning_future"), true);
+  assert.equal(visibleLearningWithCompleted.ok, true);
+  assert.equal(visibleLearningWithCompleted.todos.some((todo) => todo.id === "t_learning_future"), false);
+  const visibleLearningForInternalMaintenance = await learningVisibilityProvider.run({
+    action: "list",
+    workspace_id: "owner",
+    source_principal: "owner",
+    include_completed: true,
+    include_future_learning_cards: true,
+    limit: 20,
+  });
+  assert.equal(visibleLearningForInternalMaintenance.ok, true);
+  assert.equal(visibleLearningForInternalMaintenance.todos.some((todo) => todo.id === "t_learning_future"), true);
   const targetedLearning = await learningVisibilityProvider.run({
     action: "list",
     workspace_id: "owner",
@@ -599,7 +609,6 @@ async function run() {
   });
   assert.equal(targetedLearning.ok, true);
   assert.equal(targetedLearning.todos.some((todo) => todo.id === "t_learning_future"), true);
-  assert.ok(learningVisibilityCalls.some((args) => args.includes("show") && args.includes("t_learning_future")));
   learningVisibilityTasks[0].status = "done";
   learningVisibilityTasks[0].completed_at = 1778600200;
   const learningReconciled = await learningVisibilityProvider.run({
