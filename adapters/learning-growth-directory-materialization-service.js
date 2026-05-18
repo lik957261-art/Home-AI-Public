@@ -104,11 +104,15 @@ function learningProgramTitle(program = {}, draft = {}, card = {}) {
 
 function learningCaseId(input = {}) {
   const card = input.card || {};
+  const kanbanResult = input.kanbanResult || {};
   return cleanString(
     input.caseId
     || input.kanbanCaseId
     || input.program?.caseId
-    || input.kanbanResult?.plan?.id
+    || kanbanResult.plan?.id
+    || kanbanResult.kanbanResult?.plan?.id
+    || kanbanResult.caseId
+    || kanbanResult.kanbanCaseId
     || cardField(card, "kanbanCaseId", "kanban_case_id")
     || input.program?.programId
     || "learning-growth",

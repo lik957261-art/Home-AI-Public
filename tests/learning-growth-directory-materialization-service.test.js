@@ -67,6 +67,32 @@ function testMaterializesProgramSummaryWithoutRawAnswers() {
   assert.match(rootSummary, /Short writing/);
 }
 
+function testProgramSummaryUsesNestedKanbanPlanId() {
+  const ownerRoot = makeTempRoot();
+  const learningPlanRoot = path.join(ownerRoot, "Fanfan", "LearningPlan");
+  const service = createLearningGrowthDirectoryMaterializationService({
+    ownerDriveRoot: ownerRoot,
+    learnerDirectories: { weixin_stephen: learningPlanRoot },
+    nowIso: () => "2026-05-18T08:05:00.000Z",
+  });
+  const result = service.materializeProgram({
+    workspaceId: "weixin_stephen",
+    program: {
+      programId: "program-1",
+      workspaceId: "weixin_stephen",
+      learnerId: "weixin_stephen",
+      title: "Fanfan English Growth",
+    },
+    draft: { draftId: "draft-1", dailyPlans: [] },
+    kanbanResult: {
+      kanbanResult: {
+        plan: { id: "case-from-wrapper" },
+      },
+    },
+  });
+  assert.match(path.basename(path.dirname(result.planPath)), /case-from-wrapper/);
+}
+
 function testWritingEvaluationUsesVisibleDirectoryAndCopiesReport() {
   const ownerRoot = makeTempRoot();
   const learningPlanRoot = path.join(ownerRoot, "Fanfan", "LearningPlan");
@@ -122,5 +148,6 @@ function testWritingEvaluationUsesVisibleDirectoryAndCopiesReport() {
 }
 
 testMaterializesProgramSummaryWithoutRawAnswers();
+testProgramSummaryUsesNestedKanbanPlanId();
 testWritingEvaluationUsesVisibleDirectoryAndCopiesReport();
 console.log("learning growth directory materialization service tests passed");

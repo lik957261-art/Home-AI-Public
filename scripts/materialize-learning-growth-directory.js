@@ -98,6 +98,20 @@ function latestByCreatedAt(items = []) {
   return items.slice().sort((a, b) => cleanString(b.createdAt).localeCompare(cleanString(a.createdAt)))[0] || null;
 }
 
+function kanbanPlanId(result = {}) {
+  return cleanString(
+    result.plan?.id
+    || result.kanbanResult?.plan?.id
+    || result.caseId
+    || result.kanbanCaseId,
+  );
+}
+
+function bestPublication(items = []) {
+  const withPlan = items.filter((item) => kanbanPlanId(item.kanbanResult));
+  return latestByCreatedAt(withPlan) || latestByCreatedAt(items);
+}
+
 function buildIndexes(repository, filters) {
   const programs = repository.listPrograms(filters);
   const programById = new Map(programs.map((program) => [program.programId, program]));
@@ -173,7 +187,7 @@ function materialize(options = {}) {
     const drafts = indexes.draftsByProgram.get(program.programId) || [];
     const draft = latestByCreatedAt(drafts.filter((item) => item.status === "published")) || latestByCreatedAt(drafts);
     if (!draft) continue;
-    const publication = latestByCreatedAt(indexes.publicationsByDraft.get(draft.draftId) || []);
+    const publication = bestPublication(indexes.publicationsByDraft.get(draft.draftId) || []);
     if (!options.dryRun) {
       materializer.materializeProgram({
         workspaceId,
@@ -181,6 +195,7 @@ function materialize(options = {}) {
         program,
         draft,
         kanbanResult: publication?.kanbanResult || null,
+        caseId: kanbanPlanId(publication?.kanbanResult),
       });
     }
     counts.programsMaterialized += 1;
@@ -232,6 +247,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  bestPublication,
+  kanbanPlanId,
   materialize,
   parseArgs,
   reportParts,

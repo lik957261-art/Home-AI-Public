@@ -6,6 +6,8 @@ const os = require("node:os");
 const path = require("node:path");
 
 const {
+  bestPublication,
+  kanbanPlanId,
   materialize,
   parseArgs,
   reportParts,
@@ -38,6 +40,23 @@ function testReportParts() {
     cardId: "t_1",
     fileName: "report-writing-feedback.md",
   });
+}
+
+function testBestPublicationPrefersKanbanPlanId() {
+  const selected = bestPublication([
+    {
+      publicationId: "wrapper-without-plan",
+      createdAt: "2026-05-18T02:00:00.000Z",
+      kanbanResult: { ok: true, source: "learning-program" },
+    },
+    {
+      publicationId: "with-plan",
+      createdAt: "2026-05-18T01:00:00.000Z",
+      kanbanResult: { plan: { id: "case-1" } },
+    },
+  ]);
+  assert.equal(selected.publicationId, "with-plan");
+  assert.equal(kanbanPlanId({ kanbanResult: { plan: { id: "nested-case" } } }), "nested-case");
 }
 
 function fakeRepository() {
@@ -148,6 +167,7 @@ function testDryRunDoesNotWriteThroughMaterializer() {
 
 testParseArgs();
 testReportParts();
+testBestPublicationPrefersKanbanPlanId();
 testMaterializeCallsProgramAndReportMaterializers();
 testDryRunDoesNotWriteThroughMaterializer();
 console.log("materialize learning growth directory tests passed");
