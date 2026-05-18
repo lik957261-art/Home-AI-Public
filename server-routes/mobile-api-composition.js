@@ -17,8 +17,8 @@ const { createLearningProgramApiRoutes } = require("./learning-program-api-route
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
-const { createLearningGrowthWritingAiFeedbackService } = require("../adapters/learning-growth-writing-ai-feedback-service");
-const { createLearningGrowthWritingSubmissionService } = require("../adapters/learning-growth-writing-submission-service");
+const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
+const { createLearningGrowthSubmissionService } = require("../adapters/learning-growth-submission-service");
 const { createLearningParentReviewRequestService } = require("../adapters/learning-parent-review-request-service");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
@@ -387,7 +387,7 @@ function createMobileApiComposition(deps = {}) {
   const learningGrowthTaskService = createLearningGrowthKanbanTaskService({
     kanbanCardProvider: deps.kanbanCardProvider,
   });
-  const learningGrowthWritingAiFeedbackService = createLearningGrowthWritingAiFeedbackService({
+  const learningGrowthTaskFeedbackService = createLearningGrowthTaskFeedbackService({
     extractJsonObject: deps.extractJsonObject,
     findWorkspace: deps.findWorkspace,
     hermesModelText: deps.hermesModelText,
@@ -397,8 +397,8 @@ function createMobileApiComposition(deps = {}) {
   const learningGrowthDirectoryMaterializationService = createLearningGrowthDirectoryMaterializationService({
     dataDir: deps.dataDir,
   });
-  const learningGrowthWritingSubmissionService = createLearningGrowthWritingSubmissionService({
-    aiFeedbackService: learningGrowthWritingAiFeedbackService,
+  const learningGrowthSubmissionService = createLearningGrowthSubmissionService({
+    aiFeedbackService: learningGrowthTaskFeedbackService,
     artifactService: deps.kanbanStudyArtifactService,
     directoryMaterializationService: learningGrowthDirectoryMaterializationService,
     kanbanCardProvider: deps.kanbanCardProvider,
@@ -423,7 +423,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanErrorResponse: deps.kanbanErrorResponse,
     kanbanSingleCardCasePayload: deps.kanbanSingleCardCasePayload,
     learningGrowthKanbanTaskService: learningGrowthTaskService,
-    learningGrowthWritingSubmissionService,
+    learningGrowthSubmissionService,
     normalizeKanbanNotificationAssignee: deps.normalizeKanbanNotificationAssignee,
     normalizeKanbanMaxParallel: deps.normalizeKanbanMaxParallel,
     normalizeKanbanPlanReasoningEffort: deps.normalizeKanbanPlanReasoningEffort,

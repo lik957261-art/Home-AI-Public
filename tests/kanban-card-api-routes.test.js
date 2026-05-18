@@ -149,8 +149,8 @@ function makeRoutes(overrides = {}) {
         });
       },
     },
-    learningGrowthWritingSubmissionService: {
-      submitWriting(input) {
+    learningGrowthSubmissionService: {
+      submitTask(input) {
         calls.growthSubmit.push(input);
         return Promise.resolve({ ok: true, cardId: input.cardId, status: "submitted", result: { ok: true, id: input.cardId } });
       },
@@ -421,6 +421,24 @@ async function testLearningGrowthSubmissionUsesCommentCapabilityAndService() {
     { type: "todos.updated", workspaceId: "child", todoId: "t_growth", action: "learning-growth-submission" },
   ]);
   assert.equal(got.body.status, "submitted");
+}
+
+async function testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback() {
+  const { routes, calls } = makeRoutes({
+    learningGrowthSubmissionService: null,
+    learningGrowthWritingSubmissionService: {
+      submitWriting(input) {
+        calls.growthSubmit.push(Object.assign({ legacy: true }, input));
+        return Promise.resolve({ ok: true, cardId: input.cardId, status: "submitted", result: { ok: true, id: input.cardId } });
+      },
+    },
+  });
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-submission?workspaceId=child", {
+    body: { text: "draft" },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.equal(calls.growthSubmit.at(-1).legacy, true);
+  assert.equal(calls.growthSubmit.at(-1).cardId, "t_growth");
 }
 
 async function testOutputRoutesAlwaysUseResolverWithAuthenticatedContext() {
@@ -719,6 +737,7 @@ function testDependencyValidation() {
   await testOwnerListIncludesManagedLearningGrowthCardsWithoutCache();
   await testListTargetBypassesCacheAndForwardsTargetId();
   await testLearningGrowthSubmissionUsesCommentCapabilityAndService();
+  await testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback();
   await testOutputRoutesAlwaysUseResolverWithAuthenticatedContext();
   await testDetailAndActionAccessCapabilities();
   await testCreateMapsBodyCasePayloadCacheBroadcastAndVerification();

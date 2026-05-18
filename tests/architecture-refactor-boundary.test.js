@@ -58,6 +58,8 @@ const learningGrowthService = require("../adapters/learning-growth-service");
 const learningGrowthKanbanTaskService = require("../adapters/learning-growth-kanban-task-service");
 const learningGrowthProgressRecordService = require("../adapters/learning-growth-progress-record-service");
 const learningGrowthProgressSyncService = require("../adapters/learning-growth-progress-sync-service");
+const learningGrowthSubmissionService = require("../adapters/learning-growth-submission-service");
+const learningGrowthTaskFeedbackService = require("../adapters/learning-growth-task-feedback-service");
 const learningGrowthTaskEvaluationService = require("../adapters/learning-growth-task-evaluation-service");
 const learningGrowthTaskReportService = require("../adapters/learning-growth-task-report-service");
 const learningGrowthWritingAiFeedbackService = require("../adapters/learning-growth-writing-ai-feedback-service");
@@ -253,6 +255,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningGrowthKanbanTaskService.createLearningGrowthKanbanTaskService, "function");
   assert.equal(typeof learningGrowthProgressRecordService.createLearningGrowthProgressRecordService, "function");
   assert.equal(typeof learningGrowthProgressSyncService.createLearningGrowthProgressSyncService, "function");
+  assert.equal(typeof learningGrowthSubmissionService.createLearningGrowthSubmissionService, "function");
+  assert.equal(typeof learningGrowthTaskFeedbackService.createLearningGrowthTaskFeedbackService, "function");
   assert.equal(typeof learningGrowthTaskEvaluationService.createLearningGrowthTaskEvaluationService, "function");
   assert.equal(typeof learningGrowthTaskReportService.createLearningGrowthTaskReportService, "function");
   assert.equal(typeof learningGrowthWritingAiFeedbackService.createLearningGrowthWritingAiFeedbackService, "function");

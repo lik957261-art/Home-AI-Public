@@ -144,7 +144,7 @@ const KANBAN_CARD_API_ROUTE_SPECS = Object.freeze([
     pathRegex: /^\/api\/kanban\/cards\/[^/]+\/learning-growth-submission$/,
     group: "kanban",
     moduleKey: "kanban",
-    handlerKey: "submitLearningGrowthWriting",
+    handlerKey: "submitLearningGrowthTask",
     summary: "Submit one authorized Growth learning task answer.",
     riskLevel: "medium",
     authMode: "access-key",
@@ -224,8 +224,9 @@ function createKanbanCardApiRoutes(deps = {}) {
   if (!deps.kanbanCardProvider || typeof deps.kanbanCardProvider.listCards !== "function" || typeof deps.kanbanCardProvider.addCard !== "function" || typeof deps.kanbanCardProvider.cardDetail !== "function" || typeof deps.kanbanCardProvider.mutateCard !== "function") {
     throw new Error("kanban card api routes require kanbanCardProvider list/add/detail/mutate");
   }
-  if (!deps.learningGrowthWritingSubmissionService || (typeof deps.learningGrowthWritingSubmissionService.submitTask !== "function" && typeof deps.learningGrowthWritingSubmissionService.submitWriting !== "function")) {
-    throw new Error("kanban card api routes require learningGrowthWritingSubmissionService.submitTask");
+  const learningGrowthSubmissionService = deps.learningGrowthSubmissionService || deps.learningGrowthWritingSubmissionService || null;
+  if (!learningGrowthSubmissionService || (typeof learningGrowthSubmissionService.submitTask !== "function" && typeof learningGrowthSubmissionService.submitWriting !== "function")) {
+    throw new Error("kanban card api routes require learningGrowthSubmissionService.submitTask");
   }
 
   const sourceDocumentMaxBytes = Math.max(1, Number(deps.sourceDocumentMaxBytes || 20 * 1024 * 1024));
@@ -555,9 +556,9 @@ function createKanbanCardApiRoutes(deps = {}) {
     );
     if (!access) return;
     const workspaceId = access.workspaceId;
-    const submitLearningTask = typeof deps.learningGrowthWritingSubmissionService.submitTask === "function"
-      ? deps.learningGrowthWritingSubmissionService.submitTask
-      : deps.learningGrowthWritingSubmissionService.submitWriting;
+    const submitLearningTask = typeof learningGrowthSubmissionService.submitTask === "function"
+      ? learningGrowthSubmissionService.submitTask
+      : learningGrowthSubmissionService.submitWriting;
     const result = await submitLearningTask({
       workspaceId,
       cardId,
