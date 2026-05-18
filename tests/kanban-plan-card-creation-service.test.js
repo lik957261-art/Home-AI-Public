@@ -286,6 +286,10 @@ async function testStudyPlanCreatesCoverShareTopicAndSequentialBlocks() {
   assert.equal(calls.add[0].assigneeLabel, "owner:principal-child");
   assert.match(calls.add[0].description, /Hermes Mobile/);
   assert.equal(calls.add[0].caseCover.name, "cover.png");
+  assert.equal(calls.add[0].topicThreadId, "thread-study-one");
+  assert.equal(calls.add[0].topicTaskGroupId, "case_study-one");
+  assert.equal(calls.add[0].sharedDirectoryPath, "shared/owner/study-one");
+  assert.equal(calls.add[0].caseDirectoryPath, "shared/owner/study-one/case");
   assert.equal(calls.add[0].learningProgramId, "program-1");
   assert.equal(calls.add[0].learningDraftId, "draft-1");
   assert.equal(calls.add[0].learningTaskCardId, "task-card-1");
@@ -372,6 +376,10 @@ async function testAssessmentPlanCreatesAndParksAllCards() {
   assert.equal(calls.add[0].reason, "Created from Hermes Mobile assessment plan.");
   assert.equal(calls.add[0].caseSourceText, "Blueprint\n\nCONFIG:exam-1");
   assert.equal(calls.add[0].caseCardGoal, "CONFIG:exam-1\n\nDescription 1");
+  assert.equal(calls.add[0].topicThreadId, "thread-assessment-one");
+  assert.equal(calls.add[0].topicTaskGroupId, "case_assessment-one");
+  assert.equal(calls.add[0].sharedDirectoryPath, "shared/owner/assessment-one");
+  assert.equal(calls.add[0].caseDirectoryPath, "shared/owner/assessment-one/case");
   assert.equal(calls.add[0].idempotencyKey, createIdempotencyKey("assessment-plan", "assessment-one", "assessment-1"));
   assert.deepEqual(calls.add[1].caseDependsOn, ["assessment-1"]);
   assert.equal(calls.block.length, 2);

@@ -113,6 +113,10 @@ function row(id, extra = {}) {
     kanban_case_source_text: "source",
     kanban_case_summary: "summary",
     kanban_case_cover: { path: "cover.png", name: "Cover" },
+    topic_thread_id: "thread-study",
+    topic_task_group_id: "case_study",
+    shared_directory_path: "shared/study",
+    case_directory_path: "shared/study/case",
     kanban_case_card_id: id,
     kanban_case_card_index: "1",
     kanban_case_card_count: "3",
@@ -155,6 +159,10 @@ function run() {
   assert.equal(projected.kanbanMaxRetries, 3);
   assert.deepEqual(projected.kanbanSkills, ["reading", "math", "extra1", "extra2", "extra3", "extra4", "extra5", "extra6"]);
   assert.deepEqual(projected.kanbanCaseDependsOn, ["a", "b"]);
+  assert.equal(projected.topicThreadId, "thread-study");
+  assert.equal(projected.topicTaskGroupId, "case_study");
+  assert.equal(projected.sharedDirectoryPath, "shared/study");
+  assert.equal(projected.caseDirectoryPath, "shared/study/case");
   assert.equal(projected.kanbanOutputs.length, 1);
   assert.deepEqual(calls.outputs.at(-1), { workspaceId: "student-a", text: "MEDIA:/tmp/result.pdf" });
   assert.deepEqual(calls.covers.at(-1), { workspaceId: "student-a", cover: { path: "cover.png", name: "Cover" } });

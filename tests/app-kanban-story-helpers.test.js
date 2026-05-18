@@ -156,6 +156,27 @@ function baseOptions(extra = {}) {
 }
 
 {
+  const todos = [
+    {
+      id: "growth-1",
+      content: "Writing practice",
+      kanbanCaseId: "growth-case",
+      kanbanCaseMode: "study-plan",
+      kanbanCaseTemplate: "learning-growth",
+      kanbanCaseSummary: "English growth",
+      kanbanCaseCardIndex: 1,
+      kanbanStatus: "todo",
+      updatedAt: "2026-01-05T00:00:00Z",
+    },
+  ];
+  const groups = Helpers.kanbanStoryCases(todos, baseOptions());
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].mode, "study-plan");
+  assert.equal(groups[0].caseTemplate, "learning-growth");
+  assert.equal(groups[0].cards[0].todo.id, "growth-1");
+}
+
+{
   const group = {
     cards: [
       { todo: { id: "done-1", kanbanStatus: "done", permissions: { canDelete: true } } },

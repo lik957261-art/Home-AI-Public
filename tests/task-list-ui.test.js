@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260518-growth-display-v14";
+const CLIENT_VERSION = "20260518-learning-topic-story-v15";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -448,6 +448,9 @@ assert.match(appJs, /function renderKanbanAssessmentArchiveCase\(group, options 
 assert.doesNotMatch(appJs, /renderSharedTopicKanbanProgress\(group\)/);
 assert.doesNotMatch(appJs, /const sharedTopicProgress = renderSharedTopicKanbanProgress\(group\)/);
 assert.match(appJs, /const latestArtifact = sharedTopic \? null : latestTaskListDocument\(group\)/);
+assert.match(appJs, /function renderKanbanTopicProgress\(group\)/);
+assert.match(appJs, /const sharedTopicProgress = sharedTopic \? renderKanbanTopicProgress\(storyGroup\) : ""/);
+assert.match(appJs, /kanbanStoryCaseIsLearningGrowth\(group\)/);
 assert.match(appJs, /async function refreshCaseTopicThreadsForWorkspace\(\)/);
 assert.match(appJs, /\/api\/threads\/\$\{encodeURIComponent\(boundTopic\.threadId\)\}\/tasks\/\$\{encodeURIComponent\(boundTopic\.taskGroupId\)\}/);
 assert.match(appJs, /阅读复述/);

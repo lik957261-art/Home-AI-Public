@@ -433,6 +433,7 @@
     return {
       id: explicitCaseId || inferredCaseId,
       mode: String(todo?.kanbanCaseMode || (sourceText ? "multi-agent" : "single-card")),
+      caseTemplate: String(todo?.kanbanCaseTemplate || todo?.kanbanStudyKind || "").trim().toLowerCase(),
       sourceText,
       summary,
       cardId: String(todo?.kanbanCaseCardId || todo?.id || ""),
@@ -460,6 +461,7 @@
         groups.set(info.id, {
           id: info.id,
           mode: info.mode,
+          caseTemplate: info.caseTemplate,
           title: info.summary || context.todoTitle(todo),
           sourceText: info.sourceText,
           cards: [],
@@ -467,6 +469,7 @@
         });
       }
       const group = groups.get(info.id);
+      if (!group.caseTemplate && info.caseTemplate) group.caseTemplate = info.caseTemplate;
       if (!group.sourceText && info.sourceText) group.sourceText = info.sourceText;
       if ((!group.title || group.title === group.id) && info.summary) group.title = info.summary;
       group.cards.push({ todo, info });

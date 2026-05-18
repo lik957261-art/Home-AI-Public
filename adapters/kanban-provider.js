@@ -286,6 +286,10 @@ function bodyWithMeta(content, meta, options = {}) {
     caseSourceText: meta.caseSourceText || "",
     caseSummary: meta.caseSummary || "",
     caseCover: meta.caseCover || null,
+    topicThreadId: meta.topicThreadId || "",
+    topicTaskGroupId: meta.topicTaskGroupId || "",
+    sharedDirectoryPath: meta.sharedDirectoryPath || "",
+    caseDirectoryPath: meta.caseDirectoryPath || "",
     caseCardId: meta.caseCardId || "",
     caseCardIndex: Number(meta.caseCardIndex || 0) || 0,
     caseCardCount: Number(meta.caseCardCount || 0) || 0,
@@ -534,6 +538,10 @@ function createKanbanTodoBridge(options = {}) {
       kanban_case_source_text: String(meta.caseSourceText || meta.case_source_text || ""),
       kanban_case_summary: String(meta.caseSummary || meta.case_summary || ""),
       kanban_case_cover: meta.caseCover || meta.case_cover || null,
+      topic_thread_id: String(meta.topicThreadId || meta.topic_thread_id || ""),
+      topic_task_group_id: String(meta.topicTaskGroupId || meta.topic_task_group_id || ""),
+      shared_directory_path: String(meta.sharedDirectoryPath || meta.shared_directory_path || ""),
+      case_directory_path: String(meta.caseDirectoryPath || meta.case_directory_path || ""),
       kanban_case_card_id: String(meta.caseCardId || meta.case_card_id || ""),
       kanban_case_card_index: Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 0,
       kanban_case_card_count: Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || 0,
@@ -612,6 +620,10 @@ function createKanbanTodoBridge(options = {}) {
         caseSourceText: String(row.kanban_case_source_text || previous.caseSourceText || ""),
         caseSummary: String(row.kanban_case_summary || previous.caseSummary || ""),
         caseCover: row.kanban_case_cover || previous.caseCover || null,
+        topicThreadId: String(row.topic_thread_id || previous.topicThreadId || ""),
+        topicTaskGroupId: String(row.topic_task_group_id || previous.topicTaskGroupId || ""),
+        sharedDirectoryPath: String(row.shared_directory_path || previous.sharedDirectoryPath || ""),
+        caseDirectoryPath: String(row.case_directory_path || previous.caseDirectoryPath || ""),
         caseCardId: String(row.kanban_case_card_id || previous.caseCardId || ""),
         caseCardIndex: Number(row.kanban_case_card_index ?? previous.caseCardIndex ?? 0) || 0,
         caseCardCount: Number(row.kanban_case_card_count ?? previous.caseCardCount ?? 0) || 0,
@@ -937,6 +949,10 @@ function createKanbanTodoBridge(options = {}) {
       caseSourceText: String(payload.case_source_text || payload.caseSourceText || "").trim(),
       caseSummary: String(payload.case_summary || payload.caseSummary || "").trim(),
       caseCover: payload.case_cover || payload.caseCover || null,
+      topicThreadId: String(payload.topic_thread_id || payload.topicThreadId || "").trim(),
+      topicTaskGroupId: String(payload.topic_task_group_id || payload.topicTaskGroupId || "").trim(),
+      sharedDirectoryPath: String(payload.shared_directory_path || payload.sharedDirectoryPath || "").trim(),
+      caseDirectoryPath: String(payload.case_directory_path || payload.caseDirectoryPath || "").trim(),
       caseCardId: String(payload.case_card_id || payload.caseCardId || "").trim(),
       caseCardIndex: Number(payload.case_card_index ?? payload.caseCardIndex ?? 0) || 0,
       caseCardCount: Number(payload.case_card_count ?? payload.caseCardCount ?? 0) || 0,
@@ -1178,6 +1194,10 @@ function createKanbanTodoBridge(options = {}) {
       const caseSourceText = String(meta.caseSourceText || meta.case_source_text || originalTitle).trim();
       const caseSummary = String(meta.caseSummary || meta.case_summary || `Manual revision for ${originalTitle}`).trim();
       const caseCover = meta.caseCover || meta.case_cover || null;
+      const topicThreadId = String(meta.topicThreadId || meta.topic_thread_id || "").trim();
+      const topicTaskGroupId = String(meta.topicTaskGroupId || meta.topic_task_group_id || "").trim();
+      const sharedDirectoryPath = String(meta.sharedDirectoryPath || meta.shared_directory_path || "").trim();
+      const caseDirectoryPath = String(meta.caseDirectoryPath || meta.case_directory_path || "").trim();
       const manualWorkflowRevision = caseMode === "study-plan" || caseMode === "assessment-plan";
       const originalCaseCardIndex = Number(meta.caseCardIndex ?? meta.case_card_index ?? 0) || 1;
       const currentCaseCardCount = Number(meta.caseCardCount ?? meta.case_card_count ?? 0) || originalCaseCardIndex;
@@ -1203,6 +1223,10 @@ function createKanbanTodoBridge(options = {}) {
         case_source_text: caseSourceText,
         case_summary: caseSummary,
         case_cover: caseCover,
+        topic_thread_id: topicThreadId,
+        topic_task_group_id: topicTaskGroupId,
+        shared_directory_path: sharedDirectoryPath,
+        case_directory_path: caseDirectoryPath,
         case_card_id: `${originalCaseCardId}-revision-${revisionCount}`,
         case_card_index: caseCardIndex,
         case_card_count: caseCardCount,
@@ -1236,6 +1260,10 @@ function createKanbanTodoBridge(options = {}) {
         caseSourceText,
         caseSummary,
         caseCover,
+        topicThreadId,
+        topicTaskGroupId,
+        sharedDirectoryPath,
+        caseDirectoryPath,
         caseCardId: originalCaseCardId,
         caseCardIndex: Number(previousOriginal.caseCardIndex ?? previousOriginal.case_card_index ?? 0) || 1,
         caseCardCount,

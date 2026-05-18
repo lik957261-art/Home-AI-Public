@@ -113,6 +113,10 @@ async function run() {
     case_mode: "multi-agent",
     case_source_text: "Original request",
     case_summary: "Requirement to conclusion",
+    topic_thread_id: "thread-study",
+    topic_task_group_id: "case_study",
+    shared_directory_path: "shared/child/study",
+    case_directory_path: "shared/child/study/case",
     case_card_id: "card-1",
     case_card_index: 1,
     case_card_count: 2,
@@ -129,6 +133,10 @@ async function run() {
   assert.equal(created.kanban_assignee, "exec-weixin_stephen");
   assert.equal(created.kanban_case_id, "case-one");
   assert.equal(created.kanban_case_summary, "Requirement to conclusion");
+  assert.equal(created.topic_thread_id, "thread-study");
+  assert.equal(created.topic_task_group_id, "case_study");
+  assert.equal(created.shared_directory_path, "shared/child/study");
+  assert.equal(created.case_directory_path, "shared/child/study/case");
   assert.equal(created.kanban_case_card_index, 1);
   assert.deepEqual(created.kanban_case_deliverables, ["Draft"]);
   assert.deepEqual(created.kanban_case_acceptance, ["Readable archive story"]);
@@ -144,6 +152,7 @@ async function run() {
   assert.ok(createCall[1].includes("dir:/workspaces/weixin_stephen"));
   assert.match(createCall[1][createCall[1].indexOf("--body") + 1], /Hermes Mobile completion contract/);
   assert.match(createCall[1][createCall[1].indexOf("--body") + 1], /learningTaskModel/);
+  assert.match(createCall[1][createCall[1].indexOf("--body") + 1], /topicThreadId/);
 
   const listed = await provider.run({
     action: "list",
@@ -156,6 +165,7 @@ async function run() {
   assert.equal(listed.todos[0].id, "t_created");
   assert.equal(listed.todos[0].content, "Read chapter");
   assert.equal(listed.todos[0].due_local.startsWith("2026-05-10"), true);
+  assert.equal(listed.todos[0].topic_task_group_id, "case_study");
   assert.equal(listed.todos[0].learning_task_model.skillId, "english_short_writing");
 
   const listedWithCompleted = await provider.run({

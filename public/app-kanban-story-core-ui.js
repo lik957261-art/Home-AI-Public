@@ -264,6 +264,14 @@ function kanbanStoryCaseRenderState(group, options = {}) {
   };
 }
 
+function kanbanStoryCaseTemplate(group) {
+  return String(group?.caseTemplate || group?.cards?.[0]?.todo?.kanbanCaseTemplate || "").trim().toLowerCase();
+}
+
+function kanbanStoryCaseIsLearningGrowth(group) {
+  return kanbanStoryCaseTemplate(group) === "learning-growth";
+}
+
 function kanbanStoryCaseArchiveItems(group) {
   return KanbanStoryHelpers.kanbanStoryCaseArchiveItems(group, kanbanStoryHelperOptions());
 }
@@ -519,7 +527,7 @@ function renderKanbanAssessmentArchiveCase(group, options = {}) {
 
 function renderKanbanArchiveCase(group, options = {}) {
   if (group.mode === "assessment-plan") return renderKanbanAssessmentArchiveCase(group, options);
-  if (group.mode === "study-plan") return renderKanbanReadingArchiveCase(group, options);
+  if (group.mode === "study-plan" && !kanbanStoryCaseIsLearningGrowth(group)) return renderKanbanReadingArchiveCase(group, options);
   const cards = group.cards || [];
   const first = cards[0]?.todo || {};
   const cover = cards.map((item) => kanbanCaseCover(item.todo)).find(Boolean);
@@ -527,7 +535,9 @@ function renderKanbanArchiveCase(group, options = {}) {
   const conclusion = kanbanArchiveConclusion(group);
   const statusSummary = kanbanArchiveStatusSummary(group);
   const latest = group.latest ? todoTimestampLabel(new Date(group.latest).toISOString()) : "";
-  const modeLabel = group.mode === "multi-agent" ? "\u591a Agent" : "\u5355\u5361";
+  const modeLabel = kanbanStoryCaseIsLearningGrowth(group)
+    ? "\u6210\u957f\u8ba1\u5212"
+    : (group.mode === "multi-agent" ? "\u591a Agent" : "\u5355\u5361");
   const titleByCardId = new Map(cards.map(({ todo, info }, index) => [
     info.cardId || `card-${info.cardIndex || index + 1}`,
     todo.content || info.cardId || todo.id || "",
@@ -560,7 +570,7 @@ function renderKanbanArchiveCase(group, options = {}) {
   const archiveButton = renderKanbanStoryArchiveButton(group, options);
   const modeClass = group.mode === "single-card"
     ? " single-card-case"
-    : (group.mode === "multi-agent" ? " multi-agent-case" : "");
+    : (group.mode === "multi-agent" ? " multi-agent-case" : (kanbanStoryCaseIsLearningGrowth(group) ? " learning-growth-case" : ""));
   return `<article class="kanban-archive-case${modeClass}${storyState.caseClass}${swipeState.articleClass}"${swipeState.articleAttrs}>
     ${swipeState.deleteButton}
     <div class="${swipeState.contentClass}"${swipeState.contentAttrs}>
