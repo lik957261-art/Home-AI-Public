@@ -288,10 +288,12 @@ function Start-WeixinFrontGatewayIfNeeded {
         return
     }
     $resolvedWslUser = $WeixinFrontGatewayWslUser
+    if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY_WSL_USER }
     if (-not $resolvedWslUser) { $resolvedWslUser = $BridgeWslUser }
     if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_WEB_WSL_USER }
     if (-not $resolvedWslUser) { $resolvedWslUser = "xuxin" }
     $resolvedHermesHome = $WeixinFrontGatewayHermesHome
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY_HERMES_HOME }
     if (-not $resolvedHermesHome) { $resolvedHermesHome = $BridgeHermesHome }
     if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_WEB_HERMES_HOME }
     if (-not $resolvedHermesHome) { $resolvedHermesHome = "/home/$resolvedWslUser/.hermes" }
