@@ -1180,6 +1180,9 @@ assert.match(kanbanExecutableProfileServiceJs, /const cursor = options\.cursor \
 assert.match(kanbanExecutableProfileServiceJs, /function nextProfile\(workspace, workers\)/);
 assert.match(kanbanProviderJs, /const \{ compareKanbanRowsForList \} = require\("\.\/kanban-card-order-service"\)/);
 assert.match(kanbanProviderJs, /\.sort\(\(a, b\) => compareKanbanRowsForList\(a, b, \{ openStatuses: OPEN_KANBAN_STATUSES \}\)\)/);
+assert.match(kanbanCardApiRoutes, /const \{ compareKanbanRowsForList \} = require\("\.\.\/adapters\/kanban-card-order-service"\)/);
+assert.match(kanbanCardApiRoutes, /function sortKanbanCardsForList\(cards = \[\]\)/);
+assert.match(kanbanCardApiRoutes, /sortKanbanCardsForList\(dedupeCardsById/);
 assert.match(kanbanCardOrderServiceJs, /const leftOpen = isOpenKanbanRow\(left, options\)/);
 assert.match(kanbanCardOrderServiceJs, /const byRecent = rightTimestamp - leftTimestamp/);
 assert.match(appJs, /评论并解除阻塞/);

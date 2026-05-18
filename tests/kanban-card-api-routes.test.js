@@ -114,7 +114,7 @@ function makeRoutes(overrides = {}) {
         calls.list.push(payload);
         return Promise.resolve({
           ok: true,
-          data: [{ id: "card-1", title: "Provider card" }],
+          data: [{ id: "card-1", title: "Provider card", status: "open", kanbanStatus: "todo", updatedAt: "2026-05-18T03:00:00.000Z" }],
           assignees: [{ id: "owner", label: "Owner" }],
           source: { name: "hermes_kanban" },
           board: "workspace-child",
@@ -145,7 +145,7 @@ function makeRoutes(overrides = {}) {
         calls.shared.push(Object.assign({ ownerGrowth: true }, input));
         return Promise.resolve({
           ok: true,
-          cards: [{ id: "growth-1", workspaceId: "child", kanbanCaseTemplate: "learning-growth" }],
+          cards: [{ id: "growth-1", workspaceId: "child", kanbanCaseTemplate: "learning-growth", status: "open", kanbanStatus: "todo", updatedAt: "2026-05-18T01:00:00.000Z" }],
         });
       },
     },
@@ -219,7 +219,7 @@ function makeRoutes(overrides = {}) {
     },
     sharedKanbanCardsForAuth(auth, workspaceId, listArgs) {
       calls.shared.push({ auth, workspaceId, listArgs });
-      return Promise.resolve([{ id: "shared-1", shared: true }]);
+      return Promise.resolve([{ id: "shared-1", shared: true, status: "open", kanbanStatus: "todo", updatedAt: "2026-05-18T02:00:00.000Z" }]);
     },
     todoAssigneeLabel(workspaceId, assignee) {
       return `${workspaceId}:${assignee || "unassigned"}`;
@@ -336,6 +336,70 @@ async function testListCacheHitAnnotatesAndSchedulesMaintenance() {
   assert.deepEqual(calls.cacheWrite, []);
   assert.deepEqual(got.body.data, [{ annotatedFor: "principal-child", id: "cached-1" }]);
   assert.equal(got.body.source.name, "cache");
+}
+
+async function testListSortsMergedCardsAfterProviderSharedAndGrowthMerge() {
+  const providerCards = [
+    { id: "done-old", status: "completed", kanbanStatus: "done", kanbanCompletedAt: "2026-05-18T08:00:00.000Z" },
+    { id: "open-card", status: "open", kanbanStatus: "todo", updatedAt: "2026-05-18T01:00:00.000Z" },
+    { id: "done-provider-new", status: "completed", kanbanStatus: "done", kanbanCompletedAt: "2026-05-18T12:00:00.000Z" },
+  ];
+  const provider = {
+    listCards(payload) {
+      provider.calls.push(payload);
+      return Promise.resolve({
+        ok: true,
+        data: providerCards,
+        assignees: [],
+        source: { name: "hermes_kanban" },
+        board: "workspace-child",
+        result: { ok: true },
+      });
+    },
+    addCard() {},
+    cardDetail() {},
+    mutateCard() {},
+    calls: [],
+  };
+  const { routes } = makeRoutes({
+    kanbanCardProvider: provider,
+    sharedKanbanCardsForAuth() {
+      return Promise.resolve([
+        { id: "done-shared-middle", status: "completed", kanbanStatus: "done", kanbanCompletedAt: "2026-05-18T10:00:00.000Z" },
+      ]);
+    },
+  });
+  const got = await request(routes, "GET", "/api/kanban/cards?workspaceId=child&includeCompleted=1&fresh=1");
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(got.body.data.map((card) => card.id), [
+    "open-card",
+    "done-provider-new",
+    "done-shared-middle",
+    "done-old",
+  ]);
+}
+
+async function testListCacheHitSortsCachedCardsBeforeSend() {
+  const cachedPayload = {
+    data: [
+      { id: "done-old", status: "completed", kanbanStatus: "done", kanbanCompletedAt: "2026-05-18T08:00:00.000Z" },
+      { id: "open-card", status: "open", kanbanStatus: "todo", updatedAt: "2026-05-18T01:00:00.000Z" },
+      { id: "done-new", status: "completed", kanbanStatus: "done", kanbanCompletedAt: "2026-05-18T12:00:00.000Z" },
+    ],
+    assignees: [],
+    source: { name: "cache" },
+    board: "workspace-child",
+    result: { ok: true },
+  };
+  const { routes } = makeRoutes({
+    readKanbanCardListCache(args) {
+      assert.equal(args.workspaceId, "child");
+      return cachedPayload;
+    },
+  });
+  const got = await request(routes, "GET", "/api/kanban/cards?workspaceId=child");
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(got.body.data.map((card) => card.id), ["open-card", "done-new", "done-old"]);
 }
 
 async function testListBypassesCacheForFreshFlagsAndSharedCases() {
@@ -733,6 +797,8 @@ function testDependencyValidation() {
   await testRouteMetadataMatchingAndFallthrough();
   await testListProviderSharedMergeAndMaintenance();
   await testListCacheHitAnnotatesAndSchedulesMaintenance();
+  await testListSortsMergedCardsAfterProviderSharedAndGrowthMerge();
+  await testListCacheHitSortsCachedCardsBeforeSend();
   await testListBypassesCacheForFreshFlagsAndSharedCases();
   await testOwnerListIncludesManagedLearningGrowthCardsWithoutCache();
   await testListTargetBypassesCacheAndForwardsTargetId();

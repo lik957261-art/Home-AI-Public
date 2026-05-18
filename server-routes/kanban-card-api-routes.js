@@ -1,6 +1,7 @@
 "use strict";
 
 const { createApiRouteRegistry } = require("../adapters/api-route-registry");
+const { compareKanbanRowsForList } = require("../adapters/kanban-card-order-service");
 
 const KANBAN_CARD_API_ROUTE_SPECS = Object.freeze([
   {
@@ -185,6 +186,10 @@ function dedupeCardsById(cards = []) {
   return result;
 }
 
+function sortKanbanCardsForList(cards = []) {
+  return Array.isArray(cards) ? cards.slice().sort(compareKanbanRowsForList) : [];
+}
+
 function createKanbanCardApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "annotateKanbanCardsForAuth",
@@ -296,7 +301,7 @@ function createKanbanCardApiRoutes(deps = {}) {
       if (cached) {
         deps.scheduleKanbanDependencyReconcile(workspaceId);
         deps.sendJson(res, 200, Object.assign({}, cached, {
-          data: deps.annotateKanbanCardsForAuth(cached.data, auth),
+          data: sortKanbanCardsForList(deps.annotateKanbanCardsForAuth(cached.data, auth)),
         }));
         return;
       }
@@ -313,7 +318,7 @@ function createKanbanCardApiRoutes(deps = {}) {
       const ownerGrowth = await deps.learningGrowthKanbanTaskService.listOwnerManagedKanbanCards({ auth, isOwner, workspaceId, listArgs });
       ownerGrowthData = deps.annotateKanbanCardsForAuth(ownerGrowth.cards || [], auth);
     }
-    const data = dedupeCardsById(deps.annotateKanbanCardsForAuth(result.data, auth).concat(sharedData, ownerGrowthData));
+    const data = sortKanbanCardsForList(dedupeCardsById(deps.annotateKanbanCardsForAuth(result.data, auth).concat(sharedData, ownerGrowthData)));
     const payload = {
       data,
       assignees: result.assignees,
