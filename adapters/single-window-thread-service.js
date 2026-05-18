@@ -186,12 +186,19 @@ function createSingleWindowThreadService(deps = {}) {
       .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
   }
 
+  function caseTopicThreadVisibleForWorkspace(auth, thread, workspaceId) {
+    const id = String(workspaceId || "").trim();
+    if (!id) return false;
+    if (chatGroupMemberWorkspaceIds(thread).includes(id)) return true;
+    return Boolean(auth?.isOwner && id === "owner");
+  }
+
   function kanbanCaseTopicThreadsForWorkspace(auth, workspaceId) {
     const id = String(workspaceId || "").trim();
     if (!id) return [];
     return (stateObject().threads || [])
       .filter((thread) => isKanbanCaseTopicThread(thread))
-      .filter((thread) => chatGroupMemberWorkspaceIds(thread).includes(id))
+      .filter((thread) => caseTopicThreadVisibleForWorkspace(auth, thread, id))
       .filter((thread) => threadAccessibleToAuth(auth, thread))
       .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
   }

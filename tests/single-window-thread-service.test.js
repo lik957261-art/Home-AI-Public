@@ -74,12 +74,15 @@ function testFindsGroupAndCaseTopicThreads() {
       threads: [
         { id: "old", workspaceId: "owner", singleWindow: true, updatedAt: "2026-01-01", chatGroup: { enabled: true, memberWorkspaceIds: ["child"] } },
         { id: "topic", workspaceId: "owner", singleWindow: true, updatedAt: "2026-01-03", chatGroup: { enabled: true, kind: "case-topic", memberWorkspaceIds: ["child"] } },
+        { id: "learner-topic", workspaceId: "child", singleWindow: true, updatedAt: "2026-01-04", chatGroup: { enabled: true, kind: "case-topic", memberWorkspaceIds: ["child"] } },
         { id: "new", workspaceId: "owner", singleWindow: true, updatedAt: "2026-01-02", chatGroup: { enabled: true, memberWorkspaceIds: ["child"] } },
       ],
     },
   });
   assert.equal(service.findGroupChatThreadForWorkspace("child").id, "new");
-  assert.deepEqual(service.kanbanCaseTopicThreadsForWorkspace({ isOwner: true, workspaceId: "child" }, "child").map((thread) => thread.id), ["topic"]);
+  assert.deepEqual(service.kanbanCaseTopicThreadsForWorkspace({ isOwner: true, workspaceId: "child" }, "child").map((thread) => thread.id), ["learner-topic", "topic"]);
+  assert.deepEqual(service.kanbanCaseTopicThreadsForWorkspace({ isOwner: true, workspaceId: "owner" }, "owner").map((thread) => thread.id), ["learner-topic", "topic"]);
+  assert.deepEqual(service.kanbanCaseTopicThreadsForWorkspace({ isOwner: false, workspaceId: "owner" }, "owner").map((thread) => thread.id), []);
 }
 
 function testEnsuresWeixinThreadAndPublicIngress() {
