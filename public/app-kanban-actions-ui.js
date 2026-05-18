@@ -192,7 +192,10 @@ function wireTodoPanel(root) {
     });
   });
   root.querySelectorAll("[data-learning-growth-submission-form]").forEach((form) => {
-    const resolveTodoId = () => form.dataset.learningGrowthSubmissionForm || form.querySelector("[data-submit-learning-growth-writing]")?.dataset?.submitLearningGrowthWriting || "";
+    const resolveTodoId = () => form.dataset.learningGrowthSubmissionForm
+      || form.querySelector("[data-submit-learning-growth-task]")?.dataset?.submitLearningGrowthTask
+      || form.querySelector("[data-submit-learning-growth-writing]")?.dataset?.submitLearningGrowthWriting
+      || "";
     form.querySelector("#todoLearningGrowthSubmissionText")?.addEventListener("input", (event) => {
       const todoId = resolveTodoId();
       if (todoId) state.todoLearningGrowthSubmissionDrafts[todoId] = event.target.value || "";
@@ -202,7 +205,7 @@ function wireTodoPanel(root) {
       event.stopPropagation();
       const todoId = resolveTodoId();
       const text = form.querySelector("#todoLearningGrowthSubmissionText")?.value || "";
-      submitLearningGrowthWriting(todoId, text).catch(showError);
+      submitLearningGrowthTask(todoId, text).catch(showError);
     });
   });
   root.querySelectorAll("[data-todo-revision-form]").forEach((form) => {

@@ -319,6 +319,70 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
   assert.equal(calls.at(-1).action, "complete");
 }
 
+async function testGenericVocabularyTaskUsesTaskModelContract() {
+  const calls = [];
+  const materialized = [];
+  const reports = [];
+  const service = createLearningGrowthWritingSubmissionService({
+    reportService: {
+      writeReport(input) {
+        reports.push(input);
+        return { path: "C:\\tmp\\growth-vocabulary-feedback.md", name: "growth-vocabulary-feedback.md", mime: "text/markdown; charset=utf-8", size: 120 };
+      },
+    },
+    directoryMaterializationService: {
+      materializeTaskEvaluation(input) {
+        materialized.push(input);
+        return { directory: "learning-plan-dir", summaryPath: "summary.md" };
+      },
+    },
+    kanbanCardProvider: {
+      async listCards() {
+        return {
+          ok: true,
+          data: [{
+            id: "t_vocab",
+            workspaceId: "child",
+            kanbanCaseMode: "study-plan",
+            kanbanCaseTemplate: "learning-growth",
+            learningTaskModel: {
+              version: "learning-task-model-v1",
+              activityType: "vocabulary",
+              skillId: "english_vocabulary_active_use",
+              learnerInstruction: "Use target vocabulary in school examples.",
+              submissionContract: {
+                firstSubmissionKind: "vocabulary_sentences",
+                revisionSubmissionKind: "vocabulary_repair",
+              },
+            },
+          }],
+        };
+      },
+      async mutateCard(input) {
+        calls.push(input);
+        return { ok: true, id: input.cardId, action: input.action };
+      },
+    },
+  });
+  assert.equal(typeof service.submitTask, "function");
+  const text = [
+    "I observe the class carefully.",
+    "The teacher reminded us to compare two ideas.",
+    "I improved my sentence because the first version was too general.",
+    "Next time I will add evidence before I answer.",
+    "Finally, I can use the word accurately in a school example.",
+  ].join("\n");
+  const result = await service.submitTask({ workspaceId: "child", cardId: "t_vocab", text, author: "child" });
+  assert.equal(result.ok, true);
+  assert.equal(result.evaluation.activityType, "vocabulary");
+  assert.equal(result.evaluation.nextStep, "rewrite_and_reflect");
+  assert.equal(calls[0].submissionKind, "vocabulary_sentences");
+  assert.equal(calls[1].learningGrowthEvaluation.activityType, "vocabulary");
+  assert.equal(materialized.length, 1);
+  assert.equal(reports[0].evaluation.activityType, "vocabulary");
+  assert.doesNotMatch(JSON.stringify(result.evaluation), /I observe the class carefully/);
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createLearningGrowthWritingSubmissionService({ kanbanCardProvider: { listCards() {} } }),
@@ -332,6 +396,7 @@ function testDependencyValidation() {
   await testModelFeedbackEnhancesPublicEvaluation();
   await testFinalRewriteSettlesAndCompletes();
   await testUsesLearningProgramSettlementWhenTaskLinked();
+  await testGenericVocabularyTaskUsesTaskModelContract();
   await testRejectsMissingNonGrowthAndOversizedSubmissions();
   console.log("learning growth writing submission service tests passed");
 })().catch((err) => {

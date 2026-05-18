@@ -42,7 +42,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const draft = state.todoLearningGrowthSubmissionDrafts?.[todo.id] || "";
   const feedbackSections = evaluation?.feedbackSections || {};
   const reportLinks = evaluation?.report ? renderKanbanOutputLinks([evaluation.report], "todo-detail-outputs compact") : "";
-  const submitLabel = submitting ? "\u6b63\u5728\u63d0\u4ea4..." : (["rewrite_and_reflect", "revise_and_resubmit"].includes(String(evaluation?.nextStep || "")) ? "\u63d0\u4ea4\u6539\u5199\u548c\u590d\u76d8" : "\u63d0\u4ea4\u8349\u7a3f");
+  const submitLabel = submitting ? "\u6b63\u5728\u63d0\u4ea4..." : (["rewrite_and_reflect", "revise_and_resubmit"].includes(String(evaluation?.nextStep || "")) ? "\u63d0\u4ea4\u4fee\u6539\u548c\u590d\u76d8" : "\u63d0\u4ea4\u4f5c\u7b54");
   const details = [
     taskModel ? `<div class="todo-detail-chip-row" data-learning-growth-task-model="${escapeHtml(taskModel.skillId || "")}"><span>${escapeHtml(typeof LearningGrowthTaskUi.activityLabel === "function" ? LearningGrowthTaskUi.activityLabel(taskModel.activityType) : (taskModel.activityType || "\u7ec3\u4e60"))}</span><span>${escapeHtml(typeof LearningGrowthTaskUi.nextActionLabel === "function" ? LearningGrowthTaskUi.nextActionLabel(nextAction) : nextAction)}</span>${taskModel.plannedMinutes ? `<span>${escapeHtml(String(taskModel.plannedMinutes))} min</span>` : ""}</div>` : "",
     looksGenericSubmitCard ? `<p class="todo-detail-muted">\u8fd9\u5f20\u6210\u957f\u5361\u8fd8\u6ca1\u6709\u5177\u4f53\u4efb\u52a1\u8bf4\u660e\uff0c\u8bf7\u91cd\u65b0\u751f\u6210\u6216\u91cd\u65b0\u4e0b\u53d1\u8ba1\u5212\u540e\u518d\u63d0\u4ea4\u3002</p>` : "",
@@ -53,12 +53,12 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   ].filter(Boolean).join("");
   const submissionForm = canSubmit
     ? `<form class="todo-learning-growth-submit" data-learning-growth-submission-form="${escapeHtml(todo.id)}">
-      <label class="todo-panel-label" for="todoLearningGrowthSubmissionText">${escapeHtml(evaluation ? "\u4e0b\u4e00\u7248\u4f5c\u7b54" : "\u672c\u6b21\u8349\u7a3f")}</label>
+      <label class="todo-panel-label" for="todoLearningGrowthSubmissionText">${escapeHtml(evaluation ? "\u4e0b\u4e00\u7248\u4f5c\u7b54" : "\u672c\u6b21\u4f5c\u7b54")}</label>
       <textarea id="todoLearningGrowthSubmissionText" class="todo-input todo-comment-textarea" rows="7" placeholder="${escapeHtml(learningGrowthSubmissionPrompt(evaluation || {}, todo))}" ${submitting ? "disabled" : ""}>${escapeHtml(draft)}</textarea>
       <div class="todo-comment-actions">
-        <button type="submit" data-submit-learning-growth-writing="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${escapeHtml(submitLabel)}</button>
+        <button type="submit" data-submit-learning-growth-task="${escapeHtml(todo.id)}" data-submit-learning-growth-writing="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${escapeHtml(submitLabel)}</button>
       </div>
-      <p class="todo-detail-muted">${escapeHtml(evaluation ? "\u63d0\u4ea4\u6539\u5199\u540e\u624d\u4f1a\u8fdb\u5165\u6700\u7ec8\u901a\u8fc7\u548c\u91d1\u5e01\u7ed3\u7b97\u3002" : "\u9996\u6b21\u63d0\u4ea4\u540e\u4f1a\u751f\u6210 AI \u6279\u6539\u548c Markdown \u62a5\u544a\uff0c\u4e0d\u4f1a\u7acb\u523b\u7ed3\u7b97\u5b8c\u6210\u3002")}</p>
+      <p class="todo-detail-muted">${escapeHtml(evaluation ? "\u63d0\u4ea4\u4fee\u6539\u7248\u540e\u624d\u4f1a\u8fdb\u5165\u6700\u7ec8\u901a\u8fc7\u548c\u91d1\u5e01\u7ed3\u7b97\u3002" : "\u9996\u6b21\u63d0\u4ea4\u540e\u4f1a\u751f\u6210 AI \u53cd\u9988\u548c Markdown \u62a5\u544a\uff0c\u4e0d\u4f1a\u7acb\u523b\u7ed3\u7b97\u5b8c\u6210\u3002")}</p>
     </form>`
     : "";
   const feedbackBlock = feedback?.message
@@ -67,7 +67,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const submittedBlock = submitted
     ? `<div class="todo-learning-growth-status" data-learning-growth-submission-status="${escapeHtml(submitted.status || "submitted")}">
       <strong>\u5df2\u6536\u5230\u4f5c\u7b54</strong>
-      <p>${escapeHtml(evaluation ? (evaluation.nextStep === "completed" ? "\u6700\u7ec8\u6279\u6539\u5df2\u5b8c\u6210\u3002" : "\u5df2\u751f\u6210 AI \u6279\u6539\u548c\u6539\u5199\u8981\u6c42\uff0c\u8bf7\u7ee7\u7eed\u5b8c\u6210\u4e0b\u4e00\u7248\u3002") : "\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\u6216\u5bb6\u957f\u590d\u6838\u3002")}</p>
+      <p>${escapeHtml(evaluation ? (evaluation.nextStep === "completed" ? "\u6700\u7ec8\u53cd\u9988\u5df2\u5b8c\u6210\u3002" : "\u5df2\u751f\u6210 AI \u53cd\u9988\u548c\u4fee\u6539\u8981\u6c42\uff0c\u8bf7\u7ee7\u7eed\u5b8c\u6210\u4e0b\u4e00\u7248\u3002") : "\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u6b63\u5728\u7b49\u5f85 AI \u53cd\u9988\u6216\u5bb6\u957f\u590d\u6838\u3002")}</p>
       ${submitted.submittedAt ? `<small>${escapeHtml(formatTime(submitted.submittedAt) || submitted.submittedAt)}</small>` : ""}
     </div>`
     : "";
@@ -80,7 +80,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
         ${reportLinks}
         ${renderLearningGrowthFeedbackList("\u4f18\u70b9", feedbackSections.strengths)}
         ${renderLearningGrowthFeedbackList("\u91cd\u70b9\u4fee\u6539", feedbackSections.focusAreas || evaluation.revisionRequirements)}
-        ${renderLearningGrowthFeedbackList("AI \u53e5\u5b50\u7ea7\u6307\u5bfc", Array.isArray(feedbackSections.sentenceFeedback) ? feedbackSections.sentenceFeedback.map((item) => [item.evidence ? `\u8bc1\u636e\uff1a${item.evidence}` : "", item.issue ? `\u95ee\u9898\uff1a${item.issue}` : "", item.fix ? `\u4fee\u6539\uff1a${item.fix}` : "", item.example ? `\u793a\u4f8b\uff1a${item.example}` : ""].filter(Boolean).join("\uff1b")) : [])}
+        ${renderLearningGrowthFeedbackList("AI \u5177\u4f53\u6307\u5bfc", Array.isArray(feedbackSections.sentenceFeedback) ? feedbackSections.sentenceFeedback.map((item) => [item.evidence ? `\u8bc1\u636e\uff1a${item.evidence}` : "", item.issue ? `\u95ee\u9898\uff1a${item.issue}` : "", item.fix ? `\u4fee\u6539\uff1a${item.fix}` : "", item.example ? `\u793a\u4f8b\uff1a${item.example}` : ""].filter(Boolean).join("\uff1b")) : [])}
         ${renderLearningGrowthFeedbackList("\u6539\u5199\u6e05\u5355", feedbackSections.rewriteChecklist)}
         ${renderLearningGrowthFeedbackList("\u590d\u76d8\u95ee\u9898", feedbackSections.reflectionPrompts)}
         ${feedbackSections.nextPractice ? `<p><strong>${escapeHtml("下一次训练")}</strong><br>${escapeHtml(feedbackSections.nextPractice)}</p>` : ""}

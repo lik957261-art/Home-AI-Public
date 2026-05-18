@@ -145,7 +145,7 @@ const KANBAN_CARD_API_ROUTE_SPECS = Object.freeze([
     group: "kanban",
     moduleKey: "kanban",
     handlerKey: "submitLearningGrowthWriting",
-    summary: "Submit one authorized Growth learning writing answer.",
+    summary: "Submit one authorized Growth learning task answer.",
     riskLevel: "medium",
     authMode: "access-key",
     authRequired: true,
@@ -224,8 +224,8 @@ function createKanbanCardApiRoutes(deps = {}) {
   if (!deps.kanbanCardProvider || typeof deps.kanbanCardProvider.listCards !== "function" || typeof deps.kanbanCardProvider.addCard !== "function" || typeof deps.kanbanCardProvider.cardDetail !== "function" || typeof deps.kanbanCardProvider.mutateCard !== "function") {
     throw new Error("kanban card api routes require kanbanCardProvider list/add/detail/mutate");
   }
-  if (!deps.learningGrowthWritingSubmissionService || typeof deps.learningGrowthWritingSubmissionService.submitWriting !== "function") {
-    throw new Error("kanban card api routes require learningGrowthWritingSubmissionService.submitWriting");
+  if (!deps.learningGrowthWritingSubmissionService || (typeof deps.learningGrowthWritingSubmissionService.submitTask !== "function" && typeof deps.learningGrowthWritingSubmissionService.submitWriting !== "function")) {
+    throw new Error("kanban card api routes require learningGrowthWritingSubmissionService.submitTask");
   }
 
   const sourceDocumentMaxBytes = Math.max(1, Number(deps.sourceDocumentMaxBytes || 20 * 1024 * 1024));
@@ -555,7 +555,10 @@ function createKanbanCardApiRoutes(deps = {}) {
     );
     if (!access) return;
     const workspaceId = access.workspaceId;
-    const result = await deps.learningGrowthWritingSubmissionService.submitWriting({
+    const submitLearningTask = typeof deps.learningGrowthWritingSubmissionService.submitTask === "function"
+      ? deps.learningGrowthWritingSubmissionService.submitTask
+      : deps.learningGrowthWritingSubmissionService.submitWriting;
+    const result = await submitLearningTask({
       workspaceId,
       cardId,
       text: body.text || body.submission || body.comment || "",

@@ -153,6 +153,7 @@ function buildWritingFeedbackPrompt(input = {}) {
   const model = taskModelFromCard(card);
   const evaluation = input.evaluation || {};
   const stage = cleanString(input.stage || evaluation.stage || "draft");
+  const activityType = cleanString(model.activityType || evaluation.activityType || "practice") || "practice";
   const payload = {
     stage,
     deterministicScore: Number(evaluation.score || 0),
@@ -166,7 +167,7 @@ function buildWritingFeedbackPrompt(input = {}) {
     task: {
       title: cleanString(card.content || card.title),
       instruction: cardInstruction(card),
-      activityType: cleanString(model.activityType),
+      activityType,
       skillId: cleanString(model.skillId),
       deliverables: asArray(model.deliverables || card.kanbanCaseDeliverables).slice(0, 8),
       acceptance: asArray(model.acceptance || card.kanbanCaseAcceptance).slice(0, 8),
@@ -174,12 +175,12 @@ function buildWritingFeedbackPrompt(input = {}) {
     studentAnswer: String(input.text || ""),
   };
   return [
-    "You are an English writing coach for a Grade 7 learner at B1 bridge level.",
-    "Analyze the student's current answer against the task. Give specific teaching feedback, not generic encouragement.",
+    "You are an English learning coach for a Grade 7 learner at B1 bridge level.",
+    `Analyze the student's current ${activityType} answer against the task. Give specific teaching feedback, not generic encouragement.`,
     "Return strict JSON only. Do not use Markdown fences.",
     "Do not copy the full student answer. Evidence phrases must be short, at most 12 words each.",
     "Do not invent errors or content not supported by the answer and task.",
-    "For draft stage: explain what to rewrite before final submission.",
+    "For draft stage: explain what to revise before final submission.",
     "For final stage: give a final conclusion, what improved, and the next practice focus.",
     "Use Chinese for explanations, but include short corrected English examples where useful.",
     "JSON schema: {\"summary\":\"...\",\"finalConclusion\":\"...\",\"strengths\":[\"...\"],\"focusAreas\":[\"...\"],\"sentenceFeedback\":[{\"evidence\":\"short phrase\",\"issue\":\"...\",\"whyItMatters\":\"...\",\"fix\":\"...\",\"example\":\"short corrected English example\"}],\"rewriteChecklist\":[\"...\"],\"reflectionPrompts\":[\"...\"],\"nextPractice\":\"...\",\"parentNote\":\"...\"}",
@@ -205,7 +206,7 @@ function applyAiWritingFeedback(evaluation = {}, aiFeedback = {}) {
       nextPractice: aiFeedback.nextPractice,
       parentNote: aiFeedback.parentNote,
     }),
-    evidenceRefs: [...new Set(asArray(evaluation.evidenceRefs).concat("learning-growth-writing-ai-feedback:v1"))],
+    evidenceRefs: [...new Set(asArray(evaluation.evidenceRefs).concat("learning-growth-task-ai-feedback:v1", "learning-growth-writing-ai-feedback:v1"))],
   });
   return merged;
 }

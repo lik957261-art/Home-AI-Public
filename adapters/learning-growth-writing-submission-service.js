@@ -4,15 +4,19 @@ const {
   isLearningGrowthKanbanCard,
 } = require("./learning-growth-kanban-task-service");
 const {
-  createLearningGrowthWritingEvaluationService,
-} = require("./learning-growth-writing-evaluation-service");
+  activityLabel,
+  createLearningGrowthTaskEvaluationService,
+} = require("./learning-growth-task-evaluation-service");
 const {
-  createLearningGrowthWritingReportService,
-} = require("./learning-growth-writing-report-service");
+  createLearningGrowthTaskReportService,
+} = require("./learning-growth-task-report-service");
 const {
   applyAiWritingFeedback,
 } = require("./learning-growth-writing-ai-feedback-service");
 const { stableTaskCardId } = require("./learning-task-card-service");
+const {
+  inferLearningTaskModelFromCard,
+} = require("./learning-task-model-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -97,6 +101,9 @@ function publicEvaluation(evaluation = {}, settlement = null) {
     evaluationId: cleanString(evaluation.evaluationId),
     stage: cleanString(evaluation.stage),
     status: cleanString(evaluation.status),
+    activityType: cleanString(evaluation.activityType),
+    skillId: cleanString(evaluation.skillId),
+    taskModelVersion: cleanString(evaluation.taskModelVersion),
     score: Number(evaluation.score || 0),
     maxScore: Number(evaluation.maxScore || 100),
     passed: Boolean(evaluation.passed),
@@ -153,6 +160,8 @@ function publicEvaluation(evaluation = {}, settlement = null) {
 }
 
 function readableEvaluationComment(evaluation = {}, settlement = null) {
+  const label = activityLabel(evaluation.activityType);
+  const heading = cleanString(evaluation.activityType) === "writing" ? "AI \u5199\u4f5c\u6279\u6539" : `AI ${label} \u53cd\u9988`;
   const rewardStatus = cleanString(settlement?.status || evaluation.reward?.status || "");
   const rewardLine = evaluation.reward?.eligible
     ? `\u91d1\u5e01\u7ed3\u7b97\uff1a${rewardStatus === "settled" ? "\u5df2\u7ed3\u7b97" : "\u5f85\u590d\u6838\u6216\u7a0d\u540e\u91cd\u8bd5"}\uff0c${Number(evaluation.reward.coinAmount || 0)} \u91d1\u5e01\u3002`
@@ -164,7 +173,7 @@ function readableEvaluationComment(evaluation = {}, settlement = null) {
     .map((item, index) => `${index + 1}. ${item}`)
     .join("\n");
   return [
-    `AI \u5199\u4f5c\u6279\u6539\uff1a${cleanString(evaluation.summary)}`,
+    `${heading}\uff1a${cleanString(evaluation.summary)}`,
     `\u8bc4\u5206\uff1a${Number(evaluation.score || 0)}/${Number(evaluation.maxScore || 100)}`,
     rewardLine,
     requirements ? `\u4fee\u6539\u8981\u6c42\uff1a\n${requirements}` : "\u4fee\u6539\u8981\u6c42\uff1a\u672c\u6b21\u5df2\u8fbe\u5230\u901a\u8fc7\u7ebf\uff0c\u4e0b\u4e00\u6b65\u7ee7\u7eed\u5b8c\u6210\u540e\u7eed\u4efb\u52a1\u3002",
@@ -180,6 +189,17 @@ function readableCompletionComment(evaluation = {}, publicEval = {}) {
     ? `\u004d\u0061\u0072\u006b\u0064\u006f\u0077\u006e \u4ea4\u4ed8\u62a5\u544a\u5df2\u751f\u6210\uff1a${publicEval.report.name}\u3002`
     : "\u004d\u0061\u0072\u006b\u0064\u006f\u0077\u006e \u4ea4\u4ed8\u62a5\u544a\u672a\u751f\u6210\uff0c\u8bf7\u5237\u65b0\u8fc7\u7a0b\u6216\u8054\u7cfb\u5bb6\u957f\u590d\u6838\u3002";
   return `\u6700\u7ec8\u7ed3\u8bba\uff1a${cleanString(evaluation.summary)} ${reportText} ${rewardText}`.trim();
+}
+
+function taskModelForSubmission(card = {}, input = {}) {
+  return inferLearningTaskModelFromCard(card, input);
+}
+
+function submissionKindForStage(card = {}, input = {}, stage = "draft") {
+  const model = taskModelForSubmission(card, input);
+  const contract = model.submissionContract || {};
+  if (stage === "draft") return cleanString(contract.firstSubmissionKind) || "learner_attempt";
+  return cleanString(contract.revisionSubmissionKind) || "learner_revision";
 }
 
 function evaluationComment(evaluation = {}, settlement = null) {
@@ -230,7 +250,7 @@ async function settleViaProgramService(programService, card, evaluation, input =
     sourceBasisRefs: asArray(task.sourceBasisRefs),
     summary: evaluation.summary,
     skillResults: [{
-      skillId: "english_short_writing",
+      skillId: cleanString(evaluation.skillId) || cleanString(evaluation.activityType) || "learning_growth_task",
       status: evaluation.passed ? "passed" : "needs_revision",
       score: evaluation.score,
       confidence: evaluation.confidence,
@@ -241,7 +261,7 @@ async function settleViaProgramService(programService, card, evaluation, input =
   const settlement = programService.settleEvaluationReward(recorded.evaluationId, {
     principalId: cleanString(input.author) || "learning-growth",
     coinAmount: Number(evaluation.reward?.coinAmount || 0),
-    reason: "Growth writing passed.",
+    reason: "Growth learning task passed.",
   });
   return Object.assign({ evaluation: recorded }, settlement);
 }
@@ -251,14 +271,17 @@ function settleViaCoinService(learningCoinService, card, evaluation, input = {})
   if (!learningCoinService || typeof learningCoinService.grantCoins !== "function") return { status: "coin_service_unavailable" };
   const workspaceId = cleanString(input.workspaceId) || cardField(card, "workspaceId", "workspace_id") || "owner";
   const studentId = workspaceId;
+  const activityType = cleanString(evaluation.activityType) || "task";
+  const sourceType = activityType === "writing" ? "learning-growth-writing-evaluation" : "learning-growth-task-evaluation";
+  const idempotencyScope = activityType === "writing" ? "writing" : `task:${activityType}`;
   const result = learningCoinService.grantCoins({
     studentId,
     workspaceId,
     coinAmount: Number(evaluation.reward.coinAmount || 0),
-    reason: "Growth writing passed.",
-    sourceType: "learning-growth-writing-evaluation",
+    reason: "Growth learning task passed.",
+    sourceType,
     sourceId: evaluation.evaluationId,
-    idempotencyKey: `learning-growth:writing:${workspaceId}:${cardId(card)}:reward`,
+    idempotencyKey: `learning-growth:${idempotencyScope}:${workspaceId}:${cardId(card)}:reward`,
     createdByPrincipalId: cleanString(input.author) || "learning-growth",
     metadata: {
       cardId: cardId(card),
@@ -272,9 +295,9 @@ function settleViaCoinService(learningCoinService, card, evaluation, input = {})
 
 function createLearningGrowthWritingSubmissionService(options = {}) {
   const kanbanCardProvider = options.kanbanCardProvider || null;
-  const evaluationService = options.evaluationService || createLearningGrowthWritingEvaluationService();
+  const evaluationService = options.evaluationService || createLearningGrowthTaskEvaluationService();
   const directoryMaterializationService = options.directoryMaterializationService || null;
-  const reportService = options.reportService || createLearningGrowthWritingReportService({
+  const reportService = options.reportService || createLearningGrowthTaskReportService({
     artifactService: options.artifactService,
     reportDirectory: typeof directoryMaterializationService?.reportDirectoryForCard === "function"
       ? (workspaceId, cardIdValue, card) => directoryMaterializationService.reportDirectoryForCard(workspaceId, cardIdValue, card)
@@ -308,11 +331,13 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
     const cardIdValue = cleanString(input.cardId);
     const text = cleanString(input.text || input.submission || input.comment);
     if (!cardIdValue) return createError(400, "Growth card id is required");
-    if (!text) return createError(400, "Writing submission text is required");
-    if (text.length > maxSubmissionChars) return createError(413, `Writing submission is too long; keep it under ${maxSubmissionChars} characters`);
+    if (!text) return createError(400, "Learning task submission text is required");
+    if (text.length > maxSubmissionChars) return createError(413, `Learning task submission is too long; keep it under ${maxSubmissionChars} characters`);
     const loaded = await loadGrowthCard(workspaceId, cardIdValue);
     if (!loaded.ok) return loaded;
     const stage = submissionStageForCard(loaded.card, input);
+    const taskModel = taskModelForSubmission(loaded.card, input);
+    const submissionKind = submissionKindForStage(loaded.card, input, stage);
     const mutated = await kanbanCardProvider.mutateCard({
       action: "comment",
       workspaceId,
@@ -320,14 +345,16 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       comment: text,
       author: cleanString(input.author) || "learning-growth",
       learningGrowthSubmission: true,
-      submissionKind: stage === "draft" ? "writing_draft" : "writing_revision",
+      submissionKind,
     });
-    if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit writing"));
+    if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit learning task"));
     let evaluation = evaluationService.evaluate({
       card: loaded.card,
       cardId: cardIdValue,
       text,
       stage,
+      learningTaskModel: taskModel,
+      submissionKind,
     });
     if (aiFeedbackService && typeof aiFeedbackService.analyze === "function") {
       try {
@@ -375,9 +402,12 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
     }
     const publicEval = publicEvaluation(evaluation, settlement);
     let materialized = null;
-    if (directoryMaterializationService && typeof directoryMaterializationService.materializeWritingEvaluation === "function") {
+    if (directoryMaterializationService && (typeof directoryMaterializationService.materializeTaskEvaluation === "function" || typeof directoryMaterializationService.materializeWritingEvaluation === "function")) {
       try {
-        materialized = directoryMaterializationService.materializeWritingEvaluation({
+        const materialize = typeof directoryMaterializationService.materializeTaskEvaluation === "function"
+          ? directoryMaterializationService.materializeTaskEvaluation
+          : directoryMaterializationService.materializeWritingEvaluation;
+        materialized = materialize({
           workspaceId,
           cardId: cardIdValue,
           card: loaded.card,
@@ -400,7 +430,7 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
       author: "learning-growth-evaluator",
       learningGrowthEvaluation: publicEval,
     });
-    if (!evaluationMutation?.ok) return createError(evaluationMutation?.status || 502, cleanString(evaluationMutation?.error || "Unable to persist writing evaluation"));
+    if (!evaluationMutation?.ok) return createError(evaluationMutation?.status || 502, cleanString(evaluationMutation?.error || "Unable to persist learning task evaluation"));
     let completion = null;
     if (evaluation.passed) {
       completion = await kanbanCardProvider.mutateCard({
@@ -430,6 +460,7 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
   }
 
   return {
+    submitTask: submitWriting,
     submitWriting,
   };
 }

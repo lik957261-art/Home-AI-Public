@@ -295,6 +295,7 @@ function createLearningGrowthDirectoryMaterializationService(options = {}) {
     programDirectory,
     materializeProgram,
     reportDirectoryForCard,
+    materializeTaskEvaluation: materializeWritingEvaluation,
     materializeWritingEvaluation,
   };
 }
