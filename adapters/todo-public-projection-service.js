@@ -42,6 +42,20 @@ function normalizeStringList(value, limit) {
   return items.map((item) => String(item || "")).filter(Boolean).slice(0, limit);
 }
 
+function normalizeObjectList(value, limit) {
+  let raw = value;
+  if (typeof raw === "string" && raw.trim().startsWith("[")) {
+    try {
+      raw = JSON.parse(raw);
+    } catch (_) {
+      raw = [];
+    }
+  }
+  return (Array.isArray(raw) ? raw : [])
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .slice(0, limit);
+}
+
 function boolValue(value) {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
@@ -281,6 +295,8 @@ function createTodoPublicProjectionService(options = {}) {
       learningGrowthMaxScore: Number(row.learning_growth_max_score ?? row.learningGrowthMaxScore ?? 100) || 100,
       learningGrowthPassed: boolValue(row.learning_growth_passed ?? row.learningGrowthPassed),
       learningGrowthFeedbackSummary: String(row.learning_growth_feedback_summary || row.learningGrowthFeedbackSummary || ""),
+      learningGrowthFeedbackMethod: String(row.learning_growth_feedback_method || row.learningGrowthFeedbackMethod || ""),
+      learningGrowthAiFeedbackStatus: String(row.learning_growth_ai_feedback_status || row.learningGrowthAiFeedbackStatus || ""),
       learningGrowthRevisionRequirements: normalizeStringList(row.learning_growth_revision_requirements || row.learningGrowthRevisionRequirements, 8),
       learningGrowthNextStep: String(row.learning_growth_next_step || row.learningGrowthNextStep || ""),
       learningGrowthReportPath: String(row.learning_growth_report_path || row.learningGrowthReportPath || ""),
@@ -289,6 +305,10 @@ function createTodoPublicProjectionService(options = {}) {
       learningGrowthFocusAreas: normalizeStringList(row.learning_growth_focus_areas || row.learningGrowthFocusAreas, 8),
       learningGrowthRewriteChecklist: normalizeStringList(row.learning_growth_rewrite_checklist || row.learningGrowthRewriteChecklist, 8),
       learningGrowthReflectionPrompts: normalizeStringList(row.learning_growth_reflection_prompts || row.learningGrowthReflectionPrompts, 8),
+      learningGrowthSentenceFeedback: normalizeObjectList(row.learning_growth_sentence_feedback || row.learningGrowthSentenceFeedback, 8),
+      learningGrowthFinalConclusion: String(row.learning_growth_final_conclusion || row.learningGrowthFinalConclusion || ""),
+      learningGrowthNextPractice: String(row.learning_growth_next_practice || row.learningGrowthNextPractice || ""),
+      learningGrowthParentNote: String(row.learning_growth_parent_note || row.learningGrowthParentNote || ""),
       learningGrowthRewardStatus: String(row.learning_growth_reward_status || row.learningGrowthRewardStatus || ""),
       learningGrowthRewardCoins: Number(row.learning_growth_reward_coins ?? row.learningGrowthRewardCoins ?? 0) || 0,
       learningGrowthRewardEntryId: String(row.learning_growth_reward_entry_id || row.learningGrowthRewardEntryId || ""),
@@ -375,11 +395,17 @@ function createTodoPublicProjectionService(options = {}) {
             passed: payload.learningGrowthPassed,
             summary: payload.learningGrowthFeedbackSummary,
             revisionRequirements: payload.learningGrowthRevisionRequirements,
+            feedbackMethod: payload.learningGrowthFeedbackMethod,
+            aiFeedbackStatus: payload.learningGrowthAiFeedbackStatus,
             feedbackSections: {
               strengths: payload.learningGrowthStrengths,
               focusAreas: payload.learningGrowthFocusAreas,
               rewriteChecklist: payload.learningGrowthRewriteChecklist,
               reflectionPrompts: payload.learningGrowthReflectionPrompts,
+              sentenceFeedback: payload.learningGrowthSentenceFeedback,
+              finalConclusion: payload.learningGrowthFinalConclusion,
+              nextPractice: payload.learningGrowthNextPractice,
+              parentNote: payload.learningGrowthParentNote,
             },
             nextStep,
             evaluatedAt: payload.learningGrowthEvaluationAt,

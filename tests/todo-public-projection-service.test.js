@@ -377,11 +377,17 @@ function run() {
     passed: false,
     summary: "Needs more details.",
     revisionRequirements: ["Add one example."],
+    feedbackMethod: "",
+    aiFeedbackStatus: "",
     feedbackSections: {
       strengths: [],
       focusAreas: [],
       rewriteChecklist: [],
       reflectionPrompts: [],
+      sentenceFeedback: [],
+      finalConclusion: "",
+      nextPractice: "",
+      parentNote: "",
     },
     nextStep: "revise_and_resubmit",
     evaluatedAt: "2026-05-17T15:10:00.000Z",
@@ -405,6 +411,8 @@ function run() {
     learning_growth_score: 79,
     learning_growth_max_score: 100,
     learning_growth_feedback_summary: "Draft feedback ready.",
+    learning_growth_feedback_method: "model_assisted",
+    learning_growth_ai_feedback_status: "completed",
     learning_growth_revision_requirements: ["Add one concrete example."],
     learning_growth_next_step: "rewrite_and_reflect",
     learning_growth_report_path: "C:\\reports\\draft-feedback.md",
@@ -413,6 +421,15 @@ function run() {
     learning_growth_focus_areas: ["Add one example."],
     learning_growth_rewrite_checklist: ["Rewrite two sentences."],
     learning_growth_reflection_prompts: ["What did I change?"],
+    learning_growth_sentence_feedback: [{
+      evidence: "good teamwork",
+      issue: "Too general.",
+      fix: "Add a concrete class example.",
+      example: "Our group finished the poster before Friday.",
+    }],
+    learning_growth_final_conclusion: "Draft is not final yet.",
+    learning_growth_next_practice: "Use a point-reason-example outline.",
+    learning_growth_parent_note: "Needs one concrete example.",
     learning_growth_reward_status: "not_eligible",
     learning_task_model: {
       version: "learning-task-model-v1",
@@ -428,7 +445,11 @@ function run() {
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthSubmission.nextStep, "rewrite_and_reflect");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthNextAction, "submit_revision_and_reflection");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.report.name, "draft-feedback.md");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackMethod, "model_assisted");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.aiFeedbackStatus, "completed");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackSections.rewriteChecklist[0], "Rewrite two sentences.");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackSections.sentenceFeedback[0].fix, "Add a concrete class example.");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackSections.nextPractice, "Use a point-reason-example outline.");
   assert.equal(projectedLearningGrowthDraftFeedback.kanbanOutputs.at(-1).role, "learning-growth-writing-report");
   const projectedLearningGrowthLegacySubmitted = studyProjectionService.publicTodo(row("learning-growth-legacy-submitted", {
     kanban_case_mode: "study-plan",

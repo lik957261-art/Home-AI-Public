@@ -191,6 +191,20 @@ function arrayFromValue(value, limit = 12) {
   return raw.map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
 }
 
+function objectArrayFromValue(value, limit = 8) {
+  let raw = value;
+  if (typeof raw === "string" && raw.trim().startsWith("[")) {
+    try {
+      raw = JSON.parse(raw);
+    } catch (_) {
+      raw = [];
+    }
+  }
+  return (Array.isArray(raw) ? raw : [])
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .slice(0, limit);
+}
+
 function objectFromValue(value) {
   if (!value) return null;
   if (typeof value === "object" && !Array.isArray(value)) return value;
@@ -536,6 +550,8 @@ function createKanbanTodoBridge(options = {}) {
       learning_growth_max_score: Number(meta.learningGrowthMaxScore ?? meta.learning_growth_max_score ?? 100) || 100,
       learning_growth_passed: bool(meta.learningGrowthPassed ?? meta.learning_growth_passed),
       learning_growth_feedback_summary: String(meta.learningGrowthFeedbackSummary || meta.learning_growth_feedback_summary || ""),
+      learning_growth_feedback_method: String(meta.learningGrowthFeedbackMethod || meta.learning_growth_feedback_method || ""),
+      learning_growth_ai_feedback_status: String(meta.learningGrowthAiFeedbackStatus || meta.learning_growth_ai_feedback_status || ""),
       learning_growth_revision_requirements: arrayFromValue(meta.learningGrowthRevisionRequirements || meta.learning_growth_revision_requirements, 8),
       learning_growth_next_step: String(meta.learningGrowthNextStep || meta.learning_growth_next_step || ""),
       learning_growth_report_path: String(meta.learningGrowthReportPath || meta.learning_growth_report_path || ""),
@@ -544,6 +560,10 @@ function createKanbanTodoBridge(options = {}) {
       learning_growth_focus_areas: arrayFromValue(meta.learningGrowthFocusAreas || meta.learning_growth_focus_areas, 8),
       learning_growth_rewrite_checklist: arrayFromValue(meta.learningGrowthRewriteChecklist || meta.learning_growth_rewrite_checklist, 8),
       learning_growth_reflection_prompts: arrayFromValue(meta.learningGrowthReflectionPrompts || meta.learning_growth_reflection_prompts, 8),
+      learning_growth_sentence_feedback: objectArrayFromValue(meta.learningGrowthSentenceFeedback || meta.learning_growth_sentence_feedback, 8),
+      learning_growth_final_conclusion: String(meta.learningGrowthFinalConclusion || meta.learning_growth_final_conclusion || ""),
+      learning_growth_next_practice: String(meta.learningGrowthNextPractice || meta.learning_growth_next_practice || ""),
+      learning_growth_parent_note: String(meta.learningGrowthParentNote || meta.learning_growth_parent_note || ""),
       learning_growth_reward_status: String(meta.learningGrowthRewardStatus || meta.learning_growth_reward_status || ""),
       learning_growth_reward_coins: Number(meta.learningGrowthRewardCoins ?? meta.learning_growth_reward_coins ?? 0) || 0,
       learning_growth_reward_entry_id: String(meta.learningGrowthRewardEntryId || meta.learning_growth_reward_entry_id || ""),
@@ -606,6 +626,8 @@ function createKanbanTodoBridge(options = {}) {
         learningGrowthMaxScore: Number(row.learning_growth_max_score ?? previous.learningGrowthMaxScore ?? 100) || 100,
         learningGrowthPassed: bool(row.learning_growth_passed ?? previous.learningGrowthPassed),
         learningGrowthFeedbackSummary: String(row.learning_growth_feedback_summary || previous.learningGrowthFeedbackSummary || ""),
+        learningGrowthFeedbackMethod: String(row.learning_growth_feedback_method || previous.learningGrowthFeedbackMethod || ""),
+        learningGrowthAiFeedbackStatus: String(row.learning_growth_ai_feedback_status || previous.learningGrowthAiFeedbackStatus || ""),
         learningGrowthRevisionRequirements: arrayFromValue(row.learning_growth_revision_requirements || previous.learningGrowthRevisionRequirements, 8),
         learningGrowthNextStep: String(row.learning_growth_next_step || previous.learningGrowthNextStep || ""),
         learningGrowthReportPath: String(row.learning_growth_report_path || previous.learningGrowthReportPath || ""),
@@ -614,6 +636,10 @@ function createKanbanTodoBridge(options = {}) {
         learningGrowthFocusAreas: arrayFromValue(row.learning_growth_focus_areas || previous.learningGrowthFocusAreas, 8),
         learningGrowthRewriteChecklist: arrayFromValue(row.learning_growth_rewrite_checklist || previous.learningGrowthRewriteChecklist, 8),
         learningGrowthReflectionPrompts: arrayFromValue(row.learning_growth_reflection_prompts || previous.learningGrowthReflectionPrompts, 8),
+        learningGrowthSentenceFeedback: objectArrayFromValue(row.learning_growth_sentence_feedback || previous.learningGrowthSentenceFeedback, 8),
+        learningGrowthFinalConclusion: String(row.learning_growth_final_conclusion || previous.learningGrowthFinalConclusion || ""),
+        learningGrowthNextPractice: String(row.learning_growth_next_practice || previous.learningGrowthNextPractice || ""),
+        learningGrowthParentNote: String(row.learning_growth_parent_note || previous.learningGrowthParentNote || ""),
         learningGrowthRewardStatus: String(row.learning_growth_reward_status || previous.learningGrowthRewardStatus || ""),
         learningGrowthRewardCoins: Number(row.learning_growth_reward_coins ?? previous.learningGrowthRewardCoins ?? 0) || 0,
         learningGrowthRewardEntryId: String(row.learning_growth_reward_entry_id || previous.learningGrowthRewardEntryId || ""),
@@ -1014,6 +1040,12 @@ function createKanbanTodoBridge(options = {}) {
           learningGrowthFocusAreas: [],
           learningGrowthRewriteChecklist: [],
           learningGrowthReflectionPrompts: [],
+          learningGrowthSentenceFeedback: [],
+          learningGrowthFinalConclusion: "",
+          learningGrowthNextPractice: "",
+          learningGrowthParentNote: "",
+          learningGrowthFeedbackMethod: "",
+          learningGrowthAiFeedbackStatus: "",
         } : {}),
         ...(isLearningGrowthEvaluation ? {
           learningGrowthEvaluationStatus: String(learningGrowthEvaluation.status || "completed").trim() || "completed",
@@ -1022,6 +1054,8 @@ function createKanbanTodoBridge(options = {}) {
           learningGrowthMaxScore: Number(learningGrowthEvaluation.maxScore || 100) || 100,
           learningGrowthPassed: bool(learningGrowthEvaluation.passed),
           learningGrowthFeedbackSummary: String(learningGrowthEvaluation.summary || "").trim(),
+          learningGrowthFeedbackMethod: String(learningGrowthEvaluation.feedbackMethod || "").trim(),
+          learningGrowthAiFeedbackStatus: String(learningGrowthEvaluation.aiFeedbackStatus || "").trim(),
           learningGrowthRevisionRequirements: arrayFromValue(learningGrowthEvaluation.revisionRequirements, 8),
           learningGrowthNextStep: String(learningGrowthEvaluation.nextStep || "").trim(),
           learningGrowthReportPath: String(learningGrowthEvaluation.report?.path || "").trim(),
@@ -1030,6 +1064,10 @@ function createKanbanTodoBridge(options = {}) {
           learningGrowthFocusAreas: arrayFromValue(learningGrowthEvaluation.feedbackSections?.focusAreas, 8),
           learningGrowthRewriteChecklist: arrayFromValue(learningGrowthEvaluation.feedbackSections?.rewriteChecklist, 8),
           learningGrowthReflectionPrompts: arrayFromValue(learningGrowthEvaluation.feedbackSections?.reflectionPrompts, 8),
+          learningGrowthSentenceFeedback: objectArrayFromValue(learningGrowthEvaluation.feedbackSections?.sentenceFeedback, 8),
+          learningGrowthFinalConclusion: String(learningGrowthEvaluation.feedbackSections?.finalConclusion || "").trim(),
+          learningGrowthNextPractice: String(learningGrowthEvaluation.feedbackSections?.nextPractice || "").trim(),
+          learningGrowthParentNote: String(learningGrowthEvaluation.feedbackSections?.parentNote || "").trim(),
           learningGrowthRewardStatus: String(learningGrowthEvaluation.reward?.status || "").trim(),
           learningGrowthRewardCoins: Number(learningGrowthEvaluation.reward?.coinAmount || 0) || 0,
           learningGrowthRewardEntryId: String(learningGrowthEvaluation.reward?.entryId || "").trim(),

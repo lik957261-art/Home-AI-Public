@@ -20,28 +20,73 @@ function compactArray(value, maxItems = 5, maxChars = 240) {
     .slice(0, maxItems);
 }
 
+function parseJsonCandidate(candidate = "") {
+  const text = cleanString(candidate);
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    return null;
+  }
+}
+
+function fencedJsonCandidate(raw = "") {
+  const match = cleanString(raw).match(/```(?:json)?\s*([\s\S]*?)```/i);
+  return match ? match[1].trim() : "";
+}
+
+function balancedJsonCandidate(raw = "") {
+  const text = cleanString(raw);
+  const start = text.indexOf("{");
+  if (start < 0) return "";
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const ch = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === "\"") {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") depth += 1;
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, index + 1);
+    }
+  }
+  return "";
+}
+
 function parseJsonObject(text = "", extractJsonObject = null) {
   const raw = cleanString(text);
   if (!raw) return null;
   if (typeof extractJsonObject === "function") {
-    const extracted = extractJsonObject(raw);
-    if (extracted && typeof extracted === "object") return extracted;
-    if (typeof extracted === "string") {
-      try {
-        return JSON.parse(extracted);
-      } catch (_) {}
+    try {
+      const extracted = extractJsonObject(raw);
+      if (extracted && typeof extracted === "object") return extracted;
+      if (typeof extracted === "string") {
+        const parsed = parseJsonCandidate(extracted);
+        if (parsed) return parsed;
+      }
+    } catch (_) {
+      // Fall through to the local tolerant parser.
     }
   }
-  try {
-    return JSON.parse(raw);
-  } catch (_) {}
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start >= 0 && end > start) {
-    try {
-      return JSON.parse(raw.slice(start, end + 1));
-    } catch (_) {}
-  }
+  const direct = parseJsonCandidate(raw);
+  if (direct) return direct;
+  const fenced = parseJsonCandidate(fencedJsonCandidate(raw));
+  if (fenced) return fenced;
+  const balanced = parseJsonCandidate(balancedJsonCandidate(raw));
+  if (balanced) return balanced;
   return null;
 }
 

@@ -83,6 +83,9 @@ function testPromptAndParser() {
   assert.match(prompt, /Return strict JSON only/);
   assert.match(prompt, /This is a student answer/);
   assert.deepEqual(parseJsonObject("prefix {\"summary\":\"ok\"} suffix"), { summary: "ok" });
+  assert.deepEqual(parseJsonObject("```json\n{\"summary\":\"fenced\"}\n```"), { summary: "fenced" });
+  assert.deepEqual(parseJsonObject("note {\"summary\":\"keeps braces in string: }\"} tail {bad"), { summary: "keeps braces in string: }" });
+  assert.equal(parseJsonObject("not json", () => { throw new Error("bad"); }), null);
 }
 
 (async () => {

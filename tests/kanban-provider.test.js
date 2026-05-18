@@ -290,12 +290,23 @@ async function run() {
       summary: "Writing passed.",
       revisionRequirements: ["Add one more example."],
       nextStep: "completed",
+      feedbackMethod: "model_assisted",
+      aiFeedbackStatus: "completed",
       report: { path: "C:\\reports\\writing-feedback.md", name: "writing-feedback.md" },
       feedbackSections: {
         strengths: ["Clear topic."],
         focusAreas: ["Add one more example."],
         rewriteChecklist: ["Check the ending."],
         reflectionPrompts: ["What changed?"],
+        sentenceFeedback: [{
+          evidence: "good teamwork",
+          issue: "Too general.",
+          fix: "Add a specific school example.",
+          example: "Our group finished the poster on time.",
+        }],
+        finalConclusion: "Final rewrite is clearer.",
+        nextPractice: "Plan one example before writing.",
+        parentNote: "Keep practicing examples.",
       },
       evaluatedAt: "2026-05-17T15:30:00.000Z",
       reward: { status: "settled", coinAmount: 15, entryId: "coin-1" },
@@ -308,6 +319,10 @@ async function run() {
   assert.equal(growthEvaluated.learning_growth_next_step, "completed");
   assert.equal(growthEvaluated.learning_growth_report_name, "writing-feedback.md");
   assert.deepEqual(growthEvaluated.learning_growth_rewrite_checklist, ["Check the ending."]);
+  assert.equal(growthEvaluated.learning_growth_feedback_method, "model_assisted");
+  assert.equal(growthEvaluated.learning_growth_ai_feedback_status, "completed");
+  assert.equal(growthEvaluated.learning_growth_sentence_feedback[0].fix, "Add a specific school example.");
+  assert.equal(growthEvaluated.learning_growth_next_practice, "Plan one example before writing.");
   assert.equal(growthEvaluated.learning_growth_reward_status, "settled");
 
   const unblocked = await provider.run({
