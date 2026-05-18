@@ -69,6 +69,8 @@ function testMaterializeDraft() {
   assert.equal(cards[0].taskCardId, stableTaskCardId("draft-1", "task-a"));
   assert.equal(cards[0].status, "review_required");
   assert.deepEqual(cards[0].interactionStateMachine, ["receive_task", "learner_attempt", "ai_evaluation"]);
+  assert.equal(cards[0].taskModel.version, "learning-task-model-v1");
+  assert.equal(cards[0].taskModel.submissionContract.firstSubmissionKind, "speaking_retell");
   assert.equal(service.list({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(service.get(cards[0].taskCardId).privacyLevel, "summary_only");
   repository.close();
@@ -111,6 +113,8 @@ function testExecutorQueueIsSummaryOnly() {
   assert.equal(queue[0].status, "published");
   assert.equal(queue[0].executionStatus, "pending_execution");
   assert.equal(queue[0].summary, "summary only");
+  assert.equal(queue[0].taskModel.version, "learning-task-model-v1");
+  assert.equal(queue[0].taskModel.skillId, "english_speaking_retell");
   const serialized = JSON.stringify(queue);
   assert.doesNotMatch(serialized, /private prompt|private answer|private transcript|questions|learnerAnswer|fullTranscript/);
   repository.close();

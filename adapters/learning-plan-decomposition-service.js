@@ -1,5 +1,7 @@
 "use strict";
 
+const { buildLearningTaskModel } = require("./learning-task-model-service");
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LEARNING_GROWTH_CARD_CREATION_SKILL_ID = "learning-growth-card-creation";
 
@@ -201,21 +203,32 @@ function buildTask(program, options = {}) {
   const sourceBasisRefs = uniqueStrings(program.sourceBasisRefs);
   const curriculumRefs = uniqueStrings(program.curriculumRefs);
   const minutes = clampInt(options.minutes, 8, 45, 15);
-  const learnerPrompt = learnerPromptForSkill(options.skillId, program, { minutes });
-  const deliverables = deliverablesForSkill(options.skillId);
-  const acceptance = acceptanceForSkill(options.skillId);
+  const taskModelBase = buildLearningTaskModel({
+    skillId: options.skillId,
+    domain: program.domain || "english",
+    dayIndex: options.dayIndex,
+    plannedMinutes: minutes,
+  });
+  const goal = cleanString(program.goalSummary);
+  const learnerPrompt = [
+    taskModelBase.learnerInstruction || learnerPromptForSkill(options.skillId, program, { minutes }),
+    goal ? `Focus for this program: ${goal}` : "",
+  ].filter(Boolean).join(" ");
+  const taskModel = Object.assign({}, taskModelBase, {
+    learnerInstruction: learnerPrompt,
+  });
   return {
     taskId: taskId(program.programId, options.dayIndex, options.order),
-    title: titleForSkill(options.skillId),
+    title: taskModel.title || titleForSkill(options.skillId),
     domain: program.domain || "english",
-    taskCardType: cardTypeForSkill(options.skillId, options.dayIndex),
+    taskCardType: taskModel.taskCardType,
     involvedSubjects: ["english"],
     skillIds: [options.skillId],
     templateId: template?.id || "",
     skillPath: template?.skillPath || "",
     cardCreationSkillId: LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
     plannedMinutes: minutes,
-    interactionStateMachine: stateMachineForSkill(options.skillId),
+    interactionStateMachine: taskModel.interactionStateMachine,
     sourceBasisRefs,
     curriculumRefs,
     confidence: sourceBasisRefs.length && curriculumRefs.length ? 0.78 : 0.45,
@@ -224,8 +237,10 @@ function buildTask(program, options = {}) {
     aiOutputContract: "learning_task_card_v1",
     learnerInstruction: learnerPrompt,
     instruction: learnerPrompt,
-    deliverables,
-    acceptance,
+    deliverables: taskModel.deliverables,
+    acceptance: taskModel.acceptance,
+    taskModel,
+    taskModelVersion: taskModel.version,
     summary: `${titleForSkill(options.skillId)}. Task instruction: ${learnerPrompt}`,
   };
 }

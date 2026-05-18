@@ -178,6 +178,7 @@ function makeHarness(overrides = {}) {
             learningProgramId: "program-1",
             learningDraftId: "draft-1",
             learningTaskCardId: "task-card-1",
+            taskModel: { version: "learning-task-model-v1", skillId: "english_short_writing", activityType: "writing" },
             cardCreationSkillId: "learning-growth-card-creation",
           },
           {
@@ -288,6 +289,7 @@ async function testStudyPlanCreatesCoverShareTopicAndSequentialBlocks() {
   assert.equal(calls.add[0].learningProgramId, "program-1");
   assert.equal(calls.add[0].learningDraftId, "draft-1");
   assert.equal(calls.add[0].learningTaskCardId, "task-card-1");
+  assert.equal(calls.add[0].learningTaskModel.skillId, "english_short_writing");
   assert.equal(calls.add[0].caseCreationSkillId, "learning-growth-card-creation");
   assert.equal(calls.add[0].idempotencyKey, idempotency("study-plan", "study-one", "reading-session-1"));
   assert.equal(calls.add[1].caseDependsOn[0], "reading-session-1");

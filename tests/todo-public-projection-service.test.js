@@ -315,8 +315,19 @@ function run() {
     kanban_case_template: "learning-growth",
     kanban_status: "ready",
     status: "open",
+    learning_task_model: {
+      version: "learning-task-model-v1",
+      skillId: "english_short_writing",
+      activityType: "writing",
+      taskCardType: "single_subject",
+      interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback", "learner_rewrites"],
+      submissionContract: { firstSubmissionKind: "writing_draft", revisionSubmissionKind: "writing_revision" },
+      completionPolicy: { firstSubmissionCompletesTask: false, completeAfterStep: "ai_evaluation", requiresFinalEvaluation: true },
+    },
   }));
   assert.equal(projectedLearningGrowth.kanbanStudyKind, "learning-growth");
+  assert.equal(projectedLearningGrowth.learningGrowthTaskModel.skillId, "english_short_writing");
+  assert.equal(projectedLearningGrowth.learningGrowthNextAction, "submit_first_attempt");
   assert.equal(projectedLearningGrowth.readingSubmission, undefined);
   assert.equal(projectedLearningGrowth.studyWorkflow, undefined);
   assert.equal(projectedLearningGrowth.workflowState, undefined);
@@ -403,9 +414,19 @@ function run() {
     learning_growth_rewrite_checklist: ["Rewrite two sentences."],
     learning_growth_reflection_prompts: ["What did I change?"],
     learning_growth_reward_status: "not_eligible",
+    learning_task_model: {
+      version: "learning-task-model-v1",
+      skillId: "english_short_writing",
+      activityType: "writing",
+      taskCardType: "single_subject",
+      interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback", "learner_rewrites"],
+      submissionContract: { firstSubmissionKind: "writing_draft", revisionSubmissionKind: "writing_revision" },
+      completionPolicy: { firstSubmissionCompletesTask: false, completeAfterStep: "ai_evaluation", requiresFinalEvaluation: true },
+    },
   }));
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthSubmission.analysisAvailable, true);
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthSubmission.nextStep, "rewrite_and_reflect");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthNextAction, "submit_revision_and_reflection");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.report.name, "draft-feedback.md");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackSections.rewriteChecklist[0], "Rewrite two sentences.");
   assert.equal(projectedLearningGrowthDraftFeedback.kanbanOutputs.at(-1).role, "learning-growth-writing-report");

@@ -72,6 +72,7 @@ function learningGrowthKanbanCards(program = {}, draft = {}) {
         templateId: cleanString(task.templateId),
         taskCardType: cleanString(task.taskCardType),
         interactionStateMachine: asArray(task.interactionStateMachine).map(cleanString).filter(Boolean),
+        taskModel: task.taskModel && typeof task.taskModel === "object" ? task.taskModel : null,
         cardCreationSkillId: cleanString(task.cardCreationSkillId) || LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
         title,
         day: Number(day.dayIndex || dayOffset + 1) || dayOffset + 1,

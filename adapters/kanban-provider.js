@@ -191,6 +191,20 @@ function arrayFromValue(value, limit = 12) {
   return raw.map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
 }
 
+function objectFromValue(value) {
+  if (!value) return null;
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string" && value.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
 function compactValue(value, limit = 800) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text.length > limit ? `${text.slice(0, Math.max(0, limit - 3))}...` : text;
@@ -265,6 +279,10 @@ function bodyWithMeta(content, meta, options = {}) {
     caseAcceptance: arrayFromValue(meta.caseAcceptance, 8),
     caseCardGoal: meta.caseCardGoal || "",
     caseCreationSkillId: meta.caseCreationSkillId || "",
+    learningProgramId: meta.learningProgramId || "",
+    learningDraftId: meta.learningDraftId || "",
+    learningTaskCardId: meta.learningTaskCardId || "",
+    learningTaskModel: objectFromValue(meta.learningTaskModel) || null,
     revisionOf: meta.revisionOf || "",
     revisionRequest: meta.revisionRequest || "",
     revisionRequestedAt: meta.revisionRequestedAt || "",
@@ -532,6 +550,7 @@ function createKanbanTodoBridge(options = {}) {
       learning_program_id: String(meta.learningProgramId || meta.learning_program_id || ""),
       learning_draft_id: String(meta.learningDraftId || meta.learning_draft_id || ""),
       learning_task_card_id: String(meta.learningTaskCardId || meta.learning_task_card_id || ""),
+      learning_task_model: objectFromValue(meta.learningTaskModel || meta.learning_task_model),
       kanban_revision_of: String(meta.revisionOf || meta.revision_of || ""),
       kanban_revision_request: String(meta.revisionRequest || meta.revision_request || ""),
       kanban_revision_requested_at: String(meta.revisionRequestedAt || meta.revision_requested_at || ""),
@@ -601,6 +620,7 @@ function createKanbanTodoBridge(options = {}) {
         learningProgramId: String(row.learning_program_id || previous.learningProgramId || ""),
         learningDraftId: String(row.learning_draft_id || previous.learningDraftId || ""),
         learningTaskCardId: String(row.learning_task_card_id || previous.learningTaskCardId || ""),
+        learningTaskModel: objectFromValue(row.learning_task_model || previous.learningTaskModel),
         revisionOf: String(row.kanban_revision_of || previous.revisionOf || ""),
         revisionRequest: String(row.kanban_revision_request || previous.revisionRequest || ""),
         revisionRequestedAt: String(row.kanban_revision_requested_at || previous.revisionRequestedAt || ""),
@@ -819,6 +839,7 @@ function createKanbanTodoBridge(options = {}) {
       learningProgramId: String(payload.learning_program_id || payload.learningProgramId || "").trim(),
       learningDraftId: String(payload.learning_draft_id || payload.learningDraftId || "").trim(),
       learningTaskCardId: String(payload.learning_task_card_id || payload.learningTaskCardId || "").trim(),
+      learningTaskModel: objectFromValue(payload.learning_task_model || payload.learningTaskModel),
       revisionOf: String(payload.revision_of || payload.revisionOf || "").trim(),
       revisionRequest: String(payload.revision_request || payload.revisionRequest || "").trim(),
       revisionRequestedAt: String(payload.revision_requested_at || payload.revisionRequestedAt || "").trim(),

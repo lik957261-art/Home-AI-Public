@@ -1,6 +1,10 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const {
+  buildLearningTaskModel,
+  learningTaskModelSummary,
+} = require("./learning-task-model-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -25,6 +29,9 @@ function draftStatusToTaskStatus(status) {
 }
 
 function executionQueueSummary(task = {}) {
+  const taskModel = task.taskModel && typeof task.taskModel === "object"
+    ? learningTaskModelSummary(task.taskModel)
+    : learningTaskModelSummary(buildLearningTaskModel(task));
   return {
     taskCardId: task.taskCardId,
     programId: task.programId,
@@ -41,6 +48,7 @@ function executionQueueSummary(task = {}) {
     plannedMinutes: task.plannedMinutes,
     skillIds: task.skillIds,
     templateId: task.templateId,
+    taskModel,
     privacyLevel: "summary_only",
     summary: task.summary,
   };
@@ -49,6 +57,15 @@ function executionQueueSummary(task = {}) {
 function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
   const sourceBasisRefs = asArray(task.sourceBasisRefs).length ? asArray(task.sourceBasisRefs) : asArray(program.sourceBasisRefs);
   const curriculumRefs = asArray(task.curriculumRefs).length ? asArray(task.curriculumRefs) : asArray(program.curriculumRefs);
+  const taskModel = task.taskModel && typeof task.taskModel === "object"
+    ? task.taskModel
+    : buildLearningTaskModel(Object.assign({}, task, {
+      domain: task.domain || program.domain,
+      plannedMinutes: task.plannedMinutes,
+    }));
+  const interactionStateMachine = asArray(task.interactionStateMachine).length
+    ? asArray(task.interactionStateMachine).map(cleanString).filter(Boolean)
+    : asArray(taskModel.interactionStateMachine).map(cleanString).filter(Boolean);
   return {
     taskCardId: stableTaskCardId(draft.draftId, task.taskId),
     programId: program.programId || draft.programId,
@@ -58,13 +75,13 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
     kanbanCardId: task.kanbanCardId || "",
     title: cleanString(task.title) || "Learning task",
     domain: cleanString(task.domain || program.domain) || "english",
-    taskCardType: cleanString(task.taskCardType) || "single_subject",
+    taskCardType: cleanString(task.taskCardType) || cleanString(taskModel.taskCardType) || "single_subject",
     status: draftStatusToTaskStatus(draft.status),
     plannedDate: cleanString(day.date || draft.weekStart),
     plannedMinutes: Number(task.plannedMinutes || 0),
     skillIds: asArray(task.skillIds).map(cleanString).filter(Boolean),
     templateId: cleanString(task.templateId),
-    interactionStateMachine: asArray(task.interactionStateMachine).map(cleanString).filter(Boolean),
+    interactionStateMachine,
     sourceBasisRefs,
     curriculumRefs,
     privacyLevel: cleanString(task.privacyLevel) || "summary_only",
@@ -74,6 +91,8 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
       publishBlocked: Boolean(draft.reliability?.publishBlocked),
       parentReviewRequired: Boolean(draft.reliability?.parentReviewRequired),
     },
+    taskModel,
+    taskModelVersion: cleanString(taskModel.version),
     summary: cleanString(task.summary),
     aiInputContract: cleanString(task.aiInputContract),
     aiOutputContract: cleanString(task.aiOutputContract),

@@ -78,6 +78,7 @@ const learningSourceBootstrapService = require("../adapters/learning-source-boot
 const learningSourceDirectoryService = require("../adapters/learning-source-directory-service");
 const learningSourceService = require("../adapters/learning-source-service");
 const learningTaskCardService = require("../adapters/learning-task-card-service");
+const learningTaskModelService = require("../adapters/learning-task-model-service");
 const learningTemplateRegistryService = require("../adapters/learning-template-registry-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
@@ -271,6 +272,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningSourceDirectoryService.defaultLearningSourceDirectoryBindings, "function");
   assert.equal(typeof learningSourceService.createLearningSourceService, "function");
   assert.equal(typeof learningTaskCardService.createLearningTaskCardService, "function");
+  assert.equal(typeof learningTaskModelService.buildLearningTaskModel, "function");
+  assert.equal(typeof learningTaskModelService.nextActionForTaskModel, "function");
   assert.equal(typeof learningTemplateRegistryService.createLearningTemplateRegistryService, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");

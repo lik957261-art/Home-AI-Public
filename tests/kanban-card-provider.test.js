@@ -53,6 +53,7 @@ async function testTargetIdForwardingAndSearchPreservation() {
     learningProgramId: "program-1",
     learningDraftId: "draft-1",
     learningTaskCardId: "task-1",
+    learningTaskModel: { version: "learning-task-model-v1", skillId: "english_short_writing" },
   });
   assert.equal(calls[1].action, "add");
   assert.equal(calls[1].manual_only, true);
@@ -63,6 +64,7 @@ async function testTargetIdForwardingAndSearchPreservation() {
   assert.equal(calls[1].learning_program_id, "program-1");
   assert.equal(calls[1].learning_draft_id, "draft-1");
   assert.equal(calls[1].learning_task_card_id, "task-1");
+  assert.equal(calls[1].learning_task_model.skillId, "english_short_writing");
   assert.equal(calls[1].due_time, "2026-05-16 10:00");
 
   await provider.mutateCard({

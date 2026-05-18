@@ -373,6 +373,9 @@ function createKanbanStudyPlanService(options = {}) {
         interactionStateMachine: Array.isArray(card?.interactionStateMachine || card?.interaction_state_machine)
           ? (card.interactionStateMachine || card.interaction_state_machine).map(cleanString).filter(Boolean)
           : [],
+        taskModel: (card?.taskModel || card?.task_model) && typeof (card.taskModel || card.task_model) === "object"
+          ? (card.taskModel || card.task_model)
+          : null,
         cardCreationSkillId: cleanString(card?.cardCreationSkillId || card?.card_creation_skill_id),
       };
     }).filter((card) => card.title && card.description);
@@ -587,6 +590,7 @@ function createKanbanStudyPlanService(options = {}) {
         learningProgramId: cleanString(card.learningProgramId || card.learning_program_id),
         learningDraftId: cleanString(card.learningDraftId || card.learning_draft_id),
         learningTaskCardId: cleanString(card.learningTaskCardId || card.learning_task_card_id),
+        learningTaskModel: card.taskModel && typeof card.taskModel === "object" ? card.taskModel : null,
       };
     });
   }

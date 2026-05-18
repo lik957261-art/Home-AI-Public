@@ -5,6 +5,10 @@ const {
   assertNoPrivateLearningPayload,
   compactLearningSummary,
 } = require("./learning-record-privacy-service");
+const {
+  buildLearningTaskModel,
+  nextActionForTaskModel,
+} = require("./learning-task-model-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -48,7 +52,8 @@ function createLearningInteractionSessionService(options = {}) {
     assertNoPrivateLearningPayload(input, "learning interaction session");
     const task = repository.getTaskCard(taskCardId);
     if (!task) throw createNotFound("Learning task card not found");
-    const firstStep = nextStateStep(task.interactionStateMachine, "");
+    const taskModel = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : buildLearningTaskModel(task);
+    const firstStep = nextStateStep(taskModel.interactionStateMachine || task.interactionStateMachine, "");
     const at = now().toISOString();
     const summary = compactLearningSummary(input.summary || `Started task: ${task.title}`, 240);
     return repository.saveInteractionSession({
@@ -59,6 +64,9 @@ function createLearningInteractionSessionService(options = {}) {
       workspaceId: task.workspaceId,
       status: "active",
       currentStep: firstStep,
+      interactionModelVersion: cleanString(taskModel.version),
+      nextAction: nextActionForTaskModel(taskModel, { status: "not_started" }),
+      requiredEvidence: taskModel.evidenceContract?.required || [],
       stepHistory: [{
         step: firstStep,
         eventType: "start",
@@ -78,7 +86,8 @@ function createLearningInteractionSessionService(options = {}) {
     if (!session) throw createNotFound("Learning interaction session not found");
     const task = repository.getTaskCard(session.taskCardId);
     if (!task) throw createNotFound("Learning task card not found");
-    const stateMachine = asArray(task.interactionStateMachine).map(cleanString).filter(Boolean);
+    const taskModel = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : buildLearningTaskModel(task);
+    const stateMachine = asArray(taskModel.interactionStateMachine || task.interactionStateMachine).map(cleanString).filter(Boolean);
     const requestedStep = cleanString(input.step);
     const step = requestedStep || nextStateStep(stateMachine, session.currentStep);
     if (requestedStep && stateMachine.length && !stateMachine.includes(requestedStep)) {
@@ -92,6 +101,9 @@ function createLearningInteractionSessionService(options = {}) {
     return repository.saveInteractionSession(Object.assign({}, session, {
       status: nextStatus,
       currentStep: step,
+      interactionModelVersion: cleanString(taskModel.version),
+      nextAction: nextActionForTaskModel(taskModel, { status: nextStatus, nextStep: step }),
+      requiredEvidence: taskModel.evidenceContract?.required || [],
       stepHistory: asArray(session.stepHistory).concat([{
         step,
         eventType: cleanString(input.eventType) || "advance",

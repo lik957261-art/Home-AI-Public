@@ -108,6 +108,7 @@ async function run() {
     case_deliverables: ["Draft"],
     case_acceptance: ["Readable archive story"],
     case_card_goal: "Scope the work",
+    learning_task_model: { version: "learning-task-model-v1", skillId: "english_short_writing", activityType: "writing" },
   });
   assert.equal(created.ok, true);
   assert.equal(created.id, "t_created");
@@ -120,6 +121,7 @@ async function run() {
   assert.deepEqual(created.kanban_case_deliverables, ["Draft"]);
   assert.deepEqual(created.kanban_case_acceptance, ["Readable archive story"]);
   assert.equal(created.kanban_case_card_goal, "Scope the work");
+  assert.equal(created.learning_task_model.skillId, "english_short_writing");
 
   const createCall = calls.find(([, args]) => args.includes("create") && args.includes("Read chapter"));
   assert.ok(createCall);
@@ -129,6 +131,7 @@ async function run() {
   assert.equal(createCall[1][createCall[1].indexOf("--assignee") + 1], "exec-weixin_stephen");
   assert.ok(createCall[1].includes("dir:/workspaces/weixin_stephen"));
   assert.match(createCall[1][createCall[1].indexOf("--body") + 1], /Hermes Mobile completion contract/);
+  assert.match(createCall[1][createCall[1].indexOf("--body") + 1], /learningTaskModel/);
 
   const listed = await provider.run({
     action: "list",
@@ -141,6 +144,7 @@ async function run() {
   assert.equal(listed.todos[0].id, "t_created");
   assert.equal(listed.todos[0].content, "Read chapter");
   assert.equal(listed.todos[0].due_local.startsWith("2026-05-10"), true);
+  assert.equal(listed.todos[0].learning_task_model.skillId, "english_short_writing");
 
   const createdWithoutDue = await provider.run({
     action: "add",

@@ -147,6 +147,7 @@ function testCardPayloadBuilderMatchesServerShapedPlanFixture() {
     learningProgramId: "",
     learningDraftId: "",
     learningTaskCardId: "",
+    learningTaskModel: null,
   });
   assert.equal(payloads[1].idempotencyKey, expectedStudyIdempotencyKey("study-case-1", "reading-session-2"));
   assert.deepEqual(payloads[1].caseDependsOn, ["reading-session-1"]);

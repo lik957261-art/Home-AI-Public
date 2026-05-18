@@ -106,6 +106,7 @@ function testLearningGrowthPlanUsesProvidedTaskCards() {
       templateId: "english-short-writing-v1",
       taskCardType: "single_subject",
       interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback"],
+      taskModel: { version: "learning-task-model-v1", skillId: "english_short_writing", activityType: "writing" },
       cardCreationSkillId: "learning-growth-card-creation",
     }],
   }, "owner");
@@ -124,6 +125,7 @@ function testLearningGrowthPlanUsesProvidedTaskCards() {
   assert.equal(plan.cards[0].templateId, "english-short-writing-v1");
   assert.equal(plan.cards[0].taskCardType, "single_subject");
   assert.deepEqual(plan.cards[0].interactionStateMachine, ["receive_task", "learner_drafts", "ai_feedback"]);
+  assert.equal(plan.cards[0].taskModel.skillId, "english_short_writing");
   assert.equal(plan.cards[0].cardCreationSkillId, "learning-growth-card-creation");
   const payloads = service.buildStudyPlanCardPayloads(plan, { assignee: "principal-learner" });
   assert.match(payloads[0].content, /Short writing/);
@@ -132,6 +134,7 @@ function testLearningGrowthPlanUsesProvidedTaskCards() {
   assert.equal(payloads[0].learningProgramId, "program-1");
   assert.equal(payloads[0].learningDraftId, "draft-1");
   assert.equal(payloads[0].learningTaskCardId, "ltask-1");
+  assert.equal(payloads[0].learningTaskModel.skillId, "english_short_writing");
   assert.doesNotMatch(payloads[0].content, /submit output/);
 }
 

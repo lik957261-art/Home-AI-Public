@@ -277,6 +277,7 @@ function createKanbanPlanCardCreationService(deps = {}) {
         learningProgramId: card.learningProgramId || input.learningProgramId || input.learning_program_id || "",
         learningDraftId: card.learningDraftId || input.learningDraftId || input.learning_draft_id || "",
         learningTaskCardId: card.learningTaskCardId || input.learningTaskCardId || input.learning_task_card_id || "",
+        learningTaskModel: card.taskModel || card.learningTaskModel || input.learningTaskModel || input.learning_task_model || null,
       });
       if (!result?.ok) {
         return { ok: false, error: result?.error || "Study plan card creation failed", plan, cards: created, result };

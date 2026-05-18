@@ -7,6 +7,10 @@ const {
 const {
   deriveKanbanWorkflowState: defaultDeriveKanbanWorkflowState,
 } = require("./study-workflow-provider");
+const {
+  learningTaskModelSummary,
+  nextActionForTaskModel,
+} = require("./learning-task-model-service");
 
 function defaultPublicKanbanOutputsFromText() {
   return [];
@@ -42,6 +46,20 @@ function boolValue(value) {
   if (typeof value === "number") return value !== 0;
   const text = String(value ?? "").trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(text);
+}
+
+function objectValue(value) {
+  if (!value) return null;
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string" && value.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
 }
 
 function publicTodoOptions(contextOrIndex = null, maybeRows = null) {
@@ -276,6 +294,7 @@ function createTodoPublicProjectionService(options = {}) {
       learningProgramId: String(row.learning_program_id || row.learningProgramId || ""),
       learningDraftId: String(row.learning_draft_id || row.learningDraftId || ""),
       learningTaskCardId: String(row.learning_task_card_id || row.learningTaskCardId || ""),
+      learningTaskModel: objectValue(row.learning_task_model || row.learningTaskModel),
       kanbanRevisionOf: String(row.kanban_revision_of || row.kanbanRevisionOf || ""),
       kanbanRevisionRequest: String(row.kanban_revision_request || row.kanbanRevisionRequest || ""),
       kanbanRevisionRequestedAt: String(row.kanban_revision_requested_at || row.kanbanRevisionRequestedAt || ""),
@@ -305,6 +324,13 @@ function createTodoPublicProjectionService(options = {}) {
     }
     if (learningGrowthStudy) {
       payload.kanbanStudyKind = "learning-growth";
+      if (payload.learningTaskModel) {
+        payload.learningGrowthTaskModel = learningTaskModelSummary(payload.learningTaskModel);
+        payload.learningGrowthNextAction = nextActionForTaskModel(payload.learningTaskModel, {
+          status: payload.learningGrowthEvaluationStatus,
+          nextStep: payload.learningGrowthNextStep,
+        });
+      }
       const submittedAt = payload.learningGrowthSubmissionAt || payload.kanbanLastCommentAt;
       if (payload.learningGrowthSubmissionStatus || submittedAt) {
         const evaluationStatus = payload.learningGrowthEvaluationStatus || "pending";

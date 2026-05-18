@@ -102,6 +102,7 @@ function createKanbanCardProvider(options = {}) {
       learning_program_id: args.learningProgramId || args.learning_program_id || "",
       learning_draft_id: args.learningDraftId || args.learning_draft_id || "",
       learning_task_card_id: args.learningTaskCardId || args.learning_task_card_id || "",
+      learning_task_model: args.learningTaskModel || args.learning_task_model || null,
     });
   }
 

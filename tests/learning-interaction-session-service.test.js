@@ -72,12 +72,16 @@ function testStartAdvanceAndPrivacyGuard() {
   });
   const session = service.startSession("task-1", { summary: "start summary" });
   assert.equal(session.currentStep, "receive_task");
+  assert.equal(session.interactionModelVersion, "learning-task-model-v1");
+  assert.equal(session.nextAction, "submit_first_attempt");
+  assert.ok(session.requiredEvidence.includes("retell_summary"));
   assert.equal(session.stepHistory.length, 1);
   const advanced = service.advanceSession(session.sessionId, { summary: "attempt summary" });
   assert.equal(advanced.currentStep, "learner_attempt");
   assert.equal(advanced.status, "active");
   const completed = service.advanceSession(session.sessionId, { step: "ai_evaluation", summary: "evaluation summary" });
   assert.equal(completed.status, "completed");
+  assert.equal(completed.nextAction, "review_feedback");
   assert.throws(
     () => service.advanceSession(session.sessionId, { answerText: "raw child answer" }),
     /summary-only fields/,

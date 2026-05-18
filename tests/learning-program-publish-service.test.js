@@ -40,6 +40,15 @@ async function run() {
             deliverables: ["first English draft", "rewritten draft"],
             acceptance: ["first draft submitted", "rewrite submitted"],
             interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback", "learner_rewrites"],
+            taskModel: {
+              version: "learning-task-model-v1",
+              skillId: "english_short_writing",
+              activityType: "writing",
+              taskCardType: "single_subject",
+              interactionStateMachine: ["receive_task", "learner_drafts", "ai_feedback", "learner_rewrites"],
+              submissionContract: { firstSubmissionKind: "writing_draft", revisionSubmissionKind: "writing_revision" },
+              completionPolicy: { firstSubmissionCompletesTask: false, requiresFinalEvaluation: true },
+            },
             plannedMinutes: 15,
             skillIds: ["english_short_writing"],
             templateId: "english-short-writing-v1",
@@ -71,6 +80,7 @@ async function run() {
   assert.deepEqual(calls[0].input.cards[0].skillIds, ["english_short_writing"]);
   assert.equal(calls[0].input.cards[0].templateId, "english-short-writing-v1");
   assert.equal(calls[0].input.cards[0].taskCardType, "single_subject");
+  assert.equal(calls[0].input.cards[0].taskModel.skillId, "english_short_writing");
   assert.equal(calls[0].input.cards[0].cardCreationSkillId, "learning-growth-card-creation");
   assert.equal(calls[0].input.cards[0].deliverables[0], "first English draft");
   assert.match(calls[0].input.cards[0].description, /Task instruction:\nWrite a first draft/);
