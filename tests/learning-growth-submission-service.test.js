@@ -89,6 +89,11 @@ async function testModelFeedbackServiceIsActivityGeneric() {
             summary: "Presentation feedback is specific.",
             strengths: ["The outline has a clear order."],
             focusAreas: ["Add one concrete school example."],
+            criterionFeedback: [{
+              dimension: "audience evidence",
+              observation: "The order is clear but the audience example is still general.",
+              action: "Name the activity and audience.",
+            }],
             sentenceFeedback: [{
               evidence: "clear order",
               issue: "The evidence is still general.",
@@ -150,6 +155,7 @@ async function testModelFeedbackServiceIsActivityGeneric() {
   assert.equal(result.ok, true);
   assert.equal(result.evaluation.feedbackMethod, "model_assisted");
   assert.equal(result.evaluation.summary, "Presentation feedback is specific.");
+  assert.equal(result.evaluation.feedbackSections.criterionFeedback[0].dimension, "audience evidence");
   assert.equal(result.evaluation.feedbackSections.sentenceFeedback[0].example, "I will explain our science poster to Grade 7 classmates.");
   assert.doesNotMatch(JSON.stringify(result.evaluation), /my presentation explains/);
 }

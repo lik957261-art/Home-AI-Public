@@ -42,6 +42,8 @@ function testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak() {
   assert.equal(evaluation.reward.eligible, false);
   assert.equal(evaluation.nextStep, "rewrite_and_reflect");
   assert.equal(evaluation.activityType, "vocabulary");
+  assert.ok(evaluation.feedbackSections.criterionFeedback.some((item) => item.dimension === "word meaning"));
+  assert.ok(evaluation.feedbackSections.rewriteChecklist.some((item) => /target word/i.test(item)));
   assert.doesNotMatch(JSON.stringify(evaluation), /I observe the class carefully/);
 }
 

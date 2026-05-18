@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  activityCoachingContract,
+  coachingContractPrompt,
+} = require("./learning-growth-task-coaching-contract-service");
+
 function cleanString(value) {
   return String(value ?? "").trim();
 }
@@ -122,6 +127,20 @@ function normalizeSentenceFeedback(items = []) {
     .slice(0, 5);
 }
 
+function normalizeCriterionFeedback(items = []) {
+  return asArray(items)
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const dimension = compactText(item.dimension || item.criterion || item.name, 120);
+      const observation = compactText(item.observation || item.feedback || item.status, 220);
+      const action = compactText(item.action || item.nextAction || item.revision, 240);
+      if (!dimension && !observation && !action) return null;
+      return { dimension, observation, action };
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
 function normalizeFeedback(parsed = {}, stage = "draft") {
   const feedback = parsed.feedback && typeof parsed.feedback === "object" ? parsed.feedback : parsed;
   const summary = compactText(feedback.summary || parsed.summary, 360);
@@ -133,6 +152,7 @@ function normalizeFeedback(parsed = {}, stage = "draft") {
   const rewriteChecklist = compactArray(feedback.rewriteChecklist || parsed.rewriteChecklist, 6, 260);
   const reflectionPrompts = compactArray(feedback.reflectionPrompts || parsed.reflectionPrompts, 3, 180);
   const sentenceFeedback = normalizeSentenceFeedback(feedback.sentenceFeedback || parsed.sentenceFeedback);
+  const criterionFeedback = normalizeCriterionFeedback(feedback.criterionFeedback || feedback.rubricFeedback || parsed.criterionFeedback || parsed.rubricFeedback);
   return {
     modelAssisted: true,
     stage,
@@ -144,6 +164,7 @@ function normalizeFeedback(parsed = {}, stage = "draft") {
     focusAreas,
     rewriteChecklist,
     reflectionPrompts,
+    criterionFeedback,
     sentenceFeedback,
   };
 }
@@ -154,6 +175,7 @@ function buildTaskFeedbackPrompt(input = {}) {
   const evaluation = input.evaluation || {};
   const stage = cleanString(input.stage || evaluation.stage || "draft");
   const activityType = cleanString(model.activityType || evaluation.activityType || "practice") || "practice";
+  const coachingContract = activityCoachingContract(activityType);
   const payload = {
     stage,
     deterministicScore: Number(evaluation.score || 0),
@@ -172,18 +194,21 @@ function buildTaskFeedbackPrompt(input = {}) {
       deliverables: asArray(model.deliverables || card.kanbanCaseDeliverables).slice(0, 8),
       acceptance: asArray(model.acceptance || card.kanbanCaseAcceptance).slice(0, 8),
     },
+    coachingContract,
     studentAnswer: String(input.text || ""),
   };
   return [
     "You are an English learning coach for a Grade 7 learner at B1 bridge level.",
     `Analyze the student's current ${activityType} answer against the task. Give specific teaching feedback, not generic encouragement.`,
+    "Use this activity-specific coaching contract as the rubric:",
+    coachingContractPrompt(activityType),
     "Return strict JSON only. Do not use Markdown fences.",
     "Do not copy the full student answer. Evidence phrases must be short, at most 12 words each.",
     "Do not invent errors or content not supported by the answer and task.",
     "For draft stage: explain what to revise before final submission.",
     "For final stage: give a final conclusion, what improved, and the next practice focus.",
     "Use Chinese for explanations, but include short corrected English examples where useful.",
-    "JSON schema: {\"summary\":\"...\",\"finalConclusion\":\"...\",\"strengths\":[\"...\"],\"focusAreas\":[\"...\"],\"sentenceFeedback\":[{\"evidence\":\"short phrase\",\"issue\":\"...\",\"whyItMatters\":\"...\",\"fix\":\"...\",\"example\":\"short corrected English example\"}],\"rewriteChecklist\":[\"...\"],\"reflectionPrompts\":[\"...\"],\"nextPractice\":\"...\",\"parentNote\":\"...\"}",
+    "JSON schema: {\"summary\":\"...\",\"finalConclusion\":\"...\",\"strengths\":[\"...\"],\"focusAreas\":[\"...\"],\"criterionFeedback\":[{\"dimension\":\"...\",\"observation\":\"...\",\"action\":\"...\"}],\"sentenceFeedback\":[{\"evidence\":\"short phrase\",\"issue\":\"...\",\"whyItMatters\":\"...\",\"fix\":\"...\",\"example\":\"short corrected English example\"}],\"rewriteChecklist\":[\"...\"],\"reflectionPrompts\":[\"...\"],\"nextPractice\":\"...\",\"parentNote\":\"...\"}",
     JSON.stringify(payload),
   ].join("\n\n");
 }
@@ -191,17 +216,24 @@ function buildTaskFeedbackPrompt(input = {}) {
 function applyAiTaskFeedback(evaluation = {}, aiFeedback = {}) {
   if (!aiFeedback || !aiFeedback.modelAssisted) return evaluation;
   const sections = evaluation.feedbackSections || {};
+  const strengths = asArray(aiFeedback.strengths);
+  const focusAreas = asArray(aiFeedback.focusAreas);
+  const criterionFeedback = asArray(aiFeedback.criterionFeedback);
+  const rewriteChecklist = asArray(aiFeedback.rewriteChecklist);
+  const reflectionPrompts = asArray(aiFeedback.reflectionPrompts);
+  const sentenceFeedback = asArray(aiFeedback.sentenceFeedback);
   const merged = Object.assign({}, evaluation, {
     feedbackMethod: "model_assisted",
     aiFeedbackStatus: "completed",
     aiFeedbackAt: cleanString(aiFeedback.generatedAt || new Date().toISOString()),
     summary: aiFeedback.summary || aiFeedback.finalConclusion || evaluation.summary,
     feedbackSections: Object.assign({}, sections, {
-      strengths: aiFeedback.strengths.length ? aiFeedback.strengths : asArray(sections.strengths),
-      focusAreas: aiFeedback.focusAreas.length ? aiFeedback.focusAreas : asArray(sections.focusAreas),
-      rewriteChecklist: aiFeedback.rewriteChecklist.length ? aiFeedback.rewriteChecklist : asArray(sections.rewriteChecklist),
-      reflectionPrompts: aiFeedback.reflectionPrompts.length ? aiFeedback.reflectionPrompts : asArray(sections.reflectionPrompts),
-      sentenceFeedback: aiFeedback.sentenceFeedback,
+      strengths: strengths.length ? strengths : asArray(sections.strengths),
+      focusAreas: focusAreas.length ? focusAreas : asArray(sections.focusAreas),
+      criterionFeedback: criterionFeedback.length ? criterionFeedback : asArray(sections.criterionFeedback),
+      rewriteChecklist: rewriteChecklist.length ? rewriteChecklist : asArray(sections.rewriteChecklist),
+      reflectionPrompts: reflectionPrompts.length ? reflectionPrompts : asArray(sections.reflectionPrompts),
+      sentenceFeedback: sentenceFeedback.length ? sentenceFeedback : asArray(sections.sentenceFeedback),
       finalConclusion: aiFeedback.finalConclusion,
       nextPractice: aiFeedback.nextPractice,
       parentNote: aiFeedback.parentNote,

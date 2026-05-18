@@ -95,6 +95,21 @@ function sentenceFeedbackLines(items = []) {
   });
 }
 
+function criterionFeedbackLines(items = []) {
+  const list = asArray(items)
+    .filter((item) => item && typeof item === "object")
+    .slice(0, 6);
+  if (!list.length) return ["- \u6682\u65e0\u7ef4\u5ea6\u7ea7\u8bc4\u8bed\uff1b\u8bf7\u4ee5\u4fee\u6539\u6e05\u5355\u4e3a\u51c6\u3002"];
+  return list.flatMap((item, index) => {
+    const dimension = cleanString(item.dimension) || `Criterion ${index + 1}`;
+    return [
+      `- ${dimension}`,
+      cleanString(item.observation) ? `  - Observation: ${item.observation}` : "",
+      cleanString(item.action) ? `  - Action: ${item.action}` : "",
+    ].filter(Boolean);
+  });
+}
+
 function buildLearningGrowthTaskFeedbackMarkdown(input = {}) {
   const card = input.card || {};
   const evaluation = input.evaluation || {};
@@ -130,6 +145,10 @@ function buildLearningGrowthTaskFeedbackMarkdown(input = {}) {
     "## \u9700\u8981\u4fee\u590d\u7684\u5730\u65b9",
     "",
     ...markdownList(feedback.focusAreas || evaluation.revisionRequirements, "\u6682\u65e0\u5fc5\u987b\u4fee\u590d\u9879\uff0c\u4e0b\u4e00\u5f20\u5361\u7ee7\u7eed\u7d2f\u79ef\u3002"),
+    "",
+    "## \u6279\u6539\u7ef4\u5ea6",
+    "",
+    ...criterionFeedbackLines(feedback.criterionFeedback),
     "",
     "## AI \u5177\u4f53\u6307\u5bfc",
     "",

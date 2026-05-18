@@ -11,6 +11,9 @@ const {
 const {
   inferLearningTaskModelFromCard,
 } = require("./learning-task-model-service");
+const {
+  activityCoachingContract,
+} = require("./learning-growth-task-coaching-contract-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -184,37 +187,36 @@ function requirementsFor(scored = {}, stage = "final") {
 }
 
 function feedbackSections(model = {}, scored = {}, requirements = [], stage = "final") {
-  const label = activityLabel(scored.activityType || model.activityType);
+  const activityType = cleanString(scored.activityType || model.activityType);
+  const label = activityLabel(activityType);
+  const contract = activityCoachingContract(activityType);
   const strengths = [];
-  if (scored.wordCount >= activityThreshold(scored.activityType).minWords) strengths.push(`${label} has enough detail for feedback.`);
-  if (scored.lineCount >= activityThreshold(scored.activityType).minLines) strengths.push("The answer is split into clear parts.");
+  if (scored.wordCount >= activityThreshold(activityType).minWords) strengths.push(`${label} has enough detail for feedback.`);
+  if (scored.lineCount >= activityThreshold(activityType).minLines) strengths.push("The answer is split into clear parts.");
   if (scored.score >= 70) strengths.push("The task goal is sufficiently visible for this card.");
   if (!strengths.length) strengths.push("A first attempt is recorded and can now be improved.");
+  const criterionFeedback = contract.rubricDimensions.slice(0, 4).map((dimension, index) => ({
+    dimension,
+    observation: index === 0
+      ? `${label} is evaluated against this card's task goal.`
+      : `This ${dimension} dimension should be visible in the revised answer.`,
+    action: contract.requiredEvidence[index] || contract.revisionMoves[index] || contract.sentenceFix,
+  }));
   return {
     strengths,
-    focusAreas: asArray(requirements).slice(0, 6),
+    focusAreas: [...new Set(asArray(requirements).concat(contract.requiredEvidence.slice(0, 2)))].slice(0, 6),
+    criterionFeedback,
     rewriteChecklist: stage === "draft"
-      ? [
-        "Keep the part that directly answers the task.",
-        "Add one concrete detail, example, or repair sentence.",
-        "Remove one vague phrase and replace it with a clearer English expression.",
-        "Add one reflection sentence explaining what changed.",
-      ]
-      : [
-        "Carry the strongest expression into the next card.",
-        "Before the next answer, outline goal, evidence, and repair in three short notes.",
-      ],
-    reflectionPrompts: [
-      "What did I change after feedback?",
-      "Which detail should I remember for the next card?",
-    ],
+      ? contract.revisionMoves
+      : contract.finalTransferMoves,
+    reflectionPrompts: contract.reflectionPrompts,
     nextPractice: stage === "draft"
-      ? "Submit a revised version with visible changes and one reflection sentence."
-      : `Next ${label} task should reuse the strongest evidence and repair step from this card.`,
+      ? `Submit a revised version with visible changes: ${contract.revisionMoves.slice(0, 2).join(" ")}`
+      : contract.nextPractice,
     sentenceFeedback: asArray(scored.issues).slice(0, 4).map((issue) => ({
       issue: issue.message,
-      fix: "Add one specific English detail or repair sentence that directly matches the card instruction.",
-      example: "First, I changed my answer because the detail was not clear enough.",
+      fix: contract.sentenceFix,
+      example: contract.exampleSentence,
     })),
   };
 }

@@ -80,6 +80,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
         ${reportLinks}
         ${renderLearningGrowthFeedbackList("\u4f18\u70b9", feedbackSections.strengths)}
         ${renderLearningGrowthFeedbackList("\u91cd\u70b9\u4fee\u6539", feedbackSections.focusAreas || evaluation.revisionRequirements)}
+        ${renderLearningGrowthFeedbackList("\u6279\u6539\u7ef4\u5ea6", Array.isArray(feedbackSections.criterionFeedback) ? feedbackSections.criterionFeedback.map((item) => [item.dimension ? `\u7ef4\u5ea6\uff1a${item.dimension}` : "", item.observation ? `\u89c2\u5bdf\uff1a${item.observation}` : "", item.action ? `\u52a8\u4f5c\uff1a${item.action}` : ""].filter(Boolean).join("\uff1b")) : [])}
         ${renderLearningGrowthFeedbackList("AI \u5177\u4f53\u6307\u5bfc", Array.isArray(feedbackSections.sentenceFeedback) ? feedbackSections.sentenceFeedback.map((item) => [item.evidence ? `\u8bc1\u636e\uff1a${item.evidence}` : "", item.issue ? `\u95ee\u9898\uff1a${item.issue}` : "", item.fix ? `\u4fee\u6539\uff1a${item.fix}` : "", item.example ? `\u793a\u4f8b\uff1a${item.example}` : ""].filter(Boolean).join("\uff1b")) : [])}
         ${renderLearningGrowthFeedbackList("\u6539\u5199\u6e05\u5355", feedbackSections.rewriteChecklist)}
         ${renderLearningGrowthFeedbackList("\u590d\u76d8\u95ee\u9898", feedbackSections.reflectionPrompts)}

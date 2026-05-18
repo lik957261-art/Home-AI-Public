@@ -115,6 +115,11 @@ function publicEvaluation(evaluation = {}, settlement = null) {
     feedbackSections: {
       strengths: asArray(sections.strengths).map(cleanString).filter(Boolean),
       focusAreas: asArray(sections.focusAreas).map(cleanString).filter(Boolean),
+      criterionFeedback: asArray(sections.criterionFeedback).map((item) => ({
+        dimension: cleanString(item?.dimension),
+        observation: cleanString(item?.observation),
+        action: cleanString(item?.action),
+      })).filter((item) => item.dimension || item.observation || item.action),
       rewriteChecklist: asArray(sections.rewriteChecklist).map(cleanString).filter(Boolean),
       reflectionPrompts: asArray(sections.reflectionPrompts).map(cleanString).filter(Boolean),
       sentenceFeedback: asArray(sections.sentenceFeedback).map((item) => ({

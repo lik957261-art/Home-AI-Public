@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260518-growth-runtime-v12";
+const CLIENT_VERSION = "20260518-growth-coaching-v13";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -917,6 +917,8 @@ assert.match(appJs, /data-learning-growth-submission-status/);
 assert.match(appJs, /data-learning-growth-evaluation-status/);
 assert.match(appJs, /learningGrowthSubmissionPrompt/);
 assert.match(appJs, /renderLearningGrowthFeedbackList/);
+assert.match(appJs, /criterionFeedback/);
+assert.match(appJs, /\\u6279\\u6539\\u7ef4\\u5ea6/);
 assert.match(appJs, /rewrite_and_reflect/);
 assert.match(appJs, /function submitLearningGrowthTask\(todoId, text\)/);
 assert.match(appJs, /function submitLearningGrowthWriting\(todoId, text\)/);

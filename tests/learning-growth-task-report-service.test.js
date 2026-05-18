@@ -31,6 +31,11 @@ function testBuildGenericMarkdownOmitsRawSubmission() {
       feedbackSections: {
         strengths: ["The answer uses school context."],
         focusAreas: ["Add one sentence showing the exact word meaning."],
+        criterionFeedback: [{
+          dimension: "word meaning",
+          observation: "The target word is used but the meaning needs clearer context.",
+          action: "Show the word meaning through a school example.",
+        }],
         sentenceFeedback: [{
           evidence: "compare two ideas",
           issue: "The connection is not clear.",
@@ -46,6 +51,8 @@ function testBuildGenericMarkdownOmitsRawSubmission() {
   assert.match(markdown, /Vocabulary card/);
   assert.match(markdown, /Active vocabulary/);
   assert.match(markdown, /Vocabulary answer needs one clearer repair sentence/);
+  assert.match(markdown, /word meaning/);
+  assert.match(markdown, /Show the word meaning through a school example/);
   assert.match(markdown, /I compare the two ideas/);
   assert.match(markdown, /Use target vocabulary/);
   assert.doesNotMatch(markdown, /full raw student answer/);

@@ -18,6 +18,11 @@ async function testModelFeedbackParsesForGenericActivity() {
         summary: "The presentation outline is clear but needs a concrete example.",
         strengths: ["Clear opening."],
         focusAreas: ["Add one audience-specific example."],
+        criterionFeedback: [{
+          dimension: "audience evidence",
+          observation: "The audience is visible but the example is still broad.",
+          action: "Name the school activity and audience.",
+        }],
         sentenceFeedback: [{
           evidence: "two main points",
           issue: "The evidence is still broad.",
@@ -50,12 +55,15 @@ async function testModelFeedbackParsesForGenericActivity() {
   });
   assert.equal(result.ok, true);
   assert.equal(result.feedback.modelAssisted, true);
+  assert.equal(result.feedback.criterionFeedback[0].dimension, "audience evidence");
   assert.equal(result.feedback.sentenceFeedback[0].example, "I will explain our science poster to Grade 7 classmates.");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].body.store, false);
   assert.equal(calls[0].body.stream, true);
   assert.match(calls[0].body.conversation, /^learning_growth_task_feedback_/);
   assert.match(calls[0].body.input, /studentAnswer/);
+  assert.match(calls[0].body.input, /coachingContract/);
+  assert.match(calls[0].body.input, /audience evidence/);
 }
 
 function testApplyTaskFeedbackKeepsDeterministicVerification() {
@@ -67,12 +75,14 @@ function testApplyTaskFeedbackKeepsDeterministicVerification() {
   }, normalizeFeedback({
     summary: "AI summary",
     strengths: ["AI strength"],
+    criterionFeedback: [{ dimension: "task alignment", observation: "Aligned.", action: "Add detail." }],
     sentenceFeedback: [{ issue: "Need detail", fix: "Add one example." }],
   }, "final"));
   assert.equal(evaluation.summary, "AI summary");
   assert.equal(evaluation.verificationMethod, "deterministic_template");
   assert.equal(evaluation.feedbackMethod, "model_assisted");
   assert.equal(evaluation.feedbackSections.strengths[0], "AI strength");
+  assert.equal(evaluation.feedbackSections.criterionFeedback[0].action, "Add detail.");
   assert.equal(evaluation.feedbackSections.sentenceFeedback[0].fix, "Add one example.");
   assert.ok(evaluation.evidenceRefs.includes("learning-growth-task-ai-feedback:v1"));
   assert.equal(evaluation.evidenceRefs.filter((item) => item === "learning-growth-task-ai-feedback:v1").length, 1);
@@ -89,6 +99,8 @@ function testPromptAndParser() {
     evaluation: { score: 82, status: "completed" },
   });
   assert.match(prompt, /current vocabulary answer/);
+  assert.match(prompt, /activity-specific coaching contract/);
+  assert.match(prompt, /word meaning/);
   assert.match(prompt, /Return strict JSON only/);
   assert.match(prompt, /This is a student answer/);
   assert.deepEqual(parseJsonObject("prefix {\"summary\":\"ok\"} suffix"), { summary: "ok" });
