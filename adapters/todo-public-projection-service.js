@@ -10,8 +10,10 @@ const {
 const {
   inferLearningTaskModelFromCard,
   learningTaskModelSummary,
-  nextActionForTaskModel,
 } = require("./learning-task-model-service");
+const {
+  projectGrowthInteractionState,
+} = require("./learning-growth-task-interaction-state-service");
 
 function defaultPublicKanbanOutputsFromText() {
   return [];
@@ -354,14 +356,27 @@ function createTodoPublicProjectionService(options = {}) {
       }
       payload.learningGrowthTaskModel = learningTaskModelSummary(payload.learningTaskModel);
       payload.learningGrowthRewardPolicy = payload.learningGrowthTaskModel.rewardPolicy;
-      payload.learningGrowthNextAction = nextActionForTaskModel(payload.learningTaskModel, {
-        status: payload.learningGrowthEvaluationStatus,
+      payload.learningGrowthInteractionState = projectGrowthInteractionState(payload.learningTaskModel, {
+        evaluationStatus: payload.learningGrowthEvaluationStatus,
         nextStep: payload.learningGrowthNextStep,
+        kanbanStatus: payload.kanbanStatus,
+        completed: publicTodoWorkflowCompleted(payload),
       });
+      payload.learningGrowthNextAction = payload.learningGrowthInteractionState.nextAction;
       const submittedAt = payload.learningGrowthSubmissionAt || payload.kanbanLastCommentAt;
       if (payload.learningGrowthSubmissionStatus || submittedAt) {
         const evaluationStatus = payload.learningGrowthEvaluationStatus || "pending";
-        const analysisAvailable = ["completed", "draft_feedback", "needs_revision", "review_required", "pending_review"].includes(evaluationStatus);
+        const interactionState = projectGrowthInteractionState(payload.learningTaskModel, {
+          submitted: true,
+          submissionStatus: payload.learningGrowthSubmissionStatus || "submitted",
+          submittedAt,
+          evaluationStatus,
+          nextStep: payload.learningGrowthNextStep,
+          kanbanStatus: payload.kanbanStatus,
+          completed: publicTodoWorkflowCompleted(payload),
+        });
+        payload.learningGrowthInteractionState = interactionState;
+        const analysisAvailable = interactionState.analysisAvailable;
         const reportOutput = payload.learningGrowthReportPath
           ? (publicKanbanOutputsFromText(workspaceId, `MEDIA: ${payload.learningGrowthReportPath}`)[0] || null)
           : null;
@@ -372,13 +387,8 @@ function createTodoPublicProjectionService(options = {}) {
             role: "learning-growth-writing-report",
           })]);
         }
-        const nextStep = payload.learningGrowthNextStep || (evaluationStatus === "completed"
-          ? "completed"
-          : (evaluationStatus === "draft_feedback" ? "rewrite_and_reflect" : (evaluationStatus === "needs_revision" ? "revise_and_resubmit" : "pending_evaluation")));
-        payload.learningGrowthNextAction = nextActionForTaskModel(payload.learningTaskModel, {
-          status: evaluationStatus,
-          nextStep,
-        });
+        const nextStep = interactionState.nextStep;
+        payload.learningGrowthNextAction = interactionState.nextAction;
         payload.learningGrowthSubmission = {
           status: payload.learningGrowthSubmissionStatus || "submitted",
           kind: payload.learningGrowthSubmissionKind || "writing",

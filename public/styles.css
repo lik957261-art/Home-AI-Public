@@ -6589,13 +6589,17 @@ button.directory-alias-chip {
   margin: 0;
 }
 
+.todo-learning-growth-submission-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .todo-learning-growth-status small {
   color: var(--muted);
 }
 
 .todo-learning-growth-evaluation {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr);
   gap: 10px;
   padding: 10px;
   border: 1px solid rgba(31, 111, 98, 0.2);
@@ -6603,24 +6607,24 @@ button.directory-alias-chip {
   background: rgba(255, 255, 255, 0.78);
 }
 
-.todo-learning-growth-score {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  min-height: 64px;
-  border-radius: 10px;
+.todo-learning-growth-evaluation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.todo-learning-growth-score-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
   color: var(--accent);
-  background: rgba(31, 111, 98, 0.08);
-}
-
-.todo-learning-growth-score strong {
-  font-size: 24px;
-  line-height: 1;
-}
-
-.todo-learning-growth-score span {
-  color: var(--muted);
   font-size: 12px;
+  font-weight: 650;
+  background: rgba(31, 111, 98, 0.08);
 }
 
 .todo-learning-growth-evaluation p,

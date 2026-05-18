@@ -9,6 +9,9 @@ const {
   englishTaskModelContract,
   englishTemplateForSkill,
 } = require("./learning-english-template-pack-service");
+const {
+  growthNextActionForTaskModel,
+} = require("./learning-growth-task-interaction-state-service");
 
 const TASK_MODEL_VERSION = "learning-task-model-v1";
 
@@ -438,14 +441,7 @@ function learningTaskModelSummary(model = {}) {
 }
 
 function nextActionForTaskModel(model = {}, state = {}) {
-  const status = cleanString(state.evaluationStatus || state.status).toLowerCase();
-  const nextStep = cleanString(state.nextStep);
-  if (status === "completed" || nextStep === "completed") return "review_feedback";
-  if (nextStep === "rewrite_and_reflect" || status === "draft_feedback") return "submit_revision_and_reflection";
-  if (nextStep === "revise_and_resubmit" || status === "needs_revision") return "submit_revision";
-  if (status === "pending") return "wait_for_feedback";
-  const summary = learningTaskModelSummary(model);
-  return summary.submissionContract.firstSubmissionKind ? "submit_first_attempt" : "start_task";
+  return growthNextActionForTaskModel(learningTaskModelSummary(model), state);
 }
 
 module.exports = {

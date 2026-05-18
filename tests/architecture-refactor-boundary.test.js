@@ -61,6 +61,7 @@ const learningGrowthProgressSyncService = require("../adapters/learning-growth-p
 const learningGrowthSubmissionService = require("../adapters/learning-growth-submission-service");
 const learningGrowthTaskFeedbackService = require("../adapters/learning-growth-task-feedback-service");
 const learningGrowthTaskEvaluationService = require("../adapters/learning-growth-task-evaluation-service");
+const learningGrowthTaskInteractionStateService = require("../adapters/learning-growth-task-interaction-state-service");
 const learningGrowthTaskReportService = require("../adapters/learning-growth-task-report-service");
 const learningGrowthWritingAiFeedbackService = require("../adapters/learning-growth-writing-ai-feedback-service");
 const learningGrowthWritingEvaluationService = require("../adapters/learning-growth-writing-evaluation-service");
@@ -258,6 +259,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningGrowthSubmissionService.createLearningGrowthSubmissionService, "function");
   assert.equal(typeof learningGrowthTaskFeedbackService.createLearningGrowthTaskFeedbackService, "function");
   assert.equal(typeof learningGrowthTaskEvaluationService.createLearningGrowthTaskEvaluationService, "function");
+  assert.equal(typeof learningGrowthTaskInteractionStateService.growthNextActionForTaskModel, "function");
+  assert.equal(typeof learningGrowthTaskInteractionStateService.projectGrowthInteractionState, "function");
   assert.equal(typeof learningGrowthTaskReportService.createLearningGrowthTaskReportService, "function");
   assert.equal(typeof learningGrowthWritingAiFeedbackService.createLearningGrowthWritingAiFeedbackService, "function");
   assert.equal(typeof learningGrowthWritingAiFeedbackService.applyAiWritingFeedback, "function");

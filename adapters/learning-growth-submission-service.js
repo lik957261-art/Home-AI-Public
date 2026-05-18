@@ -20,6 +20,9 @@ const {
 const {
   createLearningGrowthProgressSyncService,
 } = require("./learning-growth-progress-sync-service");
+const {
+  growthSubmissionStageForCard,
+} = require("./learning-growth-task-interaction-state-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -80,17 +83,8 @@ function resolveProgramTaskCard(programService, card = {}) {
   return null;
 }
 
-function learningGrowthEvaluationStatus(card = {}) {
-  return cardField(card, "learningGrowthEvaluationStatus", "learning_growth_evaluation_status").toLowerCase();
-}
-
 function submissionStageForCard(card = {}, input = {}) {
-  const explicit = cleanString(input.stage || input.submissionStage || input.submissionKind).toLowerCase();
-  if (["final", "rewrite", "revision", "resubmission"].includes(explicit)) return "final";
-  if (["draft", "first_draft", "initial"].includes(explicit)) return "draft";
-  const status = learningGrowthEvaluationStatus(card);
-  if (["draft_feedback", "needs_revision", "review_required", "pending_review"].includes(status)) return "final";
-  return "draft";
+  return growthSubmissionStageForCard(card, input);
 }
 
 function getProgramService(options = {}) {

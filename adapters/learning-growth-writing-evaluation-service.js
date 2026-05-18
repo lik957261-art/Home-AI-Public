@@ -4,6 +4,9 @@ const crypto = require("node:crypto");
 const {
   calculateLearningCardReward,
 } = require("./learning-card-reward-policy-service");
+const {
+  growthNextStepForStage,
+} = require("./learning-growth-task-interaction-state-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -173,11 +176,6 @@ function normalizeEvaluationStage(value, fallback = "final") {
   return fallback === "draft" ? "draft" : "final";
 }
 
-function learningNextStep(stage, passed) {
-  if (stage === "draft") return "rewrite_and_reflect";
-  return passed ? "completed" : "revise_and_resubmit";
-}
-
 function feedbackSections(scored = {}, requirements = [], stage = "final") {
   const strengths = [];
   if (scored.wordCount >= scored.targetMinWords) strengths.push("篇幅已达到本次任务的基本要求。");
@@ -242,7 +240,7 @@ function createLearningGrowthWritingEvaluationService(options = {}) {
       : (passed
         ? `最终批改完成：${scored.score}/100。本卡已达到通过线；最终结论、改写成效和下一次训练重点会写入 Markdown 交付报告。`
         : `改写仍需继续：${scored.score}/100。请根据批改报告再提交一版，重点补足阻碍通过的项目。`);
-    const nextStep = learningNextStep(stage, passed);
+    const nextStep = growthNextStepForStage(stage, passed);
     return {
       evaluationId: createEvaluationId(cardId, text),
       submissionDigest: submissionDigest(text),

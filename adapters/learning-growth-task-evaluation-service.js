@@ -14,6 +14,9 @@ const {
 const {
   activityCoachingContract,
 } = require("./learning-growth-task-coaching-contract-service");
+const {
+  growthNextStepForStage,
+} = require("./learning-growth-task-interaction-state-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -163,11 +166,6 @@ function scoreGeneric(input = {}) {
   };
 }
 
-function nextStepFor(stage, passed) {
-  if (stage === "draft") return "rewrite_and_reflect";
-  return passed ? "completed" : "revise_and_resubmit";
-}
-
 function requirementsFor(scored = {}, stage = "final") {
   const requirements = asArray(scored.issues)
     .filter((issue) => issue.severity !== "minor")
@@ -275,7 +273,7 @@ function createLearningGrowthTaskEvaluationService(options = {}) {
       lineCount: scored.lineCount,
       revisionRequirements: requirements,
       feedbackSections: feedbackSections(model, scored, requirements, stage),
-      nextStep: nextStepFor(stage, passed),
+      nextStep: growthNextStepForStage(stage, passed),
       verificationMethod: "deterministic_growth_task_template",
       evidenceRefs: [
         `learning-growth-task-rubric:v1`,

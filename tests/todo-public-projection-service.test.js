@@ -337,6 +337,8 @@ function run() {
     summary: "Custom rubric up to 120 coins.",
   });
   assert.equal(projectedLearningGrowth.learningGrowthNextAction, "submit_first_attempt");
+  assert.equal(projectedLearningGrowth.learningGrowthInteractionState.phase, "not_started");
+  assert.equal(projectedLearningGrowth.learningGrowthInteractionState.canSubmit, true);
   assert.equal(projectedLearningGrowth.readingSubmission, undefined);
   assert.equal(projectedLearningGrowth.studyWorkflow, undefined);
   assert.equal(projectedLearningGrowth.workflowState, undefined);
@@ -360,6 +362,9 @@ function run() {
     analysisAvailable: false,
     nextStep: "pending_evaluation",
   });
+  assert.equal(projectedLearningGrowthSubmitted.learningGrowthInteractionState.phase, "awaiting_feedback");
+  assert.equal(projectedLearningGrowthSubmitted.learningGrowthInteractionState.nextAction, "wait_for_feedback");
+  assert.equal(projectedLearningGrowthSubmitted.learningGrowthInteractionState.canSubmit, false);
   const projectedLearningGrowthEvaluated = studyProjectionService.publicTodo(row("learning-growth-evaluated", {
     kanban_case_mode: "study-plan",
     kanban_case_template: "learning-growth",
@@ -461,6 +466,7 @@ function run() {
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthSubmission.analysisAvailable, true);
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthSubmission.nextStep, "rewrite_and_reflect");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthNextAction, "submit_revision_and_reflection");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthInteractionState.canSubmit, true);
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.report.name, "draft-feedback.md");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackMethod, "model_assisted");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.aiFeedbackStatus, "completed");
