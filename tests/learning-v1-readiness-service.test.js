@@ -5,6 +5,7 @@ const {
   buildLearnerDataChecks,
   buildSystemChecks,
   createLearningV1ReadinessService,
+  taskModelStats,
 } = require("../adapters/learning-v1-readiness-service");
 
 function readyProgramsFixture() {
@@ -16,7 +17,7 @@ function readyProgramsFixture() {
     curriculumReferences: [{ referenceId: "cefr-a2-b1" }],
     programs: [{ programId: "program-1" }],
     latestDrafts: [{ draftId: "draft-1" }],
-    taskCards: [{ taskCardId: "task-1", status: "published" }],
+    taskCards: [{ taskCardId: "task-1", status: "published", taskModel: { skillId: "english_short_writing" } }],
     dailyPlan: {
       summary: { totalTasks: 1, pendingTasks: 1 },
       nextTask: { taskCardId: "task-1" },
@@ -45,6 +46,17 @@ function testSystemReadinessChecksPassForCompleteProjection() {
 function testLearnerDataChecksPassForCompleteOperationalLoop() {
   const checks = buildLearnerDataChecks(readyProgramsFixture(), readyCoinsFixture());
   assert.equal(checks.every((item) => item.ready), true);
+  assert.ok(checks.some((item) => item.id === "task-model-data"));
+  assert.deepEqual(taskModelStats(readyProgramsFixture()), { total: 1, withModel: 1 });
+}
+
+function testLearnerDataCheckFindsTasksWithoutModels() {
+  const programs = readyProgramsFixture();
+  programs.taskCards = [{ taskCardId: "task-1", status: "published" }];
+  const checks = buildLearnerDataChecks(programs, readyCoinsFixture());
+  const modelCheck = checks.find((item) => item.id === "task-model-data");
+  assert.equal(modelCheck.ready, false);
+  assert.deepEqual(modelCheck.details, { taskCount: 1, withTaskModel: 0 });
 }
 
 function testReadinessBlocksPrivatePayloadProjection() {
@@ -76,6 +88,7 @@ function testReadinessReportsFullOperationalReadyState() {
 
 testSystemReadinessChecksPassForCompleteProjection();
 testLearnerDataChecksPassForCompleteOperationalLoop();
+testLearnerDataCheckFindsTasksWithoutModels();
 testReadinessBlocksPrivatePayloadProjection();
 testReadinessReportsFullOperationalReadyState();
 

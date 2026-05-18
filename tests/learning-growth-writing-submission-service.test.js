@@ -75,6 +75,8 @@ async function testSubmitWritingStoresAsKanbanComment() {
   assert.equal(calls[1].input.learningGrowthSubmission, true);
   assert.equal(calls[1].input.submissionKind, "writing_draft");
   assert.equal(calls[2].input.learningGrowthEvaluation.status, "draft_feedback");
+  assert.match(calls[2].input.comment, /AI 写作批改/);
+  assert.match(calls[2].input.comment, /修改要求/);
   assert.match(calls[2].input.comment, /MEDIA:/);
   assert.doesNotMatch(JSON.stringify(result.evaluation), /Last week I joined/);
 }
@@ -134,6 +136,8 @@ async function testFinalRewriteSettlesAndCompletes() {
   assert.equal(calls[0].submissionKind, "writing_revision");
   assert.equal(calls[1].learningGrowthEvaluation.status, "completed");
   assert.equal(calls[2].action, "complete");
+  assert.match(calls[2].comment, /金币/);
+  assert.doesNotMatch(calls[2].comment, /[�]/);
 }
 
 async function testRejectsMissingNonGrowthAndOversizedSubmissions() {

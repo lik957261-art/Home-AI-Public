@@ -39,6 +39,13 @@ function containsPrivateLearningPayload(value) {
   return /rawTranscript|fullTranscript|answerKey|questionText|learnerAnswer|childAnswer|rawPrompt|apiKey|pushEndpoint|authorization|cookie/i.test(text);
 }
 
+function taskModelStats(programs = {}) {
+  const tasks = asArray(programs.taskCards).concat(asArray(programs.executableTasks));
+  const total = tasks.length;
+  const withModel = tasks.filter((task) => task?.taskModel || task?.learningTaskModel || task?.learningGrowthTaskModel).length;
+  return { total, withModel };
+}
+
 function buildSystemChecks(programs = {}, coins = {}) {
   const hasPrograms = programs && typeof programs === "object";
   return [
@@ -89,6 +96,7 @@ function buildSystemChecks(programs = {}, coins = {}) {
 
 function buildLearnerDataChecks(programs = {}, coins = {}) {
   const dailySummary = programs?.dailyPlan?.summary || {};
+  const modelStats = taskModelStats(programs);
   return [
     check("source-goal-data", "At least one source and one goal", count(programs.sources) > 0 && count(programs.goals) > 0, {
       sources: count(programs.sources),
@@ -104,6 +112,10 @@ function buildLearnerDataChecks(programs = {}, coins = {}) {
     check("daily-plan-data", "Daily plan has executable tasks", count(dailySummary.totalTasks) > 0 || count(programs.dailyPlan?.nextTask) > 0, {
       totalTasks: count(dailySummary.totalTasks),
       hasNextTask: Boolean(programs.dailyPlan?.nextTask),
+    }),
+    check("task-model-data", "Executable tasks carry a learning task model", modelStats.total === 0 || modelStats.withModel === modelStats.total, {
+      taskCount: modelStats.total,
+      withTaskModel: modelStats.withModel,
     }),
     check("interaction-session-data", "At least one interaction session", count(programs.interactionSessions) > 0, {
       sessions: count(programs.interactionSessions),
@@ -170,4 +182,5 @@ module.exports = {
   buildLearnerDataChecks,
   buildSystemChecks,
   createLearningV1ReadinessService,
+  taskModelStats,
 };

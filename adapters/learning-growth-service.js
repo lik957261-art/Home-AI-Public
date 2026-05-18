@@ -19,7 +19,7 @@ function normalizeLearningGrowthRequest(input = {}) {
   const workspaceId = cleanString(input.workspaceId) || "owner";
   const learnerId = cleanString(input.learnerId || input.studentId) || workspaceId;
   const learnerName = cleanString(input.learnerName || input.displayName)
-    || (learnerId === "weixin_stephen" ? "凡凡" : learnerId);
+    || (learnerId === "weixin_stephen" ? "\u51e1\u51e1" : learnerId);
   return {
     workspaceId,
     learnerId,
@@ -229,60 +229,58 @@ function learningGrowthCapabilityMap(metrics = {}) {
   return [
     {
       id: "learning-data-foundation",
-      title: "目标与学习数据",
+      title: "\u76ee\u6807\u4e0e\u5b66\u4e60\u6570\u636e",
       status: "foundation",
-      description: "沉淀学校、私教、历史清洗数据和长期目标，作为后续 AI 计划的事实来源。",
+      description: "\u6c89\u6dc0\u5b66\u6821\u3001\u79c1\u6559\u3001\u5386\u53f2\u6e05\u6d17\u6570\u636e\u548c\u957f\u671f\u76ee\u6807\uff0c\u4f5c\u4e3a\u540e\u7eed AI \u8ba1\u5212\u7684\u4e8b\u5b9e\u6765\u6e90\u3002",
     },
     {
       id: "curriculum-reference",
-      title: "公开课程参考",
-      status: "planned",
-      description: "按年龄、年级、学校环境和公开样题风格建立难度阶梯，避免只围绕近期错题补洞。",
+      title: "\u516c\u5f00\u8bfe\u7a0b\u53c2\u8003",
+      status: "active",
+      description: "\u6309\u5e74\u9f84\u3001\u5e74\u7ea7\u3001\u5b66\u6821\u73af\u5883\u548c\u516c\u5f00\u6837\u9898\u98ce\u683c\u5efa\u7acb\u96be\u5ea6\u9636\u68af\uff0c\u907f\u514d\u53ea\u56f4\u7ed5\u8fd1\u671f\u9519\u9898\u8865\u6d1e\u3002",
     },
     {
       id: "ai-task-orchestration",
-      title: "AI 任务下发",
+      title: "AI \u4efb\u52a1\u4e0b\u53d1",
       status: "platform-reuse",
-      description: "复用 Hermes Mobile 看板、主题、聊天、文件和 Web Push，把方案转成可执行学习任务。",
+      description: "\u590d\u7528 Hermes Mobile \u770b\u677f\u3001\u4e3b\u9898\u3001\u804a\u5929\u3001\u6587\u4ef6\u548c Web Push\uff0c\u628a\u65b9\u6848\u8f6c\u6210\u53ef\u6267\u884c\u5b66\u4e60\u4efb\u52a1\u3002",
     },
     {
       id: "guided-interaction",
-      title: "互动辅导闭环",
+      title: "\u4e92\u52a8\u8f85\u5bfc\u95ed\u73af",
       status: "active",
-      description: "阅读、AMC8、Python 等卡片进入提示、作答、追问、复盘、变式和修复流程。",
+      description: "\u9605\u8bfb\u3001\u5199\u4f5c\u3001\u53e3\u8bed\u3001\u542c\u529b\u3001\u8bcd\u6c47\u3001\u8bed\u6cd5\u548c\u9879\u76ee\u5361\u7247\u90fd\u8fdb\u5165\u63d0\u793a\u3001\u4f5c\u7b54\u3001\u8ffd\u95ee\u3001\u590d\u76d8\u3001\u53d8\u5f0f\u548c\u4fee\u590d\u6d41\u7a0b\u3002",
     },
     {
       id: "ai-reliability-guard",
-      title: "AI 可靠性护栏",
+      title: "AI \u53ef\u9760\u6027\u62a4\u680f",
       status: "guardrail",
-      description: "把来源依据、结构化校验、置信度、异常拦截和家长审核作为学习闭环的一等工程边界。",
+      description: "\u628a\u6765\u6e90\u4f9d\u636e\u3001\u7ed3\u6784\u5316\u6821\u9a8c\u3001\u7f6e\u4fe1\u5ea6\u3001\u5f02\u5e38\u62e6\u622a\u548c\u5bb6\u957f\u5ba1\u6838\u4f5c\u4e3a\u5b66\u4e60\u95ed\u73af\u7684\u4e00\u7b49\u5de5\u7a0b\u8fb9\u754c\u3002",
     },
     {
       id: "coin-incentive",
-      title: "金币激励",
+      title: "\u91d1\u5e01\u6fc0\u52b1",
       status: metrics.availableCoins > 0 || metrics.earnedCoins > 0 ? "active" : "ready",
-      description: "金币、成长档案、兑换申请和家长确认收敛在成长系统内，不再作为通用工作台模块扩散。",
+      description: "\u91d1\u5e01\u3001\u6210\u957f\u6863\u6848\u3001\u5151\u6362\u7533\u8bf7\u548c\u5bb6\u957f\u786e\u8ba4\u6536\u655b\u5728\u6210\u957f\u7cfb\u7edf\u5185\uff0c\u4e0d\u518d\u4f5c\u4e3a\u901a\u7528\u5de5\u4f5c\u53f0\u6a21\u5757\u6269\u6563\u3002",
     },
     {
       id: "parent-review",
-      title: "家长审核与结算",
+      title: "\u5bb6\u957f\u5ba1\u6838\u4e0e\u7ed3\u7b97",
       status: "planned",
-      description: "后续补审批、完成、拒绝、审计、撤销和真实结算扩展点。",
+      description: "\u540e\u7eed\u8865\u5ba1\u6279\u3001\u5b8c\u6210\u3001\u62d2\u7edd\u3001\u5ba1\u8ba1\u3001\u64a4\u9500\u548c\u771f\u5b9e\u7ed3\u7b97\u6269\u5c55\u70b9\u3002",
     },
   ];
 }
-
 function learningGrowthPlatformCapabilities() {
   return [
-    { id: "chat", title: "聊天与主题", owner: "Hermes Mobile Platform" },
-    { id: "kanban", title: "看板任务", owner: "Hermes Mobile Platform" },
-    { id: "files", title: "目录与交付文件", owner: "Hermes Mobile Platform" },
-    { id: "push", title: "Web Push 提醒", owner: "Hermes Mobile Platform" },
-    { id: "gateway", title: "Hermes Gateway 执行", owner: "Hermes Mobile Platform" },
-    { id: "skills", title: "学习模板 Skills", owner: "Learning Growth Domain" },
+    { id: "chat", title: "\u804a\u5929\u4e0e\u4e3b\u9898", owner: "Hermes Mobile Platform" },
+    { id: "kanban", title: "\u770b\u677f\u4efb\u52a1", owner: "Hermes Mobile Platform" },
+    { id: "files", title: "\u76ee\u5f55\u4e0e\u4ea4\u4ed8\u6587\u4ef6", owner: "Hermes Mobile Platform" },
+    { id: "push", title: "Web Push \u63d0\u9192", owner: "Hermes Mobile Platform" },
+    { id: "gateway", title: "Hermes Gateway \u6267\u884c", owner: "Hermes Mobile Platform" },
+    { id: "skills", title: "\u5b66\u4e60\u6a21\u677f Skills", owner: "Learning Growth Domain" },
   ];
 }
-
 function learningGrowthReliabilitySummary() {
   return {
     phase: "phase-1-parent-audit",
@@ -353,9 +351,9 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
     viewerRole,
     module: {
       id: LEARNING_GROWTH_MODULE_ID,
-      title: "凡凡成长系统",
+      title: "\u51e1\u51e1\u6210\u957f\u7cfb\u7edf",
       hostView: "learning",
-      currentEntry: "成长标签",
+      currentEntry: "\u6210\u957f\u6807\u7b7e",
       standaloneReady: true,
       architecture: "same-repo-same-deploy-independent-product-entry",
     },
@@ -374,11 +372,11 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
     programs,
     coins,
     nextModules: [
-      { id: "learning-profile", title: "学习档案与目标录入", status: "next" },
-      { id: "learning-plan-generator", title: "AI 学习方案生成", status: "next" },
-      { id: "ai-reliability-guard-service", title: "AI 可靠性与家长审核护栏", status: "next" },
-      { id: "learning-interaction-templates", title: "阅读/AMC8/Python 互动模板", status: "next" },
-      { id: "coin-parent-admin", title: "金币兑换家长后台", status: "next" },
+      { id: "learning-profile", title: "\u5b66\u4e60\u6863\u6848\u4e0e\u76ee\u6807\u5f55\u5165", status: "next" },
+      { id: "learning-plan-generator", title: "AI \u5b66\u4e60\u65b9\u6848\u751f\u6210", status: "next" },
+      { id: "ai-reliability-guard-service", title: "AI \u53ef\u9760\u6027\u4e0e\u5bb6\u957f\u5ba1\u6838\u62a4\u680f", status: "next" },
+      { id: "learning-interaction-templates", title: "\u82f1\u8bed/AMC8/Python \u4e92\u52a8\u6a21\u677f", status: "next" },
+      { id: "coin-parent-admin", title: "\u91d1\u5e01\u5151\u6362\u5bb6\u957f\u540e\u53f0", status: "next" },
     ],
   };
   return viewerRole === "owner" ? overview : projectGrowthOverviewForExecutor(overview);

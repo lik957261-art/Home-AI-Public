@@ -95,7 +95,35 @@ function publicEvaluation(evaluation = {}, settlement = null) {
   };
 }
 
+function readableEvaluationComment(evaluation = {}, settlement = null) {
+  const rewardStatus = cleanString(settlement?.status || evaluation.reward?.status || "");
+  const rewardLine = evaluation.reward?.eligible
+    ? `\u91d1\u5e01\u7ed3\u7b97\uff1a${rewardStatus === "settled" ? "\u5df2\u7ed3\u7b97" : "\u5f85\u590d\u6838\u6216\u7a0d\u540e\u91cd\u8bd5"}\uff0c${Number(evaluation.reward.coinAmount || 0)} \u91d1\u5e01\u3002`
+    : "\u91d1\u5e01\u7ed3\u7b97\uff1a\u672a\u901a\u8fc7\u524d\u4e0d\u53d1\u653e\u91d1\u5e01\u3002";
+  const requirements = asArray(evaluation.revisionRequirements)
+    .map(cleanString)
+    .filter(Boolean)
+    .slice(0, 5)
+    .map((item, index) => `${index + 1}. ${item}`)
+    .join("\n");
+  return [
+    `AI \u5199\u4f5c\u6279\u6539\uff1a${cleanString(evaluation.summary)}`,
+    `\u8bc4\u5206\uff1a${Number(evaluation.score || 0)}/${Number(evaluation.maxScore || 100)}`,
+    rewardLine,
+    requirements ? `\u4fee\u6539\u8981\u6c42\uff1a\n${requirements}` : "\u4fee\u6539\u8981\u6c42\uff1a\u672c\u6b21\u5df2\u8fbe\u5230\u901a\u8fc7\u7ebf\uff0c\u4e0b\u4e00\u6b65\u7ee7\u7eed\u5b8c\u6210\u540e\u7eed\u4efb\u52a1\u3002",
+  ].filter(Boolean).join("\n\n");
+}
+
+function readableCompletionComment(evaluation = {}, publicEval = {}) {
+  const reward = publicEval.reward || {};
+  const rewardText = reward.status === "settled"
+    ? `\u5df2\u7ed3\u7b97 ${Number(reward.coinAmount || 0)} \u91d1\u5e01\u3002`
+    : "\u91d1\u5e01\u5f85\u590d\u6838\u6216\u7a0d\u540e\u91cd\u8bd5\u3002";
+  return `${cleanString(evaluation.summary)} ${rewardText}`.trim();
+}
+
 function evaluationComment(evaluation = {}, settlement = null) {
+  return readableEvaluationComment(evaluation, settlement);
   const rewardStatus = cleanString(settlement?.status || evaluation.reward?.status || "");
   const rewardLine = evaluation.reward?.eligible
     ? `金币结算：${rewardStatus === "settled" ? "已结算" : "待复核或稍后重试"}，${Number(evaluation.reward.coinAmount || 0)} 金币。`
@@ -278,7 +306,7 @@ function createLearningGrowthWritingSubmissionService(options = {}) {
         action: "complete",
         workspaceId,
         cardId: cardIdValue,
-        comment: `${evaluation.summary} ${publicEval.reward.status === "settled" ? `已结算 ${publicEval.reward.coinAmount} 金币。` : "金币待复核或稍后重试。"}`,
+        comment: readableCompletionComment(evaluation, publicEval),
         author: "learning-growth-evaluator",
       }).catch((err) => ({ ok: false, error: cleanString(err.message || err) }));
     }

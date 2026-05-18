@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260518-growth-writing-feedback";
+const CLIENT_VERSION = "20260518-growth-task-model";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -74,6 +74,7 @@ const appLearningReadingUiJs = fs.readFileSync(path.join(repoRoot, "public", "ap
 const appLearningCoinsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-coins-ui.js"), "utf8");
 const appLearningProgramUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-program-ui.js"), "utf8");
 const appLearningGrowthUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ui.js"), "utf8");
+const appLearningGrowthTaskUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-task-ui.js"), "utf8");
 const appLearningGrowthControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-controller.js"), "utf8");
 const appApiClientJs = fs.readFileSync(path.join(repoRoot, "public", "app-api-client.js"), "utf8");
 
@@ -100,6 +101,7 @@ const appShellFiles = [
   "app-learning-coins-ui.js",
   "app-learning-program-ui.js",
   "app-learning-growth-ui.js",
+  "app-learning-growth-task-ui.js",
   "app-api-client.js",
   "app.js",
   ...appSplitModuleFiles,
@@ -844,6 +846,8 @@ assert.match(appLearningCoinsUiJs, /renderCoinsSubsystem/);
 assert.match(appLearningCoinsUiJs, /bestRewardProgress/);
 assert.match(appLearningCoinsUiJs, /learning-growth-days/);
 assert.match(appLearningGrowthUiJs, /renderLearningGrowthView/);
+assert.match(appLearningGrowthTaskUiJs, /HermesLearningGrowthTaskUi/);
+assert.match(appLearningGrowthTaskUiJs, /submissionPrompt/);
 assert.match(appLearningGrowthUiJs, /renderLearningGrowthTabs/);
 assert.match(appLearningGrowthUiJs, /\{ id: "execution"/);
 assert.match(appLearningGrowthUiJs, /\{ id: "config"/);
@@ -893,6 +897,9 @@ assert.match(appJs, /function isKanbanLearningGrowthCard\(todo\)/);
 assert.match(appJs, /function renderKanbanLearningGrowthTodoPanel\(todo\)/);
 assert.match(appJs, /const learningGrowthCard = kanban && isKanbanLearningGrowthCard\(todo\)/);
 assert.match(appJs, /looksGenericSubmitCard/);
+assert.match(appJs, /HermesLearningGrowthTaskUi/);
+assert.match(appJs, /data-learning-growth-task-model/);
+assert.match(appJs, /nextActionLabel/);
 assert.match(appJs, /Task instruction/);
 assert.match(appJs, /todoLearningGrowthSubmissionDrafts/);
 assert.match(appJs, /data-learning-growth-submission-form/);

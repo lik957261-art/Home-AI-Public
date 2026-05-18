@@ -1,26 +1,23 @@
 "use strict";
 
+const LearningGrowthTaskUi = typeof window !== "undefined" ? (window.HermesLearningGrowthTaskUi || {}) : {};
 function isKanbanReadingCard(todo) {
   if (!isKanbanStudyCase(todo) || isKanbanFinalStudyAssessment(todo) || isKanbanLearningGrowthCard(todo)) return false;
   const template = kanbanCaseTemplate(todo);
   if (template === "reading" || template === "english-reading" || template === "reading-recording") return true;
   return Boolean(todo?.readingSubmission || todo?.studySubmission);
 }
-
 function learningGrowthEvaluationLabel(evaluation = {}) {
   const status = String(evaluation.status || "");
   const nextStep = String(evaluation.nextStep || "");
   if (nextStep === "rewrite_and_reflect" || status === "draft_feedback") return "\u8349\u7a3f\u6279\u6539";
   return nextStep === "completed" || status === "completed" ? "\u5df2\u5b8c\u6210" : "\u7ee7\u7eed\u4fee\u6539";
 }
-
-function learningGrowthSubmissionPrompt(evaluation = {}) {
-  const nextStep = String(evaluation.nextStep || "");
-  if (nextStep === "rewrite_and_reflect") return "\u5199\u4e0b\u6539\u5199\u540e\u7684\u7248\u672c\uff0c\u5e76\u8865\u4e00\u53e5\u590d\u76d8\uff1a\u6211\u6539\u4e86\u4ec0\u4e48\uff0c\u4e3a\u4ec0\u4e48\u3002";
-  if (nextStep === "revise_and_resubmit") return "\u6309\u6279\u6539\u62a5\u544a\u518d\u6539\u4e00\u7248\uff0c\u7136\u540e\u63d0\u4ea4\u3002";
-  return "\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u6216\u4efb\u52a1\u7b54\u6848\u3002";
+function learningGrowthSubmissionPrompt(evaluation = {}, todo = {}) {
+  return typeof LearningGrowthTaskUi.submissionPrompt === "function"
+    ? LearningGrowthTaskUi.submissionPrompt(evaluation, todo)
+    : "\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u6216\u4efb\u52a1\u7b54\u6848\u3002";
 }
-
 function renderLearningGrowthFeedbackList(title, items) {
   const list = Array.isArray(items) ? items.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 5) : [];
   if (!list.length) return "";
@@ -36,26 +33,30 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const feedback = state.todoLearningGrowthSubmissionFeedback?.[todo.id] || null;
   const submitted = todo?.learningGrowthSubmission || null;
   const evaluation = todo?.learningGrowthEvaluation || null;
+  const taskModel = typeof LearningGrowthTaskUi.taskModel === "function" ? LearningGrowthTaskUi.taskModel(todo) : (todo?.learningTaskModel || todo?.learningGrowthTaskModel || null);
   const goal = String(todo?.kanbanCaseCardGoal || todo?.description || "").trim();
   const goalText = `${String(todo?.content || "")}\n${goal}`;
   const hasConcretePrompt = /Task instruction:/i.test(goal) || /Task prompt:/i.test(goal) || /first draft|rewrite|Interaction flow:/i.test(goal);
   const looksGenericSubmitCard = /submit output|study output|Submission:/i.test(goalText) && !hasConcretePrompt;
-  const deliverables = Array.isArray(todo?.kanbanCaseDeliverables) ? todo.kanbanCaseDeliverables : [];
-  const acceptance = Array.isArray(todo?.kanbanCaseAcceptance) ? todo.kanbanCaseAcceptance : [];
+  const deliverables = Array.isArray(todo?.kanbanCaseDeliverables) && todo.kanbanCaseDeliverables.length ? todo.kanbanCaseDeliverables : (Array.isArray(taskModel?.deliverables) ? taskModel.deliverables : []);
+  const acceptance = Array.isArray(todo?.kanbanCaseAcceptance) && todo.kanbanCaseAcceptance.length ? todo.kanbanCaseAcceptance : (Array.isArray(taskModel?.acceptance) ? taskModel.acceptance : []);
+  const instruction = String(taskModel?.learnerInstruction || goal || "").trim();
+  const nextAction = todo?.learningGrowthNextAction || "";
   const draft = state.todoLearningGrowthSubmissionDrafts?.[todo.id] || "";
   const feedbackSections = evaluation?.feedbackSections || {};
   const reportLinks = evaluation?.report ? renderKanbanOutputLinks([evaluation.report], "todo-detail-outputs compact") : "";
   const submitLabel = submitting ? "\u6b63\u5728\u63d0\u4ea4..." : (["rewrite_and_reflect", "revise_and_resubmit"].includes(String(evaluation?.nextStep || "")) ? "\u63d0\u4ea4\u6539\u5199\u548c\u590d\u76d8" : "\u63d0\u4ea4\u8349\u7a3f");
   const details = [
-    looksGenericSubmitCard ? `<p class="todo-detail-muted">This Growth card has no concrete task prompt. Regenerate or republish the Growth plan before the learner submits work.</p>` : "",
-    goal ? `<div class="todo-learning-growth-prompt"><strong>Task instruction</strong><p>${escapeHtml(goal)}</p></div>` : "",
+    taskModel ? `<div class="todo-detail-chip-row" data-learning-growth-task-model="${escapeHtml(taskModel.skillId || "")}"><span>${escapeHtml(typeof LearningGrowthTaskUi.activityLabel === "function" ? LearningGrowthTaskUi.activityLabel(taskModel.activityType) : (taskModel.activityType || "\u7ec3\u4e60"))}</span><span>${escapeHtml(typeof LearningGrowthTaskUi.nextActionLabel === "function" ? LearningGrowthTaskUi.nextActionLabel(nextAction) : nextAction)}</span>${taskModel.plannedMinutes ? `<span>${escapeHtml(String(taskModel.plannedMinutes))} min</span>` : ""}</div>` : "",
+    looksGenericSubmitCard ? `<p class="todo-detail-muted">\u8fd9\u5f20\u6210\u957f\u5361\u8fd8\u6ca1\u6709\u5177\u4f53\u4efb\u52a1\u8bf4\u660e\uff0c\u8bf7\u91cd\u65b0\u751f\u6210\u6216\u91cd\u65b0\u4e0b\u53d1\u8ba1\u5212\u540e\u518d\u63d0\u4ea4\u3002</p>` : "",
+    instruction ? `<div class="todo-learning-growth-prompt"><strong>\u4efb\u52a1\u8bf4\u660e</strong><p>${escapeHtml(instruction)}</p></div>` : "",
     deliverables.length ? `<div class="todo-detail-chip-row">${deliverables.slice(0, 4).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : "",
     acceptance.length ? `<ul>${acceptance.slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "",
   ].filter(Boolean).join("");
   const submissionForm = canSubmit
     ? `<form class="todo-learning-growth-submit" data-learning-growth-submission-form="${escapeHtml(todo.id)}">
       <label class="todo-panel-label" for="todoLearningGrowthSubmissionText">${escapeHtml(evaluation ? "\u4e0b\u4e00\u7248\u4f5c\u7b54" : "\u672c\u6b21\u8349\u7a3f")}</label>
-      <textarea id="todoLearningGrowthSubmissionText" class="todo-input todo-comment-textarea" rows="7" placeholder="${escapeHtml(learningGrowthSubmissionPrompt(evaluation || {}))}" ${submitting ? "disabled" : ""}>${escapeHtml(draft)}</textarea>
+      <textarea id="todoLearningGrowthSubmissionText" class="todo-input todo-comment-textarea" rows="7" placeholder="${escapeHtml(learningGrowthSubmissionPrompt(evaluation || {}, todo))}" ${submitting ? "disabled" : ""}>${escapeHtml(draft)}</textarea>
       <div class="todo-comment-actions">
         <button type="submit" data-submit-learning-growth-writing="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${escapeHtml(submitLabel)}</button>
       </div>
@@ -88,9 +89,9 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     </div>`
     : "";
   return `<section class="todo-comment-panel todo-learning-growth-panel" data-learning-growth-kanban-card="${escapeHtml(todo.id || "")}">
-    <label class="todo-panel-label">成长任务</label>
-    <p class="todo-detail-muted">${escapeHtml(blocked ? "等待前置任务完成后自动开放。" : "该任务由凡凡成长系统下发，按任务说明完成；不需要走阅读录音模板。")}</p>
-    ${details || `<p class="todo-detail-muted">${escapeHtml(todo?.kanbanCaseSummary || "打开成长页查看任务、分析和指导。")}</p>`}
+    <label class="todo-panel-label">\u6210\u957f\u4efb\u52a1</label>
+    <p class="todo-detail-muted">${escapeHtml(blocked ? "\u7b49\u5f85\u524d\u7f6e\u4efb\u52a1\u5b8c\u6210\u540e\u81ea\u52a8\u5f00\u653e\u3002" : "\u8fd9\u5f20\u5361\u7531\u51e1\u51e1\u6210\u957f\u7cfb\u7edf\u4e0b\u53d1\uff0c\u6309\u4efb\u52a1\u6a21\u578b\u5b8c\u6210\uff1b\u4e0d\u8d70\u9605\u8bfb\u5f55\u97f3\u6a21\u677f\u3002")}</p>
+    ${details || `<p class="todo-detail-muted">${escapeHtml(todo?.kanbanCaseSummary || "\u6253\u5f00\u6210\u957f\u9875\u67e5\u770b\u4efb\u52a1\u3001\u5206\u6790\u548c\u6307\u5bfc\u3002")}</p>`}
     ${submittedBlock}
     ${evaluationBlock}
     ${submissionForm}

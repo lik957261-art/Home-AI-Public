@@ -433,10 +433,14 @@ function run() {
   const projectedLearningGrowthLegacySubmitted = studyProjectionService.publicTodo(row("learning-growth-legacy-submitted", {
     kanban_case_mode: "study-plan",
     kanban_case_template: "learning-growth",
+    kanban_case_card_goal: "Write a short school-life paragraph and rewrite it after feedback.",
     kanban_last_comment_at: "2026-05-17T15:05:00.000Z",
   }));
   assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthSubmission.status, "submitted");
   assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthSubmission.submittedAt, "2026-05-17T15:05:00.000Z");
+  assert.equal(projectedLearningGrowthLegacySubmitted.learningTaskModel.skillId, "english_short_writing");
+  assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthTaskModel.activityType, "writing");
+  assert.equal(projectedLearningGrowthLegacySubmitted.learningGrowthNextAction, "wait_for_feedback");
 
   const revisionService = createTodoPublicProjectionService({
     publicKanbanAssessmentSummary() {

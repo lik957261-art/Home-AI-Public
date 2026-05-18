@@ -8,6 +8,7 @@ const {
   deriveKanbanWorkflowState: defaultDeriveKanbanWorkflowState,
 } = require("./study-workflow-provider");
 const {
+  inferLearningTaskModelFromCard,
   learningTaskModelSummary,
   nextActionForTaskModel,
 } = require("./learning-task-model-service");
@@ -324,13 +325,12 @@ function createTodoPublicProjectionService(options = {}) {
     }
     if (learningGrowthStudy) {
       payload.kanbanStudyKind = "learning-growth";
-      if (payload.learningTaskModel) {
-        payload.learningGrowthTaskModel = learningTaskModelSummary(payload.learningTaskModel);
-        payload.learningGrowthNextAction = nextActionForTaskModel(payload.learningTaskModel, {
-          status: payload.learningGrowthEvaluationStatus,
-          nextStep: payload.learningGrowthNextStep,
-        });
-      }
+      payload.learningTaskModel = payload.learningTaskModel || inferLearningTaskModelFromCard(payload);
+      payload.learningGrowthTaskModel = learningTaskModelSummary(payload.learningTaskModel);
+      payload.learningGrowthNextAction = nextActionForTaskModel(payload.learningTaskModel, {
+        status: payload.learningGrowthEvaluationStatus,
+        nextStep: payload.learningGrowthNextStep,
+      });
       const submittedAt = payload.learningGrowthSubmissionAt || payload.kanbanLastCommentAt;
       if (payload.learningGrowthSubmissionStatus || submittedAt) {
         const evaluationStatus = payload.learningGrowthEvaluationStatus || "pending";
@@ -348,6 +348,10 @@ function createTodoPublicProjectionService(options = {}) {
         const nextStep = payload.learningGrowthNextStep || (evaluationStatus === "completed"
           ? "completed"
           : (evaluationStatus === "draft_feedback" ? "rewrite_and_reflect" : (evaluationStatus === "needs_revision" ? "revise_and_resubmit" : "pending_evaluation")));
+        payload.learningGrowthNextAction = nextActionForTaskModel(payload.learningTaskModel, {
+          status: evaluationStatus,
+          nextStep,
+        });
         payload.learningGrowthSubmission = {
           status: payload.learningGrowthSubmissionStatus || "submitted",
           kind: payload.learningGrowthSubmissionKind || "writing",

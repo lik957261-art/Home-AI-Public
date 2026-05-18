@@ -26,22 +26,21 @@
 
   function statusText(status) {
     const value = String(status || "");
-    if (value === "active") return "已接入";
-    if (value === "ready") return "已就绪";
-    if (value === "foundation") return "底座";
-    if (value === "guardrail") return "护栏";
-    if (value === "platform-reuse") return "复用平台";
-    if (value === "planned") return "规划中";
-    if (value === "next") return "下一阶段";
-    return value || "待定";
+    if (value === "active") return "\u5df2\u63a5\u5165";
+    if (value === "ready") return "\u5df2\u5c31\u7eea";
+    if (value === "foundation") return "\u5e95\u5ea7";
+    if (value === "guardrail") return "\u62a4\u680f";
+    if (value === "platform-reuse") return "\u590d\u7528\u5e73\u53f0";
+    if (value === "planned") return "\u89c4\u5212\u4e2d";
+    if (value === "next") return "\u4e0b\u4e00\u9636\u6bb5";
+    return value || "\u5f85\u5b9a";
   }
-
   function renderCapabilityCards(capabilities = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    if (!capabilities.length) return `<div class="learning-coin-empty">成长系统模块正在初始化。</div>`;
+    if (!capabilities.length) return `<div class="learning-coin-empty">\u6210\u957f\u7cfb\u7edf\u6a21\u5757\u6b63\u5728\u521d\u59cb\u5316\u3002</div>`;
     return capabilities.map((item) => `<article class="learning-growth-module-card" data-learning-growth-capability="${escapeHtml(item.id)}">
       <div class="learning-growth-module-top">
-        <h3>${escapeHtml(item.title || item.id || "模块")}</h3>
+        <h3>${escapeHtml(item.title || item.id || "\u6a21\u5757")}</h3>
         <span>${escapeHtml(statusText(item.status))}</span>
       </div>
       <p>${escapeHtml(item.description || "")}</p>
@@ -50,7 +49,7 @@
 
   function renderPlatformStrip(capabilities = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    return `<div class="learning-growth-platform-strip" aria-label="复用的平台能力">
+    return `<div class="learning-growth-platform-strip" aria-label="\u590d\u7528\u7684\u5e73\u53f0\u80fd\u529b">
       ${(capabilities || []).map((item) => `<span>${escapeHtml(item.title || item.id || "")}</span>`).join("")}
     </div>`;
   }
@@ -60,8 +59,8 @@
     if (!nextModules.length) return "";
     return `<section class="learning-coin-panel learning-growth-next-panel">
       <div class="learning-section-heading">
-        <h3>实施队列</h3>
-        <span>可独立演进</span>
+        <h3>\u5b9e\u65bd\u961f\u5217</h3>
+        <span>\u53ef\u72ec\u7acb\u6f14\u8fdb</span>
       </div>
       <div class="learning-growth-next-list">
         ${nextModules.map((item) => `<div class="learning-growth-next-row">
@@ -137,7 +136,7 @@
     if (!isOwner(options)) return "";
     return `<section class="learning-growth-category learning-growth-owner-system" data-learning-growth-category="owner-system">
       <div class="learning-growth-category-heading">
-        <h3>后台与平台能力</h3>
+        <h3>\u540e\u53f0\u4e0e\u5e73\u53f0\u80fd\u529b</h3>
         <span>Owner</span>
       </div>
       ${renderReadinessPanel(overview.operationalReadiness, options)}
@@ -155,7 +154,7 @@
     if (!visible.length) return "";
     const first = visible[0].id;
     return `<section class="learning-growth-tabs" data-learning-growth-tabs>
-      <div class="learning-growth-tab-list" role="tablist" aria-label="Learning growth sections">
+      <div class="learning-growth-tab-list" role="tablist" aria-label="\u590d\u7528\u7684\u5e73\u53f0\u80fd\u529b">
         ${visible.map((tab, index) => `<button type="button" role="tab" data-learning-growth-tab="${escapeHtml(tab.id)}" aria-selected="${index === 0 ? "true" : "false"}" class="${index === 0 ? "active" : ""}">${escapeHtml(tab.label)}</button>`).join("")}
       </div>
       ${visible.map((tab) => `<section class="learning-growth-tab-panel${tab.id === first ? " active" : ""}" data-learning-growth-tab-panel="${escapeHtml(tab.id)}" role="tabpanel"${tab.id === first ? "" : " hidden"}>

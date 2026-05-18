@@ -63,6 +63,8 @@ async function testProjectsOnlyLearningGrowthKanbanCards() {
   assert.equal(result.tasks[0].workspaceId, "child");
   assert.equal(result.tasks[0].learnerId, "child");
   assert.equal(result.tasks[0].hasInstruction, true);
+  assert.equal(result.tasks[0].taskModel.skillId, "english_short_writing");
+  assert.equal(result.tasks[0].taskModel.completionPolicy.firstSubmissionCompletesTask, false);
   assert.match(result.tasks[0].openUrl, /view=todos/);
   assert.deepEqual(calls[0], {
     workspaceId: "child",
@@ -143,6 +145,7 @@ function testHelpers() {
   }, { workspaceId: "child", learnerId: "child" });
   assert.equal(task.status, "active");
   assert.equal(task.domain, "english");
+  assert.equal(task.taskModel.skillId, "english_reading_comprehension");
 }
 
 (async () => {

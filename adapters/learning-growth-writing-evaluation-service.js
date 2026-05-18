@@ -206,8 +206,8 @@ function createLearningGrowthWritingEvaluationService(options = {}) {
         : `\u5199\u4f5c\u9700\u8981\u7ee7\u7eed\u4fee\u6539\uff1a${scored.score}/100\u3002\u8bf7\u6839\u636e\u6279\u6539\u62a5\u544a\u518d\u63d0\u4ea4\u4e00\u7248\u3002`);
     const nextStep = learningNextStep(stage, passed);
     const summary = scored.passed
-      ? `写作已通过：${scored.score}/100。重点继续保持任务贴合度和句子完整度。`
-      : `写作需要修改：${scored.score}/100。先按修改要求补足内容后再提交。`;
+      ? `\u5199\u4f5c\u5df2\u901a\u8fc7\uff1a${scored.score}/100\u3002\u91cd\u70b9\u7ee7\u7eed\u4fdd\u6301\u4efb\u52a1\u8d34\u5408\u5ea6\u548c\u53e5\u5b50\u5b8c\u6574\u5ea6\u3002`
+      : `\u5199\u4f5c\u9700\u8981\u4fee\u6539\uff1a${scored.score}/100\u3002\u5148\u6309\u4fee\u6539\u8981\u6c42\u8865\u8db3\u5185\u5bb9\u540e\u518d\u63d0\u4ea4\u3002`;
     return {
       evaluationId: createEvaluationId(cardId, text),
       submissionDigest: submissionDigest(text),

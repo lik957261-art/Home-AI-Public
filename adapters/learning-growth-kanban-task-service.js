@@ -1,5 +1,7 @@
 "use strict";
 
+const { inferLearningTaskModelFromCard } = require("./learning-task-model-service");
+
 function cleanString(value) {
   return String(value ?? "").trim();
 }
@@ -88,6 +90,11 @@ function projectLearningGrowthKanbanTask(card = {}, input = {}) {
     .map((item) => cleanString(item))
     .filter(Boolean)
     .slice(0, 8);
+  const taskModel = inferLearningTaskModelFromCard(card, {
+    workspaceId,
+    learnerId,
+    skillIds,
+  });
   return {
     taskCardId: id,
     todoId: id,
@@ -96,6 +103,7 @@ function projectLearningGrowthKanbanTask(card = {}, input = {}) {
     status: publicTaskStatus(card),
     kanbanStatus: cardStatus(card) || "open",
     taskCardType: "kanban_learning_growth",
+    taskModel,
     domain: firstText(card.domain, "english"),
     workspaceId,
     learnerId,
@@ -104,7 +112,7 @@ function projectLearningGrowthKanbanTask(card = {}, input = {}) {
     plannedMinutes: Number(card.plannedMinutes || card.planned_minutes || 0) || 0,
     dueAt: firstText(card.dueAt, card.due_at),
     dueLocal: firstText(card.dueLocal, card.due_local),
-    skillIds,
+    skillIds: skillIds.length ? skillIds : (taskModel?.skillId ? [taskModel.skillId] : []),
     kanbanCaseTemplate: "learning-growth",
     kanbanStudyKind: "learning-growth",
     kanbanCaseMode: firstText(card.kanbanCaseMode, card.kanban_case_mode, card.caseMode, card.case_mode),

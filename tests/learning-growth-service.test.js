@@ -56,6 +56,7 @@ function makeProgramService() {
           title: "Task",
           status: "published",
           skillIds: ["english_speaking_retell"],
+          taskModel: { skillId: "english_speaking_retell" },
         }],
         dailyPlan: {
           summary: { totalTasks: 1, pendingTasks: 1 },
@@ -125,7 +126,7 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   const withExecutable = service.overview({
     workspaceId: "weixin_stephen",
     learnerId: "weixin_stephen",
-    executableTasks: [{ taskCardId: "t_growth", todoId: "t_growth", source: "kanban", title: "Visible task", status: "published" }],
+    executableTasks: [{ taskCardId: "t_growth", todoId: "t_growth", source: "kanban", title: "Visible task", status: "published", taskModel: { skillId: "english_short_writing" } }],
   });
   assert.equal(withExecutable.programs.counts.executableTasks, 1);
   assert.equal(withExecutable.programs.executableTasks[0].todoId, "t_growth");

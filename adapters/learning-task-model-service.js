@@ -37,9 +37,44 @@ function normalizeTaskCardType(value, fallback = "single_subject") {
   return TASK_CARD_TYPES.has(text) ? text : fallback;
 }
 
+const SKILL_ID_ALIASES = Object.freeze({
+  reading: "english_reading_comprehension",
+  english_reading: "english_reading_comprehension",
+  english_reading_task: "english_reading_comprehension",
+  comprehension: "english_reading_comprehension",
+  listening: "english_listening_input",
+  english_listening: "english_listening_input",
+  speaking: "english_speaking_retell",
+  oral: "english_speaking_retell",
+  retell: "english_speaking_retell",
+  english_speaking: "english_speaking_retell",
+  pronunciation: "english_pronunciation_shadowing",
+  english_pronunciation: "english_pronunciation_shadowing",
+  english_pronunciation_accuracy: "english_pronunciation_shadowing",
+  shadowing: "english_pronunciation_shadowing",
+  writing: "english_short_writing",
+  english_writing: "english_short_writing",
+  writing_draft: "english_short_writing",
+  writing_revision: "english_short_writing",
+  vocabulary: "english_vocabulary_active_use",
+  english_vocabulary: "english_vocabulary_active_use",
+  grammar: "english_grammar_in_expression",
+  english_grammar: "english_grammar_in_expression",
+  presentation: "english_presentation",
+  english_presentation_project: "english_presentation",
+});
+
+function normalizeSkillId(value) {
+  const raw = cleanString(value);
+  if (!raw) return "";
+  const normalized = raw.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return SKILL_ID_ALIASES[normalized] || normalized;
+}
+
 function primarySkillId(input = {}) {
   const skills = cleanList(input.skillIds || input.skill_ids, 4);
-  return cleanString(input.skillId || input.skill_id || skills[0] || "english_reading_comprehension");
+  return normalizeSkillId(input.skillId || input.skill_id || skills[0] || "english_reading_comprehension")
+    || "english_reading_comprehension";
 }
 
 const SKILL_MODELS = {
@@ -220,6 +255,66 @@ function buildLearningTaskModel(input = {}) {
   };
 }
 
+function textCandidates(input = {}) {
+  return [
+    input.skillId,
+    input.skill_id,
+    ...(asArray(input.skillIds || input.skill_ids)),
+    ...(asArray(input.kanbanSkills || input.kanban_skills)),
+    input.kanbanCaseCreationSkillId,
+    input.kanban_case_creation_skill_id,
+    input.learningGrowthSubmissionKind,
+    input.learning_growth_submission_kind,
+    input.submissionKind,
+    input.submission_kind,
+    input.title,
+    input.content,
+    input.kanbanCaseCardGoal,
+    input.kanban_case_card_goal,
+    input.description,
+  ].map(cleanString).filter(Boolean);
+}
+
+function inferSkillIdFromText(input = {}) {
+  for (const candidate of textCandidates(input)) {
+    const direct = cleanString(candidate).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const normalized = normalizeSkillId(candidate);
+    if (direct === normalized && SKILL_MODELS[normalized]) return normalized;
+  }
+  const haystack = textCandidates(input).join(" ").toLowerCase();
+  if (!haystack) return "english_reading_comprehension";
+  if (/\b(write|writing|draft|rewrite|essay|paragraph|composition)\b|写作|作文|改写/.test(haystack)) return "english_short_writing";
+  if (/\b(listen|listening|audio|key points?)\b|听力/.test(haystack)) return "english_listening_input";
+  if (/\b(speak|speaking|oral|retell|retelling)\b|口语|复述/.test(haystack)) return "english_speaking_retell";
+  if (/\b(pronunciation|shadow|shadowing)\b|发音|跟读/.test(haystack)) return "english_pronunciation_shadowing";
+  if (/\b(vocab|vocabulary|word use)\b|词汇/.test(haystack)) return "english_vocabulary_active_use";
+  if (/\b(grammar|sentence repair)\b|语法/.test(haystack)) return "english_grammar_in_expression";
+  if (/\b(presentation|speech|outline)\b|演讲|展示/.test(haystack)) return "english_presentation";
+  for (const candidate of textCandidates(input)) {
+    const normalized = normalizeSkillId(candidate);
+    if (SKILL_MODELS[normalized]) return normalized;
+  }
+  return "english_reading_comprehension";
+}
+
+function inferLearningTaskModelFromCard(card = {}, input = {}) {
+  const existing = card.learningTaskModel || card.learning_task_model || input.learningTaskModel || input.learning_task_model;
+  if (existing && typeof existing === "object" && cleanString(existing.skillId)) return existing;
+  const skillId = inferSkillIdFromText(Object.assign({}, card, input));
+  return buildLearningTaskModel({
+    domain: cleanString(card.domain || input.domain) || "english",
+    skillId,
+    skillIds: [skillId],
+    title: cleanString(card.title || card.content || input.title || input.content),
+    plannedMinutes: card.plannedMinutes || card.planned_minutes || input.plannedMinutes || input.planned_minutes,
+    dayIndex: card.dayIndex || card.day_index || card.kanbanCaseCardIndex || card.kanban_case_card_index,
+    taskCardType: card.taskCardType || card.task_card_type,
+    learnerInstruction: card.learnerInstruction || card.learner_instruction || card.kanbanCaseCardGoal || card.kanban_case_card_goal,
+    deliverables: card.kanbanCaseDeliverables || card.kanban_case_deliverables,
+    acceptance: card.kanbanCaseAcceptance || card.kanban_case_acceptance,
+  });
+}
+
 function learningTaskModelSummary(model = {}) {
   const safe = model && typeof model === "object" ? model : {};
   return {
@@ -256,6 +351,8 @@ module.exports = {
   TASK_CARD_TYPES,
   TASK_MODEL_VERSION,
   buildLearningTaskModel,
+  inferLearningTaskModelFromCard,
+  inferSkillIdFromText,
   learningTaskModelSummary,
   nextActionForTaskModel,
   normalizeTaskCardType,
