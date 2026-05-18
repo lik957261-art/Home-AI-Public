@@ -32,4 +32,21 @@ const policy = createKanbanTaskDispatchPolicy();
   assert.equal(policy.manualOnlyForPayload({ case_id: "single", case_mode: "single-card", auto_dispatch: true }), false);
 }
 
+{
+  const dispatch = policy.resolveKanbanDispatch(
+    { content: "Growth task", case_id: "growth-case", case_mode: "study-plan", case_template: "learning-growth" },
+    { requestedAssignee: "weixin_stephen", executableAssignee: "lowgw7" },
+  );
+  assert.equal(dispatch.manualOnly, true);
+  assert.equal(dispatch.dispatchMode, "manual");
+  assert.equal(dispatch.officialAssignee, "");
+  assert.equal(dispatch.includeCompletionContract, false);
+  assert.equal(policy.manualOnlyForPayload({
+    case_id: "growth-case",
+    case_mode: "study-plan",
+    case_template: "learning-growth",
+    auto_dispatch: true,
+  }), false);
+}
+
 console.log("kanban task dispatch policy tests passed");

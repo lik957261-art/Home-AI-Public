@@ -2,6 +2,7 @@
 
 const AUTO_DISPATCH_CASE_MODES = new Set(["multi-agent", "manual-revision"]);
 const MANUAL_ONLY_CASE_MODES = new Set(["single-card"]);
+const MANUAL_ONLY_CASE_TEMPLATES = new Set(["learning-growth"]);
 
 function bool(value) {
   if (typeof value === "boolean") return value;
@@ -30,15 +31,20 @@ function createKanbanTaskDispatchPolicy(options = {}) {
   const manualOnlyCaseModes = new Set(
     (options.manualOnlyCaseModes || [...MANUAL_ONLY_CASE_MODES]).map(lower).filter(Boolean),
   );
+  const manualOnlyCaseTemplates = new Set(
+    (options.manualOnlyCaseTemplates || [...MANUAL_ONLY_CASE_TEMPLATES]).map(lower).filter(Boolean),
+  );
 
   function manualOnlyForPayload(payload = {}) {
     if (bool(firstValue(payload, ["auto_dispatch", "autoDispatch"]))) return false;
     if (bool(firstValue(payload, ["manual_only", "manualOnly", "reminder_only", "reminderOnly"]))) return true;
 
     const caseMode = lower(firstValue(payload, ["case_mode", "caseMode"]));
+    const caseTemplate = lower(firstValue(payload, ["case_template", "caseTemplate"]));
     const caseId = text(firstValue(payload, ["case_id", "caseId"]));
     if (!caseMode && !caseId) return true;
     if (manualOnlyCaseModes.has(caseMode)) return true;
+    if (manualOnlyCaseTemplates.has(caseTemplate)) return true;
     if (autoDispatchCaseModes.has(caseMode)) return false;
     return false;
   }
