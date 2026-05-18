@@ -249,6 +249,8 @@ assert.match(weixinRuntimeCompositionServiceJs, /function publicWeixinOutboundDe
 assert.match(weixinRuntimeCompositionServiceJs, /weixinForwardTargetsForWorkspace: \(\.\.\.args\) => getForwardService\(\)\.targetsForWorkspace\(\.\.\.args\)/);
 assert.match(weixinRuntimeCompositionServiceJs, /resolveFileFromSourceUrlForRequest: \(\.\.\.args\) => getFileForwardService\(\)\.resolveFileFromSourceUrlForRequest\(\.\.\.args\)/);
 assert.match(weixinRuntimeCompositionServiceJs, /createWeixinFileForwardDelivery: \(\.\.\.args\) => getFileForwardService\(\)\.createWeixinFileForwardDelivery\(\.\.\.args\)/);
+assert.match(weixinRuntimeCompositionServiceJs, /resolveWeixinForwardTarget: \(\.\.\.args\) => getForwardService\(\)\.resolveTarget\(\.\.\.args\)/);
+assert.doesNotMatch(weixinRuntimeCompositionServiceJs, /resolveWeixinForwardTarget,\s*\n/);
 assert.match(weixinFileForwardServiceJs, /const caption = String\(body\.caption \?\? body\.text \?\? ""\)\.trim\(\)/);
 assert.doesNotMatch(serverJs, /Weixin file forwarding:/);
 assert.match(weixinRuntimeCompositionServiceJs, /function materializeForwardFile\(file, workspaceId\)/);

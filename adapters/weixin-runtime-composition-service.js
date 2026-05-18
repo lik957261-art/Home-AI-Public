@@ -226,7 +226,7 @@ function createWeixinRuntimeCompositionService(deps = {}) {
         resolveAuthorizedCronOutputFile: deps.resolveAuthorizedCronOutputFile,
         resolveFileForBrowserRequest: deps.resolveFileForBrowserRequest,
         resolveKanbanOutputFile: deps.resolveKanbanOutputFile,
-        resolveWeixinForwardTarget,
+        resolveWeixinForwardTarget: (...args) => getForwardService().resolveTarget(...args),
         safeFileName: deps.safeFileName,
         saveState: deps.saveState,
         singleWindowChatTaskGroupId: deps.singleWindowChatTaskGroupId,
