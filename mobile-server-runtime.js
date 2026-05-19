@@ -1054,6 +1054,10 @@ function runDirectoryBridge(payload) {
 const skillDetailProvider = createSkillDetailProvider({
   timeoutMs: SKILL_BRIDGE_TIMEOUT_MS,
   compactText,
+  extractJsonObject,
+  findWorkspace,
+  hermesModelText,
+  sanitizePolicy,
   spawn,
   bridgeCommand: () => {
     return bridgeCommandProvider.python(SKILL_BRIDGE_SCRIPT, [

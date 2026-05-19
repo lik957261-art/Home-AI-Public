@@ -331,7 +331,7 @@ function createSkillDetailProvider(options = {}) {
   }
 
   async function analyze(skill) {
-    return skillAnalysisService.analyze(await detail(skill));
+    return await skillAnalysisService.analyze(await detail(skill));
   }
 
   async function applyFix(skill, fixId) {
@@ -342,7 +342,7 @@ function createSkillDetailProvider(options = {}) {
       throw errorWithStatus("Skill can only be modified when it resolves to a local SKILL.md", 404, { skill: requestedSkill });
     }
     const current = skillDetailFromFile(match.file, match.path, maxChars);
-    const applied = skillAnalysisService.applyFix(current, fixId);
+    const applied = await skillAnalysisService.applyFix(current, fixId);
     if (applied.changed) fs.writeFileSync(match.file, applied.content, "utf8");
     const next = skillDetailFromFile(match.file, match.path, maxChars);
     return {
@@ -350,7 +350,7 @@ function createSkillDetailProvider(options = {}) {
       changed: Boolean(applied.changed),
       fix: applied.fix,
       detail: next,
-      analysis: skillAnalysisService.analyze(next),
+      analysis: await skillAnalysisService.analyze(next),
     };
   }
 

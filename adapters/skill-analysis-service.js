@@ -84,6 +84,101 @@ function firstParagraph(content) {
   return "";
 }
 
+function parseJsonObject(text, extractJsonObject) {
+  const raw = cleanText(text);
+  if (!raw) return null;
+  const candidates = [raw];
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) candidates.unshift(fenced[1].trim());
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) candidates.unshift(raw.slice(firstBrace, lastBrace + 1));
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch (_err) {
+      // Try the next candidate.
+    }
+  }
+  if (typeof extractJsonObject === "function") {
+    try {
+      return extractJsonObject(raw);
+    } catch (_err) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function compactSkillContent(content, maxChars) {
+  const text = cleanText(content);
+  const limit = Math.max(2000, Number(maxChars || 16000));
+  if (text.length <= limit) return text;
+  const head = Math.floor(limit * 0.7);
+  const tail = limit - head;
+  return `${text.slice(0, head)}\n\n[...SKILL.md middle omitted for analysis size...]\n\n${text.slice(-tail)}`;
+}
+
+function normalizeArray(items, maxItems = 8) {
+  const out = [];
+  for (const item of Array.isArray(items) ? items : [items]) {
+    if (typeof item === "string") {
+      uniquePush(out, item, maxItems);
+    } else if (item && typeof item === "object") {
+      const text = [item.title, item.text, item.description, item.condition, item.action, item.reason]
+        .filter(Boolean)
+        .join("：");
+      uniquePush(out, text, maxItems);
+    }
+  }
+  return out;
+}
+
+function buildModelPrompt(detail, content, maxChars) {
+  const skillName = cleanText(detail?.path || detail?.id || detail?.label || "unknown-skill");
+  return [
+    "你是 Hermes Mobile 的 Skill 审阅器。请用中文分析下面的 SKILL.md。",
+    "目标不是逐字翻译，而是提炼对“这个 Skill 做什么、何时调用、何时不要调用、输入输出、修改建议”有用的关键内容。",
+    "必须保留重要的英文命令、工具名、路径名、错误码、字段名和文件名，但解释文字必须是中文。",
+    "不要输出 Markdown。只返回严格 JSON 对象。",
+    "JSON schema:",
+    "{",
+    '  "summary": "一句中文总结，要覆盖这个 Skill 的核心用途和关键边界",',
+    '  "capabilities": ["4 到 8 条中文能力归纳，保留关键命令/路径/产物名"],',
+    '  "invocationConditions": ["3 到 6 条中文调用条件"],',
+    '  "nonInvocationConditions": ["3 到 8 条中文不应调用或禁止事项"],',
+    '  "inputsOutputs": ["2 到 6 条中文输入输出、证据、产物或目录规则"],',
+    '  "modificationNotes": ["2 到 6 条中文修改建议，指出触发条件是否过宽、是否需要拆分或补充边界"]',
+    "}",
+    "分析时优先关注：访问路径/命令选择、目标类型、前置验证、证据字段、产物交付、失败降级、目录持久化、覆盖口径、不要做什么。",
+    `Skill: ${skillName}`,
+    "SKILL.md:",
+    compactSkillContent(content, maxChars),
+  ].join("\n");
+}
+
+function normalizeModelAnalysis(value, detail, deterministic) {
+  if (!value || typeof value !== "object") return null;
+  const summary = cleanText(value.summary);
+  const analysis = Object.assign({}, deterministic, {
+    summary: summary || deterministic.summary,
+    capabilities: normalizeArray(value.capabilities, 8),
+    invocationConditions: normalizeArray(value.invocationConditions || value.whenToUse || value.triggers, 8),
+    nonInvocationConditions: normalizeArray(value.nonInvocationConditions || value.doNotUse || value.boundaries, 8),
+    inputsOutputs: normalizeArray(value.inputsOutputs || value.inputsAndOutputs || value.artifacts, 8),
+    modificationNotes: normalizeArray(value.modificationNotes || value.recommendations, 8),
+    analysisMethod: "model_assisted",
+    modelStatus: "completed",
+  });
+  if (!analysis.capabilities.length) analysis.capabilities = deterministic.capabilities;
+  if (!analysis.invocationConditions.length) analysis.invocationConditions = deterministic.invocationConditions;
+  if (!analysis.nonInvocationConditions.length) analysis.nonInvocationConditions = deterministic.nonInvocationConditions;
+  if (!analysis.inputsOutputs.length) analysis.inputsOutputs = deterministic.inputsOutputs;
+  if (!analysis.modificationNotes.length) analysis.modificationNotes = deterministic.modificationNotes;
+  analysis.fixes = suggestedFixes(detail, analysis);
+  return analysis;
+}
+
 function hasCjk(value) {
   return /[\u3400-\u9fff]/.test(String(value || ""));
 }
@@ -256,8 +351,16 @@ function applyXSearchFix(content) {
   return ensureDoNotUseSection(replaceFrontmatterDescription(content));
 }
 
-function createSkillAnalysisService() {
-  function analyze(detail) {
+function createSkillAnalysisService(options = {}) {
+  const hermesModelText = typeof options.hermesModelText === "function" ? options.hermesModelText : null;
+  const extractJsonObject = typeof options.extractJsonObject === "function" ? options.extractJsonObject : null;
+  const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
+  const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
+  const model = cleanText(options.model || options.automationCreateModel || "automation-create");
+  const timeoutMs = Math.max(15000, Number(options.timeoutMs || 90000));
+  const maxPromptChars = Math.max(2000, Number(options.maxPromptChars || 16000));
+
+  function analyzeDeterministic(detail) {
     const content = cleanText(detail?.content);
     if (!content) {
       const err = new Error("Skill content is empty");
@@ -298,6 +401,8 @@ function createSkillAnalysisService() {
       inputsOutputs,
       modificationNotes: [],
       fixes: [],
+      analysisMethod: "deterministic_fallback",
+      modelStatus: hermesModelText ? "not_used" : "unavailable",
       source: {
         frontmatterKeys: Object.keys(parsed.data),
         sectionTitles: sections.map((section) => section.title).filter(Boolean).slice(0, 20),
@@ -310,7 +415,35 @@ function createSkillAnalysisService() {
     return analysis;
   }
 
-  function applyFix(detail, fixId) {
+  async function analyze(detail) {
+    const deterministic = analyzeDeterministic(detail);
+    const content = cleanText(detail?.content);
+    if (!hermesModelText) return deterministic;
+    try {
+      const workspaceId = cleanText(detail?.workspaceId || "owner") || "owner";
+      const output = await hermesModelText({
+        input: buildModelPrompt(detail, content, maxPromptChars),
+        stream: true,
+        store: false,
+        model,
+        reasoning_effort: "medium",
+        conversation: `skill_analysis_${Date.now()}`,
+        instructions: "Return strict JSON only. The analysis language must be Chinese.",
+        access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+      }, timeoutMs);
+      const parsed = parseJsonObject(output, extractJsonObject);
+      const modelAnalysis = normalizeModelAnalysis(parsed, detail, deterministic);
+      if (modelAnalysis) return modelAnalysis;
+      return Object.assign({}, deterministic, { modelStatus: "parse_error" });
+    } catch (err) {
+      return Object.assign({}, deterministic, {
+        modelStatus: "error",
+        modelError: cleanText(err?.message || String(err)).slice(0, 240),
+      });
+    }
+  }
+
+  async function applyFix(detail, fixId) {
     const id = String(fixId || "").trim();
     if (id !== X_SEARCH_FIX_ID) {
       const err = new Error("Unknown Skill fix");
@@ -318,7 +451,7 @@ function createSkillAnalysisService() {
       throw err;
     }
     const content = String(detail?.content || "");
-    const analysis = analyze(detail);
+    const analysis = analyzeDeterministic(detail);
     if (!isXSearchSkill(detail, analysis)) {
       const err = new Error("This fix applies only to X/Twitter search skills");
       err.status = 422;

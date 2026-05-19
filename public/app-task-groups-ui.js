@@ -306,7 +306,7 @@ async function analyzeSkillDetail() {
   });
   renderSkillDetailPanel();
   try {
-    const result = await api(`/api/skills/analysis?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 8000 });
+    const result = await api(`/api/skills/analysis?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 90000 });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     state.skillDetail = Object.assign({}, state.skillDetail, {
       analysis: { loading: false, error: "", data: result.data || null },
