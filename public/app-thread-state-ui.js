@@ -95,6 +95,7 @@ async function loadSingleWindow(options = {}) {
       taskGroupId: messageMode === "tasks" ? state.currentTaskGroupId : "",
       messageLimit: messageMode === "tasks" ? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT,
     }),
+    timeoutMs: 12000,
   });
   state.currentThread = mergeCurrentThread(result.thread);
   if (result.groupChatThread) {

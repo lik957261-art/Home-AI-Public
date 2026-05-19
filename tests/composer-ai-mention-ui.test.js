@@ -131,8 +131,15 @@ assert.match(appJs, /function renderRunProgressPanel\(thread, runIds, options = 
 assert.doesNotMatch(appJs, /function renderRunProgressPanel\(thread, runIds(?:, options = \{\})?\) \{\s*return "";/);
 assert.match(appJs, /function renderMessageRunProgress\(thread, message = \{\}\)/);
 assert.match(appJs, /renderMessageRunProgress\(state\.currentThread, message\)/);
+assert.match(appJs, /runProgressRenderScheduled: new Set\(\)/);
+assert.match(appJs, /function scheduleRunProgressRenderForRun\(runId\)/);
+assert.match(appJs, /if \(!scheduleRunProgressRenderForRun\(event\.runId \|\| payload\.runId \|\| ""\)\) scheduleRenderCurrentThread\(\)/);
+const appendRunEventBody = appJs.match(/function appendRunEventToCurrentThread\(payload\) \{[\s\S]*?\n\}/)?.[0] || "";
+assert.doesNotMatch(appendRunEventBody, /renderThreads\(\)/);
+assert.doesNotMatch(appendRunEventBody, /scheduleRenderCurrentThread\(\);\s*$/);
 assert.match(appJs, /function syncRunProgressTicker\(root = document\)/);
 assert.match(appJs, /syncRunProgressTicker\(conversation\)/);
+assert.match(appJs, /timeoutMs: 6000/);
 assert.doesNotMatch(appJs, /conversation\.innerHTML = `\$\{historyPager\}\$\{progressPanel\}/);
 assert.match(stylesCss, /\.long-message-preview/);
 assert.match(stylesCss, /\.long-message-toggle/);

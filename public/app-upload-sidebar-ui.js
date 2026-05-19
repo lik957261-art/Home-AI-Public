@@ -46,7 +46,14 @@ async function interruptRun() {
   await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/interrupt`, {
     method: "POST",
     body: JSON.stringify(body),
-  }).catch(showError);
+    timeoutMs: 6000,
+  }).catch((err) => {
+    if (err?.code === "request_timeout") {
+      showError(new Error("Stop request timed out; the run may still be stopping in the background."));
+      return;
+    }
+    showError(err);
+  });
 }
 
 function sidebarScrollTarget(target) {

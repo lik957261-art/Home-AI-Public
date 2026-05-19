@@ -160,6 +160,7 @@ function createGatewayRunStreamService(options = {}) {
 
   async function stopRunIds(runIds) {
     const stopped = [];
+    const stopTimeoutMs = Math.max(1000, configured("stopTimeoutMs", Math.min(configured("apiTimeoutMs", 8000), 5000)));
     for (const runId of dedupe(runIds || [])) {
       const stream = activeStreamForRun(runId);
       if (stream?.controller) {
@@ -176,6 +177,7 @@ function createGatewayRunStreamService(options = {}) {
         await pool.runnerFor(target).stopRun(runId, {
           gatewayUrl: target.apiBase,
           apiKey: target.apiKey,
+          timeoutMs: stopTimeoutMs,
         });
       } catch (err) {
         if (Number(err?.status) !== 404) throw err;

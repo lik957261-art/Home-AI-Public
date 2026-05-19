@@ -1,6 +1,7 @@
 "use strict";
 
 const RUN_EVENT_PREVIEW_MAX_CHARS = 180;
+const RUN_PROGRESS_RENDER_THROTTLE_MS = 250;
 
 function boundedRunEventPreview(value) {
   const text = String(value || "");
@@ -62,8 +63,7 @@ function appendRunEventToCurrentThread(payload) {
     state.currentThread.activeRunIds = payload.thread.activeRunIds || [];
     state.currentThread.updatedAt = payload.thread.updatedAt || state.currentThread.updatedAt;
   }
-  if (state.viewMode === "tasks") renderThreads();
-  scheduleRenderCurrentThread();
+  if (!scheduleRunProgressRenderForRun(event.runId || payload.runId || "")) scheduleRenderCurrentThread();
 }
 
 function runEventTimeLabel(event) {
@@ -214,6 +214,60 @@ function renderMessageRunProgress(thread, message = {}) {
   const runId = String(message.runId || thread?.activeRunId || "").trim();
   if (!runId) return "";
   return renderRunProgressPanel(thread, [runId], { inline: true });
+}
+
+function messageForRunProgress(thread, runId) {
+  const id = String(runId || "").trim();
+  if (!thread || !id) return null;
+  return (thread.messages || []).find((message) => (
+    message?.role === "assistant"
+    && ["queued", "running"].includes(String(message.status || ""))
+    && String(message.runId || thread.activeRunId || "").trim() === id
+  )) || null;
+}
+
+function renderMessageRunProgressInPlace(thread, message = {}) {
+  if (!thread || !message?.id) return false;
+  const article = messageElementById(message.id);
+  const body = article?.querySelector?.(".message-body");
+  if (!article || !body) return false;
+  const existing = body.querySelector(".run-progress-panel.inline");
+  const html = renderMessageRunProgress(thread, message);
+  if (!html) {
+    existing?.remove?.();
+    syncRunProgressTicker($("conversation"));
+    return true;
+  }
+  if (existing) {
+    existing.outerHTML = html;
+  } else {
+    const content = body.querySelector(".text-content");
+    if (content) content.insertAdjacentHTML("afterend", html);
+    else body.insertAdjacentHTML("afterbegin", html);
+  }
+  syncRunProgressTicker($("conversation"));
+  return true;
+}
+
+function scheduleRunProgressRenderForRun(runId) {
+  const id = String(runId || "").trim();
+  const thread = state.currentThread;
+  const message = messageForRunProgress(thread, id);
+  if (!id || !message?.id) return false;
+  const key = `${thread?.id || ""}:${message.id}:${id}`;
+  if (state.runProgressRenderScheduled.has(key)) return true;
+  state.runProgressRenderScheduled.add(key);
+  const lastAt = state.runProgressRenderLastAt.get(key) || 0;
+  const delay = Math.max(0, RUN_PROGRESS_RENDER_THROTTLE_MS - (Date.now() - lastAt));
+  const render = () => requestAnimationFrame(() => {
+    state.runProgressRenderScheduled.delete(key);
+    state.runProgressRenderLastAt.set(key, Date.now());
+    if (state.currentThread?.id !== thread?.id) return;
+    if (!renderMessageRunProgressInPlace(thread, message)) scheduleRenderCurrentThread();
+  });
+  if (delay) window.setTimeout(render, delay);
+  else render();
+  return true;
 }
 
 function updateRunProgressTicker(root = document) {

@@ -109,6 +109,7 @@ async function testStopBehaviorUsesAbortThenGatewayStop() {
   assert.deepEqual(stopCalls[0].options, {
     gatewayUrl: "http://remote_run.gateway",
     apiKey: "fallback-key",
+    timeoutMs: 5000,
   });
 }
 

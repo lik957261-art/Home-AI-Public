@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260519-run-skill-freeze-v7";
+const CLIENT_VERSION = "20260519-run-event-local-v8";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -685,6 +685,8 @@ assert.match(appJs, /function currentTaskThreadIsSharedTopicThread\(\)/);
 assert.match(appJs, /const reloadTaskWindow = currentTaskThreadIsSharedTopicThread\(\)/);
 assert.match(appJs, /restoreTaskListThreadFromCache\(\{ stickToBottom: true \}\)/);
 assert.match(appJs, /loadSingleWindow\(\{ groupChat: false, weixinChat: false \}\)\.catch\(showError\)/);
+assert.match(appJs, /function loadSingleWindow\(options = \{\}\)/);
+assert.match(appJs, /timeoutMs: 12000/);
 assert.match(indexHtml, /id="conversationJumpBottom"/);
 assert.match(appJs, /function wireConversationJumpBottomButton\(\)/);
 assert.match(appJs, /function updateConversationJumpBottomButton\(\)/);
