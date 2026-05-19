@@ -8510,28 +8510,57 @@ button.directory-alias-chip {
   backdrop-filter: blur(18px);
 }
 
-.composer-source-button {
-  min-width: 46px;
-  min-height: 38px;
-  padding: 0 9px;
-  color: rgba(31, 76, 68, 0.78);
-  background: rgba(255, 253, 248, 0.72);
-  border: 1px solid rgba(63, 127, 114, 0.16);
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
+.composer-source-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+}
+
+.composer-source-toggle[hidden] {
+  display: none;
+}
+
+.composer .composer-source-button {
+  width: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: rgba(31, 76, 68, 0.42);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
   box-shadow: none;
 }
 
-.composer-source-button.active {
+.composer .composer-source-button.active {
   color: #0f5f4d;
-  background: rgba(214, 242, 232, 0.74);
-  border-color: rgba(31, 111, 98, 0.28);
+  background: rgba(214, 242, 232, 0.62);
+  border-color: rgba(31, 111, 98, 0.24);
 }
 
-.composer-source-button[hidden] {
-  display: none;
+.composer .composer-source-button:disabled {
+  opacity: 0.42;
+}
+
+.composer-source-x-icon {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.composer-source-web-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .group-mention-menu {
@@ -8575,9 +8604,11 @@ button.directory-alias-chip {
 
 .composer-source-option {
   width: 100%;
-  min-height: 42px;
+  min-height: 34px;
   display: grid;
-  gap: 2px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
   padding: 7px 9px;
   color: rgba(31, 43, 51, 0.82);
   background: rgba(255, 255, 255, 0.7);
@@ -8602,14 +8633,11 @@ button.directory-alias-chip {
   font-weight: 700;
 }
 
-.composer-source-option small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
+.composer-source-option-icon {
+  width: 24px;
+  display: inline-grid;
+  place-items: center;
+  color: currentColor;
 }
 
 .group-mention-menu[hidden] {
@@ -9425,10 +9453,14 @@ button.directory-alias-chip {
   }
 
   #composerSearchSource {
-    min-width: 42px;
-    min-height: 36px;
-    padding: 0 8px;
-    font-size: 12px;
+    gap: 2px;
+  }
+
+  .composer .composer-source-button {
+    width: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0;
   }
 
   #sendMessage {

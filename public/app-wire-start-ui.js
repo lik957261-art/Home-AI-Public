@@ -362,8 +362,10 @@ function wireUi() {
   $("sidebarBack")?.addEventListener("click", sidebarBackToMenu);
   $("sendMessage").addEventListener("click", () => void sendMessage());
   $("composerSearchSource")?.addEventListener("click", (event) => {
+    const option = event.target.closest?.("[data-composer-source-toggle]");
+    if (!option) return;
     event.preventDefault();
-    toggleComposerSourceMenu();
+    chooseComposerSearchSource(option.dataset.composerSourceToggle || "local");
   });
   $("composerSourceMenu")?.addEventListener("pointerdown", (event) => {
     const option = event.target.closest?.("[data-composer-source]");

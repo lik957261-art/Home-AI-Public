@@ -24,6 +24,9 @@ const COMPOSER_SEARCH_SOURCE_OPTIONS = Object.freeze([
     description: "\u5148\u67e5 X \u4e0a\u7684\u516c\u5171\u5185\u5bb9",
   }),
 ]);
+const COMPOSER_SEARCH_SOURCE_VISIBLE_OPTIONS = Object.freeze(
+  COMPOSER_SEARCH_SOURCE_OPTIONS.filter((option) => option.source !== COMPOSER_SEARCH_SOURCE_LOCAL),
+);
 
 function normalizeComposerSearchSource(value) {
   const raw = String(value || "").trim().toLowerCase().replace(/[\s_\-:：]+/g, "");
@@ -83,6 +86,16 @@ function composerSearchSourceBodyFields(text = getComposerText()) {
   };
 }
 
+function composerSearchSourceIconHtml(source) {
+  if (normalizeComposerSearchSource(source) === "x") {
+    return `<span class="composer-source-x-icon" aria-hidden="true">X</span>`;
+  }
+  return `<svg class="composer-source-web-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+    <circle cx="12" cy="12" r="8"></circle>
+    <path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"></path>
+  </svg>`;
+}
+
 function closeComposerSourceMenu() {
   const menu = $("composerSourceMenu");
   state.composerSourceMenuOpen = false;
@@ -101,11 +114,11 @@ function renderComposerSourceMenu() {
   }
   const selected = selectedComposerSearchSourceInfo();
   menu.hidden = false;
-  menu.innerHTML = COMPOSER_SEARCH_SOURCE_OPTIONS.map((option) => {
+  menu.innerHTML = COMPOSER_SEARCH_SOURCE_VISIBLE_OPTIONS.map((option) => {
     const active = option.source === selected.source ? " active" : "";
     return `<button class="composer-source-option${active}" type="button" data-composer-source="${escapeHtml(option.source)}">
+      <span class="composer-source-option-icon">${composerSearchSourceIconHtml(option.source)}</span>
       <span class="composer-source-name">${escapeHtml(option.label)}</span>
-      <small>${escapeHtml(option.description)}</small>
     </button>`;
   }).join("");
 }
@@ -121,7 +134,10 @@ function toggleComposerSourceMenu() {
 }
 
 function chooseComposerSearchSource(source) {
-  state.composerSearchSource = normalizeComposerSearchSource(source);
+  const normalized = normalizeComposerSearchSource(source);
+  state.composerSearchSource = state.composerSearchSource === normalized
+    ? COMPOSER_SEARCH_SOURCE_LOCAL
+    : normalized;
   closeComposerSourceMenu();
   updateComposerSourceControl();
   renderComposerContext();
@@ -135,16 +151,24 @@ function resetComposerSearchSource() {
 }
 
 function updateComposerSourceControl() {
-  const button = $("composerSearchSource");
-  if (!button) return;
+  const control = $("composerSearchSource");
+  if (!control) return;
   const searchMode = isChatSearchMode();
   const canUse = !searchMode && (state.viewMode === "single" || state.viewMode === "tasks");
-  button.hidden = searchMode;
-  button.disabled = !canUse;
+  control.hidden = searchMode;
+  control.setAttribute("aria-disabled", canUse ? "false" : "true");
   if (!canUse) closeComposerSourceMenu();
   const info = selectedComposerSearchSourceInfo();
-  button.textContent = info.shortLabel;
-  button.classList.toggle("active", info.source !== COMPOSER_SEARCH_SOURCE_LOCAL);
-  button.setAttribute("aria-pressed", info.source !== COMPOSER_SEARCH_SOURCE_LOCAL ? "true" : "false");
-  button.setAttribute("title", `\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`);
+  control.classList.toggle("active", info.source !== COMPOSER_SEARCH_SOURCE_LOCAL);
+  control.setAttribute("title", `\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`);
+  control.querySelectorAll("[data-composer-source-toggle]").forEach((button) => {
+    const source = normalizeComposerSearchSource(button.dataset.composerSourceToggle);
+    const active = source === info.source;
+    button.disabled = !canUse;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+    button.setAttribute("title", active
+      ? `\u5df2\u9009\u4e2d${composerSearchSourceOption(source).label}\uff0c\u518d\u70b9\u56de\u5230\u672c\u5730\u6570\u636e`
+      : `\u672c\u53e5\u4f7f\u7528${composerSearchSourceOption(source).label}`);
+  });
 }
