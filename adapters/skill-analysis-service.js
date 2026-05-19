@@ -1,6 +1,7 @@
 "use strict";
 
 const X_SEARCH_FIX_ID = "narrow-x-search-invocation";
+const MODEL_REWRITE_FIX_ID = "model-suggested-skill-rewrite";
 
 function cleanText(value) {
   return String(value || "").replace(/\r\n/g, "\n").trim();
@@ -157,6 +158,30 @@ function buildModelPrompt(detail, content, maxChars) {
   ].join("\n");
 }
 
+function mergeFixes(...groups) {
+  const out = [];
+  const seen = new Set();
+  for (const group of groups) {
+    for (const fix of Array.isArray(group) ? group : []) {
+      if (!fix?.id || seen.has(fix.id)) continue;
+      seen.add(fix.id);
+      out.push(fix);
+    }
+  }
+  return out;
+}
+
+function modelRewriteFix() {
+  return {
+    id: MODEL_REWRITE_FIX_ID,
+    label: "按模型分析修改 Skill",
+    description: "根据本次模型分析重写 SKILL.md 的描述、调用边界和工作流说明，保留原有关键命令、路径、证据字段和禁止事项。",
+    risk: "medium",
+    ownerOnly: true,
+    modelAssisted: true,
+  };
+}
+
 function normalizeModelAnalysis(value, detail, deterministic) {
   if (!value || typeof value !== "object") return null;
   const summary = cleanText(value.summary);
@@ -175,8 +200,59 @@ function normalizeModelAnalysis(value, detail, deterministic) {
   if (!analysis.nonInvocationConditions.length) analysis.nonInvocationConditions = deterministic.nonInvocationConditions;
   if (!analysis.inputsOutputs.length) analysis.inputsOutputs = deterministic.inputsOutputs;
   if (!analysis.modificationNotes.length) analysis.modificationNotes = deterministic.modificationNotes;
-  analysis.fixes = suggestedFixes(detail, analysis);
+  analysis.fixes = mergeFixes([modelRewriteFix()], suggestedFixes(detail, analysis));
   return analysis;
+}
+
+function stripCodeFence(value) {
+  const text = cleanText(value);
+  const fenced = text.match(/^```(?:markdown|md)?\s*([\s\S]*?)```$/i);
+  return fenced?.[1] ? fenced[1].trim() : text;
+}
+
+function normalizeRewrittenSkillContent(value, originalContent) {
+  const text = stripCodeFence(value);
+  if (text.length < 20) {
+    const err = new Error("Model rewrite returned empty Skill content");
+    err.status = 502;
+    throw err;
+  }
+  const original = String(originalContent || "");
+  if (original.trimStart().startsWith("---") && !text.trimStart().startsWith("---")) {
+    const err = new Error("Model rewrite removed Skill frontmatter");
+    err.status = 502;
+    throw err;
+  }
+  if (!/#\s+/.test(text)) {
+    const err = new Error("Model rewrite returned content without Skill headings");
+    err.status = 502;
+    throw err;
+  }
+  return `${text.replace(/\r\n/g, "\n").trimEnd()}\n`;
+}
+
+function buildRewritePrompt(detail, analysis, content, maxChars) {
+  const notes = [
+    analysis?.summary,
+    ...(analysis?.capabilities || []),
+    ...(analysis?.invocationConditions || []),
+    ...(analysis?.nonInvocationConditions || []),
+    ...(analysis?.inputsOutputs || []),
+    ...(analysis?.modificationNotes || []),
+  ].filter(Boolean).join("\n- ");
+  return [
+    "你是 Hermes Mobile 的 Skill 编辑器。请根据模型分析结果，重写下面的 SKILL.md。",
+    "目标：让 Skill 的功能、调用条件、不要调用边界、工作流和产物规则更清晰，减少误触发。",
+    "必须保留原有关键命令、工具名、路径名、错误信息、字段名、证据字段、目录规则和禁止事项。",
+    "不要删除 frontmatter。不要编造不存在的工具或凭据。不要加入秘密、token、endpoint 或私有长日志。",
+    "只返回严格 JSON 对象：",
+    '{"content":"完整的新 SKILL.md 内容","changeSummary":["中文变更摘要"]}',
+    `Skill: ${cleanText(detail?.path || detail?.id || detail?.label || "unknown-skill")}`,
+    "模型分析要点：",
+    notes ? `- ${notes}` : "- 无额外要点；按正文自行提炼。",
+    "原始 SKILL.md：",
+    compactSkillContent(content, maxChars),
+  ].join("\n");
 }
 
 function hasCjk(value) {
@@ -443,8 +519,40 @@ function createSkillAnalysisService(options = {}) {
     }
   }
 
+  async function applyModelRewriteFix(detail) {
+    if (!hermesModelText) {
+      const err = new Error("Model-assisted Skill rewrite is not configured");
+      err.status = 503;
+      throw err;
+    }
+    const content = String(detail?.content || "");
+    const analysis = await analyze(detail);
+    const fix = modelRewriteFix();
+    const workspaceId = cleanText(detail?.workspaceId || "owner") || "owner";
+    const output = await hermesModelText({
+      input: buildRewritePrompt(detail, analysis, content, maxPromptChars),
+      stream: true,
+      store: false,
+      model,
+      reasoning_effort: "medium",
+      conversation: `skill_rewrite_${Date.now()}`,
+      instructions: "Return strict JSON only. The rewritten SKILL.md content may be Markdown inside the JSON string.",
+      access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+    }, timeoutMs);
+    const parsed = parseJsonObject(output, extractJsonObject);
+    const nextContent = normalizeRewrittenSkillContent(parsed?.content || parsed?.fullContent || parsed?.skill || "", content);
+    return {
+      fix: Object.assign({}, fix, { changeSummary: normalizeArray(parsed?.changeSummary || parsed?.changes, 6) }),
+      content: nextContent,
+      changed: nextContent !== content,
+    };
+  }
+
   async function applyFix(detail, fixId) {
     const id = String(fixId || "").trim();
+    if (id === MODEL_REWRITE_FIX_ID) {
+      return await applyModelRewriteFix(detail);
+    }
     if (id !== X_SEARCH_FIX_ID) {
       const err = new Error("Unknown Skill fix");
       err.status = 400;
@@ -466,6 +574,7 @@ function createSkillAnalysisService(options = {}) {
 }
 
 module.exports = {
+  MODEL_REWRITE_FIX_ID,
   X_SEARCH_FIX_ID,
   createSkillAnalysisService,
 };

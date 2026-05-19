@@ -333,7 +333,7 @@ async function applySkillAnalysisFix(fixId) {
     const result = await api("/api/skills/analysis/fix", {
       method: "POST",
       body: JSON.stringify({ skill: skill.path, fixId: id }),
-      timeoutMs: 10000,
+      timeoutMs: 180000,
     });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     const data = result.data || {};
@@ -382,15 +382,16 @@ function renderSkillAnalysisFixes(fixes, applyingFixId = "") {
   const values = Array.isArray(fixes) ? fixes.filter((item) => item?.id) : [];
   if (!values.length) return "";
   return `<div class="skill-analysis-section skill-analysis-fixes">
-    <h3>\u53ef\u76f4\u63a5\u4fee\u6b63</h3>
+    <h3>\u53ef\u4fee\u6539 Skill</h3>
     ${values.map((fix) => {
       const busy = applyingFixId && applyingFixId === fix.id;
+      const actionLabel = fix.modelAssisted ? "\u4fee\u6539" : "\u4fee\u6b63";
       return `<div class="skill-analysis-fix">
         <div>
           <strong>${escapeHtml(fix.label || fix.id)}</strong>
           <p>${escapeHtml(fix.description || "")}</p>
         </div>
-        <button type="button" data-skill-fix-id="${escapeHtml(fix.id)}"${busy ? " disabled" : ""}>${busy ? "\u4fee\u6b63\u4e2d" : "\u4fee\u6b63"}</button>
+        <button type="button" data-skill-fix-id="${escapeHtml(fix.id)}"${busy ? " disabled" : ""}>${busy ? "\u4fee\u6539\u4e2d" : actionLabel}</button>
       </div>`;
     }).join("")}
   </div>`;

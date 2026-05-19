@@ -1,7 +1,11 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { createSkillAnalysisService } = require("../adapters/skill-analysis-service");
+const {
+  MODEL_REWRITE_FIX_ID,
+  X_SEARCH_FIX_ID,
+  createSkillAnalysisService,
+} = require("../adapters/skill-analysis-service");
 
 function visibleAnalysisText(analysis) {
   return [
@@ -60,6 +64,29 @@ async function run() {
     async hermesModelText(body, timeoutMs) {
       modelRequest = body;
       modelTimeoutMs = timeoutMs;
+      if (String(body?.input || "").includes('"content"')) {
+        return JSON.stringify({
+          content: `---
+name: x-social-monitoring-and-briefs
+description: Use only when X/Twitter is the requested evidence source.
+---
+
+# X Social Monitoring
+
+Use this skill for explicit X/Twitter monitoring and briefs.
+
+## Workflow
+
+1. Validate x-bridge/x-cli/xurl access before collecting evidence.
+2. Preserve post URL/ID, author, timestamp, and retrieval method.
+
+## Do not use
+
+- Do not use for ordinary local data lookup or non-X web search.
+`,
+          changeSummary: ["Narrowed trigger wording and kept evidence requirements."],
+        });
+      }
       return JSON.stringify({
         summary: "用于 X/Twitter 账号、主题和项目监控简报；重点是选择 x-bridge/x-cli/xurl 访问路径、验证登录状态、保留证据，并按固定目录交付 Markdown/PDF。",
         capabilities: [
@@ -111,7 +138,8 @@ async function run() {
   assert(analysis.nonInvocationConditions.some((item) => item.includes("coverage")));
   assert(analysis.inputsOutputs.some((item) => item.includes("post URL/ID")));
   assert(analysis.modificationNotes.some((item) => item.includes("拆成更窄")));
-  assert.equal(analysis.fixes[0].id, "narrow-x-search-invocation");
+  assert.equal(analysis.fixes[0].id, MODEL_REWRITE_FIX_ID);
+  assert(analysis.fixes.some((fix) => fix.id === X_SEARCH_FIX_ID));
   assert.deepEqual(analysis.source.frontmatterKeys, ["name", "description"]);
   assert(analysis.source.sectionTitles.includes("Do not use"));
 
@@ -131,6 +159,15 @@ description: Use when a task needs social-media briefs.
   assert.equal(applied.changed, true);
   assert.match(applied.content, /Use only when the user explicitly asks to search X\/Twitter/);
   assert.match(applied.content, /Do not use for ordinary local data lookup/);
+
+  const rewritten = await service.applyFix({
+    path: "social-media/x-social-monitoring-and-briefs",
+    content: xSkillContent(),
+  }, MODEL_REWRITE_FIX_ID);
+  assert.equal(rewritten.changed, true);
+  assert.match(rewritten.content, /Use only when X\/Twitter is the requested evidence source/);
+  assert.match(rewritten.content, /Validate x-bridge\/x-cli\/xurl access/);
+  assert(rewritten.fix.changeSummary.some((item) => item.includes("Narrowed trigger")));
 
   const fallbackService = createSkillAnalysisService();
   const fallback = await fallbackService.analyze({
