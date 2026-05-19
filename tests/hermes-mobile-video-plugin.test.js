@@ -144,8 +144,157 @@ print(json.dumps({
   assert.equal(result.base_url, "https://api.x.ai/v1");
 }
 
+function testHandlerTreatsLocalImageUrlAsInputImagePath() {
+  fs.mkdirSync(scratchRoot, { recursive: true });
+  const tempDir = fs.mkdtempSync(path.join(scratchRoot, "allowed-url-"));
+  const imagePath = path.join(tempDir, "source.png");
+  const outputPath = path.join(tempDir, "out.mp4");
+  const relativeTempDir = path.relative(repoRoot, tempDir);
+  const relativeImagePath = path.relative(repoRoot, imagePath);
+  const relativeOutputPath = path.relative(repoRoot, outputPath);
+  fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+  const script = `
+import importlib.util, json
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("hermes_mobile_video", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+captured = {}
+class DummyClient:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        return False
+module._make_http_client = lambda timeout_seconds: DummyClient()
+module._resolve_xai_credentials = lambda: {
+    "api_key": "test-token",
+    "base_url": "https://api.x.ai/v1",
+    "provider": "xai-oauth",
+}
+def submit(client, payload, *, api_key, base_url):
+    captured["payload"] = payload
+    return "req_test"
+module._submit_generation = submit
+module._poll_generation = lambda *args, **kwargs: {
+    "status": "done",
+    "body": {"video": {"url": "https://example.test/video.mp4"}},
+}
+def download(client, video_url, output_path):
+    Path(output_path).write_bytes(b"mp4")
+    return {"mime": "video/mp4", "bytes": 3}
+module._download_video = download
+result = json.loads(module._handle_video_generate({
+    "image_url": ${JSON.stringify(relativeImagePath)},
+    "output_path": ${JSON.stringify(relativeOutputPath)},
+    "prompt": "animate the uploaded image",
+}))
+print(json.dumps({
+    "ok": result.get("ok"),
+    "modality": result.get("modality"),
+    "image_data_uri": captured["payload"].get("image", {}).get("url", "").startswith("data:image/png;base64,"),
+    "output_exists": Path(result.get("output_path", "")).exists(),
+}, ensure_ascii=False))
+`;
+  const result = JSON.parse(runPython(script, {
+    HERMES_MOBILE_VIDEO_ALLOWED_ROOTS: relativeTempDir,
+  }));
+  assert.equal(result.ok, true);
+  assert.equal(result.modality, "image");
+  assert.equal(result.image_data_uri, true);
+  assert.equal(result.output_exists, true);
+}
+
+function testHandlerTreatsFileUrlAsInputImagePath() {
+  fs.mkdirSync(scratchRoot, { recursive: true });
+  const tempDir = fs.mkdtempSync(path.join(scratchRoot, "allowed-file-url-"));
+  const imagePath = path.join(tempDir, "source.jpg");
+  const outputPath = path.join(tempDir, "out.mp4");
+  const fileUrl = `file:///${imagePath.replace(/\\/g, "/")}`;
+  const relativeOutputPath = path.relative(repoRoot, outputPath);
+  fs.writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+
+  const script = `
+import importlib.util, json
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("hermes_mobile_video", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+captured = {}
+class DummyClient:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        return False
+module._make_http_client = lambda timeout_seconds: DummyClient()
+module._resolve_xai_credentials = lambda: {
+    "api_key": "test-token",
+    "base_url": "https://api.x.ai/v1",
+    "provider": "xai-oauth",
+}
+module._submit_generation = lambda client, payload, **kwargs: captured.setdefault("payload", payload) and "req_test"
+module._poll_generation = lambda *args, **kwargs: {
+    "status": "done",
+    "body": {"video": {"url": "https://example.test/video.mp4"}},
+}
+def download(client, video_url, output_path):
+    Path(output_path).write_bytes(b"mp4")
+    return {"mime": "video/mp4", "bytes": 3}
+module._download_video = download
+result = json.loads(module._handle_video_generate({
+    "image_url": ${JSON.stringify(fileUrl)},
+    "output_path": ${JSON.stringify(relativeOutputPath)},
+    "prompt": "animate the uploaded image",
+}))
+print(json.dumps({
+    "ok": result.get("ok"),
+    "image_data_uri": captured["payload"].get("image", {}).get("url", "").startswith("data:image/jpeg;base64,"),
+}, ensure_ascii=False))
+`;
+  const result = JSON.parse(runPython(script, {
+    HERMES_MOBILE_VIDEO_ALLOWED_ROOTS: tempDir,
+  }));
+  assert.equal(result.ok, true);
+  assert.equal(result.image_data_uri, true);
+}
+
+function testRejectsOutOfScopeImageUrlPath() {
+  fs.mkdirSync(scratchRoot, { recursive: true });
+  const allowedDir = fs.mkdtempSync(path.join(scratchRoot, "allowed-url-scope-"));
+  const otherDir = fs.mkdtempSync(path.join(scratchRoot, "other-url-scope-"));
+  const imagePath = path.join(otherDir, "source.png");
+  const relativeAllowedDir = path.relative(repoRoot, allowedDir);
+  const relativeImagePath = path.relative(repoRoot, imagePath);
+  fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+  const script = `
+import importlib.util, json
+spec = importlib.util.spec_from_file_location("hermes_mobile_video", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+result = json.loads(module._handle_video_generate({
+    "image_url": ${JSON.stringify(relativeImagePath)},
+    "prompt": "animate this image",
+}))
+print(json.dumps({
+    "ok": result.get("ok"),
+    "error": result.get("error"),
+    "error_type": result.get("error_type"),
+}, ensure_ascii=False))
+`;
+  const result = JSON.parse(runPython(script, {
+    HERMES_MOBILE_VIDEO_ALLOWED_ROOTS: relativeAllowedDir,
+  }));
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "input_image_path_outside_allowed_roots");
+  assert.equal(result.error_type, "PermissionError");
+}
+
 testBuildsDataUriForAllowedLocalImage();
 testRejectsOutOfScopeImagePath();
 testHandlerSubmitsLocalImageDataUriAndWritesOutput();
+testHandlerTreatsLocalImageUrlAsInputImagePath();
+testHandlerTreatsFileUrlAsInputImagePath();
+testRejectsOutOfScopeImageUrlPath();
 
 console.log("hermes-mobile-video-plugin tests passed");

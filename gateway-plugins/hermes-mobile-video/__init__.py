@@ -11,6 +11,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 
 DEFAULT_MODEL = "grok-imagine-video"
@@ -36,7 +37,8 @@ VIDEO_GENERATE_SCHEMA = {
     "description": (
         "Generate a Grok Imagine video through xAI using the current Grok "
         "Gateway credentials. Use input_image_path for Hermes Mobile uploaded "
-        "or local images; use image_url for public URLs or data URIs. The tool "
+        "or local images; image_url also accepts public HTTPS URLs, data URIs, "
+        "or Hermes Mobile local image paths. The tool "
         "downloads the completed video into Hermes Mobile storage and returns "
         "output_path plus media_line."
     ),
@@ -53,7 +55,7 @@ VIDEO_GENERATE_SCHEMA = {
             },
             "image_url": {
                 "type": "string",
-                "description": "Optional public image URL or data URI for image-to-video.",
+                "description": "Optional public HTTPS image URL, data URI, or Hermes Mobile local image path.",
             },
             "output_path": {
                 "type": "string",
@@ -100,8 +102,15 @@ def _split_env_list(name: str, defaults: tuple[str, ...]) -> list[str]:
 
 def _windows_to_wsl_path(value: str) -> str:
     text = str(value or "").strip().strip('"').strip("'")
+    if text.lower().startswith("file://"):
+        parsed = urlparse(text)
+        text = unquote(parsed.path or "")
+        if re.match(r"^/[A-Za-z]:/", text):
+            text = text[1:]
     match = re.match(r"^([A-Za-z]):[\\/](.*)$", text)
     if match:
+        if os.name == "nt":
+            return text.replace("/", "\\")
         drive = match.group(1).lower()
         rest = match.group(2).replace("\\", "/")
         return f"/mnt/{drive}/{rest}"
@@ -184,6 +193,21 @@ def _image_data_uri(path: Path) -> str:
             raise ValueError("unsupported_input_image_mime")
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{encoded}"
+
+
+def _image_reference_url(value: Any) -> tuple[str | None, Path | None]:
+    raw = str(value or "").strip()
+    if not raw:
+        return None, None
+    lowered = raw.lower()
+    if lowered.startswith("data:image/"):
+        return raw, None
+    if lowered.startswith("https://"):
+        return raw, None
+    if lowered.startswith("http://"):
+        raise ValueError("image_url_must_be_https_or_data_or_local_path")
+    local_image = _validate_input_image(raw)
+    return _image_data_uri(local_image), local_image
 
 
 def _duration(value: Any) -> int:
@@ -349,8 +373,9 @@ def _handle_video_generate(args: dict[str, Any], **_kw: Any) -> str:
 
         local_image = None
         local_image_raw = str(args.get("input_image_path") or "").strip()
-        image_url = str(args.get("image_url") or "").strip() or None
-        if local_image_raw and image_url:
+        image_url_raw = str(args.get("image_url") or "").strip()
+        image_url = None
+        if local_image_raw and image_url_raw:
             return _json({
                 "ok": False,
                 "success": False,
@@ -359,6 +384,8 @@ def _handle_video_generate(args: dict[str, Any], **_kw: Any) -> str:
         if local_image_raw:
             local_image = _validate_input_image(local_image_raw)
             image_url = _image_data_uri(local_image)
+        elif image_url_raw:
+            image_url, local_image = _image_reference_url(image_url_raw)
 
         output_path = _validate_output_path(args.get("output_path"), local_image)
         credentials = _resolve_xai_credentials()
