@@ -1,7 +1,13 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { createSkillDetailProvider } = require("../adapters/skill-detail-provider");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const {
+  createDirectSkillResolver,
+  createSkillDetailProvider,
+} = require("../adapters/skill-detail-provider");
 
 async function run() {
   const calls = [];
@@ -41,6 +47,29 @@ async function run() {
     () => provider.detail("missing/skill"),
     (err) => err.status === 404 && err.skill === "missing/skill" && /not found/i.test(err.message),
   );
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "skill-detail-provider-"));
+  try {
+    const skillDir = path.join(root, "study-templates", "demo-skill");
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# Demo Skill\n\nBody", "utf8");
+    const direct = createDirectSkillResolver({ skillRoots: [root] });
+    const directDetail = direct.detail("study-templates/demo-skill");
+    assert.equal(directDetail.path, "study-templates/demo-skill");
+    assert.equal(directDetail.namespace, "study-templates");
+    assert.equal(directDetail.content, "# Demo Skill\n\nBody");
+
+    const fallbackProvider = createSkillDetailProvider({
+      skillRoots: [root],
+      async runBridge() {
+        throw new Error("bridge invalid JSON");
+      },
+    });
+    const fallbackDetail = await fallbackProvider.detail("demo-skill");
+    assert.equal(fallbackDetail.path, "study-templates/demo-skill");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 run().catch((err) => {
