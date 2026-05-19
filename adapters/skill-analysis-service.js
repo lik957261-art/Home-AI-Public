@@ -433,7 +433,11 @@ function createSkillAnalysisService(options = {}) {
   const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
   const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
   const model = cleanText(options.model || options.automationCreateModel || "automation-create");
-  const timeoutMs = Math.max(15000, Number(options.analysisTimeoutMs || options.skillAnalysisTimeoutMs || 90000));
+  const analysisTimeoutMs = Math.max(15000, Number(options.analysisTimeoutMs || options.skillAnalysisTimeoutMs || 90000));
+  const rewriteTimeoutMs = Math.max(
+    analysisTimeoutMs,
+    Number(options.rewriteTimeoutMs || options.skillRewriteTimeoutMs || options.skillAnalysisRewriteTimeoutMs || 240000),
+  );
   const maxPromptChars = Math.max(2000, Number(options.maxPromptChars || 16000));
 
   function analyzeDeterministic(detail) {
@@ -506,7 +510,7 @@ function createSkillAnalysisService(options = {}) {
         conversation: `skill_analysis_${Date.now()}`,
         instructions: "Return strict JSON only. The analysis language must be Chinese.",
         access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
-      }, timeoutMs);
+      }, analysisTimeoutMs);
       const parsed = parseJsonObject(output, extractJsonObject);
       const modelAnalysis = normalizeModelAnalysis(parsed, detail, deterministic);
       if (modelAnalysis) return modelAnalysis;
@@ -526,7 +530,7 @@ function createSkillAnalysisService(options = {}) {
       throw err;
     }
     const content = String(detail?.content || "");
-    const analysis = await analyze(detail);
+    const analysis = analyzeDeterministic(detail);
     const fix = modelRewriteFix();
     const workspaceId = cleanText(detail?.workspaceId || "owner") || "owner";
     const output = await hermesModelText({
@@ -538,13 +542,22 @@ function createSkillAnalysisService(options = {}) {
       conversation: `skill_rewrite_${Date.now()}`,
       instructions: "Return strict JSON only. The rewritten SKILL.md content may be Markdown inside the JSON string.",
       access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
-    }, timeoutMs);
+    }, rewriteTimeoutMs);
     const parsed = parseJsonObject(output, extractJsonObject);
     const nextContent = normalizeRewrittenSkillContent(parsed?.content || parsed?.fullContent || parsed?.skill || "", content);
+    const nextAnalysis = analyzeDeterministic(Object.assign({}, detail, {
+      content: nextContent,
+      totalChars: nextContent.length,
+      truncated: false,
+    }));
     return {
       fix: Object.assign({}, fix, { changeSummary: normalizeArray(parsed?.changeSummary || parsed?.changes, 6) }),
       content: nextContent,
       changed: nextContent !== content,
+      analysis: Object.assign({}, nextAnalysis, {
+        analysisMethod: "deterministic_after_rewrite",
+        modelStatus: "rewrite_completed",
+      }),
     };
   }
 
@@ -566,8 +579,13 @@ function createSkillAnalysisService(options = {}) {
       throw err;
     }
     const nextContent = applyXSearchFix(content);
+    const nextAnalysis = analyzeDeterministic(Object.assign({}, detail, {
+      content: nextContent,
+      totalChars: nextContent.length,
+      truncated: false,
+    }));
     const fix = suggestedFixes(detail, analysis).find((item) => item.id === id) || { id };
-    return { fix, content: nextContent, changed: nextContent !== content };
+    return { fix, content: nextContent, changed: nextContent !== content, analysis: nextAnalysis };
   }
 
   return { analyze, applyFix };

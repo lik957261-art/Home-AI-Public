@@ -59,11 +59,13 @@ Use this skill when the user asks to search X posts, inspect an X account, or bu
 async function run() {
   let modelRequest = null;
   let modelTimeoutMs = 0;
+  const modelCalls = [];
   const service = createSkillAnalysisService({
     timeoutMs: 1,
     async hermesModelText(body, timeoutMs) {
       modelRequest = body;
       modelTimeoutMs = timeoutMs;
+      modelCalls.push({ body, timeoutMs });
       if (String(body?.input || "").includes('"content"')) {
         return JSON.stringify({
           content: `---
@@ -131,6 +133,7 @@ Use this skill for explicit X/Twitter monitoring and briefs.
   assert.equal(analysis.analysisMethod, "model_assisted");
   assert.equal(analysis.modelStatus, "completed");
   assert.equal(modelTimeoutMs, 90000);
+  assert.equal(modelCalls.length, 1);
   assert(modelRequest.input.includes("Scheduled X brief hardening"));
   assert(analysis.summary.includes("x-bridge/x-cli/xurl"));
   assert(analysis.capabilities.some((item) => item.includes("following-report")));
@@ -168,6 +171,9 @@ description: Use when a task needs social-media briefs.
   assert.match(rewritten.content, /Use only when X\/Twitter is the requested evidence source/);
   assert.match(rewritten.content, /Validate x-bridge\/x-cli\/xurl access/);
   assert(rewritten.fix.changeSummary.some((item) => item.includes("Narrowed trigger")));
+  assert.equal(modelCalls.length, 2);
+  assert.equal(modelCalls.at(-1).timeoutMs, 240000);
+  assert.equal(rewritten.analysis.modelStatus, "rewrite_completed");
 
   const fallbackService = createSkillAnalysisService();
   const fallback = await fallbackService.analyze({

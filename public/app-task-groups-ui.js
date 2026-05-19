@@ -333,7 +333,7 @@ async function applySkillAnalysisFix(fixId) {
     const result = await api("/api/skills/analysis/fix", {
       method: "POST",
       body: JSON.stringify({ skill: skill.path, fixId: id }),
-      timeoutMs: 180000,
+      timeoutMs: 300000,
     });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     const data = result.data || {};

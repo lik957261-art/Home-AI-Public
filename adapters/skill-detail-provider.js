@@ -350,7 +350,7 @@ function createSkillDetailProvider(options = {}) {
       changed: Boolean(applied.changed),
       fix: applied.fix,
       detail: next,
-      analysis: await skillAnalysisService.analyze(next),
+      analysis: applied.analysis || await skillAnalysisService.analyze(next),
     };
   }
 

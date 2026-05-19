@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260519-skill-model-fix-v14";
+const CLIENT_VERSION = "20260519-skill-rewrite-timeout-v15";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -137,7 +137,7 @@ assert.match(appJs, /data-skill-analysis/);
 assert.match(appJs, /\/api\/skills\/analysis\?skill=/);
 assert.match(appJs, /data-skill-fix-id/);
 assert.match(appJs, /\/api\/skills\/analysis\/fix/);
-assert.match(appJs, /timeoutMs: 180000/);
+assert.match(appJs, /timeoutMs: 300000/);
 assert.match(appJs, /fix\.modelAssisted \? "\\u4fee\\u6539"/);
 assert.match(appJs, /renderSkillDetailPanel\(\{ resetScroll: true \}\)/);
 assert.match(appJs, /options\.resetScroll \? 0 : previousScrollTop/);

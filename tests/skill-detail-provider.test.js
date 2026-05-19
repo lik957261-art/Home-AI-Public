@@ -102,6 +102,32 @@ description: Use when a task needs social-media briefs.
     assert.match(fs.readFileSync(path.join(xSkillDir, "SKILL.md"), "utf8"), /Use only when the user explicitly asks to search X\/Twitter/);
     assert.equal(bridgeCalls, 0);
 
+    let postApplyAnalyzeCalls = 0;
+    const modelRewriteProvider = createSkillDetailProvider({
+      skillRoots: [root],
+      skillAnalysisService: {
+        async analyze() {
+          postApplyAnalyzeCalls += 1;
+          throw new Error("post-apply model analysis should not block applyFix when analysis is returned");
+        },
+        async applyFix() {
+          return {
+            changed: true,
+            fix: { id: "model-suggested-skill-rewrite" },
+            content: "# X Social\n\nUpdated body.\n",
+            analysis: { skill: { path: "social-media/x-social-monitoring-and-briefs" }, fixes: [] },
+          };
+        },
+      },
+      async runBridge() {
+        throw new Error("bridge should not run for direct local skill modification");
+      },
+    });
+    const modelFixed = await modelRewriteProvider.applyFix("x-social-monitoring-and-briefs", "model-suggested-skill-rewrite");
+    assert.equal(modelFixed.changed, true);
+    assert.equal(postApplyAnalyzeCalls, 0);
+    assert.match(fs.readFileSync(path.join(xSkillDir, "SKILL.md"), "utf8"), /Updated body/);
+
     const boundedRoot = path.join(root, "bounded");
     const boundedSkillDir = path.join(boundedRoot, "level-a", "level-b", "bounded-skill");
     fs.mkdirSync(boundedSkillDir, { recursive: true });
