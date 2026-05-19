@@ -54,9 +54,12 @@ Use this skill when the user asks to search X posts, inspect an X account, or bu
 
 async function run() {
   let modelRequest = null;
+  let modelTimeoutMs = 0;
   const service = createSkillAnalysisService({
-    async hermesModelText(body) {
+    timeoutMs: 1,
+    async hermesModelText(body, timeoutMs) {
       modelRequest = body;
+      modelTimeoutMs = timeoutMs;
       return JSON.stringify({
         summary: "用于 X/Twitter 账号、主题和项目监控简报；重点是选择 x-bridge/x-cli/xurl 访问路径、验证登录状态、保留证据，并按固定目录交付 Markdown/PDF。",
         capabilities: [
@@ -100,6 +103,7 @@ async function run() {
   assert.equal(analysis.skill.path, "social-media/x-social-monitoring-and-briefs");
   assert.equal(analysis.analysisMethod, "model_assisted");
   assert.equal(analysis.modelStatus, "completed");
+  assert.equal(modelTimeoutMs, 90000);
   assert(modelRequest.input.includes("Scheduled X brief hardening"));
   assert(analysis.summary.includes("x-bridge/x-cli/xurl"));
   assert(analysis.capabilities.some((item) => item.includes("following-report")));
