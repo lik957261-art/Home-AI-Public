@@ -112,6 +112,7 @@ function loadedSkillsForRun(thread = {}, runIds = "") {
 
 function outputItemToolName(item = {}) {
   const type = cleanString(item.type).toLowerCase();
+  if (outputItemFunctionName(item) === "skill_view") return "skill_view";
   if (type === "function_call" || type === "function_call_output") return type;
   return cleanString(item.name || item.type || "");
 }

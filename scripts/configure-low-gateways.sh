@@ -8,6 +8,7 @@ gateway_worker_root="${HERMES_GATEWAY_WORKER_ROOT:-/mnt/c/ProgramData/HermesMobi
 telemetry_profiles_root="${HERMES_LOW_GATEWAY_TELEMETRY_PROFILES_ROOT:-$gateway_worker_root/telemetry/profiles}"
 profile_auth_seed_root="${HERMES_LOW_GATEWAY_PROFILE_AUTH_ROOT:-$gateway_worker_root/profile-auth}"
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
+grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
 shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
 shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$telemetry_profiles_root/shared-auth}"
 shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$shared_auth_default_root/auth.json}"
@@ -594,6 +595,97 @@ YAML
   chown -h "$worker_user:$worker_user" "$profile_link" || true
   chown -R "$worker_user:$worker_user" "$profile_dir" || true
 done
+
+if [ "$grok_gateway_count" -gt 0 ]; then
+  for idx in $(seq 1 "$grok_gateway_count"); do
+    profile="grokgw${idx}"
+    port=$((18760 + idx))
+    profile_link="$worker_home_dir/profiles/${profile}"
+    profile_dir="${telemetry_profiles_root}/${profile}"
+    profile_seed="$profile_auth_seed_root/${profile}/auth.json"
+    prepare_low_gateway_profile_link "$profile" "$profile_link"
+    mkdir -p "$profile_dir"
+    chmod 700 "$profile_dir" || true
+    repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
+    repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
+    ln -s "$profile_dir" "$profile_link"
+    cat > "$profile_link/config.yaml" <<YAML
+model:
+  default: grok-4.3
+  provider: xai-oauth
+toolsets:
+  - web
+  - search
+  - x_search
+  - browser
+  - file
+  - vision
+  - video
+  - image_gen
+  - messaging
+  - tts
+  - skills
+  - todo
+  - kanban
+  - cronjob
+  - memory
+  - session_search
+  - clarify
+platform_toolsets:
+  api_server:
+    - web
+    - search
+    - x_search
+    - browser
+    - file
+    - vision
+    - video
+    - image_gen
+    - messaging
+    - tts
+    - skills
+    - todo
+    - kanban
+    - cronjob
+    - memory
+    - session_search
+    - clarify
+agent:
+  max_turns: 60
+  reasoning_effort: medium
+terminal:
+  backend: local
+  cwd: .
+  timeout: 180
+platforms:
+  api_server:
+    enabled: true
+    extra:
+      host: 127.0.0.1
+      port: ${port}
+plugins:
+  enabled: []
+worker_pool:
+  enabled: false
+cron:
+  enabled: false
+YAML
+    if [ "$shared_auth_enabled" = "1" ]; then
+      rm -f "$profile_link/auth.json" "$profile_link/auth.lock"
+      ln -s "$shared_auth_path" "$profile_link/auth.json"
+      ln -s "$shared_auth_lock_path" "$profile_link/auth.lock"
+    elif [ -s "$profile_link/auth.json" ]; then
+      chmod 600 "$profile_link/auth.json" || true
+    elif [ -s "$profile_seed" ]; then
+      install -m 600 -o "$worker_user" -g "$worker_user" "$profile_seed" "$profile_link/auth.json"
+    else
+      missing_auth_profiles+=("$profile")
+    fi
+    chmod 600 "$profile_link/config.yaml" || true
+    chown -h "$worker_user:$worker_user" "$profile_link" || true
+    chown -R "$worker_user:$worker_user" "$profile_dir" || true
+  done
+fi
 
 chown -R "$worker_user:$worker_user" "$worker_home_dir"
 

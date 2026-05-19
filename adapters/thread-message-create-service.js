@@ -1,5 +1,6 @@
 "use strict";
 
+const { resolveGatewayModelRoute: defaultResolveGatewayModelRoute } = require("./gateway-model-routing-service");
 const { resolveSearchSourceForMessage: defaultResolveSearchSourceForMessage } = require("./search-source-routing-service");
 
 const DEFAULT_SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
@@ -123,6 +124,7 @@ function createThreadMessageCreateService(options = {}) {
   const nowIso = maybeCall(options.nowIso, () => new Date().toISOString());
   const ownerElevationInstructions = maybeCall(options.ownerElevationInstructions, () => "");
   const publicArtifactFromClient = maybeCall(options.publicArtifactFromClient, (value) => objectValue(value, null));
+  const resolveGatewayModelRoute = maybeCall(options.resolveGatewayModelRoute, defaultResolveGatewayModelRoute);
   const removeThreadActiveRun = maybeCall(options.removeThreadActiveRun, () => {});
   const resolveSearchSourceForMessage = maybeCall(options.resolveSearchSourceForMessage, defaultResolveSearchSourceForMessage);
   const resolveTaskDirectoryAttachment = maybeCall(options.resolveTaskDirectoryAttachment, () => null);
@@ -417,11 +419,12 @@ function createThreadMessageCreateService(options = {}) {
   function buildRunOptions(thread, body, context) {
     const followUpInstructions = buildFollowUpInstructions(thread, context.singleWindowMode, context.requestedTaskGroupId);
     const searchSource = context.searchSource || {};
+    const modelRoute = objectValue(context.modelRoute);
     const runOptions = {
       reasoning_effort: context.reasoningEffort,
       singleWindowMode: context.singleWindowMode,
       actorWorkspaceId: context.actorWorkspaceId,
-      gatewayRouting: context.gatewayRouting,
+      gatewayRouting: Object.assign({}, objectValue(context.gatewayRouting), objectValue(modelRoute.gatewayRouting)),
       instructions: [
         body.instructions || "",
         searchSource.instructions || "",
@@ -434,7 +437,10 @@ function createThreadMessageCreateService(options = {}) {
       runOptions.sourceIntent = searchSource.sourceIntent;
       runOptions.sourceMode = searchSource.sourceMode;
     }
-    if (body.model) runOptions.model = body.model;
+    if (modelRoute.model || body.model) runOptions.model = modelRoute.model || body.model;
+    if (modelRoute.provider || body.provider || body.modelProvider || body.model_provider) {
+      runOptions.provider = modelRoute.provider || cleanString(body.provider || body.modelProvider || body.model_provider).toLowerCase();
+    }
     if (body.reasoning && typeof body.reasoning === "object") runOptions.reasoning = body.reasoning;
     const accessPolicyContext = mergeAccessPolicyContexts(
       body.access_policy_context && typeof body.access_policy_context === "object" ? body.access_policy_context : null,
@@ -512,7 +518,15 @@ function createThreadMessageCreateService(options = {}) {
 
     const messageKind = resolveMessageKind(body, groupChat.isGroupChatMessage, groupChat.isCaseTopicChatMessage);
     const searchSource = resolveSearchSourceForMessage(body, normalized.text);
+    const modelRoute = resolveGatewayModelRoute(body);
+    if (!modelRoute.ok) {
+      return errorResult(modelRoute.status || 400, modelRoute.error || "Invalid model route", {
+        code: modelRoute.code || "invalid_model_route",
+      });
+    }
     const routingBody = Object.assign({}, body, {
+      model: modelRoute.route?.model || body.model,
+      provider: modelRoute.route?.provider || body.provider,
       searchSource: searchSource.source,
       search_source: searchSource.source,
       sourceIntent: searchSource.sourceIntent,
@@ -598,6 +612,7 @@ function createThreadMessageCreateService(options = {}) {
     const run = buildRunOptions(thread, body, {
       actorWorkspaceId: actor.actorWorkspaceId,
       gatewayRouting: routing.gatewayRouting,
+      modelRoute: modelRoute.route || {},
       reasoningEffort,
       requestedTaskGroupId: taskGroup.requestedTaskGroupId,
       searchSource,

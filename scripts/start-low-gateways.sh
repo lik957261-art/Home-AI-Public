@@ -11,6 +11,7 @@ runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
 runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
 runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
+grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -50,9 +51,9 @@ fi
 
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/logs"
 
-for idx in $(seq 1 "$low_gateway_count"); do
-  profile="lowgw${idx}"
-  port=$((18750 + idx))
+start_gateway_profile() {
+  local profile="$1"
+  local port="$2"
   log="$worker_home_dir/logs/${profile}-gateway-${port}.log"
   pidfile="$worker_home_dir/${profile}-gateway-${port}.pid"
   api_key="$(tr -d '\r\n' < "$api_key_file")"
@@ -69,9 +70,20 @@ for idx in $(seq 1 "$low_gateway_count"); do
     "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2
   pgrep -u "$worker_user" -f "hermes_cli.main .*gateway run --replace --accept-hooks" | tail -1 > "$pidfile" || true
+}
+
+for idx in $(seq 1 "$low_gateway_count"); do
+  start_gateway_profile "lowgw${idx}" $((18750 + idx))
 done
 
-for port in $(seq 18751 $((18750 + low_gateway_count))); do
+if [ "$grok_gateway_count" -gt 0 ]; then
+  for idx in $(seq 1 "$grok_gateway_count"); do
+    start_gateway_profile "grokgw${idx}" $((18760 + idx))
+  done
+fi
+
+wait_gateway_port() {
+  local port="$1"
   ok=0
   for _ in $(seq 1 80); do
     if "$runtime_python" - <<PY >/dev/null 2>&1
@@ -86,9 +98,18 @@ PY
   done
   if [ "$ok" != "1" ]; then
     echo "low gateway port ${port} did not become healthy" >&2
-    tail -80 "$worker_home_dir/logs/lowgw$((port - 18750))-gateway-${port}.log" >&2 || true
+    tail -80 "$worker_home_dir/logs/"*"-gateway-${port}.log" >&2 || true
     exit 1
   fi
+}
+
+for port in $(seq 18751 $((18750 + low_gateway_count))); do
+  wait_gateway_port "$port"
 done
+if [ "$grok_gateway_count" -gt 0 ]; then
+  for port in $(seq 18761 $((18760 + grok_gateway_count))); do
+    wait_gateway_port "$port"
+  done
+fi
 
 echo LOW_GATEWAYS_STARTED

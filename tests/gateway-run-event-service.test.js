@@ -276,6 +276,18 @@ function testOutputItemEventsStoreReadableSummariesOnly() {
   });
   assert.equal(thread.events.at(-1).tool, "skill_view");
   assert.equal(thread.events.at(-1).preview, "{\"name\":\"study-templates/learning-growth-card-creation\"}");
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "function_call",
+      name: "skill_view",
+      arguments: "{\"name\":\"productivity/write\"}",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "skill_view");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"productivity/write\"}");
 }
 
 function testOutputItemEventsUseAliasedResponseRunId() {

@@ -107,6 +107,8 @@ async function sendMessage(event) {
     if (reasoningEffort) body.reasoning_effort = reasoningEffort;
     const model = selectedComposerModel(text);
     if (model) body.model = model;
+    const provider = selectedComposerProvider(text);
+    if (provider) body.provider = provider;
     const quotedReply = activeQuotedReplyForSend();
     if (quotedReply) {
       body.taskGroupId = quotedReply.taskGroupId;

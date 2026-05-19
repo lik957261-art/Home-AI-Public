@@ -64,6 +64,17 @@ function testOrderingHonorsHints() {
   assert.deepEqual(orderedWorkers(workers, 0, { worker_profile: "worker2" }).map((w) => w.name), ["b"]);
 }
 
+function testOrderingHonorsProviderAndPreferredProfileHints() {
+  const workers = [
+    normalizeWorker({ name: "openai", profile: "lowgw1", port: 18751, provider: "openai-codex", securityLevel: "user", skillWorkspaceIds: ["*"] }),
+    normalizeWorker({ name: "grok", profile: "grokgw1", port: 18761, provider: "xai-oauth", securityLevel: "user", skillWorkspaceIds: ["*"] }),
+  ];
+  assert.deepEqual(
+    orderedWorkers(workers, 0, { provider: "xai-oauth", preferred_worker_profiles: ["grokgw1"], skillWorkspaceId: "owner", requireSkillProfile: true }).map((w) => w.name),
+    ["grok"],
+  );
+}
+
 function testOrderingHonorsSkillWorkspaceHints() {
   const workers = [
     normalizeWorker({ name: "owner", profile: "lowgw1", port: 18751, securityLevel: "user", skillWorkspaceIds: ["owner"] }),
@@ -210,6 +221,7 @@ async function testUserRunsFailClosedWithoutUserWorker() {
 (async () => {
   testNormalizeWorker();
   testOrderingHonorsHints();
+  testOrderingHonorsProviderAndPreferredProfileHints();
   testOrderingHonorsSkillWorkspaceHints();
   await testChooseHealthyWorkerAndLookupSecretByUrl();
   await testChooseHonorsSkillWorkspaceIds();

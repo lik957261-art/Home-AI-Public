@@ -158,6 +158,7 @@ function createGatewayRunStartService(options = {}) {
       access_policy_context: runPolicy,
     };
     if (runOptions.model) body.model = runOptions.model;
+    if (runOptions.provider) body.provider = runOptions.provider;
     if (runOptions.reasoning_effort) body.reasoning_effort = runOptions.reasoning_effort;
     if (runOptions.reasoning && typeof runOptions.reasoning === "object") body.reasoning = runOptions.reasoning;
 
@@ -166,6 +167,7 @@ function createGatewayRunStartService(options = {}) {
       workspaceId: actorWorkspaceId,
       taskGroupId: userMessage?.taskGroupId || "",
       model: body.model || "",
+      provider: body.provider || "",
       reasoning_effort: body.reasoning_effort || "",
     });
     if (runOptions.searchSource) gatewayRouting.searchSource = cleanString(runOptions.searchSource);

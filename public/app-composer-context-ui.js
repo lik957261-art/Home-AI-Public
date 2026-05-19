@@ -59,7 +59,7 @@ function composerModelLabel() {
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
   const mentionInfo = composerAiMentionInfo(getComposerText());
   const selected = mentionInfo.modelExplicit
-    ? composerModelOptions().find((option) => option.model === mentionInfo.model) || composerModelOptions()[0]
+    ? composerModelOptions().find((option) => option.model === mentionInfo.model && option.provider === mentionInfo.provider) || composerModelOptions()[0]
     : selectedDefaultComposerModelOption();
   if (!mentionInfo.modelExplicit && selected.id === DEFAULT_COMPOSER_MODEL_ID) return null;
   return { label: `\u6a21\u578b ${selected.label}`, tone: selected.model ? "active" : "" };

@@ -55,30 +55,12 @@ const COMPOSER_MODEL_OPTIONS = Object.freeze([
   },
   {
     id: "grok-4.3",
-    label: "Grok 4.3",
+    label: "Grok",
     model: "grok-4.3",
     provider: "xai-oauth",
     mentionText: "@Grok",
     aliases: ["grok", "grok4", "grok43", "xai", "xaioauth"],
-    description: "xAI OAuth Grok model",
-  },
-  {
-    id: "grok-4.20-0309-reasoning",
-    label: "Grok reasoning",
-    model: "grok-4.20-0309-reasoning",
-    provider: "xai-oauth",
-    mentionText: "@Grok reasoning",
-    aliases: ["grokreasoning", "grokthink", "grok420reasoning", "reasoninggrok"],
-    description: "xAI OAuth reasoning model",
-  },
-  {
-    id: "grok-4.20-0309-non-reasoning",
-    label: "Grok fast",
-    model: "grok-4.20-0309-non-reasoning",
-    provider: "xai-oauth",
-    mentionText: "@Grok fast",
-    aliases: ["grokfast", "groknonreasoning", "grok420nonreasoning", "fastgrok"],
-    description: "xAI OAuth non-reasoning model",
+    description: "xAI OAuth Grok worker",
   },
 ]);
 const CHAT_MESSAGE_INITIAL_LIMIT = 60;

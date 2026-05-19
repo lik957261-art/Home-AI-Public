@@ -166,6 +166,7 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
     actorWorkspaceId: "owner",
     gatewayRouting: { maintenance: true },
     model: "gpt-test",
+    provider: "openai-codex",
     reasoning_effort: "medium",
     reasoning: { effort: "medium" },
     instructions: "extra instruction",
@@ -182,6 +183,7 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
     workspaceId: "owner",
     taskGroupId: "task_group_1",
     model: "gpt-test",
+    provider: "openai-codex",
     reasoning_effort: "medium",
     skillWorkspaceId: "owner",
     requireSkillProfile: true,
@@ -208,6 +210,7 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
   assert.match(calls.streams[0].body.instructions, /instructions:owner:single-window-project/);
   assert.match(calls.streams[0].body.instructions, /extra instruction/);
   assert.equal(calls.streams[0].body.model, "gpt-test");
+  assert.equal(calls.streams[0].body.provider, "openai-codex");
   assert.deepEqual(calls.streams[0].body.reasoning, { effort: "medium" });
   assert.deepEqual(calls.streams[0].options, {
     gatewayUrl: "http://worker.gateway",

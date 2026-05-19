@@ -24,8 +24,6 @@ assert.match(serverJs, /return dedupe\(\[\.\.\.gatewayPoolConfigPathCandidates\(
 assert.equal(appJs.includes("AI_MENTION_OPTIONS"), false);
 assert.match(appJs, /const COMPOSER_MODEL_OPTIONS = Object\.freeze\(\[/);
 assert.match(appJs, /id: "grok-4\.3"/);
-assert.match(appJs, /id: "grok-4\.20-0309-reasoning"/);
-assert.match(appJs, /id: "grok-4\.20-0309-non-reasoning"/);
 assert.match(appJs, /provider: "xai-oauth"/);
 assert.match(appJs, /function composerAiMentionOptions\(\)/);
 assert.ok(appJs.includes("mentionText: `@${label}`"));
@@ -33,6 +31,7 @@ assert.ok(appJs.includes("mentionText: `@${label} ${shortLabel}`"));
 assert.match(appJs, /function composerModelOptionForMention\(primary, secondary = ""\)/);
 assert.match(appJs, /function selectedDefaultComposerModelOption\(\)/);
 assert.match(appJs, /function selectedComposerModel\(text = getComposerText\(\)\)/);
+assert.match(appJs, /function selectedComposerProvider\(text = getComposerText\(\)\)/);
 assert.match(appJs, /group-mention-name/);
 assert.match(appJs, /group-mention-meta/);
 assert.equal(appJs.includes("group-mention-id"), false);
@@ -86,6 +85,8 @@ assert.match(appJs, /const reasoningEffort = selectedComposerReasoningEffort\(te
 assert.match(appJs, /if \(reasoningEffort\) body\.reasoning_effort = reasoningEffort/);
 assert.match(appJs, /const model = selectedComposerModel\(text\)/);
 assert.match(appJs, /if \(model\) body\.model = model/);
+assert.match(appJs, /const provider = selectedComposerProvider\(text\)/);
+assert.match(appJs, /if \(provider\) body\.provider = provider/);
 assert.match(appJs, /hermesDefaultComposerModel/);
 assert.match(appJs, /data-default-model-option/);
 assert.match(stylesCss, /\.default-model-options/);

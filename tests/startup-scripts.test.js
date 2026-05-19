@@ -190,6 +190,7 @@ assert.match(startLowGatewaysChild, /wsl\.exe -d \$distroName -u root/);
 
 assert.match(startLowGatewaysShell, /configure-low-gateways\.sh/);
 assert.match(startLowGatewaysShell, /HERMES_GATEWAY_RUNTIME_ROOT/);
+assert.match(startLowGatewaysShell, /HERMES_GROK_GATEWAY_COUNT/);
 assert.match(startLowGatewaysShell, /HERMES_GATEWAY_RUNTIME_BIN/);
 assert.match(startLowGatewaysShell, /runtime_hermes="\$runtime_bin\/hermes"/);
 assert.match(startLowGatewaysShell, /HERMES_HOME="\$worker_home_dir\/profiles\/\$profile"/);
@@ -203,9 +204,11 @@ assert.match(startLowGatewaysShell, /HERMES_GOOGLE_PROFILE_HOME/);
 assert.match(startLowGatewaysShell, /PATH="\$low_gateway_path"/);
 assert.match(startLowGatewaysShell, /API_SERVER_KEY="\$api_key"/);
 assert.match(startLowGatewaysShell, /LOW_GATEWAYS_STARTED/);
+assert.match(startLowGatewaysShell, /start_gateway_profile "grokgw\$\{idx\}"/);
 assert.doesNotMatch(startLowGatewaysShell, /xuxin/);
 
 assert.match(configureLowGateways, /HERMES_MOBILE_OWNER_CONNECTOR_PROFILES/);
+assert.match(configureLowGateways, /HERMES_GROK_GATEWAY_COUNT/);
 assert.match(configureLowGateways, /HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH/);
 assert.match(configureLowGateways, /is_owner_connector_profile/);
 assert.match(configureLowGateways, /outlook_graph:/);
@@ -407,6 +410,9 @@ assert.match(configureLowGateways, /Missing shared low Gateway Codex auth/);
 assert.match(configureLowGateways, /HERMES_LOW_GATEWAY_ALLOW_SHARED_AUTH_SEED/);
 assert.match(configureLowGateways, /ln -s "\$shared_auth_path" "\$profile_link\/auth\.json"/);
 assert.match(configureLowGateways, /ln -s "\$shared_auth_lock_path" "\$profile_link\/auth\.lock"/);
+assert.match(configureLowGateways, /profile="grokgw\$\{idx\}"/);
+assert.match(configureLowGateways, /provider: xai-oauth/);
+assert.match(configureLowGateways, /default: grok-4\.3/);
 assert.doesNotMatch(configureLowGateways, /install -m 600 -o "\$worker_user" -g "\$worker_user" "\$gateway_worker_root\/secrets\/auth\.json" "\$worker_home_dir\/auth\.json"/);
 
 assert.match(checkWorkerCodexAuth, /RequireUniqueRefreshTokens/);

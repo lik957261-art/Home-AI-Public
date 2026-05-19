@@ -367,6 +367,7 @@ async function testRunOptionsAndDispatchHooks() {
       elevationScope: "owner_high_privilege",
       reasoning_effort: "medium",
       model: "gpt-test",
+      provider: "openai-codex",
       reasoning: { effort: "medium" },
       access_policy_context: { allowed_toolsets: ["file"] },
     },
@@ -376,6 +377,8 @@ async function testRunOptionsAndDispatchHooks() {
   assert.equal(plan.nextAction, "start-run");
   assert.equal(plan.runOptions.reasoning_effort, "medium");
   assert.equal(plan.runOptions.model, "gpt-test");
+  assert.equal(plan.runOptions.provider, "openai-codex");
+  assert.equal(plan.runOptions.gatewayRouting.provider, "openai-codex");
   assert.deepEqual(plan.runOptions.reasoning, { effort: "medium" });
   assert.deepEqual(plan.runOptions.access_policy_context, { allowed_toolsets: ["file"] });
   assert.match(plan.runOptions.instructions, /extra/);
@@ -392,6 +395,26 @@ async function testRunOptionsAndDispatchHooks() {
   assert.deepEqual(calls.broadcasts.map((item) => item.type), ["thread.updated", "message.updated", "message.updated"]);
   assert.equal(calls.starts.length, 1);
   assert.equal(calls.starts[0].runOptions, plan.runOptions);
+}
+
+function testGrokModelRouteRequiresXaiGatewayProvider() {
+  const { calls, service } = makeHarness();
+  const plan = service.prepareThreadMessageCreate({
+    thread: baseThread(),
+    body: {
+      text: "@Grok identify your model",
+      model: "grok-4.3",
+      provider: "xai-oauth",
+    },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+
+  assert.equal(plan.nextAction, "start-run");
+  assert.equal(plan.runOptions.model, "grok-4.3");
+  assert.equal(plan.runOptions.provider, "xai-oauth");
+  assert.equal(plan.runOptions.gatewayRouting.provider, "xai-oauth");
+  assert.deepEqual(plan.runOptions.gatewayRouting.preferred_worker_profiles, ["grokgw1"]);
+  assert.equal(calls.gatewayRouting[0].body.provider, "xai-oauth");
 }
 
 function testSearchSourceRunOptions() {
@@ -479,6 +502,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   testDirectoryAttachmentPrecedence();
   testDirectCreateRoutingAndPayloads();
   await testRunOptionsAndDispatchHooks();
+  testGrokModelRouteRequiresXaiGatewayProvider();
   testSearchSourceRunOptions();
   await testQueuedChatRunSkipsConcurrencyAndStart();
   testConcurrencyErrorBeforeStateMutation();

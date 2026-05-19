@@ -446,6 +446,7 @@ function composerAiMentionOptions() {
     description: [modelLabel, `\u9ed8\u8ba4 ${defaultReasoningLabel()}`].filter(Boolean).join(" / "),
     reasoningEffort: "",
     model: defaultModelOption.model || "",
+    provider: defaultModelOption.provider || "",
     modelExplicit: true,
   }];
   for (const option of configuredReasoningOptions()) {
@@ -459,6 +460,7 @@ function composerAiMentionOptions() {
       description: [modelLabel, reasoningEffortLabel(option.value)].filter(Boolean).join(" / "),
       reasoningEffort: option.value,
       model: defaultModelOption.model || "",
+      provider: defaultModelOption.provider || "",
       modelExplicit: true,
     });
   }
@@ -472,6 +474,7 @@ function composerAiMentionOptions() {
       description: [option.model, option.description].filter(Boolean).join(" / "),
       reasoningEffort: "",
       model: option.model || "",
+      provider: option.provider || "",
       modelExplicit: true,
     }));
   return [options[0], ...grokOptions, ...options.slice(1)];
@@ -509,6 +512,7 @@ function composerAiMentionInfo(text) {
   let mentionsAi = false;
   let reasoningEffort = "";
   let model = "";
+  let provider = "";
   let modelExplicit = false;
   let match;
   while ((match = pattern.exec(normalized)) !== null) {
@@ -516,17 +520,24 @@ function composerAiMentionInfo(text) {
     if (!modelOption) continue;
     mentionsAi = true;
     model = modelOption.model || "";
+    provider = modelOption.provider || "";
     modelExplicit = true;
     const effort = reasoningEffortFromAiAlias(match[3] || "");
     if (effort) reasoningEffort = effort;
   }
-  return { mentionsAi, reasoningEffort, model, modelExplicit };
+  return { mentionsAi, reasoningEffort, model, provider, modelExplicit };
 }
 
 function selectedComposerModel(text = getComposerText()) {
   const mentionInfo = composerAiMentionInfo(text);
   if (mentionInfo.modelExplicit) return mentionInfo.model || "";
   return selectedDefaultComposerModelOption().model || "";
+}
+
+function selectedComposerProvider(text = getComposerText()) {
+  const mentionInfo = composerAiMentionInfo(text);
+  if (mentionInfo.modelExplicit) return mentionInfo.provider || "";
+  return selectedDefaultComposerModelOption().provider || "";
 }
 
 function groupChatMentionsAi(text) {
