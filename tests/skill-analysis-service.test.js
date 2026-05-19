@@ -39,13 +39,29 @@ Use this skill when the user asks to search X posts, inspect an X account, or bu
   });
 
   assert.equal(analysis.skill.path, "social-media/x-social-monitoring-and-briefs");
-  assert.match(analysis.summary, /X search/);
-  assert(analysis.invocationConditions.some((item) => /search X posts|X account/.test(item)));
-  assert(analysis.nonInvocationConditions.some((item) => /ordinary local data/i.test(item)));
+  assert.match(analysis.summary, /功能：/);
+  assert(analysis.summary.includes("X 搜索"));
+  assert(analysis.invocationConditions.some((item) => /X 帖子|X 账号/.test(item)));
+  assert(analysis.nonInvocationConditions.some((item) => /本地数据查询/i.test(item)));
   assert(analysis.inputsOutputs.some((item) => /query, timeframe/.test(item)));
-  assert(analysis.modificationNotes.some((item) => /X|social|search/.test(item)));
+  assert(analysis.modificationNotes.some((item) => /X\/social\/search|X 搜索/.test(item)));
+  assert.equal(analysis.fixes[0].id, "narrow-x-search-invocation");
   assert.deepEqual(analysis.source.frontmatterKeys, ["name", "description"]);
   assert(analysis.source.sectionTitles.includes("Do not use"));
+
+  const applied = service.applyFix({
+    path: "social-media/x-social-monitoring-and-briefs",
+    content: analysis.source ? `---
+name: x-social-monitoring-and-briefs
+description: Use when a task needs social-media briefs.
+---
+
+# X Social
+` : "",
+  }, "narrow-x-search-invocation");
+  assert.equal(applied.changed, true);
+  assert.match(applied.content, /Use only when the user explicitly asks to search X\/Twitter/);
+  assert.match(applied.content, /Do not use for ordinary local data lookup/);
 
   assert.throws(
     () => service.analyze({ path: "empty", content: "" }),

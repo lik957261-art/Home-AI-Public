@@ -8,7 +8,7 @@ const { createSkillAnalysisService } = require("./skill-analysis-service");
 function defaultCompactText(value, maxChars = 800) {
   const text = String(value || "");
   if (!Number.isFinite(maxChars) || maxChars <= 0 || text.length <= maxChars) return text;
-  return `${text.slice(0, Math.max(0, maxChars - 1))}…`;
+  return `${text.slice(0, Math.max(0, maxChars - 3))}...`;
 }
 
 function errorWithStatus(message, status, extra = {}) {
@@ -196,13 +196,13 @@ function createDirectSkillResolver(options = {}) {
     maxNamedSkillScanMs: options.maxNamedSkillScanMs,
   };
 
-  function detail(skill) {
+  function resolve(skill) {
     const skillPath = normalizeSkillPath(skill);
     if (!skillPath) return null;
     for (const root of roots) {
       if (!usableSkillRoot(root, scanOptions)) continue;
       const direct = directSkillCandidate(root, skillPath);
-      if (direct) return skillDetailFromFile(direct.file, direct.path, maxChars);
+      if (direct) return direct;
     }
     if (skillPath.includes("/")) return null;
     const matches = new Map();
@@ -220,10 +220,15 @@ function createDirectSkillResolver(options = {}) {
       });
     }
     const match = [...matches.values()][0];
-    return skillDetailFromFile(match.file, match.path, maxChars);
+    return match;
   }
 
-  return { detail };
+  function detail(skill) {
+    const match = resolve(skill);
+    return match ? skillDetailFromFile(match.file, match.path, maxChars) : null;
+  }
+
+  return { detail, resolve };
 }
 
 function createChildBridge(options) {
@@ -301,6 +306,7 @@ function createSkillDetailProvider(options = {}) {
   const runBridge = typeof options.runBridge === "function" ? options.runBridge : createChildBridge(options);
   const directResolver = options.directResolver || createDirectSkillResolver(options);
   const skillAnalysisService = options.skillAnalysisService || createSkillAnalysisService(options);
+  const maxChars = Number(options.maxSkillChars || 60000);
 
   async function detail(skill) {
     const requestedSkill = String(skill || "").trim();
@@ -328,7 +334,27 @@ function createSkillDetailProvider(options = {}) {
     return skillAnalysisService.analyze(await detail(skill));
   }
 
-  return { detail, analyze };
+  async function applyFix(skill, fixId) {
+    const requestedSkill = String(skill || "").trim();
+    if (!requestedSkill) throw errorWithStatus("Skill is required", 400);
+    const match = directResolver?.resolve?.(requestedSkill);
+    if (!match?.file) {
+      throw errorWithStatus("Skill can only be modified when it resolves to a local SKILL.md", 404, { skill: requestedSkill });
+    }
+    const current = skillDetailFromFile(match.file, match.path, maxChars);
+    const applied = skillAnalysisService.applyFix(current, fixId);
+    if (applied.changed) fs.writeFileSync(match.file, applied.content, "utf8");
+    const next = skillDetailFromFile(match.file, match.path, maxChars);
+    return {
+      ok: true,
+      changed: Boolean(applied.changed),
+      fix: applied.fix,
+      detail: next,
+      analysis: skillAnalysisService.analyze(next),
+    };
+  }
+
+  return { detail, analyze, applyFix };
 }
 
 module.exports = {

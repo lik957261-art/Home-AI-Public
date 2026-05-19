@@ -160,6 +160,8 @@ function createMobileApiComposition(deps = {}) {
   });
 
   const resourceApiRoutes = createResourceApiRoutes({
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
     sharedDirectoryProjectionService: {
@@ -169,6 +171,7 @@ function createMobileApiComposition(deps = {}) {
     skillDetailProvider: {
       detail: (...args) => deps.skillDetailProvider.detail(...args),
       analyze: (...args) => deps.skillDetailProvider.analyze(...args),
+      applyFix: (...args) => deps.skillDetailProvider.applyFix(...args),
     },
     compactText: deps.compactText,
   });

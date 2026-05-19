@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260519-run-freeze-v11";
+const CLIENT_VERSION = "20260519-skill-fix-v12";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -134,6 +134,8 @@ assert.match(appJs, /timeoutMs: 8000/);
 assert.match(appJs, /data-close-skill-detail/);
 assert.match(appJs, /data-skill-analysis/);
 assert.match(appJs, /\/api\/skills\/analysis\?skill=/);
+assert.match(appJs, /data-skill-fix-id/);
+assert.match(appJs, /\/api\/skills\/analysis\/fix/);
 assert.match(appJs, /renderSkillDetailPanel\(\{ resetScroll: true \}\)/);
 assert.match(appJs, /options\.resetScroll \? 0 : previousScrollTop/);
 assert.match(appJs, /function runEventPreviewLabel\(event\)/);
@@ -152,6 +154,7 @@ assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.message-skill-deta
 assert.match(stylesCss, /\.skill-detail-close/);
 assert.match(stylesCss, /\.skill-detail-analyze/);
 assert.match(stylesCss, /\.skill-analysis-card/);
+assert.match(stylesCss, /\.skill-analysis-fix/);
 assert.match(taskArtifactHelpersJs, /return \[\.\.\.groups\.values\(\)\]\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\);/);
 assert.match(appJs, /const allGroups = taskListGroupsForThread\(thread\)\s+\.concat\(sharedCaseTopicGroupsForTaskList\(thread\)\)\s+\.sort/);
 assert.match(appJs, /const displayGroups = allGroups\.slice\(\);/);

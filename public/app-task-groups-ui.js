@@ -321,6 +321,38 @@ async function analyzeSkillDetail() {
   }
 }
 
+async function applySkillAnalysisFix(fixId) {
+  const skill = state.skillDetail;
+  const id = String(fixId || "").trim();
+  if (!skill?.path || skill.loading || !id) return;
+  state.skillDetail = Object.assign({}, skill, {
+    analysis: Object.assign({}, skill.analysis || {}, { applyingFixId: id, error: "" }),
+  });
+  renderSkillDetailPanel();
+  try {
+    const result = await api("/api/skills/analysis/fix", {
+      method: "POST",
+      body: JSON.stringify({ skill: skill.path, fixId: id }),
+      timeoutMs: 10000,
+    });
+    if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
+    const data = result.data || {};
+    state.skillDetail = Object.assign({}, state.skillDetail, data.detail || {}, {
+      loading: false,
+      error: "",
+      analysis: { loading: false, error: "", data: data.analysis || state.skillDetail.analysis?.data || null, applyingFixId: "" },
+    });
+    if (typeof showPushToast === "function") showPushToast(data.changed ? "\u5df2\u4fee\u6b63 Skill" : "Skill \u5df2\u7ecf\u662f\u8be5\u89c4\u5219", "success");
+    renderSkillDetailPanel();
+  } catch (err) {
+    if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
+    state.skillDetail = Object.assign({}, state.skillDetail, {
+      analysis: Object.assign({}, state.skillDetail.analysis || {}, { applyingFixId: "", error: err.message || String(err) }),
+    });
+    renderSkillDetailPanel();
+  }
+}
+
 function wireSkillLinks(root) {
   root?.querySelectorAll?.("[data-skill-path]").forEach((button) => {
     if (button.dataset.skillBound) return;
@@ -346,6 +378,24 @@ function renderSkillAnalysisList(title, items) {
   </div>`;
 }
 
+function renderSkillAnalysisFixes(fixes, applyingFixId = "") {
+  const values = Array.isArray(fixes) ? fixes.filter((item) => item?.id) : [];
+  if (!values.length) return "";
+  return `<div class="skill-analysis-section skill-analysis-fixes">
+    <h3>\u53ef\u76f4\u63a5\u4fee\u6b63</h3>
+    ${values.map((fix) => {
+      const busy = applyingFixId && applyingFixId === fix.id;
+      return `<div class="skill-analysis-fix">
+        <div>
+          <strong>${escapeHtml(fix.label || fix.id)}</strong>
+          <p>${escapeHtml(fix.description || "")}</p>
+        </div>
+        <button type="button" data-skill-fix-id="${escapeHtml(fix.id)}"${busy ? " disabled" : ""}>${busy ? "\u4fee\u6b63\u4e2d" : "\u4fee\u6b63"}</button>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
 function renderSkillAnalysisPanel(skill) {
   const analysis = skill.analysis || {};
   if (analysis.loading) {
@@ -363,6 +413,7 @@ function renderSkillAnalysisPanel(skill) {
     ${renderSkillAnalysisList("\u4e0d\u8981\u8c03\u7528", data.nonInvocationConditions)}
     ${renderSkillAnalysisList("\u8f93\u5165 / \u8f93\u51fa / \u5de5\u5177\u8fb9\u754c", data.inputsOutputs)}
     ${renderSkillAnalysisList("\u4fee\u6539\u5173\u6ce8\u70b9", data.modificationNotes)}
+    ${renderSkillAnalysisFixes(data.fixes, analysis.applyingFixId)}
     <div class="skill-analysis-source">\u6765\u6e90\uff1a${escapeHtml((source.sectionTitles || []).slice(0, 5).join(" / ") || "SKILL.md")}${source.truncated ? "\uff08\u5185\u5bb9\u5df2\u622a\u65ad\uff09" : ""}</div>
     ${error}
   </section>`;
@@ -413,6 +464,13 @@ function renderSkillDetailPanel(options = {}) {
     event.preventDefault();
     event.stopPropagation();
     analyzeSkillDetail().catch(showError);
+  });
+  conversation.querySelectorAll("[data-skill-fix-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      applySkillAnalysisFix(button.dataset.skillFixId || "").catch(showError);
+    });
   });
   ensureVerticalScrollAffordance(conversation);
   const nextScrollTop = options.resetScroll ? 0 : previousScrollTop;

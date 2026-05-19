@@ -41,9 +41,22 @@ function makeRoutes(overrides = {}) {
     publicShared: [],
     shared: [],
     skillDetail: [],
+    skillFix: [],
+    owner: [],
     workspaceAccess: [],
   };
   const deps = Object.assign({
+    readBody(req) {
+      return Promise.resolve(req.body || {});
+    },
+    requireOwner(req, res) {
+      calls.owner.push(req.auth?.role || "");
+      if (req.auth?.role === "blocked") {
+        sendJson(res, 403, { error: "Owner access is required" });
+        return null;
+      }
+      return { role: "owner", isOwner: true };
+    },
     requireWorkspaceAccess(req, res, workspaceId) {
       calls.workspaceAccess.push({
         workspaceId,
@@ -89,6 +102,15 @@ function makeRoutes(overrides = {}) {
           invocationConditions: ["Use when analysis is requested."],
         });
       },
+      applyFix(skill, fixId) {
+        calls.skillFix.push({ skill, fixId });
+        return Promise.resolve({
+          ok: true,
+          changed: true,
+          detail: { path: skill, content: "fixed" },
+          analysis: { skill: { path: skill }, summary: "Fixed" },
+        });
+      },
     },
     compactText(value, maxChars) {
       calls.compact.push({ value: String(value), maxChars });
@@ -102,7 +124,7 @@ async function request(routes, method, path, options = {}) {
   const res = makeResponse();
   const context = Object.hasOwn(options, "auth") ? { auth: options.auth } : undefined;
   const result = await routes.handle(
-    { method, url: path, headers: options.headers || {} },
+    { method, url: path, headers: options.headers || {}, auth: options.auth, body: options.body },
     res,
     makeUrl(path),
     context,
@@ -116,6 +138,7 @@ async function testRouteMetadataAndFallthrough() {
     "directories-shared-list",
     "skills-detail",
     "skills-analysis",
+    "skills-analysis-fix",
   ]);
 
   const { routes } = makeRoutes();
@@ -123,20 +146,22 @@ async function testRouteMetadataAndFallthrough() {
   assert.equal(routes.match({ method: "GET", path: "/api/directories/shared" }).id, "directories-shared-list");
   assert.equal(routes.match({ method: "GET", path: "/api/skills/detail" }).id, "skills-detail");
   assert.equal(routes.match({ method: "GET", path: "/api/skills/analysis" }).id, "skills-analysis");
+  assert.equal(routes.match({ method: "POST", path: "/api/skills/analysis/fix" }).id, "skills-analysis-fix");
   assert.equal(routes.match({ method: "POST", path: "/api/projects" }), null);
 
   const summary = routes.summary({ public: true });
-  assert.equal(summary.total, 4);
-  assert.deepEqual(summary.byModule, { resource: 4 });
-  assert.deepEqual(summary.byAuthMode, { "access-key": 4 });
+  assert.equal(summary.total, 5);
+  assert.deepEqual(summary.byModule, { resource: 5 });
+  assert.deepEqual(summary.byAuthMode, { "access-key": 4, owner: 1 });
   assert.equal(JSON.stringify(summary).includes("/api/projects"), false);
 
   const publicRoutes = routes.list({ public: true });
   assert.equal(Object.hasOwn(publicRoutes[0], "path"), false);
-  assert.deepEqual(publicRoutes.map((route) => route.workspaceScoped), [true, true, false, false]);
+  assert.deepEqual(publicRoutes.map((route) => route.workspaceScoped), [true, true, false, false, false]);
   assert.deepEqual(publicRoutes.map((route) => route.resourceTypes), [
     ["project", "workspace"],
     ["directory", "share"],
+    ["skill"],
     ["skill"],
     ["skill"],
   ]);
@@ -237,6 +262,9 @@ async function testSkillDetailSuccessAndError() {
       analyze() {
         throw new Error("not used");
       },
+      applyFix() {
+        throw new Error("not used");
+      },
     },
   });
   const failed = await request(failing.routes, "GET", "/api/skills/detail?skill=productivity%2Fraw");
@@ -277,6 +305,9 @@ async function testSkillAnalysisSuccessAndError() {
       analyze() {
         throw err;
       },
+      applyFix() {
+        throw new Error("not used");
+      },
     },
   });
   const failed = await request(failing.routes, "GET", "/api/skills/analysis?skill=x-social-monitoring-and-briefs");
@@ -288,6 +319,34 @@ async function testSkillAnalysisSuccessAndError() {
   });
 }
 
+async function testSkillAnalysisFixSuccessAndOwnerGate() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/skills/analysis/fix", {
+    auth: { role: "owner", isOwner: true },
+    body: { skill: "social-media/x-social-monitoring-and-briefs", fixId: "narrow-x-search-invocation" },
+  });
+
+  assert.equal(got.result.handled, true);
+  assert.equal(got.result.route.id, "skills-analysis-fix");
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.skillFix, [{ skill: "social-media/x-social-monitoring-and-briefs", fixId: "narrow-x-search-invocation" }]);
+  assert.equal(got.body.data.changed, true);
+  assert.equal(got.body.data.detail.path, "social-media/x-social-monitoring-and-briefs");
+
+  const missing = await request(routes, "POST", "/api/skills/analysis/fix", {
+    auth: { role: "owner", isOwner: true },
+    body: { skill: "", fixId: "" },
+  });
+  assert.equal(missing.res.statusCode, 400);
+  assert.deepEqual(missing.body, { error: "Skill and fixId are required" });
+
+  const blocked = await request(routes, "POST", "/api/skills/analysis/fix", {
+    auth: { role: "blocked" },
+    body: { skill: "x", fixId: "narrow-x-search-invocation" },
+  });
+  assert.equal(blocked.res.statusCode, 403);
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createResourceApiRoutes({}),
@@ -296,6 +355,8 @@ function testDependencyValidation() {
   assert.throws(
     () => createResourceApiRoutes({
       requireWorkspaceAccess() {},
+      requireOwner() {},
+      readBody() {},
       sendJson() {},
       compactText() {},
       sharedDirectoryProjectionService: {
@@ -308,6 +369,8 @@ function testDependencyValidation() {
   assert.throws(
     () => createResourceApiRoutes({
       requireWorkspaceAccess() {},
+      requireOwner() {},
+      readBody() {},
       sendJson() {},
       compactText() {},
       sharedDirectoryProjectionService: {
@@ -321,6 +384,8 @@ function testDependencyValidation() {
   assert.throws(
     () => createResourceApiRoutes({
       requireWorkspaceAccess() {},
+      requireOwner() {},
+      readBody() {},
       sendJson() {},
       compactText() {},
       sharedDirectoryProjectionService: {
@@ -333,6 +398,24 @@ function testDependencyValidation() {
     }),
     /resource api routes require skillDetailProvider\.analyze/,
   );
+  assert.throws(
+    () => createResourceApiRoutes({
+      requireWorkspaceAccess() {},
+      requireOwner() {},
+      readBody() {},
+      sendJson() {},
+      compactText() {},
+      sharedDirectoryProjectionService: {
+        publicProjectsForWorkspace() {},
+        listPublicSharedDirectories() {},
+      },
+      skillDetailProvider: {
+        detail() {},
+        analyze() {},
+      },
+    }),
+    /resource api routes require skillDetailProvider\.applyFix/,
+  );
 }
 
 async function run() {
@@ -342,6 +425,7 @@ async function run() {
   await testSkillRequired();
   await testSkillDetailSuccessAndError();
   await testSkillAnalysisSuccessAndError();
+  await testSkillAnalysisFixSuccessAndOwnerGate();
   testDependencyValidation();
   console.log("resource api routes tests passed");
 }

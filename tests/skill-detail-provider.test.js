@@ -86,6 +86,22 @@ async function run() {
     assert.match(providerAnalysis.summary, /Demo Skill/);
     assert.equal(bridgeCalls, 0);
 
+    const xSkillDir = path.join(root, "social-media", "x-social-monitoring-and-briefs");
+    fs.mkdirSync(xSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(xSkillDir, "SKILL.md"), `---
+name: x-social-monitoring-and-briefs
+description: Use when a task needs social-media briefs.
+---
+
+# X Social
+`, "utf8");
+    const fixed = await directFirstProvider.applyFix("x-social-monitoring-and-briefs", "narrow-x-search-invocation");
+    assert.equal(fixed.changed, true);
+    assert.equal(fixed.detail.path, "social-media/x-social-monitoring-and-briefs");
+    assert(fixed.analysis.fixes.some((item) => item.id === "narrow-x-search-invocation"));
+    assert.match(fs.readFileSync(path.join(xSkillDir, "SKILL.md"), "utf8"), /Use only when the user explicitly asks to search X\/Twitter/);
+    assert.equal(bridgeCalls, 0);
+
     const boundedRoot = path.join(root, "bounded");
     const boundedSkillDir = path.join(boundedRoot, "level-a", "level-b", "bounded-skill");
     fs.mkdirSync(boundedSkillDir, { recursive: true });

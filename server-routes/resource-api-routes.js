@@ -61,6 +61,21 @@ const RESOURCE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["skill"],
     tags: ["skill", "analysis"],
   },
+  {
+    id: "skills-analysis-fix",
+    method: "POST",
+    path: "/api/skills/analysis/fix",
+    group: "skill",
+    moduleKey: "resource",
+    handlerKey: "skillAnalysisFix",
+    summary: "Apply an Owner-approved deterministic fix to a local skill.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["skill"],
+    tags: ["skill", "analysis", "fix"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -84,6 +99,8 @@ function errorMessage(err) {
 function createResourceApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "requireWorkspaceAccess",
+    "requireOwner",
+    "readBody",
     "sendJson",
     "compactText",
   ]);
@@ -99,8 +116,13 @@ function createResourceApiRoutes(deps = {}) {
   if (typeof deps.skillDetailProvider.analyze !== "function") {
     throw new Error("resource api routes require skillDetailProvider.analyze");
   }
+  if (typeof deps.skillDetailProvider.applyFix !== "function") {
+    throw new Error("resource api routes require skillDetailProvider.applyFix");
+  }
 
   const {
+    readBody,
+    requireOwner,
     requireWorkspaceAccess,
     sendJson,
     sharedDirectoryProjectionService,
@@ -161,6 +183,33 @@ function createResourceApiRoutes(deps = {}) {
     }
   }
 
+  async function handleSkillAnalysisFix(req, res) {
+    const ownerAuth = requireOwner(req, res);
+    if (!ownerAuth) return;
+    let body = {};
+    try {
+      body = await readBody(req);
+    } catch (err) {
+      sendJson(res, 400, { error: compactText(errorMessage(err), 800) });
+      return;
+    }
+    const skill = String(body?.skill || "").trim();
+    const fixId = String(body?.fixId || body?.fix_id || "").trim();
+    if (!skill || !fixId) {
+      sendJson(res, 400, { error: "Skill and fixId are required" });
+      return;
+    }
+    try {
+      const result = await skillDetailProvider.applyFix(skill, fixId);
+      sendJson(res, 200, { data: result });
+    } catch (err) {
+      sendJson(res, statusCode(err), {
+        error: compactText(errorMessage(err), 800),
+        skill: err?.skill || skill,
+      });
+    }
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -172,6 +221,7 @@ function createResourceApiRoutes(deps = {}) {
     else if (route.id === "directories-shared-list") await handleSharedDirectories(req, res, url);
     else if (route.id === "skills-detail") await handleSkillDetail(res, url);
     else if (route.id === "skills-analysis") await handleSkillAnalysis(res, url);
+    else if (route.id === "skills-analysis-fix") await handleSkillAnalysisFix(req, res);
     else return { handled: false };
 
     return {

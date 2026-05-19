@@ -3259,6 +3259,49 @@ button.directory-alias-chip {
   overflow-wrap: anywhere;
 }
 
+.skill-analysis-fixes {
+  gap: 8px;
+}
+
+.skill-analysis-fix {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid rgba(28, 121, 102, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.skill-analysis-fix strong {
+  display: block;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.skill-analysis-fix p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.skill-analysis-fix button {
+  min-width: 48px;
+  min-height: 30px;
+  border: 1px solid rgba(28, 121, 102, 0.24);
+  border-radius: 999px;
+  background: rgba(222, 244, 237, 0.72);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.skill-analysis-fix button:disabled {
+  opacity: 0.58;
+}
+
 .skill-analysis-source {
   color: var(--muted);
   font-size: 11px;
