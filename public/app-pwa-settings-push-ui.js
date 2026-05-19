@@ -273,6 +273,19 @@ function setFontFamilyPreference(value) {
   renderSettingsOverlay();
 }
 
+function setDefaultComposerModelPreference(value) {
+  const option = composerModelOption(value);
+  state.defaultComposerModelId = option.id;
+  if (option.id === DEFAULT_COMPOSER_MODEL_ID) {
+    localStorage.removeItem("hermesDefaultComposerModel");
+  } else {
+    localStorage.setItem("hermesDefaultComposerModel", option.id);
+  }
+  renderSettingsOverlay();
+  renderComposerContext();
+  if (typeof updateGroupMentionMenu === "function") updateGroupMentionMenu();
+}
+
 function renderSettingsOverlay() {
   const overlay = $("settingsOverlay");
   if (!overlay) return;
@@ -283,6 +296,7 @@ function renderSettingsOverlay() {
   }
   const current = normalizeFontSizePreference(state.fontSize);
   const currentFamily = normalizeFontFamilyPreference(state.fontFamily);
+  const currentModel = selectedDefaultComposerModelOption().id;
   const options = FONT_SIZE_OPTIONS.map((option) => {
     const active = option.id === current;
     return `<button class="font-size-option${active ? " active" : ""}" type="button" data-font-size-option="${escapeHtml(option.id)}" style="--font-preview-scale:${option.scale}">
@@ -295,6 +309,14 @@ function renderSettingsOverlay() {
     return `<button class="font-family-option${active ? " active" : ""}" type="button" data-font-family-option="${escapeHtml(option.id)}" style="--font-preview-family:${escapeHtml(option.family)}">
       <span class="font-family-option-sample">${escapeHtml(option.sample)}</span>
       <span class="font-family-option-name">${escapeHtml(option.label)}</span>
+    </button>`;
+  }).join("");
+  const modelOptions = composerModelOptions().map((option) => {
+    const active = option.id === currentModel;
+    const modelMeta = [option.model || "\u8fd0\u884c\u65f6\u9ed8\u8ba4", option.provider].filter(Boolean).join(" / ");
+    return `<button class="default-model-option${active ? " active" : ""}" type="button" data-default-model-option="${escapeHtml(option.id)}">
+      <span class="default-model-option-name">${escapeHtml(option.label)}</span>
+      <span class="default-model-option-meta">${escapeHtml(modelMeta || option.description || "")}</span>
     </button>`;
   }).join("");
   overlay.innerHTML = `<section class="access-key-sheet settings-sheet">
@@ -314,6 +336,10 @@ function renderSettingsOverlay() {
       <div class="font-family-options" role="group" aria-label="字体">
         ${familyOptions}
       </div>
+      <div class="settings-row-title">\u9ed8\u8ba4\u6a21\u578b</div>
+      <div class="default-model-options" role="group" aria-label="\u9ed8\u8ba4\u6a21\u578b">
+        ${modelOptions}
+      </div>
       <div class="settings-preview">
         <div class="settings-preview-title">Hermes Mobile</div>
         <div class="settings-preview-body">聊天、话题、目录、看板、Markdown 阅读和自动化页面会使用这个显示偏好。</div>
@@ -332,6 +358,9 @@ function renderSettingsOverlay() {
   });
   overlay.querySelectorAll("[data-font-family-option]").forEach((button) => {
     button.addEventListener("click", () => setFontFamilyPreference(button.dataset.fontFamilyOption || DEFAULT_FONT_FAMILY));
+  });
+  overlay.querySelectorAll("[data-default-model-option]").forEach((button) => {
+    button.addEventListener("click", () => setDefaultComposerModelPreference(button.dataset.defaultModelOption || DEFAULT_COMPOSER_MODEL_ID));
   });
 }
 

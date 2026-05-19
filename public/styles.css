@@ -4085,6 +4085,12 @@ button.directory-alias-chip {
   gap: 7px;
 }
 
+.default-model-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
 .font-size-option {
   min-width: 0;
   min-height: 48px;
@@ -4114,6 +4120,21 @@ button.directory-alias-chip {
   font-weight: 560;
 }
 
+.default-model-option {
+  min-width: 0;
+  min-height: 54px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 9px;
+  color: var(--ink);
+  background: rgba(255, 252, 246, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  text-align: left;
+  font-weight: 560;
+}
+
 .font-size-option.active {
   color: #fffaf1;
   background: var(--accent);
@@ -4121,6 +4142,12 @@ button.directory-alias-chip {
 }
 
 .font-family-option.active {
+  color: #fffaf1;
+  background: var(--accent);
+  border-color: rgba(31, 111, 98, 0.45);
+}
+
+.default-model-option.active {
   color: #fffaf1;
   background: var(--accent);
   border-color: rgba(31, 111, 98, 0.45);
@@ -4134,6 +4161,26 @@ button.directory-alias-chip {
 .font-family-option-name {
   font-size: 12px;
   line-height: 1.1;
+}
+
+.default-model-option-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.default-model-option-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  opacity: 0.72;
+  font-size: 11px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .font-size-option-sample {
@@ -9032,7 +9079,7 @@ button.directory-alias-chip {
 
 .composer .group-mention-option {
   width: 100%;
-  min-height: 36px;
+  min-height: 44px;
   padding: 7px 9px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -9056,6 +9103,16 @@ button.directory-alias-chip {
   min-width: 0;
   overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-mention-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

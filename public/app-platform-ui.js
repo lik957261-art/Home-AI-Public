@@ -332,6 +332,8 @@ function applyReasoningInfo(info = {}) {
   state.modelProvider = String(info.model?.provider || info.provider || state.modelProvider || "").trim();
   updateTaskReasoningControl();
   renderComposerContext();
+  if (typeof updateGroupMentionMenu === "function") updateGroupMentionMenu();
+  if (typeof renderSettingsOverlay === "function") renderSettingsOverlay();
 }
 
 async function loadStatus() {

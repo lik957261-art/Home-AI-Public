@@ -66,12 +66,6 @@ function appendRunEventToCurrentThread(payload) {
   if (!scheduleRunProgressRenderForRun(event.runId || payload.runId || "")) scheduleRenderCurrentThread();
 }
 
-function runEventTimeLabel(event) {
-  const date = new Date(runProgressTimestampMs(event?.timestamp));
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
 function runEventSkillName(event) {
   const parsed = parseRunEventPreviewObject(event?.preview);
   const value = parsed?.name || parsed?.path || parsed?.skill || parsed?.id || "";
@@ -155,18 +149,31 @@ function runProgressStartMs(thread, runIds, events) {
   return values.length ? Math.min(...values) : Date.now();
 }
 
-function runProgressDurationLabel(startMs, now = Date.now()) {
-  if (!startMs) return "";
-  const seconds = Math.max(0, Math.round((now - startMs) / 1000));
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
+function runProgressDurationText(seconds, options = {}) {
+  const totalSeconds = Math.max(options.allowZero ? 0 : 1, Math.round(Number(seconds) || 0));
+  const minutes = Math.floor(totalSeconds / 60);
+  const rest = totalSeconds % 60;
   if (minutes >= 60) {
     const hours = Math.floor(minutes / 60);
     const hourMinutes = minutes % 60;
     return `${hours}\u5c0f\u65f6${hourMinutes}\u5206`;
   }
   if (minutes) return `${minutes}\u5206${rest}\u79d2`;
-  return `${Math.max(1, rest)}\u79d2`;
+  return `${rest}\u79d2`;
+}
+
+function runProgressDurationLabel(startMs, now = Date.now()) {
+  if (!startMs) return "";
+  return runProgressDurationText((now - startMs) / 1000);
+}
+
+function runProgressOffsetLabel(startMs, eventMs) {
+  if (!startMs || !eventMs) return "";
+  return runProgressDurationText((eventMs - startMs) / 1000, { allowZero: true });
+}
+
+function runEventTimeLabel(event, startMs) {
+  return runProgressOffsetLabel(startMs, runProgressTimestampMs(event?.timestamp));
 }
 
 function runProgressAgeLabel(timestampMs, now = Date.now()) {
@@ -178,17 +185,17 @@ function renderRunProgressWaitingRow(startMs) {
   return `<div class="run-progress-row run-progress-waiting">
     <span class="run-progress-dot" aria-hidden="true"></span>
     <span class="run-progress-main">\u8bf7\u6c42\u5df2\u53d1\u9001</span>
-    <span class="run-progress-time" data-run-progress-age="${escapeHtml(String(startMs))}">${escapeHtml(runProgressAgeLabel(startMs))}</span>
+    <span class="run-progress-time">${escapeHtml(runProgressOffsetLabel(startMs, startMs))}</span>
     <span class="run-progress-preview">\u7b49\u5f85\u6a21\u578b\u6216\u5de5\u5177\u8fd4\u56de</span>
   </div>`;
 }
 
-function renderRunProgressQuietRow(lastEventMs) {
+function renderRunProgressQuietRow(lastEventMs, startMs) {
   if (!lastEventMs || Date.now() - lastEventMs < 15000) return "";
   return `<div class="run-progress-row run-progress-quiet">
     <span class="run-progress-dot" aria-hidden="true"></span>
     <span class="run-progress-main">\u4ecd\u5728\u8fd0\u884c</span>
-    <span class="run-progress-time" data-run-progress-age="${escapeHtml(String(lastEventMs))}">${escapeHtml(runProgressAgeLabel(lastEventMs))}</span>
+    <span class="run-progress-time">${escapeHtml(runProgressOffsetLabel(startMs, lastEventMs))}</span>
     <span class="run-progress-preview">\u6700\u8fd1\u65e0\u65b0\u4e8b\u4ef6\uff0c\u4ecd\u5728\u7b49\u5f85\u8fd4\u56de</span>
   </div>`;
 }
@@ -200,7 +207,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   const startMs = runProgressStartMs(thread, ids, events);
   const eventTimes = events.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
-  const quietRow = renderRunProgressQuietRow(lastEventMs);
+  const quietRow = renderRunProgressQuietRow(lastEventMs, startMs);
   const rows = events.length
     ? `${quietRow}${events.slice().reverse().slice(0, 3).map((event) => {
       const preview = runEventPreviewLabel(event);
@@ -208,7 +215,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
       <div class="run-progress-row${event.error ? " error" : ""}">
         <span class="run-progress-dot" aria-hidden="true"></span>
         <span class="run-progress-main">${escapeHtml(runEventTitle(event))}</span>
-        <span class="run-progress-time">${escapeHtml(runEventTimeLabel(event))}</span>
+        <span class="run-progress-time">${escapeHtml(runEventTimeLabel(event, startMs))}</span>
         ${preview ? `<span class="run-progress-preview">${escapeHtml(preview)}</span>` : ""}
       </div>`;
     }).join("")}`

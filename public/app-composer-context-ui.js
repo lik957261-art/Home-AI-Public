@@ -54,6 +54,17 @@ function composerReasoningLabel() {
   return `\u63a8\u7406 ${compact}`;
 }
 
+function composerModelLabel() {
+  if (isChatSearchMode()) return null;
+  if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
+  const mentionInfo = composerAiMentionInfo(getComposerText());
+  const selected = mentionInfo.modelExplicit
+    ? composerModelOptions().find((option) => option.model === mentionInfo.model) || composerModelOptions()[0]
+    : selectedDefaultComposerModelOption();
+  if (!mentionInfo.modelExplicit && selected.id === DEFAULT_COMPOSER_MODEL_ID) return null;
+  return { label: `\u6a21\u578b ${selected.label}`, tone: selected.model ? "active" : "" };
+}
+
 function composerSearchSourceLabel() {
   if (isChatSearchMode()) return null;
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
@@ -243,6 +254,8 @@ function composerContextItems(counts = composerRunCounts()) {
   if (gatewayPermissionLabel?.label) items.push(gatewayPermissionLabel);
   const reasoningLabel = composerReasoningLabel();
   if (reasoningLabel) items.push({ label: reasoningLabel });
+  const modelLabel = composerModelLabel();
+  if (modelLabel?.label) items.push(modelLabel);
   const searchSourceLabel = composerSearchSourceLabel();
   if (searchSourceLabel?.label) items.push(searchSourceLabel);
   const directoryLabel = composerDirectoryLabel();
@@ -263,6 +276,7 @@ function shouldShowComposerContext(items, counts) {
     state.composerFocused
     || composerHasDraft()
     || state.pendingArtifacts.length
+    || Boolean(composerModelLabel()?.label)
     || selectedComposerSearchSourceInfo(getComposerText()).source !== "local"
     || Boolean(activeRunSearchSourceInfo())
     || state.quotedReply

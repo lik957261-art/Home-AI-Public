@@ -42,6 +42,45 @@ const FONT_FAMILY_OPTIONS = Object.freeze([
   },
 ]);
 const DEFAULT_FONT_FAMILY = "system";
+const DEFAULT_COMPOSER_MODEL_ID = "runtime-default";
+const COMPOSER_MODEL_OPTIONS = Object.freeze([
+  {
+    id: DEFAULT_COMPOSER_MODEL_ID,
+    label: "ChatGPT default",
+    model: "",
+    provider: "",
+    mentionText: "@ChatGPT",
+    aliases: ["ai", "chatgpt", "assistant", "default"],
+    description: "Hermes runtime default model",
+  },
+  {
+    id: "grok-4.3",
+    label: "Grok 4.3",
+    model: "grok-4.3",
+    provider: "xai-oauth",
+    mentionText: "@Grok",
+    aliases: ["grok", "grok4", "grok43", "xai", "xaioauth"],
+    description: "xAI OAuth Grok model",
+  },
+  {
+    id: "grok-4.20-0309-reasoning",
+    label: "Grok reasoning",
+    model: "grok-4.20-0309-reasoning",
+    provider: "xai-oauth",
+    mentionText: "@Grok reasoning",
+    aliases: ["grokreasoning", "grokthink", "grok420reasoning", "reasoninggrok"],
+    description: "xAI OAuth reasoning model",
+  },
+  {
+    id: "grok-4.20-0309-non-reasoning",
+    label: "Grok fast",
+    model: "grok-4.20-0309-non-reasoning",
+    provider: "xai-oauth",
+    mentionText: "@Grok fast",
+    aliases: ["grokfast", "groknonreasoning", "grok420nonreasoning", "fastgrok"],
+    description: "xAI OAuth non-reasoning model",
+  },
+]);
 const CHAT_MESSAGE_INITIAL_LIMIT = 60;
 const CHAT_MESSAGE_PAGE_LIMIT = 40;
 const CHAT_MESSAGE_SEARCH_LIMIT = 120;
@@ -72,6 +111,11 @@ function initialFontSizePreference(value) {
 function initialFontFamilyPreference(value) {
   const id = String(value || "").trim();
   return FONT_FAMILY_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_FAMILY;
+}
+
+function initialDefaultComposerModelPreference(value) {
+  const id = String(value || "").trim();
+  return COMPOSER_MODEL_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_COMPOSER_MODEL_ID;
 }
 
 function initialTodoKanbanStatus() {
@@ -502,6 +546,7 @@ const state = {
   settingsOpen: false,
   fontSize: initialFontSizePreference(localStorage.getItem("hermesWebFontSize") || DEFAULT_FONT_SIZE),
   fontFamily: initialFontFamilyPreference(localStorage.getItem("hermesWebFontFamily") || DEFAULT_FONT_FAMILY),
+  defaultComposerModelId: initialDefaultComposerModelPreference(localStorage.getItem("hermesDefaultComposerModel") || DEFAULT_COMPOSER_MODEL_ID),
   readingFullscreen: false,
   transientProjectRoute: null,
   quotedReply: null,

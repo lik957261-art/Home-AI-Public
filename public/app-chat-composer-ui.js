@@ -386,17 +386,67 @@ function virtualAssistantMember() {
   });
 }
 
+function composerModelOptions() {
+  const label = assistantDisplayLabel();
+  const modelLabel = state.defaultModel || label;
+  return COMPOSER_MODEL_OPTIONS.map((option) => {
+    if (option.id !== DEFAULT_COMPOSER_MODEL_ID) return option;
+    return Object.assign({}, option, {
+      label,
+      mentionText: `@${label}`,
+      description: [modelLabel, "\u8fd0\u884c\u65f6\u9ed8\u8ba4"].filter(Boolean).join(" / "),
+      aliases: [...new Set([...(option.aliases || []), label, state.defaultModel, state.modelProvider].filter(Boolean))],
+    });
+  });
+}
+
+function composerModelOption(value) {
+  const id = String(value || "").trim();
+  return composerModelOptions().find((option) => option.id === id) || composerModelOptions()[0];
+}
+
+function selectedDefaultComposerModelOption() {
+  return composerModelOption(state.defaultComposerModelId || DEFAULT_COMPOSER_MODEL_ID);
+}
+
+function composerModelMentionAliases(option = {}) {
+  return new Set([
+    option.id,
+    option.label,
+    option.model,
+    option.provider,
+    option.mentionText,
+    ...(Array.isArray(option.aliases) ? option.aliases : []),
+  ].map(normalizeMentionSearch).filter(Boolean));
+}
+
+function composerModelOptionForMention(primary, secondary = "") {
+  const primaryKey = normalizeMentionSearch(primary);
+  const secondaryKey = normalizeMentionSearch(secondary);
+  if (!primaryKey) return null;
+  const options = composerModelOptions();
+  if (secondaryKey) {
+    const combinedKey = `${primaryKey}${secondaryKey}`;
+    const combined = options.find((option) => composerModelMentionAliases(option).has(combinedKey));
+    if (combined) return combined;
+  }
+  return options.find((option) => composerModelMentionAliases(option).has(primaryKey)) || null;
+}
+
 function composerAiMentionOptions() {
   const label = assistantDisplayLabel();
   const modelLabel = state.defaultModel || label;
+  const defaultModelOption = composerModelOptions()[0];
   const defaultEffort = validTaskReasoningEffort(state.defaultReasoningEffort) || "medium";
   const options = [{
     workspaceId: "assistant-default",
     label,
     virtual: true,
-    mentionText: `@${label}`,
+    mentionText: defaultModelOption.mentionText || `@${label}`,
     description: [modelLabel, `\u9ed8\u8ba4 ${defaultReasoningLabel()}`].filter(Boolean).join(" / "),
     reasoningEffort: "",
+    model: defaultModelOption.model || "",
+    modelExplicit: true,
   }];
   for (const option of configuredReasoningOptions()) {
     if (option.value === defaultEffort) continue;
@@ -408,19 +458,31 @@ function composerAiMentionOptions() {
       mentionText: `@${label} ${shortLabel}`,
       description: [modelLabel, reasoningEffortLabel(option.value)].filter(Boolean).join(" / "),
       reasoningEffort: option.value,
+      model: defaultModelOption.model || "",
+      modelExplicit: true,
     });
   }
-  return options;
+  const grokOptions = composerModelOptions()
+    .filter((option) => option.id !== DEFAULT_COMPOSER_MODEL_ID)
+    .map((option) => ({
+      workspaceId: `assistant-model-${option.id}`,
+      label: option.label,
+      virtual: true,
+      mentionText: option.mentionText || `@${option.label}`,
+      description: [option.model, option.description].filter(Boolean).join(" / "),
+      reasoningEffort: "",
+      model: option.model || "",
+      modelExplicit: true,
+    }));
+  return [...options, ...grokOptions];
 }
 
 function assistantMentionAliases() {
-  return new Set([
-    "ai",
-    assistantDisplayLabel(),
-    state.defaultModel,
-    state.modelProvider,
-    "chatgpt",
-  ].map(normalizeMentionSearch).filter(Boolean));
+  const aliases = new Set();
+  composerModelOptions().forEach((option) => {
+    composerModelMentionAliases(option).forEach((alias) => aliases.add(alias));
+  });
+  return aliases;
 }
 
 function reasoningEffortFromAiAlias(value) {
@@ -443,18 +505,28 @@ function reasoningEffortFromAiAlias(value) {
 
 function composerAiMentionInfo(text) {
   const normalized = String(text || "").replace(/\u00a0/g, " ");
-  const aliases = assistantMentionAliases();
   const pattern = /(^|[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F\u3001])[@\uff20]\s*([A-Za-z0-9_.\-\u4e00-\u9fff]+)(?:\s*[-_:\uFF1A]?\s*([A-Za-z0-9_.\-\u4e00-\u9fff]+))?(?=$|[\s)\]}\u3000\uff09\uff3d\u3011\uff0c,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F\u3001])/ig;
   let mentionsAi = false;
   let reasoningEffort = "";
+  let model = "";
+  let modelExplicit = false;
   let match;
   while ((match = pattern.exec(normalized)) !== null) {
-    if (!aliases.has(normalizeMentionSearch(match[2]))) continue;
+    const modelOption = composerModelOptionForMention(match[2], match[3] || "");
+    if (!modelOption) continue;
     mentionsAi = true;
+    model = modelOption.model || "";
+    modelExplicit = true;
     const effort = reasoningEffortFromAiAlias(match[3] || "");
     if (effort) reasoningEffort = effort;
   }
-  return { mentionsAi, reasoningEffort };
+  return { mentionsAi, reasoningEffort, model, modelExplicit };
+}
+
+function selectedComposerModel(text = getComposerText()) {
+  const mentionInfo = composerAiMentionInfo(text);
+  if (mentionInfo.modelExplicit) return mentionInfo.model || "";
+  return selectedDefaultComposerModelOption().model || "";
 }
 
 function groupChatMentionsAi(text) {
