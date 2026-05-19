@@ -203,6 +203,33 @@ if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ] && [ -s "$sh
   install -m 600 -o "$worker_user" -g "$worker_user" "$shared_auth_seed_path" "$shared_auth_path"
 fi
 
+if [ "$shared_auth_enabled" = "1" ]; then
+  shared_auth_real="$(readlink -f "$shared_auth_path" 2>/dev/null || echo "$shared_auth_path")"
+  legacy_auth_real="$(readlink -f "$legacy_shared_auth_path" 2>/dev/null || echo "$legacy_shared_auth_path")"
+  if [ "$legacy_auth_real" != "$shared_auth_real" ]; then
+    if [ -s "$legacy_shared_auth_path" ] && [ ! -L "$legacy_shared_auth_path" ]; then
+      legacy_backup="${legacy_shared_auth_path}.profile-local-backup-$(date +%Y%m%d-%H%M%S)"
+      cp -p "$legacy_shared_auth_path" "$legacy_backup" || true
+      chown "$worker_user:$worker_user" "$legacy_backup" 2>/dev/null || true
+      chmod 600 "$legacy_backup" 2>/dev/null || true
+    fi
+    rm -f "$legacy_shared_auth_path"
+    ln -s "$shared_auth_path" "$legacy_shared_auth_path"
+  fi
+  shared_lock_real="$(readlink -f "$shared_auth_lock_path" 2>/dev/null || echo "$shared_auth_lock_path")"
+  legacy_lock_real="$(readlink -f "$legacy_shared_auth_lock_path" 2>/dev/null || echo "$legacy_shared_auth_lock_path")"
+  if [ "$legacy_lock_real" != "$shared_lock_real" ]; then
+    if [ -e "$legacy_shared_auth_lock_path" ] && [ ! -L "$legacy_shared_auth_lock_path" ]; then
+      legacy_lock_backup="${legacy_shared_auth_lock_path}.profile-local-backup-$(date +%Y%m%d-%H%M%S)"
+      cp -p "$legacy_shared_auth_lock_path" "$legacy_lock_backup" || true
+      chown "$worker_user:$worker_user" "$legacy_lock_backup" 2>/dev/null || true
+      chmod 600 "$legacy_lock_backup" 2>/dev/null || true
+    fi
+    rm -f "$legacy_shared_auth_lock_path"
+    ln -s "$shared_auth_lock_path" "$legacy_shared_auth_lock_path"
+  fi
+fi
+
 missing_auth_profiles=()
 weather_plugin_enabled=0
 web_plugin_enabled=0
