@@ -1930,7 +1930,9 @@ button {
 }
 
 .message-action-strip {
-  flex: 0 0 auto;
+  flex: 0 0 72px;
+  width: 72px;
+  min-width: 72px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2458,6 +2460,7 @@ button.directory-alias-chip {
   flex-wrap: nowrap;
   gap: 6px;
   margin-top: 12px;
+  min-height: 34px;
 }
 
 .message-footer-row .message-action-strip {

@@ -243,6 +243,33 @@ function testOutputItemEventsStoreReadableSummariesOnly() {
     event: "response.output_item.added",
     run_id: "public_run",
     item: {
+      type: "function_call",
+      name: "mobile_web_search",
+      call_id: "call_search_1",
+      arguments: "{\"query\":\"raw argument should not be stored\"}",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "mobile_web_search");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"mobile_web_search\",\"callId\":\"call_search_1\"}");
+  assert(!thread.events.at(-1).preview.includes("raw argument"));
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.done",
+    run_id: "public_run",
+    item: {
+      type: "function_call_output",
+      call_id: "call_search_1",
+      output: "[{\"type\":\"input_text\",\"text\":\"large raw tool output should not be stored\"}]",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "function_call_output");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"mobile_web_search\",\"callId\":\"call_search_1\"}");
+  assert(!thread.events.at(-1).preview.includes("large raw tool output"));
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
       name: "skill_view",
       arguments: "{\"name\":\"study-templates/learning-growth-card-creation\"}",
     },

@@ -58,8 +58,22 @@ function composerSearchSourceLabel() {
   if (isChatSearchMode()) return null;
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
   const info = selectedComposerSearchSourceInfo(getComposerText());
-  if (!info || info.source === "local") return null;
-  return { label: `\u4fe1\u6e90 ${info.label}`, tone: "active" };
+  const activeInfo = info && info.source !== "local" ? info : activeRunSearchSourceInfo();
+  if (!activeInfo || activeInfo.source === "local") return null;
+  return { label: `\u4fe1\u6e90 ${activeInfo.label}`, tone: "active" };
+}
+
+function activeRunSearchSourceInfo() {
+  const active = [...composerStatusMessages()].reverse().find((message) => (
+    message?.role === "assistant"
+    && ["queued", "running"].includes(message.status)
+    && (message.searchSource || message.runOptions?.searchSource)
+  ));
+  if (!active) return null;
+  const source = active.searchSource || active.runOptions?.searchSource || "";
+  const option = composerSearchSourceOption(source);
+  if (option.source === COMPOSER_SEARCH_SOURCE_LOCAL) return null;
+  return option;
 }
 
 function messageUsesHighPermissionGateway(message = {}) {
@@ -250,6 +264,7 @@ function shouldShowComposerContext(items, counts) {
     || composerHasDraft()
     || state.pendingArtifacts.length
     || selectedComposerSearchSourceInfo(getComposerText()).source !== "local"
+    || Boolean(activeRunSearchSourceInfo())
     || state.quotedReply
     || state.pendingTaskDirectory?.projectId
     || (isTaskListView() && state.taskDirectoryFilter?.projectId)

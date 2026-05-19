@@ -78,6 +78,15 @@ function runEventSkillName(event) {
   return String(value || "").replace(/^skills\//i, "").replace(/\/SKILL\.md$/i, "").trim();
 }
 
+function runEventFunctionName(event) {
+  const parsed = parseRunEventPreviewObject(event?.preview);
+  const fromPreview = parsed?.name || parsed?.function || parsed?.tool || "";
+  if (fromPreview) return String(fromPreview).trim();
+  const tool = String(event?.tool || "").trim();
+  if (!tool || /^(function_call|function_call_output|message|skill_view)$/i.test(tool)) return "";
+  return tool;
+}
+
 function runEventToolLabel(event) {
   const tool = String(event?.tool || "").trim();
   const lower = tool.toLowerCase();
@@ -85,8 +94,14 @@ function runEventToolLabel(event) {
     const skillName = runEventSkillName(event);
     return skillName ? `Skill ${skillName}` : "Skill view";
   }
-  if (lower === "function_call") return "Function call";
-  if (lower === "function_call_output") return "Function result";
+  if (lower === "function_call") {
+    const functionName = runEventFunctionName(event);
+    return functionName ? `Function ${functionName}` : "Function call";
+  }
+  if (lower === "function_call_output") {
+    const functionName = runEventFunctionName(event);
+    return functionName ? `Function result ${functionName}` : "Function result";
+  }
   if (lower === "message") return "\u56de\u590d";
   return tool;
 }

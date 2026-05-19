@@ -114,12 +114,58 @@ function outputItemToolName(item = {}) {
   return cleanString(item.name || item.type || "");
 }
 
+function outputItemCallId(item = {}) {
+  return cleanString(item.call_id || item.callId || item.id || "");
+}
+
+function outputItemFunctionName(item = {}) {
+  return cleanString(
+    item.name
+    || item.function?.name
+    || item.tool_name
+    || item.toolName
+    || item.output?.name
+    || "",
+  );
+}
+
+function parseOutputItemPreview(value = "") {
+  const text = cleanString(value);
+  if (!text || !text.startsWith("{")) return {};
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function runToolNameForCallId(thread = {}, runId = "", callId = "") {
+  const id = cleanString(callId);
+  if (!id) return "";
+  for (let index = (thread.events || []).length - 1; index >= 0; index -= 1) {
+    const event = thread.events[index] || {};
+    if (cleanString(event.runId || event.run_id) !== cleanString(runId)) continue;
+    const preview = parseOutputItemPreview(event.preview);
+    if (cleanString(preview.callId || preview.call_id) !== id) continue;
+    const name = cleanString(preview.name || preview.function || preview.tool);
+    if (name) return name;
+  }
+  return "";
+}
+
 function outputItemPreview(item = {}) {
   const tool = outputItemToolName(item).toLowerCase();
+  const type = cleanString(item.type).toLowerCase();
   const source = item.arguments || item.output || item.input || item.text || "";
   if (tool === "skill_view") {
     const reference = skillReferenceFromValue(source);
     return reference ? JSON.stringify({ name: reference }) : "";
+  }
+  if (tool === "function_call" || type === "function_call") {
+    const name = outputItemFunctionName(item);
+    const callId = outputItemCallId(item);
+    return (name || callId) ? JSON.stringify({ name, callId }) : "";
   }
   if (item.error) return cleanString(item.error).slice(0, 240);
   return "";
@@ -318,12 +364,19 @@ function createGatewayRunEventService(options = {}) {
   function recordOutputItemEvent(context, event) {
     const { thread, runId, eventName } = context;
     const item = event.item || {};
+    const tool = outputItemToolName(item);
+    let preview = outputItemPreview(item);
+    if (cleanString(tool).toLowerCase() === "function_call_output") {
+      const callId = outputItemCallId(item);
+      const name = outputItemFunctionName(item) || runToolNameForCallId(thread, runId, callId);
+      preview = (name || callId) ? JSON.stringify({ name, callId }) : "";
+    }
     addThreadEvent(thread, {
       event: eventName,
       timestamp: nowMs() / 1000,
       runId,
-      tool: outputItemToolName(item),
-      preview: outputItemPreview(item),
+      tool,
+      preview,
       error: false,
     });
     saveState();
