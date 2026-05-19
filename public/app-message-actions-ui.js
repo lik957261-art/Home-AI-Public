@@ -181,7 +181,7 @@ function scrollMessageIntoView(messageId, position = "start") {
 function renderMessageScrollButton(message, position) {
   if (message?.role !== "assistant" || !message?.id) return "";
   const end = position === "end";
-  return `<button class="message-scroll-button" type="button" data-scroll-message="${escapeHtml(message.id)}" data-scroll-position="${end ? "end" : "start"}" aria-label="${end ? "Jump to reply end" : "Jump to reply start"}" title="${end ? "End" : "Start"}"><span class="message-scroll-glyph">${end ? "&#8595;" : "&#8593;"}</span></button>`;
+  return `<button class="message-scroll-button hidden" type="button" data-scroll-message="${escapeHtml(message.id)}" data-scroll-position="${end ? "end" : "start"}" aria-label="${end ? "Jump to reply end" : "Jump to reply start"}" title="${end ? "End" : "Start"}" aria-hidden="true" tabindex="-1"><span class="message-scroll-glyph">${end ? "&#8595;" : "&#8593;"}</span></button>`;
 }
 
 function canUseMessageReplyActions(message) {
@@ -216,7 +216,8 @@ function renderMessageFooter(message, usage) {
   const gatewayDiagnostic = renderMessageGatewayDiagnostic(message);
   const skills = renderMessageSkillPanel(message, state.currentThread);
   if (!actions && !usage && !skills && !gatewayDiagnostic) return "";
-  return `<div class="message-footer-row">${actions}${gatewayDiagnostic}${usage}${skills}</div>`;
+  const meta = `${gatewayDiagnostic}${usage}${skills}`;
+  return `<div class="message-footer-row">${actions}<div class="message-footer-meta">${meta}</div></div>`;
 }
 
 function eventClientPoint(event) {
@@ -492,10 +493,9 @@ function updateMessageScrollButtonVisibility(root) {
     const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline"));
     const showThreshold = Math.max(420, viewportHeight - 28);
     const hideThreshold = Math.max(360, viewportHeight - 140);
-    const shouldShow = viewportHeight > 0 && (
+    const shouldShow = viewportHeight > 0 && !hasRunProgress && (
       messageHeight > showThreshold
       || (wasShown && messageHeight > hideThreshold)
-      || (wasShown && hasRunProgress)
     );
     if (shouldShow) article.dataset.messageScrollButtonVisible = "1";
     else delete article.dataset.messageScrollButtonVisible;

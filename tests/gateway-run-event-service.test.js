@@ -249,7 +249,7 @@ function testOutputItemEventsStoreReadableSummariesOnly() {
       arguments: "{\"query\":\"raw argument should not be stored\"}",
     },
   });
-  assert.equal(thread.events.at(-1).tool, "mobile_web_search");
+  assert.equal(thread.events.at(-1).tool, "function_call");
   assert.equal(thread.events.at(-1).preview, "{\"name\":\"mobile_web_search\",\"callId\":\"call_search_1\"}");
   assert(!thread.events.at(-1).preview.includes("raw argument"));
 
@@ -276,6 +276,29 @@ function testOutputItemEventsStoreReadableSummariesOnly() {
   });
   assert.equal(thread.events.at(-1).tool, "skill_view");
   assert.equal(thread.events.at(-1).preview, "{\"name\":\"study-templates/learning-growth-card-creation\"}");
+}
+
+function testOutputItemEventsUseAliasedResponseRunId() {
+  const { calls, message, service, thread } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.created",
+    run_id: "public_run",
+    response: { id: "real_response" },
+  });
+  assert.equal(message.runId, "real_response");
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      name: "skill_view",
+      arguments: "{\"name\":\"productivity/write\"}",
+    },
+  });
+
+  assert.equal(thread.events.at(-1).runId, "real_response");
+  assert.equal(calls.broadcasts.at(-1).type, "run.event");
+  assert.equal(calls.broadcasts.at(-1).runId, "real_response");
 }
 
 function testFailedAndCancelledRunsUseTerminalHelpers() {
@@ -346,6 +369,7 @@ testStreamingDeltaSavesAreCoalesced();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
 testCompletedRunPersistsLoadedSkillReferences();
 testOutputItemEventsStoreReadableSummariesOnly();
+testOutputItemEventsUseAliasedResponseRunId();
 testFailedAndCancelledRunsUseTerminalHelpers();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();

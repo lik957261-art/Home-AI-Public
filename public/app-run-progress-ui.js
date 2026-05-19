@@ -268,6 +268,7 @@ function renderMessageRunProgressInPlace(thread, message = {}) {
     else body.insertAdjacentHTML("afterbegin", html);
   }
   syncRunProgressTicker($("conversation"));
+  scheduleMessageScrollButtonVisibility(article);
   return true;
 }
 

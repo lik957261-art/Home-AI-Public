@@ -111,6 +111,8 @@ function loadedSkillsForRun(thread = {}, runIds = "") {
 }
 
 function outputItemToolName(item = {}) {
+  const type = cleanString(item.type).toLowerCase();
+  if (type === "function_call" || type === "function_call_output") return type;
   return cleanString(item.name || item.type || "");
 }
 
@@ -362,25 +364,28 @@ function createGatewayRunEventService(options = {}) {
   }
 
   function recordOutputItemEvent(context, event) {
-    const { thread, runId, eventName } = context;
+    const { thread, runId, eventName, message, responseRunId, stream } = context;
+    const eventRunId = cleanString(message?.runId || responseRunId || stream?.realRunId || runId);
     const item = event.item || {};
     const tool = outputItemToolName(item);
     let preview = outputItemPreview(item);
     if (cleanString(tool).toLowerCase() === "function_call_output") {
       const callId = outputItemCallId(item);
-      const name = outputItemFunctionName(item) || runToolNameForCallId(thread, runId, callId);
+      const name = outputItemFunctionName(item)
+        || runToolNameForCallId(thread, eventRunId, callId)
+        || runToolNameForCallId(thread, runId, callId);
       preview = (name || callId) ? JSON.stringify({ name, callId }) : "";
     }
     addThreadEvent(thread, {
       event: eventName,
       timestamp: nowMs() / 1000,
-      runId,
+      runId: eventRunId || runId,
       tool,
       preview,
       error: false,
     });
     saveState();
-    broadcast({ type: "run.event", threadId: thread.id, runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
+    broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
     return { action: "output_item" };
   }
 

@@ -211,7 +211,7 @@ async function testReadResponseEventsWrapsGatewayRunnerAndEventHook() {
   assert.equal(stream.realRunId, "real_response");
   assert.deepEqual(events.map((event) => event.event), ["response.created", "message.delta"]);
   assert.equal(events[0].run_id, "public_run");
-  assert.equal(events[1].run_id, "public_run");
+  assert.equal(events[1].run_id, "real_response");
 }
 
 function testGatewayTargetLookup() {

@@ -259,7 +259,10 @@ function createGatewayRunStreamService(options = {}) {
     if (eventName === "response.created" && stream && responseRunId) {
       registerRunAlias(fallbackRunId || originalRunId || visibleRunId, responseRunId);
     }
-    onHermesRunEvent(Object.assign({ run_id: fallbackRunId || visibleRunId }, event));
+    const forwardedRunId = eventName === "response.created"
+      ? (fallbackRunId || originalRunId || visibleRunId)
+      : (responseRunId || stream?.realRunId || visibleRunId || fallbackRunId);
+    onHermesRunEvent(Object.assign({}, event, { run_id: forwardedRunId || fallbackRunId || visibleRunId }));
     return { eventName, originalRunId, responseRunId, runId: visibleRunId, stream: stream || null };
   }
 

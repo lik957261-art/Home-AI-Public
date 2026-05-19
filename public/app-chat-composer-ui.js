@@ -474,7 +474,7 @@ function composerAiMentionOptions() {
       model: option.model || "",
       modelExplicit: true,
     }));
-  return [...options, ...grokOptions];
+  return [options[0], ...grokOptions, ...options.slice(1)];
 }
 
 function assistantMentionAliases() {
