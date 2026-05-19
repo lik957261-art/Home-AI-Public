@@ -84,32 +84,85 @@ function firstParagraph(content) {
   return "";
 }
 
-function chineseLine(value, prefix = "") {
-  let text = cleanText(value);
-  const replacements = [
-    [/^Use this skill when\s+/i, "适用："],
-    [/^Use when\s+/i, "适用："],
-    [/^This skill should be used when\s+/i, "适用："],
-    [/^Do not use\s*/i, "不要用于："],
-    [/^Never\s+/i, "不要："],
-    [/^Avoid\s+/i, "避免："],
-    [/^Input:\s*/i, "输入："],
-    [/^Output:\s*/i, "输出："],
-    [/\bX search\b/gi, "X 搜索"],
-    [/\bX account\b/gi, "X 账号"],
-    [/\bX posts?\b/gi, "X 帖子"],
-    [/\bTwitter\b/gi, "X/Twitter"],
-    [/\bsocial-media briefs?\b/gi, "社媒简报"],
-    [/\blocal data lookup\b/gi, "本地数据查询"],
-    [/\bgeneral answer\b/gi, "一般回答"],
-  ];
-  for (const [pattern, replacement] of replacements) text = text.replace(pattern, replacement);
-  return prefix && !text.startsWith(prefix) ? `${prefix}${text}` : text;
+function hasCjk(value) {
+  return /[\u3400-\u9fff]/.test(String(value || ""));
 }
 
-function chineseLines(items, prefix = "", maxItems = 8) {
+function isXSearchText(value) {
+  return /\bx\b|x\/twitter|twitter|x-social|x_search|social[-\s]?media|monitoring brief|social brief/i.test(String(value || ""));
+}
+
+function skillLabel(detail) {
+  return cleanText(detail?.label || detail?.id || detail?.namespace || "这个 Skill");
+}
+
+function fallbackChineseLine(context, detail) {
+  if (isXSearchText(skillLabel(detail)) || isXSearchText(detail?.path)) {
+    if (context === "summary") return "功能：用于按用户要求执行 X/Twitter 信源搜索、账号/帖子核查、趋势监控和社媒简报。";
+    if (context === "invocation") return "适用：用户明确要求把 X/Twitter 作为信源时调用，包括 X 搜索、X 账号或帖子查看、趋势监控或社媒简报。";
+    if (context === "nonInvocation") return "不要调用：本地数据查询、普通问答或非 X 网络搜索不应使用该 Skill。";
+    if (context === "capability") return "能力：围绕 X 信源执行检索、核查、归纳和简报生成。";
+    if (context === "inputsOutputs") return "输入输出：输入查询词、时间范围和可选目标账号；输出带来源的简洁简报。";
+  }
+  if (context === "summary") return `功能：根据 Skill 描述，该 Skill 用于与 ${skillLabel(detail)} 相关的任务。`;
+  if (context === "invocation") return "适用：仅在用户请求与该 Skill 描述一致的任务时调用。";
+  if (context === "nonInvocation") return "不要调用：该规则定义了排除场景，避免在相邻任务中误触发。";
+  if (context === "capability") return "能力：按 Skill 工作流执行任务步骤；具体步骤应以 Skill 正文为准。";
+  if (context === "inputsOutputs") return "输入输出：输入、输出和工具边界以 Skill 正文为准；分析页只显示归纳信息。";
+  return "分析：已按 Skill 正文归纳为中文说明。";
+}
+
+function chineseLine(value, context = "general", detail = null) {
+  const text = cleanText(value);
+  if (!text) return fallbackChineseLine(context, detail);
+  const lower = text.toLowerCase();
+  const xRelated = isXSearchText(text) || isXSearchText(skillLabel(detail)) || isXSearchText(detail?.path);
+  if (xRelated) {
+    if (context === "summary") return fallbackChineseLine("summary", detail);
+    if (context === "invocation" && /use when|use this skill|should be used|explicitly asks|when the user|description|task needs/.test(lower)) {
+      return fallbackChineseLine("invocation", detail);
+    }
+    if (/^input\s*:|timeframe|target account/.test(lower) || (context === "inputsOutputs" && /\bquery\b/.test(lower))) {
+      return "输入：查询词、时间范围，以及可选目标账号。";
+    }
+    if (/output\s*:|compact brief|with sources|sources/.test(lower)) {
+      return "输出：带来源的简洁简报。";
+    }
+    if (/do not|never|avoid|out of scope/.test(lower)) {
+      if (/general answer|general q&a|ordinary|local data|non-x|web search/.test(lower)) {
+        return "不要调用：本地数据查询、普通问答或非 X 网络搜索不应使用该 Skill。";
+      }
+      if (/social media|search|twitter|evidence source/.test(lower)) {
+        return "不要调用：不要因为消息提到社交媒体或搜索就调用，除非用户明确要求 X/Twitter 作为证据来源。";
+      }
+      return fallbackChineseLine("nonInvocation", detail);
+    }
+    if (/bounded query|search x|x posts?|x account|inspect|monitor|trend/.test(lower)) {
+      return "能力：用有边界的关键词搜索 X，并保留来源线索。";
+    }
+    if (/summarize|claims|uncertainty|brief/.test(lower)) {
+      return "能力：汇总主张、证据来源和不确定性。";
+    }
+    if (/use when|use this skill|should be used|explicitly asks|when the user|description/.test(lower) || context === "summary" || context === "invocation") {
+      if (context === "summary") return fallbackChineseLine("summary", detail);
+      return fallbackChineseLine("invocation", detail);
+    }
+    return fallbackChineseLine(context, detail);
+  }
+  if (hasCjk(text) && !/[A-Za-z]{4,}/.test(text)) {
+    return context === "summary" && !/^功能[：:]/.test(text) ? `功能：${text}` : text;
+  }
+  if (/^input\s*:/i.test(text)) return fallbackChineseLine("inputsOutputs", detail);
+  if (/^output\s*:/i.test(text)) return fallbackChineseLine("inputsOutputs", detail);
+  if (/do not|never|avoid|out of scope/i.test(text)) return fallbackChineseLine("nonInvocation", detail);
+  if (/use when|use this skill|should be used|when the user/i.test(text)) return fallbackChineseLine("invocation", detail);
+  if (context === "summary") return `功能：${text.replace(/^#+\s*/, "")}`;
+  return fallbackChineseLine(context, detail);
+}
+
+function chineseLines(items, context = "general", detail = null, maxItems = 8) {
   return (items || []).reduce((out, item) => {
-    uniquePush(out, chineseLine(item, prefix), maxItems);
+    uniquePush(out, chineseLine(item, context, detail), maxItems);
     return out;
   }, []);
 }
@@ -117,10 +170,10 @@ function chineseLines(items, prefix = "", maxItems = 8) {
 function inferModificationNotes(analysis) {
   const notes = [];
   if (!analysis.invocationConditions.length) {
-    uniquePush(notes, "调用条件没有明确写出；应先收窄 frontmatter description，或补充 Use when / Do not use 规则。", 6);
+    uniquePush(notes, "调用条件没有明确写出；应先收窄元数据描述，或补充“适用/不要调用”规则。", 6);
   }
   if (!analysis.nonInvocationConditions.length) {
-    uniquePush(notes, "缺少“不要调用”边界，容易在相邻场景被模型泛化加载。", 6);
+    uniquePush(notes, "缺少“不要调用”的边界，容易在相邻场景被模型泛化加载。", 6);
   }
   const combined = [
     analysis.summary,
@@ -128,13 +181,13 @@ function inferModificationNotes(analysis) {
     ...analysis.capabilities,
   ].join(" ").toLowerCase();
   if (/\bx\b|twitter|social|monitor|search/.test(combined)) {
-    uniquePush(notes, "这个 Skill 接近 X/social/search 语义；如果只希望 X 搜索时调用，应把触发条件限定到 X 搜索、X 趋势、X 帖子、X 账号监控等。", 6);
+    uniquePush(notes, "这个 Skill 接近 X、社媒或搜索语义；如果只希望 X 搜索时调用，应把触发条件限定到 X 搜索、X 趋势、X 帖子、X 账号监控等。", 6);
   }
   if (/all|any|general|default|whenever|always/.test(combined)) {
     uniquePush(notes, "存在较宽泛的触发词；修改时应改成可判定的任务类型。", 6);
   }
   if (!notes.length) {
-    uniquePush(notes, "优先检查 description、Use when / Do not use、Workflow 三块；这些最影响模型是否加载该 Skill。", 6);
+    uniquePush(notes, "优先检查描述、适用/不要调用、工作流三块；这些最影响模型是否加载该 Skill。", 6);
   }
   return notes;
 }
@@ -157,7 +210,7 @@ function suggestedFixes(detail, analysis) {
   return [{
     id: X_SEARCH_FIX_ID,
     label: "收窄 X 搜索调用条件",
-    description: "把 description 和 Do not use 边界改成只在明确需要 X/Twitter 作为信源时调用，避免本地数据、普通问答、非 X 网络搜索误触发。",
+    description: "把描述和排除边界改成只在明确需要 X/Twitter 作为信源时调用，避免本地数据、普通问答、非 X 网络搜索误触发。",
     risk: "low",
     ownerOnly: true,
   }];
@@ -217,20 +270,20 @@ function createSkillAnalysisService() {
     const capabilities = chineseLines([
       ...sectionLines(sections, /capabilit|what it does|workflow|core|功能|能力|用途|流程/i, 6),
       ...matchingLines(content, [/^use this skill/i, /^this skill/i, /can\s+/i, /用于|能力|负责/], 6),
-    ], "", 6);
+    ], "capability", detail, 6);
     const invocationConditions = chineseLines([
       ...(parsed.data.description ? [parsed.data.description] : []),
       ...sectionLines(sections, /trigger|use when|when to use|适用|触发|调用/i, 8),
       ...matchingLines(content, [/use when/i, /should be used when/i, /when the user/i, /applies when/i, /适用|触发|调用/], 8),
-    ], "", 8);
+    ], "invocation", detail, 8);
     const nonInvocationConditions = chineseLines([
       ...sectionLines(sections, /do not|never|avoid|out of scope|不要|不应|禁止|边界/i, 8),
       ...matchingLines(content, [/do not/i, /never/i, /avoid/i, /out of scope/i, /不要|不应|禁止|不能/], 8),
-    ], "", 8);
+    ], "nonInvocation", detail, 8);
     const inputsOutputs = chineseLines([
       ...sectionLines(sections, /input|output|requires|artifact|files|tools|输入|输出|工具|文件/i, 8),
       ...matchingLines(content, [/input|output|requires|artifact|file|tool|输入|输出|工具|文件/i], 8),
-    ], "", 8);
+    ], "inputsOutputs", detail, 8);
     const analysis = {
       skill: {
         id: detail?.id || "",
@@ -238,7 +291,7 @@ function createSkillAnalysisService() {
         namespace: detail?.namespace || "",
         path: detail?.path || "",
       },
-      summary: chineseLine(rawSummary, "功能："),
+      summary: chineseLine(rawSummary, "summary", detail),
       capabilities: capabilities.length ? capabilities : ["未找到明确的功能列表；需要人工阅读正文确认。"],
       invocationConditions,
       nonInvocationConditions,

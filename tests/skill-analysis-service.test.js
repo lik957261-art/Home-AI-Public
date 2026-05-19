@@ -3,6 +3,18 @@
 const assert = require("node:assert/strict");
 const { createSkillAnalysisService } = require("../adapters/skill-analysis-service");
 
+function visibleAnalysisText(analysis) {
+  return [
+    analysis.summary,
+    ...analysis.capabilities,
+    ...analysis.invocationConditions,
+    ...analysis.nonInvocationConditions,
+    ...analysis.inputsOutputs,
+    ...analysis.modificationNotes,
+    ...(analysis.fixes || []).flatMap((fix) => [fix.label, fix.description]),
+  ].join("\n");
+}
+
 function run() {
   const service = createSkillAnalysisService();
   const analysis = service.analyze({
@@ -39,15 +51,19 @@ Use this skill when the user asks to search X posts, inspect an X account, or bu
   });
 
   assert.equal(analysis.skill.path, "social-media/x-social-monitoring-and-briefs");
-  assert.match(analysis.summary, /功能：/);
-  assert(analysis.summary.includes("X 搜索"));
-  assert(analysis.invocationConditions.some((item) => /X 帖子|X 账号/.test(item)));
-  assert(analysis.nonInvocationConditions.some((item) => /本地数据查询/i.test(item)));
-  assert(analysis.inputsOutputs.some((item) => /query, timeframe/.test(item)));
-  assert(analysis.modificationNotes.some((item) => /X\/social\/search|X 搜索/.test(item)));
+  assert.match(analysis.summary, /^功能：/);
+  assert(analysis.summary.includes("X/Twitter 信源搜索"));
+  assert(analysis.invocationConditions.some((item) => item.includes("用户明确要求")));
+  assert(analysis.nonInvocationConditions.some((item) => item.includes("本地数据查询")));
+  assert(analysis.inputsOutputs.some((item) => item.includes("查询词")));
+  assert(analysis.modificationNotes.some((item) => item.includes("触发条件限定")));
   assert.equal(analysis.fixes[0].id, "narrow-x-search-invocation");
+  assert.equal(analysis.fixes[0].label, "收窄 X 搜索调用条件");
   assert.deepEqual(analysis.source.frontmatterKeys, ["name", "description"]);
   assert(analysis.source.sectionTitles.includes("Do not use"));
+
+  const visible = visibleAnalysisText(analysis);
+  assert.equal(/Use when|Use this skill|Do not use|Input:|Output:|Search X|Summarize claims|query, timeframe/i.test(visible), false);
 
   const applied = service.applyFix({
     path: "social-media/x-social-monitoring-and-briefs",
