@@ -56,10 +56,99 @@
     return "\u5199\u4e0b\u672c\u6b21\u5b66\u4e60\u4efb\u52a1\u4f5c\u7b54\u3002";
   }
 
+  const DEFAULT_SUBMISSION_GUARDS = Object.freeze({
+    default: Object.freeze({ minWords: 40, minChars: 200 }),
+    writing: Object.freeze({ minWords: 80, minChars: 450 }),
+    rewriting: Object.freeze({ minWords: 70, minChars: 380 }),
+    vocabulary: Object.freeze({ minWords: 40, minChars: 220 }),
+    grammar: Object.freeze({ minWords: 35, minChars: 180 }),
+    reading: Object.freeze({ minWords: 50, minChars: 250 }),
+    listening: Object.freeze({ minWords: 35, minChars: 180 }),
+    speaking: Object.freeze({ minWords: 45, minChars: 220 }),
+    pronunciation: Object.freeze({ minWords: 20, minChars: 100 }),
+    presentation: Object.freeze({ minWords: 60, minChars: 320 }),
+    weekly_challenge: Object.freeze({ minWords: 80, minChars: 450 }),
+  });
+
+  function positiveInt(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+  }
+
+  function submissionStage(evaluation = {}, todo = {}) {
+    const explicit = String(evaluation.stage || evaluation.submissionStage || todo?.learningGrowthSubmissionStage || "").trim().toLowerCase();
+    if (["final", "rewrite", "revision", "resubmission"].includes(explicit)) return "final";
+    if (["draft", "first_draft", "initial"].includes(explicit)) return "draft";
+    const status = String(evaluation.status || todo?.learningGrowthEvaluationStatus || "").trim().toLowerCase();
+    if (["draft_feedback", "needs_revision", "review_required", "pending_review"].includes(status)) return "final";
+    return "draft";
+  }
+
+  function submissionGuard(modelOrTodo = {}, evaluation = {}) {
+    const model = taskModel(modelOrTodo) || (modelOrTodo && typeof modelOrTodo === "object" ? modelOrTodo : {});
+    const activity = String(model.activityType || "").trim().toLowerCase();
+    const base = DEFAULT_SUBMISSION_GUARDS[activity] || DEFAULT_SUBMISSION_GUARDS.default;
+    const contract = model && typeof model === "object" ? (model.submissionContract || {}) : {};
+    const firstPass = submissionStage(evaluation, modelOrTodo) === "draft";
+    const multiplier = firstPass ? 1 : 0.6;
+    return {
+      activityType: activity || "default",
+      stage: firstPass ? "draft" : "final",
+      minWords: positiveInt(contract.minSubmissionWords ?? contract.minimumWords ?? contract.minWords, Math.max(25, Math.round(base.minWords * multiplier))),
+      minChars: positiveInt(contract.minSubmissionChars ?? contract.minimumChars ?? contract.minChars, Math.max(120, Math.round(base.minChars * multiplier))),
+    };
+  }
+
+  function submissionTextStats(text) {
+    const value = String(text || "").trim();
+    const words = value.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g) || [];
+    return {
+      words: words.length,
+      chars: value.replace(/\s+/g, "").length,
+    };
+  }
+
+  function validateSubmissionText(text, guard = {}) {
+    const stats = submissionTextStats(text);
+    const minWords = positiveInt(guard.minWords, 0);
+    const minChars = positiveInt(guard.minChars, 0);
+    if ((!minWords || stats.words >= minWords) && (!minChars || stats.chars >= minChars)) return { ok: true, stats, guard };
+    return {
+      ok: false,
+      stats,
+      guard,
+      message: `\u4f5c\u7b54\u8fc7\u77ed\uff1a\u81f3\u5c11 ${minWords} \u4e2a\u82f1\u6587\u8bcd\u3001${minChars} \u4e2a\u6709\u6548\u5b57\u7b26\u540e\u518d\u63d0\u4ea4\u3002`,
+    };
+  }
+
+  function submissionRequirementLabel(guard = {}, stats = null) {
+    const minWords = positiveInt(guard.minWords, 0);
+    const minChars = positiveInt(guard.minChars, 0);
+    const prefix = `\u81f3\u5c11 ${minWords} \u4e2a\u82f1\u6587\u8bcd / ${minChars} \u4e2a\u6709\u6548\u5b57\u7b26`;
+    if (!stats) return prefix;
+    return `${prefix}\uff1b\u5f53\u524d ${stats.words} \u8bcd / ${stats.chars} \u5b57\u7b26\u3002`;
+  }
+
+  function canWithdrawSubmission(submitted = {}, todo = {}, evaluation = {}) {
+    const submittedAt = Date.parse(submitted.submittedAt || todo?.learningGrowthSubmissionAt || "");
+    if (!Number.isFinite(submittedAt)) return false;
+    const reward = evaluation.reward || {};
+    const rewardStatus = String(reward.status || todo?.learningGrowthRewardStatus || "").trim().toLowerCase();
+    const kanbanStatus = String(todo?.kanbanStatus || todo?.kanban_status || todo?.status || "").trim().toLowerCase();
+    const completed = ["done", "archived", "cancelled", "canceled", "completed"].includes(kanbanStatus) || String(evaluation.nextStep || "").trim() === "completed";
+    return Date.now() - submittedAt >= 0 && Date.now() - submittedAt <= 5 * 60 * 1000 && !completed && rewardStatus !== "settled" && !reward.entryId;
+  }
+
   return {
     activityLabel,
+    canWithdrawSubmission,
     nextActionLabel,
+    submissionGuard,
     submissionPrompt,
+    submissionRequirementLabel,
+    submissionStage,
+    submissionTextStats,
     taskModel,
+    validateSubmissionText,
   };
 }));

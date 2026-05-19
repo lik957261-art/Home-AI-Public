@@ -6,6 +6,8 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   createLearningGrowthSubmissionService,
+  resolveSubmissionGuard,
+  validateSubmissionText,
 } = require("../adapters/learning-growth-submission-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
 const { createLearningProgramService } = require("../adapters/learning-program-service");
@@ -138,6 +140,46 @@ async function testGenericGrammarSubmissionUsesTaskModelAndReport() {
   assert.doesNotMatch(JSON.stringify(result.evaluation), /First, I repaired/);
 }
 
+async function testTooShortSubmissionIsRejectedBeforeMutation() {
+  const calls = [];
+  const service = createLearningGrowthSubmissionService({
+    kanbanCardProvider: {
+      async listCards(input) {
+        calls.push({ type: "list", input });
+        return {
+          ok: true,
+          data: [{
+            id: "t_short",
+            workspaceId: "child",
+            kanbanCaseTemplate: "learning-growth",
+            learningTaskModel: {
+              version: "learning-task-model-v1",
+              activityType: "writing",
+              skillId: "english_short_writing",
+            },
+          }],
+        };
+      },
+      async mutateCard(input) {
+        calls.push({ type: "mutate", input });
+        return { ok: true };
+      },
+    },
+  });
+  const result = await service.submitTask({
+    workspaceId: "child",
+    cardId: "t_short",
+    text: "Q",
+    author: "child",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.equal(result.submissionGuard.activityType, "writing");
+  assert.equal(result.submissionStats.chars, 1);
+  assert.deepEqual(calls.map((call) => call.type), ["list"]);
+  assert.equal(validateSubmissionText("Q", resolveSubmissionGuard({ activityType: "writing" })).ok, false);
+}
+
 async function testModelFeedbackServiceIsActivityGeneric() {
   const service = createLearningGrowthSubmissionService({
     aiFeedbackService: {
@@ -206,6 +248,7 @@ async function testModelFeedbackServiceIsActivityGeneric() {
     "Because the audience needs a clear reason, I compare two choices and give one example.",
     "Then I improve the closing sentence and connect it back to the opening.",
     "Finally, I changed my outline because the old version did not show enough evidence.",
+    "I also add one detail about how classmates will listen, ask questions, and remember the final point.",
   ].join("\n");
   const result = await service.submitTask({
     workspaceId: "child",
@@ -219,6 +262,77 @@ async function testModelFeedbackServiceIsActivityGeneric() {
   assert.equal(result.evaluation.feedbackSections.criterionFeedback[0].dimension, "audience evidence");
   assert.equal(result.evaluation.feedbackSections.sentenceFeedback[0].example, "I will explain our science poster to Grade 7 classmates.");
   assert.doesNotMatch(JSON.stringify(result.evaluation), /my presentation explains/);
+}
+
+async function testRecentSubmissionCanBeWithdrawn() {
+  const calls = [];
+  const service = createLearningGrowthSubmissionService({
+    now: () => new Date("2026-05-18T10:04:00.000Z").getTime(),
+    kanbanCardProvider: {
+      async listCards(input) {
+        calls.push({ type: "list", input });
+        return {
+          ok: true,
+          data: [{
+            id: "t_recent",
+            workspaceId: "child",
+            kanbanCaseTemplate: "learning-growth",
+            kanbanStatus: "ready",
+            learningGrowthSubmissionAt: "2026-05-18T10:00:00.000Z",
+            learningGrowthSubmissionStatus: "submitted",
+            learningGrowthRewardStatus: "not_eligible",
+          }],
+        };
+      },
+      async mutateCard(input) {
+        calls.push({ type: "mutate", input });
+        return { ok: true, id: input.cardId, action: input.action };
+      },
+    },
+  });
+  const result = await service.withdrawSubmission({
+    workspaceId: "child",
+    cardId: "t_recent",
+    author: "child",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "withdrawn");
+  assert.equal(calls.at(-1).input.action, "clear_learning_growth_submission");
+}
+
+async function testExpiredSubmissionCannotBeWithdrawn() {
+  const calls = [];
+  const service = createLearningGrowthSubmissionService({
+    now: () => new Date("2026-05-18T10:06:01.000Z").getTime(),
+    kanbanCardProvider: {
+      async listCards(input) {
+        calls.push({ type: "list", input });
+        return {
+          ok: true,
+          data: [{
+            id: "t_expired",
+            workspaceId: "child",
+            kanbanCaseTemplate: "learning-growth",
+            kanbanStatus: "ready",
+            learningGrowthSubmissionAt: "2026-05-18T10:00:00.000Z",
+            learningGrowthSubmissionStatus: "submitted",
+          }],
+        };
+      },
+      async mutateCard(input) {
+        calls.push({ type: "mutate", input });
+        return { ok: true };
+      },
+    },
+  });
+  const result = await service.withdrawSubmission({
+    workspaceId: "child",
+    cardId: "t_expired",
+    author: "child",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 409);
+  assert.deepEqual(calls.map((call) => call.type), ["list"]);
 }
 
 async function testFinalGenericGrowthSubmissionSettlesCoinsThroughProgramService() {
@@ -326,7 +440,10 @@ function testDependencyValidation() {
 (async () => {
   testDependencyValidation();
   await testGenericGrammarSubmissionUsesTaskModelAndReport();
+  await testTooShortSubmissionIsRejectedBeforeMutation();
   await testModelFeedbackServiceIsActivityGeneric();
+  await testRecentSubmissionCanBeWithdrawn();
+  await testExpiredSubmissionCannotBeWithdrawn();
   await testFinalGenericGrowthSubmissionSettlesCoinsThroughProgramService();
   console.log("learning growth submission service tests passed");
 })().catch((err) => {

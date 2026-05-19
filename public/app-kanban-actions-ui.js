@@ -199,6 +199,13 @@ function wireTodoPanel(root) {
     form.querySelector("#todoLearningGrowthSubmissionText")?.addEventListener("input", (event) => {
       const todoId = resolveTodoId();
       if (todoId) state.todoLearningGrowthSubmissionDrafts[todoId] = event.target.value || "";
+      const counter = todoId ? form.querySelector("[data-learning-growth-submission-count]") : null;
+      if (counter && window.HermesLearningGrowthTaskUi?.submissionTextStats) {
+        const stats = window.HermesLearningGrowthTaskUi.submissionTextStats(event.target.value || "");
+        const guard = { minWords: counter.dataset.minWords, minChars: counter.dataset.minChars };
+        counter.textContent = window.HermesLearningGrowthTaskUi.submissionRequirementLabel?.(guard, stats)
+          || `At least ${guard.minWords} words / ${guard.minChars} characters; current ${stats.words} words / ${stats.chars} characters.`;
+      }
     });
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -206,6 +213,13 @@ function wireTodoPanel(root) {
       const todoId = resolveTodoId();
       const text = form.querySelector("#todoLearningGrowthSubmissionText")?.value || "";
       submitLearningGrowthTask(todoId, text).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-withdraw-learning-growth-submission]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      withdrawLearningGrowthSubmission(button.dataset.withdrawLearningGrowthSubmission || "").catch(showError);
     });
   });
   root.querySelectorAll("[data-todo-revision-form]").forEach((form) => {

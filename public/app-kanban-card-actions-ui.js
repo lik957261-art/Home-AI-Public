@@ -185,6 +185,11 @@ async function submitLearningGrowthTask(todoId, text) {
   if (state.todoLearningGrowthSubmissionSubmitting?.[todoId]) return;
   const submission = String(text || state.todoLearningGrowthSubmissionDrafts?.[todoId] || "").trim();
   if (!submission) throw new Error("\u8bf7\u5148\u5199\u4e0b\u672c\u6b21\u4f5c\u7b54\u5185\u5bb9");
+  const growthUi = window.HermesLearningGrowthTaskUi || {};
+  if (card && typeof growthUi.submissionGuard === "function" && typeof growthUi.validateSubmissionText === "function") {
+    const validation = growthUi.validateSubmissionText(submission, growthUi.submissionGuard(card, card.learningGrowthEvaluation || {}));
+    if (!validation.ok) throw new Error(validation.message || "\u4f5c\u7b54\u8fc7\u77ed\uff0c\u8bf7\u8865\u5145\u540e\u518d\u63d0\u4ea4\u3002");
+  }
   state.todoLearningGrowthSubmissionDrafts[todoId] = submission;
   state.todoLearningGrowthSubmissionSubmitting[todoId] = true;
   state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "info", message: "\u6b63\u5728\u63d0\u4ea4\u672c\u6b21\u4f5c\u7b54..." };
@@ -223,6 +228,24 @@ async function submitLearningGrowthTask(todoId, text) {
 
 async function submitLearningGrowthWriting(todoId, text) {
   return submitLearningGrowthTask(todoId, text);
+}
+
+async function withdrawLearningGrowthSubmission(todoId) {
+  if (!todoId) return;
+  const card = kanbanCardById(todoId);
+  if (card && !kanbanCan(card, "canComment")) throw new Error("No permission to withdraw this Growth submission");
+  if (!window.confirm("\u64a4\u56de\u8fd9\u6b21\u6210\u957f\u4efb\u52a1\u63d0\u4ea4\uff0c\u5e76\u91cd\u65b0\u4f5c\u7b54\uff1f")) return;
+  await api(boardActionApiPath(todoId, "learning-growth-submission/withdraw"), {
+    method: "POST",
+    body: kanbanCardActionBody(todoId, { reason: "Withdraw recent Growth learning task submission." }),
+  });
+  clearTodoListCache(kanbanCardWorkspaceId(todoId));
+  delete state.todoLearningGrowthSubmissionDrafts[todoId];
+  state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "success", message: "\u5df2\u64a4\u56de\u672c\u6b21\u63d0\u4ea4\uff0c\u53ef\u4ee5\u91cd\u65b0\u4f5c\u7b54\u3002" };
+  await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
+  state.selectedTodoId = todoId;
+  showPushToast("\u6210\u957f\u4efb\u52a1\u63d0\u4ea4\u5df2\u64a4\u56de", "success");
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
 }
 
 async function commentAndUnblockTodo(todoId, comment) {

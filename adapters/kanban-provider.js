@@ -1181,6 +1181,46 @@ function createKanbanTodoBridge(options = {}) {
       );
     }
 
+    if (action === "clear_learning_growth_submission") {
+      store.todos[todoId] = Object.assign({}, meta, {
+        lastComment: "",
+        lastCommentAt: "",
+        learningGrowthSubmissionStatus: "",
+        learningGrowthSubmissionKind: "",
+        learningGrowthSubmissionAt: "",
+        learningGrowthSubmissionText: "",
+        learningGrowthEvaluationStatus: "",
+        learningGrowthEvaluationAt: "",
+        learningGrowthScore: 0,
+        learningGrowthMaxScore: 100,
+        learningGrowthPassed: false,
+        learningGrowthFeedbackSummary: "",
+        learningGrowthFeedbackMethod: "",
+        learningGrowthAiFeedbackStatus: "",
+        learningGrowthRevisionRequirements: [],
+        learningGrowthNextStep: "",
+        learningGrowthReportPath: "",
+        learningGrowthReportName: "",
+        learningGrowthStrengths: [],
+        learningGrowthFocusAreas: [],
+        learningGrowthRewriteChecklist: [],
+        learningGrowthReflectionPrompts: [],
+        learningGrowthSentenceFeedback: [],
+        learningGrowthFinalConclusion: "",
+        learningGrowthNextPractice: "",
+        learningGrowthParentNote: "",
+        learningGrowthRewardStatus: "",
+        learningGrowthRewardCoins: 0,
+        learningGrowthRewardEntryId: "",
+        updatedAt: now,
+      });
+      saveMetadataStore(store);
+      return Object.assign(
+        rowFromTask({ id: todoId, title: meta.content || todoId, status: meta.kanbanStatus || meta.kanban_status || "todo" }, store.todos[todoId], payload),
+        { action: "clear_learning_growth_submission" },
+      );
+    }
+
     if (action === "revise" || action === "request_changes") {
       const revisionRequest = String(payload.comment || payload.text || payload.reason || "").trim();
       if (!revisionRequest) return { ok: false, error: "revision request is required" };
@@ -1361,7 +1401,7 @@ function createKanbanTodoBridge(options = {}) {
       const action = String(payload.action || "").trim().toLowerCase();
       if (action === "list") return await list(payload);
       if (action === "add") return await add(payload);
-      if (["complete", "cancel", "postpone", "delete", "block", "unblock", "comment", "revise", "request_changes"].includes(action)) return await mutate(payload);
+      if (["complete", "cancel", "postpone", "delete", "block", "unblock", "comment", "clear_learning_growth_submission", "revise", "request_changes"].includes(action)) return await mutate(payload);
       if (action === "reconcile_dependency_blocks") return await reconcileDependencyBlocks(payload);
       if (action === "web_pending_pushes") return pendingPushes(payload);
       if (action === "web_mark_push") return markWebPush(payload);

@@ -32,8 +32,8 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function createError(status, error) {
-  return { ok: false, status, error };
+function createError(status, error, extra = null) {
+  return Object.assign({ ok: false, status, error }, extra && typeof extra === "object" ? extra : {});
 }
 
 function cardId(card = {}) {
@@ -204,6 +204,77 @@ function submissionKindForStage(card = {}, input = {}, stage = "draft") {
   return cleanString(contract.revisionSubmissionKind) || "learner_revision";
 }
 
+const DEFAULT_SUBMISSION_GUARDS = Object.freeze({
+  default: Object.freeze({ minWords: 40, minChars: 200 }),
+  writing: Object.freeze({ minWords: 80, minChars: 450 }),
+  rewriting: Object.freeze({ minWords: 70, minChars: 380 }),
+  vocabulary: Object.freeze({ minWords: 40, minChars: 220 }),
+  grammar: Object.freeze({ minWords: 35, minChars: 180 }),
+  reading: Object.freeze({ minWords: 50, minChars: 250 }),
+  listening: Object.freeze({ minWords: 35, minChars: 180 }),
+  speaking: Object.freeze({ minWords: 45, minChars: 220 }),
+  pronunciation: Object.freeze({ minWords: 20, minChars: 100 }),
+  presentation: Object.freeze({ minWords: 60, minChars: 320 }),
+  weekly_challenge: Object.freeze({ minWords: 80, minChars: 450 }),
+});
+
+function positiveInt(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function submissionTextStats(text) {
+  const value = cleanString(text);
+  const words = value.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g) || [];
+  return {
+    words: words.length,
+    chars: value.replace(/\s+/g, "").length,
+  };
+}
+
+function resolveSubmissionGuard(taskModel = {}, stage = "draft") {
+  const activityType = cleanString(taskModel.activityType).toLowerCase();
+  const base = DEFAULT_SUBMISSION_GUARDS[activityType] || DEFAULT_SUBMISSION_GUARDS.default;
+  const contract = taskModel && typeof taskModel === "object" ? taskModel.submissionContract || {} : {};
+  const configuredWords = contract.minSubmissionWords ?? contract.minimumWords ?? contract.minWords;
+  const configuredChars = contract.minSubmissionChars ?? contract.minimumChars ?? contract.minChars;
+  const firstPass = normalizeSubmissionStageForGuard(stage) === "draft";
+  const multiplier = firstPass ? 1 : 0.6;
+  return {
+    activityType: activityType || "default",
+    stage: firstPass ? "draft" : "final",
+    minWords: positiveInt(configuredWords, Math.max(25, Math.round(base.minWords * multiplier))),
+    minChars: positiveInt(configuredChars, Math.max(120, Math.round(base.minChars * multiplier))),
+  };
+}
+
+function normalizeSubmissionStageForGuard(stage) {
+  return cleanString(stage).toLowerCase() === "final" ? "final" : "draft";
+}
+
+function validateSubmissionText(text, guard = {}) {
+  const stats = submissionTextStats(text);
+  const minWords = positiveInt(guard.minWords, 0);
+  const minChars = positiveInt(guard.minChars, 0);
+  const failures = [];
+  if (minWords && stats.words < minWords) failures.push(`at least ${minWords} English words`);
+  if (minChars && stats.chars < minChars) failures.push(`at least ${minChars} non-space characters`);
+  if (!failures.length) return { ok: true, stats, guard };
+  return {
+    ok: false,
+    stats,
+    guard,
+    error: `Learning task submission is too short; write ${failures.join(" and ")} before submitting.`,
+  };
+}
+
+function parseTimeMs(value) {
+  if (!value) return 0;
+  if (typeof value === "number") return value > 10_000_000_000 ? value : value * 1000;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function evaluationComment(evaluation = {}, settlement = null) {
   return readableEvaluationComment(evaluation, settlement);
 }
@@ -293,6 +364,8 @@ function createLearningGrowthSubmissionService(options = {}) {
   const aiFeedbackService = options.aiFeedbackService || null;
   const progressSyncService = options.progressSyncService || createLearningGrowthProgressSyncService();
   const maxSubmissionChars = Math.max(1000, Number(options.maxSubmissionChars || 12000));
+  const withdrawWindowMs = Math.max(60_000, Number(options.withdrawWindowMs || 5 * 60 * 1000));
+  const now = typeof options.now === "function" ? options.now : () => Date.now();
   if (!kanbanCardProvider || typeof kanbanCardProvider.listCards !== "function" || typeof kanbanCardProvider.mutateCard !== "function") {
     throw new Error("learning growth submission service requires kanbanCardProvider list/mutate");
   }
@@ -324,6 +397,14 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (!loaded.ok) return loaded;
     const stage = submissionStageForCard(loaded.card, input);
     const taskModel = taskModelForSubmission(loaded.card, input);
+    const guard = resolveSubmissionGuard(taskModel, stage);
+    const validation = validateSubmissionText(text, guard);
+    if (!validation.ok) {
+      return createError(400, validation.error, {
+        submissionGuard: guard,
+        submissionStats: validation.stats,
+      });
+    }
     const submissionKind = submissionKindForStage(loaded.card, input, stage);
     const mutated = await kanbanCardProvider.mutateCard({
       action: "comment",
@@ -454,6 +535,7 @@ function createLearningGrowthSubmissionService(options = {}) {
       cardId: cardIdValue,
       workspaceId,
       status: evaluation.status,
+      submissionGuard: guard,
       evaluation: publicEval,
       reward: publicEval.reward,
       result: {
@@ -468,13 +550,58 @@ function createLearningGrowthSubmissionService(options = {}) {
     };
   }
 
+  async function withdrawSubmission(input = {}) {
+    const workspaceId = cleanString(input.workspaceId) || "owner";
+    const cardIdValue = cleanString(input.cardId);
+    if (!cardIdValue) return createError(400, "Growth card id is required");
+    const loaded = await loadGrowthCard(workspaceId, cardIdValue);
+    if (!loaded.ok) return loaded;
+    const submittedAt = cardField(loaded.card, "learningGrowthSubmissionAt", "learning_growth_submission_at");
+    const submittedMs = parseTimeMs(submittedAt);
+    if (!submittedMs) return createError(409, "No Growth submission is available to withdraw");
+    const currentMs = now();
+    if (currentMs - submittedMs > withdrawWindowMs) {
+      return createError(409, "Growth submission withdrawal window has expired", {
+        withdrawWindowMs,
+        submittedAt,
+      });
+    }
+    const rewardStatus = cardField(loaded.card, "learningGrowthRewardStatus", "learning_growth_reward_status").toLowerCase();
+    const entryId = cardField(loaded.card, "learningGrowthRewardEntryId", "learning_growth_reward_entry_id");
+    const kanbanStatus = cardField(loaded.card, "kanbanStatus", "kanban_status", "status").toLowerCase();
+    const completed = ["done", "completed", "archived", "cancelled", "canceled"].includes(kanbanStatus);
+    if (completed || rewardStatus === "settled" || entryId) {
+      return createError(409, "Growth submission can no longer be withdrawn after completion or reward settlement");
+    }
+    const result = await kanbanCardProvider.mutateCard({
+      action: "clear_learning_growth_submission",
+      workspaceId,
+      cardId: cardIdValue,
+      author: cleanString(input.author) || "learning-growth",
+      reason: cleanString(input.reason) || "Withdraw Growth learning task submission.",
+    });
+    if (!result?.ok) return createError(result?.status || 502, cleanString(result?.error || result?.result?.error || "Unable to withdraw learning task submission"));
+    return {
+      ok: true,
+      cardId: cardIdValue,
+      workspaceId,
+      status: "withdrawn",
+      result,
+      withdrawWindowMs,
+    };
+  }
+
   return {
     submitTask,
+    withdrawSubmission,
   };
 }
 
 module.exports = {
   createLearningGrowthSubmissionService,
   evaluationComment,
+  resolveSubmissionGuard,
   submissionStageForCard,
+  submissionTextStats,
+  validateSubmissionText,
 };

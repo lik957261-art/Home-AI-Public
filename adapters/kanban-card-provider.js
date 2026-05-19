@@ -128,6 +128,7 @@ function createKanbanCardProvider(options = {}) {
       learningGrowthSubmission: args.learningGrowthSubmission || args.learning_growth_submission || false,
       submissionKind: args.submissionKind || args.submission_kind || "",
       learningGrowthEvaluation: args.learningGrowthEvaluation || args.learning_growth_evaluation || null,
+      clearLearningGrowthSubmission: args.clearLearningGrowthSubmission || args.clear_learning_growth_submission || false,
     });
   }
 

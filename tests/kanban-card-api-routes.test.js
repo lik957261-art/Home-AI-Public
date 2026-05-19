@@ -57,6 +57,7 @@ function makeRoutes(overrides = {}) {
     file: [],
     filePreview: [],
     growthSubmit: [],
+    growthWithdraw: [],
     list: [],
     mutate: [],
     outputResolve: [],
@@ -154,6 +155,10 @@ function makeRoutes(overrides = {}) {
       submitTask(input) {
         calls.growthSubmit.push(input);
         return Promise.resolve({ ok: true, cardId: input.cardId, status: "submitted", result: { ok: true, id: input.cardId } });
+      },
+      withdrawSubmission(input) {
+        calls.growthWithdraw.push(input);
+        return Promise.resolve({ ok: true, cardId: input.cardId, status: "withdrawn", result: { ok: true, id: input.cardId, action: "clear_learning_growth_submission" } });
       },
     },
     normalizeKanbanMaxParallel(value) {
@@ -265,6 +270,7 @@ async function testRouteMetadataMatchingAndFallthrough() {
     "kanban-card-batch",
     "kanban-card-action",
     "kanban-card-learning-growth-submission",
+    "kanban-card-learning-growth-submission-withdraw",
   ]);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/kanban/cards" }).id, "kanban-cards-list");
@@ -277,11 +283,12 @@ async function testRouteMetadataMatchingAndFallthrough() {
   assert.equal(routes.match({ method: "POST", path: "/api/kanban/cards/batch" }).id, "kanban-card-batch");
   assert.equal(routes.match({ method: "POST", path: "/api/kanban/cards/card%2F1/comment" }).id, "kanban-card-action");
   assert.equal(routes.match({ method: "POST", path: "/api/kanban/cards/card%2F1/learning-growth-submission" }).id, "kanban-card-learning-growth-submission");
+  assert.equal(routes.match({ method: "POST", path: "/api/kanban/cards/card%2F1/learning-growth-submission/withdraw" }).id, "kanban-card-learning-growth-submission-withdraw");
   assert.equal(routes.match({ method: "GET", path: "/api/kanban/cards/card-1/comment" }), null);
 
   const summary = routes.summary({ public: true });
-  assert.equal(summary.total, 10);
-  assert.deepEqual(summary.byAuthMode, { "access-key": 10 });
+  assert.equal(summary.total, 11);
+  assert.deepEqual(summary.byAuthMode, { "access-key": 11 });
   assert.equal(JSON.stringify(summary).includes("/api/kanban/cards"), false);
 
   const miss = await request(routes, "GET", "/api/status");
@@ -516,6 +523,27 @@ async function testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback() {
   assert.equal(got.res.statusCode, 200);
   assert.equal(calls.growthSubmit.at(-1).legacy, true);
   assert.equal(calls.growthSubmit.at(-1).cardId, "t_growth");
+}
+
+async function testLearningGrowthSubmissionWithdrawUsesCommentCapabilityAndService() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-submission/withdraw?workspaceId=query-workspace", {
+    body: { workspaceId: "child", reason: "retry" },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.access.at(-1), { workspaceId: "child", cardId: "t_growth", capability: "comment" });
+  assert.deepEqual(calls.growthWithdraw, [{
+    workspaceId: "child",
+    cardId: "t_growth",
+    author: "",
+    reason: "retry",
+  }]);
+  assert.deepEqual(calls.cacheClear, ["child"]);
+  assert.deepEqual(calls.broadcast.slice(-2), [
+    { type: "kanban.updated", workspaceId: "child", cardId: "t_growth", action: "learning-growth-submission-withdraw" },
+    { type: "todos.updated", workspaceId: "child", todoId: "t_growth", action: "learning-growth-submission-withdraw" },
+  ]);
+  assert.equal(got.body.status, "withdrawn");
 }
 
 async function testCompletedCardsSyncToTopicDeliveryService() {
@@ -855,6 +883,7 @@ function testDependencyValidation() {
   await testListTargetBypassesCacheAndForwardsTargetId();
   await testLearningGrowthSubmissionUsesCommentCapabilityAndService();
   await testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback();
+  await testLearningGrowthSubmissionWithdrawUsesCommentCapabilityAndService();
   await testCompletedCardsSyncToTopicDeliveryService();
   await testOutputRoutesAlwaysUseResolverWithAuthenticatedContext();
   await testDetailAndActionAccessCapabilities();

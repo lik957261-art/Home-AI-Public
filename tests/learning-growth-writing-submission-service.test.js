@@ -60,6 +60,8 @@ async function testSubmitWritingStoresAsKanbanComment() {
     "Because we did not want to waste time, I wrote down three steps and asked each classmate to choose one job.",
     "Then we checked the poster together and fixed the unclear sentences.",
     "Finally, we finished it on time, and I learned that clear communication makes a hard task easier.",
+    "I also noticed that a specific example helps the reader understand what each student actually did.",
+    "For that reason, I will describe the role, the problem, and the final result more clearly in my next version.",
   ].join(" ");
   const result = await service.submitWriting({
     workspaceId: "child",
@@ -143,6 +145,8 @@ async function testFinalRewriteSettlesAndCompletes() {
     "Then I asked my group to add examples and fix unclear sentences.",
     "Finally, we finished on time, and I learned that teamwork needs clear communication and careful revision.",
     "I changed the middle sentence because it needed a clearer example.",
+    "I also added one reflection sentence so the final version explains the reason for my revision.",
+    "The new detail shows the classroom problem, my action, and the result more clearly than the first draft.",
   ].join(" ");
   const result = await service.submitWriting({ workspaceId: "child", cardId: "t_growth", text, author: "child" });
   assert.equal(result.ok, true);
@@ -219,6 +223,9 @@ async function testModelFeedbackEnhancesPublicEvaluation() {
     "Last week I joined a class activity about teamwork.",
     "First, I wrote down three steps and asked each classmate to choose one job.",
     "Finally, we finished the poster on time, and I learned that good communication can make a hard task easier.",
+    "I added a classroom detail about checking unclear sentences because the reader needs to see what changed.",
+    "This revision also explains why the activity helped me practice planning, cooperation, and careful English writing.",
+    "For the next version, I would keep the same order and add one stronger example from the group discussion.",
   ].join(" ");
   const result = await service.submitWriting({ workspaceId: "child", cardId: "t_growth_ai", text, author: "child" });
   assert.equal(result.ok, true);
@@ -349,6 +356,8 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
     "Because the poster needed many details, I wrote a plan and checked each part.",
     "Then I asked my group to add examples and fix unclear sentences.",
     "Finally, we finished on time, and I learned that teamwork needs clear communication and careful revision.",
+    "I added one more reflection sentence because the report should show what changed and why the change helped.",
+    "The final version explains the problem, action, and result in a clearer order for the reader.",
   ].join(" ");
   const result = await service.submitWriting({ workspaceId: "child", cardId: "t_growth", text, author: "child" });
   assert.equal(result.ok, true);
@@ -414,6 +423,7 @@ async function testGenericVocabularyTaskUsesTaskModelContract() {
     "I improved my sentence because the first version was too general.",
     "Next time I will add evidence before I answer.",
     "Finally, I can use the word accurately in a school example.",
+    "I also explain why the word fits the situation, so my answer is not only a short list of sentences.",
   ].join("\n");
   const result = await service.submitTask({ workspaceId: "child", cardId: "t_vocab", text, author: "child" });
   assert.equal(result.ok, true);

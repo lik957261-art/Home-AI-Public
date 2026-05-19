@@ -360,6 +360,19 @@ async function run() {
   assert.equal(growthEvaluated.learning_growth_next_practice, "Plan one example before writing.");
   assert.equal(growthEvaluated.learning_growth_reward_status, "settled");
 
+  const growthCleared = await provider.run({
+    action: "clear_learning_growth_submission",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+  });
+  assert.equal(growthCleared.ok, true);
+  assert.equal(growthCleared.learning_growth_submission_status, "");
+  assert.equal(growthCleared.learning_growth_submission_text, "");
+  assert.equal(growthCleared.learning_growth_evaluation_status, "");
+  assert.equal(growthCleared.learning_growth_report_name, "");
+  assert.equal(growthCleared.learning_growth_reward_status, "");
+
   const unblocked = await provider.run({
     action: "unblock",
     workspace_id: "weixin_stephen",

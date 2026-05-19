@@ -154,6 +154,21 @@ const KANBAN_CARD_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["kanban", "card", "learning"],
     tags: ["kanban", "learning-growth", "submit"],
   },
+  {
+    id: "kanban-card-learning-growth-submission-withdraw",
+    method: "POST",
+    pathRegex: /^\/api\/kanban\/cards\/[^/]+\/learning-growth-submission\/withdraw$/,
+    group: "kanban",
+    moduleKey: "kanban",
+    handlerKey: "withdrawLearningGrowthTaskSubmission",
+    summary: "Withdraw one recent Growth learning task submission.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["kanban", "card", "learning"],
+    tags: ["kanban", "learning-growth", "withdraw"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -642,6 +657,45 @@ function createKanbanCardApiRoutes(deps = {}) {
     });
   }
 
+  async function handleLearningGrowthSubmissionWithdraw(req, res, url) {
+    if (!requireKanbanEnabled(res)) return;
+    if (typeof learningGrowthSubmissionService.withdrawSubmission !== "function") {
+      deps.kanbanErrorResponse(res, { ok: false, status: 501, error: "Growth submission withdrawal is not available" }, 501);
+      return;
+    }
+    const match = cardPathMatch(url.pathname, "learning-growth-submission/withdraw");
+    const body = await deps.readBody(req).catch(() => ({}));
+    const cardId = decodeURIComponent(match?.[1] || "");
+    const access = await deps.resolveKanbanCardAccess(
+      req,
+      res,
+      body.workspaceId || url.searchParams.get("workspaceId") || "owner",
+      cardId,
+      "comment",
+    );
+    if (!access) return;
+    const workspaceId = access.workspaceId;
+    const result = await learningGrowthSubmissionService.withdrawSubmission({
+      workspaceId,
+      cardId,
+      author: body.author || "",
+      reason: body.reason || "",
+    });
+    if (!result?.ok) {
+      deps.kanbanErrorResponse(res, result);
+      return;
+    }
+    deps.clearKanbanCardListCache(workspaceId);
+    deps.broadcast({ type: "kanban.updated", workspaceId, cardId, action: "learning-growth-submission-withdraw" });
+    deps.broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "learning-growth-submission-withdraw" });
+    deps.sendJson(res, 200, {
+      ok: true,
+      cardId,
+      status: result.status || "withdrawn",
+      result: result.result || { ok: true },
+    });
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -659,6 +713,7 @@ function createKanbanCardApiRoutes(deps = {}) {
     else if (route.id === "kanban-card-batch") await handleBatch(req, res);
     else if (route.id === "kanban-card-action") await handleAction(req, res, url);
     else if (route.id === "kanban-card-learning-growth-submission") await handleLearningGrowthSubmission(req, res, url);
+    else if (route.id === "kanban-card-learning-growth-submission-withdraw") await handleLearningGrowthSubmissionWithdraw(req, res, url);
     else return { handled: false };
 
     return { handled: true, route, auth: context.auth };

@@ -6865,6 +6865,24 @@ button.directory-alias-chip {
   overflow-wrap: anywhere;
 }
 
+.todo-learning-growth-submit-requirement {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.todo-learning-growth-withdraw {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.todo-learning-growth-withdraw span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .todo-learning-growth-status small {
   color: var(--muted);
 }
