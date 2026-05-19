@@ -55,11 +55,11 @@ const COMPOSER_MODEL_OPTIONS = Object.freeze([
   },
   {
     id: "grok-4.3",
-    label: "Grok",
+    label: "Grok4.3",
     model: "grok-4.3",
     provider: "xai-oauth",
-    mentionText: "@Grok",
-    aliases: ["grok", "grok4", "grok43", "xai", "xaioauth"],
+    mentionText: "@Grok4.3",
+    aliases: ["grok", "grok4", "grok4.3", "grok43", "xai", "xaioauth"],
     description: "xAI OAuth Grok worker",
   },
 ]);

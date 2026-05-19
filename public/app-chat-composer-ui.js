@@ -434,36 +434,20 @@ function composerModelOptionForMention(primary, secondary = "") {
 }
 
 function composerAiMentionOptions() {
-  const label = assistantDisplayLabel();
+  const label = "ChatGPT";
   const modelLabel = state.defaultModel || label;
   const defaultModelOption = composerModelOptions()[0];
-  const defaultEffort = validTaskReasoningEffort(state.defaultReasoningEffort) || "medium";
-  const options = [{
-    workspaceId: "assistant-default",
-    label,
+  const chatGptXhigh = {
+    workspaceId: "assistant-xhigh",
+    label: `${label} X high`,
     virtual: true,
-    mentionText: defaultModelOption.mentionText || `@${label}`,
-    description: [modelLabel, `\u9ed8\u8ba4 ${defaultReasoningLabel()}`].filter(Boolean).join(" / "),
-    reasoningEffort: "",
+    mentionText: `@${label} X high`,
+    description: [modelLabel, "X high"].filter(Boolean).join(" / "),
+    reasoningEffort: "xhigh",
     model: defaultModelOption.model || "",
     provider: defaultModelOption.provider || "",
     modelExplicit: true,
-  }];
-  for (const option of configuredReasoningOptions()) {
-    if (option.value === defaultEffort) continue;
-    const shortLabel = option.shortLabel || option.label || option.value;
-    options.push({
-      workspaceId: `assistant-${option.value}`,
-      label: `${label} ${shortLabel}`,
-      virtual: true,
-      mentionText: `@${label} ${shortLabel}`,
-      description: [modelLabel, reasoningEffortLabel(option.value)].filter(Boolean).join(" / "),
-      reasoningEffort: option.value,
-      model: defaultModelOption.model || "",
-      provider: defaultModelOption.provider || "",
-      modelExplicit: true,
-    });
-  }
+  };
   const grokOptions = composerModelOptions()
     .filter((option) => option.id !== DEFAULT_COMPOSER_MODEL_ID)
     .map((option) => ({
@@ -477,7 +461,7 @@ function composerAiMentionOptions() {
       provider: option.provider || "",
       modelExplicit: true,
     }));
-  return [options[0], ...grokOptions, ...options.slice(1)];
+  return [chatGptXhigh, ...grokOptions].slice(0, 2);
 }
 
 function assistantMentionAliases() {
@@ -508,7 +492,7 @@ function reasoningEffortFromAiAlias(value) {
 
 function composerAiMentionInfo(text) {
   const normalized = String(text || "").replace(/\u00a0/g, " ");
-  const pattern = /(^|[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F\u3001])[@\uff20]\s*([A-Za-z0-9_.\-\u4e00-\u9fff]+)(?:\s*[-_:\uFF1A]?\s*([A-Za-z0-9_.\-\u4e00-\u9fff]+))?(?=$|[\s)\]}\u3000\uff09\uff3d\u3011\uff0c,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F\u3001])/ig;
+  const pattern = /(^|[\s([{\u3000\uff08\uff3b\u3010\uff0c,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F\u3001])[@\uff20]\s*([A-Za-z0-9_.\-\u4e00-\u9fff]+)(?:\s*[-_:\uFF1A]?\s*([A-Za-z0-9_.\-\u4e00-\u9fff]+(?:\s+[A-Za-z0-9_.\-\u4e00-\u9fff]+)?))?(?=$|[\s)\]}\u3000\uff09\uff3d\u3011\uff0c,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F\u3001])/ig;
   let mentionsAi = false;
   let reasoningEffort = "";
   let model = "";
