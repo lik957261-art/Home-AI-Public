@@ -725,6 +725,7 @@ function testServiceFirstArchitectureContract() {
     "public/app-thread-list-ui.js",
     "public/app-thread-directory-ui.js",
     "public/app-thread-card-message-ui.js",
+    "public/app-long-message-ui.js",
     "public/app-rich-text-directory-ui.js",
     "public/app-message-usage-ui.js",
     "public/app-events-composer-ui.js",

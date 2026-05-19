@@ -38,10 +38,17 @@ function scheduleStreamingMessageRender(message) {
   const id = String(message.id);
   if (state.streamingMessageRenderScheduled.has(id)) return true;
   state.streamingMessageRenderScheduled.add(id);
-  requestAnimationFrame(() => {
+  const contentLength = String(message.content || "").length;
+  const minDelay = contentLength > ACTIVE_MESSAGE_RICH_RENDER_LIMIT ? 120 : 0;
+  const lastAt = state.streamingMessageRenderLastAt.get(id) || 0;
+  const delay = minDelay ? Math.max(0, minDelay - (Date.now() - lastAt)) : 0;
+  const render = () => requestAnimationFrame(() => {
     state.streamingMessageRenderScheduled.delete(id);
+    state.streamingMessageRenderLastAt.set(id, Date.now());
     if (!renderStreamingMessageContent(message)) scheduleRenderCurrentThread();
   });
+  if (delay) window.setTimeout(render, delay);
+  else render();
   return true;
 }
 

@@ -42,6 +42,7 @@ const appSplitModuleFiles = Object.freeze([
   "app-thread-list-ui.js",
   "app-thread-directory-ui.js",
   "app-thread-card-message-ui.js",
+  "app-long-message-ui.js",
   "app-rich-text-directory-ui.js",
   "app-message-usage-ui.js",
   "app-events-composer-ui.js",

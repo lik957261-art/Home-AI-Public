@@ -1812,6 +1812,11 @@ button {
   color: var(--danger);
 }
 
+.run-progress-row.run-progress-quiet .run-progress-dot {
+  background: #b1843a;
+  box-shadow: 0 0 0 4px rgba(177, 132, 58, 0.12);
+}
+
 .run-progress-dot {
   width: 7px;
   height: 7px;
@@ -2026,6 +2031,57 @@ button {
 
 .message-prose p {
   color: #182833;
+}
+
+.long-message-preview {
+  gap: 10px;
+}
+
+.long-message-notice {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  color: #29524a;
+  background: rgba(31, 111, 98, 0.08);
+  border: 1px solid rgba(31, 111, 98, 0.15);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.long-message-notice strong {
+  color: #174f48;
+  font-weight: 600;
+}
+
+.long-message-preview-text {
+  white-space: pre-wrap;
+  color: #182833;
+}
+
+.long-message-gap {
+  padding: 6px 0;
+  color: #7e6846;
+  font-size: 12px;
+  text-align: center;
+  border-top: 1px dashed rgba(126, 104, 70, 0.24);
+  border-bottom: 1px dashed rgba(126, 104, 70, 0.24);
+}
+
+.long-message-control {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.long-message-toggle {
+  min-height: 30px;
+  padding: 0 11px;
+  color: #1f6f62;
+  background: rgba(31, 111, 98, 0.07);
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .message-prose h2,

@@ -186,7 +186,9 @@ function renderCurrentThread(options = {}) {
   wireMessageReplyActionButtons(conversation);
   wireArtifactWeixinButtons(conversation);
   wireUsagePanels(conversation);
+  wireLongMessageButtons(conversation);
   wireChatSearchControls(conversation);
+  syncRunProgressTicker(conversation);
   ensureVerticalScrollAffordance(conversation);
   scheduleMessageScrollButtonVisibility(conversation);
   if (state.chatSearchScrollPending) {
@@ -273,6 +275,8 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   wireMessageReplyActionButtons(conversation);
   wireArtifactWeixinButtons(conversation);
   wireUsagePanels(conversation);
+  wireLongMessageButtons(conversation);
+  syncRunProgressTicker(conversation);
   updateNavigationControls();
   ensureVerticalScrollAffordance(conversation);
   scheduleMessageScrollButtonVisibility(conversation);

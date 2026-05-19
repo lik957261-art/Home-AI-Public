@@ -5,7 +5,9 @@ function renderText(text, message = {}) {
   const cleaned = cleanDisplayText(rewriteDirectoryPathsForDisplay(directoryAliases.text));
   const aliases = renderDirectoryAliases(directoryAliases.aliases, message);
   if (message?.role === "assistant") {
-    return `<div class="text-content message-prose">${aliases}${renderRichText(cleaned)}</div>`;
+    if (shouldRenderLongMessagePreview(cleaned, message)) return renderLongMessagePreview(cleaned, aliases, message);
+    const collapse = shouldOfferLongMessageCollapse(cleaned, message) ? renderLongMessageCollapseButton(message) : "";
+    return `<div class="text-content message-prose">${aliases}${renderRichText(cleaned)}${collapse}</div>`;
   }
   return `<div class="text-content plain-text">${aliases}${escapeHtml(cleaned)}</div>`;
 }
