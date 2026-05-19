@@ -150,6 +150,26 @@ repair_low_gateway_sqlite() {
   fi
 }
 
+prepare_low_gateway_profile_link() {
+  local profile="$1"
+  local profile_link="$2"
+  if [ -L "$profile_link" ]; then
+    rm -f "$profile_link"
+    return 0
+  fi
+  if [ -e "$profile_link" ]; then
+    local stamp
+    local backup_root
+    local backup_path
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    backup_root="$worker_home_dir/profile-directory-backups"
+    backup_path="${backup_root}/${profile}-${stamp}"
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$backup_root"
+    echo "WARNING: moving real low Gateway profile directory for ${profile} to ${backup_path}" >&2
+    mv "$profile_link" "$backup_path"
+  fi
+}
+
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$(dirname "$shared_auth_path")"
 
 if [ "$shared_auth_path" != "$legacy_shared_auth_path" ] && [ ! -s "$shared_auth_path" ] && [ -s "$legacy_shared_auth_path" ]; then
@@ -392,7 +412,7 @@ for idx in $(seq 1 "$low_gateway_count"); do
   profile_link="$worker_home_dir/profiles/${profile}"
   profile_dir="${telemetry_profiles_root}/${profile}"
   profile_seed="$profile_auth_seed_root/${profile}/auth.json"
-  rm -rf "$profile_link"
+  prepare_low_gateway_profile_link "$profile" "$profile_link"
   mkdir -p "$profile_dir"
   chmod 700 "$profile_dir" || true
   repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"

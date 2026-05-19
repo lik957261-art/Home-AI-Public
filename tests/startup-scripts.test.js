@@ -200,6 +200,11 @@ assert.match(configureLowGateways, /is_owner_connector_profile/);
 assert.match(configureLowGateways, /outlook_graph:/);
 assert.match(configureLowGateways, /HERMES_HOME: \$profile_link/);
 assert.match(configureLowGateways, /platform_toolsets:[\s\S]*api_server:[\s\S]*\$\{outlook_api_toolset_block\}/);
+assert.match(configureLowGateways, /prepare_low_gateway_profile_link\(\)/);
+assert.match(configureLowGateways, /profile-directory-backups/);
+assert.match(configureLowGateways, /moving real low Gateway profile directory/);
+assert.match(configureLowGateways, /prepare_low_gateway_profile_link "\$profile" "\$profile_link"/);
+assert.doesNotMatch(configureLowGateways, /rm -rf "\$profile_link"/);
 
 assert.match(provisionWorkerExternalConnectors, /external-connectors\/owner/);
 assert.match(provisionWorkerExternalConnectors, /google_token\.json/);
