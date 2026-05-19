@@ -22,6 +22,82 @@ function safeErrorMessage(err) {
   return err?.message || String(err || "");
 }
 
+function parseJsonObject(value) {
+  const text = cleanString(value);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch (_err) {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start < 0 || end <= start) return null;
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch (_nestedErr) {
+      return null;
+    }
+  }
+}
+
+function normalizeSkillReference(value) {
+  let text = cleanString(value);
+  if (!text) return "";
+  text = text.replaceAll("\\", "/").replace(/^["'`]+|["'`]+$/g, "").trim();
+  const skillRoot = text.match(/(?:^|\/)skills\/(.+?)(?:\/SKILL\.md)?$/i);
+  if (skillRoot) text = skillRoot[1];
+  text = text.replace(/\/SKILL\.md$/i, "").replace(/^skills\//i, "").replace(/^\/+|\/+$/g, "");
+  if (!/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(text)) return "";
+  return text.slice(0, 240);
+}
+
+function skillReferenceFromValue(value) {
+  if (!value) return "";
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return normalizeSkillReference(
+      value.path || value.skillPath || value.skill_path || value.skill || value.name || value.id || "",
+    );
+  }
+  const parsed = parseJsonObject(value);
+  if (parsed) return skillReferenceFromValue(parsed);
+  return normalizeSkillReference(value);
+}
+
+function skillEntryFromReference(reference) {
+  const pathValue = normalizeSkillReference(reference);
+  if (!pathValue) return null;
+  const parts = pathValue.split("/").filter(Boolean);
+  const id = parts[parts.length - 1] || pathValue;
+  return {
+    id,
+    label: id,
+    path: pathValue,
+    namespace: parts.length > 1 ? parts.slice(0, -1).join("/") : "",
+  };
+}
+
+function loadedSkillFromRunEvent(event = {}) {
+  if (cleanString(event.tool).toLowerCase() !== "skill_view") return null;
+  const reference = skillReferenceFromValue(event.preview || event.arguments || event.input || event.text || "");
+  return skillEntryFromReference(reference);
+}
+
+function loadedSkillsForRun(thread = {}, runId = "") {
+  const id = cleanString(runId);
+  if (!id) return [];
+  const byPath = new Map();
+  for (const event of Array.isArray(thread.events) ? thread.events : []) {
+    const eventRunId = cleanString(event?.runId || event?.run_id);
+    if (!eventRunId || eventRunId !== id) continue;
+    const skill = loadedSkillFromRunEvent(event);
+    if (!skill) continue;
+    const key = skill.path.toLowerCase();
+    if (!byPath.has(key)) byPath.set(key, skill);
+  }
+  return [...byPath.values()];
+}
+
 function defaultAppendBounded(current, delta, maxChars = 12000) {
   const next = `${current || ""}${delta || ""}`;
   if (next.length <= maxChars) return next;
@@ -203,6 +279,7 @@ function createGatewayRunEventService(options = {}) {
     message.content = compactFullContent(visibleOutput || output);
     message.status = "done";
     message.usage = supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message);
+    message.loadedSkills = loadedSkillsForRun(thread, runId);
     if (validApprovalRequest) {
       message.elevationRequired = true;
       message.elevationScope = validApprovalRequest.elevationScope;

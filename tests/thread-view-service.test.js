@@ -194,6 +194,7 @@ function makeThread() {
         gatewayName: "local",
         gatewayProfile: "default",
         gatewaySource: "codex",
+        loadedSkills: [{ id: "write", label: "write", path: "productivity/write", namespace: "productivity" }],
         externalDelivery: { source: "weixin" },
         runOptions: {
           gatewayRouting: {
@@ -328,6 +329,7 @@ function testCompactMessage(subject) {
   assert.equal(got.taskId, "task-alpha");
   assert.equal(got.taskGroupId, "task-a");
   assert.equal(got.messageKind, "ai");
+  assert.deepEqual(got.loadedSkills, [{ id: "write", label: "write", path: "productivity/write", namespace: "productivity" }]);
   assert.equal(got.gatewaySecurityLevel, "workspace");
   assert.equal(got.gatewayMaintenance, true);
   assert.equal(got.gatewayMaintenanceCategory, "dependency-upgrade");

@@ -694,6 +694,7 @@ function testServiceFirstArchitectureContract() {
     "public/app-run-progress-ui.js",
     "public/app-navigation-search-ui.js",
     "public/app-sidebar-task-ui.js",
+    "public/app-message-skill-ui.js",
     "public/app-message-actions-ui.js",
     "public/app-platform-ui.js",
     "public/app-pwa-settings-push-ui.js",

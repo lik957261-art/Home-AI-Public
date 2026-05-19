@@ -184,6 +184,7 @@ function renderCurrentThread(options = {}) {
   wireMessageScrollButtons(conversation);
   wireMessageReplyActionButtons(conversation);
   wireArtifactWeixinButtons(conversation);
+  wireSkillLinks(conversation);
   wireUsagePanels(conversation);
   wireLongMessageButtons(conversation);
   wireChatSearchControls(conversation);

@@ -214,8 +214,9 @@ function renderMessageGatewayDiagnostic(message) {
 function renderMessageFooter(message, usage) {
   const actions = renderMessageActionStrip(message, "start");
   const gatewayDiagnostic = renderMessageGatewayDiagnostic(message);
-  if (!actions && !usage && !gatewayDiagnostic) return "";
-  return `<div class="message-footer-row">${actions}${gatewayDiagnostic}${usage}</div>`;
+  const skills = renderMessageSkillPanel(message, state.currentThread);
+  if (!actions && !usage && !skills && !gatewayDiagnostic) return "";
+  return `<div class="message-footer-row">${actions}${gatewayDiagnostic}${usage}${skills}</div>`;
 }
 
 function eventClientPoint(event) {

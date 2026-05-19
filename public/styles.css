@@ -2463,7 +2463,8 @@ button.directory-alias-chip {
   margin: 0 0 10px;
 }
 
-.message-footer-row .usage {
+.message-footer-row .usage,
+.message-footer-row .message-skills {
   flex: 0 0 auto;
   width: auto;
   max-width: none;
@@ -2485,7 +2486,8 @@ button.directory-alias-chip {
   line-height: 1.4;
 }
 
-.usage {
+.usage,
+.message-skills {
   position: relative;
   margin-top: 12px;
   border: 1px solid var(--line);
@@ -2494,7 +2496,8 @@ button.directory-alias-chip {
   overflow: visible;
 }
 
-.usage summary {
+.usage summary,
+.message-skills summary {
   min-width: 48px;
   min-height: 22px;
   display: grid;
@@ -2508,16 +2511,19 @@ button.directory-alias-chip {
   list-style: none;
 }
 
-.usage summary::-webkit-details-marker {
+.usage summary::-webkit-details-marker,
+.message-skills summary::-webkit-details-marker {
   display: none;
 }
 
-.message:has(.usage[open]) {
+.message:has(.usage[open]),
+.message:has(.message-skills[open]) {
   overflow: visible;
   z-index: 9;
 }
 
-.usage-details {
+.usage-details,
+.message-skill-details {
   position: absolute;
   left: 0;
   bottom: calc(100% + 7px);
@@ -2529,6 +2535,46 @@ button.directory-alias-chip {
   background: rgba(255, 252, 246, 0.98);
   box-shadow: 0 14px 32px rgba(31, 43, 51, 0.13);
   transform: translateX(var(--usage-panel-shift, 0px));
+}
+
+.message-skill-details {
+  width: min(270px, calc(100vw - 24px));
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 6px;
+}
+
+.message-skill-item {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.message-skill-item:hover,
+.message-skill-item:focus-visible {
+  background: rgba(31, 111, 98, 0.08);
+  outline: none;
+}
+
+.message-skill-item span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .usage-row {

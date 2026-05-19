@@ -157,6 +157,36 @@ function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
   assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
 }
 
+function testCompletedRunPersistsLoadedSkillReferences() {
+  const { message, service, thread } = makeHarness();
+  thread.events.push({
+    event: "response.output_item.added",
+    runId: "public_run",
+    tool: "skill_view",
+    preview: "{\"name\":\"productivity/write\"}",
+  });
+  thread.events.push({
+    event: "response.output_item.done",
+    runId: "other_run",
+    tool: "skill_view",
+    preview: "{\"name\":\"productivity/ignore\"}",
+  });
+
+  const result = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    output: "Final",
+  });
+
+  assert.equal(result.action, "completed");
+  assert.deepEqual(message.loadedSkills, [{
+    id: "write",
+    label: "write",
+    path: "productivity/write",
+    namespace: "productivity",
+  }]);
+}
+
 function testFailedAndCancelledRunsUseTerminalHelpers() {
   let harness = makeHarness();
   let result = harness.service.applyHermesRunEvent({ event: "run.failed", run_id: "public_run", error: { message: "gateway failed" } });
@@ -222,6 +252,7 @@ testPureTargetAndOutputHelpers();
 testResponseCreatedAliasesRunAndBroadcasts();
 testDeltaUpdatesMessageAndThread();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
+testCompletedRunPersistsLoadedSkillReferences();
 testFailedAndCancelledRunsUseTerminalHelpers();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();

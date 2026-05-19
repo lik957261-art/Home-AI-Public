@@ -361,6 +361,7 @@ function createThreadViewService(deps = {}) {
       revokedByPrincipalId: message.revokedByPrincipalId || "",
       revokedByLabel: message.revokedByLabel || "",
       usage: message.usage || null,
+      loadedSkills: Array.isArray(message.loadedSkills) ? message.loadedSkills : [],
       error: message.error || null,
       artifacts: compactArtifactsForMessage(message, resolvedThread),
       directoryAliases: Array.isArray(message.directoryAliases) ? message.directoryAliases : [],
