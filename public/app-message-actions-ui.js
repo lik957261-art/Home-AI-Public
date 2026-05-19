@@ -498,10 +498,12 @@ function updateMessageScrollButtonVisibility(root) {
 }
 
 function scheduleMessageScrollButtonVisibility(root) {
-  updateMessageScrollButtonVisibility(root);
-  updateConversationJumpBottomButton();
+  const target = root || $("conversation");
+  if (state.messageScrollVisibilityScheduled) return;
+  state.messageScrollVisibilityScheduled = true;
   requestAnimationFrame(() => {
-    updateMessageScrollButtonVisibility(root);
+    state.messageScrollVisibilityScheduled = false;
+    updateMessageScrollButtonVisibility(target);
     updateConversationJumpBottomButton();
   });
 }

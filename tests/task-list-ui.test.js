@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260519-skill-analysis-v10";
+const CLIENT_VERSION = "20260519-run-freeze-v11";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -138,6 +138,9 @@ assert.match(appJs, /renderSkillDetailPanel\(\{ resetScroll: true \}\)/);
 assert.match(appJs, /options\.resetScroll \? 0 : previousScrollTop/);
 assert.match(appJs, /function runEventPreviewLabel\(event\)/);
 assert.match(appJs, /tool === "function_call_output"/);
+assert.match(appJs, /RUN_PROGRESS_RENDER_THROTTLE_MS = 750/);
+assert.match(appJs, /state\.messageScrollVisibilityScheduled/);
+assert.match(appJs, /updateMessageScrollButtonVisibility\(target\)/);
 assert.match(appJs, /STREAMING_MESSAGE_LIVE_BUFFER_CHARS/);
 assert.match(appJs, /appendStreamingMessageBounded\(message\.content \|\| "", delta \|\| ""\)/);
 assert.match(stylesCss, /\.message-skills/);

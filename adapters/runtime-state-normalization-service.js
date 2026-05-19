@@ -91,6 +91,7 @@ function createRuntimeStateNormalizationService(options = {}) {
   const workspaceLabel = typeof options.workspaceLabel === "function" ? options.workspaceLabel : (workspaceId) => String(workspaceId || "");
   const groupMessageRevokedText = String(options.groupMessageRevokedText || "Message revoked");
   const kanbanCaseTopicKind = String(options.kanbanCaseTopicKind || "case-topic");
+  const maxEventPreviewChars = Math.max(0, Number(options.maxEventPreviewChars || 240) || 240);
   const maxStoredEventsPerThread = Math.max(1, Number(options.maxStoredEventsPerThread || 80) || 80);
   const messageTimeFields = Array.isArray(options.messageTimeFields) ? options.messageTimeFields : [];
   const singleWindowChatTaskGroupIdValue = String(options.singleWindowChatTaskGroupIdValue || "chat");
@@ -108,6 +109,40 @@ function createRuntimeStateNormalizationService(options = {}) {
       pushReceipts: [],
       pushDeliveries: [],
       automationPushMarks: {},
+    };
+  }
+
+  function compactEventPreview(value) {
+    if (value == null) return "";
+    if (typeof value === "string") return value;
+    try {
+      return JSON.stringify(value);
+    } catch (_) {
+      return String(value || "");
+    }
+  }
+
+  function suppressEventPreview(eventName, toolName) {
+    const text = `${eventName || ""} ${toolName || ""}`.toLowerCase();
+    return text.includes("function_call") || text.includes("call_output") || toolName === "message";
+  }
+
+  function normalizeThreadEvent(event = {}) {
+    const source = event && typeof event === "object" && !Array.isArray(event) ? event : {};
+    const eventName = String(source.event || source.type || "event").trim().slice(0, 120) || "event";
+    const tool = String(source.tool || source.item?.type || "").trim().slice(0, 80);
+    const preview = suppressEventPreview(eventName, tool)
+      ? ""
+      : compactEventPreview(source.preview || source.text || source.error || "").slice(0, maxEventPreviewChars);
+    return {
+      id: String(source.id || "").slice(0, 80),
+      event: eventName,
+      timestamp: source.timestamp || "",
+      runId: String(source.runId || source.run_id || "").slice(0, 120),
+      tool,
+      preview,
+      duration: source.duration || null,
+      error: Boolean(source.error),
     };
   }
 
@@ -175,7 +210,7 @@ function createRuntimeStateNormalizationService(options = {}) {
       chatGroup: normalizeChatGroup(thread.chatGroup || thread.groupChat, thread.workspaceId || "owner", normalizeOptions),
       externalIngress: normalizeExternalIngress(thread.externalIngress || thread.external_ingress),
       messages: Array.isArray(thread.messages) ? thread.messages : [],
-      events: Array.isArray(thread.events) ? thread.events.slice(-maxStoredEventsPerThread) : [],
+      events: Array.isArray(thread.events) ? thread.events.slice(-maxStoredEventsPerThread).map(normalizeThreadEvent) : [],
     };
     normalized.messages = normalizeThreadMessages(normalized, normalized.messages, normalizeOptions);
     return normalized;

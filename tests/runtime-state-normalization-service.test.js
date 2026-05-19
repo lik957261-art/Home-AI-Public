@@ -85,7 +85,11 @@ function testStateAndThreadNormalization() {
         { id: "m2", role: "assistant", status: "done", content: "ok", reasoning_effort: "high" },
         { id: "m3", role: "user", message_kind: "plain", taskGroupId: "chat", revoked_at: "2026" },
       ],
-      events: [{ id: 1 }, { id: 2 }, { id: 3 }],
+      events: [
+        { id: 1 },
+        { id: 2, event: "response.output_item.done", tool: "function_call_output", preview: "raw tool output" },
+        { id: 3, event: "note", preview: "x".repeat(500) },
+      ],
       taskGroupMeta: {
         "bad key": {
           name: "  Topic  ",
@@ -101,7 +105,11 @@ function testStateAndThreadNormalization() {
 
   assert.equal(normalized.schemaVersion, 1);
   assert.equal(normalized.threads[0].id, "thread_generated");
-  assert.deepEqual(normalized.threads[0].events, [{ id: 2 }, { id: 3 }]);
+  assert.equal(normalized.threads[0].events.length, 2);
+  assert.equal(normalized.threads[0].events[0].id, "2");
+  assert.equal(normalized.threads[0].events[0].preview, "");
+  assert.equal(normalized.threads[0].events[1].id, "3");
+  assert.equal(normalized.threads[0].events[1].preview.length, 240);
   assert.deepEqual(normalized.threads[0].chatGroup.memberWorkspaceIds, ["owner", "learner"]);
   assert.equal(normalized.threads[0].chatGroup.kind, "case-topic");
   assert.equal(normalized.threads[0].messages[0].senderLabel, "label:learner");

@@ -14,6 +14,7 @@ function normalizeTaskGroupMetaFallback(value) {
 
 function createThreadViewService(deps = {}) {
   const maxApiTextChars = Math.max(1, Number(deps.maxApiTextChars || 80_000) || 80_000);
+  const maxEventPreviewChars = Math.max(0, Number(deps.maxEventPreviewChars || 240) || 240);
   const maxStoredEventsPerThread = Math.max(1, Number(deps.maxStoredEventsPerThread || 80) || 80);
   const threadMessageInitialLimit = Math.max(10, Number(deps.threadMessageInitialLimit || 60) || 60);
   const threadMessageSearchLimit = Math.max(10, Number(deps.threadMessageSearchLimit || 120) || 120);
@@ -77,6 +78,28 @@ function createThreadViewService(deps = {}) {
       chatGroup: publicChatGroup(thread),
       externalIngress: publicExternalIngress(thread),
       preview: last ? compactText(last.content, 180) : "",
+    };
+  }
+
+  function shouldSuppressEventPreview(eventName, toolName) {
+    const text = `${eventName || ""} ${toolName || ""}`.toLowerCase();
+    return text.includes("function_call") || text.includes("call_output") || toolName === "message";
+  }
+
+  function compactThreadEvent(event = {}) {
+    const source = event && typeof event === "object" && !Array.isArray(event) ? event : {};
+    const eventName = String(source.event || source.type || "event").trim().slice(0, 120) || "event";
+    const tool = String(source.tool || source.item?.type || "").trim().slice(0, 80);
+    const rawPreview = source.preview || source.text || source.error || "";
+    return {
+      id: String(source.id || "").slice(0, 80),
+      event: eventName,
+      timestamp: source.timestamp || "",
+      runId: String(source.runId || source.run_id || "").slice(0, 120),
+      tool,
+      preview: shouldSuppressEventPreview(eventName, tool) ? "" : compactText(rawPreview, maxEventPreviewChars),
+      duration: source.duration || null,
+      error: Boolean(source.error),
     };
   }
 
@@ -405,7 +428,7 @@ function createThreadViewService(deps = {}) {
       externalIngress: publicExternalIngress(thread),
       messages: messages.map((message) => compactMessage(message, thread)),
       messagesPage: messagePage,
-      events: (thread.events || []).slice(-maxStoredEventsPerThread),
+      events: (thread.events || []).slice(-maxStoredEventsPerThread).map(compactThreadEvent),
     };
   }
 

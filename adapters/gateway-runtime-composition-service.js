@@ -175,6 +175,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
         saveState: deps.saveState,
         scheduleNextQueuedRunForTaskGroup,
         state: deps.state,
+        streamingSaveThrottleMs: deps.streamingSaveThrottleMs,
         stripPermissionApprovalMarkers: deps.stripPermissionApprovalMarkers,
         supplementGatewayUsage: deps.supplementGatewayUsage,
         threadSummary: deps.threadSummary,

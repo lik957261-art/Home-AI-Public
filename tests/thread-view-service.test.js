@@ -408,6 +408,14 @@ function testCompactThread(subject) {
   assert.deepEqual(got.messagesPage, { mode: "tasks", total: 4, limit: 2 });
   assert.equal(got.events.length, 80);
   assert.equal(got.events[0].id, "event-5");
+  const noisy = compactThread(Object.assign({}, thread, {
+    events: [
+      { id: "raw", event: "response.output_item.done", tool: "function_call_output", preview: "x".repeat(5000) },
+      { id: "safe", event: "note", preview: "y".repeat(5000) },
+    ],
+  }));
+  assert.equal(noisy.events[0].preview, "");
+  assert.equal(noisy.events[1].preview.length < 5000, true);
 
   const paged = compactThreadWithMessagePage(makeThread(), { mode: "tasks", limit: 2 });
   assert.deepEqual(paged.messages.map((message) => message.id), ["task-b-user", "task-b-assistant"]);

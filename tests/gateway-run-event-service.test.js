@@ -53,6 +53,7 @@ function makeHarness(overrides = {}) {
     nowIso: () => "2026-05-15T01:02:03.000Z",
     nowMs: () => 2000,
     maxMessageChars: 50,
+    streamingSaveThrottleMs: 0,
     saveState: () => { calls.saved += 1; },
     broadcast: (payload) => calls.broadcasts.push(payload),
     compactMessage: (message) => ({ id: message.id, status: message.status, content: message.content, runId: message.runId }),
@@ -131,6 +132,36 @@ function testDeltaUpdatesMessageAndThread() {
   assert.equal(calls.saved, 1);
   assert.equal(calls.broadcasts[0].type, "message.delta");
   assert.equal(calls.broadcasts[0].delta, "partial");
+}
+
+function testStreamingDeltaSavesAreCoalesced() {
+  let timerFn = null;
+  let timerCleared = false;
+  const harness = makeHarness({
+    streamingSaveThrottleMs: 1200,
+    setTimeout(fn, delay) {
+      assert.equal(delay, 1200);
+      timerFn = fn;
+      return { unref() {} };
+    },
+    clearTimeout() {
+      timerCleared = true;
+      timerFn = null;
+    },
+  });
+  harness.service.applyHermesRunEvent({ event: "message.delta", run_id: "public_run", delta: "a" });
+  harness.service.applyHermesRunEvent({ event: "message.delta", run_id: "public_run", delta: "b" });
+  assert.equal(harness.calls.saved, 0);
+  assert.equal(harness.message.content, "ab");
+  assert.equal(typeof timerFn, "function");
+  timerFn();
+  assert.equal(harness.calls.saved, 1);
+
+  harness.service.applyHermesRunEvent({ event: "message.delta", run_id: "public_run", delta: "c" });
+  assert.equal(harness.calls.saved, 1);
+  harness.service.applyHermesRunEvent({ event: "response.completed", run_id: "public_run", output: "done" });
+  assert.equal(timerCleared, true);
+  assert.equal(harness.calls.saved, 2);
 }
 
 function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
@@ -284,6 +315,7 @@ function testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued() 
 testPureTargetAndOutputHelpers();
 testResponseCreatedAliasesRunAndBroadcasts();
 testDeltaUpdatesMessageAndThread();
+testStreamingDeltaSavesAreCoalesced();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
 testCompletedRunPersistsLoadedSkillReferences();
 testOutputItemEventsStoreReadableSummariesOnly();

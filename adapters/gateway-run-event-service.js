@@ -169,6 +169,14 @@ function createGatewayRunEventService(options = {}) {
     ? options.compactFullContent
     : ((value) => defaultAppendBounded("", value, maxMessageChars));
   const saveState = typeof options.saveState === "function" ? options.saveState : (() => {});
+  const setTimer = typeof options.setTimeout === "function" ? options.setTimeout : setTimeout;
+  const clearTimer = typeof options.clearTimeout === "function" ? options.clearTimeout : clearTimeout;
+  const streamingSaveThrottleMs = Math.max(0, Number(options.streamingSaveThrottleMs ?? 1200) || 0);
+  const logError = typeof options.logError === "function" ? options.logError : ((err) => {
+    try {
+      console.error(err);
+    } catch (_) {}
+  });
   const broadcast = typeof options.broadcast === "function" ? options.broadcast : (() => {});
   const compactMessage = typeof options.compactMessage === "function" ? options.compactMessage : compactFallback;
   const threadSummary = typeof options.threadSummary === "function" ? options.threadSummary : compactFallback;
@@ -203,6 +211,8 @@ function createGatewayRunEventService(options = {}) {
   const notifyTaskTerminal = typeof options.notifyTaskTerminal === "function"
     ? options.notifyTaskTerminal
     : ((thread, message, status) => options.webPushDeliveryService?.notifyTaskTerminal?.(thread, message, status));
+  let streamingSaveTimer = null;
+  let streamingSavePending = false;
 
   function state() {
     const value = stateProvider();
@@ -242,6 +252,31 @@ function createGatewayRunEventService(options = {}) {
     });
   }
 
+  function clearStreamingSaveTimer() {
+    if (streamingSaveTimer) clearTimer(streamingSaveTimer);
+    streamingSaveTimer = null;
+    streamingSavePending = false;
+  }
+
+  function scheduleStreamingStateSave() {
+    if (!streamingSaveThrottleMs) {
+      saveState();
+      return;
+    }
+    if (streamingSavePending) return;
+    streamingSavePending = true;
+    streamingSaveTimer = setTimer(() => {
+      streamingSaveTimer = null;
+      streamingSavePending = false;
+      try {
+        saveState();
+      } catch (err) {
+        logError(`Hermes Mobile streaming state save failed: ${err.message || String(err)}`);
+      }
+    }, streamingSaveThrottleMs);
+    if (streamingSaveTimer && typeof streamingSaveTimer.unref === "function") streamingSaveTimer.unref();
+  }
+
   function markResponseCreated(context) {
     const { thread, message, runId, responseRunId, stream } = context;
     if (responseRunId && responseRunId !== runId) {
@@ -267,7 +302,7 @@ function createGatewayRunEventService(options = {}) {
     if (!message.firstFeedbackAt) message.firstFeedbackAt = feedbackAt;
     message.updatedAt = feedbackAt;
     thread.updatedAt = feedbackAt;
-    saveState();
+    scheduleStreamingStateSave();
     broadcast({
       type: "message.delta",
       threadId: thread.id,
@@ -298,6 +333,7 @@ function createGatewayRunEventService(options = {}) {
 
   function markRunCompleted(context, event) {
     const { thread, message, runId, originalRunId, responseRunId, stream } = context;
+    clearStreamingSaveTimer();
     const output = extractCompletedOutput(event) || String(message.content || "");
     const approvalRequest = modelPermissionApprovalRequest(output, message);
     const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
@@ -344,6 +380,7 @@ function createGatewayRunEventService(options = {}) {
     const message = (thread.messages || []).find((item) => item.id === messageId);
     if (!message) return { action: "missing_message" };
     if (["done", "failed", "cancelled"].includes(message.status)) return { action: "terminal_ignored" };
+    clearStreamingSaveTimer();
     const failedAt = nowIso();
     message.status = "failed";
     message.error = safeErrorMessage(err);
@@ -365,6 +402,7 @@ function createGatewayRunEventService(options = {}) {
     const message = (thread.messages || []).find((item) => item.id === messageId);
     if (!message) return { action: "missing_message" };
     if (["done", "failed", "cancelled"].includes(message.status)) return { action: "terminal_ignored" };
+    clearStreamingSaveTimer();
     const cancelledAt = nowIso();
     message.status = "cancelled";
     message.cancelledAt = cancelledAt;

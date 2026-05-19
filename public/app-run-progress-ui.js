@@ -1,7 +1,7 @@
 "use strict";
 
 const RUN_EVENT_PREVIEW_MAX_CHARS = 180;
-const RUN_PROGRESS_RENDER_THROTTLE_MS = 250;
+const RUN_PROGRESS_RENDER_THROTTLE_MS = 750;
 
 function boundedRunEventPreview(value) {
   const text = String(value || "");
@@ -174,7 +174,7 @@ function renderRunProgressQuietRow(lastEventMs) {
     <span class="run-progress-dot" aria-hidden="true"></span>
     <span class="run-progress-main">\u4ecd\u5728\u8fd0\u884c</span>
     <span class="run-progress-time" data-run-progress-age="${escapeHtml(String(lastEventMs))}">${escapeHtml(runProgressAgeLabel(lastEventMs))}</span>
-    <span class="run-progress-preview">\u6700\u8fd1\u65e0\u65b0\u4e8b\u4ef6\uff0c\u754c\u9762\u672a\u5361\u6b7b</span>
+    <span class="run-progress-preview">\u6700\u8fd1\u65e0\u65b0\u4e8b\u4ef6\uff0c\u4ecd\u5728\u7b49\u5f85\u8fd4\u56de</span>
   </div>`;
 }
 
