@@ -160,6 +160,7 @@ function run() {
   assert.match(permissionInstructions, /access_policy_context/);
   assert.match(permissionInstructions, /Web Search is ordinary low-permission work/);
   assert.match(permissionInstructions, /Search-only public web lookup is ordinary low-permission work/);
+  assert.match(permissionInstructions, /X Search is ordinary low-permission public lookup/);
   assert.match(permissionInstructions, /Scoped HTTP requests .* ordinary low-permission work/);
   assert.match(permissionInstructions, /Weather lookup .* ordinary low-permission work/);
   assert.match(permissionInstructions, /Browser automation .* ordinary low-permission work/);
@@ -186,6 +187,7 @@ function run() {
   assert.ok(fs.existsSync(skillPath));
   assert.match(fs.readFileSync(skillPath, "utf8"), /Public Web Search and public web extraction are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Search-only public web lookup is \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /X Search is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Scoped HTTP\/API requests .* are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Weather lookup .* is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Browser automation .* is \*\*Allowed\*\*/);

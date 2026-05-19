@@ -263,6 +263,25 @@ function testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext() {
   assert.deepEqual(calls.hermesInstructions[0].buildOptions.groupChatAttachmentCopies, copies);
 }
 
+async function testStartRunPreservesSearchSourceRouting() {
+  const { calls, service } = makeHarness();
+  const thread = baseThread();
+  const user = baseUserMessage();
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(thread, user, assistant, {
+    searchSource: "x",
+    sourceIntent: "x_search",
+    access_policy_context: { allowed_toolsets: ["x_search", "web", "search"] },
+  });
+
+  assert.equal(calls.gatewayRouting[0].searchSource, "x");
+  assert.equal(calls.gatewayRouting[0].sourceIntent, "x_search");
+  assert.equal(assistant.runOptions.searchSource, "x");
+  assert.equal(assistant.runOptions.sourceIntent, "x_search");
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "x_search", "web", "search"]);
+}
+
 async function testConcurrencyErrorStopsBeforeGatewaySelection() {
   const err = new Error("limit");
   err.status = 429;
@@ -302,6 +321,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   testPureWorkspaceHelpers();
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
+  await testStartRunPreservesSearchSourceRouting();
   await testConcurrencyErrorStopsBeforeGatewaySelection();
   testMarkStartFailedUsesInjectedHooks();
   console.log("gateway-run-start-service tests passed");

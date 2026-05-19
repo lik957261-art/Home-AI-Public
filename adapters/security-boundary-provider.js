@@ -152,6 +152,7 @@ function permissionBoundarySkillInstructions(policy = {}) {
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "Web Search is ordinary low-permission work when the run has the web toolset; do not ask for Owner elevation just to search or extract public web information.",
     "Search-only public web lookup is ordinary low-permission work when the run has the search toolset.",
+    "X Search is ordinary low-permission public lookup when the run has the x_search toolset and the Gateway profile already has xAI OAuth/API credentials; do not ask for Owner elevation just to search public X content.",
     "Scoped HTTP requests to the current account/workspace's documented Program APIs are ordinary low-permission work when the run has the http toolset; call `http_request` instead of looking for `web_request` or using terminal/code for authenticated manifest, bundle, or writeback calls.",
     "Weather lookup for the current account's user-facing request is ordinary low-permission work when the run has the weather toolset; do not ask for Owner elevation just to check forecast, temperature, rain, wind, or weather-dependent planning.",
     "Browser automation for public web pages or explicitly current-account web tasks is ordinary low-permission work when the run has the browser toolset, provided it uses an isolated worker browser/session and does not operate unrelated accounts, payments, orders, or privacy commitments.",

@@ -689,6 +689,7 @@ function testServiceFirstArchitectureContract() {
     "public/app-shell-ui.js",
     "public/app-task-groups-ui.js",
     "public/app-chat-composer-ui.js",
+    "public/app-composer-source-ui.js",
     "public/app-composer-context-ui.js",
     "public/app-run-progress-ui.js",
     "public/app-navigation-search-ui.js",

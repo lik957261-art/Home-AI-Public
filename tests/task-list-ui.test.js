@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260518-weixin-file-only-v18";
+const CLIENT_VERSION = "20260519-search-source-v1";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -191,6 +191,7 @@ assert.match(gatewayRunInstructionServiceJs, /singleWindowMode === "chat" \|\| t
 assert.match(serverJs, /function callableFunctionHintsForToolsets\(toolsets = \[\]\)/);
 assert.match(gatewayRunInstructionServiceJs, /web: \["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"\]/);
 assert.match(gatewayRunInstructionServiceJs, /search: \["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"\]/);
+assert.match(gatewayRunInstructionServiceJs, /x_search: \["x_search"\]/);
 assert.match(gatewayRunInstructionServiceJs, /http: \["http_request"\]/);
 assert.match(gatewayRunInstructionServiceJs, /file: \["read_file", "write_file", "patch", "search_files", "docx_extract_text", "audio_transcribe"\]/);
 assert.match(gatewayRunInstructionServiceJs, /image_gen: \["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"\]/);
@@ -208,15 +209,16 @@ assert.match(gatewayRunInstructionServiceJs, /For audio-only files such as \.mp3
 assert.match(gatewayRunInstructionServiceJs, /Do not ask the user to convert an ordinary current-workspace audio file into a blank video/);
 assert.match(gatewayRunInstructionServiceJs, /Current tool schema override: the `web`\/`search` toolsets are enabled for this run/);
 assert.match(gatewayRunInstructionServiceJs, /Prefer callable function names `mobile_web_search` and `mobile_web_extract`/);
+assert.match(gatewayRunInstructionServiceJs, /Current tool schema override: the `x_search` toolset is enabled for this run/);
 assert.match(gatewayRunInstructionServiceJs, /Current tool schema override: the `image_gen` toolset is enabled for this run/);
 assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt_image_erase`/);
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
-assert.match(serverJs, /20260513-audio-file-v1/);
+assert.match(serverJs, /20260519-x-search-v1/);
 assert.match(serverJs, /function gatewayConversationId\(thread, userMessage, runPolicy = \{\}\)/);
 assert.match(gatewayRunInstructionServiceJs, /schemaSensitive \? `\$\{base\}_\$\{toolSchemaEpoch\}` : base/);
-assert.match(gatewayRunInstructionServiceJs, /\["web", "search", "http", "weather", "file", "image_gen"\]/);
+assert.match(gatewayRunInstructionServiceJs, /\["web", "search", "x_search", "http", "weather", "file", "image_gen"\]/);
 assert.match(serverJs, /toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH/);
 assert.match(gatewayRunInstructionServiceJs, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
 assert.match(ownerElevationRoutingServiceJs, /Image editing, object removal, background cleanup, P image requests, and erase\/inpainting requests inside the current workspace are ordinary user work/);

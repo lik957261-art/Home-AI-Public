@@ -22,7 +22,7 @@ function testPolicySummaryIncludesCallableToolHints() {
     principal_id: "owner",
     default_workspace: "C:/workspace",
     allowed_roots: ["C:/workspace", "D:/shared"],
-    allowed_toolsets: ["http", "file", "image_gen", "http"],
+    allowed_toolsets: ["http", "file", "image_gen", "x_search", "http"],
     connector_profiles: { google: {}, outlook: {} },
   });
 
@@ -31,6 +31,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /http -> http_request/);
   assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_extract_text, audio_transcribe/);
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
+  assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
   assert.match(summary, /http_request\.multipart_files/);
@@ -42,7 +43,7 @@ function testPolicySummaryIncludesCallableToolHints() {
 function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   const service = createService();
   const text = service.currentToolSchemaOverrideInstructions({
-    allowed_toolsets: ["http", "file", "web", "search", "image_gen"],
+    allowed_toolsets: ["http", "file", "web", "search", "x_search", "image_gen"],
   });
 
   assert.match(text, /`http` toolset is enabled/);
@@ -51,6 +52,8 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /Word DOCX text extraction is available as `docx_extract_text`/);
   assert.match(text, /audio transcription.*`audio_transcribe`/);
   assert.match(text, /Prefer callable function names `mobile_web_search` and `mobile_web_extract`/);
+  assert.match(text, /`x_search` toolset is enabled/);
+  assert.match(text, /Do not claim X was searched unless `x_search` was actually available and used/);
   assert.match(text, /function names include `image_generate`, `chatgpt_image_edit`, and `chatgpt_image_erase`/);
   assert.match(text, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
 }
@@ -62,11 +65,15 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260517-http-file-upload-v1",
+    "session_a_group_1_20260519-x-search-v1",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
     "session_a_group_1",
+  );
+  assert.equal(
+    service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
+    "session_a_group_1_20260519-x-search-v1",
   );
 }
 

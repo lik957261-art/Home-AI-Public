@@ -1,5 +1,7 @@
 "use strict";
 
+const { resolveSearchSourceForMessage: defaultResolveSearchSourceForMessage } = require("./search-source-routing-service");
+
 const DEFAULT_SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
 const DEFAULT_SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const DEFAULT_VALID_REASONING_EFFORTS = new Set(["none", "low", "medium", "high"]);
@@ -58,6 +60,40 @@ function errorResult(status, error, extra = {}) {
   };
 }
 
+function mergeAccessPolicyContexts(...policies) {
+  const list = (value) => Array.isArray(value) ? value : (value ? [value] : []);
+  const out = {};
+  for (const policy of policies) {
+    if (!policy || typeof policy !== "object") continue;
+    const existingToolsets = out.allowed_toolsets || [];
+    const existingConnectorProfiles = out.connector_profiles || {};
+    Object.assign(out, policy);
+    out.allowed_toolsets = [
+      ...existingToolsets,
+      ...list(policy.allowed_toolsets || policy.allowedToolsets),
+    ];
+    out.connector_profiles = Object.assign(
+      {},
+      existingConnectorProfiles,
+      policy.connector_profiles || policy.connectorProfiles || {},
+    );
+  }
+  if (Array.isArray(out.allowed_toolsets)) {
+    const seen = new Set();
+    out.allowed_toolsets = out.allowed_toolsets
+      .map((item) => cleanString(item))
+      .filter((item) => {
+        if (!item || seen.has(item)) return false;
+        seen.add(item);
+        return true;
+      });
+  }
+  if (!Object.keys(out.connector_profiles || {}).length) delete out.connector_profiles;
+  delete out.allowedToolsets;
+  delete out.connectorProfiles;
+  return Object.keys(out).length ? out : null;
+}
+
 function createThreadMessageCreateService(options = {}) {
   const groupChatTaskGroupId = cleanString(options.groupChatTaskGroupId, DEFAULT_SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID);
   const validReasoningEfforts = options.validReasoningEfforts || DEFAULT_VALID_REASONING_EFFORTS;
@@ -88,6 +124,7 @@ function createThreadMessageCreateService(options = {}) {
   const ownerElevationInstructions = maybeCall(options.ownerElevationInstructions, () => "");
   const publicArtifactFromClient = maybeCall(options.publicArtifactFromClient, (value) => objectValue(value, null));
   const removeThreadActiveRun = maybeCall(options.removeThreadActiveRun, () => {});
+  const resolveSearchSourceForMessage = maybeCall(options.resolveSearchSourceForMessage, defaultResolveSearchSourceForMessage);
   const resolveTaskDirectoryAttachment = maybeCall(options.resolveTaskDirectoryAttachment, () => null);
   const runConcurrencyError = maybeCall(options.runConcurrencyError, () => null);
   const runConcurrencySnapshot = maybeCall(options.runConcurrencySnapshot, () => null);
@@ -265,6 +302,7 @@ function createThreadMessageCreateService(options = {}) {
       reasoningEffort,
       singleWindowMode,
       taskGroupId,
+      searchSource,
     } = context;
     const senderInfo = senderInfoForWorkspace(actorWorkspaceId);
     const userMessage = {
@@ -288,6 +326,10 @@ function createThreadMessageCreateService(options = {}) {
       reasoningEffort,
       singleWindowMode,
     };
+    if (searchSource?.explicit) {
+      userMessage.searchSource = searchSource.source;
+      userMessage.sourceIntent = searchSource.sourceIntent;
+    }
 
     const assistantMessage = {
       id: makeId("msg"),
@@ -308,6 +350,10 @@ function createThreadMessageCreateService(options = {}) {
       reasoningEffort,
       singleWindowMode,
     };
+    if (searchSource?.explicit) {
+      assistantMessage.searchSource = searchSource.source;
+      assistantMessage.sourceIntent = searchSource.sourceIntent;
+    }
 
     return { userMessage, assistantMessage };
   }
@@ -368,6 +414,7 @@ function createThreadMessageCreateService(options = {}) {
 
   function buildRunOptions(thread, body, context) {
     const followUpInstructions = buildFollowUpInstructions(thread, context.singleWindowMode, context.requestedTaskGroupId);
+    const searchSource = context.searchSource || {};
     const runOptions = {
       reasoning_effort: context.reasoningEffort,
       singleWindowMode: context.singleWindowMode,
@@ -375,14 +422,23 @@ function createThreadMessageCreateService(options = {}) {
       gatewayRouting: context.gatewayRouting,
       instructions: [
         body.instructions || "",
+        searchSource.instructions || "",
         ownerElevationInstructions(body),
         followUpInstructions,
       ].filter(Boolean).join("\n\n"),
     };
+    if (searchSource.explicit) {
+      runOptions.searchSource = searchSource.source;
+      runOptions.sourceIntent = searchSource.sourceIntent;
+    }
     if (body.model) runOptions.model = body.model;
     if (body.reasoning && typeof body.reasoning === "object") runOptions.reasoning = body.reasoning;
-    if (body.access_policy_context && typeof body.access_policy_context === "object") {
-      runOptions.access_policy_context = body.access_policy_context;
+    const accessPolicyContext = mergeAccessPolicyContexts(
+      body.access_policy_context && typeof body.access_policy_context === "object" ? body.access_policy_context : null,
+      searchSource.accessPolicyContext,
+    );
+    if (accessPolicyContext) {
+      runOptions.access_policy_context = accessPolicyContext;
     }
     return { runOptions, followUpInstructions };
   }
@@ -452,7 +508,14 @@ function createThreadMessageCreateService(options = {}) {
     if (!actor.ok) return actor;
 
     const messageKind = resolveMessageKind(body, groupChat.isGroupChatMessage, groupChat.isCaseTopicChatMessage);
-    const routing = resolveGatewayRouting(auth, normalized.text, body, actor.actorWorkspaceId, messageKind);
+    const searchSource = resolveSearchSourceForMessage(body, normalized.text);
+    const routingBody = Object.assign({}, body, {
+      searchSource: searchSource.source,
+      search_source: searchSource.source,
+      sourceIntent: searchSource.sourceIntent,
+      source_intent: searchSource.sourceIntent,
+    });
+    const routing = resolveGatewayRouting(auth, normalized.text, routingBody, actor.actorWorkspaceId, messageKind);
     if (!routing.ok) return routing;
 
     const reasoningEffort = hasReasoningEffort(validReasoningEfforts, normalized.requestedReasoningEffort)
@@ -473,6 +536,7 @@ function createThreadMessageCreateService(options = {}) {
       messageKind,
       quotedMessage: quoted.quotedMessage,
       reasoningEffort,
+      searchSource,
       singleWindowMode: normalized.singleWindowMode,
       taskGroupId: taskGroup.taskGroupId,
     });
@@ -504,6 +568,7 @@ function createThreadMessageCreateService(options = {}) {
       messageKind,
       gatewayRouting: routing.gatewayRouting,
       reasoningEffort,
+      searchSource,
       directoryAttachment,
       userMessage: messages.userMessage,
       assistantMessage: messages.assistantMessage,
@@ -530,6 +595,7 @@ function createThreadMessageCreateService(options = {}) {
       gatewayRouting: routing.gatewayRouting,
       reasoningEffort,
       requestedTaskGroupId: taskGroup.requestedTaskGroupId,
+      searchSource,
       singleWindowMode: normalized.singleWindowMode,
     });
     messages.assistantMessage.runOptions = run.runOptions;

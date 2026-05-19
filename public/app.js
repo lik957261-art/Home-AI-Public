@@ -285,6 +285,8 @@ const state = {
   assistantLabel: "AI",
   defaultModel: "",
   modelProvider: "",
+  composerSearchSource: "local",
+  composerSourceMenuOpen: false,
   reasoningOptions: [],
   gatewayPool: null,
   concurrency: null,

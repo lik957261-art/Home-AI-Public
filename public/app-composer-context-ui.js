@@ -54,6 +54,14 @@ function composerReasoningLabel() {
   return `\u63a8\u7406 ${compact}`;
 }
 
+function composerSearchSourceLabel() {
+  if (isChatSearchMode()) return null;
+  if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
+  const info = selectedComposerSearchSourceInfo(getComposerText());
+  if (!info || info.source === "local") return null;
+  return { label: `\u4fe1\u6e90 ${info.label}`, tone: "active" };
+}
+
 function messageUsesHighPermissionGateway(message = {}) {
   const securityLevel = String(message.gatewaySecurityLevel || message.gateway_security_level || "").trim();
   return Boolean(
@@ -221,6 +229,8 @@ function composerContextItems(counts = composerRunCounts()) {
   if (gatewayPermissionLabel?.label) items.push(gatewayPermissionLabel);
   const reasoningLabel = composerReasoningLabel();
   if (reasoningLabel) items.push({ label: reasoningLabel });
+  const searchSourceLabel = composerSearchSourceLabel();
+  if (searchSourceLabel?.label) items.push(searchSourceLabel);
   const directoryLabel = composerDirectoryLabel();
   if (directoryLabel) items.push({ label: `\u76ee\u5f55 ${directoryLabel}`, tone: "directory" });
   if (state.pendingArtifacts.length) {
@@ -239,6 +249,7 @@ function shouldShowComposerContext(items, counts) {
     state.composerFocused
     || composerHasDraft()
     || state.pendingArtifacts.length
+    || selectedComposerSearchSourceInfo(getComposerText()).source !== "local"
     || state.quotedReply
     || state.pendingTaskDirectory?.projectId
     || (isTaskListView() && state.taskDirectoryFilter?.projectId)

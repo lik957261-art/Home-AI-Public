@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260517-http-file-upload-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260519-x-search-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -39,6 +39,7 @@ function createGatewayRunInstructionService(options = {}) {
     const hintsByToolset = {
       web: ["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"],
       search: ["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"],
+      x_search: ["x_search"],
       http: ["http_request"],
       weather: ["weather"],
       file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text", "audio_transcribe"],
@@ -94,7 +95,7 @@ function createGatewayRunInstructionService(options = {}) {
     const base = thread.singleWindow
       ? `${thread.hermesSessionId}_${userMessage.taskGroupId || userMessage.id}`
       : thread.hermesSessionId;
-    const schemaSensitive = policyToolsets(runPolicy).some((name) => ["web", "search", "http", "weather", "file", "image_gen"].includes(name));
+    const schemaSensitive = policyToolsets(runPolicy).some((name) => ["web", "search", "x_search", "http", "weather", "file", "image_gen"].includes(name));
     return schemaSensitive ? `${base}_${toolSchemaEpoch}` : base;
   }
 
@@ -121,6 +122,12 @@ function createGatewayRunInstructionService(options = {}) {
       lines.push(
         "Current tool schema override: the `web`/`search` toolsets are enabled for this run. Prefer callable function names `mobile_web_search` and `mobile_web_extract`; compatibility names `web_search` and `web_extract` may also be present.",
         "For public web lookup, use `mobile_web_search` when available. For public URL text extraction, use `mobile_web_extract` when available."
+      );
+    }
+    if (policyHasToolset(policy, "x_search")) {
+      lines.push(
+        "Current tool schema override: the `x_search` toolset is enabled for this run, and its callable function name is `x_search` when the Gateway profile has xAI OAuth/API credentials.",
+        "For X/Twitter lookup, use `x_search` when available. Do not claim X was searched unless `x_search` was actually available and used."
       );
     }
     if (policyHasToolset(policy, "image_gen")) {

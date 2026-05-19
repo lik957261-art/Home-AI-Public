@@ -56,6 +56,7 @@ async function sendMessage(event) {
     return;
   }
   const aiMention = composerAiMentionInfo(text);
+  const searchSourceFields = composerSearchSourceBodyFields(text);
   if (isDraftThread(state.currentThread)) await materializeCurrentThread();
   if (!state.currentThreadId) {
     if (ownerElevationOnceTag) clearOwnerElevationOnce();
@@ -74,6 +75,7 @@ async function sendMessage(event) {
   let consumedPendingDirectory = false;
   try {
     const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
+    if (searchSourceFields) Object.assign(body, searchSourceFields);
     if (ownerElevationActive() || ownerElevationOnceTag) {
       body.maintenanceMode = true;
       body.maintenance_mode = true;

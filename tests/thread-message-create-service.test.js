@@ -394,6 +394,34 @@ async function testRunOptionsAndDispatchHooks() {
   assert.equal(calls.starts[0].runOptions, plan.runOptions);
 }
 
+function testSearchSourceRunOptions() {
+  const { calls, service } = makeHarness();
+  const plan = service.prepareThreadMessageCreate({
+    thread: baseThread(),
+    body: {
+      text: "\u8bf7\u67e5 X \u4e0a\u7684\u6700\u65b0\u8ba8\u8bba",
+      search_source: "x",
+    },
+    auth: {},
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.searchSource.source, "x");
+  assert.equal(plan.searchSource.sourceIntent, "x_search");
+  assert.equal(plan.userMessage.searchSource, "x");
+  assert.equal(plan.userMessage.sourceIntent, "x_search");
+  assert.equal(plan.assistantMessage.searchSource, "x");
+  assert.equal(plan.assistantMessage.sourceIntent, "x_search");
+  assert.deepEqual(plan.runOptions.access_policy_context, {
+    allowed_toolsets: ["x_search", "web", "search"],
+  });
+  assert.equal(plan.runOptions.searchSource, "x");
+  assert.equal(plan.runOptions.sourceIntent, "x_search");
+  assert.match(plan.runOptions.instructions, /Source selected.*X search/);
+  assert.equal(calls.gatewayRouting[0].body.searchSource, "x");
+  assert.equal(calls.gatewayRouting[0].body.sourceIntent, "x_search");
+}
+
 async function testQueuedChatRunSkipsConcurrencyAndStart() {
   const { calls, service } = makeHarness();
   const thread = baseThread({
@@ -447,6 +475,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   testDirectoryAttachmentPrecedence();
   testDirectCreateRoutingAndPayloads();
   await testRunOptionsAndDispatchHooks();
+  testSearchSourceRunOptions();
   await testQueuedChatRunSkipsConcurrencyAndStart();
   testConcurrencyErrorBeforeStateMutation();
   console.log("thread-message-create-service tests passed");

@@ -12,6 +12,7 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   }
   if (state.viewMode === "tasks") state.pendingTaskReasoningEffort = "";
   if (state.viewMode === "tasks") state.pendingTaskReasoningExplicit = false;
+  resetComposerSearchSource();
   clearQuotedReply({ render: false });
   renderPendingArtifacts();
   state.currentThread = mergeCurrentThread(result.thread);
@@ -292,6 +293,7 @@ function renderGroupMentionMenu() {
     return;
   }
   state.groupMentionOpen = true;
+  closeComposerSourceMenu();
   state.groupMentionOptions = options;
   state.groupMentionToken = token;
   state.groupMentionIndex = Math.min(Math.max(0, state.groupMentionIndex), options.length - 1);

@@ -361,6 +361,17 @@ function wireUi() {
   $("closeMenu").addEventListener("click", closeSidebar);
   $("sidebarBack")?.addEventListener("click", sidebarBackToMenu);
   $("sendMessage").addEventListener("click", () => void sendMessage());
+  $("composerSearchSource")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleComposerSourceMenu();
+  });
+  $("composerSourceMenu")?.addEventListener("pointerdown", (event) => {
+    const option = event.target.closest?.("[data-composer-source]");
+    if (!option) return;
+    event.preventDefault();
+    event.stopPropagation();
+    chooseComposerSearchSource(option.dataset.composerSource || "local");
+  });
   $("groupMentionMenu")?.addEventListener("pointerdown", (event) => {
     const option = event.target.closest?.("[data-group-mention-index]");
     if (!option) return;
@@ -386,6 +397,7 @@ function wireUi() {
     else {
       updateComposerAction();
       updateGroupMentionMenu();
+      updateComposerSourceControl();
     }
   });
   $("messageInput").addEventListener("keydown", handleComposerKeydown);
@@ -398,6 +410,7 @@ function wireUi() {
     clearComposerSendAfterCompositionFallback();
     updateComposerAction();
     updateGroupMentionMenu();
+    updateComposerSourceControl();
     if (state.composerSendAfterComposition) {
       state.composerSendAfterComposition = false;
       setTimeout(() => void sendMessage(), 0);
@@ -427,6 +440,14 @@ function wireUi() {
     if (!state.groupMentionOpen) return;
     if ($("composer")?.contains(event.target)) return;
     closeGroupMentionMenu();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!state.composerSourceMenuOpen) return;
+    if ($("composer")?.contains(event.target)) return;
+    closeComposerSourceMenu();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeComposerSourceMenu();
   });
   document.addEventListener("click", (event) => {
     suppressTransientActivationEvent(event);

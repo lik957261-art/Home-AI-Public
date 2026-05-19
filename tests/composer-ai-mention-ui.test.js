@@ -72,6 +72,18 @@ assert.match(appJs, /function selectedComposerReasoningEffort\(text = getCompose
 assert.match(appJs, /const aiMention = composerAiMentionInfo\(text\)/);
 assert.match(appJs, /const reasoningEffort = selectedComposerReasoningEffort\(text\)/);
 assert.match(appJs, /if \(reasoningEffort\) body\.reasoning_effort = reasoningEffort/);
+assert.match(indexHtml, /id="composerSearchSource"/);
+assert.match(indexHtml, /id="composerSourceMenu"/);
+assert.match(indexHtml, /app-composer-source-ui\.js/);
+assert.match(stylesCss, /\.composer-source-button/);
+assert.match(stylesCss, /\.composer-source-menu/);
+assert.match(appJs, /composerSearchSource: "local"/);
+assert.match(appJs, /function selectedComposerSearchSourceInfo\(text = getComposerText\(\)\)/);
+assert.match(appJs, /function composerSearchSourceBodyFields\(text = getComposerText\(\)\)/);
+assert.match(appJs, /const searchSourceFields = composerSearchSourceBodyFields\(text\)/);
+assert.match(appJs, /if \(searchSourceFields\) Object\.assign\(body, searchSourceFields\)/);
+assert.match(appJs, /function resetComposerSearchSource\(\)/);
+assert.match(appJs, /resetComposerSearchSource\(\)/);
 assert.match(indexHtml, /<textarea id="messageInput"/);
 assert.match(appJs, /if \(input && "value" in input\) return String\(input\.value/);
 assert.match(appJs, /input\.setRangeText\(text, start, end, "end"\)/);

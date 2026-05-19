@@ -312,6 +312,7 @@ model:
 toolsets:
   - web
   - search
+  - x_search
   - browser
   - file
   - vision
@@ -332,6 +333,7 @@ platform_toolsets:
   api_server:
     - web
     - search
+    - x_search
     - browser
     - file
     - vision
@@ -463,6 +465,7 @@ model:
 toolsets:
   - web
   - search
+  - x_search
   - browser
   - file
   - vision
@@ -484,6 +487,7 @@ platform_toolsets:
   api_server:
     - web
     - search
+    - x_search
     - browser
     - file
     - vision

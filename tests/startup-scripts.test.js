@@ -362,6 +362,7 @@ assert.match(configureLowGateways, /platform_toolsets:/);
 assert.doesNotMatch(configureLowGateways, /api_server:\s*\r?\n\s+- hermes-api-server/);
 assert.match(configureLowGateways, /\s+- web/);
 assert.match(configureLowGateways, /\s+- search/);
+assert.match(configureLowGateways, /\s+- x_search/);
 assert.match(configureLowGateways, /\s+- http/);
 assert.match(configureLowGateways, /\s+- browser/);
 assert.match(configureLowGateways, /\s+- file/);

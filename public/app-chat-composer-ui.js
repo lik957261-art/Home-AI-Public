@@ -486,6 +486,7 @@ function updateComposerAction() {
   composer?.classList.toggle("chat-search-composer", searchMode);
   input?.classList.toggle("chat-search-editor", searchMode);
   if (searchMode || !composerMentionAvailable()) closeGroupMentionMenu();
+  updateComposerSourceControl();
   if (input) {
     input.setAttribute("enterkeyhint", searchMode ? "search" : "send");
     input.setAttribute("aria-label", searchMode ? "Search chat" : "Message Hermes");
