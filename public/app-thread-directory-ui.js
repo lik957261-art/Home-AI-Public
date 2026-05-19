@@ -287,11 +287,9 @@ function renderTaskDetailToolbar(group) {
   const sharedTopic = Boolean(group?.sharedTopic);
   const context = Object.assign({ toolbar: true }, taskDirectoryContext(group));
   const aliasButtons = renderDirectoryAliases(taskDirectoryAliases(group), context);
-  const skillChips = renderTaskSkillChips(taskSkills(group), { compact: true });
   toolbar.innerHTML = `
     <div class="task-toolbar-meta">
       <div class="task-toolbar-directories">${aliasButtons || ""}</div>
-      ${skillChips}
     </div>
     ${sharedTopic ? "" : `<div class="task-more-wrap">
       <button class="task-more-button" type="button" data-task-more aria-label="Topic menu" aria-expanded="false">...</button>
@@ -315,5 +313,4 @@ function renderTaskDetailToolbar(group) {
     deleteTaskGroup(group.id).catch(showError);
   });
   wireDirectoryProjectLinks(toolbar);
-  wireSkillLinks(toolbar);
 }

@@ -3,14 +3,12 @@
 function renderTaskCard(group) {
   const sharedTopic = Boolean(group.sharedTopic || group.sourceThreadId);
   const latestArtifact = sharedTopic ? null : latestTaskListDocument(group);
-  const skills = sharedTopic ? [] : taskSkills(group);
   const artifactChips = latestArtifact ? `<span class="task-doc-item">
     <a class="task-doc-icon doc-${escapeHtml(artifactKind(latestArtifact))}" href="${escapeHtml(artifactHref(latestArtifact))}" target="_blank" rel="noopener" data-task-doc title="${escapeHtml(artifactDisplayName(latestArtifact))}" aria-label="${escapeHtml(artifactDisplayName(latestArtifact))}">
       ${escapeHtml(iconForArtifact(latestArtifact))}
     </a>
     ${renderArtifactDirectoryButton(latestArtifact, { compact: true })}
   </span>` : "";
-  const skillChips = renderTaskSkillChips(skills, { compact: true });
   const sourceThreadAttr = group.sourceThreadId ? ` data-open-task-thread="${escapeHtml(group.sourceThreadId)}"` : "";
   const sharedBadge = sharedTopic ? `<span class="task-row-shared">${escapeHtml(group.sourceThreadTitle || "\u5171\u4eab\u5b66\u4e60\u8bdd\u9898")}</span>` : "";
   return `<article class="task-card task-card-collapsed task-swipe-row${sharedTopic ? " shared-topic-card" : ""}" data-task-swipe-card data-task-id="${escapeHtml(group.id)}">
@@ -30,7 +28,6 @@ function renderTaskCard(group) {
         <div class="task-docs${artifactChips ? "" : " empty"}" aria-label="Topic documents">
           ${artifactChips}
         </div>
-        ${skillChips}
         ${renderTaskDirectoryBadges(group, { empty: true })}
       </div>`}
     </div>

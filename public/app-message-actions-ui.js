@@ -488,7 +488,17 @@ function updateMessageScrollButtonVisibility(root) {
   const viewportHeight = Math.max(0, conversation.clientHeight || window.innerHeight || 0);
   root.querySelectorAll(".message[data-message-id]").forEach((article) => {
     const messageHeight = article.getBoundingClientRect().height || article.offsetHeight || 0;
-    const shouldShow = viewportHeight > 0 && messageHeight > Math.max(420, viewportHeight - 28);
+    const wasShown = article.dataset.messageScrollButtonVisible === "1";
+    const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline"));
+    const showThreshold = Math.max(420, viewportHeight - 28);
+    const hideThreshold = Math.max(360, viewportHeight - 140);
+    const shouldShow = viewportHeight > 0 && (
+      messageHeight > showThreshold
+      || (wasShown && messageHeight > hideThreshold)
+      || (wasShown && hasRunProgress)
+    );
+    if (shouldShow) article.dataset.messageScrollButtonVisible = "1";
+    else delete article.dataset.messageScrollButtonVisible;
     article.querySelectorAll(".message-scroll-button").forEach((button) => {
       button.classList.toggle("hidden", !shouldShow);
       button.tabIndex = shouldShow ? 0 : -1;
