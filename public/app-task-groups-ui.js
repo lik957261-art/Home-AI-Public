@@ -263,6 +263,7 @@ function skillTitle(skill) {
 
 function closeSkillDetail() {
   state.skillDetail = null;
+  updateNavigationControls();
   renderCurrentThread({ stickToBottom: false });
 }
 
@@ -281,7 +282,7 @@ async function openSkillDetail(skill) {
   };
   renderSkillDetailPanel();
   try {
-    const result = await api(`/api/skills/detail?skill=${encodeURIComponent(skill.path)}`);
+    const result = await api(`/api/skills/detail?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 8000 });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     state.skillDetail = Object.assign({}, state.skillDetail, result.data || {}, { loading: false, error: "" });
     renderSkillDetailPanel();
@@ -331,12 +332,18 @@ function renderSkillDetailPanel() {
           <h2>${escapeHtml(title)}</h2>
           <div class="skill-detail-path">${escapeHtml(skill.path || "")}</div>
         </div>
+        <button class="skill-detail-close" type="button" data-close-skill-detail aria-label="Close Skill">\u5173\u95ed</button>
       </div>
       ${body}
       ${skill.truncated ? `<div class="skill-detail-note">Content truncated.</div>` : ""}
     </article>
   </section>`;
   updateNavigationControls();
+  conversation.querySelector("[data-close-skill-detail]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeSkillDetail();
+  });
   ensureVerticalScrollAffordance(conversation);
   conversation.scrollTop = 0;
 }

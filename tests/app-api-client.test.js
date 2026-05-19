@@ -107,6 +107,24 @@ function response({
   });
   assert.equal(await noContentApi("/api/no-content"), null);
 
+  const timeoutApi = createApiClient({
+    fetchImpl: (_url, options) => new Promise((_resolve, reject) => {
+      assert.equal(Object.prototype.hasOwnProperty.call(options, "timeoutMs"), false);
+      options.signal.addEventListener("abort", () => {
+        const err = new Error("aborted");
+        err.name = "AbortError";
+        reject(err);
+      });
+    }),
+  });
+  await assert.rejects(
+    () => timeoutApi("/api/slow", { timeoutMs: 1 }),
+    (err) => {
+      assert.equal(err.code, "request_timeout");
+      return true;
+    },
+  );
+
   const fallbackVersions = [];
   handleClientVersionFromResponse(response({
     headers: { "X-Hermes-Web-Version": "server-c" },

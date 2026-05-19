@@ -2538,10 +2538,10 @@ button.directory-alias-chip {
 }
 
 .message-skill-details {
-  width: min(270px, calc(100vw - 24px));
+  width: min(460px, calc(100vw - 24px));
   display: grid;
   gap: 2px;
-  max-height: 220px;
+  max-height: min(360px, 58vh);
   overflow: auto;
   padding: 6px;
 }
@@ -2572,9 +2572,9 @@ button.directory-alias-chip {
 
 .message-skill-item span:last-child {
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
 }
 
 .usage-row {
@@ -3108,6 +3108,24 @@ button.directory-alias-chip {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.skill-detail-head > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.skill-detail-close {
+  flex: 0 0 auto;
+  min-width: 48px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .skill-detail-icon {

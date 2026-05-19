@@ -1,5 +1,14 @@
 "use strict";
 
+const STREAMING_MESSAGE_LIVE_BUFFER_CHARS = 16000;
+
+function appendStreamingMessageBounded(current, delta) {
+  const next = `${current || ""}${delta || ""}`;
+  if (next.length <= STREAMING_MESSAGE_LIVE_BUFFER_CHARS) return next;
+  const tailChars = Math.floor(STREAMING_MESSAGE_LIVE_BUFFER_CHARS * 0.75);
+  const tail = next.slice(-tailChars);
+  return `[live content truncated: ${next.length} chars total]\n\n${tail}`;
+}
 
 function scheduleRenderCurrentThread() {
   if (state.renderScheduled) return;
@@ -219,7 +228,7 @@ function appendDelta(threadId, messageId, delta, payload = {}) {
   const message = (state.currentThread.messages || []).find((item) => item.id === messageId);
   if (!message) return;
   const updatedAt = payload.updatedAt || new Date().toISOString();
-  message.content = `${message.content || ""}${delta || ""}`;
+  message.content = appendStreamingMessageBounded(message.content || "", delta || "");
   if (!message.firstFeedbackAt) message.firstFeedbackAt = payload.firstFeedbackAt || updatedAt;
   message.updatedAt = updatedAt;
   if (!scheduleStreamingMessageRender(message)) scheduleRenderCurrentThread();

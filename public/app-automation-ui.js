@@ -59,7 +59,14 @@ function applyViewMode() {
 async function loadSelectedView() {
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
   if (state.viewMode !== "todos") clearTodoAutoRefresh();
+  const leavingSkillDetail = Boolean(state.skillDetail && (state.viewMode !== "tasks" || !state.currentTaskGroupId));
+  if (leavingSkillDetail) {
+    state.skillDetail = null;
+    const conversation = $("conversation");
+    if (conversation) conversation.innerHTML = `<div class="empty-state small">Loading...</div>`;
+  }
   applyViewMode();
+  if (leavingSkillDetail) updateNavigationControls();
   if (state.viewMode !== "tasks") state.skillDetail = null;
   if (state.viewMode === "single" || state.viewMode === "tasks") {
     if (state.viewMode === "tasks" && !state.currentTaskGroupId && restoreTaskListThreadFromCache({ stickToBottom: true })) {

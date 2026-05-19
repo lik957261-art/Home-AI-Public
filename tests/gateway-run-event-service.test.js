@@ -62,7 +62,9 @@ function makeHarness(overrides = {}) {
       item.events.push({
         event: event.event || event.type,
         runId: event.runId || event.run_id || "",
+        tool: event.tool || null,
         preview: event.preview || event.text || event.error || "",
+        error: Boolean(event.error),
       });
     },
     registerArtifactsFromText: (item, message, text) => (/MEDIA:/.test(text) ? [{ id: "artifact_1", name: "report.pdf" }] : []),
@@ -159,6 +161,11 @@ function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
 
 function testCompletedRunPersistsLoadedSkillReferences() {
   const { message, service, thread } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.created",
+    run_id: "public_run",
+    response: { id: "real_response" },
+  });
   thread.events.push({
     event: "response.output_item.added",
     runId: "public_run",
@@ -175,6 +182,7 @@ function testCompletedRunPersistsLoadedSkillReferences() {
   const result = service.applyHermesRunEvent({
     event: "response.completed",
     run_id: "public_run",
+    response: { id: "real_response" },
     output: "Final",
   });
 
@@ -185,6 +193,31 @@ function testCompletedRunPersistsLoadedSkillReferences() {
     path: "productivity/write",
     namespace: "productivity",
   }]);
+}
+
+function testOutputItemEventsStoreReadableSummariesOnly() {
+  const { service, thread } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "function_call_output",
+      output: "[{\"type\":\"input_text\",\"text\":\"large raw tool output should not be stored\"}]",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "function_call_output");
+  assert.equal(thread.events.at(-1).preview, "");
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      name: "skill_view",
+      arguments: "{\"name\":\"study-templates/learning-growth-card-creation\"}",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "skill_view");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"study-templates/learning-growth-card-creation\"}");
 }
 
 function testFailedAndCancelledRunsUseTerminalHelpers() {
@@ -253,6 +286,7 @@ testResponseCreatedAliasesRunAndBroadcasts();
 testDeltaUpdatesMessageAndThread();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
 testCompletedRunPersistsLoadedSkillReferences();
+testOutputItemEventsStoreReadableSummariesOnly();
 testFailedAndCancelledRunsUseTerminalHelpers();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();

@@ -77,25 +77,52 @@ function skillEntryFromReference(reference) {
   };
 }
 
+function uniqueCleanStrings(values) {
+  const out = [];
+  const seen = new Set();
+  for (const value of values || []) {
+    const text = cleanString(value);
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+  }
+  return out;
+}
+
 function loadedSkillFromRunEvent(event = {}) {
   if (cleanString(event.tool).toLowerCase() !== "skill_view") return null;
   const reference = skillReferenceFromValue(event.preview || event.arguments || event.input || event.text || "");
   return skillEntryFromReference(reference);
 }
 
-function loadedSkillsForRun(thread = {}, runId = "") {
-  const id = cleanString(runId);
-  if (!id) return [];
+function loadedSkillsForRun(thread = {}, runIds = "") {
+  const ids = new Set(uniqueCleanStrings(Array.isArray(runIds) ? runIds : [runIds]));
+  if (!ids.size) return [];
   const byPath = new Map();
   for (const event of Array.isArray(thread.events) ? thread.events : []) {
     const eventRunId = cleanString(event?.runId || event?.run_id);
-    if (!eventRunId || eventRunId !== id) continue;
+    if (!eventRunId || !ids.has(eventRunId)) continue;
     const skill = loadedSkillFromRunEvent(event);
     if (!skill) continue;
     const key = skill.path.toLowerCase();
     if (!byPath.has(key)) byPath.set(key, skill);
   }
   return [...byPath.values()];
+}
+
+function outputItemToolName(item = {}) {
+  return cleanString(item.name || item.type || "");
+}
+
+function outputItemPreview(item = {}) {
+  const tool = outputItemToolName(item).toLowerCase();
+  const source = item.arguments || item.output || item.input || item.text || "";
+  if (tool === "skill_view") {
+    const reference = skillReferenceFromValue(source);
+    return reference ? JSON.stringify({ name: reference }) : "";
+  }
+  if (item.error) return cleanString(item.error).slice(0, 240);
+  return "";
 }
 
 function defaultAppendBounded(current, delta, maxChars = 12000) {
@@ -260,8 +287,8 @@ function createGatewayRunEventService(options = {}) {
       event: eventName,
       timestamp: nowMs() / 1000,
       runId,
-      tool: item.name || item.type || "",
-      preview: item.arguments || item.output || "",
+      tool: outputItemToolName(item),
+      preview: outputItemPreview(item),
       error: false,
     });
     saveState();
@@ -270,7 +297,7 @@ function createGatewayRunEventService(options = {}) {
   }
 
   function markRunCompleted(context, event) {
-    const { thread, message, runId } = context;
+    const { thread, message, runId, originalRunId, responseRunId, stream } = context;
     const output = extractCompletedOutput(event) || String(message.content || "");
     const approvalRequest = modelPermissionApprovalRequest(output, message);
     const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
@@ -279,7 +306,13 @@ function createGatewayRunEventService(options = {}) {
     message.content = compactFullContent(visibleOutput || output);
     message.status = "done";
     message.usage = supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message);
-    message.loadedSkills = loadedSkillsForRun(thread, runId);
+    message.loadedSkills = loadedSkillsForRun(thread, [
+      runId,
+      originalRunId,
+      responseRunId,
+      message.runId,
+      stream?.realRunId,
+    ]);
     if (validApprovalRequest) {
       message.elevationRequired = true;
       message.elevationScope = validApprovalRequest.elevationScope;

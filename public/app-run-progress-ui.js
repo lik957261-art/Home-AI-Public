@@ -1,12 +1,30 @@
 "use strict";
 
+const RUN_EVENT_PREVIEW_MAX_CHARS = 180;
+
+function boundedRunEventPreview(value) {
+  const text = String(value || "");
+  return text.length > RUN_EVENT_PREVIEW_MAX_CHARS ? text.slice(0, RUN_EVENT_PREVIEW_MAX_CHARS) : text;
+}
+
+function parseRunEventPreviewObject(value) {
+  const text = String(value || "").trim();
+  if (!text || !text.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch (_err) {
+    return null;
+  }
+}
+
 function normalizeRunEvent(event = {}, fallbackRunId = "") {
   return {
     event: String(event.event || event.type || "event"),
     timestamp: event.timestamp || Date.now() / 1000,
     runId: String(event.runId || event.run_id || fallbackRunId || ""),
     tool: event.tool || null,
-    preview: String(event.preview || event.text || event.error || ""),
+    preview: boundedRunEventPreview(event.preview || event.text || event.error || ""),
     duration: event.duration || null,
     error: Boolean(event.error),
   };
@@ -25,7 +43,7 @@ function runEventKey(event) {
     event.timestamp || "",
     event.event || "",
     event.tool || "",
-    event.preview || "",
+    boundedRunEventPreview(event.preview || "").slice(0, 80),
   ].join("|");
 }
 
@@ -54,15 +72,43 @@ function runEventTimeLabel(event) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+function runEventSkillName(event) {
+  const parsed = parseRunEventPreviewObject(event?.preview);
+  const value = parsed?.name || parsed?.path || parsed?.skill || parsed?.id || "";
+  return String(value || "").replace(/^skills\//i, "").replace(/\/SKILL\.md$/i, "").trim();
+}
+
+function runEventToolLabel(event) {
+  const tool = String(event?.tool || "").trim();
+  const lower = tool.toLowerCase();
+  if (lower === "skill_view") {
+    const skillName = runEventSkillName(event);
+    return skillName ? `Skill ${skillName}` : "Skill view";
+  }
+  if (lower === "function_call") return "Function call";
+  if (lower === "function_call_output") return "Function result";
+  if (lower === "message") return "\u56de\u590d";
+  return tool;
+}
+
 function runEventTitle(event) {
   const name = String(event?.event || "event");
-  const tool = String(event?.tool || "").trim();
+  const tool = runEventToolLabel(event);
   if (name === "response.output_item.added") return tool ? `\u5f00\u59cb ${tool}` : "\u5f00\u59cb\u5904\u7406";
   if (name === "response.output_item.done") return tool ? `\u5b8c\u6210 ${tool}` : "\u9636\u6bb5\u5b8c\u6210";
   if (name === "response.output_text.done") return "\u751f\u6210\u56de\u590d";
   if (name === "response.completed" || name === "run.completed") return "\u5904\u7406\u5b8c\u6210";
   if (name === "response.failed" || name === "run.failed") return "\u5904\u7406\u5931\u8d25";
   return tool ? `${tool} · ${name.replace(/^response\./, "")}` : name.replace(/^response\./, "");
+}
+
+function runEventPreviewLabel(event) {
+  if (event?.error) return boundedRunEventPreview(event.preview || "");
+  const tool = String(event?.tool || "").trim().toLowerCase();
+  if (tool === "skill_view" || tool === "function_call" || tool === "function_call_output" || tool === "message") return "";
+  const preview = boundedRunEventPreview(event?.preview || "");
+  if (/^[\[{]/.test(preview.trim())) return "";
+  return preview;
 }
 
 function runProgressEvents(thread, runIds) {
@@ -141,13 +187,16 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
   const quietRow = renderRunProgressQuietRow(lastEventMs);
   const rows = events.length
-    ? `${quietRow}${events.slice().reverse().slice(0, 3).map((event) => `
+    ? `${quietRow}${events.slice().reverse().slice(0, 3).map((event) => {
+      const preview = runEventPreviewLabel(event);
+      return `
       <div class="run-progress-row${event.error ? " error" : ""}">
         <span class="run-progress-dot" aria-hidden="true"></span>
         <span class="run-progress-main">${escapeHtml(runEventTitle(event))}</span>
         <span class="run-progress-time">${escapeHtml(runEventTimeLabel(event))}</span>
-        ${event.preview ? `<span class="run-progress-preview">${escapeHtml(event.preview)}</span>` : ""}
-      </div>`).join("")}`
+        ${preview ? `<span class="run-progress-preview">${escapeHtml(preview)}</span>` : ""}
+      </div>`;
+    }).join("")}`
     : renderRunProgressWaitingRow(startMs);
   return `<aside class="run-progress-panel${options.inline ? " inline" : ""}" aria-live="polite">
     <div class="run-progress-head">

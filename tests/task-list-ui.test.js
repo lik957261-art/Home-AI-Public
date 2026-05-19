@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260519-message-skills-v6";
+const CLIENT_VERSION = "20260519-run-skill-freeze-v7";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -96,6 +96,9 @@ assert.match(appApiClientJs, /root\.HermesAppApiClient = factory\(\);/);
 assert.match(appApiClientJs, /X-Hermes-Web-Client-Version/);
 assert.match(appApiClientJs, /X-Hermes-Web-Refresh-Required/);
 assert.match(appApiClientJs, /function createHttpError\(response, body\)/);
+assert.match(appApiClientJs, /requestOptions\.timeoutMs/);
+assert.match(appApiClientJs, /AbortController/);
+assert.match(appApiClientJs, /Request timed out/);
 assert.match(appJs, /return TaskArtifactHelpers\.taskGroupsForThread\(thread\);/);
 const appShellFiles = [
   "app-task-artifact-helpers.js",
@@ -123,9 +126,17 @@ assert.match(appJs, /function renderMessageSkillPanel\(message = \{\}, thread = 
 assert.match(appJs, /String\(event\.tool \|\| ""\)\.trim\(\)\.toLowerCase\(\) !== "skill_view"/);
 assert.match(appJs, /const skills = renderMessageSkillPanel\(message, state\.currentThread\)/);
 assert.match(appJs, /wireSkillLinks\(conversation\);\s+wireUsagePanels\(conversation\)/);
+assert.match(appJs, /timeoutMs: 8000/);
+assert.match(appJs, /data-close-skill-detail/);
+assert.match(appJs, /function runEventPreviewLabel\(event\)/);
+assert.match(appJs, /tool === "function_call_output"/);
+assert.match(appJs, /STREAMING_MESSAGE_LIVE_BUFFER_CHARS/);
+assert.match(appJs, /appendStreamingMessageBounded\(message\.content \|\| "", delta \|\| ""\)/);
 assert.match(stylesCss, /\.message-skills/);
 assert.match(stylesCss, /\.message-skill-details/);
 assert.match(stylesCss, /\.message-skill-item/);
+assert.match(stylesCss, /width: min\(460px, calc\(100vw - 24px\)\)/);
+assert.match(stylesCss, /\.skill-detail-close/);
 assert.match(taskArtifactHelpersJs, /return \[\.\.\.groups\.values\(\)\]\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\);/);
 assert.match(appJs, /const allGroups = taskListGroupsForThread\(thread\)\s+\.concat\(sharedCaseTopicGroupsForTaskList\(thread\)\)\s+\.sort/);
 assert.match(appJs, /const displayGroups = allGroups\.slice\(\);/);

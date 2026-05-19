@@ -73,7 +73,28 @@
       if (accessKey) headers["X-Hermes-Web-Key"] = accessKey;
       if (clientVersion) headers["X-Hermes-Web-Client-Version"] = clientVersion;
       if (requestOptions.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
-      const response = await fetchImpl(path, Object.assign({}, requestOptions, { headers }));
+      const timeoutMs = Math.max(0, Number(requestOptions.timeoutMs || 0) || 0);
+      const fetchOptions = Object.assign({}, requestOptions, { headers });
+      delete fetchOptions.timeoutMs;
+      let timeoutId = 0;
+      if (timeoutMs && !fetchOptions.signal && typeof AbortController === "function") {
+        const controller = new AbortController();
+        fetchOptions.signal = controller.signal;
+        timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      }
+      let response = null;
+      try {
+        response = await fetchImpl(path, fetchOptions);
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          const timeoutError = new Error("Request timed out");
+          timeoutError.code = "request_timeout";
+          throw timeoutError;
+        }
+        throw err;
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
       handleClientVersionFromResponse(response, {
         getClientVersion,
         onClientVersion: options.onClientVersion,
