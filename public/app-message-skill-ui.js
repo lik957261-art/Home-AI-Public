@@ -116,7 +116,7 @@ function renderMessageSkillItem(skill) {
   const title = skillTitle(skill);
   return `<button class="message-skill-item" type="button" data-skill-path="${escapeHtml(skill.path)}" data-skill-label="${escapeHtml(skill.label || skill.id || "")}" data-skill-namespace="${escapeHtml(skill.namespace || "")}">
     <span class="task-skill-icon" aria-hidden="true">S</span>
-    <span>${escapeHtml(title)}</span>
+    <span class="message-skill-title">${escapeHtml(title)}</span>
   </button>`;
 }
 

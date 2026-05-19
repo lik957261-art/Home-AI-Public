@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260519-run-event-local-v8";
+const CLIENT_VERSION = "20260519-freeze-guard-v9";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -126,6 +126,10 @@ assert.match(appJs, /function renderMessageSkillPanel\(message = \{\}, thread = 
 assert.match(appJs, /String\(event\.tool \|\| ""\)\.trim\(\)\.toLowerCase\(\) !== "skill_view"/);
 assert.match(appJs, /const skills = renderMessageSkillPanel\(message, state\.currentThread\)/);
 assert.match(appJs, /wireSkillLinks\(conversation\);\s+wireUsagePanels\(conversation\)/);
+assert.match(appJs, /function renderCurrentThreadUnsafe\(options = \{\}\)/);
+assert.match(appJs, /renderCurrentThread failed/);
+assert.match(appJs, /Restoring topic/);
+assert.match(appJs, /currentThreadHasPendingMessages\(thread\) \|\| state\.currentThreadRefreshInFlight/);
 assert.match(appJs, /timeoutMs: 8000/);
 assert.match(appJs, /data-close-skill-detail/);
 assert.match(appJs, /function runEventPreviewLabel\(event\)/);
@@ -135,7 +139,9 @@ assert.match(appJs, /appendStreamingMessageBounded\(message\.content \|\| "", de
 assert.match(stylesCss, /\.message-skills/);
 assert.match(stylesCss, /\.message-skill-details/);
 assert.match(stylesCss, /\.message-skill-item/);
+assert.match(stylesCss, /\.message-skill-title/);
 assert.match(stylesCss, /width: min\(460px, calc\(100vw - 24px\)\)/);
+assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.message-skill-details\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?left:\s*max\(10px, env\(safe-area-inset-left\)\);[\s\S]*?right:\s*max\(10px, env\(safe-area-inset-right\)\);/);
 assert.match(stylesCss, /\.skill-detail-close/);
 assert.match(taskArtifactHelpersJs, /return \[\.\.\.groups\.values\(\)\]\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\);/);
 assert.match(appJs, /const allGroups = taskListGroupsForThread\(thread\)\s+\.concat\(sharedCaseTopicGroupsForTaskList\(thread\)\)\s+\.sort/);

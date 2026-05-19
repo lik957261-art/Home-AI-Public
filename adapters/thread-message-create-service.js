@@ -329,6 +329,7 @@ function createThreadMessageCreateService(options = {}) {
     if (searchSource?.explicit) {
       userMessage.searchSource = searchSource.source;
       userMessage.sourceIntent = searchSource.sourceIntent;
+      userMessage.sourceMode = searchSource.sourceMode;
     }
 
     const assistantMessage = {
@@ -353,6 +354,7 @@ function createThreadMessageCreateService(options = {}) {
     if (searchSource?.explicit) {
       assistantMessage.searchSource = searchSource.source;
       assistantMessage.sourceIntent = searchSource.sourceIntent;
+      assistantMessage.sourceMode = searchSource.sourceMode;
     }
 
     return { userMessage, assistantMessage };
@@ -430,6 +432,7 @@ function createThreadMessageCreateService(options = {}) {
     if (searchSource.explicit) {
       runOptions.searchSource = searchSource.source;
       runOptions.sourceIntent = searchSource.sourceIntent;
+      runOptions.sourceMode = searchSource.sourceMode;
     }
     if (body.model) runOptions.model = body.model;
     if (body.reasoning && typeof body.reasoning === "object") runOptions.reasoning = body.reasoning;
@@ -514,6 +517,8 @@ function createThreadMessageCreateService(options = {}) {
       search_source: searchSource.source,
       sourceIntent: searchSource.sourceIntent,
       source_intent: searchSource.sourceIntent,
+      sourceMode: searchSource.sourceMode,
+      source_mode: searchSource.sourceMode,
     });
     const routing = resolveGatewayRouting(auth, normalized.text, routingBody, actor.actorWorkspaceId, messageKind);
     if (!routing.ok) return routing;

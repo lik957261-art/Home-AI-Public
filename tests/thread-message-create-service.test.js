@@ -410,16 +410,20 @@ function testSearchSourceRunOptions() {
   assert.equal(plan.searchSource.sourceIntent, "x_search");
   assert.equal(plan.userMessage.searchSource, "x");
   assert.equal(plan.userMessage.sourceIntent, "x_search");
+  assert.equal(plan.userMessage.sourceMode, "manual");
   assert.equal(plan.assistantMessage.searchSource, "x");
   assert.equal(plan.assistantMessage.sourceIntent, "x_search");
+  assert.equal(plan.assistantMessage.sourceMode, "manual");
   assert.deepEqual(plan.runOptions.access_policy_context, {
     allowed_toolsets: ["x_search", "web", "search"],
   });
   assert.equal(plan.runOptions.searchSource, "x");
   assert.equal(plan.runOptions.sourceIntent, "x_search");
+  assert.equal(plan.runOptions.sourceMode, "manual");
   assert.match(plan.runOptions.instructions, /Source selected.*X search/);
   assert.equal(calls.gatewayRouting[0].body.searchSource, "x");
   assert.equal(calls.gatewayRouting[0].body.sourceIntent, "x_search");
+  assert.equal(calls.gatewayRouting[0].body.sourceMode, "manual");
 }
 
 async function testQueuedChatRunSkipsConcurrencyAndStart() {

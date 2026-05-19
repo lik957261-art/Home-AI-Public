@@ -170,6 +170,7 @@ function createGatewayRunStartService(options = {}) {
     });
     if (runOptions.searchSource) gatewayRouting.searchSource = cleanString(runOptions.searchSource);
     if (runOptions.sourceIntent) gatewayRouting.sourceIntent = cleanString(runOptions.sourceIntent);
+    if (runOptions.sourceMode) gatewayRouting.sourceMode = cleanString(runOptions.sourceMode);
     Object.assign(gatewayRouting, gatewaySkillRoutingForWorkspace(actorWorkspaceId, gatewayRouting));
 
     return {
@@ -228,6 +229,7 @@ function createGatewayRunStartService(options = {}) {
     });
     if (runOptions.searchSource) assistantMessage.runOptions.searchSource = cleanString(runOptions.searchSource);
     if (runOptions.sourceIntent) assistantMessage.runOptions.sourceIntent = cleanString(runOptions.sourceIntent);
+    if (runOptions.sourceMode) assistantMessage.runOptions.sourceMode = cleanString(runOptions.sourceMode);
 
     const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting);
     const { gatewayUrl } = applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, nowIso());

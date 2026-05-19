@@ -2564,10 +2564,38 @@ button.directory-alias-chip {
   cursor: pointer;
 }
 
+.message-skill-title {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .message-skill-item:hover,
 .message-skill-item:focus-visible {
   background: rgba(31, 111, 98, 0.08);
   outline: none;
+}
+
+@media (max-width: 720px) {
+  .message-skill-details {
+    position: fixed;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    top: calc(env(safe-area-inset-top) + 118px);
+    bottom: calc(var(--mobile-bottom-nav-reserved-height) + 112px);
+    width: auto;
+    max-height: none;
+    transform: none;
+    z-index: 80;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .message-skill-item {
+    min-height: 42px;
+    padding: 9px 10px;
+    font-size: 14px;
+  }
 }
 
 .message-skill-item span:last-child {
@@ -8669,6 +8697,12 @@ button.directory-alias-chip {
   color: #0f5f4d;
   background: rgba(214, 242, 232, 0.62);
   border-color: rgba(31, 111, 98, 0.24);
+}
+
+.composer .composer-source-button.auto-detected {
+  color: rgba(31, 111, 98, 0.58);
+  background: rgba(214, 242, 232, 0.22);
+  border-color: rgba(31, 111, 98, 0.10);
 }
 
 .composer .composer-source-button:disabled {

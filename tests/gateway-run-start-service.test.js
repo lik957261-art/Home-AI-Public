@@ -272,13 +272,16 @@ async function testStartRunPreservesSearchSourceRouting() {
   await service.startRunForThread(thread, user, assistant, {
     searchSource: "x",
     sourceIntent: "x_search",
+    sourceMode: "manual",
     access_policy_context: { allowed_toolsets: ["x_search", "web", "search"] },
   });
 
   assert.equal(calls.gatewayRouting[0].searchSource, "x");
   assert.equal(calls.gatewayRouting[0].sourceIntent, "x_search");
+  assert.equal(calls.gatewayRouting[0].sourceMode, "manual");
   assert.equal(assistant.runOptions.searchSource, "x");
   assert.equal(assistant.runOptions.sourceIntent, "x_search");
+  assert.equal(assistant.runOptions.sourceMode, "manual");
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "x_search", "web", "search"]);
 }
 

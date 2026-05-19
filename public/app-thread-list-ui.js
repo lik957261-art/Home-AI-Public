@@ -108,6 +108,20 @@ function wireChatScopeHeader(root) {
 }
 
 function renderCurrentThread(options = {}) {
+  try {
+    renderCurrentThreadUnsafe(options);
+  } catch (err) {
+    console.error("renderCurrentThread failed", err);
+    showError(err);
+    const conversation = $("conversation");
+    if (conversation && !conversation.innerHTML.trim()) {
+      conversation.innerHTML = `<div class="empty-state">View render failed. Refreshing...</div>`;
+    }
+    requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 500 });
+  }
+}
+
+function renderCurrentThreadUnsafe(options = {}) {
   renderChatScopeHeader(null);
   if (isSkillDetailView()) {
     renderSkillDetailPanel();
@@ -219,6 +233,18 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   const allActiveRuns = activeThreadRunIds(thread);
 
   if (state.currentTaskGroupId && !selected) {
+    if (currentThreadHasPendingMessages(thread) || state.currentThreadRefreshInFlight) {
+      $("threadTitle").textContent = "";
+      $("threadMeta").textContent = "";
+      $("interruptRun").disabled = !allActiveRuns.length;
+      configureComposer({ enabled: false, placeholder: "Restoring topic..." });
+      conversation.innerHTML = `<div class="empty-state">Restoring topic...</div>`;
+      requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 220 });
+      updateNavigationControls();
+      ensureVerticalScrollAffordance(conversation);
+      scheduleMessageScrollButtonVisibility(conversation);
+      return;
+    }
     if (state.routeScrollTaskGroupId === state.currentTaskGroupId) clearRouteScrollTarget();
     state.currentTaskGroupId = "";
   }

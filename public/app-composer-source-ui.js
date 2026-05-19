@@ -68,12 +68,36 @@ function composerSearchSourceCommand(text = "") {
   return match ? composerSearchSourceOption(match.source) : null;
 }
 
+function composerSearchSourceAutoHint(text = "") {
+  const value = String(text || "").replace(/\u00a0/g, " ");
+  if (!value.trim()) return null;
+  const patterns = [
+    {
+      source: "x",
+      pattern: /(?:\b(?:on|from|search|check|look\s+up)\s+(?:x|twitter)\b|\b(?:x|twitter)\s+(?:search|posts?|discussion|thread|timeline|public)\b|(?:\u5728|\u53bb|\u4ece)?\s*(?:X|x|Twitter|twitter|\u63a8\u7279)\s*(?:\u4e0a|\u91cc|\u5e73\u53f0)?\s*(?:\u641c|\u641c\u7d22|\u67e5|\u67e5\u627e|\u627e|\u770b\u770b|\u770b\u4e00\u4e0b)|(?:\u641c|\u641c\u7d22|\u67e5|\u67e5\u627e|\u627e)\s*(?:\u4e00\u4e0b)?\s*(?:X|x|Twitter|twitter|\u63a8\u7279)\s*(?:\u4e0a|\u91cc|\u5e73\u53f0)?)/i,
+    },
+    {
+      source: "web",
+      pattern: /(?:\b(?:search|check|look\s+up)\s+(?:the\s+)?(?:web|internet|online)\b|\b(?:web|internet|online)\s+search\b|(?:\u7f51\u4e0a|\u7f51\u7edc|\u7f51\u9875|\u8054\u7f51|\u516c\u5171\u7f51\u9875)\s*(?:\u641c|\u641c\u7d22|\u67e5|\u67e5\u627e|\u6838\u5bf9|\u627e|\u770b\u770b|\u770b\u4e00\u4e0b)|(?:\u641c|\u641c\u7d22|\u67e5|\u67e5\u627e|\u6838\u5bf9)\s*(?:\u4e00\u4e0b)?\s*(?:\u7f51\u4e0a|\u7f51\u7edc|\u7f51\u9875|\u8054\u7f51|\u516c\u5171\u7f51\u9875))/i,
+    },
+  ];
+  const match = patterns.find((item) => item.pattern.test(value));
+  return match ? composerSearchSourceOption(match.source) : null;
+}
+
 function selectedComposerSearchSourceInfo(text = getComposerText()) {
-  const command = composerSearchSourceCommand(text);
-  const option = command || composerSearchSourceOption(state.composerSearchSource);
+  const manual = composerSearchSourceOption(state.composerSearchSource);
+  const manualExplicit = manual.source !== COMPOSER_SEARCH_SOURCE_LOCAL;
+  const auto = manualExplicit ? null : (composerSearchSourceCommand(text) || composerSearchSourceAutoHint(text));
+  const option = manualExplicit ? manual : (auto || manual);
+  const autoDetected = Boolean(auto && option.source !== COMPOSER_SEARCH_SOURCE_LOCAL);
+  const mode = manualExplicit ? "manual" : (autoDetected ? "auto" : "local");
   return Object.assign({}, option, {
-    commandExplicit: Boolean(command),
-    explicit: Boolean(command || option.source !== COMPOSER_SEARCH_SOURCE_LOCAL),
+    commandExplicit: Boolean(auto),
+    explicit: Boolean(manualExplicit || autoDetected),
+    manualExplicit,
+    autoDetected,
+    sourceMode: mode,
   });
 }
 
@@ -83,6 +107,7 @@ function composerSearchSourceBodyFields(text = getComposerText()) {
   return {
     search_source: info.source,
     source_intent: info.sourceIntent,
+    source_mode: info.sourceMode,
   };
 }
 
@@ -115,7 +140,7 @@ function renderComposerSourceMenu() {
   const selected = selectedComposerSearchSourceInfo();
   menu.hidden = false;
   menu.innerHTML = COMPOSER_SEARCH_SOURCE_VISIBLE_OPTIONS.map((option) => {
-    const active = option.source === selected.source ? " active" : "";
+    const active = option.source === selected.source && selected.manualExplicit ? " active" : "";
     return `<button class="composer-source-option${active}" type="button" data-composer-source="${escapeHtml(option.source)}">
       <span class="composer-source-option-icon">${composerSearchSourceIconHtml(option.source)}</span>
       <span class="composer-source-name">${escapeHtml(option.label)}</span>
@@ -158,16 +183,23 @@ function updateComposerSourceControl() {
   control.setAttribute("aria-disabled", canUse ? "false" : "true");
   if (!canUse) closeComposerSourceMenu();
   const info = selectedComposerSearchSourceInfo();
-  control.classList.toggle("active", info.source !== COMPOSER_SEARCH_SOURCE_LOCAL);
-  control.setAttribute("title", `\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`);
+  control.classList.toggle("active", info.manualExplicit);
+  control.classList.toggle("auto-detected", info.autoDetected);
+  control.setAttribute("title", info.autoDetected
+    ? `\u5df2\u81ea\u52a8\u8bc6\u522b\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`
+    : `\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`);
   control.querySelectorAll("[data-composer-source-toggle]").forEach((button) => {
     const source = normalizeComposerSearchSource(button.dataset.composerSourceToggle);
-    const active = source === info.source;
+    const active = source === info.source && info.manualExplicit;
+    const autoDetected = source === info.source && info.autoDetected;
     button.disabled = !canUse;
     button.classList.toggle("active", active);
+    button.classList.toggle("auto-detected", autoDetected);
     button.setAttribute("aria-pressed", active ? "true" : "false");
     button.setAttribute("title", active
       ? `\u5df2\u9009\u4e2d${composerSearchSourceOption(source).label}\uff0c\u518d\u70b9\u56de\u5230\u672c\u5730\u6570\u636e`
-      : `\u672c\u53e5\u4f7f\u7528${composerSearchSourceOption(source).label}`);
+      : (autoDetected
+        ? `\u5df2\u4ece\u6587\u672c\u81ea\u52a8\u8bc6\u522b${composerSearchSourceOption(source).label}\uff1b\u70b9\u51fb\u540e\u6539\u4e3a\u624b\u52a8\u9501\u5b9a`
+      : `\u672c\u53e5\u4f7f\u7528${composerSearchSourceOption(source).label}`));
   });
 }

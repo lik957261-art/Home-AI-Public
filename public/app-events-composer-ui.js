@@ -1,6 +1,7 @@
 "use strict";
 
 const STREAMING_MESSAGE_LIVE_BUFFER_CHARS = 16000;
+const STREAMING_MESSAGE_RENDER_THROTTLE_MS = 90;
 
 function appendStreamingMessageBounded(current, delta) {
   const next = `${current || ""}${delta || ""}`;
@@ -13,6 +14,7 @@ function appendStreamingMessageBounded(current, delta) {
 function scheduleRenderCurrentThread() {
   if (state.renderScheduled) return;
   const conversation = $("conversation");
+  if (!conversation) return;
   state.shouldStickToBottom = isNearBottom();
   state.preservedBottomOffset = conversation.scrollHeight - conversation.scrollTop;
   state.renderScheduled = true;
@@ -30,7 +32,18 @@ function renderStreamingMessageContent(message) {
   const content = body?.querySelector?.(".text-content");
   if (!article || !body || !content || message.revokedAt) return false;
   const shouldStick = isNearBottom();
-  content.outerHTML = renderText(message.content || "", message);
+  try {
+    if (["queued", "running"].includes(String(message.status || ""))) {
+      content.className = "text-content plain-text";
+      content.textContent = cleanDisplayText(message.content || "");
+    } else {
+      content.outerHTML = renderText(message.content || "", message);
+    }
+  } catch (err) {
+    console.warn("renderStreamingMessageContent failed", err);
+    content.className = "text-content plain-text";
+    content.textContent = String(message.content || "");
+  }
   if (shouldStick) {
     const conversation = $("conversation");
     conversation.scrollTop = conversation.scrollHeight;
@@ -48,7 +61,7 @@ function scheduleStreamingMessageRender(message) {
   if (state.streamingMessageRenderScheduled.has(id)) return true;
   state.streamingMessageRenderScheduled.add(id);
   const contentLength = String(message.content || "").length;
-  const minDelay = contentLength > ACTIVE_MESSAGE_RICH_RENDER_LIMIT ? 120 : 0;
+  const minDelay = contentLength > ACTIVE_MESSAGE_RICH_RENDER_LIMIT ? 180 : STREAMING_MESSAGE_RENDER_THROTTLE_MS;
   const lastAt = state.streamingMessageRenderLastAt.get(id) || 0;
   const delay = minDelay ? Math.max(0, minDelay - (Date.now() - lastAt)) : 0;
   const render = () => requestAnimationFrame(() => {
@@ -115,6 +128,15 @@ function upsertMessage(message) {
   const mergedMessage = index >= 0 ? messages[index] : message;
   offerOwnerElevationForMessage(mergedMessage).catch(showError);
   if (state.viewMode === "tasks") renderThreads();
+  if (
+    index >= 0
+    && mergedMessage?.role === "assistant"
+    && ["queued", "running"].includes(String(mergedMessage.status || ""))
+    && scheduleStreamingMessageRender(mergedMessage)
+  ) {
+    scheduleRunProgressRenderForRun(mergedMessage.runId || state.currentThread.activeRunId || "");
+    return;
+  }
   scheduleRenderCurrentThread();
 }
 
@@ -266,11 +288,17 @@ function applyEvent(payload) {
   }
   if (payload.thread) upsertThreadSummary(payload.thread);
   if (payload.type === "thread.updated" && state.currentThread && payload.thread?.id === state.currentThread.id) {
+    const wasRunning = currentThreadHasPendingMessages(state.currentThread) || summaryHasActiveRun(payload.thread);
     state.currentThread = mergeCurrentThread(payload.thread);
-    renderCurrentThread({ stickToBottom: false });
     if (shouldRefreshCurrentThreadForSummary(payload.thread)) {
       requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 120 });
     }
+    if (wasRunning) {
+      updateComposerAction();
+      renderComposerContext();
+      return;
+    }
+    renderCurrentThread({ stickToBottom: false });
     return;
   }
   if (payload.type === "message.delta") {
