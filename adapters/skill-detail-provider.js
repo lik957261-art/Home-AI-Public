@@ -145,6 +145,12 @@ function createDirectSkillResolver(options = {}) {
   function detail(skill) {
     const skillPath = normalizeSkillPath(skill);
     if (!skillPath) return null;
+    for (const root of roots) {
+      if (!root || !fs.existsSync(root)) continue;
+      const direct = directSkillCandidate(root, skillPath);
+      if (direct) return skillDetailFromFile(direct.file, direct.path, maxChars);
+    }
+    if (skillPath.includes("/")) return null;
     const matches = new Map();
     for (const root of roots) {
       if (!root || !fs.existsSync(root)) continue;
