@@ -22,6 +22,7 @@ function createKanbanMaintenanceService(deps = {}) {
       String(args.assignee || ""),
       String(args.limit || 120),
       String(args.search || ""),
+      String(args.cacheVariant || ""),
     ].join("\0");
   }
 
@@ -77,7 +78,9 @@ function createKanbanMaintenanceService(deps = {}) {
   function clearCardListCache(workspaceId = "") {
     const prefix = workspaceId ? `${String(workspaceId)}\0` : "";
     for (const key of cardListCache.keys()) {
-      if (!prefix || key.startsWith(prefix)) cardListCache.delete(key);
+      if (!prefix || key.startsWith(prefix) || key.includes("\0shared:") || key.includes("\0owner-growth")) {
+        cardListCache.delete(key);
+      }
     }
     persistCardListCache({ onlyIfExists: true });
   }

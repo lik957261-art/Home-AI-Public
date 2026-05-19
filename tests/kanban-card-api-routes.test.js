@@ -290,7 +290,12 @@ async function testRouteMetadataMatchingAndFallthrough() {
 }
 
 async function testListProviderSharedMergeAndMaintenance() {
-  const { routes, calls } = makeRoutes();
+  const { routes, calls } = makeRoutes({
+    kanbanCaseSharesForActor(auth, workspaceId) {
+      calls.caseShares.push({ auth, workspaceId });
+      return [{ ownerWorkspaceId: "owner", caseId: "shared-case", updatedAt: "2026-05-18T01:00:00.000Z" }];
+    },
+  });
   const got = await request(routes, "GET", "/api/kanban/cards?workspaceId=child&scope=all&includeCompleted=1&assignee=ada&limit=7&search=math");
   assert.equal(got.result.handled, true);
   assert.equal(got.res.statusCode, 200);
@@ -303,10 +308,11 @@ async function testListProviderSharedMergeAndMaintenance() {
     assignee: "ada",
     limit: 7,
     search: "math",
+    cacheVariant: "shared:owner:shared-case:2026-05-18T01:00:00.000Z",
   }]);
   assert.deepEqual(calls.reconcile, ["child"]);
-  assert.deepEqual(calls.list, [calls.cacheRead[0]]);
-  assert.deepEqual(calls.shared[0].listArgs, calls.cacheRead[0]);
+  assert.deepEqual(calls.list, [Object.assign({}, calls.cacheRead[0], { cacheVariant: undefined })].map(({ cacheVariant, ...rest }) => rest));
+  assert.deepEqual(calls.shared[0].listArgs, calls.list[0]);
   assert.deepEqual(got.body.data.map((card) => card.id), ["card-1", "shared-1"]);
   assert.equal(got.body.data[0].annotatedFor, "principal-child");
   assert.equal(got.body.sharedCases, 1);
@@ -364,6 +370,9 @@ async function testListSortsMergedCardsAfterProviderSharedAndGrowthMerge() {
   };
   const { routes } = makeRoutes({
     kanbanCardProvider: provider,
+    kanbanCaseSharesForActor() {
+      return [{ ownerWorkspaceId: "owner", caseId: "shared-case", updatedAt: "2026-05-18T01:00:00.000Z" }];
+    },
     sharedKanbanCardsForAuth() {
       return Promise.resolve([
         { id: "done-shared-middle", status: "completed", kanbanStatus: "done", kanbanCompletedAt: "2026-05-18T10:00:00.000Z" },
@@ -403,7 +412,7 @@ async function testListCacheHitSortsCachedCardsBeforeSend() {
   assert.deepEqual(got.body.data.map((card) => card.id), ["open-card", "done-new", "done-old"]);
 }
 
-async function testListBypassesCacheForFreshFlagsAndSharedCases() {
+async function testListBypassesCacheForFreshFlagsAndCachesSharedCases() {
   const fresh = makeRoutes({
     readKanbanCardListCache(args) {
       fresh.calls.cacheRead.push(args);
@@ -421,29 +430,32 @@ async function testListBypassesCacheForFreshFlagsAndSharedCases() {
     },
     readKanbanCardListCache(args) {
       sharedCase.calls.cacheRead.push(args);
-      return { data: [{ id: "should-not-read" }] };
+      return { data: [{ id: "cached-shared" }] };
     },
   });
   await request(sharedCase.routes, "GET", "/api/kanban/cards?workspaceId=child&skipCache=0");
-  assert.deepEqual(sharedCase.calls.cacheRead, []);
+  assert.equal(sharedCase.calls.cacheRead.length, 1);
+  assert.equal(sharedCase.calls.cacheRead[0].cacheVariant, "shared:owner:shared-case:");
   assert.deepEqual(sharedCase.calls.cacheWrite, []);
-  assert.deepEqual(sharedCase.calls.list.map((call) => call.workspaceId), ["child"]);
+  assert.deepEqual(sharedCase.calls.list, []);
 }
 
-async function testOwnerListIncludesManagedLearningGrowthCardsWithoutCache() {
+async function testOwnerListIncludesManagedLearningGrowthCardsWithCompositeCache() {
   const ownerAuth = { principalId: "owner", workspaceId: "owner", isOwner: true };
   const { routes, calls } = makeRoutes({
     readKanbanCardListCache(args) {
       calls.cacheRead.push(args);
-      return { data: [{ id: "should-not-read" }] };
+      return null;
     },
   });
   const got = await request(routes, "GET", "/api/kanban/cards?workspaceId=owner&limit=20&fresh=0", { auth: ownerAuth });
   assert.equal(got.res.statusCode, 200);
-  assert.deepEqual(calls.cacheRead, []);
-  assert.deepEqual(calls.cacheWrite, []);
+  assert.equal(calls.cacheRead.length, 1);
+  assert.equal(calls.cacheRead[0].cacheVariant, "owner-growth");
+  assert.equal(calls.cacheWrite.length, 1);
+  assert.equal(calls.cacheWrite[0].args.cacheVariant, "owner-growth");
   assert.equal(calls.list[0].workspaceId, "owner");
-  assert.deepEqual(got.body.data.map((card) => card.id), ["card-1", "shared-1", "growth-1"]);
+  assert.deepEqual(got.body.data.map((card) => card.id), ["card-1", "growth-1"]);
   assert.equal(got.body.ownerManagedGrowthCards, 1);
   const ownerGrowthCall = calls.shared.find((call) => call.ownerGrowth);
   assert.equal(ownerGrowthCall.workspaceId, "owner");
@@ -838,8 +850,8 @@ function testDependencyValidation() {
   await testListCacheHitAnnotatesAndSchedulesMaintenance();
   await testListSortsMergedCardsAfterProviderSharedAndGrowthMerge();
   await testListCacheHitSortsCachedCardsBeforeSend();
-  await testListBypassesCacheForFreshFlagsAndSharedCases();
-  await testOwnerListIncludesManagedLearningGrowthCardsWithoutCache();
+  await testListBypassesCacheForFreshFlagsAndCachesSharedCases();
+  await testOwnerListIncludesManagedLearningGrowthCardsWithCompositeCache();
   await testListTargetBypassesCacheAndForwardsTargetId();
   await testLearningGrowthSubmissionUsesCommentCapabilityAndService();
   await testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback();

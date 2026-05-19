@@ -190,6 +190,31 @@ function sortKanbanCardsForList(cards = []) {
   return Array.isArray(cards) ? cards.slice().sort(compareKanbanRowsForList) : [];
 }
 
+function cleanCachePart(value) {
+  return String(value || "").trim().replace(/[|\0]/g, " ").replace(/\s+/g, " ");
+}
+
+function sharedCaseCacheSignature(sharedCases = []) {
+  const parts = (Array.isArray(sharedCases) ? sharedCases : [])
+    .map((share) => [
+      cleanCachePart(share?.ownerWorkspaceId || share?.owner_workspace_id || "owner"),
+      cleanCachePart(share?.caseId || share?.case_id || share?.kanbanCaseId || share?.kanban_case_id),
+      cleanCachePart(share?.updatedAt || share?.updated_at || share?.createdAt || share?.created_at),
+    ].join(":"))
+    .filter((part) => !part.endsWith("::"))
+    .sort();
+  return parts.join("|");
+}
+
+function cardListCacheArgs(listArgs = {}, options = {}) {
+  const variants = [];
+  const sharedSignature = sharedCaseCacheSignature(options.sharedCases);
+  if (sharedSignature) variants.push(`shared:${sharedSignature}`);
+  if (options.includeOwnerGrowth) variants.push("owner-growth");
+  if (!variants.length) return listArgs;
+  return Object.assign({}, listArgs, { cacheVariant: variants.join("|") });
+}
+
 function createKanbanCardApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "annotateKanbanCardsForAuth",
@@ -291,13 +316,13 @@ function createKanbanCardApiRoutes(deps = {}) {
       && deps.learningGrowthKanbanTaskService.shouldIncludeOwnerKanbanCards({ auth, isOwner, workspaceId, listArgs }),
     );
     const sharedCases = deps.kanbanCaseSharesForActor(auth, workspaceId);
+    const cacheArgs = cardListCacheArgs(listArgs, { sharedCases, includeOwnerGrowth });
     const bypassCache = deps.boolParam(url.searchParams.get("fresh"))
       || deps.boolParam(url.searchParams.get("skipCache"))
       || deps.boolParam(url.searchParams.get("noCache"))
-      || Boolean(targetId)
-      || includeOwnerGrowth;
-    if (!bypassCache && !sharedCases.length) {
-      const cached = deps.readKanbanCardListCache(listArgs);
+      || Boolean(targetId);
+    if (!bypassCache) {
+      const cached = deps.readKanbanCardListCache(cacheArgs);
       if (cached) {
         deps.scheduleKanbanDependencyReconcile(workspaceId);
         deps.sendJson(res, 200, Object.assign({}, cached, {
@@ -307,17 +332,19 @@ function createKanbanCardApiRoutes(deps = {}) {
       }
     }
     const maintenance = deps.scheduleKanbanDependencyReconcile(workspaceId);
-    const result = await deps.kanbanCardProvider.listCards(listArgs);
+    const resultPromise = deps.kanbanCardProvider.listCards(listArgs);
+    const sharedPromise = sharedCases.length
+      ? deps.sharedKanbanCardsForAuth(auth, workspaceId, listArgs)
+      : Promise.resolve([]);
+    const ownerGrowthPromise = includeOwnerGrowth && typeof deps.learningGrowthKanbanTaskService.listOwnerManagedKanbanCards === "function"
+      ? deps.learningGrowthKanbanTaskService.listOwnerManagedKanbanCards({ auth, isOwner, workspaceId, listArgs })
+      : Promise.resolve({ ok: true, cards: [] });
+    const [result, sharedData, ownerGrowth] = await Promise.all([resultPromise, sharedPromise, ownerGrowthPromise]);
     if (!result.ok) {
       deps.kanbanErrorResponse(res, result.result || result);
       return;
     }
-    const sharedData = await deps.sharedKanbanCardsForAuth(auth, workspaceId, listArgs);
-    let ownerGrowthData = [];
-    if (includeOwnerGrowth && typeof deps.learningGrowthKanbanTaskService.listOwnerManagedKanbanCards === "function") {
-      const ownerGrowth = await deps.learningGrowthKanbanTaskService.listOwnerManagedKanbanCards({ auth, isOwner, workspaceId, listArgs });
-      ownerGrowthData = deps.annotateKanbanCardsForAuth(ownerGrowth.cards || [], auth);
-    }
+    const ownerGrowthData = deps.annotateKanbanCardsForAuth(ownerGrowth?.cards || [], auth);
     const data = sortKanbanCardsForList(dedupeCardsById(deps.annotateKanbanCardsForAuth(result.data, auth).concat(sharedData, ownerGrowthData)));
     const payload = {
       data,
@@ -329,7 +356,7 @@ function createKanbanCardApiRoutes(deps = {}) {
       sharedCases: sharedData.length,
       ownerManagedGrowthCards: ownerGrowthData.length,
     };
-    if (!sharedCases.length && !targetId && !includeOwnerGrowth) deps.writeKanbanCardListCache(listArgs, payload);
+    if (!targetId) deps.writeKanbanCardListCache(cacheArgs, payload);
     deps.sendJson(res, 200, payload);
   }
 

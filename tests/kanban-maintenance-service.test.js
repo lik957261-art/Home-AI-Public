@@ -12,9 +12,13 @@ async function run() {
   const logs = [];
   const store = {
     entries: {
-      [["owner", "mine", "open", "", "120", ""].join("\0")]: {
+      [["owner", "mine", "open", "", "120", "", ""].join("\0")]: {
         savedAt: 900,
         payload: { ok: true, data: [{ id: "cached-card" }] },
+      },
+      [["child", "mine", "open", "", "120", "", "shared:owner:case-1:2026"].join("\0")]: {
+        savedAt: 900,
+        payload: { ok: true, data: [{ id: "shared-cached-card" }] },
       },
     },
   };
@@ -41,7 +45,8 @@ async function run() {
     },
   });
 
-  assert.equal(service.cacheKey({ workspaceId: "owner" }), ["owner", "mine", "open", "", "120", ""].join("\0"));
+  assert.equal(service.cacheKey({ workspaceId: "owner" }), ["owner", "mine", "open", "", "120", "", ""].join("\0"));
+  assert.equal(service.cacheKey({ workspaceId: "child", cacheVariant: "shared:owner:case-1:2026" }), ["child", "mine", "open", "", "120", "", "shared:owner:case-1:2026"].join("\0"));
   const cached = service.readCardListCache({ workspaceId: "owner" });
   assert.equal(cached.cache.hit, true);
   assert.equal(cached.cache.ageMs, 100);
