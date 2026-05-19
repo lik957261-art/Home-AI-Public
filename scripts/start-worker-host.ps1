@@ -16,6 +16,12 @@ param(
     [string]$WeixinFrontGatewayScript = "C:\ProgramData\HermesMobile\app\scripts\start-weixin-mobile-ingress-bridge.ps1",
     [string]$WeixinFrontGatewayWslUser = "",
     [string]$WeixinFrontGatewayHermesHome = "",
+    [string]$CronTickSidecar = "",
+    [string]$CronTickSidecarScript = "",
+    [string]$CronTickSidecarDistroName = "",
+    [string]$CronTickSidecarWslUser = "",
+    [string]$CronTickSidecarHermesHome = "",
+    [string]$CronTickSidecarLogPath = "",
     [string]$OwnerKeyPath = "C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret",
     [int]$HealthStatusTimeoutSec = 5,
     [int]$ReadyWaitSeconds = 90,
@@ -313,6 +319,72 @@ function Start-WeixinFrontGatewayIfNeeded {
     }
 }
 
+function Resolve-CronTickSidecarMode {
+    $value = [string]$CronTickSidecar
+    if (-not $value) { $value = [string]$env:HERMES_MOBILE_CRON_TICK_SIDECAR }
+    if (-not $value) { return "auto" }
+    return $value
+}
+
+function Test-CronTickSidecarDisabled {
+    $value = Resolve-CronTickSidecarMode
+    return ($value -match '^(0|false|off|disabled|none)$')
+}
+
+function Test-CronTickSidecarRequired {
+    $value = Resolve-CronTickSidecarMode
+    return ($value -match '^(1|required|on|true)$')
+}
+
+function Start-CronTickSidecarInCallerContextIfNeeded {
+    if (Test-CronTickSidecarDisabled) { return }
+    $sidecarStarter = $CronTickSidecarScript
+    if (-not $sidecarStarter) { $sidecarStarter = Join-Path $WorkingDirectory "scripts\start-cron-tick-sidecar.ps1" }
+    if (-not (Test-Path -LiteralPath $sidecarStarter)) {
+        $message = "Cron tick sidecar starter not found: $sidecarStarter"
+        if (Test-CronTickSidecarRequired) { throw $message }
+        Write-WorkerHostLog $message
+        return
+    }
+    $resolvedDistro = $CronTickSidecarDistroName
+    if (-not $resolvedDistro) { $resolvedDistro = $env:HERMES_MOBILE_CRON_TICK_WSL_DISTRO }
+    if (-not $resolvedDistro) { $resolvedDistro = $env:HERMES_WEB_WSL_DISTRO }
+    if (-not $resolvedDistro) { $resolvedDistro = "Ubuntu-24.04" }
+    $resolvedWslUser = $CronTickSidecarWslUser
+    if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_MOBILE_CRON_TICK_WSL_USER }
+    if (-not $resolvedWslUser) { $resolvedWslUser = "xuxin" }
+    $resolvedHermesHome = $CronTickSidecarHermesHome
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_MOBILE_CRON_TICK_HERMES_HOME }
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_WEB_HERMES_HOME }
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = "/home/$resolvedWslUser/.hermes" }
+    $resolvedLogPath = $CronTickSidecarLogPath
+    if (-not $resolvedLogPath) { $resolvedLogPath = $env:HERMES_MOBILE_CRON_TICK_LOG_PATH }
+    if (-not $resolvedLogPath) {
+        $dataRoot = $env:HERMES_WEB_DATA_DIR
+        if (-not $dataRoot) { $dataRoot = "C:\ProgramData\HermesMobile\data" }
+        $resolvedLogPath = Join-Path (Join-Path $dataRoot "logs") "cron-tick-sidecar.log"
+    }
+    $args = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $sidecarStarter,
+        "-DistroName", $resolvedDistro,
+        "-WslUser", $resolvedWslUser,
+        "-HermesHome", $resolvedHermesHome,
+        "-LogPath", $resolvedLogPath
+    )
+    if ($ReplaceExisting) { $args += "-ReplaceExisting" }
+    Write-WorkerHostLog "Ensuring cron tick sidecar in caller context through $sidecarStarter."
+    $output = & powershell.exe @args 2>&1 | ForEach-Object { $_.ToString() }
+    $exitCode = $LASTEXITCODE
+    foreach ($line in $output) { Write-WorkerHostLog ("cron-tick-sidecar: {0}" -f $line) }
+    if ($exitCode -ne 0) {
+        $message = "Cron tick sidecar start/check failed with exit code $exitCode."
+        if (Test-CronTickSidecarRequired) { throw $message }
+        Write-WorkerHostLog $message
+    }
+}
+
 if (-not (Test-Path -LiteralPath $CredentialPath)) {
     throw "Worker credential file not found: $CredentialPath"
 }
@@ -333,6 +405,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Hermes Mobile bridge host syntax check failed."
 }
 Start-WeixinFrontGatewayIfNeeded
+if (-not $CheckOnly) {
+    Start-CronTickSidecarInCallerContextIfNeeded
+}
 if (-not $CheckOnly) {
     Start-BridgeHost -ScriptPath $BridgeHostScript -ListenPort $BridgeHostPort -KeyPath $BridgeHostKeyPath -Replace:$ReplaceExisting
 }

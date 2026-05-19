@@ -76,7 +76,14 @@ assert.match(startWorkerHost, /if \(-not \$resolvedWslUser\) \{ \$resolvedWslUse
 assert.match(startWorkerHost, /if \(-not \$resolvedHermesHome\) \{ \$resolvedHermesHome = "\/home\/\$resolvedWslUser\/\.hermes" \}/);
 assert.match(startWorkerHost, /start-weixin-mobile-ingress-bridge\.ps1/);
 assert.match(startWorkerHost, /function Start-WeixinFrontGatewayIfNeeded/);
-assert.match(startWorkerHost, /Start-WeixinFrontGatewayIfNeeded\s*\r?\nif \(-not \$CheckOnly\)/);
+assert.match(startWorkerHost, /CronTickSidecar/);
+assert.match(startWorkerHost, /function Start-CronTickSidecarInCallerContextIfNeeded/);
+assert.match(startWorkerHost, /start-cron-tick-sidecar\.ps1/);
+assert.match(startWorkerHost, /HERMES_MOBILE_CRON_TICK_WSL_USER/);
+assert.match(startWorkerHost, /if \(-not \$resolvedWslUser\) \{ \$resolvedWslUser = "xuxin" \}/);
+assert.match(startWorkerHost, /if \(\$ReplaceExisting\) \{ \$args \+= "-ReplaceExisting" \}/);
+assert.match(startWorkerHost, /Start-WeixinFrontGatewayIfNeeded\s*\r?\nif \(-not \$CheckOnly\) \{\s*\r?\n\s*Start-CronTickSidecarInCallerContextIfNeeded/s);
+assert.match(startWorkerHost, /Start-CronTickSidecarInCallerContextIfNeeded\s*\r?\n\}\s*\r?\nif \(-not \$CheckOnly\)/);
 
 assert.match(mobileRuntimeEnvironmentService, /HERMES_MOBILE_WEB_PUSH_START_DELAY_MS/);
 assert.match(mobileRuntimeEnvironmentService, /HERMES_WEB_TODO_PUSH_START_DELAY_MS/);
