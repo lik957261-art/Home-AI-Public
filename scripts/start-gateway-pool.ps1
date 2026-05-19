@@ -177,7 +177,13 @@ runtime_hermes="$runtime_bin/hermes"
     }
   }
   if ($updated -match '"\$runtime_python" -m hermes_cli\.main -p "\$profile" gateway run') {
-    $updated = $updated.Replace('"$runtime_python" -m hermes_cli.main -p "$profile" gateway run', '"$runtime_hermes" -p "$profile" gateway run')
+    $updated = $updated.Replace('"$runtime_python" -m hermes_cli.main -p "$profile" gateway run', '"$runtime_hermes" gateway run')
+  }
+  if ($updated -match 'HERMES_HOME="\$worker_home_dir"') {
+    $updated = $updated.Replace('HERMES_HOME="$worker_home_dir"', 'HERMES_HOME="$worker_home_dir/profiles/$profile"')
+  }
+  if ($updated -match '"\$runtime_hermes" -p "\$profile" gateway run') {
+    $updated = $updated.Replace('"$runtime_hermes" -p "$profile" gateway run', '"$runtime_hermes" gateway run')
   }
   if ($updated -match 'gateway run --replace --accept-hooks > "\$log" 2>&1(?! < /dev/null)') {
     $updated = $updated -replace '(gateway run --replace --accept-hooks > "\$log" 2>&1)(?! < /dev/null)', '$1 < /dev/null'
@@ -201,7 +207,7 @@ set -euo pipefail
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
 
 if command -v pkill >/dev/null 2>&1; then
-  pkill -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+  pkill -u hermes -f 'hermes_cli\.main .*gateway run' || true
 fi
 sleep 1
 
@@ -220,7 +226,7 @@ done
 sleep 1
 
 if command -v pkill >/dev/null 2>&1; then
-  pkill -9 -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+  pkill -9 -u hermes -f 'hermes_cli\.main .*gateway run' || true
 fi
 '@
   $stopChildText = @'
@@ -243,12 +249,12 @@ if ($LASTEXITCODE -ne 0) {
 set -euo pipefail
 
 if command -v pkill >/dev/null 2>&1; then
-  pkill -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+  pkill -u hermes -f 'hermes_cli\.main .*gateway run' || true
 fi
 sleep 1
 
 if command -v pkill >/dev/null 2>&1; then
-  pkill -9 -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+  pkill -9 -u hermes -f 'hermes_cli\.main .*gateway run' || true
 fi
 '@
 

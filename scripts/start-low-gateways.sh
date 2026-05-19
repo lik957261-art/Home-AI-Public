@@ -59,16 +59,16 @@ for idx in $(seq 1 "$low_gateway_count"); do
   rm -f "$pidfile"
   runuser -u "$worker_user" -- setsid -f env \
     HOME="$worker_home" \
-    HERMES_HOME="$worker_home_dir" \
+    HERMES_HOME="$worker_home_dir/profiles/$profile" \
     PYTHONPATH="$runtime_source" \
     HERMES_PROFILE="$profile" \
     HERMES_GOOGLE_PROFILE_HOME="$worker_home_dir/profiles/$profile" \
     PATH="$low_gateway_path" \
     HERMES_ACCEPT_HOOKS=1 \
     API_SERVER_KEY="$api_key" \
-    "$runtime_hermes" -p "$profile" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
+    "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2
-  pgrep -u "$worker_user" -f "${profile} gateway run" | head -1 > "$pidfile" || true
+  pgrep -u "$worker_user" -f "hermes_cli.main .*gateway run --replace --accept-hooks" | tail -1 > "$pidfile" || true
 done
 
 for port in $(seq 18751 $((18750 + low_gateway_count))); do
