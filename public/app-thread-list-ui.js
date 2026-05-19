@@ -174,9 +174,8 @@ function renderCurrentThread(options = {}) {
   if (isSingleWindowChatView()) {
     syncChatSearchMatches();
   }
-  const progressPanel = renderRunProgressPanel(thread, activeRuns);
   const historyPager = renderChatHistoryPager(thread);
-  conversation.innerHTML = `${historyPager}${progressPanel}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  conversation.innerHTML = `${historyPager}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
   wireChatHistoryPager(conversation);
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);
@@ -228,10 +227,9 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("interruptRun").disabled = !allActiveRuns.length;
     configureComposer({ enabled: true, placeholder: "New topic..." });
     const filterBanner = renderTaskDirectoryFilterBanner();
-    const progressPanel = renderRunProgressPanel(thread, allActiveRuns);
     conversation.innerHTML = groups.length
-      ? `${filterBanner}${progressPanel}<div class="task-grid">${groups.map(renderTaskCard).join("")}</div>`
-      : `${filterBanner}${progressPanel}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
+      ? `${filterBanner}<div class="task-grid">${groups.map(renderTaskCard).join("")}</div>`
+      : `${filterBanner}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {
         const sourceThreadId = String(button.dataset.openTaskThread || "");
@@ -262,8 +260,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
         ? "\u65e0\u6743\u53d1\u8a00"
         : (selected.sharedTopic ? "\u53d1\u5230\u5b66\u4e60\u8bdd\u9898\uff1b@ChatGPT \u624d\u4f1a\u8c03\u7528 AI" : "Reply in this task..."),
     });
-    const progressPanel = renderRunProgressPanel(thread, groupActiveRuns);
-    conversation.innerHTML = `${progressPanel}${(selected.messages || []).map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
+    conversation.innerHTML = `${(selected.messages || []).map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
     renderTaskDetailToolbar(selected);
   }
   wireTaskDocumentLinks(conversation);

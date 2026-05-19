@@ -132,7 +132,7 @@ function renderRunProgressQuietRow(lastEventMs) {
   </div>`;
 }
 
-function renderRunProgressPanel(thread, runIds) {
+function renderRunProgressPanel(thread, runIds, options = {}) {
   const ids = (runIds || []).filter(Boolean);
   if (!ids.length) return "";
   const events = runProgressEvents(thread, ids);
@@ -149,7 +149,7 @@ function renderRunProgressPanel(thread, runIds) {
         ${event.preview ? `<span class="run-progress-preview">${escapeHtml(event.preview)}</span>` : ""}
       </div>`).join("")}`
     : renderRunProgressWaitingRow(startMs);
-  return `<aside class="run-progress-panel" aria-live="polite">
+  return `<aside class="run-progress-panel${options.inline ? " inline" : ""}" aria-live="polite">
     <div class="run-progress-head">
       <span>\u8fd0\u884c\u4e2d</span>
       <span data-run-progress-elapsed="${escapeHtml(String(startMs))}">${escapeHtml(runProgressDurationLabel(startMs))}</span>
@@ -157,6 +157,14 @@ function renderRunProgressPanel(thread, runIds) {
     </div>
     <div class="run-progress-rows">${rows}</div>
   </aside>`;
+}
+
+function renderMessageRunProgress(thread, message = {}) {
+  if (message?.role !== "assistant") return "";
+  if (!["queued", "running"].includes(String(message.status || ""))) return "";
+  const runId = String(message.runId || thread?.activeRunId || "").trim();
+  if (!runId) return "";
+  return renderRunProgressPanel(thread, [runId], { inline: true });
 }
 
 function updateRunProgressTicker(root = document) {

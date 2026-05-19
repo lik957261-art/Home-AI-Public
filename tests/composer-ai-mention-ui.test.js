@@ -127,10 +127,13 @@ assert.match(appJs, /function renderLongMessagePreview\(text, aliases, message =
 assert.match(appJs, /function wireLongMessageButtons\(root\)/);
 assert.match(appJs, /wireLongMessageButtons\(conversation\)/);
 assert.match(appJs, /if \(!scheduleStreamingMessageRender\(message\)\) scheduleRenderCurrentThread\(\)/);
-assert.match(appJs, /function renderRunProgressPanel\(thread, runIds\)/);
-assert.doesNotMatch(appJs, /function renderRunProgressPanel\(thread, runIds\) \{\s*return "";/);
+assert.match(appJs, /function renderRunProgressPanel\(thread, runIds, options = \{\}\)/);
+assert.doesNotMatch(appJs, /function renderRunProgressPanel\(thread, runIds(?:, options = \{\})?\) \{\s*return "";/);
+assert.match(appJs, /function renderMessageRunProgress\(thread, message = \{\}\)/);
+assert.match(appJs, /renderMessageRunProgress\(state\.currentThread, message\)/);
 assert.match(appJs, /function syncRunProgressTicker\(root = document\)/);
 assert.match(appJs, /syncRunProgressTicker\(conversation\)/);
+assert.doesNotMatch(appJs, /conversation\.innerHTML = `\$\{historyPager\}\$\{progressPanel\}/);
 assert.match(stylesCss, /\.long-message-preview/);
 assert.match(stylesCss, /\.long-message-toggle/);
 

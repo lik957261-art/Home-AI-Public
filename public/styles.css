@@ -1782,6 +1782,15 @@ button {
   backdrop-filter: blur(10px);
 }
 
+.run-progress-panel.inline {
+  position: static;
+  top: auto;
+  z-index: auto;
+  width: 100%;
+  margin: 12px 0 0;
+  box-shadow: none;
+}
+
 .run-progress-head {
   display: flex;
   align-items: center;

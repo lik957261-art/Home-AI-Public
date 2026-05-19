@@ -108,6 +108,7 @@ function renderMessage(message) {
   const externalDelivery = !revoked ? renderExternalDeliveryStatus(message) : "";
   const searchClass = chatSearchClassForMessage(message);
   const body = revoked ? `<div class="message-revoked-text">${escapeHtml(GROUP_MESSAGE_REVOKED_TEXT)}</div>` : renderText(message.content || "", message);
+  const runProgress = !revoked ? renderMessageRunProgress(state.currentThread, message) : "";
   return `<article class="message ${escapeHtml(message.role || "assistant")}${searchClass}${revoked ? " revoked" : ""}" data-message-id="${escapeHtml(message.id || "")}">
     <div class="message-head">
       <div class="message-head-main-wrap">
@@ -119,7 +120,7 @@ function renderMessage(message) {
         <span>${escapeHtml(timeLabel)}</span>
       </div>
     </div>
-    <div class="message-body">${body}${error}${artifacts}${externalDelivery}${footer}</div>
+    <div class="message-body">${body}${runProgress}${error}${artifacts}${externalDelivery}${footer}</div>
   </article>`;
 }
 
