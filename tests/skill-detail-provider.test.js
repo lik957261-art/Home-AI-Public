@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   createDirectSkillResolver,
   createSkillDetailProvider,
+  defaultSkillRoots,
 } = require("../adapters/skill-detail-provider");
 
 async function run() {
@@ -67,6 +68,39 @@ async function run() {
     });
     const fallbackDetail = await fallbackProvider.detail("demo-skill");
     assert.equal(fallbackDetail.path, "study-templates/demo-skill");
+
+    let bridgeCalls = 0;
+    const directFirstProvider = createSkillDetailProvider({
+      skillRoots: [root],
+      async runBridge() {
+        bridgeCalls += 1;
+        throw new Error("bridge should not run when direct lookup resolves");
+      },
+    });
+    const directFirstDetail = await directFirstProvider.detail("demo-skill");
+    assert.equal(directFirstDetail.path, "study-templates/demo-skill");
+    assert.equal(bridgeCalls, 0);
+
+    const boundedRoot = path.join(root, "bounded");
+    const boundedSkillDir = path.join(boundedRoot, "level-a", "level-b", "bounded-skill");
+    fs.mkdirSync(boundedSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(boundedSkillDir, "SKILL.md"), "# Bounded Skill\n", "utf8");
+    const boundedResolver = createDirectSkillResolver({
+      skillRoots: [boundedRoot],
+      maxNamedSkillScanDirs: 1,
+      maxNamedSkillScanMs: 1000,
+    });
+    assert.equal(boundedResolver.detail("bounded-skill"), null);
+
+    const profileRoot = path.join(root, "data", "skill-profiles", "owner-full", "skills");
+    const profileSkillDir = path.join(profileRoot, "social-media", "x-social-monitoring-and-briefs");
+    fs.mkdirSync(profileSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(profileSkillDir, "SKILL.md"), "# X Social\n", "utf8");
+    const roots = defaultSkillRoots({
+      env: { HERMES_WEB_DATA_DIR: path.join(root, "data") },
+      repoRoot: path.join(root, "repo"),
+    });
+    assert(roots.some((item) => item === profileRoot));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

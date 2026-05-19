@@ -59,6 +59,38 @@ function dedupeRoots(values) {
   return roots;
 }
 
+function isUncPath(value) {
+  return /^\\\\/.test(cleanString(value));
+}
+
+function localSkillProfileRoots(options = {}) {
+  const env = options.env || process.env;
+  const dataDirs = [
+    env.HERMES_WEB_DATA_DIR,
+    env.HERMES_MOBILE_DATA_DIR,
+    env.HERMES_WEB_DATA_ROOT,
+    env.HERMES_MOBILE_DATA_ROOT,
+  ];
+  if (process.platform === "win32") dataDirs.push("C:\\ProgramData\\HermesMobile\\data");
+  const roots = [];
+  for (const value of dedupeRoots(dataDirs)) {
+    if (!value || isUncPath(value)) continue;
+    const profilesRoot = path.join(value, "skill-profiles");
+    for (const profile of ["owner-full", "shared-global"]) {
+      roots.push(path.join(profilesRoot, profile, "skills"));
+    }
+    try {
+      if (!fs.existsSync(profilesRoot) || !fs.statSync(profilesRoot).isDirectory()) continue;
+      for (const entry of fs.readdirSync(profilesRoot, { withFileTypes: true })) {
+        if (entry.isDirectory()) roots.push(path.join(profilesRoot, entry.name, "skills"));
+      }
+    } catch (_err) {
+      // Profile roots are best-effort. A bad data dir must not slow or break startup.
+    }
+  }
+  return roots;
+}
+
 function defaultSkillRoots(options = {}) {
   const env = options.env || process.env;
   const repoRoot = path.resolve(options.repoRoot || path.join(__dirname, ".."));
@@ -67,6 +99,7 @@ function defaultSkillRoots(options = {}) {
   const roots = [
     env.HERMES_WEB_SKILLS_ROOT,
     env.HERMES_MOBILE_SKILLS_ROOT,
+    ...localSkillProfileRoots(options),
     path.join(repoRoot, "skills"),
     path.join(os.homedir(), ".codex", "skills"),
   ];
@@ -83,6 +116,16 @@ function defaultSkillRoots(options = {}) {
   return dedupeRoots(roots);
 }
 
+function usableSkillRoot(root, options = {}) {
+  if (!root) return false;
+  if (!options.allowRemoteSkillRoots && isUncPath(root)) return false;
+  try {
+    return fs.existsSync(root) && fs.statSync(root).isDirectory();
+  } catch (_err) {
+    return false;
+  }
+}
+
 function directSkillCandidate(root, skillPath) {
   const rootResolved = path.resolve(root);
   const candidate = path.resolve(rootResolved, skillPath, "SKILL.md");
@@ -91,14 +134,19 @@ function directSkillCandidate(root, skillPath) {
   return { path: skillPath, file: candidate };
 }
 
-function collectNamedSkillCandidates(root, skillPath) {
+function collectNamedSkillCandidates(root, skillPath, options = {}) {
   const matches = [];
   const rootResolved = path.resolve(root);
   const direct = directSkillCandidate(root, skillPath);
   if (direct) matches.push(direct);
   if (skillPath.includes("/")) return matches;
+  const maxDirs = Math.max(1, Number(options.maxNamedSkillScanDirs || 1500));
+  const deadlineMs = Math.max(1, Number(options.maxNamedSkillScanMs || 200));
+  const startedAt = Date.now();
+  let scannedDirs = 0;
   const stack = [rootResolved];
   while (stack.length) {
+    if (++scannedDirs > maxDirs || Date.now() - startedAt > deadlineMs) break;
     const current = stack.pop();
     let entries = [];
     try {
@@ -113,7 +161,7 @@ function collectNamedSkillCandidates(root, skillPath) {
     }
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if ([".archive", ".git", "__pycache__", "node_modules"].includes(entry.name)) continue;
+      if ([".archive", ".git", "__pycache__", "node_modules", "cache", "workspace", "public-export"].includes(entry.name)) continue;
       const next = path.join(current, entry.name);
       if (fs.existsSync(path.join(next, "SKILL.md")) && entry.name !== skillPath) continue;
       stack.push(next);
@@ -141,20 +189,25 @@ function skillDetailFromFile(filePath, resolvedPath, maxChars) {
 function createDirectSkillResolver(options = {}) {
   const roots = Array.isArray(options.skillRoots) ? options.skillRoots : defaultSkillRoots(options);
   const maxChars = Number(options.maxSkillChars || 60000);
+  const scanOptions = {
+    allowRemoteSkillRoots: Boolean(options.allowRemoteSkillRoots),
+    maxNamedSkillScanDirs: options.maxNamedSkillScanDirs,
+    maxNamedSkillScanMs: options.maxNamedSkillScanMs,
+  };
 
   function detail(skill) {
     const skillPath = normalizeSkillPath(skill);
     if (!skillPath) return null;
     for (const root of roots) {
-      if (!root || !fs.existsSync(root)) continue;
+      if (!usableSkillRoot(root, scanOptions)) continue;
       const direct = directSkillCandidate(root, skillPath);
       if (direct) return skillDetailFromFile(direct.file, direct.path, maxChars);
     }
     if (skillPath.includes("/")) return null;
     const matches = new Map();
     for (const root of roots) {
-      if (!root || !fs.existsSync(root)) continue;
-      for (const match of collectNamedSkillCandidates(root, skillPath)) {
+      if (!usableSkillRoot(root, scanOptions)) continue;
+      for (const match of collectNamedSkillCandidates(root, skillPath, scanOptions)) {
         matches.set(match.path.toLowerCase(), match);
       }
     }
@@ -252,6 +305,8 @@ function createSkillDetailProvider(options = {}) {
     if (!requestedSkill) {
       throw errorWithStatus("Skill is required", 400);
     }
+    const direct = directResolver?.detail?.(requestedSkill);
+    if (direct) return direct;
     let bridgeError = null;
     try {
       const result = await runBridge({ skill: requestedSkill });
@@ -264,8 +319,6 @@ function createSkillDetailProvider(options = {}) {
     } catch (err) {
       bridgeError = err;
     }
-    const direct = directResolver?.detail?.(requestedSkill);
-    if (direct) return direct;
     throw bridgeError || errorWithStatus("Skill was not found", 404, { skill: requestedSkill });
   }
 
@@ -275,4 +328,5 @@ function createSkillDetailProvider(options = {}) {
 module.exports = {
   createDirectSkillResolver,
   createSkillDetailProvider,
+  defaultSkillRoots,
 };
