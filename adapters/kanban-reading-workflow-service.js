@@ -28,6 +28,13 @@ function createKanbanReadingWorkflowService(deps = {}) {
   const quizTargetingVersion = String(deps.quizTargetingVersion || "reading-quiz-v1");
   const logger = deps.logger || console;
   const learningCoinAwardService = deps.learningCoinAwardService || null;
+  const scheduleBackgroundTask = typeof deps.scheduleBackgroundTask === "function"
+    ? deps.scheduleBackgroundTask
+    : (task) => setTimeout(() => {
+      Promise.resolve().then(task).catch((err) => {
+        if (logger && typeof logger.warn === "function") logger.warn("[reading-submission] background processing failed", { error: err?.message || String(err) });
+      });
+    }, 0);
 
   function requireFunction(name) {
     if (typeof deps[name] !== "function") throw new Error(`kanban reading workflow service requires ${name}`);
@@ -606,64 +613,210 @@ function createKanbanReadingWorkflowService(deps = {}) {
     return mdPath;
   }
 
-  async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}) {
+  function writeKanbanReadingTranscriptFile(workspaceId, cardId, currentCard, audio, transcription) {
+    const dir = caseDeliverableDirectory(workspaceId, currentCard?.kanbanCaseId || "study-plan", cardId);
+    const stem = safeFileName(`${currentCard?.kanbanCaseCardIndex || "session"}-${currentCard?.content || cardId}`).replace(/\.[^.]+$/, "");
+    const mdPath = path.join(dir, `${Date.now()}-${stem}-transcript.md`);
+    const lines = [
+      "# \u5f55\u97f3\u8f6c\u5199",
+      "",
+      `\u5361\u7247\uff1a${currentCard?.content || cardId}`,
+      `\u97f3\u9891\uff1a${audio?.name || path.basename(audio?.path || "")}`,
+      transcription?.language ? `\u8bed\u8a00\uff1a${transcription.language}` : "",
+      "",
+      "## Transcript",
+      "",
+      transcription?.text || "",
+    ].filter((line) => line !== "").join("\n");
+    fs.writeFileSync(mdPath, lines, "utf8");
+    return mdPath;
+  }
+
+  function publicKanbanOutput(workspaceId, filePath, role = "") {
+    if (!filePath) return null;
+    const projected = typeof artifactService.publicKanbanOutputFile === "function"
+      ? artifactService.publicKanbanOutputFile(workspaceId, filePath)
+      : null;
+    const fallback = projected || {
+      name: path.basename(filePath),
+      path: filePath,
+      displayPath: filePath,
+      mime: mimeFor(filePath),
+      size: fs.existsSync(filePath) ? fs.statSync(filePath).size : 0,
+      url: "",
+    };
+    return role ? Object.assign({}, fallback, { role }) : fallback;
+  }
+
+  function readingSubmissionOutputs(workspaceId, audio, transcriptPath, analysisPath) {
+    return [
+      publicKanbanOutput(workspaceId, analysisPath, "reading-analysis"),
+      publicKanbanOutput(workspaceId, transcriptPath, "reading-transcript"),
+      publicKanbanOutput(workspaceId, audio?.path, "reading-audio"),
+    ].filter(Boolean);
+  }
+
+  async function notifyReadingSubmissionProcessed(options = {}, event = {}) {
+    if (typeof options.onProcessed !== "function") return null;
+    try {
+      return await options.onProcessed(event);
+    } catch (err) {
+      if (logger && typeof logger.warn === "function") {
+        logger.warn("[reading-submission] topic delivery callback failed", { cardId: event.cardId, error: err?.message || String(err) });
+      }
+      return null;
+    }
+  }
+
+  async function processSavedKanbanReadingSubmission(workspaceId, cardId, context, currentCard, audio, notes = "", submittedAt = "", options = {}) {
+    const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
+    try {
+      const transcription = readingTemplate
+        ? Object.assign(await transcribeKanbanReadingAudio(audio.path), { sourceKind: "audio", sourcePath: audio.path })
+        : await extractKanbanStudySubmissionEvidence(audio);
+      const analysis = await analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, context.prior, transcription, notes);
+      const quiz = await generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes);
+      const transcriptPath = writeKanbanReadingTranscriptFile(workspaceId, cardId, currentCard, audio, transcription);
+      const analysisPath = writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes);
+      const quizUrl = readingQuizUrl(workspaceId, cardId);
+      const outputs = readingSubmissionOutputs(workspaceId, audio, transcriptPath, analysisPath);
+      const submissionState = writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, {
+        status: "quiz_pending",
+        workspaceId,
+        cardId,
+        cardTitle: currentCard.content || cardId,
+        analysisPath,
+        transcriptPath,
+        audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size, kind: audio.kind || transcription.sourceKind || "" },
+        transcription: { text: transcription.text, language: transcription.language || "", sourceKind: transcription.sourceKind || "" },
+        analysis,
+        quiz,
+        quizTargetingVersion,
+        quizUrl,
+        notes,
+        attempts: [],
+        submittedAt: submittedAt || nowIso(),
+        processedAt: nowIso(),
+      });
+      const commented = await kanbanCardProvider.mutateCard({
+        action: "comment",
+        workspaceId,
+        cardId,
+        comment: [
+          readingTemplate ? "Reading retelling audio uploaded and analyzed." : "Study submission uploaded and analyzed.",
+          "The full Markdown analysis and transcript are attached; complete the 10-question quiz with all answers correct to finish this card.",
+          `Quiz: ${quizUrl}`,
+          `MEDIA: ${analysisPath}`,
+          `MEDIA: ${transcriptPath}`,
+        ].join("\n"),
+        author: "Hermes Mobile",
+      }).catch(() => null);
+      const result = {
+        ok: Boolean(commented?.ok),
+        card: commented?.ok ? publicTodo(commented) : publicTodo(currentCard),
+        audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size, kind: audio.kind || transcription.sourceKind || "" },
+        transcription: { text: transcription.text, language: transcription.language || "", sourceKind: transcription.sourceKind || "" },
+        analysis,
+        analysisPath,
+        transcriptPath,
+        outputs,
+        quiz: publicKanbanReadingQuiz(quiz),
+        quizUrl,
+        status: submissionState.status,
+      };
+      await notifyReadingSubmissionProcessed(options, {
+        workspaceId,
+        cardId,
+        card: Object.assign({}, currentCard, {
+          workspaceId,
+          outputs,
+          kanbanOutputs: outputs,
+          status: currentCard.status || currentCard.kanbanStatus || "",
+        }),
+        result,
+        outputs,
+      });
+      if (!commented?.ok) {
+        return Object.assign({}, result, {
+          ok: false,
+          error: commented?.error || "Reading submission comment failed",
+        });
+      }
+      return Object.assign({}, result, { ok: true });
+    } catch (err) {
+      writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, {
+        status: "failed",
+        workspaceId,
+        cardId,
+        cardTitle: currentCard.content || cardId,
+        audio,
+        notes,
+        submittedAt: submittedAt || nowIso(),
+        error: compactText(err?.message || String(err), 800),
+        failedAt: nowIso(),
+      });
+      throw err;
+    }
+  }
+
+  async function submitKanbanReadingSubmission(workspaceId, cardId, body = {}, options = {}) {
     const context = await readingContextForCard(workspaceId, cardId);
     const currentCard = context.current || { id: cardId, content: cardId };
     if (!kanbanReadingCanSubmit(currentCard, context.prior || [], workspaceId)) {
       return { ok: false, status: 409, error: "Study card is not open yet" };
     }
     const readingTemplate = kanbanCardUsesReadingTemplate(currentCard);
+    const existing = readKanbanReadingSubmissionState(workspaceId, cardId, currentCard);
+    if (existing?.quiz) {
+      return {
+        ok: true,
+        status: existing.status || "quiz_pending",
+        alreadyProcessed: true,
+        analysisPath: existing.analysisPath || "",
+        transcriptPath: existing.transcriptPath || "",
+        quiz: publicKanbanReadingQuiz(existing.quiz),
+        quizUrl: existing.quizUrl || readingQuizUrl(workspaceId, cardId),
+      };
+    }
+    if (String(existing?.status || "") === "processing") {
+      return {
+        ok: true,
+        accepted: true,
+        processing: true,
+        status: "processing",
+        submittedAt: existing.submittedAt || "",
+        audio: existing.audio || null,
+      };
+    }
     const audio = readingTemplate
       ? Object.assign(saveKanbanReadingAudioUpload(workspaceId, cardId, body, currentCard), { kind: "audio" })
       : saveKanbanStudySubmissionUpload(workspaceId, cardId, body, currentCard);
-    const transcription = readingTemplate
-      ? Object.assign(await transcribeKanbanReadingAudio(audio.path), { sourceKind: "audio", sourcePath: audio.path })
-      : await extractKanbanStudySubmissionEvidence(audio);
     const notes = compactText(body.notes || body.comment || "", 2000);
-    const analysis = await analyzeKanbanReadingSubmission(workspaceId, cardId, currentCard, context.prior, transcription, notes);
-    const quiz = await generateKanbanReadingQuiz(workspaceId, cardId, currentCard, transcription, analysis, notes);
-    const analysisPath = writeKanbanReadingAnalysisFile(workspaceId, cardId, currentCard, audio, transcription, analysis, quiz, notes);
-    const quizUrl = readingQuizUrl(workspaceId, cardId);
-    const submissionState = writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, {
-      status: "quiz_pending",
-      workspaceId,
-      cardId,
-      cardTitle: currentCard.content || cardId,
-      analysisPath,
-      audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size, kind: audio.kind || transcription.sourceKind || "" },
-      transcription: { text: transcription.text, language: transcription.language || "", sourceKind: transcription.sourceKind || "" },
-      analysis,
-      quiz,
-      quizTargetingVersion,
-      quizUrl,
-      notes,
-      attempts: [],
-      submittedAt: nowIso(),
-    });
-    const commented = await kanbanCardProvider.mutateCard({
-      action: "comment",
-      workspaceId,
-      cardId,
-      comment: [
-        readingTemplate ? "Reading retelling audio uploaded and analyzed." : "Study submission uploaded and analyzed.",
-        "The full Markdown analysis is attached; complete the 10-question quiz with all answers correct to finish this card.",
-        `Quiz: ${quizUrl}`,
-        `MEDIA: ${analysisPath}`,
-      ].join("\n"),
-      author: "Hermes Mobile",
-    }).catch(() => null);
-    if (!commented?.ok) return { ok: false, error: commented?.error || "Reading submission comment failed", analysisPath };
-    return {
-      ok: true,
-      card: publicTodo(commented),
-      audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size, kind: audio.kind || transcription.sourceKind || "" },
-      transcription: { text: transcription.text, language: transcription.language || "", sourceKind: transcription.sourceKind || "" },
-      analysis,
-      analysisPath,
-      quiz: publicKanbanReadingQuiz(quiz),
-      quizUrl,
-      status: submissionState.status,
-    };
+    const submittedAt = nowIso();
+    if (options.background === true) {
+      const processingState = writeKanbanReadingSubmissionState(workspaceId, cardId, currentCard, {
+        status: "processing",
+        workspaceId,
+        cardId,
+        cardTitle: currentCard.content || cardId,
+        audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size, kind: audio.kind || "" },
+        notes,
+        attempts: [],
+        submittedAt,
+        processingStartedAt: submittedAt,
+      });
+      scheduleBackgroundTask(() => processSavedKanbanReadingSubmission(workspaceId, cardId, context, currentCard, audio, notes, submittedAt, options));
+      return {
+        ok: true,
+        accepted: true,
+        processing: true,
+        status: processingState.status,
+        submittedAt,
+        audio: { path: audio.path, name: audio.name, mime: audio.mime, size: audio.size, kind: audio.kind || "" },
+        card: publicTodo(currentCard),
+      };
+    }
+    return processSavedKanbanReadingSubmission(workspaceId, cardId, context, currentCard, audio, notes, submittedAt, options);
   }
 
   async function getKanbanReadingQuiz(workspaceId, cardId) {
@@ -860,6 +1013,7 @@ function createKanbanReadingWorkflowService(deps = {}) {
     publicKanbanReadingQuiz,
     readingContextForCard,
     repairReadingAnalysisMarkdown,
+    processSavedKanbanReadingSubmission,
     saveKanbanReadingCoverUpload,
     saveKanbanSourceDocumentUpload,
     saveKanbanReadingAudioUpload,

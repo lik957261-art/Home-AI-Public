@@ -160,6 +160,7 @@ function createKanbanStudyArtifactService(deps = {}) {
   return {
     readingArtifactDirectory,
     caseDeliverableDirectory,
+    publicKanbanOutputFile,
     readingQuizUrl,
     readingSubmissionStatePath,
     readReadingSubmissionState,

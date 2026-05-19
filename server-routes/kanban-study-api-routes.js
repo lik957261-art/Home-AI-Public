@@ -144,6 +144,16 @@ function syncCompletedCardToTopic(deps, card) {
   }
 }
 
+function syncCardArtifactsToTopic(deps, event = {}) {
+  const service = deps.kanbanCaseTopicDeliveryService;
+  if (!service || typeof service.syncCardArtifacts !== "function" || !event?.card) return null;
+  try {
+    return service.syncCardArtifacts(event.card);
+  } catch (_) {
+    return null;
+  }
+}
+
 function createKanbanStudyApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "annotateKanbanCardForAuth",
@@ -229,14 +239,22 @@ function createKanbanStudyApiRoutes(deps = {}) {
     if (!access) return;
     const workspaceId = access.workspaceId;
     try {
-      const result = await deps.submitKanbanReadingSubmission(workspaceId, cardId, bodyWithExecutorWorkspace(body, access));
+      const result = await deps.submitKanbanReadingSubmission(
+        workspaceId,
+        cardId,
+        bodyWithExecutorWorkspace(body, access),
+        {
+          background: true,
+          onProcessed: (event) => syncCardArtifactsToTopic(deps, event),
+        },
+      );
       if (!result.ok) {
         deps.kanbanErrorResponse(res, result, 502);
         return;
       }
       broadcastCardUpdate(deps, workspaceId, cardId, "reading-submission");
       if (result.card) result.card = deps.annotateKanbanCardForAuth(result.card, access.auth);
-      deps.sendJson(res, 200, result);
+      deps.sendJson(res, result.processing ? 202 : 200, result);
     } catch (err) {
       jsonError(deps, res, err);
     }

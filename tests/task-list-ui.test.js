@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260519-growth-submission-guard-v17";
+const CLIENT_VERSION = "20260519-reading-upload-async-v18";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -760,7 +760,7 @@ assert.match(kanbanStudyArtifactServiceJs, /latest-reading-submission\.json/);
 assert.match(kanbanPlanCardCreationServiceJs, /async function createKanbanStudyPlanCards\(workspaceId, input = \{\}\)/);
 assert.match(kanbanRuntimeServicesJs, /createKanbanReadingWorkflowService/);
 assert.match(serverJs, /function readingContextForCard\(\.\.\.args\) \{ return kanbanReadingWorkflowService\.readingContextForCard\(\.\.\.args\); \}/);
-assert.match(kanbanReadingWorkflowServiceJs, /async function submitKanbanReadingSubmission\(workspaceId, cardId, body = \{\}\)/);
+assert.match(kanbanReadingWorkflowServiceJs, /async function submitKanbanReadingSubmission\(workspaceId, cardId, body = \{\}, options = \{\}\)/);
 assert.match(mobileApiComposition, /kanbanReadingWorkflowService\.submitKanbanReadingSubmission\(\.\.\.args\)/);
 assert.match(kanbanReadingWorkflowServiceJs, /async function generateKanbanReadingQuiz\(workspaceId, cardId, currentCard, transcription, analysis, notes = ""\)/);
 assert.match(kanbanReadingWorkflowServiceJs, /async function submitKanbanReadingQuiz\(workspaceId, cardId, body = \{\}\)/);
@@ -769,7 +769,7 @@ assert.match(kanbanReadingWorkflowServiceJs, /function publicKanbanReadingQuiz\(
 assert.match(serverJs, /function publicKanbanReadingSubmissionSummary\(workspaceId, card = \{\}\)/);
 assert.match(mobileRuntimeEnvironmentServiceJs, /KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1"/);
 assert.match(kanbanReadingWorkflowServiceJs, /function createKanbanReadingWorkflowService\(deps = \{\}\)/);
-assert.match(kanbanReadingWorkflowServiceJs, /async function submitKanbanReadingSubmission\(workspaceId, cardId, body = \{\}\)/);
+assert.match(kanbanReadingWorkflowServiceJs, /async function submitKanbanReadingSubmission\(workspaceId, cardId, body = \{\}, options = \{\}\)/);
 assert.match(kanbanReadingWorkflowServiceJs, /async function getKanbanReadingQuiz\(workspaceId, cardId\)/);
 assert.match(kanbanReadingWorkflowServiceJs, /async function submitKanbanReadingQuiz\(workspaceId, cardId, body = \{\}\)/);
 assert.match(kanbanReadingWorkflowServiceJs, /dedicated quiz-target section with 3-5 concrete targets/);

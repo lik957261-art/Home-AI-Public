@@ -117,14 +117,14 @@ function deriveKanbanWorkflowState(input = {}) {
     else if (!priorOk) phase = "locked";
     else if (completed) phase = "completed";
     else if (hasAnalysis) phase = "quiz_pending";
-    else if (String(readingState.status || "") === "submitted" || String(readingState.status || "") === "analyzing") phase = "analysis_pending";
+    else if (["submitted", "analyzing", "processing"].includes(String(readingState.status || ""))) phase = "analysis_pending";
     return {
       kind: String(card.kanbanCaseTemplate || card.kanban_case_template || "") === "reading" ? "reading" : "study",
       phase,
       sourceStatus,
       completed,
       requiresPriorCompletion: !priorOk,
-      canSubmitStudy: phase === "submission_open" || phase === "analysis_pending",
+      canSubmitStudy: phase === "submission_open",
       canAnswerQuiz: phase === "quiz_pending",
       canStartExam: false,
       canRevise: !archived,

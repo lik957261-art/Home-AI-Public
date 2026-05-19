@@ -66,23 +66,26 @@
     const readingQuizState = optionFn(options, "readingQuizState", () => null);
     const readingSubmissionCompleted = optionFn(options, "readingSubmissionCompleted", () => false);
     const readingCardAcceptsSubmission = optionFn(options, "readingCardAcceptsSubmission", () => false);
+    const readingSubmissionSummary = optionFn(options, "readingSubmissionSummary", () => null);
     const submitting = Boolean(state.todoReadingSubmitting?.[todo.id]);
     const progress = String(state.todoReadingSubmissionProgress?.[todo.id] || "");
     const feedback = readingSubmissionFeedback(todo.id);
+    const submissionSummary = readingSubmissionSummary(todo) || {};
+    const serverProcessing = ["processing", "submitted", "analyzing"].includes(String(submissionSummary.status || ""));
     const hasAnalysis = readingSubmissionHasAnalysis(todo);
     const quizState = readingQuizState(todo.id);
     const quizLoaded = Boolean(quizState?.quiz);
     const completed = readingSubmissionCompleted(todo);
     const canSubmit = readingCardAcceptsSubmission(todo);
     const stepClass = (done, active) => done ? "done" : (active ? "active" : "pending");
-    const uploadDone = completed || hasAnalysis || submitting;
+    const uploadDone = completed || hasAnalysis || submitting || serverProcessing;
     const analysisDone = completed || hasAnalysis;
     const quizActive = !completed && (hasAnalysis || quizLoaded);
     const progressText = progress === "uploading"
       ? `正在读取${labels.recording}并上传。`
       : (progress === "transcribing"
         ? `${labels.recording}已上传，正在转写语音、生成${labels.analysis}和${labels.quiz}。`
-        : (submitting ? `${labels.recording}已提交，正在转写语音、生成${labels.analysis}和${labels.quiz}；完成后会自动显示入口。` : ""));
+        : ((submitting || serverProcessing) ? `${labels.recording}已提交，正在转写语音、生成${labels.analysis}和${labels.quiz}；完成后会自动显示入口。` : ""));
     const summaryText = completed
       ? labels.completed
       : (feedback?.kind === "success" && hasAnalysis
@@ -96,11 +99,11 @@
     return `<section class="todo-reading-workflow" data-reading-workflow="${escapeHtml(todo.id)}">
     <div class="todo-detail-deliverables-head">
       <strong>${escapeHtml(`${labels.item}完成流程`)}</strong>
-      <span>${escapeHtml(completed ? "已完成" : (feedback?.kind === "error" ? "提交失败" : (submitting ? "处理中" : (hasAnalysis ? "待答卷" : `待${labels.recording}`))))}</span>
+      <span>${escapeHtml(completed ? "已完成" : (feedback?.kind === "error" ? "提交失败" : ((submitting || serverProcessing) ? "处理中" : (hasAnalysis ? "待答卷" : `待${labels.recording}`))))}</span>
     </div>
     <ol>
       <li class="${stepClass(uploadDone, !uploadDone && canSubmit)}"><span>1</span><strong>${escapeHtml(labels.submit)}</strong><small>${escapeHtml(uploadDone ? `已收到${labels.recording}` : labels.upload)}</small></li>
-      <li class="${stepClass(analysisDone, submitting)}"><span>2</span><strong>${escapeHtml(labels.analysis)}</strong><small>${escapeHtml(analysisDone ? "已生成分析和练习" : (submitting ? "正在处理" : `等待${labels.recording}`))}</small></li>
+      <li class="${stepClass(analysisDone, submitting || serverProcessing)}"><span>2</span><strong>${escapeHtml(labels.analysis)}</strong><small>${escapeHtml(analysisDone ? "已生成分析和练习" : ((submitting || serverProcessing) ? "正在处理" : `等待${labels.recording}`))}</small></li>
       <li class="${stepClass(completed, quizActive)}"><span>3</span><strong>${escapeHtml(labels.quiz)}</strong><small>${escapeHtml(completed ? "10/10 已通过" : (quizActive ? "需要 10 题全对" : "等待分析完成"))}</small></li>
     </ol>
     <p class="todo-detail-muted">${escapeHtml(progressText || summaryText)}</p>

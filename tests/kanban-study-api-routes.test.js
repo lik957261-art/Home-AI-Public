@@ -113,8 +113,16 @@ function makeRoutes(overrides = {}) {
       calls.quizzes.push({ mode: "submit", workspaceId, cardId, body });
       return { ok: true, passed: Boolean(body.passed), card: { id: cardId } };
     },
-    async submitKanbanReadingSubmission(workspaceId, cardId, body) {
-      calls.submissions.push({ workspaceId, cardId, body });
+    async submitKanbanReadingSubmission(workspaceId, cardId, body, options) {
+      calls.submissions.push({
+        workspaceId,
+        cardId,
+        body,
+        options: {
+          background: Boolean(options?.background),
+          hasOnProcessed: typeof options?.onProcessed === "function",
+        },
+      });
       return { ok: true, card: { id: cardId } };
     },
     useKanbanTodoBackend() {
@@ -165,7 +173,12 @@ async function testSubmissionAndQuizRoutes() {
   const submission = await request(routes, "POST", "/api/kanban/cards/card-1/study-submission", { workspaceId: "child" });
   assert.equal(submission.res.statusCode, 200);
   assert.equal(calls.access[0].capability, "submitStudy");
-  assert.deepEqual(calls.submissions[0], { workspaceId: "child", cardId: "card-1", body: { workspaceId: "child" } });
+  assert.deepEqual(calls.submissions[0], {
+    workspaceId: "child",
+    cardId: "card-1",
+    body: { workspaceId: "child" },
+    options: { background: true, hasOnProcessed: true },
+  });
   assert.equal(submission.body.card.annotated, true);
 
   const quiz = await request(routes, "POST", "/api/kanban/cards/card-1/reading-quiz", { workspaceId: "child", passed: true });
@@ -176,6 +189,17 @@ async function testSubmissionAndQuizRoutes() {
   const quizRead = await request(routes, "GET", "/api/kanban/cards/card-1/study-quiz?workspaceId=child");
   assert.equal(quizRead.res.statusCode, 200);
   assert.equal(calls.access.at(-1).capability, "view");
+}
+
+async function testSubmissionRouteReturnsAcceptedForBackgroundProcessing() {
+  const { routes } = makeRoutes({
+    async submitKanbanReadingSubmission() {
+      return { ok: true, accepted: true, processing: true, status: "processing", card: { id: "card-1" } };
+    },
+  });
+  const submission = await request(routes, "POST", "/api/kanban/cards/card-1/study-submission", { workspaceId: "child" });
+  assert.equal(submission.res.statusCode, 202);
+  assert.equal(submission.body.processing, true);
 }
 
 async function testSharedPerformerExecutorIsPropagated() {
@@ -244,6 +268,7 @@ async function run() {
   await testMetadataAndFallthrough();
   await testPlanCreationRoutes();
   await testSubmissionAndQuizRoutes();
+  await testSubmissionRouteReturnsAcceptedForBackgroundProcessing();
   await testSharedPerformerExecutorIsPropagated();
   await testAssessmentExamRoutes();
   await testDisabledAndBadBody();

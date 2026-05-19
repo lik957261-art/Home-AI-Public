@@ -42,6 +42,14 @@ function run() {
   assert.equal(quizPending.canSubmitStudy, false);
   assert.equal(quizPending.canAnswerQuiz, true);
 
+  const processingStudy = deriveKanbanWorkflowState({
+    card: studyCard({ kanbanStatus: "todo" }),
+    readingState: { status: "processing" },
+  });
+  assert.equal(processingStudy.phase, "analysis_pending");
+  assert.equal(processingStudy.canSubmitStudy, false);
+  assert.equal(processingStudy.canAnswerQuiz, false);
+
   const passedStudy = deriveKanbanWorkflowState({
     card: studyCard({ kanbanStatus: "todo" }),
     readingState: { status: "completed", attempts: [{ passed: true }] },

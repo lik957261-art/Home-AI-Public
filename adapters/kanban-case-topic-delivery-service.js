@@ -72,6 +72,17 @@ function buildMessageContent(card = {}, outputs = []) {
   ].filter(Boolean).join("\n");
 }
 
+function buildArtifactMessageContent(card = {}, outputs = []) {
+  const title = compactText(cardField(card, ["content", "title", "name"]) || cardId(card), 120);
+  return [
+    "\u5b66\u4e60\u5361\u7247\u4ea4\u4ed8\u5df2\u66f4\u65b0\u3002",
+    title ? `\u5361\u7247\uff1a${title}` : "",
+    outputs.length
+      ? `\u4ea4\u4ed8\u6587\u4ef6\uff1a${outputs.length} \u4e2a\uff0c\u5df2\u4f5c\u4e3a\u672c\u6d88\u606f\u9644\u4ef6\u3002`
+      : "\u4ea4\u4ed8\u6587\u4ef6\uff1a\u6682\u65e0\u3002",
+  ].filter(Boolean).join("\n");
+}
+
 function defaultNormalizeTaskGroupMeta(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? Object.assign({}, value) : {};
 }
@@ -99,11 +110,21 @@ function createKanbanCaseTopicDeliveryService(deps = {}) {
 
   function syncCompletedCard(card = {}) {
     if (!cardCompleted(card)) return { ok: true, delivered: false, reason: "not_completed" };
+    return syncCardMessage(card, { requireOutputs: false, completed: true });
+  }
+
+  function syncCardArtifacts(card = {}) {
+    return syncCardMessage(card, { requireOutputs: true, completed: cardCompleted(card) });
+  }
+
+  function syncCardMessage(card = {}, options = {}) {
     const id = cardId(card);
     if (!id) return { ok: false, delivered: false, error: "missing_card_id" };
     const topicThreadId = cardField(card, ["topicThreadId", "topic_thread_id"]);
     const topicTaskGroupId = cardField(card, ["topicTaskGroupId", "topic_task_group_id"]);
     if (!topicThreadId || !topicTaskGroupId) return { ok: true, delivered: false, reason: "missing_topic_binding" };
+    const outputs = cardOutputs(card);
+    if (options.requireOutputs && !outputs.length) return { ok: true, delivered: false, reason: "missing_outputs" };
 
     const currentState = stateFn();
     if (!currentState || typeof currentState !== "object") return { ok: false, delivered: false, error: "state_unavailable" };
@@ -112,7 +133,6 @@ function createKanbanCaseTopicDeliveryService(deps = {}) {
     if (!thread) return { ok: true, delivered: false, reason: "topic_thread_missing" };
 
     const now = nowIso();
-    const outputs = cardOutputs(card);
     const messageId = stableMessageId(id);
     const messages = asArray(thread.messages);
     const existingIndex = messages.findIndex((message) => (
@@ -123,7 +143,7 @@ function createKanbanCaseTopicDeliveryService(deps = {}) {
     const nextMessage = Object.assign({}, previous || {}, {
       id: previous?.id || messageId || makeId("case_topic_card"),
       role: "assistant",
-      content: buildMessageContent(card, outputs),
+      content: options.completed ? buildMessageContent(card, outputs) : buildArtifactMessageContent(card, outputs),
       status: "done",
       createdAt: previous?.createdAt || now,
       updatedAt: now,
@@ -168,6 +188,7 @@ function createKanbanCaseTopicDeliveryService(deps = {}) {
   }
 
   return Object.freeze({
+    syncCardArtifacts,
     syncCompletedCard,
   });
 }

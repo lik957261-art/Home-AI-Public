@@ -17,6 +17,7 @@ async function submitReadingSubmission(todoId, file, notes = "") {
   showPushToast(`${labels.recording}已开始上传，正在${labels.analysis}`);
   scheduleReadingSubmissionRecovery(todoId);
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  let keepPending = false;
   try {
     const dataBase64 = await fileToBase64(file);
     state.todoReadingSubmissionProgress[todoId] = "transcribing";
@@ -35,6 +36,17 @@ async function submitReadingSubmission(todoId, file, notes = "") {
         notes,
       }),
     });
+    if (result?.processing) {
+      keepPending = true;
+      state.todoReadingSubmissionProgress[todoId] = "transcribing";
+      setReadingSubmissionFeedback(todoId, {
+        kind: "info",
+        message: `\u5df2\u6536\u5230${labels.recording}\uff0c\u6b63\u5728\u540e\u53f0\u8f6c\u5199\u8bed\u97f3\u3001\u751f\u6210${labels.analysis}\u548c${labels.quiz}\u3002`,
+      });
+      showPushToast(`${labels.recording}\u5df2\u4fdd\u5b58\uff0c\u540e\u53f0\u6b63\u5728\u5904\u7406\u3002`, "success");
+      scheduleReadingSubmissionRecovery(todoId);
+      return;
+    }
     if (result?.quiz) applyReadingQuizResult(todoId, result);
     clearTodoListCache(kanbanCardWorkspaceId(todoId));
     state.todoKanbanStatus = KANBAN_STORY_STATUS;
@@ -63,7 +75,7 @@ async function submitReadingSubmission(todoId, file, notes = "") {
     });
     throw err;
   } finally {
-    clearReadingSubmissionPendingState(todoId);
+    if (!keepPending) clearReadingSubmissionPendingState(todoId);
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
 }

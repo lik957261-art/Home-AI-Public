@@ -99,14 +99,46 @@ function testSyncCompletedCardIsIdempotentAndUpdatesArtifacts() {
   assert.equal(state.threads[0].messages[0].artifacts[0].name, "updated.md");
 }
 
+function testSyncCardArtifactsCreatesNonCompletedTopicMessage() {
+  const state = {
+    threads: [{
+      id: "thread-topic",
+      workspaceId: "learner",
+      messages: [],
+      taskGroupMeta: {
+        case_case_a: { title: "Case A" },
+      },
+    }],
+  };
+  const service = makeService(state);
+  const result = service.syncCardArtifacts({
+    id: "card-1",
+    content: "Reading card",
+    status: "open",
+    topicThreadId: "thread-topic",
+    topicTaskGroupId: "case_case_a",
+    outputs: [{ name: "transcript.md", url: "/output" }],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.delivered, true);
+  assert.equal(result.artifactCount, 1);
+  assert.equal(state.threads[0].messages.length, 1);
+  assert.equal(state.threads[0].messages[0].source, "kanban-case-topic-delivery");
+  assert.equal(state.threads[0].messages[0].artifacts[0].name, "transcript.md");
+  assert.match(state.threads[0].messages[0].content, /\u5b66\u4e60\u5361\u7247\u4ea4\u4ed8\u5df2\u66f4\u65b0/);
+}
+
 function testIncompleteOrUnboundCardsAreSkipped() {
   const state = { threads: [] };
   const service = makeService(state);
   assert.equal(service.syncCompletedCard({ id: "card-1", status: "open" }).reason, "not_completed");
   assert.equal(service.syncCompletedCard({ id: "card-1", status: "completed" }).reason, "missing_topic_binding");
+  assert.equal(service.syncCardArtifacts({ id: "card-1", status: "open", topicThreadId: "thread", topicTaskGroupId: "group" }).reason, "missing_outputs");
 }
 
 testSyncCompletedCardCreatesTopicMessage();
 testSyncCompletedCardIsIdempotentAndUpdatesArtifacts();
+testSyncCardArtifactsCreatesNonCompletedTopicMessage();
 testIncompleteOrUnboundCardsAreSkipped();
 console.log("kanban-case-topic-delivery-service tests passed");

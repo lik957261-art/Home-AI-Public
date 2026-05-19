@@ -29,6 +29,8 @@ function makeService(overrides = {}) {
     docx: [],
     hermes: [],
     mutate: [],
+    background: [],
+    processed: [],
     reconcile: [],
     textPreview: [],
     transcribe: [],
@@ -140,6 +142,9 @@ function makeService(overrides = {}) {
     quizTargetingVersion: "target-v1",
     visibleKanbanCaseCards: (items) => items,
     logger: { warn: (message, meta) => calls.warnings.push({ message, meta }) },
+    scheduleBackgroundTask(task) {
+      calls.background.push(task);
+    },
   }, overrides.deps || {}));
   return { root, stores, calls, cards, service };
 }
@@ -197,6 +202,49 @@ async function testReadingAudioUsesTranscriptionPath() {
   assert.equal(result.ok, true);
   assert.equal(result.transcription.sourceKind, "audio");
   assert.equal(calls.transcribe.length, 1);
+}
+
+async function testReadingAudioCanBeAcceptedBeforeBackgroundAnalysis() {
+  const { service, calls, stores } = makeService({
+    cards: [{
+      id: "card-1",
+      content: "Reading",
+      kanbanCaseId: "case-1",
+      kanbanCaseMode: "study-plan",
+      kanbanCaseTemplate: "reading",
+      kanbanCaseCardIndex: 1,
+      kanbanCaseCardCount: 1,
+      kanbanStatus: "todo",
+      topicThreadId: "thread-topic",
+      topicTaskGroupId: "case_case_1",
+    }],
+  });
+  const accepted = await service.submitKanbanReadingSubmission("owner", "card-1", {
+    filename: "voice.m4a",
+    type: "audio/mp4",
+    dataBase64: Buffer.from("audio bytes").toString("base64"),
+  }, {
+    background: true,
+    onProcessed(event) {
+      calls.processed.push(event);
+      return { ok: true, delivered: true };
+    },
+  });
+
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.processing, true);
+  assert.equal(calls.hermes.length, 0);
+  assert.equal(calls.background.length, 1);
+  const processingState = [...stores.values()].find((value) => value?.status === "processing");
+  assert.equal(processingState.audio.name, "voice.m4a");
+
+  await calls.background[0]();
+  const completedState = [...stores.values()].find((value) => value?.status === "quiz_pending");
+  assert.equal(completedState.quizTargetingVersion, "target-v1");
+  assert.equal(Boolean(completedState.transcriptPath), true);
+  assert.equal(calls.hermes.length, 2);
+  assert.equal(calls.processed.length, 1);
+  assert.equal(calls.processed[0].card.kanbanOutputs.some((item) => item.role === "reading-transcript"), true);
 }
 
 async function testReadingAnalysisHeadingsAreReadable() {
@@ -432,6 +480,7 @@ async function run() {
   await testTextSubmissionCreatesAnalysisQuizAndComment();
   await testAnalysisUsesBoundCaseDeliverableDirectory();
   await testReadingAudioUsesTranscriptionPath();
+  await testReadingAudioCanBeAcceptedBeforeBackgroundAnalysis();
   await testReadingAnalysisHeadingsAreReadable();
   await testQuizFailureAndPassWorkflow();
   await testQuizCompletionFailureDoesNotAwardCoins();
