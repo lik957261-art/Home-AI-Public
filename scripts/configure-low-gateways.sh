@@ -30,6 +30,8 @@ audio_plugin_source="${HERMES_MOBILE_AUDIO_PLUGIN_SOURCE:-$mobile_app_root/gatew
 audio_plugin_target="$worker_home_dir/plugins/hermes-mobile-audio"
 image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-image}"
 image_plugin_target="$worker_home_dir/plugins/hermes-mobile-image"
+video_plugin_source="${HERMES_MOBILE_VIDEO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-video}"
+video_plugin_target="$worker_home_dir/plugins/hermes-mobile-video"
 owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
 outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
 
@@ -258,6 +260,7 @@ http_plugin_enabled=0
 docx_plugin_enabled=0
 audio_plugin_enabled=0
 image_plugin_enabled=0
+video_plugin_enabled=0
 
 if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/__init__.py" ]; then
   rm -rf "$weather_plugin_target"
@@ -311,6 +314,15 @@ if [ -f "$image_plugin_source/plugin.yaml" ] && [ -f "$image_plugin_source/__ini
   image_plugin_enabled=1
 else
   echo "Image plugin source not found: $image_plugin_source" >&2
+fi
+
+if [ -f "$video_plugin_source/plugin.yaml" ] && [ -f "$video_plugin_source/__init__.py" ]; then
+  rm -rf "$video_plugin_target"
+  cp -a "$video_plugin_source" "$video_plugin_target"
+  chown -R "$worker_user:$worker_user" "$video_plugin_target"
+  video_plugin_enabled=1
+else
+  echo "Video plugin source not found: $video_plugin_source" >&2
 fi
 
 if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ]; then
@@ -609,6 +621,15 @@ if [ "$grok_gateway_count" -gt 0 ]; then
     repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
     repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
     ln -s "$profile_dir" "$profile_link"
+    grok_plugin_block="  enabled: []"
+    if [ "$video_plugin_enabled" = "1" ]; then
+      install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+      rm -rf "$profile_dir/plugins/hermes-mobile-video"
+      cp -a "$video_plugin_target" "$profile_dir/plugins/hermes-mobile-video"
+      chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-video"
+      grok_plugin_block="  enabled:
+    - hermes-mobile-video"
+    fi
     cat > "$profile_link/config.yaml" <<YAML
 model:
   default: grok-4.3
@@ -621,6 +642,7 @@ toolsets:
   - file
   - vision
   - video
+  - video_gen
   - image_gen
   - messaging
   - tts
@@ -640,6 +662,7 @@ platform_toolsets:
     - file
     - vision
     - video
+    - video_gen
     - image_gen
     - messaging
     - tts
@@ -653,6 +676,9 @@ platform_toolsets:
 agent:
   max_turns: 60
   reasoning_effort: medium
+video_gen:
+  provider: xai
+  model: grok-imagine-video
 terminal:
   backend: local
   cwd: .
@@ -664,7 +690,7 @@ platforms:
       host: 127.0.0.1
       port: ${port}
 plugins:
-  enabled: []
+${grok_plugin_block}
 worker_pool:
   enabled: false
 cron:
