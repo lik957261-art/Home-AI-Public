@@ -141,7 +141,6 @@ function chooseComposerSearchSource(source) {
   closeComposerSourceMenu();
   updateComposerSourceControl();
   renderComposerContext();
-  $("messageInput")?.focus({ preventScroll: true });
 }
 
 function resetComposerSearchSource() {

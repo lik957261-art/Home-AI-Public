@@ -8501,9 +8501,9 @@ button.directory-alias-chip {
   position: relative;
   min-width: 0;
   display: grid;
-  grid-template-columns: 44px auto minmax(0, 1fr) auto;
+  grid-template-columns: 40px 54px minmax(0, 1fr) minmax(50px, auto);
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 9px 14px calc(9px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: rgba(250, 246, 237, 0.88);
@@ -8765,27 +8765,32 @@ button.directory-alias-chip {
 #attachFile {
   grid-column: 1;
   order: 0;
-  width: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 0;
-  border-radius: 11px;
-  font-size: 23px;
+  border-radius: 10px;
+  font-size: 22px;
   font-weight: 560;
   line-height: 1;
   touch-action: manipulation;
 }
 
-#messageInput {
+#composerSearchSource {
   grid-column: 2;
   order: 0;
 }
 
-#sendMessage {
+#messageInput {
   grid-column: 3;
   order: 0;
+}
+
+#sendMessage {
+  grid-column: 4;
+  order: 0;
   min-width: 58px;
-  padding: 0 14px;
+  padding: 0 10px;
   color: #0f5f4d;
   background: #d8efe6;
   border: 1px solid rgba(31, 111, 98, 0.18);
@@ -9383,9 +9388,9 @@ button.directory-alias-chip {
   }
 
   .composer {
-    grid-template-columns: 44px auto minmax(0, 1fr) auto;
+    grid-template-columns: 40px 50px minmax(0, 1fr) 52px;
     padding: 7px 8px 6px;
-    gap: 6px;
+    gap: 5px;
   }
 
   .composer-context {
@@ -9446,10 +9451,10 @@ button.directory-alias-chip {
   }
 
   #attachFile {
-    width: 44px;
-    min-width: 44px;
-    min-height: 44px;
-    font-size: 22px;
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 21px;
   }
 
   #composerSearchSource {
@@ -9457,15 +9462,15 @@ button.directory-alias-chip {
   }
 
   .composer .composer-source-button {
-    width: 24px;
-    min-width: 24px;
-    min-height: 24px;
+    width: 23px;
+    min-width: 23px;
+    min-height: 23px;
     padding: 0;
   }
 
   #sendMessage {
-    min-width: 54px;
-    padding: 0 12px;
+    min-width: 52px;
+    padding: 0 7px;
   }
 }
 
