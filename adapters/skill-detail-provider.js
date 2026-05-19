@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { createSkillAnalysisService } = require("./skill-analysis-service");
 
 function defaultCompactText(value, maxChars = 800) {
   const text = String(value || "");
@@ -299,6 +300,7 @@ function createSkillDetailProvider(options = {}) {
   const compactText = typeof options.compactText === "function" ? options.compactText : defaultCompactText;
   const runBridge = typeof options.runBridge === "function" ? options.runBridge : createChildBridge(options);
   const directResolver = options.directResolver || createDirectSkillResolver(options);
+  const skillAnalysisService = options.skillAnalysisService || createSkillAnalysisService(options);
 
   async function detail(skill) {
     const requestedSkill = String(skill || "").trim();
@@ -322,7 +324,11 @@ function createSkillDetailProvider(options = {}) {
     throw bridgeError || errorWithStatus("Skill was not found", 404, { skill: requestedSkill });
   }
 
-  return { detail };
+  async function analyze(skill) {
+    return skillAnalysisService.analyze(await detail(skill));
+  }
+
+  return { detail, analyze };
 }
 
 module.exports = {

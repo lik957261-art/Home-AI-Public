@@ -81,6 +81,14 @@ function makeRoutes(overrides = {}) {
           summary: "Skill summary",
         });
       },
+      analyze(skill) {
+        calls.skillDetail.push(`analysis:${skill}`);
+        return Promise.resolve({
+          skill: { path: skill },
+          summary: "Skill analysis",
+          invocationConditions: ["Use when analysis is requested."],
+        });
+      },
     },
     compactText(value, maxChars) {
       calls.compact.push({ value: String(value), maxChars });
@@ -107,26 +115,29 @@ async function testRouteMetadataAndFallthrough() {
     "projects-list",
     "directories-shared-list",
     "skills-detail",
+    "skills-analysis",
   ]);
 
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/projects" }).id, "projects-list");
   assert.equal(routes.match({ method: "GET", path: "/api/directories/shared" }).id, "directories-shared-list");
   assert.equal(routes.match({ method: "GET", path: "/api/skills/detail" }).id, "skills-detail");
+  assert.equal(routes.match({ method: "GET", path: "/api/skills/analysis" }).id, "skills-analysis");
   assert.equal(routes.match({ method: "POST", path: "/api/projects" }), null);
 
   const summary = routes.summary({ public: true });
-  assert.equal(summary.total, 3);
-  assert.deepEqual(summary.byModule, { resource: 3 });
-  assert.deepEqual(summary.byAuthMode, { "access-key": 3 });
+  assert.equal(summary.total, 4);
+  assert.deepEqual(summary.byModule, { resource: 4 });
+  assert.deepEqual(summary.byAuthMode, { "access-key": 4 });
   assert.equal(JSON.stringify(summary).includes("/api/projects"), false);
 
   const publicRoutes = routes.list({ public: true });
   assert.equal(Object.hasOwn(publicRoutes[0], "path"), false);
-  assert.deepEqual(publicRoutes.map((route) => route.workspaceScoped), [true, true, false]);
+  assert.deepEqual(publicRoutes.map((route) => route.workspaceScoped), [true, true, false, false]);
   assert.deepEqual(publicRoutes.map((route) => route.resourceTypes), [
     ["project", "workspace"],
     ["directory", "share"],
+    ["skill"],
     ["skill"],
   ]);
 
@@ -191,6 +202,14 @@ async function testSkillRequired() {
   assert.deepEqual(missing.body, { error: "Skill is required" });
   assert.deepEqual(calls.skillDetail, []);
   assert.deepEqual(calls.compact, []);
+
+  const missingAnalysis = await request(routes, "GET", "/api/skills/analysis");
+  assert.equal(missingAnalysis.result.handled, true);
+  assert.equal(missingAnalysis.result.route.id, "skills-analysis");
+  assert.equal(missingAnalysis.res.statusCode, 400);
+  assert.deepEqual(missingAnalysis.body, { error: "Skill is required" });
+  assert.deepEqual(calls.skillDetail, []);
+  assert.deepEqual(calls.compact, []);
 }
 
 async function testSkillDetailSuccessAndError() {
@@ -215,6 +234,9 @@ async function testSkillDetailSuccessAndError() {
       detail() {
         throw err;
       },
+      analyze() {
+        throw new Error("not used");
+      },
     },
   });
   const failed = await request(failing.routes, "GET", "/api/skills/detail?skill=productivity%2Fraw");
@@ -228,6 +250,42 @@ async function testSkillDetailSuccessAndError() {
     value: "Skill detail bridge timed out while reading metadata",
     maxChars: 800,
   }]);
+}
+
+async function testSkillAnalysisSuccessAndError() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "GET", "/api/skills/analysis?skill=x-social-monitoring-and-briefs");
+
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.skillDetail, ["analysis:x-social-monitoring-and-briefs"]);
+  assert.deepEqual(got.body, {
+    data: {
+      skill: { path: "x-social-monitoring-and-briefs" },
+      summary: "Skill analysis",
+      invocationConditions: ["Use when analysis is requested."],
+    },
+  });
+
+  const err = new Error("Skill analysis failed after bounded parsing");
+  err.status = 422;
+  err.skill = "x-social-monitoring-and-briefs";
+  const failing = makeRoutes({
+    skillDetailProvider: {
+      detail() {
+        throw new Error("not used");
+      },
+      analyze() {
+        throw err;
+      },
+    },
+  });
+  const failed = await request(failing.routes, "GET", "/api/skills/analysis?skill=x-social-monitoring-and-briefs");
+
+  assert.equal(failed.res.statusCode, 422);
+  assert.deepEqual(failed.body, {
+    error: "compact:Skill analysis fai",
+    skill: "x-social-monitoring-and-briefs",
+  });
 }
 
 function testDependencyValidation() {
@@ -260,6 +318,21 @@ function testDependencyValidation() {
     }),
     /resource api routes require skillDetailProvider\.detail/,
   );
+  assert.throws(
+    () => createResourceApiRoutes({
+      requireWorkspaceAccess() {},
+      sendJson() {},
+      compactText() {},
+      sharedDirectoryProjectionService: {
+        publicProjectsForWorkspace() {},
+        listPublicSharedDirectories() {},
+      },
+      skillDetailProvider: {
+        detail() {},
+      },
+    }),
+    /resource api routes require skillDetailProvider\.analyze/,
+  );
 }
 
 async function run() {
@@ -268,6 +341,7 @@ async function run() {
   await testSharedDirectoriesFilterPublicRecords();
   await testSkillRequired();
   await testSkillDetailSuccessAndError();
+  await testSkillAnalysisSuccessAndError();
   testDependencyValidation();
   console.log("resource api routes tests passed");
 }

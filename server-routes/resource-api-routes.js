@@ -47,6 +47,20 @@ const RESOURCE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["skill"],
     tags: ["skill", "detail"],
   },
+  {
+    id: "skills-analysis",
+    method: "GET",
+    path: "/api/skills/analysis",
+    group: "skill",
+    moduleKey: "resource",
+    handlerKey: "skillAnalysis",
+    summary: "Analyze public function and invocation conditions for a skill.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    resourceTypes: ["skill"],
+    tags: ["skill", "analysis"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -81,6 +95,9 @@ function createResourceApiRoutes(deps = {}) {
   }
   if (!deps.skillDetailProvider || typeof deps.skillDetailProvider.detail !== "function") {
     throw new Error("resource api routes require skillDetailProvider.detail");
+  }
+  if (typeof deps.skillDetailProvider.analyze !== "function") {
+    throw new Error("resource api routes require skillDetailProvider.analyze");
   }
 
   const {
@@ -127,6 +144,23 @@ function createResourceApiRoutes(deps = {}) {
     }
   }
 
+  async function handleSkillAnalysis(res, url) {
+    const skill = String(url?.searchParams?.get("skill") || "").trim();
+    if (!skill) {
+      sendJson(res, 400, { error: "Skill is required" });
+      return;
+    }
+    try {
+      const analysis = await skillDetailProvider.analyze(skill);
+      sendJson(res, 200, { data: analysis });
+    } catch (err) {
+      sendJson(res, statusCode(err), {
+        error: compactText(errorMessage(err), 800),
+        skill: err?.skill || skill,
+      });
+    }
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -137,6 +171,7 @@ function createResourceApiRoutes(deps = {}) {
     if (route.id === "projects-list") await handleProjects(req, res, url);
     else if (route.id === "directories-shared-list") await handleSharedDirectories(req, res, url);
     else if (route.id === "skills-detail") await handleSkillDetail(res, url);
+    else if (route.id === "skills-analysis") await handleSkillAnalysis(res, url);
     else return { handled: false };
 
     return {

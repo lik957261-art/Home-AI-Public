@@ -3143,8 +3143,15 @@ button.directory-alias-chip {
   flex: 1 1 auto;
 }
 
-.skill-detail-close {
+.skill-detail-actions {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.skill-detail-analyze,
+.skill-detail-close {
   min-width: 48px;
   min-height: 30px;
   padding: 4px 10px;
@@ -3154,6 +3161,17 @@ button.directory-alias-chip {
   color: var(--muted);
   font-size: 12px;
   font-weight: 650;
+}
+
+.skill-detail-analyze {
+  color: var(--green);
+  border-color: rgba(28, 121, 102, 0.24);
+  background: rgba(222, 244, 237, 0.54);
+}
+
+.skill-detail-analyze:disabled {
+  color: var(--muted);
+  opacity: 0.58;
 }
 
 .skill-detail-icon {
@@ -3194,6 +3212,57 @@ button.directory-alias-chip {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font: 13px/1.55 "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+.skill-analysis-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(28, 121, 102, 0.18);
+  border-radius: 10px;
+  background: rgba(232, 247, 242, 0.44);
+}
+
+.skill-analysis-title {
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.skill-analysis-summary {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.46;
+  overflow-wrap: anywhere;
+}
+
+.skill-analysis-section {
+  display: grid;
+  gap: 5px;
+}
+
+.skill-analysis-section h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.skill-analysis-section ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.skill-analysis-section li {
+  margin: 3px 0;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.skill-analysis-source {
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .task-doc-icon,

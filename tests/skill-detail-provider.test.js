@@ -81,6 +81,11 @@ async function run() {
     assert.equal(directFirstDetail.path, "study-templates/demo-skill");
     assert.equal(bridgeCalls, 0);
 
+    const providerAnalysis = await directFirstProvider.analyze("demo-skill");
+    assert.equal(providerAnalysis.skill.path, "study-templates/demo-skill");
+    assert.match(providerAnalysis.summary, /Demo Skill/);
+    assert.equal(bridgeCalls, 0);
+
     const boundedRoot = path.join(root, "bounded");
     const boundedSkillDir = path.join(boundedRoot, "level-a", "level-b", "bounded-skill");
     fs.mkdirSync(boundedSkillDir, { recursive: true });

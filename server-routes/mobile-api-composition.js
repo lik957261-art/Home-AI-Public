@@ -168,6 +168,7 @@ function createMobileApiComposition(deps = {}) {
     },
     skillDetailProvider: {
       detail: (...args) => deps.skillDetailProvider.detail(...args),
+      analyze: (...args) => deps.skillDetailProvider.analyze(...args),
     },
     compactText: deps.compactText,
   });

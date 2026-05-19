@@ -279,16 +279,44 @@ async function openSkillDetail(skill) {
     content: "",
     totalChars: 0,
     truncated: false,
+    analysis: { loading: false, error: "", data: null },
   };
-  renderSkillDetailPanel();
+  renderSkillDetailPanel({ resetScroll: true });
   try {
     const result = await api(`/api/skills/detail?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 8000 });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
-    state.skillDetail = Object.assign({}, state.skillDetail, result.data || {}, { loading: false, error: "" });
+    state.skillDetail = Object.assign({}, state.skillDetail, result.data || {}, {
+      loading: false,
+      error: "",
+      analysis: state.skillDetail.analysis || { loading: false, error: "", data: null },
+    });
     renderSkillDetailPanel();
   } catch (err) {
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     state.skillDetail = Object.assign({}, state.skillDetail, { loading: false, error: err.message || String(err) });
+    renderSkillDetailPanel();
+  }
+}
+
+async function analyzeSkillDetail() {
+  const skill = state.skillDetail;
+  if (!skill?.path || skill.loading) return;
+  state.skillDetail = Object.assign({}, skill, {
+    analysis: { loading: true, error: "", data: skill.analysis?.data || null },
+  });
+  renderSkillDetailPanel();
+  try {
+    const result = await api(`/api/skills/analysis?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 8000 });
+    if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
+    state.skillDetail = Object.assign({}, state.skillDetail, {
+      analysis: { loading: false, error: "", data: result.data || null },
+    });
+    renderSkillDetailPanel();
+  } catch (err) {
+    if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
+    state.skillDetail = Object.assign({}, state.skillDetail, {
+      analysis: { loading: false, error: err.message || String(err), data: skill.analysis?.data || null },
+    });
     renderSkillDetailPanel();
   }
 }
@@ -309,9 +337,41 @@ function wireSkillLinks(root) {
   });
 }
 
-function renderSkillDetailPanel() {
+function renderSkillAnalysisList(title, items) {
+  const values = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!values.length) return "";
+  return `<div class="skill-analysis-section">
+    <h3>${escapeHtml(title)}</h3>
+    <ul>${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+  </div>`;
+}
+
+function renderSkillAnalysisPanel(skill) {
+  const analysis = skill.analysis || {};
+  if (analysis.loading) {
+    return `<section class="skill-analysis-card"><div class="empty-state small">\u6b63\u5728\u5206\u6790 Skill...</div></section>`;
+  }
+  const data = analysis.data;
+  const error = analysis.error ? `<div class="automation-error">${escapeHtml(analysis.error)}</div>` : "";
+  if (!data) return error;
+  const source = data.source || {};
+  return `<section class="skill-analysis-card">
+    <div class="skill-analysis-title">\u5206\u6790</div>
+    <p class="skill-analysis-summary">${escapeHtml(data.summary || "")}</p>
+    ${renderSkillAnalysisList("\u529f\u80fd", data.capabilities)}
+    ${renderSkillAnalysisList("\u8c03\u7528\u6761\u4ef6", data.invocationConditions)}
+    ${renderSkillAnalysisList("\u4e0d\u8981\u8c03\u7528", data.nonInvocationConditions)}
+    ${renderSkillAnalysisList("\u8f93\u5165 / \u8f93\u51fa / \u5de5\u5177\u8fb9\u754c", data.inputsOutputs)}
+    ${renderSkillAnalysisList("\u4fee\u6539\u5173\u6ce8\u70b9", data.modificationNotes)}
+    <div class="skill-analysis-source">\u6765\u6e90\uff1a${escapeHtml((source.sectionTitles || []).slice(0, 5).join(" / ") || "SKILL.md")}${source.truncated ? "\uff08\u5185\u5bb9\u5df2\u622a\u65ad\uff09" : ""}</div>
+    ${error}
+  </section>`;
+}
+
+function renderSkillDetailPanel(options = {}) {
   const conversation = $("conversation");
   if (!conversation || !state.skillDetail) return;
+  const previousScrollTop = conversation.scrollTop || 0;
   const skill = state.skillDetail;
   const title = skillTitle(skill);
   $("threadTitle").textContent = "";
@@ -323,6 +383,7 @@ function renderSkillDetailPanel() {
     : skill.error
       ? `<div class="automation-error">${escapeHtml(skill.error)}</div>`
       : `<pre class="skill-detail-content">${escapeHtml(skill.content || "")}</pre>`;
+  const analyzeDisabled = skill.loading || skill.analysis?.loading;
   conversation.innerHTML = `<section class="skill-detail-shell">
     <article class="skill-detail-card">
       <div class="skill-detail-head">
@@ -332,8 +393,12 @@ function renderSkillDetailPanel() {
           <h2>${escapeHtml(title)}</h2>
           <div class="skill-detail-path">${escapeHtml(skill.path || "")}</div>
         </div>
-        <button class="skill-detail-close" type="button" data-close-skill-detail aria-label="Close Skill">\u5173\u95ed</button>
+        <div class="skill-detail-actions">
+          <button class="skill-detail-analyze" type="button" data-skill-analysis${analyzeDisabled ? " disabled" : ""}>\u5206\u6790</button>
+          <button class="skill-detail-close" type="button" data-close-skill-detail aria-label="Close Skill">\u5173\u95ed</button>
+        </div>
       </div>
+      ${renderSkillAnalysisPanel(skill)}
       ${body}
       ${skill.truncated ? `<div class="skill-detail-note">Content truncated.</div>` : ""}
     </article>
@@ -344,8 +409,17 @@ function renderSkillDetailPanel() {
     event.stopPropagation();
     closeSkillDetail();
   });
+  conversation.querySelector("[data-skill-analysis]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    analyzeSkillDetail().catch(showError);
+  });
   ensureVerticalScrollAffordance(conversation);
-  conversation.scrollTop = 0;
+  const nextScrollTop = options.resetScroll ? 0 : previousScrollTop;
+  conversation.scrollTop = nextScrollTop;
+  requestAnimationFrame(() => {
+    conversation.scrollTop = nextScrollTop;
+  });
 }
 
 function shortArtifactName(name) {
