@@ -34,7 +34,7 @@
     if (value === "submit_first_attempt") return "\u63d0\u4ea4\u7b2c\u4e00\u6b21\u4f5c\u7b54";
     if (value === "wait_for_feedback") return "\u7b49\u5f85 AI \u6279\u6539";
     if (value === "submit_revision") return "\u63d0\u4ea4\u4fee\u6539\u7248";
-    if (value === "submit_revision_and_reflection") return "\u63d0\u4ea4\u6539\u5199\u548c\u590d\u76d8";
+    if (value === "submit_revision_and_reflection") return "\u63d0\u4ea4\u4fee\u6539\u7248";
     if (value === "submit_spoken_reflection") return "\u5f55\u97f3\u590d\u76d8";
     if (value === "review_feedback") return "\u67e5\u770b\u53cd\u9988";
     return value || "\u5f00\u59cb\u4efb\u52a1";
@@ -42,7 +42,7 @@
 
   function submissionPrompt(evaluation = {}, todo = {}) {
     const nextStep = String(evaluation.nextStep || "");
-    if (nextStep === "rewrite_and_reflect") return "\u5199\u4e0b\u6539\u5199\u540e\u7684\u7248\u672c\uff0c\u5e76\u8865\u4e00\u53e5\u590d\u76d8\uff1a\u6211\u6539\u4e86\u4ec0\u4e48\uff0c\u4e3a\u4ec0\u4e48\u3002";
+    if (nextStep === "rewrite_and_reflect") return "\u6309 AI \u6279\u6539\u5199\u4e0b\u4fee\u6539\u540e\u7684\u7248\u672c\uff0c\u4fdd\u7559\u660e\u663e\u4fee\u6539\uff0c\u7136\u540e\u63d0\u4ea4\u3002";
     if (nextStep === "revise_and_resubmit") return "\u6309\u6279\u6539\u62a5\u544a\u518d\u6539\u4e00\u7248\uff0c\u7136\u540e\u63d0\u4ea4\u3002";
     const activity = String(taskModel(todo)?.activityType || "").trim();
     if (activity === "vocabulary") return "\u5199\u4e0b\u672c\u6b21\u8bcd\u6c47\u9020\u53e5\uff0c\u5c3d\u91cf\u7528\u5b66\u6821\u6216\u751f\u6d3b\u573a\u666f\u3002";
@@ -169,6 +169,8 @@
   function outcomeText(evaluation = {}, interactionState = {}) {
     const status = String(evaluation.status || "").trim();
     const nextStep = String(evaluation.nextStep || interactionState.nextStep || "").trim();
+    const passLine = Number(evaluation.finalPassingScore || evaluation.passingScore || interactionState.finalPassingScore || 80) || 80;
+    if (nextStep === "spoken_reflection_required" || status === "reflection_required" || interactionState.requiresReflection || interactionState.canSubmitReflection) return { kind: "reflection", title: "\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807\uff0c\u5f85\u5f55\u97f3\u590d\u76d8", body: `\u6700\u7ec8\u5206\u6570\u5df2\u8fbe\u5230 ${passLine} \u5206\u7ebf\uff0c\u8bf7\u5148\u770b\u6700\u65b0 Markdown \u6279\u6539\uff0c\u518d\u7528\u5f55\u97f3\u8bf4\u660e\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u6539\u8fdb\u3002\u590d\u76d8\u901a\u8fc7\u540e\u518d\u7ed3\u7b97\u5206\u6570\u548c\u91d1\u5e01\u3002` };
     if (evaluation.passed || nextStep === "completed" || status === "completed") return { kind: "passed", title: "\u672c\u6b21\u5df2\u901a\u8fc7", body: "\u67e5\u770b\u6700\u65b0\u6279\u6539\u6587\u4ef6\uff0c\u6309\u8981\u6c42\u5b8c\u6210\u540e\u7eed\u590d\u76d8\u6216\u7ed3\u7b97\u3002" };
     if (nextStep === "rewrite_and_reflect" || nextStep === "revise_and_resubmit" || status === "needs_revision" || status === "draft_feedback") return { kind: "revision", title: "\u672c\u6b21\u672a\u901a\u8fc7\uff0c\u9700\u8981\u7ee7\u7eed\u4fee\u6539", body: "\u5148\u6253\u5f00\u6700\u65b0\u6279\u6539\u6587\u4ef6\uff0c\u6309\u91cd\u70b9\u4fee\u6539\u540e\u518d\u63d0\u4ea4\u3002\u4e0b\u65b9\u4fdd\u7559\u4e86\u6bcf\u4e00\u6b21\u6279\u6539\u8bb0\u5f55\u3002" };
     if (status === "pending") return { kind: "pending", title: "\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539", body: "\u4f5c\u7b54\u5df2\u4fdd\u5b58\uff0c\u8bf7\u7b49\u5f85\u672c\u6b21\u6279\u6539\u5b8c\u6210\u3002" };

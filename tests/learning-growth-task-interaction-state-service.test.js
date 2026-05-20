@@ -17,6 +17,19 @@ function run() {
       firstSubmissionKind: "writing_draft",
       revisionSubmissionKind: "writing_revision",
     },
+    evaluationContract: {
+      finalPassingScore: 80,
+      passingScore: 80,
+      finalStage: "final",
+      requiresSpokenReflection: true,
+      settlementAfterReflection: true,
+    },
+    completionPolicy: {
+      completeAfterStep: "reward_settlement",
+      requiresSpokenReflection: true,
+      settlementAfterReflection: true,
+      reflectionStep: "learner_spoken_reflection",
+    },
   };
 
   assert.equal(normalizeGrowthEvaluationStatus("done"), "completed");
@@ -51,6 +64,17 @@ function run() {
   assert.equal(notStarted.nextAction, "submit_first_attempt");
   assert.equal(notStarted.canSubmit, true);
   assert.equal(notStarted.analysisAvailable, false);
+  assert.equal(notStarted.finalPassingScore, 80);
+  assert.equal(notStarted.finalStage, "final");
+  assert.equal(notStarted.reflectionGateEnabled, true);
+  assert.equal(notStarted.settlementAfterReflection, true);
+  assert.equal(notStarted.completionStep, "reward_settlement");
+  assert.equal(notStarted.reflectionStep, "learner_spoken_reflection");
+
+  const legacyModelProjection = projectGrowthInteractionState({ submissionContract: { firstSubmissionKind: "learner_attempt" } }, {});
+  assert.equal(legacyModelProjection.reflectionGateEnabled, true);
+  assert.equal(legacyModelProjection.settlementAfterReflection, true);
+  assert.equal(legacyModelProjection.finalPassingScore, 80);
 
   const pending = projectGrowthInteractionState(model, {
     submitted: true,

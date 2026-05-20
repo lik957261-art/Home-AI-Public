@@ -26,14 +26,26 @@ function testNewEnglishTemplateSubmissionPrompts() {
 
 function testSpokenReflectionActionLabel() {
   assert.equal(TaskUi.nextActionLabel("submit_spoken_reflection"), "\u5f55\u97f3\u590d\u76d8");
+  assert.equal(TaskUi.nextActionLabel("submit_revision_and_reflection"), "\u63d0\u4ea4\u4fee\u6539\u7248");
+  assert.equal(TaskUi.nextActionLabel("submit_revision"), "\u63d0\u4ea4\u4fee\u6539\u7248");
+  assert.doesNotMatch(TaskUi.nextActionLabel("submit_revision_and_reflection"), /\u590d\u76d8/);
 }
 
 function testWritingSubmissionGuardAndLiveLabel() {
   const guard = TaskUi.submissionGuard(todoWithActivity("writing"));
   assert.equal(guard.minWords, 80);
   assert.equal(guard.minChars, 300);
+  const finalGuard = TaskUi.submissionGuard(todoWithActivity("writing"), { status: "draft_feedback" });
+  assert.equal(finalGuard.stage, "final");
+  assert.ok(finalGuard.minChars < guard.minChars);
   assert.match(TaskUi.submissionRequirementLabel(guard, { words: 79, chars: 290 }), /\u672a\u8fbe\u6807/);
   assert.match(TaskUi.submissionRequirementLabel(guard, { words: 80, chars: 300 }), /\u5df2\u8fbe\u6807/);
+}
+
+function testRevisionPromptLeavesReflectionToRecorder() {
+  const prompt = TaskUi.submissionPrompt({ nextStep: "rewrite_and_reflect" }, todoWithActivity("writing"));
+  assert.match(prompt, /\u4fee\u6539/);
+  assert.doesNotMatch(prompt, /\u590d\u76d8/);
 }
 
 function testFeedbackHistoryRendersOutcomeAndReports() {
@@ -49,9 +61,23 @@ function testFeedbackHistoryRendersOutcomeAndReports() {
   assert.match(html, /\u518d\u6b21\u63d0\u4ea4\u6279\u6539/);
 }
 
+function testFeedbackHistoryPrioritizesReflectionGate() {
+  const html = TaskUi.renderFeedbackHistory({}, {
+    status: "reflection_required",
+    nextStep: "spoken_reflection_required",
+    passed: true,
+    score: 86,
+    finalPassingScore: 80,
+  });
+  assert.match(html, /\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807/);
+  assert.match(html, /\u590d\u76d8\u901a\u8fc7\u540e\u518d\u7ed3\u7b97/);
+}
+
 testNewEnglishTemplateActivityLabels();
 testNewEnglishTemplateSubmissionPrompts();
 testSpokenReflectionActionLabel();
 testWritingSubmissionGuardAndLiveLabel();
+testRevisionPromptLeavesReflectionToRecorder();
 testFeedbackHistoryRendersOutcomeAndReports();
+testFeedbackHistoryPrioritizesReflectionGate();
 console.log("app learning growth task UI tests passed");

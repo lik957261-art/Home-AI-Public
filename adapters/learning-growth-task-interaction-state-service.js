@@ -65,6 +65,22 @@ function modelHasFirstSubmission(model = {}) {
   return Boolean(cleanString(contract.firstSubmissionKind));
 }
 
+function modelFlowPolicy(model = {}) {
+  const evaluation = model && typeof model === "object" ? model.evaluationContract || {} : {};
+  const completion = model && typeof model === "object" ? model.completionPolicy || {} : {};
+  const score = Number(evaluation.finalPassingScore || evaluation.passingScore || completion.finalPassingScore || 80);
+  const hasReflectionPolicy = evaluation.requiresSpokenReflection !== undefined || completion.requiresSpokenReflection !== undefined;
+  const hasSettlementPolicy = evaluation.settlementAfterReflection !== undefined || completion.settlementAfterReflection !== undefined;
+  return {
+    finalPassingScore: Number.isFinite(score) ? Math.max(1, Math.min(100, Math.round(score))) : 80,
+    finalStage: cleanString(evaluation.finalStage || "final"),
+    reflectionGateEnabled: hasReflectionPolicy ? Boolean(evaluation.requiresSpokenReflection || completion.requiresSpokenReflection) : true,
+    settlementAfterReflection: hasSettlementPolicy ? Boolean(evaluation.settlementAfterReflection || completion.settlementAfterReflection) : true,
+    completionStep: cleanString(completion.completeAfterStep),
+    reflectionStep: cleanString(completion.reflectionStep || "learner_spoken_reflection"),
+  };
+}
+
 function growthNextActionForTaskModel(model = {}, state = {}) {
   const status = normalizeGrowthEvaluationStatus(state.evaluationStatus || state.status);
   const nextStep = normalizeGrowthNextStep(state.nextStep, Object.assign({}, state, { status }));
@@ -89,6 +105,7 @@ function phaseFor(status, submitted) {
 }
 
 function projectGrowthInteractionState(model = {}, state = {}) {
+  const flowPolicy = modelFlowPolicy(model);
   const submitted = Boolean(state.submitted || state.submissionStatus || state.submittedAt);
   const status = normalizeGrowthEvaluationStatus(state.evaluationStatus || state.status);
   const nextStep = normalizeGrowthNextStep(state.nextStep, { status, submitted });
@@ -114,6 +131,12 @@ function projectGrowthInteractionState(model = {}, state = {}) {
     canSubmit,
     canSubmitReflection,
     canReviewFeedback: ANALYSIS_STATUSES.has(status),
+    finalPassingScore: flowPolicy.finalPassingScore,
+    finalStage: flowPolicy.finalStage,
+    reflectionGateEnabled: flowPolicy.reflectionGateEnabled,
+    settlementAfterReflection: flowPolicy.settlementAfterReflection,
+    completionStep: flowPolicy.completionStep,
+    reflectionStep: flowPolicy.reflectionStep,
   };
 }
 

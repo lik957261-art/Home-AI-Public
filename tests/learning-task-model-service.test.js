@@ -29,7 +29,15 @@ function run() {
   assert.equal(writing.submissionContract.firstSubmissionKind, "writing_draft");
   assert.equal(writing.submissionContract.revisionRequiredAfterFeedback, true);
   assert.equal(writing.completionPolicy.firstSubmissionCompletesTask, false);
+  assert.equal(writing.completionPolicy.completeAfterStep, "reward_settlement");
+  assert.equal(writing.completionPolicy.finalPassingScore, 80);
+  assert.equal(writing.completionPolicy.requiresSpokenReflection, true);
+  assert.equal(writing.completionPolicy.settlementAfterReflection, true);
   assert.equal(writing.evaluationContract.requiresMarkdownReport, true);
+  assert.equal(writing.evaluationContract.finalPassingScore, 80);
+  assert.equal(writing.evaluationContract.passingScore, 80);
+  assert.equal(writing.evaluationContract.requiresSpokenReflection, true);
+  assert.equal(writing.evaluationContract.settlementAfterReflection, true);
   assert.equal(writing.feedbackContract.scoreOnlyFeedbackAllowed, false);
   assert.ok(writing.rubricDimensions.some((item) => item.id === "rewrite_quality"));
   assert.equal(writing.rewardPolicy.minCoins, 40);
@@ -52,6 +60,7 @@ function run() {
   assert.deepEqual(Object.keys(summary).sort(), [
     "activityType",
     "completionPolicy",
+    "evaluationContract",
     "feedbackContract",
     "interactionStateMachine",
     "rubricDimensions",
@@ -64,10 +73,18 @@ function run() {
     "version",
   ].sort());
   assert.equal(summary.rewardPolicy.maxCoins, 100);
+  assert.equal(summary.evaluationContract.finalPassingScore, 80);
+  assert.equal(summary.evaluationContract.requiresSpokenReflection, true);
+  assert.equal(summary.completionPolicy.completeAfterStep, "reward_settlement");
+  assert.equal(summary.completionPolicy.requiresSpokenReflection, true);
+  const legacySummary = learningTaskModelSummary({ skillId: "english_short_writing", submissionContract: { firstSubmissionKind: "writing_draft" } });
+  assert.equal(legacySummary.evaluationContract.requiresSpokenReflection, true);
+  assert.equal(legacySummary.completionPolicy.settlementAfterReflection, true);
   assert.equal(normalizeRewardPolicy({ rewardPolicy: { minCoins: 20, maxCoins: 120, basis: "custom_template_rubric", summary: "Custom rubric up to 120 coins." } }).maxCoins, 120);
   assert.equal(nextActionForTaskModel(writing, {}), "submit_first_attempt");
   assert.equal(nextActionForTaskModel(writing, { evaluationStatus: "draft_feedback" }), "submit_revision_and_reflection");
   assert.equal(nextActionForTaskModel(writing, { nextStep: "revise_and_resubmit" }), "submit_revision");
+  assert.equal(nextActionForTaskModel(writing, { nextStep: "spoken_reflection_required" }), "submit_spoken_reflection");
   assert.equal(nextActionForTaskModel(writing, { status: "completed" }), "review_feedback");
 
   assert.equal(inferSkillIdFromText({ kanbanSkills: ["writing"] }), "english_short_writing");
@@ -98,7 +115,8 @@ function run() {
     "first English draft",
     "AI feedback",
     "rewritten draft",
-    "one-sentence reflection",
+    "spoken reflection",
+    "final evaluation and reward settlement",
   ]);
   assert.notDeepEqual(legacyGrowthWriting.acceptance, ["study output", "AI feedback", "targeted quiz", "next study guidance"]);
 }

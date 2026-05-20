@@ -469,6 +469,11 @@ async function testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSet
     assert.equal(result.ok, true);
     assert.equal(result.status, "reflection_required");
     assert.equal(result.evaluation.nextStep, "spoken_reflection_required");
+    assert.equal(result.evaluation.finalPassingScore, 80);
+    assert.equal(result.evaluation.passingScore, 80);
+    assert.equal(result.evaluation.reflectionGateEnabled, true);
+    assert.equal(result.evaluation.settlementAfterReflection, true);
+    assert.equal(result.evaluation.settlementBlockedByReflection, true);
     assert.equal(result.evaluation.reflectionPolicy.required, true);
     assert.equal(result.reward.status, "reflection_required");
     assert.equal(result.result.completed, false);
@@ -549,6 +554,10 @@ async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
   assert.equal(result.status, "completed");
   assert.equal(result.reflection.status, "accepted");
   assert.equal(result.evaluation.reflection.status, "accepted");
+  assert.equal(result.evaluation.finalPassingScore, 80);
+  assert.equal(result.evaluation.reflectionGateEnabled, true);
+  assert.equal(result.evaluation.settlementAfterReflection, true);
+  assert.equal(result.evaluation.settlementBlockedByReflection, false);
   assert.equal(result.evaluation.score > 80, true);
   assert.equal(result.reward.status, "settled");
   assert.equal(grants.length, 1);

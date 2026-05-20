@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-history-v28";
+const CLIENT_VERSION = "20260520-growth-unified-flow-v29";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1019,12 +1019,18 @@ assert.match(appJs, /data-learning-growth-evaluation-status/);
 assert.match(appJs, /todo-learning-growth-score-pill/);
 assert.equal(appJs.includes("todo-learning-growth-score\""), false);
 assert.ok(appJs.indexOf("${submittedBlock}") >= 0 && appJs.indexOf("${submittedBlock}") < appJs.indexOf("${evaluationBlock}"));
+assert.match(appJs, /const reflectionRequired = Boolean/);
+assert.match(appJs, /const canSubmit = !reflectionRequired/);
+assert.ok(appJs.indexOf("${reflectionBlock}") >= 0 && appJs.indexOf("${reflectionBlock}") < appJs.indexOf("${submissionForm}"));
 assert.match(appJs, /learningGrowthSubmissionPrompt/);
 assert.match(appJs, /renderLearningGrowthFeedbackList/);
 assert.match(appJs, /renderFeedbackHistory\(todo, evaluation/);
 assert.match(appJs, /criterionFeedback/);
 assert.match(appJs, /\\u6279\\u6539\\u7ef4\\u5ea6/);
 assert.match(appJs, /rewrite_and_reflect/);
+assert.match(appJs, /spoken_reflection_required/);
+assert.match(appJs, /\\u6700\\u7ec8\\u8bc4\\u5206\\u5df2\\u8fbe\\u6807/);
+assert.match(appJs, /\\u590d\\u76d8\\u901a\\u8fc7\\u540e(?:\\u518d|\\u624d)\\u7ed3\\u7b97/);
 assert.match(appJs, /function submitLearningGrowthTask\(todoId, text\)/);
 assert.match(appJs, /failBeforeSubmit/);
 assert.match(appJs, /const restoreScrollTop = \$\("conversation"\)\?\.scrollTop \|\| 0/);
@@ -1040,6 +1046,8 @@ assert.match(appJs, /function submitLearningGrowthReflection\(todoId\)/);
 assert.match(appJs, /boardActionApiPath\(todoId, "learning-growth-submission"\)/);
 assert.match(appJs, /boardActionApiPath\(todoId, "learning-growth-submission\/withdraw"\)/);
 assert.match(appJs, /boardActionApiPath\(todoId, "learning-growth-reflection"\)/);
+assert.match(appJs, /response\?\.reward\?\.status === "settled"/);
+assert.match(appJs, /\\u6700\\u7ec8\\u8bc4\\u5206/);
 assert.match(todoPublicProjectionServiceJs, /learningGrowthSubmission/);
 assert.match(todoPublicProjectionServiceJs, /learningGrowthEvaluation/);
 assert.match(todoPublicProjectionServiceJs, /learningGrowthReflection/);

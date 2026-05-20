@@ -108,6 +108,10 @@ function getProgramService(options = {}) {
 
 function publicEvaluation(evaluation = {}, settlement = null) {
   const sections = evaluation.feedbackSections || {};
+  const finalPassingScore = Number(evaluation.finalPassingScore || evaluation.passingScore || 80) || 80;
+  const reflectionRequired = cleanString(evaluation.status) === "reflection_required"
+    || cleanString(evaluation.nextStep) === "spoken_reflection_required"
+    || Boolean(evaluation.reflectionPolicy?.required);
   return {
     evaluationId: cleanString(evaluation.evaluationId),
     stage: cleanString(evaluation.stage),
@@ -117,6 +121,12 @@ function publicEvaluation(evaluation = {}, settlement = null) {
     taskModelVersion: cleanString(evaluation.taskModelVersion),
     score: Number(evaluation.score || 0),
     maxScore: Number(evaluation.maxScore || 100),
+    finalPassingScore,
+    passingScore: finalPassingScore,
+    finalStage: cleanString(evaluation.finalStage || "final"),
+    reflectionGateEnabled: Boolean(evaluation.reflectionGateEnabled ?? evaluation.reflectionPolicy?.required ?? true),
+    settlementAfterReflection: Boolean(evaluation.settlementAfterReflection ?? evaluation.reflectionPolicy?.required ?? true),
+    settlementBlockedByReflection: reflectionRequired,
     passed: Boolean(evaluation.passed),
     summary: cleanString(evaluation.summary),
     revisionRequirements: asArray(evaluation.revisionRequirements).map(cleanString).filter(Boolean),
@@ -413,6 +423,11 @@ function evaluationFromCard(card = {}, reflection = null, reflectionService = nu
     taskModelVersion: taskModelForSubmission(card).version || "",
     score: finalScore,
     maxScore: Number(card.learningGrowthMaxScore ?? card.learning_growth_max_score ?? 100) || 100,
+    finalPassingScore: Number(card.learningGrowthFinalPassingScore ?? card.learning_growth_final_passing_score ?? 80) || 80,
+    passingScore: Number(card.learningGrowthFinalPassingScore ?? card.learning_growth_final_passing_score ?? 80) || 80,
+    finalStage: "final",
+    reflectionGateEnabled: true,
+    settlementAfterReflection: true,
     passed: reflection?.status === "accepted",
     summary: reflection?.status === "accepted"
       ? cleanString(cardField(card, "learningGrowthFeedbackSummary", "learning_growth_feedback_summary") || "Growth task completed after spoken reflection.")

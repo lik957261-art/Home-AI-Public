@@ -1,14 +1,69 @@
 "use strict";
 
 const ENGLISH_TEMPLATE_PACK_VERSION = "english-template-pack-v1";
+const DEFAULT_FINAL_PASSING_SCORE = 80;
+const SPOKEN_REFLECTION_STEP = "learner_spoken_reflection";
+const REWARD_SETTLEMENT_STEP = "reward_settlement";
+const NEXT_TASK_FEEDBACK_STEP = "next_task_feedback";
+
+function uniqueList(items = []) {
+  const seen = new Set();
+  const list = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const value = cleanString(item);
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    list.push(value);
+  }
+  return list;
+}
+
+function canonicalInteractionStateMachine(steps = []) {
+  const core = uniqueList(steps).filter((step) => ![
+    "learner_reflects",
+    SPOKEN_REFLECTION_STEP,
+    REWARD_SETTLEMENT_STEP,
+    NEXT_TASK_FEEDBACK_STEP,
+  ].includes(step));
+  return core.concat([SPOKEN_REFLECTION_STEP, REWARD_SETTLEMENT_STEP, NEXT_TASK_FEEDBACK_STEP]);
+}
+
+function finalPassingScore(template = {}) {
+  const score = Number(template.finalPassingScore || template.final_passing_score || DEFAULT_FINAL_PASSING_SCORE);
+  return Number.isFinite(score) ? Math.max(1, Math.min(100, Math.round(score))) : DEFAULT_FINAL_PASSING_SCORE;
+}
+
+function canonicalDeliverables(template = {}) {
+  return uniqueList(template.deliverables)
+    .filter((item) => !/^one-sentence reflection$/i.test(item))
+    .concat(["spoken reflection", "final evaluation and reward settlement"]);
+}
+
+function canonicalAcceptance(template = {}) {
+  return uniqueList(template.acceptance).concat([
+    "final score follows the 80-point pass line",
+    "spoken reflection is accepted before reward settlement",
+  ]);
+}
+
+function canonicalEvidenceRequired(template = {}) {
+  return uniqueList(template.evidenceRequired).concat([
+    "spoken_reflection_summary",
+    "reward_settlement_summary",
+  ]);
+}
 
 function freezeTemplate(template) {
   return Object.freeze(Object.assign({}, template, {
+    draftFeedback: template.draftFeedback !== false,
+    finalPassingScore: finalPassingScore(template),
+    requiresSpokenReflection: template.requiresSpokenReflection !== false,
+    settlementAfterReflection: template.settlementAfterReflection !== false,
     skillIds: Object.freeze((template.skillIds || []).slice()),
-    interactionStateMachine: Object.freeze((template.interactionStateMachine || []).slice()),
-    deliverables: Object.freeze((template.deliverables || []).slice()),
-    acceptance: Object.freeze((template.acceptance || []).slice()),
-    evidenceRequired: Object.freeze((template.evidenceRequired || []).slice()),
+    interactionStateMachine: Object.freeze(canonicalInteractionStateMachine(template.interactionStateMachine)),
+    deliverables: Object.freeze(canonicalDeliverables(template)),
+    acceptance: Object.freeze(canonicalAcceptance(template)),
+    evidenceRequired: Object.freeze(canonicalEvidenceRequired(template)),
     rubricDimensions: Object.freeze((template.rubricDimensions || []).map((item) => Object.freeze(Object.assign({}, item)))),
     feedbackSchema: Object.freeze((template.feedbackSchema || []).slice()),
   }));
@@ -328,6 +383,11 @@ function englishTemplateRegistryEntries() {
     interactionMode: template.interactionMode,
     outputContract: template.outputContract,
     skillPath: template.skillPath,
+    draftFeedback: Boolean(template.draftFeedback),
+    finalPassingScore: Number(template.finalPassingScore || DEFAULT_FINAL_PASSING_SCORE),
+    requiresSpokenReflection: Boolean(template.requiresSpokenReflection),
+    settlementAfterReflection: Boolean(template.settlementAfterReflection),
+    interactionStateMachine: Object.freeze((template.interactionStateMachine || []).slice()),
     templatePackVersion: ENGLISH_TEMPLATE_PACK_VERSION,
   }));
 }
@@ -347,6 +407,7 @@ function englishTemplatePackSummary() {
 }
 
 module.exports = {
+  DEFAULT_FINAL_PASSING_SCORE,
   ENGLISH_TEMPLATE_PACK,
   ENGLISH_TEMPLATE_PACK_VERSION,
   MISTAKE_REPAIR_TEMPLATE,

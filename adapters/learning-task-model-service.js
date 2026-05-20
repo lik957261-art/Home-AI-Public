@@ -14,6 +14,7 @@ const {
 } = require("./learning-growth-task-interaction-state-service");
 
 const TASK_MODEL_VERSION = "learning-task-model-v1";
+const DEFAULT_FINAL_PASSING_SCORE = 80;
 
 const TASK_CARD_TYPES = new Set([
   "single_subject",
@@ -289,6 +290,16 @@ function buildLearningTaskModel(input = {}) {
   );
   const interactionStateMachine = cleanList(input.interactionStateMachine || input.interaction_state_machine || base.interactionStateMachine, 20);
   const learnerInstruction = cleanString(input.learnerInstruction || input.learner_instruction || input.instruction || base.learnerInstruction);
+  const finalPassingScore = clampInt(input.finalPassingScore || input.final_passing_score || base.finalPassingScore, 1, 100, DEFAULT_FINAL_PASSING_SCORE);
+  const requiresSpokenReflection = input.requiresSpokenReflection === undefined
+    ? base.requiresSpokenReflection !== false
+    : Boolean(input.requiresSpokenReflection);
+  const settlementAfterReflection = input.settlementAfterReflection === undefined
+    ? base.settlementAfterReflection !== false
+    : Boolean(input.settlementAfterReflection);
+  const completeAfterStep = interactionStateMachine.includes("reward_settlement")
+    ? "reward_settlement"
+    : (interactionStateMachine.includes("learner_spoken_reflection") ? "learner_spoken_reflection" : "ai_evaluation");
   return {
     version: TASK_MODEL_VERSION,
     templatePackVersion: ENGLISH_TEMPLATE_PACK_VERSION,
@@ -308,7 +319,9 @@ function buildLearningTaskModel(input = {}) {
       firstSubmissionKind: cleanString(input.firstSubmissionKind || input.first_submission_kind || base.firstSubmissionKind) || "learner_attempt",
       revisionSubmissionKind: cleanString(input.revisionSubmissionKind || input.revision_submission_kind || base.revisionSubmissionKind) || "learner_revision",
       firstSubmissionRequired: true,
-      revisionRequiredAfterFeedback: Boolean(base.draftFeedback || input.revisionRequiredAfterFeedback),
+      revisionRequiredAfterFeedback: input.revisionRequiredAfterFeedback === undefined
+        ? base.draftFeedback !== false
+        : Boolean(input.revisionRequiredAfterFeedback),
       rawAnswerStorage: "kanban-comment-only",
       privacyLevel: "summary_only",
     },
@@ -316,6 +329,11 @@ function buildLearningTaskModel(input = {}) {
       requiresStructuredFeedback: true,
       requiresMarkdownReport: input.requiresMarkdownReport === undefined ? true : Boolean(input.requiresMarkdownReport),
       requiresEvidenceRefs: true,
+      finalPassingScore,
+      passingScore: finalPassingScore,
+      finalStage: "final",
+      requiresSpokenReflection,
+      settlementAfterReflection,
       verifier: cleanString(input.verifier || "learning-evaluation-verifier"),
     },
     feedbackContract: {
@@ -336,8 +354,12 @@ function buildLearningTaskModel(input = {}) {
     },
     completionPolicy: {
       firstSubmissionCompletesTask: false,
-      completeAfterStep: interactionStateMachine.includes("reward_settlement") ? "reward_settlement" : "ai_evaluation",
+      completeAfterStep,
       requiresFinalEvaluation: true,
+      finalPassingScore,
+      requiresSpokenReflection,
+      settlementAfterReflection,
+      reflectionStep: requiresSpokenReflection ? "learner_spoken_reflection" : "",
     },
     rewardPolicy: normalizeRewardPolicy(input),
   };
@@ -421,10 +443,21 @@ function learningTaskModelSummary(model = {}) {
       revisionSubmissionKind: cleanString(safe.submissionContract?.revisionSubmissionKind),
       revisionRequiredAfterFeedback: Boolean(safe.submissionContract?.revisionRequiredAfterFeedback),
     },
+    evaluationContract: {
+      finalPassingScore: clampInt(safe.evaluationContract?.finalPassingScore || safe.evaluationContract?.passingScore, 1, 100, DEFAULT_FINAL_PASSING_SCORE),
+      passingScore: clampInt(safe.evaluationContract?.passingScore || safe.evaluationContract?.finalPassingScore, 1, 100, DEFAULT_FINAL_PASSING_SCORE),
+      finalStage: cleanString(safe.evaluationContract?.finalStage || "final"),
+      requiresSpokenReflection: safe.evaluationContract?.requiresSpokenReflection === undefined ? true : Boolean(safe.evaluationContract?.requiresSpokenReflection),
+      settlementAfterReflection: safe.evaluationContract?.settlementAfterReflection === undefined ? true : Boolean(safe.evaluationContract?.settlementAfterReflection),
+    },
     completionPolicy: {
       firstSubmissionCompletesTask: Boolean(safe.completionPolicy?.firstSubmissionCompletesTask),
       completeAfterStep: cleanString(safe.completionPolicy?.completeAfterStep),
       requiresFinalEvaluation: Boolean(safe.completionPolicy?.requiresFinalEvaluation),
+      finalPassingScore: clampInt(safe.completionPolicy?.finalPassingScore, 1, 100, DEFAULT_FINAL_PASSING_SCORE),
+      requiresSpokenReflection: safe.completionPolicy?.requiresSpokenReflection === undefined ? true : Boolean(safe.completionPolicy?.requiresSpokenReflection),
+      settlementAfterReflection: safe.completionPolicy?.settlementAfterReflection === undefined ? true : Boolean(safe.completionPolicy?.settlementAfterReflection),
+      reflectionStep: cleanString(safe.completionPolicy?.reflectionStep),
     },
     feedbackContract: {
       scoreOnlyFeedbackAllowed: Boolean(safe.feedbackContract?.scoreOnlyFeedbackAllowed),
