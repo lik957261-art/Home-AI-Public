@@ -103,10 +103,10 @@ function sequenceIndexForTask(task = {}, fallbackIndex = 0) {
 }
 
 function sequenceGroupForTask(task = {}) {
-  const draftId = cleanString(task.draftId || task.learningDraftId || task.learning_draft_id);
-  if (draftId) return `draft:${draftId}`;
   const programId = cleanString(task.programId || task.learningProgramId || task.learning_program_id);
   if (programId) return `program:${programId}`;
+  const draftId = cleanString(task.draftId || task.learningDraftId || task.learning_draft_id);
+  if (draftId) return `draft:${draftId}`;
   const taskCardId = cleanString(task.taskCardId || task.id);
   return taskCardId ? `task:${taskCardId}` : "task:unknown";
 }
@@ -145,6 +145,14 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     sequenceGroupId: sequenceGroupForTask(task),
     sequenceIndex: sequenceIndexForTask(task, index),
     title: cleanString(task.title, 180) || taskCardId,
+    instructionPreview: cleanString(
+      task.learnerInstruction
+        || task.instruction
+        || task.taskModel?.learnerInstruction
+        || task.summary
+        || task.description,
+      220,
+    ),
     domain: cleanString(task.domain),
     activityType: cleanString(task.taskModel?.activityType || task.taskModel?.skillId || task.taskCardType),
     plannedDate: cleanString(task.plannedDate),

@@ -17,7 +17,7 @@ const overview = {
       { id: "waiting_ai", title: "Waiting for AI", count: 1, cards: ["task-2"] },
     ],
     cards: [
-      { taskCardId: "task-1", title: "Native board task", activityType: "short_writing", plannedDate: "2026-05-20", primaryAction: "submit", nextAction: "submit", artifactCount: 0 },
+      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", primaryAction: "submit", nextAction: "submit", artifactCount: 0 },
       { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1 },
     ],
   },
@@ -128,6 +128,8 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-growth-board-lane="today"/);
   assert.match(html, /data-growth-board-lane="waiting_ai"/);
   assert.match(html, /Native board task/);
+  assert.match(html, /data-learning-open-growth-task="task-1"/);
+  assert.match(html, /learning-growth-board-card-preview/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.doesNotMatch(html, /data-learning-growth-tabs/);
   assert.doesNotMatch(html, /data-learning-growth-tab="execution"/);

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-board-compact-v38";
+const CLIENT_VERSION = "20260520-growth-board-current-v39";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -951,6 +951,7 @@ assert.match(stylesCss, /\.learning-growth-board-status-filter/);
 assert.match(stylesCss, /\.learning-growth-board-status-chip/);
 assert.match(stylesCss, /\.learning-growth-board-page/);
 assert.match(stylesCss, /\.learning-growth-board-summary/);
+assert.match(stylesCss, /\.learning-growth-board-card-preview/);
 assert.match(stylesCss, /\.learning-growth-task-focus/);
 assert.match(stylesCss, /\.learning-growth-answer-card/);
 assert.match(stylesCss, /\.learning-growth-board-lanes/);

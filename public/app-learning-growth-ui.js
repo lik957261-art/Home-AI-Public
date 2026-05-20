@@ -160,6 +160,7 @@
         <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
         <span>${escapeHtml(boardStatusText(card))}</span>
       </div>
+      ${card.instructionPreview ? `<p class="learning-growth-board-card-preview">${escapeHtml(card.instructionPreview)}</p>` : ""}
       <div class="learning-growth-board-card-meta">
         ${card.activityType ? `<small>${escapeHtml(card.activityType)}</small>` : ""}
         ${card.plannedDate ? `<small>${escapeHtml(String(card.plannedDate).slice(0, 10))}</small>` : ""}

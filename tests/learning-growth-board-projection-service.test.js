@@ -102,8 +102,57 @@ function testBoardShowsOnlyCurrentFutureSequenceTask() {
   assert.equal(board.summary.sequencePolicy, "current_card_only_then_unlock_next");
 }
 
+function testBoardGroupsDuplicateDraftsByProgram() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        {
+          taskCardId: "draft-a-current",
+          programId: "program-1",
+          draftId: "draft-a",
+          sequenceIndex: 1,
+          title: "Writing A",
+          status: "published",
+          learnerInstruction: "Write a short answer with a clear beginning, middle, and ending.",
+          plannedDate: "2026-05-20",
+        },
+        {
+          taskCardId: "draft-b-current",
+          programId: "program-1",
+          draftId: "draft-b",
+          sequenceIndex: 1,
+          title: "Writing B",
+          status: "published",
+          plannedDate: "2026-05-20",
+        },
+        {
+          taskCardId: "draft-c-current",
+          programId: "program-1",
+          draftId: "draft-c",
+          sequenceIndex: 1,
+          title: "Writing C",
+          status: "published",
+          plannedDate: "2026-05-20",
+        },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.deepEqual(board.cards.map((card) => card.taskCardId), ["draft-a-current"]);
+  assert.equal(board.cards[0].sequenceGroupId, "program:program-1");
+  assert.match(board.cards[0].instructionPreview, /clear beginning/);
+  assert.equal(board.summary.totalCardCount, 3);
+  assert.equal(board.summary.visibleCardCount, 1);
+  assert.equal(board.summary.hiddenFutureCardCount, 2);
+}
+
 testBoardClassifiesNativeTasksIntoLanes();
 testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();
+testBoardGroupsDuplicateDraftsByProgram();
 console.log("learning growth board projection service tests passed");
