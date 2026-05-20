@@ -141,6 +141,7 @@
   function renderGrowthPanel(summary, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const growth = summary?.growth || {};
+    const balances = summary?.balances || {};
     const level = growth.level || {};
     const current = level.current || {};
     const next = level.next || null;
@@ -150,7 +151,7 @@
     return `<section class="learning-coin-panel learning-growth-panel" data-learning-growth-coins="profile">
       <div class="learning-section-heading">
         <h3>成长档案</h3>
-        <span>最近 7 天</span>
+        <span>历史累计</span>
       </div>
       <div class="learning-growth-summary">
         <div class="learning-growth-level">
@@ -160,12 +161,11 @@
           <small>${escapeHtml(nextText)}</small>
         </div>
         <div class="learning-growth-metrics">
-          <span><strong>${escapeHtml(formatCoins(growth.sevenDayCoins))}</strong><small>7 天获得</small></span>
-          <span><strong>${escapeHtml(String(growth.activeDaysInLast7 || 0))} 天</strong><small>7 天活跃</small></span>
+          <span><strong>${escapeHtml(formatCoins(growth.totalEarnedCoins))}</strong><small>历史累计</small></span>
+          <span><strong>${escapeHtml(formatCoins(balances.availableCoins))}</strong><small>当前可用</small></span>
           <span><strong>${escapeHtml(String(growth.streakDays || 0))} 天</strong><small>连续获得</small></span>
         </div>
       </div>
-      ${renderDailyBars(growth, options)}
       <div class="learning-growth-rewards">
         <div class="learning-section-heading compact"><h3>兑换进度</h3><span>按差额排序</span></div>
         ${renderRewardProgress(growth, options)}
@@ -205,13 +205,13 @@
     return `<section class="learning-growth-coin-section" data-learning-growth-module="coins">
       <div class="learning-section-heading">
         <h3>金币与奖励</h3>
-        <span>成长系统子模块</span>
+        <span>激励记录</span>
       </div>
       <section class="learning-coin-hero">
         <div>
           <div class="learning-coin-eyebrow">${escapeHtml(learnerLabel)}</div>
           <h2>${escapeHtml(formatCoins(balances.availableCoins))}</h2>
-          <p>${escapeHtml(owner ? "金币只作为学习成长系统的激励、兑换和奖励池管理凭证。" : "金币只作为学习成长系统的激励与兑换凭证。")}</p>
+          <p>${escapeHtml(owner ? "金币只作为学习任务的激励、兑换和奖励池管理凭证。" : "金币只作为学习任务的激励与兑换凭证。")}</p>
         </div>
         <div class="learning-coin-stats">
           <span><strong>${escapeHtml(formatCoins(balances.heldCoins))}</strong><small>冻结中</small></span>

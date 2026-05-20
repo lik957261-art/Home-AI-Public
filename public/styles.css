@@ -1178,6 +1178,11 @@ button {
   display: none;
 }
 
+.learning-mode .thread-title-wrap,
+.learning-mode #interruptRun {
+  display: none !important;
+}
+
 .reading-fullscreen-mode {
   grid-template-columns: minmax(0, 1fr);
   padding-bottom: 0 !important;
@@ -7182,12 +7187,126 @@ button.directory-alias-chip {
   background: var(--paper);
 }
 
-.learning-growth-board-summary > div:first-child {
+.learning-growth-board-summary-head {
   min-width: 0;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.learning-growth-owner-menu {
+  position: relative;
+  justify-self: end;
+}
+
+.learning-growth-owner-menu summary {
+  width: 34px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(20, 32, 39, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.learning-growth-owner-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.learning-growth-owner-menu summary span {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.learning-growth-owner-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 25;
+  min-width: 132px;
+  display: grid;
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 252, 246, 0.98);
+  box-shadow: 0 12px 28px rgba(34, 28, 20, 0.14);
+}
+
+.learning-growth-owner-menu-panel button {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.07);
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.learning-growth-owner-tools {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(20, 32, 39, 0.10);
+  border-radius: 8px;
+  background: rgba(255, 252, 246, 0.88);
+}
+
+.learning-growth-owner-tools > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.learning-growth-owner-tools > summary::-webkit-details-marker {
+  display: none;
+}
+
+.learning-growth-owner-tools > summary span {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.learning-growth-owner-tools > summary strong {
+  width: 34px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(20, 32, 39, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.learning-growth-owner-tool-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.learning-growth-owner-tool-shortcuts button {
+  min-height: 40px;
+  padding: 0 10px;
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.07);
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 8px;
+  font-weight: 800;
 }
 
 .learning-growth-board-summary span {
@@ -7207,7 +7326,7 @@ button.directory-alias-chip {
 
 .learning-growth-board-summary-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -7708,8 +7827,8 @@ button.directory-alias-chip {
 .learning-growth-answer-instruction p {
   margin: 0;
   color: var(--ink);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.62;
   white-space: pre-wrap;
 }
 
@@ -7720,7 +7839,7 @@ button.directory-alias-chip {
 
 .learning-growth-tab-list {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   gap: 8px;
   padding: 4px;
   border: 1px solid rgba(31, 111, 98, 0.14);
@@ -8188,12 +8307,14 @@ button.directory-alias-chip {
 .learning-native-growth-submission-state {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
 .learning-native-growth-submission-input {
   min-height: 108px;
+  font-size: 16px;
+  line-height: 1.55;
   resize: vertical;
 }
 
@@ -10678,7 +10799,9 @@ button.directory-alias-chip {
 :root[data-font-size] .message-prose li,
 :root[data-font-size] .message-prose td,
 :root[data-font-size] .message-prose th,
-:root[data-font-size] .task-prompt {
+:root[data-font-size] .task-prompt,
+:root[data-font-size] .learning-growth-answer-instruction p,
+:root[data-font-size] .learning-native-growth-submission-input {
   font-size: calc(16.8px * var(--app-font-scale));
 }
 

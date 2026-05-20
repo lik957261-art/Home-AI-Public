@@ -321,6 +321,18 @@ function wireUi() {
   $("topDeleteAutomation")?.addEventListener("click", () => {
     deleteAutomationJob().catch(showError);
   });
+  $("topLearningNewTask")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openLearningGrowthOwnerPanel("new-task");
+  });
+  $("topLearningSettings")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openLearningGrowthOwnerPanel("settings");
+  });
+  $("topLearningRewards")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openLearningGrowthOwnerPanel("reward-settlement");
+  });
   $("topDeleteTodo")?.addEventListener("click", () => {
     deleteTodo(state.selectedTodoId).catch(showError);
   });

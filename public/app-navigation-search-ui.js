@@ -193,6 +193,7 @@ function updateNavigationControls() {
   app?.classList.toggle("automation-detail-mode", automationDetail);
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
+  app?.classList.toggle("learning-mode", state.viewMode === "learning");
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);
   app?.classList.toggle("main-back-visible", mainBack);
   app?.classList.toggle("reading-fullscreen-mode", state.readingFullscreen);
@@ -223,9 +224,10 @@ function updateTopMoreControls() {
   const todoDetail = isTodoDetailView();
   const todoCreate = kanbanComposerOpen();
   const todoList = state.viewMode === "todos" && !todoDetail && !todoCreate;
+  const learningView = state.viewMode === "learning";
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || automationList || automationDetail;
+  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || learningView || automationList || automationDetail;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {
@@ -266,6 +268,16 @@ function updateTopMoreControls() {
     newTodo.disabled = !todoList;
     newTodo.textContent = "\u65b0\u589e\u4efb\u52a1";
   }
+  const learningOwnerAction = learningView && Boolean(state.auth?.isOwner);
+  [
+    $("topLearningNewTask"),
+    $("topLearningSettings"),
+    $("topLearningRewards"),
+  ].forEach((button) => {
+    if (!button) return;
+    button.hidden = !learningOwnerAction;
+    button.disabled = !learningOwnerAction;
+  });
   const newAutomation = $("topNewAutomation");
   if (newAutomation) {
     newAutomation.hidden = !automationList;

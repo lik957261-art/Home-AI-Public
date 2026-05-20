@@ -258,9 +258,24 @@ async function main() {
     assert.equal(got.body.groupChatAvailable, true);
     assert.equal(got.body.weixinChatAvailable, true);
     assert.equal(got.body.groupChatThread.id, "group-thread");
-    assert.equal(got.body.weixinChatThread.id, "weixin-thread");
+    assert.equal(got.body.weixinChatThread, null);
     assert.equal(calls.compactWithPage.some((item) => item.threadId === "group-thread" && item.options.groupChat === true), true);
     assert.equal(calls.broadcast[0].type, "thread.updated");
+  }
+
+  {
+    const { routes, calls } = makeRoutes();
+    const got = await request(routes, "POST", "/api/single-window", {
+      body: { workspaceId: "owner", messageMode: "chat", messageLimit: 5 },
+      auth: { ok: true, workspaceId: "owner" },
+    });
+    assert.equal(got.res.statusCode, 200);
+    assert.equal(got.body.thread.id, "private-thread");
+    assert.equal(got.body.groupChatAvailable, true);
+    assert.equal(got.body.weixinChatAvailable, true);
+    assert.equal(got.body.groupChatThread, null);
+    assert.equal(got.body.weixinChatThread, null);
+    assert.deepEqual(calls.compactWithPage.map((item) => item.threadId), ["private-thread"]);
   }
 
   {
@@ -272,6 +287,8 @@ async function main() {
     assert.equal(got.res.statusCode, 200);
     assert.equal(got.body.thread.id, "weixin-thread");
     assert.equal(got.body.weixinChatThreadId, "weixin-thread");
+    assert.equal(got.body.weixinChatThread.id, "weixin-thread");
+    assert.equal(got.body.groupChatThread, null);
   }
 
   {

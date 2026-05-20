@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-retell-audio-v41";
+const CLIENT_VERSION = "20260520-growth-owner-ui-v42";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -894,6 +894,11 @@ assert.doesNotMatch(appJs, /node\.disabled = Boolean\(state\.auth && !state\.aut
 assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"/);
 assert.match(appJs, /params\.set\("workspaceId", learningGrowthLearnerWorkspaceId\(\)\)/);
 assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
+assert.match(appLearningGrowthControllerJs, /function setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
+assert.match(appLearningGrowthControllerJs, /if \(!state\.auth\?\.isOwner && state\.workspaces\.some\(\(item\) => item\.id === targetWorkspaceId\)\)/);
+assert.match(appLearningGrowthControllerJs, /loadTodos\(\{ skipCache: true, includeCompleted: true, freshServer: true, targetId: id, workspaceId: targetWorkspaceId \}\)/);
+assert.match(appJs, /if \(workspaceId && routeView === "learning" && taskCardId\) \{\s*setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
+assert.match(appJs, /payload\.workspaceId === learningGrowthLearnerWorkspaceId\(\)/);
   assert.match(appJs, /function learningProgramFormBody\(\)/);
   assert.match(appJs, /function learningSourceFormBody\(\)/);
   assert.match(appLearningGrowthControllerJs, /function importLearningSourceDirectory\(/);
@@ -965,9 +970,10 @@ assert.match(appLearningGrowthTaskUiJs, /validateSubmissionText/);
 assert.match(appLearningGrowthTaskUiJs, /renderFeedbackHistory/);
 assert.match(appLearningGrowthTaskUiJs, /minWords/);
 assert.match(appLearningGrowthUiJs, /renderLearningGrowthTabs/);
-assert.match(appLearningGrowthUiJs, /\{ id: "execution"/);
-assert.match(appLearningGrowthUiJs, /\{ id: "config"/);
-assert.match(appLearningGrowthUiJs, /\{ id: "coins"/);
+assert.match(appLearningGrowthUiJs, /\{ id: "new-task"/);
+assert.match(appLearningGrowthUiJs, /\{ id: "settings"/);
+assert.match(appLearningGrowthUiJs, /\{ id: "reward-settlement"/);
+assert.match(appLearningGrowthUiJs, /data-learning-growth-owner-entry/);
 assert.match(appLearningGrowthUiJs, /data-learning-product="fanfan-growth"/);
 assert.match(appLearningGrowthUiJs, /data-learning-role/);
 assert.match(appLearningGrowthUiJs, /function renderReadinessPanel/);
@@ -999,7 +1005,7 @@ assert.match(appJs, /data-assessment-exam-review/);
 assert.match(stylesCss, /\.learning-coin-view/);
 assert.match(stylesCss, /\.learning-growth-view/);
 assert.match(stylesCss, /\.learning-growth-platform-strip \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-assert.match(stylesCss, /\.learning-growth-tab-list \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+assert.match(stylesCss, /\.learning-growth-tab-list \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(92px, 1fr\)\)/);
 assert.match(stylesCss, /\.learning-growth-tab-panel\.active \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.learning-growth-category/);
 assert.match(stylesCss, /\.learning-growth-metric-card/);
@@ -1012,6 +1018,10 @@ assert.match(stylesCss, /\.learning-program-guidance-grid/);
 assert.match(stylesCss, /\.learning-daily-plan-list/);
 assert.match(stylesCss, /\.learning-program-task-actions/);
 assert.match(stylesCss, /\.learning-native-growth-submission-form/);
+assert.match(stylesCss, /\.learning-growth-owner-menu/);
+assert.match(stylesCss, /\.learning-mode #interruptRun \{[\s\S]*?display: none !important;/);
+assert.match(stylesCss, /\.learning-growth-answer-instruction p \{[\s\S]*?font-size: 16px;/);
+assert.match(stylesCss, /\.learning-native-growth-submission-input \{[\s\S]*?font-size: 16px;/);
 assert.match(stylesCss, /\.learning-evaluation-inline-form/);
 assert.match(appJs, /function isKanbanLearningGrowthCard\(todo\)/);
 assert.match(appJs, /function renderKanbanLearningGrowthTodoPanel\(todo\)/);

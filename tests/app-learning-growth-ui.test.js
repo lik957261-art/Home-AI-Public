@@ -99,9 +99,11 @@ function testCoinSubsystemRendererIsStandalone() {
   const html = CoinsUi.renderCoinsSubsystem({ summary: overview.coins, learnerId: "weixin_stephen", state: { auth: { isOwner: true } } });
   assert.match(html, /data-learning-growth-module="coins"/);
   assert.match(html, /金币与奖励/);
-  assert.match(html, /成长系统子模块/);
+  assert.match(html, /激励记录/);
+  assert.match(html, /历史累计/);
   assert.match(html, /70 金币/);
   assert.match(html, /learningRewardForm/);
+  assert.doesNotMatch(html, /最近 7 天|7 天获得|7 天活跃|learning-growth-days/);
 }
 
 function testExecutorCoinSubsystemHidesOwnerSettlementDetails() {
@@ -138,8 +140,12 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-growth-tab="config"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="review"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
-  assert.match(html, /凡凡成长系统/);
+  assert.match(html, /执行者/);
+  assert.match(html, /历史累计/);
+  assert.match(html, /70 金币/);
   assert.match(html, /aria-label="成长概览"/);
+  assert.doesNotMatch(html, /凡凡成长系统|凡凡成长|成长看板/);
+  assert.doesNotMatch(html, /<small>待执行<\/small>|<small>待处理<\/small>|<small>7d<\/small>|Owner/);
   assert.doesNotMatch(html, /class="learning-growth-metric-card"/);
   assert.doesNotMatch(html, /data-learning-growth-flow-step="attempt"/);
   assert.doesNotMatch(html, /data-learning-growth-category="execution"/);
@@ -216,22 +222,27 @@ function testOwnerRendererKeepsManagementSections() {
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-board-summary/);
   assert.match(html, /data-learning-growth-board/);
-  assert.doesNotMatch(html, /data-learning-growth-tabs/);
-  assert.doesNotMatch(html, /data-learning-growth-tab="execution"/);
-  assert.doesNotMatch(html, /data-learning-growth-tab="config"/);
-  assert.doesNotMatch(html, /data-learning-growth-tab="review"/);
-  assert.doesNotMatch(html, /data-learning-growth-tab="rewards"/);
+  assert.match(html, /data-learning-growth-owner-menu/);
+  assert.match(html, /data-learning-growth-owner-entry="new-task"/);
+  assert.match(html, /data-learning-growth-owner-entry="settings"/);
+  assert.match(html, /data-learning-growth-owner-entry="reward-settlement"/);
+  assert.match(html, /data-learning-growth-tabs/);
+  assert.match(html, /data-learning-growth-tab="new-task"/);
+  assert.match(html, /data-learning-growth-tab="settings"/);
+  assert.match(html, /data-learning-growth-tab="reward-settlement"/);
+  assert.match(html, /新建任务/);
+  assert.match(html, /设置/);
+  assert.match(html, /奖励结算/);
+  assert.match(html, /data-learning-growth-category="parent-admin"/);
+  assert.match(html, /data-learning-program-create/);
+  assert.match(html, /data-learning-launch-operations/);
+  assert.match(html, /data-learning-launch-next-action="settle-learning-rewards"/);
+  assert.match(html, /data-learning-evaluation-settle="eval-1"/);
+  assert.match(html, /data-learning-reward-settlement-id="settle-1"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
-  assert.doesNotMatch(html, /data-learning-growth-category="parent-admin"/);
   assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
   assert.doesNotMatch(html, /data-learning-operational-readiness/);
-  assert.doesNotMatch(html, /data-learning-growth-capability="parent-review"/);
-  assert.doesNotMatch(html, /data-learning-review-decision="review-1"/);
-  assert.doesNotMatch(html, /data-learning-parent-review-decision="parent-review-1"/);
-  assert.doesNotMatch(html, /data-learning-reward-settlement-id="settle-1"/);
-  assert.doesNotMatch(html, /data-learning-launch-operations/);
-  assert.doesNotMatch(html, /data-learning-launch-next-action="settle-learning-rewards"/);
-  assert.doesNotMatch(html, /data-learning-evaluation-settle="eval-1"/);
+  assert.doesNotMatch(html, /凡凡成长系统|凡凡成长|成长看板|<small>7d<\/small>/);
 }
 
 function testReadinessPanelRenderer() {

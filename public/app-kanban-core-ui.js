@@ -422,7 +422,7 @@ async function loadTodos(options = {}) {
     scheduleTodoAutoRefresh();
     return;
   }
-  const workspaceId = state.selectedWorkspaceId || "owner";
+  const workspaceId = String(options.workspaceId || state.selectedWorkspaceId || "owner").trim() || "owner";
   const params = new URLSearchParams();
   params.set("workspaceId", workspaceId);
   params.set("limit", "120");

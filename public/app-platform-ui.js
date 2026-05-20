@@ -188,7 +188,9 @@ function applyRouteParams(params) {
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
   let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
   const workspaceId = String(params.get("workspaceId") || "").trim();
-  if (workspaceId && state.workspaces.some((item) => item.id === workspaceId)) {
+  if (workspaceId && routeView === "learning" && taskCardId) {
+    setLearningGrowthLearnerWorkspaceId(workspaceId);
+  } else if (workspaceId && state.workspaces.some((item) => item.id === workspaceId)) {
     state.selectedWorkspaceId = workspaceId;
     localStorage.setItem("hermesWebWorkspace", workspaceId);
     if ($("workspaceSelect")) $("workspaceSelect").value = workspaceId;

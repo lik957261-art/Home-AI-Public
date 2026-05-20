@@ -412,6 +412,7 @@ const state = {
   automationEditJobId: "",
   automationOutputHistoryOpen: false,
   learningGrowth: null,
+  learningGrowthWorkspaceId: "",
   learningCoins: null,
   learningCoinScopeKey: "",
   learningCoinsLoading: false,

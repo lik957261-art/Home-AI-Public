@@ -5,10 +5,18 @@ function learningGrowthLearnerWorkspaceId() {
   const selected = String(state.selectedWorkspaceId || "").trim();
   const authWorkspace = String(state.auth?.workspaceId || "").trim();
   if (state.auth && !state.auth.isOwner) return authWorkspace || selected;
+  const scoped = String(state.learningGrowthWorkspaceId || "").trim();
+  if (state.auth?.isOwner && scoped && (!selected || selected === "owner")) return scoped;
   if (state.auth?.isOwner && (!selected || selected === "owner")) {
     return LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
   }
   return selected || authWorkspace || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
+}
+
+function setLearningGrowthLearnerWorkspaceId(workspaceId) {
+  const target = String(workspaceId || "").trim();
+  if (!target || !state.auth?.isOwner) return;
+  state.learningGrowthWorkspaceId = target;
 }
 
 function learningCoinStudentId() {
@@ -48,19 +56,19 @@ function renderLearningCoinsView() {
   const list = $("threadList");
   const growthUi = window.HermesLearningGrowthUi;
   if (!growthUi || typeof growthUi.renderLearningGrowthView !== "function") {
-    if (list) list.innerHTML = `<div class="empty-state small">凡凡成长系统模块正在加载。</div>`;
-    $("threadTitle").textContent = "凡凡成长";
-    $("threadMeta").textContent = "Fanfan Growth";
+    if (list) list.innerHTML = `<div class="empty-state small">\u5b66\u4e60\u4efb\u52a1\u6a21\u5757\u6b63\u5728\u52a0\u8f7d\u3002</div>`;
+    $("threadTitle").textContent = "\u4efb\u52a1";
+    $("threadMeta").textContent = "";
     $("interruptRun").disabled = true;
-    configureComposer({ enabled: false, placeholder: "凡凡成长系统" });
-    $("conversation").innerHTML = `<div class="learning-growth-view"><div class="empty-state">成长系统前端模块未加载，请刷新客户端。</div></div>`;
+    configureComposer({ enabled: false, placeholder: "\u5b66\u4e60\u4efb\u52a1" });
+    $("conversation").innerHTML = `<div class="learning-growth-view"><div class="empty-state">\u5b66\u4e60\u4efb\u52a1\u6a21\u5757\u672a\u52a0\u8f7d\uff0c\u8bf7\u5237\u65b0\u5ba2\u6237\u7aef\u3002</div></div>`;
     return;
   }
-  if (list) list.innerHTML = `<div class="empty-state small">凡凡成长系统入口。金币已经收敛为学习激励子模块。</div>`;
-  $("threadTitle").textContent = "凡凡成长";
-  $("threadMeta").textContent = "Fanfan Growth";
+  if (list) list.innerHTML = `<div class="empty-state small">\u5b66\u4e60\u4efb\u52a1\u5165\u53e3\u3002</div>`;
+  $("threadTitle").textContent = "\u4efb\u52a1";
+  $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
-  configureComposer({ enabled: false, placeholder: "凡凡成长系统" });
+  configureComposer({ enabled: false, placeholder: "\u5b66\u4e60\u4efb\u52a1" });
   const overview = state.learningGrowth || {};
   $("conversation").innerHTML = growthUi.renderLearningGrowthView({
     overview,
@@ -119,6 +127,15 @@ function selectLearningGrowthBoardLane(laneId) {
   });
 }
 
+function openLearningGrowthOwnerPanel(tabId = "new-task") {
+  const id = String(tabId || "new-task").trim() || "new-task";
+  const root = $("conversation");
+  const tools = root?.querySelector("[data-learning-growth-owner-tools]");
+  if (tools) tools.open = true;
+  selectLearningGrowthTab(id);
+  tools?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+}
+
 async function loadLearningCoins(options = {}) {
   const seq = ++state.learningCoinRequestSeq;
   const scopeKey = learningCoinCurrentScopeKey();
@@ -149,7 +166,8 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   const id = String(taskCardId || "").trim();
   if (!id) return;
   const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId();
-  if (state.workspaces.some((item) => item.id === targetWorkspaceId)) {
+  setLearningGrowthLearnerWorkspaceId(targetWorkspaceId);
+  if (!state.auth?.isOwner && state.workspaces.some((item) => item.id === targetWorkspaceId)) {
     state.selectedWorkspaceId = targetWorkspaceId;
     localStorage.setItem("hermesWebWorkspace", targetWorkspaceId);
     if ($("workspaceSelect")) $("workspaceSelect").value = targetWorkspaceId;
@@ -169,10 +187,15 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
 
 async function openLearningKanbanCard(todoId, workspaceId = "") {
   const id = String(todoId || "").trim(); if (!id) return;
-  const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId(); if (state.workspaces.some((item) => item.id === targetWorkspaceId)) state.selectedWorkspaceId = targetWorkspaceId;
-  localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId); if ($("workspaceSelect")) $("workspaceSelect").value = state.selectedWorkspaceId;
+  const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId();
+  setLearningGrowthLearnerWorkspaceId(targetWorkspaceId);
+  if (!state.auth?.isOwner && state.workspaces.some((item) => item.id === targetWorkspaceId)) state.selectedWorkspaceId = targetWorkspaceId;
+  if (!state.auth?.isOwner) {
+    localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
+    if ($("workspaceSelect")) $("workspaceSelect").value = state.selectedWorkspaceId;
+  }
   state.viewMode = "todos"; state.selectedTodoId = id; state.selectedLearningTaskCardId = ""; state.todoRouteMissingTargetId = "";
-  localStorage.setItem("hermesWebViewMode", "todos"); await loadProjects(); await loadTodos({ skipCache: true, includeCompleted: true, freshServer: true, targetId: id });
+  localStorage.setItem("hermesWebViewMode", "todos"); await loadProjects(); await loadTodos({ skipCache: true, includeCompleted: true, freshServer: true, targetId: id, workspaceId: targetWorkspaceId });
 }
 
 async function requestLearningCoinRedemption(rewardId) {
@@ -536,6 +559,9 @@ async function submitLearningEvaluationForm(event, sessionId) {
 function wireLearningCoinsView() {
   $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-growth-owner-entry], [data-learning-growth-owner-shortcut]").forEach((button) => {
+    button.addEventListener("click", () => openLearningGrowthOwnerPanel(button.dataset.learningGrowthOwnerEntry || button.dataset.learningGrowthOwnerShortcut));
   });
   $("conversation")?.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));

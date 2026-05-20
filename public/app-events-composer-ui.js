@@ -267,7 +267,7 @@ function applyEvent(payload) {
     return;
   }
   if (payload.type === "learning-coins.updated") {
-    if (state.viewMode === "learning" && (!payload.workspaceId || payload.workspaceId === state.selectedWorkspaceId)) {
+    if (state.viewMode === "learning" && (!payload.workspaceId || payload.workspaceId === learningGrowthLearnerWorkspaceId())) {
       loadLearningCoins({ limit: 30 }).catch(showError);
     }
     return;

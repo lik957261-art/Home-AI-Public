@@ -152,14 +152,14 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
         limit: body.messageLimit || body.message_limit || threadMessageInitialLimit,
       })
       : deps.compactThread(thread);
-    const groupChatThread = groupChatAvailable
+    const groupChatThread = groupRequested && groupChatAvailable
       ? deps.compactThreadWithMessagePage(availableGroupThread, {
         mode: "chat",
         groupChat: true,
         limit: body.messageLimit || body.message_limit || threadMessageInitialLimit,
       })
       : null;
-    const weixinChatThread = weixinThread && deps.threadAccessibleToAuth(auth, weixinThread)
+    const weixinChatThread = weixinRequested && weixinThread && deps.threadAccessibleToAuth(auth, weixinThread)
       ? deps.compactThreadWithMessagePage(weixinThread, {
         mode: "chat",
         groupChat: false,
