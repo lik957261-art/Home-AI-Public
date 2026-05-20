@@ -271,6 +271,40 @@ function testNativeTaskWithoutKanbanLinkUsesNativeSubmission() {
   assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
 }
 
+function testNativeSpeakingTaskRendersAudioRecorder() {
+  const html = ProgramUi.renderProgramSubsystem({
+    programs: Object.assign({}, programs, {
+      executableTasks: [{
+        taskCardId: "task-native-speaking",
+        source: "learning-growth",
+        title: "Native speaking retell task",
+        status: "published",
+        executionStatus: "pending_execution",
+        workspaceId: "weixin_stephen",
+        plannedDate: "2026-05-19",
+        plannedMinutes: 20,
+        skillIds: ["english_speaking_retell"],
+        taskModel: {
+          activityType: "speaking",
+          skillId: "english_speaking_retell",
+        },
+      }],
+    }),
+    state: {
+      auth: { isOwner: false },
+      learningNativeGrowthSubmissionRecorders: {},
+    },
+  });
+  assert.match(html, /data-learning-executable-task-id="task-native-speaking"/);
+  assert.match(html, /data-learning-native-growth-submission-form="task-native-speaking"/);
+  assert.match(html, /data-requires-audio="1"/);
+  assert.match(html, /data-learning-native-growth-recorder="task-native-speaking"/);
+  assert.match(html, /data-learning-native-growth-record-start="task-native-speaking"/);
+  assert.match(html, /data-learning-submit-native-growth="task-native-speaking"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-input="task-native-speaking"/);
+  assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
+}
+
 function testNativeTaskReflectionStateRendersReflectionForm() {
   const html = ProgramUi.renderProgramSubsystem({
     programs: Object.assign({}, programs, {
@@ -297,6 +331,7 @@ testOwnerFormAndActionsRender();
 testNonOwnerCannotSeeCreateForm();
 testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst();
 testNativeTaskWithoutKanbanLinkUsesNativeSubmission();
+testNativeSpeakingTaskRendersAudioRecorder();
 testNativeTaskReflectionStateRendersReflectionForm();
 
 console.log("app learning program ui tests passed");

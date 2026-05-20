@@ -674,6 +674,226 @@ async function testNativeTaskSubmissionWorksWithoutKanbanLink() {
   }
 }
 
+async function testNativeSpeakingSubmissionUsesAudioTranscription() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const savedAudio = [];
+  const evaluated = [];
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-native-speaking",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Native speaking retell task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      plannedDate: "2026-05-18",
+      plannedMinutes: 15,
+      skillIds: ["english_speaking_retell"],
+      templateId: "english-speaking-retell-v1",
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "speaking",
+        skillId: "english_speaking_retell",
+        learnerInstruction: "Read a short passage and record an English retell.",
+      },
+      privacyLevel: "summary_only",
+    });
+    const transcript = [
+      "First I introduce the main idea and retell the event in my own words.",
+      "Then I explain one important detail and connect it with the reason in the text.",
+      "After that I mention the result and keep the order clear for the listener.",
+      "Finally I say what the character learns and use complete English sentences with enough detail.",
+    ].join(" ");
+    const programService = createLearningProgramService({ repository });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      saveSubmissionAudioUpload(workspaceId, cardId, audio) {
+        savedAudio.push({ workspaceId, cardId, audio });
+        return {
+          path: "C:\\tmp\\native-speaking-retell.webm",
+          name: audio.filename,
+          mime: audio.type,
+          size: 1234,
+        };
+      },
+      async transcribeSubmissionAudio(audioPath) {
+        assert.equal(audioPath, "C:\\tmp\\native-speaking-retell.webm");
+        return { text: transcript };
+      },
+      evaluationService: {
+        async evaluate(input) {
+          evaluated.push(input);
+          assert.equal(input.text, transcript);
+          assert.equal(input.submissionAudio.kind, "audio");
+          return {
+            evaluationId: "eval-native-speaking",
+            status: "needs_revision",
+            activityType: "speaking",
+            skillId: "english_speaking_retell",
+            score: 74,
+            maxScore: 100,
+            passed: false,
+            confidence: 0.76,
+            summary: "summary only feedback",
+            feedbackMethod: "test",
+            feedbackSections: { focusAreas: ["retell order"], reflectionPrompts: [] },
+            revisionRequirements: ["add one missing detail"],
+            evidenceRefs: ["submission:summary"],
+            reward: { eligible: false },
+          };
+        },
+      },
+      reportService: {
+        writeReport() {
+          return {
+            path: "C:\\tmp\\native-speaking-feedback.md",
+            name: "native-speaking-feedback.md",
+            mime: "text/markdown; charset=utf-8",
+            size: 180,
+          };
+        },
+      },
+    });
+    const result = await service.submitTask({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-native-speaking",
+      filename: "retell.webm",
+      type: "audio/webm",
+      dataBase64: "ZmFrZS1hdWRpbw==",
+      durationMs: 32000,
+      author: "weixin_stephen",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(savedAudio.length, 1);
+    assert.equal(evaluated.length, 1);
+    assert.equal(result.submissionAudio.kind, "audio");
+    assert.equal(result.evaluation.evidenceRefs.some((ref) => /^audio:/.test(ref)), true);
+    const nativeSubmission = repository.listTaskSubmissions({ taskCardId: "task-native-speaking", limit: 1 })[0];
+    assert.equal(nativeSubmission.raw.audio.kind, "audio");
+    assert.equal(nativeSubmission.raw.audio.digest, result.submissionAudio.digest);
+    assert.doesNotMatch(JSON.stringify(nativeSubmission.raw), /First I introduce/);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function testNativeSpeakingSubmissionRequiresAudio() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-native-speaking-missing-audio",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Native speaking retell task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      skillIds: ["english_speaking_retell"],
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "speaking",
+        skillId: "english_speaking_retell",
+      },
+      privacyLevel: "summary_only",
+    });
+    const programService = createLearningProgramService({ repository });
+    let evaluated = false;
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      evaluationService: {
+        async evaluate() {
+          evaluated = true;
+          return { status: "passed" };
+        },
+      },
+    });
+    const result = await service.submitTask({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-native-speaking-missing-audio",
+      text: "This text fallback should not be accepted for a speaking retell.",
+      author: "weixin_stephen",
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 400);
+    assert.equal(evaluated, false);
+    assert.equal(repository.listTaskSubmissions({ taskCardId: "task-native-speaking-missing-audio", limit: 1 }).length, 0);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function testNativeSpeakingSubmissionRequiresServerTranscription() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-native-speaking-no-transcribe",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Native speaking retell task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      skillIds: ["english_speaking_retell"],
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "speaking",
+        skillId: "english_speaking_retell",
+      },
+      privacyLevel: "summary_only",
+    });
+    const programService = createLearningProgramService({ repository });
+    let evaluated = false;
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      saveSubmissionAudioUpload() {
+        return {
+          path: "C:\\tmp\\native-speaking-retell.webm",
+          name: "retell.webm",
+          mime: "audio/webm",
+          size: 1234,
+        };
+      },
+      evaluationService: {
+        async evaluate() {
+          evaluated = true;
+          return { status: "passed" };
+        },
+      },
+    });
+    const result = await service.submitTask({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-native-speaking-no-transcribe",
+      filename: "retell.webm",
+      type: "audio/webm",
+      dataBase64: "ZmFrZS1hdWRpbw==",
+      transcript: "A client transcript must not bypass server transcription.",
+      author: "weixin_stephen",
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 503);
+    assert.equal(evaluated, false);
+    assert.equal(repository.listTaskSubmissions({ taskCardId: "task-native-speaking-no-transcribe", limit: 1 }).length, 0);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function testCompletedNativeTaskPreparesNextSequenceTask() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
@@ -858,6 +1078,9 @@ function testDependencyValidation() {
   await testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSettlement();
   await testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard();
   await testNativeTaskSubmissionWorksWithoutKanbanLink();
+  await testNativeSpeakingSubmissionUsesAudioTranscription();
+  await testNativeSpeakingSubmissionRequiresAudio();
+  await testNativeSpeakingSubmissionRequiresServerTranscription();
   await testCompletedNativeTaskPreparesNextSequenceTask();
   await testLockedSequenceTaskRejectsSubmissionBeforeModelWork();
   console.log("learning growth submission service tests passed");

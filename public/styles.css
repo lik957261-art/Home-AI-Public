@@ -7710,6 +7710,7 @@ button.directory-alias-chip {
   color: var(--ink);
   font-size: 14px;
   line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .learning-growth-tabs {
@@ -8194,6 +8195,26 @@ button.directory-alias-chip {
 .learning-native-growth-submission-input {
   min-height: 108px;
   resize: vertical;
+}
+
+.learning-native-growth-recorder {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(31, 111, 98, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.learning-native-growth-recorder-status {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.learning-native-growth-recorder audio {
+  width: 100%;
+  max-width: 100%;
 }
 
 .learning-program-task-actions button,

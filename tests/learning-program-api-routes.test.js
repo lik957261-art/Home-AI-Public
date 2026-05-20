@@ -554,6 +554,39 @@ async function testNativeGrowthSubmissionDoesNotRequireKanbanLink() {
   assert.equal(calls.at(-1)[1].taskCardId, "task-native");
 }
 
+async function testNativeGrowthSubmissionUsesUploadSizedBodyLimit() {
+  let observedLimit = 0;
+  const { routes, calls } = makeRoutes({
+    deps: {
+      maxUploadBytes: 1000000,
+      async readBody(req, limit) {
+        observedLimit = limit;
+        return req.body || {};
+      },
+    },
+    service: {
+      getTaskCard(taskCardId) {
+        calls.push(["getTaskCard", taskCardId]);
+        return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published" };
+      },
+    },
+  });
+  const response = await request(routes, "POST", "/api/learning/task-cards/task-native/growth-submission", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: {
+      filename: "retell.webm",
+      type: "audio/webm",
+      dataBase64: "ZmFrZS1hdWRpbw==",
+      durationMs: 12000,
+    },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(observedLimit > 240000, true);
+  assert.equal(calls.at(-1)[0], "submitGrowthTask");
+  assert.equal(calls.at(-1)[1].dataBase64, "ZmFrZS1hdWRpbw==");
+  assert.equal(calls.at(-1)[1].filename, "retell.webm");
+}
+
 async function testExecutorTaskReadUsesSummaryProjectionOnly() {
   const { routes } = makeRoutes({
     service: {
@@ -636,6 +669,7 @@ async function testExecutorCannotEvaluateOtherLearnerSession() {
   await testExecutorCannotReadUnpublishedTaskDetail();
   await testExecutorCannotStartUnpublishedTask();
   await testNativeGrowthSubmissionDoesNotRequireKanbanLink();
+  await testNativeGrowthSubmissionUsesUploadSizedBodyLimit();
   await testExecutorCannotEvaluateOtherLearnerSession();
   console.log("learning program api routes tests passed");
 })().catch((err) => {

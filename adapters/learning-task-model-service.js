@@ -438,6 +438,9 @@ function learningTaskModelSummary(model = {}) {
     activityType: cleanString(safe.activityType),
     taskCardType: normalizeTaskCardType(safe.taskCardType),
     interactionStateMachine: cleanList(safe.interactionStateMachine, 20),
+    learnerInstruction: cleanString(safe.learnerInstruction),
+    deliverables: cleanList(safe.deliverables, 8),
+    acceptance: cleanList(safe.acceptance, 8),
     submissionContract: {
       firstSubmissionKind: cleanString(safe.submissionContract?.firstSubmissionKind),
       revisionSubmissionKind: cleanString(safe.submissionContract?.revisionSubmissionKind),

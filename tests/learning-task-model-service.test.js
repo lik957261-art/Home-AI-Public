@@ -58,11 +58,14 @@ function run() {
 
   const summary = learningTaskModelSummary(writing);
   assert.deepEqual(Object.keys(summary).sort(), [
+    "acceptance",
     "activityType",
     "completionPolicy",
+    "deliverables",
     "evaluationContract",
     "feedbackContract",
     "interactionStateMachine",
+    "learnerInstruction",
     "rubricDimensions",
     "rewardPolicy",
     "skillId",

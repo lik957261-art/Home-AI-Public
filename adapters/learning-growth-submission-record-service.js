@@ -118,6 +118,14 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
         stage: cleanString(input.stage),
         submissionKind: cleanString(input.submissionKind),
         source: "learning_growth_submission",
+        audio: input.audio && input.audio.digest ? {
+          kind: cleanString(input.audio.kind),
+          name: cleanString(input.audio.name),
+          mime: cleanString(input.audio.mime),
+          size: Number(input.audio.size || 0),
+          durationMs: Number(input.audio.durationMs || 0),
+          digest: cleanString(input.audio.digest),
+        } : null,
       },
     });
     return { record, session };

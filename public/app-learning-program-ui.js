@@ -583,11 +583,56 @@
     return `\u81f3\u5c11 ${Number(guard.minWords || 0)} \u4e2a\u82f1\u6587\u8bcd / ${Number(guard.minChars || 0)} \u4e2a\u6709\u6548\u5b57\u7b26`;
   }
 
+  function nativeGrowthRequiresAudio(task = {}) {
+    const model = task.taskModel || task.learningTaskModel || {};
+    const activityType = String(model.activityType || "").toLowerCase();
+    const skillId = String(model.skillId || task.skillId || (task.skillIds || [])[0] || "").toLowerCase();
+    return activityType === "speaking"
+      || activityType === "pronunciation"
+      || skillId === "english_speaking_retell"
+      || skillId === "english_pronunciation_shadowing";
+  }
+
+  function nativeGrowthSubmissionRecordingStatus(taskCardId, options = {}) {
+    const recorder = options.state?.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
+    const duration = typeof formatKanbanReadingRecordingDuration === "function" && typeof kanbanReadingRecordingDuration === "function"
+      ? formatKanbanReadingRecordingDuration(kanbanReadingRecordingDuration(recorder))
+      : "";
+    if (recorder.status === "requesting") return "\u6b63\u5728\u8bf7\u6c42\u9ea6\u514b\u98ce\u6743\u9650...";
+    if (recorder.status === "recording") return `\u6b63\u5728\u5f55\u97f3 ${duration}`.trim();
+    if (recorder.status === "stopping") return "\u6b63\u5728\u751f\u6210\u590d\u8ff0\u5f55\u97f3...";
+    if (recorder.status === "ready") return `\u5df2\u5f55\u597d\u590d\u8ff0 ${duration}`.trim();
+    if (recorder.status === "unsupported") return "\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u76f4\u63a5\u5f55\u97f3\u3002";
+    if (recorder.status === "error") return recorder.error || "\u590d\u8ff0\u5f55\u97f3\u4e0d\u53ef\u7528\uff0c\u8bf7\u91cd\u8bd5\u3002";
+    return "\u9605\u8bfb\u4e0a\u65b9\u6750\u6599\u540e\uff0c\u7528\u82f1\u8bed\u5f55\u97f3\u590d\u8ff0\u3002\u63d0\u4ea4\u540e\u4f1a\u5148\u8f6c\u5199\uff0c\u518d\u8fdb\u5165 AI \u6279\u6539\u3002";
+  }
+
+  function renderNativeGrowthAudioRecorder(task = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    const recorder = options.state?.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
+    const status = String(recorder.status || "");
+    const ready = status === "ready" && recorder.url;
+    const recording = status === "recording";
+    const waiting = status === "requesting" || status === "stopping";
+    return `<div class="learning-native-growth-recorder" data-learning-native-growth-recorder="${escapeHtml(taskCardId)}">
+      <div class="learning-native-growth-recorder-status" data-learning-native-growth-record-status="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthSubmissionRecordingStatus(taskCardId, options))}</div>
+      ${ready ? `<audio controls preload="metadata" src="${escapeHtml(recorder.url)}"></audio>` : ""}
+      <div class="learning-program-task-actions learning-native-growth-recorder-actions">
+        ${recording
+          ? `<button type="button" data-learning-native-growth-record-stop="${escapeHtml(taskCardId)}">\u505c\u6b62\u5f55\u97f3</button>`
+          : `<button type="button" data-learning-native-growth-record-start="${escapeHtml(taskCardId)}" ${waiting ? "disabled" : ""}>${ready ? "\u91cd\u65b0\u5f55\u97f3" : "\u5f00\u59cb\u5f55\u97f3"}</button>`}
+        ${ready || recording || status === "error" ? `<button type="button" data-learning-native-growth-record-cancel="${escapeHtml(taskCardId)}">\u6e05\u9664</button>` : ""}
+      </div>
+    </div>`;
+  }
+
   function renderNativeGrowthSubmission(task = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(task?.taskCardId || "");
     if (!taskCardId) return "";
     const guard = nativeGrowthSubmissionGuard(task, options);
+    const requiresAudio = nativeGrowthRequiresAudio(task);
     const kanbanCardId = String(task?.kanbanCardId || task?.todoId || "");
     const workspaceId = String(task?.workspaceId || "");
     const nativeState = task?.nativeState || {};
@@ -614,13 +659,13 @@
         </div>
       </form>`;
     }
-    return `<form class="learning-native-growth-submission-form" data-learning-native-growth-submission-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}">
+    return `<form class="learning-native-growth-submission-form" data-learning-native-growth-submission-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}" data-requires-audio="${requiresAudio ? "1" : "0"}">
       <p class="learning-native-growth-prompt">${escapeHtml(nativeGrowthSubmissionPrompt(task, options))}</p>
       ${stateLabel ? `<div class="learning-native-growth-submission-state">${escapeHtml(stateLabel)}</div>` : ""}
-      <textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539"></textarea>
-      <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>
+      ${requiresAudio ? renderNativeGrowthAudioRecorder(task, options) : `<textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539"></textarea>
+      <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>`}
       <div class="learning-program-task-actions">
-        <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u7ed9 AI \u6279\u6539</button>
+        <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">${requiresAudio ? "\u63d0\u4ea4\u5f55\u97f3\u7ed9 AI \u6279\u6539" : "\u63d0\u4ea4\u7ed9 AI \u6279\u6539"}</button>
         ${detailButton}
       </div>
       <div class="learning-native-growth-submission-state" data-learning-native-growth-submission-state="${escapeHtml(taskCardId)}" aria-live="polite"></div>

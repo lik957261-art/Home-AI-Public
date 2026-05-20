@@ -436,6 +436,189 @@ function cancelLearningGrowthReflectionRecording(todoId) {
   renderTodosAfterReadingRecorderChange();
 }
 
+function learningNativeGrowthSubmissionRecordingFile(taskCardId, blob, mime = "") {
+  const extension = kanbanReadingRecordingExtension(mime);
+  const safeId = String(taskCardId || "task").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "task";
+  const filename = `growth-retell-${safeId}-${Date.now()}.${extension}`;
+  try {
+    if (typeof File === "function") return new File([blob], filename, { type: mime || blob.type || "audio/webm" });
+  } catch (_) {
+    // Older WebViews can expose Blob without a usable File constructor.
+  }
+  blob.name = filename;
+  blob.lastModified = Date.now();
+  return blob;
+}
+
+function ensureLearningNativeGrowthSubmissionRecorderState() {
+  state.learningNativeGrowthSubmissionRecorders = state.learningNativeGrowthSubmissionRecorders || {};
+  state.learningNativeGrowthSubmissionSubmitting = state.learningNativeGrowthSubmissionSubmitting || {};
+}
+
+function renderLearningGrowthAfterNativeRecorderChange() {
+  if (typeof renderLearningCoinsView !== "function") {
+    renderTodosAfterReadingRecorderChange();
+    return;
+  }
+  const scrollTop = $("conversation")?.scrollTop || 0;
+  renderLearningCoinsView();
+  if ($("conversation")) $("conversation").scrollTop = scrollTop;
+}
+
+function learningNativeGrowthSubmissionRecordingStatusText(taskCardId) {
+  const recording = state.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
+  const duration = formatKanbanReadingRecordingDuration(kanbanReadingRecordingDuration(recording));
+  if (recording.status === "requesting") return "\u6b63\u5728\u8bf7\u6c42\u9ea6\u514b\u98ce\u6743\u9650...";
+  if (recording.status === "recording") return `\u6b63\u5728\u5f55\u97f3 ${duration}`;
+  if (recording.status === "stopping") return "\u6b63\u5728\u751f\u6210\u590d\u8ff0\u5f55\u97f3...";
+  if (recording.status === "ready") return `\u5df2\u5f55\u597d\u590d\u8ff0 ${duration}`;
+  if (recording.status === "unsupported") return "\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u76f4\u63a5\u5f55\u97f3\u3002";
+  if (recording.status === "error") return recording.error || "\u590d\u8ff0\u5f55\u97f3\u4e0d\u53ef\u7528\uff0c\u8bf7\u91cd\u8bd5\u3002";
+  return supportsKanbanReadingRecorder() ? "\u9605\u8bfb\u6750\u6599\u540e\u5f55\u4e00\u6bb5\u82f1\u8bed\u590d\u8ff0\u3002" : "\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u76f4\u63a5\u5f55\u97f3\u3002";
+}
+
+function updateLearningNativeGrowthSubmissionRecordingStatus(taskCardId) {
+  const text = learningNativeGrowthSubmissionRecordingStatusText(taskCardId);
+  document.querySelectorAll("[data-learning-native-growth-record-status]").forEach((node) => {
+    if (node.dataset.learningNativeGrowthRecordStatus === String(taskCardId)) node.textContent = text;
+  });
+}
+
+function startLearningNativeGrowthSubmissionRecordingTimer(taskCardId, recording) {
+  clearKanbanReadingRecordingTimer(recording);
+  recording.timer = setInterval(() => updateLearningNativeGrowthSubmissionRecordingStatus(taskCardId), 1000);
+  updateLearningNativeGrowthSubmissionRecordingStatus(taskCardId);
+}
+
+function finishLearningNativeGrowthSubmissionRecording(taskCardId, recording) {
+  ensureLearningNativeGrowthSubmissionRecorderState();
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  if (recording.cancelled) return;
+  const chunks = (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
+  const elapsedMs = Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording);
+  if (!chunks.length) {
+    state.learningNativeGrowthSubmissionRecorders[taskCardId] = { status: "error", error: "\u672a\u5f55\u5230\u58f0\u97f3\uff0c\u8bf7\u91cd\u8bd5\u3002", elapsedMs };
+    renderLearningGrowthAfterNativeRecorderChange();
+    return;
+  }
+  const mime = recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
+  const blob = new Blob(chunks, { type: mime });
+  const file = learningNativeGrowthSubmissionRecordingFile(taskCardId, blob, mime);
+  const url = typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+    ? URL.createObjectURL(file)
+    : "";
+  state.learningNativeGrowthSubmissionRecorders[taskCardId] = {
+    status: "ready",
+    elapsedMs,
+    mimeType: mime,
+    file,
+    url,
+  };
+  renderLearningGrowthAfterNativeRecorderChange();
+}
+
+function failLearningNativeGrowthSubmissionRecording(taskCardId, err) {
+  ensureLearningNativeGrowthSubmissionRecorderState();
+  const recording = state.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
+  const elapsedMs = kanbanReadingRecordingDuration(recording);
+  recording.cancelled = true;
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  state.learningNativeGrowthSubmissionRecorders[taskCardId] = {
+    status: "error",
+    elapsedMs,
+    error: kanbanReadingRecordingPermissionMessage(err),
+  };
+  renderLearningGrowthAfterNativeRecorderChange();
+}
+
+async function startLearningNativeGrowthSubmissionRecording(taskCardId) {
+  ensureLearningNativeGrowthSubmissionRecorderState();
+  if (!taskCardId || state.learningNativeGrowthSubmissionSubmitting?.[taskCardId]) return;
+  const Recorder = kanbanReadingMediaRecorderApi();
+  if (!supportsKanbanReadingRecorder() || !Recorder) {
+    state.learningNativeGrowthSubmissionRecorders[taskCardId] = { status: "unsupported" };
+    renderLearningGrowthAfterNativeRecorderChange();
+    return;
+  }
+  const current = state.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
+  if (["requesting", "recording", "stopping"].includes(current.status)) return;
+  revokeKanbanReadingRecordingUrl(current);
+  state.learningNativeGrowthSubmissionRecorders[taskCardId] = { status: "requesting", chunks: [], elapsedMs: 0, error: "" };
+  renderLearningGrowthAfterNativeRecorderChange();
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const pending = state.learningNativeGrowthSubmissionRecorders?.[taskCardId];
+    if (!pending || pending.status !== "requesting") {
+      stream.getTracks?.().forEach((track) => track.stop());
+      return;
+    }
+    const mimeType = preferredKanbanReadingRecorderMimeType();
+    const recorder = new Recorder(stream, mimeType ? { mimeType } : undefined);
+    const recording = {
+      status: "recording",
+      recorder,
+      stream,
+      chunks: [],
+      startedAt: Date.now(),
+      elapsedMs: 0,
+      mimeType: recorder.mimeType || mimeType || "",
+      error: "",
+    };
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size > 0) recording.chunks.push(event.data);
+    });
+    recorder.addEventListener("stop", () => finishLearningNativeGrowthSubmissionRecording(taskCardId, recording));
+    recorder.addEventListener("error", (event) => failLearningNativeGrowthSubmissionRecording(taskCardId, event.error || event));
+    state.learningNativeGrowthSubmissionRecorders[taskCardId] = recording;
+    recorder.start();
+    startLearningNativeGrowthSubmissionRecordingTimer(taskCardId, recording);
+    renderLearningGrowthAfterNativeRecorderChange();
+  } catch (err) {
+    if (stream) stream.getTracks?.().forEach((track) => track.stop());
+    failLearningNativeGrowthSubmissionRecording(taskCardId, err);
+  }
+}
+
+function stopLearningNativeGrowthSubmissionRecording(taskCardId) {
+  ensureLearningNativeGrowthSubmissionRecorderState();
+  const recording = state.learningNativeGrowthSubmissionRecorders?.[taskCardId];
+  if (!recording || recording.status !== "recording") return;
+  recording.elapsedMs = kanbanReadingRecordingDuration(recording);
+  recording.startedAt = 0;
+  recording.status = "stopping";
+  clearKanbanReadingRecordingTimer(recording);
+  try {
+    if (recording.recorder && recording.recorder.state !== "inactive") {
+      recording.recorder.stop();
+    } else {
+      finishLearningNativeGrowthSubmissionRecording(taskCardId, recording);
+    }
+  } catch (err) {
+    failLearningNativeGrowthSubmissionRecording(taskCardId, err);
+  }
+  renderLearningGrowthAfterNativeRecorderChange();
+}
+
+function cancelLearningNativeGrowthSubmissionRecording(taskCardId) {
+  ensureLearningNativeGrowthSubmissionRecorderState();
+  const recording = state.learningNativeGrowthSubmissionRecorders?.[taskCardId];
+  if (!recording) return;
+  recording.cancelled = true;
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  revokeKanbanReadingRecordingUrl(recording);
+  try {
+    if (recording.recorder && recording.recorder.state !== "inactive") recording.recorder.stop();
+  } catch (_) {
+    // Ignore cancellation stop errors.
+  }
+  delete state.learningNativeGrowthSubmissionRecorders[taskCardId];
+  renderLearningGrowthAfterNativeRecorderChange();
+}
+
 async function submitRecordedReadingSubmission(todoId, notes = "") {
   const recording = state.todoReadingRecorders?.[todoId];
   if (!recording?.file) throw new Error("请先停止录音");

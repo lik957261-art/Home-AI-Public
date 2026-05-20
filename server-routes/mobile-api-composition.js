@@ -439,7 +439,9 @@ function createMobileApiComposition(deps = {}) {
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
     reflectionService: learningGrowthReflectionService,
+    saveSubmissionAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
     sequenceService: learningGrowthSequenceService,
+    transcribeSubmissionAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
   const kanbanCaseTopicDeliveryService = createKanbanCaseTopicDeliveryService({
     broadcast: deps.broadcast,
@@ -588,6 +590,7 @@ function createMobileApiComposition(deps = {}) {
     isOwnerAuth: deps.isOwnerAuth,
     learningGrowthSubmissionService,
     learningProgramService,
+    maxUploadBytes: deps.maxUploadBytes,
     readBody: deps.readBody,
     requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,

@@ -707,6 +707,7 @@ function testServiceFirstArchitectureContract() {
     "public/app-directory-automation-ui.js",
     "public/app-shared-directory-ui.js",
     "public/app-automation-ui.js",
+    "public/app-learning-native-growth-submission-controller.js",
     "public/app-learning-growth-controller.js",
     "public/app-learning-growth-task-ui.js",
     "public/app-automation-controller-ui.js",

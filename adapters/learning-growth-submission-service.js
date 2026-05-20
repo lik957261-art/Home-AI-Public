@@ -1,5 +1,7 @@
 "use strict";
 
+const crypto = require("node:crypto");
+
 const {
   isLearningGrowthKanbanCard,
 } = require("./learning-growth-kanban-task-service");
@@ -33,6 +35,10 @@ const {
 
 function cleanString(value) {
   return String(value ?? "").trim();
+}
+
+function digestText(value) {
+  return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");
 }
 
 function asArray(value) {
@@ -176,6 +182,7 @@ function publicEvaluation(evaluation = {}, settlement = null) {
     settlementBlockedByReflection: reflectionRequired,
     passed: Boolean(evaluation.passed),
     summary: cleanString(evaluation.summary),
+    evidenceRefs: asArray(evaluation.evidenceRefs).map(cleanString).filter(Boolean),
     revisionRequirements: asArray(evaluation.revisionRequirements).map(cleanString).filter(Boolean),
     feedbackSections: {
       strengths: asArray(sections.strengths).map(cleanString).filter(Boolean),
@@ -297,6 +304,37 @@ function readableCompletionComment(evaluation = {}, publicEval = {}) {
 
 function taskModelForSubmission(card = {}, input = {}) {
   return inferLearningTaskModelFromCard(card, input);
+}
+
+function hasAudioSubmissionInput(input = {}) {
+  return Boolean(cleanString(input.dataBase64 || input.data_base64 || input.audioDataBase64));
+}
+
+function requiresAudioSubmission(taskModel = {}, input = {}) {
+  if (input.allowTextFallback === true) return false;
+  const activityType = cleanString(taskModel.activityType).toLowerCase();
+  const skillId = cleanString(taskModel.skillId).toLowerCase();
+  return activityType === "speaking"
+    || activityType === "pronunciation"
+    || skillId === "english_speaking_retell"
+    || skillId === "english_pronunciation_shadowing";
+}
+
+function publicSubmissionAudioEvidence(audio = {}, input = {}) {
+  const name = cleanString(audio.name || input.filename || input.name || "growth-speaking-audio");
+  const mime = cleanString(audio.mime || audio.type || input.type || input.mime || input.mimeType || "audio/webm");
+  const size = Number(audio.size || input.size || 0) || 0;
+  const durationMs = Number(input.durationMs || input.duration_ms || audio.durationMs || 0) || 0;
+  const contentBasis = cleanString(input.dataBase64 || input.data_base64 || input.audioDataBase64);
+  const digestBasis = contentBasis || [name, mime, size, durationMs, cleanString(audio.path)].join("|");
+  return {
+    kind: "audio",
+    name,
+    mime,
+    size,
+    durationMs,
+    digest: digestText(digestBasis).slice(0, 24),
+  };
 }
 
 function submissionKindForStage(card = {}, input = {}, stage = "draft") {
@@ -539,6 +577,12 @@ function createLearningGrowthSubmissionService(options = {}) {
   const aiFeedbackService = options.aiFeedbackService || null;
   const progressSyncService = options.progressSyncService || createLearningGrowthProgressSyncService();
   const sequenceService = options.sequenceService || null;
+  const saveSubmissionAudioUpload = typeof options.saveSubmissionAudioUpload === "function"
+    ? options.saveSubmissionAudioUpload
+    : (typeof options.saveAudioUpload === "function" ? options.saveAudioUpload : null);
+  const transcribeSubmissionAudio = typeof options.transcribeSubmissionAudio === "function"
+    ? options.transcribeSubmissionAudio
+    : (typeof options.transcribeAudio === "function" ? options.transcribeAudio : null);
   const reflectionService = options.reflectionService || createLearningGrowthReflectionService({
     nowIso: options.nowIso,
     saveAudioUpload: options.saveReflectionAudioUpload,
@@ -664,16 +708,67 @@ function createLearningGrowthSubmissionService(options = {}) {
     }
   }
 
+  async function resolveAudioSubmissionText(workspaceId, cardIdValue, input = {}, card = {}, resolveOptions = {}) {
+    const dataBase64 = cleanString(input.dataBase64 || input.data_base64 || input.audioDataBase64);
+    if (!dataBase64) return { ok: true, text: cleanString(input.text || input.submission || input.comment), audio: null };
+    const requireServerTranscription = Boolean(resolveOptions.requireServerTranscription);
+    if (!saveSubmissionAudioUpload) {
+      return createError(503, "Growth speaking submission audio upload is not available");
+    }
+    let audio;
+    try {
+      audio = saveSubmissionAudioUpload(workspaceId, cardIdValue, {
+        filename: input.filename || "growth-speaking-audio.webm",
+        type: input.type || input.mime || input.mimeType || "audio/webm",
+        dataBase64,
+      }, card);
+    } catch (err) {
+      return createError(Number(err?.status || 400) || 400, cleanString(err?.message || err || "Unable to save Growth speaking audio"));
+    }
+    if (requireServerTranscription && !cleanString(audio?.path)) {
+      return createError(502, "Growth speaking audio was saved without a transcribable path");
+    }
+    if (requireServerTranscription && !transcribeSubmissionAudio) {
+      return createError(503, "Growth speaking audio transcription is not available");
+    }
+    let transcript = requireServerTranscription ? "" : cleanString(input.transcript || input.text || input.submission || input.comment);
+    if (audio?.path && transcribeSubmissionAudio) {
+      try {
+        const transcription = await transcribeSubmissionAudio(audio.path);
+        transcript = cleanString(transcription?.text || transcript);
+      } catch (err) {
+        return createError(Number(err?.status || 502) || 502, cleanString(err?.message || err || "Unable to transcribe Growth speaking audio"));
+      }
+    }
+    if (!transcript) return createError(502, "Growth speaking audio transcription is empty");
+    return {
+      ok: true,
+      text: transcript,
+      audio: publicSubmissionAudioEvidence(audio, input),
+    };
+  }
+
   async function submitTask(input = {}) {
     const workspaceId = cleanString(input.workspaceId) || "owner";
-    const text = cleanString(input.text || input.submission || input.comment);
-    if (!text) return createError(400, "Learning task submission text is required");
-    if (text.length > maxSubmissionChars) return createError(413, `Learning task submission is too long; keep it under ${maxSubmissionChars} characters`);
+    const initialText = cleanString(input.text || input.submission || input.comment);
+    const hasAudioInput = hasAudioSubmissionInput(input);
+    if (!hasAudioInput && !initialText) return createError(400, "Learning task submission text is required");
+    if (!hasAudioInput && initialText.length > maxSubmissionChars) return createError(413, `Learning task submission is too long; keep it under ${maxSubmissionChars} characters`);
     const loaded = await loadGrowthWorkItem(workspaceId, input);
     if (!loaded.ok) return loaded;
     const cardIdValue = loaded.cardIdValue;
     const stage = submissionStageForCard(loaded.card, input);
     const taskModel = taskModelForSubmission(loaded.card, input);
+    const needsAudio = requiresAudioSubmission(taskModel, input);
+    if (needsAudio && !hasAudioInput) return createError(400, "Growth speaking retell audio is required");
+    const resolvedSubmission = await resolveAudioSubmissionText(workspaceId, cardIdValue, input, loaded.card, {
+      requireServerTranscription: needsAudio,
+    });
+    if (!resolvedSubmission.ok) return resolvedSubmission;
+    const text = cleanString(resolvedSubmission.text);
+    const submissionAudio = resolvedSubmission.audio || null;
+    if (!text) return createError(400, needsAudio ? "Growth speaking retell audio transcript is required" : "Learning task submission text is required");
+    if (text.length > maxSubmissionChars) return createError(413, `Learning task submission is too long; keep it under ${maxSubmissionChars} characters`);
     const guard = resolveSubmissionGuard(taskModel, stage);
     const validation = validateSubmissionText(text, guard);
     if (!validation.ok) {
@@ -706,7 +801,10 @@ function createLearningGrowthSubmissionService(options = {}) {
           status: "submitted",
           text,
           stats: submissionStats(text),
-          summary: `${activityLabel(taskModel.activityType)} task submission received.`,
+          summary: submissionAudio
+            ? `${activityLabel(taskModel.activityType)} audio submission received and transcribed.`
+            : `${activityLabel(taskModel.activityType)} task submission received.`,
+          audio: submissionAudio,
         });
       } catch (err) {
         nativeSubmission = { error: cleanString(err.message || err) };
@@ -729,6 +827,7 @@ function createLearningGrowthSubmissionService(options = {}) {
         card: loaded.card,
         cardId: cardIdValue,
         text,
+        submissionAudio,
         stage,
         learningTaskModel: taskModel,
         submissionKind,
@@ -744,6 +843,7 @@ function createLearningGrowthSubmissionService(options = {}) {
           card: loaded.card,
           cardId: cardIdValue,
           text,
+          submissionAudio,
           stage,
           evaluation,
         });
@@ -762,6 +862,10 @@ function createLearningGrowthSubmissionService(options = {}) {
     const reflectionRequired = reflectionService
       && typeof reflectionService.requiresReflection === "function"
       && reflectionService.requiresReflection({ card: loaded.card, evaluation, stage });
+    if (submissionAudio) {
+      const evidenceRefs = asArray(evaluation.evidenceRefs).map(cleanString).filter(Boolean);
+      evaluation.evidenceRefs = Array.from(new Set([...evidenceRefs, `audio:${submissionAudio.digest}`]));
+    }
     if (reflectionRequired && typeof reflectionService.markReflectionRequired === "function") {
       evaluation = reflectionService.markReflectionRequired(evaluation);
     }
@@ -902,6 +1006,7 @@ function createLearningGrowthSubmissionService(options = {}) {
       workspaceId,
       status: publicEval.status,
       submissionGuard: guard,
+      submissionAudio,
       evaluation: publicEval,
       reward: publicEval.reward,
       nextTask,
@@ -912,6 +1017,7 @@ function createLearningGrowthSubmissionService(options = {}) {
         evaluation: publicEval,
         completed: Boolean(completion?.ok),
         materialized,
+        submissionAudio,
         nativeSubmission: nativeSubmission?.record ? { submissionId: nativeSubmission.record.submissionId, status: nativeSubmission.record.status } : null,
         nativeEvaluation: nativeEvaluation?.evaluation ? { evaluationId: nativeEvaluation.evaluation.evaluationId, status: nativeEvaluation.evaluation.status } : null,
         nextTask,

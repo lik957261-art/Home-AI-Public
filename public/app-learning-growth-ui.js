@@ -376,10 +376,16 @@
   function findSelectedGrowthTask(programs = {}, taskCardId = "") {
     const id = String(taskCardId || "");
     if (!id) return null;
-    const tasks = []
-      .concat(Array.isArray(programs.executableTasks) ? programs.executableTasks : [])
-      .concat(Array.isArray(programs.taskCards) ? programs.taskCards : []);
-    return tasks.find((task) => String(task?.taskCardId || task?.id || "") === id) || null;
+    const taskCards = Array.isArray(programs.taskCards) ? programs.taskCards : [];
+    const executableTasks = Array.isArray(programs.executableTasks) ? programs.executableTasks : [];
+    const full = taskCards.find((task) => String(task?.taskCardId || task?.id || "") === id) || null;
+    const executable = executableTasks.find((task) => String(task?.taskCardId || task?.id || "") === id) || null;
+    if (full && executable) {
+      return Object.assign({}, executable, full, {
+        nativeState: Object.assign({}, full.nativeState || {}, executable.nativeState || {}),
+      });
+    }
+    return full || executable || null;
   }
 
   function renderSelectedGrowthTaskView(overview = {}, options = {}) {

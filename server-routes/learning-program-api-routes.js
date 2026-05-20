@@ -597,6 +597,10 @@ function createLearningProgramApiRoutes(deps = {}) {
     throw new Error("learning program api routes require learningProgramService");
   }
   const registry = createApiRouteRegistry(LEARNING_PROGRAM_API_ROUTE_SPECS);
+  const growthSubmissionBodyLimit = Math.max(
+    240000,
+    Math.ceil(Math.max(0, Number(deps.maxUploadBytes || 0)) * 1.4) + 8192,
+  );
 
   function authorizeQuery(req, res, url, auth) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url, deps.isOwnerAuth(auth) ? "weixin_stephen" : auth?.workspaceId));
@@ -1034,7 +1038,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     const taskCard = service.getTaskCard(taskCardId);
     if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
     if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
-    const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
+    const body = await deps.readBody(req, growthSubmissionBodyLimit).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
       return;
@@ -1086,7 +1090,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     const taskCard = service.getTaskCard(taskCardId);
     if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
     if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
-    const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
+    const body = await deps.readBody(req, growthSubmissionBodyLimit).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
       return;

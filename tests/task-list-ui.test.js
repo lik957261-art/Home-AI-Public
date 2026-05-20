@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-legacy-board-v40";
+const CLIENT_VERSION = "20260520-growth-retell-audio-v41";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -82,6 +82,7 @@ const appLearningProgramUiJs = fs.readFileSync(path.join(repoRoot, "public", "ap
 const appLearningGrowthUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ui.js"), "utf8");
 const appLearningGrowthTaskUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-task-ui.js"), "utf8");
 const appLearningGrowthControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-controller.js"), "utf8");
+const appLearningNativeGrowthSubmissionControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-native-growth-submission-controller.js"), "utf8");
 const appApiClientJs = fs.readFileSync(path.join(repoRoot, "public", "app-api-client.js"), "utf8");
 const appMessageActionsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-message-actions-ui.js"), "utf8");
 const appThreadCardMessageUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-thread-card-message-ui.js"), "utf8");
@@ -915,10 +916,12 @@ assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
   assert.match(appJs, /\/api\/learning\/goals/);
   assert.match(appJs, /\/api\/learning\/profile\/rebuild/);
   assert.match(appJs, /\/api\/learning\/task-cards\/\$\{encodeURIComponent\(taskCardId\)\}\/sessions/);
-  assert.match(appLearningGrowthControllerJs, /function submitNativeGrowthTask\(/);
-  assert.match(appLearningGrowthControllerJs, /\/api\/learning\/task-cards\/\$\{encodeURIComponent\(taskCardId\)\}\/growth-submission/);
+  assert.match(appLearningNativeGrowthSubmissionControllerJs, /function submitNativeGrowthTask\(/);
+  assert.match(appLearningNativeGrowthSubmissionControllerJs, /\/api\/learning\/task-cards\/\$\{encodeURIComponent\(taskCardId\)\}\/growth-submission/);
+  assert.match(appLearningNativeGrowthSubmissionControllerJs, /learningNativeGrowthSubmissionSubmitting\[taskCardId\]/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-submission-form/);
   assert.match(appLearningProgramUiJs, /data-learning-submit-native-growth/);
+  assert.match(appLearningProgramUiJs, /data-learning-native-growth-recorder/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/advance/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/evaluations/);
   assert.match(appJs, /data-learning-program-publish/);

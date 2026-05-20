@@ -372,6 +372,8 @@ const state = {
   todoLearningGrowthSubmissionProgressTimers: {},
   todoLearningGrowthReflectionRecorders: {},
   todoLearningGrowthReflectionSubmitting: {},
+  learningNativeGrowthSubmissionRecorders: {},
+  learningNativeGrowthSubmissionSubmitting: {},
   pendingReadingQuizTodoId: "",
   pendingAssessmentExamTodoId: "",
   todoAutoRefreshTimer: 0,
