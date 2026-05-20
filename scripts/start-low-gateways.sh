@@ -49,6 +49,41 @@ if [ ! -s "$api_key_file" ]; then
   exit 1
 fi
 
+verify_gateway_profile() {
+  local profile="$1"
+  local profile_link="$worker_home_dir/profiles/$profile"
+  local expected_target="$gateway_worker_root/telemetry/profiles/$profile"
+  local resolved_profile=""
+  local resolved_expected=""
+
+  if [ ! -L "$profile_link" ]; then
+    echo "low gateway profile is not a symlink: $profile_link" >&2
+    exit 1
+  fi
+  if [ ! -d "$expected_target" ]; then
+    echo "missing low gateway telemetry profile: $expected_target" >&2
+    exit 1
+  fi
+  resolved_profile="$(readlink -f "$profile_link" || true)"
+  resolved_expected="$(readlink -f "$expected_target" || true)"
+  if [ -z "$resolved_profile" ] || [ -z "$resolved_expected" ] || [ "$resolved_profile" != "$resolved_expected" ]; then
+    echo "low gateway profile target mismatch: $profile_link -> $resolved_profile, expected $resolved_expected" >&2
+    exit 1
+  fi
+  if [ ! -s "$profile_link/config.yaml" ]; then
+    echo "missing low gateway profile config: $profile_link/config.yaml" >&2
+    exit 1
+  fi
+  if [ ! -L "$profile_link/auth.json" ] || [ ! -s "$profile_link/auth.json" ]; then
+    echo "missing shared auth link for low gateway profile: $profile_link/auth.json" >&2
+    exit 1
+  fi
+  if [ ! -L "$profile_link/auth.lock" ]; then
+    echo "missing shared auth lock link for low gateway profile: $profile_link/auth.lock" >&2
+    exit 1
+  fi
+}
+
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/logs"
 
 start_gateway_profile() {
@@ -73,11 +108,13 @@ start_gateway_profile() {
 }
 
 for idx in $(seq 1 "$low_gateway_count"); do
+  verify_gateway_profile "lowgw${idx}"
   start_gateway_profile "lowgw${idx}" $((18750 + idx))
 done
 
 if [ "$grok_gateway_count" -gt 0 ]; then
   for idx in $(seq 1 "$grok_gateway_count"); do
+    verify_gateway_profile "grokgw${idx}"
     start_gateway_profile "grokgw${idx}" $((18760 + idx))
   done
 fi

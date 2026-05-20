@@ -63,7 +63,7 @@ const COMPOSER_MODEL_OPTIONS = Object.freeze([
     description: "xAI OAuth Grok worker",
   },
 ]);
-const CHAT_MESSAGE_INITIAL_LIMIT = 60;
+const CHAT_MESSAGE_INITIAL_LIMIT = 30;
 const CHAT_MESSAGE_PAGE_LIMIT = 40;
 const CHAT_MESSAGE_SEARCH_LIMIT = 120;
 const CHAT_HISTORY_LOAD_TOP_PX = 220;

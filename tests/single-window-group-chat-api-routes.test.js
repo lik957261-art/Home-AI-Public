@@ -279,6 +279,18 @@ async function main() {
   }
 
   {
+    const { routes, calls } = makeRoutes();
+    const got = await request(routes, "POST", "/api/single-window", {
+      body: { workspaceId: "owner", messageLimit: 5 },
+      auth: { ok: true, workspaceId: "owner" },
+    });
+    assert.equal(got.res.statusCode, 200);
+    assert.equal(got.body.thread.id, "private-thread");
+    assert.equal(got.body.thread.page.mode, "chat");
+    assert.deepEqual(calls.compactWithPage.map((item) => item.threadId), ["private-thread"]);
+  }
+
+  {
     const { routes } = makeRoutes();
     const got = await request(routes, "POST", "/api/single-window", {
       body: { workspaceId: "owner", weixinChat: true, messageMode: "chat" },

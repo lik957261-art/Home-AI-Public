@@ -207,6 +207,12 @@ assert.match(startLowGatewaysShell, /PATH="\$low_gateway_path"/);
 assert.match(startLowGatewaysShell, /API_SERVER_KEY="\$api_key"/);
 assert.match(startLowGatewaysShell, /LOW_GATEWAYS_STARTED/);
 assert.match(startLowGatewaysShell, /start_gateway_profile "grokgw\$\{idx\}"/);
+assert.match(startLowGatewaysShell, /verify_gateway_profile\(\)/);
+assert.match(startLowGatewaysShell, /profile_link="\$worker_home_dir\/profiles\/\$profile"/);
+assert.match(startLowGatewaysShell, /expected_target="\$gateway_worker_root\/telemetry\/profiles\/\$profile"/);
+assert.match(startLowGatewaysShell, /low gateway profile is not a symlink/);
+assert.match(startLowGatewaysShell, /missing shared auth link for low gateway profile/);
+assert.match(startLowGatewaysShell, /missing shared auth lock link for low gateway profile/);
 assert.doesNotMatch(startLowGatewaysShell, /xuxin/);
 
 assert.match(configureLowGateways, /HERMES_MOBILE_OWNER_CONNECTOR_PROFILES/);

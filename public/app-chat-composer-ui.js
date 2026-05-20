@@ -201,7 +201,9 @@ function mergeChatScopeThread(existingThread, incomingThread) {
     return mergeServerMessage(existingMessages.get(message.id), message);
   });
   for (const message of existingThread.messages || []) {
-    if (!incomingIds.has(message.id)) messages.push(message);
+    if (!incomingIds.has(message.id) && (!incomingPage || shouldPreserveMessageOutsideIncomingPage(message))) {
+      messages.push(message);
+    }
   }
   const sortedMessages = sortedThreadMessages(messages);
   const messagesPage = incomingPage || existingPage

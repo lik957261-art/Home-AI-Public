@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-growth-settings-page-v43";
+const CLIENT_VERSION = "20260521-chat-entry-page-v44";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1462,7 +1462,7 @@ assert.match(mobileApiComposition, /createThreadReadUploadApiRoutes/);
 assert.match(mobileApiDispatcher, /key: "threadReadUploadApiRoutes"/);
 assert.match(threadReadUploadApiRoutes, /thread-messages-list/);
 assert.match(threadReadUploadApiRoutes, /handleThreadMessagesList/);
-assert.match(appJs, /const CHAT_MESSAGE_INITIAL_LIMIT = 60/);
+assert.match(appJs, /const CHAT_MESSAGE_INITIAL_LIMIT = 30/);
 assert.match(appJs, /const TASK_MESSAGE_INITIAL_LIMIT = 300/);
 assert.match(appJs, /function answerDraftStorageKey\(kind, workspaceId, todoId, fingerprint\)/);
 assert.match(appJs, /function readAssessmentExamDraft\(todoId, exam = \{\}\)/);
@@ -1479,8 +1479,9 @@ assert.match(appJs, /const canonicalId = String\(result\.canonicalCardId \|\| to
 assert.match(appJs, /replaceTodoDetailRouteFlag\(canonicalId, "readingQuiz"\)/);
 assert.match(appJs, /function writeReadingQuizDraft\(todoId\)/);
 assert.match(appJs, /function clearReadingQuizDrafts\(todoId\)/);
-assert.match(appJs, /const messageMode = isSingleWindowChatView\(\)/);
+assert.match(appJs, /const messageMode = state\.viewMode === "single" && state\.singleWindowMode === "chat"/);
 assert.match(appJs, /messageMode === "tasks" \? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT/);
+assert.match(appJs, /shouldPreserveMessageOutsideIncomingPage\(message\)/);
 assert.match(appJs, /function loadOlderChatMessages\(\)/);
 assert.match(appJs, /maybeLoadOlderChatMessages\(\)/);
 assert.match(appJs, /\/messages\?\$\{params\}/);

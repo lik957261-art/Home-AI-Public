@@ -163,6 +163,10 @@ function mergeMessagesPage(existingPage = null, incomingPage = null, messages = 
   return merged;
 }
 
+function shouldPreserveMessageOutsideIncomingPage(message = {}) {
+  return ["queued", "running"].includes(String(message?.status || ""));
+}
+
 function mergeCurrentThreadMessages(messages = [], page = null) {
   if (!state.currentThread || !Array.isArray(messages) || !messages.length) return;
   const current = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));

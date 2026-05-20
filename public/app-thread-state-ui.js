@@ -64,7 +64,9 @@ function mergeCurrentThread(incomingThread) {
     return mergeServerMessage(existingMessages.get(message.id), message);
   });
   for (const message of state.currentThread.messages || []) {
-    if (!incomingIds.has(message.id)) messages.push(message);
+    if (!incomingIds.has(message.id) && (!incomingPage || shouldPreserveMessageOutsideIncomingPage(message))) {
+      messages.push(message);
+    }
   }
   const sortedMessages = sortedThreadMessages(messages);
   const chatMessages = incomingPage?.mode === "chat" || existingPage?.mode === "chat"
@@ -87,7 +89,7 @@ async function loadSingleWindow(options = {}) {
     && state.singleWindowMode === "chat"
     && state.groupChatOpen
   ));
-  const messageMode = isSingleWindowChatView()
+  const messageMode = state.viewMode === "single" && state.singleWindowMode === "chat"
     ? "chat"
     : (state.viewMode === "tasks" || state.singleWindowMode === "task" ? "tasks" : "");
   const result = await api("/api/single-window", {
