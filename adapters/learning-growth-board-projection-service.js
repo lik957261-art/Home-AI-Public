@@ -56,6 +56,8 @@ function publicArtifactPreview(artifact) {
 function taskStatus(task = {}, latest = {}) {
   const nativeAction = cleanString(task?.nativeState?.nextAction);
   if (nativeAction) return nativeAction;
+  const status = cleanString(task.status || task.executionStatus).toLowerCase();
+  if (["completed", "done", "closed", "archived"].includes(status)) return "complete";
   const reflectionStatus = cleanString(latest.reflection?.status);
   if (reflectionStatus === "accepted") return "complete";
   const evaluationStatus = cleanString(latest.evaluation?.status);
@@ -84,6 +86,35 @@ function primaryActionForLane(laneId, action) {
   return action === "submit" ? "submit" : action || "open";
 }
 
+function sequenceIndexForTask(task = {}, fallbackIndex = 0) {
+  const values = [
+    task.sequenceIndex,
+    task.learningGrowthJitGeneration?.sequenceIndex,
+    task.taskModel?.jitGeneration?.sequenceIndex,
+    task.nativeState?.sequenceIndex,
+    task.kanbanCaseCardIndex,
+    task.caseCardIndex,
+  ];
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  }
+  return Math.max(1, Number(fallbackIndex || 0) + 1);
+}
+
+function sequenceGroupForTask(task = {}) {
+  const draftId = cleanString(task.draftId || task.learningDraftId || task.learning_draft_id);
+  if (draftId) return `draft:${draftId}`;
+  const programId = cleanString(task.programId || task.learningProgramId || task.learning_program_id);
+  if (programId) return `program:${programId}`;
+  const taskCardId = cleanString(task.taskCardId || task.id);
+  return taskCardId ? `task:${taskCardId}` : "task:unknown";
+}
+
+function taskComplete(card = {}) {
+  return card.laneId === "completed_recent" || card.nextAction === "complete";
+}
+
 function actionModel(laneId, action) {
   return {
     canSubmit: action === "submit" || action === "revise",
@@ -94,7 +125,7 @@ function actionModel(laneId, action) {
   };
 }
 
-function publicBoardCard(task = {}, context = {}) {
+function publicBoardCard(task = {}, context = {}, index = 0) {
   const taskCardId = cleanString(task.taskCardId || task.id);
   const latest = {
     submission: task.latestSubmission || latestForTask(context.submissions, taskCardId, "submittedAt"),
@@ -109,6 +140,10 @@ function publicBoardCard(task = {}, context = {}) {
   const actions = actionModel(laneId, action);
   return {
     taskCardId,
+    programId: cleanString(task.programId || task.learningProgramId || task.learning_program_id),
+    draftId: cleanString(task.draftId || task.learningDraftId || task.learning_draft_id),
+    sequenceGroupId: sequenceGroupForTask(task),
+    sequenceIndex: sequenceIndexForTask(task, index),
     title: cleanString(task.title, 180) || taskCardId,
     domain: cleanString(task.domain),
     activityType: cleanString(task.taskModel?.activityType || task.taskModel?.skillId || task.taskCardType),
@@ -125,6 +160,46 @@ function publicBoardCard(task = {}, context = {}) {
     rewardState: cleanString(latest.evaluation?.passed ? "eligible_after_reflection" : ""),
     primaryAction: actions.primaryAction,
     actions,
+  };
+}
+
+function visibleSequenceCards(cards = []) {
+  const visible = [];
+  const hidden = [];
+  const groups = new Map();
+  for (const [index, card] of arrayValue(cards).entries()) {
+    const groupId = cleanString(card.sequenceGroupId) || `task:${cleanString(card.taskCardId)}`;
+    if (!groups.has(groupId)) groups.set(groupId, []);
+    groups.get(groupId).push(Object.assign({ _boardIndex: index }, card));
+  }
+  for (const groupCards of groups.values()) {
+    const sorted = groupCards.slice().sort((a, b) => {
+      const ai = Number(a.sequenceIndex || 0) || 0;
+      const bi = Number(b.sequenceIndex || 0) || 0;
+      if (ai !== bi) return ai - bi;
+      const ad = cleanString(a.plannedDate);
+      const bd = cleanString(b.plannedDate);
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      return a._boardIndex - b._boardIndex;
+    });
+    let currentOpen = false;
+    for (const card of sorted) {
+      if (taskComplete(card)) {
+        visible.push(Object.assign({}, card, { sequenceVisibility: "completed" }));
+        continue;
+      }
+      if (!currentOpen) {
+        currentOpen = true;
+        visible.push(Object.assign({}, card, { sequenceVisibility: "current" }));
+      } else {
+        hidden.push(Object.assign({}, card, { sequenceVisibility: "locked_future" }));
+      }
+    }
+  }
+  visible.sort((a, b) => a._boardIndex - b._boardIndex);
+  return {
+    cards: visible.map(({ _boardIndex, ...card }) => card),
+    hiddenCards: hidden.map(({ _boardIndex, ...card }) => card),
   };
 }
 
@@ -179,7 +254,9 @@ function buildLearningGrowthBoard(input = {}) {
     reflections: arrayValue(programs.taskReflections),
     artifacts: arrayValue(programs.taskArtifacts),
   };
-  const cards = mergeTasks(programs).map((task) => publicBoardCard(task, context));
+  const allCards = mergeTasks(programs).map((task, index) => publicBoardCard(task, context, index));
+  const sequence = visibleSequenceCards(allCards);
+  const cards = sequence.cards;
   const laneList = defaultLanes();
   const laneMap = new Map(laneList.map((lane) => [lane.id, lane]));
   for (const card of cards) {
@@ -198,8 +275,12 @@ function buildLearningGrowthBoard(input = {}) {
     role: cleanString(overview.viewerRole) || "executor",
     summary: {
       cardCount: cards.length,
+      visibleCardCount: cards.length,
+      totalCardCount: allCards.length,
+      hiddenFutureCardCount: sequence.hiddenCards.length,
       availableCoins: numberValue(overview.metrics?.availableCoins),
       pendingRedemptions: numberValue(overview.metrics?.pendingRedemptions),
+      sequencePolicy: "current_card_only_then_unlock_next",
     },
     lanes: laneList.map((lane) => Object.assign({}, lane, { count: lane.cards.length })),
     cards,
@@ -239,4 +320,5 @@ module.exports = {
   createLearningGrowthBoardProjectionService,
   laneForTask,
   publicBoardCard,
+  visibleSequenceCards,
 };

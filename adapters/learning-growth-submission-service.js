@@ -538,6 +538,7 @@ function createLearningGrowthSubmissionService(options = {}) {
   const learningCoinService = options.learningCoinService || null;
   const aiFeedbackService = options.aiFeedbackService || null;
   const progressSyncService = options.progressSyncService || createLearningGrowthProgressSyncService();
+  const sequenceService = options.sequenceService || null;
   const reflectionService = options.reflectionService || createLearningGrowthReflectionService({
     nowIso: options.nowIso,
     saveAudioUpload: options.saveReflectionAudioUpload,
@@ -636,6 +637,26 @@ function createLearningGrowthSubmissionService(options = {}) {
     const programService = getProgramService(options);
     if (!taskCardId || !programService || typeof programService.listEvaluations !== "function") return null;
     return programService.listEvaluations({ taskCardId, limit: 1 })[0] || null;
+  }
+
+  async function prepareNextSequenceTask(input = {}) {
+    if (!sequenceService || typeof sequenceService.prepareNextAfterCompletion !== "function") return null;
+    try {
+      return await sequenceService.prepareNextAfterCompletion({
+        taskCardId: input.taskCardId,
+        task: input.task,
+        workspaceId: input.workspaceId,
+        learnerId: input.learnerId,
+        author: input.author,
+      });
+    } catch (err) {
+      return {
+        ok: false,
+        status: "next_task_prepare_failed",
+        previousTaskCardId: cleanString(input.taskCardId),
+        error: cleanString(err.message || err),
+      };
+    }
   }
 
   async function submitTask(input = {}) {
@@ -846,6 +867,7 @@ function createLearningGrowthSubmissionService(options = {}) {
     });
     if (!evaluationMutation?.ok) return createError(evaluationMutation?.status || 502, cleanString(evaluationMutation?.error || "Unable to persist learning task evaluation"));
     let completion = null;
+    let nextTask = null;
     if (evaluation.passed && !reflectionRequired) {
       completion = await projectKanbanComment(loaded, {
         action: "complete",
@@ -853,6 +875,15 @@ function createLearningGrowthSubmissionService(options = {}) {
         comment: readableCompletionComment(evaluation, publicEval),
         author: "learning-growth-evaluator",
       });
+      if (completion?.ok) {
+        nextTask = await prepareNextSequenceTask({
+          taskCardId: nativeTask?.taskCardId || loaded.taskCardId,
+          task: nativeTask,
+          workspaceId,
+          learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
+          author: input.author,
+        });
+      }
     }
     return {
       ok: true,
@@ -862,6 +893,7 @@ function createLearningGrowthSubmissionService(options = {}) {
       submissionGuard: guard,
       evaluation: publicEval,
       reward: publicEval.reward,
+      nextTask,
       result: {
         ok: true,
         id: cleanString(mutated.id || mutated.cardId || cardIdValue) || cardIdValue,
@@ -871,6 +903,7 @@ function createLearningGrowthSubmissionService(options = {}) {
         materialized,
         nativeSubmission: nativeSubmission?.record ? { submissionId: nativeSubmission.record.submissionId, status: nativeSubmission.record.status } : null,
         nativeEvaluation: nativeEvaluation?.evaluation ? { evaluationId: nativeEvaluation.evaluation.evaluationId, status: nativeEvaluation.evaluation.status } : null,
+        nextTask,
         progressSync,
       },
     };
@@ -962,6 +995,7 @@ function createLearningGrowthSubmissionService(options = {}) {
     });
     if (!reflectionMutation?.ok) return createError(reflectionMutation?.status || 502, cleanString(reflectionMutation?.error || "Unable to persist Growth reflection"));
     let completion = null;
+    let nextTask = null;
     if (reflection.status === "accepted" && evaluation.passed) {
       completion = await projectKanbanComment(loaded, {
         action: "complete",
@@ -969,6 +1003,15 @@ function createLearningGrowthSubmissionService(options = {}) {
         comment: readableCompletionComment(evaluation, publicEval),
         author: "learning-growth-evaluator",
       });
+      if (completion?.ok) {
+        nextTask = await prepareNextSequenceTask({
+          taskCardId: nativeTask?.taskCardId || loaded.taskCardId,
+          task: nativeTask,
+          workspaceId,
+          learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
+          author: input.author,
+        });
+      }
     }
     return {
       ok: true,
@@ -978,11 +1021,13 @@ function createLearningGrowthSubmissionService(options = {}) {
       reflection,
       evaluation: publicEval,
       reward: publicEval.reward,
+      nextTask,
       result: {
         ok: true,
         action: "learning-growth-reflection",
         completed: Boolean(completion?.ok),
         nativeReflection: nativeReflection?.record ? { reflectionId: nativeReflection.record.reflectionId, status: nativeReflection.record.status } : null,
+        nextTask,
       },
     };
   }

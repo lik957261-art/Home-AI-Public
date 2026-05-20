@@ -674,6 +674,116 @@ async function testNativeTaskSubmissionWorksWithoutKanbanLink() {
   }
 }
 
+async function testCompletedNativeTaskPreparesNextSequenceTask() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const sequenceCalls = [];
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-growth",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      kanbanCardId: "t_growth",
+      title: "Grammar task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      plannedDate: "2026-05-18",
+      plannedMinutes: 15,
+      skillIds: ["english_grammar"],
+      templateId: "english-grammar-v1",
+      sourceBasisRefs: ["source:growth-summary"],
+      curriculumRefs: ["cefr-b1"],
+      privacyLevel: "summary_only",
+      sequenceIndex: 1,
+    });
+    repository.upsertTaskCard({
+      taskCardId: "task-growth-next",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Next grammar task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      plannedDate: "2026-05-19",
+      sequenceIndex: 2,
+      skillIds: ["english_grammar"],
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "grammar",
+        skillId: "english_grammar",
+      },
+      privacyLevel: "summary_only",
+    });
+    const programService = createLearningProgramService({ repository });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      evaluationService: {
+        async evaluate() {
+          return {
+            evaluationId: "eval-sequence",
+            status: "passed",
+            activityType: "grammar",
+            skillId: "english_grammar",
+            score: 91,
+            maxScore: 100,
+            passed: true,
+            confidence: 0.84,
+            summary: "summary only feedback",
+            feedbackMethod: "test",
+            feedbackSections: { focusAreas: [], reflectionPrompts: [] },
+            revisionRequirements: [],
+            reward: { eligible: false },
+          };
+        },
+      },
+      reflectionService: {
+        requiresReflection() {
+          return false;
+        },
+      },
+      reportService: { writeReport: () => null },
+      sequenceService: {
+        async prepareNextAfterCompletion(input) {
+          sequenceCalls.push(input);
+          return {
+            ok: true,
+            status: "next_task_prepared",
+            previousTaskCardId: input.taskCardId,
+            taskCardId: "task-growth-next",
+            sequenceIndex: 2,
+          };
+        },
+      },
+    });
+    const result = await service.submitTask({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-growth",
+      text: [
+        "First, I correct the grammar because the subject and verb need to match.",
+        "Then I explain the pattern with a new school sentence and check the tense.",
+        "Finally, I compare the old answer with my new answer and write a clear rule.",
+        "I will use this rule before I submit the next grammar task.",
+      ].join("\n"),
+      author: "weixin_stephen",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.result.completed, true);
+    assert.equal(result.nextTask.status, "next_task_prepared");
+    assert.equal(result.result.nextTask.taskCardId, "task-growth-next");
+    assert.equal(sequenceCalls.length, 1);
+    assert.equal(sequenceCalls[0].taskCardId, "task-growth");
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createLearningGrowthSubmissionService({ kanbanCardProvider: { listCards() {} } }),
@@ -692,6 +802,7 @@ function testDependencyValidation() {
   await testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSettlement();
   await testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard();
   await testNativeTaskSubmissionWorksWithoutKanbanLink();
+  await testCompletedNativeTaskPreparesNextSequenceTask();
   console.log("learning growth submission service tests passed");
 })().catch((err) => {
   console.error(err);

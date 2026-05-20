@@ -18,6 +18,7 @@ const { createLearningGrowthService } = require("../adapters/learning-growth-ser
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
+const { createLearningGrowthSequenceService } = require("../adapters/learning-growth-sequence-service");
 const { createLearningGrowthTaskEvaluationService } = require("../adapters/learning-growth-task-evaluation-service");
 const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
 const { createLearningGrowthReflectionService } = require("../adapters/learning-growth-reflection-service");
@@ -423,6 +424,11 @@ function createMobileApiComposition(deps = {}) {
     saveAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
     transcribeAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
+  const learningGrowthSequenceService = createLearningGrowthSequenceService({
+    getJitTaskService: () => learningGrowthJitTaskService,
+    getLearningProgramService: () => learningProgramService,
+    nowIso: deps.nowIso,
+  });
   const learningGrowthSubmissionService = createLearningGrowthSubmissionService({
     aiFeedbackService: learningGrowthTaskFeedbackService,
     artifactService: deps.kanbanStudyArtifactService,
@@ -432,6 +438,7 @@ function createMobileApiComposition(deps = {}) {
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
     reflectionService: learningGrowthReflectionService,
+    sequenceService: learningGrowthSequenceService,
   });
   const kanbanCaseTopicDeliveryService = createKanbanCaseTopicDeliveryService({
     broadcast: deps.broadcast,

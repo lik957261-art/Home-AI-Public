@@ -119,6 +119,11 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-learning-role="executor"/);
   assert.match(html, /data-learning-growth-tabs/);
   assert.match(html, /data-learning-growth-board/);
+  assert.match(html, /data-learning-growth-board-filter="today"/);
+  assert.match(html, /data-learning-growth-board-filter="waiting_ai"/);
+  assert.match(html, /data-growth-board-active-lane="today"/);
+  assert.match(html, /data-learning-growth-board-panel="today"/);
+  assert.match(html, /data-learning-growth-board-panel="waiting_ai" hidden/);
   assert.match(html, /data-growth-board-lane="today"/);
   assert.match(html, /data-growth-board-lane="waiting_ai"/);
   assert.match(html, /Native board task/);

@@ -30,6 +30,7 @@ function learningCoinCurrentScopeKey() {
 function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
   state.learningGrowth = null;
+  state.learningGrowthBoardLane = "";
   state.learningCoins = null;
   state.learningCoinsError = "";
   state.learningParentReport = null;
@@ -69,6 +70,7 @@ function renderLearningCoinsView() {
     escapeHtml,
     formatTime,
     learnerId: learningCoinStudentId(),
+    activeGrowthBoardLane: state.learningGrowthBoardLane,
     growthTaskUi: window.HermesLearningGrowthTaskUi,
     programUi: window.HermesLearningProgramUi,
     parentReport: state.learningParentReport,
@@ -94,6 +96,25 @@ function selectLearningGrowthTab(tabId) {
     const active = panel.dataset.learningGrowthTabPanel === id;
     panel.classList.toggle("active", active);
     panel.hidden = !active;
+  });
+}
+
+function selectLearningGrowthBoardLane(laneId) {
+  const root = $("conversation"), id = String(laneId || "").trim();
+  if (!root || !id) return;
+  state.learningGrowthBoardLane = id;
+  root.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
+    const active = button.dataset.learningGrowthBoardFilter === id;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  root.querySelectorAll("[data-learning-growth-board-panel]").forEach((panel) => {
+    const active = panel.dataset.learningGrowthBoardPanel === id;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  });
+  root.querySelectorAll("[data-growth-board-active-lane]").forEach((panel) => {
+    panel.dataset.growthBoardActiveLane = id;
   });
 }
 
@@ -141,6 +162,10 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   state.pendingAssessmentExamTodoId = "";
   await loadProjects();
   await loadLearningCoins({ limit: 80 });
+  const boardCard = state.learningGrowth?.board?.cards?.find((card) => String(card.taskCardId || "") === id);
+  if (boardCard?.laneId && boardCard.laneId !== state.learningGrowthBoardLane) {
+    state.learningGrowthBoardLane = boardCard.laneId; renderLearningCoinsView();
+  }
   const root = $("conversation");
   const target = [...(root?.querySelectorAll("[data-learning-executable-task-id]") || [])]
     .find((item) => item.dataset.learningExecutableTaskId === id);
@@ -586,6 +611,9 @@ async function submitLearningEvaluationForm(event, sessionId) {
 function wireLearningCoinsView() {
   $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
+    button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
   });
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);

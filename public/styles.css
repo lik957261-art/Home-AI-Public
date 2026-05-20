@@ -7412,9 +7412,63 @@ button.directory-alias-chip {
   white-space: nowrap;
 }
 
+.learning-growth-board-status-filter {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 8px;
+}
+
+.learning-growth-board-status-chip {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(255, 252, 246, 0.82);
+  box-shadow: none;
+}
+
+.learning-growth-board-status-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.learning-growth-board-status-chip span {
+  min-width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(31, 111, 98, 0.08);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.learning-growth-board-status-chip.active {
+  border-color: rgba(31, 111, 98, 0.32);
+  color: var(--accent);
+  background: rgba(236, 249, 245, 0.92);
+}
+
+.learning-growth-board-status-chip.active span {
+  color: var(--accent);
+  background: rgba(31, 111, 98, 0.12);
+}
+
 .learning-growth-board-lanes {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -7427,6 +7481,10 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.14);
   border-radius: 8px;
   background: rgba(255, 252, 246, 0.78);
+}
+
+.learning-growth-board-lane[hidden] {
+  display: none !important;
 }
 
 .learning-growth-board-lane-head strong {

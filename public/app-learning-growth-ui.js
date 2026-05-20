@@ -178,23 +178,50 @@
     const cardById = new Map(cards.map((card) => [String(card.taskCardId || ""), card]));
     const lanes = Array.isArray(board.lanes) ? board.lanes : [];
     if (!lanes.length) return `<section class="learning-growth-board"><div class="learning-coin-empty">\u6682\u65e0\u6210\u957f\u4efb\u52a1\u3002</div></section>`;
+    const laneModels = lanes.map((lane) => {
+      const laneCards = (Array.isArray(lane.cards) ? lane.cards : [])
+        .map((id) => cardById.get(String(id || "")))
+        .filter(Boolean);
+      return Object.assign({}, lane, {
+        id: String(lane.id || ""),
+        count: Number(lane.count ?? laneCards.length) || laneCards.length,
+        laneCards,
+      });
+    });
+    const requestedLane = String(options.activeGrowthBoardLane || "").trim();
+    const fallbackLane = laneModels.find((lane) => lane.count > 0)?.id || laneModels[0]?.id || "";
+    const activeLaneId = laneModels.some((lane) => lane.id === requestedLane) ? requestedLane : fallbackLane;
+    const summary = board.summary || {};
+    const visibleCount = Number(summary.visibleCardCount ?? summary.cardCount ?? cards.length) || 0;
+    const hiddenFutureCount = Number(summary.hiddenFutureCardCount || 0) || 0;
+    const totalCount = Number(summary.totalCardCount || visibleCount + hiddenFutureCount) || visibleCount;
+    const countText = hiddenFutureCount > 0
+      ? `${visibleCount} \u5f20\u5f53\u524d\u00b7${hiddenFutureCount} \u5f20\u5f85\u89e3\u9501`
+      : `${visibleCount || totalCount} \u5f20\u4efb\u52a1`;
     return `<section class="learning-growth-board" data-learning-growth-board>
       <div class="learning-growth-board-heading">
         <h3>\u6210\u957f\u770b\u677f</h3>
-        <span>${escapeHtml(String(board.summary?.cardCount || cards.length || 0))} \u5f20\u4efb\u52a1</span>
+        <span>${escapeHtml(countText)}</span>
       </div>
-      <div class="learning-growth-board-lanes">
-        ${lanes.map((lane) => {
-          const laneCards = (Array.isArray(lane.cards) ? lane.cards : [])
-            .map((id) => cardById.get(String(id || "")))
-            .filter(Boolean);
-          return `<section class="learning-growth-board-lane" data-growth-board-lane="${escapeHtml(lane.id || "")}">
+      <div class="learning-growth-board-status-filter" role="tablist" aria-label="\u6210\u957f\u4efb\u52a1\u72b6\u6001">
+        ${laneModels.map((lane) => {
+          const active = lane.id === activeLaneId;
+          return `<button type="button" class="learning-growth-board-status-chip${active ? " active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-learning-growth-board-filter="${escapeHtml(lane.id)}">
+            <strong>${escapeHtml(boardLaneTitle(lane.id, lane.title))}</strong>
+            <span>${escapeHtml(String(lane.count))}</span>
+          </button>`;
+        }).join("")}
+      </div>
+      <div class="learning-growth-board-lanes" data-growth-board-active-lane="${escapeHtml(activeLaneId)}">
+        ${laneModels.map((lane) => {
+          const active = lane.id === activeLaneId;
+          return `<section class="learning-growth-board-lane${active ? " active" : ""}" data-growth-board-lane="${escapeHtml(lane.id)}" data-learning-growth-board-panel="${escapeHtml(lane.id)}"${active ? "" : " hidden"}>
             <div class="learning-growth-board-lane-head">
               <strong>${escapeHtml(boardLaneTitle(lane.id, lane.title))}</strong>
-              <span>${escapeHtml(String(lane.count ?? laneCards.length))}</span>
+              <span>${escapeHtml(String(lane.count))}</span>
             </div>
-            ${laneCards.length
-              ? laneCards.map((card) => renderBoardCard(card, options)).join("")
+            ${lane.laneCards.length
+              ? lane.laneCards.map((card) => renderBoardCard(card, options)).join("")
               : `<div class="learning-growth-board-empty">\u6ca1\u6709\u5f53\u524d\u4efb\u52a1</div>`}
           </section>`;
         }).join("")}

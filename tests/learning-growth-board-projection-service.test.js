@@ -79,7 +79,31 @@ function testServiceUsesOverviewWithoutKanbanProvider() {
   assert.equal(inputs[0].limit, 80);
 }
 
+function testBoardShowsOnlyCurrentFutureSequenceTask() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        { taskCardId: "seq-1", programId: "program-1", draftId: "draft-1", sequenceIndex: 1, title: "Completed first", status: "completed", plannedDate: "2026-05-19" },
+        { taskCardId: "seq-2", programId: "program-1", draftId: "draft-1", sequenceIndex: 2, title: "Current second", status: "published", plannedDate: "2026-05-20" },
+        { taskCardId: "seq-3", programId: "program-1", draftId: "draft-1", sequenceIndex: 3, title: "Future third", status: "published", plannedDate: "2026-05-21" },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.deepEqual(board.cards.map((card) => card.taskCardId), ["seq-1", "seq-2"]);
+  assert.equal(board.cards.find((card) => card.taskCardId === "seq-2").sequenceVisibility, "current");
+  assert.equal(board.summary.totalCardCount, 3);
+  assert.equal(board.summary.visibleCardCount, 2);
+  assert.equal(board.summary.hiddenFutureCardCount, 1);
+  assert.equal(board.summary.sequencePolicy, "current_card_only_then_unlock_next");
+}
+
 testBoardClassifiesNativeTasksIntoLanes();
 testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
+testBoardShowsOnlyCurrentFutureSequenceTask();
 console.log("learning growth board projection service tests passed");
