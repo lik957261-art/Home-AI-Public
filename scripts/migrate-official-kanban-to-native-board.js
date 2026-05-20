@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const path = require("node:path");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
 const { createLearningProgramService } = require("../adapters/learning-program-service");
 const { createMobileSqliteStore } = require("../adapters/mobile-sqlite-store");
@@ -27,6 +28,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     else if (arg === "--dry-run") out.dryRun = true;
     else if (arg === "--help" || arg === "-h") out.help = true;
   }
+  if (!out.mobileDbPath && out.dataDir) out.mobileDbPath = path.join(out.dataDir, "hermes-mobile.sqlite3");
   return out;
 }
 
@@ -37,7 +39,7 @@ function printHelp() {
     "Options:",
     "  --data-dir <dir>              Hermes Mobile data dir.",
     "  --learning-db-path <path>     Learning-growth sqlite path override.",
-    "  --mobile-db-path <path>       Hermes Mobile sqlite path override.",
+    "  --mobile-db-path <path>       Hermes Mobile sqlite path override. Defaults to <data-dir>/hermes-mobile.sqlite3.",
     "  --cards-json <file>           JSON response containing official Kanban cards.",
     "  --limit <n>                   Result limit hint. Default: 200.",
     "  --dry-run                     Default. Count records without writing.",
