@@ -119,7 +119,20 @@ async function run() {
   assert.match(calls[0].input.sourceText, /Card creation skill: study-templates\/learning-growth-card-creation/);
 
   const jitCalls = [];
+  const modelCalls = [];
   const jitService = createLearningGrowthJitTaskService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async (body) => {
+      modelCalls.push(body);
+      return JSON.stringify({
+        learnerInstruction: "模型生成：今天只做 tense agreement 语法修复，并解释为什么这样改。",
+        focusSignals: ["grammar repair was weak"],
+        difficultyBand: "repair",
+        skillTargets: ["english_grammar_in_expression"],
+        deliverables: ["grammar repair answer"],
+        acceptance: ["answer explains the grammar reason"],
+      });
+    },
     nowIso: () => "2026-05-20T03:00:00.000Z",
     listSources(filters) {
       jitCalls.push(filters);
@@ -172,11 +185,13 @@ async function run() {
   });
   assert.equal(jitResult.ok, true);
   assert.equal(jitCalls.length, 1);
+  assert.equal(modelCalls.length, 1);
   assert.equal(jitPublishCalls.length, 1);
   const jitCard = jitPublishCalls[0].input.cards[0];
-  assert.match(jitCard.description, /Personalized focus for this card/);
-  assert.match(jitCard.description, /repair the most recent weak point/i);
+  assert.match(jitCard.description, /模型生成/);
+  assert.match(jitCard.description, /tense agreement/);
   assert.equal(jitCard.taskModel.jitGeneration.status, "ready");
+  assert.equal(jitCard.taskModel.jitGeneration.modelStatus, "completed");
   assert.deepEqual(jitCard.taskModel.jitGeneration.sourceRefs, ["progress:grammar-1"]);
   assert.equal(jitResult.draft.dailyPlans[0].tasks[0].taskModel.jitGeneration.ready, true);
   assert.doesNotMatch(JSON.stringify(jitCard), /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);

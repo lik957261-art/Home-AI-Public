@@ -59,30 +59,33 @@ function taskCardDescription(task = {}) {
   ].filter(Boolean).join("\n\n");
 }
 
-function prepareDraftForCardCreation(program = {}, draft = {}, options = {}) {
+async function prepareDraftForCardCreation(program = {}, draft = {}, options = {}) {
   const jitTaskService = options.jitTaskService || null;
   if (!jitTaskService || typeof jitTaskService.prepareTaskForCard !== "function") return draft;
   const recentLearningState = options.recentLearningState || null;
   let sequenceIndex = 0;
-  const dailyPlans = asArray(draft.dailyPlans).map((day) => Object.assign({}, day, {
-    tasks: asArray(day.tasks).map((task) => {
+  const dailyPlans = [];
+  for (const day of asArray(draft.dailyPlans)) {
+    const tasks = [];
+    for (const task of asArray(day.tasks)) {
       sequenceIndex += 1;
-      return jitTaskService.prepareTaskForCard({
+      tasks.push(await jitTaskService.prepareTaskForCard({
         program,
         draft,
         day,
         task,
         sequenceIndex,
         recentLearningState,
-      });
-    }),
-  }));
+      }));
+    }
+    dailyPlans.push(Object.assign({}, day, { tasks }));
+  }
   return Object.assign({}, draft, { dailyPlans });
 }
 
-function learningGrowthKanbanCards(program = {}, draft = {}, options = {}) {
+async function learningGrowthKanbanCards(program = {}, draft = {}, options = {}) {
   const timeOfDay = normalizeTime(program.timeOfDay || "19:30");
-  const preparedDraft = prepareDraftForCardCreation(program, draft, options);
+  const preparedDraft = await prepareDraftForCardCreation(program, draft, options);
   const cards = [];
   for (const [dayOffset, day] of asArray(preparedDraft.dailyPlans).entries()) {
     const date = cleanString(day.date) || cleanString(draft.weekStart) || cleanString(program.startDate);
@@ -158,7 +161,7 @@ function createLearningProgramPublishService(options = {}) {
     const recentLearningState = jitTaskService && typeof jitTaskService.recentLearningState === "function"
       ? jitTaskService.recentLearningState({ program, draft, workspaceId, learnerId })
       : null;
-    const prepared = learningGrowthKanbanCards(program, draft, { jitTaskService, recentLearningState });
+    const prepared = await learningGrowthKanbanCards(program, draft, { jitTaskService, recentLearningState });
     const cards = prepared.cards;
     const result = await createKanbanStudyPlanCards(workspaceId, {
       workspaceId,

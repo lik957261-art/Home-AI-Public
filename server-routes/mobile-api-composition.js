@@ -513,7 +513,13 @@ function createMobileApiComposition(deps = {}) {
     dbPath: deps.learningProgramDbPath,
   });
   const learningGrowthJitTaskService = createLearningGrowthJitTaskService({
+    extractJsonObject: deps.extractJsonObject,
+    findWorkspace: deps.findWorkspace,
+    hermesModelText: deps.hermesModelText,
     listSources: (filters) => learningProgramRepository.listSources(filters),
+    model: deps.automationCreateModel,
+    requireModel: true,
+    sanitizePolicy: deps.sanitizePolicy,
   });
   const learningProgramPublishService = createLearningProgramPublishService({
     createKanbanStudyPlanCards: (...args) => deps.getKanbanPlanCardCreationService().createKanbanStudyPlanCards(...args),

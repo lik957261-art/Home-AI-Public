@@ -3,8 +3,22 @@
 const assert = require("node:assert/strict");
 const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
 
-function run() {
+async function run() {
+  const modelCalls = [];
   const service = createLearningGrowthJitTaskService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async (body) => {
+      modelCalls.push(body);
+      return JSON.stringify({
+        learnerInstruction: "模型生成：完成一组语法修复题，重点解释 tense agreement，并提交真实答案。",
+        focusSignals: ["grammar repair was weak", "revision missed tense agreement"],
+        difficultyBand: "repair",
+        skillTargets: ["english_grammar_in_expression"],
+        deliverables: ["grammar repair answer", "reason explanation"],
+        acceptance: ["answer explains tense agreement", "revision is submitted"],
+        teacherRationale: "Recent summary shows grammar repair should stay narrow.",
+      });
+    },
     nowIso: () => "2026-05-20T02:00:00.000Z",
     listSources(filters) {
       assert.equal(filters.workspaceId, "weixin_stephen");
@@ -44,7 +58,7 @@ function run() {
   assert.equal(state.sources[0].sourceRef, "progress:recent-1");
   assert.doesNotMatch(JSON.stringify(state), /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);
 
-  const prepared = service.prepareTaskForCard({
+  const prepared = await service.prepareTaskForCard({
     program: {
       workspaceId: "weixin_stephen",
       learnerId: "weixin_stephen",
@@ -65,16 +79,29 @@ function run() {
     sequenceIndex: 3,
   });
 
-  assert.match(prepared.learnerInstruction, /Personalized focus for this card/);
-  assert.match(prepared.learnerInstruction, /repair the most recent weak point/i);
+  assert.equal(modelCalls.length, 1);
+  assert.match(modelCalls[0].input, /summary-only learning state/i);
+  assert.doesNotMatch(modelCalls[0].input, /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);
+  assert.match(prepared.learnerInstruction, /模型生成/);
+  assert.match(prepared.learnerInstruction, /tense agreement/);
   assert.equal(prepared.learningGrowthJitGeneration.status, "ready");
   assert.equal(prepared.learningGrowthJitGeneration.sequenceIndex, 3);
   assert.equal(prepared.learningGrowthJitGeneration.difficultyBand, "repair");
+  assert.equal(prepared.learningGrowthJitGeneration.modelStatus, "completed");
+  assert.equal(prepared.learningGrowthJitGeneration.mode, "model_assisted_summary_state_at_card_creation");
   assert.deepEqual(prepared.learningGrowthJitGeneration.sourceRefs.slice().sort(), ["assessment:recent-2", "progress:recent-1"]);
   assert.equal(prepared.taskModel.jitGeneration.ready, true);
   assert.equal(prepared.taskModel.learnerInstruction, prepared.learnerInstruction);
+  assert.deepEqual(prepared.deliverables, ["grammar repair answer", "reason explanation"]);
   assert.doesNotMatch(JSON.stringify(prepared), /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath|rawResponse/);
+
+  const required = createLearningGrowthJitTaskService({ requireModel: true });
+  await assert.rejects(() => required.prepareTaskForCard({ task: { title: "No model" } }), /requires model assistance/);
 }
 
-run();
-console.log("learning growth jit task service tests passed");
+run().then(() => {
+  console.log("learning growth jit task service tests passed");
+}).catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});

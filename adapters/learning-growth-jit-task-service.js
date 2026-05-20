@@ -1,5 +1,7 @@
 "use strict";
 
+const crypto = require("node:crypto");
+
 const VERSION = "learning-growth-jit-task-v1";
 
 function cleanString(value) {
@@ -89,9 +91,118 @@ function baseInstruction(task = {}) {
   );
 }
 
+function defaultExtractJsonObject(text) {
+  const raw = cleanString(text);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(raw.slice(start, end + 1));
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function deterministicSeed(input = {}) {
+  const program = input.program || {};
+  const task = input.task || {};
+  const state = input.recentLearningState || {};
+  const ranked = asArray(state.sources)
+    .map((source) => Object.assign({}, source, { score: scoreSource(source, program, task) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+  const signals = ranked.map(sourceSignal).filter(Boolean).slice(0, 3);
+  return {
+    baseInstruction: baseInstruction(task),
+    sourceRefs: uniqueStrings(ranked.map((source) => source.sourceRef), 6),
+    focusSignals: signals,
+    skillTargets: uniqueStrings(task.skillIds || task.taskModel?.skillId || task.taskModel?.skillIds, 5),
+    difficultyBand: difficultyBand(signals),
+  };
+}
+
+function buildModelPrompt(input = {}, seed = {}) {
+  const program = input.program || {};
+  const task = input.task || {};
+  const state = input.recentLearningState || {};
+  const safeSources = asArray(state.sources).slice(0, 12).map((source) => ({
+    sourceRef: compactText(source.sourceRef, 120),
+    sourceType: compactText(source.sourceType, 80),
+    title: compactText(source.title, 80),
+    summary: compactText(source.summary, 220),
+    tags: uniqueStrings(source.tags, 8),
+  }));
+  const payload = {
+    program: {
+      domain: compactText(program.domain || "english", 60),
+      goalSummary: compactText(program.goalSummary, 500),
+      focusAreas: uniqueStrings(program.focusAreas, 12),
+    },
+    card: {
+      title: compactText(task.title, 120),
+      skillIds: uniqueStrings(task.skillIds || task.taskModel?.skillId || task.taskModel?.skillIds, 8),
+      activityType: compactText(task.taskModel?.activityType, 80),
+      taskCardType: compactText(task.taskCardType || task.taskModel?.taskCardType, 80),
+      plannedMinutes: Number(task.plannedMinutes || 0) || 0,
+      baseInstruction: seed.baseInstruction,
+      deliverables: uniqueStrings(task.deliverables || task.taskModel?.deliverables, 8),
+      acceptance: uniqueStrings(task.acceptance || task.taskModel?.acceptance, 8),
+    },
+    recentLearningState: {
+      privacyLevel: "summary_only",
+      sources: safeSources,
+      deterministicFocusSignals: seed.focusSignals,
+      deterministicDifficultyBand: seed.difficultyBand,
+    },
+  };
+  return [
+    "Generate the concrete learner-facing Growth task for this card as strict JSON only.",
+    "The model must adapt the task to recent summary-only learning state. Do not merely repeat the template.",
+    "Use Chinese for explanations/instructions unless the learner output itself must be English.",
+    "Do not include raw prompts, answer keys, full transcripts, full learner history, endpoints, local paths, secrets, or copied copyrighted questions.",
+    "If you create an exercise, make it original and bounded to this card. Do not provide the hidden answer key.",
+    "Return schema: {\"learnerInstruction\":\"...\",\"focusSignals\":[\"...\"],\"difficultyBand\":\"repair|steady|stretch\",\"skillTargets\":[\"...\"],\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"teacherRationale\":\"...\"}",
+    JSON.stringify(payload),
+  ].join("\n\n");
+}
+
+function normalizeModelOutput(parsed = {}, seed = {}, task = {}) {
+  const safe = parsed && typeof parsed === "object" ? parsed : {};
+  const learnerInstruction = compactText(safe.learnerInstruction || safe.instruction || seed.baseInstruction, 1400);
+  const focusSignals = uniqueStrings(safe.focusSignals || seed.focusSignals, 5).map((item) => compactText(item, 180));
+  const difficulty = cleanString(safe.difficultyBand || seed.difficultyBand).toLowerCase();
+  const difficultyBandValue = ["repair", "steady", "stretch"].includes(difficulty) ? difficulty : seed.difficultyBand;
+  const skillTargets = uniqueStrings(safe.skillTargets || seed.skillTargets, 6);
+  const deliverables = uniqueStrings(safe.deliverables || task.deliverables || task.taskModel?.deliverables, 8);
+  const acceptance = uniqueStrings(safe.acceptance || task.acceptance || task.taskModel?.acceptance, 8);
+  return {
+    learnerInstruction,
+    focusSignals,
+    difficultyBand: difficultyBandValue,
+    skillTargets,
+    deliverables,
+    acceptance,
+    teacherRationale: compactText(safe.teacherRationale || safe.rationale, 360),
+  };
+}
+
 function createLearningGrowthJitTaskService(options = {}) {
   const listSources = typeof options.listSources === "function" ? options.listSources : () => [];
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
+  const hermesModelText = typeof options.hermesModelText === "function" ? options.hermesModelText : null;
+  const extractJsonObject = typeof options.extractJsonObject === "function" ? options.extractJsonObject : defaultExtractJsonObject;
+  const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
+  const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
+  const model = cleanString(options.model || options.automationCreateModel || "automation-create");
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const requireModel = options.requireModel === true;
 
   function recentLearningState(input = {}) {
     const program = input.program || {};
@@ -122,46 +233,75 @@ function createLearningGrowthJitTaskService(options = {}) {
     };
   }
 
-  function prepareTaskForCard(input = {}) {
+  async function prepareTaskForCard(input = {}) {
     const program = input.program || {};
     const task = input.task || {};
     const state = input.recentLearningState || recentLearningState(input);
-    const ranked = asArray(state.sources)
-      .map((source) => Object.assign({}, source, { score: scoreSource(source, program, task) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 4);
-    const signals = ranked.map(sourceSignal).filter(Boolean).slice(0, 3);
-    const band = difficultyBand(signals);
-    const skillTargets = uniqueStrings(task.skillIds || task.taskModel?.skillId || task.taskModel?.skillIds, 5);
-    const instructionParts = [
-      baseInstruction(task),
-      signals.length ? `Personalized focus for this card: ${signals.join(" / ")}.` : "",
-      bandInstruction(band),
-      "Use only the current card instructions and submit the actual answer, not a completion note.",
-    ].filter(Boolean);
-    const learnerInstruction = compactText(instructionParts.join(" "), 1400);
+    const seed = deterministicSeed({ program, task, recentLearningState: state });
+    if (!hermesModelText && requireModel) {
+      const err = new Error("Growth JIT task generation requires model assistance");
+      err.status = 503;
+      throw err;
+    }
+    let modelOutput = null;
+    let modelStatus = "not_configured";
+    let modelError = "";
+    if (hermesModelText) {
+      try {
+        const workspaceId = cleanString(input.workspaceId || program.workspaceId || state.workspaceId || "owner") || "owner";
+        const output = await hermesModelText({
+          input: buildModelPrompt({ program, task, recentLearningState: state }, seed),
+          stream: false,
+          store: false,
+          model,
+          reasoning_effort: "medium",
+          conversation: `learning_growth_jit_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+          instructions: "Return strict JSON for one learner-facing Growth task card.",
+          access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+        }, timeoutMs);
+        modelOutput = normalizeModelOutput(extractJsonObject(output || ""), seed, task);
+        modelStatus = modelOutput.learnerInstruction ? "completed" : "parse_error";
+      } catch (err) {
+        modelStatus = "error";
+        modelError = compactText(err.message || err, 240);
+      }
+    }
+    if ((!modelOutput || modelStatus !== "completed") && requireModel) {
+      const err = new Error(modelError || "Growth JIT model generation failed");
+      err.status = 502;
+      throw err;
+    }
+    const normalized = modelOutput || normalizeModelOutput({}, seed, task);
+    const learnerInstruction = normalized.learnerInstruction;
     const jitGeneration = {
       status: "ready",
       ready: true,
       version: VERSION,
-      mode: "summary_state_at_card_creation",
+      mode: modelOutput ? "model_assisted_summary_state_at_card_creation" : "deterministic_summary_state_at_card_creation",
       generatedAt: nowIso(),
-      sourceRefs: uniqueStrings(ranked.map((source) => source.sourceRef), 6),
-      focusSignals: signals,
-      skillTargets,
-      difficultyBand: band,
+      sourceRefs: seed.sourceRefs,
+      focusSignals: normalized.focusSignals,
+      skillTargets: normalized.skillTargets,
+      difficultyBand: normalized.difficultyBand,
+      modelStatus,
+      model,
       privacyLevel: "summary_only",
       materialPolicy: "bounded_instruction_summary_only",
       sequenceIndex: Number(input.sequenceIndex || 0) || 0,
+      teacherRationale: normalized.teacherRationale,
     };
     const taskModel = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {};
     return Object.assign({}, task, {
       learnerInstruction,
       instruction: learnerInstruction,
+      deliverables: normalized.deliverables,
+      acceptance: normalized.acceptance,
       summary: compactText(`${cleanString(task.title) || "Growth task"}. JIT-ready card instruction generated from summary-only recent learning state.`, 260),
       learningGrowthJitGeneration: jitGeneration,
       taskModel: Object.assign({}, taskModel, {
         learnerInstruction,
+        deliverables: normalized.deliverables,
+        acceptance: normalized.acceptance,
         jitGeneration,
       }),
     });
@@ -175,5 +315,6 @@ function createLearningGrowthJitTaskService(options = {}) {
 
 module.exports = {
   VERSION,
+  buildModelPrompt,
   createLearningGrowthJitTaskService,
 };
