@@ -15,6 +15,7 @@ const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
 const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
+const { createLearningGrowthLegacyTodoTaskService } = require("../adapters/learning-growth-legacy-todo-task-service");
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
@@ -565,11 +566,15 @@ function createMobileApiComposition(deps = {}) {
     requireModelForPlanDecomposition: true,
     sanitizePolicy: deps.sanitizePolicy,
   });
+  const learningGrowthLegacyTodoTaskService = createLearningGrowthLegacyTodoTaskService({
+    mobileStore: deps.mobileSqliteStore,
+  });
 
   const learningApiRoutes = createLearningApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
     learningCoinService: deps.learningCoinService,
     learningGrowthService: createLearningGrowthService({
+      legacyTodoTaskService: learningGrowthLegacyTodoTaskService,
       learningCoinService: deps.learningCoinService,
       learningProgramService,
     }),

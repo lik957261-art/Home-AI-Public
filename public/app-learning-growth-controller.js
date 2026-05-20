@@ -168,7 +168,11 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
 }
 
 async function openLearningKanbanCard(todoId, workspaceId = "") {
-  await openLearningGrowthTask(todoId, workspaceId);
+  const id = String(todoId || "").trim(); if (!id) return;
+  const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId(); if (state.workspaces.some((item) => item.id === targetWorkspaceId)) state.selectedWorkspaceId = targetWorkspaceId;
+  localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId); if ($("workspaceSelect")) $("workspaceSelect").value = state.selectedWorkspaceId;
+  state.viewMode = "todos"; state.selectedTodoId = id; state.selectedLearningTaskCardId = ""; state.todoRouteMissingTargetId = "";
+  localStorage.setItem("hermesWebViewMode", "todos"); await loadProjects(); await loadTodos({ skipCache: true, includeCompleted: true, freshServer: true, targetId: id });
 }
 
 async function requestLearningCoinRedemption(rewardId) {

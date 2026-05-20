@@ -150,6 +150,24 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   assert.deepEqual(coinService.calls[0], { workspaceId: "weixin_stephen", studentId: "weixin_stephen", limit: 5 });
 }
 
+function testOverviewMergesLegacyTodoTasks() {
+  const service = createLearningGrowthService({
+    learningCoinService: makeCoinService(),
+    learningProgramService: makeProgramService(),
+    legacyTodoTaskService: {
+      listExecutableTasks(input) {
+        assert.equal(input.learnerId, "weixin_stephen");
+        return [{ taskCardId: "legacy_todo:t_read_5", todoId: "t_read_5", source: "official_kanban_migrated", title: "Legacy reading", status: "published", readOnly: true }];
+      },
+    },
+  });
+  const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(overview.programs.counts.executableTasks, 2);
+  assert.equal(overview.programs.executableTasks[0].source, "learning-growth");
+  assert.equal(overview.programs.executableTasks[1].source, "official_kanban_migrated");
+  assert.equal(overview.programs.executableTasks[1].readOnly, true);
+}
+
 function testExecutorOverviewStripsOwnerManagementData() {
   const service = createLearningGrowthService({
     learningCoinService: makeCoinService(),
@@ -212,6 +230,7 @@ function testOverviewCanRenderWithoutCoinService() {
 
 testRequestNormalizationKeepsExecutorAccountId();
 testOverviewContainsGrowthShellAndCoinsSubsystem();
+testOverviewMergesLegacyTodoTasks();
 testExecutorOverviewStripsOwnerManagementData();
 testOverviewCanRenderWithoutCoinService();
 

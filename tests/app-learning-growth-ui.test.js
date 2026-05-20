@@ -185,6 +185,32 @@ function testGrowthRendererShowsStandaloneTaskCardWhenSelected() {
   assert.doesNotMatch(html, /data-learning-growth-module="coins"/);
 }
 
+function testGrowthRendererOpensLegacyTodoAsReadOnlyTask() {
+  const legacyOverview = JSON.parse(JSON.stringify(overview));
+  legacyOverview.programs.executableTasks = [{
+    taskCardId: "legacy_todo:t_read_5",
+    todoId: "t_read_5",
+    kanbanCardId: "t_read_5",
+    source: "official_kanban_migrated",
+    readOnly: true,
+    title: "Legacy reading 5/10",
+    status: "published",
+    workspaceId: "weixin_stephen",
+    nativeState: { nextAction: "open", readOnly: true },
+    instructionPreview: "Open original task details.",
+  }];
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: legacyOverview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, selectedLearningTaskCardId: "legacy_todo:t_read_5" },
+  });
+  assert.match(html, /data-learning-growth-task-focus="legacy_todo:t_read_5"/);
+  assert.match(html, /data-learning-open-kanban-card="t_read_5"/);
+  assert.match(html, /Open original task details/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="legacy_todo:t_read_5"/);
+}
+
 function testOwnerRendererKeepsManagementSections() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: true } } });
   assert.match(html, /data-learning-role="owner"/);
@@ -220,6 +246,7 @@ testExecutorCoinSubsystemHidesOwnerSettlementDetails();
 testGrowthRendererContainsProductShellAndNestedCoins();
 testGrowthRendererContainsProgramSubsystem();
 testGrowthRendererShowsStandaloneTaskCardWhenSelected();
+testGrowthRendererOpensLegacyTodoAsReadOnlyTask();
 testOwnerRendererKeepsManagementSections();
 testReadinessPanelRenderer();
 

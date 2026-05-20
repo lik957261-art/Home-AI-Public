@@ -103,6 +103,8 @@ function sequenceIndexForTask(task = {}, fallbackIndex = 0) {
 }
 
 function sequenceGroupForTask(task = {}) {
+  const explicit = cleanString(task.sequenceGroupId || task.sequence_group_id);
+  if (explicit) return explicit;
   const programId = cleanString(task.programId || task.learningProgramId || task.learning_program_id);
   if (programId) return `program:${programId}`;
   const draftId = cleanString(task.draftId || task.learningDraftId || task.learning_draft_id);
@@ -140,6 +142,11 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
   const actions = actionModel(laneId, action);
   return {
     taskCardId,
+    todoId: cleanString(task.todoId || task.kanbanCardId),
+    source: cleanString(task.source),
+    legacySource: cleanString(task.legacySource),
+    readOnly: Boolean(task.readOnly),
+    workspaceId: cleanString(task.workspaceId || task.learnerId || task.assignee),
     programId: cleanString(task.programId || task.learningProgramId || task.learning_program_id),
     draftId: cleanString(task.draftId || task.learningDraftId || task.learning_draft_id),
     sequenceGroupId: sequenceGroupForTask(task),
@@ -148,13 +155,14 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     instructionPreview: cleanString(
       task.learnerInstruction
         || task.instruction
+        || task.instructionPreview
         || task.taskModel?.learnerInstruction
         || task.summary
         || task.description,
       220,
     ),
     domain: cleanString(task.domain),
-    activityType: cleanString(task.taskModel?.activityType || task.taskModel?.skillId || task.taskCardType),
+    activityType: cleanString(task.activityType || task.taskModel?.activityType || task.taskModel?.skillId || task.taskCardType),
     plannedDate: cleanString(task.plannedDate),
     plannedMinutes: numberValue(task.plannedMinutes),
     status: cleanString(task.status || task.executionStatus),

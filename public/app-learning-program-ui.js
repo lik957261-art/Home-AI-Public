@@ -649,7 +649,7 @@
     const skills = compactFocus(task.skillIds || model.skillTargets || []).slice(0, 120);
     const latestEvaluation = latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
     const meta = [task.plannedDate, task.plannedMinutes ? `${task.plannedMinutes} min` : "", skills].filter(Boolean);
-    const instruction = task.learnerInstruction || task.instruction || model.learnerInstruction || task.summary || "";
+    const instruction = task.learnerInstruction || task.instruction || model.learnerInstruction || task.instructionPreview || task.summary || "";
     const taskForForm = Object.assign({ source: "learning-growth" }, task, {
       nativeState: Object.assign({}, task.nativeState || {}, { nextAction: taskActionFromRecords(task, data) }),
     });
@@ -664,7 +664,7 @@
       ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
       ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
       ${latestEvaluation ? `<section class="learning-growth-answer-feedback"><h4>\u6700\u8fd1\u6279\u6539</h4>${renderFeedbackHistory(taskForForm, latestEvaluation)}</section>` : ""}
-      ${renderNativeGrowthSubmission(taskForForm, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
+      ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;
   }
 

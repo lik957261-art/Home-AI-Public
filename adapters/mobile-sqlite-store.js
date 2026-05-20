@@ -1167,10 +1167,17 @@ function createMobileSqliteStore(options = {}) {
 
   function listTodoItems(args = {}) {
     const source = String(args.sourcePrincipal || args.source_principal || "owner").trim() || "owner";
+    const sourceFilter = String(args.source || "").trim();
+    const workspaceFilter = String(args.workspaceId || args.workspace_id || "").trim();
+    const statusFilter = String(args.status || "").trim();
     const includeCompleted = Boolean(args.includeCompleted || args.include_completed);
     const assignee = String(args.assignee || "").trim();
     const limit = Math.max(1, Math.min(500, Number(args.limit) || 80));
-    let rows = open().prepare("SELECT * FROM todo_items ORDER BY due_at, created_at LIMIT ?").all(limit * 4)
+    const scanLimit = sourceFilter || workspaceFilter || statusFilter ? Math.max(1000, limit * 10) : limit * 4;
+    let rows = open().prepare("SELECT * FROM todo_items ORDER BY due_at, created_at LIMIT ?").all(scanLimit)
+      .filter((row) => !sourceFilter || String(row.source || "") === sourceFilter)
+      .filter((row) => !workspaceFilter || String(row.workspace_id || "") === workspaceFilter)
+      .filter((row) => !statusFilter || String(row.status || "") === statusFilter)
       .map(publicTodoFromRow);
     if (source !== "owner") {
       rows = rows.filter((row) => {

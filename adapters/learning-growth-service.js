@@ -98,7 +98,11 @@ function projectExecutableTaskForExecutor(task) {
   return copyFields(task, [
     "taskCardId",
     "todoId",
+    "programId",
+    "draftId",
     "source",
+    "legacySource",
+    "readOnly",
     "kanbanCardId",
     "title",
     "status",
@@ -114,6 +118,9 @@ function projectExecutableTaskForExecutor(task) {
     "plannedMinutes",
     "dueAt",
     "dueLocal",
+    "sequenceGroupId",
+    "sequenceIndex",
+    "sequenceTotal",
     "skillIds",
     "kanbanCaseTemplate",
     "kanbanStudyKind",
@@ -122,6 +129,8 @@ function projectExecutableTaskForExecutor(task) {
     "hasInstruction",
     "openUrl",
     "summary",
+    "instructionPreview",
+    "learnerInstruction",
     "templateId",
     "privacyLevel",
     "nativeState",
@@ -443,6 +452,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
   const viewerRole = normalizeViewerRole(input);
   const learningCoinService = deps.learningCoinService || null;
   const learningProgramService = deps.learningProgramService || null;
+  const legacyTodoTaskService = deps.legacyTodoTaskService || null;
   const readinessService = deps.readinessService || createLearningV1ReadinessService();
   const coins = learningCoinService && typeof learningCoinService.summary === "function"
     ? learningCoinService.summary({
@@ -461,7 +471,13 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
     : null;
   const programOverview = attachNativeTaskState(rawProgramOverview);
   const nativeExecutableTasks = arrayValue(programOverview?.executableTasks);
-  const executableTasks = mergeExecutableTasks(nativeExecutableTasks, input.executableTasks);
+  const legacyExecutableTasks = legacyTodoTaskService && typeof legacyTodoTaskService.listExecutableTasks === "function"
+    ? legacyTodoTaskService.listExecutableTasks(request)
+    : [];
+  const executableTasks = mergeExecutableTasks(
+    mergeExecutableTasks(nativeExecutableTasks, legacyExecutableTasks),
+    input.executableTasks,
+  );
   const metrics = coinMetric(coins || {});
   const launchOperations = programOverview
     ? buildLearningLaunchOperations({ programs: programOverview, coins, metrics })
@@ -523,10 +539,11 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
 function createLearningGrowthService(options = {}) {
   const learningCoinService = options.learningCoinService || null;
   const learningProgramService = options.learningProgramService || null;
+  const legacyTodoTaskService = options.legacyTodoTaskService || null;
   const readinessService = options.readinessService || createLearningV1ReadinessService();
   return {
     overview(input = {}) {
-      return buildLearningGrowthOverview(input, { learningCoinService, learningProgramService, readinessService });
+      return buildLearningGrowthOverview(input, { learningCoinService, learningProgramService, legacyTodoTaskService, readinessService });
     },
   };
 }

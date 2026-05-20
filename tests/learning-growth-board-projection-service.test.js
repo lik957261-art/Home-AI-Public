@@ -150,9 +150,47 @@ function testBoardGroupsDuplicateDraftsByProgram() {
   assert.equal(board.summary.hiddenFutureCardCount, 2);
 }
 
+function testBoardProjectsLegacyTodosAsReadOnlyOpenTasks() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        {
+          taskCardId: "legacy_todo:t_read_5",
+          todoId: "t_read_5",
+          source: "official_kanban_migrated",
+          readOnly: true,
+          programId: "legacy-reading-retell",
+          sequenceGroupId: "legacy-reading-retell",
+          sequenceIndex: 5,
+          title: "Legacy reading 5/10",
+          status: "published",
+          activityType: "speaking",
+          instructionPreview: "Open original task details.",
+          workspaceId: "weixin_stephen",
+          nativeState: { nextAction: "open", readOnly: true },
+        },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.equal(board.cards.length, 1);
+  assert.equal(board.cards[0].source, "official_kanban_migrated");
+  assert.equal(board.cards[0].todoId, "t_read_5");
+  assert.equal(board.cards[0].readOnly, true);
+  assert.equal(board.cards[0].laneId, "ready");
+  assert.equal(board.cards[0].primaryAction, "open");
+  assert.equal(board.cards[0].actions.canSubmit, false);
+  assert.equal(board.cards[0].instructionPreview, "Open original task details.");
+}
+
 testBoardClassifiesNativeTasksIntoLanes();
 testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();
 testBoardGroupsDuplicateDraftsByProgram();
+testBoardProjectsLegacyTodosAsReadOnlyOpenTasks();
 console.log("learning growth board projection service tests passed");

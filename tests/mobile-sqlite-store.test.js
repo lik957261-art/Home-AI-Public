@@ -270,6 +270,15 @@ function testServiceLayerLocalRows() {
     created_by_principal: "workspace_a",
     due_at: "2026-05-07T02:00:00.000Z",
   });
+  store.importTodoItem({
+    id: "todo_legacy",
+    content: "legacy learning task",
+    status: "done",
+    assignee_principal_id: "workspace_a",
+    created_by_principal: "owner",
+    source: "official_kanban_migrated",
+    due_at: "2026-05-07T03:00:00.000Z",
+  });
   assert.deepEqual(
     store.listTodoItems({ sourcePrincipal: "workspace_a" }).map((row) => row.id),
     ["todo_other"],
@@ -277,6 +286,10 @@ function testServiceLayerLocalRows() {
   assert.deepEqual(
     store.listTodoItems({ sourcePrincipal: "owner" }).map((row) => row.id),
     ["todo_owner", "todo_other"],
+  );
+  assert.deepEqual(
+    store.listTodoItems({ source: "official_kanban_migrated", includeCompleted: true }).map((row) => row.id),
+    ["todo_legacy"],
   );
   assert.equal(store.getTodoItem("todo_other").content, "other task");
   assert.equal(store.deleteTodoItem("todo_other").id, "todo_other");
