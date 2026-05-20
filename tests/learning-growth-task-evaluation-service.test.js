@@ -111,6 +111,78 @@ async function testGenericFinalPassSettlesRewardRange() {
   assert.equal(evaluation.reward.maxCoinAmount, 100);
 }
 
+async function testHighScoreFinalModelRevisionDoesNotLoop() {
+  const service = createLearningGrowthTaskEvaluationService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async () => JSON.stringify({
+      score: 80,
+      passed: false,
+      status: "needs_revision",
+      confidence: 0.84,
+      summary: "The model reached the pass line but still requested another rewrite.",
+      revisionRequirements: ["tighten one detail next time"],
+      strengths: ["clear revision evidence"],
+      focusAreas: ["next-practice transfer"],
+    }),
+    now: () => new Date("2026-05-20T06:30:00.000Z"),
+  });
+  const evaluation = await service.evaluate({
+    cardId: "t_high_score",
+    stage: "final",
+    text: [
+      "First, I corrected the reason because the first answer missed the main detail.",
+      "Then I added a school example and explained why the new sentence is clearer.",
+      "Finally, I checked the order again and wrote what I will improve next time.",
+    ].join("\n"),
+    card: {
+      id: "t_high_score",
+      kanbanCaseTemplate: "learning-growth",
+      learningTaskModel: {
+        version: "learning-task-model-v1",
+        activityType: "writing",
+        skillId: "english_short_writing",
+      },
+    },
+  });
+  assert.equal(evaluation.status, "completed");
+  assert.equal(evaluation.passed, true);
+  assert.equal(evaluation.nextStep, "completed");
+  assert.equal(evaluation.reward.eligible, true);
+  assert.ok(evaluation.evidenceRefs.includes("pass-policy:model-score-consistency"));
+}
+
+async function testHardSafetyBlockStillPreventsHighScorePass() {
+  const service = createLearningGrowthTaskEvaluationService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async () => JSON.stringify({
+      score: 95,
+      passed: true,
+      status: "completed",
+      confidence: 0.9,
+      summary: "The model should not bypass the hard safety seed.",
+    }),
+    now: () => new Date("2026-05-20T06:35:00.000Z"),
+  });
+  const evaluation = await service.evaluate({
+    cardId: "t_too_short",
+    stage: "final",
+    text: "Fixed one sentence.",
+    card: {
+      id: "t_too_short",
+      kanbanCaseTemplate: "learning-growth",
+      learningTaskModel: {
+        version: "learning-task-model-v1",
+        activityType: "grammar",
+        skillId: "english_grammar",
+        learnerInstruction: "Repair four grammar sentences.",
+      },
+    },
+  });
+  assert.equal(evaluation.status, "needs_revision");
+  assert.equal(evaluation.passed, false);
+  assert.equal(evaluation.reward.eligible, false);
+}
+
 function testTooShortGenericAnswerBlocksFinalPass() {
   const scored = scoreGeneric({
     activityType: "grammar",
@@ -195,6 +267,8 @@ async function testWritingUsesModelMainEvaluation() {
 (async () => {
   await testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak();
   await testGenericFinalPassSettlesRewardRange();
+  await testHighScoreFinalModelRevisionDoesNotLoop();
+  await testHardSafetyBlockStillPreventsHighScorePass();
   testTooShortGenericAnswerBlocksFinalPass();
   testRewriteAndWeeklyChallengeHaveSpecificRuntimeContracts();
   await testWritingUsesModelMainEvaluation();

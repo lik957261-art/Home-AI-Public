@@ -18,6 +18,8 @@ const {
   growthNextStepForStage,
 } = require("./learning-growth-task-interaction-state-service");
 
+const FINAL_MODEL_SCORE_PASS_FLOOR = 80;
+
 function cleanString(value) {
   return String(value ?? "").trim();
 }
@@ -272,6 +274,16 @@ function normalizeSentenceFeedback(value) {
   }).filter(Boolean).slice(0, 5);
 }
 
+function hasHardSafetyBlock(deterministic = {}) {
+  return asArray(deterministic.revisionRequirements).some((item) => /too short|at least|short/i.test(item));
+}
+
+function modelFinalPass(raw = {}, stage = "final", score = 0, safetyBlock = false) {
+  if (stage !== "final" || safetyBlock) return false;
+  if (Boolean(raw.passed) && score >= 60) return true;
+  return score >= FINAL_MODEL_SCORE_PASS_FLOOR;
+}
+
 function modelEvaluationPrompt(input = {}, deterministic = {}) {
   const card = input.card || {};
   const model = inferLearningTaskModelFromCard(card, input);
@@ -315,6 +327,7 @@ function modelEvaluationPrompt(input = {}, deterministic = {}) {
     "Do not include raw prompts, answer keys, hidden rubrics, local paths, endpoints, secrets, full transcripts, or full learner history.",
     "For draft stage, status must be draft_feedback and passed must be false.",
     "For final stage, decide completed vs needs_revision from the task, submission, and rubric. Require visible evidence and repair, not a completion note.",
+    "For final stage, if the score is 80 or higher and there is no hard safety block, set passed=true; route remaining consolidation into spoken reflection instead of another rewrite.",
     "Use Chinese for explanations; short corrected English examples are allowed.",
     "Return schema: {\"score\":0-100,\"passed\":true,\"status\":\"completed|needs_revision|draft_feedback\",\"confidence\":0.0-1.0,\"summary\":\"...\",\"revisionRequirements\":[\"...\"],\"strengths\":[\"...\"],\"focusAreas\":[\"...\"],\"criterionFeedback\":[{\"dimension\":\"...\",\"observation\":\"...\",\"action\":\"...\"}],\"sentenceFeedback\":[{\"evidence\":\"short phrase\",\"issue\":\"...\",\"whyItMatters\":\"...\",\"fix\":\"...\",\"example\":\"...\"}],\"rewriteChecklist\":[\"...\"],\"reflectionPrompts\":[\"...\"],\"nextPractice\":\"...\",\"parentNote\":\"...\"}",
     JSON.stringify(payload),
@@ -329,8 +342,8 @@ function normalizeModelEvaluation(parsed = {}, deterministic = {}, input = {}, o
   const activityType = cleanString(model.activityType || deterministic.activityType || "practice") || "practice";
   const score = clampScore(raw.score ?? deterministic.score);
   const confidence = Math.max(0, Math.min(1, Number(raw.confidence ?? deterministic.confidence ?? 0.72) || 0.72));
-  const safetyBlock = asArray(deterministic.revisionRequirements).some((item) => /too short|at least|short/i.test(item));
-  const passed = stage === "final" && !safetyBlock && Boolean(raw.passed) && score >= 60;
+  const safetyBlock = hasHardSafetyBlock(deterministic);
+  const passed = modelFinalPass(raw, stage, score, safetyBlock);
   const status = stage === "draft" ? "draft_feedback" : (passed ? "completed" : "needs_revision");
   const at = options.now().toISOString();
   const reward = calculateLearningCardReward({
@@ -379,6 +392,7 @@ function normalizeModelEvaluation(parsed = {}, deterministic = {}, input = {}, o
       "learning-growth-task-model-evaluation:v1",
       `activity:${activityType}`,
       `stage:${stage}`,
+      ...(passed && !Boolean(raw.passed) ? ["pass-policy:model-score-consistency"] : []),
     ],
     reward: {
       eligible: passed && reward.coinAmount > 0,
