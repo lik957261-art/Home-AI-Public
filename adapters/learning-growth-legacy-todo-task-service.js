@@ -23,6 +23,12 @@ function isDoneStatus(status) {
   return ["done", "completed", "closed", "archived"].includes(cleanString(status).toLowerCase());
 }
 
+function isRepairTitle(title = "") {
+  const text = cleanString(title, 300);
+  return /^(修改|修订|改写|重做|补做)\s*[:：]/.test(text)
+    || /^(repair|revision|revise|redo)\s*[:：-]/i.test(text);
+}
+
 function sequenceInfo(title = "") {
   const text = cleanString(title, 300);
   const match = text.match(/\u7b2c\s*(\d+)\s*\/\s*(\d+)/) || text.match(/(\d+)\s*\/\s*(\d+)/);
@@ -81,6 +87,7 @@ function projectLegacyTodoTask(todo = {}, index = 0) {
   const category = categoryForTitle(title);
   const sequence = sequenceInfo(title);
   const done = isDoneStatus(todo.status);
+  const repair = isRepairTitle(title);
   const workspaceId = cleanString(todo.assignee || todo.assignee_principal_id || todo.workspaceId || todo.workspace_id);
   return {
     taskCardId: `legacy_todo:${todoId}`,
@@ -88,10 +95,11 @@ function projectLegacyTodoTask(todo = {}, index = 0) {
     kanbanCardId: todoId,
     source: "official_kanban_migrated",
     legacySource: "official_kanban_migrated",
+    legacyRepair: repair,
     readOnly: true,
     privacyLevel: "summary_only",
     programId: category.id,
-    sequenceGroupId: category.id,
+    sequenceGroupId: repair ? `${category.id}-repair` : category.id,
     sequenceIndex: sequence.index || index + 1,
     sequenceTotal: sequence.total,
     title,
@@ -122,6 +130,40 @@ function projectLegacyTodoTask(todo = {}, index = 0) {
   };
 }
 
+function normalizeStaleOpenSequenceTasks(tasks = []) {
+  const groups = new Map();
+  for (const task of arrayValue(tasks)) {
+    const groupId = cleanString(task.sequenceGroupId || task.programId);
+    if (!groupId) continue;
+    if (!groups.has(groupId)) groups.set(groupId, []);
+    groups.get(groupId).push(task);
+  }
+  const staleIds = new Set();
+  for (const groupTasks of groups.values()) {
+    const maxCompletedIndex = groupTasks
+      .filter((task) => isDoneStatus(task.status || task.executionStatus))
+      .reduce((max, task) => Math.max(max, Number(task.sequenceIndex || 0) || 0), 0);
+    if (!maxCompletedIndex) continue;
+    for (const task of groupTasks) {
+      if (isDoneStatus(task.status || task.executionStatus)) continue;
+      if ((Number(task.sequenceIndex || 0) || 0) <= maxCompletedIndex) staleIds.add(task.taskCardId);
+    }
+  }
+  if (!staleIds.size) return tasks;
+  return tasks.map((task) => {
+    if (!staleIds.has(task.taskCardId)) return task;
+    return Object.assign({}, task, {
+      legacyStaleOpenBehindCompleted: true,
+      status: "completed",
+      executionStatus: "completed",
+      nativeState: Object.assign({}, task.nativeState || {}, {
+        status: "completed",
+        nextAction: "complete",
+      }),
+    });
+  });
+}
+
 function createLearningGrowthLegacyTodoTaskService(options = {}) {
   const mobileStore = options.mobileStore || null;
   return {
@@ -135,12 +177,15 @@ function createLearningGrowthLegacyTodoTaskService(options = {}) {
         includeCompleted: true,
         limit: Math.max(80, Math.min(500, Number(input.limit || 120) || 120)),
       });
-      return arrayValue(todos).map(projectLegacyTodoTask).filter(Boolean);
+      const tasks = arrayValue(todos).map(projectLegacyTodoTask).filter((task) => task && !task.legacyRepair);
+      return normalizeStaleOpenSequenceTasks(tasks);
     },
   };
 }
 
 module.exports = {
   createLearningGrowthLegacyTodoTaskService,
+  isRepairTitle,
+  normalizeStaleOpenSequenceTasks,
   projectLegacyTodoTask,
 };

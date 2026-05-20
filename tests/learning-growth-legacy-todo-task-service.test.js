@@ -64,7 +64,52 @@ function testServiceReadsOnlyOfficialMigratedTodosForLearner() {
   assert.equal(tasks[0].readOnly, true);
 }
 
+function testServiceSkipsLegacyRepairCardsThatWouldBlockFormalSequence() {
+  const service = createLearningGrowthLegacyTodoTaskService({
+    mobileStore: {
+      listTodoItems() {
+        return [
+          { id: "t_math_repair_1", content: "\u4fee\u6539\uff1a\u4fee\u6539\uff1a\u51e1\u51e1\u6570\u5b66\u7b2c 1/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "open", assignee: "weixin_stephen" },
+          { id: "t_math_1", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 1/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "done", assignee: "weixin_stephen" },
+          { id: "t_math_2", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 2/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "done", assignee: "weixin_stephen" },
+          { id: "t_math_3", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 3/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "done", assignee: "weixin_stephen" },
+          { id: "t_math_4", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 4/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "done", assignee: "weixin_stephen" },
+          { id: "t_math_5", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 5/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "open", assignee: "weixin_stephen" },
+        ];
+      },
+    },
+  });
+  const tasks = service.listExecutableTasks({ learnerId: "weixin_stephen" });
+  assert.equal(tasks.some((task) => task.todoId === "t_math_repair_1"), false);
+  assert.deepEqual(tasks.filter((task) => task.programId === "legacy-assessment").map((task) => task.sequenceIndex), [1, 2, 3, 4, 5]);
+  assert.equal(tasks.find((task) => task.todoId === "t_math_5").status, "published");
+}
+
+function testServiceTreatsStaleOpenEarlierCardsAsCompletedWhenLaterSequenceIsDone() {
+  const service = createLearningGrowthLegacyTodoTaskService({
+    mobileStore: {
+      listTodoItems() {
+        return [
+          { id: "t_math_1", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 1/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "open", assignee: "weixin_stephen" },
+          { id: "t_math_2", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 2/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "done", assignee: "weixin_stephen" },
+          { id: "t_math_3", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 3/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "done", assignee: "weixin_stephen" },
+          { id: "t_math_4", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 4/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "done", assignee: "weixin_stephen" },
+          { id: "t_math_5", content: "\u51e1\u51e1\u6570\u5b66\u7b2c 5/10 \u6b21\u6b63\u5f0f\u6d4b\u8bd5", status: "open", assignee: "weixin_stephen" },
+        ];
+      },
+    },
+  });
+  const tasks = service.listExecutableTasks({ learnerId: "weixin_stephen" });
+  const first = tasks.find((task) => task.todoId === "t_math_1");
+  assert.equal(first.status, "completed");
+  assert.equal(first.nativeState.nextAction, "complete");
+  assert.equal(first.legacyStaleOpenBehindCompleted, true);
+  assert.equal(tasks.find((task) => task.todoId === "t_math_5").status, "published");
+}
+
 testProjectLegacyReadingTask();
 testProjectLegacyDoneAssessmentTask();
 testServiceReadsOnlyOfficialMigratedTodosForLearner();
+testServiceSkipsLegacyRepairCardsThatWouldBlockFormalSequence();
+testServiceTreatsStaleOpenEarlierCardsAsCompletedWhenLaterSequenceIsDone();
 console.log("learning growth legacy todo task service tests passed");
