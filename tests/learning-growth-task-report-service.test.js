@@ -82,7 +82,7 @@ function testWriteGenericReportUsesActivityFilename() {
     },
     evaluation: { activityType: "vocabulary", status: "draft_feedback", score: 76, feedbackSections: {} },
   });
-  assert.equal(report.name, "1779000000001-Vocabulary-card-vocabulary-feedback.md");
+  assert.match(report.name, /^01-\u521d\u6b21\u63d0\u4ea4\u6279\u6539-\u8bcd\u6c47-Vocabulary-card-\d{8}-\d{6}\.md$/);
   assert.match(report.path, /C:\\deliverables\\weixin_stephen\\case-1\\t_vocab/);
   assert.equal(writes.length, 1);
   assert.match(writes[0].text, /Vocabulary card/);

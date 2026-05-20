@@ -2,6 +2,10 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  buildLearningGrowthReportFilename,
+  safeFileStem,
+} = require("./learning-growth-report-filename-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -9,13 +13,6 @@ function cleanString(value) {
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
-}
-
-function safeFileStem(value) {
-  return cleanString(value)
-    .replace(/[^\w.-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 72) || "learning-growth-writing";
 }
 
 function cardId(card = {}, fallback = "") {
@@ -182,10 +179,18 @@ function createLearningGrowthWritingReportService(options = {}) {
   function writeReport(input = {}) {
     const workspaceId = cleanString(input.workspaceId || "owner") || "owner";
     const card = input.card || {};
+    const evaluation = input.evaluation || {};
     const cardIdValue = cleanString(input.cardId) || cardId(card, "card");
     const markdown = buildWritingFeedbackMarkdown(Object.assign({}, input, { cardId: cardIdValue }));
-    const filename = `${nowMs()}-${safeFileStem(cardTitle(card, cardIdValue))}-writing-feedback.md`;
-    const filePath = path.join(reportDirectory(workspaceId, cardIdValue, card), filename);
+    const dir = reportDirectory(workspaceId, cardIdValue, card);
+    const filename = buildLearningGrowthReportFilename({
+      directory: dir,
+      nowMs: nowMs(),
+      cardTitle: cardTitle(card, cardIdValue),
+      activityType: "writing",
+      evaluation,
+    });
+    const filePath = path.join(dir, filename);
     writeTextFile(filePath, markdown);
     let size = Buffer.byteLength(markdown, "utf8");
     try {

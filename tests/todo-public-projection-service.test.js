@@ -416,6 +416,7 @@ function run() {
     nextStep: "revise_and_resubmit",
     evaluatedAt: "2026-05-17T15:10:00.000Z",
     report: null,
+    reportHistory: [],
     reward: {
       status: "not_eligible",
       coinAmount: 0,
@@ -449,6 +450,10 @@ function run() {
     learning_growth_next_step: "rewrite_and_reflect",
     learning_growth_report_path: "C:\\reports\\draft-feedback.md",
     learning_growth_report_name: "draft-feedback.md",
+    learning_growth_report_history: [
+      { path: "C:\\reports\\draft-feedback-1.md", name: "01-\u521d\u6b21\u63d0\u4ea4\u6279\u6539-\u82f1\u8bed\u5199\u4f5c.md", status: "draft_feedback", score: 72, maxScore: 100, passed: false, nextStep: "rewrite_and_reflect", evaluatedAt: "2026-05-17T15:05:00.000Z" },
+      { path: "C:\\reports\\draft-feedback.md", name: "02-\u518d\u6b21\u63d0\u4ea4\u6279\u6539-\u82f1\u8bed\u5199\u4f5c.md", status: "draft_feedback", score: 79, maxScore: 100, passed: false, nextStep: "rewrite_and_reflect", evaluatedAt: "2026-05-17T15:10:00.000Z" },
+    ],
     learning_growth_strengths: ["Clear topic."],
     learning_growth_focus_areas: ["Add one example."],
     learning_growth_rewrite_checklist: ["Rewrite two sentences."],
@@ -478,12 +483,16 @@ function run() {
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthNextAction, "submit_revision_and_reflection");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthInteractionState.canSubmit, true);
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.report.name, "draft-feedback.md");
+  assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.reportHistory.length, 2);
+  assert.match(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.reportHistory[0].name, /\u521d\u6b21\u63d0\u4ea4\u6279\u6539/);
+  assert.match(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.reportHistory[1].name, /\u518d\u6b21\u63d0\u4ea4\u6279\u6539/);
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackMethod, "model_assisted");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.aiFeedbackStatus, "completed");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackSections.rewriteChecklist[0], "Rewrite two sentences.");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackSections.sentenceFeedback[0].fix, "Add a concrete class example.");
   assert.equal(projectedLearningGrowthDraftFeedback.learningGrowthEvaluation.feedbackSections.nextPractice, "Use a point-reason-example outline.");
   assert.equal(projectedLearningGrowthDraftFeedback.kanbanOutputs.at(-1).role, "learning-growth-writing-report");
+  assert.equal(projectedLearningGrowthDraftFeedback.kanbanOutputs.filter((item) => item.role === "learning-growth-writing-report").length, 2);
   const projectedLearningGrowthLegacySubmitted = studyProjectionService.publicTodo(row("learning-growth-legacy-submitted", {
     kanban_case_mode: "study-plan",
     kanban_case_template: "learning-growth",

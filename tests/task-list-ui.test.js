@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-progress-v27";
+const CLIENT_VERSION = "20260520-growth-history-v28";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -934,6 +934,7 @@ assert.match(appLearningGrowthTaskUiJs, /HermesLearningGrowthTaskUi/);
 assert.match(appLearningGrowthTaskUiJs, /submissionPrompt/);
 assert.match(appLearningGrowthTaskUiJs, /submissionGuard/);
 assert.match(appLearningGrowthTaskUiJs, /validateSubmissionText/);
+assert.match(appLearningGrowthTaskUiJs, /renderFeedbackHistory/);
 assert.match(appLearningGrowthTaskUiJs, /minWords/);
 assert.match(appLearningGrowthUiJs, /renderLearningGrowthTabs/);
 assert.match(appLearningGrowthUiJs, /\{ id: "execution"/);
@@ -1020,11 +1021,13 @@ assert.equal(appJs.includes("todo-learning-growth-score\""), false);
 assert.ok(appJs.indexOf("${submittedBlock}") >= 0 && appJs.indexOf("${submittedBlock}") < appJs.indexOf("${evaluationBlock}"));
 assert.match(appJs, /learningGrowthSubmissionPrompt/);
 assert.match(appJs, /renderLearningGrowthFeedbackList/);
+assert.match(appJs, /renderFeedbackHistory\(todo, evaluation/);
 assert.match(appJs, /criterionFeedback/);
 assert.match(appJs, /\\u6279\\u6539\\u7ef4\\u5ea6/);
 assert.match(appJs, /rewrite_and_reflect/);
 assert.match(appJs, /function submitLearningGrowthTask\(todoId, text\)/);
 assert.match(appJs, /failBeforeSubmit/);
+assert.match(appJs, /const restoreScrollTop = \$\("conversation"\)\?\.scrollTop \|\| 0/);
 assert.match(appJs, /LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS/);
 assert.match(appJs, /renderLearningGrowthSubmissionProgressPanel/);
 assert.match(appJs, /beginLearningGrowthSubmissionProgress\(todoId\)/);
@@ -1043,6 +1046,9 @@ assert.match(todoPublicProjectionServiceJs, /learningGrowthReflection/);
 assert.match(learningGrowthInteractionStateServiceJs, /submit_spoken_reflection/);
 assert.match(learningGrowthInteractionStateServiceJs, /spoken_reflection_required/);
 assert.match(todoPublicProjectionServiceJs, /learningGrowthReportPath/);
+assert.match(todoPublicProjectionServiceJs, /learningGrowthReportHistory/);
+assert.match(kanbanProviderJs, /learningGrowthReportHistoryWithEvaluation/);
+assert.match(stylesCss, /\.todo-learning-growth-report-history/);
 assert.match(todoPublicProjectionServiceJs, /learning-growth-writing-report/);
 assert.ok(todoPublicProjectionServiceJs.includes("pending_evaluation") || learningGrowthInteractionStateServiceJs.includes("pending_evaluation"));
 assert.match(appJs, /template === "reading"/);

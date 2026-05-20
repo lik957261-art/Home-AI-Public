@@ -7030,6 +7030,33 @@ button.directory-alias-chip {
   padding-left: 18px;
 }
 
+.todo-learning-growth-outcome,
+.todo-learning-growth-report-history {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(236, 249, 245, 0.58);
+}
+
+.todo-learning-growth-outcome.is-revision {
+  border: 1px solid rgba(155, 61, 53, 0.22);
+  background: rgba(255, 245, 242, 0.74);
+}
+
+.todo-learning-growth-outcome p {
+  margin: 0;
+}
+
+.todo-learning-growth-report-history-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .todo-learning-growth-feedback-list {
   display: grid;
   gap: 4px;

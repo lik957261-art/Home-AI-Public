@@ -100,7 +100,7 @@ function testWriteReportUsesArtifactDirectory() {
     card: { content: "Writing card", kanbanCaseId: "case-1" },
     evaluation: { status: "draft_feedback", score: 79, feedbackSections: {} },
   });
-  assert.equal(report.name, "1779000000000-Writing-card-writing-feedback.md");
+  assert.match(report.name, /^01-\u521d\u6b21\u63d0\u4ea4\u6279\u6539-\u82f1\u8bed\u5199\u4f5c-Writing-card-\d{8}-\d{6}\.md$/);
   assert.match(report.path, /C:\\deliverables\\weixin_stephen\\case-1\\t_growth/);
   assert.equal(writes.length, 1);
   assert.match(writes[0].text, /Writing card/);

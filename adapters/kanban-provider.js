@@ -206,6 +206,53 @@ function objectArrayFromValue(value, limit = 8) {
     .slice(0, limit);
 }
 
+function learningGrowthReportHistoryFromValue(value, limit = 12) {
+  const seen = new Set();
+  return objectArrayFromValue(value, limit * 2)
+    .map((item) => ({
+      path: String(item.path || "").trim(),
+      name: String(item.name || "").trim(),
+      mime: String(item.mime || "text/markdown; charset=utf-8").trim(),
+      size: Number(item.size || 0) || 0,
+      status: String(item.status || "").trim(),
+      score: Number(item.score || 0) || 0,
+      maxScore: Number(item.maxScore || 100) || 100,
+      passed: bool(item.passed),
+      nextStep: String(item.nextStep || "").trim(),
+      evaluatedAt: String(item.evaluatedAt || "").trim(),
+      evaluationId: String(item.evaluationId || "").trim(),
+    }))
+    .filter((item) => {
+      const key = item.path || item.name;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(-limit);
+}
+
+function learningGrowthReportHistoryWithEvaluation(previous, evaluation = {}, now = "") {
+  const history = learningGrowthReportHistoryFromValue(previous, 12);
+  const report = evaluation.report || {};
+  const pathValue = String(report.path || "").trim();
+  const nameValue = String(report.name || "").trim();
+  if (!pathValue && !nameValue) return history;
+  const item = {
+    path: pathValue,
+    name: nameValue,
+    mime: String(report.mime || "text/markdown; charset=utf-8").trim(),
+    size: Number(report.size || 0) || 0,
+    status: String(evaluation.status || "completed").trim() || "completed",
+    score: Number(evaluation.score || 0) || 0,
+    maxScore: Number(evaluation.maxScore || 100) || 100,
+    passed: bool(evaluation.passed),
+    nextStep: String(evaluation.nextStep || "").trim(),
+    evaluatedAt: String(evaluation.evaluatedAt || now).trim() || now,
+    evaluationId: String(evaluation.evaluationId || "").trim(),
+  };
+  return learningGrowthReportHistoryFromValue(history.concat([item]), 12);
+}
+
 function objectFromValue(value) {
   if (!value) return null;
   if (typeof value === "object" && !Array.isArray(value)) return value;
@@ -568,6 +615,7 @@ function createKanbanTodoBridge(options = {}) {
       learning_growth_next_step: String(meta.learningGrowthNextStep || meta.learning_growth_next_step || ""),
       learning_growth_report_path: String(meta.learningGrowthReportPath || meta.learning_growth_report_path || ""),
       learning_growth_report_name: String(meta.learningGrowthReportName || meta.learning_growth_report_name || ""),
+      learning_growth_report_history: learningGrowthReportHistoryFromValue(meta.learningGrowthReportHistory || meta.learning_growth_report_history, 12),
       learning_growth_strengths: arrayFromValue(meta.learningGrowthStrengths || meta.learning_growth_strengths, 8),
       learning_growth_focus_areas: arrayFromValue(meta.learningGrowthFocusAreas || meta.learning_growth_focus_areas, 8),
       learning_growth_rewrite_checklist: arrayFromValue(meta.learningGrowthRewriteChecklist || meta.learning_growth_rewrite_checklist, 8),
@@ -661,6 +709,7 @@ function createKanbanTodoBridge(options = {}) {
         learningGrowthNextStep: String(row.learning_growth_next_step || previous.learningGrowthNextStep || ""),
         learningGrowthReportPath: String(row.learning_growth_report_path || previous.learningGrowthReportPath || ""),
         learningGrowthReportName: String(row.learning_growth_report_name || previous.learningGrowthReportName || ""),
+        learningGrowthReportHistory: learningGrowthReportHistoryFromValue(row.learning_growth_report_history || previous.learningGrowthReportHistory, 12),
         learningGrowthStrengths: arrayFromValue(row.learning_growth_strengths || previous.learningGrowthStrengths, 8),
         learningGrowthFocusAreas: arrayFromValue(row.learning_growth_focus_areas || previous.learningGrowthFocusAreas, 8),
         learningGrowthRewriteChecklist: arrayFromValue(row.learning_growth_rewrite_checklist || previous.learningGrowthRewriteChecklist, 8),
@@ -1148,6 +1197,9 @@ function createKanbanTodoBridge(options = {}) {
       const isLearningGrowthSubmission = bool(payload.learningGrowthSubmission || payload.learning_growth_submission);
       const learningGrowthEvaluation = payload.learningGrowthEvaluation || payload.learning_growth_evaluation || null;
       const isLearningGrowthEvaluation = Boolean(learningGrowthEvaluation && typeof learningGrowthEvaluation === "object");
+      const learningGrowthReportHistory = isLearningGrowthEvaluation
+        ? learningGrowthReportHistoryWithEvaluation(meta.learningGrowthReportHistory || meta.learning_growth_report_history, learningGrowthEvaluation, now)
+        : learningGrowthReportHistoryFromValue(meta.learningGrowthReportHistory || meta.learning_growth_report_history, 12);
       await kanban(["--board", board, "comment", todoId, comment, "--author", author]);
       store.todos[todoId] = Object.assign({}, meta, {
         lastComment: comment,
@@ -1187,6 +1239,7 @@ function createKanbanTodoBridge(options = {}) {
           learningGrowthNextStep: String(learningGrowthEvaluation.nextStep || "").trim(),
           learningGrowthReportPath: String(learningGrowthEvaluation.report?.path || "").trim(),
           learningGrowthReportName: String(learningGrowthEvaluation.report?.name || "").trim(),
+          learningGrowthReportHistory,
           learningGrowthStrengths: arrayFromValue(learningGrowthEvaluation.feedbackSections?.strengths, 8),
           learningGrowthFocusAreas: arrayFromValue(learningGrowthEvaluation.feedbackSections?.focusAreas, 8),
           learningGrowthRewriteChecklist: arrayFromValue(learningGrowthEvaluation.feedbackSections?.rewriteChecklist, 8),

@@ -146,9 +146,49 @@
     return Date.now() - submittedAt >= 0 && Date.now() - submittedAt <= 5 * 60 * 1000 && !completed && rewardStatus !== "settled" && !reward.entryId;
   }
 
+  function escapeHtmlLocal(value) {
+    return String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
+  }
+
+  function reportHistory(todo = {}, evaluation = {}) {
+    const raw = Array.isArray(evaluation.reportHistory) && evaluation.reportHistory.length
+      ? evaluation.reportHistory
+      : (Array.isArray(todo.learningGrowthReportHistory) && todo.learningGrowthReportHistory.length ? todo.learningGrowthReportHistory : []);
+    const fromOutputs = Array.isArray(todo.kanbanOutputs)
+      ? todo.kanbanOutputs.filter((item) => String(item?.role || "").includes("learning-growth") && /report|feedback|\u6279\u6539|\u8bc4\u4ef7/i.test(String(item?.role || item?.name || "")))
+      : [];
+    const seen = new Set();
+    return raw.concat(fromOutputs).filter((item) => item && typeof item === "object").map((item, index) => Object.assign({ attemptIndex: index + 1 }, item)).filter((item) => {
+      const key = String(item.path || item.url || item.name || "").trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(-12);
+  }
+
+  function outcomeText(evaluation = {}, interactionState = {}) {
+    const status = String(evaluation.status || "").trim();
+    const nextStep = String(evaluation.nextStep || interactionState.nextStep || "").trim();
+    if (evaluation.passed || nextStep === "completed" || status === "completed") return { kind: "passed", title: "\u672c\u6b21\u5df2\u901a\u8fc7", body: "\u67e5\u770b\u6700\u65b0\u6279\u6539\u6587\u4ef6\uff0c\u6309\u8981\u6c42\u5b8c\u6210\u540e\u7eed\u590d\u76d8\u6216\u7ed3\u7b97\u3002" };
+    if (nextStep === "rewrite_and_reflect" || nextStep === "revise_and_resubmit" || status === "needs_revision" || status === "draft_feedback") return { kind: "revision", title: "\u672c\u6b21\u672a\u901a\u8fc7\uff0c\u9700\u8981\u7ee7\u7eed\u4fee\u6539", body: "\u5148\u6253\u5f00\u6700\u65b0\u6279\u6539\u6587\u4ef6\uff0c\u6309\u91cd\u70b9\u4fee\u6539\u540e\u518d\u63d0\u4ea4\u3002\u4e0b\u65b9\u4fdd\u7559\u4e86\u6bcf\u4e00\u6b21\u6279\u6539\u8bb0\u5f55\u3002" };
+    if (status === "pending") return { kind: "pending", title: "\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539", body: "\u4f5c\u7b54\u5df2\u4fdd\u5b58\uff0c\u8bf7\u7b49\u5f85\u672c\u6b21\u6279\u6539\u5b8c\u6210\u3002" };
+    return { kind: "review", title: "\u6279\u6539\u7ed3\u679c", body: "\u67e5\u770b\u672c\u6b21\u6279\u6539\u548c\u5386\u53f2\u8bb0\u5f55\uff0c\u518d\u6309\u4e0b\u4e00\u6b65\u63d0\u4ea4\u3002" };
+  }
+
+  function renderFeedbackHistory(todo = {}, evaluation = {}) {
+    const outcome = outcomeText(evaluation, todo.learningGrowthInteractionState || {});
+    const history = reportHistory(todo, evaluation);
+    const renderer = typeof globalThis !== "undefined" && typeof globalThis.renderKanbanOutputLinks === "function" ? globalThis.renderKanbanOutputLinks : null;
+    const links = history.length ? (renderer ? renderer(history, "todo-detail-outputs compact todo-learning-growth-report-history-links") : `<div class="todo-detail-outputs compact todo-learning-growth-report-history-links">${history.map((item) => `<span>${escapeHtmlLocal(item.name || "\u6279\u6539\u6587\u4ef6")}</span>`).join("")}</div>`) : "";
+    const count = history.length ? `<span>${escapeHtmlLocal(`${history.length} \u6b21\u6279\u6539`)}</span>` : "";
+    return `<div class="todo-learning-growth-outcome is-${escapeHtmlLocal(outcome.kind)}"><strong>${escapeHtmlLocal(outcome.title)}</strong><p>${escapeHtmlLocal(outcome.body)}</p></div>${history.length ? `<div class="todo-learning-growth-report-history"><div class="todo-learning-growth-report-history-head"><strong>${escapeHtmlLocal("\u6279\u6539\u5386\u53f2")}</strong>${count}</div>${links}</div>` : ""}`;
+  }
+
   return {
     activityLabel,
     canWithdrawSubmission,
+    renderFeedbackHistory,
+    reportHistory,
     nextActionLabel,
     submissionGuard,
     submissionPrompt,

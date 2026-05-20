@@ -359,6 +359,31 @@ async function run() {
   assert.equal(growthEvaluated.learning_growth_sentence_feedback[0].fix, "Add a specific school example.");
   assert.equal(growthEvaluated.learning_growth_next_practice, "Plan one example before writing.");
   assert.equal(growthEvaluated.learning_growth_reward_status, "settled");
+  assert.equal(growthEvaluated.learning_growth_report_history.length, 1);
+  assert.equal(growthEvaluated.learning_growth_report_history[0].name, "writing-feedback.md");
+
+  const growthReevaluated = await provider.run({
+    action: "comment",
+    workspace_id: "weixin_stephen",
+    source_principal: "weixin_stephen",
+    todo_id: "t_created",
+    comment: "AI writing revision evaluation summary",
+    learningGrowthEvaluation: {
+      status: "needs_revision",
+      score: 82,
+      maxScore: 100,
+      passed: false,
+      summary: "Revision still needs work.",
+      revisionRequirements: ["Repair the ending."],
+      nextStep: "revise_and_resubmit",
+      report: { path: "C:\\reports\\writing-feedback-2.md", name: "writing-feedback-2.md" },
+      evaluatedAt: "2026-05-17T15:40:00.000Z",
+    },
+  });
+  assert.equal(growthReevaluated.learning_growth_report_name, "writing-feedback-2.md");
+  assert.equal(growthReevaluated.learning_growth_report_history.length, 2);
+  assert.equal(growthReevaluated.learning_growth_report_history[0].name, "writing-feedback.md");
+  assert.equal(growthReevaluated.learning_growth_report_history[1].name, "writing-feedback-2.md");
 
   const growthCleared = await provider.run({
     action: "clear_learning_growth_submission",
@@ -371,6 +396,7 @@ async function run() {
   assert.equal(growthCleared.learning_growth_submission_text, "");
   assert.equal(growthCleared.learning_growth_evaluation_status, "");
   assert.equal(growthCleared.learning_growth_report_name, "");
+  assert.equal(growthCleared.learning_growth_report_history.length, 2);
   assert.equal(growthCleared.learning_growth_reward_status, "");
 
   const unblocked = await provider.run({

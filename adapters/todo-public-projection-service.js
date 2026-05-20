@@ -309,6 +309,7 @@ function createTodoPublicProjectionService(options = {}) {
       learningGrowthNextStep: String(row.learning_growth_next_step || row.learningGrowthNextStep || ""),
       learningGrowthReportPath: String(row.learning_growth_report_path || row.learningGrowthReportPath || ""),
       learningGrowthReportName: String(row.learning_growth_report_name || row.learningGrowthReportName || ""),
+      learningGrowthReportHistory: normalizeObjectList(row.learning_growth_report_history || row.learningGrowthReportHistory, 12),
       learningGrowthStrengths: normalizeStringList(row.learning_growth_strengths || row.learningGrowthStrengths, 8),
       learningGrowthFocusAreas: normalizeStringList(row.learning_growth_focus_areas || row.learningGrowthFocusAreas, 8),
       learningGrowthRewriteChecklist: normalizeStringList(row.learning_growth_rewrite_checklist || row.learningGrowthRewriteChecklist, 8),
@@ -395,16 +396,19 @@ function createTodoPublicProjectionService(options = {}) {
         });
         payload.learningGrowthInteractionState = interactionState;
         const analysisAvailable = interactionState.analysisAvailable;
-        const reportOutput = payload.learningGrowthReportPath
-          ? (publicKanbanOutputsFromText(workspaceId, `MEDIA: ${payload.learningGrowthReportPath}`)[0] || null)
-          : null;
-        const reportKey = reportOutput ? String(reportOutput.path || reportOutput.url || payload.learningGrowthReportPath || reportOutput.name || "") : "";
-        if (reportOutput && !payload.kanbanOutputs.some((item) => String(item?.path || item?.url || item?.name || "") === reportKey)) {
-          payload.kanbanOutputs = payload.kanbanOutputs.concat([Object.assign({}, reportOutput, {
-            name: payload.learningGrowthReportName || reportOutput.name,
-            role: "learning-growth-writing-report",
-          })]);
+        const reportSourceItems = payload.learningGrowthReportHistory.length ? payload.learningGrowthReportHistory : (payload.learningGrowthReportPath ? [{ path: payload.learningGrowthReportPath, name: payload.learningGrowthReportName, status: evaluationStatus, score: payload.learningGrowthScore, maxScore: payload.learningGrowthMaxScore, passed: payload.learningGrowthPassed, nextStep: payload.learningGrowthNextStep, evaluatedAt: payload.learningGrowthEvaluationAt }] : []);
+        const reportOutputs = reportSourceItems.map((report, index) => {
+          const reportPath = String(report.path || "").trim();
+          if (!reportPath) return null;
+          const output = publicKanbanOutputsFromText(workspaceId, `MEDIA: ${reportPath}`)[0] || {};
+          return Object.assign({}, output, report, { name: report.name || output.name, role: "learning-growth-writing-report", attemptIndex: index + 1 });
+        }).filter(Boolean);
+        for (const report of reportOutputs) {
+          const reportKey = String(report.path || report.url || report.name || "");
+          if (reportKey && !payload.kanbanOutputs.some((item) => String(item?.path || item?.url || item?.name || "") === reportKey)) payload.kanbanOutputs = payload.kanbanOutputs.concat([report]);
         }
+        const reportOutput = reportOutputs.find((item) => payload.learningGrowthReportPath && String(item.path || "") === payload.learningGrowthReportPath) || reportOutputs.at(-1) || null;
+        payload.learningGrowthReportHistory = reportOutputs;
         const nextStep = interactionState.nextStep;
         payload.learningGrowthNextAction = interactionState.nextAction;
         const reflection = payload.learningGrowthReflectionStatus ? {
@@ -462,6 +466,7 @@ function createTodoPublicProjectionService(options = {}) {
               name: payload.learningGrowthReportName || reportOutput.name,
               role: "learning-growth-writing-report",
             }) : null,
+            reportHistory: reportOutputs,
             reward: {
               status: payload.learningGrowthRewardStatus,
               coinAmount: payload.learningGrowthRewardCoins,

@@ -260,6 +260,7 @@ function setLearningGrowthSubmissionFeedback(todoId, feedback = {}, options = {}
 
 async function submitLearningGrowthTask(todoId, text) {
   if (!todoId) return;
+  const restoreScrollTop = $("conversation")?.scrollTop || 0;
   function failBeforeSubmit(message) {
     const textValue = message || "\u6210\u957f\u4efb\u52a1\u63d0\u4ea4\u5931\u8d25";
     setLearningGrowthSubmissionFeedback(todoId, { kind: "error", message: textValue }, { renderFallback: true });
@@ -301,14 +302,14 @@ async function submitLearningGrowthTask(todoId, text) {
     await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
     state.selectedTodoId = todoId;
     showPushToast("\u6210\u957f\u4efb\u52a1\u4f5c\u7b54\u5df2\u63d0\u4ea4", "success");
-    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    renderTodos({ preserveScroll: true, restoreScrollTop });
   } catch (err) {
     setLearningGrowthSubmissionFeedback(todoId, { kind: "error", message: err.message || String(err) }, { renderFallback: true });
     throw err;
   } finally {
     delete state.todoLearningGrowthSubmissionSubmitting[todoId];
     finishLearningGrowthSubmissionProgress(todoId);
-    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    renderTodos({ preserveScroll: true, restoreScrollTop });
   }
 }
 

@@ -2,7 +2,7 @@
 const LearningGrowthTaskUi = typeof window !== "undefined" ? (window.HermesLearningGrowthTaskUi || {}) : {};
 const LearningGrowthReflectionUi = typeof window !== "undefined" ? (window.HermesLearningGrowthReflectionUi || {}) : {};
 function isKanbanReadingCard(todo) { return isKanbanStudyCase(todo) && !isKanbanFinalStudyAssessment(todo) && !isKanbanLearningGrowthCard(todo) && (isKanbanReadingPlanCase(todo) || Boolean(todo?.readingSubmission || todo?.studySubmission)); }
-function learningGrowthEvaluationLabel(evaluation = {}) { const status = String(evaluation.status || ""), nextStep = String(evaluation.nextStep || ""); return nextStep === "rewrite_and_reflect" || status === "draft_feedback" ? "\u8349\u7a3f\u6279\u6539" : (nextStep === "completed" || status === "completed" ? "\u5df2\u5b8c\u6210" : "\u7ee7\u7eed\u4fee\u6539"); }
+function learningGrowthEvaluationLabel(evaluation = {}) { const status = String(evaluation.status || ""), nextStep = String(evaluation.nextStep || ""); return nextStep === "completed" || status === "completed" || evaluation.passed ? "\u5df2\u901a\u8fc7" : (nextStep === "rewrite_and_reflect" || nextStep === "revise_and_resubmit" || status === "draft_feedback" || status === "needs_revision" ? "\u672a\u901a\u8fc7\uff0c\u7ee7\u7eed\u4fee\u6539" : "\u6279\u6539\u7ed3\u679c"); }
 function learningGrowthSubmissionPrompt(evaluation = {}, todo = {}) { return typeof LearningGrowthTaskUi.submissionPrompt === "function" ? LearningGrowthTaskUi.submissionPrompt(evaluation, todo) : "\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u6216\u4efb\u52a1\u7b54\u6848\u3002"; }
 function learningGrowthSubmissionGuard(todo = {}, evaluation = {}) { return typeof LearningGrowthTaskUi.submissionGuard === "function" ? LearningGrowthTaskUi.submissionGuard(todo, evaluation) : { minWords: 40, minChars: 200, stage: "draft" }; }
 function learningGrowthSubmissionStats(text = "") { return typeof LearningGrowthTaskUi.submissionTextStats === "function" ? LearningGrowthTaskUi.submissionTextStats(text) : { words: 0, chars: String(text || "").replace(/\s+/g, "").length }; }
@@ -37,7 +37,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const nextAction = interactionState.nextAction || todo?.learningGrowthNextAction || "";
   const draft = state.todoLearningGrowthSubmissionDrafts?.[todo.id] || "";
   const feedbackSections = evaluation?.feedbackSections || {};
-  const reportLinks = evaluation?.report ? renderKanbanOutputLinks([evaluation.report], "todo-detail-outputs compact") : "";
+  const reportLinks = typeof LearningGrowthTaskUi.renderFeedbackHistory === "function" ? LearningGrowthTaskUi.renderFeedbackHistory(todo, evaluation || {}) : (evaluation?.report ? renderKanbanOutputLinks([evaluation.report], "todo-detail-outputs compact") : "");
   const submitLabel = submitting ? "\u6b63\u5728\u63d0\u4ea4..." : (["rewrite_and_reflect", "revise_and_resubmit"].includes(String(evaluation?.nextStep || "")) ? "\u63d0\u4ea4\u4fee\u6539\u548c\u590d\u76d8" : "\u63d0\u4ea4\u4f5c\u7b54");
   const guard = learningGrowthSubmissionGuard(todo, evaluation || {});
   const draftStats = learningGrowthSubmissionStats(draft);
