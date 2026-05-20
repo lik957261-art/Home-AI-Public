@@ -59,16 +59,45 @@ function taskCardDescription(task = {}) {
   ].filter(Boolean).join("\n\n");
 }
 
+function stripFutureGeneratedInstruction(task = {}, sequenceIndex = 0) {
+  const taskModel = task.taskModel && typeof task.taskModel === "object"
+    ? Object.assign({}, task.taskModel)
+    : task.taskModel;
+  if (taskModel && typeof taskModel === "object") {
+    delete taskModel.learnerInstruction;
+    delete taskModel.instruction;
+    delete taskModel.jitGeneration;
+  }
+  const stripped = Object.assign({}, task, {
+    sequenceIndex,
+    learningGrowthJitPending: true,
+    learningGrowthSequenceVisibility: "locked_future",
+    taskModel,
+  });
+  delete stripped.learnerInstruction;
+  delete stripped.instruction;
+  delete stripped.learnerPrompt;
+  delete stripped.prompt;
+  delete stripped.taskPrompt;
+  delete stripped.instructions;
+  return stripped;
+}
+
 async function prepareDraftForCardCreation(program = {}, draft = {}, options = {}) {
   const jitTaskService = options.jitTaskService || null;
   if (!jitTaskService || typeof jitTaskService.prepareTaskForCard !== "function") return draft;
   const recentLearningState = options.recentLearningState || null;
+  const prepareOnlyCurrent = options.prepareOnlyCurrent !== false;
   let sequenceIndex = 0;
   const dailyPlans = [];
   for (const day of asArray(draft.dailyPlans)) {
     const tasks = [];
     for (const task of asArray(day.tasks)) {
       sequenceIndex += 1;
+      if (prepareOnlyCurrent && sequenceIndex > 1) {
+        tasks.push(stripFutureGeneratedInstruction(task, sequenceIndex));
+        continue;
+      }
       tasks.push(await jitTaskService.prepareTaskForCard({
         program,
         draft,
@@ -106,6 +135,10 @@ async function learningGrowthKanbanCards(program = {}, draft = {}, options = {})
         learningProgramId: cleanString(program.programId),
         learningDraftId: cleanString(preparedDraft.draftId),
         learningTaskCardId: cleanString(preparedDraft.draftId) ? stableTaskCardId(preparedDraft.draftId, clientId) : "",
+        sequenceGroupId: cleanString(task.sequenceGroupId),
+        sequenceMode: cleanString(task.sequenceMode || task.learningGrowthSequenceMode),
+        learningGrowthJitPending: Boolean(task.learningGrowthJitPending),
+        learningGrowthSequenceVisibility: cleanString(task.learningGrowthSequenceVisibility),
         skillIds: asArray(task.skillIds).map(cleanString).filter(Boolean),
         templateId: cleanString(task.templateId),
         taskCardType: cleanString(task.taskCardType),
@@ -219,4 +252,5 @@ module.exports = {
   createLearningProgramPublishService,
   learningGrowthKanbanCards,
   prepareDraftForCardCreation,
+  stripFutureGeneratedInstruction,
 };

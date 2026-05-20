@@ -187,10 +187,45 @@ function testBoardProjectsLegacyTodosAsReadOnlyOpenTasks() {
   assert.equal(board.cards[0].instructionPreview, "Open original task details.");
 }
 
+function testBoardShowsLockedCurrentCardBeforeCompletionWindow() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        {
+          taskCardId: "seq-locked",
+          programId: "program-1",
+          sequenceIndex: 1,
+          title: "Tomorrow task",
+          status: "published",
+          plannedDate: "2026-05-21",
+          nextCompletionAllowedAt: "2026-05-21T08:00:00.000Z",
+        },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({
+    overview: sequenceOverview,
+    today: "2026-05-20",
+    nowIso: "2026-05-20T09:00:00.000Z",
+  });
+  const card = board.cards[0];
+  assert.equal(card.laneId, "locked_until");
+  assert.equal(card.nextAction, "locked_until");
+  assert.equal(card.primaryAction, "locked");
+  assert.equal(card.actions.canSubmit, false);
+  assert.equal(card.nextCompletionAllowedAt, "2026-05-21T08:00:00.000Z");
+  assert.ok(board.lanes.find((lane) => lane.id === "locked_until").cards.includes("seq-locked"));
+}
+
 testBoardClassifiesNativeTasksIntoLanes();
 testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();
 testBoardGroupsDuplicateDraftsByProgram();
 testBoardProjectsLegacyTodosAsReadOnlyOpenTasks();
+testBoardShowsLockedCurrentCardBeforeCompletionWindow();
 console.log("learning growth board projection service tests passed");

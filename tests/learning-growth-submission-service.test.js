@@ -784,6 +784,62 @@ async function testCompletedNativeTaskPreparesNextSequenceTask() {
   }
 }
 
+async function testLockedSequenceTaskRejectsSubmissionBeforeModelWork() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({
+    dbPath: path.join(root, "learning-growth.sqlite3"),
+  });
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard(Object.assign({}, repository.getTaskCard("task-growth"), {
+      nextCompletionAllowedAt: "2026-05-21T08:00:00.000Z",
+    }));
+    const programService = createLearningProgramService({ repository });
+    let evaluationCalls = 0;
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      now: () => Date.parse("2026-05-20T09:00:00.000Z"),
+      evaluationService: {
+        async evaluate() {
+          evaluationCalls += 1;
+          return { passed: true };
+        },
+      },
+      sequenceService: {
+        completionGateForTask(task, options) {
+          assert.equal(task.taskCardId, "task-growth");
+          assert.equal(options.nowIso, "2026-05-20T09:00:00.000Z");
+          return {
+            ok: false,
+            status: "completion_window_locked",
+            nextCompletionAllowedAt: task.nextCompletionAllowedAt,
+            retryAfterSeconds: 82800,
+          };
+        },
+      },
+    });
+    const result = await service.submitTask({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-growth",
+      text: [
+        "First, I correct the grammar because the subject and verb need to match.",
+        "Then I explain the pattern with a new school sentence and check the tense.",
+        "Finally, I compare the old answer with my new answer and write a clear rule.",
+        "I will use this rule before I submit the next grammar task.",
+      ].join("\n"),
+      author: "weixin_stephen",
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 409);
+    assert.equal(result.completionGate.status, "completion_window_locked");
+    assert.equal(result.completionGate.nextCompletionAllowedAt, "2026-05-21T08:00:00.000Z");
+    assert.equal(evaluationCalls, 0);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createLearningGrowthSubmissionService({ kanbanCardProvider: { listCards() {} } }),
@@ -803,6 +859,7 @@ function testDependencyValidation() {
   await testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard();
   await testNativeTaskSubmissionWorksWithoutKanbanLink();
   await testCompletedNativeTaskPreparesNextSequenceTask();
+  await testLockedSequenceTaskRejectsSubmissionBeforeModelWork();
   console.log("learning growth submission service tests passed");
 })().catch((err) => {
   console.error(err);

@@ -1,5 +1,7 @@
 "use strict";
 
+const crypto = require("node:crypto");
+
 function cleanString(value, limit = 1000) {
   const text = String(value ?? "").trim();
   const max = Math.max(1, Number(limit || 1000) || 1000);
@@ -13,6 +15,19 @@ function asArray(value) {
 function numberValue(value) {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseTimeMs(value) {
+  const text = cleanString(value);
+  if (!text) return 0;
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function addHoursIso(value, hours) {
+  const baseMs = parseTimeMs(value) || Date.now();
+  const interval = Math.max(0, Number(hours || 0) || 0) * 60 * 60 * 1000;
+  return new Date(baseMs + interval).toISOString();
 }
 
 function sequenceIndexForTask(task = {}, fallbackIndex = 0) {
@@ -32,10 +47,12 @@ function sequenceIndexForTask(task = {}, fallbackIndex = 0) {
 }
 
 function sequenceGroupForTask(task = {}) {
-  const draftId = cleanString(task.draftId || task.learningDraftId || task.learning_draft_id);
-  if (draftId) return `draft:${draftId}`;
+  const explicit = cleanString(task.sequenceGroupId || task.sequence_group_id);
+  if (explicit) return explicit;
   const programId = cleanString(task.programId || task.learningProgramId || task.learning_program_id);
   if (programId) return `program:${programId}`;
+  const draftId = cleanString(task.draftId || task.learningDraftId || task.learning_draft_id);
+  if (draftId) return `draft:${draftId}`;
   const taskCardId = cleanString(task.taskCardId || task.id);
   return taskCardId ? `task:${taskCardId}` : "task:unknown";
 }
@@ -64,11 +81,12 @@ function listSequenceCandidates(programService, currentTask = {}) {
   if (!programService || typeof programService.listTaskCards !== "function") return [];
   const draftId = cleanString(currentTask.draftId || currentTask.learningDraftId || currentTask.learning_draft_id);
   const programId = cleanString(currentTask.programId || currentTask.learningProgramId || currentTask.learning_program_id);
+  const explicitGroup = cleanString(currentTask.sequenceGroupId || currentTask.sequence_group_id);
   const learnerId = cleanString(currentTask.learnerId || currentTask.studentId);
   const workspaceId = cleanString(currentTask.workspaceId);
   const filters = { limit: 300 };
-  if (draftId) filters.draftId = draftId;
-  if (!draftId && programId) filters.programId = programId;
+  if ((explicitGroup || programId) && programId) filters.programId = programId;
+  if (!filters.programId && draftId) filters.draftId = draftId;
   if (learnerId) filters.learnerId = learnerId;
   if (workspaceId) filters.workspaceId = workspaceId;
   const groupId = sequenceGroupForTask(currentTask);
@@ -81,7 +99,125 @@ function findNextSequenceTask(tasks = [], currentTask = {}) {
   const sorted = sortSequenceTasks(tasks);
   const currentIndex = sorted.findIndex((task) => cleanString(task.taskCardId || task.id) === currentId);
   const startIndex = currentIndex >= 0 ? currentIndex + 1 : 0;
-  return sorted.slice(startIndex).find((task) => !taskCompleted(task)) || null;
+  return sorted.slice(startIndex).find((task) => cleanString(task.taskCardId || task.id) !== currentId && !taskCompleted(task)) || null;
+}
+
+function latestSequenceIndex(tasks = []) {
+  return sortSequenceTasks(tasks).reduce((max, task, index) => Math.max(max, sequenceIndexForTask(task, index)), 0);
+}
+
+function firstObject(...values) {
+  return values.find((value) => value && typeof value === "object" && !Array.isArray(value)) || {};
+}
+
+function perpetualPolicyForTask(task = {}, program = {}, draft = {}) {
+  const policy = firstObject(
+    task.learningGrowthPerpetual,
+    task.learningGrowthSequencePolicy,
+    task.sequencePolicy,
+    task.taskModel?.learningGrowthPerpetual,
+    task.taskModel?.sequencePolicy,
+    draft.learningGrowthPerpetual,
+    draft.learningGrowthSequencePolicy,
+    program.learningGrowthPerpetual,
+    program.learningGrowthSequencePolicy,
+  );
+  const mode = cleanString(
+    task.sequenceMode
+      || task.learningGrowthSequenceMode
+      || policy.mode
+      || task.taskModel?.sequenceMode
+      || task.taskModel?.learningGrowthSequenceMode,
+  ).toLowerCase();
+  const enabled = policy.enabled === true
+    || policy.perpetual === true
+    || task.perpetual === true
+    || task.learningGrowthPerpetual === true
+    || mode === "evergreen_jit"
+    || mode === "perpetual"
+    || mode === "continuous";
+  if (!enabled) return { enabled: false, minIntervalHours: 0, mode };
+  const minIntervalHours = Math.max(1, Math.min(168, Number(policy.minIntervalHours || policy.cadenceHours || task.minIntervalHours || 24) || 24));
+  return {
+    enabled: true,
+    minIntervalHours,
+    mode: mode || "evergreen_jit",
+  };
+}
+
+function evergreenTaskCardId(groupId, sequenceIndex, previousTaskCardId) {
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${cleanString(groupId)}:${Number(sequenceIndex || 0)}:${cleanString(previousTaskCardId)}`)
+    .digest("hex")
+    .slice(0, 16);
+  return `ltask_${digest}`;
+}
+
+function cloneEvergreenTask(input = {}) {
+  const currentTask = input.currentTask || {};
+  const groupId = cleanString(input.groupId) || sequenceGroupForTask(currentTask);
+  const sequenceIndex = Math.max(1, Number(input.sequenceIndex || 0) || 1);
+  const previousTaskCardId = cleanString(input.previousTaskCardId || currentTask.taskCardId || currentTask.id);
+  const completedAt = cleanString(input.completedAt);
+  const availableAt = cleanString(input.availableAt);
+  const taskModel = currentTask.taskModel && typeof currentTask.taskModel === "object"
+    ? Object.assign({}, currentTask.taskModel)
+    : {};
+  delete taskModel.learnerInstruction;
+  delete taskModel.instruction;
+  delete taskModel.jitGeneration;
+  return Object.assign({}, currentTask, {
+    taskCardId: evergreenTaskCardId(groupId, sequenceIndex, previousTaskCardId),
+    id: undefined,
+    kanbanCardId: "",
+    todoId: "",
+    status: "published",
+    sequenceGroupId: groupId,
+    sequenceIndex,
+    sequenceMode: "evergreen_jit",
+    title: cleanString(currentTask.title, 160) || `Learning task ${sequenceIndex}`,
+    plannedDate: availableAt.slice(0, 10),
+    learnerInstruction: "",
+    instruction: "",
+    summary: cleanString(currentTask.summary || currentTask.title, 360),
+    taskModel,
+    completionPolicy: {
+      scope: "learner_sequence",
+      minIntervalHours: Math.max(1, Number(input.minIntervalHours || 24) || 24),
+    },
+    generatedAfterTaskCardId: previousTaskCardId,
+    generatedAfterCompletionAt: completedAt,
+    generatedAt: cleanString(input.generatedAt),
+    availableAt,
+    unlockAt: availableAt,
+    nextCompletionAllowedAt: availableAt,
+    learningGrowthUnlockAt: availableAt,
+    learningGrowthSequenceVisibility: "current",
+    learningGrowthGeneratedAfterTaskCardId: previousTaskCardId,
+    learningGrowthGeneratedAfterCompletionAt: completedAt,
+  });
+}
+
+function completionGateForTask(task = {}, options = {}) {
+  const nowMs = parseTimeMs(options.nowIso || options.now || new Date().toISOString()) || Date.now();
+  const unlockAt = cleanString(
+    task.nextCompletionAllowedAt
+      || task.learningGrowthUnlockAt
+      || task.unlockAt
+      || task.availableAt
+      || task.notBefore,
+  );
+  const unlockMs = parseTimeMs(unlockAt);
+  if (unlockMs && unlockMs > nowMs) {
+    return {
+      ok: false,
+      status: "completion_window_locked",
+      nextCompletionAllowedAt: unlockAt,
+      retryAfterSeconds: Math.max(1, Math.ceil((unlockMs - nowMs) / 1000)),
+    };
+  }
+  return { ok: true, status: "open" };
 }
 
 function publicNextTaskResult(result = {}) {
@@ -93,6 +229,7 @@ function publicNextTaskResult(result = {}) {
     sequenceIndex: numberValue(result.sequenceIndex),
     modelStatus: cleanString(result.modelStatus),
     generatedAt: cleanString(result.generatedAt),
+    nextCompletionAllowedAt: cleanString(result.nextCompletionAllowedAt),
     error: cleanString(result.error),
   };
 }
@@ -116,15 +253,6 @@ function createLearningGrowthSequenceService(options = {}) {
     if (!currentTask || !previousTaskCardId) {
       return publicNextTaskResult({ ok: false, status: "task_not_found", previousTaskCardId, error: "Completed task was not found" });
     }
-    const candidates = listSequenceCandidates(programService, currentTask);
-    const nextTask = findNextSequenceTask(candidates.concat([currentTask]), currentTask);
-    if (!nextTask) {
-      return publicNextTaskResult({ ok: true, status: "no_next_task", previousTaskCardId });
-    }
-    const jitTaskService = getJitTaskService();
-    if (!jitTaskService || typeof jitTaskService.prepareTaskForCard !== "function") {
-      return publicNextTaskResult({ ok: false, status: "jit_unavailable", previousTaskCardId, taskCardId: nextTask.taskCardId, error: "Growth JIT task service is unavailable" });
-    }
     try {
       const program = typeof programService.getProgram === "function" && currentTask.programId
         ? (programService.getProgram(currentTask.programId) || {})
@@ -132,6 +260,41 @@ function createLearningGrowthSequenceService(options = {}) {
       const draft = typeof programService.repository?.getPlanDraft === "function" && currentTask.draftId
         ? (programService.repository.getPlanDraft(currentTask.draftId) || {})
         : {};
+      const completedAt = cleanString(input.completedAt) || nowIso();
+      const candidates = listSequenceCandidates(programService, currentTask);
+      const groupId = sequenceGroupForTask(currentTask);
+      const completedPolicy = perpetualPolicyForTask(currentTask, program, draft);
+      const nextCompletionAllowedAt = completedPolicy.enabled ? addHoursIso(completedAt, completedPolicy.minIntervalHours) : "";
+      if (typeof programService.repository?.upsertTaskCard === "function") {
+        programService.repository.upsertTaskCard(Object.assign({}, currentTask, {
+          status: "completed",
+          completedAt,
+          nextCompletionAllowedAt,
+          sequenceGroupId: groupId,
+        }));
+      }
+      let nextTask = findNextSequenceTask(candidates.concat([Object.assign({}, currentTask, { status: "completed" })]), currentTask);
+      let createdEvergreen = false;
+      if (!nextTask) {
+        if (!completedPolicy.enabled) {
+          return publicNextTaskResult({ ok: true, status: "no_next_task", previousTaskCardId, generatedAt: completedAt });
+        }
+        createdEvergreen = true;
+        nextTask = cloneEvergreenTask({
+          currentTask,
+          groupId,
+          sequenceIndex: latestSequenceIndex(candidates.concat([currentTask])) + 1,
+          previousTaskCardId,
+          completedAt,
+          generatedAt: completedAt,
+          availableAt: nextCompletionAllowedAt,
+          minIntervalHours: completedPolicy.minIntervalHours,
+        });
+      }
+      const jitTaskService = getJitTaskService();
+      if (!jitTaskService || typeof jitTaskService.prepareTaskForCard !== "function") {
+        return publicNextTaskResult({ ok: false, status: "jit_unavailable", previousTaskCardId, taskCardId: nextTask.taskCardId, error: "Growth JIT task service is unavailable" });
+      }
       const sequenceIndex = sequenceIndexForTask(nextTask);
       const recentLearningState = typeof jitTaskService.recentLearningState === "function"
         ? jitTaskService.recentLearningState({
@@ -154,21 +317,27 @@ function createLearningGrowthSequenceService(options = {}) {
       const generatedAt = nowIso();
       const updated = Object.assign({}, nextTask, prepared, {
         status: cleanString(nextTask.status) || "published",
+        sequenceGroupId: groupId,
         learningGrowthGeneratedAfterTaskCardId: previousTaskCardId,
-        learningGrowthGeneratedAfterCompletionAt: generatedAt,
+        learningGrowthGeneratedAfterCompletionAt: completedAt,
         learningGrowthSequenceVisibility: "current",
+        generatedAfterTaskCardId: previousTaskCardId,
+        generatedAfterCompletionAt: completedAt,
+        generatedAt,
+        nextCompletionAllowedAt: cleanString(nextTask.nextCompletionAllowedAt),
       });
       const saved = typeof programService.repository?.upsertTaskCard === "function"
         ? programService.repository.upsertTaskCard(updated)
         : updated;
       return publicNextTaskResult({
         ok: true,
-        status: "next_task_prepared",
+        status: createdEvergreen ? "next_task_created" : "next_task_prepared",
         previousTaskCardId,
         taskCardId: saved.taskCardId || nextTask.taskCardId,
         sequenceIndex,
         modelStatus: saved.learningGrowthJitGeneration?.modelStatus || saved.taskModel?.jitGeneration?.modelStatus,
         generatedAt,
+        nextCompletionAllowedAt: saved.nextCompletionAllowedAt,
       });
     } catch (err) {
       return publicNextTaskResult({
@@ -182,13 +351,17 @@ function createLearningGrowthSequenceService(options = {}) {
   }
 
   return {
+    completionGateForTask,
     prepareNextAfterCompletion,
   };
 }
 
 module.exports = {
+  cloneEvergreenTask,
+  completionGateForTask,
   createLearningGrowthSequenceService,
   findNextSequenceTask,
+  perpetualPolicyForTask,
   publicNextTaskResult,
   sequenceGroupForTask,
   sequenceIndexForTask,

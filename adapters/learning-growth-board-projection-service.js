@@ -24,6 +24,13 @@ function todayKey(clock = Date) {
   return Number.isNaN(now.getTime()) ? new Date().toISOString().slice(0, 10) : now.toISOString().slice(0, 10);
 }
 
+function parseTimeMs(value) {
+  const text = cleanString(value);
+  if (!text) return 0;
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function latestForTask(records = [], taskCardId = "", field = "updatedAt") {
   const id = cleanString(taskCardId);
   if (!id) return null;
@@ -53,11 +60,20 @@ function publicArtifactPreview(artifact) {
   };
 }
 
-function taskStatus(task = {}, latest = {}) {
+function taskLockedUntil(task = {}, nowIso = "") {
+  const unlockAt = cleanString(task.nextCompletionAllowedAt || task.learningGrowthUnlockAt || task.unlockAt || task.availableAt || task.notBefore);
+  if (!unlockAt) return "";
+  const unlockMs = parseTimeMs(unlockAt);
+  const nowMs = parseTimeMs(nowIso) || Date.now();
+  return unlockMs && unlockMs > nowMs ? unlockAt : "";
+}
+
+function taskStatus(task = {}, latest = {}, context = {}) {
   const nativeAction = cleanString(task?.nativeState?.nextAction);
   if (nativeAction) return nativeAction;
   const status = cleanString(task.status || task.executionStatus).toLowerCase();
   if (["completed", "done", "closed", "archived"].includes(status)) return "complete";
+  if (taskLockedUntil(task, context.nowIso)) return "locked_until";
   const reflectionStatus = cleanString(latest.reflection?.status);
   if (reflectionStatus === "accepted") return "complete";
   const evaluationStatus = cleanString(latest.evaluation?.status);
@@ -68,8 +84,9 @@ function taskStatus(task = {}, latest = {}) {
   return "submit";
 }
 
-function laneForTask(task = {}, latest = {}, today = todayKey()) {
-  const action = taskStatus(task, latest);
+function laneForTask(task = {}, latest = {}, today = todayKey(), context = {}) {
+  const action = taskStatus(task, latest, context);
+  if (action === "locked_until") return "locked_until";
   if (action === "spoken_reflection") return "reflection_required";
   if (action === "revise") return "needs_revision";
   if (action === "waiting_feedback") return "waiting_ai";
@@ -79,6 +96,7 @@ function laneForTask(task = {}, latest = {}, today = todayKey()) {
 }
 
 function primaryActionForLane(laneId, action) {
+  if (laneId === "locked_until") return "locked";
   if (laneId === "waiting_ai") return "wait";
   if (laneId === "needs_revision") return "revise";
   if (laneId === "reflection_required") return "reflect";
@@ -119,7 +137,7 @@ function taskComplete(card = {}) {
 
 function actionModel(laneId, action) {
   return {
-    canSubmit: action === "submit" || action === "revise",
+    canSubmit: laneId !== "locked_until" && (action === "submit" || action === "revise"),
     canWithdraw: action === "waiting_feedback",
     canReflect: action === "spoken_reflection",
     canOpenArtifacts: laneId === "completed_recent" || laneId === "reflection_required" || laneId === "needs_revision",
@@ -137,9 +155,10 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
   const artifacts = arrayValue(context.artifacts)
     .filter((artifact) => cleanString(artifact?.taskCardId) === taskCardId)
     .map(publicArtifactPreview);
-  const action = taskStatus(task, latest);
-  const laneId = laneForTask(task, latest, context.today);
+  const action = taskStatus(task, latest, context);
+  const laneId = laneForTask(task, latest, context.today, context);
   const actions = actionModel(laneId, action);
+  const nextCompletionAllowedAt = cleanString(task.nextCompletionAllowedAt || task.learningGrowthUnlockAt || task.unlockAt || task.availableAt || task.notBefore);
   return {
     taskCardId,
     todoId: cleanString(task.todoId || task.kanbanCardId),
@@ -166,6 +185,7 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     plannedDate: cleanString(task.plannedDate),
     plannedMinutes: numberValue(task.plannedMinutes),
     status: cleanString(task.status || task.executionStatus),
+    nextCompletionAllowedAt,
     nextAction: action,
     laneId,
     latestSubmission: latest.submission || null,
@@ -223,6 +243,7 @@ function defaultLanes() {
   return [
     { id: "today", title: "Today", cards: [] },
     { id: "ready", title: "Ready", cards: [] },
+    { id: "locked_until", title: "Locked until next window", cards: [] },
     { id: "waiting_ai", title: "Waiting for AI", cards: [] },
     { id: "needs_revision", title: "Needs revision", cards: [] },
     { id: "reflection_required", title: "Reflection required", cards: [] },
@@ -263,8 +284,11 @@ function buildLearningGrowthBoard(input = {}) {
   const overview = input.overview && typeof input.overview === "object" ? input.overview : {};
   const programs = overview.programs && typeof overview.programs === "object" ? overview.programs : {};
   const today = input.today || todayKey(input.clock || Date);
+  const clock = input.clock || Date;
+  const nowIso = input.nowIso || (typeof clock.now === "function" ? new Date(clock.now()).toISOString() : new Date().toISOString());
   const context = {
     today,
+    nowIso,
     submissions: arrayValue(programs.taskSubmissions),
     evaluations: arrayValue(programs.evaluations),
     reflections: arrayValue(programs.taskReflections),

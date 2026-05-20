@@ -639,6 +639,11 @@ function createLearningGrowthSubmissionService(options = {}) {
     return programService.listEvaluations({ taskCardId, limit: 1 })[0] || null;
   }
 
+  function completionWindowGate(task) {
+    if (!task || !sequenceService || typeof sequenceService.completionGateForTask !== "function") return { ok: true };
+    return sequenceService.completionGateForTask(task, { nowIso: new Date(now()).toISOString() });
+  }
+
   async function prepareNextSequenceTask(input = {}) {
     if (!sequenceService || typeof sequenceService.prepareNextAfterCompletion !== "function") return null;
     try {
@@ -680,6 +685,12 @@ function createLearningGrowthSubmissionService(options = {}) {
     const submissionKind = submissionKindForStage(loaded.card, input, stage);
     const programService = getProgramService(options);
     const nativeTask = loaded.nativeTask || resolveProgramTaskCard(programService, loaded.card);
+    const gate = completionWindowGate(nativeTask);
+    if (!gate.ok) {
+      return createError(409, "This Growth sequence can only complete one card in the configured time window", {
+        completionGate: gate,
+      });
+    }
     const submissionRecordService = submissionRecords();
     let nativeSubmission = null;
     if (submissionRecordService && nativeTask) {

@@ -168,18 +168,32 @@ async function run() {
       draftId: "draft-jit",
       dailyPlans: [{
         date: "2026-05-20",
-        tasks: [{
-          taskId: "grammar-task",
-          title: "Grammar repair",
-          learnerInstruction: "Repair the target grammar pattern in short English expressions.",
-          skillIds: ["english_grammar_in_expression"],
-          taskModel: {
-            version: "learning-task-model-v1",
-            skillId: "english_grammar_in_expression",
-            activityType: "grammar",
-            learnerInstruction: "Repair the target grammar pattern.",
+        tasks: [
+          {
+            taskId: "grammar-task",
+            title: "Grammar repair",
+            learnerInstruction: "Repair the target grammar pattern in short English expressions.",
+            skillIds: ["english_grammar_in_expression"],
+            taskModel: {
+              version: "learning-task-model-v1",
+              skillId: "english_grammar_in_expression",
+              activityType: "grammar",
+              learnerInstruction: "Repair the target grammar pattern.",
+            },
           },
-        }],
+          {
+            taskId: "future-task",
+            title: "Future grammar repair",
+            learnerInstruction: "PREGENERATED FUTURE QUESTION SHOULD NOT LEAK",
+            skillIds: ["english_grammar_in_expression"],
+            taskModel: {
+              version: "learning-task-model-v1",
+              skillId: "english_grammar_in_expression",
+              activityType: "grammar",
+              learnerInstruction: "PREGENERATED FUTURE MODEL QUESTION SHOULD NOT LEAK",
+            },
+          },
+        ],
       }],
     },
   });
@@ -187,13 +201,20 @@ async function run() {
   assert.equal(jitCalls.length, 1);
   assert.equal(modelCalls.length, 1);
   assert.equal(jitPublishCalls.length, 1);
+  assert.equal(jitPublishCalls[0].input.cards.length, 2);
   const jitCard = jitPublishCalls[0].input.cards[0];
   assert.match(jitCard.description, /模型生成/);
   assert.match(jitCard.description, /tense agreement/);
   assert.equal(jitCard.taskModel.jitGeneration.status, "ready");
   assert.equal(jitCard.taskModel.jitGeneration.modelStatus, "completed");
   assert.deepEqual(jitCard.taskModel.jitGeneration.sourceRefs, ["progress:grammar-1"]);
+  const futureCard = jitPublishCalls[0].input.cards[1];
+  assert.equal(futureCard.learningGrowthJitPending, true);
+  assert.equal(futureCard.learningGrowthSequenceVisibility, "locked_future");
+  assert.doesNotMatch(futureCard.description, /PREGENERATED FUTURE/);
+  assert.equal(futureCard.taskModel.jitGeneration, undefined);
   assert.equal(jitResult.draft.dailyPlans[0].tasks[0].taskModel.jitGeneration.ready, true);
+  assert.equal(jitResult.draft.dailyPlans[0].tasks[1].learningGrowthJitPending, true);
   assert.doesNotMatch(JSON.stringify(jitCard), /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);
 }
 
