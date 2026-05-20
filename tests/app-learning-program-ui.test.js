@@ -220,7 +220,31 @@ function testNonOwnerCannotSeeCreateForm() {
   assert.match(html, /data-learning-program-id="program-1"/);
 }
 
+function testNativeTaskWithKanbanLinkOpensLinkedCard() {
+  const html = ProgramUi.renderProgramSubsystem({
+    programs: Object.assign({}, programs, {
+      executableTasks: [{
+        taskCardId: "task-native-1",
+        kanbanCardId: "kanban-native-1",
+        source: "learning-growth",
+        title: "Native Growth task",
+        status: "published",
+        executionStatus: "pending_execution",
+        workspaceId: "weixin_stephen",
+        plannedDate: "2026-05-19",
+        plannedMinutes: 20,
+        skillIds: ["english_short_writing"],
+      }],
+    }),
+    state: { auth: { isOwner: false } },
+  });
+  assert.match(html, /data-learning-executable-task-id="task-native-1"/);
+  assert.match(html, /data-learning-open-kanban-card="kanban-native-1"/);
+  assert.doesNotMatch(html, /data-learning-task-start="task-native-1"/);
+}
+
 testOwnerFormAndActionsRender();
 testNonOwnerCannotSeeCreateForm();
+testNativeTaskWithKanbanLinkOpensLinkedCard();
 
 console.log("app learning program ui tests passed");

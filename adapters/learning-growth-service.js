@@ -75,8 +75,10 @@ function projectTaskCardForExecutor(task) {
   return copyFields(task, [
     "taskCardId",
     "programId",
+    "draftId",
     "learnerId",
     "workspaceId",
+    "kanbanCardId",
     "title",
     "status",
     "taskCardType",
@@ -85,6 +87,8 @@ function projectTaskCardForExecutor(task) {
     "plannedDate",
     "plannedMinutes",
     "skillIds",
+    "templateId",
+    "summary",
     "createdAt",
     "updatedAt",
   ]);
@@ -95,8 +99,10 @@ function projectExecutableTaskForExecutor(task) {
     "taskCardId",
     "todoId",
     "source",
+    "kanbanCardId",
     "title",
     "status",
+    "executionStatus",
     "kanbanStatus",
     "taskCardType",
     "taskModel",
@@ -115,6 +121,9 @@ function projectExecutableTaskForExecutor(task) {
     "kanbanCaseCardId",
     "hasInstruction",
     "openUrl",
+    "summary",
+    "templateId",
+    "privacyLevel",
   ]);
 }
 
@@ -302,6 +311,22 @@ function learningGrowthReliabilitySummary() {
   };
 }
 
+function executableTaskKey(task = {}) {
+  return cleanString(task.taskCardId || task.todoId || task.kanbanCardId);
+}
+
+function mergeExecutableTasks(primary = [], secondary = []) {
+  const seen = new Set();
+  const out = [];
+  for (const task of arrayValue(primary).concat(arrayValue(secondary))) {
+    const key = executableTaskKey(task);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(task);
+  }
+  return out;
+}
+
 function buildLearningGrowthOverview(input = {}, deps = {}) {
   const request = normalizeLearningGrowthRequest(input);
   const viewerRole = normalizeViewerRole(input);
@@ -323,7 +348,8 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
         limit: request.limit,
       })
     : null;
-  const executableTasks = arrayValue(input.executableTasks);
+  const nativeExecutableTasks = arrayValue(programOverview?.executableTasks);
+  const executableTasks = mergeExecutableTasks(nativeExecutableTasks, input.executableTasks);
   const metrics = coinMetric(coins || {});
   const launchOperations = programOverview
     ? buildLearningLaunchOperations({ programs: programOverview, coins, metrics })

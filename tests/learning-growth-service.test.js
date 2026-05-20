@@ -53,8 +53,20 @@ function makeProgramService() {
         goals: [{ goalId: "goal-1", title: "Parent goal" }],
         taskCards: [{
           taskCardId: "task-1",
+          kanbanCardId: "kanban-1",
           title: "Task",
           status: "published",
+          skillIds: ["english_speaking_retell"],
+          taskModel: { skillId: "english_speaking_retell" },
+        }],
+        executableTasks: [{
+          taskCardId: "task-1",
+          kanbanCardId: "kanban-1",
+          todoId: "kanban-1",
+          source: "learning-growth",
+          title: "Task",
+          status: "published",
+          executionStatus: "pending_execution",
           skillIds: ["english_speaking_retell"],
           taskModel: { skillId: "english_speaking_retell" },
         }],
@@ -123,13 +135,17 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   assert.equal(overview.launchOperations.version, "learning-growth-launch-ops-v1");
   assert.equal(overview.launchOperations.counts.pendingRedemptions, 1);
   assert.equal(overview.programs.launchOperations.version, "learning-growth-launch-ops-v1");
+  assert.equal(overview.programs.executableTasks.length, 1);
+  assert.equal(overview.programs.executableTasks[0].source, "learning-growth");
+  assert.equal(overview.programs.counts.executableTasks, 1);
   const withExecutable = service.overview({
     workspaceId: "weixin_stephen",
     learnerId: "weixin_stephen",
     executableTasks: [{ taskCardId: "t_growth", todoId: "t_growth", source: "kanban", title: "Visible task", status: "published", taskModel: { skillId: "english_short_writing" } }],
   });
-  assert.equal(withExecutable.programs.counts.executableTasks, 1);
-  assert.equal(withExecutable.programs.executableTasks[0].todoId, "t_growth");
+  assert.equal(withExecutable.programs.counts.executableTasks, 2);
+  assert.equal(withExecutable.programs.executableTasks[0].source, "learning-growth");
+  assert.equal(withExecutable.programs.executableTasks[1].todoId, "t_growth");
   assert.ok(overview.nextModules.some((item) => item.id === "ai-reliability-guard-service"));
   assert.deepEqual(coinService.calls[0], { workspaceId: "weixin_stephen", studentId: "weixin_stephen", limit: 5 });
 }
@@ -175,7 +191,9 @@ function testExecutorOverviewStripsOwnerManagementData() {
     daysPerWeek: 5,
   });
   assert.equal(overview.programs.dailyPlan.summary.totalTasks, 1);
-  assert.deepEqual(overview.programs.executableTasks || [], []);
+  assert.equal(overview.programs.executableTasks.length, 1);
+  assert.equal(overview.programs.executableTasks[0].source, "learning-growth");
+  assert.equal(overview.programs.executableTasks[0].kanbanCardId, "kanban-1");
   assert.equal(overview.programs.interactionSessions[0].status, "active");
   assert.equal(overview.programs.interactionSessions[0].currentStep, "learner_attempt");
   assert.equal(overview.programs.taskCards[0].answerKey, undefined);

@@ -32,11 +32,14 @@ function executionQueueSummary(task = {}) {
   const taskModel = task.taskModel && typeof task.taskModel === "object"
     ? learningTaskModelSummary(task.taskModel)
     : learningTaskModelSummary(buildLearningTaskModel(task));
+  const kanbanCardId = cleanString(task.kanbanCardId);
   return {
     taskCardId: task.taskCardId,
     programId: task.programId,
     draftId: task.draftId,
     kanbanCardId: task.kanbanCardId,
+    todoId: kanbanCardId,
+    source: "learning-growth",
     learnerId: task.learnerId,
     workspaceId: task.workspaceId,
     title: task.title,
@@ -51,6 +54,7 @@ function executionQueueSummary(task = {}) {
     taskModel,
     privacyLevel: "summary_only",
     summary: task.summary,
+    openUrl: kanbanCardId ? `/?view=todos&workspaceId=${encodeURIComponent(task.workspaceId || "")}&todoId=${encodeURIComponent(kanbanCardId)}` : "",
   };
 }
 
@@ -133,7 +137,6 @@ function createLearningTaskCardService(options = {}) {
     const cards = [];
     for (const status of statuses) {
       for (const card of repository.listTaskCards(Object.assign({}, filters, { status }))) {
-        if (status === "published" && !cleanString(card.kanbanCardId)) continue;
         if (seen.has(card.taskCardId)) continue;
         seen.add(card.taskCardId);
         cards.push(executionQueueSummary(card));

@@ -81,6 +81,11 @@ function sendRouteError(deps, res, err) {
   deps.sendJson(res, err.status || 500, { error: err.message || String(err) });
 }
 
+function wantsKanbanCompatibility(url) {
+  const value = String(url?.searchParams?.get("includeKanbanProjection") || url?.searchParams?.get("includeKanban") || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
+}
+
 function createLearningApiRoutes(deps = {}) {
   requireFunctions(deps, ["isOwnerAuth", "requireWorkspaceAccess", "sendJson"]);
   const learningGrowthService = deps.learningGrowthService || createLearningGrowthService({
@@ -124,7 +129,7 @@ function createLearningApiRoutes(deps = {}) {
     if (!input) return;
     const owner = deps.isOwnerAuth(auth);
     let executableTasks = [];
-    if (learningGrowthTaskService && typeof learningGrowthTaskService.listExecutableTasks === "function") {
+    if (wantsKanbanCompatibility(url) && learningGrowthTaskService && typeof learningGrowthTaskService.listExecutableTasks === "function") {
       const listed = await learningGrowthTaskService.listExecutableTasks(input).catch((err) => ({
         ok: false,
         error: err?.message || String(err),

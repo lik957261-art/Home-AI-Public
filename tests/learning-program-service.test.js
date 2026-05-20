@@ -138,6 +138,9 @@ async function testCreateDraftApprovePublish() {
   assert.equal(overview.sources.length, 3);
   assert.equal(overview.goals.length, 1);
   assert.equal(overview.taskCards.length, drafted.draft.taskCount);
+  assert.equal(overview.executableTasks.length, drafted.draft.taskCount);
+  assert.ok(overview.executableTasks.every((task) => task.source === "learning-growth"));
+  assert.ok(overview.executableTasks.every((task) => task.kanbanCardId));
   assert.equal(overview.dailyPlan.summary.totalTasks, drafted.draft.taskCount);
   assert.equal(overview.dailyPlan.privacyLevel, "summary_only");
   assert.equal(overview.interactionSessions.length, drafted.draft.taskCount);

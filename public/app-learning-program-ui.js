@@ -527,7 +527,7 @@
   function renderTaskAction(task, session, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(task?.taskCardId || "");
-    const todoId = String(task?.todoId || "");
+    const todoId = String(task?.todoId || task?.kanbanCardId || "");
     const workspaceId = String(task?.workspaceId || "");
     const status = String(task?.status || "");
     if (todoId || task?.source === "kanban") {

@@ -207,7 +207,28 @@ async function testStudentReadsOwnOverviewAsExecutor() {
   });
 }
 
-async function testOverviewIncludesExecutableKanbanTasksWhenAvailable() {
+async function testOverviewSkipsKanbanProjectionByDefault() {
+  let kanbanCalls = 0;
+  const { routes, growthInputs } = makeRoutes({
+    learningGrowthTaskService: {
+      async listExecutableTasks() {
+        kanbanCalls += 1;
+        return {
+          ok: true,
+          tasks: [{ taskCardId: "t_growth", todoId: "t_growth", source: "kanban", status: "published" }],
+        };
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning-growth/overview?workspaceId=weixin_stephen&studentId=weixin_stephen", {
+    auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(kanbanCalls, 0);
+  assert.equal(growthInputs[0].executableTasks, undefined);
+}
+
+async function testOverviewIncludesExecutableKanbanTasksOnlyWhenRequested() {
   const { routes, growthInputs } = makeRoutes({
     learningGrowthTaskService: {
       async listExecutableTasks(input) {
@@ -220,7 +241,7 @@ async function testOverviewIncludesExecutableKanbanTasksWhenAvailable() {
       },
     },
   });
-  const response = await request(routes, "GET", "/api/learning-growth/overview?workspaceId=weixin_stephen&studentId=weixin_stephen", {
+  const response = await request(routes, "GET", "/api/learning-growth/overview?workspaceId=weixin_stephen&studentId=weixin_stephen&includeKanbanProjection=1", {
     auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
   });
   assert.equal(response.res.statusCode, 200);
@@ -245,7 +266,8 @@ async function testStudentCannotReadAnotherLearner() {
   await testOwnerDefaultOverviewUsesFanfanLearnerBinding();
   await testOwnerWorkspaceWithLearnerUsesExecutorWorkspace();
   await testStudentReadsOwnOverviewAsExecutor();
-  await testOverviewIncludesExecutableKanbanTasksWhenAvailable();
+  await testOverviewSkipsKanbanProjectionByDefault();
+  await testOverviewIncludesExecutableKanbanTasksOnlyWhenRequested();
   await testStudentCannotReadAnotherLearner();
   await testOwnerCanReadLearningStatusReadiness();
   await testExecutorCannotReadLearningStatus();

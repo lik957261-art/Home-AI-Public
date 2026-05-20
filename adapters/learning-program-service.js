@@ -487,6 +487,7 @@ function createLearningProgramService(options = {}) {
     const profile = learnerProfileService.get({ learnerId, workspaceId });
     const curriculumReferences = curriculumReferenceService.listReferences({ limit: 20 });
     const taskCards = taskCardService.list({ learnerId, workspaceId, limit: input.limit || 20 });
+    const executableTasks = taskCardService.listExecutorQueue({ learnerId, workspaceId, limit: input.limit || 20 });
     const interactionSessions = interactionSessionService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     const evaluations = evaluationService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     const currentDailyPlan = dailyPlanService.dailyPlan({ learnerId, workspaceId, days: input.days || 7, limit: input.limit || 50 });
@@ -502,6 +503,7 @@ function createLearningProgramService(options = {}) {
       goals,
       dailyPlan: currentDailyPlan,
       taskCards,
+      executableTasks,
       interactionSessions,
       evaluations,
       parentReviewRequests,

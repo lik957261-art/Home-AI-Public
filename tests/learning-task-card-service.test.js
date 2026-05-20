@@ -113,6 +113,9 @@ function testExecutorQueueIsSummaryOnly() {
   assert.equal(queue.length, 1);
   assert.equal(queue[0].status, "published");
   assert.equal(queue[0].executionStatus, "pending_execution");
+  assert.equal(queue[0].source, "learning-growth");
+  assert.equal(queue[0].kanbanCardId, "kanban-1");
+  assert.equal(queue[0].todoId, "kanban-1");
   assert.equal(queue[0].summary, "summary only");
   assert.equal(queue[0].taskModel.version, "learning-task-model-v1");
   assert.equal(queue[0].taskModel.skillId, "english_speaking_retell");
@@ -122,7 +125,7 @@ function testExecutorQueueIsSummaryOnly() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-function testExecutorQueueExcludesUnpublishedKanbanLinks() {
+function testExecutorQueueIncludesNativeTasksWithoutKanbanLinks() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
   const draft = seed(repository);
@@ -144,12 +147,17 @@ function testExecutorQueueExcludesUnpublishedKanbanLinks() {
       }],
     }),
   });
-  assert.equal(service.listExecutorQueue({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" }).length, 0);
+  const queue = service.listExecutorQueue({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].source, "learning-growth");
+  assert.equal(queue[0].kanbanCardId, "");
+  assert.equal(queue[0].todoId, "");
+  assert.equal(queue[0].executionStatus, "pending_execution");
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
 
 testMaterializeDraft();
 testExecutorQueueIsSummaryOnly();
-testExecutorQueueExcludesUnpublishedKanbanLinks();
+testExecutorQueueIncludesNativeTasksWithoutKanbanLinks();
 console.log("learning task card service tests passed");
