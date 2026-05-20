@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-chat-scope-race-v45";
+const CLIENT_VERSION = "20260521-single-window-race-v46";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -735,6 +735,11 @@ assert.match(appJs, /const reloadTaskWindow = currentTaskThreadIsSharedTopicThre
 assert.match(appJs, /restoreTaskListThreadFromCache\(\{ stickToBottom: true \}\)/);
 assert.match(appJs, /loadSingleWindow\(\{ groupChat: false, weixinChat: false \}\)\.catch\(showError\)/);
 assert.match(appJs, /function loadSingleWindow\(options = \{\}\)/);
+assert.match(appJs, /singleWindowRequestSeq: 0/);
+assert.match(appJs, /function currentSingleWindowMessageMode\(\)/);
+assert.match(appJs, /function singleWindowRequestStillCurrent\(request = \{\}\)/);
+assert.match(appJs, /state\.singleWindowRequestSeq = request\.seq/);
+assert.match(appJs, /if \(!singleWindowRequestStillCurrent\(request\)\) return;/);
 assert.match(appJs, /timeoutMs: 12000/);
 assert.match(indexHtml, /id="conversationJumpBottom"/);
 assert.match(appJs, /function wireConversationJumpBottomButton\(\)/);
@@ -1482,7 +1487,7 @@ assert.match(appJs, /const canonicalId = String\(result\.canonicalCardId \|\| to
 assert.match(appJs, /replaceTodoDetailRouteFlag\(canonicalId, "readingQuiz"\)/);
 assert.match(appJs, /function writeReadingQuizDraft\(todoId\)/);
 assert.match(appJs, /function clearReadingQuizDrafts\(todoId\)/);
-assert.match(appJs, /const messageMode = state\.viewMode === "single" && state\.singleWindowMode === "chat"/);
+assert.match(appJs, /const messageMode = request\.messageMode/);
 assert.match(appJs, /messageMode === "tasks" \? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT/);
 assert.match(appJs, /shouldPreserveMessageOutsideIncomingPage\(message\)/);
 assert.match(appJs, /function loadOlderChatMessages\(\)/);

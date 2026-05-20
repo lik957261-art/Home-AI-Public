@@ -453,6 +453,7 @@ const state = {
   currentThreadRefreshInFlight: false,
   currentThreadRefreshPending: false,
   currentThreadRefreshTimer: 0,
+  singleWindowRequestSeq: 0,
   currentTaskGroupId: "",
   viewMode: initialHermesViewMode(),
   singleWindowMode: localStorage.getItem("hermesWebSingleWindowMode") || "chat",

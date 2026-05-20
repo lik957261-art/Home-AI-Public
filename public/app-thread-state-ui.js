@@ -78,7 +78,39 @@ function mergeCurrentThread(incomingThread) {
   return Object.assign({}, state.currentThread, incomingThread, { messages: sortedMessages, messagesPage });
 }
 
+function currentSingleWindowMessageMode() {
+  return state.viewMode === "single" && state.singleWindowMode === "chat"
+    ? "chat"
+    : (state.viewMode === "tasks" || state.singleWindowMode === "task" ? "tasks" : "");
+}
+
+function singleWindowRequestStillCurrent(request = {}) {
+  if (state.singleWindowRequestSeq !== request.seq) return false;
+  if (String(state.selectedWorkspaceId || "") !== request.workspaceId) return false;
+  if (String(state.viewMode || "") !== request.viewMode) return false;
+  if (String(state.singleWindowMode || "") !== request.singleWindowMode) return false;
+  if (currentSingleWindowMessageMode() !== request.messageMode) return false;
+  if (request.messageMode === "tasks") {
+    return String(state.currentTaskGroupId || "") === request.taskGroupId;
+  }
+  if (request.messageMode === "chat") {
+    const currentWeixinChat = Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.weixinChatOpen);
+    const currentGroupChat = currentWeixinChat ? false : Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.groupChatOpen);
+    return currentWeixinChat === request.weixinChat && currentGroupChat === request.groupChat;
+  }
+  return true;
+}
+
 async function loadSingleWindow(options = {}) {
+  const request = {
+    seq: state.singleWindowRequestSeq + 1,
+    workspaceId: String(state.selectedWorkspaceId || ""),
+    viewMode: String(state.viewMode || ""),
+    singleWindowMode: String(state.singleWindowMode || ""),
+    taskGroupId: String(state.currentTaskGroupId || ""),
+    messageMode: currentSingleWindowMessageMode(),
+  };
+  state.singleWindowRequestSeq = request.seq;
   const weixinChat = Boolean(options.weixinChat ?? (
     state.viewMode === "single"
     && state.singleWindowMode === "chat"
@@ -89,21 +121,22 @@ async function loadSingleWindow(options = {}) {
     && state.singleWindowMode === "chat"
     && state.groupChatOpen
   ));
-  const messageMode = state.viewMode === "single" && state.singleWindowMode === "chat"
-    ? "chat"
-    : (state.viewMode === "tasks" || state.singleWindowMode === "task" ? "tasks" : "");
+  request.weixinChat = weixinChat;
+  request.groupChat = groupChat;
+  const messageMode = request.messageMode;
   const result = await api("/api/single-window", {
     method: "POST",
     body: JSON.stringify({
-      workspaceId: state.selectedWorkspaceId,
+      workspaceId: request.workspaceId,
       groupChat,
       weixinChat,
       messageMode,
-      taskGroupId: messageMode === "tasks" ? state.currentTaskGroupId : "",
+      taskGroupId: messageMode === "tasks" ? request.taskGroupId : "",
       messageLimit: messageMode === "tasks" ? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT,
     }),
     timeoutMs: 12000,
   });
+  if (!singleWindowRequestStillCurrent(request)) return;
   state.currentThread = mergeCurrentThread(result.thread);
   if (result.groupChatThread) {
     state.groupChatThread = mergeChatScopeThread(state.groupChatThread, result.groupChatThread);
