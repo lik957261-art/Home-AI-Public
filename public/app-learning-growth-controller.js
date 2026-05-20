@@ -35,6 +35,10 @@ function learningCoinCurrentScopeKey() {
   return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`;
 }
 
+function isLearningGrowthViewActive() {
+  return state.viewMode === "learning";
+}
+
 function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
   state.learningGrowth = null;
@@ -50,6 +54,7 @@ function resetLearningCoinsState() {
 }
 
 function renderLearningCoinsView() {
+  if (!isLearningGrowthViewActive()) return;
   state.currentThread = null;
   state.currentThreadId = "";
   state.currentTaskGroupId = "";
@@ -160,7 +165,7 @@ async function loadLearningCoins(options = {}) {
   } finally {
     if (seq === state.learningCoinRequestSeq) {
       state.learningCoinsLoading = false;
-      renderLearningCoinsView();
+      if (scopeKey === learningCoinCurrentScopeKey()) renderLearningCoinsView();
     }
   }
 }

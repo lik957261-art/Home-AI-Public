@@ -146,7 +146,7 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
     const responseThread = wantsMessagePage
       ? deps.compactThreadWithMessagePage(thread, {
         mode: messageMode,
-        groupChat: groupRequested && !weixinRequested,
+        groupChat: Boolean(groupThread) && !weixinRequested,
         taskGroupId: messageMode === "tasks" || messageMode === "task"
           ? ""
           : (body.taskGroupId || body.task_group_id || ""),

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-chat-entry-page-v44";
+const CLIENT_VERSION = "20260521-chat-scope-race-v45";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -896,6 +896,9 @@ assert.match(appJs, /params\.set\("workspaceId", learningGrowthLearnerWorkspaceI
 assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(appLearningGrowthControllerJs, /function setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
 assert.match(appLearningGrowthControllerJs, /if \(!state\.auth\?\.isOwner && state\.workspaces\.some\(\(item\) => item\.id === targetWorkspaceId\)\)/);
+assert.match(appLearningGrowthControllerJs, /function isLearningGrowthViewActive\(\) \{\s*return state\.viewMode === "learning";\s*\}/);
+assert.match(appLearningGrowthControllerJs, /function renderLearningCoinsView\(\) \{\s*if \(!isLearningGrowthViewActive\(\)\) return;/);
+assert.match(appLearningGrowthControllerJs, /state\.learningCoinsLoading = false;\s*if \(scopeKey === learningCoinCurrentScopeKey\(\)\) renderLearningCoinsView\(\);/);
 assert.match(appLearningGrowthControllerJs, /loadTodos\(\{ skipCache: true, includeCompleted: true, freshServer: true, targetId: id, workspaceId: targetWorkspaceId \}\)/);
 assert.match(appJs, /if \(workspaceId && routeView === "learning" && taskCardId\) \{\s*setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
 assert.match(appJs, /payload\.workspaceId === learningGrowthLearnerWorkspaceId\(\)/);

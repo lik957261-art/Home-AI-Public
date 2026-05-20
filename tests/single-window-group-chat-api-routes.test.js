@@ -279,6 +279,37 @@ async function main() {
   }
 
   {
+    const { routes, calls } = makeRoutes({
+      ensureSingleWindowThread(workspaceId) {
+        return {
+          id: "child-private-thread",
+          singleWindow: true,
+          workspaceId,
+          messages: [{ id: "child-private-1", taskGroupId: "chat", content: "child private" }],
+        };
+      },
+      findGroupChatThreadForWorkspace() {
+        return null;
+      },
+      findWeixinSingleWindowThreadForWorkspace() {
+        return null;
+      },
+      weixinForwardTargetsForWorkspace() {
+        return [];
+      },
+    });
+    const got = await request(routes, "POST", "/api/single-window", {
+      body: { workspaceId: "child-a", messageMode: "chat", groupChat: true, messageLimit: 5 },
+      auth: { ok: true, workspaceId: "owner" },
+    });
+    assert.equal(got.res.statusCode, 200);
+    assert.equal(got.body.thread.id, "child-private-thread");
+    assert.equal(got.body.groupChatAvailable, false);
+    assert.deepEqual(calls.compactWithPage.map((item) => item.threadId), ["child-private-thread"]);
+    assert.equal(calls.compactWithPage[0].options.groupChat, false);
+  }
+
+  {
     const { routes, calls } = makeRoutes();
     const got = await request(routes, "POST", "/api/single-window", {
       body: { workspaceId: "owner", messageLimit: 5 },
