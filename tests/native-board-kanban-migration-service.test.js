@@ -79,6 +79,19 @@ function todoCard() {
   };
 }
 
+function legacyLearningCardWithoutProgram() {
+  return {
+    id: "kanban-learning-legacy-1",
+    workspaceId: "weixin_stephen",
+    assignee: "weixin_stephen",
+    content: "Legacy reading task",
+    status: "open",
+    kanbanCaseTemplate: "reading",
+    learningGrowthSubmissionText: "must not be copied",
+    localPath: "C:\\private\\legacy.md",
+  };
+}
+
 async function testMigrationCreatesNativeTaskAndTodo() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
@@ -91,19 +104,24 @@ async function testMigrationCreatesNativeTaskAndTodo() {
       repository,
       mobileStore,
     });
-    const result = await service.migrate({ cards: [growthCard(), todoCard()], dryRun: false });
+    const result = await service.migrate({ cards: [growthCard(), legacyLearningCardWithoutProgram(), todoCard()], dryRun: false });
     assert.equal(result.ok, true);
-    assert.equal(result.counts.learning, 1);
+    assert.equal(result.counts.learning, 2);
     assert.equal(result.counts.learningCreated, 1);
+    assert.equal(result.counts.learningArchived, 1);
+    assert.equal(result.counts.learningSkipped, 0);
     assert.equal(result.counts.growthBackfilled, 1);
-    assert.equal(result.counts.nativeTodos, 1);
+    assert.equal(result.counts.nativeTodos, 2);
     const task = repository.listTaskCards({ kanbanCardId: "kanban-growth-1", limit: 1 })[0];
     assert.equal(task.kanbanCardId, "kanban-growth-1");
     assert.equal(repository.listEvaluations({ taskCardId: task.taskCardId }).length, 1);
     assert.equal(repository.listTaskArtifacts({ taskCardId: task.taskCardId })[0].name, "feedback.md");
     const todo = mobileStore.getTodoItem("kanban-todo-1");
     assert.equal(todo.content, "Family task");
-    const serialized = JSON.stringify({ task, todo, artifacts: repository.listTaskArtifacts({ taskCardId: task.taskCardId }) });
+    const archived = mobileStore.getTodoItem("kanban-learning-legacy-1");
+    assert.equal(archived.content, "Legacy reading task");
+    assert.equal(result.results.find((item) => item.kanbanCardId === "kanban-learning-legacy-1").target, "native-todo-archive");
+    const serialized = JSON.stringify({ task, todo, archived, artifacts: repository.listTaskArtifacts({ taskCardId: task.taskCardId }) });
     assert.doesNotMatch(serialized, /must not be copied|C:\\private/);
   } finally {
     repository.close();

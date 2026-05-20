@@ -219,6 +219,18 @@ function createNativeBoardKanbanMigrationService(options = {}) {
     }
   }
 
+  function importNativeTodo(card, index, dryRun) {
+    const todo = safeTodoFromCard(card, index);
+    if (!dryRun && mobileStore && typeof mobileStore.importTodoItem === "function") {
+      try {
+        mobileStore.importTodoItem(todo, index);
+      } catch (err) {
+        return { todo, status: "error", reason: cleanString(err.message || err, 240) };
+      }
+    }
+    return { todo, status: dryRun ? "would-import" : "imported", reason: "" };
+  }
+
   async function migrate(input = {}) {
     const dryRun = input.dryRun !== false;
     const cards = (await loadCards(kanbanCardProvider, input))
@@ -229,6 +241,7 @@ function createNativeBoardKanbanMigrationService(options = {}) {
       learningCreated: 0,
       learningMatched: 0,
       learningSkipped: 0,
+      learningArchived: 0,
       growthBackfilled: 0,
       nativeTodos: 0,
       errors: 0,
@@ -243,9 +256,32 @@ function createNativeBoardKanbanMigrationService(options = {}) {
         const ensured = await ensureLearningTask(card, dryRun);
         if (ensured.status === "created" || ensured.status === "would-create") counts.learningCreated += 1;
         if (ensured.status === "matched") counts.learningMatched += 1;
-        if (ensured.status === "skipped") counts.learningSkipped += 1;
         if (ensured.status === "error") counts.errors += 1;
         let backfill = null;
+        if (ensured.status === "skipped" && ensured.reason === "missing-program-or-draft") {
+          const archived = importNativeTodo(card, index, dryRun);
+          if (archived.status === "error") {
+            counts.errors += 1;
+            results.push({
+              kanbanCardId: id,
+              status: "error",
+              target: "native-todo-archive",
+              reason: archived.reason,
+            });
+            continue;
+          }
+          counts.learningArchived += 1;
+          counts.nativeTodos += 1;
+          results.push({
+            kanbanCardId: id,
+            status: dryRun ? "would-archive" : "archived",
+            target: "native-todo-archive",
+            todoId: archived.todo.id,
+            reason: ensured.reason,
+          });
+          continue;
+        }
+        if (ensured.status === "skipped") counts.learningSkipped += 1;
         if (ensured.task?.taskCardId && isLearningGrowthKanbanCard(card)) {
           backfill = await growthBackfillService.backfill({ cards: [card], dryRun, limit: 1 });
           counts.growthBackfilled += Number(backfill?.counts?.matched || 0);
@@ -261,18 +297,14 @@ function createNativeBoardKanbanMigrationService(options = {}) {
         });
         continue;
       }
-      const todo = safeTodoFromCard(card, index);
-      if (!dryRun && mobileStore && typeof mobileStore.importTodoItem === "function") {
-        try {
-          mobileStore.importTodoItem(todo, index);
-        } catch (err) {
-          counts.errors += 1;
-          results.push({ kanbanCardId: id, status: "error", target: "native-todo", reason: cleanString(err.message || err, 240) });
-          continue;
-        }
+      const imported = importNativeTodo(card, index, dryRun);
+      if (imported.status === "error") {
+        counts.errors += 1;
+        results.push({ kanbanCardId: id, status: "error", target: "native-todo", reason: imported.reason });
+        continue;
       }
       counts.nativeTodos += 1;
-      results.push({ kanbanCardId: id, status: dryRun ? "would-import" : "imported", target: "native-todo", todoId: todo.id });
+      results.push({ kanbanCardId: id, status: imported.status, target: "native-todo", todoId: imported.todo.id });
     }
     return { ok: counts.errors === 0, counts, results };
   }
