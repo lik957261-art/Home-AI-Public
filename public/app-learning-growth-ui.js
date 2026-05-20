@@ -372,6 +372,33 @@
     </section>`;
   }
 
+  function findSelectedGrowthTask(programs = {}, taskCardId = "") {
+    const id = String(taskCardId || "");
+    if (!id) return null;
+    const tasks = []
+      .concat(Array.isArray(programs.executableTasks) ? programs.executableTasks : [])
+      .concat(Array.isArray(programs.taskCards) ? programs.taskCards : []);
+    return tasks.find((task) => String(task?.taskCardId || task?.id || "") === id) || null;
+  }
+
+  function renderSelectedGrowthTaskView(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const programUi = options.programUi || ProgramUi;
+    const programs = overview.programs || {};
+    const taskCardId = String(options.selectedGrowthTaskCardId || options.state?.selectedLearningTaskCardId || "");
+    const task = findSelectedGrowthTask(programs, taskCardId);
+    const detail = task && programUi && typeof programUi.renderNativeGrowthTaskDetail === "function"
+      ? programUi.renderNativeGrowthTaskDetail(task, programs, options)
+      : `<div class="learning-coin-empty">\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0\u6216\u4e0d\u5728\u5f53\u524d\u72b6\u6001\u91cc\u3002</div>`;
+    return `<div class="learning-growth-view learning-growth-task-focus" data-learning-product="fanfan-growth" data-learning-growth-task-focus="${escapeHtml(taskCardId)}">
+      <div class="learning-growth-task-focus-head">
+        <button type="button" data-learning-close-growth-task>\u8fd4\u56de\u770b\u677f</button>
+        <span>\u5355\u5f20\u4efb\u52a1</span>
+      </div>
+      ${detail}
+    </div>`;
+  }
+
   function renderLearningGrowthView(options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const overview = options.overview || {};
@@ -393,6 +420,9 @@
         }))
       : `<div class="learning-coin-empty">金币子模块未加载。</div>`;
     const owner = isOwner(options);
+    if (options.selectedGrowthTaskCardId || options.state?.selectedLearningTaskCardId) {
+      return renderSelectedGrowthTaskView(overview, options);
+    }
     const programsHtml = programUi && typeof programUi.renderExecutionOverview === "function"
       ? (owner
           ? renderOwnerProgramTabs(programUi, coinsHtml, overview, options)

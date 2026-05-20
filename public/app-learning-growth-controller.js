@@ -31,6 +31,7 @@ function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
   state.learningGrowth = null;
   state.learningGrowthBoardLane = "";
+  state.selectedLearningTaskCardId = "";
   state.learningCoins = null;
   state.learningCoinsError = "";
   state.learningParentReport = null;
@@ -163,13 +164,7 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   await loadProjects();
   await loadLearningCoins({ limit: 80 });
   const boardCard = state.learningGrowth?.board?.cards?.find((card) => String(card.taskCardId || "") === id);
-  if (boardCard?.laneId && boardCard.laneId !== state.learningGrowthBoardLane) {
-    state.learningGrowthBoardLane = boardCard.laneId; renderLearningCoinsView();
-  }
-  const root = $("conversation");
-  const target = [...(root?.querySelectorAll("[data-learning-executable-task-id]") || [])]
-    .find((item) => item.dataset.learningExecutableTaskId === id);
-  target?.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (boardCard?.laneId) state.learningGrowthBoardLane = boardCard.laneId;
 }
 
 async function openLearningKanbanCard(todoId, workspaceId = "") {
@@ -615,6 +610,7 @@ function wireLearningCoinsView() {
   $("conversation")?.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
   });
+  $("conversation")?.querySelector("[data-learning-close-growth-task]")?.addEventListener("click", () => { state.selectedLearningTaskCardId = ""; renderLearningCoinsView(); });
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);
   });

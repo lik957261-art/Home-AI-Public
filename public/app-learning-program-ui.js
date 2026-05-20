@@ -524,6 +524,13 @@
     return matches.slice().sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
   }
 
+  function latestRecordForTask(records = [], taskCardId = "", field = "updatedAt") {
+    const id = String(taskCardId || "");
+    const matches = asArray(records).filter((record) => String(record?.taskCardId || "") === id);
+    if (!matches.length) return null;
+    return matches.slice().sort((a, b) => String(b?.[field] || b?.updatedAt || b?.createdAt || "").localeCompare(String(a?.[field] || a?.updatedAt || a?.createdAt || "")))[0];
+  }
+
   function growthTaskUi(options = {}) {
     return options.growthTaskUi
       || (typeof globalThis !== "undefined" ? globalThis.HermesLearningGrowthTaskUi : null)
@@ -585,6 +592,7 @@
     const workspaceId = String(task?.workspaceId || "");
     const nativeState = task?.nativeState || {};
     const nextAction = String(nativeState.nextAction || "");
+    const detailButton = options.hideNativeGrowthDetailButton ? "" : `<button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>`;
     const stateLabel = {
       submit: "\u5f85\u4f5c\u7b54",
       waiting_feedback: "\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539",
@@ -602,7 +610,7 @@
         <div class="learning-native-growth-submission-state" data-learning-native-growth-reflection-state="${escapeHtml(taskCardId)}">${escapeHtml(stateLabel)}</div>
         <div class="learning-program-task-actions">
           <button type="submit" data-learning-submit-native-growth-reflection="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u590d\u76d8</button>
-          <button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>
+          ${detailButton}
         </div>
       </form>`;
     }
@@ -613,10 +621,51 @@
       <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>
       <div class="learning-program-task-actions">
         <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u7ed9 AI \u6279\u6539</button>
-        <button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>
+        ${detailButton}
       </div>
       <div class="learning-native-growth-submission-state" data-learning-native-growth-submission-state="${escapeHtml(taskCardId)}" aria-live="polite"></div>
     </form>`;
+  }
+
+  function taskActionFromRecords(task = {}, data = {}) {
+    const nativeAction = String(task?.nativeState?.nextAction || "");
+    if (nativeAction) return nativeAction;
+    const taskCardId = String(task?.taskCardId || "");
+    const reflection = latestRecordForTask(data.taskReflections || [], taskCardId, "submittedAt");
+    const evaluation = latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const submission = latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
+    if (String(task.status || "").toLowerCase() === "completed" || String(reflection?.status || "") === "accepted") return "complete";
+    if (String(evaluation?.status || "") === "reflection_required") return "spoken_reflection";
+    if (["needs_repair", "needs_revision"].includes(String(evaluation?.status || ""))) return "revise";
+    if (String(submission?.status || "")) return "waiting_feedback";
+    return "submit";
+  }
+
+  function renderNativeGrowthTaskDetail(task = {}, data = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    if (!taskCardId) return `<div class="learning-coin-empty">\u672a\u627e\u5230\u8fd9\u5f20\u5b66\u4e60\u5361\u3002</div>`;
+    const model = task.taskModel || task.learningTaskModel || {};
+    const skills = compactFocus(task.skillIds || model.skillTargets || []).slice(0, 120);
+    const latestEvaluation = latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const meta = [task.plannedDate, task.plannedMinutes ? `${task.plannedMinutes} min` : "", skills].filter(Boolean);
+    const instruction = task.learnerInstruction || task.instruction || model.learnerInstruction || task.summary || "";
+    const taskForForm = Object.assign({ source: "learning-growth" }, task, {
+      nativeState: Object.assign({}, task.nativeState || {}, { nextAction: taskActionFromRecords(task, data) }),
+    });
+    return `<section class="learning-growth-answer-card" data-learning-growth-answer-card data-learning-executable-task-id="${escapeHtml(taskCardId)}">
+      <div class="learning-growth-answer-card-head">
+        <div>
+          <span>\u7b54\u9898\u5361</span>
+          <h3>${escapeHtml(task.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</h3>
+        </div>
+        <strong>${escapeHtml(taskStatusText(task.status, options))}</strong>
+      </div>
+      ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
+      ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
+      ${latestEvaluation ? `<section class="learning-growth-answer-feedback"><h4>\u6700\u8fd1\u6279\u6539</h4>${renderFeedbackHistory(taskForForm, latestEvaluation)}</section>` : ""}
+      ${renderNativeGrowthSubmission(taskForForm, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
+    </section>`;
   }
 
   function renderTaskAction(task, session, options = {}) {
@@ -978,6 +1027,7 @@
     renderGuidancePanel,
     renderParentAdminPanel,
     renderParentReportPanel,
+    renderNativeGrowthTaskDetail,
     renderProgramCards,
     renderProgramForm,
     renderProgramSubsystem,

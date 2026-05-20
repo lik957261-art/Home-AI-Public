@@ -169,6 +169,23 @@ function testGrowthRendererContainsProgramSubsystem() {
   assert.match(html, /data-learning-evaluation-summary="eval-1"/);
 }
 
+function testGrowthRendererShowsStandaloneTaskCardWhenSelected() {
+  const html = GrowthUi.renderLearningGrowthView({
+    overview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, selectedLearningTaskCardId: "task-1" },
+  });
+  assert.match(html, /data-learning-growth-task-focus="task-1"/);
+  assert.match(html, /data-learning-close-growth-task/);
+  assert.match(html, /data-learning-growth-answer-card/);
+  assert.match(html, /data-learning-native-growth-submission-form="task-1"/);
+  assert.match(html, /Task status/);
+  assert.doesNotMatch(html, /data-learning-growth-board/);
+  assert.doesNotMatch(html, /data-learning-growth-tabs/);
+  assert.doesNotMatch(html, /data-learning-growth-module="coins"/);
+}
+
 function testOwnerRendererKeepsManagementSections() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: true } } });
   assert.match(html, /data-learning-role="owner"/);
@@ -205,6 +222,7 @@ testCoinSubsystemRendererIsStandalone();
 testExecutorCoinSubsystemHidesOwnerSettlementDetails();
 testGrowthRendererContainsProductShellAndNestedCoins();
 testGrowthRendererContainsProgramSubsystem();
+testGrowthRendererShowsStandaloneTaskCardWhenSelected();
 testOwnerRendererKeepsManagementSections();
 testReadinessPanelRenderer();
 
