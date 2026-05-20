@@ -434,7 +434,7 @@ async function testGenericVocabularyTaskUsesTaskModelContract() {
 function testDependencyValidation() {
   assert.throws(
     () => createLearningGrowthWritingSubmissionService({ kanbanCardProvider: { listCards() {} } }),
-    /requires kanbanCardProvider list\/mutate/,
+    /requires a learningProgramService or kanbanCardProvider/,
   );
 }
 

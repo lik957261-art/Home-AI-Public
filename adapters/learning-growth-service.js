@@ -124,6 +124,11 @@ function projectExecutableTaskForExecutor(task) {
     "summary",
     "templateId",
     "privacyLevel",
+    "nativeState",
+    "latestSubmission",
+    "latestEvaluation",
+    "latestReflection",
+    "artifactCount",
   ]);
 }
 
@@ -198,6 +203,66 @@ function projectTaskReflectionForExecutor(reflection) {
   ]);
 }
 
+function projectTaskArtifactForExecutor(artifact) {
+  return copyFields(artifact, [
+    "artifactId",
+    "taskCardId",
+    "sessionId",
+    "evaluationId",
+    "artifactType",
+    "title",
+    "name",
+    "mime",
+    "size",
+    "status",
+    "summary",
+    "createdAt",
+    "updatedAt",
+  ]);
+}
+
+function latestForTask(items = [], taskCardId = "", timeField = "updatedAt") {
+  return arrayValue(items)
+    .filter((item) => item?.taskCardId === taskCardId)
+    .sort((a, b) => String(b?.[timeField] || b?.createdAt || "").localeCompare(String(a?.[timeField] || a?.createdAt || "")))[0] || null;
+}
+
+function attachNativeTaskState(programs = {}) {
+  if (!programs || typeof programs !== "object") return programs;
+  const submissions = arrayValue(programs.taskSubmissions);
+  const evaluations = arrayValue(programs.evaluations);
+  const reflections = arrayValue(programs.taskReflections);
+  const artifacts = arrayValue(programs.taskArtifacts);
+  const executableTasks = arrayValue(programs.executableTasks).map((task) => {
+    const taskCardId = cleanString(task.taskCardId);
+    const latestSubmission = latestForTask(submissions, taskCardId, "submittedAt");
+    const latestEvaluation = latestForTask(evaluations, taskCardId, "createdAt");
+    const latestReflection = latestForTask(reflections, taskCardId, "submittedAt");
+    const taskArtifacts = artifacts.filter((item) => item?.taskCardId === taskCardId);
+    const evaluationStatus = cleanString(latestEvaluation?.status);
+    const reflectionStatus = cleanString(latestReflection?.status);
+    const submissionStatus = cleanString(latestSubmission?.status);
+    const nextAction = evaluationStatus === "reflection_required"
+      ? "spoken_reflection"
+      : (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision" ? "revise" : (latestEvaluation?.passed ? "complete" : (submissionStatus ? "waiting_feedback" : "submit")));
+    return Object.assign({}, task, {
+      nativeState: {
+        status: evaluationStatus || submissionStatus || cleanString(task.executionStatus || task.status),
+        nextAction: reflectionStatus === "accepted" ? "complete" : nextAction,
+        latestSubmission: latestSubmission ? projectTaskSubmissionForExecutor(latestSubmission) : null,
+        latestEvaluation: latestEvaluation ? projectEvaluationForExecutor(latestEvaluation) : null,
+        latestReflection: latestReflection ? projectTaskReflectionForExecutor(latestReflection) : null,
+        artifactCount: taskArtifacts.length,
+      },
+      latestSubmission: latestSubmission ? projectTaskSubmissionForExecutor(latestSubmission) : null,
+      latestEvaluation: latestEvaluation ? projectEvaluationForExecutor(latestEvaluation) : null,
+      latestReflection: latestReflection ? projectTaskReflectionForExecutor(latestReflection) : null,
+      artifactCount: taskArtifacts.length,
+    });
+  });
+  return Object.assign({}, programs, { executableTasks });
+}
+
 function projectSkillStateForExecutor(skill) {
   return copyFields(skill, [
     "skillId",
@@ -221,7 +286,7 @@ function projectLearnerProfileForExecutor(profile) {
 function projectProgramOverviewForExecutor(programs) {
   if (!programs || typeof programs !== "object") return programs || null;
   return {
-    counts: copyFields(programs.counts, ["programs", "taskCards", "evaluations", "taskSubmissions", "taskReflections", "skillStates"]),
+    counts: copyFields(programs.counts, ["programs", "taskCards", "evaluations", "taskSubmissions", "taskReflections", "taskArtifacts", "skillStates"]),
     programs: arrayValue(programs.programs).map(projectProgramForExecutor),
     dailyPlan: programs.dailyPlan || null,
     executableTasks: arrayValue(programs.executableTasks).map(projectExecutableTaskForExecutor),
@@ -230,6 +295,7 @@ function projectProgramOverviewForExecutor(programs) {
     evaluations: arrayValue(programs.evaluations).map(projectEvaluationForExecutor),
     taskSubmissions: arrayValue(programs.taskSubmissions).map(projectTaskSubmissionForExecutor),
     taskReflections: arrayValue(programs.taskReflections).map(projectTaskReflectionForExecutor),
+    taskArtifacts: arrayValue(programs.taskArtifacts).map(projectTaskArtifactForExecutor),
     learnerProfile: projectLearnerProfileForExecutor(programs.learnerProfile),
     skillStates: arrayValue(programs.skillStates).map(projectSkillStateForExecutor),
   };
@@ -385,7 +451,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
         limit: request.limit,
       })
     : null;
-  const programOverview = learningProgramService && typeof learningProgramService.overview === "function"
+  const rawProgramOverview = learningProgramService && typeof learningProgramService.overview === "function"
     ? learningProgramService.overview({
         workspaceId: request.workspaceId,
         learnerId: request.learnerId,
@@ -393,6 +459,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
         limit: request.limit,
       })
     : null;
+  const programOverview = attachNativeTaskState(rawProgramOverview);
   const nativeExecutableTasks = arrayValue(programOverview?.executableTasks);
   const executableTasks = mergeExecutableTasks(nativeExecutableTasks, input.executableTasks);
   const metrics = coinMetric(coins || {});

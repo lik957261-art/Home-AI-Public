@@ -591,10 +591,93 @@ async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
   }
 }
 
+async function testNativeTaskSubmissionWorksWithoutKanbanLink() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-native-only",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Native grammar task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      plannedDate: "2026-05-18",
+      plannedMinutes: 15,
+      skillIds: ["english_grammar"],
+      templateId: "english-grammar-v1",
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "grammar",
+        skillId: "english_grammar",
+        learnerInstruction: "Repair grammar and explain why.",
+      },
+      privacyLevel: "summary_only",
+    });
+    const programService = createLearningProgramService({ repository });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      evaluationService: {
+        async evaluate() {
+          return {
+            evaluationId: "eval-native-only",
+            status: "needs_revision",
+            activityType: "grammar",
+            skillId: "english_grammar",
+            score: 72,
+            maxScore: 100,
+            passed: false,
+            confidence: 0.73,
+            summary: "summary only feedback",
+            feedbackMethod: "test",
+            feedbackSections: { focusAreas: ["verb tense"], reflectionPrompts: [] },
+            revisionRequirements: ["repair tense"],
+            reward: { eligible: false },
+          };
+        },
+      },
+      reportService: {
+        writeReport() {
+          return {
+            path: "C:\\tmp\\native-growth-feedback.md",
+            name: "native-growth-feedback.md",
+            mime: "text/markdown; charset=utf-8",
+            size: 180,
+          };
+        },
+      },
+    });
+    const result = await service.submitTask({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-native-only",
+      text: [
+        "First, I correct the tense because the sentence describes yesterday.",
+        "Then I explain the grammar rule and add one example sentence.",
+        "Finally, I check the subject and verb before writing the final answer.",
+        "I also compare the old sentence with the new sentence, notice the time signal, and write a clear correction plan.",
+      ].join("\n"),
+      author: "weixin_stephen",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.cardId, "task-native-only");
+    assert.equal(result.result.nativeSubmission.status, "submitted");
+    assert.equal(repository.listTaskSubmissions({ taskCardId: "task-native-only", limit: 1 }).length, 1);
+    assert.match(repository.listEvaluations({ taskCardId: "task-native-only", limit: 1 })[0].status, /needs_(revision|review)/);
+    assert.equal(repository.listTaskArtifacts({ taskCardId: "task-native-only", limit: 1 }).length, 1);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createLearningGrowthSubmissionService({ kanbanCardProvider: { listCards() {} } }),
-    /requires kanbanCardProvider list\/mutate/,
+    /requires a learningProgramService or kanbanCardProvider/,
   );
 }
 
@@ -608,6 +691,7 @@ function testDependencyValidation() {
   await testExpiredSubmissionCannotBeWithdrawn();
   await testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSettlement();
   await testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard();
+  await testNativeTaskSubmissionWorksWithoutKanbanLink();
   console.log("learning growth submission service tests passed");
 })().catch((err) => {
   console.error(err);

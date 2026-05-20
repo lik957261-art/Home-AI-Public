@@ -246,7 +246,7 @@ function testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst() {
   assert.doesNotMatch(html, /data-learning-task-start="task-native-1"/);
 }
 
-function testNativeTaskWithoutKanbanLinkFallsBackToSessionStart() {
+function testNativeTaskWithoutKanbanLinkUsesNativeSubmission() {
   const html = ProgramUi.renderProgramSubsystem({
     programs: Object.assign({}, programs, {
       executableTasks: [{
@@ -264,15 +264,39 @@ function testNativeTaskWithoutKanbanLinkFallsBackToSessionStart() {
     state: { auth: { isOwner: false } },
   });
   assert.match(html, /data-learning-executable-task-id="task-native-2"/);
-  assert.match(html, /data-learning-task-start="task-native-2"/);
-  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-native-2"/);
+  assert.match(html, /data-learning-native-growth-submission-form="task-native-2"/);
+  assert.match(html, /data-learning-native-growth-submission-input="task-native-2"/);
+  assert.doesNotMatch(html, /data-learning-task-start="task-native-2"/);
   assert.doesNotMatch(html, /data-learning-open-kanban-card/);
   assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
+}
+
+function testNativeTaskReflectionStateRendersReflectionForm() {
+  const html = ProgramUi.renderProgramSubsystem({
+    programs: Object.assign({}, programs, {
+      executableTasks: [{
+        taskCardId: "task-native-reflect",
+        source: "learning-growth",
+        title: "Native Growth reflection task",
+        status: "published",
+        executionStatus: "pending_execution",
+        workspaceId: "weixin_stephen",
+        plannedDate: "2026-05-19",
+        skillIds: ["english_short_writing"],
+        nativeState: { status: "reflection_required", nextAction: "spoken_reflection" },
+      }],
+    }),
+    state: { auth: { isOwner: false } },
+  });
+  assert.match(html, /data-learning-native-growth-reflection-form="task-native-reflect"/);
+  assert.match(html, /data-learning-native-growth-reflection-input="task-native-reflect"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-native-reflect"/);
 }
 
 testOwnerFormAndActionsRender();
 testNonOwnerCannotSeeCreateForm();
 testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst();
-testNativeTaskWithoutKanbanLinkFallsBackToSessionStart();
+testNativeTaskWithoutKanbanLinkUsesNativeSubmission();
+testNativeTaskReflectionStateRendersReflectionForm();
 
 console.log("app learning program ui tests passed");

@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const path = require("node:path");
 const {
   compactLearningSummary,
 } = require("./learning-record-privacy-service");
@@ -34,6 +35,12 @@ function stableRecordId(prefix, parts = []) {
     .digest("hex")
     .slice(0, 18);
   return `${prefix}_${digest}`;
+}
+
+function basenameFromRef(value) {
+  const text = cleanString(value, 1000);
+  if (!text) return "";
+  return path.basename(text.replace(/\\/g, "/"));
 }
 
 function taskIdentity(task = {}, fallback = {}) {
@@ -215,6 +222,49 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
     }));
   }
 
+  function recordArtifact(input = {}) {
+    if (!repository || typeof repository.saveTaskArtifact !== "function") return null;
+    const task = input.task || null;
+    if (!task?.taskCardId) return null;
+    const session = input.session || ensureSession(programService, task, input);
+    const artifact = input.artifact || {};
+    const identity = taskIdentity(task, input);
+    const ref = cleanString(artifact.ref || artifact.path || artifact.url || artifact.name, 2000);
+    const name = cleanString(artifact.name || basenameFromRef(ref) || input.name || "learning-growth-artifact", 240);
+    const artifactType = cleanString(input.artifactType || artifact.kind || artifact.type || "feedback_report", 80);
+    const createdAt = cleanString(input.createdAt || artifact.createdAt) || new Date().toISOString();
+    const artifactId = cleanString(input.artifactId)
+      || stableRecordId("lart", [identity.taskCardId, cleanString(input.evaluationId), artifactType, name, digestText(ref)]);
+    return repository.saveTaskArtifact({
+      artifactId,
+      taskCardId: identity.taskCardId,
+      sessionId: cleanString(session?.sessionId),
+      evaluationId: cleanString(input.evaluationId),
+      submissionId: cleanString(input.submissionId),
+      reflectionId: cleanString(input.reflectionId),
+      programId: identity.programId,
+      learnerId: identity.learnerId,
+      workspaceId: identity.workspaceId,
+      artifactType,
+      title: cleanString(input.title || artifact.title || name, 240),
+      name,
+      mime: cleanString(artifact.mime || artifact.contentType || "application/octet-stream", 120),
+      size: Number(artifact.size || 0) || 0,
+      refDigest: ref ? digestText(ref) : "",
+      refName: name,
+      status: cleanString(input.status || artifact.status || "available", 80),
+      summary: compactLearningSummary(input.summary || artifact.summary || `${artifactType} generated.`, 600),
+      createdAt,
+      raw: {
+        source: "learning_growth_artifact",
+        artifactType,
+        name,
+        mime: cleanString(artifact.mime || artifact.contentType || ""),
+        size: Number(artifact.size || 0) || 0,
+      },
+    });
+  }
+
   function advanceSession(input = {}) {
     if (!programService || typeof programService.advanceInteractionSession !== "function") return null;
     const sessionId = cleanString(input.sessionId);
@@ -224,6 +274,7 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
 
   return {
     advanceSession,
+    recordArtifact,
     recordEvaluation,
     recordReflection,
     recordSubmission,

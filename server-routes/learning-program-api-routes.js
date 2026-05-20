@@ -904,12 +904,6 @@ function createLearningProgramApiRoutes(deps = {}) {
     return growthService;
   }
 
-  function assertTaskHasKanbanLink(res, taskCard) {
-    if (cleanString(taskCard?.kanbanCardId)) return true;
-    deps.sendJson(res, 409, { ok: false, error: "Growth task is not linked to an executable Kanban card yet" });
-    return false;
-  }
-
   async function handleUpdate(req, res, url) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -1040,7 +1034,6 @@ function createLearningProgramApiRoutes(deps = {}) {
     const taskCard = service.getTaskCard(taskCardId);
     if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
     if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
-    if (!assertTaskHasKanbanLink(res, taskCard)) return;
     const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
@@ -1049,13 +1042,13 @@ function createLearningProgramApiRoutes(deps = {}) {
     try {
       const result = await getGrowthSubmissionService().submitTask(Object.assign({}, body, {
         workspaceId: taskCard.workspaceId,
-        cardId: taskCard.kanbanCardId,
+        cardId: taskCard.kanbanCardId || "",
         taskCardId,
         author: actorFromAuth(auth),
       }));
       deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
         taskCardId,
-        kanbanCardId: taskCard.kanbanCardId,
+        kanbanCardId: taskCard.kanbanCardId || "",
       }));
     } catch (err) {
       sendRouteError(deps, res, err);
@@ -1067,7 +1060,6 @@ function createLearningProgramApiRoutes(deps = {}) {
     const taskCard = service.getTaskCard(taskCardId);
     if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
     if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
-    if (!assertTaskHasKanbanLink(res, taskCard)) return;
     const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
@@ -1076,13 +1068,13 @@ function createLearningProgramApiRoutes(deps = {}) {
     try {
       const result = await getGrowthSubmissionService().withdrawSubmission(Object.assign({}, body, {
         workspaceId: taskCard.workspaceId,
-        cardId: taskCard.kanbanCardId,
+        cardId: taskCard.kanbanCardId || "",
         taskCardId,
         author: actorFromAuth(auth),
       }));
       deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
         taskCardId,
-        kanbanCardId: taskCard.kanbanCardId,
+        kanbanCardId: taskCard.kanbanCardId || "",
       }));
     } catch (err) {
       sendRouteError(deps, res, err);
@@ -1094,7 +1086,6 @@ function createLearningProgramApiRoutes(deps = {}) {
     const taskCard = service.getTaskCard(taskCardId);
     if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
     if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
-    if (!assertTaskHasKanbanLink(res, taskCard)) return;
     const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
@@ -1108,13 +1099,13 @@ function createLearningProgramApiRoutes(deps = {}) {
       }
       const result = await growthService.submitReflection(Object.assign({}, body, {
         workspaceId: taskCard.workspaceId,
-        cardId: taskCard.kanbanCardId,
+        cardId: taskCard.kanbanCardId || "",
         taskCardId,
         author: actorFromAuth(auth),
       }));
       deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
         taskCardId,
-        kanbanCardId: taskCard.kanbanCardId,
+        kanbanCardId: taskCard.kanbanCardId || "",
       }));
     } catch (err) {
       sendRouteError(deps, res, err);

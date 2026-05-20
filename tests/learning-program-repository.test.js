@@ -168,6 +168,34 @@ function testMigrationAndPersistence() {
   assert.equal(reflection.transcript, "[redacted]");
   assert.equal(reflection.audioDigest, "digest-audio");
 
+  const artifact = repository.saveTaskArtifact({
+    artifactId: "artifact-1",
+    taskCardId: "task-1",
+    sessionId: "session-1",
+    evaluationId: "eval-1",
+    submissionId: "submission-1",
+    reflectionId: "reflection-1",
+    programId: "program-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    artifactType: "feedback_report",
+    title: "Feedback report",
+    name: "feedback.md",
+    mime: "text/markdown",
+    size: 1024,
+    refDigest: "digest-artifact-ref",
+    refName: "feedback.md",
+    status: "generated",
+    summary: "feedback report generated",
+    raw: {
+      source: "test",
+      localPath: "must not be exposed",
+    },
+  });
+  assert.equal(artifact.artifactId, "artifact-1");
+  assert.equal(artifact.refDigest, "digest-artifact-ref");
+  assert.equal(artifact.localPath, "[redacted]");
+
   const reviewRequest = repository.saveReviewRequest({
     reviewRequestId: "review-request-1",
     learnerId: "weixin_stephen",
@@ -314,8 +342,10 @@ function testMigrationAndPersistence() {
   assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listTaskSubmissions({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listTaskReflections({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listTaskArtifacts({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.getTaskSubmission("submission-1").kanbanCommentRef, "comment-1");
   assert.equal(repository.getTaskReflection("reflection-1").evaluationId, "eval-1");
+  assert.equal(repository.getTaskArtifact("artifact-1").name, "feedback.md");
   assert.equal(repository.listReviewRequests({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.getRewardSettlement("settle-1").coinAmount, 15);
@@ -329,6 +359,7 @@ function testMigrationAndPersistence() {
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).evaluations, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskSubmissions, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskReflections, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskArtifacts, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).reviewRequests, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).rewardSettlements, 1);
   repository.close();

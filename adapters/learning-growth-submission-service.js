@@ -101,6 +101,42 @@ function resolveProgramTaskCard(programService, card = {}) {
   return null;
 }
 
+function taskCardToGrowthCard(task = {}, input = {}) {
+  const taskCardId = cleanString(task.taskCardId || input.taskCardId);
+  const kanbanCardId = cleanString(task.kanbanCardId || input.cardId);
+  const id = kanbanCardId || taskCardId;
+  return Object.assign({}, task, {
+    id,
+    todoId: id,
+    todo_id: id,
+    workspaceId: cleanString(task.workspaceId || input.workspaceId) || "owner",
+    learnerId: cleanString(task.learnerId || input.learnerId || input.studentId || task.workspaceId),
+    kanbanCaseTemplate: "learning-growth",
+    kanbanCaseId: cleanString(task.draftId || task.programId || "learning-growth"),
+    kanbanCaseCardId: taskCardId,
+    learningTaskCardId: taskCardId,
+    learningProgramId: cleanString(task.programId),
+    learningDraftId: cleanString(task.draftId),
+    learningTaskModel: task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {},
+    kanbanCaseCardGoal: cleanString(task.summary || task.title),
+    content: cleanString(task.title || task.summary || taskCardId),
+    title: cleanString(task.title || taskCardId),
+    status: cleanString(task.status || "published"),
+    kanbanStatus: cleanString(task.status || "published"),
+  });
+}
+
+function mergeNativeTaskCard(task = {}, kanbanCard = null, input = {}) {
+  const base = taskCardToGrowthCard(task, input);
+  if (!kanbanCard || typeof kanbanCard !== "object") return base;
+  return Object.assign({}, base, kanbanCard, {
+    learningTaskCardId: cleanString(task.taskCardId || base.learningTaskCardId),
+    learningProgramId: cleanString(task.programId || kanbanCard.learningProgramId || kanbanCard.learning_program_id || base.learningProgramId),
+    learningDraftId: cleanString(task.draftId || kanbanCard.learningDraftId || kanbanCard.learning_draft_id || base.learningDraftId),
+    learningTaskModel: task.taskModel && typeof task.taskModel === "object" ? task.taskModel : (kanbanCard.learningTaskModel || base.learningTaskModel),
+  });
+}
+
 function submissionStageForCard(card = {}, input = {}) {
   return growthSubmissionStageForCard(card, input);
 }
@@ -510,8 +546,11 @@ function createLearningGrowthSubmissionService(options = {}) {
   const maxSubmissionChars = Math.max(1000, Number(options.maxSubmissionChars || 12000));
   const withdrawWindowMs = Math.max(60_000, Number(options.withdrawWindowMs || 5 * 60 * 1000));
   const now = typeof options.now === "function" ? options.now : () => Date.now();
-  if (!kanbanCardProvider || typeof kanbanCardProvider.listCards !== "function" || typeof kanbanCardProvider.mutateCard !== "function") {
-    throw new Error("learning growth submission service requires kanbanCardProvider list/mutate");
+  const hasKanbanProvider = Boolean(kanbanCardProvider
+    && typeof kanbanCardProvider.listCards === "function"
+    && typeof kanbanCardProvider.mutateCard === "function");
+  if (!hasKanbanProvider && !getProgramService(options)) {
+    throw new Error("learning growth submission service requires a learningProgramService or kanbanCardProvider");
   }
   let cachedSubmissionRecordService = null;
   function submissionRecords() {
@@ -522,6 +561,7 @@ function createLearningGrowthSubmissionService(options = {}) {
   }
 
   async function loadGrowthCard(workspaceId, cardIdValue) {
+    if (!hasKanbanProvider) return createError(503, "Growth Kanban compatibility provider is not available");
     const listed = await kanbanCardProvider.listCards({
       workspaceId,
       scope: "mine",
@@ -537,15 +577,75 @@ function createLearningGrowthSubmissionService(options = {}) {
     return { ok: true, card };
   }
 
-  async function submitTask(input = {}) {
-    const workspaceId = cleanString(input.workspaceId) || "owner";
+  async function loadGrowthWorkItem(workspaceId, input = {}) {
+    const programService = getProgramService(options);
+    const taskCardId = cleanString(input.taskCardId);
+    if (taskCardId && programService && typeof programService.getTaskCard === "function") {
+      const task = programService.getTaskCard(taskCardId);
+      if (!task) return createError(404, "Growth learning task was not found");
+      const kanbanCardId = cleanString(task.kanbanCardId || input.cardId);
+      let kanbanCard = null;
+      let kanbanLoadError = null;
+      if (kanbanCardId && hasKanbanProvider) {
+        const loaded = await loadGrowthCard(workspaceId || task.workspaceId, kanbanCardId);
+        if (loaded.ok) kanbanCard = loaded.card;
+        else kanbanLoadError = { status: loaded.status, error: loaded.error };
+      }
+      return {
+        ok: true,
+        card: mergeNativeTaskCard(task, kanbanCard, Object.assign({}, input, { workspaceId })),
+        nativeTask: task,
+        taskCardId,
+        cardIdValue: kanbanCardId || taskCardId,
+        kanbanCardId,
+        kanbanLoadError,
+        nativeSource: true,
+      };
+    }
     const cardIdValue = cleanString(input.cardId);
-    const text = cleanString(input.text || input.submission || input.comment);
-    if (!cardIdValue) return createError(400, "Growth card id is required");
-    if (!text) return createError(400, "Learning task submission text is required");
-    if (text.length > maxSubmissionChars) return createError(413, `Learning task submission is too long; keep it under ${maxSubmissionChars} characters`);
+    if (!cardIdValue) return createError(400, "Growth card id or learning task id is required");
     const loaded = await loadGrowthCard(workspaceId, cardIdValue);
     if (!loaded.ok) return loaded;
+    const nativeTask = resolveProgramTaskCard(programService, loaded.card);
+    return {
+      ok: true,
+      card: nativeTask ? mergeNativeTaskCard(nativeTask, loaded.card, input) : loaded.card,
+      nativeTask,
+      taskCardId: nativeTask?.taskCardId || resolveTaskCardId(loaded.card),
+      cardIdValue,
+      kanbanCardId: cardIdValue,
+      nativeSource: Boolean(nativeTask),
+    };
+  }
+
+  async function projectKanbanComment(loaded = {}, input = {}) {
+    const kanbanCardId = cleanString(loaded.kanbanCardId);
+    if (!kanbanCardId || !hasKanbanProvider) return { ok: true, skipped: true };
+    const result = await kanbanCardProvider.mutateCard(Object.assign({}, input, {
+      workspaceId: input.workspaceId,
+      cardId: kanbanCardId,
+    })).catch((err) => ({ ok: false, error: cleanString(err.message || err) }));
+    if (result?.ok) return result;
+    if (loaded.nativeTask) {
+      return { ok: true, skipped: false, projectionFailed: true, error: cleanString(result?.error || result?.result?.error || "Kanban projection failed") };
+    }
+    return result;
+  }
+
+  function latestNativeEvaluation(taskCardId) {
+    const programService = getProgramService(options);
+    if (!taskCardId || !programService || typeof programService.listEvaluations !== "function") return null;
+    return programService.listEvaluations({ taskCardId, limit: 1 })[0] || null;
+  }
+
+  async function submitTask(input = {}) {
+    const workspaceId = cleanString(input.workspaceId) || "owner";
+    const text = cleanString(input.text || input.submission || input.comment);
+    if (!text) return createError(400, "Learning task submission text is required");
+    if (text.length > maxSubmissionChars) return createError(413, `Learning task submission is too long; keep it under ${maxSubmissionChars} characters`);
+    const loaded = await loadGrowthWorkItem(workspaceId, input);
+    if (!loaded.ok) return loaded;
+    const cardIdValue = loaded.cardIdValue;
     const stage = submissionStageForCard(loaded.card, input);
     const taskModel = taskModelForSubmission(loaded.card, input);
     const guard = resolveSubmissionGuard(taskModel, stage);
@@ -557,20 +657,8 @@ function createLearningGrowthSubmissionService(options = {}) {
       });
     }
     const submissionKind = submissionKindForStage(loaded.card, input, stage);
-    const mutated = shouldReusePendingSubmission(loaded.card, text, submissionKind)
-      ? { ok: true, id: cardIdValue, action: "comment", reusedLearningGrowthSubmission: true }
-      : await kanbanCardProvider.mutateCard({
-        action: "comment",
-        workspaceId,
-        cardId: cardIdValue,
-        comment: text,
-        author: cleanString(input.author) || "learning-growth",
-        learningGrowthSubmission: true,
-        submissionKind,
-      });
-    if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit learning task"));
     const programService = getProgramService(options);
-    const nativeTask = resolveProgramTaskCard(programService, loaded.card);
+    const nativeTask = loaded.nativeTask || resolveProgramTaskCard(programService, loaded.card);
     const submissionRecordService = submissionRecords();
     let nativeSubmission = null;
     if (submissionRecordService && nativeTask) {
@@ -579,8 +667,8 @@ function createLearningGrowthSubmissionService(options = {}) {
           task: nativeTask,
           workspaceId,
           author: input.author,
-          kanbanCardId: cardIdValue,
-          kanbanCommentRef: cleanString(mutated.id || mutated.commentId || mutated.result?.id || ""),
+          kanbanCardId: loaded.kanbanCardId,
+          kanbanCommentRef: "",
           stage,
           submissionKind,
           status: "submitted",
@@ -592,6 +680,17 @@ function createLearningGrowthSubmissionService(options = {}) {
         nativeSubmission = { error: cleanString(err.message || err) };
       }
     }
+    const mutated = shouldReusePendingSubmission(loaded.card, text, submissionKind)
+      ? { ok: true, id: loaded.kanbanCardId || cardIdValue, action: "comment", reusedLearningGrowthSubmission: true }
+      : await projectKanbanComment(loaded, {
+        action: "comment",
+        workspaceId,
+        comment: text,
+        author: cleanString(input.author) || "learning-growth",
+        learningGrowthSubmission: true,
+        submissionKind,
+      });
+    if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit learning task"));
     let evaluation;
     try {
       evaluation = await evaluationService.evaluate({
@@ -657,6 +756,18 @@ function createLearningGrowthSubmissionService(options = {}) {
         ? reportService.writeReport({ workspaceId, cardId: cardIdValue, card: loaded.card, evaluation, settlement })
         : null;
       if (report) evaluation.report = report;
+      if (report && submissionRecordService && nativeTask && typeof submissionRecordService.recordArtifact === "function") {
+        submissionRecordService.recordArtifact({
+          task: nativeTask,
+          session: nativeSubmission?.session,
+          submissionId: nativeSubmission?.record?.submissionId,
+          evaluationId: cleanString(evaluation.evaluationId),
+          artifact: report,
+          artifactType: "feedback_report",
+          status: "generated",
+          summary: `${activityLabel(taskModel.activityType)} feedback report generated.`,
+        });
+      }
     } catch (err) {
       evaluation.reportError = cleanString(err.message || err);
     }
@@ -726,10 +837,9 @@ function createLearningGrowthSubmissionService(options = {}) {
       evaluationComment(evaluation, settlement),
       report?.path ? `MEDIA: ${report.path}` : "",
     ].filter(Boolean).join("\n\n");
-    const evaluationMutation = await kanbanCardProvider.mutateCard({
+    const evaluationMutation = await projectKanbanComment(loaded, {
       action: "comment",
       workspaceId,
-      cardId: cardIdValue,
       comment: evaluationText,
       author: "learning-growth-evaluator",
       learningGrowthEvaluation: publicEval,
@@ -737,13 +847,12 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (!evaluationMutation?.ok) return createError(evaluationMutation?.status || 502, cleanString(evaluationMutation?.error || "Unable to persist learning task evaluation"));
     let completion = null;
     if (evaluation.passed && !reflectionRequired) {
-      completion = await kanbanCardProvider.mutateCard({
+      completion = await projectKanbanComment(loaded, {
         action: "complete",
         workspaceId,
-        cardId: cardIdValue,
         comment: readableCompletionComment(evaluation, publicEval),
         author: "learning-growth-evaluator",
-      }).catch((err) => ({ ok: false, error: cleanString(err.message || err) }));
+      });
     }
     return {
       ok: true,
@@ -769,13 +878,15 @@ function createLearningGrowthSubmissionService(options = {}) {
 
   async function submitReflection(input = {}) {
     const workspaceId = cleanString(input.workspaceId) || "owner";
-    const cardIdValue = cleanString(input.cardId);
-    if (!cardIdValue) return createError(400, "Growth card id is required");
-    const loaded = await loadGrowthCard(workspaceId, cardIdValue);
+    const loaded = await loadGrowthWorkItem(workspaceId, input);
     if (!loaded.ok) return loaded;
+    const cardIdValue = loaded.cardIdValue;
+    const priorEvaluation = latestNativeEvaluation(loaded.taskCardId);
     const status = cardField(loaded.card, "learningGrowthEvaluationStatus", "learning_growth_evaluation_status").toLowerCase();
     const nextStep = cardField(loaded.card, "learningGrowthNextStep", "learning_growth_next_step").toLowerCase();
-    if (status !== "reflection_required" && nextStep !== "spoken_reflection_required") {
+    const nativeStatus = cleanString(priorEvaluation?.status).toLowerCase();
+    const nativeNextStep = cleanString(priorEvaluation?.nextStep || priorEvaluation?.reflectionGate?.nextStep).toLowerCase();
+    if (status !== "reflection_required" && nextStep !== "spoken_reflection_required" && nativeStatus !== "reflection_required" && nativeNextStep !== "spoken_reflection_required") {
       return createError(409, "Growth card is not waiting for spoken reflection");
     }
     const reflectionResult = await reflectionService.submitReflection(Object.assign({}, input, {
@@ -786,6 +897,21 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (!reflectionResult?.ok) return reflectionResult;
     const reflection = reflectionResult.reflection;
     let evaluation = evaluationFromCard(loaded.card, reflection, reflectionService);
+    if (priorEvaluation) {
+      evaluation = Object.assign({}, evaluation, {
+        evaluationId: cleanString(priorEvaluation.evaluationId) || evaluation.evaluationId,
+        activityType: cleanString(priorEvaluation.activityType) || evaluation.activityType,
+        skillId: cleanString(priorEvaluation.skillId) || evaluation.skillId,
+        score: Number(priorEvaluation.score || evaluation.score || 0),
+        maxScore: Number(priorEvaluation.maxScore || evaluation.maxScore || 100),
+        finalPassingScore: Number(priorEvaluation.finalPassingScore || priorEvaluation.passingScore || evaluation.finalPassingScore || 80),
+        passingScore: Number(priorEvaluation.finalPassingScore || priorEvaluation.passingScore || evaluation.passingScore || 80),
+        summary: cleanString(priorEvaluation.summary) || evaluation.summary,
+        revisionRequirements: asArray(priorEvaluation.revisionRequirements).length ? priorEvaluation.revisionRequirements : evaluation.revisionRequirements,
+        feedbackSections: Object.assign({}, evaluation.feedbackSections || {}, priorEvaluation.feedbackSections || {}),
+        report: priorEvaluation.report || evaluation.report,
+      });
+    }
     if (reflection.status === "accepted") {
       evaluation = Object.assign({}, evaluation, {
         confidence: Number(evaluation.confidence || 0.82),
@@ -794,7 +920,7 @@ function createLearningGrowthSubmissionService(options = {}) {
       });
     }
     const programService = getProgramService(options);
-    const nativeTask = resolveProgramTaskCard(programService, loaded.card);
+    const nativeTask = loaded.nativeTask || resolveProgramTaskCard(programService, loaded.card);
     const submissionRecordService = submissionRecords();
     let nativeReflection = null;
     if (submissionRecordService && nativeTask) {
@@ -827,10 +953,9 @@ function createLearningGrowthSubmissionService(options = {}) {
       settlement = { status: "reflection_retry_required", reason: "Spoken reflection needs another attempt." };
     }
     const publicEval = publicEvaluation(evaluation, settlement);
-    const reflectionMutation = await kanbanCardProvider.mutateCard({
+    const reflectionMutation = await projectKanbanComment(loaded, {
       action: "comment",
       workspaceId,
-      cardId: cardIdValue,
       comment: readableReflectionComment(reflection, evaluation),
       author: cleanString(input.author) || "learning-growth-reflection",
       learningGrowthEvaluation: publicEval,
@@ -838,13 +963,12 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (!reflectionMutation?.ok) return createError(reflectionMutation?.status || 502, cleanString(reflectionMutation?.error || "Unable to persist Growth reflection"));
     let completion = null;
     if (reflection.status === "accepted" && evaluation.passed) {
-      completion = await kanbanCardProvider.mutateCard({
+      completion = await projectKanbanComment(loaded, {
         action: "complete",
         workspaceId,
-        cardId: cardIdValue,
         comment: readableCompletionComment(evaluation, publicEval),
         author: "learning-growth-evaluator",
-      }).catch((err) => ({ ok: false, error: cleanString(err.message || err) }));
+      });
     }
     return {
       ok: true,
@@ -865,11 +989,15 @@ function createLearningGrowthSubmissionService(options = {}) {
 
   async function withdrawSubmission(input = {}) {
     const workspaceId = cleanString(input.workspaceId) || "owner";
-    const cardIdValue = cleanString(input.cardId);
-    if (!cardIdValue) return createError(400, "Growth card id is required");
-    const loaded = await loadGrowthCard(workspaceId, cardIdValue);
+    const loaded = await loadGrowthWorkItem(workspaceId, input);
     if (!loaded.ok) return loaded;
-    const submittedAt = cardField(loaded.card, "learningGrowthSubmissionAt", "learning_growth_submission_at");
+    const cardIdValue = loaded.cardIdValue;
+    const programService = getProgramService(options);
+    const nativeTask = loaded.nativeTask || resolveProgramTaskCard(programService, loaded.card);
+    const latestSubmission = nativeTask && typeof programService?.listTaskSubmissions === "function"
+      ? programService.listTaskSubmissions({ taskCardId: nativeTask.taskCardId, limit: 1 })[0]
+      : null;
+    const submittedAt = cardField(loaded.card, "learningGrowthSubmissionAt", "learning_growth_submission_at") || cleanString(latestSubmission?.submittedAt);
     const submittedMs = parseTimeMs(submittedAt);
     if (!submittedMs) return createError(409, "No Growth submission is available to withdraw");
     const currentMs = now();
@@ -886,16 +1014,13 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (completed || rewardStatus === "settled" || entryId) {
       return createError(409, "Growth submission can no longer be withdrawn after completion or reward settlement");
     }
-    const result = await kanbanCardProvider.mutateCard({
+    const result = await projectKanbanComment(loaded, {
       action: "clear_learning_growth_submission",
       workspaceId,
-      cardId: cardIdValue,
       author: cleanString(input.author) || "learning-growth",
       reason: cleanString(input.reason) || "Withdraw Growth learning task submission.",
     });
     if (!result?.ok) return createError(result?.status || 502, cleanString(result?.error || result?.result?.error || "Unable to withdraw learning task submission"));
-    const programService = getProgramService(options);
-    const nativeTask = resolveProgramTaskCard(programService, loaded.card);
     const submissionRecordService = submissionRecords();
     if (submissionRecordService && nativeTask) {
       try {

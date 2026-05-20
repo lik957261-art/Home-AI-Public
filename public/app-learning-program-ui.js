@@ -583,8 +583,32 @@
     const guard = nativeGrowthSubmissionGuard(task, options);
     const kanbanCardId = String(task?.kanbanCardId || task?.todoId || "");
     const workspaceId = String(task?.workspaceId || "");
+    const nativeState = task?.nativeState || {};
+    const nextAction = String(nativeState.nextAction || "");
+    const stateLabel = {
+      submit: "\u5f85\u4f5c\u7b54",
+      waiting_feedback: "\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539",
+      revise: "\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4",
+      spoken_reflection: "\u9700\u8981\u5f55\u97f3\u6216\u6587\u5b57\u590d\u76d8",
+      complete: "\u5df2\u5b8c\u6210",
+    }[nextAction] || "";
+    if (nextAction === "complete") {
+      return `<div class="learning-native-growth-submission-state is-ready">${escapeHtml(stateLabel || "\u5df2\u5b8c\u6210")}</div>`;
+    }
+    if (nextAction === "spoken_reflection") {
+      return `<form class="learning-native-growth-submission-form" data-learning-native-growth-reflection-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}">
+        <p class="learning-native-growth-prompt">\u9605\u8bfb AI \u53cd\u9988\u540e\uff0c\u7528\u81ea\u5df1\u7684\u8bdd\u8bf4\u660e\u672c\u6b21\u4e3b\u8981\u9519\u8bef\u3001\u4fee\u6539\u539f\u56e0\u548c\u4e0b\u6b21\u7ec3\u4e60\u65b9\u5411\u3002</p>
+        <textarea class="input learning-native-growth-submission-input" name="text" rows="3" maxlength="4000" data-learning-native-growth-reflection-input="${escapeHtml(taskCardId)}" placeholder="\u5199\u4e0b\u6216\u7c98\u8d34\u5f55\u97f3\u8f6c\u5199\u7684\u590d\u76d8\u5185\u5bb9"></textarea>
+        <div class="learning-native-growth-submission-state" data-learning-native-growth-reflection-state="${escapeHtml(taskCardId)}">${escapeHtml(stateLabel)}</div>
+        <div class="learning-program-task-actions">
+          <button type="submit" data-learning-submit-native-growth-reflection="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u590d\u76d8</button>
+          ${kanbanCardId ? `<button type="button" data-learning-open-kanban-card="${escapeHtml(kanbanCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u6253\u5f00\u770b\u677f\u8be6\u60c5</button>` : ""}
+        </div>
+      </form>`;
+    }
     return `<form class="learning-native-growth-submission-form" data-learning-native-growth-submission-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}">
       <p class="learning-native-growth-prompt">${escapeHtml(nativeGrowthSubmissionPrompt(task, options))}</p>
+      ${stateLabel ? `<div class="learning-native-growth-submission-state">${escapeHtml(stateLabel)}</div>` : ""}
       <textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539"></textarea>
       <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>
       <div class="learning-program-task-actions">
@@ -602,7 +626,7 @@
     const workspaceId = String(task?.workspaceId || "");
     const status = String(task?.status || "");
     const nativeGrowth = task?.source === "learning-growth" && taskCardId;
-    if (nativeGrowth && todoId) {
+    if (nativeGrowth) {
       if (["completed", "archived", "blocked"].includes(status)) return "";
       return renderNativeGrowthSubmission(task, options);
     }
@@ -644,7 +668,7 @@
           const skills = compactFocus(task.skillIds || []).slice(0, 80);
           const meta = [
             task.dueLocal || task.plannedDate,
-            task.kanbanStatus ? `Kanban: ${task.kanbanStatus}` : "",
+            task.nativeState?.status ? `\u72b6\u6001: ${task.nativeState.status}` : "",
             skills,
           ].filter(Boolean).join(" / ");
           return `<article class="learning-program-task-item" data-learning-executable-task-id="${escapeHtml(task.todoId || task.taskCardId || "")}">

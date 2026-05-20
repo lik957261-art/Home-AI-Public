@@ -496,6 +496,9 @@ function createLearningProgramService(options = {}) {
     const taskReflections = typeof repository.listTaskReflections === "function"
       ? repository.listTaskReflections({ learnerId, workspaceId, limit: input.limit || 20 })
       : [];
+    const taskArtifacts = typeof repository.listTaskArtifacts === "function"
+      ? repository.listTaskArtifacts({ learnerId, workspaceId, limit: input.limit || 20 })
+      : [];
     const currentDailyPlan = dailyPlanService.dailyPlan({ learnerId, workspaceId, days: input.days || 7, limit: input.limit || 50 });
     const parentReviewRequests = parentReviewRequestService.list({ learnerId, workspaceId, status: input.reviewStatus || "pending", limit: input.limit || 20 });
     const rewardSettlements = rewardSettlementService.list({ learnerId, workspaceId, limit: input.limit || 20 });
@@ -514,6 +517,7 @@ function createLearningProgramService(options = {}) {
       evaluations,
       taskSubmissions,
       taskReflections,
+      taskArtifacts,
       parentReviewRequests,
       rewardSettlements,
       learnerProfile: profile.profile,
@@ -622,6 +626,10 @@ function createLearningProgramService(options = {}) {
     return typeof repository.listTaskReflections === "function" ? repository.listTaskReflections(filters) : [];
   }
 
+  function listTaskArtifacts(filters = {}) {
+    return typeof repository.listTaskArtifacts === "function" ? repository.listTaskArtifacts(filters) : [];
+  }
+
   function settleEvaluationReward(evaluationId, input = {}) {
     return rewardSettlementService.settleEvaluationReward(evaluationId, input);
   }
@@ -672,6 +680,7 @@ function createLearningProgramService(options = {}) {
     listParentReviewRequests,
     listPrograms,
     listRewardSettlements,
+    listTaskArtifacts,
     listTaskReflections,
     listTaskSubmissions,
     listGoals,
