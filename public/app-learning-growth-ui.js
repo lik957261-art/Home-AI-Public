@@ -104,22 +104,6 @@
     return `${Number.isFinite(amount) ? amount : 0} \u91d1\u5e01`;
   }
 
-  function renderOwnerEntryMenu(options = {}) {
-    if (!isOwner(options)) return "";
-    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    const entries = [
-      ["new-task", "\u65b0\u5efa\u4efb\u52a1"],
-      ["settings", "\u8bbe\u7f6e"],
-      ["reward-settlement", "\u5956\u52b1\u7ed3\u7b97"],
-    ];
-    return `<details class="learning-growth-owner-menu" data-learning-growth-owner-menu>
-      <summary aria-label="\u7ba1\u7406\u5165\u53e3"><span aria-hidden="true">...</span></summary>
-      <div class="learning-growth-owner-menu-panel" role="menu">
-        ${entries.map(([id, label]) => `<button type="button" role="menuitem" data-learning-growth-owner-entry="${escapeHtml(id)}" data-learning-growth-tab="${escapeHtml(id)}">${escapeHtml(label)}</button>`).join("")}
-      </div>
-    </details>`;
-  }
-
   function renderGrowthWorkflow(options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const steps = [
@@ -374,8 +358,8 @@
     ].join("");
     return `<section class="learning-program-section learning-program-parent-admin" data-learning-growth-module="programs" data-learning-growth-category="parent-admin" data-learning-growth-owner-management>
       ${renderLearningGrowthTabs([
-        { id: "new-task", label: "\u65b0\u5efa\u4efb\u52a1", html: taskManagement },
         { id: "settings", label: "\u8bbe\u7f6e", html: config },
+        { id: "new-task", label: "\u65b0\u5efa\u4efb\u52a1", html: taskManagement },
         { id: "reward-settlement", label: "\u5956\u52b1\u7ed3\u7b97", html: rewards },
       ], options)}
     </section>`;
@@ -396,27 +380,29 @@
     </section>`;
   }
 
-  function renderOwnerToolsDisclosure(programUi, coinsUi, overview = {}, options = {}) {
+  function renderOwnerSettingsPage(programUi, coinsUi, overview = {}, options = {}) {
     if (!isOwner(options) || !programUi || typeof renderOwnerProgramTabs !== "function") return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const coins = options.coins || overview.coins || {};
     const learnerId = overview.learner?.id || options.learnerId;
+    const learnerLabel = overview.learner?.displayName
+      || (learnerId === "weixin_stephen" ? "鍑″嚒" : learnerId)
+      || "\u6267\u884c\u8005";
     const coinsHtml = coinsUi && typeof coinsUi.renderCoinsSubsystem === "function"
       ? coinsUi.renderCoinsSubsystem({ summary: coins, learnerId, state: options.state || {}, escapeHtml: optionFn(options, "escapeHtml", defaultEscapeHtml) })
       : "";
     const adminHtml = renderOwnerProgramTabs(programUi, coinsHtml, overview, options);
     if (!adminHtml) return "";
-    return `<details class="learning-growth-owner-tools" data-learning-growth-owner-tools>
-      <summary>
-        <span>\u7ba1\u7406</span>
-        <strong>\u2026</strong>
-      </summary>
-      <div class="learning-growth-owner-tool-shortcuts" aria-label="\u7ba1\u7406\u529f\u80fd">
-        <button type="button" data-learning-growth-owner-shortcut="new-task" data-learning-growth-tab="new-task">\u65b0\u5efa\u4efb\u52a1</button>
-        <button type="button" data-learning-growth-owner-shortcut="settings" data-learning-growth-tab="settings">\u8bbe\u7f6e</button>
-        <button type="button" data-learning-growth-owner-shortcut="reward-settlement" data-learning-growth-tab="reward-settlement">\u5956\u52b1\u7ed3\u7b97</button>
+    return `<div class="learning-growth-view learning-growth-settings-page" data-learning-product="fanfan-growth" data-learning-role="owner" data-learning-growth-settings-page>
+      <div class="learning-growth-settings-head">
+        <button type="button" data-learning-growth-close-settings>\u8fd4\u56de\u770b\u677f</button>
+        <div>
+          <strong>\u8bbe\u7f6e</strong>
+          <span>${escapeHtml(learnerLabel)}</span>
+        </div>
       </div>
       ${adminHtml}
-    </details>`;
+    </div>`;
   }
 
   function findSelectedGrowthTask(programs = {}, taskCardId = "") {
@@ -479,12 +465,13 @@
       || 0);
     const coinText = formatGrowthCoins(Number.isFinite(historicalCoins) ? historicalCoins : 0);
     const coinsUi = options.coinsUi || CoinsUi;
-    const ownerManagement = renderOwnerToolsDisclosure(programUi, coinsUi, overview, options);
+    if (owner && options.state?.learningGrowthSettingsOpen) {
+      return renderOwnerSettingsPage(programUi, coinsUi, overview, options);
+    }
     return `<div class="learning-growth-view learning-growth-board-page" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
       <section class="learning-growth-board-summary" data-learning-growth-board-summary>
         <div class="learning-growth-board-summary-head">
-          <span>${escapeHtml(owner ? "\u7ba1\u7406\u5165\u53e3" : "\u5b66\u4e60\u4efb\u52a1")}</span>
-          ${renderOwnerEntryMenu(options)}
+          <span>${escapeHtml(owner ? "\u4efb\u52a1\u6982\u89c8" : "\u5b66\u4e60\u4efb\u52a1")}</span>
         </div>
         <div class="learning-growth-board-summary-metrics" aria-label="\u6210\u957f\u6982\u89c8">
           <span><b>${escapeHtml(learnerLabel)}</b><small>\u6267\u884c\u8005</small></span>
@@ -492,7 +479,6 @@
         </div>
       </section>
       ${boardHtml}
-      ${ownerManagement}
     </div>`;
   }
 

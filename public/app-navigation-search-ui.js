@@ -269,15 +269,11 @@ function updateTopMoreControls() {
     newTodo.textContent = "\u65b0\u589e\u4efb\u52a1";
   }
   const learningOwnerAction = learningView && Boolean(state.auth?.isOwner);
-  [
-    $("topLearningNewTask"),
-    $("topLearningSettings"),
-    $("topLearningRewards"),
-  ].forEach((button) => {
-    if (!button) return;
-    button.hidden = !learningOwnerAction;
-    button.disabled = !learningOwnerAction;
-  });
+  const learningSettings = $("topLearningSettings");
+  if (learningSettings) {
+    learningSettings.hidden = !learningOwnerAction;
+    learningSettings.disabled = !learningOwnerAction;
+  }
   const newAutomation = $("topNewAutomation");
   if (newAutomation) {
     newAutomation.hidden = !automationList;

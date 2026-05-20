@@ -421,6 +421,7 @@ const state = {
   learningParentReportLoading: false,
   learningParentReportError: "",
   learningCoinRequestSeq: 0,
+  learningGrowthSettingsOpen: false,
   directoryThreadId: "",
   directoryThreadWorkspaceId: "",
   directoryPath: "",

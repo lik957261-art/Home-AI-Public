@@ -40,6 +40,7 @@ function resetLearningCoinsState() {
   state.learningGrowth = null;
   state.learningGrowthBoardLane = "";
   state.selectedLearningTaskCardId = "";
+  state.learningGrowthSettingsOpen = false;
   state.learningCoins = null;
   state.learningCoinsError = "";
   state.learningParentReport = null;
@@ -127,13 +128,15 @@ function selectLearningGrowthBoardLane(laneId) {
   });
 }
 
-function openLearningGrowthOwnerPanel(tabId = "new-task") {
-  const id = String(tabId || "new-task").trim() || "new-task";
-  const root = $("conversation");
-  const tools = root?.querySelector("[data-learning-growth-owner-tools]");
-  if (tools) tools.open = true;
-  selectLearningGrowthTab(id);
-  tools?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+function openLearningGrowthSettingsPage() {
+  state.learningGrowthSettingsOpen = true;
+  state.selectedLearningTaskCardId = "";
+  renderLearningCoinsView();
+}
+
+function closeLearningGrowthSettingsPage() {
+  state.learningGrowthSettingsOpen = false;
+  renderLearningCoinsView();
 }
 
 async function loadLearningCoins(options = {}) {
@@ -174,6 +177,7 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   }
   state.viewMode = "learning";
   localStorage.setItem("hermesWebViewMode", "learning");
+  state.learningGrowthSettingsOpen = false;
   state.selectedLearningTaskCardId = id;
   state.selectedTodoId = "";
   state.todoRouteMissingTargetId = "";
@@ -194,7 +198,7 @@ async function openLearningKanbanCard(todoId, workspaceId = "") {
     localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
     if ($("workspaceSelect")) $("workspaceSelect").value = state.selectedWorkspaceId;
   }
-  state.viewMode = "todos"; state.selectedTodoId = id; state.selectedLearningTaskCardId = ""; state.todoRouteMissingTargetId = "";
+  state.viewMode = "todos"; state.selectedTodoId = id; state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsOpen = false; state.todoRouteMissingTargetId = "";
   localStorage.setItem("hermesWebViewMode", "todos"); await loadProjects(); await loadTodos({ skipCache: true, includeCompleted: true, freshServer: true, targetId: id, workspaceId: targetWorkspaceId });
 }
 
@@ -560,13 +564,11 @@ function wireLearningCoinsView() {
   $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
   });
-  $("conversation")?.querySelectorAll("[data-learning-growth-owner-entry], [data-learning-growth-owner-shortcut]").forEach((button) => {
-    button.addEventListener("click", () => openLearningGrowthOwnerPanel(button.dataset.learningGrowthOwnerEntry || button.dataset.learningGrowthOwnerShortcut));
-  });
+  $("conversation")?.querySelector("[data-learning-growth-close-settings]")?.addEventListener("click", closeLearningGrowthSettingsPage);
   $("conversation")?.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
   });
-  $("conversation")?.querySelector("[data-learning-close-growth-task]")?.addEventListener("click", () => { state.selectedLearningTaskCardId = ""; renderLearningCoinsView(); });
+  $("conversation")?.querySelector("[data-learning-close-growth-task]")?.addEventListener("click", () => { state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsOpen = false; renderLearningCoinsView(); });
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);
   });

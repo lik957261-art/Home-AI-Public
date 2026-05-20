@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-owner-ui-v42";
+const CLIENT_VERSION = "20260521-growth-settings-page-v43";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -973,7 +973,9 @@ assert.match(appLearningGrowthUiJs, /renderLearningGrowthTabs/);
 assert.match(appLearningGrowthUiJs, /\{ id: "new-task"/);
 assert.match(appLearningGrowthUiJs, /\{ id: "settings"/);
 assert.match(appLearningGrowthUiJs, /\{ id: "reward-settlement"/);
-assert.match(appLearningGrowthUiJs, /data-learning-growth-owner-entry/);
+assert.match(appLearningGrowthUiJs, /data-learning-growth-settings-page/);
+assert.match(appLearningGrowthControllerJs, /openLearningGrowthSettingsPage/);
+assert.match(appJs, /learningGrowthSettingsOpen/);
 assert.match(appLearningGrowthUiJs, /data-learning-product="fanfan-growth"/);
 assert.match(appLearningGrowthUiJs, /data-learning-role/);
 assert.match(appLearningGrowthUiJs, /function renderReadinessPanel/);
@@ -1018,7 +1020,11 @@ assert.match(stylesCss, /\.learning-program-guidance-grid/);
 assert.match(stylesCss, /\.learning-daily-plan-list/);
 assert.match(stylesCss, /\.learning-program-task-actions/);
 assert.match(stylesCss, /\.learning-native-growth-submission-form/);
-assert.match(stylesCss, /\.learning-growth-owner-menu/);
+assert.match(stylesCss, /\.learning-growth-settings-page/);
+assert.match(stylesCss, /\.learning-growth-settings-head/);
+assert.match(indexHtml, /id="topLearningSettings"/);
+assert.equal(indexHtml.includes('id="topLearningNewTask"'), false);
+assert.equal(indexHtml.includes('id="topLearningRewards"'), false);
 assert.match(stylesCss, /\.learning-mode #interruptRun \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /\.learning-growth-answer-instruction p \{[\s\S]*?font-size: 16px;/);
 assert.match(stylesCss, /\.learning-native-growth-submission-input \{[\s\S]*?font-size: 16px;/);

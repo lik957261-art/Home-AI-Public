@@ -217,22 +217,47 @@ function testGrowthRendererOpensLegacyTodoAsReadOnlyTask() {
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form="legacy_todo:t_read_5"/);
 }
 
-function testOwnerRendererKeepsManagementSections() {
+function testOwnerRendererKeepsBoardSeparateFromManagementSections() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: true } } });
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-board-summary/);
   assert.match(html, /data-learning-growth-board/);
-  assert.match(html, /data-learning-growth-owner-menu/);
-  assert.match(html, /data-learning-growth-owner-entry="new-task"/);
-  assert.match(html, /data-learning-growth-owner-entry="settings"/);
-  assert.match(html, /data-learning-growth-owner-entry="reward-settlement"/);
+  assert.doesNotMatch(html, /data-learning-growth-owner-menu/);
+  assert.doesNotMatch(html, /data-learning-growth-owner-entry/);
+  assert.doesNotMatch(html, /data-learning-growth-owner-tools/);
+  assert.doesNotMatch(html, /data-learning-growth-settings-page/);
+  assert.doesNotMatch(html, /data-learning-growth-tabs/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="new-task"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="settings"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="reward-settlement"/);
+  assert.doesNotMatch(html, /data-learning-growth-category="parent-admin"/);
+  assert.doesNotMatch(html, /data-learning-program-create/);
+  assert.doesNotMatch(html, /data-learning-launch-operations/);
+  assert.doesNotMatch(html, /data-learning-evaluation-settle="eval-1"/);
+  assert.doesNotMatch(html, /data-learning-reward-settlement-id="settle-1"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
+  assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
+  assert.doesNotMatch(html, /data-learning-operational-readiness/);
+  assert.doesNotMatch(html, /\u51e1\u51e1\u6210\u957f\u7cfb\u7edf|\u51e1\u51e1\u6210\u957f|\u6210\u957f\u770b\u677f|<small>7d<\/small>/);
+}
+
+function testOwnerRendererShowsIndependentSettingsPage() {
+  const html = GrowthUi.renderLearningGrowthView({
+    overview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true },
+  });
+  assert.match(html, /data-learning-role="owner"/);
+  assert.match(html, /data-learning-growth-settings-page/);
+  assert.match(html, /data-learning-growth-close-settings/);
+  assert.doesNotMatch(html, /data-learning-growth-board-summary/);
+  assert.doesNotMatch(html, /data-learning-growth-owner-menu/);
+  assert.doesNotMatch(html, /data-learning-growth-owner-tools/);
   assert.match(html, /data-learning-growth-tabs/);
-  assert.match(html, /data-learning-growth-tab="new-task"/);
   assert.match(html, /data-learning-growth-tab="settings"/);
+  assert.match(html, /data-learning-growth-tab="new-task"/);
   assert.match(html, /data-learning-growth-tab="reward-settlement"/);
-  assert.match(html, /新建任务/);
-  assert.match(html, /设置/);
-  assert.match(html, /奖励结算/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
   assert.match(html, /data-learning-program-create/);
   assert.match(html, /data-learning-launch-operations/);
@@ -242,7 +267,7 @@ function testOwnerRendererKeepsManagementSections() {
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
   assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
   assert.doesNotMatch(html, /data-learning-operational-readiness/);
-  assert.doesNotMatch(html, /凡凡成长系统|凡凡成长|成长看板|<small>7d<\/small>/);
+  assert.doesNotMatch(html, /\u51e1\u51e1\u6210\u957f\u7cfb\u7edf|\u51e1\u51e1\u6210\u957f|\u6210\u957f\u770b\u677f|<small>7d<\/small>/);
 }
 
 function testReadinessPanelRenderer() {
@@ -258,7 +283,8 @@ testGrowthRendererContainsProductShellAndNestedCoins();
 testGrowthRendererContainsProgramSubsystem();
 testGrowthRendererShowsStandaloneTaskCardWhenSelected();
 testGrowthRendererOpensLegacyTodoAsReadOnlyTask();
-testOwnerRendererKeepsManagementSections();
+testOwnerRendererKeepsBoardSeparateFromManagementSections();
+testOwnerRendererShowsIndependentSettingsPage();
 testReadinessPanelRenderer();
 
 console.log("app learning growth ui tests passed");
