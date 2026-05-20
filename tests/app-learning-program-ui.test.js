@@ -220,7 +220,7 @@ function testNonOwnerCannotSeeCreateForm() {
   assert.match(html, /data-learning-program-id="program-1"/);
 }
 
-function testNativeTaskWithKanbanLinkOpensLinkedCard() {
+function testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst() {
   const html = ProgramUi.renderProgramSubsystem({
     programs: Object.assign({}, programs, {
       executableTasks: [{
@@ -239,12 +239,40 @@ function testNativeTaskWithKanbanLinkOpensLinkedCard() {
     state: { auth: { isOwner: false } },
   });
   assert.match(html, /data-learning-executable-task-id="task-native-1"/);
+  assert.match(html, /data-learning-native-growth-submission-form="task-native-1"/);
+  assert.match(html, /data-learning-native-growth-submission-input="task-native-1"/);
+  assert.match(html, /data-learning-submit-native-growth="task-native-1"/);
   assert.match(html, /data-learning-open-kanban-card="kanban-native-1"/);
   assert.doesNotMatch(html, /data-learning-task-start="task-native-1"/);
 }
 
+function testNativeTaskWithoutKanbanLinkFallsBackToSessionStart() {
+  const html = ProgramUi.renderProgramSubsystem({
+    programs: Object.assign({}, programs, {
+      executableTasks: [{
+        taskCardId: "task-native-2",
+        source: "learning-growth",
+        title: "Native Growth task without Kanban",
+        status: "published",
+        executionStatus: "pending_execution",
+        workspaceId: "weixin_stephen",
+        plannedDate: "2026-05-19",
+        plannedMinutes: 20,
+        skillIds: ["english_grammar"],
+      }],
+    }),
+    state: { auth: { isOwner: false } },
+  });
+  assert.match(html, /data-learning-executable-task-id="task-native-2"/);
+  assert.match(html, /data-learning-task-start="task-native-2"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-native-2"/);
+  assert.doesNotMatch(html, /data-learning-open-kanban-card/);
+  assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
+}
+
 testOwnerFormAndActionsRender();
 testNonOwnerCannotSeeCreateForm();
-testNativeTaskWithKanbanLinkOpensLinkedCard();
+testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst();
+testNativeTaskWithoutKanbanLinkFallsBackToSessionStart();
 
 console.log("app learning program ui tests passed");

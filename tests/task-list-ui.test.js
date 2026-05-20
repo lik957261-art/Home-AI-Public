@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-native-list-v31";
+const CLIENT_VERSION = "20260520-growth-native-submit-v32";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -915,6 +915,10 @@ assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
   assert.match(appJs, /\/api\/learning\/goals/);
   assert.match(appJs, /\/api\/learning\/profile\/rebuild/);
   assert.match(appJs, /\/api\/learning\/task-cards\/\$\{encodeURIComponent\(taskCardId\)\}\/sessions/);
+  assert.match(appLearningGrowthControllerJs, /function submitNativeGrowthTask\(/);
+  assert.match(appLearningGrowthControllerJs, /\/api\/learning\/task-cards\/\$\{encodeURIComponent\(taskCardId\)\}\/growth-submission/);
+  assert.match(appLearningProgramUiJs, /data-learning-native-growth-submission-form/);
+  assert.match(appLearningProgramUiJs, /data-learning-submit-native-growth/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/advance/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/evaluations/);
   assert.match(appJs, /data-learning-program-publish/);
@@ -983,6 +987,7 @@ assert.match(stylesCss, /\.learning-program-execution-grid/);
 assert.match(stylesCss, /\.learning-program-guidance-grid/);
 assert.match(stylesCss, /\.learning-daily-plan-list/);
 assert.match(stylesCss, /\.learning-program-task-actions/);
+assert.match(stylesCss, /\.learning-native-growth-submission-form/);
 assert.match(stylesCss, /\.learning-evaluation-inline-form/);
 assert.match(appJs, /function isKanbanLearningGrowthCard\(todo\)/);
 assert.match(appJs, /function renderKanbanLearningGrowthTodoPanel\(todo\)/);

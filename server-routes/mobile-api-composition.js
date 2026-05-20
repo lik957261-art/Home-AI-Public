@@ -574,6 +574,7 @@ function createMobileApiComposition(deps = {}) {
 
   const learningProgramApiRoutes = createLearningProgramApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
+    learningGrowthSubmissionService,
     learningProgramService,
     readBody: deps.readBody,
     requireOwner: deps.requireOwner,

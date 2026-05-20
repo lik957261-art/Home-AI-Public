@@ -524,12 +524,88 @@
     return matches.slice().sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
   }
 
+  function growthTaskUi(options = {}) {
+    return options.growthTaskUi
+      || (typeof globalThis !== "undefined" ? globalThis.HermesLearningGrowthTaskUi : null)
+      || null;
+  }
+
+  function growthTaskUiInput(task = {}) {
+    return Object.assign({ learningTaskModel: task.taskModel || task.learningTaskModel }, task);
+  }
+
+  function fallbackSubmissionGuard(task = {}) {
+    const model = task.taskModel || task.learningTaskModel || {};
+    const activity = String(model.activityType || "").trim().toLowerCase();
+    const base = {
+      writing: { minWords: 80, minChars: 300 },
+      reading: { minWords: 50, minChars: 250 },
+      listening: { minWords: 35, minChars: 180 },
+      speaking: { minWords: 45, minChars: 220 },
+      pronunciation: { minWords: 20, minChars: 100 },
+      vocabulary: { minWords: 40, minChars: 220 },
+      grammar: { minWords: 35, minChars: 180 },
+      rewriting: { minWords: 70, minChars: 380 },
+      presentation: { minWords: 60, minChars: 320 },
+      weekly_challenge: { minWords: 80, minChars: 450 },
+    }[activity] || { minWords: 40, minChars: 200 };
+    return Object.assign({ activityType: activity || "default", stage: "draft" }, base);
+  }
+
+  function nativeGrowthSubmissionPrompt(task = {}, options = {}) {
+    const helper = growthTaskUi(options);
+    if (helper && typeof helper.submissionPrompt === "function") {
+      return helper.submissionPrompt({}, growthTaskUiInput(task));
+    }
+    return "\u5199\u4e0b\u672c\u6b21\u5b66\u4e60\u4efb\u52a1\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7531 AI \u6279\u6539\u5e76\u751f\u6210\u53cd\u9988\u3002";
+  }
+
+  function nativeGrowthSubmissionGuard(task = {}, options = {}) {
+    const helper = growthTaskUi(options);
+    if (helper && typeof helper.submissionGuard === "function") {
+      return helper.submissionGuard(growthTaskUiInput(task), {});
+    }
+    return fallbackSubmissionGuard(task);
+  }
+
+  function nativeGrowthRequirementLabel(guard = {}, options = {}) {
+    const helper = growthTaskUi(options);
+    if (helper && typeof helper.submissionRequirementLabel === "function") {
+      return helper.submissionRequirementLabel(guard);
+    }
+    return `\u81f3\u5c11 ${Number(guard.minWords || 0)} \u4e2a\u82f1\u6587\u8bcd / ${Number(guard.minChars || 0)} \u4e2a\u6709\u6548\u5b57\u7b26`;
+  }
+
+  function renderNativeGrowthSubmission(task = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    if (!taskCardId) return "";
+    const guard = nativeGrowthSubmissionGuard(task, options);
+    const kanbanCardId = String(task?.kanbanCardId || task?.todoId || "");
+    const workspaceId = String(task?.workspaceId || "");
+    return `<form class="learning-native-growth-submission-form" data-learning-native-growth-submission-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}">
+      <p class="learning-native-growth-prompt">${escapeHtml(nativeGrowthSubmissionPrompt(task, options))}</p>
+      <textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539"></textarea>
+      <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>
+      <div class="learning-program-task-actions">
+        <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u7ed9 AI \u6279\u6539</button>
+        ${kanbanCardId ? `<button type="button" data-learning-open-kanban-card="${escapeHtml(kanbanCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u6253\u5f00\u770b\u677f\u8be6\u60c5</button>` : ""}
+      </div>
+      <div class="learning-native-growth-submission-state" data-learning-native-growth-submission-state="${escapeHtml(taskCardId)}" aria-live="polite"></div>
+    </form>`;
+  }
+
   function renderTaskAction(task, session, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(task?.taskCardId || "");
     const todoId = String(task?.todoId || task?.kanbanCardId || "");
     const workspaceId = String(task?.workspaceId || "");
     const status = String(task?.status || "");
+    const nativeGrowth = task?.source === "learning-growth" && taskCardId;
+    if (nativeGrowth && todoId) {
+      if (["completed", "archived", "blocked"].includes(status)) return "";
+      return renderNativeGrowthSubmission(task, options);
+    }
     if (todoId || task?.source === "kanban") {
       if (!todoId || ["completed", "archived", "blocked"].includes(status)) return "";
       return `<div class="learning-program-task-actions">

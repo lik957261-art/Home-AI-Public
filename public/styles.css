@@ -7843,6 +7843,26 @@ button.directory-alias-chip {
   align-items: center;
 }
 
+.learning-native-growth-submission-form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.learning-native-growth-prompt,
+.learning-native-growth-submission-state {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.learning-native-growth-submission-input {
+  min-height: 108px;
+  resize: vertical;
+}
+
 .learning-program-task-actions button,
 .learning-evaluation-inline-form button {
   min-height: 34px;

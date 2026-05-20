@@ -421,6 +421,27 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-task-card", "learning-interaction-session"],
   })),
+  regex("learning-task-card-growth-submission", "POST", /^\/api\/learning\/task-cards\/[^/]+\/growth-submission$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-growth-submission"],
+  })),
+  regex("learning-task-card-growth-submission-withdraw", "POST", /^\/api\/learning\/task-cards\/[^/]+\/growth-submission\/withdraw$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-growth-submission"],
+  })),
+  regex("learning-task-card-growth-reflection", "POST", /^\/api\/learning\/task-cards\/[^/]+\/growth-reflection$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-growth-reflection"],
+  })),
   exact("learning-sessions-list", "GET", "/api/learning/sessions", "learning-program", routeOptions("learning-program", {
     riskLevel: "low",
     authMode: "access-key",

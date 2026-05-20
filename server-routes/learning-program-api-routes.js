@@ -374,6 +374,51 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "task-card", "session", "executor", "summary-only"],
   },
   {
+    id: "learning-task-card-growth-submission",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/growth-submission$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "submitGrowthTask",
+    summary: "Submit a Growth learning task through the learning task namespace.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-growth-submission"],
+    tags: ["learning", "growth", "task-card", "submission", "executor"],
+  },
+  {
+    id: "learning-task-card-growth-submission-withdraw",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/growth-submission\/withdraw$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "withdrawGrowthTaskSubmission",
+    summary: "Withdraw a recent Growth learning task submission through the learning task namespace.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-growth-submission"],
+    tags: ["learning", "growth", "task-card", "submission", "withdraw"],
+  },
+  {
+    id: "learning-task-card-growth-reflection",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/growth-reflection$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "submitGrowthTaskReflection",
+    summary: "Submit a Growth spoken reflection through the learning task namespace.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-growth-reflection"],
+    tags: ["learning", "growth", "task-card", "reflection", "executor"],
+  },
+  {
     id: "learning-sessions-list",
     method: "GET",
     path: "/api/learning/sessions",
@@ -849,6 +894,22 @@ function createLearningProgramApiRoutes(deps = {}) {
     return false;
   }
 
+  function getGrowthSubmissionService() {
+    const growthService = deps.learningGrowthSubmissionService;
+    if (!growthService || typeof growthService.submitTask !== "function") {
+      const err = new Error("Growth task submission service is not available");
+      err.status = 503;
+      throw err;
+    }
+    return growthService;
+  }
+
+  function assertTaskHasKanbanLink(res, taskCard) {
+    if (cleanString(taskCard?.kanbanCardId)) return true;
+    deps.sendJson(res, 409, { ok: false, error: "Growth task is not linked to an executable Kanban card yet" });
+    return false;
+  }
+
   async function handleUpdate(req, res, url) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -969,6 +1030,92 @@ function createLearningProgramApiRoutes(deps = {}) {
         ok: true,
         session: service.startTaskSession(taskCardId, Object.assign({}, body, { actor: actorFromAuth(auth) })),
       });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleGrowthSubmission(req, res, url, auth) {
+    const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/growth-submission$/);
+    const taskCard = service.getTaskCard(taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
+    if (!assertTaskHasKanbanLink(res, taskCard)) return;
+    const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const result = await getGrowthSubmissionService().submitTask(Object.assign({}, body, {
+        workspaceId: taskCard.workspaceId,
+        cardId: taskCard.kanbanCardId,
+        taskCardId,
+        author: actorFromAuth(auth),
+      }));
+      deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
+        taskCardId,
+        kanbanCardId: taskCard.kanbanCardId,
+      }));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleGrowthSubmissionWithdraw(req, res, url, auth) {
+    const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/growth-submission\/withdraw$/);
+    const taskCard = service.getTaskCard(taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
+    if (!assertTaskHasKanbanLink(res, taskCard)) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const result = await getGrowthSubmissionService().withdrawSubmission(Object.assign({}, body, {
+        workspaceId: taskCard.workspaceId,
+        cardId: taskCard.kanbanCardId,
+        taskCardId,
+        author: actorFromAuth(auth),
+      }));
+      deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
+        taskCardId,
+        kanbanCardId: taskCard.kanbanCardId,
+      }));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleGrowthReflection(req, res, url, auth) {
+    const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/growth-reflection$/);
+    const taskCard = service.getTaskCard(taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    if (!assertExecutableTaskForAuth(res, auth, taskCard)) return;
+    if (!assertTaskHasKanbanLink(res, taskCard)) return;
+    const body = await deps.readBody(req, 240000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const growthService = getGrowthSubmissionService();
+      if (typeof growthService.submitReflection !== "function") {
+        deps.sendJson(res, 503, { ok: false, error: "Growth reflection service is not available" });
+        return;
+      }
+      const result = await growthService.submitReflection(Object.assign({}, body, {
+        workspaceId: taskCard.workspaceId,
+        cardId: taskCard.kanbanCardId,
+        taskCardId,
+        author: actorFromAuth(auth),
+      }));
+      deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
+        taskCardId,
+        kanbanCardId: taskCard.kanbanCardId,
+      }));
     } catch (err) {
       sendRouteError(deps, res, err);
     }
@@ -1138,6 +1285,9 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-daily-plan") await handleDailyPlan(req, res, url, auth);
     else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url, auth);
+    else if (route.id === "learning-task-card-growth-submission") await handleGrowthSubmission(req, res, url, auth);
+    else if (route.id === "learning-task-card-growth-submission-withdraw") await handleGrowthSubmissionWithdraw(req, res, url, auth);
+    else if (route.id === "learning-task-card-growth-reflection") await handleGrowthReflection(req, res, url, auth);
     else if (route.id === "learning-sessions-list") await handleSessionsList(req, res, url, auth);
     else if (route.id === "learning-session-advance") await handleSessionAdvance(req, res, url, auth);
     else if (route.id === "learning-session-evaluation-create") await handleEvaluationCreate(req, res, url, auth);

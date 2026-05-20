@@ -69,6 +69,7 @@ function renderLearningCoinsView() {
     escapeHtml,
     formatTime,
     learnerId: learningCoinStudentId(),
+    growthTaskUi: window.HermesLearningGrowthTaskUi,
     programUi: window.HermesLearningProgramUi,
     parentReport: state.learningParentReport,
     parentReportLoading: state.learningParentReportLoading,
@@ -423,6 +424,80 @@ async function startLearningTaskSession(taskCardId) {
   await loadLearningCoins({ limit: 30 });
 }
 
+function learningNativeGrowthSubmissionStats(text) {
+  const value = String(text || "").trim();
+  const words = value.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g) || [];
+  return {
+    words: words.length,
+    chars: value.replace(/\s+/g, "").length,
+  };
+}
+
+function nativeGrowthRequirementText(form, stats = null) {
+  const minWords = Number(form?.dataset?.minWords || 0) || 0;
+  const minChars = Number(form?.dataset?.minChars || 0) || 0;
+  if (window.HermesLearningGrowthTaskUi?.submissionRequirementLabel) {
+    return window.HermesLearningGrowthTaskUi.submissionRequirementLabel({ minWords, minChars }, stats);
+  }
+  if (!stats) return `至少 ${minWords} 个英文词 / ${minChars} 个有效字符`;
+  const missingWords = Math.max(0, minWords - Number(stats.words || 0));
+  const missingChars = Math.max(0, minChars - Number(stats.chars || 0));
+  if (!missingWords && !missingChars) return `已达标：当前 ${stats.words} 词 / ${stats.chars} 字符。`;
+  return `未达标：还差 ${missingWords} 个英文词 / ${missingChars} 个有效字符；当前 ${stats.words} 词 / ${stats.chars} 字符。`;
+}
+
+function updateNativeGrowthSubmissionCount(form) {
+  if (!form) return;
+  const input = form.querySelector("[data-learning-native-growth-submission-input]");
+  const count = form.querySelector("[data-learning-native-growth-submission-count]");
+  if (!input || !count) return;
+  const stats = learningNativeGrowthSubmissionStats(input.value);
+  const minWords = Number(form.dataset.minWords || 0) || 0;
+  const minChars = Number(form.dataset.minChars || 0) || 0;
+  const ready = (!minWords || stats.words >= minWords) && (!minChars || stats.chars >= minChars);
+  count.textContent = nativeGrowthRequirementText(form, stats);
+  count.classList.toggle("is-ready", ready);
+  count.classList.toggle("is-short", !ready);
+}
+
+async function submitNativeGrowthTask(event, taskCardId) {
+  event?.preventDefault?.();
+  const form = event?.target;
+  if (!form || !taskCardId) return;
+  const input = form.querySelector("[data-learning-native-growth-submission-input]");
+  const stateNode = form.querySelector("[data-learning-native-growth-submission-state]");
+  const button = form.querySelector("[data-learning-submit-native-growth]");
+  const text = String(input?.value || "").trim();
+  updateNativeGrowthSubmissionCount(form);
+  const stats = learningNativeGrowthSubmissionStats(text);
+  const minWords = Number(form.dataset.minWords || 0) || 0;
+  const minChars = Number(form.dataset.minChars || 0) || 0;
+  if ((!text) || (minWords && stats.words < minWords) || (minChars && stats.chars < minChars)) {
+    if (stateNode) stateNode.textContent = nativeGrowthRequirementText(form, stats);
+    showPushToast("作答长度还不够，先补到要求再提交。", "error");
+    return;
+  }
+  if (button) button.disabled = true;
+  if (stateNode) stateNode.textContent = "已提交，正在等待 AI 批改和生成反馈...";
+  try {
+    const response = await api(`/api/learning/task-cards/${encodeURIComponent(taskCardId)}/growth-submission`, {
+      method: "POST",
+      body: JSON.stringify(Object.assign(learningLearnerBody(), { text })),
+    });
+    if (!response?.ok) throw new Error(response?.error || "Growth task submission failed");
+    if (stateNode) stateNode.textContent = response.evaluation?.status === "reflection_required"
+      ? "AI 批改完成，下一步需要录音复盘。"
+      : "AI 批改完成，页面正在刷新。";
+    showPushToast("AI 批改已完成", "success");
+    await loadLearningCoins({ limit: 30 });
+  } catch (err) {
+    if (stateNode) stateNode.textContent = err.message || String(err);
+    showError(err);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function advanceLearningSession(sessionId) {
   if (!sessionId) return;
   await api(`/api/learning/sessions/${encodeURIComponent(sessionId)}/advance`, {
@@ -512,6 +587,13 @@ function wireLearningCoinsView() {
   });
   $("conversation")?.querySelectorAll("[data-learning-task-start]").forEach((button) => {
     button.addEventListener("click", () => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
+  });
+  $("conversation")?.querySelectorAll("[data-learning-native-growth-submission-form]").forEach((form) => {
+    updateNativeGrowthSubmissionCount(form);
+    form.addEventListener("submit", (event) => {
+      submitNativeGrowthTask(event, form.dataset.taskCardId || form.dataset.learningNativeGrowthSubmissionForm);
+    });
+    form.querySelector("[data-learning-native-growth-submission-input]")?.addEventListener("input", () => updateNativeGrowthSubmissionCount(form));
   });
   $("conversation")?.querySelectorAll("[data-learning-open-kanban-card]").forEach((button) => {
     button.addEventListener("click", () => openLearningKanbanCard(

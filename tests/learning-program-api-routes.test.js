@@ -157,7 +157,7 @@ function makeRoutes(overrides = {}) {
     },
     getTaskCard(taskCardId) {
       calls.push(["getTaskCard", taskCardId]);
-      return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published" };
+      return { taskCardId, kanbanCardId: "kanban-1", workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published" };
     },
     startTaskSession(taskCardId, input) {
       calls.push(["startTaskSession", taskCardId, input]);
@@ -201,6 +201,20 @@ function makeRoutes(overrides = {}) {
       return Boolean(auth?.isOwner);
     },
     learningProgramService: service,
+    learningGrowthSubmissionService: {
+      async submitTask(input) {
+        calls.push(["submitGrowthTask", input]);
+        return { ok: true, status: "draft_feedback", evaluation: { status: "draft_feedback" }, reward: { status: "not_eligible" } };
+      },
+      async withdrawSubmission(input) {
+        calls.push(["withdrawGrowthTask", input]);
+        return { ok: true, status: "withdrawn" };
+      },
+      async submitReflection(input) {
+        calls.push(["submitGrowthReflection", input]);
+        return { ok: true, status: "completed", reflection: { status: "accepted" } };
+      },
+    },
     async readBody(req) {
       return req.body || {};
     },
@@ -232,7 +246,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 33);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 36);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -247,10 +261,13 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/daily-plan" }).id, "learning-daily-plan");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission" }).id, "learning-task-card-growth-submission");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission/withdraw" }).id, "learning-task-card-growth-submission-withdraw");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-reflection" }).id, "learning-task-card-growth-reflection");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 33);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 36);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -437,6 +454,32 @@ async function testTaskSessionEvaluationRoutes() {
   assert.equal(session.body.session.sessionId, "session-1");
   assert.equal(calls.at(-1)[0], "startTaskSession");
   assert.equal(calls.at(-1)[2].actor, "child");
+
+  const growthSubmission = await request(routes, "POST", "/api/learning/task-cards/task-1/growth-submission", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { text: "summary only answer" },
+  });
+  assert.equal(growthSubmission.res.statusCode, 200);
+  assert.equal(growthSubmission.body.taskCardId, "task-1");
+  assert.equal(growthSubmission.body.kanbanCardId, "kanban-1");
+  assert.equal(calls.at(-1)[0], "submitGrowthTask");
+  assert.equal(calls.at(-1)[1].cardId, "kanban-1");
+  assert.equal(calls.at(-1)[1].taskCardId, "task-1");
+  assert.equal(calls.at(-1)[1].author, "child");
+
+  const growthWithdraw = await request(routes, "POST", "/api/learning/task-cards/task-1/growth-submission/withdraw", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { reason: "retry" },
+  });
+  assert.equal(growthWithdraw.res.statusCode, 200);
+  assert.equal(calls.at(-1)[0], "withdrawGrowthTask");
+
+  const growthReflection = await request(routes, "POST", "/api/learning/task-cards/task-1/growth-reflection", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { text: "spoken reflection summary" },
+  });
+  assert.equal(growthReflection.res.statusCode, 200);
+  assert.equal(calls.at(-1)[0], "submitGrowthReflection");
 
   const advanced = await request(routes, "POST", "/api/learning/sessions/session-1/advance", {
     auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
