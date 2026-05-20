@@ -117,7 +117,8 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: false } } });
   assert.match(html, /data-learning-product="fanfan-growth"/);
   assert.match(html, /data-learning-role="executor"/);
-  assert.match(html, /data-learning-growth-tabs/);
+  assert.match(html, /learning-growth-board-page/);
+  assert.match(html, /data-learning-growth-board-summary/);
   assert.match(html, /data-learning-growth-board/);
   assert.match(html, /data-learning-growth-board-filter="today"/);
   assert.match(html, /data-learning-growth-board-filter="waiting_ai"/);
@@ -128,25 +129,20 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-growth-board-lane="waiting_ai"/);
   assert.match(html, /Native board task/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
-  assert.match(html, /data-learning-growth-tab="execution"/);
-  assert.match(html, /data-learning-growth-tab="guidance"/);
-  assert.match(html, /data-learning-growth-tab="coins"/);
+  assert.doesNotMatch(html, /data-learning-growth-tabs/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="execution"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="guidance"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="coins"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="config"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="review"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
   assert.match(html, /凡凡成长系统/);
-  assert.match(html, /查看待执行任务、AI 批改、修订要求、录音复盘和金币奖励状态/);
-  assert.match(html, /class="learning-growth-metric-card"/);
   assert.match(html, /aria-label="成长概览"/);
-  assert.match(html, /data-learning-growth-flow-step="attempt"/);
-  assert.match(html, /data-learning-growth-flow-step="feedback"/);
-  assert.match(html, /data-learning-growth-flow-step="revision"/);
-  assert.match(html, /data-learning-growth-flow-step="reflection"/);
-  assert.match(html, /data-learning-growth-flow-step="settlement"/);
-  assert.match(html, /80 分通过线/);
-  assert.match(html, /data-learning-growth-category="execution"/);
-  assert.match(html, /data-learning-growth-category="guidance"/);
-  assert.match(html, /data-learning-growth-module="coins"/);
+  assert.doesNotMatch(html, /class="learning-growth-metric-card"/);
+  assert.doesNotMatch(html, /data-learning-growth-flow-step="attempt"/);
+  assert.doesNotMatch(html, /data-learning-growth-category="execution"/);
+  assert.doesNotMatch(html, /data-learning-growth-category="guidance"/);
+  assert.doesNotMatch(html, /data-learning-growth-module="coins"/);
   assert.doesNotMatch(html, /data-learning-growth-category="parent-admin"/);
   assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
   assert.doesNotMatch(html, /data-learning-operational-readiness/);
@@ -160,13 +156,14 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
 
 function testGrowthRendererContainsProgramSubsystem() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: false } } });
-  assert.match(html, /data-learning-growth-module="programs"/);
-  assert.match(html, /data-learning-program-id="program-1"/);
-  assert.match(html, /data-learning-task-card-id="task-1"/);
-  assert.match(html, /data-learning-daily-plan/);
-  assert.match(html, /data-learning-session-advance="session-1"/);
+  assert.match(html, /data-learning-growth-board-summary/);
+  assert.doesNotMatch(html, /data-learning-growth-module="programs"/);
+  assert.doesNotMatch(html, /data-learning-program-id="program-1"/);
+  assert.doesNotMatch(html, /data-learning-task-card-id="task-1"/);
+  assert.doesNotMatch(html, /data-learning-daily-plan/);
+  assert.doesNotMatch(html, /data-learning-session-advance="session-1"/);
   assert.doesNotMatch(html, /data-learning-evaluation-form="session-1"/);
-  assert.match(html, /data-learning-evaluation-summary="eval-1"/);
+  assert.doesNotMatch(html, /data-learning-evaluation-summary="eval-1"/);
 }
 
 function testGrowthRendererShowsStandaloneTaskCardWhenSelected() {
@@ -189,26 +186,24 @@ function testGrowthRendererShowsStandaloneTaskCardWhenSelected() {
 function testOwnerRendererKeepsManagementSections() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: true } } });
   assert.match(html, /data-learning-role="owner"/);
-  assert.match(html, /data-learning-growth-tabs/);
-  assert.match(html, /data-learning-growth-tab="execution"/);
-  assert.match(html, /data-learning-growth-tab="config"/);
-  assert.match(html, /data-learning-growth-tab="review"/);
-  assert.match(html, /data-learning-growth-tab="rewards"/);
-  assert.match(html, /data-learning-growth-tab="system"/);
-  assert.match(html, /data-learning-growth-category="parent-admin"/);
-  assert.match(html, /data-learning-growth-category="owner-system"/);
-  assert.match(html, /按执行、审核、奖励和系统分区查看/);
-  assert.match(html, /data-learning-growth-flow-step="reflection"/);
-  assert.match(html, /data-learning-operational-readiness/);
-  assert.match(html, /Learning V1 readiness/);
-  assert.match(html, /Operational ready/);
-  assert.match(html, /data-learning-growth-capability="parent-review"/);
-  assert.match(html, /data-learning-review-decision="review-1"/);
-  assert.match(html, /data-learning-parent-review-decision="parent-review-1"/);
-  assert.match(html, /data-learning-reward-settlement-id="settle-1"/);
-  assert.match(html, /data-learning-launch-operations/);
-  assert.match(html, /data-learning-launch-next-action="settle-learning-rewards"/);
-  assert.match(html, /data-learning-evaluation-settle="eval-1"/);
+  assert.match(html, /data-learning-growth-board-summary/);
+  assert.match(html, /data-learning-growth-board/);
+  assert.doesNotMatch(html, /data-learning-growth-tabs/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="execution"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="config"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="review"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="rewards"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
+  assert.doesNotMatch(html, /data-learning-growth-category="parent-admin"/);
+  assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
+  assert.doesNotMatch(html, /data-learning-operational-readiness/);
+  assert.doesNotMatch(html, /data-learning-growth-capability="parent-review"/);
+  assert.doesNotMatch(html, /data-learning-review-decision="review-1"/);
+  assert.doesNotMatch(html, /data-learning-parent-review-decision="parent-review-1"/);
+  assert.doesNotMatch(html, /data-learning-reward-settlement-id="settle-1"/);
+  assert.doesNotMatch(html, /data-learning-launch-operations/);
+  assert.doesNotMatch(html, /data-learning-launch-next-action="settle-learning-rewards"/);
+  assert.doesNotMatch(html, /data-learning-evaluation-settle="eval-1"/);
 }
 
 function testReadinessPanelRenderer() {

@@ -410,24 +410,10 @@
       || learner.id
       || "Learner";
     const coins = options.coins || overview.coins || {};
-    const coinsUi = options.coinsUi || CoinsUi;
-    const programUi = options.programUi || ProgramUi;
-    const coinsHtml = coinsUi && typeof coinsUi.renderCoinsSubsystem === "function"
-      ? coinsUi.renderCoinsSubsystem(Object.assign({}, options, {
-          summary: coins,
-          learnerId: learner.id || options.learnerId,
-          learnerName: learnerLabel,
-        }))
-      : `<div class="learning-coin-empty">金币子模块未加载。</div>`;
     const owner = isOwner(options);
     if (options.selectedGrowthTaskCardId || options.state?.selectedLearningTaskCardId) {
       return renderSelectedGrowthTaskView(overview, options);
     }
-    const programsHtml = programUi && typeof programUi.renderExecutionOverview === "function"
-      ? (owner
-          ? renderOwnerProgramTabs(programUi, coinsHtml, overview, options)
-          : renderExecutorProgramTabs(programUi, coinsHtml, overview, options))
-      : "";
     const boardHtml = overview.board ? renderLearningGrowthBoard(overview.board, Object.assign({}, options, {
       workspaceId: overview.learner?.workspaceId || options.workspaceId || "",
     })) : "";
@@ -435,26 +421,21 @@
     const availableCoins = Number(coins.balances?.availableCoins || 0);
     const pendingTasks = countPendingTasks(programs);
     const reviewCount = countReflectionOrReview(programs, owner);
-    const heroCopy = owner
-      ? "\u6309\u6267\u884c\u3001\u5ba1\u6838\u3001\u5956\u52b1\u548c\u7cfb\u7edf\u5206\u533a\u67e5\u770b\uff0c\u91cd\u70b9\u76ef\u4efb\u52a1\u72b6\u6001\u3001AI \u6279\u6539\u3001\u5f55\u97f3\u590d\u76d8\u548c\u5956\u52b1\u7ed3\u7b97\u3002"
-      : "\u67e5\u770b\u5f85\u6267\u884c\u4efb\u52a1\u3001AI \u6279\u6539\u3001\u4fee\u8ba2\u8981\u6c42\u3001\u5f55\u97f3\u590d\u76d8\u548c\u91d1\u5e01\u5956\u52b1\u72b6\u6001\u3002";
-    return `<div class="learning-growth-view" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
-      <section class="learning-growth-shell-hero">
-        <div class="learning-growth-hero-copy">
-          <div class="learning-coin-eyebrow">${escapeHtml(owner ? (moduleInfo.currentEntry || "成长入口") : "成长")}</div>
-          <h2>${escapeHtml(moduleInfo.title || "凡凡成长系统")}</h2>
-          <p>${escapeHtml(heroCopy)}</p>
+    const coinText = String(metrics.sevenDayCoins || coins.growth?.sevenDayCoins || availableCoins || 0);
+    return `<div class="learning-growth-view learning-growth-board-page" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
+      <section class="learning-growth-board-summary" data-learning-growth-board-summary>
+        <div>
+          <span>${escapeHtml(owner ? (moduleInfo.currentEntry || "Growth") : "Growth")}</span>
+          <strong>${escapeHtml(moduleInfo.title || "Fanfan Growth")}</strong>
         </div>
-        <div class="learning-growth-shell-metrics" aria-label="\u6210\u957f\u6982\u89c8">
-          ${renderGrowthMetric("\u5b66\u4e60\u5bf9\u8c61", learnerLabel, owner ? "Owner \u89c6\u56fe" : "\u6267\u884c\u89c6\u56fe", options)}
-          ${renderGrowthMetric("\u5f85\u6267\u884c", String(pendingTasks), "\u4eca\u65e5\u4efb\u52a1\u4e0e\u672a\u5b8c\u6210\u5361", options)}
-          ${renderGrowthMetric("7 \u5929\u91d1\u5e01", String(metrics.sevenDayCoins || coins.growth?.sevenDayCoins || availableCoins || 0), "\u5956\u52b1\u8d8b\u52bf", options)}
-          ${renderGrowthMetric(owner ? "\u5f85\u5904\u7406" : "\u5f85\u590d\u76d8", String(reviewCount || metrics.pendingRedemptions || 0), owner ? "\u5ba1\u6838\u3001\u7ed3\u7b97\u6216\u5151\u6362" : "\u5f55\u97f3\u590d\u76d8\u6216\u4fee\u8ba2", options)}
+        <div class="learning-growth-board-summary-metrics" aria-label="\u6210\u957f\u6982\u89c8">
+          <span><b>${escapeHtml(learnerLabel)}</b><small>${escapeHtml(owner ? "Owner" : "\u6267\u884c")}</small></span>
+          <span><b>${escapeHtml(String(pendingTasks))}</b><small>\u5f85\u6267\u884c</small></span>
+          <span><b>${escapeHtml(String(reviewCount || metrics.pendingRedemptions || 0))}</b><small>${owner ? "\u5f85\u5904\u7406" : "\u5f85\u590d\u76d8"}</small></span>
+          <span><b>${escapeHtml(coinText)}</b><small>7d</small></span>
         </div>
-        ${renderGrowthWorkflow(options)}
       </section>
       ${boardHtml}
-      ${programsHtml}
     </div>`;
   }
 
