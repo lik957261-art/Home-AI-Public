@@ -41,24 +41,24 @@ function testModelOnlyEnglishRequiresReview() {
   assert.equal(result.method, "english_rubric_evidence_check");
   assert.equal(result.status, "model_only");
   assert.equal(result.parentReviewRequired, true);
-  assert.ok(result.riskFlags.some((flag) => flag.code === "passed_without_deterministic_verification"));
+  assert.ok(result.riskFlags.some((flag) => flag.code === "passed_without_verified_method"));
   assert.equal(result.rewardEligible, false);
 }
 
-function testDeterministicGrowthTaskTemplateSettlesWithoutParentReview() {
+function testModelAssistedGrowthTaskEvaluationSettlesWithoutParentReview() {
   const result = verifier().verifyEvaluation({
     task: { domain: "english", sourceBasisRefs: ["source:growth-summary"], skillIds: ["english_grammar"] },
     evaluation: {
       score: 84,
       confidence: 0.86,
       passed: true,
-      verificationMethod: "deterministic_growth_task_template",
-      evidenceRefs: ["learning-growth-task-rubric:v1", "activity:grammar", "stage:final"],
+      verificationMethod: "model_assisted_growth_task_evaluation",
+      evidenceRefs: ["learning-growth-task-model-evaluation:v1", "activity:grammar", "stage:final"],
       sourceBasisRefs: ["source:growth-summary"],
       summary: "summary only",
     },
   });
-  assert.equal(result.method, "deterministic_growth_task_template");
+  assert.equal(result.method, "model_assisted_growth_task_evaluation");
   assert.equal(result.status, "verified");
   assert.equal(result.parentReviewRequired, false);
   assert.equal(result.rewardEligible, true);
@@ -99,7 +99,7 @@ function testPrivatePayloadRejected() {
 
 testVerifiedObjectiveEvaluation();
 testModelOnlyEnglishRequiresReview();
-testDeterministicGrowthTaskTemplateSettlesWithoutParentReview();
+testModelAssistedGrowthTaskEvaluationSettlesWithoutParentReview();
 testPythonExecutionRequiresEvidence();
 testPrivatePayloadRejected();
 console.log("learning evaluation verifier service tests passed");

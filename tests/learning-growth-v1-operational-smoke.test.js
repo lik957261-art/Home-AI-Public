@@ -120,7 +120,7 @@ async function testLearningGrowthV1OperationalLoop() {
       minutesPerDay: 30,
     });
 
-    const drafted = programService.draftPlan(program.programId);
+    const drafted = await programService.draftPlan(program.programId);
     assert.equal(drafted.ok, true);
     assert.equal(drafted.draft.status, "review_required");
     assert.ok(drafted.taskCards.length >= 5);
@@ -173,8 +173,8 @@ async function testLearningGrowthV1OperationalLoop() {
       score: 88,
       passed: true,
       confidence: 0.9,
-      verificationMethod: "deterministic_template",
-      evidenceRefs: ["operational-smoke:rubric"],
+      verificationMethod: "model_assisted_growth_task_evaluation",
+      evidenceRefs: ["learning-growth-task-model-evaluation:v1", "operational-smoke:rubric"],
       sourceBasisRefs: task.sourceBasisRefs,
       summary: "Summary-only verified synthetic evaluation.",
     });

@@ -18,6 +18,7 @@ const { createLearningGrowthService } = require("../adapters/learning-growth-ser
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
+const { createLearningGrowthTaskEvaluationService } = require("../adapters/learning-growth-task-evaluation-service");
 const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
 const { createLearningGrowthReflectionService } = require("../adapters/learning-growth-reflection-service");
 const { createLearningGrowthSubmissionService } = require("../adapters/learning-growth-submission-service");
@@ -401,10 +402,24 @@ function createMobileApiComposition(deps = {}) {
     model: deps.automationCreateModel,
     sanitizePolicy: deps.sanitizePolicy,
   });
+  const learningGrowthTaskEvaluationService = createLearningGrowthTaskEvaluationService({
+    extractJsonObject: deps.extractJsonObject,
+    findWorkspace: deps.findWorkspace,
+    hermesModelText: deps.hermesModelText,
+    model: deps.automationCreateModel,
+    requireModel: true,
+    sanitizePolicy: deps.sanitizePolicy,
+  });
   const learningGrowthDirectoryMaterializationService = createLearningGrowthDirectoryMaterializationService({
     dataDir: deps.dataDir,
   });
   const learningGrowthReflectionService = createLearningGrowthReflectionService({
+    extractJsonObject: deps.extractJsonObject,
+    findWorkspace: deps.findWorkspace,
+    hermesModelText: deps.hermesModelText,
+    model: deps.automationCreateModel,
+    requireModel: true,
+    sanitizePolicy: deps.sanitizePolicy,
     saveAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
     transcribeAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
@@ -412,6 +427,7 @@ function createMobileApiComposition(deps = {}) {
     aiFeedbackService: learningGrowthTaskFeedbackService,
     artifactService: deps.kanbanStudyArtifactService,
     directoryMaterializationService: learningGrowthDirectoryMaterializationService,
+    evaluationService: learningGrowthTaskEvaluationService,
     kanbanCardProvider: deps.kanbanCardProvider,
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
@@ -530,11 +546,17 @@ function createMobileApiComposition(deps = {}) {
     repository: learningProgramRepository,
   });
   const learningProgramService = createLearningProgramService({
-    repository: learningProgramRepository,
     dataDir: deps.dataDir,
-    publishService: learningProgramPublishService,
-    parentReviewRequestService: learningParentReviewRequestService,
+    extractJsonObject: deps.extractJsonObject,
+    findWorkspace: deps.findWorkspace,
+    hermesModelText: deps.hermesModelText,
     learningCoinService: deps.learningCoinService,
+    model: deps.automationCreateModel,
+    parentReviewRequestService: learningParentReviewRequestService,
+    publishService: learningProgramPublishService,
+    repository: learningProgramRepository,
+    requireModelForPlanDecomposition: true,
+    sanitizePolicy: deps.sanitizePolicy,
   });
 
   const learningApiRoutes = createLearningApiRoutes({

@@ -29,7 +29,26 @@ async function testRequiresAudioByDefault() {
 }
 
 async function testAcceptsSpokenReflectionWithoutLeakingTranscript() {
+  const modelCalls = [];
   const service = createLearningGrowthReflectionService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async (body) => {
+      modelCalls.push(body);
+      return JSON.stringify({
+        accepted: true,
+        score: 92,
+        confidence: 0.88,
+        summary: "模型判断：复盘说明了主谓一致错误、原因和下次检查顺序。",
+        checks: {
+          mentionsMistake: true,
+          explainsReason: true,
+          givesPlan: true,
+          targetHits: 2,
+          missing: [],
+        },
+        evidencePhrases: ["subject verb agreement"],
+      });
+    },
     nowIso: () => "2026-05-20T10:00:00.000Z",
   });
   const result = await service.submitReflection({
@@ -42,9 +61,11 @@ async function testAcceptsSpokenReflectionWithoutLeakingTranscript() {
       "Next time I will check the subject first and practice one clear reason before writing.",
     ].join(" "),
   });
+  assert.equal(modelCalls.length, 1);
   assert.equal(result.ok, true);
   assert.equal(result.reflection.status, "accepted");
-  assert.equal(result.reflection.score >= 70, true);
+  assert.equal(result.reflection.score, 92);
+  assert.equal(result.reflection.evaluationMethod, "model_assisted_spoken_reflection");
   assert.equal(result.reflection.submittedAt, "2026-05-20T10:00:00.000Z");
   assert.equal(typeof result.reflection.transcriptDigest, "string");
   assert.equal(result.reflection.transcriptDigest.length, 64);
@@ -58,6 +79,19 @@ function testWeakTranscriptIsRejectedByScore() {
   assert.equal(assessed.accepted, false);
   assert.equal(assessed.checks.missing.includes("main_mistake"), true);
   assert.equal(assessed.checks.missing.includes("next_practice_plan"), true);
+}
+
+async function testRequiredModelFailsClosed() {
+  const service = createLearningGrowthReflectionService({
+    requireModel: true,
+  });
+  const result = await service.submitReflection({
+    card,
+    audio: { name: "reflection.webm", mime: "audio/webm", size: 1234 },
+    transcript: "My mistake was grammar because the verb should match the subject. Next time I will check the subject first.",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 503);
 }
 
 function testChineseTranscriptCanPassReflectionChecks() {
@@ -80,6 +114,7 @@ function testReflectionPolicyAndCompositeScore() {
 (async () => {
   await testRequiresAudioByDefault();
   await testAcceptsSpokenReflectionWithoutLeakingTranscript();
+  await testRequiredModelFailsClosed();
   testWeakTranscriptIsRejectedByScore();
   testChineseTranscriptCanPassReflectionChecks();
   testReflectionPolicyAndCompositeScore();

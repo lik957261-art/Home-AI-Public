@@ -7,8 +7,26 @@ const {
   scoreGeneric,
 } = require("../adapters/learning-growth-task-evaluation-service");
 
-function testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak() {
+async function testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak() {
+  const modelCalls = [];
   const service = createLearningGrowthTaskEvaluationService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async (body) => {
+      modelCalls.push(body);
+      return JSON.stringify({
+        score: 62,
+        passed: false,
+        status: "draft_feedback",
+        confidence: 0.8,
+        summary: "模型批改：需要补充词义选择原因和修改后的句子。",
+        revisionRequirements: ["explain the word choice", "repair one sentence"],
+        strengths: ["attempt recorded"],
+        focusAreas: ["word meaning"],
+        criterionFeedback: [{ dimension: "word meaning", observation: "needs clearer context", action: "add one school example" }],
+        rewriteChecklist: ["repair one target word sentence"],
+        reflectionPrompts: ["说出这次词义错误是什么"],
+      });
+    },
     now: () => new Date("2026-05-18T01:00:00.000Z"),
   });
   const text = [
@@ -18,7 +36,7 @@ function testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak() {
     "Next time I will add evidence before I answer.",
     "Finally, I can use the word accurately in a school example.",
   ].join("\n");
-  const evaluation = service.evaluate({
+  const evaluation = await service.evaluate({
     cardId: "t_vocab",
     stage: "draft",
     text,
@@ -37,21 +55,34 @@ function testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak() {
       },
     },
   });
+  assert.equal(modelCalls.length, 1);
   assert.equal(evaluation.status, "draft_feedback");
   assert.equal(evaluation.passed, false);
   assert.equal(evaluation.reward.eligible, false);
   assert.equal(evaluation.nextStep, "rewrite_and_reflect");
   assert.equal(evaluation.activityType, "vocabulary");
+  assert.equal(evaluation.verificationMethod, "model_assisted_growth_task_evaluation");
   assert.ok(evaluation.feedbackSections.criterionFeedback.some((item) => item.dimension === "word meaning"));
   assert.ok(evaluation.feedbackSections.rewriteChecklist.some((item) => /target word/i.test(item)));
   assert.doesNotMatch(JSON.stringify(evaluation), /I observe the class carefully/);
 }
 
-function testGenericFinalPassSettlesRewardRange() {
+async function testGenericFinalPassSettlesRewardRange() {
   const service = createLearningGrowthTaskEvaluationService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async () => JSON.stringify({
+      score: 88,
+      passed: true,
+      status: "completed",
+      confidence: 0.86,
+      summary: "模型终评：展示了清楚的开头、理由和改进。",
+      revisionRequirements: ["reuse the improved closing next time"],
+      strengths: ["clear structure"],
+      focusAreas: ["presentation structure"],
+    }),
     now: () => new Date("2026-05-18T02:00:00.000Z"),
   });
-  const evaluation = service.evaluate({
+  const evaluation = await service.evaluate({
     cardId: "t_presentation",
     stage: "final",
     text: [
@@ -122,11 +153,22 @@ function testRewriteAndWeeklyChallengeHaveSpecificRuntimeContracts() {
   assert.equal(weekly.passed, true);
 }
 
-function testWritingDelegatesToWritingEvaluator() {
+async function testWritingUsesModelMainEvaluation() {
   const service = createLearningGrowthTaskEvaluationService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async () => JSON.stringify({
+      score: 58,
+      passed: false,
+      status: "draft_feedback",
+      confidence: 0.78,
+      summary: "模型写作批改：内容太短，需要扩展理由和例子。",
+      revisionRequirements: ["add a concrete example"],
+      strengths: ["topic is visible"],
+      focusAreas: ["reason and example"],
+    }),
     now: () => new Date("2026-05-18T03:00:00.000Z"),
   });
-  const evaluation = service.evaluate({
+  const evaluation = await service.evaluate({
     cardId: "t_writing",
     stage: "draft",
     text: [
@@ -146,12 +188,18 @@ function testWritingDelegatesToWritingEvaluator() {
   });
   assert.equal(evaluation.activityType, "writing");
   assert.equal(evaluation.taskModelVersion, "learning-task-model-v1");
-  assert.match(evaluation.verificationMethod, /deterministic/);
+  assert.equal(evaluation.verificationMethod, "model_assisted_growth_task_evaluation");
+  assert.match(evaluation.summary, /模型写作批改/);
 }
 
-testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak();
-testGenericFinalPassSettlesRewardRange();
-testTooShortGenericAnswerBlocksFinalPass();
-testRewriteAndWeeklyChallengeHaveSpecificRuntimeContracts();
-testWritingDelegatesToWritingEvaluator();
-console.log("learning growth task evaluation service tests passed");
+(async () => {
+  await testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak();
+  await testGenericFinalPassSettlesRewardRange();
+  testTooShortGenericAnswerBlocksFinalPass();
+  testRewriteAndWeeklyChallengeHaveSpecificRuntimeContracts();
+  await testWritingUsesModelMainEvaluation();
+  console.log("learning growth task evaluation service tests passed");
+})().catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});

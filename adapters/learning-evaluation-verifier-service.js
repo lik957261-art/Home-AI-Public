@@ -10,12 +10,14 @@ const {
 const VERIFIED_METHODS = new Set([
   "deterministic_template",
   "deterministic_growth_task_template",
+  "model_assisted_growth_task_evaluation",
   "answer_key_match",
   "python_execution",
 ]);
 const KNOWN_METHODS = new Set([
   "deterministic_template",
   "deterministic_growth_task_template",
+  "model_assisted_growth_task_evaluation",
   "answer_key_match",
   "python_execution",
   "python_static_review",
@@ -81,7 +83,7 @@ function createLearningEvaluationVerifierService(options = {}) {
       addRisk(riskFlags, "english_rubric_without_evidence", "review", "English rubric verification lacks evidence references.");
     }
     if (passed && !VERIFIED_METHODS.has(method)) {
-      addRisk(riskFlags, "passed_without_deterministic_verification", "review", "Passed evaluation is not deterministically verified.");
+      addRisk(riskFlags, "passed_without_verified_method", "review", "Passed evaluation is not verified by an accepted method.");
     }
     if (riskFlags.some((flag) => flag.severity === "block")) status = "blocked";
     else if (status === "verified" && confidence < minVerifiedConfidence) status = "needs_review";

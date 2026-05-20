@@ -259,7 +259,7 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     group: "learning-program",
     moduleKey: "learning-program",
     handlerKey: "draftPlan",
-    summary: "Owner generates a deterministic learning plan draft from a program.",
+    summary: "Owner generates a model-assisted summary-only learning plan draft from a program.",
     riskLevel: "owner",
     authMode: "owner",
     authRequired: true,
@@ -870,7 +870,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     if (!owner) return;
     try {
       const programId = pathId(url.pathname, /^\/api\/learning\/programs\/([^/]+)\/draft-plan$/);
-      deps.sendJson(res, 201, service.draftPlan(programId));
+      deps.sendJson(res, 201, await service.draftPlan(programId));
     } catch (err) {
       sendRouteError(deps, res, err);
     }
@@ -882,7 +882,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     const body = await deps.readBody(req, 120000).catch(() => ({}));
     try {
       const programId = pathId(url.pathname, /^\/api\/learning\/programs\/([^/]+)\/rebuild-draft-plan$/);
-      deps.sendJson(res, 201, service.rebuildDraftPlan(programId, body || {}));
+      deps.sendJson(res, 201, await service.rebuildDraftPlan(programId, body || {}));
     } catch (err) {
       sendRouteError(deps, res, err);
     }

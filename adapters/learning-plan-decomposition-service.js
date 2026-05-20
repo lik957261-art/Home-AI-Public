@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const { buildLearningTaskModel } = require("./learning-task-model-service");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -7,6 +8,12 @@ const LEARNING_GROWTH_CARD_CREATION_SKILL_ID = "learning-growth-card-creation";
 
 function cleanString(value) {
   return String(value ?? "").trim();
+}
+
+function compactText(value, limit = 800) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  if (text.length <= limit) return text;
+  return `${text.slice(0, Math.max(0, limit - 3)).trim()}...`;
 }
 
 function asArray(value) {
@@ -17,6 +24,25 @@ function asArray(value) {
 
 function uniqueStrings(values) {
   return [...new Set(asArray(values).map(cleanString).filter(Boolean))];
+}
+
+function defaultExtractJsonObject(text) {
+  const raw = cleanString(text);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(raw.slice(start, end + 1));
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+  return null;
 }
 
 function isoDate(date) {
@@ -268,74 +294,269 @@ function buildTask(program, options = {}) {
   };
 }
 
+function buildDeterministicDraft(program = {}, options = {}) {
+  const templateRegistry = options.templateRegistry || null;
+  const now = typeof options.now === "function" ? options.now : () => new Date();
+  const start = parseDate(program.startDate, now());
+  const daysPerWeek = clampInt(program.daysPerWeek, 1, 7, 5);
+  const minutesPerDay = clampInt(program.minutesPerDay, 10, 90, 25);
+  const tasksPerDay = minutesPerDay >= 45 ? 3 : (minutesPerDay >= 25 ? 2 : 1);
+  const templates = templateRegistry && typeof templateRegistry.selectTemplatesForProgram === "function"
+    ? templateRegistry.selectTemplatesForProgram(program)
+    : [];
+  const rotation = buildEnglishSkillRotation(program);
+  const dailyPlans = [];
+  let rotationIndex = 0;
+  for (let dayIndex = 0; dayIndex < daysPerWeek; dayIndex += 1) {
+    const date = new Date(start.getTime() + dayIndex * DAY_MS);
+    const tasks = [];
+    for (let order = 1; order <= tasksPerDay; order += 1) {
+      const skillId = rotation[rotationIndex % rotation.length];
+      rotationIndex += 1;
+      tasks.push(buildTask(program, {
+        dayIndex,
+        order,
+        skillId,
+        templates,
+        minutes: Math.max(8, Math.floor(minutesPerDay / tasksPerDay)),
+      }));
+    }
+    if (dayIndex === daysPerWeek - 1) {
+      tasks.push(buildTask(program, {
+        dayIndex,
+        order: tasks.length + 1,
+        skillId: focusIncludes(program, "english_weekly_challenge") || !uniqueStrings(program.focusAreas).length
+          ? "english_weekly_challenge"
+          : "english_grammar_in_expression",
+        templates,
+        minutes: 10,
+      }));
+      if (tasks[tasks.length - 1].skillIds.includes("english_weekly_challenge")) {
+        tasks[tasks.length - 1].taskCardType = "challenge_card";
+        tasks[tasks.length - 1].title = "Weekly integrated English challenge";
+      } else {
+        tasks[tasks.length - 1].taskCardType = "mistake_repair_card";
+        tasks[tasks.length - 1].title = "Weekly mistake repair and variant check";
+      }
+    }
+    dailyPlans.push({
+      date: isoDate(date),
+      dayIndex: dayIndex + 1,
+      plannedMinutes: Math.min(minutesPerDay + (dayIndex === daysPerWeek - 1 ? 10 : 0), 100),
+      tasks,
+    });
+  }
+  const end = new Date(start.getTime() + Math.max(0, daysPerWeek - 1) * DAY_MS);
+  return {
+    weekStart: isoDate(start),
+    weekEnd: isoDate(end),
+    dailyPlans,
+    taskCount: dailyPlans.reduce((sum, day) => sum + day.tasks.length, 0),
+    sourceBasisRefs: uniqueStrings(program.sourceBasisRefs),
+    curriculumRefs: uniqueStrings(program.curriculumRefs),
+    generationPolicy: {
+      mode: "deterministic-seed-v0.1",
+      directDatabase: "sqlite",
+      noRawChildContent: true,
+    },
+  };
+}
+
+function templateSummaries(templates = []) {
+  return templates.map((template) => ({
+    id: compactText(template.id, 80),
+    taskCardType: compactText(template.taskCardType, 80),
+    skillIds: uniqueStrings(template.skillIds).slice(0, 6),
+    activityType: compactText(template.activityType, 80),
+  })).slice(0, 20);
+}
+
+function safeSourceSummaries(sources = []) {
+  return (Array.isArray(sources) ? sources : []).map((source) => ({
+    sourceRef: compactText(source.sourceRef || source.ref, 120),
+    sourceType: compactText(source.sourceType, 80),
+    title: compactText(source.title, 100),
+    summary: compactText(source.summary, 260),
+    tags: uniqueStrings(source.tags).slice(0, 8),
+  })).filter((source) => source.sourceRef || source.summary || source.title).slice(0, 16);
+}
+
+function buildModelDraftPrompt(input = {}) {
+  const program = input.program || {};
+  const seedDraft = input.seedDraft || {};
+  const templates = input.templates || [];
+  const sources = input.sources || [];
+  const payload = {
+    program: {
+      domain: compactText(program.domain || "english", 60),
+      title: compactText(program.title, 160),
+      goalSummary: compactText(program.goalSummary || program.requirements, 700),
+      focusAreas: uniqueStrings(program.focusAreas).slice(0, 16),
+      daysPerWeek: Number(program.daysPerWeek || 0) || 0,
+      minutesPerDay: Number(program.minutesPerDay || 0) || 0,
+      curriculumRefs: uniqueStrings(program.curriculumRefs).slice(0, 12),
+      sourceBasisRefs: uniqueStrings(program.sourceBasisRefs).slice(0, 20),
+    },
+    availableTemplates: templateSummaries(templates),
+    recentLearningState: {
+      privacyLevel: "summary_only",
+      sources: safeSourceSummaries(sources),
+    },
+    seedSchedule: {
+      weekStart: seedDraft.weekStart,
+      weekEnd: seedDraft.weekEnd,
+      days: (seedDraft.dailyPlans || []).map((day) => ({
+        date: day.date,
+        dayIndex: day.dayIndex,
+        plannedMinutes: day.plannedMinutes,
+        tasks: (day.tasks || []).map((task) => ({
+          taskId: task.taskId,
+          title: task.title,
+          skillIds: task.skillIds,
+          activityType: task.taskModel?.activityType,
+          taskCardType: task.taskCardType,
+          plannedMinutes: task.plannedMinutes,
+        })),
+      })),
+    },
+  };
+  return [
+    "Create the Growth weekly learning plan as strict JSON only.",
+    "The model must decide the concrete task sequence from summary-only learning state. Do not simply repeat the seed schedule.",
+    "Preserve the same week dates and broadly the same daily time budget. Use only supported skill ids from availableTemplates or seedSchedule.",
+    "Use Chinese for teacher-facing planning rationale and concise learner-facing instructions unless the learner output itself must be English.",
+    "Do not include raw prompts, full learner answers, full transcripts, full questions, answer keys, endpoints, local paths, secrets, or copied copyrighted questions.",
+    "Return schema: {\"dailyPlans\":[{\"date\":\"YYYY-MM-DD\",\"plannedMinutes\":25,\"tasks\":[{\"skillId\":\"english_short_writing\",\"title\":\"...\",\"learnerInstruction\":\"...\",\"plannedMinutes\":15,\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"teacherRationale\":\"...\"}]}],\"rationale\":\"...\",\"riskFlags\":[\"...\"]}",
+    JSON.stringify(payload),
+  ].join("\n\n");
+}
+
+function findTemplateSkill(modelTask = {}, fallbackTask = {}) {
+  const candidates = uniqueStrings([
+    modelTask.skillId,
+    ...(modelTask.skillIds || []),
+    ...(fallbackTask.skillIds || []),
+  ]);
+  return candidates.find((skillId) => /^english_[a-z0-9_]+$/.test(skillId)) || uniqueStrings(fallbackTask.skillIds)[0] || "english_reading_comprehension";
+}
+
+function normalizeModelDraft(parsed = {}, seedDraft = {}, program = {}, options = {}) {
+  const templates = options.templates || [];
+  const modelDays = Array.isArray(parsed?.dailyPlans) ? parsed.dailyPlans : [];
+  if (!modelDays.length) return null;
+  const dailyPlans = (seedDraft.dailyPlans || []).map((seedDay, dayIndex) => {
+    const modelDay = modelDays[dayIndex] || {};
+    const modelTasks = Array.isArray(modelDay.tasks) ? modelDay.tasks : [];
+    const tasks = (seedDay.tasks || []).map((seedTask, taskIndex) => {
+      const modelTask = modelTasks[taskIndex] || {};
+      const skillId = findTemplateSkill(modelTask, seedTask);
+      const base = buildTask(program, {
+        dayIndex,
+        order: taskIndex + 1,
+        skillId,
+        templates,
+        minutes: clampInt(modelTask.plannedMinutes || seedTask.plannedMinutes, 8, 45, seedTask.plannedMinutes || 15),
+      });
+      const learnerInstruction = compactText(modelTask.learnerInstruction || modelTask.instruction || base.learnerInstruction, 1400);
+      const deliverables = uniqueStrings(modelTask.deliverables).length ? uniqueStrings(modelTask.deliverables).slice(0, 8) : base.deliverables;
+      const acceptance = uniqueStrings(modelTask.acceptance).length ? uniqueStrings(modelTask.acceptance).slice(0, 8) : base.acceptance;
+      const taskModel = Object.assign({}, base.taskModel, {
+        learnerInstruction,
+        deliverables,
+        acceptance,
+        modelDecomposition: {
+          mode: "model_assisted_summary_plan_decomposition",
+          teacherRationale: compactText(modelTask.teacherRationale || modelTask.rationale, 360),
+        },
+      });
+      return Object.assign({}, base, {
+        taskId: seedTask.taskId,
+        title: compactText(modelTask.title || base.title, 160),
+        learnerInstruction,
+        instruction: learnerInstruction,
+        deliverables,
+        acceptance,
+        summary: `${compactText(modelTask.title || base.title, 160)}. Model-planned task instruction: ${learnerInstruction}`,
+        taskModel,
+      });
+    });
+    return {
+      date: seedDay.date,
+      dayIndex: seedDay.dayIndex,
+      plannedMinutes: clampInt(modelDay.plannedMinutes || seedDay.plannedMinutes, 10, 100, seedDay.plannedMinutes),
+      tasks,
+    };
+  });
+  return Object.assign({}, seedDraft, {
+    dailyPlans,
+    taskCount: dailyPlans.reduce((sum, day) => sum + day.tasks.length, 0),
+    generationPolicy: {
+      mode: "model_assisted_summary_plan_decomposition",
+      directDatabase: "sqlite",
+      noRawChildContent: true,
+      privacyLevel: "summary_only",
+      modelStatus: "completed",
+      rationale: compactText(parsed.rationale, 500),
+      riskFlags: uniqueStrings(parsed.riskFlags).slice(0, 8),
+    },
+  });
+}
+
 function createLearningPlanDecompositionService(options = {}) {
   const templateRegistry = options.templateRegistry || null;
   const now = typeof options.now === "function" ? options.now : () => new Date();
+  const hermesModelText = typeof options.hermesModelText === "function" ? options.hermesModelText : null;
+  const extractJsonObject = typeof options.extractJsonObject === "function" ? options.extractJsonObject : defaultExtractJsonObject;
+  const listSources = typeof options.listSources === "function" ? options.listSources : () => [];
+  const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
+  const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
+  const model = cleanString(options.model || options.automationCreateModel || "automation-create");
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const requireModel = options.requireModel === true;
 
-  function buildDraft(program = {}) {
-    const start = parseDate(program.startDate, now());
-    const daysPerWeek = clampInt(program.daysPerWeek, 1, 7, 5);
-    const minutesPerDay = clampInt(program.minutesPerDay, 10, 90, 25);
-    const tasksPerDay = minutesPerDay >= 45 ? 3 : (minutesPerDay >= 25 ? 2 : 1);
+  async function buildDraft(program = {}) {
     const templates = templateRegistry && typeof templateRegistry.selectTemplatesForProgram === "function"
       ? templateRegistry.selectTemplatesForProgram(program)
       : [];
-    const rotation = buildEnglishSkillRotation(program);
-    const dailyPlans = [];
-    let rotationIndex = 0;
-    for (let dayIndex = 0; dayIndex < daysPerWeek; dayIndex += 1) {
-      const date = new Date(start.getTime() + dayIndex * DAY_MS);
-      const tasks = [];
-      for (let order = 1; order <= tasksPerDay; order += 1) {
-        const skillId = rotation[rotationIndex % rotation.length];
-        rotationIndex += 1;
-        tasks.push(buildTask(program, {
-          dayIndex,
-          order,
-          skillId,
-          templates,
-          minutes: Math.max(8, Math.floor(minutesPerDay / tasksPerDay)),
-        }));
-      }
-      if (dayIndex === daysPerWeek - 1) {
-        tasks.push(buildTask(program, {
-          dayIndex,
-          order: tasks.length + 1,
-          skillId: focusIncludes(program, "english_weekly_challenge") || !uniqueStrings(program.focusAreas).length
-            ? "english_weekly_challenge"
-            : "english_grammar_in_expression",
-          templates,
-          minutes: 10,
-        }));
-        if (tasks[tasks.length - 1].skillIds.includes("english_weekly_challenge")) {
-          tasks[tasks.length - 1].taskCardType = "challenge_card";
-          tasks[tasks.length - 1].title = "Weekly integrated English challenge";
-        } else {
-          tasks[tasks.length - 1].taskCardType = "mistake_repair_card";
-          tasks[tasks.length - 1].title = "Weekly mistake repair and variant check";
-        }
-      }
-      dailyPlans.push({
-        date: isoDate(date),
-        dayIndex: dayIndex + 1,
-        plannedMinutes: Math.min(minutesPerDay + (dayIndex === daysPerWeek - 1 ? 10 : 0), 100),
-        tasks,
-      });
+    const seedDraft = buildDeterministicDraft(program, { templateRegistry, now });
+    if (!hermesModelText && requireModel) {
+      const err = new Error("Learning plan decomposition requires model assistance");
+      err.status = 503;
+      throw err;
     }
-    const end = new Date(start.getTime() + Math.max(0, daysPerWeek - 1) * DAY_MS);
-    return {
-      weekStart: isoDate(start),
-      weekEnd: isoDate(end),
-      dailyPlans,
-      taskCount: dailyPlans.reduce((sum, day) => sum + day.tasks.length, 0),
-      sourceBasisRefs: uniqueStrings(program.sourceBasisRefs),
-      curriculumRefs: uniqueStrings(program.curriculumRefs),
-      generationPolicy: {
-        mode: "deterministic-v0.1",
-        directDatabase: "sqlite",
-        noRawChildContent: true,
-      },
-    };
+    if (!hermesModelText) return seedDraft;
+    const sources = listSources({
+      workspaceId: program.workspaceId,
+      learnerId: program.learnerId,
+      limit: 20,
+    });
+    try {
+      const output = await hermesModelText({
+        input: buildModelDraftPrompt({ program, seedDraft, templates, sources }),
+        stream: false,
+        store: false,
+        model,
+        reasoning_effort: "medium",
+        conversation: `learning_growth_plan_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+        instructions: "Return strict JSON for one model-assisted Growth weekly plan draft.",
+        access_policy_context: sanitizePolicy(findWorkspace(program.workspaceId || "owner")?.policy || {}),
+      }, timeoutMs);
+      const parsed = extractJsonObject(output || "");
+      const draft = normalizeModelDraft(parsed, seedDraft, program, { templates });
+      if (draft) return draft;
+    } catch (err) {
+      if (requireModel) {
+        const wrapped = new Error(`Learning plan model decomposition failed: ${err.message || err}`);
+        wrapped.status = err.status || 502;
+        throw wrapped;
+      }
+    }
+    if (requireModel) {
+      const err = new Error("Learning plan model decomposition returned invalid JSON");
+      err.status = 502;
+      throw err;
+    }
+    return seedDraft;
   }
 
   return {
@@ -345,5 +566,6 @@ function createLearningPlanDecompositionService(options = {}) {
 
 module.exports = {
   LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
+  buildModelDraftPrompt,
   createLearningPlanDecompositionService,
 };

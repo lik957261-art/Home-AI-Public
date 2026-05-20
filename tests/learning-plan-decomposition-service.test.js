@@ -4,12 +4,36 @@ const assert = require("node:assert/strict");
 const { createLearningPlanDecompositionService } = require("../adapters/learning-plan-decomposition-service");
 const { createLearningTemplateRegistryService } = require("../adapters/learning-template-registry-service");
 
-function testEnglishPlanIncludesExtensibleSkillCards() {
+async function testEnglishPlanIncludesExtensibleSkillCards() {
+  const modelCalls = [];
   const service = createLearningPlanDecompositionService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async (body) => {
+      modelCalls.push(body);
+      return JSON.stringify({
+        dailyPlans: [
+          {
+            date: "2026-05-16",
+            plannedMinutes: 45,
+            tasks: [
+              {
+                skillId: "english_short_writing",
+                title: "Model planned short writing repair",
+                learnerInstruction: "模型规划：写一段 6-8 句英文短文，重点修复观点和理由连接。",
+                plannedMinutes: 15,
+                deliverables: ["model planned draft"],
+                acceptance: ["draft responds to the model-planned focus"],
+              },
+            ],
+          },
+        ],
+        rationale: "Recent summary requires writing repair first.",
+      });
+    },
     templateRegistry: createLearningTemplateRegistryService(),
     now: () => new Date("2026-05-16T00:00:00.000Z"),
   });
-  const draft = service.buildDraft({
+  const draft = await service.buildDraft({
     programId: "program-1",
     domain: "english",
     startDate: "2026-05-16",
@@ -32,8 +56,11 @@ function testEnglishPlanIncludesExtensibleSkillCards() {
   });
 
   const tasks = draft.dailyPlans.flatMap((day) => day.tasks);
+  assert.equal(modelCalls.length, 1);
+  assert.match(modelCalls[0].input, /summary-only learning state/i);
   assert.equal(draft.weekStart, "2026-05-16");
   assert.equal(draft.weekEnd, "2026-05-20");
+  assert.equal(draft.generationPolicy.mode, "model_assisted_summary_plan_decomposition");
   assert.ok(tasks.length >= 11);
   assert.ok(tasks.some((task) => task.skillIds.includes("english_reading_comprehension")));
   assert.ok(tasks.some((task) => task.skillIds.includes("english_speaking_retell")));
@@ -54,10 +81,10 @@ function testEnglishPlanIncludesExtensibleSkillCards() {
   assert.ok(tasks.some((task) => task.taskCardType === "mistake_repair_card"));
   const writingTask = tasks.find((task) => task.skillIds.includes("english_short_writing"));
   assert.ok(writingTask);
-  assert.match(writingTask.learnerInstruction, /Write a first draft of 6-8 English sentences/);
-  assert.match(writingTask.summary, /Task instruction:/);
-  assert.ok(writingTask.deliverables.includes("first English draft"));
-  assert.ok(writingTask.acceptance.some((item) => /6-8 English sentences/.test(item)));
+  assert.match(writingTask.learnerInstruction, /模型规划/);
+  assert.match(writingTask.summary, /Model-planned task instruction:/);
+  assert.ok(writingTask.deliverables.includes("model planned draft"));
+  assert.ok(writingTask.acceptance.some((item) => /model-planned focus/.test(item)));
   assert.equal(writingTask.taskModel.version, "learning-task-model-v1");
   assert.equal(writingTask.taskModel.templatePackVersion, "english-template-pack-v1");
   assert.equal(writingTask.taskModel.activityType, "writing");
@@ -69,8 +96,12 @@ function testEnglishPlanIncludesExtensibleSkillCards() {
   assert.ok(tasks.every((task) => task.sourceBasisRefs.includes("parent_config:program-1")));
   assert.ok(tasks.every((task) => task.curriculumRefs.includes("cefr-a2-b1-growth-track")));
   assert.ok(tasks.every((task) => task.aiOutputContract === "learning_task_card_v1"));
+  assert.doesNotMatch(JSON.stringify(draft), /rawPrompt|answerKey|fullTranscript|localPath|must-not-leak/);
 }
 
-testEnglishPlanIncludesExtensibleSkillCards();
-
-console.log("learning plan decomposition service tests passed");
+testEnglishPlanIncludesExtensibleSkillCards().then(() => {
+  console.log("learning plan decomposition service tests passed");
+}).catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});

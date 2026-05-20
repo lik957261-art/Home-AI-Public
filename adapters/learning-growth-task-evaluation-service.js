@@ -22,6 +22,12 @@ function cleanString(value) {
   return String(value ?? "").trim();
 }
 
+function compactText(value, limit = 800) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  if (text.length <= limit) return text;
+  return `${text.slice(0, Math.max(0, limit - 3)).trim()}...`;
+}
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -34,6 +40,25 @@ function clampScore(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, Math.min(100, Math.round(parsed)));
+}
+
+function defaultExtractJsonObject(text) {
+  const raw = cleanString(text);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(raw.slice(start, end + 1));
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+  return null;
 }
 
 function createEvaluationId(cardId, text, activityType) {
@@ -219,11 +244,166 @@ function feedbackSections(model = {}, scored = {}, requirements = [], stage = "f
   };
 }
 
+function normalizeFeedbackArray(value, limit = 6, maxChars = 260) {
+  return asArray(value).map((item) => compactText(item, maxChars)).filter(Boolean).slice(0, limit);
+}
+
+function normalizeCriterionFeedback(value) {
+  return asArray(value).map((item) => {
+    if (!item || typeof item !== "object") return null;
+    const dimension = compactText(item.dimension || item.criterion || item.name, 120);
+    const observation = compactText(item.observation || item.feedback || item.status, 220);
+    const action = compactText(item.action || item.nextAction || item.revision, 240);
+    if (!dimension && !observation && !action) return null;
+    return { dimension, observation, action };
+  }).filter(Boolean).slice(0, 6);
+}
+
+function normalizeSentenceFeedback(value) {
+  return asArray(value).map((item) => {
+    if (!item || typeof item !== "object") return null;
+    const evidence = compactText(item.evidence || item.phrase, 120);
+    const issue = compactText(item.issue || item.problem, 180);
+    const whyItMatters = compactText(item.whyItMatters || item.why, 220);
+    const fix = compactText(item.fix || item.revision || item.suggestion, 240);
+    const example = compactText(item.example || item.modelSentence, 180);
+    if (!issue && !fix && !example) return null;
+    return { evidence, issue, whyItMatters, fix, example };
+  }).filter(Boolean).slice(0, 5);
+}
+
+function modelEvaluationPrompt(input = {}, deterministic = {}) {
+  const card = input.card || {};
+  const model = inferLearningTaskModelFromCard(card, input);
+  const activityType = cleanString(model.activityType || deterministic.activityType || "practice") || "practice";
+  const stage = cleanString(input.stage || deterministic.stage || "final") || "final";
+  const contract = activityCoachingContract(activityType);
+  const payload = {
+    stage,
+    learnerProfile: {
+      gradeBand: "grade7",
+      languageLevel: "5.5-6 / B1 bridge",
+      priority: "English growth task completion",
+    },
+    task: {
+      title: compactText(card.content || card.title || model.title, 160),
+      activityType,
+      skillId: cleanString(model.skillId),
+      learnerInstruction: compactText(model.learnerInstruction || card.kanbanCaseCardGoal || card.description, 1200),
+      deliverables: asArray(model.deliverables || card.kanbanCaseDeliverables).slice(0, 8),
+      acceptance: asArray(model.acceptance || card.kanbanCaseAcceptance).slice(0, 8),
+    },
+    deterministicSafetySeed: {
+      score: Number(deterministic.score || 0),
+      status: cleanString(deterministic.status),
+      passed: Boolean(deterministic.passed),
+      revisionRequirements: asArray(deterministic.revisionRequirements).slice(0, 8),
+      hardBlock: asArray(deterministic.revisionRequirements).some((item) => /too short|at least|short/i.test(item)),
+    },
+    coachingContract: {
+      rubricDimensions: contract.rubricDimensions,
+      requiredEvidence: contract.requiredEvidence,
+      revisionMoves: contract.revisionMoves,
+      reflectionPrompts: contract.reflectionPrompts,
+    },
+    learnerSubmission: String(input.text || "").slice(0, 12000),
+  };
+  return [
+    "Evaluate this Growth learning task submission as strict JSON only.",
+    "The model owns the pedagogical score, pass/revision decision, feedback, and reward eligibility signal. Deterministic values are safety seeds only.",
+    "Do not copy the full learner submission. Evidence phrases must be short, at most 12 words each.",
+    "Do not include raw prompts, answer keys, hidden rubrics, local paths, endpoints, secrets, full transcripts, or full learner history.",
+    "For draft stage, status must be draft_feedback and passed must be false.",
+    "For final stage, decide completed vs needs_revision from the task, submission, and rubric. Require visible evidence and repair, not a completion note.",
+    "Use Chinese for explanations; short corrected English examples are allowed.",
+    "Return schema: {\"score\":0-100,\"passed\":true,\"status\":\"completed|needs_revision|draft_feedback\",\"confidence\":0.0-1.0,\"summary\":\"...\",\"revisionRequirements\":[\"...\"],\"strengths\":[\"...\"],\"focusAreas\":[\"...\"],\"criterionFeedback\":[{\"dimension\":\"...\",\"observation\":\"...\",\"action\":\"...\"}],\"sentenceFeedback\":[{\"evidence\":\"short phrase\",\"issue\":\"...\",\"whyItMatters\":\"...\",\"fix\":\"...\",\"example\":\"...\"}],\"rewriteChecklist\":[\"...\"],\"reflectionPrompts\":[\"...\"],\"nextPractice\":\"...\",\"parentNote\":\"...\"}",
+    JSON.stringify(payload),
+  ].join("\n\n");
+}
+
+function normalizeModelEvaluation(parsed = {}, deterministic = {}, input = {}, options = {}) {
+  const raw = parsed && typeof parsed === "object" ? parsed : {};
+  const stage = normalizeEvaluationStage(input.stage || input.submissionStage || input.submissionKind || deterministic.stage, "final");
+  const card = input.card || {};
+  const model = inferLearningTaskModelFromCard(card, input);
+  const activityType = cleanString(model.activityType || deterministic.activityType || "practice") || "practice";
+  const score = clampScore(raw.score ?? deterministic.score);
+  const confidence = Math.max(0, Math.min(1, Number(raw.confidence ?? deterministic.confidence ?? 0.72) || 0.72));
+  const safetyBlock = asArray(deterministic.revisionRequirements).some((item) => /too short|at least|short/i.test(item));
+  const passed = stage === "final" && !safetyBlock && Boolean(raw.passed) && score >= 60;
+  const status = stage === "draft" ? "draft_feedback" : (passed ? "completed" : "needs_revision");
+  const at = options.now().toISOString();
+  const reward = calculateLearningCardReward({
+    card,
+    evaluation: { stage, score, passed },
+    stage,
+    score,
+    passed,
+    evaluatedAt: at,
+    completedAt: at,
+  });
+  const revisionRequirements = normalizeFeedbackArray(raw.revisionRequirements || raw.requirements || deterministic.revisionRequirements, 6, 260);
+  const sections = deterministic.feedbackSections || {};
+  return {
+    evaluationId: deterministic.evaluationId || createEvaluationId(input.cardId || card.id || card.todoId || "", input.text, activityType),
+    submissionDigest: deterministic.submissionDigest || submissionDigest(input.text),
+    stage,
+    status,
+    activityType,
+    skillId: cleanString(model.skillId),
+    taskModelVersion: cleanString(model.version),
+    score,
+    maxScore: 100,
+    passed,
+    confidence,
+    summary: compactText(raw.summary || deterministic.summary, 500),
+    wordCount: deterministic.wordCount || words(input.text).length,
+    lineCount: deterministic.lineCount || lineCount(input.text),
+    revisionRequirements,
+    feedbackSections: {
+      strengths: normalizeFeedbackArray(raw.strengths || sections.strengths, 4, 220),
+      focusAreas: normalizeFeedbackArray(raw.focusAreas || sections.focusAreas, 6, 260),
+      criterionFeedback: normalizeCriterionFeedback(raw.criterionFeedback || sections.criterionFeedback),
+      rewriteChecklist: normalizeFeedbackArray(raw.rewriteChecklist || sections.rewriteChecklist, 6, 260),
+      reflectionPrompts: normalizeFeedbackArray(raw.reflectionPrompts || sections.reflectionPrompts, 3, 180),
+      sentenceFeedback: normalizeSentenceFeedback(raw.sentenceFeedback || sections.sentenceFeedback),
+      finalConclusion: compactText(raw.finalConclusion || raw.summary || sections.finalConclusion, 360),
+      nextPractice: compactText(raw.nextPractice || sections.nextPractice, 360),
+      parentNote: compactText(raw.parentNote || sections.parentNote, 360),
+    },
+    nextStep: growthNextStepForStage(stage, passed),
+    verificationMethod: "model_assisted_growth_task_evaluation",
+    feedbackMethod: "model_assisted",
+    aiFeedbackStatus: "evaluation_model_completed",
+    evidenceRefs: [
+      "learning-growth-task-model-evaluation:v1",
+      `activity:${activityType}`,
+      `stage:${stage}`,
+    ],
+    reward: {
+      eligible: passed && reward.coinAmount > 0,
+      coinAmount: reward.coinAmount,
+      minCoinAmount: reward.minCoins,
+      maxCoinAmount: reward.maxCoins,
+      breakdown: reward.breakdown,
+      reason: passed ? `learning_growth_${activityType}_model_passed` : "revision_required_before_reward",
+    },
+    evaluatedAt: at,
+  };
+}
+
 function createLearningGrowthTaskEvaluationService(options = {}) {
   const now = typeof options.now === "function" ? options.now : () => new Date();
   const writingService = options.writingEvaluationService || createLearningGrowthWritingEvaluationService({ now });
+  const hermesModelText = typeof options.hermesModelText === "function" ? options.hermesModelText : null;
+  const extractJsonObject = typeof options.extractJsonObject === "function" ? options.extractJsonObject : defaultExtractJsonObject;
+  const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
+  const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
+  const modelName = cleanString(options.model || options.automationCreateModel || "automation-create");
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const requireModel = options.requireModel === true;
 
-  function evaluate(input = {}) {
+  function deterministicEvaluate(input = {}) {
     const card = input.card || {};
     const model = inferLearningTaskModelFromCard(card, input);
     const activityType = cleanString(model.activityType || "practice");
@@ -292,11 +472,51 @@ function createLearningGrowthTaskEvaluationService(options = {}) {
     };
   }
 
+  async function evaluate(input = {}) {
+    const deterministic = deterministicEvaluate(input);
+    if (!hermesModelText && requireModel) {
+      const err = new Error("Growth task evaluation requires model assistance");
+      err.status = 503;
+      throw err;
+    }
+    if (!hermesModelText) return deterministic;
+    const workspaceId = cleanString(input.workspaceId || input.card?.workspaceId || input.card?.workspace_id || "owner") || "owner";
+    try {
+      const output = await hermesModelText({
+        input: modelEvaluationPrompt(input, deterministic),
+        stream: false,
+        store: false,
+        model: modelName,
+        reasoning_effort: "medium",
+        conversation: `learning_growth_eval_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+        instructions: "Return strict JSON Growth task evaluation only.",
+        access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+      }, timeoutMs);
+      const parsed = extractJsonObject(output || "");
+      if (parsed && typeof parsed === "object") {
+        return normalizeModelEvaluation(parsed, deterministic, input, { now });
+      }
+    } catch (err) {
+      if (requireModel) {
+        const wrapped = new Error(`Growth task model evaluation failed: ${err.message || err}`);
+        wrapped.status = err.status || 502;
+        throw wrapped;
+      }
+    }
+    if (requireModel) {
+      const err = new Error("Growth task model evaluation returned invalid JSON");
+      err.status = 502;
+      throw err;
+    }
+    return deterministic;
+  }
+
   return { evaluate };
 }
 
 module.exports = {
   activityLabel,
   createLearningGrowthTaskEvaluationService,
+  modelEvaluationPrompt,
   scoreGeneric,
 };

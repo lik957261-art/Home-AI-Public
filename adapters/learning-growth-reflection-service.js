@@ -7,8 +7,32 @@ function cleanString(value, limit = 4000) {
   return text.length > limit ? text.slice(0, limit) : text;
 }
 
+function compactText(value, limit = 800) {
+  const text = cleanString(value, limit * 2);
+  return text.length > limit ? `${text.slice(0, Math.max(0, limit - 3)).trim()}...` : text;
+}
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function defaultExtractJsonObject(text) {
+  const raw = cleanString(text, 20000);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(raw.slice(start, end + 1));
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+  return null;
 }
 
 function positiveNumber(value, fallback) {
@@ -162,6 +186,67 @@ function evaluateTranscript(transcript, card = {}, options = {}) {
   };
 }
 
+function buildReflectionModelPrompt(input = {}) {
+  const card = input.card || {};
+  const assessed = input.assessed || {};
+  const transcript = cleanString(input.transcript, Number(input.maxTranscriptChars || 20000));
+  const payload = {
+    task: {
+      title: compactText(card.content || card.title || card.kanbanCaseCardGoal, 160),
+      focusTargets: reflectionTargetsForCard(card).slice(0, 8),
+      reflectionPrompts: reflectionPromptsForCard(card).slice(0, 5),
+      priorEvaluationSummary: compactText(cardField(card, "learningGrowthFeedbackSummary", "learning_growth_feedback_summary"), 500),
+      priorRevisionRequirements: cardList(card, "learningGrowthRevisionRequirements", "learning_growth_revision_requirements").slice(0, 6),
+    },
+    deterministicSafetySeed: {
+      score: Number(assessed.score || 0),
+      accepted: Boolean(assessed.accepted),
+      checks: assessed.checks || {},
+      stats: assessed.stats || {},
+    },
+    spokenReflectionTranscript: transcript,
+  };
+  return [
+    "Evaluate this spoken Growth reflection as strict JSON only.",
+    "The model owns whether the learner understood today's mistake, reason, and next improvement plan. Deterministic checks are safety seeds only.",
+    "Do not copy the full transcript. Evidence phrases must be short, at most 12 words each.",
+    "Do not include raw prompts, full learner answers, full transcripts, full questions, answer keys, endpoints, local paths, secrets, or full learner history.",
+    "Accept only if the learner explains the concrete mistake, why the correction is better, and what they will check/practice next.",
+    "Use Chinese for summary and retry requirements.",
+    "Return schema: {\"accepted\":true,\"score\":0-100,\"confidence\":0.0-1.0,\"summary\":\"...\",\"checks\":{\"mentionsMistake\":true,\"explainsReason\":true,\"givesPlan\":true,\"targetHits\":1,\"missing\":[\"...\"]},\"retryRequirements\":[\"...\"],\"evidencePhrases\":[\"short phrase\"]}",
+    JSON.stringify(payload),
+  ].join("\n\n");
+}
+
+function normalizeModelReflection(parsed = {}, assessed = {}, options = {}) {
+  const raw = parsed && typeof parsed === "object" ? parsed : {};
+  const score = Math.max(0, Math.min(100, Math.round(Number(raw.score ?? assessed.score ?? 0) || 0)));
+  const acceptScore = positiveNumber(options.acceptScore, 70);
+  const checks = raw.checks && typeof raw.checks === "object" ? raw.checks : assessed.checks || {};
+  const missing = asArray(checks.missing || raw.retryRequirements)
+    .map((item) => cleanString(item, 120))
+    .filter(Boolean)
+    .slice(0, 6);
+  const accepted = Boolean(raw.accepted) && score >= acceptScore && !missing.includes("enough_detail");
+  return {
+    accepted,
+    score,
+    maxScore: 100,
+    summary: compactText(raw.summary || assessed.summary, 500),
+    checks: {
+      mentionsMistake: Boolean(checks.mentionsMistake),
+      explainsReason: Boolean(checks.explainsReason),
+      givesPlan: Boolean(checks.givesPlan),
+      targetHits: Number(checks.targetHits || 0) || 0,
+      missing,
+      evidencePhrases: asArray(raw.evidencePhrases).map((item) => compactText(item, 80)).filter(Boolean).slice(0, 4),
+      confidence: Math.max(0, Math.min(1, Number(raw.confidence || 0) || 0)),
+    },
+    prompts: assessed.prompts || [],
+    stats: assessed.stats || {},
+  };
+}
+
 function markReflectionRequired(evaluation = {}, options = {}) {
   const reflectionWeight = positiveNumber(options.reflectionWeight, 0.3);
   const reward = Object.assign({}, evaluation.reward || {}, {
@@ -198,6 +283,7 @@ function publicReflection(reflection = {}) {
     summary: cleanString(reflection.summary, 500),
     transcriptDigest: cleanString(reflection.transcriptDigest, 80),
     evidenceRefs: asArray(reflection.evidenceRefs).map((item) => cleanString(item, 160)).filter(Boolean).slice(0, 6),
+    evaluationMethod: cleanString(reflection.evaluationMethod || "model_assisted_spoken_reflection", 100),
     audio: reflection.audio && typeof reflection.audio === "object" ? reflection.audio : null,
     submittedAt: cleanString(reflection.submittedAt, 80),
     checks: reflection.checks && typeof reflection.checks === "object" ? reflection.checks : null,
@@ -209,6 +295,13 @@ function createLearningGrowthReflectionService(options = {}) {
   const saveAudioUpload = typeof options.saveAudioUpload === "function" ? options.saveAudioUpload : null;
   const transcribeAudio = typeof options.transcribeAudio === "function" ? options.transcribeAudio : null;
   const requireAudio = options.requireAudio !== false;
+  const hermesModelText = typeof options.hermesModelText === "function" ? options.hermesModelText : null;
+  const extractJsonObject = typeof options.extractJsonObject === "function" ? options.extractJsonObject : defaultExtractJsonObject;
+  const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
+  const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
+  const model = cleanString(options.model || options.automationCreateModel || "automation-create");
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const requireModel = options.requireModel === true;
   const maxTranscriptChars = Math.max(2000, Number(options.maxTranscriptChars || 20000));
   const minTranscriptChars = positiveNumber(options.minTranscriptChars, 60);
 
@@ -254,11 +347,38 @@ function createLearningGrowthReflectionService(options = {}) {
         error: "Spoken reflection transcript is too short",
       };
     }
-    const assessed = evaluateTranscript(transcript, card, {
+    let assessed = evaluateTranscript(transcript, card, {
       acceptScore: options.acceptScore,
       maxTranscriptChars,
       minTranscriptChars,
     });
+    if (!hermesModelText && requireModel) {
+      return { ok: false, status: 503, error: "Growth spoken reflection requires model assistance" };
+    }
+    if (hermesModelText) {
+      try {
+        const output = await hermesModelText({
+          input: buildReflectionModelPrompt({ card, transcript, assessed, maxTranscriptChars }),
+          stream: false,
+          store: false,
+          model,
+          reasoning_effort: "medium",
+          conversation: `learning_growth_reflection_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+          instructions: "Return strict JSON Growth spoken reflection evaluation only.",
+          access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+        }, timeoutMs);
+        const parsed = extractJsonObject(output || "");
+        if (!parsed || typeof parsed !== "object") {
+          if (requireModel) return { ok: false, status: 502, error: "Growth spoken reflection model returned invalid JSON" };
+        } else {
+          assessed = normalizeModelReflection(parsed, assessed, { acceptScore: options.acceptScore });
+        }
+      } catch (err) {
+        if (requireModel) {
+          return { ok: false, status: Number(err?.status || 502) || 502, error: cleanString(err?.message || err || "Growth spoken reflection model failed", 300) };
+        }
+      }
+    }
     const publicAudio = audio ? publicAudioEvidence(audio, input) : null;
     const reflection = publicReflection({
       status: assessed.accepted ? "accepted" : "rejected",
@@ -268,6 +388,7 @@ function createLearningGrowthReflectionService(options = {}) {
       summary: assessed.summary,
       transcriptDigest: digestText(transcript),
       evidenceRefs: publicAudio ? [`audio:${publicAudio.digest}`, `transcript:${digestText(transcript).slice(0, 24)}`] : [`transcript:${digestText(transcript).slice(0, 24)}`],
+      evaluationMethod: hermesModelText ? "model_assisted_spoken_reflection" : "deterministic_spoken_reflection_guard",
       audio: publicAudio,
       submittedAt: nowIso(),
       checks: assessed.checks,
@@ -289,6 +410,7 @@ function createLearningGrowthReflectionService(options = {}) {
 }
 
 module.exports = {
+  buildReflectionModelPrompt,
   compositeScore,
   createLearningGrowthReflectionService,
   evaluateTranscript,

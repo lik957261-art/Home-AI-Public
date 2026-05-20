@@ -164,7 +164,16 @@ function createLearningProgramService(options = {}) {
   }
   const taxonomy = options.taxonomy || createLearningSkillTaxonomyService();
   const templateRegistry = options.templateRegistry || createLearningTemplateRegistryService();
-  const decompositionService = options.decompositionService || createLearningPlanDecompositionService({ templateRegistry });
+  const decompositionService = options.decompositionService || createLearningPlanDecompositionService({
+    extractJsonObject: options.extractJsonObject,
+    findWorkspace: options.findWorkspace,
+    hermesModelText: options.hermesModelText,
+    listSources: (filters) => sourceService.list(filters),
+    model: options.automationCreateModel || options.model,
+    requireModel: options.requireModelForPlanDecomposition === true,
+    sanitizePolicy: options.sanitizePolicy,
+    templateRegistry,
+  });
   const reliabilityGuard = options.reliabilityGuard || createLearningAiReliabilityGuardService();
   const reviewQueue = options.reviewQueue || createLearningParentReviewQueueService({ repository });
   const publishService = options.publishService || null;
@@ -268,14 +277,14 @@ function createLearningProgramService(options = {}) {
     return repository.getProgram(programId);
   }
 
-  function draftPlan(programId) {
+  async function draftPlan(programId) {
     const program = getProgram(programId);
     if (!program) {
       const err = new Error("Learning program not found");
       err.status = 404;
       throw err;
     }
-    const built = decompositionService.buildDraft(program);
+    const built = await decompositionService.buildDraft(program);
     const draftBase = Object.assign({}, built, {
       draftId: createId("ldraft"),
       programId: program.programId,
@@ -306,7 +315,7 @@ function createLearningProgramService(options = {}) {
     return { ok: true, program, draft, taskCards, reviewItem };
   }
 
-  function rebuildDraftPlan(programId, input = {}) {
+  async function rebuildDraftPlan(programId, input = {}) {
     const program = getProgram(programId);
     if (!program) {
       const err = new Error("Learning program not found");
@@ -326,7 +335,7 @@ function createLearningProgramService(options = {}) {
         .filter((item) => item.draftId === currentDraft.draftId).length;
       repository.deletePlanDraft(currentDraft.draftId);
     }
-    const rebuilt = draftPlan(programId);
+    const rebuilt = await draftPlan(programId);
     return Object.assign({ rebuilt: true, removed }, rebuilt);
   }
 

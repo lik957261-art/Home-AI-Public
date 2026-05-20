@@ -85,7 +85,7 @@ async function testCreateDraftApprovePublish() {
   assert.ok(program.sourceBasisRefs.includes(goal.goalRef));
   assert.ok(program.curriculumRefs.includes("cefr-a2-b1-english-growth"));
 
-  const drafted = service.draftPlan(program.programId);
+  const drafted = await service.draftPlan(program.programId);
   assert.equal(drafted.ok, true);
   assert.equal(drafted.draft.status, "review_required");
   assert.equal(drafted.taskCards.length, drafted.draft.taskCount);
@@ -181,7 +181,7 @@ async function testBlockedDraftDoesNotPublish() {
     goalSummary: "Should be blocked.",
     sourceBasisRefs: ["parent_config:test"],
   });
-  const drafted = service.draftPlan(program.programId);
+  const drafted = await service.draftPlan(program.programId);
   assert.equal(drafted.draft.status, "blocked");
   assert.equal(drafted.draft.reliability.publishBlocked, true);
   await assert.rejects(
@@ -193,7 +193,7 @@ async function testBlockedDraftDoesNotPublish() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-function testRebuildDraftRemovesOnlyUnpublishedPlan() {
+async function testRebuildDraftRemovesOnlyUnpublishedPlan() {
   const root = tempRoot();
   const { service, repository } = createService(root);
   const program = service.createProgram({
@@ -203,10 +203,10 @@ function testRebuildDraftRemovesOnlyUnpublishedPlan() {
     goalSummary: "Improve Grade 7 English output.",
     sourceBasisRefs: ["parent_config:summary"],
   });
-  const first = service.draftPlan(program.programId);
+  const first = await service.draftPlan(program.programId);
   assert.equal(first.draft.status, "review_required");
   assert.equal(repository.getPlanDraft(first.draft.draftId).draftId, first.draft.draftId);
-  const rebuilt = service.rebuildDraftPlan(program.programId);
+  const rebuilt = await service.rebuildDraftPlan(program.programId);
   assert.equal(rebuilt.rebuilt, true);
   assert.equal(rebuilt.removed.draftId, first.draft.draftId);
   assert.equal(rebuilt.removed.taskCards, first.taskCards.length);
@@ -230,10 +230,10 @@ async function testRebuildDraftBlocksPublishedPlan() {
     goalSummary: "Improve English output.",
     sourceBasisRefs: ["parent_config:summary"],
   });
-  const drafted = service.draftPlan(program.programId);
+  const drafted = await service.draftPlan(program.programId);
   const decision = await service.decideReview(drafted.reviewItem.reviewId, { decision: "approved", principalId: "owner" });
   assert.equal(decision.autoPublish.ok, true);
-  assert.throws(() => service.rebuildDraftPlan(program.programId), /published or executable records/);
+  await assert.rejects(() => service.rebuildDraftPlan(program.programId), /published or executable records/);
   assert.equal(repository.getPlanDraft(drafted.draft.draftId).status, "published");
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
@@ -283,7 +283,7 @@ async function testPublishUsesPreparedDraftFromPublishService() {
     sourceBasisRefs: ["parent_config:summary"],
     curriculumRefs: ["cefr-a2-b1-english-growth"],
   });
-  const drafted = service.draftPlan(program.programId);
+  const drafted = await service.draftPlan(program.programId);
   const published = await service.publishProgram(program.programId, { draftId: drafted.draft.draftId, force: true });
   assert.equal(published.ok, true);
   const savedDraft = repository.getPlanDraft(drafted.draft.draftId);
@@ -358,7 +358,7 @@ function testSourceDirectoryBootstrapCreatesEditableFoundation() {
 (async () => {
   await testCreateDraftApprovePublish();
   await testBlockedDraftDoesNotPublish();
-  testRebuildDraftRemovesOnlyUnpublishedPlan();
+  await testRebuildDraftRemovesOnlyUnpublishedPlan();
   await testRebuildDraftBlocksPublishedPlan();
   await testPublishUsesPreparedDraftFromPublishService();
   testFoundationRecordsRejectPrivatePayloadKeys();

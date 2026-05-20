@@ -178,6 +178,7 @@ function publicEvaluation(evaluation = {}, settlement = null) {
         summary: cleanString(evaluation.reflection.summary),
         transcriptDigest: cleanString(evaluation.reflection.transcriptDigest),
         evidenceRefs: asArray(evaluation.reflection.evidenceRefs).map(cleanString).filter(Boolean),
+        evaluationMethod: cleanString(evaluation.reflection.evaluationMethod),
         audio: evaluation.reflection.audio && typeof evaluation.reflection.audio === "object"
           ? {
             kind: cleanString(evaluation.reflection.audio.kind),
@@ -522,14 +523,20 @@ function createLearningGrowthSubmissionService(options = {}) {
       submissionKind,
     });
     if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit learning task"));
-    let evaluation = evaluationService.evaluate({
-      card: loaded.card,
-      cardId: cardIdValue,
-      text,
-      stage,
-      learningTaskModel: taskModel,
-      submissionKind,
-    });
+    let evaluation;
+    try {
+      evaluation = await evaluationService.evaluate({
+        card: loaded.card,
+        cardId: cardIdValue,
+        text,
+        stage,
+        learningTaskModel: taskModel,
+        submissionKind,
+        workspaceId,
+      });
+    } catch (err) {
+      return createError(Number(err?.status || 502) || 502, cleanString(err?.message || err || "Growth task model evaluation failed"));
+    }
     if (aiFeedbackService && typeof aiFeedbackService.analyze === "function") {
       try {
         const aiFeedback = await aiFeedbackService.analyze({
