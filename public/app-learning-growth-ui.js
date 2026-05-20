@@ -71,6 +71,51 @@
     </section>`;
   }
 
+  function countPendingTasks(programs = {}) {
+    const dailyPending = Number(programs.dailyPlan?.summary?.pendingTasks);
+    if (Number.isFinite(dailyPending) && dailyPending >= 0) return dailyPending;
+    const taskCards = Array.isArray(programs.taskCards) ? programs.taskCards : [];
+    return taskCards.filter((task) => ["planned", "published", "active", "review_required"].includes(String(task?.status || ""))).length;
+  }
+
+  function countReflectionOrReview(programs = {}, owner = false) {
+    const counts = programs.launchOperations?.counts || {};
+    if (owner) {
+      return Number(counts.pendingPlanReviews || 0)
+        + Number(counts.pendingParentReviews || 0)
+        + Number(counts.pendingRewardSettlements || 0);
+    }
+    const sessions = Array.isArray(programs.interactionSessions) ? programs.interactionSessions : [];
+    return sessions.filter((session) => /reflect|review/i.test(String(session?.currentStep || session?.status || ""))).length;
+  }
+
+  function renderGrowthMetric(label, value, detail, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    return `<span class="learning-growth-metric-card">
+      <small>${escapeHtml(label)}</small>
+      <strong>${escapeHtml(value)}</strong>
+      <em>${escapeHtml(detail || "")}</em>
+    </span>`;
+  }
+
+  function renderGrowthWorkflow(options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const steps = [
+      ["attempt", "\u4f5c\u7b54", "\u63d0\u4ea4\u8bc1\u636e"],
+      ["feedback", "AI \u6279\u6539", "\u627e\u51fa\u5f31\u70b9"],
+      ["revision", "\u4fee\u8ba2", "80 \u5206\u901a\u8fc7\u7ebf"],
+      ["reflection", "\u5f55\u97f3\u590d\u76d8", "\u786e\u8ba4\u7406\u89e3"],
+      ["settlement", "\u7ed3\u7b97", "\u5956\u52b1\u4e0e\u4e0b\u4e00\u9898"],
+    ];
+    return `<div class="learning-growth-workflow" aria-label="\u5b66\u4e60\u6d41\u7a0b">
+      ${steps.map(([id, label, detail], index) => `<span data-learning-growth-flow-step="${escapeHtml(id)}">
+        <b>${index + 1}</b>
+        <strong>${escapeHtml(label)}</strong>
+        <small>${escapeHtml(detail)}</small>
+      </span>`).join("")}
+    </div>`;
+  }
+
   function readinessStatusText(status) {
     const value = String(status || "");
     if (value === "operational_ready") return "Operational ready";
@@ -240,18 +285,27 @@
           ? renderOwnerProgramTabs(programUi, coinsHtml, overview, options)
           : renderExecutorProgramTabs(programUi, coinsHtml, overview, options))
       : "";
+    const programs = overview.programs || {};
+    const availableCoins = Number(coins.balances?.availableCoins || 0);
+    const pendingTasks = countPendingTasks(programs);
+    const reviewCount = countReflectionOrReview(programs, owner);
+    const heroCopy = owner
+      ? "\u6309\u6267\u884c\u3001\u5ba1\u6838\u3001\u5956\u52b1\u548c\u7cfb\u7edf\u5206\u533a\u67e5\u770b\uff0c\u91cd\u70b9\u76ef\u4efb\u52a1\u72b6\u6001\u3001AI \u6279\u6539\u3001\u5f55\u97f3\u590d\u76d8\u548c\u5956\u52b1\u7ed3\u7b97\u3002"
+      : "\u67e5\u770b\u5f85\u6267\u884c\u4efb\u52a1\u3001AI \u6279\u6539\u3001\u4fee\u8ba2\u8981\u6c42\u3001\u5f55\u97f3\u590d\u76d8\u548c\u91d1\u5e01\u5956\u52b1\u72b6\u6001\u3002";
     return `<div class="learning-growth-view" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
       <section class="learning-growth-shell-hero">
-        <div>
+        <div class="learning-growth-hero-copy">
           <div class="learning-coin-eyebrow">${escapeHtml(owner ? (moduleInfo.currentEntry || "成长入口") : "成长")}</div>
           <h2>${escapeHtml(moduleInfo.title || "凡凡成长系统")}</h2>
-          <p>${escapeHtml(owner ? "按执行、金币、分析和家长配置分区查看；金币仍是成长系统内部激励子模块。" : "这里只显示金币情况、待执行任务状态、分析与指导。")}</p>
+          <p>${escapeHtml(heroCopy)}</p>
         </div>
-        <div class="learning-growth-shell-metrics">
-          <span><strong>${escapeHtml(learnerLabel)}</strong><small>学习对象</small></span>
-          <span><strong>${escapeHtml(String(metrics.sevenDayCoins || 0))}</strong><small>7 天金币</small></span>
-          <span><strong>${escapeHtml(String(metrics.pendingRedemptions || 0))}</strong><small>${owner ? "待审兑换" : "申请中"}</small></span>
+        <div class="learning-growth-shell-metrics" aria-label="\u6210\u957f\u6982\u89c8">
+          ${renderGrowthMetric("\u5b66\u4e60\u5bf9\u8c61", learnerLabel, owner ? "Owner \u89c6\u56fe" : "\u6267\u884c\u89c6\u56fe", options)}
+          ${renderGrowthMetric("\u5f85\u6267\u884c", String(pendingTasks), "\u4eca\u65e5\u4efb\u52a1\u4e0e\u672a\u5b8c\u6210\u5361", options)}
+          ${renderGrowthMetric("7 \u5929\u91d1\u5e01", String(metrics.sevenDayCoins || coins.growth?.sevenDayCoins || availableCoins || 0), "\u5956\u52b1\u8d8b\u52bf", options)}
+          ${renderGrowthMetric(owner ? "\u5f85\u5904\u7406" : "\u5f85\u590d\u76d8", String(reviewCount || metrics.pendingRedemptions || 0), owner ? "\u5ba1\u6838\u3001\u7ed3\u7b97\u6216\u5151\u6362" : "\u5f55\u97f3\u590d\u76d8\u6216\u4fee\u8ba2", options)}
         </div>
+        ${renderGrowthWorkflow(options)}
       </section>
       ${programsHtml}
     </div>`;

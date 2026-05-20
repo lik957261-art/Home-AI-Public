@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-unified-flow-v29";
+const CLIENT_VERSION = "20260520-growth-ui-control-v30";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -974,6 +974,9 @@ assert.match(stylesCss, /\.learning-growth-platform-strip \{[\s\S]*?grid-templat
 assert.match(stylesCss, /\.learning-growth-tab-list \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
 assert.match(stylesCss, /\.learning-growth-tab-panel\.active \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.learning-growth-category/);
+assert.match(stylesCss, /\.learning-growth-metric-card/);
+assert.match(stylesCss, /\.learning-growth-workflow \{[\s\S]*?grid-column: 1 \/ -1;/);
+assert.match(stylesCss, /\.learning-growth-workflow span \{[\s\S]*?border-radius: 8px;/);
 assert.match(stylesCss, /\.learning-readiness-panel/);
 assert.match(stylesCss, /\.learning-readiness-grid/);
 assert.match(stylesCss, /\.learning-program-execution-grid/);

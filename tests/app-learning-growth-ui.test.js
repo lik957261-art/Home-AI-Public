@@ -113,7 +113,15 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-growth-tab="review"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
   assert.match(html, /凡凡成长系统/);
-  assert.match(html, /金币情况、待执行任务状态、分析与指导/);
+  assert.match(html, /查看待执行任务、AI 批改、修订要求、录音复盘和金币奖励状态/);
+  assert.match(html, /class="learning-growth-metric-card"/);
+  assert.match(html, /aria-label="成长概览"/);
+  assert.match(html, /data-learning-growth-flow-step="attempt"/);
+  assert.match(html, /data-learning-growth-flow-step="feedback"/);
+  assert.match(html, /data-learning-growth-flow-step="revision"/);
+  assert.match(html, /data-learning-growth-flow-step="reflection"/);
+  assert.match(html, /data-learning-growth-flow-step="settlement"/);
+  assert.match(html, /80 分通过线/);
   assert.match(html, /data-learning-growth-category="execution"/);
   assert.match(html, /data-learning-growth-category="guidance"/);
   assert.match(html, /data-learning-growth-module="coins"/);
@@ -124,7 +132,7 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-growth-capability="parent-review"/);
   assert.doesNotMatch(html, /data-learning-review-decision/);
   assert.doesNotMatch(html, /data-learning-evaluation-settle/);
-  assert.doesNotMatch(html, /Owner|家长|结算|后台与平台能力|learningRewardForm|人民币/);
+  assert.doesNotMatch(html, /Owner|家长|后台与平台能力|learningRewardForm|人民币/);
   assert.doesNotMatch(html, /学习档案与目标录入/);
 }
 
@@ -150,6 +158,8 @@ function testOwnerRendererKeepsManagementSections() {
   assert.match(html, /data-learning-growth-tab="system"/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
   assert.match(html, /data-learning-growth-category="owner-system"/);
+  assert.match(html, /按执行、审核、奖励和系统分区查看/);
+  assert.match(html, /data-learning-growth-flow-step="reflection"/);
   assert.match(html, /data-learning-operational-readiness/);
   assert.match(html, /Learning V1 readiness/);
   assert.match(html, /Operational ready/);
