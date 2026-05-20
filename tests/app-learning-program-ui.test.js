@@ -242,7 +242,7 @@ function testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst() {
   assert.match(html, /data-learning-native-growth-submission-form="task-native-1"/);
   assert.match(html, /data-learning-native-growth-submission-input="task-native-1"/);
   assert.match(html, /data-learning-submit-native-growth="task-native-1"/);
-  assert.match(html, /data-learning-open-kanban-card="kanban-native-1"/);
+  assert.match(html, /data-learning-open-growth-task="task-native-1"/);
   assert.doesNotMatch(html, /data-learning-task-start="task-native-1"/);
 }
 
@@ -267,7 +267,7 @@ function testNativeTaskWithoutKanbanLinkUsesNativeSubmission() {
   assert.match(html, /data-learning-native-growth-submission-form="task-native-2"/);
   assert.match(html, /data-learning-native-growth-submission-input="task-native-2"/);
   assert.doesNotMatch(html, /data-learning-task-start="task-native-2"/);
-  assert.doesNotMatch(html, /data-learning-open-kanban-card/);
+  assert.match(html, /data-learning-open-growth-task="task-native-2"/);
   assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
 }
 

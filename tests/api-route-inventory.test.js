@@ -223,9 +223,10 @@ const ROUTE_MODULES = Object.freeze([
     key: "learning-api-routes",
     exportName: "createLearningApiRoutes",
     required: true,
-    minRoutes: 3,
+    minRoutes: 4,
     probes: [
       { method: "GET", path: "/api/learning-growth/overview", id: "learning-growth-overview" },
+      { method: "GET", path: "/api/learning-growth/board", id: "learning-growth-board" },
       { method: "GET", path: "/api/learning/overview", id: "learning-overview" },
       { method: "GET", path: "/api/learning/status", id: "learning-status" },
     ],
@@ -360,6 +361,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/kanban/cards/card-1/assessment-exam" }).id, "kanban-assessment-exam");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-growth/overview" }).id, "learning-growth-overview");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-growth/board" }).id, "learning-growth-board");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/overview" }).id, "learning-overview");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/status" }).id, "learning-status");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/sources" }).id, "learning-sources-list");

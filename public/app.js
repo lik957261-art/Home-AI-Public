@@ -295,6 +295,11 @@ function initialKanbanAssessmentDraft() {
   }
 }
 
+function initialHermesViewMode() {
+  const saved = localStorage.getItem("hermesWebViewMode") || "single";
+  return saved === "todos" ? "learning" : saved;
+}
+
 const state = {
   key: localStorage.getItem("hermesWebKey") || "",
   auth: null,
@@ -445,7 +450,7 @@ const state = {
   currentThreadRefreshPending: false,
   currentThreadRefreshTimer: 0,
   currentTaskGroupId: "",
-  viewMode: localStorage.getItem("hermesWebViewMode") || "single",
+  viewMode: initialHermesViewMode(),
   singleWindowMode: localStorage.getItem("hermesWebSingleWindowMode") || "chat",
   selectedWorkspaceId: localStorage.getItem("hermesWebWorkspace") || "owner",
   selectedProjectId: localStorage.getItem("hermesWebProject") || "general",

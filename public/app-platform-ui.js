@@ -175,6 +175,7 @@ function sameOriginRouteUrl(value) {
 function applyRouteParams(params) {
   const automationId = String(params.get("automationId") || "").trim();
   const todoId = String(params.get("todoId") || "").trim();
+  const taskCardId = String(params.get("taskCardId") || "").trim();
   const taskGroupId = String(params.get("taskGroupId") || params.get("taskId") || "").trim();
   const messageId = String(params.get("messageId") || "").trim();
   const projectId = String(params.get("projectId") || "").trim();
@@ -185,7 +186,7 @@ function applyRouteParams(params) {
   const assessmentExamRequested = ["1", "true", "yes"].includes(String(params.get("assessmentExam") || params.get("assessment_exam") || "").trim().toLowerCase());
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
-  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
+  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && state.workspaces.some((item) => item.id === workspaceId)) {
     state.selectedWorkspaceId = workspaceId;
@@ -208,6 +209,11 @@ function applyRouteParams(params) {
     state.todoRouteMissingTargetId = "";
     state.pendingReadingQuizTodoId = readingQuizRequested ? todoId : "";
     state.pendingAssessmentExamTodoId = assessmentExamRequested ? todoId : "";
+  } else if (routeView === "learning" && taskCardId) {
+    state.selectedLearningTaskCardId = taskCardId;
+    state.selectedTodoId = "";
+    state.pendingReadingQuizTodoId = "";
+    state.pendingAssessmentExamTodoId = "";
   } else if (routeView) {
     state.pendingReadingQuizTodoId = "";
     state.pendingAssessmentExamTodoId = "";

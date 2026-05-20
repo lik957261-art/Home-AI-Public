@@ -1,6 +1,7 @@
 "use strict";
 
 const { createApiRouteRegistry } = require("../adapters/api-route-registry");
+const { createLearningGrowthBoardProjectionService } = require("../adapters/learning-growth-board-projection-service");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
 
 const LEARNING_API_ROUTE_SPECS = Object.freeze([
@@ -18,6 +19,21 @@ const LEARNING_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-growth", "learning-coin"],
     tags: ["learning-growth", "overview", "coins"],
+  },
+  {
+    id: "learning-growth-board",
+    method: "GET",
+    path: "/api/learning-growth/board",
+    group: "learning-growth",
+    moduleKey: "learning-growth",
+    handlerKey: "board",
+    summary: "Read the native Fanfan Growth board projection without calling official Kanban.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-growth", "learning-program", "learning-coin"],
+    tags: ["learning-growth", "board", "native"],
   },
   {
     id: "learning-overview",
@@ -95,6 +111,9 @@ function createLearningApiRoutes(deps = {}) {
   if (!learningGrowthService || typeof learningGrowthService.overview !== "function") {
     throw new Error("learning api routes require learningGrowthService.overview");
   }
+  const learningGrowthBoardService = deps.learningGrowthBoardService || createLearningGrowthBoardProjectionService({
+    learningGrowthService,
+  });
   const registry = createApiRouteRegistry(LEARNING_API_ROUTE_SPECS);
 
   function authorizeQuery(req, res, url, auth) {
@@ -145,6 +164,23 @@ function createLearningApiRoutes(deps = {}) {
     deps.sendJson(res, 200, Object.assign({ ok: true }, learningGrowthService.overview(overviewInput)));
   }
 
+  async function handleBoard(req, res, url, auth) {
+    let input;
+    try {
+      input = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!input) return;
+    const owner = deps.isOwnerAuth(auth);
+    const boardInput = Object.assign({}, input, {
+      owner,
+      viewerRole: owner ? "owner" : "executor",
+    });
+    deps.sendJson(res, 200, Object.assign({ ok: true }, learningGrowthBoardService.board(boardInput)));
+  }
+
   async function handleStatus(req, res, url, auth) {
     if (!deps.isOwnerAuth(auth)) {
       deps.sendJson(res, 403, { error: "Owner access is required" });
@@ -183,6 +219,7 @@ function createLearningApiRoutes(deps = {}) {
 
     const auth = context.auth || null;
     if (route.id === "learning-growth-overview" || route.id === "learning-overview") await handleOverview(req, res, url, auth);
+    else if (route.id === "learning-growth-board") await handleBoard(req, res, url, auth);
     else if (route.id === "learning-status") await handleStatus(req, res, url, auth);
     else return { handled: false };
 

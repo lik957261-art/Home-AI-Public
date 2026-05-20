@@ -234,7 +234,7 @@ function wireUi() {
   });
   $("todosMode").addEventListener("click", async () => {
     clearQuotedReply({ render: false });
-    state.viewMode = "todos";
+    state.viewMode = "learning";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;
@@ -243,7 +243,7 @@ function wireUi() {
   });
   $("bottomTodosMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
-    state.viewMode = "todos";
+    state.viewMode = "learning";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;

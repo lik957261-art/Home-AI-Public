@@ -54,7 +54,7 @@ function executionQueueSummary(task = {}) {
     taskModel,
     privacyLevel: "summary_only",
     summary: task.summary,
-    openUrl: kanbanCardId ? `/?view=todos&workspaceId=${encodeURIComponent(task.workspaceId || "")}&todoId=${encodeURIComponent(kanbanCardId)}` : "",
+    openUrl: task.taskCardId ? `/?view=learning&workspaceId=${encodeURIComponent(task.workspaceId || "")}&taskCardId=${encodeURIComponent(task.taskCardId)}` : "",
   };
 }
 

@@ -602,7 +602,7 @@
         <div class="learning-native-growth-submission-state" data-learning-native-growth-reflection-state="${escapeHtml(taskCardId)}">${escapeHtml(stateLabel)}</div>
         <div class="learning-program-task-actions">
           <button type="submit" data-learning-submit-native-growth-reflection="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u590d\u76d8</button>
-          ${kanbanCardId ? `<button type="button" data-learning-open-kanban-card="${escapeHtml(kanbanCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u6253\u5f00\u770b\u677f\u8be6\u60c5</button>` : ""}
+          <button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>
         </div>
       </form>`;
     }
@@ -613,7 +613,7 @@
       <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>
       <div class="learning-program-task-actions">
         <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u7ed9 AI \u6279\u6539</button>
-        ${kanbanCardId ? `<button type="button" data-learning-open-kanban-card="${escapeHtml(kanbanCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u6253\u5f00\u770b\u677f\u8be6\u60c5</button>` : ""}
+        <button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>
       </div>
       <div class="learning-native-growth-submission-state" data-learning-native-growth-submission-state="${escapeHtml(taskCardId)}" aria-live="polite"></div>
     </form>`;

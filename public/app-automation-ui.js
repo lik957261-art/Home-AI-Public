@@ -43,8 +43,8 @@ function applyViewMode() {
   $("bottomAutomationMode")?.classList.toggle("active", automation);
   $("learningMode")?.classList.toggle("active", learning);
   $("bottomLearningMode")?.classList.toggle("active", learning);
-  $("todosMode").classList.toggle("active", todos);
-  $("bottomTodosMode")?.classList.toggle("active", todos);
+  $("todosMode").classList.toggle("active", learning);
+  $("bottomTodosMode")?.classList.toggle("active", learning);
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");

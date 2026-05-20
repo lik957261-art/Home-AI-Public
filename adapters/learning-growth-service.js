@@ -394,7 +394,7 @@ function learningGrowthCapabilityMap(metrics = {}) {
 function learningGrowthPlatformCapabilities() {
   return [
     { id: "chat", title: "\u804a\u5929\u4e0e\u4e3b\u9898", owner: "Hermes Mobile Platform" },
-    { id: "kanban", title: "\u770b\u677f\u4efb\u52a1", owner: "Hermes Mobile Platform" },
+    { id: "growth-board", title: "\u539f\u751f\u6210\u957f\u770b\u677f", owner: "Learning Growth Domain" },
     { id: "files", title: "\u76ee\u5f55\u4e0e\u4ea4\u4ed8\u6587\u4ef6", owner: "Hermes Mobile Platform" },
     { id: "push", title: "Web Push \u63d0\u9192", owner: "Hermes Mobile Platform" },
     { id: "gateway", title: "Hermes Gateway \u6267\u884c", owner: "Hermes Mobile Platform" },
@@ -491,7 +491,7 @@ function buildLearningGrowthOverview(input = {}, deps = {}) {
       id: LEARNING_GROWTH_MODULE_ID,
       title: "\u51e1\u51e1\u6210\u957f\u7cfb\u7edf",
       hostView: "learning",
-      currentEntry: "\u6210\u957f\u6807\u7b7e",
+      currentEntry: "\u6210\u957f\u770b\u677f",
       standaloneReady: true,
       architecture: "same-repo-same-deploy-independent-product-entry",
     },

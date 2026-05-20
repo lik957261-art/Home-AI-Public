@@ -114,7 +114,7 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
 
   assert.equal(overview.module.id, "fanfan-growth");
   assert.equal(overview.module.hostView, "learning");
-  assert.equal(overview.module.currentEntry, "成长标签");
+  assert.equal(overview.module.currentEntry, "成长看板");
   assert.equal(overview.module.standaloneReady, true);
   assert.equal(overview.learner.id, "weixin_stephen");
   assert.equal(overview.learner.studentId, "weixin_stephen");
@@ -124,7 +124,7 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   assert.ok(overview.capabilities.some((item) => item.id === "curriculum-reference"));
   assert.ok(overview.capabilities.some((item) => item.id === "ai-reliability-guard"));
   assert.ok(overview.capabilities.some((item) => item.id === "coin-incentive"));
-  assert.ok(overview.platformCapabilities.some((item) => item.id === "kanban"));
+  assert.ok(overview.platformCapabilities.some((item) => item.id === "growth-board"));
   assert.equal(overview.reliability.guardLevel, "ai-draft-system-verify-parent-audit");
   assert.ok(overview.reliability.gates.includes("parent_review"));
   assert.ok(overview.reliability.reviewTriggers.includes("missing_source_basis"));

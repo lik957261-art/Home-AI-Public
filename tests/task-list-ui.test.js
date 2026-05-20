@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-native-db-v33";
+const CLIENT_VERSION = "20260520-growth-board-native-v34";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -867,7 +867,7 @@ assert.match(appJs, /phase === "exam_open"\) return "todo"/);
 assert.match(appJs, /phase === "in_progress" \|\| phase === "retake_required"\) return "running"/);
 assert.match(appJs, /todoKanbanStatus: initialTodoKanbanStatus\(\)/);
 assert.ok(indexHtml.includes("\u8bdd\u9898"));
-assert.ok(indexHtml.includes("\u770b\u677f"));
+assert.equal(indexHtml.includes("\u770b\u677f"), false);
 assert.ok(indexHtml.includes("&#25104;&#38271;"));
 assert.ok(indexHtml.includes("\u8bdd\u9898\u5217\u8868"));
 assert.ok(indexHtml.includes("\u8bdd\u9898\u6d41"));
@@ -880,7 +880,7 @@ assert.ok(appJs.includes("\u770b\u677f\u8be6\u60c5"));
 assert.ok(appJs.includes("\u65b0\u589e\u5361\u7247"));
 assert.match(appJs, /function renderLearningCoinsView\(\)/);
 assert.match(appJs, /HermesLearningGrowthUi/);
-assert.match(appJs, /\/api\/learning-growth\/overview/);
+assert.match(appJs, /\/api\/learning-growth\/board/);
 assert.match(appJs, /LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID = "weixin_stephen"/);
 assert.match(appJs, /function learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(appJs, /state\.auth && !state\.auth\.isOwner/);
@@ -905,9 +905,9 @@ assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
   assert.match(appJs, /function rebuildLearningProfile\(\)/);
   assert.match(appJs, /function decideLearningParentReviewRequest\(reviewRequestId, decision\)/);
   assert.match(appJs, /function startLearningTaskSession\(taskCardId\)/);
-  assert.match(appJs, /function openLearningKanbanCard\(todoId, workspaceId = ""\)/);
-  assert.match(appJs, /data-learning-open-kanban-card/);
-  assert.match(appJs, /state\.viewMode = "todos"/);
+  assert.match(appJs, /function openLearningGrowthTask\(taskCardId, workspaceId = ""\)/);
+  assert.match(appJs, /data-learning-open-growth-task/);
+  assert.match(appJs, /localStorage\.setItem\("hermesWebViewMode", "learning"\)/);
   assert.match(appJs, /function advanceLearningSession\(sessionId\)/);
   assert.match(appJs, /function submitLearningEvaluationForm\(event, sessionId\)/);
   assert.match(appJs, /\/api\/learning\/programs/);
@@ -1100,7 +1100,8 @@ assert.match(stylesCss, /\.learning-guidance-actions \{[\s\S]*?grid-template-col
 assert.match(stylesCss, /\.learning-guidance-actions button \{[\s\S]*?white-space: nowrap;/);
 assert.match(stylesCss, /\.learning-answer-review/);
 assert.ok(appJs.includes("Topic ID"));
-assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*aria-label="&#25104;&#38271;"/);
+assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="&#25104;&#38271;"/);
+assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>/);
 assert.ok(indexHtml.includes(CLIENT_VERSION));
 assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
@@ -1118,7 +1119,7 @@ assert.match(indexHtml, /--app-font-family/);
 assert.match(indexHtml, /id="chatManagementMode"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.addEventListener\("click"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.classList\.toggle\("active", single && state\.singleWindowMode === "chat"\)/);
-assert.match(stylesCss, /\.section-toggle \{[\s\S]*?grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+assert.match(stylesCss, /\.section-toggle \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)/);
 assert.match(appJs, /window\.matchMedia\("\(max-width: 1099px\)"\)/);
 assert.match(appJs, /const mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| skillDetail \|\| directoryBack/);

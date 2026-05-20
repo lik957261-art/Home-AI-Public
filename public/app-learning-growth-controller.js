@@ -108,7 +108,7 @@ async function loadLearningCoins(options = {}) {
   state.learningCoinsError = "";
   renderLearningCoinsView();
   try {
-    const result = await api(`/api/learning-growth/overview?${learningCoinRequestParams(options)}`);
+    const result = await api(`/api/learning-growth/board?${learningCoinRequestParams(options)}`);
     if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
     state.learningGrowth = result;
     state.learningCoins = result?.coins || result?.coinSummary || {};
@@ -123,8 +123,8 @@ async function loadLearningCoins(options = {}) {
   }
 }
 
-async function openLearningKanbanCard(todoId, workspaceId = "") {
-  const id = String(todoId || "").trim();
+async function openLearningGrowthTask(taskCardId, workspaceId = "") {
+  const id = String(taskCardId || "").trim();
   if (!id) return;
   const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId();
   if (state.workspaces.some((item) => item.id === targetWorkspaceId)) {
@@ -132,14 +132,23 @@ async function openLearningKanbanCard(todoId, workspaceId = "") {
     localStorage.setItem("hermesWebWorkspace", targetWorkspaceId);
     if ($("workspaceSelect")) $("workspaceSelect").value = targetWorkspaceId;
   }
-  state.viewMode = "todos";
-  localStorage.setItem("hermesWebViewMode", "todos");
-  state.selectedTodoId = id;
+  state.viewMode = "learning";
+  localStorage.setItem("hermesWebViewMode", "learning");
+  state.selectedLearningTaskCardId = id;
+  state.selectedTodoId = "";
   state.todoRouteMissingTargetId = "";
   state.pendingReadingQuizTodoId = "";
   state.pendingAssessmentExamTodoId = "";
   await loadProjects();
-  await loadTodos({ skipCache: true, freshServer: true, targetId: id });
+  await loadLearningCoins({ limit: 80 });
+  const root = $("conversation");
+  const target = [...(root?.querySelectorAll("[data-learning-executable-task-id]") || [])]
+    .find((item) => item.dataset.learningExecutableTaskId === id);
+  target?.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+async function openLearningKanbanCard(todoId, workspaceId = "") {
+  await openLearningGrowthTask(todoId, workspaceId);
 }
 
 async function requestLearningCoinRedemption(rewardId) {
@@ -634,6 +643,12 @@ function wireLearningCoinsView() {
     form.addEventListener("submit", (event) => {
       submitNativeGrowthReflection(event, form.dataset.taskCardId || form.dataset.learningNativeGrowthReflectionForm);
     });
+  });
+  $("conversation")?.querySelectorAll("[data-learning-open-growth-task]").forEach((button) => {
+    button.addEventListener("click", () => openLearningGrowthTask(
+      button.dataset.learningOpenGrowthTask,
+      button.dataset.workspaceId,
+    ).catch(showError));
   });
   $("conversation")?.querySelectorAll("[data-learning-open-kanban-card]").forEach((button) => {
     button.addEventListener("click", () => openLearningKanbanCard(

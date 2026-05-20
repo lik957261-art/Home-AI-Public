@@ -77,12 +77,13 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadataAndFallthrough() {
-  assert.deepEqual(LEARNING_API_ROUTE_SPECS.map((route) => route.id), ["learning-growth-overview", "learning-overview", "learning-status"]);
+  assert.deepEqual(LEARNING_API_ROUTE_SPECS.map((route) => route.id), ["learning-growth-overview", "learning-growth-board", "learning-overview", "learning-status"]);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning-growth/overview" }).id, "learning-growth-overview");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning-growth/board" }).id, "learning-growth-board");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/overview" }).id, "learning-overview");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/status" }).id, "learning-status");
-  assert.equal(routes.summary({ public: true }).total, 3);
+  assert.equal(routes.summary({ public: true }).total, 4);
 
   const miss = await request(routes, "GET", "/api/status");
   assert.equal(miss.result.handled, false);
@@ -154,6 +155,27 @@ async function testOverviewUsesRequestedExecutorWorkspaceForOwner() {
     owner: true,
     viewerRole: "owner",
   });
+}
+
+async function testBoardUsesNativeGrowthProjectionWithoutKanban() {
+  let kanbanCalls = 0;
+  const { routes, growthInputs } = makeRoutes({
+    learningGrowthTaskService: {
+      async listExecutableTasks() {
+        kanbanCalls += 1;
+        return { ok: true, tasks: [{ taskCardId: "legacy" }] };
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning-growth/board?workspaceId=weixin_stephen&studentId=weixin_stephen&limit=5", {
+    auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.body.ok, true);
+  assert.equal(response.body.board.role, "owner");
+  assert.equal(kanbanCalls, 0);
+  assert.equal(growthInputs[0].workspaceId, "weixin_stephen");
+  assert.equal(growthInputs[0].limit, 80);
 }
 
 async function testOwnerDefaultOverviewUsesFanfanLearnerBinding() {
@@ -263,6 +285,7 @@ async function testStudentCannotReadAnotherLearner() {
 (async () => {
   await testMetadataAndFallthrough();
   await testOverviewUsesRequestedExecutorWorkspaceForOwner();
+  await testBoardUsesNativeGrowthProjectionWithoutKanban();
   await testOwnerDefaultOverviewUsesFanfanLearnerBinding();
   await testOwnerWorkspaceWithLearnerUsesExecutorWorkspace();
   await testStudentReadsOwnOverviewAsExecutor();
