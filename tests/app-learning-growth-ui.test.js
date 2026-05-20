@@ -9,6 +9,18 @@ const overview = {
   module: { title: "凡凡成长系统", currentEntry: "金币标签" },
   learner: { id: "weixin_stephen", displayName: "凡凡" },
   metrics: { sevenDayCoins: 70, pendingRedemptions: 1 },
+  board: {
+    learner: { id: "weixin_stephen", workspaceId: "weixin_stephen", displayName: "Fanfan" },
+    summary: { cardCount: 2 },
+    lanes: [
+      { id: "today", title: "Today", count: 1, cards: ["task-1"] },
+      { id: "waiting_ai", title: "Waiting for AI", count: 1, cards: ["task-2"] },
+    ],
+    cards: [
+      { taskCardId: "task-1", title: "Native board task", activityType: "short_writing", plannedDate: "2026-05-20", primaryAction: "submit", nextAction: "submit", artifactCount: 0 },
+      { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1 },
+    ],
+  },
   capabilities: [
     { id: "coin-incentive", title: "金币激励", status: "active", description: "收敛为子模块" },
     { id: "ai-reliability-guard", title: "AI 可靠性护栏", status: "guardrail", description: "来源、校验、审核" },
@@ -106,6 +118,11 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-learning-product="fanfan-growth"/);
   assert.match(html, /data-learning-role="executor"/);
   assert.match(html, /data-learning-growth-tabs/);
+  assert.match(html, /data-learning-growth-board/);
+  assert.match(html, /data-growth-board-lane="today"/);
+  assert.match(html, /data-growth-board-lane="waiting_ai"/);
+  assert.match(html, /Native board task/);
+  assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /data-learning-growth-tab="execution"/);
   assert.match(html, /data-learning-growth-tab="guidance"/);
   assert.match(html, /data-learning-growth-tab="coins"/);

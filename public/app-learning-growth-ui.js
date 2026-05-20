@@ -116,6 +116,92 @@
     </div>`;
   }
 
+  function boardLaneTitle(id, fallback = "") {
+    const value = String(id || "");
+    if (value === "today") return "\u4eca\u65e5";
+    if (value === "ready") return "\u5f85\u6267\u884c";
+    if (value === "waiting_ai") return "\u7b49\u5f85 AI";
+    if (value === "needs_revision") return "\u5f85\u4fee\u8ba2";
+    if (value === "reflection_required") return "\u5f85\u590d\u76d8";
+    if (value === "completed_recent") return "\u6700\u8fd1\u5b8c\u6210";
+    return fallback || value || "\u4efb\u52a1";
+  }
+
+  function boardActionText(action) {
+    const value = String(action || "");
+    if (value === "submit") return "\u63d0\u4ea4\u4f5c\u7b54";
+    if (value === "revise") return "\u4fee\u8ba2\u63d0\u4ea4";
+    if (value === "reflect") return "\u5f55\u97f3\u590d\u76d8";
+    if (value === "wait") return "\u7b49\u5f85 AI";
+    if (value === "review") return "\u67e5\u770b\u7ed3\u679c";
+    return value || "\u67e5\u770b";
+  }
+
+  function boardStatusText(card = {}) {
+    const nextAction = String(card.nextAction || card.primaryAction || "");
+    if (nextAction === "submit") return "\u672a\u63d0\u4ea4";
+    if (nextAction === "waiting_feedback") return "\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI";
+    if (nextAction === "revise") return "\u9700\u8981\u4fee\u8ba2";
+    if (nextAction === "spoken_reflection") return "\u9700\u8981\u590d\u76d8";
+    if (nextAction === "complete") return "\u5df2\u5b8c\u6210";
+    return card.status || nextAction || "\u5f85\u5904\u7406";
+  }
+
+  function renderBoardCard(card = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(card.taskCardId || "");
+    const workspaceId = String(card.workspaceId || options.workspaceId || "");
+    const evaluation = card.latestEvaluation || {};
+    const score = Number(evaluation.score);
+    const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
+    const artifacts = Number(card.artifactCount || 0);
+    return `<article class="learning-growth-board-card" data-learning-executable-task-id="${escapeHtml(taskCardId)}">
+      <div class="learning-growth-board-card-head">
+        <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
+        <span>${escapeHtml(boardStatusText(card))}</span>
+      </div>
+      <div class="learning-growth-board-card-meta">
+        ${card.activityType ? `<small>${escapeHtml(card.activityType)}</small>` : ""}
+        ${card.plannedDate ? `<small>${escapeHtml(String(card.plannedDate).slice(0, 10))}</small>` : ""}
+        ${scoreText ? `<small>${escapeHtml(scoreText)}</small>` : ""}
+        ${artifacts ? `<small>${escapeHtml(String(artifacts))} \u4e2a\u4ea4\u4ed8</small>` : ""}
+      </div>
+      <div class="learning-growth-board-card-actions">
+        <button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">${escapeHtml(boardActionText(card.primaryAction))}</button>
+      </div>
+    </article>`;
+  }
+
+  function renderLearningGrowthBoard(board = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const cards = Array.isArray(board.cards) ? board.cards : [];
+    const cardById = new Map(cards.map((card) => [String(card.taskCardId || ""), card]));
+    const lanes = Array.isArray(board.lanes) ? board.lanes : [];
+    if (!lanes.length) return `<section class="learning-growth-board"><div class="learning-coin-empty">\u6682\u65e0\u6210\u957f\u4efb\u52a1\u3002</div></section>`;
+    return `<section class="learning-growth-board" data-learning-growth-board>
+      <div class="learning-growth-board-heading">
+        <h3>\u6210\u957f\u770b\u677f</h3>
+        <span>${escapeHtml(String(board.summary?.cardCount || cards.length || 0))} \u5f20\u4efb\u52a1</span>
+      </div>
+      <div class="learning-growth-board-lanes">
+        ${lanes.map((lane) => {
+          const laneCards = (Array.isArray(lane.cards) ? lane.cards : [])
+            .map((id) => cardById.get(String(id || "")))
+            .filter(Boolean);
+          return `<section class="learning-growth-board-lane" data-growth-board-lane="${escapeHtml(lane.id || "")}">
+            <div class="learning-growth-board-lane-head">
+              <strong>${escapeHtml(boardLaneTitle(lane.id, lane.title))}</strong>
+              <span>${escapeHtml(String(lane.count ?? laneCards.length))}</span>
+            </div>
+            ${laneCards.length
+              ? laneCards.map((card) => renderBoardCard(card, options)).join("")
+              : `<div class="learning-growth-board-empty">\u6ca1\u6709\u5f53\u524d\u4efb\u52a1</div>`}
+          </section>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
   function readinessStatusText(status) {
     const value = String(status || "");
     if (value === "operational_ready") return "Operational ready";
@@ -285,6 +371,9 @@
           ? renderOwnerProgramTabs(programUi, coinsHtml, overview, options)
           : renderExecutorProgramTabs(programUi, coinsHtml, overview, options))
       : "";
+    const boardHtml = overview.board ? renderLearningGrowthBoard(overview.board, Object.assign({}, options, {
+      workspaceId: overview.learner?.workspaceId || options.workspaceId || "",
+    })) : "";
     const programs = overview.programs || {};
     const availableCoins = Number(coins.balances?.availableCoins || 0);
     const pendingTasks = countPendingTasks(programs);
@@ -307,6 +396,7 @@
         </div>
         ${renderGrowthWorkflow(options)}
       </section>
+      ${boardHtml}
       ${programsHtml}
     </div>`;
   }
@@ -314,6 +404,7 @@
   return {
     renderCapabilityCards,
     renderLearningGrowthTabs,
+    renderLearningGrowthBoard,
     renderLearningGrowthView,
     renderNextModules,
     renderOwnerSystemPanel,

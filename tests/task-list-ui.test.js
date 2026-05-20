@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-board-native-v34";
+const CLIENT_VERSION = "20260520-growth-board-ui-v35";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -934,6 +934,9 @@ assert.match(appLearningCoinsUiJs, /renderCoinsSubsystem/);
 assert.match(appLearningCoinsUiJs, /bestRewardProgress/);
 assert.match(appLearningCoinsUiJs, /learning-growth-days/);
 assert.match(appLearningGrowthUiJs, /renderLearningGrowthView/);
+assert.match(appLearningGrowthUiJs, /renderLearningGrowthBoard/);
+assert.match(appLearningGrowthUiJs, /data-learning-growth-board/);
+assert.match(stylesCss, /\.learning-growth-board-lanes/);
 assert.match(appLearningGrowthTaskUiJs, /HermesLearningGrowthTaskUi/);
 assert.match(appLearningGrowthTaskUiJs, /submissionPrompt/);
 assert.match(appLearningGrowthTaskUiJs, /submissionGuard/);
@@ -1102,6 +1105,7 @@ assert.match(stylesCss, /\.learning-answer-review/);
 assert.ok(appJs.includes("Topic ID"));
 assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="&#25104;&#38271;"/);
 assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"/);
+assert.match(stylesCss, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>/);
 assert.ok(indexHtml.includes(CLIENT_VERSION));
 assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
