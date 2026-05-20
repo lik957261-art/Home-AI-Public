@@ -6,8 +6,11 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-skill-usage-receipts-v24";
-const appJs = readAppShellSource(repoRoot);
+const CLIENT_VERSION = "20260520-growth-reflection-v25";
+const appJs = [
+  readAppShellSource(repoRoot),
+  fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
+].join("\n");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
 const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
@@ -111,6 +114,7 @@ const appShellFiles = [
   "app-learning-program-ui.js",
   "app-learning-growth-ui.js",
   "app-learning-growth-task-ui.js",
+  "app-learning-growth-reflection-ui.js",
   "app-api-client.js",
   "app.js",
   ...appSplitModuleFiles,
@@ -994,12 +998,17 @@ assert.equal(appJs.includes("\\u4e0d\\u8d70\\u9605\\u8bfb\\u5f55\\u97f3\\u6a21\\
 assert.match(appJs, /nextActionLabel/);
 assert.match(appJs, /Task instruction/);
 assert.match(appJs, /todoLearningGrowthSubmissionDrafts/);
+assert.match(appJs, /todoLearningGrowthReflectionRecorders/);
 assert.match(appJs, /data-learning-growth-submission-form/);
 assert.match(appJs, /data-submit-learning-growth-task/);
 assert.match(appJs, /data-submit-learning-growth-writing/);
 assert.match(appJs, /data-learning-growth-submission-count/);
 assert.match(appJs, /data-withdraw-learning-growth-submission/);
+assert.match(appJs, /data-learning-growth-reflection-form/);
+assert.match(appJs, /data-learning-growth-reflection-record-toggle/);
+assert.match(appJs, /data-submit-learning-growth-reflection/);
 assert.match(appJs, /data-learning-growth-submission-status/);
+assert.match(appJs, /data-learning-growth-reflection-result/);
 assert.match(appJs, /todo-learning-growth-submission-text/);
 assert.match(appJs, /data-learning-growth-evaluation-status/);
 assert.match(appJs, /todo-learning-growth-score-pill/);
@@ -1014,10 +1023,15 @@ assert.match(appJs, /function submitLearningGrowthTask\(todoId, text\)/);
 assert.match(appJs, /function submitLearningGrowthWriting\(todoId, text\)/);
 assert.match(appJs, /validateSubmissionText\(submission/);
 assert.match(appJs, /function withdrawLearningGrowthSubmission\(todoId\)/);
+assert.match(appJs, /function submitLearningGrowthReflection\(todoId\)/);
 assert.match(appJs, /boardActionApiPath\(todoId, "learning-growth-submission"\)/);
 assert.match(appJs, /boardActionApiPath\(todoId, "learning-growth-submission\/withdraw"\)/);
+assert.match(appJs, /boardActionApiPath\(todoId, "learning-growth-reflection"\)/);
 assert.match(todoPublicProjectionServiceJs, /learningGrowthSubmission/);
 assert.match(todoPublicProjectionServiceJs, /learningGrowthEvaluation/);
+assert.match(todoPublicProjectionServiceJs, /learningGrowthReflection/);
+assert.match(learningGrowthInteractionStateServiceJs, /submit_spoken_reflection/);
+assert.match(learningGrowthInteractionStateServiceJs, /spoken_reflection_required/);
 assert.match(todoPublicProjectionServiceJs, /learningGrowthReportPath/);
 assert.match(todoPublicProjectionServiceJs, /learning-growth-writing-report/);
 assert.ok(todoPublicProjectionServiceJs.includes("pending_evaluation") || learningGrowthInteractionStateServiceJs.includes("pending_evaluation"));
@@ -1030,6 +1044,8 @@ assert.match(stylesCss, /\.todo-learning-growth-evaluation/);
 assert.match(stylesCss, /\.todo-learning-growth-submission-text/);
 assert.match(stylesCss, /\.todo-learning-growth-submit-requirement/);
 assert.match(stylesCss, /\.todo-learning-growth-withdraw/);
+assert.match(stylesCss, /\.todo-learning-growth-reflection/);
+assert.match(stylesCss, /\.todo-learning-growth-reflection-status/);
 assert.match(stylesCss, /\.todo-learning-growth-score-pill/);
 assert.doesNotMatch(stylesCss, /\.todo-learning-growth-score\s*\{/);
 assert.doesNotMatch(stylesCss, /\.todo-learning-growth-evaluation \{[\s\S]*?grid-template-columns: 74px/);

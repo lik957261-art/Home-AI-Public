@@ -296,6 +296,7 @@ function createTodoPublicProjectionService(options = {}) {
       learningGrowthSubmissionStatus: String(row.learning_growth_submission_status || row.learningGrowthSubmissionStatus || ""),
       learningGrowthSubmissionKind: String(row.learning_growth_submission_kind || row.learningGrowthSubmissionKind || ""),
       learningGrowthSubmissionAt: String(row.learning_growth_submission_at || row.learningGrowthSubmissionAt || ""),
+      learningGrowthEvaluationId: String(row.learning_growth_evaluation_id || row.learningGrowthEvaluationId || ""),
       learningGrowthEvaluationStatus: String(row.learning_growth_evaluation_status || row.learningGrowthEvaluationStatus || ""),
       learningGrowthEvaluationAt: String(row.learning_growth_evaluation_at || row.learningGrowthEvaluationAt || ""),
       learningGrowthScore: Number(row.learning_growth_score ?? row.learningGrowthScore ?? 0) || 0,
@@ -319,6 +320,18 @@ function createTodoPublicProjectionService(options = {}) {
       learningGrowthRewardStatus: String(row.learning_growth_reward_status || row.learningGrowthRewardStatus || ""),
       learningGrowthRewardCoins: Number(row.learning_growth_reward_coins ?? row.learningGrowthRewardCoins ?? 0) || 0,
       learningGrowthRewardEntryId: String(row.learning_growth_reward_entry_id || row.learningGrowthRewardEntryId || ""),
+      learningGrowthReflectionStatus: String(row.learning_growth_reflection_status || row.learningGrowthReflectionStatus || ""),
+      learningGrowthReflectionMode: String(row.learning_growth_reflection_mode || row.learningGrowthReflectionMode || ""),
+      learningGrowthReflectionAt: String(row.learning_growth_reflection_at || row.learningGrowthReflectionAt || ""),
+      learningGrowthReflectionScore: Number(row.learning_growth_reflection_score ?? row.learningGrowthReflectionScore ?? 0) || 0,
+      learningGrowthReflectionSummary: String(row.learning_growth_reflection_summary || row.learningGrowthReflectionSummary || ""),
+      learningGrowthReflectionTranscriptDigest: String(row.learning_growth_reflection_transcript_digest || row.learningGrowthReflectionTranscriptDigest || ""),
+      learningGrowthReflectionEvidenceRefs: normalizeStringList(row.learning_growth_reflection_evidence_refs || row.learningGrowthReflectionEvidenceRefs, 6),
+      learningGrowthReflectionAudioName: String(row.learning_growth_reflection_audio_name || row.learningGrowthReflectionAudioName || ""),
+      learningGrowthReflectionAudioMime: String(row.learning_growth_reflection_audio_mime || row.learningGrowthReflectionAudioMime || ""),
+      learningGrowthReflectionAudioSize: Number(row.learning_growth_reflection_audio_size ?? row.learningGrowthReflectionAudioSize ?? 0) || 0,
+      learningGrowthReflectionAudioDurationMs: Number(row.learning_growth_reflection_audio_duration_ms ?? row.learningGrowthReflectionAudioDurationMs ?? 0) || 0,
+      learningGrowthReflectionAudioDigest: String(row.learning_growth_reflection_audio_digest || row.learningGrowthReflectionAudioDigest || ""),
       learningProgramId: String(row.learning_program_id || row.learningProgramId || ""),
       learningDraftId: String(row.learning_draft_id || row.learningDraftId || ""),
       learningTaskCardId: String(row.learning_task_card_id || row.learningTaskCardId || ""),
@@ -394,6 +407,25 @@ function createTodoPublicProjectionService(options = {}) {
         }
         const nextStep = interactionState.nextStep;
         payload.learningGrowthNextAction = interactionState.nextAction;
+        const reflection = payload.learningGrowthReflectionStatus ? {
+          status: payload.learningGrowthReflectionStatus,
+          mode: payload.learningGrowthReflectionMode || "spoken",
+          score: payload.learningGrowthReflectionScore,
+          maxScore: 100,
+          summary: payload.learningGrowthReflectionSummary,
+          transcriptDigest: payload.learningGrowthReflectionTranscriptDigest,
+          evidenceRefs: payload.learningGrowthReflectionEvidenceRefs,
+          submittedAt: payload.learningGrowthReflectionAt,
+          audio: payload.learningGrowthReflectionAudioName ? {
+            kind: "audio",
+            name: payload.learningGrowthReflectionAudioName,
+            mime: payload.learningGrowthReflectionAudioMime,
+            size: payload.learningGrowthReflectionAudioSize,
+            durationMs: payload.learningGrowthReflectionAudioDurationMs,
+            digest: payload.learningGrowthReflectionAudioDigest,
+          } : null,
+        } : null;
+        if (reflection) payload.learningGrowthReflection = reflection;
         payload.learningGrowthSubmission = {
           status: payload.learningGrowthSubmissionStatus || "submitted",
           kind: payload.learningGrowthSubmissionKind || "writing",
@@ -437,6 +469,8 @@ function createTodoPublicProjectionService(options = {}) {
               policy: payload.learningGrowthRewardPolicy,
             },
           };
+          if (payload.learningGrowthEvaluationId) payload.learningGrowthEvaluation.evaluationId = payload.learningGrowthEvaluationId;
+          if (reflection) payload.learningGrowthEvaluation.reflection = reflection;
         }
       }
     }

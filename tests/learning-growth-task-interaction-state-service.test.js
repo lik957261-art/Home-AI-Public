@@ -22,8 +22,10 @@ function run() {
   assert.equal(normalizeGrowthEvaluationStatus("done"), "completed");
   assert.equal(normalizeGrowthEvaluationStatus("feedback_ready"), "draft_feedback");
   assert.equal(normalizeGrowthEvaluationStatus("revision_required"), "needs_revision");
+  assert.equal(normalizeGrowthEvaluationStatus("reflection_retry_required"), "reflection_required");
   assert.equal(normalizeGrowthNextStep("", { status: "draft_feedback" }), "rewrite_and_reflect");
   assert.equal(normalizeGrowthNextStep("", { status: "needs_revision" }), "revise_and_resubmit");
+  assert.equal(normalizeGrowthNextStep("", { status: "reflection_required" }), "spoken_reflection_required");
   assert.equal(normalizeGrowthNextStep("", { submitted: true }), "pending_evaluation");
   assert.equal(normalizeGrowthSubmissionStage("first_draft"), "draft");
   assert.equal(normalizeGrowthSubmissionStage("resubmission"), "final");
@@ -35,6 +37,7 @@ function run() {
   assert.equal(growthNextActionForTaskModel(model, { evaluationStatus: "pending" }), "wait_for_feedback");
   assert.equal(growthNextActionForTaskModel(model, { evaluationStatus: "draft_feedback" }), "submit_revision_and_reflection");
   assert.equal(growthNextActionForTaskModel(model, { nextStep: "revise_and_resubmit" }), "submit_revision");
+  assert.equal(growthNextActionForTaskModel(model, { evaluationStatus: "reflection_required" }), "submit_spoken_reflection");
   assert.equal(growthNextActionForTaskModel(model, { status: "completed" }), "review_feedback");
 
   assert.equal(growthSubmissionStageForCard({}, {}), "draft");
@@ -77,6 +80,18 @@ function run() {
   });
   assert.equal(blocked.nextAction, "submit_revision_and_reflection");
   assert.equal(blocked.canSubmit, false);
+
+  const reflectionRequired = projectGrowthInteractionState(model, {
+    evaluationStatus: "reflection_required",
+    nextStep: "spoken_reflection_required",
+    kanbanStatus: "ready",
+  });
+  assert.equal(reflectionRequired.phase, "reflection_required");
+  assert.equal(reflectionRequired.nextAction, "submit_spoken_reflection");
+  assert.equal(reflectionRequired.canSubmit, false);
+  assert.equal(reflectionRequired.canSubmitReflection, true);
+  assert.equal(reflectionRequired.requiresReflection, true);
+  assert.equal(reflectionRequired.analysisAvailable, true);
 
   const completed = projectGrowthInteractionState(model, {
     evaluationStatus: "completed",

@@ -150,21 +150,16 @@ async function testFinalRewriteSettlesAndCompletes() {
   ].join(" ");
   const result = await service.submitWriting({ workspaceId: "child", cardId: "t_growth", text, author: "child" });
   assert.equal(result.ok, true);
-  assert.equal(result.status, "completed");
-  assert.equal(result.evaluation.nextStep, "completed");
+  assert.equal(result.status, "reflection_required");
+  assert.equal(result.evaluation.nextStep, "spoken_reflection_required");
   assert.equal(result.evaluation.passed, true);
-  assert.equal(result.reward.status, "settled");
-  assert.equal(result.reward.entryId, "coin-final");
-  assert.equal(result.result.completed, true);
-  assert.equal(grants.length, 1);
-  assert.equal(grants[0].studentId, "child");
+  assert.equal(result.evaluation.reflectionPolicy.required, true);
+  assert.equal(result.reward.status, "reflection_required");
+  assert.equal(result.result.completed, false);
+  assert.equal(grants.length, 0);
   assert.equal(calls[0].submissionKind, "writing_revision");
-  assert.equal(calls[1].learningGrowthEvaluation.status, "completed");
-  assert.equal(calls[2].action, "complete");
-  assert.match(calls[2].comment, /金币/);
-  assert.match(calls[2].comment, /最终结论/);
-  assert.match(calls[2].comment, /Markdown/);
-  assert.doesNotMatch(calls[2].comment, /[�]/);
+  assert.equal(calls[1].learningGrowthEvaluation.status, "reflection_required");
+  assert.equal(calls.some((call) => call.action === "complete"), false);
 }
 
 async function testModelFeedbackEnhancesPublicEvaluation() {
@@ -361,14 +356,14 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
   ].join(" ");
   const result = await service.submitWriting({ workspaceId: "child", cardId: "t_growth", text, author: "child" });
   assert.equal(result.ok, true);
-  assert.equal(result.reward.status, "settled");
-  assert.equal(result.reward.entryId, "ledger-1");
-  assert.ok(programCalls.some((call) => call[0] === "recordEvaluation"));
-  assert.ok(programCalls.some((call) => call[0] === "getTaskCardForKanbanCard"));
+  assert.equal(result.status, "reflection_required");
+  assert.equal(result.reward.status, "reflection_required");
+  assert.equal(result.result.completed, false);
+  assert.equal(programCalls.some((call) => call[0] === "recordEvaluation"), false);
+  assert.equal(programCalls.some((call) => call[0] === "settleEvaluationReward"), false);
   assert.ok(programCalls.some((call) => call[0] === "importSourceDirectory"));
   assert.ok(programCalls.some((call) => call[0] === "rebuildLearnerProfile"));
   assert.ok(program.sourceBasisRefs.includes("cleaned_history:growth-progress"));
-  assert.equal(calls.at(-1).action, "complete");
 }
 
 async function testGenericVocabularyTaskUsesTaskModelContract() {

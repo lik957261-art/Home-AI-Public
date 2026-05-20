@@ -210,7 +210,7 @@ async function submitLearningGrowthTask(todoId, text) {
     state.todoLearningGrowthSubmissionFeedback[todoId] = {
       kind: "success",
       message: response?.evaluation
-        ? `AI \u53cd\u9988\u5df2\u5b8c\u6210${score == null ? "" : `\uff0c\u8bc4\u5206 ${score}/100`}${nextStep === "rewrite_and_reflect" ? "\uff0c\u8bf7\u7ee7\u7eed\u4fee\u6539\u548c\u590d\u76d8" : ""}${nextStep === "completed" ? "\uff0c\u5df2\u751f\u6210\u6700\u7ec8\u7ed3\u8bba" : ""}${reportReady ? "\uff0cMarkdown \u62a5\u544a\u5df2\u751f\u6210" : ""}${reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
+        ? `AI \u53cd\u9988\u5df2\u5b8c\u6210${score == null ? "" : `\uff0c\u8bc4\u5206 ${score}/100`}${nextStep === "rewrite_and_reflect" ? "\uff0c\u8bf7\u7ee7\u7eed\u4fee\u6539\u548c\u590d\u76d8" : ""}${nextStep === "spoken_reflection_required" ? "\uff0c\u8bf7\u5f55\u97f3\u590d\u76d8\u540e\u518d\u7ed3\u7b97" : ""}${nextStep === "completed" ? "\uff0c\u5df2\u751f\u6210\u6700\u7ec8\u7ed3\u8bba" : ""}${reportReady ? "\uff0cMarkdown \u62a5\u544a\u5df2\u751f\u6210" : ""}${reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
         : "\u5df2\u6536\u5230\u4f5c\u7b54\uff0c\u6b63\u5728\u7b49\u5f85 AI \u53cd\u9988\u6216\u5bb6\u957f\u590d\u6838\u3002",
     };
     await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
@@ -222,6 +222,54 @@ async function submitLearningGrowthTask(todoId, text) {
     throw err;
   } finally {
     delete state.todoLearningGrowthSubmissionSubmitting[todoId];
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  }
+}
+
+async function submitLearningGrowthReflection(todoId) {
+  if (!todoId) return;
+  const card = kanbanCardById(todoId);
+  if (card && !kanbanCan(card, "canComment")) throw new Error("No permission to submit this Growth reflection");
+  state.todoLearningGrowthReflectionRecorders = state.todoLearningGrowthReflectionRecorders || {};
+  state.todoLearningGrowthReflectionSubmitting = state.todoLearningGrowthReflectionSubmitting || {};
+  if (state.todoLearningGrowthReflectionSubmitting[todoId]) return;
+  const recording = state.todoLearningGrowthReflectionRecorders[todoId] || {};
+  if (!recording.file) throw new Error("\u8bf7\u5148\u5f55\u5236\u590d\u76d8\u8bed\u97f3");
+  state.todoLearningGrowthReflectionSubmitting[todoId] = true;
+  state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "info", message: "\u6b63\u5728\u4e0a\u4f20\u590d\u76d8\u8bed\u97f3\u5e76\u68c0\u67e5\u7406\u89e3\u7a0b\u5ea6..." };
+  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  try {
+    const file = recording.file;
+    const response = await api(boardActionApiPath(todoId, "learning-growth-reflection"), {
+      method: "POST",
+      body: kanbanCardActionBody(todoId, {
+        filename: file.name || `growth-reflection-${todoId}.webm`,
+        type: file.type || recording.mimeType || "audio/webm",
+        dataBase64: await fileToBase64(file),
+        durationMs: recording.elapsedMs || 0,
+      }),
+    });
+    clearTodoListCache(kanbanCardWorkspaceId(todoId));
+    const latest = state.todoLearningGrowthReflectionRecorders?.[todoId];
+    if (latest?.file === file) {
+      if (latest.url && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(latest.url);
+      delete state.todoLearningGrowthReflectionRecorders[todoId];
+    }
+    state.todoLearningGrowthSubmissionFeedback[todoId] = {
+      kind: response?.reflection?.status === "accepted" ? "success" : "info",
+      message: response?.reflection?.status === "accepted"
+        ? `\u8bed\u97f3\u590d\u76d8\u5df2\u901a\u8fc7\uff0c\u6700\u7ec8\u8bc4\u5206 ${response?.evaluation?.score ?? 0}/100${response?.reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${response.reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
+        : "\u8bed\u97f3\u590d\u76d8\u5df2\u63d0\u4ea4\uff0c\u8bf7\u6839\u636e\u53cd\u9988\u91cd\u65b0\u8865\u5145\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u7ec3\u4e60\u8ba1\u5212\u3002",
+    };
+    await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
+    state.selectedTodoId = todoId;
+    showPushToast("\u6210\u957f\u4efb\u52a1\u590d\u76d8\u5df2\u63d0\u4ea4", "success");
+    renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  } catch (err) {
+    state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "error", message: err.message || String(err) };
+    throw err;
+  } finally {
+    delete state.todoLearningGrowthReflectionSubmitting[todoId];
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
 }

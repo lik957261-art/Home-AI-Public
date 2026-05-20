@@ -18,6 +18,7 @@ const { createLearningGrowthService } = require("../adapters/learning-growth-ser
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
+const { createLearningGrowthReflectionService } = require("../adapters/learning-growth-reflection-service");
 const { createLearningGrowthSubmissionService } = require("../adapters/learning-growth-submission-service");
 const { createLearningParentReviewRequestService } = require("../adapters/learning-parent-review-request-service");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
@@ -402,6 +403,10 @@ function createMobileApiComposition(deps = {}) {
   const learningGrowthDirectoryMaterializationService = createLearningGrowthDirectoryMaterializationService({
     dataDir: deps.dataDir,
   });
+  const learningGrowthReflectionService = createLearningGrowthReflectionService({
+    saveAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
+    transcribeAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
+  });
   const learningGrowthSubmissionService = createLearningGrowthSubmissionService({
     aiFeedbackService: learningGrowthTaskFeedbackService,
     artifactService: deps.kanbanStudyArtifactService,
@@ -409,6 +414,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanCardProvider: deps.kanbanCardProvider,
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
+    reflectionService: learningGrowthReflectionService,
   });
   const kanbanCaseTopicDeliveryService = createKanbanCaseTopicDeliveryService({
     broadcast: deps.broadcast,
@@ -456,6 +462,7 @@ function createMobileApiComposition(deps = {}) {
     sendResolvedFile: deps.sendResolvedFile,
     sendResolvedFilePreview: deps.sendResolvedFilePreview,
     sharedKanbanCardsForAuth: (...args) => deps.kanbanCaseShareService.sharedCardsForAuth(...args),
+    maxUploadBytes: deps.maxUploadBytes,
     sourceDocumentMaxBytes: deps.sourceDocumentMaxBytes,
     todoAssigneeLabel: deps.todoAssigneeLabel,
     useKanbanTodoBackend: deps.useKanbanTodoBackend,

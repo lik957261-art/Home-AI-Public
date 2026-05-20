@@ -8,6 +8,7 @@ const ANALYSIS_STATUSES = new Set([
   "completed",
   "draft_feedback",
   "needs_revision",
+  "reflection_required",
   "review_required",
   "pending_review",
 ]);
@@ -16,6 +17,7 @@ const KNOWN_NEXT_STEPS = new Set([
   "completed",
   "rewrite_and_reflect",
   "revise_and_resubmit",
+  "spoken_reflection_required",
   "pending_evaluation",
 ]);
 
@@ -24,6 +26,7 @@ function normalizeGrowthEvaluationStatus(value) {
   if (["done", "complete", "completed", "passed"].includes(text)) return "completed";
   if (["draft_feedback", "first_feedback", "feedback_ready"].includes(text)) return "draft_feedback";
   if (["needs_revision", "revision_required", "revise", "failed"].includes(text)) return "needs_revision";
+  if (["reflection_required", "spoken_reflection_required", "reflection_retry_required"].includes(text)) return "reflection_required";
   if (["review_required", "requires_review"].includes(text)) return "review_required";
   if (["pending_review", "waiting_review"].includes(text)) return "pending_review";
   if (["pending", "submitted", "queued", "running"].includes(text)) return "pending";
@@ -35,6 +38,7 @@ function normalizeGrowthNextStep(value, state = {}) {
   if (KNOWN_NEXT_STEPS.has(text)) return text;
   const status = normalizeGrowthEvaluationStatus(state.evaluationStatus || state.status);
   if (status === "completed") return "completed";
+  if (status === "reflection_required") return "spoken_reflection_required";
   if (status === "draft_feedback") return "rewrite_and_reflect";
   if (status === "needs_revision") return "revise_and_resubmit";
   if (status === "pending" || status === "review_required" || status === "pending_review" || state.submitted) {
@@ -65,6 +69,7 @@ function growthNextActionForTaskModel(model = {}, state = {}) {
   const status = normalizeGrowthEvaluationStatus(state.evaluationStatus || state.status);
   const nextStep = normalizeGrowthNextStep(state.nextStep, Object.assign({}, state, { status }));
   if (status === "completed" || nextStep === "completed") return "review_feedback";
+  if (status === "reflection_required" || nextStep === "spoken_reflection_required") return "submit_spoken_reflection";
   if (nextStep === "rewrite_and_reflect" || status === "draft_feedback") return "submit_revision_and_reflection";
   if (nextStep === "revise_and_resubmit" || status === "needs_revision") return "submit_revision";
   if (nextStep === "pending_evaluation" || status === "pending" || status === "review_required" || status === "pending_review") {
@@ -75,6 +80,7 @@ function growthNextActionForTaskModel(model = {}, state = {}) {
 
 function phaseFor(status, submitted) {
   if (status === "completed") return "completed";
+  if (status === "reflection_required") return "reflection_required";
   if (status === "draft_feedback") return "draft_feedback";
   if (status === "needs_revision") return "needs_revision";
   if (status === "review_required" || status === "pending_review") return "review_required";
@@ -91,6 +97,7 @@ function projectGrowthInteractionState(model = {}, state = {}) {
   const blocked = Boolean(state.blocked) || kanbanStatus === "blocked";
   const completed = status === "completed" || Boolean(state.completed) || ["done", "completed", "archived", "cancelled", "canceled"].includes(kanbanStatus);
   const canSubmitByAction = ["submit_first_attempt", "submit_revision", "submit_revision_and_reflection"].includes(nextAction);
+  const canSubmitReflection = nextAction === "submit_spoken_reflection" && !blocked && !completed && state.canComment !== false;
   const canSubmit = canSubmitByAction && !blocked && !completed && state.canComment !== false;
   return {
     phase: phaseFor(status, submitted),
@@ -102,8 +109,10 @@ function projectGrowthInteractionState(model = {}, state = {}) {
     analysisAvailable: ANALYSIS_STATUSES.has(status),
     waitingForFeedback: nextAction === "wait_for_feedback",
     requiresRevision: nextAction === "submit_revision" || nextAction === "submit_revision_and_reflection",
+    requiresReflection: nextAction === "submit_spoken_reflection",
     completed,
     canSubmit,
+    canSubmitReflection,
     canReviewFeedback: ANALYSIS_STATUSES.has(status),
   };
 }

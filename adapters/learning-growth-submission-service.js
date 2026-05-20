@@ -23,6 +23,9 @@ const {
 const {
   growthSubmissionStageForCard,
 } = require("./learning-growth-task-interaction-state-service");
+const {
+  createLearningGrowthReflectionService,
+} = require("./learning-growth-reflection-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -131,6 +134,14 @@ function publicEvaluation(evaluation = {}, settlement = null) {
     aiFeedbackStatus: cleanString(evaluation.aiFeedbackStatus),
     nextStep: cleanString(evaluation.nextStep),
     evaluatedAt: cleanString(evaluation.evaluatedAt),
+    reflectionPolicy: evaluation.reflectionPolicy && typeof evaluation.reflectionPolicy === "object"
+      ? {
+        required: Boolean(evaluation.reflectionPolicy.required),
+        mode: cleanString(evaluation.reflectionPolicy.mode),
+        reflectionWeight: Number(evaluation.reflectionPolicy.reflectionWeight || 0) || 0,
+        taskWeight: Number(evaluation.reflectionPolicy.taskWeight || 0) || 0,
+      }
+      : null,
     report: evaluation.report && typeof evaluation.report === "object" ? {
       path: cleanString(evaluation.report.path),
       name: cleanString(evaluation.report.name),
@@ -158,6 +169,28 @@ function publicEvaluation(evaluation = {}, settlement = null) {
       entryId: cleanString(settlement?.ledgerEntry?.entryId || settlement?.entry?.entryId || ""),
       reason: cleanString(settlement?.reason || evaluation.reward?.reason || ""),
     },
+    reflection: evaluation.reflection && typeof evaluation.reflection === "object"
+      ? {
+        status: cleanString(evaluation.reflection.status),
+        mode: cleanString(evaluation.reflection.mode),
+        score: Number(evaluation.reflection.score || 0) || 0,
+        maxScore: Number(evaluation.reflection.maxScore || 100) || 100,
+        summary: cleanString(evaluation.reflection.summary),
+        transcriptDigest: cleanString(evaluation.reflection.transcriptDigest),
+        evidenceRefs: asArray(evaluation.reflection.evidenceRefs).map(cleanString).filter(Boolean),
+        audio: evaluation.reflection.audio && typeof evaluation.reflection.audio === "object"
+          ? {
+            kind: cleanString(evaluation.reflection.audio.kind),
+            name: cleanString(evaluation.reflection.audio.name),
+            mime: cleanString(evaluation.reflection.audio.mime),
+            size: Number(evaluation.reflection.audio.size || 0) || 0,
+            durationMs: Number(evaluation.reflection.audio.durationMs || 0) || 0,
+            digest: cleanString(evaluation.reflection.audio.digest),
+          }
+          : null,
+        submittedAt: cleanString(evaluation.reflection.submittedAt),
+      }
+      : null,
   };
 }
 
@@ -350,6 +383,74 @@ function settleViaCoinService(learningCoinService, card, evaluation, input = {})
   return Object.assign({ status: "settled" }, result);
 }
 
+function evaluationFromCard(card = {}, reflection = null, reflectionService = null) {
+  const score = Number(card.learningGrowthScore ?? card.learning_growth_score ?? 0) || 0;
+  const reflectionScore = Number(reflection?.score || 0) || 0;
+  const finalScore = reflection && reflectionService && typeof reflectionService.compositeScore === "function"
+    ? reflectionService.compositeScore(score, reflectionScore)
+    : score;
+  const reportPath = cardField(card, "learningGrowthReportPath", "learning_growth_report_path");
+  const reportName = cardField(card, "learningGrowthReportName", "learning_growth_report_name");
+  const rewardCoins = Number(card.learningGrowthRewardCoins ?? card.learning_growth_reward_coins ?? 0) || 0;
+  return {
+    evaluationId: cardField(card, "learningGrowthEvaluationId", "learning_growth_evaluation_id") || `growth-eval-${cardId(card) || "card"}`,
+    stage: "final",
+    status: reflection?.status === "accepted" ? "completed" : "reflection_required",
+    activityType: taskModelForSubmission(card).activityType || "task",
+    skillId: taskModelForSubmission(card).skillId || "",
+    taskModelVersion: taskModelForSubmission(card).version || "",
+    score: finalScore,
+    maxScore: Number(card.learningGrowthMaxScore ?? card.learning_growth_max_score ?? 100) || 100,
+    passed: reflection?.status === "accepted",
+    summary: reflection?.status === "accepted"
+      ? cleanString(cardField(card, "learningGrowthFeedbackSummary", "learning_growth_feedback_summary") || "Growth task completed after spoken reflection.")
+      : "Spoken reflection needs another attempt before final settlement.",
+    revisionRequirements: asArray(card.learningGrowthRevisionRequirements || card.learning_growth_revision_requirements).map(cleanString).filter(Boolean),
+    feedbackSections: {
+      strengths: asArray(card.learningGrowthStrengths || card.learning_growth_strengths).map(cleanString).filter(Boolean),
+      focusAreas: asArray(card.learningGrowthFocusAreas || card.learning_growth_focus_areas).map(cleanString).filter(Boolean),
+      rewriteChecklist: asArray(card.learningGrowthRewriteChecklist || card.learning_growth_rewrite_checklist).map(cleanString).filter(Boolean),
+      reflectionPrompts: asArray(card.learningGrowthReflectionPrompts || card.learning_growth_reflection_prompts).map(cleanString).filter(Boolean),
+      sentenceFeedback: asArray(card.learningGrowthSentenceFeedback || card.learning_growth_sentence_feedback),
+      finalConclusion: reflection?.status === "accepted"
+        ? "Spoken reflection accepted; final score includes reflection evidence."
+        : cleanString(cardField(card, "learningGrowthFinalConclusion", "learning_growth_final_conclusion")),
+      nextPractice: cleanString(cardField(card, "learningGrowthNextPractice", "learning_growth_next_practice")),
+      parentNote: cleanString(cardField(card, "learningGrowthParentNote", "learning_growth_parent_note")),
+    },
+    feedbackMethod: cleanString(cardField(card, "learningGrowthFeedbackMethod", "learning_growth_feedback_method")),
+    aiFeedbackStatus: cleanString(cardField(card, "learningGrowthAiFeedbackStatus", "learning_growth_ai_feedback_status")),
+    nextStep: reflection?.status === "accepted" ? "completed" : "spoken_reflection_required",
+    evaluatedAt: cleanString(cardField(card, "learningGrowthEvaluationAt", "learning_growth_evaluation_at")) || new Date().toISOString(),
+    report: reportPath ? {
+      path: reportPath,
+      name: reportName || reportPath.split(/[\\/]/).pop(),
+      mime: "text/markdown; charset=utf-8",
+      size: 0,
+    } : null,
+    reward: {
+      eligible: reflection?.status === "accepted" && rewardCoins > 0,
+      coinAmount: rewardCoins,
+      minCoinAmount: 0,
+      maxCoinAmount: Number(card.learningGrowthRewardCoins ?? card.learning_growth_reward_coins ?? rewardCoins) || rewardCoins,
+      status: reflection?.status === "accepted" ? "" : "reflection_required",
+      reason: reflection?.status === "accepted" ? "Spoken reflection accepted." : "Spoken reflection retry is required.",
+    },
+    reflection,
+  };
+}
+
+function readableReflectionComment(reflection = {}, evaluation = {}) {
+  const accepted = reflection.status === "accepted";
+  return [
+    accepted ? "Growth spoken reflection accepted." : "Growth spoken reflection needs another attempt.",
+    `Reflection score: ${Number(reflection.score || 0)}/${Number(reflection.maxScore || 100)}.`,
+    reflection.summary ? `Reflection summary: ${reflection.summary}` : "",
+    accepted ? "Final scoring and reward settlement can continue." : "Please record again and explain the mistake, reason, and next practice plan.",
+    evaluation.report?.path ? `MEDIA: ${evaluation.report.path}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
 function createLearningGrowthSubmissionService(options = {}) {
   const kanbanCardProvider = options.kanbanCardProvider || null;
   const evaluationService = options.evaluationService || createLearningGrowthTaskEvaluationService();
@@ -363,6 +464,11 @@ function createLearningGrowthSubmissionService(options = {}) {
   const learningCoinService = options.learningCoinService || null;
   const aiFeedbackService = options.aiFeedbackService || null;
   const progressSyncService = options.progressSyncService || createLearningGrowthProgressSyncService();
+  const reflectionService = options.reflectionService || createLearningGrowthReflectionService({
+    nowIso: options.nowIso,
+    saveAudioUpload: options.saveReflectionAudioUpload,
+    transcribeAudio: options.transcribeReflectionAudio,
+  });
   const maxSubmissionChars = Math.max(1000, Number(options.maxSubmissionChars || 12000));
   const withdrawWindowMs = Math.max(60_000, Number(options.withdrawWindowMs || 5 * 60 * 1000));
   const now = typeof options.now === "function" ? options.now : () => Date.now();
@@ -446,17 +552,27 @@ function createLearningGrowthSubmissionService(options = {}) {
     } else {
       evaluation.aiFeedbackStatus = "unavailable";
     }
-    let settlement = null;
-    try {
-      settlement = await settleViaProgramService(getProgramService(options), loaded.card, evaluation, { workspaceId, author: input.author });
-    } catch (err) {
-      settlement = { status: "program_settlement_error", error: cleanString(err.message || err) };
+    const reflectionRequired = reflectionService
+      && typeof reflectionService.requiresReflection === "function"
+      && reflectionService.requiresReflection({ card: loaded.card, evaluation, stage });
+    if (reflectionRequired && typeof reflectionService.markReflectionRequired === "function") {
+      evaluation = reflectionService.markReflectionRequired(evaluation);
     }
-    if (!settlement || settlement.status === "not_eligible") {
+    let settlement = null;
+    if (reflectionRequired) {
+      settlement = { status: "reflection_required", reason: "Spoken reflection is required before final settlement." };
+    } else {
       try {
-        settlement = settlement || settleViaCoinService(learningCoinService, loaded.card, evaluation, { workspaceId, author: input.author });
+        settlement = await settleViaProgramService(getProgramService(options), loaded.card, evaluation, { workspaceId, author: input.author });
       } catch (err) {
-        settlement = { status: "coin_settlement_error", error: cleanString(err.message || err) };
+        settlement = { status: "program_settlement_error", error: cleanString(err.message || err) };
+      }
+      if (!settlement || settlement.status === "not_eligible") {
+        try {
+          settlement = settlement || settleViaCoinService(learningCoinService, loaded.card, evaluation, { workspaceId, author: input.author });
+        } catch (err) {
+          settlement = { status: "coin_settlement_error", error: cleanString(err.message || err) };
+        }
       }
     }
     let report = null;
@@ -521,7 +637,7 @@ function createLearningGrowthSubmissionService(options = {}) {
     });
     if (!evaluationMutation?.ok) return createError(evaluationMutation?.status || 502, cleanString(evaluationMutation?.error || "Unable to persist learning task evaluation"));
     let completion = null;
-    if (evaluation.passed) {
+    if (evaluation.passed && !reflectionRequired) {
       completion = await kanbanCardProvider.mutateCard({
         action: "complete",
         workspaceId,
@@ -534,7 +650,7 @@ function createLearningGrowthSubmissionService(options = {}) {
       ok: true,
       cardId: cardIdValue,
       workspaceId,
-      status: evaluation.status,
+      status: publicEval.status,
       submissionGuard: guard,
       evaluation: publicEval,
       reward: publicEval.reward,
@@ -546,6 +662,78 @@ function createLearningGrowthSubmissionService(options = {}) {
         completed: Boolean(completion?.ok),
         materialized,
         progressSync,
+      },
+    };
+  }
+
+  async function submitReflection(input = {}) {
+    const workspaceId = cleanString(input.workspaceId) || "owner";
+    const cardIdValue = cleanString(input.cardId);
+    if (!cardIdValue) return createError(400, "Growth card id is required");
+    const loaded = await loadGrowthCard(workspaceId, cardIdValue);
+    if (!loaded.ok) return loaded;
+    const status = cardField(loaded.card, "learningGrowthEvaluationStatus", "learning_growth_evaluation_status").toLowerCase();
+    const nextStep = cardField(loaded.card, "learningGrowthNextStep", "learning_growth_next_step").toLowerCase();
+    if (status !== "reflection_required" && nextStep !== "spoken_reflection_required") {
+      return createError(409, "Growth card is not waiting for spoken reflection");
+    }
+    const reflectionResult = await reflectionService.submitReflection(Object.assign({}, input, {
+      workspaceId,
+      cardId: cardIdValue,
+      card: loaded.card,
+    }));
+    if (!reflectionResult?.ok) return reflectionResult;
+    const reflection = reflectionResult.reflection;
+    let evaluation = evaluationFromCard(loaded.card, reflection, reflectionService);
+    let settlement = null;
+    if (reflection.status === "accepted" && evaluation.passed) {
+      try {
+        settlement = await settleViaProgramService(getProgramService(options), loaded.card, evaluation, { workspaceId, author: input.author });
+      } catch (err) {
+        settlement = { status: "program_settlement_error", error: cleanString(err.message || err) };
+      }
+      if (!settlement || settlement.status === "not_eligible") {
+        try {
+          settlement = settlement || settleViaCoinService(learningCoinService, loaded.card, evaluation, { workspaceId, author: input.author });
+        } catch (err) {
+          settlement = { status: "coin_settlement_error", error: cleanString(err.message || err) };
+        }
+      }
+    } else {
+      settlement = { status: "reflection_retry_required", reason: "Spoken reflection needs another attempt." };
+    }
+    const publicEval = publicEvaluation(evaluation, settlement);
+    const reflectionMutation = await kanbanCardProvider.mutateCard({
+      action: "comment",
+      workspaceId,
+      cardId: cardIdValue,
+      comment: readableReflectionComment(reflection, evaluation),
+      author: cleanString(input.author) || "learning-growth-reflection",
+      learningGrowthEvaluation: publicEval,
+    });
+    if (!reflectionMutation?.ok) return createError(reflectionMutation?.status || 502, cleanString(reflectionMutation?.error || "Unable to persist Growth reflection"));
+    let completion = null;
+    if (reflection.status === "accepted" && evaluation.passed) {
+      completion = await kanbanCardProvider.mutateCard({
+        action: "complete",
+        workspaceId,
+        cardId: cardIdValue,
+        comment: readableCompletionComment(evaluation, publicEval),
+        author: "learning-growth-evaluator",
+      }).catch((err) => ({ ok: false, error: cleanString(err.message || err) }));
+    }
+    return {
+      ok: true,
+      cardId: cardIdValue,
+      workspaceId,
+      status: publicEval.status,
+      reflection,
+      evaluation: publicEval,
+      reward: publicEval.reward,
+      result: {
+        ok: true,
+        action: "learning-growth-reflection",
+        completed: Boolean(completion?.ok),
       },
     };
   }
@@ -592,6 +780,7 @@ function createLearningGrowthSubmissionService(options = {}) {
   }
 
   return {
+    submitReflection,
     submitTask,
     withdrawSubmission,
   };

@@ -222,6 +222,29 @@ function wireTodoPanel(root) {
       withdrawLearningGrowthSubmission(button.dataset.withdrawLearningGrowthSubmission || "").catch(showError);
     });
   });
+  root.querySelectorAll("[data-learning-growth-reflection-form]").forEach((form) => {
+    const todoId = form.dataset.learningGrowthReflectionForm || "";
+    form.querySelector("[data-learning-growth-reflection-record-toggle]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = todoId || event.currentTarget?.dataset?.learningGrowthReflectionRecordToggle || "";
+      if (state.todoLearningGrowthReflectionRecorders?.[id]?.status === "recording") {
+        stopLearningGrowthReflectionRecording(id);
+      } else {
+        startLearningGrowthReflectionRecording(id).catch(showError);
+      }
+    });
+    form.querySelector("[data-learning-growth-reflection-record-clear]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelLearningGrowthReflectionRecording(todoId || event.currentTarget?.dataset?.learningGrowthReflectionRecordClear || "");
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      submitLearningGrowthReflection(todoId).catch(showError);
+    });
+  });
   root.querySelectorAll("[data-todo-revision-form]").forEach((form) => {
     form.querySelector("#todoRevisionText")?.addEventListener("input", (event) => {
       const todoId = form.dataset.todoRevisionForm || "";

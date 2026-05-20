@@ -24,6 +24,11 @@ function testNewEnglishTemplateSubmissionPrompts() {
   assert.match(TaskUi.submissionPrompt({}, todoWithActivity("weekly_challenge")), /改进句/);
 }
 
+function testSpokenReflectionActionLabel() {
+  assert.equal(TaskUi.nextActionLabel("submit_spoken_reflection"), "\u5f55\u97f3\u590d\u76d8");
+}
+
 testNewEnglishTemplateActivityLabels();
 testNewEnglishTemplateSubmissionPrompts();
+testSpokenReflectionActionLabel();
 console.log("app learning growth task UI tests passed");

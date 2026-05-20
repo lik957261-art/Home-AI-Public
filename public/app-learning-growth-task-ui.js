@@ -35,6 +35,7 @@
     if (value === "wait_for_feedback") return "\u7b49\u5f85 AI \u6279\u6539";
     if (value === "submit_revision") return "\u63d0\u4ea4\u4fee\u6539\u7248";
     if (value === "submit_revision_and_reflection") return "\u63d0\u4ea4\u6539\u5199\u548c\u590d\u76d8";
+    if (value === "submit_spoken_reflection") return "\u5f55\u97f3\u590d\u76d8";
     if (value === "review_feedback") return "\u67e5\u770b\u53cd\u9988";
     return value || "\u5f00\u59cb\u4efb\u52a1";
   }

@@ -203,6 +203,7 @@ const ROUTE_MODULES = Object.freeze([
       { method: "POST", path: "/api/kanban/cards/card-1/comment", id: "kanban-card-action" },
       { method: "POST", path: "/api/kanban/cards/card-1/learning-growth-submission", id: "kanban-card-learning-growth-submission" },
       { method: "POST", path: "/api/kanban/cards/card-1/learning-growth-submission/withdraw", id: "kanban-card-learning-growth-submission-withdraw" },
+      { method: "POST", path: "/api/kanban/cards/card-1/learning-growth-reflection", id: "kanban-card-learning-growth-reflection" },
     ],
   },
   {

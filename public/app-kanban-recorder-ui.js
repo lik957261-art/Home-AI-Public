@@ -263,6 +263,179 @@ function cancelKanbanReadingRecording(todoId) {
   renderTodosAfterReadingRecorderChange();
 }
 
+function learningGrowthReflectionRecordingFile(todoId, blob, mime = "") {
+  const extension = kanbanReadingRecordingExtension(mime);
+  const safeId = String(todoId || "card").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "card";
+  const filename = `growth-reflection-${safeId}-${Date.now()}.${extension}`;
+  try {
+    if (typeof File === "function") return new File([blob], filename, { type: mime || blob.type || "audio/webm" });
+  } catch (_) {
+    // Older WebViews can expose Blob without a usable File constructor.
+  }
+  blob.name = filename;
+  blob.lastModified = Date.now();
+  return blob;
+}
+
+function ensureLearningGrowthReflectionRecorderState() {
+  state.todoLearningGrowthReflectionRecorders = state.todoLearningGrowthReflectionRecorders || {};
+  state.todoLearningGrowthReflectionSubmitting = state.todoLearningGrowthReflectionSubmitting || {};
+}
+
+function learningGrowthReflectionRecordingStatusText(todoId) {
+  const recording = state.todoLearningGrowthReflectionRecorders?.[todoId] || {};
+  const duration = formatKanbanReadingRecordingDuration(kanbanReadingRecordingDuration(recording));
+  if (recording.status === "requesting") return "正在请求麦克风权限...";
+  if (recording.status === "recording") return `正在录音 ${duration}`;
+  if (recording.status === "stopping") return "正在生成复盘录音...";
+  if (recording.status === "ready") return `已录好复盘 ${duration}`;
+  if (recording.status === "unsupported") return "当前浏览器不支持直接录音。";
+  if (recording.status === "error") return recording.error || "复盘录音不可用，请重试。";
+  return supportsKanbanReadingRecorder() ? "录音说明今天的主要错误、原因和下次检查方法。" : "当前浏览器不支持直接录音。";
+}
+
+function updateLearningGrowthReflectionRecordingStatus(todoId) {
+  const text = learningGrowthReflectionRecordingStatusText(todoId);
+  document.querySelectorAll("[data-learning-growth-reflection-status]").forEach((node) => {
+    if (node.dataset.learningGrowthReflectionStatus === String(todoId)) node.textContent = text;
+  });
+}
+
+function startLearningGrowthReflectionRecordingTimer(todoId, recording) {
+  clearKanbanReadingRecordingTimer(recording);
+  recording.timer = setInterval(() => updateLearningGrowthReflectionRecordingStatus(todoId), 1000);
+  updateLearningGrowthReflectionRecordingStatus(todoId);
+}
+
+function finishLearningGrowthReflectionRecording(todoId, recording) {
+  ensureLearningGrowthReflectionRecorderState();
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  if (recording.cancelled) return;
+  const chunks = (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
+  const elapsedMs = Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording);
+  if (!chunks.length) {
+    state.todoLearningGrowthReflectionRecorders[todoId] = { status: "error", error: "未录到声音，请重试。", elapsedMs };
+    renderTodosAfterReadingRecorderChange();
+    return;
+  }
+  const mime = recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
+  const blob = new Blob(chunks, { type: mime });
+  const file = learningGrowthReflectionRecordingFile(todoId, blob, mime);
+  const url = typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
+    ? URL.createObjectURL(file)
+    : "";
+  state.todoLearningGrowthReflectionRecorders[todoId] = {
+    status: "ready",
+    elapsedMs,
+    mimeType: mime,
+    file,
+    url,
+  };
+  renderTodosAfterReadingRecorderChange();
+}
+
+function failLearningGrowthReflectionRecording(todoId, err) {
+  ensureLearningGrowthReflectionRecorderState();
+  const recording = state.todoLearningGrowthReflectionRecorders?.[todoId] || {};
+  const elapsedMs = kanbanReadingRecordingDuration(recording);
+  recording.cancelled = true;
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  state.todoLearningGrowthReflectionRecorders[todoId] = {
+    status: "error",
+    elapsedMs,
+    error: kanbanReadingRecordingPermissionMessage(err),
+  };
+  renderTodosAfterReadingRecorderChange();
+}
+
+async function startLearningGrowthReflectionRecording(todoId) {
+  ensureLearningGrowthReflectionRecorderState();
+  if (!todoId || state.todoLearningGrowthReflectionSubmitting?.[todoId]) return;
+  const Recorder = kanbanReadingMediaRecorderApi();
+  if (!supportsKanbanReadingRecorder() || !Recorder) {
+    state.todoLearningGrowthReflectionRecorders[todoId] = { status: "unsupported" };
+    renderTodosAfterReadingRecorderChange();
+    return;
+  }
+  const current = state.todoLearningGrowthReflectionRecorders?.[todoId] || {};
+  if (["requesting", "recording", "stopping"].includes(current.status)) return;
+  revokeKanbanReadingRecordingUrl(current);
+  state.todoLearningGrowthReflectionRecorders[todoId] = { status: "requesting", chunks: [], elapsedMs: 0, error: "" };
+  renderTodosAfterReadingRecorderChange();
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const pending = state.todoLearningGrowthReflectionRecorders?.[todoId];
+    if (!pending || pending.status !== "requesting") {
+      stream.getTracks?.().forEach((track) => track.stop());
+      return;
+    }
+    const mimeType = preferredKanbanReadingRecorderMimeType();
+    const recorder = new Recorder(stream, mimeType ? { mimeType } : undefined);
+    const recording = {
+      status: "recording",
+      recorder,
+      stream,
+      chunks: [],
+      startedAt: Date.now(),
+      elapsedMs: 0,
+      mimeType: recorder.mimeType || mimeType || "",
+      error: "",
+    };
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size > 0) recording.chunks.push(event.data);
+    });
+    recorder.addEventListener("stop", () => finishLearningGrowthReflectionRecording(todoId, recording));
+    recorder.addEventListener("error", (event) => failLearningGrowthReflectionRecording(todoId, event.error || event));
+    state.todoLearningGrowthReflectionRecorders[todoId] = recording;
+    recorder.start();
+    startLearningGrowthReflectionRecordingTimer(todoId, recording);
+    renderTodosAfterReadingRecorderChange();
+  } catch (err) {
+    if (stream) stream.getTracks?.().forEach((track) => track.stop());
+    failLearningGrowthReflectionRecording(todoId, err);
+  }
+}
+
+function stopLearningGrowthReflectionRecording(todoId) {
+  ensureLearningGrowthReflectionRecorderState();
+  const recording = state.todoLearningGrowthReflectionRecorders?.[todoId];
+  if (!recording || recording.status !== "recording") return;
+  recording.elapsedMs = kanbanReadingRecordingDuration(recording);
+  recording.startedAt = 0;
+  recording.status = "stopping";
+  clearKanbanReadingRecordingTimer(recording);
+  try {
+    if (recording.recorder && recording.recorder.state !== "inactive") {
+      recording.recorder.stop();
+    } else {
+      finishLearningGrowthReflectionRecording(todoId, recording);
+    }
+  } catch (err) {
+    failLearningGrowthReflectionRecording(todoId, err);
+  }
+  renderTodosAfterReadingRecorderChange();
+}
+
+function cancelLearningGrowthReflectionRecording(todoId) {
+  ensureLearningGrowthReflectionRecorderState();
+  const recording = state.todoLearningGrowthReflectionRecorders?.[todoId];
+  if (!recording) return;
+  recording.cancelled = true;
+  clearKanbanReadingRecordingTimer(recording);
+  stopKanbanReadingRecordingTracks(recording);
+  revokeKanbanReadingRecordingUrl(recording);
+  try {
+    if (recording.recorder && recording.recorder.state !== "inactive") recording.recorder.stop();
+  } catch (_) {
+    // Ignore cancellation stop errors.
+  }
+  delete state.todoLearningGrowthReflectionRecorders[todoId];
+  renderTodosAfterReadingRecorderChange();
+}
+
 async function submitRecordedReadingSubmission(todoId, notes = "") {
   const recording = state.todoReadingRecorders?.[todoId];
   if (!recording?.file) throw new Error("请先停止录音");

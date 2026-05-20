@@ -1,5 +1,6 @@
 "use strict";
 const LearningGrowthTaskUi = typeof window !== "undefined" ? (window.HermesLearningGrowthTaskUi || {}) : {};
+const LearningGrowthReflectionUi = typeof window !== "undefined" ? (window.HermesLearningGrowthReflectionUi || {}) : {};
 function isKanbanReadingCard(todo) { return isKanbanStudyCase(todo) && !isKanbanFinalStudyAssessment(todo) && !isKanbanLearningGrowthCard(todo) && (isKanbanReadingPlanCase(todo) || Boolean(todo?.readingSubmission || todo?.studySubmission)); }
 function learningGrowthEvaluationLabel(evaluation = {}) { const status = String(evaluation.status || ""), nextStep = String(evaluation.nextStep || ""); return nextStep === "rewrite_and_reflect" || status === "draft_feedback" ? "\u8349\u7a3f\u6279\u6539" : (nextStep === "completed" || status === "completed" ? "\u5df2\u5b8c\u6210" : "\u7ee7\u7eed\u4fee\u6539"); }
 function learningGrowthSubmissionPrompt(evaluation = {}, todo = {}) { return typeof LearningGrowthTaskUi.submissionPrompt === "function" ? LearningGrowthTaskUi.submissionPrompt(evaluation, todo) : "\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u6216\u4efb\u52a1\u7b54\u6848\u3002"; }
@@ -20,11 +21,11 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   if (!isKanbanLearningGrowthCard(todo) || !todoMatchesOpen(todo)) return "";
   const interactionState = todo?.learningGrowthInteractionState || {}, blocked = normalizedKanbanStatus(todo) === "blocked";
   const completed = Boolean(interactionState.completed) || ["done", "archived", "cancelled", "canceled", "completed"].includes(normalizedKanbanStatus(todo));
-  const canSubmit = (typeof interactionState.canSubmit === "boolean" ? interactionState.canSubmit : (!blocked && !completed)) && kanbanCan(todo, "canComment");
+  const submitted = todo?.learningGrowthSubmission || null, evaluation = todo?.learningGrowthEvaluation || null;
+  const reflectionRequired = Boolean(interactionState.requiresReflection || interactionState.canSubmitReflection || todo?.learningGrowthReflectionRequired || todo?.learningGrowthNextAction === "submit_spoken_reflection" || evaluation?.nextStep === "spoken_reflection_required" || evaluation?.status === "reflection_required");
+  const canSubmit = !reflectionRequired && (typeof interactionState.canSubmit === "boolean" ? interactionState.canSubmit : (!blocked && !completed)) && kanbanCan(todo, "canComment");
   const submitting = Boolean(state.todoLearningGrowthSubmissionSubmitting?.[todo.id]);
   const feedback = state.todoLearningGrowthSubmissionFeedback?.[todo.id] || null;
-  const submitted = todo?.learningGrowthSubmission || null;
-  const evaluation = todo?.learningGrowthEvaluation || null;
   const taskModel = typeof LearningGrowthTaskUi.taskModel === "function" ? LearningGrowthTaskUi.taskModel(todo) : (todo?.learningTaskModel || todo?.learningGrowthTaskModel || null);
   const goal = String(todo?.kanbanCaseCardGoal || todo?.description || "").trim();
   const goalText = `${String(todo?.content || "")}\n${goal}`;
@@ -65,11 +66,12 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     ? `<div class="todo-learning-growth-status" data-learning-growth-submission-status="${escapeHtml(submitted.status || "submitted")}">
       <strong>\u6267\u884c\u8005\u539f\u59cb\u63d0\u4ea4</strong>
       ${submittedText ? `<p class="todo-learning-growth-submission-text">${escapeHtml(submittedText)}</p>` : `<p class="todo-detail-muted">${escapeHtml("\u5df2\u6536\u5230\u4f5c\u7b54\uff0c\u539f\u6587\u4fdd\u5b58\u5728\u5361\u7247\u8bc4\u8bba\u4e2d\u3002")}</p>`}
-      <p>${escapeHtml(evaluation ? (evaluation.nextStep === "completed" ? "\u6700\u7ec8\u53cd\u9988\u5df2\u5b8c\u6210\u3002" : "\u5df2\u751f\u6210 AI \u53cd\u9988\u548c\u4fee\u6539\u8981\u6c42\uff0c\u8bf7\u7ee7\u7eed\u5b8c\u6210\u4e0b\u4e00\u7248\u3002") : "\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u6b63\u5728\u7b49\u5f85 AI \u53cd\u9988\u6216\u5bb6\u957f\u590d\u6838\u3002")}</p>
+      <p>${escapeHtml(evaluation ? (reflectionRequired ? "\u5df2\u751f\u6210 AI \u6279\u6539\u548c Markdown \u56de\u6267\uff0c\u8bf7\u5f55\u97f3\u590d\u76d8\u4eca\u5929\u7684\u9519\u8bef\u548c\u4e0b\u6b21\u6539\u8fdb\u3002" : (evaluation.nextStep === "completed" ? "\u6700\u7ec8\u53cd\u9988\u5df2\u5b8c\u6210\u3002" : "\u5df2\u751f\u6210 AI \u53cd\u9988\u548c\u4fee\u6539\u8981\u6c42\uff0c\u8bf7\u7ee7\u7eed\u5b8c\u6210\u4e0b\u4e00\u7248\u3002")) : "\u4f5c\u7b54\u5df2\u4fdd\u5b58\u5230\u8fd9\u5f20\u770b\u677f\u5361\uff0c\u6b63\u5728\u7b49\u5f85 AI \u53cd\u9988\u6216\u5bb6\u957f\u590d\u6838\u3002")}</p>
       ${submitted.submittedAt ? `<small>${escapeHtml(formatTime(submitted.submittedAt) || submitted.submittedAt)}</small>` : ""}
       ${canWithdrawLearningGrowthSubmission(submitted, todo, evaluation || {}) ? `<div class="todo-learning-growth-withdraw"><button type="button" class="secondary-small" data-withdraw-learning-growth-submission="${escapeHtml(todo.id)}">\u64a4\u56de\u672c\u6b21\u63d0\u4ea4</button><span>\u63d0\u4ea4\u540e 5 \u5206\u949f\u5185\u53ef\u64a4\u56de\u91cd\u5199\u3002</span></div>` : ""}
     </div>`
     : "";
+  const reflectionBlock = (typeof LearningGrowthReflectionUi.renderReflectionStatus === "function" ? LearningGrowthReflectionUi.renderReflectionStatus(todo?.learningGrowthReflection || evaluation?.reflection || null) : "") + (typeof LearningGrowthReflectionUi.renderReflectionRecorder === "function" ? LearningGrowthReflectionUi.renderReflectionRecorder(todo, interactionState, feedbackSections) : "");
   const evaluationBlock = evaluation
     ? `<div class="todo-learning-growth-evaluation" data-learning-growth-evaluation-status="${escapeHtml(evaluation.status || "")}">
       <div class="todo-learning-growth-evaluation-head"><strong>${escapeHtml(learningGrowthEvaluationLabel(evaluation))}</strong><span class="todo-learning-growth-score-pill">${escapeHtml(`\u8bc4\u5206 ${String(evaluation.score ?? 0)}/${String(evaluation.maxScore || 100)}`)}</span></div>
@@ -93,16 +95,13 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     ${details || `<p class="todo-detail-muted">${escapeHtml(todo?.kanbanCaseSummary || "\u6253\u5f00\u6210\u957f\u9875\u67e5\u770b\u4efb\u52a1\u3001\u5206\u6790\u548c\u6307\u5bfc\u3002")}</p>`}
     ${submittedBlock}
     ${evaluationBlock}
+    ${reflectionBlock}
     ${submissionForm}
     ${feedbackBlock}
   </section>`;
 }
 
-function readingSubmissionSummary(todo) {
-  return todo?.readingSubmission && typeof todo.readingSubmission === "object"
-    ? todo.readingSubmission
-    : null;
-}
+function readingSubmissionSummary(todo) { return todo?.readingSubmission && typeof todo.readingSubmission === "object" ? todo.readingSubmission : null; }
 
 function readingSubmissionHasAnalysis(todo) {
   const workflow = todoWorkflowState(todo);

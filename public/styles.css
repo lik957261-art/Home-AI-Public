@@ -6947,6 +6947,24 @@ button.directory-alias-chip {
   color: var(--muted);
 }
 
+.todo-learning-growth-reflection,
+.todo-learning-growth-reflection-status {
+  border-color: rgba(34, 133, 117, 0.28);
+  background: rgba(229, 247, 242, 0.74);
+}
+
+.todo-learning-growth-reflection {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(34, 133, 117, 0.24);
+  border-radius: 12px;
+}
+
+.todo-learning-growth-reflection audio {
+  width: 100%;
+}
+
 .todo-learning-growth-evaluation {
   display: grid;
   gap: 10px;

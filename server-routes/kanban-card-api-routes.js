@@ -169,6 +169,21 @@ const KANBAN_CARD_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["kanban", "card", "learning"],
     tags: ["kanban", "learning-growth", "withdraw"],
   },
+  {
+    id: "kanban-card-learning-growth-reflection",
+    method: "POST",
+    pathRegex: /^\/api\/kanban\/cards\/[^/]+\/learning-growth-reflection$/,
+    group: "kanban",
+    moduleKey: "kanban",
+    handlerKey: "submitLearningGrowthReflection",
+    summary: "Submit one authorized spoken Growth reflection.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["kanban", "card", "learning", "audio"],
+    tags: ["kanban", "learning-growth", "reflection"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -275,6 +290,7 @@ function createKanbanCardApiRoutes(deps = {}) {
   }
 
   const sourceDocumentMaxBytes = Math.max(1, Number(deps.sourceDocumentMaxBytes || 20 * 1024 * 1024));
+  const maxUploadBytes = Math.max(1, Number(deps.maxUploadBytes || 20 * 1024 * 1024));
   const registry = createApiRouteRegistry(KANBAN_CARD_API_ROUTE_SPECS);
 
   function requireKanbanEnabled(res) {
@@ -696,6 +712,61 @@ function createKanbanCardApiRoutes(deps = {}) {
     });
   }
 
+  async function handleLearningGrowthReflection(req, res, url) {
+    if (!requireKanbanEnabled(res)) return;
+    if (typeof learningGrowthSubmissionService.submitReflection !== "function") {
+      deps.kanbanErrorResponse(res, { ok: false, status: 501, error: "Growth spoken reflection is not available" }, 501);
+      return;
+    }
+    const match = cardPathMatch(url.pathname, "learning-growth-reflection");
+    const body = await deps.readBody(req, Math.ceil(maxUploadBytes * 1.4) + 8192)
+      .catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    const cardId = decodeURIComponent(match?.[1] || "");
+    const access = await deps.resolveKanbanCardAccess(
+      req,
+      res,
+      body.workspaceId || url.searchParams.get("workspaceId") || "owner",
+      cardId,
+      "comment",
+    );
+    if (!access) return;
+    const workspaceId = access.workspaceId;
+    const result = await learningGrowthSubmissionService.submitReflection({
+      workspaceId,
+      cardId,
+      author: body.author || "",
+      filename: body.filename || body.name || "",
+      type: body.type || body.mime || body.mimeType || "",
+      dataBase64: body.dataBase64 || body.audioDataBase64 || body.data_base64 || "",
+      durationMs: body.durationMs || body.duration_ms || 0,
+      transcript: body.transcript || body.reflectionText || body.text || "",
+    });
+    if (!result?.ok) {
+      deps.kanbanErrorResponse(res, result);
+      return;
+    }
+    deps.clearKanbanCardListCache(workspaceId);
+    deps.broadcast({ type: "kanban.updated", workspaceId, cardId, action: "learning-growth-reflection" });
+    deps.broadcast({ type: "todos.updated", workspaceId, todoId: cardId, action: "learning-growth-reflection" });
+    if (result?.result?.completed) {
+      await syncCompletedCardToTopic(workspaceId, cardId, access.auth);
+      deps.scheduleKanbanDependencyReconcile(workspaceId);
+    }
+    deps.sendJson(res, 200, {
+      ok: true,
+      cardId,
+      status: result.status || "reflection_submitted",
+      reflection: result.reflection || null,
+      evaluation: result.evaluation || null,
+      reward: result.reward || null,
+      result: result.result || { ok: true },
+    });
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -714,6 +785,7 @@ function createKanbanCardApiRoutes(deps = {}) {
     else if (route.id === "kanban-card-action") await handleAction(req, res, url);
     else if (route.id === "kanban-card-learning-growth-submission") await handleLearningGrowthSubmission(req, res, url);
     else if (route.id === "kanban-card-learning-growth-submission-withdraw") await handleLearningGrowthSubmissionWithdraw(req, res, url);
+    else if (route.id === "kanban-card-learning-growth-reflection") await handleLearningGrowthReflection(req, res, url);
     else return { handled: false };
 
     return { handled: true, route, auth: context.auth };
