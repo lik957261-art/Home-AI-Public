@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 5;
+const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 6;
 
 function nowIso() {
   return new Date().toISOString();
@@ -326,6 +326,56 @@ function publicEvaluationFromRow(row) {
   });
 }
 
+function publicTaskSubmissionFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    submissionId: row.id,
+    taskCardId: row.task_card_id,
+    sessionId: row.session_id,
+    programId: row.program_id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    stage: row.stage,
+    submissionKind: row.submission_kind,
+    attemptNo: Number(row.attempt_no || 0),
+    status: row.status,
+    summary: row.summary,
+    textDigest: row.text_digest || "",
+    textChars: Number(row.text_chars || 0),
+    textWords: Number(row.text_words || 0),
+    kanbanCardId: row.kanban_card_id || "",
+    kanbanCommentRef: row.kanban_comment_ref || "",
+    submittedAt: row.submitted_at || "",
+    withdrawnAt: row.withdrawn_at || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+function publicTaskReflectionFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    reflectionId: row.id,
+    taskCardId: row.task_card_id,
+    sessionId: row.session_id,
+    evaluationId: row.evaluation_id || "",
+    programId: row.program_id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    status: row.status,
+    mode: row.mode,
+    score: Number(row.score || 0),
+    maxScore: Number(row.max_score || 0),
+    summary: row.summary,
+    transcriptDigest: row.transcript_digest || "",
+    audioDigest: row.audio_digest || "",
+    evidenceRefs: parseJson(row.evidence_refs_json, []),
+    submittedAt: row.submitted_at || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
 function publicReviewRequestFromRow(row) {
   if (!row) return null;
   return Object.assign(parseJson(row.raw_json, {}) || {}, {
@@ -629,6 +679,58 @@ function createLearningProgramRepository(options = {}) {
         FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS learning_task_submissions (
+        id TEXT PRIMARY KEY,
+        task_card_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        program_id TEXT NOT NULL,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        stage TEXT NOT NULL DEFAULT '',
+        submission_kind TEXT NOT NULL DEFAULT '',
+        attempt_no INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL,
+        summary TEXT NOT NULL DEFAULT '',
+        text_digest TEXT NOT NULL DEFAULT '',
+        text_chars INTEGER NOT NULL DEFAULT 0,
+        text_words INTEGER NOT NULL DEFAULT 0,
+        kanban_card_id TEXT NOT NULL DEFAULT '',
+        kanban_comment_ref TEXT NOT NULL DEFAULT '',
+        raw_json TEXT NOT NULL DEFAULT '{}',
+        submitted_at TEXT NOT NULL,
+        withdrawn_at TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(task_card_id) REFERENCES learning_task_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY(session_id) REFERENCES learning_interaction_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS learning_task_reflections (
+        id TEXT PRIMARY KEY,
+        task_card_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        evaluation_id TEXT NOT NULL DEFAULT '',
+        program_id TEXT NOT NULL,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        mode TEXT NOT NULL DEFAULT 'spoken',
+        score REAL NOT NULL DEFAULT 0,
+        max_score REAL NOT NULL DEFAULT 100,
+        summary TEXT NOT NULL DEFAULT '',
+        transcript_digest TEXT NOT NULL DEFAULT '',
+        audio_digest TEXT NOT NULL DEFAULT '',
+        evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+        raw_json TEXT NOT NULL DEFAULT '{}',
+        submitted_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(task_card_id) REFERENCES learning_task_cards(id) ON DELETE CASCADE,
+        FOREIGN KEY(session_id) REFERENCES learning_interaction_sessions(id) ON DELETE CASCADE,
+        FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
+      );
+
       CREATE TABLE IF NOT EXISTS learning_parent_review_requests (
         id TEXT PRIMARY KEY,
         learner_id TEXT NOT NULL,
@@ -692,6 +794,10 @@ function createLearningProgramRepository(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_learning_sessions_learner ON learning_interaction_sessions(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_evaluations_task ON learning_evaluations(task_card_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_evaluations_learner ON learning_evaluations(learner_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_task_submissions_task ON learning_task_submissions(task_card_id, submitted_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_task_submissions_learner ON learning_task_submissions(learner_id, status, submitted_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_task_reflections_task ON learning_task_reflections(task_card_id, submitted_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_task_reflections_learner ON learning_task_reflections(learner_id, status, submitted_at);
       CREATE INDEX IF NOT EXISTS idx_learning_parent_review_requests_learner ON learning_parent_review_requests(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_parent_review_requests_resource ON learning_parent_review_requests(resource_type, resource_id, updated_at);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_parent_review_requests_idempotency ON learning_parent_review_requests(idempotency_key) WHERE idempotency_key <> '';
@@ -704,7 +810,7 @@ function createLearningProgramRepository(options = {}) {
     if (!row) {
       database.prepare("INSERT INTO learning_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
         CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION,
-        "learning reward settlements v0.5",
+        "learning native submissions and reflections v0.6",
         nowIso(),
       );
     }
@@ -1544,6 +1650,215 @@ function createLearningProgramRepository(options = {}) {
     return open().prepare(sql).all(...values, limit).map(publicEvaluationFromRow);
   }
 
+  function saveTaskSubmission(submission) {
+    migrate();
+    const now = nowIso();
+    const submissionId = cleanString(submission.submissionId || submission.id);
+    const current = getTaskSubmission(submissionId);
+    const createdAt = current?.createdAt || submission.createdAt || now;
+    const updatedAt = submission.updatedAt || now;
+    const submittedAt = submission.submittedAt || now;
+    const row = Object.assign({}, submission, {
+      submissionId,
+      createdAt,
+      updatedAt,
+      submittedAt,
+    });
+    open().prepare(`
+      INSERT INTO learning_task_submissions(
+        id, task_card_id, session_id, program_id, learner_id, workspace_id,
+        stage, submission_kind, attempt_no, status, summary, text_digest,
+        text_chars, text_words, kanban_card_id, kanban_comment_ref, raw_json,
+        submitted_at, withdrawn_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        task_card_id=excluded.task_card_id,
+        session_id=excluded.session_id,
+        program_id=excluded.program_id,
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        stage=excluded.stage,
+        submission_kind=excluded.submission_kind,
+        attempt_no=excluded.attempt_no,
+        status=excluded.status,
+        summary=excluded.summary,
+        text_digest=excluded.text_digest,
+        text_chars=excluded.text_chars,
+        text_words=excluded.text_words,
+        kanban_card_id=excluded.kanban_card_id,
+        kanban_comment_ref=excluded.kanban_comment_ref,
+        raw_json=excluded.raw_json,
+        submitted_at=excluded.submitted_at,
+        withdrawn_at=excluded.withdrawn_at,
+        updated_at=excluded.updated_at
+    `).run(
+      row.submissionId,
+      row.taskCardId,
+      row.sessionId,
+      row.programId,
+      row.learnerId,
+      row.workspaceId,
+      row.stage || "",
+      row.submissionKind || "",
+      Number(row.attemptNo || 1),
+      row.status || "submitted",
+      row.summary || "",
+      row.textDigest || "",
+      Number(row.textChars || 0),
+      Number(row.textWords || 0),
+      row.kanbanCardId || "",
+      row.kanbanCommentRef || "",
+      stableJson(stripPrivateLearningFields(row)),
+      submittedAt,
+      row.withdrawnAt || "",
+      createdAt,
+      updatedAt,
+    );
+    return getTaskSubmission(row.submissionId);
+  }
+
+  function getTaskSubmission(submissionId) {
+    migrate();
+    return publicTaskSubmissionFromRow(open().prepare("SELECT * FROM learning_task_submissions WHERE id = ?").get(cleanString(submissionId)));
+  }
+
+  function listTaskSubmissions(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.taskCardId) {
+      where.push("task_card_id = ?");
+      values.push(cleanString(filters.taskCardId));
+    }
+    if (filters.sessionId) {
+      where.push("session_id = ?");
+      values.push(cleanString(filters.sessionId));
+    }
+    if (filters.programId) {
+      where.push("program_id = ?");
+      values.push(cleanString(filters.programId));
+    }
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.status) {
+      where.push("status = ?");
+      values.push(cleanString(filters.status));
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    const sql = `SELECT * FROM learning_task_submissions ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY submitted_at DESC, updated_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicTaskSubmissionFromRow);
+  }
+
+  function saveTaskReflection(reflection) {
+    migrate();
+    const now = nowIso();
+    const reflectionId = cleanString(reflection.reflectionId || reflection.id);
+    const current = getTaskReflection(reflectionId);
+    const createdAt = current?.createdAt || reflection.createdAt || now;
+    const updatedAt = reflection.updatedAt || now;
+    const submittedAt = reflection.submittedAt || now;
+    const row = Object.assign({}, reflection, {
+      reflectionId,
+      createdAt,
+      updatedAt,
+      submittedAt,
+    });
+    open().prepare(`
+      INSERT INTO learning_task_reflections(
+        id, task_card_id, session_id, evaluation_id, program_id, learner_id, workspace_id,
+        status, mode, score, max_score, summary, transcript_digest, audio_digest,
+        evidence_refs_json, raw_json, submitted_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        task_card_id=excluded.task_card_id,
+        session_id=excluded.session_id,
+        evaluation_id=excluded.evaluation_id,
+        program_id=excluded.program_id,
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        status=excluded.status,
+        mode=excluded.mode,
+        score=excluded.score,
+        max_score=excluded.max_score,
+        summary=excluded.summary,
+        transcript_digest=excluded.transcript_digest,
+        audio_digest=excluded.audio_digest,
+        evidence_refs_json=excluded.evidence_refs_json,
+        raw_json=excluded.raw_json,
+        submitted_at=excluded.submitted_at,
+        updated_at=excluded.updated_at
+    `).run(
+      row.reflectionId,
+      row.taskCardId,
+      row.sessionId,
+      row.evaluationId || "",
+      row.programId,
+      row.learnerId,
+      row.workspaceId,
+      row.status || "submitted",
+      row.mode || "spoken",
+      Number(row.score || 0),
+      Number(row.maxScore || 100),
+      row.summary || "",
+      row.transcriptDigest || "",
+      row.audioDigest || "",
+      stableJson(row.evidenceRefs || []),
+      stableJson(stripPrivateLearningFields(row)),
+      submittedAt,
+      createdAt,
+      updatedAt,
+    );
+    return getTaskReflection(row.reflectionId);
+  }
+
+  function getTaskReflection(reflectionId) {
+    migrate();
+    return publicTaskReflectionFromRow(open().prepare("SELECT * FROM learning_task_reflections WHERE id = ?").get(cleanString(reflectionId)));
+  }
+
+  function listTaskReflections(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.taskCardId) {
+      where.push("task_card_id = ?");
+      values.push(cleanString(filters.taskCardId));
+    }
+    if (filters.sessionId) {
+      where.push("session_id = ?");
+      values.push(cleanString(filters.sessionId));
+    }
+    if (filters.evaluationId) {
+      where.push("evaluation_id = ?");
+      values.push(cleanString(filters.evaluationId));
+    }
+    if (filters.programId) {
+      where.push("program_id = ?");
+      values.push(cleanString(filters.programId));
+    }
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.status) {
+      where.push("status = ?");
+      values.push(cleanString(filters.status));
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    const sql = `SELECT * FROM learning_task_reflections ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY submitted_at DESC, updated_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicTaskReflectionFromRow);
+  }
+
   function saveReviewRequest(request) {
     migrate();
     const now = nowIso();
@@ -1766,6 +2081,8 @@ function createLearningProgramRepository(options = {}) {
       taskCards: count("learning_task_cards"),
       interactionSessions: count("learning_interaction_sessions"),
       evaluations: count("learning_evaluations"),
+      taskSubmissions: count("learning_task_submissions"),
+      taskReflections: count("learning_task_reflections"),
       reviewRequests: count("learning_parent_review_requests"),
       rewardSettlements: count("learning_reward_settlements"),
     };
@@ -1798,6 +2115,8 @@ function createLearningProgramRepository(options = {}) {
     getRewardSettlement,
     getSource,
     getTaskCard,
+    getTaskReflection,
+    getTaskSubmission,
     integritySummary,
     latestDraftForProgram,
     listCurriculumReferences,
@@ -1813,6 +2132,8 @@ function createLearningProgramRepository(options = {}) {
     listSkillStates,
     listSources,
     listTaskCards,
+    listTaskReflections,
+    listTaskSubmissions,
     migrate,
     open,
     saveEvaluation,
@@ -1822,6 +2143,8 @@ function createLearningProgramRepository(options = {}) {
     saveReviewItem,
     saveReviewRequest,
     saveRewardSettlement,
+    saveTaskReflection,
+    saveTaskSubmission,
     upsertTaskCard,
     upsertCurriculumReference,
     upsertGoal,
@@ -1847,5 +2170,7 @@ module.exports = {
   publicRewardSettlementFromRow,
   publicSourceFromRow,
   publicTaskCardFromRow,
+  publicTaskReflectionFromRow,
+  publicTaskSubmissionFromRow,
   stripPrivateLearningFields,
 };

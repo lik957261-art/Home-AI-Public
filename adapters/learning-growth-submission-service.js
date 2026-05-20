@@ -26,6 +26,10 @@ const {
 const {
   createLearningGrowthReflectionService,
 } = require("./learning-growth-reflection-service");
+const {
+  createLearningGrowthSubmissionRecordService,
+  submissionStats,
+} = require("./learning-growth-submission-record-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -104,6 +108,13 @@ function submissionStageForCard(card = {}, input = {}) {
 function getProgramService(options = {}) {
   if (typeof options.getLearningProgramService === "function") return options.getLearningProgramService();
   return options.learningProgramService || null;
+}
+
+function getSubmissionRecordService(options = {}) {
+  if (options.submissionRecordService) return options.submissionRecordService;
+  const learningProgramService = getProgramService(options);
+  if (!learningProgramService) return null;
+  return createLearningGrowthSubmissionRecordService({ learningProgramService });
 }
 
 function publicEvaluation(evaluation = {}, settlement = null) {
@@ -502,6 +513,13 @@ function createLearningGrowthSubmissionService(options = {}) {
   if (!kanbanCardProvider || typeof kanbanCardProvider.listCards !== "function" || typeof kanbanCardProvider.mutateCard !== "function") {
     throw new Error("learning growth submission service requires kanbanCardProvider list/mutate");
   }
+  let cachedSubmissionRecordService = null;
+  function submissionRecords() {
+    if (options.submissionRecordService) return options.submissionRecordService;
+    if (cachedSubmissionRecordService) return cachedSubmissionRecordService;
+    cachedSubmissionRecordService = getSubmissionRecordService(options);
+    return cachedSubmissionRecordService;
+  }
 
   async function loadGrowthCard(workspaceId, cardIdValue) {
     const listed = await kanbanCardProvider.listCards({
@@ -551,6 +569,29 @@ function createLearningGrowthSubmissionService(options = {}) {
         submissionKind,
       });
     if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit learning task"));
+    const programService = getProgramService(options);
+    const nativeTask = resolveProgramTaskCard(programService, loaded.card);
+    const submissionRecordService = submissionRecords();
+    let nativeSubmission = null;
+    if (submissionRecordService && nativeTask) {
+      try {
+        nativeSubmission = submissionRecordService.recordSubmission({
+          task: nativeTask,
+          workspaceId,
+          author: input.author,
+          kanbanCardId: cardIdValue,
+          kanbanCommentRef: cleanString(mutated.id || mutated.commentId || mutated.result?.id || ""),
+          stage,
+          submissionKind,
+          status: "submitted",
+          text,
+          stats: submissionStats(text),
+          summary: `${activityLabel(taskModel.activityType)} task submission received.`,
+        });
+      } catch (err) {
+        nativeSubmission = { error: cleanString(err.message || err) };
+      }
+    }
     let evaluation;
     try {
       evaluation = await evaluationService.evaluate({
@@ -598,7 +639,7 @@ function createLearningGrowthSubmissionService(options = {}) {
       settlement = { status: "reflection_required", reason: "Spoken reflection is required before final settlement." };
     } else {
       try {
-        settlement = await settleViaProgramService(getProgramService(options), loaded.card, evaluation, { workspaceId, author: input.author });
+        settlement = await settleViaProgramService(programService, loaded.card, evaluation, { workspaceId, author: input.author });
       } catch (err) {
         settlement = { status: "program_settlement_error", error: cleanString(err.message || err) };
       }
@@ -618,6 +659,29 @@ function createLearningGrowthSubmissionService(options = {}) {
       if (report) evaluation.report = report;
     } catch (err) {
       evaluation.reportError = cleanString(err.message || err);
+    }
+    let nativeEvaluation = null;
+    if (reflectionRequired && submissionRecordService && nativeTask) {
+      try {
+        nativeEvaluation = submissionRecordService.recordEvaluation({
+          task: nativeTask,
+          session: nativeSubmission?.session,
+          evaluation,
+          status: "reflection_required",
+          summary: evaluation.summary,
+          author: input.author,
+        });
+        if (nativeSubmission?.session?.sessionId) {
+          submissionRecordService.advanceSession({
+            sessionId: nativeSubmission.session.sessionId,
+            status: "active",
+            step: "spoken_reflection_required",
+            summary: "AI feedback passed the score line; spoken reflection is required before settlement.",
+          });
+        }
+      } catch (err) {
+        nativeEvaluation = { error: cleanString(err.message || err) };
+      }
     }
     const publicEval = publicEvaluation(evaluation, settlement);
     let materialized = null;
@@ -696,6 +760,8 @@ function createLearningGrowthSubmissionService(options = {}) {
         evaluation: publicEval,
         completed: Boolean(completion?.ok),
         materialized,
+        nativeSubmission: nativeSubmission?.record ? { submissionId: nativeSubmission.record.submissionId, status: nativeSubmission.record.status } : null,
+        nativeEvaluation: nativeEvaluation?.evaluation ? { evaluationId: nativeEvaluation.evaluation.evaluationId, status: nativeEvaluation.evaluation.status } : null,
         progressSync,
       },
     };
@@ -720,10 +786,33 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (!reflectionResult?.ok) return reflectionResult;
     const reflection = reflectionResult.reflection;
     let evaluation = evaluationFromCard(loaded.card, reflection, reflectionService);
+    if (reflection.status === "accepted") {
+      evaluation = Object.assign({}, evaluation, {
+        confidence: Number(evaluation.confidence || 0.82),
+        verificationMethod: cleanString(evaluation.verificationMethod || evaluation.feedbackMethod) || "model_assisted_growth_task_evaluation",
+        evidenceRefs: asArray(evaluation.evidenceRefs).length ? evaluation.evidenceRefs : asArray(reflection.evidenceRefs),
+      });
+    }
+    const programService = getProgramService(options);
+    const nativeTask = resolveProgramTaskCard(programService, loaded.card);
+    const submissionRecordService = submissionRecords();
+    let nativeReflection = null;
+    if (submissionRecordService && nativeTask) {
+      try {
+        nativeReflection = submissionRecordService.recordReflection({
+          task: nativeTask,
+          evaluationId: cleanString(evaluation.evaluationId),
+          reflection,
+          author: input.author,
+        });
+      } catch (err) {
+        nativeReflection = { error: cleanString(err.message || err) };
+      }
+    }
     let settlement = null;
     if (reflection.status === "accepted" && evaluation.passed) {
       try {
-        settlement = await settleViaProgramService(getProgramService(options), loaded.card, evaluation, { workspaceId, author: input.author });
+        settlement = await settleViaProgramService(programService, loaded.card, evaluation, { workspaceId, author: input.author });
       } catch (err) {
         settlement = { status: "program_settlement_error", error: cleanString(err.message || err) };
       }
@@ -769,6 +858,7 @@ function createLearningGrowthSubmissionService(options = {}) {
         ok: true,
         action: "learning-growth-reflection",
         completed: Boolean(completion?.ok),
+        nativeReflection: nativeReflection?.record ? { reflectionId: nativeReflection.record.reflectionId, status: nativeReflection.record.status } : null,
       },
     };
   }
@@ -804,6 +894,20 @@ function createLearningGrowthSubmissionService(options = {}) {
       reason: cleanString(input.reason) || "Withdraw Growth learning task submission.",
     });
     if (!result?.ok) return createError(result?.status || 502, cleanString(result?.error || result?.result?.error || "Unable to withdraw learning task submission"));
+    const programService = getProgramService(options);
+    const nativeTask = resolveProgramTaskCard(programService, loaded.card);
+    const submissionRecordService = submissionRecords();
+    if (submissionRecordService && nativeTask) {
+      try {
+        submissionRecordService.markSubmissionWithdrawn({
+          task: nativeTask,
+          withdrawnAt: new Date(now()).toISOString(),
+          summary: "Growth task submission withdrawn by executor.",
+        });
+      } catch (_) {
+        // Kanban remains the compatibility source during Step 2b; native withdrawal mirror is best-effort.
+      }
+    }
     return {
       ok: true,
       cardId: cardIdValue,

@@ -490,6 +490,12 @@ function createLearningProgramService(options = {}) {
     const executableTasks = taskCardService.listExecutorQueue({ learnerId, workspaceId, limit: input.limit || 20 });
     const interactionSessions = interactionSessionService.list({ learnerId, workspaceId, limit: input.limit || 20 });
     const evaluations = evaluationService.list({ learnerId, workspaceId, limit: input.limit || 20 });
+    const taskSubmissions = typeof repository.listTaskSubmissions === "function"
+      ? repository.listTaskSubmissions({ learnerId, workspaceId, limit: input.limit || 20 })
+      : [];
+    const taskReflections = typeof repository.listTaskReflections === "function"
+      ? repository.listTaskReflections({ learnerId, workspaceId, limit: input.limit || 20 })
+      : [];
     const currentDailyPlan = dailyPlanService.dailyPlan({ learnerId, workspaceId, days: input.days || 7, limit: input.limit || 50 });
     const parentReviewRequests = parentReviewRequestService.list({ learnerId, workspaceId, status: input.reviewStatus || "pending", limit: input.limit || 20 });
     const rewardSettlements = rewardSettlementService.list({ learnerId, workspaceId, limit: input.limit || 20 });
@@ -506,6 +512,8 @@ function createLearningProgramService(options = {}) {
       executableTasks,
       interactionSessions,
       evaluations,
+      taskSubmissions,
+      taskReflections,
       parentReviewRequests,
       rewardSettlements,
       learnerProfile: profile.profile,
@@ -606,6 +614,14 @@ function createLearningProgramService(options = {}) {
     return evaluationService.list(filters);
   }
 
+  function listTaskSubmissions(filters = {}) {
+    return typeof repository.listTaskSubmissions === "function" ? repository.listTaskSubmissions(filters) : [];
+  }
+
+  function listTaskReflections(filters = {}) {
+    return typeof repository.listTaskReflections === "function" ? repository.listTaskReflections(filters) : [];
+  }
+
   function settleEvaluationReward(evaluationId, input = {}) {
     return rewardSettlementService.settleEvaluationReward(evaluationId, input);
   }
@@ -656,6 +672,8 @@ function createLearningProgramService(options = {}) {
     listParentReviewRequests,
     listPrograms,
     listRewardSettlements,
+    listTaskReflections,
+    listTaskSubmissions,
     listGoals,
     listSourceDirectories,
     listSources,

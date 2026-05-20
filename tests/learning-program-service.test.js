@@ -145,6 +145,8 @@ async function testCreateDraftApprovePublish() {
   assert.equal(overview.dailyPlan.privacyLevel, "summary_only");
   assert.equal(overview.interactionSessions.length, drafted.draft.taskCount);
   assert.equal(overview.evaluations.length, 0);
+  assert.equal(overview.taskSubmissions.length, 0);
+  assert.equal(overview.taskReflections.length, 0);
   assert.equal(overview.rewardSettlements.length, 0);
   assert.ok(overview.curriculumReferences.length >= 3);
   assert.equal(overview.learnerProfile.learnerId, "weixin_stephen");

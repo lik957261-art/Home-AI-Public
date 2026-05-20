@@ -480,7 +480,11 @@ async function testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSet
     assert.equal(grants.length, 0);
     assert.equal(mutations.some((call) => call.action === "complete"), false);
     assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen", limit: 1 }).length, 0);
-    assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen", limit: 1 }).length, 0);
+    assert.equal(repository.listTaskSubmissions({ learnerId: "weixin_stephen", limit: 1 }).length, 1);
+    assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen", limit: 1 }).length, 1);
+    assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen", limit: 1 })[0].status, "reflection_required");
+    assert.equal(result.result.nativeSubmission.status, "submitted");
+    assert.equal(result.result.nativeEvaluation.status, "reflection_required");
   } finally {
     repository.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -488,84 +492,103 @@ async function testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSet
 }
 
 async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
   const grants = [];
   const mutations = [];
-  const service = createLearningGrowthSubmissionService({
-    learningCoinService: {
-      grantCoins(input) {
-        grants.push(input);
-        return {
-          entry: {
-            entryId: `coin-${grants.length}`,
-            studentId: input.studentId,
-            workspaceId: input.workspaceId,
-            coinDelta: input.coinAmount,
-            sourceType: input.sourceType,
-            sourceId: input.sourceId,
-          },
-          duplicate: false,
-        };
-      },
-    },
-    kanbanCardProvider: {
-      async listCards() {
-        return {
-          ok: true,
-          data: [{
-            id: "t_reflection",
-            workspaceId: "weixin_stephen",
-            kanbanCaseTemplate: "learning-growth",
-            learningTaskCardId: "task-growth",
-            learningGrowthEvaluationId: "eval-growth",
-            learningGrowthEvaluationStatus: "reflection_required",
-            learningGrowthNextStep: "spoken_reflection_required",
-            learningGrowthScore: 80,
-            learningGrowthMaxScore: 100,
-            learningGrowthRewardCoins: 30,
-            learningGrowthFeedbackSummary: "Grammar repair is mostly correct.",
-            learningGrowthFocusAreas: ["subject verb agreement"],
-            learningGrowthReflectionPrompts: ["Name the grammar mistake.", "Explain the next check."],
-            learningTaskModel: {
-              version: "learning-task-model-v1",
-              activityType: "grammar",
-              skillId: "english_grammar",
+  try {
+    seedGrowthProgram(repository);
+    const programService = createLearningProgramService({
+      repository,
+      learningCoinService: {
+        grantCoins(input) {
+          grants.push(input);
+          return {
+            entry: {
+              entryId: `coin-${grants.length}`,
+              studentId: input.studentId,
+              workspaceId: input.workspaceId,
+              coinDelta: input.coinAmount,
+              sourceType: input.sourceType,
+              sourceId: input.sourceId,
             },
-          }],
-        };
+            duplicate: false,
+          };
+        },
       },
-      async mutateCard(input) {
-        mutations.push(input);
-        return { ok: true, id: input.cardId, action: input.action };
+    });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      kanbanCardProvider: {
+        async listCards() {
+          return {
+            ok: true,
+            data: [{
+              id: "t_growth",
+              workspaceId: "weixin_stephen",
+              kanbanCaseTemplate: "learning-growth",
+              learningTaskCardId: "task-growth",
+              learningGrowthEvaluationId: "eval-growth",
+              learningGrowthEvaluationStatus: "reflection_required",
+              learningGrowthNextStep: "spoken_reflection_required",
+              learningGrowthScore: 80,
+              learningGrowthMaxScore: 100,
+              learningGrowthRewardCoins: 30,
+              learningGrowthFeedbackSummary: "Grammar repair is mostly correct.",
+              learningGrowthFocusAreas: ["subject verb agreement"],
+              learningGrowthReflectionPrompts: ["Name the grammar mistake.", "Explain the next check."],
+              learningTaskModel: {
+                version: "learning-task-model-v1",
+                activityType: "grammar",
+                skillId: "english_grammar",
+              },
+            }],
+          };
+        },
+        async mutateCard(input) {
+          mutations.push(input);
+          return { ok: true, id: input.cardId, action: input.action };
+        },
       },
-    },
-  });
-  const result = await service.submitReflection({
-    workspaceId: "weixin_stephen",
-    cardId: "t_reflection",
-    author: "weixin_stephen",
-    audio: { name: "reflection.webm", mime: "audio/webm", size: 1200 },
-    transcript: [
-      "My main mistake was subject verb agreement.",
-      "I fixed it because the verb should match the subject in the sentence.",
-      "Next time I will check the subject first and practice the corrected pattern.",
-    ].join(" "),
-  });
-  assert.equal(result.ok, true);
-  assert.equal(result.status, "completed");
-  assert.equal(result.reflection.status, "accepted");
-  assert.equal(result.evaluation.reflection.status, "accepted");
-  assert.equal(result.evaluation.finalPassingScore, 80);
-  assert.equal(result.evaluation.reflectionGateEnabled, true);
-  assert.equal(result.evaluation.settlementAfterReflection, true);
-  assert.equal(result.evaluation.settlementBlockedByReflection, false);
-  assert.equal(result.evaluation.score > 80, true);
-  assert.equal(result.reward.status, "settled");
-  assert.equal(grants.length, 1);
-  assert.equal(grants[0].studentId, "weixin_stephen");
-  assert.equal(grants[0].workspaceId, "weixin_stephen");
-  assert.equal(grants[0].sourceType, "learning-growth-task-evaluation");
-  assert.equal(mutations.some((call) => call.action === "comment" && call.learningGrowthEvaluation?.reflection?.status === "accepted"), true);
-  assert.equal(mutations.some((call) => call.action === "complete"), true);
+    });
+    const result = await service.submitReflection({
+      workspaceId: "weixin_stephen",
+      cardId: "t_growth",
+      author: "weixin_stephen",
+      audio: { name: "reflection.webm", mime: "audio/webm", size: 1200 },
+      transcript: [
+        "My main mistake was subject verb agreement.",
+        "I fixed it because the verb should match the subject in the sentence.",
+        "Next time I will check the subject first and practice the corrected pattern.",
+      ].join(" "),
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "completed");
+    assert.equal(result.reflection.status, "accepted");
+    assert.equal(result.evaluation.reflection.status, "accepted");
+    assert.equal(result.evaluation.finalPassingScore, 80);
+    assert.equal(result.evaluation.reflectionGateEnabled, true);
+    assert.equal(result.evaluation.settlementAfterReflection, true);
+    assert.equal(result.evaluation.settlementBlockedByReflection, false);
+    assert.equal(result.evaluation.score > 80, true);
+    assert.equal(result.reward.status, "settled");
+    assert.equal(grants.length, 1);
+    assert.equal(grants[0].studentId, "weixin_stephen");
+    assert.equal(grants[0].workspaceId, "weixin_stephen");
+    assert.equal(grants[0].sourceType, "learning-growth-evaluation");
+    const nativeReflection = repository.listTaskReflections({ learnerId: "weixin_stephen", limit: 1 })[0];
+    assert.equal(Boolean(nativeReflection), true);
+    assert.equal(nativeReflection.evidenceRefs.length, 2);
+    assert.equal(nativeReflection.evidenceRefs[1].startsWith("transcript:"), true);
+    assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen", limit: 1 }).length, 1);
+    assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen", limit: 1 }).length, 1);
+    assert.equal(result.result.nativeReflection.status, "accepted");
+    assert.equal(mutations.some((call) => call.action === "comment" && call.learningGrowthEvaluation?.reflection?.status === "accepted"), true);
+    assert.equal(mutations.some((call) => call.action === "complete"), true);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 function testDependencyValidation() {

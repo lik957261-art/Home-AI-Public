@@ -359,7 +359,7 @@ async function testUsesLearningProgramSettlementWhenTaskLinked() {
   assert.equal(result.status, "reflection_required");
   assert.equal(result.reward.status, "reflection_required");
   assert.equal(result.result.completed, false);
-  assert.equal(programCalls.some((call) => call[0] === "recordEvaluation"), false);
+  assert.equal(programCalls.some((call) => call[0] === "recordEvaluation" && call[2]?.status === "reflection_required"), true);
   assert.equal(programCalls.some((call) => call[0] === "settleEvaluationReward"), false);
   assert.ok(programCalls.some((call) => call[0] === "importSourceDirectory"));
   assert.ok(programCalls.some((call) => call[0] === "rebuildLearnerProfile"));

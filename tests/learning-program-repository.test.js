@@ -121,6 +121,53 @@ function testMigrationAndPersistence() {
   assert.equal(evaluation.evaluationId, "eval-1");
   assert.equal(evaluation.questionText, "[redacted]");
 
+  const submission = repository.saveTaskSubmission({
+    submissionId: "submission-1",
+    taskCardId: "task-1",
+    sessionId: "session-1",
+    programId: "program-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    stage: "draft",
+    submissionKind: "learner_attempt",
+    attemptNo: 1,
+    status: "submitted",
+    summary: "learner attempt received",
+    textDigest: "digest-submission",
+    textChars: 320,
+    textWords: 82,
+    kanbanCardId: "kanban-1",
+    kanbanCommentRef: "comment-1",
+    submittedAt: "2026-05-16T10:00:00.000Z",
+    submissionText: "must not be exposed",
+  });
+  assert.equal(submission.submissionId, "submission-1");
+  assert.equal(submission.submissionText, "[redacted]");
+  assert.equal(submission.textChars, 320);
+
+  const reflection = repository.saveTaskReflection({
+    reflectionId: "reflection-1",
+    taskCardId: "task-1",
+    sessionId: "session-1",
+    evaluationId: "eval-1",
+    programId: "program-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    status: "accepted",
+    mode: "spoken",
+    score: 86,
+    maxScore: 100,
+    summary: "reflection understood the mistake",
+    transcriptDigest: "digest-transcript",
+    audioDigest: "digest-audio",
+    evidenceRefs: ["audio:digest-audio"],
+    submittedAt: "2026-05-16T10:10:00.000Z",
+    transcript: "must not be exposed",
+  });
+  assert.equal(reflection.reflectionId, "reflection-1");
+  assert.equal(reflection.transcript, "[redacted]");
+  assert.equal(reflection.audioDigest, "digest-audio");
+
   const reviewRequest = repository.saveReviewRequest({
     reviewRequestId: "review-request-1",
     learnerId: "weixin_stephen",
@@ -265,6 +312,10 @@ function testMigrationAndPersistence() {
   assert.equal(repository.listTaskCards({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listInteractionSessions({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listTaskSubmissions({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.listTaskReflections({ learnerId: "weixin_stephen" }).length, 1);
+  assert.equal(repository.getTaskSubmission("submission-1").kanbanCommentRef, "comment-1");
+  assert.equal(repository.getTaskReflection("reflection-1").evaluationId, "eval-1");
   assert.equal(repository.listReviewRequests({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.getRewardSettlement("settle-1").coinAmount, 15);
@@ -276,6 +327,8 @@ function testMigrationAndPersistence() {
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskCards, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).interactionSessions, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).evaluations, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskSubmissions, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskReflections, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).reviewRequests, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).rewardSettlements, 1);
   repository.close();

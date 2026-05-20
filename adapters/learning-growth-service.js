@@ -155,6 +155,49 @@ function projectEvaluationForExecutor(evaluation) {
   ]);
 }
 
+function projectTaskSubmissionForExecutor(submission) {
+  return copyFields(submission, [
+    "submissionId",
+    "taskCardId",
+    "sessionId",
+    "learnerId",
+    "workspaceId",
+    "stage",
+    "submissionKind",
+    "attemptNo",
+    "status",
+    "summary",
+    "textDigest",
+    "textChars",
+    "textWords",
+    "kanbanCardId",
+    "submittedAt",
+    "withdrawnAt",
+    "updatedAt",
+  ]);
+}
+
+function projectTaskReflectionForExecutor(reflection) {
+  return copyFields(reflection, [
+    "reflectionId",
+    "taskCardId",
+    "sessionId",
+    "evaluationId",
+    "learnerId",
+    "workspaceId",
+    "status",
+    "mode",
+    "score",
+    "maxScore",
+    "summary",
+    "transcriptDigest",
+    "audioDigest",
+    "evidenceRefs",
+    "submittedAt",
+    "updatedAt",
+  ]);
+}
+
 function projectSkillStateForExecutor(skill) {
   return copyFields(skill, [
     "skillId",
@@ -178,13 +221,15 @@ function projectLearnerProfileForExecutor(profile) {
 function projectProgramOverviewForExecutor(programs) {
   if (!programs || typeof programs !== "object") return programs || null;
   return {
-    counts: copyFields(programs.counts, ["programs", "taskCards", "evaluations", "skillStates"]),
+    counts: copyFields(programs.counts, ["programs", "taskCards", "evaluations", "taskSubmissions", "taskReflections", "skillStates"]),
     programs: arrayValue(programs.programs).map(projectProgramForExecutor),
     dailyPlan: programs.dailyPlan || null,
     executableTasks: arrayValue(programs.executableTasks).map(projectExecutableTaskForExecutor),
     taskCards: arrayValue(programs.taskCards).map(projectTaskCardForExecutor),
     interactionSessions: arrayValue(programs.interactionSessions).map(projectInteractionSessionForExecutor),
     evaluations: arrayValue(programs.evaluations).map(projectEvaluationForExecutor),
+    taskSubmissions: arrayValue(programs.taskSubmissions).map(projectTaskSubmissionForExecutor),
+    taskReflections: arrayValue(programs.taskReflections).map(projectTaskReflectionForExecutor),
     learnerProfile: projectLearnerProfileForExecutor(programs.learnerProfile),
     skillStates: arrayValue(programs.skillStates).map(projectSkillStateForExecutor),
   };
