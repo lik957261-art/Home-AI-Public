@@ -2,6 +2,4 @@ name: hermes-mobile-video
 version: 1.0.0
 description: "Hermes Mobile Grok image-to-video tool for local uploaded images."
 author: Hermes Mobile
-kind: standalone
-provides_tools:
-  - video_gen
+kind: backend

@@ -677,7 +677,7 @@ agent:
   max_turns: 60
   reasoning_effort: medium
 video_gen:
-  provider: xai
+  provider: hermes-mobile-xai
   model: grok-imagine-video
 terminal:
   backend: local

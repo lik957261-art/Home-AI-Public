@@ -20,6 +20,17 @@ function cleanList(value) {
     .filter(Boolean);
 }
 
+function cleanToolDescriptionChecks(value) {
+  return cleanList(value).map((item) => {
+    const index = item.indexOf(":");
+    if (index <= 0) throw new Error(`Invalid --require-tool-description item: ${item}`);
+    return {
+      tool: item.slice(0, index).trim(),
+      pattern: item.slice(index + 1).trim(),
+    };
+  }).filter((item) => item.tool && item.pattern);
+}
+
 function defaultManifestPaths() {
   return [
     "C:/ProgramData/HermesMobile/data/gateway-pool-manifest.json",
@@ -88,12 +99,9 @@ function newestMatchingSession(sessionDir, marker, sinceMs) {
   return null;
 }
 
-function toolNamesFromSession(sessionPath) {
+function toolsFromSession(sessionPath) {
   const parsed = JSON.parse(fs.readFileSync(sessionPath, "utf8"));
-  return (Array.isArray(parsed.tools) ? parsed.tools : [])
-    .map((tool) => tool?.function?.name || tool?.name || "")
-    .filter(Boolean)
-    .sort();
+  return Array.isArray(parsed.tools) ? parsed.tools : [];
 }
 
 function workerTargets(manifest) {
@@ -113,7 +121,7 @@ function workerTargets(manifest) {
   return first ? [first] : [];
 }
 
-async function smokeWorker(worker, requiredTools, options) {
+async function smokeWorker(worker, requiredTools, requiredDescriptionChecks, options) {
   const marker = `hermes-mobile-tool-schema-smoke-${worker.profile || worker.name}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const port = Number(worker.port || 0);
   if (!port) throw new Error(`worker ${worker.name || worker.profile || "unknown"} has no port`);
@@ -145,10 +153,23 @@ async function smokeWorker(worker, requiredTools, options) {
   const sessionDir = path.join(telemetryRoot, telemetryProfile, "sessions");
   const sessionPath = newestMatchingSession(sessionDir, marker, startedAt);
   if (!sessionPath) throw new Error(`worker ${worker.profile || worker.name} did not write a matching session under ${sessionDir}`);
-  const tools = toolNamesFromSession(sessionPath);
+  const toolDefinitions = toolsFromSession(sessionPath);
+  const tools = toolDefinitions
+    .map((tool) => tool?.function?.name || tool?.name || "")
+    .filter(Boolean)
+    .sort();
   const missing = requiredTools.filter((tool) => !tools.includes(tool));
   if (missing.length) {
     throw new Error(`worker ${worker.profile || worker.name} missing tools in live session schema: ${missing.join(", ")}; got ${tools.join(", ")}`);
+  }
+  for (const check of requiredDescriptionChecks) {
+    const tool = toolDefinitions.find((definition) => (
+      (definition?.function?.name || definition?.name || "") === check.tool
+    ));
+    const description = String(tool?.function?.description || tool?.description || "");
+    if (!description.includes(check.pattern)) {
+      throw new Error(`worker ${worker.profile || worker.name} tool ${check.tool} description missing required text: ${check.pattern}`);
+    }
   }
   return { worker: worker.profile || worker.name || String(port), sessionPath, tools };
 }
@@ -163,13 +184,14 @@ async function main() {
     "--require",
     "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_extract_text,audio_transcribe",
   ));
+  const requiredDescriptionChecks = cleanToolDescriptionChecks(argValue("--require-tool-description", ""));
   const options = {
     telemetryRoot: argValue("--telemetry-root", "C:/ProgramData/HermesMobile/gateway-worker/telemetry/profiles"),
     timeoutMs: Number(argValue("--timeout-ms", "120000")) || 120000,
   };
   const results = [];
   for (const worker of targets) {
-    results.push(await smokeWorker(worker, requiredTools, options));
+    results.push(await smokeWorker(worker, requiredTools, requiredDescriptionChecks, options));
   }
   console.log(JSON.stringify({
     ok: true,

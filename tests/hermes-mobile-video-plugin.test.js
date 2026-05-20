@@ -108,6 +108,7 @@ module._poll_generation = lambda *args, **kwargs: {
     "body": {"video": {"url": "https://example.test/video.mp4"}},
 }
 def download(client, video_url, output_path):
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Path(output_path).write_bytes(b"mp4")
     return {"mime": "video/mp4", "bytes": 3}
 module._download_video = download
@@ -181,6 +182,7 @@ module._poll_generation = lambda *args, **kwargs: {
     "body": {"video": {"url": "https://example.test/video.mp4"}},
 }
 def download(client, video_url, output_path):
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Path(output_path).write_bytes(b"mp4")
     return {"mime": "video/mp4", "bytes": 3}
 module._download_video = download
@@ -238,6 +240,7 @@ module._poll_generation = lambda *args, **kwargs: {
     "body": {"video": {"url": "https://example.test/video.mp4"}},
 }
 def download(client, video_url, output_path):
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Path(output_path).write_bytes(b"mp4")
     return {"mime": "video/mp4", "bytes": 3}
 module._download_video = download
@@ -290,11 +293,114 @@ print(json.dumps({
   assert.equal(result.error_type, "PermissionError");
 }
 
+function testRegistersProviderAndGeneratesFromLocalImageUrl() {
+  fs.mkdirSync(scratchRoot, { recursive: true });
+  const tempDir = fs.mkdtempSync(path.join(scratchRoot, "provider-"));
+  const imagePath = path.join(tempDir, "source.png");
+  const outputPath = path.join(tempDir, "out.mp4");
+  const relativeTempDir = path.relative(repoRoot, tempDir);
+  const relativeImagePath = path.relative(repoRoot, imagePath);
+  const relativeOutputPath = path.relative(repoRoot, outputPath);
+  fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+  const script = `
+import importlib.util, json, sys, types
+from pathlib import Path
+
+agent_mod = types.ModuleType("agent")
+video_mod = types.ModuleType("agent.video_gen_provider")
+class VideoGenProvider:
+    pass
+def success_response(**kwargs):
+    payload = {"success": True}
+    payload.update(kwargs)
+    extra = payload.pop("extra", None)
+    if extra:
+        payload.update(extra)
+    return payload
+def error_response(**kwargs):
+    payload = {"success": False}
+    payload.update(kwargs)
+    return payload
+video_mod.VideoGenProvider = VideoGenProvider
+video_mod.success_response = success_response
+video_mod.error_response = error_response
+sys.modules["agent"] = agent_mod
+sys.modules["agent.video_gen_provider"] = video_mod
+
+spec = importlib.util.spec_from_file_location("hermes_mobile_video", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+captured = {}
+class DummyClient:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        return False
+module._make_http_client = lambda timeout_seconds: DummyClient()
+module._resolve_xai_credentials = lambda: {
+    "api_key": "test-token",
+    "base_url": "https://api.x.ai/v1",
+    "provider": "xai-oauth",
+}
+def submit(client, payload, *, api_key, base_url):
+    captured["payload"] = payload
+    return "req_test"
+module._submit_generation = submit
+module._poll_generation = lambda *args, **kwargs: {
+    "status": "done",
+    "body": {"video": {"url": "https://example.test/video.mp4"}},
+}
+def download(client, video_url, output_path):
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(output_path).write_bytes(b"mp4")
+    return {"mime": "video/mp4", "bytes": 3}
+module._download_video = download
+
+providers = []
+class Ctx:
+    def register_video_gen_provider(self, provider):
+        providers.append(provider)
+module.register(Ctx())
+provider = providers[0]
+result = provider.generate(
+    prompt="animate the uploaded image",
+    image_url=${JSON.stringify(relativeImagePath)},
+    model="grok-imagine-video",
+    duration=8,
+    aspect_ratio="16:9",
+    resolution="720p",
+)
+print(json.dumps({
+    "provider_count": len(providers),
+    "provider_name": provider.name,
+    "display": provider.display_name,
+    "success": result.get("success"),
+    "video_exists": Path(result.get("video", "")).exists(),
+    "media": str(result.get("media_line", "")).startswith("MEDIA:"),
+    "image_data_uri": captured["payload"].get("image", {}).get("url", "").startswith("data:image/png;base64,"),
+}, ensure_ascii=False))
+`;
+  const result = JSON.parse(runPython(script, {
+    HERMES_MOBILE_VIDEO_ALLOWED_ROOTS: relativeTempDir,
+    HERMES_MOBILE_VIDEO_OUTPUT_ROOT: relativeTempDir,
+  }));
+  assert.equal(result.provider_count, 1);
+  assert.equal(result.provider_name, "hermes-mobile-xai");
+  assert.match(result.display, /local image_url paths supported/);
+  assert.equal(result.success, true);
+  assert.equal(result.video_exists, true);
+  assert.equal(result.media, true);
+  assert.equal(result.image_data_uri, true);
+}
+
 testBuildsDataUriForAllowedLocalImage();
 testRejectsOutOfScopeImagePath();
 testHandlerSubmitsLocalImageDataUriAndWritesOutput();
 testHandlerTreatsLocalImageUrlAsInputImagePath();
 testHandlerTreatsFileUrlAsInputImagePath();
 testRejectsOutOfScopeImageUrlPath();
+testRegistersProviderAndGeneratesFromLocalImageUrl();
 
 console.log("hermes-mobile-video-plugin tests passed");

@@ -19,6 +19,8 @@ DEFAULT_XAI_BASE_URL = "https://api.x.ai/v1"
 DEFAULT_DURATION = 8
 DEFAULT_ASPECT_RATIO = "16:9"
 DEFAULT_RESOLUTION = "720p"
+PROVIDER_NAME = "hermes-mobile-xai"
+PROVIDER_DISPLAY_NAME = "Hermes Mobile xAI (local image_url paths supported)"
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
 MAX_VIDEO_BYTES = 300 * 1024 * 1024
 SUPPORTED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
@@ -31,62 +33,6 @@ DEFAULT_ALLOWED_ROOTS = (
     "/mnt/c/ProgramData/HermesMobile/data/artifacts",
 )
 DEFAULT_OUTPUT_ROOT = "/mnt/c/ProgramData/HermesMobile/data/artifacts/grok-videos"
-
-VIDEO_GENERATE_SCHEMA = {
-    "name": "video_generate",
-    "description": (
-        "Generate a Grok Imagine video through xAI using the current Grok "
-        "Gateway credentials. Use input_image_path for Hermes Mobile uploaded "
-        "or local images; image_url also accepts public HTTPS URLs, data URIs, "
-        "or Hermes Mobile local image paths. The tool "
-        "downloads the completed video into Hermes Mobile storage and returns "
-        "output_path plus media_line."
-    ),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "prompt": {
-                "type": "string",
-                "description": "Motion and scene instruction for the generated video.",
-            },
-            "input_image_path": {
-                "type": "string",
-                "description": "Optional local PNG/JPG/JPEG/WEBP path from the Hermes Mobile conversation.",
-            },
-            "image_url": {
-                "type": "string",
-                "description": "Optional public HTTPS image URL, data URI, or Hermes Mobile local image path.",
-            },
-            "output_path": {
-                "type": "string",
-                "description": "Optional MP4 output path inside an allowed Hermes Mobile root.",
-            },
-            "duration": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 15,
-                "default": DEFAULT_DURATION,
-                "description": "Requested duration in seconds. Values are clamped to 1-15.",
-            },
-            "aspect_ratio": {
-                "type": "string",
-                "enum": sorted(SUPPORTED_ASPECT_RATIOS),
-                "default": DEFAULT_ASPECT_RATIO,
-            },
-            "resolution": {
-                "type": "string",
-                "enum": sorted(SUPPORTED_RESOLUTIONS),
-                "default": DEFAULT_RESOLUTION,
-            },
-            "model": {
-                "type": "string",
-                "default": DEFAULT_MODEL,
-                "description": "xAI video model. Defaults to grok-imagine-video.",
-            },
-        },
-        "required": ["prompt"],
-    },
-}
 
 
 def _json(payload: dict[str, Any]) -> str:
@@ -365,22 +311,22 @@ def _compact_http_error(error: Exception) -> str:
     return str(error)[:400]
 
 
-def _handle_video_generate(args: dict[str, Any], **_kw: Any) -> str:
+def _run_video_generation(args: dict[str, Any]) -> dict[str, Any]:
     try:
         prompt = str(args.get("prompt") or "").strip()
         if not prompt:
-            return _json({"ok": False, "success": False, "error": "prompt_required"})
+            return {"ok": False, "success": False, "error": "prompt_required"}
 
         local_image = None
         local_image_raw = str(args.get("input_image_path") or "").strip()
         image_url_raw = str(args.get("image_url") or "").strip()
         image_url = None
         if local_image_raw and image_url_raw:
-            return _json({
+            return {
                 "ok": False,
                 "success": False,
                 "error": "input_image_path_and_image_url_are_mutually_exclusive",
-            })
+            }
         if local_image_raw:
             local_image = _validate_input_image(local_image_raw)
             image_url = _image_data_uri(local_image)
@@ -391,13 +337,13 @@ def _handle_video_generate(args: dict[str, Any], **_kw: Any) -> str:
         credentials = _resolve_xai_credentials()
         api_key = credentials.get("api_key") or ""
         if not api_key:
-            return _json({
+            return {
                 "ok": False,
                 "success": False,
                 "tool": "video_generate",
                 "provider": credentials.get("provider") or "xai",
                 "error": "xai_credentials_unavailable",
-            })
+            }
 
         payload = _build_payload(args, image_url)
         timeout_seconds = _timeout_seconds()
@@ -425,7 +371,7 @@ def _handle_video_generate(args: dict[str, Any], **_kw: Any) -> str:
                     or body.get("message")
                     or f"xai_video_status_{status or 'unknown'}"
                 )
-                return _json({
+                return {
                     "ok": False,
                     "success": False,
                     "tool": "video_generate",
@@ -433,20 +379,20 @@ def _handle_video_generate(args: dict[str, Any], **_kw: Any) -> str:
                     "request_id": request_id,
                     "status": status,
                     "error": str(error)[:400],
-                })
+                }
             video = body.get("video") if isinstance(body.get("video"), dict) else {}
             video_url = str(video.get("url") or "").strip()
             if not video_url:
-                return _json({
+                return {
                     "ok": False,
                     "success": False,
                     "tool": "video_generate",
                     "request_id": request_id,
                     "error": "xai_video_url_missing",
-                })
+                }
             download = _download_video(client, video_url, output_path)
 
-        return _json({
+        return {
             "ok": True,
             "success": True,
             "tool": "video_generate",
@@ -463,24 +409,142 @@ def _handle_video_generate(args: dict[str, Any], **_kw: Any) -> str:
             "media_line": f"MEDIA:{output_path}",
             "mime": download.get("mime") or "video/mp4",
             "bytes": download.get("bytes") or output_path.stat().st_size,
-        })
+        }
     except Exception as error:
-        return _json({
+        return {
             "ok": False,
             "success": False,
             "tool": "video_generate",
             "error": _compact_http_error(error),
             "error_type": type(error).__name__,
-        })
+        }
+
+
+def _handle_video_generate(args: dict[str, Any], **_kw: Any) -> str:
+    return _json(_run_video_generation(args))
+
+
+def _provider_result_from_generation(args: dict[str, Any]) -> dict[str, Any]:
+    from agent.video_gen_provider import error_response, success_response
+
+    prompt = str(args.get("prompt") or "").strip()
+    result = _run_video_generation(args)
+    model = str(result.get("model") or _model(args.get("model")) or DEFAULT_MODEL)
+    aspect_ratio = str(result.get("aspect_ratio") or _aspect_ratio(args.get("aspect_ratio")))
+    if result.get("success"):
+        return success_response(
+            video=str(result.get("output_path") or result.get("video_url") or ""),
+            model=model,
+            prompt=prompt,
+            modality=str(result.get("modality") or "text"),
+            aspect_ratio=aspect_ratio,
+            duration=int(result.get("duration") or 0),
+            provider=PROVIDER_NAME,
+            extra={
+                "request_id": result.get("request_id"),
+                "video_url": result.get("video_url"),
+                "output_path": result.get("output_path"),
+                "media_line": result.get("media_line"),
+                "mime": result.get("mime"),
+                "bytes": result.get("bytes"),
+                "source_provider": result.get("provider"),
+            },
+        )
+    return error_response(
+        error=str(result.get("error") or "grok_video_generation_failed"),
+        error_type=str(result.get("error_type") or result.get("status") or "provider_error"),
+        provider=PROVIDER_NAME,
+        model=model,
+        prompt=prompt,
+        aspect_ratio=aspect_ratio,
+    )
+
+
+def _create_provider():
+    from agent.video_gen_provider import VideoGenProvider
+
+    class HermesMobileXAIVideoGenProvider(VideoGenProvider):
+        @property
+        def name(self) -> str:
+            return PROVIDER_NAME
+
+        @property
+        def display_name(self) -> str:
+            return PROVIDER_DISPLAY_NAME
+
+        def is_available(self) -> bool:
+            return _check_requirements()
+
+        def list_models(self) -> list[dict[str, Any]]:
+            return [{
+                "id": DEFAULT_MODEL,
+                "display": "Grok Imagine Video",
+                "speed": "30s-several minutes",
+                "strengths": "Text-to-video and image-to-video with Hermes Mobile local image path support.",
+                "modalities": ["text", "image"],
+            }]
+
+        def default_model(self) -> str:
+            return DEFAULT_MODEL
+
+        def get_setup_schema(self) -> dict[str, Any]:
+            return {
+                "name": PROVIDER_DISPLAY_NAME,
+                "badge": "paid",
+                "tag": "grok-imagine-video via xAI OAuth; accepts HTTPS/data image_url and Hermes Mobile local image paths",
+                "env_vars": [],
+                "post_setup": "xai_grok",
+            }
+
+        def capabilities(self) -> dict[str, Any]:
+            return {
+                "modalities": ["text", "image"],
+                "aspect_ratios": sorted(SUPPORTED_ASPECT_RATIOS),
+                "resolutions": sorted(SUPPORTED_RESOLUTIONS),
+                "max_duration": 15,
+                "min_duration": 1,
+                "supports_audio": False,
+                "supports_negative_prompt": False,
+                "max_reference_images": 0,
+            }
+
+        def generate(
+            self,
+            prompt: str,
+            *,
+            model: str | None = None,
+            image_url: str | None = None,
+            reference_image_urls: list[str] | None = None,
+            duration: int | None = None,
+            aspect_ratio: str = DEFAULT_ASPECT_RATIO,
+            resolution: str = DEFAULT_RESOLUTION,
+            negative_prompt: str | None = None,
+            audio: bool | None = None,
+            seed: int | None = None,
+            **_kwargs: Any,
+        ) -> dict[str, Any]:
+            if reference_image_urls:
+                from agent.video_gen_provider import error_response
+
+                return error_response(
+                    error="reference_image_urls are not supported by the Hermes Mobile xAI video provider",
+                    error_type="unsupported_reference_images",
+                    provider=PROVIDER_NAME,
+                    model=model or DEFAULT_MODEL,
+                    prompt=prompt,
+                    aspect_ratio=aspect_ratio,
+                )
+            return _provider_result_from_generation({
+                "prompt": prompt,
+                "image_url": image_url or "",
+                "model": model or DEFAULT_MODEL,
+                "duration": duration if duration is not None else DEFAULT_DURATION,
+                "aspect_ratio": aspect_ratio,
+                "resolution": resolution,
+            })
+
+    return HermesMobileXAIVideoGenProvider()
 
 
 def register(ctx) -> None:
-    ctx.register_tool(
-        name="video_generate",
-        toolset="video_gen",
-        schema=VIDEO_GENERATE_SCHEMA,
-        handler=_handle_video_generate,
-        check_fn=_check_requirements,
-        description=VIDEO_GENERATE_SCHEMA["description"],
-        override=True,
-    )
+    ctx.register_video_gen_provider(_create_provider())
