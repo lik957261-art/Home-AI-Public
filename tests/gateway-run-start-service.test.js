@@ -193,6 +193,9 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
   assert.equal(assistant.status, "running");
   assert.equal(assistant.gatewayUrl, "http://worker.gateway");
   assert.equal(assistant.gatewayProfile, "lowgw1");
+  assert.equal(assistant.model, "gpt-test");
+  assert.equal(assistant.modelProvider, "openai-codex");
+  assert.equal(assistant.reasoningEffort, "medium");
   assert.equal(assistant.runOptions.existing, true);
   assert.equal(assistant.runOptions.gatewayConversation, "session_1:user_1:file,terminal,http");
   assert.equal(assistant.runOptions.toolSchemaEpoch, "epoch-test");
@@ -288,6 +291,24 @@ async function testStartRunPreservesSearchSourceRouting() {
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "x_search", "web", "search"]);
 }
 
+async function testStartRunUsesSelectedGatewayProviderFallback() {
+  const { service } = makeHarness({
+    chooseGatewayRunTarget: async () => ({
+      apiBase: "http://worker.gateway",
+      apiKey: "worker-key",
+      name: "lowgw1",
+      profile: "lowgw1",
+      provider: "openai-codex",
+      source: "worker_pool",
+    }),
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), assistant, {});
+
+  assert.equal(assistant.modelProvider, "openai-codex");
+}
+
 async function testConcurrencyErrorStopsBeforeGatewaySelection() {
   const err = new Error("limit");
   err.status = 429;
@@ -328,6 +349,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
+  await testStartRunUsesSelectedGatewayProviderFallback();
   await testConcurrencyErrorStopsBeforeGatewaySelection();
   testMarkStartFailedUsesInjectedHooks();
   console.log("gateway-run-start-service tests passed");

@@ -68,6 +68,19 @@ function usageModelLabel(usage = {}, message = {}, apiCallRows = []) {
   return models.length ? models.join(", ") : (state.defaultModel || state.assistantLabel || "");
 }
 
+function usageProviderLabel(usage = {}, message = {}) {
+  const provider = String(
+    usage.provider
+    || usage.model_provider
+    || message.modelProvider
+    || message.model_provider
+    || message.provider
+    || usage.billing_provider
+    || "",
+  ).trim();
+  return provider || null;
+}
+
 function usageReasoningLabel(usage = {}, message = {}, apiCallRows = []) {
   const modelRows = normalizeUsageModelCalls(usage);
   const direct = String(
@@ -99,6 +112,7 @@ function renderUsage(usage, message = {}) {
   const apiCost = normalizeUsageCost(usage);
   const rows = [
     ["Model", usageModelLabel(usage, message, apiCallRows)],
+    ["Provider", usageProviderLabel(usage, message)],
     ["Reasoning", usageReasoningLabel(usage, message, apiCallRows)],
     normalized.uncachedInput !== null ? ["Uncached input", normalized.uncachedInput] : null,
     ["Cached input", normalized.cachedInput !== null ? normalized.cachedInput : "Not reported"],

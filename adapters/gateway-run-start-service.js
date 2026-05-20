@@ -235,6 +235,11 @@ function createGatewayRunStartService(options = {}) {
 
     const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting);
     const { gatewayUrl } = applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, nowIso());
+    assistantMessage.model = cleanString(request.body.model || request.gatewayRouting.model || gatewayTarget?.model || gatewayTarget?.defaultModel);
+    assistantMessage.modelProvider = cleanString(request.body.provider || request.gatewayRouting.provider || gatewayTarget?.provider);
+    if (!assistantMessage.reasoningEffort) {
+      assistantMessage.reasoningEffort = cleanString(request.body.reasoning_effort || request.gatewayRouting.reasoning_effort);
+    }
     saveState();
     broadcastMessageUpdated(thread, assistantMessage);
     streamResponse(taskId, thread.id, assistantMessage.id, request.body, {

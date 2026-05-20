@@ -82,6 +82,7 @@ assert.match(appJs, /function applyReasoningInfo\(info = \{\}\)/);
 assert.match(appJs, /state\.assistantLabel = String\(info\.assistantLabel/);
 assert.match(appJs, /function renderUsage\(usage, message = \{\}\)/);
 assert.match(appJs, /\["Model", usageModelLabel\(usage, message, apiCallRows\)\]/);
+assert.match(appJs, /\["Provider", usageProviderLabel\(usage, message\)\]/);
 assert.match(appJs, /\["Reasoning", usageReasoningLabel\(usage, message, apiCallRows\)\]/);
 assert.match(appJs, /function selectedComposerReasoningEffort\(text = getComposerText\(\)\)/);
 assert.match(appJs, /const aiMention = composerAiMentionInfo\(text\)/);

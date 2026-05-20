@@ -226,6 +226,85 @@ function testCompletedRunPersistsLoadedSkillReferences() {
   }]);
 }
 
+function testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim() {
+  const { message, service, thread } = makeHarness();
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      name: "skill_view",
+      arguments: "{\"name\":\"productivity/write\"}",
+    },
+  });
+
+  assert.deepEqual(message.loadedSkills, [{
+    id: "write",
+    label: "write",
+    path: "productivity/write",
+    namespace: "productivity",
+  }]);
+
+  thread.events = [];
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: { id: "public_run", usage: { input_tokens: 1, output_tokens: 2 } },
+    output: "Final",
+  });
+
+  assert.deepEqual(message.loadedSkills, [{
+    id: "write",
+    label: "write",
+    path: "productivity/write",
+    namespace: "productivity",
+  }]);
+}
+
+function testCompletedResponseOutputBackfillsLoadedSkillReferences() {
+  const { message, service } = makeHarness();
+
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { input_tokens: 1, output_tokens: 2 },
+      output: [
+        { type: "function_call", name: "skill_view", arguments: "{\"name\":\"study-templates/english-weekly-challenge\"}" },
+        { type: "message", content: [{ type: "output_text", text: "Final" }] },
+      ],
+    },
+  });
+
+  assert.deepEqual(message.loadedSkills, [{
+    id: "english-weekly-challenge",
+    label: "english-weekly-challenge",
+    path: "study-templates/english-weekly-challenge",
+    namespace: "study-templates",
+  }]);
+}
+
+function testCompletedRunUsageKeepsRequestedModelMetadata() {
+  const { message, service } = makeHarness();
+  message.runOptions = { model: "grok-4.3", provider: "xai-oauth", reasoning_effort: "xhigh" };
+
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { input_tokens: 1, output_tokens: 2 },
+    },
+    output: "Final",
+  });
+
+  assert.equal(message.usage.model, "grok-4.3");
+  assert.equal(message.usage.provider, "xai-oauth");
+  assert.equal(message.usage.model_provider, "xai-oauth");
+  assert.equal(message.usage.reasoning_effort, "xhigh");
+}
+
 function testOutputItemEventsStoreReadableSummariesOnly() {
   const { service, thread } = makeHarness();
   service.applyHermesRunEvent({
@@ -380,6 +459,9 @@ testDeltaUpdatesMessageAndThread();
 testStreamingDeltaSavesAreCoalesced();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
 testCompletedRunPersistsLoadedSkillReferences();
+testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim();
+testCompletedResponseOutputBackfillsLoadedSkillReferences();
+testCompletedRunUsageKeepsRequestedModelMetadata();
 testOutputItemEventsStoreReadableSummariesOnly();
 testOutputItemEventsUseAliasedResponseRunId();
 testFailedAndCancelledRunsUseTerminalHelpers();

@@ -110,6 +110,21 @@ function loadedSkillsForRun(thread = {}, runIds = "") {
   return [...byPath.values()];
 }
 
+function mergeLoadedSkills(...sources) {
+  const byPath = new Map();
+  for (const source of sources) {
+    const skills = Array.isArray(source) ? source : [source];
+    for (const skill of skills) {
+      if (!skill || typeof skill !== "object") continue;
+      const entry = skillEntryFromReference(skill.path || skill.skillPath || skill.name || skill.id || "");
+      if (!entry) continue;
+      const key = entry.path.toLowerCase();
+      if (!byPath.has(key)) byPath.set(key, Object.assign({}, entry, skill, { path: entry.path }));
+    }
+  }
+  return [...byPath.values()];
+}
+
 function outputItemToolName(item = {}) {
   const type = cleanString(item.type).toLowerCase();
   if (outputItemFunctionName(item) === "skill_view") return "skill_view";
@@ -192,6 +207,66 @@ function extractCompletedOutput(event = {}) {
     }
   }
   return chunks.join("\n\n").trim();
+}
+
+function loadedSkillsFromCompletedResponse(event = {}) {
+  const response = event.response || {};
+  const skills = [];
+  for (const item of Array.isArray(response.output) ? response.output : []) {
+    if (cleanString(outputItemToolName(item)).toLowerCase() !== "skill_view") continue;
+    const preview = outputItemPreview(item);
+    const skill = loadedSkillFromRunEvent({ tool: "skill_view", preview });
+    if (skill) skills.push(skill);
+  }
+  return mergeLoadedSkills(skills);
+}
+
+function usageWithRunMetadata(usage, event = {}, message = {}) {
+  const next = Object.assign({}, usage || {});
+  const runOptions = message?.runOptions && typeof message.runOptions === "object" ? message.runOptions : {};
+  const response = event?.response && typeof event.response === "object" ? event.response : {};
+  const model = cleanString(
+    response.model
+    || event.model
+    || runOptions.model
+    || message.model
+    || message.modelName
+    || next.model
+    || next.model_name
+    || next.response_model,
+  );
+  const provider = cleanString(
+    response.provider
+    || event.provider
+    || runOptions.provider
+    || message.modelProvider
+    || message.model_provider
+    || message.provider
+    || next.provider
+    || next.model_provider
+    || next.billing_provider,
+  );
+  const reasoningEffort = cleanString(
+    response.reasoning_effort
+    || response.reasoning?.effort
+    || event.reasoning_effort
+    || runOptions.reasoning_effort
+    || runOptions.reasoningEffort
+    || message.reasoningEffort
+    || message.reasoning_effort
+    || next.reasoning_effort
+    || next.reasoningEffort,
+  );
+  if (model) next.model = model;
+  if (provider) {
+    next.provider = provider;
+    next.model_provider = provider;
+  }
+  if (reasoningEffort) {
+    next.reasoning_effort = reasoningEffort;
+    next.reasoningEffort = reasoningEffort;
+  }
+  return Object.keys(next).length ? next : null;
 }
 
 function findRunTargetInState(state, runId) {
@@ -385,6 +460,8 @@ function createGatewayRunEventService(options = {}) {
       preview,
       error: false,
     });
+    const loadedSkill = loadedSkillFromRunEvent({ tool, preview });
+    if (loadedSkill) message.loadedSkills = mergeLoadedSkills(message.loadedSkills, loadedSkill);
     saveState();
     broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
     return { action: "output_item" };
@@ -400,14 +477,22 @@ function createGatewayRunEventService(options = {}) {
     const completedAt = nowIso();
     message.content = compactFullContent(visibleOutput || output);
     message.status = "done";
-    message.usage = supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message);
-    message.loadedSkills = loadedSkillsForRun(thread, [
-      runId,
-      originalRunId,
-      responseRunId,
-      message.runId,
-      stream?.realRunId,
-    ]);
+    message.usage = usageWithRunMetadata(
+      supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message),
+      event,
+      message,
+    );
+    message.loadedSkills = mergeLoadedSkills(
+      message.loadedSkills,
+      loadedSkillsForRun(thread, [
+        runId,
+        originalRunId,
+        responseRunId,
+        message.runId,
+        stream?.realRunId,
+      ]),
+      loadedSkillsFromCompletedResponse(event),
+    );
     if (validApprovalRequest) {
       message.elevationRequired = true;
       message.elevationScope = validApprovalRequest.elevationScope;

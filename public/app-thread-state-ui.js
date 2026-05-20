@@ -41,6 +41,11 @@ function mergeServerMessage(existing, incoming) {
     merged.artifacts = existing.artifacts;
   }
   if (!incoming.revokedAt && existing.usage && !incoming.usage) merged.usage = existing.usage;
+  if (!incoming.revokedAt && Array.isArray(existing.loadedSkills) && existing.loadedSkills.length && !incoming.loadedSkills?.length) {
+    merged.loadedSkills = existing.loadedSkills;
+  }
+  if (!incoming.revokedAt && existing.model && !incoming.model) merged.model = existing.model;
+  if (!incoming.revokedAt && existing.modelProvider && !incoming.modelProvider) merged.modelProvider = existing.modelProvider;
   for (const field of MESSAGE_TIMESTAMP_FIELDS) {
     if (existing[field] && !incoming[field]) merged[field] = existing[field];
   }

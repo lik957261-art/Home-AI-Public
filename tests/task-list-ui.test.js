@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-composer-model-menu-v23";
+const CLIENT_VERSION = "20260520-skill-usage-receipts-v24";
 const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
@@ -128,6 +128,7 @@ for (const file of appShellFiles) {
 assert.match(appJs, /function renderMessageSkillPanel\(message = \{\}, thread = state\.currentThread\)/);
 assert.match(appJs, /String\(event\.tool \|\| ""\)\.trim\(\)\.toLowerCase\(\) !== "skill_view"/);
 assert.match(appJs, /const skills = renderMessageSkillPanel\(message, state\.currentThread\)/);
+assert.match(appJs, /existing\.loadedSkills[\s\S]*merged\.loadedSkills = existing\.loadedSkills/);
 assert.match(appJs, /wireSkillLinks\(conversation\);\s+wireUsagePanels\(conversation\)/);
 assert.match(appJs, /function renderCurrentThreadUnsafe\(options = \{\}\)/);
 assert.match(appJs, /renderCurrentThread failed/);

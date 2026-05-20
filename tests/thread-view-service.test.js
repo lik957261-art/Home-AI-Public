@@ -197,6 +197,8 @@ function makeThread() {
         loadedSkills: [{ id: "write", label: "write", path: "productivity/write", namespace: "productivity" }],
         externalDelivery: { source: "weixin" },
         runOptions: {
+          model: "gpt-test",
+          provider: "openai-codex",
           gatewayRouting: {
             securityLevel: "workspace",
             maintenance: true,
@@ -330,6 +332,8 @@ function testCompactMessage(subject) {
   assert.equal(got.taskGroupId, "task-a");
   assert.equal(got.messageKind, "ai");
   assert.deepEqual(got.loadedSkills, [{ id: "write", label: "write", path: "productivity/write", namespace: "productivity" }]);
+  assert.equal(got.model, "gpt-test");
+  assert.equal(got.modelProvider, "openai-codex");
   assert.equal(got.gatewaySecurityLevel, "workspace");
   assert.equal(got.gatewayMaintenance, true);
   assert.equal(got.gatewayMaintenanceCategory, "dependency-upgrade");

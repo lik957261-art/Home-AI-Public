@@ -385,6 +385,8 @@ function createThreadViewService(deps = {}) {
       revokedByLabel: message.revokedByLabel || "",
       usage: message.usage || null,
       loadedSkills: Array.isArray(message.loadedSkills) ? message.loadedSkills : [],
+      model: message.model || message.modelName || message.runOptions?.model || "",
+      modelProvider: message.modelProvider || message.model_provider || message.provider || message.runOptions?.provider || "",
       error: message.error || null,
       artifacts: compactArtifactsForMessage(message, resolvedThread),
       directoryAliases: Array.isArray(message.directoryAliases) ? message.directoryAliases : [],
