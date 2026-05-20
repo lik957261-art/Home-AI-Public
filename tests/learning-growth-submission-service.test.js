@@ -181,6 +181,58 @@ async function testTooShortSubmissionIsRejectedBeforeMutation() {
   assert.equal(validateSubmissionText("Q", resolveSubmissionGuard({ activityType: "writing" })).ok, false);
 }
 
+async function testPendingSameSubmissionIsReusedForRetry() {
+  const calls = [];
+  const text = [
+    "First, I repaired the grammar because the verb must match the subject.",
+    "Then I added a school example and explained why the article changes.",
+    "Finally, I wrote the corrected sentence and reflected on the pattern.",
+    "I also checked the subject, the tense, and the article before I wrote the final answer.",
+    "This makes the grammar repair clearer and shows the pattern in a new sentence.",
+  ].join("\n");
+  const service = createLearningGrowthSubmissionService({
+    reportService: { writeReport: () => null },
+    kanbanCardProvider: {
+      async listCards(input) {
+        calls.push({ type: "list", input });
+        return {
+          ok: true,
+          data: [{
+            id: "t_retry",
+            workspaceId: "child",
+            kanbanCaseTemplate: "learning-growth",
+            learningGrowthSubmissionStatus: "submitted",
+            learningGrowthSubmissionKind: "grammar_repair",
+            learningGrowthSubmissionText: text,
+            learningGrowthEvaluationStatus: "pending",
+            learningTaskModel: {
+              version: "learning-task-model-v1",
+              activityType: "grammar",
+              skillId: "english_grammar",
+              submissionContract: { firstSubmissionKind: "grammar_repair" },
+            },
+          }],
+        };
+      },
+      async mutateCard(input) {
+        calls.push({ type: "mutate", input });
+        return { ok: true, id: input.cardId, action: input.action };
+      },
+    },
+  });
+  const result = await service.submitTask({
+    workspaceId: "child",
+    cardId: "t_retry",
+    text,
+    author: "child",
+  });
+  assert.equal(result.ok, true);
+  const mutations = calls.filter((call) => call.type === "mutate").map((call) => call.input);
+  assert.equal(mutations.length, 1);
+  assert.equal(mutations[0].author, "learning-growth-evaluator");
+  assert.equal(Boolean(mutations[0].learningGrowthEvaluation), true);
+}
+
 async function testModelFeedbackServiceIsActivityGeneric() {
   const service = createLearningGrowthSubmissionService({
     aiFeedbackService: {
@@ -518,6 +570,7 @@ function testDependencyValidation() {
   testDependencyValidation();
   await testGenericGrammarSubmissionUsesTaskModelAndReport();
   await testTooShortSubmissionIsRejectedBeforeMutation();
+  await testPendingSameSubmissionIsReusedForRetry();
   await testModelFeedbackServiceIsActivityGeneric();
   await testRecentSubmissionCanBeWithdrawn();
   await testExpiredSubmissionCannotBeWithdrawn();

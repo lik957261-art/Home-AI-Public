@@ -51,6 +51,17 @@ function cardField(card = {}, ...keys) {
   return "";
 }
 
+function shouldReusePendingSubmission(card = {}, text = "", submissionKind = "") {
+  const existingText = cardField(card, "learningGrowthSubmissionText", "learning_growth_submission_text");
+  if (!existingText || existingText !== cleanString(text)) return false;
+  const submissionStatus = cardField(card, "learningGrowthSubmissionStatus", "learning_growth_submission_status").toLowerCase();
+  const evaluationStatus = cardField(card, "learningGrowthEvaluationStatus", "learning_growth_evaluation_status").toLowerCase();
+  const existingKind = cardField(card, "learningGrowthSubmissionKind", "learning_growth_submission_kind").toLowerCase();
+  if (submissionStatus !== "submitted") return false;
+  if (evaluationStatus && evaluationStatus !== "pending") return false;
+  return !existingKind || !submissionKind || existingKind === cleanString(submissionKind).toLowerCase();
+}
+
 function resolveTaskCardId(card = {}) {
   const explicit = cardField(card, "learningTaskCardId", "learning_task_card_id");
   if (explicit) return explicit;
@@ -513,15 +524,17 @@ function createLearningGrowthSubmissionService(options = {}) {
       });
     }
     const submissionKind = submissionKindForStage(loaded.card, input, stage);
-    const mutated = await kanbanCardProvider.mutateCard({
-      action: "comment",
-      workspaceId,
-      cardId: cardIdValue,
-      comment: text,
-      author: cleanString(input.author) || "learning-growth",
-      learningGrowthSubmission: true,
-      submissionKind,
-    });
+    const mutated = shouldReusePendingSubmission(loaded.card, text, submissionKind)
+      ? { ok: true, id: cardIdValue, action: "comment", reusedLearningGrowthSubmission: true }
+      : await kanbanCardProvider.mutateCard({
+        action: "comment",
+        workspaceId,
+        cardId: cardIdValue,
+        comment: text,
+        author: cleanString(input.author) || "learning-growth",
+        learningGrowthSubmission: true,
+        submissionKind,
+      });
     if (!mutated?.ok) return createError(mutated?.status || 502, cleanString(mutated?.error || mutated?.result?.error || "Unable to submit learning task"));
     let evaluation;
     try {
