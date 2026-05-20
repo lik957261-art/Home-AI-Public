@@ -363,6 +363,8 @@ const state = {
   todoLearningGrowthSubmissionDrafts: {},
   todoLearningGrowthSubmissionSubmitting: {},
   todoLearningGrowthSubmissionFeedback: {},
+  todoLearningGrowthSubmissionProgress: {},
+  todoLearningGrowthSubmissionProgressTimers: {},
   todoLearningGrowthReflectionRecorders: {},
   todoLearningGrowthReflectionSubmitting: {},
   pendingReadingQuizTodoId: "",

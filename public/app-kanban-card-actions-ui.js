@@ -178,6 +178,71 @@ async function commentTodo(todoId, comment) {
   renderTodos();
 }
 
+const LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS = Object.freeze([
+  { at: 0, title: "\u4fdd\u5b58\u4f5c\u7b54", preview: "\u5199\u5165\u770b\u677f\u63d0\u4ea4\u8bb0\u5f55" },
+  { at: 2, title: "\u8c03\u7528\u6a21\u578b\u6279\u6539", preview: "learning-growth-task-evaluation" },
+  { at: 8, title: "\u7b49\u5f85\u6a21\u578b JSON \u8bc4\u4f30", preview: "\u6821\u9a8c\u5206\u6570\u3001\u4fee\u6539\u5efa\u8bae\u548c\u4e0b\u4e00\u6b65" },
+  { at: 16, title: "\u751f\u6210 Markdown \u56de\u6267", preview: "\u5199\u5165\u62a5\u544a\u3001\u53cd\u9988\u548c\u9644\u4ef6" },
+  { at: 30, title: "\u5237\u65b0\u5361\u7247\u72b6\u6001", preview: "\u540c\u6b65\u5b66\u4e60\u8fdb\u5ea6\u548c\u5956\u52b1\u95e8\u7981" },
+]);
+
+function learningGrowthProgressText(seconds) {
+  if (typeof runProgressDurationText === "function") return runProgressDurationText(seconds, { allowZero: true });
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  return minutes ? `${minutes}\u5206${rest}\u79d2` : `${rest}\u79d2`;
+}
+
+function renderLearningGrowthSubmissionProgressPanel(todoId) {
+  const progress = state.todoLearningGrowthSubmissionProgress?.[todoId];
+  if (!progress?.startAt) return "";
+  const elapsed = Math.max(0, Math.floor((Date.now() - progress.startAt) / 1000));
+  let activeIndex = 0;
+  LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS.forEach((step, index) => { if (elapsed >= step.at) activeIndex = index; });
+  const rows = LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS.map((step, index) => {
+    const status = index < activeIndex ? " done" : (index === activeIndex ? " active" : " pending");
+    return `<div class="run-progress-row${status}">
+      <span class="run-progress-dot" aria-hidden="true"></span>
+      <span class="run-progress-main">${escapeHtml(step.title)}</span>
+      <span class="run-progress-time">${escapeHtml(learningGrowthProgressText(step.at))}</span>
+      <span class="run-progress-preview">${escapeHtml(step.preview)}</span>
+    </div>`;
+  }).join("");
+  return `<aside class="run-progress-panel inline todo-learning-growth-submit-progress" aria-live="polite">
+    <div class="run-progress-head">
+      <strong>${escapeHtml("AI \u6279\u6539\u4e2d")}</strong>
+      <span data-run-progress-elapsed="${escapeHtml(String(progress.startAt))}">${escapeHtml(learningGrowthProgressText(elapsed))}</span>
+      <code>${escapeHtml(String(todoId || "").slice(-8) || "growth")}</code>
+    </div>
+    <div class="run-progress-rows">${rows}</div>
+  </aside>`;
+}
+
+function updateLearningGrowthSubmissionProgress(todoId) {
+  const escaped = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(todoId) : String(todoId).replace(/"/g, '\\"');
+  const node = document.querySelector(`[data-learning-growth-submission-progress="${escaped}"]`);
+  if (node) node.innerHTML = renderLearningGrowthSubmissionProgressPanel(todoId);
+  if (typeof syncRunProgressTicker === "function") syncRunProgressTicker(document);
+}
+
+function beginLearningGrowthSubmissionProgress(todoId) {
+  state.todoLearningGrowthSubmissionProgress = state.todoLearningGrowthSubmissionProgress || {};
+  state.todoLearningGrowthSubmissionProgressTimers = state.todoLearningGrowthSubmissionProgressTimers || {};
+  if (state.todoLearningGrowthSubmissionProgressTimers[todoId] && typeof window !== "undefined") window.clearInterval(state.todoLearningGrowthSubmissionProgressTimers[todoId]);
+  state.todoLearningGrowthSubmissionProgress[todoId] = { startAt: Date.now() };
+  updateLearningGrowthSubmissionProgress(todoId);
+  if (typeof window !== "undefined") state.todoLearningGrowthSubmissionProgressTimers[todoId] = window.setInterval(() => updateLearningGrowthSubmissionProgress(todoId), 1000);
+}
+
+function finishLearningGrowthSubmissionProgress(todoId) {
+  const timer = state.todoLearningGrowthSubmissionProgressTimers?.[todoId];
+  if (timer && typeof window !== "undefined") window.clearInterval(timer);
+  if (state.todoLearningGrowthSubmissionProgressTimers) delete state.todoLearningGrowthSubmissionProgressTimers[todoId];
+  if (state.todoLearningGrowthSubmissionProgress) delete state.todoLearningGrowthSubmissionProgress[todoId];
+  updateLearningGrowthSubmissionProgress(todoId);
+}
+
 function setLearningGrowthSubmissionFeedback(todoId, feedback = {}, options = {}) {
   state.todoLearningGrowthSubmissionFeedback = state.todoLearningGrowthSubmissionFeedback || {};
   state.todoLearningGrowthSubmissionFeedback[todoId] = feedback;
@@ -212,6 +277,7 @@ async function submitLearningGrowthTask(todoId, text) {
   }
   state.todoLearningGrowthSubmissionDrafts[todoId] = submission;
   state.todoLearningGrowthSubmissionSubmitting[todoId] = true;
+  beginLearningGrowthSubmissionProgress(todoId);
   setLearningGrowthSubmissionFeedback(todoId, { kind: "info", message: "\u5df2\u6536\u5230\u70b9\u51fb\uff0c\u6b63\u5728\u63d0\u4ea4\u4f5c\u7b54\u5e76\u7b49\u5f85 AI \u6279\u6539\uff0c\u53ef\u80fd\u9700\u8981 1-2 \u5206\u949f..." }, { disabled: true, renderFallback: true });
   try {
     const response = await api(boardActionApiPath(todoId, "learning-growth-submission"), {
@@ -241,6 +307,7 @@ async function submitLearningGrowthTask(todoId, text) {
     throw err;
   } finally {
     delete state.todoLearningGrowthSubmissionSubmitting[todoId];
+    finishLearningGrowthSubmissionProgress(todoId);
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
 }

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260520-growth-submit-feedback-v26";
+const CLIENT_VERSION = "20260520-growth-progress-v27";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -998,9 +998,12 @@ assert.equal(appJs.includes("\\u4e0d\\u8d70\\u9605\\u8bfb\\u5f55\\u97f3\\u6a21\\
 assert.match(appJs, /nextActionLabel/);
 assert.match(appJs, /Task instruction/);
 assert.match(appJs, /todoLearningGrowthSubmissionDrafts/);
+assert.match(appJs, /todoLearningGrowthSubmissionProgress/);
+assert.match(appJs, /todoLearningGrowthSubmissionProgressTimers/);
 assert.match(appJs, /todoLearningGrowthReflectionRecorders/);
 assert.match(appJs, /data-learning-growth-submission-form/);
 assert.match(appJs, /data-learning-growth-submission-input/);
+assert.match(appJs, /data-learning-growth-submission-progress/);
 assert.match(appJs, /data-submit-learning-growth-task/);
 assert.match(appJs, /data-submit-learning-growth-writing/);
 assert.match(appJs, /data-learning-growth-submission-count/);
@@ -1022,6 +1025,11 @@ assert.match(appJs, /\\u6279\\u6539\\u7ef4\\u5ea6/);
 assert.match(appJs, /rewrite_and_reflect/);
 assert.match(appJs, /function submitLearningGrowthTask\(todoId, text\)/);
 assert.match(appJs, /failBeforeSubmit/);
+assert.match(appJs, /LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS/);
+assert.match(appJs, /renderLearningGrowthSubmissionProgressPanel/);
+assert.match(appJs, /beginLearningGrowthSubmissionProgress\(todoId\)/);
+assert.match(appJs, /finishLearningGrowthSubmissionProgress\(todoId\)/);
+assert.match(appJs, /syncRunProgressTicker\(document\)/);
 assert.match(appJs, /function submitLearningGrowthWriting\(todoId, text\)/);
 assert.match(appJs, /validateSubmissionText\(submission/);
 assert.match(appJs, /function withdrawLearningGrowthSubmission\(todoId\)/);
@@ -1047,6 +1055,7 @@ assert.match(stylesCss, /\.todo-learning-growth-submission-text/);
 assert.match(stylesCss, /\.todo-learning-growth-submit-requirement/);
 assert.match(stylesCss, /\.todo-learning-growth-submit-requirement\.is-short/);
 assert.match(stylesCss, /\.todo-learning-growth-submit-requirement\.is-ready/);
+assert.match(stylesCss, /\.todo-learning-growth-submit-progress/);
 assert.match(stylesCss, /\.todo-learning-growth-withdraw/);
 assert.match(stylesCss, /\.todo-learning-growth-reflection/);
 assert.match(stylesCss, /\.todo-learning-growth-reflection-status/);

@@ -63,6 +63,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
       <p class="todo-detail-muted">${escapeHtml(evaluation ? "\u63d0\u4ea4\u4fee\u6539\u7248\u540e\u624d\u4f1a\u8fdb\u5165\u6700\u7ec8\u901a\u8fc7\u548c\u91d1\u5e01\u7ed3\u7b97\u3002" : "\u9996\u6b21\u63d0\u4ea4\u540e\u4f1a\u751f\u6210 AI \u53cd\u9988\u548c Markdown \u62a5\u544a\uff0c\u4e0d\u4f1a\u7acb\u523b\u7ed3\u7b97\u5b8c\u6210\u3002")}</p>
     </form>`
     : "";
+  const progressBlock = `<div data-learning-growth-submission-progress="${escapeHtml(todo.id)}">${typeof renderLearningGrowthSubmissionProgressPanel === "function" ? renderLearningGrowthSubmissionProgressPanel(todo.id) : ""}</div>`;
   const feedbackBlock = `<p class="todo-detail-muted ${feedback?.kind === "error" ? "todo-detail-error" : ""}" data-learning-growth-submission-feedback="${escapeHtml(todo.id)}">${escapeHtml(feedback?.message || "")}</p>`;
   const submittedText = submitted ? learningGrowthPublicSubmissionText(submitted, todo) : "", submittedBlock = submitted
     ? `<div class="todo-learning-growth-status" data-learning-growth-submission-status="${escapeHtml(submitted.status || "submitted")}">
@@ -98,7 +99,7 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     ${submittedBlock}
     ${evaluationBlock}
     ${reflectionBlock}
-    ${feedbackBlock}
+    ${progressBlock}${feedbackBlock}
     ${submissionForm}
   </section>`;
 }

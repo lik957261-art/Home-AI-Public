@@ -1855,6 +1855,23 @@ button {
   color: #50645f;
 }
 
+.todo-learning-growth-submit-progress {
+  margin: 8px 0 10px;
+  border-color: rgba(31, 111, 98, 0.22);
+}
+
+.todo-learning-growth-submit-progress .run-progress-row.pending {
+  opacity: 0.48;
+}
+
+.todo-learning-growth-submit-progress .run-progress-row.active .run-progress-main {
+  color: var(--accent);
+}
+
+.todo-learning-growth-submit-progress .run-progress-row.done .run-progress-dot {
+  background: rgba(31, 111, 98, 0.56);
+}
+
 .message-head {
   display: flex;
   align-items: center;
