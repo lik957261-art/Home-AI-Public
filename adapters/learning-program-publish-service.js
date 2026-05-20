@@ -59,10 +59,32 @@ function taskCardDescription(task = {}) {
   ].filter(Boolean).join("\n\n");
 }
 
-function learningGrowthKanbanCards(program = {}, draft = {}) {
+function prepareDraftForCardCreation(program = {}, draft = {}, options = {}) {
+  const jitTaskService = options.jitTaskService || null;
+  if (!jitTaskService || typeof jitTaskService.prepareTaskForCard !== "function") return draft;
+  const recentLearningState = options.recentLearningState || null;
+  let sequenceIndex = 0;
+  const dailyPlans = asArray(draft.dailyPlans).map((day) => Object.assign({}, day, {
+    tasks: asArray(day.tasks).map((task) => {
+      sequenceIndex += 1;
+      return jitTaskService.prepareTaskForCard({
+        program,
+        draft,
+        day,
+        task,
+        sequenceIndex,
+        recentLearningState,
+      });
+    }),
+  }));
+  return Object.assign({}, draft, { dailyPlans });
+}
+
+function learningGrowthKanbanCards(program = {}, draft = {}, options = {}) {
   const timeOfDay = normalizeTime(program.timeOfDay || "19:30");
+  const preparedDraft = prepareDraftForCardCreation(program, draft, options);
   const cards = [];
-  for (const [dayOffset, day] of asArray(draft.dailyPlans).entries()) {
+  for (const [dayOffset, day] of asArray(preparedDraft.dailyPlans).entries()) {
     const date = cleanString(day.date) || cleanString(draft.weekStart) || cleanString(program.startDate);
     for (const [taskOffset, task] of asArray(day.tasks).entries()) {
       const clientId = cleanString(task.taskId) || `growth-day-${dayOffset + 1}-task-${taskOffset + 1}`;
@@ -79,8 +101,8 @@ function learningGrowthKanbanCards(program = {}, draft = {}) {
         caseDependsOn: dependsOn,
         kanbanCaseDependsOn: dependsOn,
         learningProgramId: cleanString(program.programId),
-        learningDraftId: cleanString(draft.draftId),
-        learningTaskCardId: cleanString(draft.draftId) ? stableTaskCardId(draft.draftId, clientId) : "",
+        learningDraftId: cleanString(preparedDraft.draftId),
+        learningTaskCardId: cleanString(preparedDraft.draftId) ? stableTaskCardId(preparedDraft.draftId, clientId) : "",
         skillIds: asArray(task.skillIds).map(cleanString).filter(Boolean),
         templateId: cleanString(task.templateId),
         taskCardType: cleanString(task.taskCardType),
@@ -103,7 +125,7 @@ function learningGrowthKanbanCards(program = {}, draft = {}) {
       });
     }
   }
-  return cards;
+  return { cards, draft: preparedDraft };
 }
 
 function createLearningProgramPublishService(options = {}) {
@@ -112,6 +134,7 @@ function createLearningProgramPublishService(options = {}) {
     throw new Error("learning program publish service requires createKanbanStudyPlanCards");
   }
   const directoryMaterializationService = options.directoryMaterializationService || null;
+  const jitTaskService = options.jitTaskService || null;
 
   async function publish(input = {}) {
     const program = input.program || {};
@@ -132,7 +155,11 @@ function createLearningProgramPublishService(options = {}) {
       `Card creation skill: study-templates/${LEARNING_GROWTH_CARD_CREATION_SKILL_ID}`,
       compactTaskSummary(draft),
     ].filter(Boolean).join("\n");
-    const cards = learningGrowthKanbanCards(program, draft);
+    const recentLearningState = jitTaskService && typeof jitTaskService.recentLearningState === "function"
+      ? jitTaskService.recentLearningState({ program, draft, workspaceId, learnerId })
+      : null;
+    const prepared = learningGrowthKanbanCards(program, draft, { jitTaskService, recentLearningState });
+    const cards = prepared.cards;
     const result = await createKanbanStudyPlanCards(workspaceId, {
       workspaceId,
       studyTemplate: "learning-growth",
@@ -176,6 +203,7 @@ function createLearningProgramPublishService(options = {}) {
       learnerId,
       kanbanResult: result,
       materialized,
+      draft: prepared.draft,
     };
   }
 
@@ -186,4 +214,6 @@ function createLearningProgramPublishService(options = {}) {
 
 module.exports = {
   createLearningProgramPublishService,
+  learningGrowthKanbanCards,
+  prepareDraftForCardCreation,
 };

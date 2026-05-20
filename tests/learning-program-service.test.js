@@ -239,6 +239,62 @@ async function testRebuildDraftBlocksPublishedPlan() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+async function testPublishUsesPreparedDraftFromPublishService() {
+  const root = tempRoot();
+  const { service, repository } = createService(root, {
+    publishService: {
+      async publish(input) {
+        const preparedDraft = Object.assign({}, input.draft, {
+          dailyPlans: input.draft.dailyPlans.map((day) => Object.assign({}, day, {
+            tasks: day.tasks.map((task) => Object.assign({}, task, {
+              learnerInstruction: "JIT card instruction generated from recent summary-only state.",
+              instruction: "JIT card instruction generated from recent summary-only state.",
+              taskModel: Object.assign({}, task.taskModel || {}, {
+                learnerInstruction: "JIT card instruction generated from recent summary-only state.",
+                jitGeneration: {
+                  status: "ready",
+                  ready: true,
+                  mode: "summary_state_at_card_creation",
+                  privacyLevel: "summary_only",
+                },
+              }),
+            })),
+          })),
+        });
+        return {
+          ok: true,
+          draft: preparedDraft,
+          kanbanResult: {
+            ok: true,
+            cards: preparedDraft.dailyPlans.flatMap((day) => day.tasks).map((task, index) => ({
+              clientId: task.taskId,
+              card: { id: `jit-kanban-${index + 1}` },
+            })),
+          },
+        };
+      },
+    },
+  });
+  const program = service.createProgram({
+    workspaceId: "weixin_stephen",
+    learnerId: "weixin_stephen",
+    title: "Prepared draft publish",
+    goalSummary: "Improve English output.",
+    sourceBasisRefs: ["parent_config:summary"],
+    curriculumRefs: ["cefr-a2-b1-english-growth"],
+  });
+  const drafted = service.draftPlan(program.programId);
+  const published = await service.publishProgram(program.programId, { draftId: drafted.draft.draftId, force: true });
+  assert.equal(published.ok, true);
+  const savedDraft = repository.getPlanDraft(drafted.draft.draftId);
+  assert.match(savedDraft.dailyPlans[0].tasks[0].learnerInstruction, /JIT card instruction/);
+  assert.equal(published.taskCards[0].taskModel.jitGeneration.ready, true);
+  assert.equal(published.taskCards[0].kanbanCardId, "jit-kanban-1");
+  assert.doesNotMatch(JSON.stringify(published.taskCards[0]), /rawTranscript|questionText|answerKey|prompt|fullTranscript/);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 function testFoundationRecordsRejectPrivatePayloadKeys() {
   const root = tempRoot();
   const { service, repository } = createService(root);
@@ -304,6 +360,7 @@ function testSourceDirectoryBootstrapCreatesEditableFoundation() {
   await testBlockedDraftDoesNotPublish();
   testRebuildDraftRemovesOnlyUnpublishedPlan();
   await testRebuildDraftBlocksPublishedPlan();
+  await testPublishUsesPreparedDraftFromPublishService();
   testFoundationRecordsRejectPrivatePayloadKeys();
   testSourceDirectoryBootstrapCreatesEditableFoundation();
   console.log("learning program service tests passed");

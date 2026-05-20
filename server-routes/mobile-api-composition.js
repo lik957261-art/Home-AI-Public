@@ -17,6 +17,7 @@ const { createLearningProgramApiRoutes } = require("./learning-program-api-route
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
+const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
 const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
 const { createLearningGrowthReflectionService } = require("../adapters/learning-growth-reflection-service");
 const { createLearningGrowthSubmissionService } = require("../adapters/learning-growth-submission-service");
@@ -511,9 +512,13 @@ function createMobileApiComposition(deps = {}) {
     dataDir: deps.dataDir,
     dbPath: deps.learningProgramDbPath,
   });
+  const learningGrowthJitTaskService = createLearningGrowthJitTaskService({
+    listSources: (filters) => learningProgramRepository.listSources(filters),
+  });
   const learningProgramPublishService = createLearningProgramPublishService({
     createKanbanStudyPlanCards: (...args) => deps.getKanbanPlanCardCreationService().createKanbanStudyPlanCards(...args),
     directoryMaterializationService: learningGrowthDirectoryMaterializationService,
+    jitTaskService: learningGrowthJitTaskService,
   });
   const learningParentReviewRequestService = createLearningParentReviewRequestService({
     repository: learningProgramRepository,

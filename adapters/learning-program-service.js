@@ -379,10 +379,11 @@ function createLearningProgramService(options = {}) {
       throw err;
     }
     const result = await publishService.publish({ program, draft });
+    const resultDraft = result?.draft && result.draft.draftId === draft.draftId ? result.draft : draft;
     const now = new Date().toISOString();
-    const savedDraft = repository.savePlanDraft(Object.assign({}, draft, {
+    const savedDraft = repository.savePlanDraft(Object.assign({}, resultDraft, {
       status: result.ok ? "published" : "publish_failed",
-      publishedAt: result.ok ? now : draft.publishedAt,
+      publishedAt: result.ok ? now : resultDraft.publishedAt,
     }));
     const publication = repository.savePublication({
       publicationId: createId("lpub"),

@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
+const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
 
 async function run() {
   const calls = [];
@@ -116,6 +117,69 @@ async function run() {
   assert.equal(calls[0].input.cards[1].openAt, "2026-05-18 19:30");
   assert.doesNotMatch(calls[0].input.cards[1].description, /Complete this task in the Fanfan Growth flow/i);
   assert.match(calls[0].input.sourceText, /Card creation skill: study-templates\/learning-growth-card-creation/);
+
+  const jitCalls = [];
+  const jitService = createLearningGrowthJitTaskService({
+    nowIso: () => "2026-05-20T03:00:00.000Z",
+    listSources(filters) {
+      jitCalls.push(filters);
+      return [{
+        sourceRef: "progress:grammar-1",
+        sourceType: "cleaned_history",
+        title: "Recent grammar feedback",
+        summary: "Summary only: grammar repair was weak and the revision missed tense agreement.",
+        tags: ["grammar", "revision"],
+        rawPrompt: "must-not-leak",
+        answerKey: "must-not-leak",
+      }];
+    },
+  });
+  const jitPublishCalls = [];
+  const jitPublishService = createLearningProgramPublishService({
+    jitTaskService: jitService,
+    async createKanbanStudyPlanCards(workspaceId, input) {
+      jitPublishCalls.push({ workspaceId, input });
+      return { ok: true, cards: input.cards.map((card) => ({ clientId: card.clientId, card: { id: `kanban-${card.sequenceIndex}` } })) };
+    },
+  });
+  const jitResult = await jitPublishService.publish({
+    program: {
+      programId: "program-jit",
+      workspaceId: "weixin_stephen",
+      learnerId: "weixin_stephen",
+      title: "Adaptive English growth",
+      domain: "english",
+      focusAreas: ["grammar", "writing"],
+    },
+    draft: {
+      draftId: "draft-jit",
+      dailyPlans: [{
+        date: "2026-05-20",
+        tasks: [{
+          taskId: "grammar-task",
+          title: "Grammar repair",
+          learnerInstruction: "Repair the target grammar pattern in short English expressions.",
+          skillIds: ["english_grammar_in_expression"],
+          taskModel: {
+            version: "learning-task-model-v1",
+            skillId: "english_grammar_in_expression",
+            activityType: "grammar",
+            learnerInstruction: "Repair the target grammar pattern.",
+          },
+        }],
+      }],
+    },
+  });
+  assert.equal(jitResult.ok, true);
+  assert.equal(jitCalls.length, 1);
+  assert.equal(jitPublishCalls.length, 1);
+  const jitCard = jitPublishCalls[0].input.cards[0];
+  assert.match(jitCard.description, /Personalized focus for this card/);
+  assert.match(jitCard.description, /repair the most recent weak point/i);
+  assert.equal(jitCard.taskModel.jitGeneration.status, "ready");
+  assert.deepEqual(jitCard.taskModel.jitGeneration.sourceRefs, ["progress:grammar-1"]);
+  assert.equal(jitResult.draft.dailyPlans[0].tasks[0].taskModel.jitGeneration.ready, true);
+  assert.doesNotMatch(JSON.stringify(jitCard), /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);
 }
 
 run().then(() => {

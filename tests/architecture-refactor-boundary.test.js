@@ -55,6 +55,7 @@ const curriculumReferenceService = require("../adapters/curriculum-reference-ser
 const learnerProfileService = require("../adapters/learner-profile-service");
 const learningEnglishTemplatePackService = require("../adapters/learning-english-template-pack-service");
 const learningGrowthService = require("../adapters/learning-growth-service");
+const learningGrowthJitTaskService = require("../adapters/learning-growth-jit-task-service");
 const learningGrowthKanbanTaskService = require("../adapters/learning-growth-kanban-task-service");
 const learningGrowthProgressRecordService = require("../adapters/learning-growth-progress-record-service");
 const learningGrowthProgressSyncService = require("../adapters/learning-growth-progress-sync-service");
@@ -253,6 +254,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningEnglishTemplatePackService.englishTaskModelContract, "function");
   assert.equal(typeof learningGrowthService.createLearningGrowthService, "function");
   assert.equal(typeof learningGrowthService.buildLearningGrowthOverview, "function");
+  assert.equal(typeof learningGrowthJitTaskService.createLearningGrowthJitTaskService, "function");
   assert.equal(typeof learningGrowthKanbanTaskService.createLearningGrowthKanbanTaskService, "function");
   assert.equal(typeof learningGrowthProgressRecordService.createLearningGrowthProgressRecordService, "function");
   assert.equal(typeof learningGrowthProgressSyncService.createLearningGrowthProgressSyncService, "function");
