@@ -196,23 +196,33 @@ function wireTodoPanel(root) {
       || form.querySelector("[data-submit-learning-growth-task]")?.dataset?.submitLearningGrowthTask
       || form.querySelector("[data-submit-learning-growth-writing]")?.dataset?.submitLearningGrowthWriting
       || "";
-    form.querySelector("#todoLearningGrowthSubmissionText")?.addEventListener("input", (event) => {
+    const input = () => form.querySelector("[data-learning-growth-submission-input]") || form.querySelector("#todoLearningGrowthSubmissionText");
+    form.querySelector("[data-learning-growth-submission-input], #todoLearningGrowthSubmissionText")?.addEventListener("input", (event) => {
       const todoId = resolveTodoId();
       if (todoId) state.todoLearningGrowthSubmissionDrafts[todoId] = event.target.value || "";
       const counter = todoId ? form.querySelector("[data-learning-growth-submission-count]") : null;
       if (counter && window.HermesLearningGrowthTaskUi?.submissionTextStats) {
         const stats = window.HermesLearningGrowthTaskUi.submissionTextStats(event.target.value || "");
         const guard = { minWords: counter.dataset.minWords, minChars: counter.dataset.minChars };
+        const validation = typeof window.HermesLearningGrowthTaskUi.validateSubmissionText === "function"
+          ? window.HermesLearningGrowthTaskUi.validateSubmissionText(event.target.value || "", guard)
+          : null;
         counter.textContent = window.HermesLearningGrowthTaskUi.submissionRequirementLabel?.(guard, stats)
           || `At least ${guard.minWords} words / ${guard.minChars} characters; current ${stats.words} words / ${stats.chars} characters.`;
+        counter.classList.toggle("is-ready", Boolean(validation?.ok));
+        counter.classList.toggle("is-short", Boolean(validation && !validation.ok && String(event.target.value || "").trim()));
       }
     });
-    form.addEventListener("submit", (event) => {
+    const submit = (event) => {
       event.preventDefault();
       event.stopPropagation();
       const todoId = resolveTodoId();
-      const text = form.querySelector("#todoLearningGrowthSubmissionText")?.value || "";
+      const text = input()?.value || "";
       submitLearningGrowthTask(todoId, text).catch(showError);
+    };
+    form.addEventListener("submit", submit);
+    form.querySelectorAll("[data-submit-learning-growth-task], [data-submit-learning-growth-writing]").forEach((button) => {
+      button.addEventListener("click", submit);
     });
   });
   root.querySelectorAll("[data-withdraw-learning-growth-submission]").forEach((button) => {

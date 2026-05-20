@@ -6931,6 +6931,16 @@ button.directory-alias-chip {
   font-size: 12px;
 }
 
+.todo-learning-growth-submit-requirement.is-short {
+  color: #9b3d35;
+  font-weight: 700;
+}
+
+.todo-learning-growth-submit-requirement.is-ready {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .todo-learning-growth-withdraw {
   display: flex;
   align-items: center;

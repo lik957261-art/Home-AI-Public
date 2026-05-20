@@ -28,7 +28,16 @@ function testSpokenReflectionActionLabel() {
   assert.equal(TaskUi.nextActionLabel("submit_spoken_reflection"), "\u5f55\u97f3\u590d\u76d8");
 }
 
+function testWritingSubmissionGuardAndLiveLabel() {
+  const guard = TaskUi.submissionGuard(todoWithActivity("writing"));
+  assert.equal(guard.minWords, 80);
+  assert.equal(guard.minChars, 300);
+  assert.match(TaskUi.submissionRequirementLabel(guard, { words: 79, chars: 290 }), /\u672a\u8fbe\u6807/);
+  assert.match(TaskUi.submissionRequirementLabel(guard, { words: 80, chars: 300 }), /\u5df2\u8fbe\u6807/);
+}
+
 testNewEnglishTemplateActivityLabels();
 testNewEnglishTemplateSubmissionPrompts();
 testSpokenReflectionActionLabel();
+testWritingSubmissionGuardAndLiveLabel();
 console.log("app learning growth task UI tests passed");

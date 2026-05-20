@@ -240,7 +240,7 @@ function submissionKindForStage(card = {}, input = {}, stage = "draft") {
 
 const DEFAULT_SUBMISSION_GUARDS = Object.freeze({
   default: Object.freeze({ minWords: 40, minChars: 200 }),
-  writing: Object.freeze({ minWords: 80, minChars: 450 }),
+  writing: Object.freeze({ minWords: 80, minChars: 300 }),
   rewriting: Object.freeze({ minWords: 70, minChars: 380 }),
   vocabulary: Object.freeze({ minWords: 40, minChars: 220 }),
   grammar: Object.freeze({ minWords: 35, minChars: 180 }),

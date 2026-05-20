@@ -175,6 +175,7 @@ async function testTooShortSubmissionIsRejectedBeforeMutation() {
   assert.equal(result.ok, false);
   assert.equal(result.status, 400);
   assert.equal(result.submissionGuard.activityType, "writing");
+  assert.equal(result.submissionGuard.minChars, 300);
   assert.equal(result.submissionStats.chars, 1);
   assert.deepEqual(calls.map((call) => call.type), ["list"]);
   assert.equal(validateSubmissionText("Q", resolveSubmissionGuard({ activityType: "writing" })).ok, false);

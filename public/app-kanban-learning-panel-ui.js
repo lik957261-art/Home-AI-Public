@@ -42,6 +42,8 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const guard = learningGrowthSubmissionGuard(todo, evaluation || {});
   const draftStats = learningGrowthSubmissionStats(draft);
   const requirementText = learningGrowthSubmissionRequirementLabel(guard, draftStats);
+  const draftValidation = typeof LearningGrowthTaskUi.validateSubmissionText === "function" ? LearningGrowthTaskUi.validateSubmissionText(draft, guard) : null;
+  const requirementClass = `todo-learning-growth-submit-requirement${draft ? (draftValidation?.ok ? " is-ready" : " is-short") : ""}`;
   const details = [
     taskModel ? `<div class="todo-detail-chip-row" data-learning-growth-task-model="${escapeHtml(taskModel.skillId || "")}"><span>${escapeHtml(typeof LearningGrowthTaskUi.activityLabel === "function" ? LearningGrowthTaskUi.activityLabel(taskModel.activityType) : (taskModel.activityType || "\u7ec3\u4e60"))}</span><span>${escapeHtml(typeof LearningGrowthTaskUi.nextActionLabel === "function" ? LearningGrowthTaskUi.nextActionLabel(nextAction) : nextAction)}</span>${taskModel.plannedMinutes ? `<span>${escapeHtml(String(taskModel.plannedMinutes))} min</span>` : ""}</div>` : "",
     looksGenericSubmitCard ? `<p class="todo-detail-muted">\u8fd9\u5f20\u6210\u957f\u5361\u8fd8\u6ca1\u6709\u5177\u4f53\u4efb\u52a1\u8bf4\u660e\uff0c\u8bf7\u91cd\u65b0\u751f\u6210\u6216\u91cd\u65b0\u4e0b\u53d1\u8ba1\u5212\u540e\u518d\u63d0\u4ea4\u3002</p>` : "",
@@ -53,15 +55,15 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
   const submissionForm = canSubmit
     ? `<form class="todo-learning-growth-submit" data-learning-growth-submission-form="${escapeHtml(todo.id)}">
       <label class="todo-panel-label" for="todoLearningGrowthSubmissionText">${escapeHtml(evaluation ? "\u4e0b\u4e00\u7248\u4f5c\u7b54" : "\u672c\u6b21\u4f5c\u7b54")}</label>
-      <textarea id="todoLearningGrowthSubmissionText" class="todo-input todo-comment-textarea" rows="7" placeholder="${escapeHtml(learningGrowthSubmissionPrompt(evaluation || {}, todo))}" ${submitting ? "disabled" : ""}>${escapeHtml(draft)}</textarea>
-      <p class="todo-learning-growth-submit-requirement" data-learning-growth-submission-count="${escapeHtml(todo.id)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}">${escapeHtml(requirementText)}</p>
+      <textarea id="todoLearningGrowthSubmissionText" data-learning-growth-submission-input="${escapeHtml(todo.id)}" class="todo-input todo-comment-textarea" rows="7" placeholder="${escapeHtml(learningGrowthSubmissionPrompt(evaluation || {}, todo))}" ${submitting ? "disabled" : ""}>${escapeHtml(draft)}</textarea>
+      <p class="${escapeHtml(requirementClass)}" data-learning-growth-submission-count="${escapeHtml(todo.id)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}">${escapeHtml(requirementText)}</p>
       <div class="todo-comment-actions">
         <button type="submit" data-submit-learning-growth-task="${escapeHtml(todo.id)}" data-submit-learning-growth-writing="${escapeHtml(todo.id)}" ${submitting ? "disabled" : ""}>${escapeHtml(submitLabel)}</button>
       </div>
       <p class="todo-detail-muted">${escapeHtml(evaluation ? "\u63d0\u4ea4\u4fee\u6539\u7248\u540e\u624d\u4f1a\u8fdb\u5165\u6700\u7ec8\u901a\u8fc7\u548c\u91d1\u5e01\u7ed3\u7b97\u3002" : "\u9996\u6b21\u63d0\u4ea4\u540e\u4f1a\u751f\u6210 AI \u53cd\u9988\u548c Markdown \u62a5\u544a\uff0c\u4e0d\u4f1a\u7acb\u523b\u7ed3\u7b97\u5b8c\u6210\u3002")}</p>
     </form>`
     : "";
-  const feedbackBlock = feedback?.message ? `<p class="todo-detail-muted ${feedback.kind === "error" ? "todo-detail-error" : ""}">${escapeHtml(feedback.message)}</p>` : "";
+  const feedbackBlock = `<p class="todo-detail-muted ${feedback?.kind === "error" ? "todo-detail-error" : ""}" data-learning-growth-submission-feedback="${escapeHtml(todo.id)}">${escapeHtml(feedback?.message || "")}</p>`;
   const submittedText = submitted ? learningGrowthPublicSubmissionText(submitted, todo) : "", submittedBlock = submitted
     ? `<div class="todo-learning-growth-status" data-learning-growth-submission-status="${escapeHtml(submitted.status || "submitted")}">
       <strong>\u6267\u884c\u8005\u539f\u59cb\u63d0\u4ea4</strong>
@@ -96,8 +98,8 @@ function renderKanbanLearningGrowthTodoPanel(todo) {
     ${submittedBlock}
     ${evaluationBlock}
     ${reflectionBlock}
-    ${submissionForm}
     ${feedbackBlock}
+    ${submissionForm}
   </section>`;
 }
 

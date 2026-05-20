@@ -178,22 +178,41 @@ async function commentTodo(todoId, comment) {
   renderTodos();
 }
 
+function setLearningGrowthSubmissionFeedback(todoId, feedback = {}, options = {}) {
+  state.todoLearningGrowthSubmissionFeedback = state.todoLearningGrowthSubmissionFeedback || {};
+  state.todoLearningGrowthSubmissionFeedback[todoId] = feedback;
+  const escaped = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(todoId) : String(todoId).replace(/"/g, '\\"');
+  const node = document.querySelector(`[data-learning-growth-submission-feedback="${escaped}"]`);
+  if (!node) {
+    if (options.renderFallback) renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+    return;
+  }
+  node.textContent = feedback.message || "";
+  node.classList.toggle("todo-detail-error", feedback.kind === "error");
+  const form = node.closest("[data-learning-growth-kanban-card]")?.querySelector("[data-learning-growth-submission-form]");
+  form?.querySelectorAll("textarea, button").forEach((item) => { item.disabled = Boolean(options.disabled); });
+}
+
 async function submitLearningGrowthTask(todoId, text) {
   if (!todoId) return;
+  function failBeforeSubmit(message) {
+    const textValue = message || "\u6210\u957f\u4efb\u52a1\u63d0\u4ea4\u5931\u8d25";
+    setLearningGrowthSubmissionFeedback(todoId, { kind: "error", message: textValue }, { renderFallback: true });
+    throw new Error(textValue);
+  }
   const card = kanbanCardById(todoId);
-  if (card && !kanbanCan(card, "canComment")) throw new Error("No permission to submit this Growth task");
+  if (card && !kanbanCan(card, "canComment")) failBeforeSubmit("No permission to submit this Growth task");
   if (state.todoLearningGrowthSubmissionSubmitting?.[todoId]) return;
   const submission = String(text || state.todoLearningGrowthSubmissionDrafts?.[todoId] || "").trim();
-  if (!submission) throw new Error("\u8bf7\u5148\u5199\u4e0b\u672c\u6b21\u4f5c\u7b54\u5185\u5bb9");
+  if (!submission) failBeforeSubmit("\u8bf7\u5148\u5199\u4e0b\u672c\u6b21\u4f5c\u7b54\u5185\u5bb9");
   const growthUi = window.HermesLearningGrowthTaskUi || {};
   if (card && typeof growthUi.submissionGuard === "function" && typeof growthUi.validateSubmissionText === "function") {
     const validation = growthUi.validateSubmissionText(submission, growthUi.submissionGuard(card, card.learningGrowthEvaluation || {}));
-    if (!validation.ok) throw new Error(validation.message || "\u4f5c\u7b54\u8fc7\u77ed\uff0c\u8bf7\u8865\u5145\u540e\u518d\u63d0\u4ea4\u3002");
+    if (!validation.ok) failBeforeSubmit(validation.message || "\u4f5c\u7b54\u8fc7\u77ed\uff0c\u8bf7\u8865\u5145\u540e\u518d\u63d0\u4ea4\u3002");
   }
   state.todoLearningGrowthSubmissionDrafts[todoId] = submission;
   state.todoLearningGrowthSubmissionSubmitting[todoId] = true;
-  state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "info", message: "\u6b63\u5728\u63d0\u4ea4\u672c\u6b21\u4f5c\u7b54..." };
-  renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  setLearningGrowthSubmissionFeedback(todoId, { kind: "info", message: "\u5df2\u6536\u5230\u70b9\u51fb\uff0c\u6b63\u5728\u63d0\u4ea4\u4f5c\u7b54\u5e76\u7b49\u5f85 AI \u6279\u6539\uff0c\u53ef\u80fd\u9700\u8981 1-2 \u5206\u949f..." }, { disabled: true, renderFallback: true });
   try {
     const response = await api(boardActionApiPath(todoId, "learning-growth-submission"), {
       method: "POST",
@@ -218,7 +237,7 @@ async function submitLearningGrowthTask(todoId, text) {
     showPushToast("\u6210\u957f\u4efb\u52a1\u4f5c\u7b54\u5df2\u63d0\u4ea4", "success");
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   } catch (err) {
-    state.todoLearningGrowthSubmissionFeedback[todoId] = { kind: "error", message: err.message || String(err) };
+    setLearningGrowthSubmissionFeedback(todoId, { kind: "error", message: err.message || String(err) }, { renderFallback: true });
     throw err;
   } finally {
     delete state.todoLearningGrowthSubmissionSubmitting[todoId];

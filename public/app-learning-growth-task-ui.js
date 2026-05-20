@@ -59,7 +59,7 @@
 
   const DEFAULT_SUBMISSION_GUARDS = Object.freeze({
     default: Object.freeze({ minWords: 40, minChars: 200 }),
-    writing: Object.freeze({ minWords: 80, minChars: 450 }),
+    writing: Object.freeze({ minWords: 80, minChars: 300 }),
     rewriting: Object.freeze({ minWords: 70, minChars: 380 }),
     vocabulary: Object.freeze({ minWords: 40, minChars: 220 }),
     grammar: Object.freeze({ minWords: 35, minChars: 180 }),
@@ -127,7 +127,13 @@
     const minChars = positiveInt(guard.minChars, 0);
     const prefix = `\u81f3\u5c11 ${minWords} \u4e2a\u82f1\u6587\u8bcd / ${minChars} \u4e2a\u6709\u6548\u5b57\u7b26`;
     if (!stats) return prefix;
-    return `${prefix}\uff1b\u5f53\u524d ${stats.words} \u8bcd / ${stats.chars} \u5b57\u7b26\u3002`;
+    const missingWords = Math.max(0, minWords - Number(stats.words || 0));
+    const missingChars = Math.max(0, minChars - Number(stats.chars || 0));
+    if (!missingWords && !missingChars) return `\u5df2\u8fbe\u6807\uff1a${prefix}\uff1b\u5f53\u524d ${stats.words} \u8bcd / ${stats.chars} \u5b57\u7b26\u3002`;
+    const gaps = [];
+    if (missingWords) gaps.push(`\u8fd8\u5dee ${missingWords} \u4e2a\u82f1\u6587\u8bcd`);
+    if (missingChars) gaps.push(`\u8fd8\u5dee ${missingChars} \u4e2a\u6709\u6548\u5b57\u7b26`);
+    return `\u672a\u8fbe\u6807\uff1a${gaps.join("\uff0c")}\uff1b\u8981\u6c42 ${prefix}\uff1b\u5f53\u524d ${stats.words} \u8bcd / ${stats.chars} \u5b57\u7b26\u3002`;
   }
 
   function canWithdrawSubmission(submitted = {}, todo = {}, evaluation = {}) {
