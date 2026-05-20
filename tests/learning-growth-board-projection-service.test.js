@@ -102,6 +102,45 @@ function testBoardShowsOnlyCurrentFutureSequenceTask() {
   assert.equal(board.summary.sequencePolicy, "current_card_only_then_unlock_next");
 }
 
+function testBoardPrefersFullNativeTaskMetadataOverExecutorSummary() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        {
+          taskCardId: "native-retell-1",
+          programId: "program-retell",
+          title: "Executor summary",
+          status: "published",
+          plannedDate: "2026-05-20",
+        },
+      ],
+      taskCards: [
+        {
+          taskCardId: "native-retell-1",
+          programId: "program-retell",
+          sequenceGroupId: "evergreen:english-random-reading-retell",
+          sequenceIndex: 1,
+          title: "Full native retell",
+          status: "published",
+          plannedDate: "2026-05-20",
+          learnerInstruction: "Read a new short passage and retell the main idea with two accurate details.",
+        },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.equal(board.cards.length, 1);
+  assert.equal(board.cards[0].taskCardId, "native-retell-1");
+  assert.equal(board.cards[0].title, "Full native retell");
+  assert.equal(board.cards[0].sequenceGroupId, "evergreen:english-random-reading-retell");
+  assert.equal(board.cards[0].sequenceIndex, 1);
+  assert.match(board.cards[0].instructionPreview, /short passage/);
+}
+
 function testBoardGroupsDuplicateDraftsByProgram() {
   const sequenceOverview = Object.assign({}, overview(), {
     programs: Object.assign({}, overview().programs, {
@@ -225,6 +264,7 @@ testBoardClassifiesNativeTasksIntoLanes();
 testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();
+testBoardPrefersFullNativeTaskMetadataOverExecutorSummary();
 testBoardGroupsDuplicateDraftsByProgram();
 testBoardProjectsLegacyTodosAsReadOnlyOpenTasks();
 testBoardShowsLockedCurrentCardBeforeCompletionWindow();

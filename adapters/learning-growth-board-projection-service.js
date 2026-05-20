@@ -254,7 +254,7 @@ function defaultLanes() {
 function mergeTasks(programs = {}) {
   const seen = new Set();
   const tasks = [];
-  for (const task of arrayValue(programs.executableTasks).concat(arrayValue(programs.taskCards))) {
+  for (const task of arrayValue(programs.taskCards).concat(arrayValue(programs.executableTasks))) {
     const id = cleanString(task?.taskCardId || task?.id);
     if (!id || seen.has(id)) continue;
     seen.add(id);
