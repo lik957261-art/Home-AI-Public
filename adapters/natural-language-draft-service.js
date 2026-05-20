@@ -17,6 +17,40 @@ function arrayOfStrings(value, limit = 12) {
   return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean)).slice(0, limit);
 }
 
+function parseFirstBalancedJsonObject(value) {
+  const text = String(value || "");
+  for (let start = text.indexOf("{"); start >= 0; start = text.indexOf("{", start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < text.length; index += 1) {
+      const char = text[index];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === "\"") inString = false;
+        continue;
+      }
+      if (char === "\"") {
+        inString = true;
+        continue;
+      }
+      if (char === "{") depth += 1;
+      else if (char === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(start, index + 1));
+          } catch (_) {
+            break;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function extractJsonObject(text, label = "draft") {
   const raw = String(text || "").trim();
   if (!raw) throw new Error(`Hermes model returned an empty ${label}`);
@@ -25,9 +59,8 @@ function extractJsonObject(text, label = "draft") {
   try {
     return JSON.parse(candidate);
   } catch (_) {
-    const start = candidate.indexOf("{");
-    const end = candidate.lastIndexOf("}");
-    if (start >= 0 && end > start) return JSON.parse(candidate.slice(start, end + 1));
+    const parsed = parseFirstBalancedJsonObject(candidate);
+    if (parsed) return parsed;
     throw new Error(`Hermes model did not return valid JSON for the ${label}`);
   }
 }

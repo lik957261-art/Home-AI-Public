@@ -40,6 +40,8 @@ async function main() {
 {
   assert.deepEqual(extractJsonObject("```json\n{\"ok\":true}\n```"), { ok: true });
   assert.deepEqual(extractJsonObject("prefix {\"value\":3} suffix"), { value: 3 });
+  assert.deepEqual(extractJsonObject("{\"value\":3}\n\nextra explanation {\"ignored\":true}"), { value: 3 });
+  assert.deepEqual(extractJsonObject("```json\n{\"value\":{\"nested\":true}}\n```\n\nDone."), { value: { nested: true } });
   assert.throws(() => extractJsonObject("", "draft"), /empty draft/);
 }
 
