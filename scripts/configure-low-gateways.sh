@@ -403,6 +403,8 @@ weather_toolset_block=""
 weather_api_toolset_block=""
 http_toolset_block=""
 http_api_toolset_block=""
+cronjob_mobile_toolset_block=""
+cronjob_mobile_api_toolset_block=""
 plugin_enabled_lines=""
 if [ "$weather_plugin_enabled" = "1" ]; then
   weather_toolset_block="  - weather"
@@ -427,6 +429,8 @@ if [ "$image_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
 fi
 if [ "$cronjob_plugin_enabled" = "1" ]; then
+  cronjob_mobile_toolset_block="  - cronjob_mobile"
+  cronjob_mobile_api_toolset_block="    - cronjob_mobile"
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-cronjob"$'\n'
 fi
 plugin_block="  enabled: []"
@@ -460,6 +464,7 @@ toolsets:
   - clarify
 ${weather_toolset_block}
 ${http_toolset_block}
+${cronjob_mobile_toolset_block}
 platform_toolsets:
   api_server:
     - web
@@ -481,6 +486,7 @@ platform_toolsets:
     - clarify
 ${weather_api_toolset_block}
 ${http_api_toolset_block}
+${cronjob_mobile_api_toolset_block}
 agent:
   max_turns: 60
   reasoning_effort: medium
@@ -548,6 +554,8 @@ for idx in $(seq 1 "$low_gateway_count"); do
   weather_api_toolset_block=""
   http_toolset_block=""
   http_api_toolset_block=""
+  cronjob_mobile_toolset_block=""
+  cronjob_mobile_api_toolset_block=""
   plugin_enabled_lines=""
   if [ "$weather_plugin_enabled" = "1" ]; then
     weather_toolset_block="  - weather"
@@ -572,6 +580,8 @@ for idx in $(seq 1 "$low_gateway_count"); do
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
   fi
   if [ "$cronjob_plugin_enabled" = "1" ]; then
+    cronjob_mobile_toolset_block="  - cronjob_mobile"
+    cronjob_mobile_api_toolset_block="    - cronjob_mobile"
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-cronjob"$'\n'
   fi
   plugin_block="  enabled: []"
@@ -622,6 +632,7 @@ toolsets:
   - clarify
 ${weather_toolset_block}
 ${http_toolset_block}
+${cronjob_mobile_toolset_block}
 ${outlook_toolset_block}
 platform_toolsets:
   api_server:
@@ -644,6 +655,7 @@ platform_toolsets:
     - clarify
 ${weather_api_toolset_block}
 ${http_api_toolset_block}
+${cronjob_mobile_api_toolset_block}
 ${outlook_api_toolset_block}
 agent:
   max_turns: 60

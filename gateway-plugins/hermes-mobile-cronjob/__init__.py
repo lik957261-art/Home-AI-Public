@@ -15,10 +15,10 @@ MAX_BODY_BYTES = 2 * 1024 * 1024
 
 
 MOBILE_CRONJOB_SCHEMA = {
-    "name": "cronjob",
+    "name": "cronjob_mobile",
     "description": (
         "Manage current-principal Hermes Mobile automations through the live Mobile bridge host. "
-        "This overrides the raw profile-local cronjob tool in Hermes Mobile low Gateway profiles. "
+        "Use this instead of raw profile-local cronjob for Hermes Mobile automation jobs. "
         "owner_principal_id is required and must match the current run Principal."
     ),
     "parameters": {
@@ -245,11 +245,10 @@ def mobile_cronjob(args: dict[str, Any], **_: Any) -> str:
 
 def register(ctx: Any) -> None:
     ctx.register_tool(
-        name="cronjob",
+        name="cronjob_mobile",
         handler=mobile_cronjob,
         schema=MOBILE_CRONJOB_SCHEMA,
-        toolset="cronjob",
+        toolset="cronjob_mobile",
         description="Manage current-principal Hermes Mobile automations through the live Mobile bridge.",
         emoji="automation",
-        override=True,
     )
