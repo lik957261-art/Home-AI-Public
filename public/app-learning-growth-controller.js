@@ -1,6 +1,5 @@
 "use strict";
 
-
 function learningGrowthLearnerWorkspaceId() {
   const selected = String(state.selectedWorkspaceId || "").trim();
   const authWorkspace = String(state.auth?.workspaceId || "").trim();
@@ -91,6 +90,7 @@ function renderLearningCoinsView() {
     parentReport: state.learningParentReport,
     parentReportLoading: state.learningParentReportLoading,
     parentReportError: state.learningParentReportError,
+    aiSummary: state.learningAiSummary, aiSummaryLoading: state.learningAiSummaryLoading, aiSummaryError: state.learningAiSummaryError,
   });
   wireLearningCoinsView();
   updateNavigationControls();
@@ -588,6 +588,7 @@ function wireLearningCoinsView() {
     button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
   });
   $("conversation")?.querySelector("[data-learning-close-growth-task]")?.addEventListener("click", () => { state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsOpen = false; renderLearningCoinsView(); });
+  window.HermesLearningGrowthAiController?.wireLearningGrowthAi?.();
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);
   });

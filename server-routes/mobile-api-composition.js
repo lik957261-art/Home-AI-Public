@@ -566,6 +566,7 @@ function createMobileApiComposition(deps = {}) {
     publishService: learningProgramPublishService,
     repository: learningProgramRepository,
     requireModelForPlanDecomposition: true,
+    requireModelForTaskSeriesRecommendation: true,
     sanitizePolicy: deps.sanitizePolicy,
   });
   const learningGrowthLegacyTodoTaskService = createLearningGrowthLegacyTodoTaskService({

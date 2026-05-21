@@ -7858,6 +7858,53 @@ button.directory-alias-chip {
   font-weight: 700;
 }
 
+.learning-ai-summary-panel {
+  gap: 12px;
+}
+
+.learning-ai-summary-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.learning-ai-recommendation-list {
+  display: grid;
+  gap: 10px;
+}
+
+.learning-ai-recommendation-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.learning-ai-recommendation-card > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.learning-ai-recommendation-card strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.learning-ai-recommendation-card span,
+.learning-ai-recommendation-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.learning-ai-recommendation-card button {
+  justify-self: start;
+}
+
 .learning-growth-tabs {
   display: grid;
   gap: 14px;

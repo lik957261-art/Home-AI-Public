@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-growth-board-clean-v51";
+const CLIENT_VERSION = "20260521-growth-ai-recommend-v52";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -82,6 +82,7 @@ const appLearningProgramUiJs = fs.readFileSync(path.join(repoRoot, "public", "ap
 const appLearningGrowthUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ui.js"), "utf8");
 const appLearningGrowthTaskUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-task-ui.js"), "utf8");
 const appLearningGrowthControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-controller.js"), "utf8");
+const appLearningGrowthAiControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ai-controller.js"), "utf8");
 const appLearningNativeGrowthSubmissionControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-native-growth-submission-controller.js"), "utf8");
 const appApiClientJs = fs.readFileSync(path.join(repoRoot, "public", "app-api-client.js"), "utf8");
 const appMessageActionsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-message-actions-ui.js"), "utf8");
@@ -982,10 +983,21 @@ assert.match(appLearningGrowthTaskUiJs, /minWords/);
 assert.match(appLearningGrowthUiJs, /renderLearningGrowthTabs/);
 assert.match(appLearningGrowthUiJs, /\{ id: "new-task"/);
 assert.match(appLearningGrowthUiJs, /\{ id: "settings"/);
+assert.match(appLearningGrowthUiJs, /\{ id: "ai-summary"/);
 assert.match(appLearningGrowthUiJs, /\{ id: "reward-settlement"/);
+assert.match(appLearningGrowthUiJs, /data-learning-ai-summary-recommendations/);
+assert.match(appLearningGrowthUiJs, /data-learning-ai-recommendation-draft/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-settings-page/);
 assert.match(appLearningGrowthControllerJs, /openLearningGrowthSettingsPage/);
+assert.match(appLearningGrowthControllerJs, /HermesLearningGrowthAiController/);
 assert.match(appJs, /learningGrowthSettingsOpen/);
+assert.match(appJs, /learningAiSummary/);
+assert.match(appJs, /learningAiSummaryLoading/);
+assert.match(appJs, /learningAiSummaryError/);
+assert.match(appLearningGrowthAiControllerJs, /\/api\/learning\/recommendations\/task-series/);
+assert.match(appLearningGrowthAiControllerJs, /\/api\/learning\/recommendations\/task-series\/draft/);
+assert.match(appLearningGrowthAiControllerJs, /data-learning-ai-summary-refresh/);
+assert.match(appLearningGrowthAiControllerJs, /data-learning-ai-recommendation-draft/);
 assert.match(appLearningGrowthUiJs, /data-learning-product="fanfan-growth"/);
 assert.match(appLearningGrowthUiJs, /data-learning-role/);
 assert.match(appLearningGrowthUiJs, /function renderReadinessPanel/);

@@ -360,6 +360,7 @@
     return `<section class="learning-program-section learning-program-parent-admin" data-learning-growth-module="programs" data-learning-growth-category="parent-admin" data-learning-growth-owner-management>
       ${renderLearningGrowthTabs([
         { id: "settings", label: "\u8bbe\u7f6e", html: config },
+        { id: "ai-summary", label: "AI 总结", html: renderOwnerAiSummaryRecommendationsPanel(data, programOptions) },
         { id: "new-task", label: "\u65b0\u5efa\u4efb\u52a1", html: taskManagement },
         { id: "reward-settlement", label: "\u5956\u52b1\u7ed3\u7b97", html: rewards },
       ], options)}
@@ -420,6 +421,52 @@
           </form>`;
         }).join("")}
       </div>
+    </section>`;
+  }
+
+  function renderOwnerAiSummaryRecommendationsPanel(data = {}, options = {}) {
+    if (!isOwner(options)) return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const pageState = options.state || {};
+    const result = options.aiSummary || pageState.learningAiSummary || null;
+    const loading = Boolean(options.aiSummaryLoading || pageState.learningAiSummaryLoading);
+    const error = options.aiSummaryError || pageState.learningAiSummaryError || "";
+    const series = asArray(result?.recommendedSeries);
+    const creatingId = String(pageState.learningAiDraftCreatingId || "");
+    return `<section class="learning-coin-panel learning-ai-summary-panel" data-learning-ai-summary-recommendations>
+      <div class="learning-section-heading">
+        <h3>AI 总结</h3>
+        <span>${escapeHtml(result?.modelStatus || "template-guarded")}</span>
+      </div>
+      <p class="learning-growth-muted">基于学习记录摘要和当前任务模板推荐任务系列。推荐只生成可审核草稿，不直接发布。</p>
+      <div class="learning-program-report-actions">
+        <button type="button" data-learning-ai-summary-refresh ${loading ? "disabled" : ""}>${loading ? "分析中..." : "生成 AI 总结"}</button>
+      </div>
+      ${error ? `<div class="learning-error">${escapeHtml(error)}</div>` : ""}
+      ${result?.analysisSummary ? `<p class="learning-ai-summary-text">${escapeHtml(result.analysisSummary)}</p>` : ""}
+      ${asArray(result?.weakSignals).length ? `<div class="learning-program-chip-row">${asArray(result.weakSignals).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
+      ${series.length ? `<div class="learning-ai-recommendation-list">
+        ${series.map((item) => {
+          const id = String(item.recommendationId || item.id || "");
+          const busy = creatingId && creatingId === id;
+          return `<article class="learning-ai-recommendation-card">
+            <div>
+              <strong>${escapeHtml(item.title || item.skillId || "推荐任务系列")}</strong>
+              <span>${escapeHtml(item.templateId || "")}</span>
+            </div>
+            ${item.rationale ? `<p>${escapeHtml(item.rationale)}</p>` : ""}
+            ${item.requirements ? `<p>${escapeHtml(item.requirements)}</p>` : ""}
+            <div class="learning-growth-board-card-meta">
+              <small>${escapeHtml(item.skillId || "")}</small>
+              <small>${escapeHtml(item.sequenceMode || "evergreen_jit")}</small>
+              ${item.recommendedReadingMinutes ? `<small>阅读 ${escapeHtml(String(item.recommendedReadingMinutes))} 分钟</small>` : ""}
+              <small>奖励 ${escapeHtml(String(item.rewardCapCoins || 100))} 金币</small>
+            </div>
+            <button type="button" data-learning-ai-recommendation-draft="${escapeHtml(id)}" ${busy ? "disabled" : ""}>${busy ? "生成中..." : "生成草稿"}</button>
+          </article>`;
+        }).join("")}
+      </div>` : `<div class="empty-state small">还没有 AI 推荐。点击生成后会显示可审核任务系列。</div>`}
+      ${result?.lastDraft?.draft?.draftId ? `<div class="learning-success">已生成草稿：${escapeHtml(result.lastDraft.draft.draftId)}</div>` : ""}
     </section>`;
   }
 

@@ -110,6 +110,24 @@ function makeRoutes(overrides = {}) {
       calls.push(["generateParentReport", input]);
       return { ok: true, reportType: "parent_weekly_summary", workspaceId: input.workspaceId, learnerId: input.learnerId };
     },
+    async recommendTaskSeries(input) {
+      calls.push(["recommendTaskSeries", input]);
+      return {
+        ok: true,
+        privacyLevel: "summary_only",
+        recommendedSeries: [{ recommendationId: "rec-1", templateId: "english-speaking-retell-v1", skillId: "english_speaking_retell" }],
+      };
+    },
+    async createRecommendedTaskSeriesDraft(input) {
+      calls.push(["createRecommendedTaskSeriesDraft", input]);
+      return {
+        ok: true,
+        program: { programId: "program-ai", workspaceId: input.workspaceId, learnerId: input.learnerId },
+        draft: { draftId: "draft-ai", programId: "program-ai" },
+        taskCards: [{ taskCardId: "task-ai" }],
+        recommendation: input.recommendation,
+      };
+    },
     draftPlan(programId) {
       calls.push(["draft", programId]);
       return { ok: true, draft: { draftId: "draft-1", programId }, taskCards: [{ taskCardId: "task-1" }] };
@@ -250,7 +268,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 37);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 39);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -259,6 +277,8 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/recommendations/task-series" }).id, "learning-task-series-recommendations-create");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/recommendations/task-series/draft" }).id, "learning-task-series-recommendation-draft-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/rebuild-draft-plan" }).id, "learning-program-rebuild-draft-plan");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
@@ -272,7 +292,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 37);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 39);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -414,6 +434,34 @@ async function testFoundationRoutes() {
   assert.equal(calls.at(-1)[0], "generateParentReport");
   assert.ok(calls.some((call) => call[0] === "saveSource"));
   assert.ok(calls.some((call) => call[0] === "rebuildProfile"));
+}
+
+async function testAiRecommendationRoutesRequireOwnerAndCreateDraft() {
+  const { routes, calls } = makeRoutes();
+  const denied = await request(routes, "POST", "/api/learning/recommendations/task-series", {
+    auth: { ok: true, workspaceId: "weixin_stephen", isOwner: false },
+    body: {},
+  });
+  assert.equal(denied.res.statusCode, 403);
+
+  const recommendation = await request(routes, "POST", "/api/learning/recommendations/task-series?workspaceId=weixin_stephen&learnerId=weixin_stephen", {
+    body: { domain: "english" },
+  });
+  assert.equal(recommendation.res.statusCode, 200);
+  assert.equal(recommendation.body.privacyLevel, "summary_only");
+  assert.equal(calls.at(-1)[0], "recommendTaskSeries");
+  assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
+
+  const draft = await request(routes, "POST", "/api/learning/recommendations/task-series/draft", {
+    body: {
+      workspaceId: "weixin_stephen",
+      learnerId: "weixin_stephen",
+      recommendation: { templateId: "english-speaking-retell-v1", skillId: "english_speaking_retell", title: "Retell" },
+    },
+  });
+  assert.equal(draft.res.statusCode, 201);
+  assert.equal(draft.body.program.programId, "program-ai");
+  assert.equal(calls.at(-1)[0], "createRecommendedTaskSeriesDraft");
 }
 
 async function testTaskSessionEvaluationRoutes() {
@@ -682,6 +730,7 @@ async function testExecutorCannotEvaluateOtherLearnerSession() {
   await testStudentCannotReadManagementSurfaces();
   await testReviewDecision();
   await testFoundationRoutes();
+  await testAiRecommendationRoutesRequireOwnerAndCreateDraft();
   await testTaskSessionEvaluationRoutes();
   await testExecutorTaskReadUsesSummaryProjectionOnly();
   await testExecutorCannotReadUnpublishedTaskDetail();

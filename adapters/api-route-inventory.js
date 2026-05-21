@@ -371,6 +371,18 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["learning-report", "learning-task-card", "learning-evaluation", "learning-reward-settlement"],
   })),
+  exact("learning-task-series-recommendations-create", "POST", "/api/learning/recommendations/task-series", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-recommendation", "learning-template", "learning-program"],
+  })),
+  exact("learning-task-series-recommendation-draft-create", "POST", "/api/learning/recommendations/task-series/draft", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-recommendation", "learning-program", "learning-plan-draft"],
+  })),
   regex("learning-program-update", "PATCH", /^\/api\/learning\/programs\/[^/]+$/, "learning-program", routeOptions("learning-program", {
     riskLevel: "owner",
     ownerOnly: true,

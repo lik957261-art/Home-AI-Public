@@ -19,6 +19,7 @@ const { createLearningSourceBootstrapService } = require("./learning-source-boot
 const { createLearningSourceDirectoryService } = require("./learning-source-directory-service");
 const { createLearningSourceService } = require("./learning-source-service");
 const { createLearningTaskCardService, stableTaskCardId } = require("./learning-task-card-service");
+const { createLearningTaskSeriesRecommendationService } = require("./learning-task-series-recommendation-service");
 const { createLearningTemplateRegistryService } = require("./learning-template-registry-service");
 const { assertNoPrivateLearningPayload } = require("./learning-record-privacy-service");
 
@@ -211,6 +212,16 @@ function createLearningProgramService(options = {}) {
     updateProgram,
   });
   const parentReportService = options.parentReportService || createLearningParentReportService({ repository });
+  const taskSeriesRecommendationService = options.taskSeriesRecommendationService || createLearningTaskSeriesRecommendationService({
+    extractJsonObject: options.extractJsonObject,
+    findWorkspace: options.findWorkspace,
+    hermesModelText: options.hermesModelText,
+    model: options.model || options.automationCreateModel,
+    repository,
+    requireModel: options.requireModelForTaskSeriesRecommendation === true,
+    sanitizePolicy: options.sanitizePolicy,
+    templateRegistry,
+  });
 
   function createProgram(input = {}) {
     const program = normalizeProgramInput(input, { taxonomy });
@@ -662,13 +673,26 @@ function createLearningProgramService(options = {}) {
     return parentReportService.generateReport(input);
   }
 
+  async function recommendTaskSeries(input = {}) {
+    return taskSeriesRecommendationService.recommendTaskSeries(input);
+  }
+
+  async function createRecommendedTaskSeriesDraft(input = {}) {
+    const programInput = taskSeriesRecommendationService.programInputFromRecommendation(input);
+    const program = createProgram(programInput);
+    const drafted = await draftPlan(program.programId);
+    return Object.assign({ recommendation: programInput.recommendation }, drafted);
+  }
+
   return {
     createProgram,
+    createRecommendedTaskSeriesDraft,
     dailyPlan,
     decideParentReviewRequest,
     decideReview,
     draftPlan,
     rebuildDraftPlan,
+    recommendTaskSeries,
     generateParentReport,
     getProgram,
     getLearnerProfile,

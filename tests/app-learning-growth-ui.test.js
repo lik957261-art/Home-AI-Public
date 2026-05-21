@@ -234,6 +234,8 @@ function testOwnerRendererKeepsBoardSeparateFromManagementSections() {
   assert.doesNotMatch(html, /data-learning-growth-tabs/);
   assert.doesNotMatch(html, /data-learning-growth-tab="new-task"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="settings"/);
+  assert.doesNotMatch(html, /data-learning-growth-tab="ai-summary"/);
+  assert.doesNotMatch(html, /data-learning-ai-summary-recommendations/);
   assert.doesNotMatch(html, /data-learning-growth-tab="reward-settlement"/);
   assert.doesNotMatch(html, /data-learning-growth-category="parent-admin"/);
   assert.doesNotMatch(html, /data-learning-program-create/);
@@ -247,11 +249,27 @@ function testOwnerRendererKeepsBoardSeparateFromManagementSections() {
 }
 
 function testOwnerRendererShowsIndependentSettingsPage() {
+  const learningAiSummary = {
+    generatedAt: "2026-05-21T09:20:00.000Z",
+    analysisSummary: "Recent retell evidence suggests the next series should use longer reading material.",
+    weakSignals: ["speaking_retell_depth"],
+    recommendedSeries: [{
+      id: "rec-1",
+      title: "Longer reading retell sequence",
+      rationale: "Increase reading duration before recording.",
+      templateId: "english-speaking-retell-v1",
+      skillId: "english_speaking_retell",
+      sequenceMode: "evergreen_jit",
+      recommendedReadingMinutes: 12,
+      reward: { maxCoins: 100 },
+    }],
+    lastDraft: { programId: "program-ai-1", draftId: "draft-ai-1" },
+  };
   const html = GrowthUi.renderLearningGrowthView({
     overview,
     coinsUi: CoinsUi,
     programUi: ProgramUi,
-    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true },
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningAiSummary },
   });
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-settings-page/);
@@ -264,6 +282,12 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.doesNotMatch(html, /data-learning-growth-owner-tools/);
   assert.match(html, /data-learning-growth-tabs/);
   assert.match(html, /data-learning-growth-tab="settings"/);
+  assert.match(html, /data-learning-growth-tab="ai-summary"/);
+  assert.match(html, /data-learning-ai-summary-recommendations/);
+  assert.match(html, /data-learning-ai-summary-refresh/);
+  assert.match(html, /data-learning-ai-recommendation-draft="rec-1"/);
+  assert.match(html, /english-speaking-retell-v1/);
+  assert.match(html, /12/);
   assert.match(html, /data-learning-growth-tab="new-task"/);
   assert.match(html, /data-learning-growth-tab="reward-settlement"/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);

@@ -378,7 +378,9 @@ function englishTemplateRegistryEntries() {
   return allTemplates().map((template) => Object.freeze({
     id: template.id,
     domain: template.domain,
+    title: template.title,
     skillIds: Object.freeze((template.skillIds && template.skillIds.length ? template.skillIds : [template.skillId]).slice()),
+    activityType: template.activityType,
     taskCardType: template.taskCardType,
     interactionMode: template.interactionMode,
     outputContract: template.outputContract,
