@@ -655,7 +655,7 @@
         type: type === "single_choice" ? "multiple_choice" : type,
         choices,
       });
-    }).filter((item) => item.id && (item.prompt || item.title || item.question || item.choices.length));
+    }).filter((item) => item.id && (item.stem || item.body || item.prompt || item.title || item.question || item.choices.length));
   }
 
   function renderStructuredQuestionSubmission(task = {}, options = {}) {
@@ -667,7 +667,7 @@
         const questionId = String(item.id || `q${index + 1}`);
         const type = String(item.type || "written");
         const title = String(item.title || `第 ${index + 1} 题`);
-        const prompt = String(item.prompt || item.question || "");
+        const prompt = String(item.stem || item.body || item.prompt || item.question || "");
         if (type === "multiple_choice") {
           const choices = asArray(item.choices).map((choice, choiceIndex) => {
             const value = String(choice?.id || choice?.value || String.fromCharCode(65 + choiceIndex));
