@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-growth-font-scale-v68";
+const CLIENT_VERSION = "20260521-run-progress-time-v69";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -174,6 +174,7 @@ assert.match(appJs, /RUN_PROGRESS_RENDER_THROTTLE_MS = 750/);
 assert.match(appJs, /function runProgressDurationText\(seconds, options = \{\}\)/);
 assert.match(appJs, /runProgressDurationText\(\(eventMs - startMs\) \/ 1000, \{ allowZero: true \}\)/);
 assert.match(appJs, /runEventTimeLabel\(event, startMs\)/);
+assert.doesNotMatch(appJs, /shortTaskDisplayId\(ids\[0\]\)/);
 assert.match(appJs, /state\.messageScrollVisibilityScheduled/);
 assert.match(appJs, /updateMessageScrollButtonVisibility\(target\)/);
 assert.match(stylesCss, /\.message-action-strip\s*\{[\s\S]*?flex:\s*0 0 72px;[\s\S]*?width:\s*72px;[\s\S]*?min-width:\s*72px;/);

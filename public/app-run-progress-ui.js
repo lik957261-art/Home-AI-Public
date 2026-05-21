@@ -224,7 +224,6 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
     <div class="run-progress-head">
       <span>\u8fd0\u884c\u4e2d</span>
       <span data-run-progress-elapsed="${escapeHtml(String(startMs))}">${escapeHtml(runProgressDurationLabel(startMs))}</span>
-      <span>${escapeHtml(ids.length > 1 ? `${ids.length} runs` : shortTaskDisplayId(ids[0]))}</span>
     </div>
     <div class="run-progress-rows">${rows}</div>
   </aside>`;
