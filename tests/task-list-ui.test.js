@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-natural-search-tools-v65";
+const CLIENT_VERSION = "20260521-growth-settings-tabs-v66";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -84,6 +84,7 @@ const appLearningGrowthTaskUiJs = fs.readFileSync(path.join(repoRoot, "public", 
 const appLearningGrowthControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-controller.js"), "utf8");
 const appLearningGrowthAiControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ai-controller.js"), "utf8");
 const appLearningGrowthRewardControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reward-controller.js"), "utf8");
+const appLearningGrowthSettingsControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-settings-controller.js"), "utf8");
 const appLearningNativeGrowthSubmissionControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-native-growth-submission-controller.js"), "utf8");
 const appApiClientJs = fs.readFileSync(path.join(repoRoot, "public", "app-api-client.js"), "utf8");
 const appMessageActionsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-message-actions-ui.js"), "utf8");
@@ -998,14 +999,20 @@ assert.match(appLearningGrowthTaskUiJs, /validateSubmissionText/);
 assert.match(appLearningGrowthTaskUiJs, /renderFeedbackHistory/);
 assert.match(appLearningGrowthTaskUiJs, /minWords/);
 assert.match(appLearningGrowthUiJs, /renderLearningGrowthTabs/);
-assert.match(appLearningGrowthUiJs, /\{ id: "new-task"/);
-assert.match(appLearningGrowthUiJs, /\{ id: "settings"/);
-assert.match(appLearningGrowthUiJs, /\{ id: "ai-summary"/);
-assert.match(appLearningGrowthUiJs, /\{ id: "reward-settlement"/);
+assert.match(appLearningGrowthUiJs, /\{ id: "overview"/);
+assert.match(appLearningGrowthUiJs, /\{ id: "tasks"/);
+assert.match(appLearningGrowthUiJs, /\{ id: "rewards"/);
+assert.match(appLearningGrowthUiJs, /\{ id: "ai-analysis"/);
 assert.match(appLearningGrowthUiJs, /data-learning-ai-summary-recommendations/);
 assert.match(appLearningGrowthUiJs, /data-learning-ai-recommendation-draft/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-settings-page/);
+assert.match(appLearningGrowthUiJs, /data-learning-open-settings-task/);
+assert.match(appLearningGrowthUiJs, /data-learning-settings-task-detail/);
+assert.match(appLearningGrowthUiJs, /data-learning-settings-reward-stats/);
 assert.match(appLearningGrowthControllerJs, /openLearningGrowthSettingsPage/);
+assert.match(appLearningGrowthSettingsControllerJs, /openSettingsTask/);
+assert.match(appLearningGrowthSettingsControllerJs, /wireSettingsTaskSwipe/);
+assert.match(appLearningGrowthControllerJs, /HermesLearningGrowthSettingsController/);
 assert.match(appLearningGrowthControllerJs, /HermesLearningGrowthAiController/);
 assert.match(appLearningGrowthControllerJs, /HermesLearningGrowthRewardController/);
 assert.match(appJs, /learningGrowthSettingsOpen/);
@@ -1017,7 +1024,8 @@ assert.match(appLearningGrowthAiControllerJs, /\/api\/learning\/recommendations\
 assert.match(appLearningGrowthAiControllerJs, /\/api\/learning\/recommendations\/task-series\/draft/);
 assert.match(appLearningGrowthAiControllerJs, /data-learning-ai-summary-refresh/);
 assert.match(appLearningGrowthAiControllerJs, /data-learning-ai-recommendation-draft/);
-assert.match(appLearningGrowthAiControllerJs, /learningGrowthActiveTab = "ai-summary"/);
+assert.match(appLearningGrowthAiControllerJs, /learningGrowthActiveTab = "ai-analysis"/);
+assert.match(appLearningGrowthAiControllerJs, /reasoningEffort: "xhigh"/);
 assert.match(appLearningGrowthRewardControllerJs, /data-learning-task-reward-policy-series-form/);
 assert.match(appLearningGrowthRewardControllerJs, /Promise\.all\(ids\.map/);
 assert.match(appLearningGrowthUiJs, /function rewardTaskSeries/);

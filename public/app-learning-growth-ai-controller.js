@@ -8,7 +8,7 @@
   }
 
   async function loadLearningAiSummaryRecommendations() {
-    state.learningGrowthActiveTab = "ai-summary";
+    state.learningGrowthActiveTab = "ai-analysis";
     state.learningAiSummaryLoading = true;
     state.learningAiSummaryError = "";
     renderLearningCoinsView();
@@ -16,7 +16,7 @@
       const body = learnerBody();
       state.learningAiSummary = await api("/api/learning/recommendations/task-series", {
         method: "POST",
-        body: JSON.stringify(Object.assign({}, body, { domain: "english", limit: 180 })),
+        body: JSON.stringify(Object.assign({}, body, { domain: "english", limit: 180, reasoningEffort: "xhigh" })),
       });
       showPushToast("AI 总结已更新", "success");
     } catch (err) {
@@ -29,7 +29,7 @@
   }
 
   async function createLearningAiRecommendedDraft(recommendationId) {
-    state.learningGrowthActiveTab = "ai-summary";
+    state.learningGrowthActiveTab = "ai-analysis";
     const recommendation = (state.learningAiSummary?.recommendedSeries || []).find((item) => String(item.recommendationId || item.id || "") === String(recommendationId || ""));
     if (!recommendation) return;
     state.learningAiDraftCreatingId = recommendation.recommendationId || recommendation.id;

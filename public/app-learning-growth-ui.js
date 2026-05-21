@@ -325,7 +325,9 @@
     const visible = tabs.filter((tab) => tab && tab.html);
     if (!visible.length) return "";
     const first = visible[0].id;
-    const requested = String(options.activeTab || options.state?.learningGrowthActiveTab || "").trim();
+    const requestedRaw = String(options.activeTab || options.state?.learningGrowthActiveTab || "").trim();
+    const aliases = { settings: "overview", "new-task": "tasks", "reward-settlement": "rewards", "ai-summary": "ai-analysis" };
+    const requested = aliases[requestedRaw] || requestedRaw;
     const activeId = visible.some((tab) => tab.id === requested) ? requested : first;
     return `<section class="learning-growth-tabs" data-learning-growth-tabs>
       <div class="learning-growth-tab-list" role="tablist" aria-label="\u590d\u7528\u7684\u5e73\u53f0\u80fd\u529b">
@@ -337,6 +339,192 @@
     </section>`;
   }
 
+  function renderOwnerSettingsOverview(programUi, coinsHtml, overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const data = overview.programs || {};
+    const programOptions = Object.assign({}, options, {
+      programs: data,
+      launchOperations: overview.launchOperations,
+      learnerId: overview.learner?.id || options.learnerId,
+    });
+    const coins = options.coins || overview.coins || {};
+    const growth = coins.growth || {};
+    const counts = data.launchOperations?.counts || {};
+    const cards = asArray(overview.board?.cards);
+    const completed = cards.filter((card) => /complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
+    const activeTasks = cards.filter((card) => !/complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
+    const earned = Number(growth.totalEarnedCoins || coins.balances?.earnedCoins || 0);
+    const sevenDayAverage = Math.round(Number(growth.sevenDayCoins || overview.metrics?.sevenDayCoins || 0) / 7) || 0;
+    return `<section class="learning-settings-overview" data-learning-settings-overview>
+      <div class="learning-settings-kpi-grid">
+        <span><small>执行者</small><strong>${escapeHtml(overview.learner?.displayName || overview.learner?.id || options.learnerId || "执行者")}</strong></span>
+        <span><small>当前任务</small><strong>${escapeHtml(String(activeTasks))}</strong></span>
+        <span><small>已完成</small><strong>${escapeHtml(String(completed || counts.completedTasks || 0))}</strong></span>
+        <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(earned || 0)))}</strong></span>
+        <span><small>七日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
+        <span><small>待结算</small><strong>${escapeHtml(String(counts.pendingRewardSettlements || 0))}</strong></span>
+      </div>
+      ${programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions)}
+      ${coinsHtml ? `<div class="learning-settings-overview-coins">${coinsHtml}</div>` : ""}
+    </section>`;
+  }
+
+  function renderOwnerTaskList(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const tasks = uniqueRewardTasks(overview).slice(0, 80);
+    if (!tasks.length) return `<div class="learning-coin-empty">暂无任务。</div>`;
+    return `<section class="learning-coin-panel learning-settings-task-list" data-learning-settings-task-list>
+      <div class="learning-section-heading">
+        <h3>当前任务</h3>
+        <span>${escapeHtml(String(tasks.length))}</span>
+      </div>
+      <div class="learning-settings-task-rows">
+        ${tasks.map((task) => {
+          const taskCardId = String(task.taskCardId || task.id || "");
+          const workspaceId = String(task.workspaceId || overview.learner?.workspaceId || options.workspaceId || "");
+          const generated = cardOpenTimeText(task);
+          return `<button type="button" class="learning-settings-task-row" data-learning-open-settings-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
+            <span>
+              <strong>${escapeHtml(task.title || taskCardId)}</strong>
+              <small>${escapeHtml([task.templateId || task.taskModel?.templateId || "", task.status || task.nextAction || "", generated ? `开放 ${generated}` : ""].filter(Boolean).join(" / "))}</small>
+            </span>
+            <em>查看</em>
+          </button>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
+  function ownerSettingsTaskById(overview = {}, taskCardId = "") {
+    const id = String(taskCardId || "");
+    if (!id) return null;
+    return uniqueRewardTasks(overview).find((task) => String(task.taskCardId || task.id || "") === id) || null;
+  }
+
+  function ownerSettingsTaskSeries(overview = {}, task = {}) {
+    const key = taskSeriesKey(task);
+    return uniqueRewardTasks(overview)
+      .filter((item) => taskSeriesKey(item) === key)
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.completedAt || left.updatedAt || left.createdAt || left.openedAt || "") || 0;
+        const rightTime = Date.parse(right.completedAt || right.updatedAt || right.createdAt || right.openedAt || "") || 0;
+        return rightTime - leftTime;
+      });
+  }
+
+  function renderOwnerSettingsTaskDetail(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskId = String(options.state?.learningGrowthSettingsTaskId || "");
+    const task = ownerSettingsTaskById(overview, taskId);
+    if (!task) {
+      return `<section class="learning-coin-panel learning-settings-task-detail" data-learning-settings-task-detail>
+        <button type="button" class="learning-settings-back" data-learning-settings-task-back>返回任务列表</button>
+        <div class="learning-coin-empty">这项任务已更新或不在当前列表里。</div>
+      </section>`;
+    }
+    const series = ownerSettingsTaskSeries(overview, task);
+    const completed = series.filter((item) => /complete|completed|done/i.test(String(item.status || item.nextAction || "")));
+    const latest = series.slice(0, 6);
+    const instruction = task.learnerInstruction || task.instruction || task.taskModel?.learnerInstruction || task.summary || task.description || "";
+    const goal = task.goalSummary || task.taskModel?.goalSummary || task.acceptance?.[0] || task.taskModel?.acceptance?.[0] || instruction;
+    const nextSuggestion = task.learningGrowthGenerationReport?.goal
+      || task.learningGrowthJitGeneration?.goal
+      || task.learningGrowthJitGeneration?.decision
+      || task.nextRecommendation
+      || "建议在 AI分析 标签刷新学习总结后，再决定下一张卡的方向。";
+    return `<section class="learning-coin-panel learning-settings-task-detail" data-learning-settings-task-detail>
+      <button type="button" class="learning-settings-back" data-learning-settings-task-back>返回任务列表</button>
+      <div class="learning-section-heading">
+        <h3>${escapeHtml(task.title || taskId)}</h3>
+        <span>${escapeHtml(task.status || task.nextAction || "未定")}</span>
+      </div>
+      <div class="learning-settings-task-detail-grid">
+        <span><small>系列</small><strong>${escapeHtml(taskSeriesLabel({ title: task.title, templateId: task.templateId || task.taskModel?.templateId, skillId: task.skillId }))}</strong></span>
+        <span><small>已生成</small><strong>${escapeHtml(String(series.length))}</strong></span>
+        <span><small>已完成</small><strong>${escapeHtml(String(completed.length))}</strong></span>
+        <span><small>奖励</small><strong>${escapeHtml(String(taskRewardCapCoins(task)))}</strong></span>
+      </div>
+      <div class="learning-settings-task-detail-block">
+        <h4>目标</h4>
+        <p>${escapeHtml(goal || "暂无目标摘要。")}</p>
+      </div>
+      <div class="learning-settings-task-detail-block">
+        <h4>当前状态</h4>
+        <p>${escapeHtml([task.activityType || "", task.skillId || "", cardOpenTimeText(task) ? `开放 ${cardOpenTimeText(task)}` : ""].filter(Boolean).join(" / ") || "暂无状态摘要。")}</p>
+      </div>
+      <div class="learning-settings-task-detail-block">
+        <h4>已生成卡片</h4>
+        ${latest.length ? latest.map((item) => `<p>${escapeHtml([item.title || item.taskCardId || item.id, item.status || item.nextAction || "", cardOpenTimeText(item) ? `开放 ${cardOpenTimeText(item)}` : ""].filter(Boolean).join(" / "))}</p>`).join("") : `<p>暂无卡片记录。</p>`}
+      </div>
+      <div class="learning-settings-task-detail-block">
+        <h4>后续建议</h4>
+        <p>${escapeHtml(nextSuggestion)}</p>
+      </div>
+    </section>`;
+  }
+
+  function renderOwnerTaskManagement(programUi, overview = {}, options = {}) {
+    const data = overview.programs || {};
+    const programOptions = Object.assign({}, options, {
+      programs: data,
+      launchOperations: overview.launchOperations,
+      learnerId: overview.learner?.id || options.learnerId,
+    });
+    if (options.state?.learningGrowthSettingsTaskId) {
+      return renderOwnerSettingsTaskDetail(overview, options);
+    }
+    return [
+      `<section class="learning-coin-panel learning-settings-task-create" data-learning-settings-task-create>
+        <div class="learning-section-heading">
+          <h3>新建任务</h3>
+          <span>模板 Skill / XHigh</span>
+        </div>
+        <p class="learning-growth-muted">新任务必须使用已注册学习任务模板，可建永续任务或阶段性任务；生成、批改、修订、语音反思和奖励结算继续走现有 Growth 规则。</p>
+      </section>`,
+      renderOwnerAiSummaryRecommendationsPanel(data, Object.assign({}, programOptions, { compact: true })),
+      programUi.renderProgramForm(data, programOptions),
+      renderOwnerTaskList(overview, options),
+      programUi.renderExecutionOverview(data, programOptions),
+      programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions),
+      programUi.renderReviewQueue(data.reviewItems || [], programOptions),
+      programUi.renderParentReviewRequests(data.parentReviewRequests || [], programOptions),
+    ].join("");
+  }
+
+  function renderOwnerRewardDashboard(programUi, coinsHtml, overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const data = overview.programs || {};
+    const programOptions = Object.assign({}, options, {
+      programs: data,
+      learnerId: overview.learner?.id || options.learnerId,
+    });
+    const coins = options.coins || overview.coins || {};
+    const growth = coins.growth || {};
+    const balances = coins.balances || {};
+    const settlements = asArray(data.rewardSettlements);
+    const settled = settlements.filter((item) => String(item.status || "") === "settled");
+    const settledCoins = settled.reduce((sum, item) => sum + (Number(item.coinAmount) || 0), 0);
+    const averageSettled = settled.length ? Math.round(settledCoins / settled.length) : 0;
+    const stats = `<section class="learning-coin-panel learning-settings-reward-stats" data-learning-settings-reward-stats>
+      <div class="learning-section-heading">
+        <h3>奖励统计</h3>
+        <span>执行者</span>
+      </div>
+      <div class="learning-settings-reward-rows">
+        <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(Number(growth.totalEarnedCoins || balances.earnedCoins || 0) || 0)))}</strong></span>
+        <span><small>七日均值</small><strong>${escapeHtml(String(Math.round((Number(growth.sevenDayCoins || 0) || 0) / 7)))}</strong></span>
+        <span><small>已结算次数</small><strong>${escapeHtml(String(settled.length))}</strong></span>
+        <span><small>平均每次</small><strong>${escapeHtml(String(averageSettled))}</strong></span>
+      </div>
+    </section>`;
+    return [
+      stats,
+      renderOwnerRewardPolicySettings(overview, options),
+      coinsHtml,
+      programUi.renderRewardSettlements(data.rewardSettlements || [], programOptions),
+    ].join("");
+  }
+
   function renderOwnerProgramTabs(programUi, coinsHtml, overview = {}, options = {}) {
     const data = overview.programs || {};
     const programOptions = Object.assign({}, options, {
@@ -344,35 +532,12 @@
       launchOperations: overview.launchOperations,
       learnerId: overview.learner?.id || options.learnerId,
     });
-    const execution = programUi.renderExecutionOverview(data, programOptions);
-    const guidance = programUi.renderGuidancePanel(data, programOptions);
-    const rewardPolicy = renderOwnerRewardPolicySettings(overview, options);
-    const config = [
-      rewardPolicy,
-      programUi.renderFoundationPanel(data, programOptions),
-      programUi.renderProgramForm(data, programOptions),
-    ].join("");
-    const review = [
-      programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions),
-      programUi.renderParentReportPanel(data, programOptions),
-      programUi.renderReviewQueue(data.reviewItems || [], programOptions),
-      programUi.renderParentReviewRequests(data.parentReviewRequests || [], programOptions),
-    ].join("");
-    const rewards = [
-      guidance,
-      coinsHtml,
-      programUi.renderRewardSettlements(data.rewardSettlements || [], programOptions),
-    ].join("");
-    const taskManagement = [
-      execution,
-      review,
-    ].join("");
-    return `<section class="learning-program-section learning-program-parent-admin" data-learning-growth-module="programs" data-learning-growth-category="parent-admin" data-learning-growth-owner-management>
+    return `<section class="learning-program-section learning-program-parent-admin learning-growth-settings-tabs" data-learning-growth-module="programs" data-learning-growth-category="parent-admin" data-learning-growth-owner-management>
       ${renderLearningGrowthTabs([
-        { id: "settings", label: "\u8bbe\u7f6e", html: config },
-        { id: "ai-summary", label: "AI 总结", html: renderOwnerAiSummaryRecommendationsPanel(data, programOptions) },
-        { id: "new-task", label: "\u65b0\u5efa\u4efb\u52a1", html: taskManagement },
-        { id: "reward-settlement", label: "\u5956\u52b1\u7ed3\u7b97", html: rewards },
+        { id: "overview", label: "总览", html: renderOwnerSettingsOverview(programUi, coinsHtml, overview, options) },
+        { id: "tasks", label: "任务", html: renderOwnerTaskManagement(programUi, overview, options) },
+        { id: "rewards", label: "奖励", html: renderOwnerRewardDashboard(programUi, coinsHtml, overview, options) },
+        { id: "ai-analysis", label: "AI分析", html: renderOwnerAiSummaryRecommendationsPanel(data, programOptions) },
       ], options)}
     </section>`;
   }

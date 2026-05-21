@@ -46,16 +46,12 @@ function isLearningGrowthViewActive() {
 
 function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
-  state.learningGrowth = null;
-  state.learningGrowthBoardLane = "";
-  state.selectedLearningTaskCardId = "";
+  state.learningGrowth = null; state.learningGrowthBoardLane = "";
+  state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
   state.learningGrowthSettingsOpen = false;
-  state.learningCoins = null;
-  state.learningCoinsError = "";
-  state.learningParentReport = null;
-  state.learningParentReportError = "";
-  state.learningParentReportLoading = false;
-  state.learningCoinScopeKey = learningCoinCurrentScopeKey();
+  state.learningCoins = null; state.learningCoinsError = "";
+  state.learningParentReport = null; state.learningParentReportError = "";
+  state.learningParentReportLoading = false; state.learningCoinScopeKey = learningCoinCurrentScopeKey();
 }
 
 function renderLearningCoinsView() {
@@ -141,14 +137,13 @@ function selectLearningGrowthBoardLane(laneId) {
 }
 
 function openLearningGrowthSettingsPage() {
-  state.learningGrowthSettingsOpen = true;
-  state.learningGrowthActiveTab = state.learningGrowthActiveTab || "settings";
-  state.selectedLearningTaskCardId = "";
+  state.learningGrowthSettingsOpen = true; state.learningGrowthActiveTab = state.learningGrowthActiveTab || "overview";
+  state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
   renderLearningCoinsView();
 }
 
 function closeLearningGrowthSettingsPage() {
-  state.learningGrowthSettingsOpen = false;
+  state.learningGrowthSettingsOpen = false; state.learningGrowthSettingsTaskId = "";
   renderLearningCoinsView();
 }
 
@@ -562,6 +557,8 @@ function wireLearningCoinsView() {
     button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
   });
   $("conversation")?.querySelector("[data-learning-close-growth-task]")?.addEventListener("click", () => { state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsOpen = false; renderLearningCoinsView(); });
+  $("conversation")?.querySelector("[data-learning-settings-task-back]")?.addEventListener("click", () => window.HermesLearningGrowthSettingsController?.closeSettingsTask?.());
+  window.HermesLearningGrowthSettingsController?.wireSettingsTaskSwipe?.($("conversation"));
   window.HermesLearningGrowthAiController?.wireLearningGrowthAi?.();
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);
@@ -672,6 +669,9 @@ function wireLearningCoinsView() {
     });
   });
   window.HermesLearningGrowthRewardController?.wireLearningGrowthRewardPolicy?.();
+  $("conversation")?.querySelectorAll("[data-learning-open-settings-task]").forEach((button) => {
+    button.addEventListener("click", () => window.HermesLearningGrowthSettingsController?.openSettingsTask?.(button.dataset.learningOpenSettingsTask));
+  });
   $("conversation")?.querySelectorAll("[data-learning-open-growth-task]").forEach((button) => {
     button.addEventListener("click", () => openLearningGrowthTask(
       button.dataset.learningOpenGrowthTask,

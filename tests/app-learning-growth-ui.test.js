@@ -278,7 +278,7 @@ function testOwnerRendererShowsIndependentSettingsPage() {
     overview,
     coinsUi: CoinsUi,
     programUi: ProgramUi,
-    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningGrowthActiveTab: "ai-summary", learningAiSummary },
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningGrowthActiveTab: "ai-analysis", learningAiSummary },
   });
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-settings-page/);
@@ -291,28 +291,52 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.doesNotMatch(html, /data-learning-growth-owner-menu/);
   assert.doesNotMatch(html, /data-learning-growth-owner-tools/);
   assert.match(html, /data-learning-growth-tabs/);
-  assert.match(html, /data-learning-growth-tab="settings"/);
-  assert.match(html, /data-learning-growth-tab="ai-summary"/);
-  assert.match(html, /data-learning-growth-tab="ai-summary" aria-selected="true" class="active"/);
-  assert.match(html, /data-learning-growth-tab-panel="settings" role="tabpanel" hidden/);
-  assert.match(html, /data-learning-growth-tab-panel="ai-summary" role="tabpanel">\s*<section/);
+  assert.match(html, /data-learning-growth-tab="overview"/);
+  assert.match(html, /data-learning-growth-tab="tasks"/);
+  assert.match(html, /data-learning-growth-tab="rewards"/);
+  assert.match(html, /data-learning-growth-tab="ai-analysis"/);
+  assert.match(html, /data-learning-growth-tab="ai-analysis" aria-selected="true" class="active"/);
+  assert.match(html, /data-learning-growth-tab-panel="overview" role="tabpanel" hidden/);
+  assert.match(html, /data-learning-growth-tab-panel="ai-analysis" role="tabpanel">\s*<section/);
   assert.match(html, /data-learning-ai-summary-recommendations/);
   assert.match(html, /data-learning-ai-summary-refresh/);
   assert.match(html, /data-learning-ai-recommendation-draft="rec-1"/);
   assert.match(html, /english-speaking-retell-v1/);
   assert.match(html, /12/);
-  assert.match(html, /data-learning-growth-tab="new-task"/);
-  assert.match(html, /data-learning-growth-tab="reward-settlement"/);
+  assert.match(html, /data-learning-settings-task-list/);
+  assert.match(html, /data-learning-settings-task-create/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
   assert.match(html, /data-learning-program-create/);
   assert.match(html, /data-learning-launch-operations/);
   assert.match(html, /data-learning-launch-next-action="settle-learning-rewards"/);
-  assert.match(html, /data-learning-evaluation-settle="eval-1"/);
   assert.match(html, /data-learning-reward-settlement-id="settle-1"/);
+  assert.match(html, /data-learning-settings-reward-stats/);
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
   assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
   assert.doesNotMatch(html, /data-learning-operational-readiness/);
   assert.doesNotMatch(html, /\u51e1\u51e1\u6210\u957f\u7cfb\u7edf|\u51e1\u51e1\u6210\u957f|\u6210\u957f\u770b\u677f|<small>7d<\/small>/);
+}
+
+function testOwnerSettingsTaskDetailStaysInsideSettingsPage() {
+  const html = GrowthUi.renderLearningGrowthView({
+    overview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: {
+      auth: { isOwner: true },
+      learningGrowthSettingsOpen: true,
+      learningGrowthActiveTab: "tasks",
+      learningGrowthSettingsTaskId: "task-1",
+    },
+  });
+  assert.match(html, /data-learning-growth-settings-page/);
+  assert.match(html, /data-learning-settings-task-detail/);
+  assert.match(html, /data-learning-settings-task-back/);
+  assert.match(html, /Task status/);
+  assert.match(html, /已生成/);
+  assert.match(html, /后续建议/);
+  assert.doesNotMatch(html, /data-learning-growth-task-focus/);
+  assert.doesNotMatch(html, /data-learning-open-growth-task="task-1"/);
 }
 
 function testReadinessPanelRenderer() {
@@ -330,6 +354,7 @@ testGrowthRendererShowsStandaloneTaskCardWhenSelected();
 testGrowthRendererOpensLegacyTodoAsReadOnlyTask();
 testOwnerRendererKeepsBoardSeparateFromManagementSections();
 testOwnerRendererShowsIndependentSettingsPage();
+testOwnerSettingsTaskDetailStaysInsideSettingsPage();
 testReadinessPanelRenderer();
 
 console.log("app learning growth ui tests passed");

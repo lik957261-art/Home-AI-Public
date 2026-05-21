@@ -7946,6 +7946,9 @@ button.directory-alias-chip {
 }
 
 .learning-growth-tab-list {
+  position: sticky;
+  top: 54px;
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   gap: 8px;
@@ -7953,6 +7956,11 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 111, 98, 0.14);
   border-radius: 8px;
   background: rgba(248, 251, 249, 0.84);
+  backdrop-filter: blur(10px);
+}
+
+.learning-growth-settings-tabs .learning-growth-tab-list {
+  top: 58px;
 }
 
 .learning-growth-tab-list button {
@@ -7980,6 +7988,100 @@ button.directory-alias-chip {
 .learning-growth-tab-panel.active {
   display: grid;
   gap: 14px;
+}
+
+.learning-settings-overview,
+.learning-settings-task-list,
+.learning-settings-task-create,
+.learning-settings-reward-stats {
+  display: grid;
+  gap: 12px;
+}
+
+.learning-settings-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.learning-settings-kpi-grid span,
+.learning-settings-reward-rows span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.learning-settings-kpi-grid small,
+.learning-settings-reward-rows small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-settings-kpi-grid strong,
+.learning-settings-reward-rows strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.learning-settings-task-rows,
+.learning-settings-reward-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-settings-task-row {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  text-align: left;
+}
+
+.learning-settings-task-row span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.learning-settings-task-row strong {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.learning-settings-task-row small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.learning-settings-task-row em {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .learning-foundation-panel {

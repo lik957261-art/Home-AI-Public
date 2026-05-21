@@ -29,9 +29,12 @@ function makeRepository() {
 }
 
 async function testModelRecommendationIsTemplateValidated() {
+  const calls = [];
   const service = createLearningTaskSeriesRecommendationService({
     repository: makeRepository(),
-    hermesModelText: async () => JSON.stringify({
+    hermesModelText: async (request) => {
+      calls.push(request);
+      return JSON.stringify({
       analysisSummary: "Retell work needs longer reading input.",
       weakSignals: ["detail_order"],
       recommendedSeries: [{
@@ -42,7 +45,8 @@ async function testModelRecommendationIsTemplateValidated() {
         rationale: "Recent retells need more ordered detail.",
         recommendedReadingMinutes: 12,
       }],
-    }),
+    });
+    },
   });
   const result = await service.recommendTaskSeries({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
   assert.equal(result.ok, true);
@@ -52,6 +56,7 @@ async function testModelRecommendationIsTemplateValidated() {
   assert.equal(result.recommendedSeries[0].skillId, "english_speaking_retell");
   assert.equal(result.recommendedSeries[0].activityType, "speaking");
   assert.equal(result.recommendedSeries[0].recommendedReadingMinutes, 12);
+  assert.equal(calls[0].reasoning_effort, "xhigh");
 }
 
 async function testUnknownTemplateFailsClosed() {

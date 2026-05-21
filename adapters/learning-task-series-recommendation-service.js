@@ -271,6 +271,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
   const model = cleanString(options.model || options.automationCreateModel || "automation-create");
   const requireModel = options.requireModel === true;
   const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const reasoningEffort = cleanString(options.reasoningEffort || options.reasoning_effort || "xhigh") || "xhigh";
 
   async function recommendTaskSeries(input = {}) {
     const workspaceId = cleanString(input.workspaceId) || "weixin_stephen";
@@ -291,6 +292,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
     const generatedAt = nowIso();
     let parsed = null;
     let modelStatus = "not_configured";
+    const requestReasoningEffort = cleanString(input.reasoningEffort || input.reasoning_effort || reasoningEffort) || reasoningEffort;
     if (hermesModelText) {
       try {
         const output = await hermesModelText({
@@ -298,7 +300,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
           stream: false,
           store: false,
           model,
-          reasoning_effort: "medium",
+          reasoning_effort: requestReasoningEffort,
           conversation: `learning_growth_recommend_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
           instructions: "Return strict JSON for summary-only Growth task-series recommendations.",
           access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
