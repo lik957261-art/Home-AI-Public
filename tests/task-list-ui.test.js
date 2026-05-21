@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-growth-summary-card-v61";
+const CLIENT_VERSION = "20260521-growth-artifact-compact-v62";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),

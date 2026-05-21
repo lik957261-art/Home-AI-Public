@@ -7670,12 +7670,13 @@ button.directory-alias-chip {
 
 .learning-growth-board-artifact-link {
   flex: 0 0 auto;
-  min-height: 26px;
-  border: 1px solid rgba(47, 75, 69, 0.14);
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid rgba(47, 75, 69, 0.1);
   box-shadow: none;
   color: var(--muted);
-  font-weight: 700;
-  line-height: 1.2;
+  font-weight: 500;
+  line-height: 1.25;
   cursor: pointer;
 }
 
