@@ -82,15 +82,6 @@ function parentDirectoryPath(filePath = "") {
 function cardArtifactDirectoryPath(task = {}, artifacts = [], latest = {}, context = {}, artifactCount = 0) {
   const explicitDirectory = cleanString(task.artifactDirectoryPath || task.deliverableDirectoryPath || task.reportDirectoryPath, 2000);
   if (explicitDirectory) return explicitDirectory;
-  for (const artifact of arrayValue(artifacts)) {
-    const directoryPath = cleanString(artifact?.directoryPath, 2000);
-    if (directoryPath) return directoryPath;
-  }
-  const reportDirectory = parentDirectoryPath(latest.evaluation?.report?.path);
-  if (reportDirectory) return reportDirectory;
-  if (artifactCount > 0 && typeof context.artifactDirectoryForTask === "function") {
-    return cleanString(context.artifactDirectoryForTask(task), 2000);
-  }
   return "";
 }
 
@@ -358,7 +349,6 @@ function buildLearningGrowthBoard(input = {}) {
     evaluations: arrayValue(programs.evaluations),
     reflections: arrayValue(programs.taskReflections),
     artifacts: arrayValue(programs.taskArtifacts),
-    artifactDirectoryForTask: input.artifactDirectoryForTask,
   };
   const allCards = mergeTasks(programs).map((task, index) => publicBoardCard(task, context, index));
   const sequence = visibleSequenceCards(allCards);
@@ -415,7 +405,6 @@ function buildLearningGrowthBoard(input = {}) {
 
 function createLearningGrowthBoardProjectionService(options = {}) {
   const learningGrowthService = options.learningGrowthService || null;
-  const artifactService = options.artifactService || null;
   const clock = options.clock || Date;
   if (!learningGrowthService || typeof learningGrowthService.overview !== "function") {
     throw new Error("learning growth board projection requires learningGrowthService.overview");
@@ -429,13 +418,6 @@ function createLearningGrowthBoardProjectionService(options = {}) {
         board: buildLearningGrowthBoard({
           overview,
           clock,
-          artifactDirectoryForTask: (task) => artifactService && typeof artifactService.caseDeliverableDirectory === "function"
-            ? artifactService.caseDeliverableDirectory(
-              cleanString(task?.workspaceId || input.workspaceId || "owner"),
-              cleanString(task?.kanbanCaseId || task?.kanban_case_id || "learning-growth"),
-              cleanString(task?.taskCardId || task?.id || "card"),
-            )
-            : "",
         }),
       });
     },

@@ -7651,6 +7651,7 @@ button.directory-alias-chip {
 .learning-growth-board-card-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
 }
 
@@ -7664,10 +7665,13 @@ button.directory-alias-chip {
 }
 
 .learning-growth-board-artifact-link {
-  min-height: 28px;
-  border: 1px solid rgba(47, 75, 69, 0.12);
-  color: var(--accent);
-  font-weight: 800;
+  flex: 0 0 auto;
+  min-height: 26px;
+  border: 1px solid rgba(47, 75, 69, 0.14);
+  box-shadow: none;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.2;
   cursor: pointer;
 }
 

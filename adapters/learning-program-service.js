@@ -188,7 +188,10 @@ function createLearningProgramService(options = {}) {
   const goalService = options.goalService || createLearningGoalService({ repository, taxonomy });
   const curriculumReferenceService = options.curriculumReferenceService || createCurriculumReferenceService({ repository });
   const learnerProfileService = options.learnerProfileService || createLearnerProfileService({ repository });
-  const taskCardService = options.taskCardService || createLearningTaskCardService({ repository });
+  const taskCardService = options.taskCardService || createLearningTaskCardService({
+    repository,
+    directoryMaterializationService: options.directoryMaterializationService,
+  });
   const dailyPlanService = options.dailyPlanService || createLearningDailyPlanService({ taskCardService });
   const interactionSessionService = options.interactionSessionService || createLearningInteractionSessionService({ repository });
   const parentReviewRequestService = options.parentReviewRequestService || createLearningParentReviewRequestService({ repository });

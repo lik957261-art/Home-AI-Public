@@ -436,6 +436,7 @@ function createMobileApiComposition(deps = {}) {
     getJitTaskService: () => learningGrowthJitTaskService,
     getLearningProgramService: () => learningProgramService,
     nowIso: deps.nowIso,
+    reportDirectoryForCard: (workspaceId, taskCardId, task) => learningGrowthDirectoryMaterializationService.reportDirectoryForCard(workspaceId, taskCardId, task),
   });
   const learningGrowthSubmissionService = createLearningGrowthSubmissionService({
     aiFeedbackService: learningGrowthTaskFeedbackService,
@@ -565,6 +566,7 @@ function createMobileApiComposition(deps = {}) {
   });
   const learningProgramService = createLearningProgramService({
     dataDir: deps.dataDir,
+    directoryMaterializationService: learningGrowthDirectoryMaterializationService,
     extractJsonObject: deps.extractJsonObject,
     findWorkspace: deps.findWorkspace,
     hermesModelText: deps.hermesModelText,
@@ -590,7 +592,6 @@ function createMobileApiComposition(deps = {}) {
       learningProgramService,
     }),
     learningGrowthTaskService,
-    kanbanStudyArtifactService: deps.kanbanStudyArtifactService,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
   });

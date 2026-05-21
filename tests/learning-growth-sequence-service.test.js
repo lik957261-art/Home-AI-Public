@@ -114,6 +114,9 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
     learningProgramService: programService,
     jitTaskService,
     nowIso: () => "2026-05-20T08:00:00.000Z",
+    reportDirectoryForCard(workspaceId, taskCardId) {
+      return `C:\\LearningPlan\\${workspaceId}\\deliverables\\${taskCardId}`;
+    },
   });
   const result = await service.prepareNextAfterCompletion({
     taskCardId: "task-1",
@@ -133,6 +136,8 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
   assert.equal(savedTasks[1].taskCardId, "task-2");
   assert.equal(savedTasks[1].learningGrowthGeneratedAfterTaskCardId, "task-1");
   assert.equal(savedTasks[1].learningGrowthSequenceVisibility, "current");
+  assert.equal(savedTasks[1].deliverableDirectoryPath, "C:\\LearningPlan\\learner-1\\deliverables\\task-2");
+  assert.equal(savedTasks[1].artifactDirectoryPath, savedTasks[1].deliverableDirectoryPath);
   assert.equal(jitInputs.length, 1);
   assert.equal(jitInputs[0].task.taskCardId, "task-2");
   assert.equal(savedArtifacts.length, 1);
@@ -192,6 +197,9 @@ async function testPrepareNextAfterCompletionCreatesEvergreenTaskWhenSequenceEnd
     learningProgramService: programService,
     jitTaskService,
     nowIso: () => "2026-05-20T08:00:00.000Z",
+    reportDirectoryForCard(workspaceId, taskCardId) {
+      return `C:\\LearningPlan\\${workspaceId}\\deliverables\\${taskCardId}`;
+    },
   });
   const result = await service.prepareNextAfterCompletion({
     taskCardId: "task-1",
@@ -210,6 +218,7 @@ async function testPrepareNextAfterCompletionCreatesEvergreenTaskWhenSequenceEnd
   assert.equal(savedTasks[1].sequenceIndex, 2);
   assert.equal(savedTasks[1].sequenceMode, "evergreen_jit");
   assert.equal(savedTasks[1].nextCompletionAllowedAt, "2026-05-21T08:00:00.000Z");
+  assert.equal(savedTasks[1].deliverableDirectoryPath, `C:\\LearningPlan\\learner-1\\deliverables\\${savedTasks[1].taskCardId}`);
   assert.equal(jitInputs.length, 1);
   assert.equal(jitInputs[0].task.sequenceIndex, 2);
   assert.equal(JSON.stringify(result).includes("Generated evergreen"), false);

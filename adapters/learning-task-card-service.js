@@ -65,6 +65,9 @@ function executionQueueSummary(task = {}) {
     sequenceMode: cleanString(task.sequenceMode || task.learningGrowthSequenceMode),
     learningGrowthJitPending: Boolean(task.learningGrowthJitPending),
     learningGrowthSequenceVisibility: cleanString(task.learningGrowthSequenceVisibility),
+    deliverableDirectoryPath: cleanString(task.deliverableDirectoryPath),
+    artifactDirectoryPath: cleanString(task.artifactDirectoryPath),
+    reportDirectoryPath: cleanString(task.reportDirectoryPath),
     rewardPolicy,
     rewardCapCoins: rewardPolicy.maxCoins,
     availableAt: cleanString(task.availableAt),
@@ -75,7 +78,29 @@ function executionQueueSummary(task = {}) {
   };
 }
 
-function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
+function withDeliverableDirectory(card = {}, options = {}) {
+  const existing = cleanString(card.deliverableDirectoryPath || card.artifactDirectoryPath || card.reportDirectoryPath);
+  if (existing) {
+    return Object.assign({}, card, {
+      deliverableDirectoryPath: existing,
+      artifactDirectoryPath: existing,
+      reportDirectoryPath: existing,
+    });
+  }
+  const directoryService = options.directoryMaterializationService || null;
+  if (!directoryService || typeof directoryService.reportDirectoryForCard !== "function") return card;
+  const taskCardId = cleanString(card.taskCardId || card.id);
+  if (!taskCardId) return card;
+  const directoryPath = cleanString(directoryService.reportDirectoryForCard(card.workspaceId, taskCardId, card), 2000);
+  if (!directoryPath) return card;
+  return Object.assign({}, card, {
+    deliverableDirectoryPath: directoryPath,
+    artifactDirectoryPath: directoryPath,
+    reportDirectoryPath: directoryPath,
+  });
+}
+
+function materializeTask(program = {}, draft = {}, day = {}, task = {}, options = {}) {
   const sourceBasisRefs = asArray(task.sourceBasisRefs).length ? asArray(task.sourceBasisRefs) : asArray(program.sourceBasisRefs);
   const curriculumRefs = asArray(task.curriculumRefs).length ? asArray(task.curriculumRefs) : asArray(program.curriculumRefs);
   const taskModel = task.taskModel && typeof task.taskModel === "object"
@@ -94,7 +119,7 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
       || program.rewardPolicy
       || { rewardCapCoins: task.rewardCapCoins || DEFAULT_MAX_CARD_COINS },
   );
-  return {
+  const card = {
     taskCardId: stableTaskCardId(draft.draftId, task.taskId),
     programId: program.programId || draft.programId,
     draftId: draft.draftId,
@@ -137,10 +162,12 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
     aiInputContract: cleanString(task.aiInputContract),
     aiOutputContract: cleanString(task.aiOutputContract),
   };
+  return withDeliverableDirectory(card, options);
 }
 
 function createLearningTaskCardService(options = {}) {
   const repository = options.repository;
+  const directoryMaterializationService = options.directoryMaterializationService || null;
   if (!repository || typeof repository.upsertTaskCard !== "function") {
     throw new Error("learning task card service requires repository");
   }
@@ -151,7 +178,7 @@ function createLearningTaskCardService(options = {}) {
     const cards = [];
     for (const day of asArray(draft.dailyPlans)) {
       for (const task of asArray(day.tasks)) {
-        cards.push(repository.upsertTaskCard(materializeTask(program, draft, day, task)));
+        cards.push(repository.upsertTaskCard(materializeTask(program, draft, day, task, { directoryMaterializationService })));
       }
     }
     return cards;

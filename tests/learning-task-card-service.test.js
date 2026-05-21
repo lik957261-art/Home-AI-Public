@@ -63,7 +63,14 @@ function testMaterializeDraft() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
   const draft = seed(repository);
-  const service = createLearningTaskCardService({ repository });
+  const service = createLearningTaskCardService({
+    repository,
+    directoryMaterializationService: {
+      reportDirectoryForCard(workspaceId, taskCardId) {
+        return path.join(root, "learning-plan", workspaceId, "deliverables", taskCardId);
+      },
+    },
+  });
   const cards = service.materializeDraft({ program: repository.getProgram("program-1"), draft });
   assert.equal(cards.length, 1);
   assert.equal(cards[0].taskCardId, stableTaskCardId("draft-1", "task-a"));
@@ -73,6 +80,8 @@ function testMaterializeDraft() {
   assert.equal(cards[0].taskModel.submissionContract.firstSubmissionKind, "speaking_retell");
   assert.equal(cards[0].rewardCapCoins, 100);
   assert.equal(cards[0].rewardPolicy.maxCoins, 100);
+  assert.equal(cards[0].deliverableDirectoryPath, path.join(root, "learning-plan", "weixin_stephen", "deliverables", cards[0].taskCardId));
+  assert.equal(service.get(cards[0].taskCardId).artifactDirectoryPath, cards[0].deliverableDirectoryPath);
   assert.equal(service.list({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(service.get(cards[0].taskCardId).privacyLevel, "summary_only");
   repository.close();

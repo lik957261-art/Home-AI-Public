@@ -88,6 +88,9 @@ function projectTaskCardForExecutor(task) {
     "plannedMinutes",
     "skillIds",
     "templateId",
+    "deliverableDirectoryPath",
+    "artifactDirectoryPath",
+    "reportDirectoryPath",
     "summary",
     "createdAt",
     "updatedAt",
@@ -138,6 +141,9 @@ function projectExecutableTaskForExecutor(task) {
     "latestEvaluation",
     "latestReflection",
     "artifactCount",
+    "deliverableDirectoryPath",
+    "artifactDirectoryPath",
+    "reportDirectoryPath",
   ]);
 }
 

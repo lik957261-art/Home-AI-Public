@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-growth-artifact-folder-v59";
+const CLIENT_VERSION = "20260521-growth-artifact-folder-v60";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -110,6 +110,14 @@ assert.match(appApiClientJs, /AbortController/);
 assert.match(appApiClientJs, /Request timed out/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
+assert.match(appJs, /target === "directory"[\s\S]*?navigateDirectoryUp\(\{ animateEntry: true \}\)\.catch\(showError\)/);
+assert.match(appJs, /learningGrowthWorkspaceId: state\.learningGrowthWorkspaceId/);
+assert.match(appJs, /selectedLearningTaskCardId: state\.selectedLearningTaskCardId/);
+assert.match(appJs, /learningGrowthBoardLane: state\.learningGrowthBoardLane/);
+assert.match(appJs, /learningGrowthSettingsOpen: state\.learningGrowthSettingsOpen/);
+assert.match(appJs, /learningGrowthActiveTab: state\.learningGrowthActiveTab/);
+assert.match(appJs, /conversationScrollTop: \$\("conversation"\)\?\.scrollTop \|\| 0/);
+assert.match(appJs, /state\.viewMode === "learning"[\s\S]*?renderLearningCoinsView\(\)/);
 assert.match(appJs, /return TaskArtifactHelpers\.taskGroupsForThread\(thread\);/);
 const appShellFiles = [
   "app-task-artifact-helpers.js",
@@ -911,6 +919,7 @@ assert.match(appLearningGrowthControllerJs, /state\.learningCoinsLoading = false
 assert.match(appLearningGrowthControllerJs, /loadTodos\(\{ skipCache: true, includeCompleted: true, freshServer: true, targetId: id, workspaceId: targetWorkspaceId \}\)/);
 assert.match(appJs, /if \(workspaceId && routeView === "learning" && taskCardId\) \{\s*setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
 assert.match(appJs, /payload\.workspaceId === learningGrowthLearnerWorkspaceId\(\)/);
+assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-service.js"), "utf8"), /"artifactDirectoryPath"/);
   assert.match(appJs, /function learningProgramFormBody\(\)/);
   assert.match(appJs, /function learningSourceFormBody\(\)/);
   assert.match(appLearningGrowthControllerJs, /function importLearningSourceDirectory\(/);
@@ -961,6 +970,7 @@ assert.match(appLearningGrowthUiJs, /data-learning-growth-board/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-board-filter/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-board-panel/);
 assert.match(appLearningGrowthUiJs, /data-directory-path-open/);
+assert.match(appLearningGrowthUiJs, /data-learning-growth-artifact-link/);
 assert.match(appLearningGrowthUiJs, /artifactDirectoryPath/);
 assert.match(appLearningGrowthUiJs, /renderSelectedGrowthTaskView/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-task-focus/);
@@ -969,7 +979,8 @@ assert.match(appLearningProgramUiJs, /data-learning-growth-answer-card/);
 assert.match(appLearningGrowthControllerJs, /state\.learningGrowthBoardLane/);
 assert.match(appLearningGrowthControllerJs, /selectLearningGrowthBoardLane/);
 assert.match(appLearningGrowthControllerJs, /wireDirectoryProjectLinks\(\$\("conversation"\)\)/);
-assert.match(mobileApiComposition, /kanbanStudyArtifactService: deps\.kanbanStudyArtifactService/);
+assert.match(mobileApiComposition, /directoryMaterializationService: learningGrowthDirectoryMaterializationService/);
+assert.match(mobileApiComposition, /reportDirectoryForCard: \(workspaceId, taskCardId, task\) => learningGrowthDirectoryMaterializationService\.reportDirectoryForCard/);
 assert.match(appLearningGrowthControllerJs, /data-learning-close-growth-task/);
 assert.match(stylesCss, /\.learning-growth-board-status-filter/);
 assert.match(stylesCss, /\.learning-growth-board-status-chip/);

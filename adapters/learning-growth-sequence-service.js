@@ -235,6 +235,27 @@ function publicNextTaskResult(result = {}) {
   };
 }
 
+function withDeliverableDirectory(card = {}, reportDirectoryForCard = null) {
+  const existing = cleanString(card.deliverableDirectoryPath || card.artifactDirectoryPath || card.reportDirectoryPath, 2000);
+  if (existing) {
+    return Object.assign({}, card, {
+      deliverableDirectoryPath: existing,
+      artifactDirectoryPath: existing,
+      reportDirectoryPath: existing,
+    });
+  }
+  if (typeof reportDirectoryForCard !== "function") return card;
+  const taskCardId = cleanString(card.taskCardId || card.id);
+  if (!taskCardId) return card;
+  const directoryPath = cleanString(reportDirectoryForCard(card.workspaceId, taskCardId, card), 2000);
+  if (!directoryPath) return card;
+  return Object.assign({}, card, {
+    deliverableDirectoryPath: directoryPath,
+    artifactDirectoryPath: directoryPath,
+    reportDirectoryPath: directoryPath,
+  });
+}
+
 function createLearningGrowthSequenceService(options = {}) {
   const getLearningProgramService = typeof options.getLearningProgramService === "function"
     ? options.getLearningProgramService
@@ -244,6 +265,7 @@ function createLearningGrowthSequenceService(options = {}) {
     : () => options.jitTaskService || null;
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const decisionReportService = options.decisionReportService || null;
+  const reportDirectoryForCard = typeof options.reportDirectoryForCard === "function" ? options.reportDirectoryForCard : null;
 
   async function prepareNextAfterCompletion(input = {}) {
     const programService = getLearningProgramService();
@@ -317,7 +339,7 @@ function createLearningGrowthSequenceService(options = {}) {
         recentLearningState,
       });
       const generatedAt = nowIso();
-      const updated = Object.assign({}, nextTask, prepared, {
+      const updated = withDeliverableDirectory(Object.assign({}, nextTask, prepared, {
         status: cleanString(nextTask.status) || "published",
         sequenceGroupId: groupId,
         learningGrowthGeneratedAfterTaskCardId: previousTaskCardId,
@@ -327,7 +349,7 @@ function createLearningGrowthSequenceService(options = {}) {
         generatedAfterCompletionAt: completedAt,
         generatedAt,
         nextCompletionAllowedAt: cleanString(nextTask.nextCompletionAllowedAt),
-      });
+      }), reportDirectoryForCard);
       const saved = typeof programService.repository?.upsertTaskCard === "function"
         ? programService.repository.upsertTaskCard(updated)
         : updated;

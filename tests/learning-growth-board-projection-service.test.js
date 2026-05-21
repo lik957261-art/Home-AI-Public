@@ -16,7 +16,7 @@ function overview() {
       executableTasks: [
         { taskCardId: "task-ready", title: "Ready", status: "published", plannedDate: "2026-05-20", createdAt: "2026-05-20T07:30:00.000Z", taskModel: { skillId: "english_short_writing" } },
         { taskCardId: "task-ai", title: "Waiting", status: "published" },
-        { taskCardId: "task-reflect", title: "Reflect", status: "published" },
+        { taskCardId: "task-reflect", title: "Reflect", status: "published", artifactDirectoryPath: "C:\\Deliverables\\task-reflect" },
         { taskCardId: "task-done", title: "Done", status: "completed" },
       ],
       taskSubmissions: [
@@ -94,29 +94,30 @@ function testBoardDerivesArtifactDirectoryForHistoricalCounts() {
   const board = buildLearningGrowthBoard({
     overview: historicalOverview,
     today: "2026-05-20",
-    artifactDirectoryForTask: (task) => `C:\\Deliverables\\${task.taskCardId}`,
   });
-  assert.equal(board.cards[0].artifactDirectoryPath, "C:\\Deliverables\\task-history");
+  assert.equal(board.cards[0].artifactDirectoryPath, "");
 }
 
-function testServiceUsesArtifactServiceForBoardDirectories() {
+function testServiceUsesPersistedTaskArtifactDirectory() {
   const service = createLearningGrowthBoardProjectionService({
     learningGrowthService: {
       overview(input) {
         return Object.assign({}, overview(), {
           programs: {
-            executableTasks: [{ taskCardId: "task-service", title: "Service", status: "completed", workspaceId: input.workspaceId, artifactCount: 1 }],
+            executableTasks: [{
+              taskCardId: "task-service",
+              title: "Service",
+              status: "completed",
+              workspaceId: input.workspaceId,
+              artifactCount: 1,
+              artifactDirectoryPath: `C:\\${input.workspaceId}\\learning-growth\\task-service`,
+            }],
             taskSubmissions: [],
             evaluations: [],
             taskReflections: [],
             taskArtifacts: [],
           },
         });
-      },
-    },
-    artifactService: {
-      caseDeliverableDirectory(workspaceId, caseId, taskCardId) {
-        return `C:\\${workspaceId}\\${caseId}\\${taskCardId}`;
       },
     },
   });
@@ -356,7 +357,7 @@ function testBoardFiltersRetiredAndCancelledTasks() {
 testBoardClassifiesNativeTasksIntoLanes();
 testCompletedLaneSortsByCompletedTimeDescending();
 testBoardDerivesArtifactDirectoryForHistoricalCounts();
-testServiceUsesArtifactServiceForBoardDirectories();
+testServiceUsesPersistedTaskArtifactDirectory();
 testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();

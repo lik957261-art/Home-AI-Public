@@ -114,6 +114,7 @@ function performBackSwipeAction(target) {
     state.learningGrowthSettingsOpen = false;
     renderLearningCoinsView();
   }
+  else if (target === "directory") navigateDirectoryUp({ animateEntry: true }).catch(showError);
   else if (target === "automation") openAutomationList();
 }
 
@@ -248,7 +249,8 @@ function captureDirectoryReturnRoute() {
     automationEditOpen: state.automationEditOpen,
     automationEditJobId: state.automationEditJobId,
     automationOutputHistoryOpen: state.automationOutputHistoryOpen,
-    skillDetail: state.skillDetail,
+    skillDetail: state.skillDetail, learningGrowthWorkspaceId: state.learningGrowthWorkspaceId, selectedLearningTaskCardId: state.selectedLearningTaskCardId, learningGrowthBoardLane: state.learningGrowthBoardLane, learningGrowthSettingsOpen: state.learningGrowthSettingsOpen, learningGrowthActiveTab: state.learningGrowthActiveTab,
+    conversationScrollTop: $("conversation")?.scrollTop || 0,
     searchText: $("threadSearch")?.value || "",
   };
 }
@@ -275,6 +277,7 @@ function restoreDirectoryReturnRoute() {
   state.automationEditJobId = route.automationEditJobId || "";
   state.automationOutputHistoryOpen = Boolean(route.automationOutputHistoryOpen);
   state.skillDetail = route.skillDetail || null;
+  Object.assign(state, { learningGrowthWorkspaceId: route.learningGrowthWorkspaceId || state.learningGrowthWorkspaceId || "", selectedLearningTaskCardId: route.selectedLearningTaskCardId || "", learningGrowthBoardLane: route.learningGrowthBoardLane || state.learningGrowthBoardLane || "", learningGrowthSettingsOpen: Boolean(route.learningGrowthSettingsOpen), learningGrowthActiveTab: route.learningGrowthActiveTab || state.learningGrowthActiveTab || "" });
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   localStorage.setItem("hermesWebProject", state.selectedProjectId || "");
   localStorage.setItem("hermesWebSubproject", state.selectedSubprojectId || "");
@@ -284,6 +287,10 @@ function restoreDirectoryReturnRoute() {
   updateSearchButton();
   applyViewMode();
   if (state.viewMode === "todos") renderTodos();
+  else if (state.viewMode === "learning") {
+    renderLearningCoinsView();
+    const scrollTop = Number(route.conversationScrollTop || 0) || 0; if (scrollTop > 0) requestAnimationFrame(() => { const conversation = $("conversation"); if (conversation) conversation.scrollTop = scrollTop; });
+  }
   else if (state.viewMode === "automation") renderAutomationView();
   else {
     renderThreads();
