@@ -28,6 +28,16 @@ function storeAccessKey(key) {
   document.cookie = `hermes_web_key=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }
 
+function logoutCurrentAccount() {
+  if (!window.confirm("\u9000\u51fa\u5f53\u524d\u8d26\u53f7\uff1f\u672c\u673a\u5c06\u6e05\u9664\u5df2\u4fdd\u5b58\u7684 Access Key\uff0c\u4e0d\u4f1a\u64a4\u9500\u670d\u52a1\u5668\u4e0a\u7684 key\u3002")) return;
+  closeTopMoreMenu?.();
+  closeSidebar?.();
+  state.settingsOpen = false;
+  state.auth = null; state.workspaces = [];
+  clearStoredAccessKey();
+  showLogin("\u5df2\u9000\u51fa\u8d26\u53f7\uff0c\u8bf7\u91cd\u65b0\u8f93\u5165 Access Key\u3002");
+}
+
 function handleClientVersionFromResponse(response) {
   return AppApiClient.handleClientVersionFromResponse(response, {
     getClientVersion: () => state.clientVersion,

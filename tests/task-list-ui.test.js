@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-growth-settings-tabs-v66";
+const CLIENT_VERSION = "20260521-settings-logout-v67";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -479,6 +479,11 @@ assert.match(stylesCss, /\.kanban-story-swipe-content/);
 assert.match(stylesCss, /\.kanban-story-swipe-delete/);
 assert.match(stylesCss, /--app-font-family/);
 assert.match(stylesCss, /\.font-family-options/);
+assert.match(appJs, /function logoutCurrentAccount\(\)/);
+assert.match(appJs, /data-settings-logout/);
+assert.match(appJs, /clearStoredAccessKey\(\);[\s\S]*showLogin/);
+assert.match(stylesCss, /\.settings-account-actions/);
+assert.match(stylesCss, /\.settings-logout-button/);
 assert.match(stylesCss, /\.kanban-archive-case-head h3 \{[\s\S]*?font-size: calc\(17px \* var\(--app-font-scale\)\)/);
 assert.match(stylesCss, /\.kanban-archive-story-grid p \{[\s\S]*?font-size: calc\(15px \* var\(--app-font-scale\)\)/);
 assert.match(appJs, /kanbanActiveStoryCases\(items\)\.filter\(kanbanStoryCaseExpanded\)/);
