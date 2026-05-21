@@ -169,10 +169,8 @@
 
   function renderArtifactCountPill(card = {}, artifacts = 0, escapeHtml = defaultEscapeHtml) {
     const directoryPath = String(card.artifactDirectoryPath || "").trim();
-    const label = `\u4ea4\u4ed8 ${artifacts}`;
-    if (!artifacts) return "";
-    if (!directoryPath) return `<small>${escapeHtml(label)}</small>`;
-    return `<button type="button" class="learning-growth-board-artifact-link" data-learning-growth-artifact-link data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(card.title || "\u4ea4\u4ed8\u76ee\u5f55")}" aria-label="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55" title="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55">${escapeHtml(label)}</button>`;
+    if (!artifacts || !directoryPath) return "";
+    return `<button type="button" class="learning-growth-board-artifact-link" data-learning-growth-artifact-link data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(card.title || "\u4ea4\u4ed8\u76ee\u5f55")}" aria-label="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55" title="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55"><span class="learning-growth-board-artifact-icon" aria-hidden="true"></span></button>`;
   }
 
   function renderBoardCard(card = {}, options = {}) {

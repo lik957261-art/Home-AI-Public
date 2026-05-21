@@ -139,7 +139,7 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /开放 2026-05-20 09:30/);
   assert.match(html, /data-directory-path-open/);
   assert.match(html, /data-learning-growth-artifact-link/);
-  assert.match(html, /交付 1/);
+  assert.match(html, /learning-growth-board-artifact-icon/);
   assert.match(html, /data-directory-path="C:\\Deliverables\\task-2"/);
   assert.doesNotMatch(html, /上限 120 金币|任务概览|学习任务/);
   assert.doesNotMatch(html, /提交作答|learning-growth-board-card-actions/);
