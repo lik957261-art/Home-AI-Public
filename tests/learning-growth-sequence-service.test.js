@@ -45,6 +45,7 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
     task("task-3", 3, "published"),
   ];
   const savedTasks = [];
+  const savedArtifacts = [];
   const jitInputs = [];
   const programService = {
     getTaskCard(taskCardId) {
@@ -64,6 +65,10 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
       upsertTaskCard(nextTask) {
         savedTasks.push(nextTask);
         return nextTask;
+      },
+      saveTaskArtifact(artifact) {
+        savedArtifacts.push(artifact);
+        return artifact;
       },
     },
   };
@@ -93,6 +98,19 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
     },
   };
   const service = createLearningGrowthSequenceService({
+    decisionReportService: {
+      writeReport(input = {}) {
+        return {
+          artifactId: `report-${input.task.taskCardId}`,
+          name: "jit-decision.md",
+          title: "AI JIT decision report",
+          mime: "text/markdown; charset=utf-8",
+          size: 123,
+          summary: "Decision report generated.",
+          createdAt: "2026-05-20T08:00:00.000Z",
+        };
+      },
+    },
     learningProgramService: programService,
     jitTaskService,
     nowIso: () => "2026-05-20T08:00:00.000Z",
@@ -108,6 +126,7 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
   assert.equal(result.taskCardId, "task-2");
   assert.equal(result.sequenceIndex, 2);
   assert.equal(result.modelStatus, "completed");
+  assert.equal(result.decisionReportArtifactId, "report-task-2");
   assert.equal(savedTasks.length, 2);
   assert.equal(savedTasks[0].taskCardId, "task-1");
   assert.equal(savedTasks[0].status, "completed");
@@ -116,6 +135,10 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
   assert.equal(savedTasks[1].learningGrowthSequenceVisibility, "current");
   assert.equal(jitInputs.length, 1);
   assert.equal(jitInputs[0].task.taskCardId, "task-2");
+  assert.equal(savedArtifacts.length, 1);
+  assert.equal(savedArtifacts[0].taskCardId, "task-2");
+  assert.equal(savedArtifacts[0].artifactType, "jit_decision_report");
+  assert.equal(savedArtifacts[0].raw.path, undefined);
   assert.equal(JSON.stringify(result).includes("Generated instruction"), false);
 }
 

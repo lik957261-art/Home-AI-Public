@@ -19,6 +19,7 @@ const { createLearningGrowthLegacyTodoTaskService } = require("../adapters/learn
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
+const { createLearningGrowthJitDecisionReportService } = require("../adapters/learning-growth-jit-decision-report-service");
 const { createLearningGrowthSequenceService } = require("../adapters/learning-growth-sequence-service");
 const { createLearningGrowthTaskEvaluationService } = require("../adapters/learning-growth-task-evaluation-service");
 const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
@@ -415,6 +416,11 @@ function createMobileApiComposition(deps = {}) {
   const learningGrowthDirectoryMaterializationService = createLearningGrowthDirectoryMaterializationService({
     dataDir: deps.dataDir,
   });
+  const learningGrowthJitDecisionReportService = createLearningGrowthJitDecisionReportService({
+    dataDir: deps.dataDir,
+    nowIso: deps.nowIso,
+    reportDirectoryForCard: (workspaceId, taskCardId, task) => learningGrowthDirectoryMaterializationService.reportDirectoryForCard(workspaceId, taskCardId, task),
+  });
   const learningGrowthReflectionService = createLearningGrowthReflectionService({
     extractJsonObject: deps.extractJsonObject,
     findWorkspace: deps.findWorkspace,
@@ -426,6 +432,7 @@ function createMobileApiComposition(deps = {}) {
     transcribeAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
   const learningGrowthSequenceService = createLearningGrowthSequenceService({
+    decisionReportService: learningGrowthJitDecisionReportService,
     getJitTaskService: () => learningGrowthJitTaskService,
     getLearningProgramService: () => learningProgramService,
     nowIso: deps.nowIso,

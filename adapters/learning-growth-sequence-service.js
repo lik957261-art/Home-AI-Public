@@ -230,6 +230,7 @@ function publicNextTaskResult(result = {}) {
     modelStatus: cleanString(result.modelStatus),
     generatedAt: cleanString(result.generatedAt),
     nextCompletionAllowedAt: cleanString(result.nextCompletionAllowedAt),
+    decisionReportArtifactId: cleanString(result.decisionReportArtifactId),
     error: cleanString(result.error),
   };
 }
@@ -242,6 +243,7 @@ function createLearningGrowthSequenceService(options = {}) {
     ? options.getJitTaskService
     : () => options.jitTaskService || null;
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
+  const decisionReportService = options.decisionReportService || null;
 
   async function prepareNextAfterCompletion(input = {}) {
     const programService = getLearningProgramService();
@@ -329,6 +331,46 @@ function createLearningGrowthSequenceService(options = {}) {
       const saved = typeof programService.repository?.upsertTaskCard === "function"
         ? programService.repository.upsertTaskCard(updated)
         : updated;
+      let decisionReport = null;
+      if (decisionReportService && typeof decisionReportService.writeReport === "function") {
+        decisionReport = decisionReportService.writeReport({
+          program,
+          draft,
+          task: saved,
+          previousTaskCardId,
+          sequenceGroupId: groupId,
+          workspaceId: cleanString(input.workspaceId || saved.workspaceId || currentTask.workspaceId || program.workspaceId),
+        });
+        if (decisionReport && typeof programService.repository?.saveTaskArtifact === "function") {
+          programService.repository.saveTaskArtifact({
+            artifactId: decisionReport.artifactId,
+            taskCardId: saved.taskCardId || nextTask.taskCardId,
+            sessionId: "",
+            evaluationId: "",
+            submissionId: "",
+            reflectionId: "",
+            programId: saved.programId || program.programId || "",
+            learnerId: saved.learnerId || program.learnerId || saved.workspaceId || "",
+            workspaceId: saved.workspaceId || program.workspaceId || "",
+            artifactType: "jit_decision_report",
+            title: decisionReport.title || "AI JIT decision report",
+            name: decisionReport.name,
+            mime: decisionReport.mime,
+            size: Number(decisionReport.size || 0) || 0,
+            refDigest: crypto.createHash("sha256").update(cleanString(decisionReport.path || decisionReport.name)).digest("hex"),
+            refName: decisionReport.name,
+            status: "generated",
+            summary: decisionReport.summary || "AI JIT decision report generated.",
+            createdAt: decisionReport.createdAt || generatedAt,
+            raw: {
+              source: "learning_growth_jit_decision_report",
+              name: decisionReport.name,
+              mime: decisionReport.mime,
+              size: Number(decisionReport.size || 0) || 0,
+            },
+          });
+        }
+      }
       return publicNextTaskResult({
         ok: true,
         status: createdEvergreen ? "next_task_created" : "next_task_prepared",
@@ -338,6 +380,7 @@ function createLearningGrowthSequenceService(options = {}) {
         modelStatus: saved.learningGrowthJitGeneration?.modelStatus || saved.taskModel?.jitGeneration?.modelStatus,
         generatedAt,
         nextCompletionAllowedAt: saved.nextCompletionAllowedAt,
+        decisionReportArtifactId: decisionReport?.artifactId,
       });
     } catch (err) {
       return publicNextTaskResult({
