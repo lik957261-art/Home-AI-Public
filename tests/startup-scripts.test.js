@@ -199,6 +199,8 @@ assert.match(startLowGatewaysShell, /HERMES_MOBILE_BRIDGE_HOST_URL/);
 assert.match(startLowGatewaysShell, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);
 assert.match(startLowGatewaysShell, /HERMES_WEB_BRIDGE_HOST_URL/);
 assert.match(startLowGatewaysShell, /HERMES_WEB_BRIDGE_HOST_KEY_PATH/);
+assert.match(startLowGatewaysShell, /detect_windows_host_gateway\(\)/);
+assert.match(startLowGatewaysShell, /default_mobile_bridge_host_url="http:\/\/\$\{windows_host_gateway\}:8798"/);
 assert.match(startLowGatewaysShell, /HERMES_GATEWAY_RUNTIME_BIN/);
 assert.match(startLowGatewaysShell, /runtime_hermes="\$runtime_bin\/hermes"/);
 assert.match(startLowGatewaysShell, /HERMES_HOME="\$worker_home_dir\/profiles\/\$profile"/);
@@ -218,6 +220,8 @@ assert.match(startLowGatewaysShell, /repair_gateway_profile_link\(\)/);
 assert.match(startLowGatewaysShell, /stop_gateway_port\(\)/);
 assert.match(startLowGatewaysShell, /ss -ltnp "sport = :\$\{port\}"/);
 assert.match(startLowGatewaysShell, /kill -9 \$pids/);
+
+assert.match(startWorkerHost, /\$env:HERMES_MOBILE_BRIDGE_HOST = "0\.0\.0\.0"/);
 assert.match(startLowGatewaysShell, /profile_link="\$worker_home_dir\/profiles\/\$profile"/);
 assert.match(startLowGatewaysShell, /expected_target="\$gateway_worker_root\/telemetry\/profiles\/\$profile"/);
 assert.match(startLowGatewaysShell, /profile-directory-backups/);

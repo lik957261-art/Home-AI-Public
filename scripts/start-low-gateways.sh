@@ -12,7 +12,17 @@ runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
 runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
-mobile_bridge_host_url="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"
+
+detect_windows_host_gateway() {
+  ip route 2>/dev/null | awk '/^default[[:space:]]/ { print $3; exit }'
+}
+
+default_mobile_bridge_host_url="http://127.0.0.1:8798"
+windows_host_gateway="$(detect_windows_host_gateway || true)"
+if [ -n "$windows_host_gateway" ]; then
+  default_mobile_bridge_host_url="http://${windows_host_gateway}:8798"
+fi
+mobile_bridge_host_url="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-$default_mobile_bridge_host_url}}"
 mobile_bridge_key_path="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret}}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
