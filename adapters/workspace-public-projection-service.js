@@ -85,7 +85,13 @@ function createWorkspacePublicProjectionService(options = {}) {
   function publicWorkspacesForAuth(auth) {
     const workspaces = options.loadCatalog().workspaces;
     if (options.isOwnerAuth(auth)) return workspaces;
-    return workspaces.filter((workspace) => workspace.id === auth?.workspaceId);
+    const allowed = new Set(
+      []
+        .concat(Array.isArray(auth?.workspaceIds) ? auth.workspaceIds : [])
+        .concat(Array.isArray(auth?.workspaces) ? auth.workspaces : [])
+        .concat(auth?.workspaceId ? [auth.workspaceId] : []),
+    );
+    return workspaces.filter((workspace) => allowed.has(workspace.id));
   }
 
   return {

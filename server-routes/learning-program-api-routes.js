@@ -650,11 +650,19 @@ function createLearningProgramApiRoutes(deps = {}) {
     Math.ceil(Math.max(0, Number(deps.maxUploadBytes || 0)) * 1.4) + 8192,
   );
 
+  function canAccessLearnerWorkspace(auth, learnerWorkspaceId) {
+    if (deps.isOwnerAuth(auth)) return true;
+    if (typeof deps.authCanAccessWorkspace === "function") {
+      return deps.authCanAccessWorkspace(auth, learnerWorkspaceId);
+    }
+    return String(auth?.workspaceId || "").trim() === String(learnerWorkspaceId || "").trim();
+  }
+
   function authorizeQuery(req, res, url, auth) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url, deps.isOwnerAuth(auth) ? "weixin_stephen" : auth?.workspaceId));
     if (!workspaceId) return null;
     const learnerId = requestedLearnerId(url, workspaceId);
-    if (!deps.isOwnerAuth(auth) && learnerId !== auth?.workspaceId) {
+    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, learnerId)) {
       const err = new Error("Learner access is not allowed");
       err.status = 403;
       throw err;
@@ -960,7 +968,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
     const allowed = deps.requireWorkspaceAccess(req, res, program.workspaceId);
     if (!allowed) return;
-    if (!deps.isOwnerAuth(auth) && program.learnerId !== auth?.workspaceId) {
+    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, program.learnerId)) {
       deps.sendJson(res, 403, { ok: false, error: "Learner access is not allowed" });
       return;
     }
@@ -974,7 +982,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
     const allowed = deps.requireWorkspaceAccess(req, res, record.workspaceId);
     if (!allowed) return false;
-    if (!deps.isOwnerAuth(auth) && record.learnerId !== auth?.workspaceId) {
+    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, record.learnerId)) {
       deps.sendJson(res, 403, { ok: false, error: "Learner access is not allowed" });
       return false;
     }

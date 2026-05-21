@@ -43,6 +43,7 @@ function createAccessPolicyProvider(options = {}) {
     "blocked_toolsets",
     "allowed_skills",
     "blocked_skills",
+    "accessible_workspace_ids",
   ]);
   const boolKeys = new Set(["can_delegate_codex", "allow_shell", "show_task_id"]);
   const intKeys = new Set(["context_window_turns", "max_parallel_tasks"]);
@@ -54,6 +55,7 @@ function createAccessPolicyProvider(options = {}) {
     "interaction_mode", "session_mode", "response_style", "background_mode",
     "show_task_id", "context_window_turns", "max_parallel_tasks", "source_platform",
     "source_chat_id", "source_chat_id_alt", "source_user_id", "source_user_id_alt",
+    "accessible_workspace_ids",
     "reason",
   ];
 

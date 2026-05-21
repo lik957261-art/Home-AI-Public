@@ -156,12 +156,16 @@ function requestedStudentId(deps, auth, requested, workspaceId) {
   const studentId = String(requested || "").trim();
   if (deps.isOwnerAuth(auth)) return studentId || workspaceId || "owner";
   const ownWorkspace = String(auth?.workspaceId || workspaceId || "").trim();
-  if (studentId && studentId !== ownWorkspace) {
+  const targetStudentId = studentId || workspaceId || ownWorkspace || "owner";
+  const canAccess = typeof deps.authCanAccessWorkspace === "function"
+    ? deps.authCanAccessWorkspace(auth, targetStudentId)
+    : targetStudentId === ownWorkspace;
+  if (targetStudentId && !canAccess) {
     const err = new Error("Student access is not allowed");
     err.status = 403;
     throw err;
   }
-  return ownWorkspace || workspaceId || "owner";
+  return targetStudentId;
 }
 
 function sendRouteError(deps, res, err) {

@@ -65,6 +65,15 @@ function createAuthProvider(options = {}) {
 
   let ownerKeyState = disableAuth() ? { key: "", source: "disabled" } : loadOwnerKeyState();
 
+  function workspaceAccessIds(workspace) {
+    const policy = workspace?.policy && typeof workspace.policy === "object" ? workspace.policy : {};
+    const raw = []
+      .concat(Array.isArray(policy.accessible_workspace_ids) ? policy.accessible_workspace_ids : [])
+      .concat(Array.isArray(policy.workspace_ids) ? policy.workspace_ids : [])
+      .concat(Array.isArray(policy.workspaces) ? policy.workspaces : []);
+    return [...new Set(raw.map((item) => String(item || "").trim()).filter(Boolean))];
+  }
+
   function loadOwnerKeyState() {
     const direct = envKey();
     if (direct) return { key: direct, source: "env" };
@@ -166,6 +175,8 @@ function createAuthProvider(options = {}) {
         role: "workspace",
         workspaceId,
         principalId: workspacePrincipal(workspaceId),
+        workspaceIds: [...new Set([workspaceId, ...workspaceAccessIds(workspace)])],
+        workspaces: [...new Set([workspaceId, ...workspaceAccessIds(workspace)])],
         isOwner: false,
         keySource: "workspace",
       };
@@ -182,7 +193,13 @@ function createAuthProvider(options = {}) {
   function authCanAccessWorkspace(auth, workspaceId) {
     if (isOwnerAuth(auth)) return true;
     const id = String(workspaceId || "owner").trim() || "owner";
-    return Boolean(auth?.ok && auth.workspaceId && id === auth.workspaceId);
+    const allowed = new Set(
+      []
+        .concat(Array.isArray(auth?.workspaceIds) ? auth.workspaceIds : [])
+        .concat(Array.isArray(auth?.workspaces) ? auth.workspaces : [])
+        .concat(auth?.workspaceId ? [auth.workspaceId] : []),
+    );
+    return Boolean(auth?.ok && allowed.has(id));
   }
 
   function publicWorkspaceAccessKeyStatus(workspace) {

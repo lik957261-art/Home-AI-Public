@@ -56,7 +56,8 @@ function canRevokeGroupMessage(message) {
   if (!isGroupChatView() || !message || message.revokedAt) return false;
   if (message.role !== "user" || message.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return false;
   if (state.auth?.isOwner) return true;
-  return Boolean(state.auth?.workspaceId && state.auth.workspaceId === message.senderWorkspaceId);
+  const activeWorkspaceId = String(state.selectedWorkspaceId || state.auth?.workspaceId || "").trim();
+  return Boolean(activeWorkspaceId && activeWorkspaceId === message.senderWorkspaceId);
 }
 
 function renderMessageRevokeAction(message) {

@@ -85,12 +85,16 @@ function requestedLearnerId(deps, auth, requested, workspaceId) {
   const learnerId = String(requested || "").trim();
   if (deps.isOwnerAuth(auth)) return learnerId || workspaceId || "owner";
   const ownWorkspace = String(auth?.workspaceId || workspaceId || "").trim();
-  if (learnerId && learnerId !== ownWorkspace) {
+  const targetLearnerId = learnerId || workspaceId || ownWorkspace || "owner";
+  const canAccess = typeof deps.authCanAccessWorkspace === "function"
+    ? deps.authCanAccessWorkspace(auth, targetLearnerId)
+    : targetLearnerId === ownWorkspace;
+  if (targetLearnerId && !canAccess) {
     const err = new Error("Learner access is not allowed");
     err.status = 403;
     throw err;
   }
-  return ownWorkspace || workspaceId || "owner";
+  return targetLearnerId;
 }
 
 function sendRouteError(deps, res, err) {

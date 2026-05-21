@@ -4,7 +4,14 @@ async function loadWorkspaces() {
   const result = await api("/api/workspaces");
   state.workspaces = result.data || [];
   state.auth = result.auth || null;
-  if (!state.auth?.isOwner && state.auth?.workspaceId) state.selectedWorkspaceId = state.auth.workspaceId;
+  const accessibleWorkspaceIds = Array.isArray(state.auth?.workspaceIds) && state.auth.workspaceIds.length
+    ? state.auth.workspaceIds
+    : (state.auth?.workspaceId ? [state.auth.workspaceId] : []);
+  if (!state.auth?.isOwner) {
+    if (!accessibleWorkspaceIds.includes(state.selectedWorkspaceId)) {
+      state.selectedWorkspaceId = state.auth?.workspaceId || accessibleWorkspaceIds[0] || "";
+    }
+  }
   else if (!state.workspaces.some((item) => item.id === state.selectedWorkspaceId)) state.selectedWorkspaceId = state.workspaces[0]?.id || "";
   if (state.selectedWorkspaceId) localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
   if (!state.auth?.isOwner) { state.accessKeyManagerOpen = state.runtimeConfigOpen = false; document.querySelectorAll("#accessKeyOverlay,#runtimeConfigOverlay,#ownerElevationApprovalOverlay").forEach((node) => { node.classList.add("hidden"); node.innerHTML = ""; }); }
@@ -106,8 +113,10 @@ function workspaceAccessRows() {
   const selectedWorkspaceId = state.selectedWorkspaceId || "";
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId);
   if (selectedWorkspace) return [selectedWorkspace];
-  const ownWorkspaceId = state.auth?.workspaceId || "";
-  const ownWorkspace = workspaces.find((workspace) => workspace.id === ownWorkspaceId);
+  const accessibleWorkspaceIds = Array.isArray(state.auth?.workspaceIds) && state.auth.workspaceIds.length
+    ? state.auth.workspaceIds
+    : (state.auth?.workspaceId ? [state.auth.workspaceId] : []);
+  const ownWorkspace = workspaces.find((workspace) => accessibleWorkspaceIds.includes(workspace.id));
   if (ownWorkspace) return [ownWorkspace];
   return workspaces.slice(0, 1);
 }

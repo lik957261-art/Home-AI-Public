@@ -178,6 +178,7 @@ async function testWorkspaceListShapeAndAuthMetadata() {
     auth: {
       role: "workspace",
       workspaceId: "child",
+      workspaceIds: ["child"],
       isOwner: false,
     },
   });

@@ -218,12 +218,18 @@ function normalizeRequestActor(input = {}) {
     || workspace.policy?.principalId
     || workspaceId,
   );
+  const workspaceIds = normalizeWorkspaceIdList(
+    source.workspaceIds
+    || source.workspace_ids
+    || source.workspaces,
+  );
   return {
     kind: isOwner ? "owner" : "workspace",
     role: isOwner ? "owner" : "workspace",
     authenticated: true,
     isOwner,
     workspaceId,
+    workspaceIds: workspaceIds.length ? workspaceIds : (workspaceId ? [workspaceId] : []),
     principalId: principalId || workspaceId,
     label: cleanString(source.label || source.name || workspace.label || workspace.name || workspaceId, 160),
     keySource: cleanString(source.keySource || source.key_source || "", 80),
@@ -365,9 +371,10 @@ function normalizeWorkspaceScope(input = {}) {
   );
   const actorWorkspaceId = normalizeId(actor.workspaceId || "");
   const selectedWorkspaceId = requestedWorkspaceId || actorWorkspaceId || "";
+  const actorWorkspaceIds = normalizeWorkspaceIdList(actor.workspaceIds || actor.workspace_ids || actor.workspaces || actorWorkspaceId);
   const canAccessSelectedWorkspace = Boolean(
     actor.isOwner
-    || (actor.authenticated && actorWorkspaceId && selectedWorkspaceId && actorWorkspaceId === selectedWorkspaceId),
+    || (actor.authenticated && selectedWorkspaceId && actorWorkspaceIds.includes(selectedWorkspaceId)),
   );
   return {
     requestedWorkspaceId,
@@ -390,7 +397,7 @@ function requestContextHasWorkspaceScope(context, workspaceId = "") {
   const target = normalizeId(workspaceId || context?.workspace?.selectedWorkspaceId || "");
   if (!actor.authenticated) return false;
   if (requestContextHasOwnerScope(context)) return true;
-  return Boolean(target && actor.workspaceId === target);
+  return normalizeWorkspaceIdList(actor.workspaceIds || actor.workspace_ids || actor.workspaces || actor.workspaceId).includes(target);
 }
 
 function publicRequestContext(contextOrInput = {}) {

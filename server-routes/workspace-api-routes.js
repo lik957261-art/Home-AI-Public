@@ -142,12 +142,18 @@ function createWorkspaceApiRoutes(deps = {}) {
     deps.bootTrace("request api/workspaces enter");
     const catalog = deps.loadCatalog();
     deps.bootTrace("request api/workspaces after loadCatalog");
+    const workspaceIds = Array.isArray(auth?.workspaceIds) && auth.workspaceIds.length
+      ? auth.workspaceIds
+      : (Array.isArray(auth?.workspaces) && auth.workspaces.length
+        ? auth.workspaces
+        : (auth?.workspaceId ? [auth.workspaceId] : []));
     deps.sendJson(res, 200, {
       data: deps.publicWorkspacesForAuth(auth).map(deps.publicWorkspace),
       sources: catalog.sources,
       auth: {
         role: auth?.role,
         workspaceId: auth?.workspaceId,
+        workspaceIds,
         isOwner: deps.isOwnerAuth(auth),
       },
     });
