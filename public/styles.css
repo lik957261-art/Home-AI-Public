@@ -11098,7 +11098,30 @@ button.directory-alias-chip {
 :root[data-font-size] .automation-state,
 :root[data-font-size] .automation-detail-meta,
 :root[data-font-size] .automation-preview,
-:root[data-font-size] .automation-doc-meta {
+:root[data-font-size] .automation-doc-meta,
+:root[data-font-size] .learning-growth-board-card-title small,
+:root[data-font-size] .learning-growth-board-card-meta small,
+:root[data-font-size] .learning-growth-board-artifact-link,
+:root[data-font-size] .learning-growth-board-empty,
+:root[data-font-size] .learning-growth-answer-card-head span,
+:root[data-font-size] .learning-growth-answer-card-head strong,
+:root[data-font-size] .learning-growth-answer-card-meta span,
+:root[data-font-size] .learning-settings-task-row em,
+:root[data-font-size] .learning-ai-recommendation-card span,
+:root[data-font-size] .learning-ai-recommendation-card p,
+:root[data-font-size] .learning-program-card p,
+:root[data-font-size] .learning-program-review-item p,
+:root[data-font-size] .learning-program-focus,
+:root[data-font-size] .learning-program-rebuild-warning,
+:root[data-font-size] .learning-launch-next-actions span,
+:root[data-font-size] .learning-native-growth-prompt,
+:root[data-font-size] .learning-native-growth-submission-state,
+:root[data-font-size] .learning-native-growth-recorder-status,
+:root[data-font-size] .learning-program-task-item p,
+:root[data-font-size] .learning-program-guidance-copy,
+:root[data-font-size] .learning-growth-next-row span,
+:root[data-font-size] .learning-readiness-check-row strong,
+:root[data-font-size] .learning-readiness-next strong {
   font-size: calc(13px * var(--app-font-scale));
 }
 
@@ -11112,7 +11135,11 @@ button.directory-alias-chip {
 :root[data-font-size] .message-prose th,
 :root[data-font-size] .task-prompt,
 :root[data-font-size] .learning-growth-answer-instruction p,
-:root[data-font-size] .learning-native-growth-submission-input {
+:root[data-font-size] .learning-growth-answer-reward p,
+:root[data-font-size] .learning-native-growth-question p,
+:root[data-font-size] .learning-native-growth-submission-input,
+:root[data-font-size] .learning-native-growth-question-reason,
+:root[data-font-size] .learning-native-growth-question-response {
   font-size: calc(16.8px * var(--app-font-scale));
 }
 
@@ -11133,7 +11160,14 @@ button.directory-alias-chip {
 :root[data-font-size] .directory-breadcrumb button,
 :root[data-font-size] .todo-create-toggle,
 :root[data-font-size] .access-key-title,
-:root[data-font-size] .settings-row-title {
+:root[data-font-size] .settings-row-title,
+:root[data-font-size] .learning-growth-board-lane-head strong,
+:root[data-font-size] .learning-settings-task-row strong,
+:root[data-font-size] .learning-ai-recommendation-card strong,
+:root[data-font-size] .learning-program-card h3,
+:root[data-font-size] .learning-native-growth-question legend,
+:root[data-font-size] .learning-native-growth-choice,
+:root[data-font-size] .learning-program-task-item strong {
   font-size: calc(15px * var(--app-font-scale));
 }
 
@@ -11149,8 +11183,50 @@ button.directory-alias-chip {
 :root[data-font-size] .bottom-tab-label,
 :root[data-font-size] .access-key-row-title,
 :root[data-font-size] .workspace-admin-title,
-:root[data-font-size] .settings-preview-body {
+:root[data-font-size] .settings-preview-body,
+:root[data-font-size] .learning-growth-board-card-preview,
+:root[data-font-size] .learning-growth-answer-instruction h4,
+:root[data-font-size] .learning-growth-answer-feedback h4,
+:root[data-font-size] .learning-growth-answer-reward h4,
+:root[data-font-size] .learning-growth-answer-reward-head strong,
+:root[data-font-size] .learning-task-reward-policy-form.compact strong,
+:root[data-font-size] .learning-ai-summary-text,
+:root[data-font-size] .learning-growth-tab-list button,
+:root[data-font-size] .learning-native-growth-reason-label span,
+:root[data-font-size] .learning-program-actions button,
+:root[data-font-size] .learning-program-review-item > button,
+:root[data-font-size] .learning-program-task-actions button,
+:root[data-font-size] .learning-evaluation-inline-form button {
   font-size: calc(14px * var(--app-font-scale));
+}
+
+:root[data-font-size] .learning-growth-board-card-head strong,
+:root[data-font-size] .learning-growth-answer-card-head h3,
+:root[data-font-size] .learning-settings-kpi-grid strong,
+:root[data-font-size] .learning-settings-reward-rows strong,
+:root[data-font-size] .learning-growth-answer-reward-grid b,
+:root[data-font-size] .learning-program-report-grid strong {
+  font-size: calc(16px * var(--app-font-scale));
+}
+
+:root[data-font-size] .learning-settings-kpi-grid small,
+:root[data-font-size] .learning-settings-reward-rows small,
+:root[data-font-size] .learning-settings-task-row small,
+:root[data-font-size] .learning-task-reward-policy-form label,
+:root[data-font-size] .learning-task-reward-policy-form.compact span,
+:root[data-font-size] .learning-task-reward-policy-form.compact small,
+:root[data-font-size] .learning-program-card-top > span,
+:root[data-font-size] .learning-program-draft-top > span,
+:root[data-font-size] .learning-daily-plan-summary small,
+:root[data-font-size] .learning-daily-plan-list span,
+:root[data-font-size] .learning-program-report-grid small,
+:root[data-font-size] .learning-program-report-actions p,
+:root[data-font-size] .learning-program-meta-grid small,
+:root[data-font-size] .learning-program-task-days span,
+:root[data-font-size] .learning-growth-answer-reward-grid small,
+:root[data-font-size] .learning-program-task-item span,
+:root[data-font-size] .learning-program-status-chip {
+  font-size: calc(12px * var(--app-font-scale));
 }
 
 :root[data-font-size] .composer-editor {

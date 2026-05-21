@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-settings-logout-v67";
+const CLIENT_VERSION = "20260521-growth-font-scale-v68";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1088,6 +1088,11 @@ assert.equal(indexHtml.includes('id="topLearningRewards"'), false);
 assert.match(stylesCss, /\.learning-mode #interruptRun \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /\.learning-growth-answer-instruction p \{[\s\S]*?font-size: 16px;/);
 assert.match(stylesCss, /\.learning-native-growth-submission-input \{[\s\S]*?font-size: 16px;/);
+assert.match(stylesCss, /:root\[data-font-size\] \.learning-growth-board-card-head strong/);
+assert.match(stylesCss, /:root\[data-font-size\] \.learning-settings-task-row strong/);
+assert.match(stylesCss, /:root\[data-font-size\] \.learning-native-growth-question p/);
+assert.match(stylesCss, /:root\[data-font-size\] \.learning-program-task-item p/);
+assert.match(stylesCss, /:root\[data-font-size\] \.learning-growth-tab-list button/);
 assert.match(stylesCss, /\.learning-evaluation-inline-form/);
 assert.match(appJs, /function isKanbanLearningGrowthCard\(todo\)/);
 assert.match(appJs, /function renderKanbanLearningGrowthTodoPanel\(todo\)/);
