@@ -5,7 +5,7 @@ param(
     [string]$WorkerDirectory = "C:\ProgramData\HermesMobile\gateway-worker",
     [string]$DistroName = "HermesGatewayWorker",
     [string]$WorkerLinuxUser = "hermes",
-    [string[]]$Models = @("models--Systran--faster-whisper-base", "models--Systran--faster-whisper-small"),
+    [string[]]$Models = @("models--mobiuslabsgmbh--faster-whisper-large-v3-turbo"),
     [switch]$CheckOnly
 )
 
@@ -87,7 +87,7 @@ done
 runuser -u "$WorkerLinuxUser" -- env HOME="`$HOME" HERMES_HOME="`$HERMES_HOME" PYTHONPATH="`$PYTHONPATH" HF_HUB_OFFLINE=1 "`$python" - <<PY
 from faster_whisper import WhisperModel
 for model in "$modelList".split():
-    name = model.removeprefix("models--Systran--faster-whisper-")
+    name = model.removeprefix("models--").replace("--", "/")
     WhisperModel(name, device="cpu", compute_type="int8")
     print(f"loaded={name}")
 PY

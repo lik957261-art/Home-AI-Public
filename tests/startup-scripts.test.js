@@ -457,12 +457,11 @@ assert.match(gatewayToolSchemaSmoke, /C:\/ProgramData\/HermesMobile\/gateway-wor
 assert.doesNotMatch(gatewayToolSchemaSmoke, /console\.log\(.*api[_-]?key/i);
 
 assert.match(transcribeReadingAudio, /HermesGatewayWorker/);
-assert.match(transcribeReadingAudio, /faster_whisper/);
-assert.match(transcribeReadingAudio, /fast-whisper-v3-service/);
+assert.match(transcribeReadingAudio, /large-v3-turbo/);
+assert.match(transcribeReadingAudio, /whisper-large-v3-turbo-service/);
 assert.match(transcribeReadingAudio, /127\.0\.0\.1:8001\/v1\/audio\/transcriptions/);
-assert.match(transcribeReadingAudio, /falling back to worker STT/);
-assert.match(transcribeReadingAudio, /PYTHONPATH="\/opt\/hermes-gateway-runtime\/official-clean"/);
-assert.match(transcribeReadingAudio, /HF_HUB_OFFLINE="1"/);
+assert.doesNotMatch(transcribeReadingAudio, /falling back to worker STT/);
+assert.doesNotMatch(transcribeReadingAudio, /from faster_whisper import WhisperModel/);
 assert.match(transcribeReadingAudio, /\[string\]\$Language = "auto"/);
 assert.doesNotMatch(transcribeReadingAudio, /Write-Host .*token/i);
 
@@ -520,7 +519,9 @@ assert.match(audioPlugin, /AUDIO_TRANSCRIBE_SCHEMA/);
 assert.match(audioPlugin, /"name": "audio_transcribe"/);
 assert.match(audioPlugin, /toolset="file"/);
 assert.match(audioPlugin, /HERMES_MOBILE_AUDIO_ALLOWED_ROOTS/);
-assert.match(audioPlugin, /faster_whisper/);
+assert.match(audioPlugin, /large-v3-turbo/);
+assert.match(audioPlugin, /whisper-large-v3-turbo-service/);
+assert.doesNotMatch(audioPlugin, /from faster_whisper import WhisperModel/);
 assert.match(audioPlugin, /SUPPORTED_SUFFIXES/);
 assert.match(audioPlugin, /unsupported_audio_file_suffix/);
 assert.match(imagePluginManifest, /name: hermes-mobile-image/);

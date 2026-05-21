@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -29,14 +31,15 @@ SUPPORTED_SUFFIXES = {
 MAX_AUDIO_BYTES = 200 * 1024 * 1024
 MAX_RETURN_CHARS = 120_000
 DEFAULT_RETURN_CHARS = 40_000
-DEFAULT_MODEL = "base"
+TRANSCRIPTION_MODEL = "large-v3-turbo"
+TRANSCRIPTION_PROVIDER = "whisper-large-v3-turbo-service"
 
 
 AUDIO_TRANSCRIBE_SCHEMA = {
     "name": "audio_transcribe",
     "description": (
         "Transcribe an in-scope audio file such as MP3, M4A, WAV, AAC, OGG, OPUS, AMR, "
-        "or FLAC using the local Hermes Mobile Whisper runtime. Use this for voice notes, "
+        "or FLAC using the Hermes Mobile Whisper large v3 turbo runtime. Use this for voice notes, "
         "reading retellings, meeting audio, and other current-workspace audio files. The "
         "file path must stay inside current Hermes Mobile workspace/upload/artifact roots."
     ),
@@ -54,12 +57,6 @@ AUDIO_TRANSCRIBE_SCHEMA = {
                     "Leave empty or use auto for automatic detection."
                 ),
                 "default": "auto",
-            },
-            "model": {
-                "type": "string",
-                "description": "Whisper model size. Defaults to base; allowed values: tiny, base, small.",
-                "enum": ["tiny", "base", "small"],
-                "default": DEFAULT_MODEL,
             },
             "max_chars": {
                 "type": "integer",
@@ -155,11 +152,6 @@ def _bool(value: Any, default: bool) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _model_name(value: Any) -> str:
-    text = str(value or "").strip().lower()
-    return text if text in {"tiny", "base", "small"} else DEFAULT_MODEL
-
-
 def _language_hint(value: Any) -> str | None:
     text = str(value or "").strip()
     if not text or text.lower() in {"auto", "detect", "none", "null"}:
@@ -192,29 +184,60 @@ def _validate_audio_path(value: Any) -> Path:
     return path.resolve()
 
 
-def _transcribe(path: Path, model_name: str, language: str | None, max_chars: int, include_segments: bool) -> dict[str, Any]:
-    try:
-        from faster_whisper import WhisperModel
-    except Exception as exc:
-        raise RuntimeError(f"missing_faster_whisper: {exc}") from None
+def _service_url() -> str:
+    return (os.environ.get("HERMES_MOBILE_AUDIO_TRANSCRIBE_URL")
+            or os.environ.get("HERMES_READING_TRANSCRIBE_URL")
+            or "http://127.0.0.1:8001/v1/audio/transcriptions").strip()
 
-    model = WhisperModel(model_name, device="cpu", compute_type="int8")
-    kwargs: dict[str, Any] = {"vad_filter": True}
+
+def _transcribe_with_service(path: Path, language: str | None, timeout_seconds: int = 240) -> dict[str, Any]:
+    curl = shutil.which("curl") or shutil.which("curl.exe")
+    if not curl:
+        raise RuntimeError("curl_not_available_for_whisper_large_v3_turbo_service")
+    command = [
+        curl,
+        "-sS",
+        "--fail-with-body",
+        "--max-time",
+        str(max(5, timeout_seconds)),
+        "-F",
+        f"file=@{path}",
+        "-F",
+        "response_format=json",
+    ]
     if language:
-        kwargs["language"] = language
-    segments, info = model.transcribe(str(path), **kwargs)
+        command.extend(["-F", f"language={language}"])
+    command.append(_service_url())
+    completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise RuntimeError(f"whisper_large_v3_turbo_service_failed:{completed.returncode}:{detail[:500]}")
+    try:
+        parsed = json.loads(completed.stdout or "{}")
+    except Exception as exc:
+        raise RuntimeError(f"invalid_whisper_large_v3_turbo_response:{type(exc).__name__}") from None
+    if isinstance(parsed, dict) and parsed.get("error"):
+        raise RuntimeError(f"whisper_large_v3_turbo_error:{parsed.get('error')}")
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _transcribe(path: Path, language: str | None, max_chars: int, include_segments: bool) -> dict[str, Any]:
+    parsed = _transcribe_with_service(path, language)
+    segment_list = parsed.get("segments") if isinstance(parsed.get("segments"), list) else []
     rows: list[dict[str, Any]] = []
     parts: list[str] = []
     char_count = 0
     truncated = False
-    for segment in segments:
-        text = str(getattr(segment, "text", "") or "").strip()
+    for segment in segment_list:
+        if not isinstance(segment, dict):
+            continue
+        text = str(segment.get("text") or "").strip()
         if not text:
             continue
         if include_segments:
             rows.append({
-                "start": round(float(getattr(segment, "start", 0.0) or 0.0), 2),
-                "end": round(float(getattr(segment, "end", 0.0) or 0.0), 2),
+                "start": round(float(segment.get("start") or 0.0), 2),
+                "end": round(float(segment.get("end") or 0.0), 2),
                 "text": text,
             })
         add_text = text if not parts else "\n" + text
@@ -228,12 +251,15 @@ def _transcribe(path: Path, model_name: str, language: str | None, max_chars: in
         char_count += len(add_text)
 
     transcript = "".join(parts).strip()
+    if not transcript:
+        transcript = str(parsed.get("text") or "").strip()[:max_chars]
+        truncated = len(str(parsed.get("text") or "")) > max_chars
     return {
         "text": transcript,
         "segments": rows if include_segments else [],
-        "language": str(getattr(info, "language", "") or language or ""),
-        "duration": round(float(getattr(info, "duration", 0.0) or 0.0), 2),
-        "model": model_name,
+        "language": str(parsed.get("language") or language or ""),
+        "duration": round(float(parsed.get("duration") or 0.0), 2),
+        "model": TRANSCRIPTION_MODEL,
         "truncated": truncated,
     }
 
@@ -244,7 +270,6 @@ def _audio_transcribe_handler(args: dict[str, Any], **_: Any) -> str:
         max_chars = _max_chars(args.get("max_chars"))
         result = _transcribe(
             path,
-            model_name=_model_name(args.get("model")),
             language=_language_hint(args.get("language")),
             max_chars=max_chars,
             include_segments=_bool(args.get("include_segments"), True),
@@ -252,7 +277,7 @@ def _audio_transcribe_handler(args: dict[str, Any], **_: Any) -> str:
         return _json({
             "ok": True,
             "tool": "audio_transcribe",
-            "source": "faster-whisper",
+            "source": TRANSCRIPTION_PROVIDER,
             "file_path": str(path),
             "bytes": path.stat().st_size,
             **result,
@@ -272,6 +297,6 @@ def register(ctx) -> None:
         toolset="file",
         schema=AUDIO_TRANSCRIBE_SCHEMA,
         handler=_audio_transcribe_handler,
-        description="Scoped MP3/M4A/WAV voice transcription for Hermes Mobile workspace files.",
+        description="Scoped MP3/M4A/WAV voice transcription with Whisper large v3 turbo.",
         emoji="audio",
     )
