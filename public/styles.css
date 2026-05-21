@@ -7623,6 +7623,27 @@ button.directory-alias-chip {
   overflow-wrap: anywhere;
 }
 
+.learning-growth-board-card-title {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.learning-growth-board-card-title strong,
+.learning-growth-board-card-title small {
+  display: block;
+}
+
+.learning-growth-board-card-title small {
+  margin-top: 3px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .learning-growth-board-card-preview {
   display: -webkit-box;
   margin: 0;
@@ -7646,16 +7667,6 @@ button.directory-alias-chip {
   border-radius: 999px;
   color: var(--muted);
   background: rgba(255, 252, 246, 0.8);
-}
-
-.learning-growth-board-card-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.learning-growth-board-card-actions button {
-  min-height: 34px;
-  padding: 0 12px;
 }
 
 .learning-growth-board-empty {
@@ -7735,7 +7746,8 @@ button.directory-alias-chip {
 }
 
 .learning-growth-answer-instruction,
-.learning-growth-answer-feedback {
+.learning-growth-answer-feedback,
+.learning-growth-answer-reward {
   display: grid;
   gap: 8px;
   padding: 10px;
@@ -7744,18 +7756,76 @@ button.directory-alias-chip {
 }
 
 .learning-growth-answer-instruction h4,
-.learning-growth-answer-feedback h4 {
+.learning-growth-answer-feedback h4,
+.learning-growth-answer-reward h4 {
   margin: 0;
   color: var(--ink);
   font-size: 14px;
 }
 
-.learning-growth-answer-instruction p {
+.learning-growth-answer-instruction p,
+.learning-growth-answer-reward p {
   margin: 0;
   color: var(--ink);
   font-size: 16px;
   line-height: 1.62;
   white-space: pre-wrap;
+}
+
+.learning-growth-answer-instruction p {
+  font-size: 16px;
+}
+
+.learning-growth-answer-reward-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.learning-growth-answer-reward-head strong {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.learning-growth-answer-reward-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.learning-growth-answer-reward-grid span {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.learning-growth-answer-reward-grid b {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.learning-growth-answer-reward-grid small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.learning-task-reward-policy-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.learning-task-reward-policy-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .learning-growth-tabs {

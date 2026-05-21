@@ -418,6 +418,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-task-card"],
   })),
+  regex("learning-task-card-reward-policy-update", "PATCH", /^\/api\/learning\/task-cards\/[^/]+\/reward-policy$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-reward-policy"],
+  })),
   regex("learning-task-card-session-start", "POST", /^\/api\/learning\/task-cards\/[^/]+\/sessions$/, "learning-program", routeOptions("learning-program", {
     riskLevel: "low",
     authMode: "access-key",

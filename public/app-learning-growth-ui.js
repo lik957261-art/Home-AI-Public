@@ -133,16 +133,6 @@
     return fallback || value || "\u4efb\u52a1";
   }
 
-  function boardActionText(action) {
-    const value = String(action || "");
-    if (value === "submit") return "\u63d0\u4ea4\u4f5c\u7b54";
-    if (value === "revise") return "\u4fee\u8ba2\u63d0\u4ea4";
-    if (value === "reflect") return "\u5f55\u97f3\u590d\u76d8";
-    if (value === "wait") return "\u7b49\u5f85 AI";
-    if (value === "review") return "\u67e5\u770b\u7ed3\u679c";
-    return value || "\u67e5\u770b";
-  }
-
   function boardStatusText(card = {}) {
     const nextAction = String(card.nextAction || card.primaryAction || "");
     if (nextAction === "submit") return "\u672a\u63d0\u4ea4";
@@ -151,6 +141,12 @@
     if (nextAction === "spoken_reflection") return "\u9700\u8981\u590d\u76d8";
     if (nextAction === "complete") return "\u5df2\u5b8c\u6210";
     return card.status || nextAction || "\u5f85\u5904\u7406";
+  }
+
+  function taskRewardCapCoins(task = {}) {
+    const policy = task.rewardPolicy || {};
+    const value = Number(task.rewardCapCoins || policy.maxCoins || policy.rewardCapCoins || 100);
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : 100;
   }
 
   function renderBoardCard(card = {}, options = {}) {
@@ -163,7 +159,10 @@
     const artifacts = Number(card.artifactCount || 0);
     return `<article class="learning-growth-board-card" data-learning-executable-task-id="${escapeHtml(taskCardId)}">
       <div class="learning-growth-board-card-head">
-        <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
+        <button type="button" class="learning-growth-board-card-title" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
+          <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
+          <small>\u4e0a\u9650 ${escapeHtml(String(taskRewardCapCoins(card)))} \u91d1\u5e01</small>
+        </button>
         <span>${escapeHtml(boardStatusText(card))}</span>
       </div>
       ${card.instructionPreview ? `<p class="learning-growth-board-card-preview">${escapeHtml(card.instructionPreview)}</p>` : ""}
@@ -172,9 +171,6 @@
         ${card.plannedDate ? `<small>${escapeHtml(String(card.plannedDate).slice(0, 10))}</small>` : ""}
         ${scoreText ? `<small>${escapeHtml(scoreText)}</small>` : ""}
         ${artifacts ? `<small>${escapeHtml(String(artifacts))} \u4e2a\u4ea4\u4ed8</small>` : ""}
-      </div>
-      <div class="learning-growth-board-card-actions">
-        <button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">${escapeHtml(boardActionText(card.primaryAction))}</button>
       </div>
     </article>`;
   }

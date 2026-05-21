@@ -71,6 +71,8 @@ function testMaterializeDraft() {
   assert.deepEqual(cards[0].interactionStateMachine, ["receive_task", "learner_attempt", "ai_evaluation"]);
   assert.equal(cards[0].taskModel.version, "learning-task-model-v1");
   assert.equal(cards[0].taskModel.submissionContract.firstSubmissionKind, "speaking_retell");
+  assert.equal(cards[0].rewardCapCoins, 100);
+  assert.equal(cards[0].rewardPolicy.maxCoins, 100);
   assert.equal(service.list({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(service.get(cards[0].taskCardId).privacyLevel, "summary_only");
   repository.close();
@@ -101,6 +103,7 @@ function testExecutorQueueIsSummaryOnly() {
           sourceBasisRefs: ["parent_config:program-1"],
           curriculumRefs: ["cefr-a2-b1-english-growth"],
           confidence: 0.8,
+          rewardPolicy: { maxCoins: 140 },
           questions: [{ prompt: "private prompt", answer: "private answer" }],
           learnerAnswer: "private answer",
           fullTranscript: "private transcript",
@@ -119,8 +122,23 @@ function testExecutorQueueIsSummaryOnly() {
   assert.equal(queue[0].summary, "summary only");
   assert.equal(queue[0].taskModel.version, "learning-task-model-v1");
   assert.equal(queue[0].taskModel.skillId, "english_speaking_retell");
+  assert.equal(queue[0].rewardCapCoins, 140);
+  assert.equal(queue[0].rewardPolicy.maxCoins, 140);
   const serialized = JSON.stringify(queue);
   assert.doesNotMatch(serialized, /private prompt|private answer|private transcript|questions|learnerAnswer|fullTranscript/);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+function testUpdateRewardPolicy() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const draft = seed(repository);
+  const service = createLearningTaskCardService({ repository });
+  const [card] = service.materializeDraft({ program: repository.getProgram("program-1"), draft });
+  const updated = service.updateRewardPolicy(card.taskCardId, { rewardCapCoins: 125 });
+  assert.equal(updated.rewardCapCoins, 125);
+  assert.equal(service.get(card.taskCardId).rewardPolicy.maxCoins, 125);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
@@ -160,4 +178,5 @@ function testExecutorQueueIncludesNativeTasksWithoutKanbanLinks() {
 testMaterializeDraft();
 testExecutorQueueIsSummaryOnly();
 testExecutorQueueIncludesNativeTasksWithoutKanbanLinks();
+testUpdateRewardPolicy();
 console.log("learning task card service tests passed");

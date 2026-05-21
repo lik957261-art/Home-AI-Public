@@ -396,7 +396,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
 function testLearningProgramInventoryMatchesRouteModuleSpecs() {
   const inventoryById = new Map(listHermesMobileApiRoutes().map((route) => [route.id, route]));
   const moduleRoutes = createApiRouteRegistry(LEARNING_PROGRAM_API_ROUTE_SPECS).list();
-  assert.equal(moduleRoutes.length, 36);
+  assert.equal(moduleRoutes.length, 37);
   for (const expected of moduleRoutes) {
     const actual = inventoryById.get(expected.id);
     assert.ok(actual, `global inventory is missing ${expected.id}`);

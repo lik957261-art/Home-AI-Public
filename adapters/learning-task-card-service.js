@@ -5,6 +5,10 @@ const {
   buildLearningTaskModel,
   learningTaskModelSummary,
 } = require("./learning-task-model-service");
+const {
+  DEFAULT_MAX_CARD_COINS,
+  normalizeLearningCardRewardPolicy,
+} = require("./learning-card-reward-policy-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -29,6 +33,7 @@ function draftStatusToTaskStatus(status) {
 }
 
 function executionQueueSummary(task = {}) {
+  const rewardPolicy = normalizeLearningCardRewardPolicy(task.rewardPolicy || { rewardCapCoins: task.rewardCapCoins });
   const taskModel = task.taskModel && typeof task.taskModel === "object"
     ? learningTaskModelSummary(task.taskModel)
     : learningTaskModelSummary(buildLearningTaskModel(task));
@@ -60,6 +65,8 @@ function executionQueueSummary(task = {}) {
     sequenceMode: cleanString(task.sequenceMode || task.learningGrowthSequenceMode),
     learningGrowthJitPending: Boolean(task.learningGrowthJitPending),
     learningGrowthSequenceVisibility: cleanString(task.learningGrowthSequenceVisibility),
+    rewardPolicy,
+    rewardCapCoins: rewardPolicy.maxCoins,
     availableAt: cleanString(task.availableAt),
     unlockAt: cleanString(task.unlockAt),
     nextCompletionAllowedAt: cleanString(task.nextCompletionAllowedAt),
@@ -80,6 +87,13 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
   const interactionStateMachine = asArray(task.interactionStateMachine).length
     ? asArray(task.interactionStateMachine).map(cleanString).filter(Boolean)
     : asArray(taskModel.interactionStateMachine).map(cleanString).filter(Boolean);
+  const rewardPolicy = normalizeLearningCardRewardPolicy(
+    task.rewardPolicy
+      || task.learningRewardPolicy
+      || draft.rewardPolicy
+      || program.rewardPolicy
+      || { rewardCapCoins: task.rewardCapCoins || DEFAULT_MAX_CARD_COINS },
+  );
   return {
     taskCardId: stableTaskCardId(draft.draftId, task.taskId),
     programId: program.programId || draft.programId,
@@ -99,6 +113,8 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}) {
     sourceBasisRefs,
     curriculumRefs,
     privacyLevel: cleanString(task.privacyLevel) || "summary_only",
+    rewardCapCoins: rewardPolicy.maxCoins,
+    rewardPolicy,
     reliability: {
       confidence: Number(task.confidence || 0),
       guardLevel: draft.reliability?.guardLevel || "",
@@ -146,7 +162,24 @@ function createLearningTaskCardService(options = {}) {
   }
 
   function get(taskCardId) {
-    return repository.getTaskCard(taskCardId);
+    const card = repository.getTaskCard(taskCardId);
+    if (!card) return null;
+    const rewardPolicy = normalizeLearningCardRewardPolicy(card.rewardPolicy || { rewardCapCoins: card.rewardCapCoins });
+    return Object.assign({}, card, { rewardPolicy, rewardCapCoins: rewardPolicy.maxCoins });
+  }
+
+  function updateRewardPolicy(taskCardId, input = {}) {
+    const current = get(taskCardId);
+    if (!current) {
+      const err = new Error("Learning task card not found");
+      err.status = 404;
+      throw err;
+    }
+    const rewardPolicy = normalizeLearningCardRewardPolicy(input.rewardPolicy || input);
+    return repository.upsertTaskCard(Object.assign({}, current, {
+      rewardCapCoins: rewardPolicy.maxCoins,
+      rewardPolicy,
+    }));
   }
 
   function listExecutorQueue(filters = {}) {
@@ -170,6 +203,7 @@ function createLearningTaskCardService(options = {}) {
     list,
     listExecutorQueue,
     materializeDraft,
+    updateRewardPolicy,
   };
 }
 

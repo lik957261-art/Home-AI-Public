@@ -159,6 +159,10 @@ function makeRoutes(overrides = {}) {
       calls.push(["getTaskCard", taskCardId]);
       return { taskCardId, kanbanCardId: "kanban-1", workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published" };
     },
+    updateTaskRewardPolicy(taskCardId, input) {
+      calls.push(["updateTaskRewardPolicy", taskCardId, input]);
+      return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published", rewardCapCoins: input.rewardCapCoins || input.maxCoins };
+    },
     startTaskSession(taskCardId, input) {
       calls.push(["startTaskSession", taskCardId, input]);
       return { sessionId: "session-1", taskCardId, currentStep: "receive_task" };
@@ -246,7 +250,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 36);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 37);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -258,6 +262,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/rebuild-draft-plan" }).id, "learning-program-rebuild-draft-plan");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-cards" }).id, "learning-task-cards-list");
+  assert.equal(routes.match({ method: "PATCH", path: "/api/learning/task-cards/task-1/reward-policy" }).id, "learning-task-card-reward-policy-update");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/daily-plan" }).id, "learning-daily-plan");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
@@ -267,7 +272,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 36);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 37);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -445,6 +450,19 @@ async function testTaskSessionEvaluationRoutes() {
   });
   assert.equal(task.res.statusCode, 200);
   assert.equal(task.body.taskCard.taskCardId, "task-1");
+
+  const rewardPolicyDenied = await request(routes, "PATCH", "/api/learning/task-cards/task-1/reward-policy", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { rewardCapCoins: 120 },
+  });
+  assert.equal(rewardPolicyDenied.res.statusCode, 403);
+
+  const rewardPolicy = await request(routes, "PATCH", "/api/learning/task-cards/task-1/reward-policy", {
+    body: { rewardCapCoins: 120 },
+  });
+  assert.equal(rewardPolicy.res.statusCode, 200);
+  assert.equal(rewardPolicy.body.taskCard.rewardCapCoins, 120);
+  assert.equal(calls.at(-1)[0], "updateTaskRewardPolicy");
 
   const session = await request(routes, "POST", "/api/learning/task-cards/task-1/sessions", {
     auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },

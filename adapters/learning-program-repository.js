@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 7;
+const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 8;
 
 function nowIso() {
   return new Date().toISOString();
@@ -263,7 +263,9 @@ function publicCurriculumReferenceFromRow(row) {
 
 function publicTaskCardFromRow(row) {
   if (!row) return null;
-  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+  const raw = parseJson(row.raw_json, {}) || {};
+  const rewardCapCoins = Number(row.reward_cap_coins || raw.rewardCapCoins || raw.rewardPolicy?.maxCoins || raw.rewardPolicy?.rewardCapCoins || 100) || 100;
+  return Object.assign(raw, {
     taskCardId: row.id,
     programId: row.program_id,
     draftId: row.draft_id,
@@ -282,6 +284,11 @@ function publicTaskCardFromRow(row) {
     sourceBasisRefs: parseJson(row.source_basis_refs_json, []),
     curriculumRefs: parseJson(row.curriculum_refs_json, []),
     privacyLevel: row.privacy_level,
+    rewardCapCoins,
+    rewardPolicy: Object.assign({}, raw.rewardPolicy || {}, {
+      maxCoins: rewardCapCoins,
+      rewardCapCoins,
+    }),
     reliability: parseJson(row.reliability_json, null),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -472,6 +479,12 @@ function createLearningProgramRepository(options = {}) {
     db = null;
   }
 
+  function ensureColumn(tableName, columnName, ddl) {
+    const exists = open().prepare(`PRAGMA table_info(${tableName})`).all()
+      .some((column) => column.name === columnName);
+    if (!exists) open().exec(`ALTER TABLE ${tableName} ADD COLUMN ${ddl};`);
+  }
+
   function migrate() {
     const database = open();
     database.exec(`
@@ -658,6 +671,7 @@ function createLearningProgramRepository(options = {}) {
         source_basis_refs_json TEXT NOT NULL,
         curriculum_refs_json TEXT NOT NULL,
         privacy_level TEXT NOT NULL,
+        reward_cap_coins INTEGER NOT NULL DEFAULT 100,
         reliability_json TEXT,
         raw_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -860,11 +874,12 @@ function createLearningProgramRepository(options = {}) {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_reward_settlements_unique_evaluation ON learning_reward_settlements(evaluation_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_reward_settlements_idempotency ON learning_reward_settlements(idempotency_key) WHERE idempotency_key <> '';
     `);
+    ensureColumn("learning_task_cards", "reward_cap_coins", "reward_cap_coins INTEGER NOT NULL DEFAULT 100");
     const row = database.prepare("SELECT version FROM learning_schema_migrations WHERE version = ?").get(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION);
     if (!row) {
       database.prepare("INSERT INTO learning_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
         CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION,
-        "learning native task artifacts v0.7",
+        "learning task reward caps v0.8",
         nowIso(),
       );
     }
@@ -1463,8 +1478,8 @@ function createLearningProgramRepository(options = {}) {
         title, domain, task_card_type, status, planned_date, planned_minutes,
         skill_ids_json, template_id, interaction_state_machine_json,
         source_basis_refs_json, curriculum_refs_json, privacy_level,
-        reliability_json, raw_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        reward_cap_coins, reliability_json, raw_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         program_id=excluded.program_id,
         draft_id=excluded.draft_id,
@@ -1483,6 +1498,7 @@ function createLearningProgramRepository(options = {}) {
         source_basis_refs_json=excluded.source_basis_refs_json,
         curriculum_refs_json=excluded.curriculum_refs_json,
         privacy_level=excluded.privacy_level,
+        reward_cap_coins=excluded.reward_cap_coins,
         reliability_json=excluded.reliability_json,
         raw_json=excluded.raw_json,
         updated_at=excluded.updated_at
@@ -1505,6 +1521,7 @@ function createLearningProgramRepository(options = {}) {
       stableJson(row.sourceBasisRefs || []),
       stableJson(row.curriculumRefs || []),
       row.privacyLevel || "summary_only",
+      Number(row.rewardCapCoins || row.rewardPolicy?.maxCoins || row.rewardPolicy?.rewardCapCoins || 100) || 100,
       stableJson(row.reliability || null),
       stableJson(stripPrivateLearningFields(row)),
       createdAt,

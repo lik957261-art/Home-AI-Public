@@ -219,6 +219,20 @@ async function requestLearningCoinRedemption(rewardId) {
   await loadLearningCoins({ limit: 30 });
 }
 
+async function submitLearningTaskRewardPolicyForm(event, taskCardId) {
+  event?.preventDefault?.();
+  const id = String(taskCardId || "").trim();
+  if (!id) return;
+  const form = event?.target;
+  const stateNode = document.querySelector(`[data-learning-task-reward-policy-state="${id.replace(/"/g, "\\\"")}"]`);
+  const maxCoins = Number(form?.querySelector("input[name='maxCoins']")?.value || 0);
+  if (!Number.isFinite(maxCoins) || maxCoins <= 0) return void (stateNode && (stateNode.textContent = "奖励上限必须是正整数。"));
+  if (stateNode) stateNode.textContent = "正在保存奖励上限...";
+  await api(`/api/learning/task-cards/${encodeURIComponent(id)}/reward-policy`, { method: "PATCH", body: JSON.stringify({ rewardCapCoins: Math.round(maxCoins) }) });
+  if (stateNode) stateNode.textContent = "奖励上限已保存。";
+  await loadLearningCoins({ limit: 80 });
+}
+
 function learningProgramFormBody() {
   const focusAreas = [...document.querySelectorAll("input[name='learningProgramFocus']:checked")]
     .map((input) => input.value)
@@ -650,6 +664,11 @@ function wireLearningCoinsView() {
   $("conversation")?.querySelectorAll("[data-learning-native-growth-reflection-form]").forEach((form) => {
     form.addEventListener("submit", (event) => {
       submitNativeGrowthReflection(event, form.dataset.taskCardId || form.dataset.learningNativeGrowthReflectionForm);
+    });
+  });
+  $("conversation")?.querySelectorAll("[data-learning-task-reward-policy-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      submitLearningTaskRewardPolicyForm(event, form.dataset.learningTaskRewardPolicyForm).catch(showError);
     });
   });
   $("conversation")?.querySelectorAll("[data-learning-open-growth-task]").forEach((button) => {

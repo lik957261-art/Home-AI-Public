@@ -50,6 +50,19 @@
     return value || "\u5f85\u6267\u884c";
   }
 
+  function taskRewardPolicy(task = {}) {
+    const policy = task.rewardPolicy || {};
+    const maxCoins = Number(task.rewardCapCoins || policy.maxCoins || policy.rewardCapCoins || 100);
+    const minCoins = Number(policy.minCoins || 40);
+    return {
+      maxCoins: Number.isFinite(maxCoins) && maxCoins > 0 ? Math.round(maxCoins) : 100,
+      minCoins: Number.isFinite(minCoins) && minCoins > 0 ? Math.round(minCoins) : 40,
+      accuracyBonusMax: Number(policy.accuracyBonusMax || 30) || 30,
+      timelinessBonusMax: Number(policy.timelinessBonusMax || 15) || 15,
+      interactionBonusMax: Number(policy.interactionBonusMax || 15) || 15,
+    };
+  }
+
   function evaluationStatusText(status) {
     const value = String(status || "");
     if (value === "passed") return "\u5df2\u901a\u8fc7";
@@ -686,6 +699,35 @@
     return "submit";
   }
 
+  function renderTaskRewardPolicy(task = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const policy = taskRewardPolicy(task);
+    const ownerControls = isOwner(options)
+      ? `<form class="learning-task-reward-policy-form" data-learning-task-reward-policy-form="${escapeHtml(task.taskCardId || "")}">
+        <label>
+          <span>\u672c\u4efb\u52a1\u5956\u52b1\u4e0a\u9650</span>
+          <input class="input" name="maxCoins" type="number" min="1" max="1000" step="1" value="${escapeHtml(String(policy.maxCoins))}">
+        </label>
+        <button type="submit">\u4fdd\u5b58\u4e0a\u9650</button>
+      </form>`
+      : "";
+    return `<section class="learning-growth-answer-reward" data-learning-task-reward-policy>
+      <div class="learning-growth-answer-reward-head">
+        <h4>\u5956\u52b1\u673a\u5236</h4>
+        <strong>\u4e0a\u9650 ${escapeHtml(String(policy.maxCoins))} \u91d1\u5e01</strong>
+      </div>
+      <div class="learning-growth-answer-reward-grid">
+        <span><b>${escapeHtml(String(policy.minCoins))}</b><small>\u901a\u8fc7\u57fa\u7840</small></span>
+        <span><b>${escapeHtml(String(policy.accuracyBonusMax))}</b><small>\u51c6\u786e\u5ea6\u52a0\u6210</small></span>
+        <span><b>${escapeHtml(String(policy.timelinessBonusMax))}</b><small>\u6309\u65f6\u52a0\u6210</small></span>
+        <span><b>${escapeHtml(String(policy.interactionBonusMax))}</b><small>\u4fee\u6539\u4e92\u52a8\u52a0\u6210</small></span>
+      </div>
+      <p>\u5956\u52b1\u5728 AI \u8bc4\u4ef7\u901a\u8fc7\u3001\u5b8c\u6210\u5fc5\u8981\u590d\u76d8\u540e\u8fdb\u5165\u7ed3\u7b97\uff1b\u8d85\u51fa\u81ea\u52a8\u7ed3\u7b97\u9608\u503c\u6216\u8bc1\u636e\u4e0d\u8db3\u65f6\u9700\u8981 Owner \u590d\u6838\u3002</p>
+      ${ownerControls}
+      <div class="learning-native-growth-submission-state" data-learning-task-reward-policy-state="${escapeHtml(task.taskCardId || "")}" aria-live="polite"></div>
+    </section>`;
+  }
+
   function renderNativeGrowthTaskDetail(task = {}, data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(task?.taskCardId || "");
@@ -708,6 +750,7 @@
       </div>
       ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
       ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
+      ${renderTaskRewardPolicy(taskForForm, options)}
       ${latestEvaluation ? `<section class="learning-growth-answer-feedback"><h4>\u6700\u8fd1\u6279\u6539</h4>${renderFeedbackHistory(taskForForm, latestEvaluation)}</section>` : ""}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;

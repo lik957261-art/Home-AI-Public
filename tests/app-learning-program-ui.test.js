@@ -271,6 +271,25 @@ function testNativeTaskWithoutKanbanLinkUsesNativeSubmission() {
   assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
 }
 
+function testNativeTaskDetailShowsRewardPolicyAndOwnerCapForm() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail({
+    taskCardId: "task-native-reward",
+    source: "learning-growth",
+    title: "Native reward task",
+    status: "published",
+    workspaceId: "weixin_stephen",
+    rewardCapCoins: 130,
+    rewardPolicy: { maxCoins: 130, minCoins: 40, accuracyBonusMax: 30, timelinessBonusMax: 15, interactionBonusMax: 15 },
+    learnerInstruction: "summary only instruction",
+  }, { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+    state: { auth: { isOwner: true } },
+  });
+  assert.match(html, /data-learning-task-reward-policy/);
+  assert.match(html, /上限 130 金币/);
+  assert.match(html, /data-learning-task-reward-policy-form="task-native-reward"/);
+  assert.match(html, /name="maxCoins"/);
+}
+
 function testNativeSpeakingTaskRendersAudioRecorder() {
   const html = ProgramUi.renderProgramSubsystem({
     programs: Object.assign({}, programs, {
@@ -331,6 +350,7 @@ testOwnerFormAndActionsRender();
 testNonOwnerCannotSeeCreateForm();
 testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst();
 testNativeTaskWithoutKanbanLinkUsesNativeSubmission();
+testNativeTaskDetailShowsRewardPolicyAndOwnerCapForm();
 testNativeSpeakingTaskRendersAudioRecorder();
 testNativeTaskReflectionStateRendersReflectionForm();
 

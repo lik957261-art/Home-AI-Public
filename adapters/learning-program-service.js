@@ -588,6 +588,10 @@ function createLearningProgramService(options = {}) {
     return taskCardService.get(taskCardId);
   }
 
+  function updateTaskRewardPolicy(taskCardId, input = {}) {
+    return taskCardService.updateRewardPolicy(taskCardId, input);
+  }
+
   function getTaskCardForKanbanCard(kanbanCardId, filters = {}) {
     const id = cleanString(kanbanCardId);
     if (!id) return null;
@@ -691,6 +695,7 @@ function createLearningProgramService(options = {}) {
     overview,
     publishProgram,
     rebuildLearnerProfile,
+    updateTaskRewardPolicy,
     recordEvaluation,
     settleEvaluationReward,
     repository,

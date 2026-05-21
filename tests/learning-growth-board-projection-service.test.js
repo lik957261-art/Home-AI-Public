@@ -52,6 +52,7 @@ function testBoardClassifiesNativeTasksIntoLanes() {
   assert.equal(reflectCard.primaryAction, "reflect");
   assert.equal(reflectCard.actions.canReflect, true);
   assert.equal(reflectCard.artifactPreview[0].name, "report.md");
+  assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").rewardCapCoins, 100);
   assert.equal(JSON.stringify(board).includes("refDigest"), false);
 }
 
@@ -138,6 +139,7 @@ function testBoardPrefersFullNativeTaskMetadataOverExecutorSummary() {
   assert.equal(board.cards[0].title, "Full native retell");
   assert.equal(board.cards[0].sequenceGroupId, "evergreen:english-random-reading-retell");
   assert.equal(board.cards[0].sequenceIndex, 1);
+  assert.equal(board.cards[0].rewardCapCoins, 100);
   assert.match(board.cards[0].instructionPreview, /short passage/);
 }
 

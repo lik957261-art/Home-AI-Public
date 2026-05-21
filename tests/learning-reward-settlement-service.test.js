@@ -245,10 +245,34 @@ function testLargeRewardNeedsSettlementReview() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function testTaskRewardCapLimitsSettlement() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const session = seed(repository);
+  const current = repository.getTaskCard("task-1");
+  repository.upsertTaskCard(Object.assign({}, current, { rewardCapCoins: 60, rewardPolicy: { maxCoins: 60 } }));
+  recordEvaluation(repository, session.sessionId, {
+    evaluationId: "eval-capped",
+    score: 96,
+    confidence: 0.9,
+    summary: "summary only",
+    evidenceRefs: ["rubric:verified"],
+    verificationMethod: "answer_key_match",
+  });
+  const coinService = makeCoinService();
+  const settlement = makeService(repository, coinService).settleEvaluationReward("eval-capped");
+  assert.equal(settlement.status, "settled");
+  assert.equal(settlement.coinAmount, 60);
+  assert.equal(coinService.grants[0].coinAmount, 60);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 testVerifiedEvaluationSettlesOnce();
 testModelOnlyCreatesReviewWithoutCoins();
 testApprovedReviewAllowsModelOnlySettlement();
 testHardVerificationFailureBlocksReward();
 testLargeRewardNeedsSettlementReview();
+testTaskRewardCapLimitsSettlement();
 
 console.log("learning reward settlement service tests passed");

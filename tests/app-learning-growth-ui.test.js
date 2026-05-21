@@ -17,7 +17,7 @@ const overview = {
       { id: "waiting_ai", title: "Waiting for AI", count: 1, cards: ["task-2"] },
     ],
     cards: [
-      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", primaryAction: "submit", nextAction: "submit", artifactCount: 0 },
+      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", primaryAction: "submit", nextAction: "submit", artifactCount: 0, rewardCapCoins: 120 },
       { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1 },
     ],
   },
@@ -133,6 +133,8 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /learning-growth-board-card-preview/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
+  assert.match(html, /上限 120 金币/);
+  assert.doesNotMatch(html, /提交作答|learning-growth-board-card-actions/);
   assert.doesNotMatch(html, /data-learning-growth-tabs/);
   assert.doesNotMatch(html, /data-learning-growth-tab="execution"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="guidance"/);

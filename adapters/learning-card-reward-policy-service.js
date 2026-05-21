@@ -5,6 +5,7 @@ const DEFAULT_MAX_CARD_COINS = 100;
 const DEFAULT_ACCURACY_BONUS_MAX = 30;
 const DEFAULT_TIMELINESS_BONUS_MAX = 15;
 const DEFAULT_INTERACTION_BONUS_MAX = 15;
+const DEFAULT_REWARD_POLICY_VERSION = "learning-card-reward-v1";
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -28,6 +29,28 @@ function positiveInteger(value, fallback = 0) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.round(parsed));
+}
+
+function normalizeLearningCardRewardPolicy(input = {}) {
+  const policy = input && typeof input === "object" ? input : {};
+  const maxCoins = positiveInteger(
+    policy.maxCoins ?? policy.rewardCapCoins ?? policy.reward_cap_coins ?? policy.capCoins,
+    DEFAULT_MAX_CARD_COINS,
+  );
+  const minCoins = Math.min(maxCoins, positiveInteger(policy.minCoins, DEFAULT_MIN_CARD_COINS));
+  const accuracyBonusMax = positiveInteger(policy.accuracyBonusMax, DEFAULT_ACCURACY_BONUS_MAX);
+  const timelinessBonusMax = positiveInteger(policy.timelinessBonusMax, DEFAULT_TIMELINESS_BONUS_MAX);
+  const interactionBonusMax = positiveInteger(policy.interactionBonusMax, DEFAULT_INTERACTION_BONUS_MAX);
+  return {
+    version: cleanString(policy.version) || DEFAULT_REWARD_POLICY_VERSION,
+    maxCoins,
+    rewardCapCoins: maxCoins,
+    minCoins,
+    accuracyBonusMax,
+    timelinessBonusMax,
+    interactionBonusMax,
+    currency: "learning_coin",
+  };
 }
 
 function scoreFromEvaluation(input = {}) {
@@ -188,10 +211,11 @@ function interactionComponent(input = {}, options = {}) {
 }
 
 function calculateLearningCardReward(input = {}, options = {}) {
+  const policy = normalizeLearningCardRewardPolicy(options.rewardPolicy || options);
   const evaluation = input.evaluation || {};
   const passed = Boolean(input.passed ?? evaluation.passed);
-  const minCoins = positiveInteger(options.minCoins, DEFAULT_MIN_CARD_COINS);
-  const maxCoins = positiveInteger(options.maxCoins, DEFAULT_MAX_CARD_COINS);
+  const minCoins = policy.minCoins;
+  const maxCoins = policy.maxCoins;
   if (!passed) {
     return {
       eligible: false,
@@ -209,10 +233,10 @@ function calculateLearningCardReward(input = {}, options = {}) {
   }
 
   const score = scoreFromEvaluation(input);
-  const accuracyMax = positiveInteger(options.accuracyBonusMax, DEFAULT_ACCURACY_BONUS_MAX);
+  const accuracyMax = policy.accuracyBonusMax;
   const accuracyCoins = Math.round((clampNumber(score, 70, 100) - 70) / 30 * accuracyMax);
-  const timeliness = timelinessComponent(input, options);
-  const interaction = interactionComponent(input, options);
+  const timeliness = timelinessComponent(input, policy);
+  const interaction = interactionComponent(input, policy);
   const raw = minCoins + accuracyCoins + timeliness.coins + interaction.coins;
   const coinAmount = clampInteger(raw, minCoins, maxCoins);
   return {
@@ -234,8 +258,9 @@ function calculateLearningCardReward(input = {}, options = {}) {
 }
 
 function clampLearningCardRewardAmount(value, options = {}) {
-  const minCoins = positiveInteger(options.minCoins, DEFAULT_MIN_CARD_COINS);
-  const maxCoins = positiveInteger(options.maxCoins, DEFAULT_MAX_CARD_COINS);
+  const policy = normalizeLearningCardRewardPolicy(options.rewardPolicy || options);
+  const minCoins = policy.minCoins;
+  const maxCoins = policy.maxCoins;
   return clampInteger(value, minCoins, maxCoins);
 }
 
@@ -244,6 +269,7 @@ module.exports = {
   DEFAULT_MIN_CARD_COINS,
   calculateLearningCardReward,
   clampLearningCardRewardAmount,
+  normalizeLearningCardRewardPolicy,
   dueAtForReward,
   scoreFromEvaluation,
   timelinessComponent,

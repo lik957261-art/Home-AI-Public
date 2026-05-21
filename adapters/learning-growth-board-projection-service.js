@@ -1,5 +1,9 @@
 "use strict";
 
+const {
+  normalizeLearningCardRewardPolicy,
+} = require("./learning-card-reward-policy-service");
+
 function cleanString(value, limit = 1000) {
   const text = String(value ?? "").trim();
   const max = Math.max(1, Number(limit || 1000) || 1000);
@@ -147,6 +151,7 @@ function actionModel(laneId, action) {
 
 function publicBoardCard(task = {}, context = {}, index = 0) {
   const taskCardId = cleanString(task.taskCardId || task.id);
+  const rewardPolicy = normalizeLearningCardRewardPolicy(task.rewardPolicy || { rewardCapCoins: task.rewardCapCoins });
   const latest = {
     submission: task.latestSubmission || latestForTask(context.submissions, taskCardId, "submittedAt"),
     evaluation: task.latestEvaluation || latestForTask(context.evaluations, taskCardId, "createdAt"),
@@ -194,6 +199,8 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     artifactCount: artifacts.length || numberValue(task.artifactCount),
     artifactPreview: artifacts.slice(0, 3),
     rewardState: cleanString(latest.evaluation?.passed ? "eligible_after_reflection" : ""),
+    rewardPolicy,
+    rewardCapCoins: rewardPolicy.maxCoins,
     primaryAction: actions.primaryAction,
     actions,
   };

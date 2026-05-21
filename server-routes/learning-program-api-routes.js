@@ -359,6 +359,22 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "task-card"],
   },
   {
+    id: "learning-task-card-reward-policy-update",
+    method: "PATCH",
+    pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/reward-policy$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "updateTaskRewardPolicy",
+    summary: "Owner updates a learning task card reward cap.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-reward-policy"],
+    tags: ["learning", "task-card", "reward", "owner"],
+  },
+  {
     id: "learning-task-card-session-start",
     method: "POST",
     pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/sessions$/,
@@ -1013,6 +1029,25 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, taskCard: deps.isOwnerAuth(auth) ? taskCard : executionQueueSummary(taskCard) });
   }
 
+  async function handleTaskRewardPolicyUpdate(req, res, url, auth) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/reward-policy$/);
+    const current = service.getTaskCard(taskCardId);
+    if (!authorizeRecord(req, res, auth, current, "Learning task card not found")) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const taskCard = service.updateTaskRewardPolicy(taskCardId, body || {});
+      deps.sendJson(res, 200, { ok: true, taskCard });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
   async function handleTaskSessionStart(req, res, url, auth) {
     const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/sessions$/);
     const taskCard = service.getTaskCard(taskCardId);
@@ -1279,6 +1314,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-task-execution-queue") await handleTaskExecutionQueue(req, res, url, auth);
     else if (route.id === "learning-daily-plan") await handleDailyPlan(req, res, url, auth);
     else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
+    else if (route.id === "learning-task-card-reward-policy-update") await handleTaskRewardPolicyUpdate(req, res, url, auth);
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-submission") await handleGrowthSubmission(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-submission-withdraw") await handleGrowthSubmissionWithdraw(req, res, url, auth);

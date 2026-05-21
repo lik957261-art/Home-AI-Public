@@ -8,6 +8,7 @@ const {
 const {
   calculateLearningCardReward,
   clampLearningCardRewardAmount,
+  normalizeLearningCardRewardPolicy,
 } = require("./learning-card-reward-policy-service");
 
 const DEFAULT_AUTO_REWARD_LIMIT = 100;
@@ -32,19 +33,21 @@ function positiveInteger(value, fallback = 0) {
 }
 
 function rewardAmountForEvaluation(evaluation = {}, input = {}) {
+  const card = input.card || {};
+  const rewardPolicy = normalizeLearningCardRewardPolicy(input.rewardPolicy || card.rewardPolicy || evaluation.rewardPolicy || { rewardCapCoins: card.rewardCapCoins });
   const explicit = positiveInteger(input.coinAmount || evaluation.rewardPolicy?.coinAmount || evaluation.rewardPolicy?.suggestedCoinAmount, 0);
-  if (explicit) return clampLearningCardRewardAmount(explicit);
+  if (explicit) return clampLearningCardRewardAmount(explicit, rewardPolicy);
   return calculateLearningCardReward({
     evaluation,
     score: evaluation.score,
     passed: Boolean(evaluation.passed),
     submittedAt: input.submittedAt,
     completedAt: input.completedAt,
-    evaluatedAt: evaluation.evaluatedAt,
+    evaluatedAt: evaluation.evaluatedAt || evaluation.createdAt,
     dueAt: input.dueAt || evaluation.dueAt,
     interactionQualityScore: input.interactionQualityScore,
     interactionEvidence: input.interactionEvidence,
-  }).coinAmount;
+  }, rewardPolicy).coinAmount;
 }
 
 function rewardSettlementKey(evaluationId) {
@@ -84,7 +87,9 @@ function createLearningRewardSettlementService(options = {}) {
   }
 
   function baseSettlement(evaluation, input = {}) {
-    const coinAmount = rewardAmountForEvaluation(evaluation, input);
+    const card = repository.getTaskCard ? repository.getTaskCard(evaluation.taskCardId) : null;
+    const rewardPolicy = normalizeLearningCardRewardPolicy(input.rewardPolicy || card?.rewardPolicy || evaluation.rewardPolicy || { rewardCapCoins: card?.rewardCapCoins });
+    const coinAmount = rewardAmountForEvaluation(evaluation, Object.assign({}, input, { card, rewardPolicy }));
     const idempotencyKey = cleanString(input.idempotencyKey) || rewardSettlementKey(evaluation.evaluationId);
     const existingForEvaluation = repository.listRewardSettlements({ evaluationId: evaluation.evaluationId, limit: 1 })[0] || null;
     if (existingForEvaluation) return existingForEvaluation;
