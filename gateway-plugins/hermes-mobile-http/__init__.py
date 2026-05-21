@@ -161,6 +161,45 @@ HTTP_REQUEST_SCHEMA = {
 }
 
 
+CRONJOB_MOBILE_SCHEMA = {
+    "name": "cronjob_mobile",
+    "description": (
+        "Manage current-principal Hermes Mobile automations through the live Mobile bridge host. "
+        "Use this instead of raw profile-local cronjob for Hermes Mobile automation jobs. "
+        "owner_principal_id is required and must match the current run Principal."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["list", "create", "update", "pause", "resume", "delete", "read_output", "read_deliverable"],
+                "default": "list",
+            },
+            "owner_principal_id": {"type": "string"},
+            "job_id": {"type": "string"},
+            "name": {"type": "string"},
+            "prompt": {"type": "string"},
+            "schedule": {"type": "string"},
+            "skills": {"type": "array", "items": {"type": "string"}},
+            "enabled_toolsets": {"type": "array", "items": {"type": "string"}},
+            "model": {"type": "string"},
+            "provider": {"type": "string"},
+            "deliver": {"type": "string"},
+            "workdir": {"type": "string"},
+            "reason": {"type": "string"},
+            "dry_run": {"type": "boolean", "default": False},
+            "include_disabled": {"type": "boolean", "default": False},
+            "limit": {"type": "integer", "default": 100},
+            "file": {"type": "string"},
+            "run": {"type": "string"},
+            "index": {"type": "integer"},
+        },
+        "required": ["action", "owner_principal_id"],
+    },
+}
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
         return None
@@ -168,6 +207,140 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def _json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
+
+
+def _bridge_host_url() -> str:
+    return (
+        os.environ.get("HERMES_MOBILE_BRIDGE_HOST_URL")
+        or os.environ.get("HERMES_WEB_BRIDGE_HOST_URL")
+        or "http://127.0.0.1:8798"
+    ).rstrip("/")
+
+
+def _bridge_host_key() -> str:
+    raw = os.environ.get("HERMES_MOBILE_BRIDGE_HOST_KEY") or os.environ.get("HERMES_WEB_BRIDGE_HOST_KEY")
+    if raw:
+        return raw.strip()
+    path = (
+        os.environ.get("HERMES_MOBILE_BRIDGE_HOST_KEY_PATH")
+        or os.environ.get("HERMES_WEB_BRIDGE_HOST_KEY_PATH")
+        or "/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret"
+    )
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
+
+
+def _string_list(value: Any, limit: int = 12) -> list[str]:
+    raw = value if isinstance(value, list) else ([value] if value else [])
+    out: list[str] = []
+    for item in raw:
+        text = str(item or "").strip()
+        if text and text not in out:
+            out.append(text)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _cronjob_mobile_payload(args: dict[str, Any]) -> dict[str, Any]:
+    action = str(args.get("action") or "list").strip().lower()
+    owner = str(args.get("owner_principal_id") or args.get("ownerPrincipalId") or "").strip()
+    if not owner:
+        raise ValueError("owner_principal_id is required")
+    payload: dict[str, Any] = {"action": action, "owner_principal_id": owner}
+    if args.get("dry_run") or args.get("dryRun"):
+        payload["dry_run"] = True
+    if action == "list":
+        payload["include_disabled"] = bool(args.get("include_disabled") or args.get("includeDisabled"))
+        payload["limit"] = int(args.get("limit") or 100)
+        return payload
+    if action in {"update", "pause", "resume", "delete", "read_output", "read_deliverable"}:
+        job_id = str(args.get("job_id") or args.get("jobId") or "").strip()
+        if not job_id:
+            raise ValueError("job_id is required")
+        payload["job_id"] = job_id
+    if action == "create":
+        prompt = str(args.get("prompt") or "").strip()
+        schedule = str(args.get("schedule") or "").strip()
+        if not prompt:
+            raise ValueError("prompt is required")
+        if not schedule:
+            raise ValueError("schedule is required")
+        payload["job"] = {
+            "name": str(args.get("name") or "Hermes Mobile automation").strip()[:120],
+            "prompt": prompt,
+            "schedule": schedule,
+            "skills": _string_list(args.get("skills")),
+            "enabled_toolsets": _string_list(args.get("enabled_toolsets") or args.get("enabledToolsets")),
+            "model": str(args.get("model") or "").strip() or None,
+            "provider": str(args.get("provider") or "").strip() or None,
+            "deliver": str(args.get("deliver") or "local").strip() or "local",
+            "workdir": str(args.get("workdir") or "").strip() or None,
+        }
+        return payload
+    if action == "update":
+        patch: dict[str, Any] = {}
+        for key in ["name", "prompt", "schedule", "model", "provider", "deliver", "workdir"]:
+            if key in args:
+                patch[key] = args.get(key)
+        if "skills" in args:
+            patch["skills"] = _string_list(args.get("skills"))
+        if "enabled_toolsets" in args or "enabledToolsets" in args:
+            patch["enabled_toolsets"] = _string_list(args.get("enabled_toolsets") or args.get("enabledToolsets"))
+        if not patch:
+            raise ValueError("update requires at least one patch field")
+        payload["patch"] = patch
+        return payload
+    if action == "pause":
+        payload["reason"] = str(args.get("reason") or "cronjob_mobile").strip() or "cronjob_mobile"
+        return payload
+    if action == "read_output":
+        payload["file"] = str(args.get("file") or "").strip()
+        return payload
+    if action == "read_deliverable":
+        payload["run"] = str(args.get("run") or "").strip()
+        payload["index"] = int(args.get("index") or 0)
+        return payload
+    if action in {"resume", "delete"}:
+        return payload
+    raise ValueError(f"Unsupported cronjob_mobile action: {action}")
+
+
+def _cronjob_mobile_handler(args: dict[str, Any], **_: Any) -> str:
+    try:
+        payload = _cronjob_mobile_payload(args if isinstance(args, dict) else {})
+        key = _bridge_host_key()
+        if not key:
+            return _json({"ok": False, "status": 503, "error": "Hermes Mobile bridge host key is not configured"})
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            f"{_bridge_host_url()}/bridge/cron",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=20) as response:
+            data = response.read(2 * 1024 * 1024)
+        parsed = json.loads(data.decode("utf-8") or "{}")
+        return _json(parsed if isinstance(parsed, dict) else {"ok": False, "error": "Invalid bridge response"})
+    except urllib.error.HTTPError as error:
+        try:
+            parsed = json.loads(error.read(1024 * 1024).decode("utf-8") or "{}")
+        except Exception:
+            parsed = {}
+        if isinstance(parsed, dict) and parsed:
+            parsed.setdefault("status", error.code)
+            return _json(parsed)
+        return _json({"ok": False, "status": error.code, "error": "Mobile cron bridge HTTP error"})
+    except Exception as error:
+        return _json({"ok": False, "status": 400, "error": str(error)})
 
 
 def _split_env_list(name: str, defaults: tuple[str, ...]) -> list[str]:
@@ -562,4 +735,12 @@ def register(ctx) -> None:
         handler=_http_request_handler,
         description="Scoped HTTP request for documented Hermes Mobile workspace Program APIs.",
         emoji="http",
+    )
+    ctx.register_tool(
+        name="cronjob_mobile",
+        toolset="http",
+        schema=CRONJOB_MOBILE_SCHEMA,
+        handler=_cronjob_mobile_handler,
+        description="Scoped Hermes Mobile automation management through the live Mobile bridge.",
+        emoji="automation",
     )
