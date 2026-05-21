@@ -169,6 +169,7 @@ function buildModelPrompt(input = {}, seed = {}) {
     "Do not include raw prompts, answer keys, full transcripts, full learner history, endpoints, local paths, secrets, or copied copyrighted questions.",
     "If you create an exercise, make it original and bounded to this card. Do not provide the hidden answer key.",
     "If the card needs structured questions, return questionItems with stem, choices, and answerFormat. Use stem, not prompt/question/questionText. Do not include answers.",
+    "For english-short-writing-v1 / english_short_writing, generate only the current first-draft submission prompt. Do not include rewrite, AI feedback, or spoken reflection as questionItems; those are later workflow states.",
     "Return schema: {\"learnerInstruction\":\"...\",\"focusSignals\":[\"...\"],\"difficultyBand\":\"repair|steady|stretch\",\"skillTargets\":[\"...\"],\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"questionItems\":[{\"id\":\"q1\",\"type\":\"multiple_choice|written\",\"stem\":\"...\",\"choices\":[{\"id\":\"A\",\"text\":\"...\"}],\"answerFormat\":\"...\"}],\"teacherRationale\":\"...\"}",
     JSON.stringify(payload),
   ].join("\n\n");
@@ -222,6 +223,27 @@ function normalizeQuestionItems(value) {
       answerFormat: compactText(raw.answerFormat || (type === "multiple_choice" ? "选择一个选项，并用 1-2 句说明理由。" : "写出推理过程和最终结论。"), 180),
     };
   }).filter(Boolean);
+}
+
+function taskActivityKey(task = {}) {
+  return [
+    task.taskModel?.activityType,
+    task.activityType,
+    task.taskModel?.skillId,
+    task.skillId,
+    asArray(task.skillIds).join(" "),
+    task.templateId,
+    task.taskModel?.templateId,
+  ].map((item) => cleanString(item).toLowerCase()).join(" ");
+}
+
+function currentStageQuestionItems(questionItems = [], task = {}) {
+  const key = taskActivityKey(task);
+  if (!/\bwriting\b|english_short_writing|english-short-writing/.test(key)) return questionItems;
+  return asArray(questionItems).filter((item) => {
+    const text = [item.title, item.stem, item.answerFormat].map((value) => cleanString(value).toLowerCase()).join(" ");
+    return !/rewrite|re[- ]?write|feedback|reflect|reflection|\u91cd\u5199|\u6539\u5199|\u53cd\u9988|\u590d\u76d8|\u53cd\u601d|\u53e3\u5934/.test(text);
+  }).slice(0, 1);
 }
 
 function createLearningGrowthJitTaskService(options = {}) {
@@ -325,7 +347,7 @@ function createLearningGrowthJitTaskService(options = {}) {
       teacherRationale: normalized.teacherRationale,
     };
     const taskModel = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {};
-    const questionItems = normalized.questionItems;
+    const questionItems = currentStageQuestionItems(normalized.questionItems, task);
     return Object.assign({}, task, {
       learnerInstruction,
       instruction: learnerInstruction,
@@ -354,5 +376,6 @@ module.exports = {
   VERSION,
   buildModelPrompt,
   createLearningGrowthJitTaskService,
+  currentStageQuestionItems,
   normalizeQuestionItems,
 };

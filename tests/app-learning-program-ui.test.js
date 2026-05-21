@@ -384,7 +384,10 @@ function testNativeTaskReflectionStateRendersReflectionForm() {
     state: { auth: { isOwner: false } },
   });
   assert.match(html, /data-learning-native-growth-reflection-form="task-native-reflect"/);
-  assert.match(html, /data-learning-native-growth-reflection-input="task-native-reflect"/);
+  assert.match(html, /data-learning-native-growth-reflection-recorder="task-native-reflect"/);
+  assert.match(html, /data-learning-native-growth-reflection-record-start="task-native-reflect"/);
+  assert.match(html, /data-learning-submit-native-growth-reflection="task-native-reflect"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-reflection-input="task-native-reflect"/);
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-native-reflect"/);
 }
 

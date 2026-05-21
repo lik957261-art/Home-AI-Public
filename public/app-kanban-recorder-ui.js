@@ -482,6 +482,9 @@ function updateLearningNativeGrowthSubmissionRecordingStatus(taskCardId) {
   document.querySelectorAll("[data-learning-native-growth-record-status]").forEach((node) => {
     if (node.dataset.learningNativeGrowthRecordStatus === String(taskCardId)) node.textContent = text;
   });
+  document.querySelectorAll("[data-learning-native-growth-reflection-record-status]").forEach((node) => {
+    if (node.dataset.learningNativeGrowthReflectionRecordStatus === String(taskCardId)) node.textContent = text.replace("复述", "复盘");
+  });
 }
 
 function startLearningNativeGrowthSubmissionRecordingTimer(taskCardId, recording) {

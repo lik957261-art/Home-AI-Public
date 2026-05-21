@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { createLearningGrowthJitTaskService, normalizeQuestionItems } = require("../adapters/learning-growth-jit-task-service");
+const { createLearningGrowthJitTaskService, currentStageQuestionItems, normalizeQuestionItems } = require("../adapters/learning-growth-jit-task-service");
 
 async function run() {
   const modelCalls = [];
@@ -136,6 +136,17 @@ async function run() {
       answerFormat: "选择一个选项，并用 1-2 句说明理由。",
     },
   ]);
+
+  const writingQuestions = currentStageQuestionItems([
+    { id: "q1", title: "First draft", stem: "Write 6-8 English sentences.", answerFormat: "English draft" },
+    { id: "q2", title: "Rewrite", stem: "After receiving AI feedback, rewrite your draft.", answerFormat: "Improved draft" },
+    { id: "q3", title: "Reflection", stem: "Record a spoken reflection.", answerFormat: "Audio reflection" },
+  ], {
+    templateId: "english-short-writing-v1",
+    skillIds: ["english_short_writing"],
+    taskModel: { activityType: "writing", skillId: "english_short_writing" },
+  });
+  assert.deepEqual(writingQuestions.map((item) => item.id), ["q1"]);
 
   const required = createLearningGrowthJitTaskService({ requireModel: true });
   await assert.rejects(() => required.prepareTaskForCard({ task: { title: "No model" } }), /requires model assistance/);

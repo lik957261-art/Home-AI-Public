@@ -151,3 +151,46 @@ async function submitNativeGrowthTask(event, taskCardId) {
     if (button) button.disabled = false;
   }
 }
+
+async function submitNativeGrowthReflection(event, taskCardId) {
+  event?.preventDefault?.();
+  const form = event?.target;
+  if (!form || !taskCardId) return;
+  const stateNode = form.querySelector("[data-learning-native-growth-reflection-state]");
+  const button = form.querySelector("[data-learning-submit-native-growth-reflection]");
+  const recording = state.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
+  if (!recording.file) {
+    if (stateNode) stateNode.textContent = "\u8bf7\u5148\u5f55\u5236\u8bed\u97f3\u590d\u76d8\uff0c\u518d\u63d0\u4ea4\u7ed3\u7b97\u3002";
+    showPushToast("\u8bf7\u5148\u5f55\u5236\u8bed\u97f3\u590d\u76d8", "error");
+    return;
+  }
+  const submittedFile = recording.file;
+  if (button) button.disabled = true;
+  if (stateNode) stateNode.textContent = "\u5f55\u97f3\u590d\u76d8\u5df2\u63d0\u4ea4\uff0c\u6b63\u5728\u8f6c\u5199\u5e76\u7ed3\u7b97...";
+  try {
+    const body = Object.assign(learningLearnerBody(), {
+      filename: submittedFile.name || `growth-reflection-${taskCardId}.webm`,
+      type: submittedFile.type || recording.mimeType || "audio/webm",
+      dataBase64: await fileToBase64(submittedFile),
+      durationMs: recording.elapsedMs || 0,
+    });
+    const response = await api(`/api/learning/task-cards/${encodeURIComponent(taskCardId)}/growth-reflection`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (!response?.ok) throw new Error(response?.error || "Growth reflection submission failed");
+    const latest = state.learningNativeGrowthSubmissionRecorders?.[taskCardId];
+    if (latest?.file === submittedFile) {
+      if (latest.url && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(latest.url);
+      delete state.learningNativeGrowthSubmissionRecorders[taskCardId];
+    }
+    if (stateNode) stateNode.textContent = "\u8bed\u97f3\u590d\u76d8\u5df2\u5b8c\u6210\uff0c\u9875\u9762\u6b63\u5728\u5237\u65b0\u3002";
+    showPushToast("\u8bed\u97f3\u590d\u76d8\u5df2\u5b8c\u6210", "success");
+    await loadLearningCoins({ limit: 30 });
+  } catch (err) {
+    if (stateNode) stateNode.textContent = err.message || String(err);
+    showError(err);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}

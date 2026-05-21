@@ -505,41 +505,6 @@ async function startLearningTaskSession(taskCardId) {
   await loadLearningCoins({ limit: 30 });
 }
 
-async function submitNativeGrowthReflection(event, taskCardId) {
-  event?.preventDefault?.();
-  const form = event?.target;
-  if (!form || !taskCardId) return;
-  const input = form.querySelector("[data-learning-native-growth-reflection-input]");
-  const stateNode = form.querySelector("[data-learning-native-growth-reflection-state]");
-  const button = form.querySelector("[data-learning-submit-native-growth-reflection]");
-  const text = String(input?.value || "").trim();
-  const stats = learningNativeGrowthSubmissionStats(text);
-  if (!text || stats.chars < 60) {
-    if (stateNode) stateNode.textContent = "\u590d\u76d8\u5185\u5bb9\u8fd8\u4e0d\u591f\uff0c\u8bf4\u6e05\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u6539\u8fdb\u65b9\u5411\u540e\u518d\u63d0\u4ea4\u3002";
-    showPushToast("\u590d\u76d8\u5185\u5bb9\u8fd8\u4e0d\u591f", "error");
-    return;
-  }
-  if (button) button.disabled = true;
-  if (stateNode) stateNode.textContent = "\u590d\u76d8\u5df2\u63d0\u4ea4\uff0c\u6b63\u5728\u7b49\u5f85 AI \u5224\u65ad\u7406\u89e3\u60c5\u51b5...";
-  try {
-    const response = await api(`/api/learning/task-cards/${encodeURIComponent(taskCardId)}/growth-reflection`, {
-      method: "POST",
-      body: JSON.stringify(Object.assign(learningLearnerBody(), { text })),
-    });
-    if (!response?.ok) throw new Error(response?.error || "Growth reflection submission failed");
-    if (stateNode) stateNode.textContent = response.status === "completed"
-      ? "\u590d\u76d8\u5df2\u901a\u8fc7\uff0c\u4efb\u52a1\u5df2\u5b8c\u6210\u3002"
-      : "\u590d\u76d8\u5df2\u8bb0\u5f55\uff0c\u8bf7\u6309 AI \u53cd\u9988\u7ee7\u7eed\u8865\u5145\u3002";
-    showPushToast(response.status === "completed" ? "\u590d\u76d8\u5df2\u901a\u8fc7" : "\u590d\u76d8\u5df2\u8bb0\u5f55", "success");
-    await loadLearningCoins({ limit: 30 });
-  } catch (err) {
-    if (stateNode) stateNode.textContent = err.message || String(err);
-    showError(err);
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-
 async function advanceLearningSession(sessionId) {
   if (!sessionId) return;
   await api(`/api/learning/sessions/${encodeURIComponent(sessionId)}/advance`, {
@@ -661,6 +626,27 @@ function wireLearningCoinsView() {
     button.addEventListener("click", () => {
       if (typeof cancelLearningNativeGrowthSubmissionRecording === "function") {
         cancelLearningNativeGrowthSubmissionRecording(button.dataset.learningNativeGrowthRecordCancel);
+      }
+    });
+  });
+  $("conversation")?.querySelectorAll("[data-learning-native-growth-reflection-record-start]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (typeof startLearningNativeGrowthSubmissionRecording === "function") {
+        startLearningNativeGrowthSubmissionRecording(button.dataset.learningNativeGrowthReflectionRecordStart);
+      }
+    });
+  });
+  $("conversation")?.querySelectorAll("[data-learning-native-growth-reflection-record-stop]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (typeof stopLearningNativeGrowthSubmissionRecording === "function") {
+        stopLearningNativeGrowthSubmissionRecording(button.dataset.learningNativeGrowthReflectionRecordStop);
+      }
+    });
+  });
+  $("conversation")?.querySelectorAll("[data-learning-native-growth-reflection-record-cancel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (typeof cancelLearningNativeGrowthSubmissionRecording === "function") {
+        cancelLearningNativeGrowthSubmissionRecording(button.dataset.learningNativeGrowthReflectionRecordCancel);
       }
     });
   });

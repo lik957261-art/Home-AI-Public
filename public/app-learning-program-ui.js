@@ -640,6 +640,40 @@
     </div>`;
   }
 
+  function nativeGrowthReflectionRecordingStatus(taskCardId, options = {}) {
+    const recorder = options.state?.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
+    const duration = typeof formatKanbanReadingRecordingDuration === "function" && typeof kanbanReadingRecordingDuration === "function"
+      ? formatKanbanReadingRecordingDuration(kanbanReadingRecordingDuration(recorder))
+      : "";
+    if (recorder.status === "requesting") return "\u6b63\u5728\u8bf7\u6c42\u9ea6\u514b\u98ce\u6743\u9650...";
+    if (recorder.status === "recording") return `\u6b63\u5728\u5f55\u97f3 ${duration}`.trim();
+    if (recorder.status === "stopping") return "\u6b63\u5728\u751f\u6210\u590d\u76d8\u5f55\u97f3...";
+    if (recorder.status === "ready") return `\u5df2\u5f55\u597d\u590d\u76d8 ${duration}`.trim();
+    if (recorder.status === "unsupported") return "\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u76f4\u63a5\u5f55\u97f3\u3002";
+    if (recorder.status === "error") return recorder.error || "\u590d\u76d8\u5f55\u97f3\u4e0d\u53ef\u7528\uff0c\u8bf7\u91cd\u8bd5\u3002";
+    return "\u9605\u8bfb AI \u53cd\u9988\u540e\uff0c\u5f55\u4e00\u6bb5\u590d\u76d8\uff0c\u8bf4\u660e\u9519\u8bef\u3001\u4fee\u6539\u539f\u56e0\u548c\u4e0b\u6b21\u7ec3\u4e60\u65b9\u5411\u3002";
+  }
+
+  function renderNativeGrowthReflectionRecorder(task = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    const recorder = options.state?.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
+    const status = String(recorder.status || "");
+    const ready = status === "ready" && recorder.url;
+    const recording = status === "recording";
+    const waiting = status === "requesting" || status === "stopping";
+    return `<div class="learning-native-growth-recorder" data-learning-native-growth-reflection-recorder="${escapeHtml(taskCardId)}">
+      <div class="learning-native-growth-recorder-status" data-learning-native-growth-reflection-record-status="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthReflectionRecordingStatus(taskCardId, options))}</div>
+      ${ready ? `<audio controls preload="metadata" src="${escapeHtml(recorder.url)}"></audio>` : ""}
+      <div class="learning-program-task-actions learning-native-growth-recorder-actions">
+        ${recording
+          ? `<button type="button" data-learning-native-growth-reflection-record-stop="${escapeHtml(taskCardId)}">\u505c\u6b62\u5f55\u97f3</button>`
+          : `<button type="button" data-learning-native-growth-reflection-record-start="${escapeHtml(taskCardId)}" ${waiting ? "disabled" : ""}>${ready ? "\u91cd\u65b0\u5f55\u590d\u76d8" : "\u5f00\u59cb\u5f55\u590d\u76d8"}</button>`}
+        ${ready || recording || status === "error" ? `<button type="button" data-learning-native-growth-reflection-record-cancel="${escapeHtml(taskCardId)}">\u6e05\u9664</button>` : ""}
+      </div>
+    </div>`;
+  }
+
   function structuredQuestionItems(task = {}) {
     const model = task.taskModel || task.learningTaskModel || {};
     const items = Array.isArray(task.questionItems) ? task.questionItems
@@ -722,10 +756,10 @@
     if (nextAction === "spoken_reflection") {
       return `<form class="learning-native-growth-submission-form" data-learning-native-growth-reflection-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}">
         <p class="learning-native-growth-prompt">\u9605\u8bfb AI \u53cd\u9988\u540e\uff0c\u7528\u81ea\u5df1\u7684\u8bdd\u8bf4\u660e\u672c\u6b21\u4e3b\u8981\u9519\u8bef\u3001\u4fee\u6539\u539f\u56e0\u548c\u4e0b\u6b21\u7ec3\u4e60\u65b9\u5411\u3002</p>
-        <textarea class="input learning-native-growth-submission-input" name="text" rows="3" maxlength="4000" data-learning-native-growth-reflection-input="${escapeHtml(taskCardId)}" placeholder="\u5199\u4e0b\u6216\u7c98\u8d34\u5f55\u97f3\u8f6c\u5199\u7684\u590d\u76d8\u5185\u5bb9"></textarea>
+        ${renderNativeGrowthReflectionRecorder(task, options)}
         <div class="learning-native-growth-submission-state" data-learning-native-growth-reflection-state="${escapeHtml(taskCardId)}">${escapeHtml(stateLabel)}</div>
         <div class="learning-program-task-actions">
-          <button type="submit" data-learning-submit-native-growth-reflection="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u590d\u76d8</button>
+          <button type="submit" data-learning-submit-native-growth-reflection="${escapeHtml(taskCardId)}">\u63d0\u4ea4\u5f55\u97f3\u590d\u76d8</button>
           ${detailButton}
         </div>
       </form>`;
