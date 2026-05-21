@@ -12,6 +12,8 @@ runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
 runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
+mobile_bridge_host_url="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"
+mobile_bridge_key_path="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret}}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -101,6 +103,10 @@ start_gateway_profile() {
     HERMES_GOOGLE_PROFILE_HOME="$worker_home_dir/profiles/$profile" \
     PATH="$low_gateway_path" \
     HERMES_ACCEPT_HOOKS=1 \
+    HERMES_MOBILE_BRIDGE_HOST_URL="$mobile_bridge_host_url" \
+    HERMES_WEB_BRIDGE_HOST_URL="$mobile_bridge_host_url" \
+    HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$mobile_bridge_key_path" \
+    HERMES_WEB_BRIDGE_HOST_KEY_PATH="$mobile_bridge_key_path" \
     API_SERVER_KEY="$api_key" \
     "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2

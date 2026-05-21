@@ -1,0 +1,7 @@
+name: hermes-mobile-cronjob
+version: 1.0.0
+description: "Hermes Mobile scoped automation tool backed by the live Mobile automation bridge."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - cronjob

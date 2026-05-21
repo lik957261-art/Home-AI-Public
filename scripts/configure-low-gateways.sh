@@ -35,6 +35,8 @@ image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gatew
 image_plugin_target="$worker_home_dir/plugins/hermes-mobile-image"
 video_plugin_source="${HERMES_MOBILE_VIDEO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-video}"
 video_plugin_target="$worker_home_dir/plugins/hermes-mobile-video"
+cronjob_plugin_source="${HERMES_MOBILE_CRONJOB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-cronjob}"
+cronjob_plugin_target="$worker_home_dir/plugins/hermes-mobile-cronjob"
 owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
 outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
 
@@ -318,6 +320,7 @@ docx_plugin_enabled=0
 audio_plugin_enabled=0
 image_plugin_enabled=0
 video_plugin_enabled=0
+cronjob_plugin_enabled=0
 
 if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/__init__.py" ]; then
   rm -rf "$weather_plugin_target"
@@ -381,6 +384,14 @@ if [ -f "$video_plugin_source/plugin.yaml" ] && [ -f "$video_plugin_source/__ini
 else
   echo "Video plugin source not found: $video_plugin_source" >&2
 fi
+if [ -f "$cronjob_plugin_source/plugin.yaml" ] && [ -f "$cronjob_plugin_source/__init__.py" ]; then
+  rm -rf "$cronjob_plugin_target"
+  cp -a "$cronjob_plugin_source" "$cronjob_plugin_target"
+  chown -R "$worker_user:$worker_user" "$cronjob_plugin_target"
+  cronjob_plugin_enabled=1
+else
+  echo "Mobile cronjob plugin source not found: $cronjob_plugin_source" >&2
+fi
 
 if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ]; then
   echo "Missing shared low Gateway Codex auth at $shared_auth_path" >&2
@@ -414,6 +425,9 @@ if [ "$audio_plugin_enabled" = "1" ]; then
 fi
 if [ "$image_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
+fi
+if [ "$cronjob_plugin_enabled" = "1" ]; then
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-cronjob"$'\n'
 fi
 plugin_block="  enabled: []"
 if [ -n "$plugin_enabled_lines" ]; then
@@ -524,6 +538,12 @@ for idx in $(seq 1 "$low_gateway_count"); do
     cp -a "$image_plugin_target" "$profile_dir/plugins/hermes-mobile-image"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-image"
   fi
+  if [ "$cronjob_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-cronjob"
+    cp -a "$cronjob_plugin_target" "$profile_dir/plugins/hermes-mobile-cronjob"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-cronjob"
+  fi
   weather_toolset_block=""
   weather_api_toolset_block=""
   http_toolset_block=""
@@ -550,6 +570,9 @@ for idx in $(seq 1 "$low_gateway_count"); do
   fi
   if [ "$image_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
+  fi
+  if [ "$cronjob_plugin_enabled" = "1" ]; then
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-cronjob"$'\n'
   fi
   plugin_block="  enabled: []"
   if [ -n "$plugin_enabled_lines" ]; then
