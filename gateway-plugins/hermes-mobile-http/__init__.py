@@ -738,7 +738,10 @@ def register(ctx) -> None:
         toolset="http",
         schema=HTTP_REQUEST_SCHEMA,
         handler=_http_request_handler,
-        description="Scoped HTTP request for documented Hermes Mobile workspace Program APIs.",
+        description=(
+            "Scoped HTTP request for documented Hermes Mobile workspace Program APIs. "
+            "Use hermes-mobile://cron for live Hermes Mobile automation jobs."
+        ),
         emoji="http",
     )
     ctx.register_tool(
