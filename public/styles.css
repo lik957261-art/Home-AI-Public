@@ -8423,6 +8423,12 @@ button.directory-alias-chip {
   line-height: 1.5;
 }
 
+.learning-native-growth-question p {
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
 .learning-native-growth-choice-list,
 .learning-native-growth-reason-label {
   display: grid;
