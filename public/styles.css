@@ -7181,7 +7181,7 @@ button.directory-alias-chip {
 .learning-growth-board-summary {
   display: grid;
   gap: 8px;
-  padding: 2px 0 6px;
+  padding: 0 0 6px;
 }
 
 .learning-growth-board-summary-head {
@@ -7249,14 +7249,18 @@ button.directory-alias-chip {
 
 .learning-growth-board-summary-metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(47, 75, 69, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 252, 246, 0.78);
 }
 
 .learning-growth-board-summary-metrics span {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 3px;
   padding: 0;
 }
 
@@ -9001,7 +9005,7 @@ button.directory-alias-chip {
   }
 
   .learning-growth-board-summary-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .learning-growth-shell-hero,

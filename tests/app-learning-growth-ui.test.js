@@ -131,7 +131,7 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-growth-board-lane="waiting_ai"/);
   assert.doesNotMatch(html, /learning-growth-board-lane-head/);
   assert.match(html, /Native board task/);
-  assert.doesNotMatch(html, /<small>执行者<\/small>|<small>历史累计<\/small>/);
+  assert.doesNotMatch(html, /<small>历史累计<\/small>/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /learning-growth-board-card-preview/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
@@ -150,8 +150,13 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-growth-tab="config"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="review"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
-  assert.doesNotMatch(html, /执行者|历史累计/);
-  assert.match(html, /70 金币/);
+  assert.match(html, /执行者/);
+  assert.match(html, /累计金币/);
+  assert.match(html, /七日均值/);
+  assert.match(html, />凡凡</);
+  assert.match(html, />70</);
+  assert.match(html, />10</);
+  assert.doesNotMatch(html, /70 金币|10 金币|历史累计/);
   assert.match(html, /aria-label="成长概览"/);
   assert.doesNotMatch(html, /凡凡成长系统|凡凡成长|成长看板/);
   assert.doesNotMatch(html, /<small>待执行<\/small>|<small>待处理<\/small>|<small>7d<\/small>|Owner/);

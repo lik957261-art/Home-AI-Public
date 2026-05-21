@@ -601,7 +601,9 @@
       || coins.balances?.earnedCoins
       || availableCoins
       || 0);
-    const coinText = formatGrowthCoins(Number.isFinite(historicalCoins) ? historicalCoins : 0);
+    const coinText = String(Number.isFinite(historicalCoins) ? Math.round(historicalCoins) : 0);
+    const sevenDayCoins = Number(metrics.sevenDayCoins || coins.growth?.sevenDayCoins || 0);
+    const sevenDayAverage = Number.isFinite(sevenDayCoins) ? Math.round(sevenDayCoins / 7) : 0;
     const coinsUi = options.coinsUi || CoinsUi;
     if (owner && options.state?.learningGrowthSettingsOpen) {
       return renderOwnerSettingsPage(programUi, coinsUi, overview, options);
@@ -609,8 +611,9 @@
     return `<div class="learning-growth-view learning-growth-board-page" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
       <section class="learning-growth-board-summary" data-learning-growth-board-summary>
         <div class="learning-growth-board-summary-metrics" aria-label="\u6210\u957f\u6982\u89c8">
-          <span><b>${escapeHtml(learnerLabel)}</b></span>
-          <span><b>${escapeHtml(coinText)}</b></span>
+          <span><small>\u6267\u884c\u8005</small><b>${escapeHtml(learnerLabel)}</b></span>
+          <span><small>\u7d2f\u8ba1\u91d1\u5e01</small><b>${escapeHtml(coinText)}</b></span>
+          <span><small>\u4e03\u65e5\u5747\u503c</small><b>${escapeHtml(String(sevenDayAverage))}</b></span>
         </div>
       </section>
       ${boardHtml}
