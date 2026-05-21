@@ -215,6 +215,7 @@ function renderCurrentThreadUnsafe(options = {}) {
     conversation.scrollTop = Math.max(0, conversation.scrollHeight - bottomOffset);
     state.conversationPinnedToBottom = isNearBottom();
   }
+  if (isSingleWindowChatView()) scheduleConversationViewportRefresh(conversation);
 }
 
 function renderTaskWindow(thread, conversation, options, bottomOffset) {

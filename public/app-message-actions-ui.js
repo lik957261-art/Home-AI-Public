@@ -35,6 +35,32 @@ function scrollConversationToBottomSmooth() {
   window.setTimeout(updateConversationJumpBottomButton, prefersReducedMotion() ? 0 : 260);
 }
 
+function scheduleConversationViewportRefresh(conversation = $("conversation")) {
+  if (!conversation || !isSingleWindowChatView()) return;
+  if (!conversation.querySelector("[data-message-id], .chat-history-pager, .empty-state")) return;
+  const refresh = () => {
+    if (!isSingleWindowChatView() || !document.body.contains(conversation)) return;
+    const top = conversation.scrollTop;
+    const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
+    conversation.style.overflowAnchor = "none";
+    void conversation.offsetHeight;
+    if (maxTop > 0) {
+      conversation.scrollTop = Math.min(maxTop, top + 1);
+      conversation.scrollTop = Math.min(maxTop, top);
+    } else {
+      conversation.style.transform = "translateZ(0)";
+      void conversation.offsetHeight;
+      conversation.style.transform = "";
+    }
+    requestAnimationFrame(() => {
+      conversation.style.overflowAnchor = "";
+      updateConversationJumpBottomButton();
+    });
+  };
+  requestAnimationFrame(() => requestAnimationFrame(refresh));
+  window.setTimeout(refresh, 180);
+}
+
 function conversationJumpBottomApplies() {
   if (isChatSearchMode()) return false;
   return isTaskDetailView() || isSingleWindowChatView() || (isSingleWindowView() && state.singleWindowMode === "task");

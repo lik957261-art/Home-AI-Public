@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-run-progress-time-v69";
+const CLIENT_VERSION = "20260522-chat-repaint-grok-auth-v70";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -151,6 +151,11 @@ assert.match(appJs, /wireSkillLinks\(conversation\);\s+wireUsagePanels\(conversa
 assert.match(appJs, /function renderCurrentThreadUnsafe\(options = \{\}\)/);
 assert.match(appJs, /renderCurrentThread failed/);
 assert.match(appJs, /Restoring topic/);
+assert.match(appJs, /function scheduleConversationViewportRefresh\(conversation = \$\("conversation"\)\)/);
+assert.match(appJs, /conversation\.style\.overflowAnchor = "none"/);
+assert.match(appJs, /conversation\.scrollTop = Math\.min\(maxTop, top \+ 1\)/);
+assert.match(appJs, /if \(isSingleWindowChatView\(\)\) scheduleConversationViewportRefresh\(conversation\)/);
+assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
 assert.match(appJs, /currentThreadHasPendingMessages\(thread\) \|\| state\.currentThreadRefreshInFlight/);
 assert.match(appJs, /timeoutMs: 8000/);
 assert.match(appJs, /timeoutMs: 90000/);
