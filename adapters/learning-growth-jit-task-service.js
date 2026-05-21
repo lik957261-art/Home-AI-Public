@@ -168,7 +168,8 @@ function buildModelPrompt(input = {}, seed = {}) {
     "Use Chinese for explanations/instructions unless the learner output itself must be English.",
     "Do not include raw prompts, answer keys, full transcripts, full learner history, endpoints, local paths, secrets, or copied copyrighted questions.",
     "If you create an exercise, make it original and bounded to this card. Do not provide the hidden answer key.",
-    "Return schema: {\"learnerInstruction\":\"...\",\"focusSignals\":[\"...\"],\"difficultyBand\":\"repair|steady|stretch\",\"skillTargets\":[\"...\"],\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"teacherRationale\":\"...\"}",
+    "If the card needs structured questions, return questionItems with stem, choices, and answerFormat. Use stem, not prompt/question/questionText. Do not include answers.",
+    "Return schema: {\"learnerInstruction\":\"...\",\"focusSignals\":[\"...\"],\"difficultyBand\":\"repair|steady|stretch\",\"skillTargets\":[\"...\"],\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"questionItems\":[{\"id\":\"q1\",\"type\":\"multiple_choice|written\",\"stem\":\"...\",\"choices\":[{\"id\":\"A\",\"text\":\"...\"}],\"answerFormat\":\"...\"}],\"teacherRationale\":\"...\"}",
     JSON.stringify(payload),
   ].join("\n\n");
 }
@@ -182,6 +183,7 @@ function normalizeModelOutput(parsed = {}, seed = {}, task = {}) {
   const skillTargets = uniqueStrings(safe.skillTargets || seed.skillTargets, 6);
   const deliverables = uniqueStrings(safe.deliverables || task.deliverables || task.taskModel?.deliverables, 8);
   const acceptance = uniqueStrings(safe.acceptance || task.acceptance || task.taskModel?.acceptance, 8);
+  const questionItems = normalizeQuestionItems(safe.questionItems || safe.structuredQuestionItems || task.questionItems || task.taskModel?.questionItems);
   return {
     learnerInstruction,
     focusSignals,
@@ -189,8 +191,37 @@ function normalizeModelOutput(parsed = {}, seed = {}, task = {}) {
     skillTargets,
     deliverables,
     acceptance,
+    questionItems,
     teacherRationale: compactText(safe.teacherRationale || safe.rationale, 360),
   };
+}
+
+function normalizeQuestionChoice(choice = {}, index = 0) {
+  const raw = choice && typeof choice === "object" ? choice : { text: choice };
+  const fallbackId = String.fromCharCode(65 + index);
+  const id = compactText(raw.id || raw.key || raw.label || fallbackId, 8).replace(/[^A-Za-z0-9_-]/g, "") || fallbackId;
+  const text = compactText(raw.text || raw.value || raw.content || raw.label, 240);
+  if (!text) return null;
+  return { id, text };
+}
+
+function normalizeQuestionItems(value) {
+  return asArray(value).slice(0, 6).map((item, index) => {
+    const raw = item && typeof item === "object" ? item : { stem: item };
+    const stem = compactText(raw.stem || raw.body || raw.text || raw.title, 900);
+    if (!stem) return null;
+    const choices = asArray(raw.choices || raw.options).map(normalizeQuestionChoice).filter(Boolean).slice(0, 6);
+    const type = choices.length >= 2 || /choice|select/i.test(raw.type || "") ? "multiple_choice" : "written";
+    return {
+      id: compactText(raw.id || raw.questionId || `q${index + 1}`, 40) || `q${index + 1}`,
+      type,
+      title: compactText(raw.title || raw.label || `Question ${index + 1}`, 120),
+      stem,
+      choices: type === "multiple_choice" ? choices : [],
+      requiresReason: raw.requiresReason !== false,
+      answerFormat: compactText(raw.answerFormat || (type === "multiple_choice" ? "选择一个选项，并用 1-2 句说明理由。" : "写出推理过程和最终结论。"), 180),
+    };
+  }).filter(Boolean);
 }
 
 function createLearningGrowthJitTaskService(options = {}) {
@@ -200,7 +231,9 @@ function createLearningGrowthJitTaskService(options = {}) {
   const extractJsonObject = typeof options.extractJsonObject === "function" ? options.extractJsonObject : defaultExtractJsonObject;
   const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
   const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
-  const model = cleanString(options.model || options.automationCreateModel || "automation-create");
+  const model = cleanString(options.model || options.automationCreateModel || "gpt-5.5") || "gpt-5.5";
+  const requestedReasoningEffort = cleanString(options.reasoningEffort || options.reasoning_effort || "xhigh").toLowerCase();
+  const reasoningEffort = ["low", "medium", "high", "xhigh"].includes(requestedReasoningEffort) ? requestedReasoningEffort : "xhigh";
   const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
   const requireModel = options.requireModel === true;
 
@@ -254,7 +287,7 @@ function createLearningGrowthJitTaskService(options = {}) {
           stream: false,
           store: false,
           model,
-          reasoning_effort: "medium",
+          reasoning_effort: reasoningEffort,
           conversation: `learning_growth_jit_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
           instructions: "Return strict JSON for one learner-facing Growth task card.",
           access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
@@ -285,23 +318,27 @@ function createLearningGrowthJitTaskService(options = {}) {
       difficultyBand: normalized.difficultyBand,
       modelStatus,
       model,
+      reasoningEffort,
       privacyLevel: "summary_only",
       materialPolicy: "bounded_instruction_summary_only",
       sequenceIndex: Number(input.sequenceIndex || 0) || 0,
       teacherRationale: normalized.teacherRationale,
     };
     const taskModel = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {};
+    const questionItems = normalized.questionItems;
     return Object.assign({}, task, {
       learnerInstruction,
       instruction: learnerInstruction,
       deliverables: normalized.deliverables,
       acceptance: normalized.acceptance,
+      questionItems: questionItems.length ? questionItems : task.questionItems,
       summary: compactText(`${cleanString(task.title) || "Growth task"}. JIT-ready card instruction generated from summary-only recent learning state.`, 260),
       learningGrowthJitGeneration: jitGeneration,
       taskModel: Object.assign({}, taskModel, {
         learnerInstruction,
         deliverables: normalized.deliverables,
         acceptance: normalized.acceptance,
+        questionItems: questionItems.length ? questionItems : taskModel.questionItems,
         jitGeneration,
       }),
     });
@@ -317,4 +354,5 @@ module.exports = {
   VERSION,
   buildModelPrompt,
   createLearningGrowthJitTaskService,
+  normalizeQuestionItems,
 };

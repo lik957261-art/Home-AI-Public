@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
+const { createLearningGrowthJitTaskService, normalizeQuestionItems } = require("../adapters/learning-growth-jit-task-service");
 
 async function run() {
   const modelCalls = [];
@@ -16,6 +16,19 @@ async function run() {
         skillTargets: ["english_grammar_in_expression"],
         deliverables: ["grammar repair answer", "reason explanation"],
         acceptance: ["answer explains tense agreement", "revision is submitted"],
+        questionItems: [
+          {
+            id: "q1",
+            type: "multiple_choice",
+            stem: "Which revision best fixes the tense agreement issue?",
+            choices: [
+              { id: "A", text: "Choice A" },
+              { id: "B", text: "Choice B" },
+            ],
+            answerFormat: "Choose one option and explain briefly.",
+            answerKey: "must-not-leak",
+          },
+        ],
         teacherRationale: "Recent summary shows grammar repair should stay narrow.",
       });
     },
@@ -80,6 +93,8 @@ async function run() {
   });
 
   assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].model, "gpt-5.5");
+  assert.equal(modelCalls[0].reasoning_effort, "xhigh");
   assert.match(modelCalls[0].input, /summary-only learning state/i);
   assert.doesNotMatch(modelCalls[0].input, /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);
   assert.match(prepared.learnerInstruction, /模型生成/);
@@ -91,9 +106,36 @@ async function run() {
   assert.equal(prepared.learningGrowthJitGeneration.mode, "model_assisted_summary_state_at_card_creation");
   assert.deepEqual(prepared.learningGrowthJitGeneration.sourceRefs.slice().sort(), ["assessment:recent-2", "progress:recent-1"]);
   assert.equal(prepared.taskModel.jitGeneration.ready, true);
+  assert.equal(prepared.learningGrowthJitGeneration.reasoningEffort, "xhigh");
   assert.equal(prepared.taskModel.learnerInstruction, prepared.learnerInstruction);
+  assert.equal(prepared.taskModel.questionItems.length, 1);
+  assert.equal(prepared.taskModel.questionItems[0].stem, "Which revision best fixes the tense agreement issue?");
+  assert.doesNotMatch(JSON.stringify(prepared.taskModel.questionItems), /answerKey|must-not-leak/);
   assert.deepEqual(prepared.deliverables, ["grammar repair answer", "reason explanation"]);
   assert.doesNotMatch(JSON.stringify(prepared), /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath|rawResponse/);
+
+  const normalizedQuestions = normalizeQuestionItems([
+    {
+      questionText: "must-not-use",
+      stem: "Original structured stem",
+      options: ["One", "Two"],
+      correctAnswer: "must-not-leak",
+    },
+  ]);
+  assert.deepEqual(normalizedQuestions, [
+    {
+      id: "q1",
+      type: "multiple_choice",
+      title: "Question 1",
+      stem: "Original structured stem",
+      choices: [
+        { id: "A", text: "One" },
+        { id: "B", text: "Two" },
+      ],
+      requiresReason: true,
+      answerFormat: "选择一个选项，并用 1-2 句说明理由。",
+    },
+  ]);
 
   const required = createLearningGrowthJitTaskService({ requireModel: true });
   await assert.rejects(() => required.prepareTaskForCard({ task: { title: "No model" } }), /requires model assistance/);

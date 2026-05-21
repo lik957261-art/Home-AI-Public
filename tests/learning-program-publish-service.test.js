@@ -200,6 +200,8 @@ async function run() {
   assert.equal(jitResult.ok, true);
   assert.equal(jitCalls.length, 1);
   assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].model, "gpt-5.5");
+  assert.equal(modelCalls[0].reasoning_effort, "xhigh");
   assert.equal(jitPublishCalls.length, 1);
   assert.equal(jitPublishCalls[0].input.cards.length, 2);
   const jitCard = jitPublishCalls[0].input.cards[0];
@@ -207,6 +209,7 @@ async function run() {
   assert.match(jitCard.description, /tense agreement/);
   assert.equal(jitCard.taskModel.jitGeneration.status, "ready");
   assert.equal(jitCard.taskModel.jitGeneration.modelStatus, "completed");
+  assert.equal(jitCard.taskModel.jitGeneration.reasoningEffort, "xhigh");
   assert.deepEqual(jitCard.taskModel.jitGeneration.sourceRefs, ["progress:grammar-1"]);
   const futureCard = jitPublishCalls[0].input.cards[1];
   assert.equal(futureCard.learningGrowthJitPending, true);

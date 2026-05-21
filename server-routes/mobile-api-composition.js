@@ -550,7 +550,8 @@ function createMobileApiComposition(deps = {}) {
     findWorkspace: deps.findWorkspace,
     hermesModelText: deps.hermesModelText,
     listSources: (filters) => learningProgramRepository.listSources(filters),
-    model: deps.automationCreateModel,
+    model: deps.learningGrowthJitModel || "gpt-5.5",
+    reasoningEffort: deps.learningGrowthJitReasoningEffort || "xhigh",
     requireModel: true,
     sanitizePolicy: deps.sanitizePolicy,
   });
