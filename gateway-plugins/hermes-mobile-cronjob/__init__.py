@@ -235,9 +235,9 @@ def _request(payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "status": 503, "error": f"Mobile cron bridge unavailable: {type(exc).__name__}"}
 
 
-def mobile_cronjob(**kwargs: Any) -> str:
+def mobile_cronjob(args: dict[str, Any], **_: Any) -> str:
     try:
-        payload = _payload(kwargs)
+        payload = _payload(args if isinstance(args, dict) else {})
     except ValueError as exc:
         return _json_result({"ok": False, "status": 400, "error": str(exc)})
     return _json_result(_request(payload))
@@ -245,8 +245,10 @@ def mobile_cronjob(**kwargs: Any) -> str:
 
 def register(ctx: Any) -> None:
     ctx.register_tool(
-        "mobile_cronjob",
-        mobile_cronjob,
+        name="mobile_cronjob",
+        handler=mobile_cronjob,
         schema=MOBILE_CRONJOB_SCHEMA,
         toolset="cronjob",
+        description="Manage current-principal Hermes Mobile automations through the live Mobile bridge.",
+        emoji="automation",
     )
