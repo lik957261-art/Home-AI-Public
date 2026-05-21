@@ -7250,7 +7250,7 @@ button.directory-alias-chip {
 .learning-growth-board-summary-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: 12px;
 }
 
 .learning-growth-board-summary-metrics span {
@@ -7264,8 +7264,8 @@ button.directory-alias-chip {
   min-width: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 18px;
-  line-height: 1.15;
+  font-size: 16px;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -7600,8 +7600,8 @@ button.directory-alias-chip {
 
 .learning-growth-board-card {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid rgba(31, 111, 98, 0.12);
   border-radius: 8px;
   background: rgba(236, 249, 245, 0.46);
@@ -7610,7 +7610,8 @@ button.directory-alias-chip {
 .learning-growth-board-card-head strong {
   min-width: 0;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
@@ -7629,9 +7630,9 @@ button.directory-alias-chip {
 }
 
 .learning-growth-board-card-title small {
-  margin-top: 3px;
+  margin-top: 4px;
   color: var(--accent);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -7640,8 +7641,8 @@ button.directory-alias-chip {
   margin: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 14px;
+  line-height: 1.45;
   opacity: 0.82;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -7654,9 +7655,10 @@ button.directory-alias-chip {
 }
 
 .learning-growth-board-card-meta small {
-  padding: 3px 6px;
+  padding: 4px 7px;
   border-radius: 999px;
   color: var(--muted);
+  font-size: 12px;
   background: rgba(255, 252, 246, 0.8);
 }
 
