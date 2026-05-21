@@ -324,6 +324,48 @@ function testNativeSpeakingTaskRendersAudioRecorder() {
   assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
 }
 
+function testNativeMathTaskRendersStructuredQuestionInputs() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail({
+    taskCardId: "task-native-math",
+    source: "learning-growth",
+    title: "Native math task",
+    status: "published",
+    workspaceId: "weixin_stephen",
+    plannedMinutes: 20,
+    learnerInstruction: "Complete each question below.",
+    taskModel: {
+      activityType: "math_reasoning",
+      questionItems: [
+        {
+          id: "q1",
+          type: "multiple_choice",
+          title: "Question 1",
+          prompt: "Choose one.",
+          choices: [
+            { id: "A", text: "2" },
+            { id: "B", text: "3" },
+          ],
+        },
+        {
+          id: "q3",
+          type: "written",
+          title: "Question 3",
+          prompt: "Show reasoning.",
+        },
+      ],
+    },
+  }, { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+    state: { auth: { isOwner: false } },
+  });
+  assert.match(html, /data-learning-native-growth-question="q1"/);
+  assert.match(html, /data-learning-native-growth-question-choice="q1"/);
+  assert.match(html, /data-learning-native-growth-question-reason="q1"/);
+  assert.match(html, /data-learning-native-growth-question="q3"/);
+  assert.match(html, /data-learning-native-growth-question-response="q3"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-input="task-native-math"/);
+  assert.doesNotMatch(html, /answerKey|correctAnswer|rawTranscript|pushEndpoint|apiKey/);
+}
+
 function testNativeTaskReflectionStateRendersReflectionForm() {
   const html = ProgramUi.renderProgramSubsystem({
     programs: Object.assign({}, programs, {
@@ -352,6 +394,7 @@ testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst();
 testNativeTaskWithoutKanbanLinkUsesNativeSubmission();
 testNativeTaskDetailShowsRewardPolicyWithoutCapForm();
 testNativeSpeakingTaskRendersAudioRecorder();
+testNativeMathTaskRendersStructuredQuestionInputs();
 testNativeTaskReflectionStateRendersReflectionForm();
 
 console.log("app learning program ui tests passed");

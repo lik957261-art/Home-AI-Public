@@ -640,12 +640,70 @@
     </div>`;
   }
 
+  function structuredQuestionItems(task = {}) {
+    const model = task.taskModel || task.learningTaskModel || {};
+    const items = Array.isArray(task.questionItems) ? task.questionItems
+      : Array.isArray(model.questionItems) ? model.questionItems
+        : Array.isArray(model.questions) ? model.questions
+          : [];
+    return items.map((item, index) => {
+      const id = String(item?.id || `q${index + 1}`).trim();
+      const type = String(item?.type || item?.questionType || "").trim().toLowerCase();
+      const choices = Array.isArray(item?.choices) ? item.choices : [];
+      return Object.assign({}, item, {
+        id,
+        type: type === "single_choice" ? "multiple_choice" : type,
+        choices,
+      });
+    }).filter((item) => item.id && (item.prompt || item.title || item.question || item.choices.length));
+  }
+
+  function renderStructuredQuestionSubmission(task = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const questions = structuredQuestionItems(task);
+    if (!questions.length) return "";
+    return `<div class="learning-native-growth-questions" data-learning-native-growth-questions>
+      ${questions.map((item, index) => {
+        const questionId = String(item.id || `q${index + 1}`);
+        const type = String(item.type || "written");
+        const title = String(item.title || `第 ${index + 1} 题`);
+        const prompt = String(item.prompt || item.question || "");
+        if (type === "multiple_choice") {
+          const choices = asArray(item.choices).map((choice, choiceIndex) => {
+            const value = String(choice?.id || choice?.value || String.fromCharCode(65 + choiceIndex));
+            const label = String(choice?.label || value);
+            const text = String(choice?.text || choice?.content || choice?.label || value);
+            return `<label class="learning-native-growth-choice">
+              <input type="radio" name="learning-growth-${escapeHtml(questionId)}" value="${escapeHtml(value)}" data-learning-native-growth-question-choice="${escapeHtml(questionId)}">
+              <span><b>${escapeHtml(label)}</b>${escapeHtml(text === label ? "" : ` ${text}`)}</span>
+            </label>`;
+          }).join("");
+          return `<fieldset class="learning-native-growth-question" data-learning-native-growth-question="${escapeHtml(questionId)}" data-question-type="multiple_choice" data-question-title="${escapeHtml(title)}">
+            <legend>${escapeHtml(title)}</legend>
+            ${prompt ? `<p>${escapeHtml(prompt)}</p>` : ""}
+            <div class="learning-native-growth-choice-list">${choices}</div>
+            <label class="learning-native-growth-reason-label">
+              <span>${escapeHtml(item.reasonLabel || "简短理由")}</span>
+              <textarea class="input learning-native-growth-question-reason" rows="2" maxlength="1200" data-learning-native-growth-question-reason="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.reasonPlaceholder || "写 1-2 句理由")}"></textarea>
+            </label>
+          </fieldset>`;
+        }
+        return `<fieldset class="learning-native-growth-question" data-learning-native-growth-question="${escapeHtml(questionId)}" data-question-type="written" data-question-title="${escapeHtml(title)}">
+          <legend>${escapeHtml(title)}</legend>
+          ${prompt ? `<p>${escapeHtml(prompt)}</p>` : ""}
+          <textarea class="input learning-native-growth-question-response" rows="5" maxlength="5000" data-learning-native-growth-question-response="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.responsePlaceholder || "写出关键推理过程")}"></textarea>
+        </fieldset>`;
+      }).join("")}
+    </div>`;
+  }
+
   function renderNativeGrowthSubmission(task = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(task?.taskCardId || "");
     if (!taskCardId) return "";
     const guard = nativeGrowthSubmissionGuard(task, options);
     const requiresAudio = nativeGrowthRequiresAudio(task);
+    const structuredQuestions = !requiresAudio ? renderStructuredQuestionSubmission(task, options) : "";
     const kanbanCardId = String(task?.kanbanCardId || task?.todoId || "");
     const workspaceId = String(task?.workspaceId || "");
     const nativeState = task?.nativeState || {};
@@ -675,7 +733,7 @@
     return `<form class="learning-native-growth-submission-form" data-learning-native-growth-submission-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}" data-requires-audio="${requiresAudio ? "1" : "0"}">
       <p class="learning-native-growth-prompt">${escapeHtml(nativeGrowthSubmissionPrompt(task, options))}</p>
       ${stateLabel ? `<div class="learning-native-growth-submission-state">${escapeHtml(stateLabel)}</div>` : ""}
-      ${requiresAudio ? renderNativeGrowthAudioRecorder(task, options) : `<textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539"></textarea>
+      ${requiresAudio ? renderNativeGrowthAudioRecorder(task, options) : structuredQuestions || `<textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539"></textarea>
       <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>`}
       <div class="learning-program-task-actions">
         <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">${requiresAudio ? "\u63d0\u4ea4\u5f55\u97f3\u7ed9 AI \u6279\u6539" : "\u63d0\u4ea4\u7ed9 AI \u6279\u6539"}</button>

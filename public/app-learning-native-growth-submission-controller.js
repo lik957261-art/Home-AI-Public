@@ -36,6 +36,36 @@ function updateNativeGrowthSubmissionCount(form) {
   count.classList.toggle("is-short", !ready);
 }
 
+function collectStructuredNativeGrowthAnswers(form) {
+  const blocks = Array.from(form?.querySelectorAll?.("[data-learning-native-growth-question]") || []);
+  if (!blocks.length) return null;
+  const answers = [];
+  for (const block of blocks) {
+    const questionId = String(block.dataset.learningNativeGrowthQuestion || "").trim();
+    const type = String(block.dataset.questionType || "").trim();
+    const title = String(block.dataset.questionTitle || questionId).trim();
+    if (type === "multiple_choice") {
+      const selected = block.querySelector("[data-learning-native-growth-question-choice]:checked");
+      const reason = String(block.querySelector("[data-learning-native-growth-question-reason]")?.value || "").trim();
+      if (!selected) return { ok: false, error: `${title} \u8bf7\u5148\u9009\u62e9\u4e00\u4e2a\u9009\u9879\u3002` };
+      if (!reason) return { ok: false, error: `${title} \u8bf7\u8865\u4e00\u53e5\u7b80\u77ed\u7406\u7531\u3002` };
+      answers.push({ questionId, type, title, choice: String(selected.value || "").trim(), reason });
+    } else {
+      const response = String(block.querySelector("[data-learning-native-growth-question-response]")?.value || "").trim();
+      if (!response) return { ok: false, error: `${title} \u8bf7\u5199\u51fa\u63a8\u7406\u8fc7\u7a0b\u3002` };
+      answers.push({ questionId, type: "written", title, response });
+    }
+  }
+  const text = answers.map((answer, index) => {
+    const heading = `${index + 1}. ${answer.title || answer.questionId}`;
+    if (answer.type === "multiple_choice") {
+      return `${heading}\n\u9009\u62e9\uff1a${answer.choice}\n\u7406\u7531\uff1a${answer.reason}`;
+    }
+    return `${heading}\n\u63a8\u7406\uff1a${answer.response}`;
+  }).join("\n\n");
+  return { ok: true, answers, text };
+}
+
 async function submitNativeGrowthTask(event, taskCardId) {
   event?.preventDefault?.();
   const form = event?.target;
@@ -62,6 +92,18 @@ async function submitNativeGrowthTask(event, taskCardId) {
     submittedFile = recording.file;
     body = { recording };
   } else {
+    const structured = collectStructuredNativeGrowthAnswers(form);
+    if (structured) {
+      if (!structured.ok) {
+        if (stateNode) stateNode.textContent = structured.error;
+        showPushToast(structured.error, "error");
+        return;
+      }
+      body = Object.assign(learningLearnerBody(), {
+        text: structured.text,
+        structuredAnswers: structured.answers,
+      });
+    } else {
     updateNativeGrowthSubmissionCount(form);
     const stats = learningNativeGrowthSubmissionStats(text);
     const minWords = Number(form.dataset.minWords || 0) || 0;
@@ -72,6 +114,7 @@ async function submitNativeGrowthTask(event, taskCardId) {
       return;
     }
     body = Object.assign(learningLearnerBody(), { text });
+    }
   }
   state.learningNativeGrowthSubmissionSubmitting[taskCardId] = true;
   if (button) button.disabled = true;
