@@ -9,6 +9,46 @@ function learningNativeGrowthSubmissionStats(text) {
   };
 }
 
+function nativeGrowthDraftStorageId(value) {
+  return String(value || "").trim().replace(/[^a-z0-9_-]+/gi, "_").slice(0, 160) || "default";
+}
+
+function nativeGrowthDraftWorkspaceId(form) {
+  return String(
+    form?.dataset?.workspaceId
+    || state?.selectedWorkspaceId
+    || state?.auth?.workspaceId
+    || "owner",
+  ).trim() || "owner";
+}
+
+function nativeGrowthTextDraftStorageKey(form, taskCardId) {
+  return `hermesNativeGrowthTextDraft:${nativeGrowthDraftStorageId(nativeGrowthDraftWorkspaceId(form))}:${nativeGrowthDraftStorageId(taskCardId)}`;
+}
+
+function nativeGrowthStructuredDraftStorageKey(form, taskCardId) {
+  return `hermesNativeGrowthStructuredDraft:${nativeGrowthDraftStorageId(nativeGrowthDraftWorkspaceId(form))}:${nativeGrowthDraftStorageId(taskCardId)}`;
+}
+
+function readNativeGrowthDraft(key) {
+  if (!key || typeof localStorage === "undefined") return null;
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null");
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeNativeGrowthDraft(key, value) {
+  if (!key || typeof localStorage === "undefined") return;
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function clearNativeGrowthDraft(key) {
+  if (!key || typeof localStorage === "undefined") return;
+  localStorage.removeItem(key);
+}
+
 function nativeGrowthRequirementText(form, stats = null) {
   const minWords = Number(form?.dataset?.minWords || 0) || 0;
   const minChars = Number(form?.dataset?.minChars || 0) || 0;
@@ -34,6 +74,92 @@ function updateNativeGrowthSubmissionCount(form) {
   count.textContent = nativeGrowthRequirementText(form, stats);
   count.classList.toggle("is-ready", ready);
   count.classList.toggle("is-short", !ready);
+}
+
+function captureStructuredNativeGrowthDraft(form) {
+  const blocks = Array.from(form?.querySelectorAll?.("[data-learning-native-growth-question]") || []);
+  if (!blocks.length) return null;
+  const answers = {};
+  for (const block of blocks) {
+    const questionId = String(block.dataset.learningNativeGrowthQuestion || "").trim();
+    const type = String(block.dataset.questionType || "").trim();
+    if (!questionId) continue;
+    if (type === "multiple_choice") {
+      const selected = block.querySelector("[data-learning-native-growth-question-choice]:checked");
+      const reason = String(block.querySelector("[data-learning-native-growth-question-reason]")?.value || "");
+      answers[questionId] = {
+        type,
+        choice: String(selected?.value || "").trim(),
+        reason,
+      };
+      continue;
+    }
+    answers[questionId] = {
+      type: "written",
+      response: String(block.querySelector("[data-learning-native-growth-question-response]")?.value || ""),
+    };
+  }
+  return { answers, updatedAt: new Date().toISOString() };
+}
+
+function applyStructuredNativeGrowthDraft(form, draft) {
+  if (!form || !draft?.answers || typeof draft.answers !== "object") return;
+  const blocks = Array.from(form.querySelectorAll("[data-learning-native-growth-question]"));
+  for (const block of blocks) {
+    const questionId = String(block.dataset.learningNativeGrowthQuestion || "").trim();
+    const saved = draft.answers[questionId];
+    if (!saved) continue;
+    if (saved.type === "multiple_choice") {
+      block.querySelectorAll("[data-learning-native-growth-question-choice]").forEach((input) => {
+        input.checked = String(input.value || "").trim() === String(saved.choice || "").trim();
+      });
+      const reason = block.querySelector("[data-learning-native-growth-question-reason]");
+      if (reason && !String(reason.value || "").trim()) reason.value = String(saved.reason || "");
+      continue;
+    }
+    const response = block.querySelector("[data-learning-native-growth-question-response]");
+    if (response && !String(response.value || "").trim()) response.value = String(saved.response || "");
+  }
+}
+
+function restoreNativeGrowthSubmissionDraft(form, taskCardId) {
+  if (!form || !taskCardId) return;
+  const input = form.querySelector("[data-learning-native-growth-submission-input]");
+  if (input) {
+    const draft = readNativeGrowthDraft(nativeGrowthTextDraftStorageKey(form, taskCardId));
+    if (draft && typeof draft.text === "string" && !String(input.value || "").trim()) input.value = draft.text;
+    updateNativeGrowthSubmissionCount(form);
+  }
+  const blocks = form.querySelectorAll("[data-learning-native-growth-question]");
+  if (blocks.length) {
+    const draft = readNativeGrowthDraft(nativeGrowthStructuredDraftStorageKey(form, taskCardId));
+    applyStructuredNativeGrowthDraft(form, draft);
+  }
+}
+
+function persistNativeGrowthSubmissionDraft(form, taskCardId) {
+  if (!form || !taskCardId) return;
+  const input = form.querySelector("[data-learning-native-growth-submission-input]");
+  if (input) {
+    writeNativeGrowthDraft(nativeGrowthTextDraftStorageKey(form, taskCardId), {
+      text: String(input.value || ""),
+      updatedAt: new Date().toISOString(),
+    });
+    updateNativeGrowthSubmissionCount(form);
+  }
+  const blocks = form.querySelectorAll("[data-learning-native-growth-question]");
+  if (blocks.length) {
+    writeNativeGrowthDraft(
+      nativeGrowthStructuredDraftStorageKey(form, taskCardId),
+      captureStructuredNativeGrowthDraft(form),
+    );
+  }
+}
+
+function clearNativeGrowthSubmissionDraft(form, taskCardId) {
+  if (!taskCardId) return;
+  clearNativeGrowthDraft(nativeGrowthTextDraftStorageKey(form, taskCardId));
+  clearNativeGrowthDraft(nativeGrowthStructuredDraftStorageKey(form, taskCardId));
 }
 
 function collectStructuredNativeGrowthAnswers(form) {
@@ -138,6 +264,7 @@ async function submitNativeGrowthTask(event, taskCardId) {
       if (latest.url && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(latest.url);
       delete state.learningNativeGrowthSubmissionRecorders[taskCardId];
     }
+    clearNativeGrowthSubmissionDraft(form, taskCardId);
     if (stateNode) stateNode.textContent = response.evaluation?.status === "reflection_required"
       ? "AI \u6279\u6539\u5b8c\u6210\uff0c\u4e0b\u4e00\u6b65\u9700\u8981\u5f55\u97f3\u590d\u76d8\u3002"
       : "AI \u6279\u6539\u5b8c\u6210\uff0c\u9875\u9762\u6b63\u5728\u5237\u65b0\u3002";

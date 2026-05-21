@@ -3,7 +3,13 @@
 function learningGrowthLearnerWorkspaceId() {
   const selected = String(state.selectedWorkspaceId || "").trim();
   const authWorkspace = String(state.auth?.workspaceId || "").trim();
-  if (state.auth && !state.auth.isOwner) return authWorkspace || selected;
+  const accessibleWorkspaceIds = Array.isArray(state.auth?.workspaceIds) && state.auth.workspaceIds.length
+    ? state.auth.workspaceIds
+    : (authWorkspace ? [authWorkspace] : []);
+  if (state.auth && !state.auth.isOwner) {
+    if (selected && accessibleWorkspaceIds.includes(selected)) return selected;
+    return authWorkspace || selected;
+  }
   const scoped = String(state.learningGrowthWorkspaceId || "").trim();
   if (state.auth?.isOwner && scoped && (!selected || selected === "owner")) return scoped;
   if (state.auth?.isOwner && (!selected || selected === "owner")) {
@@ -603,11 +609,20 @@ function wireLearningCoinsView() {
     button.addEventListener("click", () => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
   });
   $("conversation")?.querySelectorAll("[data-learning-native-growth-submission-form]").forEach((form) => {
+    const taskCardId = form.dataset.taskCardId || form.dataset.learningNativeGrowthSubmissionForm;
+    restoreNativeGrowthSubmissionDraft(form, taskCardId);
     updateNativeGrowthSubmissionCount(form);
     form.addEventListener("submit", (event) => {
-      submitNativeGrowthTask(event, form.dataset.taskCardId || form.dataset.learningNativeGrowthSubmissionForm);
+      submitNativeGrowthTask(event, taskCardId);
     });
-    form.querySelector("[data-learning-native-growth-submission-input]")?.addEventListener("input", () => updateNativeGrowthSubmissionCount(form));
+    form.querySelector("[data-learning-native-growth-submission-input]")?.addEventListener("input", () => persistNativeGrowthSubmissionDraft(form, taskCardId));
+    form.querySelectorAll("[data-learning-native-growth-question-choice]").forEach((input) => {
+      input.addEventListener("change", () => persistNativeGrowthSubmissionDraft(form, taskCardId));
+    });
+    form.querySelectorAll("[data-learning-native-growth-question-reason],[data-learning-native-growth-question-response]").forEach((input) => {
+      input.addEventListener("input", () => persistNativeGrowthSubmissionDraft(form, taskCardId));
+      input.addEventListener("change", () => persistNativeGrowthSubmissionDraft(form, taskCardId));
+    });
   });
   $("conversation")?.querySelectorAll("[data-learning-native-growth-record-start]").forEach((button) => {
     button.addEventListener("click", () => {
