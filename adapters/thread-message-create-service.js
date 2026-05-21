@@ -518,7 +518,7 @@ function createThreadMessageCreateService(options = {}) {
 
     const messageKind = resolveMessageKind(body, groupChat.isGroupChatMessage, groupChat.isCaseTopicChatMessage);
     const searchSource = resolveSearchSourceForMessage(body, normalized.text);
-    const modelRoute = resolveGatewayModelRoute(body);
+    const modelRoute = resolveGatewayModelRoute(Object.assign({}, body, { text: normalized.text }));
     if (!modelRoute.ok) {
       return errorResult(modelRoute.status || 400, modelRoute.error || "Invalid model route", {
         code: modelRoute.code || "invalid_model_route",

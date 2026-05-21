@@ -417,6 +417,27 @@ function testGrokModelRouteRequiresXaiGatewayProvider() {
   assert.equal(calls.gatewayRouting[0].body.provider, "xai-oauth");
 }
 
+function testNaturalLanguageGrokRouteOverridesDefaultChatGptModel() {
+  const { calls, service } = makeHarness();
+  const plan = service.prepareThreadMessageCreate({
+    thread: baseThread(),
+    body: {
+      text: "请使用 Grok 回答这个问题",
+      model: "gpt-5.5",
+      provider: "openai-codex",
+    },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+
+  assert.equal(plan.nextAction, "start-run");
+  assert.equal(plan.runOptions.model, "grok-4.3");
+  assert.equal(plan.runOptions.provider, "xai-oauth");
+  assert.equal(plan.runOptions.gatewayRouting.provider, "xai-oauth");
+  assert.deepEqual(plan.runOptions.gatewayRouting.preferred_worker_profiles, ["grokgw1"]);
+  assert.equal(calls.gatewayRouting[0].body.model, "grok-4.3");
+  assert.equal(calls.gatewayRouting[0].body.provider, "xai-oauth");
+}
+
 function testSearchSourceRunOptions() {
   const { calls, service } = makeHarness();
   const plan = service.prepareThreadMessageCreate({
@@ -503,6 +524,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   testDirectCreateRoutingAndPayloads();
   await testRunOptionsAndDispatchHooks();
   testGrokModelRouteRequiresXaiGatewayProvider();
+  testNaturalLanguageGrokRouteOverridesDefaultChatGptModel();
   testSearchSourceRunOptions();
   await testQueuedChatRunSkipsConcurrencyAndStart();
   testConcurrencyErrorBeforeStateMutation();

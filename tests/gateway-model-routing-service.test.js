@@ -5,6 +5,7 @@ const {
   GROK_PROVIDER,
   modelLooksLikeGrok,
   resolveGatewayModelRoute,
+  textRequestsGrokModel,
 } = require("../adapters/gateway-model-routing-service");
 
 function testGrokMentionRoutesToXaiWorkerProfile() {
@@ -39,7 +40,28 @@ function testDefaultModelDoesNotForceProviderRoute() {
   assert.deepEqual(openai.route.gatewayRouting, { provider: "openai-codex" });
 }
 
+function testNaturalLanguageGrokRequestOverridesDefaultModelRoute() {
+  assert.equal(textRequestsGrokModel("请使用 Grok 回答这个问题"), true);
+  assert.equal(textRequestsGrokModel("用Grok分析一下"), true);
+  assert.equal(textRequestsGrokModel("Use Grok to answer this."), true);
+  assert.equal(textRequestsGrokModel("不要使用 Grok，继续用 ChatGPT"), false);
+
+  const result = resolveGatewayModelRoute({
+    text: "请使用 Grok 回答这个问题",
+    model: "gpt-5.5",
+    provider: "openai-codex",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.route.model, "grok-4.3");
+  assert.equal(result.route.provider, GROK_PROVIDER);
+  assert.deepEqual(result.route.gatewayRouting, {
+    provider: GROK_PROVIDER,
+    preferred_worker_profiles: ["grokgw1"],
+  });
+}
+
 testGrokMentionRoutesToXaiWorkerProfile();
 testGrokModelInfersProviderButRejectsUnsupportedNames();
 testDefaultModelDoesNotForceProviderRoute();
+testNaturalLanguageGrokRequestOverridesDefaultModelRoute();
 console.log("gateway-model-routing-service tests passed");
