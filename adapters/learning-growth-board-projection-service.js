@@ -288,6 +288,8 @@ function mergeTasks(programs = {}) {
   for (const task of arrayValue(programs.taskCards).concat(arrayValue(programs.executableTasks))) {
     const id = cleanString(task?.taskCardId || task?.id);
     if (!id || seen.has(id)) continue;
+    const status = cleanString(task?.status || task?.executionStatus).toLowerCase();
+    if (["cancelled", "canceled", "retired", "superseded"].includes(status)) continue;
     seen.add(id);
     tasks.push(task);
   }

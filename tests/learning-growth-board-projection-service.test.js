@@ -286,6 +286,26 @@ function testBoardShowsLockedCurrentCardBeforeCompletionWindow() {
   assert.ok(board.lanes.find((lane) => lane.id === "locked_until").cards.includes("seq-locked"));
 }
 
+function testBoardFiltersRetiredAndCancelledTasks() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      taskCards: [
+        { taskCardId: "task-cancelled", title: "Cancelled", status: "cancelled", plannedDate: "2026-05-20" },
+        { taskCardId: "task-retired", title: "Retired", status: "retired", plannedDate: "2026-05-20" },
+        { taskCardId: "task-current", title: "Current", status: "published", plannedDate: "2026-05-20" },
+      ],
+      executableTasks: [],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.deepEqual(board.cards.map((card) => card.taskCardId), ["task-current"]);
+  assert.equal(board.summary.totalCardCount, 1);
+}
+
 testBoardClassifiesNativeTasksIntoLanes();
 testCompletedLaneSortsByCompletedTimeDescending();
 testBoardKeepsOwnerPanelOwnerOnly();
@@ -295,4 +315,5 @@ testBoardPrefersFullNativeTaskMetadataOverExecutorSummary();
 testBoardGroupsDuplicateDraftsByProgram();
 testBoardProjectsLegacyTodosAsReadOnlyOpenTasks();
 testBoardShowsLockedCurrentCardBeforeCompletionWindow();
+testBoardFiltersRetiredAndCancelledTasks();
 console.log("learning growth board projection service tests passed");
