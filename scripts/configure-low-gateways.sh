@@ -96,6 +96,47 @@ file_size_or_zero() {
   stat -c %s "$file_path" 2>/dev/null || echo 0
 }
 
+merge_grok_xai_oauth_to_shared_auth() {
+  local source_path="$1"
+  local target_path="$2"
+  if [ ! -s "$source_path" ] || [ ! -s "$target_path" ]; then
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "WARNING: python3 not found; skipping xAI OAuth merge into shared low Gateway auth" >&2
+    return 0
+  fi
+  python3 - "$source_path" "$target_path" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+target = pathlib.Path(sys.argv[2])
+try:
+    source_data = json.loads(source.read_text(encoding="utf-8"))
+    target_data = json.loads(target.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(f"WARNING: unable to read auth files for xAI OAuth merge: {type(exc).__name__}", file=sys.stderr)
+    sys.exit(0)
+
+source_entries = source_data.get("credential_pool", {}).get("xai-oauth") or []
+if not source_entries:
+    sys.exit(0)
+ok_entries = [entry for entry in source_entries if isinstance(entry, dict) and entry.get("last_status") == "ok"]
+if not ok_entries:
+    sys.exit(0)
+
+target_data.setdefault("credential_pool", {})["xai-oauth"] = [ok_entries[0]]
+if isinstance(source_data.get("providers"), dict) and "xai-oauth" in source_data["providers"]:
+    target_data.setdefault("providers", {})["xai-oauth"] = source_data["providers"]["xai-oauth"]
+target_data["updated_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat().replace("+00:00", "Z")
+target.write_text(json.dumps(target_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+  chown "$worker_user:$worker_user" "$target_path" 2>/dev/null || true
+  chmod 600 "$target_path" 2>/dev/null || true
+}
+
 is_owner_connector_profile() {
   local candidate="$1"
   local profile
@@ -237,6 +278,9 @@ if [ "$grok_gateway_count" -gt 0 ] && [ ! -e "$grok_auth_lock_path" ]; then
   install -m 600 -o "$worker_user" -g "$worker_user" /dev/null "$grok_auth_lock_path" || touch "$grok_auth_lock_path"
   chown "$worker_user:$worker_user" "$grok_auth_lock_path" 2>/dev/null || true
   chmod 600 "$grok_auth_lock_path" 2>/dev/null || true
+fi
+if [ "$shared_auth_enabled" = "1" ] && [ "$grok_gateway_count" -gt 0 ]; then
+  merge_grok_xai_oauth_to_shared_auth "$grok_auth_path" "$shared_auth_path"
 fi
 
 if [ "$shared_auth_enabled" = "1" ]; then
