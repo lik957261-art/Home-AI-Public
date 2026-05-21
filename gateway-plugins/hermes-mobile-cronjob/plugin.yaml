@@ -4,4 +4,4 @@ description: "Hermes Mobile scoped automation tool backed by the live Mobile aut
 author: Hermes Mobile
 kind: standalone
 provides_tools:
-  - cronjob_mobile
+  - http
