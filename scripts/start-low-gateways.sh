@@ -51,6 +51,28 @@ if [ ! -s "$api_key_file" ]; then
   exit 1
 fi
 
+repair_gateway_profile_link() {
+  local profile="$1"
+  local profile_link="$worker_home_dir/profiles/$profile"
+  local expected_target="$gateway_worker_root/telemetry/profiles/$profile"
+  if [ -L "$profile_link" ]; then
+    return 0
+  fi
+  if [ -e "$profile_link" ]; then
+    local stamp
+    local backup_root
+    local backup_path
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    backup_root="$worker_home_dir/profile-directory-backups"
+    backup_path="${backup_root}/${profile}-start-repair-${stamp}"
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$backup_root"
+    echo "WARNING: moving real low Gateway profile directory for ${profile} to ${backup_path}" >&2
+    mv "$profile_link" "$backup_path"
+  fi
+  ln -sfn "$expected_target" "$profile_link"
+  chown -h "$worker_user:$worker_user" "$profile_link" || true
+}
+
 verify_gateway_profile() {
   local profile="$1"
   local profile_link="$worker_home_dir/profiles/$profile"
@@ -58,6 +80,7 @@ verify_gateway_profile() {
   local resolved_profile=""
   local resolved_expected=""
 
+  repair_gateway_profile_link "$profile"
   if [ ! -L "$profile_link" ]; then
     echo "low gateway profile is not a symlink: $profile_link" >&2
     exit 1

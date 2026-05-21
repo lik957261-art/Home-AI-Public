@@ -180,7 +180,7 @@ repair_low_gateway_sqlite() {
   stamp="$(date +%Y%m%d-%H%M%S)"
 
   if ! sqlite_integrity_ok "$db_path"; then
-    local backup_dir="${profile_dir}/sqlite-quarantine-${stamp}/${db_name}"
+    local backup_dir="${profile_dir}/sqlite-quarantine-${stamp}"
     echo "WARNING: quarantining malformed low Gateway sqlite DB for ${profile}: ${db_name}" >&2
     quarantine_sqlite_files "$db_path" "$backup_dir" 1
     return 0
@@ -193,7 +193,7 @@ repair_low_gateway_sqlite() {
   wal_size="$(file_size_or_zero "$wal_path")"
   shm_size="$(file_size_or_zero "$shm_path")"
   if [ -e "$shm_path" ] && [ "$shm_size" -gt 0 ] && [ "$shm_size" -lt 32768 ] && [ "$wal_size" -eq 0 ]; then
-    local backup_dir="${profile_dir}/sqlite-sidecar-quarantine-${stamp}/${db_name}"
+    local backup_dir="${profile_dir}/sqlite-sidecar-quarantine-${stamp}"
     echo "WARNING: quarantining invalid low Gateway sqlite sidecars for ${profile}: ${db_name}" >&2
     quarantine_sqlite_files "$db_path" "$backup_dir" 0
   fi
