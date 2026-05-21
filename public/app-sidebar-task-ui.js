@@ -75,6 +75,7 @@ function backSwipeTarget() {
   if (isSkillDetailView()) return "skill";
   if (isTaskDetailView()) return "task";
   if (isTodoDetailView()) return "todo";
+  if (state.viewMode === "learning" && state.selectedLearningTaskCardId) return "learning-growth-task";
   if (isAutomationDetailView()) return "automation";
   if (state.viewMode === "projects" && directoryActivePath()) return "directory";
   return "";
@@ -108,6 +109,11 @@ function performBackSwipeAction(target) {
   if (target === "skill") closeSkillDetail();
   else if (target === "task") openTaskList();
   else if (target === "todo") openTodoList();
+  else if (target === "learning-growth-task") {
+    state.selectedLearningTaskCardId = "";
+    state.learningGrowthSettingsOpen = false;
+    renderLearningCoinsView();
+  }
   else if (target === "automation") openAutomationList();
 }
 

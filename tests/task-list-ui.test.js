@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260521-growth-board-clean-v50";
+const CLIENT_VERSION = "20260521-growth-board-clean-v51";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -81,7 +81,6 @@ const appLearningCoinsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-
 const appLearningProgramUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-program-ui.js"), "utf8");
 const appLearningGrowthUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ui.js"), "utf8");
 const appLearningGrowthTaskUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-task-ui.js"), "utf8");
-const appLearningGrowthGestureUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-gesture-ui.js"), "utf8");
 const appLearningGrowthControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-controller.js"), "utf8");
 const appLearningNativeGrowthSubmissionControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-native-growth-submission-controller.js"), "utf8");
 const appApiClientJs = fs.readFileSync(path.join(repoRoot, "public", "app-api-client.js"), "utf8");
@@ -107,8 +106,8 @@ assert.match(appApiClientJs, /function createHttpError\(response, body\)/);
 assert.match(appApiClientJs, /requestOptions\.timeoutMs/);
 assert.match(appApiClientJs, /AbortController/);
 assert.match(appApiClientJs, /Request timed out/);
-assert.match(appLearningGrowthGestureUiJs, /wireLearningGrowthBackSwipe/);
-assert.match(appLearningGrowthGestureUiJs, /dx > 88/);
+assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);
+assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
 assert.match(appJs, /return TaskArtifactHelpers\.taskGroupsForThread\(thread\);/);
 const appShellFiles = [
   "app-task-artifact-helpers.js",
