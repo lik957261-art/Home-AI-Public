@@ -107,17 +107,27 @@ function testWritingEvaluationUsesVisibleDirectoryAndCopiesReport() {
   const reportDir = service.reportDirectoryForCard("weixin_stephen", "t_growth", {
     id: "t_growth",
     content: "Writing card",
-    kanbanCaseId: "case-1",
+    programId: "program-1",
+    sequenceGroupId: "evergreen:english-short-writing",
     kanbanCaseSummary: "Fanfan English Growth",
   });
   assert.match(reportDir, /deliverables/);
+  assert.doesNotMatch(reportDir, /t_growth/);
+  assert.equal(reportDir, service.reportDirectoryForCard("weixin_stephen", "t_growth_2", {
+    id: "t_growth_2",
+    content: "Writing card 2",
+    programId: "program-1",
+    sequenceGroupId: "evergreen:english-short-writing",
+    kanbanCaseSummary: "Fanfan English Growth",
+  }));
   const materialized = service.materializeWritingEvaluation({
     workspaceId: "weixin_stephen",
     cardId: "t_growth",
     card: {
       id: "t_growth",
       content: "Writing card",
-      kanbanCaseId: "case-1",
+      programId: "program-1",
+      sequenceGroupId: "evergreen:english-short-writing",
       kanbanCaseSummary: "Fanfan English Growth",
     },
     evaluation: {

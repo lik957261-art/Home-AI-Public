@@ -66,8 +66,8 @@ function testMaterializeDraft() {
   const service = createLearningTaskCardService({
     repository,
     directoryMaterializationService: {
-      reportDirectoryForCard(workspaceId, taskCardId) {
-        return path.join(root, "learning-plan", workspaceId, "deliverables", taskCardId);
+      reportDirectoryForCard(workspaceId, taskCardId, card = {}) {
+        return path.join(root, "learning-plan", workspaceId, "series", card.sequenceGroupId || card.programId || "program", "deliverables");
       },
     },
   });
@@ -80,7 +80,7 @@ function testMaterializeDraft() {
   assert.equal(cards[0].taskModel.submissionContract.firstSubmissionKind, "speaking_retell");
   assert.equal(cards[0].rewardCapCoins, 100);
   assert.equal(cards[0].rewardPolicy.maxCoins, 100);
-  assert.equal(cards[0].deliverableDirectoryPath, path.join(root, "learning-plan", "weixin_stephen", "deliverables", cards[0].taskCardId));
+  assert.equal(cards[0].deliverableDirectoryPath, path.join(root, "learning-plan", "weixin_stephen", "series", "program-1", "deliverables"));
   assert.equal(service.get(cards[0].taskCardId).artifactDirectoryPath, cards[0].deliverableDirectoryPath);
   assert.equal(service.list({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(service.get(cards[0].taskCardId).privacyLevel, "summary_only");

@@ -122,6 +122,18 @@ function learningCaseId(input = {}) {
   );
 }
 
+function learningSeriesDirectoryName(card = {}) {
+  const groupId = cardField(card, "sequenceGroupId", "learningGrowthSequenceGroupId", "sequence_group_id");
+  if (groupId) return `series-${groupId}`;
+  const programId = cardField(card, "programId", "learningProgramId", "learning_program_id");
+  if (programId) return `program-${programId}`;
+  const draftId = cardField(card, "draftId", "learningDraftId", "learning_draft_id");
+  if (draftId) return `draft-${draftId}`;
+  const caseId = cardField(card, "kanbanCaseId", "kanban_case_id");
+  if (caseId) return `case-${caseId}`;
+  return "learning-growth-series";
+}
+
 function copyFileIfReadable(source, destination) {
   const src = cleanString(source);
   if (!src) return null;
@@ -238,9 +250,11 @@ function createLearningGrowthDirectoryMaterializationService(options = {}) {
   }
 
   function reportDirectoryForCard(workspaceId, cardId, card = {}) {
-    const dir = programDirectory({ workspaceId, card, caseId: cardField(card, "kanbanCaseId", "kanban_case_id") });
-    const target = path.join(dir, "deliverables", safeFileName(cardId || cardField(card, "id"), "card"));
-    assertInsideRoot(dir, target);
+    const root = learningPlanRoot(workspaceId || cardField(card, "workspaceId", "workspace_id"));
+    const seriesDir = path.join(root, safeFileName(learningSeriesDirectoryName(card), "learning-growth-series"));
+    assertInsideRoot(root, seriesDir);
+    const target = path.join(seriesDir, "deliverables");
+    assertInsideRoot(root, target);
     return ensureDir(target);
   }
 
