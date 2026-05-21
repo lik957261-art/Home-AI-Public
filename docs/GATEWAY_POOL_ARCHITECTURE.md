@@ -108,14 +108,39 @@ profiles must see the same filesystem store. The helper
 directories, back them up, and replace them with links to a shared store without
 modifying official Hermes Gateway source.
 
-Low-privilege `securityLevel=user` workers must also expose a narrow
-`api_server` platform toolset. Manifest labels decide which worker may be
+Owner maintenance workers for the same operator should also resolve their
+profile `memories` directory to the same Owner memory store when the deployment
+needs shared long-term user preferences across direct/maintenance Gateways.
+Hermes Mobile's Windows Gateway Pool starter links `officialclean*` profile
+`memories` directories to the Owner root `~/.hermes/memories` by default, with
+`HERMES_MOBILE_OWNER_MAINTENANCE_SHARED_MEMORY_MODE=profile-local` available as
+an opt-out. Only `memories` is shared this way. `state.db`,
+`response_store.db`, `config.yaml`, logs, plugins, and profile directories
+remain profile-local because they contain session/runtime state and can be
+unsafe to share across concurrent Gateway processes.
+When converting an existing owner-maintenance profile-local `memories`
+directory, the starter copies and backs up only top-level Markdown memory files
+(`*.md`) into the shared Owner memory store. Non-Markdown files are not merged
+into shared memory; if they prevent replacing the directory with a symlink, the
+starter leaves that profile-local directory in place and logs the condition.
+Empty `*.md.lock` files from previous built-in memory writes are discarded
+during this conversion because they contain no memory content and should not
+keep an otherwise migrated profile on a profile-local memory directory.
+
+Low-privilege `securityLevel=user` workers must also expose an ordinary-user
+`api_server` platform toolset. This is not a tiny whitelist: public web/search,
+scoped HTTP, weather, isolated browser automation, in-scope files, vision,
+video, image generation/editing, messaging, TTS, profile-local Skills, Todo,
+Kanban, Cron, memory, session search, and clarification are ordinary
+low-permission capabilities when the target stays inside the current account,
+workspace, and allowed roots. Manifest labels decide which worker may be
 selected, but labels alone are not a capability boundary. A user worker profile
-should explicitly omit developer/cross-boundary toolsets such as `terminal`,
-`process`, `code_execution`, `delegation`, `git`, `source`, `codex`,
-and broad MCP exposure. Owner-maintenance profiles may retain those toolsets,
-but only workers labeled `securityLevel=owner-maintenance` and selected through
-an explicit Owner elevation path should use them.
+must explicitly omit developer/system/cross-boundary toolsets such as
+`terminal`, `process`, `code_execution`, `delegation`, `git`, `source`,
+`codex`, `computer_use`, `homeassistant`, RL/MOA fanout, and broad MCP
+exposure. Owner-maintenance profiles may retain those toolsets, but only
+workers labeled `securityLevel=owner-maintenance` and selected through an
+explicit Owner elevation path should use them.
 
 The low-privilege `skills` toolset is allowed only for the current
 account/workspace's profile-local Skill store selected by `skillProfile`. It is

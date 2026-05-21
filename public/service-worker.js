@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260511-kanban-composer-multi-agent";
+const HERMES_SW_VERSION = "20260521-growth-artifact-icon-v64";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,9 +8,70 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260511-2345",
-  "/app.js?v=20260511-2345",
+  "/styles.css?v=20260521-growth-artifact-icon-v64",
+  "/app-task-artifact-helpers.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-story-helpers.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-reading-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-coins-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-program-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-growth-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-growth-task-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-growth-reflection-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-api-client.js?v=20260521-growth-artifact-icon-v64",
+  "/app.js?v=20260521-growth-artifact-icon-v64",
+  "/app-shell-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-task-groups-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-chat-composer-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-composer-source-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-composer-context-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-run-progress-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-navigation-search-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-sidebar-task-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-message-skill-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-message-actions-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-platform-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-pwa-settings-push-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-workspace-admin-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-access-key-manager-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-share-image-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-draft-thread-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-directory-automation-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-shared-directory-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-automation-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-native-growth-submission-controller.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-growth-ai-controller.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-growth-reward-controller.js?v=20260521-growth-artifact-icon-v64",
+  "/app-learning-growth-controller.js?v=20260521-growth-artifact-icon-v64",
+  "/app-automation-controller-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-thread-state-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-group-topic-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-core-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-story-core-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-todo-core-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-render-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-list-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-learning-panel-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-recorder-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-todo-detail-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-actions-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-composer-actions-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-card-actions-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-kanban-study-actions-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-thread-message-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-thread-list-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-thread-directory-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-thread-card-message-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-long-message-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-rich-text-directory-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-message-usage-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-events-composer-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-event-stream-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-upload-sidebar-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-composer-send-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-wire-start-ui.js?v=20260521-growth-artifact-icon-v64",
+  "/app-start.js?v=20260521-growth-artifact-icon-v64",
   "/fixed-viewport.js?v=20260505-1135",
+  "/markdown-renderer-client.js?v=20260521-growth-artifact-icon-v64",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",
@@ -41,6 +102,9 @@ self.addEventListener("activate", (event) => {
         .slice(0, Math.max(0, shellKeys.length - HERMES_MAX_SHELL_CACHES));
       await Promise.all(removable
         .map((key) => caches.delete(key)));
+      await Promise.all(shellKeys
+        .filter((key) => key !== HERMES_APP_SHELL_CACHE && !removable.includes(key))
+        .map(async (key) => deleteCachedViewerShell(await caches.open(key))));
     } catch (_) {
       // Cache cleanup is best-effort.
     }
@@ -74,6 +138,23 @@ async function matchCachedStatic(request) {
     || null;
 }
 
+function isViewerShellRequest(url) {
+  return url.pathname === "/file-viewer.html";
+}
+
+async function deleteCachedViewerShell(cache) {
+  const requests = await cache.keys();
+  await Promise.all(requests
+    .filter((request) => {
+      try {
+        return new URL(request.url).pathname === "/file-viewer.html";
+      } catch (_) {
+        return false;
+      }
+    })
+    .map((request) => cache.delete(request)));
+}
+
 async function networkFirst(request, fallbackUrl = "/") {
   const cache = await caches.open(HERMES_APP_SHELL_CACHE);
   try {
@@ -105,6 +186,21 @@ async function networkFirstStatic(request) {
   }
 }
 
+async function networkFirstViewerShell(request) {
+  const cache = await caches.open(HERMES_APP_SHELL_CACHE);
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response && response.ok) cache.put("/file-viewer.html", response.clone()).catch(() => {});
+    return response;
+  } catch (_) {
+    return (await cache.match("/file-viewer.html"))
+      || new Response("Hermes Mobile file viewer is unavailable.", {
+        status: 503,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+  }
+}
+
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(HERMES_APP_SHELL_CACHE);
   const cached = await matchCachedStatic(request);
@@ -123,6 +219,10 @@ self.addEventListener("fetch", (event) => {
   if (isApiOrEventRequest(url)) return;
   if (request.mode === "navigate") {
     event.respondWith(networkFirst(request, "/"));
+    return;
+  }
+  if (isViewerShellRequest(url)) {
+    event.respondWith(networkFirstViewerShell(request));
     return;
   }
   if (isCriticalStaticRequest(url)) {

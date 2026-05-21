@@ -2,6 +2,7 @@
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const path = require("node:path");
 
 const READ_ONLY_LABEL = "\u53ea\u8bfb";
 const READ_WRITE_LABEL = "\u8bfb\u5199";
@@ -18,7 +19,11 @@ function hashId(value) {
 }
 
 function comparablePath(value) {
-  return String(value || "").trim().replaceAll("\\", "/").replace(/\/+$/g, "").toLowerCase();
+  let p = String(value || "").trim().replaceAll("\\", "/");
+  if (/^[a-z]:\//i.test(p)) p = path.win32.normalize(p).replaceAll("\\", "/").replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
+  else if (p.startsWith("/")) p = path.posix.normalize(p);
+  else p = path.posix.normalize(p);
+  return p.replace(/\/+$/g, "").toLowerCase();
 }
 
 function pathInsideAnyRoot(candidate, roots) {

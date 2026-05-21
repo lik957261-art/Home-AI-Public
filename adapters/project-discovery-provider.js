@@ -22,7 +22,11 @@ function hashId(value) {
 }
 
 function comparablePath(value) {
-  return String(value || "").trim().replaceAll("\\", "/").replace(/\/+$/g, "").toLowerCase();
+  let p = String(value || "").trim().replaceAll("\\", "/");
+  if (/^[a-z]:\//i.test(p)) p = path.win32.normalize(p).replaceAll("\\", "/").replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
+  else if (p.startsWith("/")) p = path.posix.normalize(p);
+  else p = path.posix.normalize(p);
+  return p.replace(/\/+$/g, "").toLowerCase();
 }
 
 function pathInsideAnyRoot(candidate, roots) {

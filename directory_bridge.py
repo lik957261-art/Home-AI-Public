@@ -8,6 +8,7 @@ import json
 import mimetypes
 import os
 import posixpath
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -213,8 +214,11 @@ def handle(request: dict[str, Any]) -> None:
         if not path.exists():
             json_response({"ok": False, "error": "Path not found"}, 1)
         entry = entry_payload(path)
-        if path.is_dir():
-            path.rmdir()
+        if path.is_dir() and not path.is_symlink():
+            if bool(request.get("recursive")):
+                shutil.rmtree(path)
+            else:
+                path.rmdir()
         else:
             path.unlink()
         json_response({"ok": True, "entry": entry})

@@ -24,6 +24,75 @@ checkout.
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
+## 2026-05-21 Public Update
+
+This public export corresponds to private source commit
+`26a57d99c8e02a9d20081f9d06488898f889f56d`. It rolls forward the Hermes Mobile
+Growth, chat, Grok routing, and workspace-access work that has been validated in
+the private production source tree.
+
+### Main Changes
+
+- Growth now uses a native learning board and native task records as the visible
+  learning surface, while official Kanban remains available as a separate
+  compatibility boundary.
+- Learning task sequences support evergreen just-in-time card generation. New
+  learning cards are generated through the model path and can emit bounded
+  decision reports for review.
+- Growth reading-retell, math, and writing cards have task-specific execution
+  surfaces, including audio-based retell/reflection flows and structured math
+  answers with local draft autosave.
+- Growth deliverables use persisted series-level directories, so future cards in
+  the same learning series reuse a stable deliverable folder.
+- The mobile Growth UI was tightened for board-first use: compact task cards,
+  smaller deliverable icons, clearer task-detail typography, and simplified
+  settings entry points.
+- Chat loading and workspace switching were hardened to avoid stale async
+  responses overwriting the current chat view.
+- Grok/xAI routing and profile storage were tightened so credentials are kept in
+  the intended Gateway profile store instead of drifting across runtime restarts.
+- Workspace accounts can now be granted explicit access to additional
+  workspaces through `accessible_workspace_ids`, without granting Owner-only
+  administration rights.
+
+### Configuration Impact
+
+- To grant a restricted account access to another workspace, add an allowlist to
+  the account policy, for example:
+
+```json
+{
+  "principal_id": "weixin_example",
+  "accessible_workspace_ids": ["weixin_stephen"]
+}
+```
+
+- Growth reward limits, task-series settings, and AI recommendation features are
+  service-owned configuration surfaces. Do not store production learner content,
+  full transcripts, answers, Access Keys, OAuth tokens, or generated reports in
+  this source checkout.
+- Grok/xAI OAuth state should be stored in the configured Gateway profile
+  location. Deployments should keep profile directories and credential stores
+  outside Git.
+
+### Validation Scope
+
+- `npm test`
+- `npm run productization:check`
+- `git diff --check`
+- `npm run privacy:scan`
+- public export privacy scan over all exported files
+
+### Known Limitations
+
+- The public tree does not include production data, private learner records,
+  OAuth credentials, push endpoints, local Gateway profile state, or runtime
+  SQLite databases.
+- Real Growth task generation quality depends on the deployment's configured
+  model route and available learning summaries.
+- Cross-workspace access grants workspace-scoped visibility only. Owner-only
+  management actions remain gated by Owner authentication.
+
 ## 2026-05-12 Public Update
 
 本次 public tree 的具体 private source commit 由 `.public-export-report.json`

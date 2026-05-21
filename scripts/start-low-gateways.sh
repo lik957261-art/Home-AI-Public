@@ -11,6 +11,7 @@ runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
 runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
 runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
+grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -41,36 +42,85 @@ EOF
 chmod 755 "$runtime_bin/hermes"
 
 low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
+runtime_hermes="$runtime_bin/hermes"
 api_key_file="$worker_home_dir/api-server-key.secret"
 if [ ! -s "$api_key_file" ]; then
   echo "missing low gateway API key file: $api_key_file" >&2
   exit 1
 fi
 
+verify_gateway_profile() {
+  local profile="$1"
+  local profile_link="$worker_home_dir/profiles/$profile"
+  local expected_target="$gateway_worker_root/telemetry/profiles/$profile"
+  local resolved_profile=""
+  local resolved_expected=""
+
+  if [ ! -L "$profile_link" ]; then
+    echo "low gateway profile is not a symlink: $profile_link" >&2
+    exit 1
+  fi
+  if [ ! -d "$expected_target" ]; then
+    echo "missing low gateway telemetry profile: $expected_target" >&2
+    exit 1
+  fi
+  resolved_profile="$(readlink -f "$profile_link" || true)"
+  resolved_expected="$(readlink -f "$expected_target" || true)"
+  if [ -z "$resolved_profile" ] || [ -z "$resolved_expected" ] || [ "$resolved_profile" != "$resolved_expected" ]; then
+    echo "low gateway profile target mismatch: $profile_link -> $resolved_profile, expected $resolved_expected" >&2
+    exit 1
+  fi
+  if [ ! -s "$profile_link/config.yaml" ]; then
+    echo "missing low gateway profile config: $profile_link/config.yaml" >&2
+    exit 1
+  fi
+  if [ ! -L "$profile_link/auth.json" ] || [ ! -s "$profile_link/auth.json" ]; then
+    echo "missing shared auth link for low gateway profile: $profile_link/auth.json" >&2
+    exit 1
+  fi
+  if [ ! -L "$profile_link/auth.lock" ]; then
+    echo "missing shared auth lock link for low gateway profile: $profile_link/auth.lock" >&2
+    exit 1
+  fi
+}
+
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/logs"
 
-for idx in $(seq 1 "$low_gateway_count"); do
-  profile="lowgw${idx}"
-  port=$((18750 + idx))
+start_gateway_profile() {
+  local profile="$1"
+  local port="$2"
   log="$worker_home_dir/logs/${profile}-gateway-${port}.log"
   pidfile="$worker_home_dir/${profile}-gateway-${port}.pid"
   api_key="$(tr -d '\r\n' < "$api_key_file")"
   rm -f "$pidfile"
   runuser -u "$worker_user" -- setsid -f env \
     HOME="$worker_home" \
-    HERMES_HOME="$worker_home_dir" \
+    HERMES_HOME="$worker_home_dir/profiles/$profile" \
     PYTHONPATH="$runtime_source" \
     HERMES_PROFILE="$profile" \
     HERMES_GOOGLE_PROFILE_HOME="$worker_home_dir/profiles/$profile" \
     PATH="$low_gateway_path" \
     HERMES_ACCEPT_HOOKS=1 \
     API_SERVER_KEY="$api_key" \
-    "$runtime_python" -m hermes_cli.main -p "$profile" gateway run --replace --accept-hooks > "$log" 2>&1
+    "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2
-  pgrep -u "$worker_user" -f "${profile} gateway run" | head -1 > "$pidfile" || true
+  pgrep -u "$worker_user" -f "hermes_cli.main .*gateway run --replace --accept-hooks" | tail -1 > "$pidfile" || true
+}
+
+for idx in $(seq 1 "$low_gateway_count"); do
+  verify_gateway_profile "lowgw${idx}"
+  start_gateway_profile "lowgw${idx}" $((18750 + idx))
 done
 
-for port in $(seq 18751 $((18750 + low_gateway_count))); do
+if [ "$grok_gateway_count" -gt 0 ]; then
+  for idx in $(seq 1 "$grok_gateway_count"); do
+    verify_gateway_profile "grokgw${idx}"
+    start_gateway_profile "grokgw${idx}" $((18760 + idx))
+  done
+fi
+
+wait_gateway_port() {
+  local port="$1"
   ok=0
   for _ in $(seq 1 80); do
     if "$runtime_python" - <<PY >/dev/null 2>&1
@@ -85,9 +135,18 @@ PY
   done
   if [ "$ok" != "1" ]; then
     echo "low gateway port ${port} did not become healthy" >&2
-    tail -80 "$worker_home_dir/logs/lowgw$((port - 18750))-gateway-${port}.log" >&2 || true
+    tail -80 "$worker_home_dir/logs/"*"-gateway-${port}.log" >&2 || true
     exit 1
   fi
+}
+
+for port in $(seq 18751 $((18750 + low_gateway_count))); do
+  wait_gateway_port "$port"
 done
+if [ "$grok_gateway_count" -gt 0 ]; then
+  for port in $(seq 18761 $((18760 + grok_gateway_count))); do
+    wait_gateway_port "$port"
+  done
+fi
 
 echo LOW_GATEWAYS_STARTED

@@ -1,0 +1,102 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const { createKanbanCardProvider } = require("../adapters/kanban-card-provider");
+
+async function testTargetIdForwardingAndSearchPreservation() {
+  const calls = [];
+  const provider = createKanbanCardProvider({
+    runBridge(payload) {
+      calls.push(payload);
+      return Promise.resolve({
+        ok: true,
+        board: "workspace-child",
+        todos: [
+          { id: "target-card", content: "Hidden by current search" },
+          { id: "other-card", content: "Visible math item" },
+        ],
+      });
+    },
+    workspacePrincipal: (workspaceId) => `principal-${workspaceId}`,
+    assigneesForWorkspace: () => [{ id: "child", label: "Child" }],
+    publicCard: (row) => row,
+  });
+
+  const listed = await provider.listCards({
+    workspaceId: "child",
+    scope: "mine",
+    includeCompleted: true,
+    targetId: "target-card",
+    search: "math",
+    limit: 7,
+  });
+
+  assert.equal(listed.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].target_id, "target-card");
+  assert.equal(calls[0].workspace_id, "child");
+  assert.equal(calls[0].source_principal, "principal-child");
+  assert.equal(calls[0].include_completed, true);
+  assert.deepEqual(listed.data.map((card) => card.id), ["target-card", "other-card"]);
+
+  await provider.addCard({
+    workspaceId: "child",
+    assignee: "child",
+    assigneeLabel: "Child",
+    content: "Take medicine",
+    dueTime: "2026-05-16 10:00",
+    manualOnly: true,
+    autoDispatch: false,
+    kanbanAssignee: "",
+    caseTemplate: "learning-growth",
+    topicThreadId: "thread-growth",
+    topicTaskGroupId: "case_growth",
+    sharedDirectoryPath: "shared/growth",
+    caseDirectoryPath: "shared/growth/case",
+    caseCreationSkillId: "learning-growth-card-creation",
+    learningProgramId: "program-1",
+    learningDraftId: "draft-1",
+    learningTaskCardId: "task-1",
+    learningTaskModel: { version: "learning-task-model-v1", skillId: "english_short_writing" },
+  });
+  assert.equal(calls[1].action, "add");
+  assert.equal(calls[1].manual_only, true);
+  assert.equal(calls[1].auto_dispatch, false);
+  assert.equal(calls[1].kanban_assignee, "");
+  assert.equal(calls[1].case_template, "learning-growth");
+  assert.equal(calls[1].topic_thread_id, "thread-growth");
+  assert.equal(calls[1].topic_task_group_id, "case_growth");
+  assert.equal(calls[1].shared_directory_path, "shared/growth");
+  assert.equal(calls[1].case_directory_path, "shared/growth/case");
+  assert.equal(calls[1].case_creation_skill_id, "learning-growth-card-creation");
+  assert.equal(calls[1].learning_program_id, "program-1");
+  assert.equal(calls[1].learning_draft_id, "draft-1");
+  assert.equal(calls[1].learning_task_card_id, "task-1");
+  assert.equal(calls[1].learning_task_model.skillId, "english_short_writing");
+  assert.equal(calls[1].due_time, "2026-05-16 10:00");
+
+  await provider.mutateCard({
+    workspaceId: "child",
+    cardId: "target-card",
+    action: "comment",
+    comment: "feedback",
+    learningGrowthSubmission: true,
+    submissionKind: "writing",
+    learningGrowthEvaluation: {
+      status: "completed",
+      score: 88,
+      reward: { status: "settled", coinAmount: 15 },
+    },
+  });
+  assert.equal(calls[2].action, "comment");
+  assert.equal(calls[2].learningGrowthSubmission, true);
+  assert.equal(calls[2].submissionKind, "writing");
+  assert.equal(calls[2].learningGrowthEvaluation.status, "completed");
+}
+
+testTargetIdForwardingAndSearchPreservation()
+  .then(() => console.log("kanban-card-provider tests passed."))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

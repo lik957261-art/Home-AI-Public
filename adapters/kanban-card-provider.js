@@ -40,6 +40,7 @@ function createKanbanCardProvider(options = {}) {
 
   async function listCards(args = {}) {
     const workspaceId = args.workspaceId || "owner";
+    const targetId = String(args.targetId || args.target_id || "").trim();
     const result = await runBridge({
       action: "list",
       workspace_id: workspaceId,
@@ -48,12 +49,14 @@ function createKanbanCardProvider(options = {}) {
       include_completed: Boolean(args.includeCompleted),
       assignee: args.assignee || "",
       limit: positiveNumber(args.limit, 120),
+      target_id: targetId,
     });
     if (!result?.ok) return { ok: false, result, error: result?.error || "Kanban operation failed" };
 
-    const data = (Array.isArray(result.todos) ? result.todos : [])
-      .map(publicCard)
-      .filter((card) => cardMatchesSearch(card, args.search));
+    const rows = Array.isArray(result.todos) ? result.todos : [];
+    const data = rows
+      .map((row, index) => publicCard(row, index, rows))
+      .filter((card) => cardMatchesSearch(card, args.search) || (targetId && String(card?.id || "") === targetId));
 
     return {
       ok: true,
@@ -76,8 +79,34 @@ function createKanbanCardProvider(options = {}) {
       content: args.content || args.title || "",
       description: args.description || "",
       due_time: args.dueTime || args.due_time || "",
+      reminder_lead_minutes: args.reminderLeadMinutes ?? args.reminder_lead_minutes ?? null,
       reason: args.reason || "",
       idempotency_key: args.idempotencyKey || args.idempotency_key || "",
+      manual_only: args.manualOnly ?? args.manual_only ?? null,
+      auto_dispatch: args.autoDispatch ?? args.auto_dispatch ?? null,
+      kanban_assignee: args.kanbanAssignee || args.kanban_assignee || "",
+      case_id: args.caseId || args.case_id || "",
+      case_mode: args.caseMode || args.case_mode || "",
+      case_template: args.caseTemplate || args.case_template || "",
+      case_source_text: args.caseSourceText || args.case_source_text || "",
+      case_summary: args.caseSummary || args.case_summary || "",
+      case_cover: args.caseCover || args.case_cover || null,
+      topic_thread_id: args.topicThreadId || args.topic_thread_id || "",
+      topic_task_group_id: args.topicTaskGroupId || args.topic_task_group_id || "",
+      shared_directory_path: args.sharedDirectoryPath || args.shared_directory_path || "",
+      case_directory_path: args.caseDirectoryPath || args.case_directory_path || "",
+      case_card_id: args.caseCardId || args.case_card_id || "",
+      case_card_index: args.caseCardIndex ?? args.case_card_index ?? 0,
+      case_card_count: args.caseCardCount ?? args.case_card_count ?? 0,
+      case_depends_on: args.caseDependsOn || args.case_depends_on || [],
+      case_deliverables: args.caseDeliverables || args.case_deliverables || [],
+      case_acceptance: args.caseAcceptance || args.case_acceptance || [],
+      case_card_goal: args.caseCardGoal || args.case_card_goal || "",
+      case_creation_skill_id: args.caseCreationSkillId || args.case_creation_skill_id || "",
+      learning_program_id: args.learningProgramId || args.learning_program_id || "",
+      learning_draft_id: args.learningDraftId || args.learning_draft_id || "",
+      learning_task_card_id: args.learningTaskCardId || args.learning_task_card_id || "",
+      learning_task_model: args.learningTaskModel || args.learning_task_model || null,
     });
   }
 
@@ -92,7 +121,14 @@ function createKanbanCardProvider(options = {}) {
       due_time: args.dueTime || args.due_time || "",
       reason: args.reason || "",
       comment: args.comment || args.text || "",
+      result: args.result || "",
+      content: args.content || args.title || "",
+      description: args.description || "",
       author: args.author || "",
+      learningGrowthSubmission: args.learningGrowthSubmission || args.learning_growth_submission || false,
+      submissionKind: args.submissionKind || args.submission_kind || "",
+      learningGrowthEvaluation: args.learningGrowthEvaluation || args.learning_growth_evaluation || null,
+      clearLearningGrowthSubmission: args.clearLearningGrowthSubmission || args.clear_learning_growth_submission || false,
     });
   }
 
@@ -107,12 +143,23 @@ function createKanbanCardProvider(options = {}) {
     });
   }
 
+  function reconcileDependencyBlocks(args = {}) {
+    const workspaceId = args.workspaceId || "owner";
+    return runBridge({
+      action: "reconcile_dependency_blocks",
+      workspace_id: workspaceId,
+      source_principal: workspacePrincipal(workspaceId),
+      limit: positiveNumber(args.limit, 500),
+    });
+  }
+
   return {
     addCard,
     cardDetail,
     listCards,
     mutateCard,
     publicCard,
+    reconcileDependencyBlocks,
   };
 }
 

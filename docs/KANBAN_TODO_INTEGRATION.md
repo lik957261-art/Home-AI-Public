@@ -40,9 +40,11 @@ process `PATH`, leave `HERMES_MOBILE_KANBAN_COMMAND=hermes`.
 
 - Each Hermes Mobile workspace maps to an official Hermes Kanban board named
   `workspace-<workspaceId>`.
-- The existing Todo tab creates official Kanban tasks on that board and passes
-  the selected Mobile assignee through `--assignee`, so board views can show the
-  same execution owner as the official Kanban CLI/dashboard.
+- The existing Todo tab creates official Kanban tasks on that board. Ordinary
+  one-off reminders are manual-only and are not assigned to executable Gateway
+  worker profiles; they stay open until a user marks them complete. Planned
+  execution cards, such as multi-agent plans and revision follow-ups, can still
+  map the selected Mobile assignee to an executable `--assignee` profile.
 - The Kanban task body carries a small Hermes Mobile metadata comment with due
   time, human assignee label, recurrence, and reminder settings.
 - Hermes Mobile stores a runtime-only metadata sidecar for due/reminder fields

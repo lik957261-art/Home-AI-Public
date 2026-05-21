@@ -82,6 +82,8 @@ async function run() {
     recurrence: "weekly",
     recurrence_days: "1,3",
     recurrence_until: "2026-06-01",
+    manual_only: true,
+    auto_dispatch: false,
   });
 
   await provider.mutateTodo({

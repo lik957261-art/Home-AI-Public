@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260511-2345">
+<html lang="en" data-client-version="20260521-growth-artifact-icon-v64">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260511-2345">
+  <meta name="hermes-web-client-version" content="20260521-growth-artifact-icon-v64">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f3efe7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -20,12 +20,23 @@
         var value = localStorage.getItem("hermesWebFontSize") || "standard";
         var allowed = { small: 1, standard: 1, large: 1, xlarge: 1, xxlarge: 1 };
         document.documentElement.dataset.fontSize = allowed[value] ? value : "standard";
+        var families = {
+          system: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif',
+          sans: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Aptos", "Segoe UI", sans-serif',
+          serif: '"Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif',
+          kai: '"Kaiti SC", "KaiTi", "STKaiti", "Microsoft YaHei", serif'
+        };
+        var family = localStorage.getItem("hermesWebFontFamily") || "system";
+        var normalizedFamily = families[family] ? family : "system";
+        document.documentElement.dataset.fontFamily = normalizedFamily;
+        document.documentElement.style.setProperty("--app-font-family", families[normalizedFamily]);
       } catch (_) {
         document.documentElement.dataset.fontSize = "standard";
+        document.documentElement.dataset.fontFamily = "system";
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260511-2345">
+  <link rel="stylesheet" href="/styles.css?v=20260521-growth-artifact-icon-v64">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -73,7 +84,7 @@
       <div class="side-title">
         <div class="side-heading">
           <div class="eyebrow">Hermes</div>
-      <button id="clientVersion" class="client-version" type="button">v1140</button>
+          <button id="clientVersion" class="client-version" type="button">v1956</button>
           <button id="pushToggle" class="push-button" type="button" hidden aria-label="启用通知" title="启用通知">🔔</button>
           <button id="topSettingsButton" class="push-button settings-button" type="button" aria-label="设置" title="设置">⚙</button>
         </div>
@@ -85,9 +96,11 @@
       <div id="workspaceAccessPanel" class="workspace-access-panel" hidden></div>
 
       <div class="section-toggle" role="group" aria-label="Management section">
+        <button id="chatManagementMode" type="button">聊天</button>
         <button id="taskManagementMode" type="button">话题</button>
         <button id="projectsMode" type="button">目录</button>
-        <button id="todosMode" type="button">看板</button>
+        <button id="todosMode" type="button">&#25104;&#38271;</button>
+        <button id="learningMode" type="button" hidden aria-hidden="true">&#25104;&#38271;</button>
         <button id="automationMode" type="button">自动化</button>
       </div>
 
@@ -138,9 +151,13 @@
         <span class="bottom-tab-icon nav-directory-icon" aria-hidden="true"></span>
         <span class="bottom-tab-label">目录</span>
       </button>
-      <button id="bottomTodosMode" class="bottom-tab" type="button" aria-label="看板">
-        <span class="bottom-tab-icon nav-todo-icon" aria-hidden="true"></span>
-        <span class="bottom-tab-label">看板</span>
+      <button id="bottomTodosMode" class="bottom-tab" type="button" aria-label="&#25104;&#38271;">
+        <span class="bottom-tab-icon nav-learning-icon" aria-hidden="true"></span>
+        <span class="bottom-tab-label">&#25104;&#38271;</span>
+      </button>
+      <button id="bottomLearningMode" class="bottom-tab" type="button" aria-label="&#25104;&#38271;" hidden aria-hidden="true">
+        <span class="bottom-tab-icon nav-learning-icon" aria-hidden="true"></span>
+        <span class="bottom-tab-label">&#25104;&#38271;</span>
       </button>
       <button id="bottomAutomationMode" class="bottom-tab" type="button" aria-label="自动化">
         <span class="bottom-tab-icon nav-automation-icon" aria-hidden="true"></span>
@@ -168,11 +185,13 @@
               <button id="topEditAutomation" class="top-more-action" type="button" hidden>&#20462;&#25913;</button>
               <button id="topToggleAutomationPause" class="top-more-action" type="button" hidden>&#26242;&#20572;</button>
               <button id="topDeleteAutomation" class="top-more-action top-more-danger" type="button" hidden>&#21024;&#38500;</button>
-              <button id="topNewTodo" class="top-more-action" type="button" hidden>新建卡片</button>
+              <button id="topLearningSettings" class="top-more-action" type="button" hidden>&#35774;&#32622;</button>
+              <button id="topNewTodo" class="top-more-action" type="button" hidden>新增任务</button>
               <button id="topNewAutomation" class="top-more-action" type="button" hidden>新建自动化</button>
               <button id="topDeleteTodo" class="top-more-action top-more-danger" type="button" hidden>删除</button>
               <button id="topRenameTask" class="top-more-action" type="button" hidden>修改话题名</button>
               <button id="topSearchChat" class="top-more-action" type="button" hidden>搜索</button>
+              <button id="topToggleWeixinChat" class="top-more-action" type="button" hidden>微信</button>
               <button id="topToggleGroupChat" class="top-more-action" type="button" hidden>&#20999;&#25442;&#21040;&#32676;</button>
               <button id="topManageGroupMembers" class="top-more-action" type="button" hidden>&#25104;&#21592;</button>
               <button id="topToggleTaskView" class="top-more-action" type="button">信息流</button>
@@ -182,10 +201,13 @@
               <button id="topInstallPwa" class="top-more-action" type="button" hidden>安装应用</button>
               <button id="topManageSharedDirectories" class="top-more-action" type="button" hidden>管理共享目录</button>
               <button id="topNewDirectoryFolder" class="top-more-action" type="button" hidden>新建文件夹</button>
+              <button id="topToggleReadingFullscreen" class="top-more-action" type="button" hidden>全屏阅读</button>
             </div>
           </div>
         </div>
       </header>
+      <button id="readingFullscreenEnter" class="reading-fullscreen-enter" type="button" aria-label="全屏阅读" title="全屏阅读">⛶</button>
+      <button id="readingFullscreenExit" class="reading-fullscreen-exit" type="button" aria-label="退出全屏阅读" title="退出全屏阅读">&times;</button>
 
       <div id="accessKeyOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="accessKeyTitle"></div>
       <div id="runtimeConfigOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="runtimeConfigTitle"></div>
@@ -197,11 +219,19 @@
       <section id="conversation" class="conversation">
         <div class="empty-state">Create a thread to start a zero-context Hermes task.</div>
       </section>
+      <button id="conversationJumpBottom" class="conversation-jump-bottom hidden" type="button" aria-label="Jump to bottom" title="Bottom" aria-hidden="true" disabled>
+        <span aria-hidden="true">&#8595;</span>
+      </button>
 
       <div id="composer" class="composer" role="group" aria-label="Message composer">
         <div id="groupMentionMenu" class="group-mention-menu" hidden></div>
+        <div id="composerSourceMenu" class="composer-source-menu" hidden></div>
         <div id="composerContext" class="composer-context" aria-live="polite" hidden></div>
         <button id="attachFile" class="secondary-button" type="button" disabled aria-label="添加文件" title="添加文件">+</button>
+        <div id="composerSearchSource" class="composer-source-toggle" role="group" aria-label="选择本句信源" aria-disabled="true" title="选择本句信源">
+          <button class="composer-source-button" type="button" data-composer-source-toggle="x" aria-label="X 搜索" aria-pressed="false" disabled><span class="composer-source-x-icon" aria-hidden="true">X</span></button>
+          <button class="composer-source-button" type="button" data-composer-source-toggle="web" aria-label="网络搜索" aria-pressed="false" disabled><svg class="composer-source-web-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8"></circle><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"></path></svg></button>
+        </div>
         <textarea id="messageInput" class="composer-editor" rows="1" disabled aria-label="Message Hermes" aria-multiline="true" data-placeholder="Message Hermes..." placeholder="Message Hermes..." inputmode="text" enterkeyhint="send" autocorrect="off" autocapitalize="sentences" spellcheck="false"></textarea>
         <button id="chatSearchPrev" class="composer-search-nav" type="button" aria-label="Previous match" title="Previous match" hidden disabled>&uarr;</button>
         <button id="chatSearchNext" class="composer-search-nav" type="button" aria-label="Next match" title="Next match" hidden disabled>&darr;</button>
@@ -212,6 +242,66 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/app.js?v=20260511-2345"></script>
+  <script src="/app-task-artifact-helpers.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-story-helpers.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-reading-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-coins-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-program-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-growth-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-growth-task-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-growth-reflection-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-api-client.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-shell-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-task-groups-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-chat-composer-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-composer-source-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-composer-context-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-run-progress-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-navigation-search-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-sidebar-task-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-message-skill-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-message-actions-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-platform-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-pwa-settings-push-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-workspace-admin-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-access-key-manager-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-share-image-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-draft-thread-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-directory-automation-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-shared-directory-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-automation-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-native-growth-submission-controller.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-growth-ai-controller.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-growth-reward-controller.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-learning-growth-controller.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-automation-controller-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-thread-state-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-group-topic-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-core-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-story-core-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-todo-core-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-render-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-list-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-learning-panel-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-recorder-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-todo-detail-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-actions-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-composer-actions-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-card-actions-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-kanban-study-actions-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-thread-message-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-thread-list-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-thread-directory-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-thread-card-message-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-long-message-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-rich-text-directory-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-message-usage-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-events-composer-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-event-stream-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-upload-sidebar-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-composer-send-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-wire-start-ui.js?v=20260521-growth-artifact-icon-v64"></script>
+  <script src="/app-start.js?v=20260521-growth-artifact-icon-v64"></script>
 </body>
 </html>

@@ -3,9 +3,10 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const { readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
+const appJs = readAppShellSource(repoRoot);
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
@@ -16,6 +17,8 @@ assert.match(appJs, /return \[virtualAssistantMember\(\), \.\.\.realMembers\]/);
 assert.match(appJs, /groupChatMentionMembers\(state\.currentThread, \{ includeAi: false \}\)/);
 assert.match(appJs, /groupChatAvailable: false/);
 assert.match(appJs, /groupChatThread: null/);
+assert.match(appJs, /weixinChatAvailable: false/);
+assert.match(appJs, /weixinChatThread: null/);
 assert.match(appJs, /function mergeChatScopeThread\(existingThread, incomingThread\)/);
 assert.match(appJs, /function chatScopeThread\(thread, scope\)/);
 assert.match(appJs, /state\.groupChatAvailable/);
@@ -36,9 +39,12 @@ assert.match(appJs, /chat-scope-header-badge/);
 assert.match(appJs, /scopeButton\("chat", "\\u804a\\u5929"/);
 assert.match(appJs, /scopeButton\("group", "\\u7fa4"/);
 assert.match(indexHtml, /id="topManageGroupMembers"/);
+assert.match(indexHtml, /id="topToggleWeixinChat"/);
 assert.match(appJs, /function selectChatScope\(scope\)/);
+assert.match(appJs, /function selectWeixinChat\(open = true\)/);
 assert.match(appJs, /await selectChatScope\(isGroupChatView\(\) \? "chat" : "group"\)/);
 assert.match(appJs, /toggleGroupChat\.hidden = true/);
+assert.match(appJs, /\$\("topToggleWeixinChat"\)\?\.addEventListener\("click"/);
 assert.doesNotMatch(appJs, /data-open-group-members/);
 assert.doesNotMatch(appJs, /function renderGroupMemberStrip/);
 assert.doesNotMatch(appJs, /function renderChatScopeSwitcher/);

@@ -123,7 +123,7 @@ async function main() {
     const groupThread = groupResult.thread;
     assert.equal(groupThread.id, "thread_group");
     assert.equal(groupThread.chatGroup.enabled, true);
-    assert.deepEqual(groupThread.messages.map((message) => message.id), ["group_user", "example_user_user", "example_user_assistant"]);
+    assert.deepEqual(groupThread.messages.map((message) => message.id), ["group_user"]);
 
     const persisted = JSON.parse(fs.readFileSync(statePath, "utf8"));
     const ownerArtifact = persisted.artifacts.find((artifact) => artifact.id === "artifact_owner");

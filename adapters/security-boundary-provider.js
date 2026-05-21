@@ -93,10 +93,13 @@ function envFlag(value) {
 
 const SAFE_RESTRICTED_TOOLSETS = Object.freeze([
   "web",
+  "search",
   "http",
   "weather",
+  "browser",
   "file",
   "vision",
+  "video",
   "image_gen",
   "messaging",
   "tts",
@@ -129,11 +132,15 @@ const DEVELOPER_TOOLSETS = Object.freeze([
   "delegation",
   "delegate",
   "delegate_task",
+  "computer_use",
+  "homeassistant",
+  "rl",
+  "moa",
   "cron",
   "mcp",
 ]);
 
-const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|cron|mcp)(?:$|[-_])/i;
+const DEVELOPER_TOOLSET_RE = /(?:^|[-_])(?:shell|terminal|process|cmd|powershell|bash|git|codex|developer|source|debug|debugging|code|code[-_]?execution|execute[-_]?code|python|delegation|delegate|delegate[-_]?task|computer[-_]?use|homeassistant|rl|moa|cron|mcp)(?:$|[-_])/i;
 const PERMISSION_BOUNDARY_SKILL = "productivity/hermes-mobile-permission-boundary-check";
 const PERMISSION_APPROVAL_MARKER = "HERMES_PERMISSION_APPROVAL_REQUIRED";
 
@@ -144,11 +151,18 @@ function permissionBoundarySkillInstructions(policy = {}) {
     `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as a mandatory pre-flight check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "Web Search is ordinary low-permission work when the run has the web toolset; do not ask for Owner elevation just to search or extract public web information.",
+    "Search-only public web lookup is ordinary low-permission work when the run has the search toolset.",
+    "X Search is ordinary low-permission public lookup when the run has the x_search toolset and the Gateway profile already has xAI OAuth/API credentials; do not ask for Owner elevation just to search public X content.",
     "Scoped HTTP requests to the current account/workspace's documented Program APIs are ordinary low-permission work when the run has the http toolset; call `http_request` instead of looking for `web_request` or using terminal/code for authenticated manifest, bundle, or writeback calls.",
     "Weather lookup for the current account's user-facing request is ordinary low-permission work when the run has the weather toolset; do not ask for Owner elevation just to check forecast, temperature, rain, wind, or weather-dependent planning.",
+    "Browser automation for public web pages or explicitly current-account web tasks is ordinary low-permission work when the run has the browser toolset, provided it uses an isolated worker browser/session and does not operate unrelated accounts, payments, orders, or privacy commitments.",
     "File reads and writes inside the current allowed roots are ordinary low-permission work when the run has the file toolset; do not ask for Owner elevation just to read or write an in-scope workspace file.",
+    "Deleting an empty in-scope directory is ordinary low-permission work, but deleting a non-empty directory is Owner high-privilege work. In a restricted Owner run, request Owner elevation before any recursive or non-empty directory deletion.",
+    "DOCX/Word OpenXML text extraction inside the current allowed roots is ordinary low-permission file analysis when the run has the file toolset; call `docx_extract_text` when direct read_file cannot decode the document package.",
+    "Audio transcription for in-scope MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC files is ordinary low-permission file analysis when the run has the file toolset; call `audio_transcribe` and do not ask the user to convert audio to video.",
     "OCR, document-image extraction, and visual analysis of files inside the current allowed roots are ordinary low-permission work when the run has the vision toolset; do not ask for Owner elevation just to OCR an in-scope image, PDF, or document.",
-    "Image generation or image editing requested by the current account is ordinary low-permission work when the run has the image_gen toolset and writes outputs only inside allowed roots or delivery roots.",
+    "Video analysis of public video URLs or files inside the current allowed roots is ordinary low-permission work when the run has the video toolset.",
+    "Image generation or image editing requested by the current account is ordinary low-permission work when the run has the image_gen toolset; use `image_generate`, `image_edit`, or `image_erase` when present, and write outputs only inside allowed roots or delivery roots.",
     "Messaging requested by the current account is ordinary low-permission work when the run has the messaging toolset and the recipient/channel is the current conversation, current workspace delivery channel, or an explicitly in-scope recipient.",
     "Text-to-speech requested by the current account is ordinary low-permission work when the run has the tts toolset and audio outputs stay inside allowed roots or delivery roots.",
     "The current account/workspace's own documented Program API operations are ordinary low-permission work when the endpoint, credential, and scope are documented inside an allowed root and the operation affects only that same account/workspace; do not use terminal/code unless those developer toolsets are explicitly allowed.",
@@ -325,8 +339,21 @@ function createSecurityBoundaryProvider(options = {}) {
   function classifyMaintenanceIntent(text) {
     const compact = String(text || "").toLowerCase();
     if (!compact.trim()) return null;
-    const product = /(hermes\s*(?:mobile|web)|server\.js|cron_bridge|todo_bridge|skill_bridge|directory_bridge|service[-_ ]worker|gateway\s*pool|listener|source\s*checkout|productization|源码|源代码|代码库|私有库|public\s*repo|private\s*repo|生产版本|部署|提交|推送|重启)/i.test(compact);
-    const action = /(fix|change|modify|patch|commit|push|deploy|restart|publish|refactor|migrate|upgrade|修|改|提交|推送|发布|重启|迁移|升级|清理|产品化|打不开|不显示|排序|通知)/i.test(compact);
+    const product = (
+      /(hermes\s*(?:mobile|web)|server\.js|cron_bridge|todo_bridge|skill_bridge|directory_bridge|service[-_ ]worker|gateway\s*pool|listener|source\s*checkout|productization|public\s*repo|private\s*repo)/i.test(compact)
+      || /(?:\u6e90\u7801|\u6e90\u4ee3\u7801|\u4ee3\u7801\u5e93|\u79c1\u6709\u5e93|\u751f\u4ea7\u7248\u672c|\u90e8\u7f72|\u63d0\u4ea4|\u91cd\u542f)/.test(compact)
+    );
+    const gitPush = (
+      /(?:git|github|origin|repo|repository|public\s*repo|private\s*repo).{0,24}\bpush\b/i.test(compact)
+      || /\bpush\b.{0,24}(?:git|github|origin|repo|repository|public\s*repo|private\s*repo)/i.test(compact)
+      || /(?:git|github|origin|repo|repository|public\s*repo|private\s*repo|\u4ee3\u7801|\u4ed3\u5e93|\u79c1\u6709\u5e93).{0,24}\u63a8\u9001/.test(compact)
+      || /\u63a8\u9001.{0,24}(?:git|github|origin|repo|repository|public\s*repo|private\s*repo|\u4ee3\u7801|\u4ed3\u5e93|\u79c1\u6709\u5e93)/.test(compact)
+    );
+    const action = (
+      /(fix|change|modify|patch|commit|deploy|restart|publish|refactor|migrate|upgrade)/i.test(compact)
+      || /(?:\u4fee\u590d|\u4fee\u6539|\u6539\u52a8|\u6539\u4e00\u4e0b|\u6253\u8865\u4e01|\u63d0\u4ea4|\u53d1\u5e03|\u90e8\u7f72|\u91cd\u542f|\u91cd\u6784|\u8fc1\u79fb|\u5347\u7ea7|\u6e05\u7406|\u4ea7\u54c1\u5316|\u6253\u4e0d\u5f00|\u4e0d\u663e\u793a|\u6392\u5e8f)/.test(compact)
+      || gitPush
+    );
     if (product && action) {
       return {
         category: "product_maintenance",

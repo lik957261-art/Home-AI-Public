@@ -1,0 +1,471 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const {
+  createGatewayRunEventService,
+  extractCompletedOutput,
+  findRunTargetInState,
+} = require("../adapters/gateway-run-event-service");
+
+function makeHarness(overrides = {}) {
+  const thread = {
+    id: "thread_1",
+    workspaceId: "owner",
+    status: "running",
+    activeRunId: "public_run",
+    activeRunIds: ["public_run"],
+    updatedAt: "old",
+    messages: [
+      { id: "user_1", role: "user", content: "Prompt", status: "done", taskGroupId: "chat" },
+      {
+        id: "assistant_1",
+        role: "assistant",
+        content: "",
+        status: "running",
+        runId: "public_run",
+        taskGroupId: "chat",
+        artifacts: [],
+      },
+    ],
+    events: [],
+  };
+  const state = { threads: [thread], artifacts: [] };
+  const activeStreams = new Map([[
+    "public_run",
+    {
+      threadId: thread.id,
+      messageId: "assistant_1",
+      startedAt: 1000,
+      lastEventAt: 1000,
+    },
+  ]]);
+  const calls = {
+    broadcasts: [],
+    enqueued: [],
+    notified: [],
+    scheduled: [],
+    saved: 0,
+    usage: [],
+  };
+  const service = createGatewayRunEventService(Object.assign({
+    state: () => state,
+    activeStreams,
+    nowIso: () => "2026-05-15T01:02:03.000Z",
+    nowMs: () => 2000,
+    maxMessageChars: 50,
+    streamingSaveThrottleMs: 0,
+    saveState: () => { calls.saved += 1; },
+    broadcast: (payload) => calls.broadcasts.push(payload),
+    compactMessage: (message) => ({ id: message.id, status: message.status, content: message.content, runId: message.runId }),
+    threadSummary: (item) => ({ id: item.id, status: item.status, activeRunIds: item.activeRunIds || [] }),
+    addThreadEvent: (item, event) => {
+      item.events = item.events || [];
+      item.events.push({
+        event: event.event || event.type,
+        runId: event.runId || event.run_id || "",
+        tool: event.tool || null,
+        preview: event.preview || event.text || event.error || "",
+        error: Boolean(event.error),
+      });
+    },
+    registerArtifactsFromText: (item, message, text) => (/MEDIA:/.test(text) ? [{ id: "artifact_1", name: "report.pdf" }] : []),
+    supplementGatewayUsage: (usage, runId, message) => {
+      calls.usage.push({ usage, runId, messageId: message.id });
+      return Object.assign({ supplemented: true, runId }, usage || {});
+    },
+    modelPermissionApprovalRequest: overrides.modelPermissionApprovalRequest || (() => null),
+    isOrdinaryToolSchemaElevationRequest: overrides.isOrdinaryToolSchemaElevationRequest || (() => false),
+    stripPermissionApprovalMarkers: (text) => String(text || "").replace(/HERMES_PERMISSION_APPROVAL_REQUIRED[^\n]*/g, "").trim(),
+    enqueueExternalDeliveryForTerminalMessage: (item, message, status) => calls.enqueued.push({ threadId: item.id, messageId: message.id, status }),
+    notifyTaskTerminal: (item, message, status) => calls.notified.push({ threadId: item.id, messageId: message.id, status }),
+    scheduleNextQueuedRunForTaskGroup: (item, taskGroupId) => calls.scheduled.push({ threadId: item.id, taskGroupId }),
+  }, overrides));
+  return { activeStreams, calls, message: thread.messages[1], service, state, thread };
+}
+
+function testPureTargetAndOutputHelpers() {
+  const state = {
+    threads: [
+      { id: "t1", messages: [{ id: "m1", runId: "run_1" }] },
+    ],
+  };
+  assert.deepEqual(findRunTargetInState(state, "run_1"), { threadId: "t1", messageId: "m1" });
+  assert.equal(findRunTargetInState(state, "missing"), null);
+  assert.equal(extractCompletedOutput({
+    response: {
+      output: [
+        { type: "message", content: [{ type: "output_text", text: "hello" }] },
+        { type: "tool_call", content: [{ type: "output_text", text: "skip" }] },
+        { type: "message", content: [{ type: "output_text", text: "world" }] },
+      ],
+    },
+  }), "hello\n\nworld");
+}
+
+function testResponseCreatedAliasesRunAndBroadcasts() {
+  const { activeStreams, calls, message, service, thread } = makeHarness();
+  const result = service.applyHermesRunEvent({
+    event: "response.created",
+    run_id: "public_run",
+    response: { id: "real_response" },
+  });
+
+  assert.equal(result.action, "response_created");
+  assert.equal(message.runId, "real_response");
+  assert.equal(thread.activeRunId, "real_response");
+  assert.deepEqual(thread.activeRunIds, ["real_response"]);
+  assert.equal(activeStreams.get("real_response"), activeStreams.get("public_run"));
+  assert.equal(activeStreams.get("public_run").realRunId, "real_response");
+  assert.equal(activeStreams.get("public_run").lastEventAt, 2000);
+  assert.equal(calls.saved, 1);
+  assert.equal(calls.broadcasts[0].type, "message.updated");
+}
+
+function testDeltaUpdatesMessageAndThread() {
+  const { calls, message, service, thread } = makeHarness();
+  const result = service.applyHermesRunEvent({ event: "message.delta", run_id: "public_run", delta: "partial" });
+
+  assert.equal(result.action, "delta");
+  assert.equal(message.content, "partial");
+  assert.equal(message.firstFeedbackAt, "2026-05-15T01:02:03.000Z");
+  assert.equal(thread.updatedAt, "2026-05-15T01:02:03.000Z");
+  assert.equal(calls.saved, 1);
+  assert.equal(calls.broadcasts[0].type, "message.delta");
+  assert.equal(calls.broadcasts[0].delta, "partial");
+}
+
+function testStreamingDeltaSavesAreCoalesced() {
+  let timerFn = null;
+  let timerCleared = false;
+  const harness = makeHarness({
+    streamingSaveThrottleMs: 1200,
+    setTimeout(fn, delay) {
+      assert.equal(delay, 1200);
+      timerFn = fn;
+      return { unref() {} };
+    },
+    clearTimeout() {
+      timerCleared = true;
+      timerFn = null;
+    },
+  });
+  harness.service.applyHermesRunEvent({ event: "message.delta", run_id: "public_run", delta: "a" });
+  harness.service.applyHermesRunEvent({ event: "message.delta", run_id: "public_run", delta: "b" });
+  assert.equal(harness.calls.saved, 0);
+  assert.equal(harness.message.content, "ab");
+  assert.equal(typeof timerFn, "function");
+  timerFn();
+  assert.equal(harness.calls.saved, 1);
+
+  harness.service.applyHermesRunEvent({ event: "message.delta", run_id: "public_run", delta: "c" });
+  assert.equal(harness.calls.saved, 1);
+  harness.service.applyHermesRunEvent({ event: "response.completed", run_id: "public_run", output: "done" });
+  assert.equal(timerCleared, true);
+  assert.equal(harness.calls.saved, 2);
+}
+
+function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
+  const { calls, message, service, thread } = makeHarness();
+  message.content = "streamed fallback";
+  const result = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { output_tokens: 3 },
+      output: [{ type: "message", content: [{ type: "output_text", text: "Final\nMEDIA:/tmp/report.pdf" }] }],
+    },
+  });
+
+  assert.equal(result.action, "completed");
+  assert.equal(message.status, "done");
+  assert.equal(message.content, "Final\nMEDIA:/tmp/report.pdf");
+  assert.deepEqual(message.artifacts, [{ id: "artifact_1", name: "report.pdf" }]);
+  assert.deepEqual(thread.activeRunIds, []);
+  assert.equal(thread.status, "idle");
+  assert.equal(message.usage.supplemented, true);
+  assert.deepEqual(calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
+  assert.deepEqual(calls.notified, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
+  assert.deepEqual(calls.scheduled, [{ threadId: "thread_1", taskGroupId: "chat" }]);
+  assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
+}
+
+function testCompletedRunPersistsLoadedSkillReferences() {
+  const { message, service, thread } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.created",
+    run_id: "public_run",
+    response: { id: "real_response" },
+  });
+  thread.events.push({
+    event: "response.output_item.added",
+    runId: "public_run",
+    tool: "skill_view",
+    preview: "{\"name\":\"productivity/write\"}",
+  });
+  thread.events.push({
+    event: "response.output_item.done",
+    runId: "other_run",
+    tool: "skill_view",
+    preview: "{\"name\":\"productivity/ignore\"}",
+  });
+
+  const result = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: { id: "real_response" },
+    output: "Final",
+  });
+
+  assert.equal(result.action, "completed");
+  assert.deepEqual(message.loadedSkills, [{
+    id: "write",
+    label: "write",
+    path: "productivity/write",
+    namespace: "productivity",
+  }]);
+}
+
+function testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim() {
+  const { message, service, thread } = makeHarness();
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      name: "skill_view",
+      arguments: "{\"name\":\"productivity/write\"}",
+    },
+  });
+
+  assert.deepEqual(message.loadedSkills, [{
+    id: "write",
+    label: "write",
+    path: "productivity/write",
+    namespace: "productivity",
+  }]);
+
+  thread.events = [];
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: { id: "public_run", usage: { input_tokens: 1, output_tokens: 2 } },
+    output: "Final",
+  });
+
+  assert.deepEqual(message.loadedSkills, [{
+    id: "write",
+    label: "write",
+    path: "productivity/write",
+    namespace: "productivity",
+  }]);
+}
+
+function testCompletedResponseOutputBackfillsLoadedSkillReferences() {
+  const { message, service } = makeHarness();
+
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { input_tokens: 1, output_tokens: 2 },
+      output: [
+        { type: "function_call", name: "skill_view", arguments: "{\"name\":\"study-templates/english-weekly-challenge\"}" },
+        { type: "message", content: [{ type: "output_text", text: "Final" }] },
+      ],
+    },
+  });
+
+  assert.deepEqual(message.loadedSkills, [{
+    id: "english-weekly-challenge",
+    label: "english-weekly-challenge",
+    path: "study-templates/english-weekly-challenge",
+    namespace: "study-templates",
+  }]);
+}
+
+function testCompletedRunUsageKeepsRequestedModelMetadata() {
+  const { message, service } = makeHarness();
+  message.runOptions = { model: "grok-4.3", provider: "xai-oauth", reasoning_effort: "xhigh" };
+
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { input_tokens: 1, output_tokens: 2 },
+    },
+    output: "Final",
+  });
+
+  assert.equal(message.usage.model, "grok-4.3");
+  assert.equal(message.usage.provider, "xai-oauth");
+  assert.equal(message.usage.model_provider, "xai-oauth");
+  assert.equal(message.usage.reasoning_effort, "xhigh");
+}
+
+function testOutputItemEventsStoreReadableSummariesOnly() {
+  const { service, thread } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "function_call_output",
+      output: "[{\"type\":\"input_text\",\"text\":\"large raw tool output should not be stored\"}]",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "function_call_output");
+  assert.equal(thread.events.at(-1).preview, "");
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "function_call",
+      name: "mobile_web_search",
+      call_id: "call_search_1",
+      arguments: "{\"query\":\"raw argument should not be stored\"}",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "function_call");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"mobile_web_search\",\"callId\":\"call_search_1\"}");
+  assert(!thread.events.at(-1).preview.includes("raw argument"));
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.done",
+    run_id: "public_run",
+    item: {
+      type: "function_call_output",
+      call_id: "call_search_1",
+      output: "[{\"type\":\"input_text\",\"text\":\"large raw tool output should not be stored\"}]",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "function_call_output");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"mobile_web_search\",\"callId\":\"call_search_1\"}");
+  assert(!thread.events.at(-1).preview.includes("large raw tool output"));
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      name: "skill_view",
+      arguments: "{\"name\":\"study-templates/learning-growth-card-creation\"}",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "skill_view");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"study-templates/learning-growth-card-creation\"}");
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "function_call",
+      name: "skill_view",
+      arguments: "{\"name\":\"productivity/write\"}",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "skill_view");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"productivity/write\"}");
+}
+
+function testOutputItemEventsUseAliasedResponseRunId() {
+  const { calls, message, service, thread } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.created",
+    run_id: "public_run",
+    response: { id: "real_response" },
+  });
+  assert.equal(message.runId, "real_response");
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      name: "skill_view",
+      arguments: "{\"name\":\"productivity/write\"}",
+    },
+  });
+
+  assert.equal(thread.events.at(-1).runId, "real_response");
+  assert.equal(calls.broadcasts.at(-1).type, "run.event");
+  assert.equal(calls.broadcasts.at(-1).runId, "real_response");
+}
+
+function testFailedAndCancelledRunsUseTerminalHelpers() {
+  let harness = makeHarness();
+  let result = harness.service.applyHermesRunEvent({ event: "run.failed", run_id: "public_run", error: { message: "gateway failed" } });
+  assert.equal(result.action, "failed");
+  assert.equal(harness.message.status, "failed");
+  assert.equal(harness.message.error, "gateway failed");
+  assert.equal(harness.thread.status, "failed");
+  assert.equal(harness.calls.notified[0].status, "failed");
+  assert.equal(harness.calls.scheduled[0].taskGroupId, "chat");
+
+  harness = makeHarness();
+  result = harness.service.applyHermesRunEvent({ event: "run.cancelled", run_id: "public_run" });
+  assert.equal(result.action, "cancelled");
+  assert.equal(harness.message.status, "cancelled");
+  assert.equal(harness.message.cancelledAt, "2026-05-15T01:02:03.000Z");
+  assert.equal(harness.thread.status, "idle");
+  assert.equal(harness.calls.broadcasts[0].type, "run.cancelled");
+}
+
+function testApprovalMarkersAreHiddenButValidRequestIsStored() {
+  const harness = makeHarness({
+    modelPermissionApprovalRequest: () => ({
+      elevationRequired: true,
+      elevationScope: "owner_high_privilege",
+      elevationReason: "needs owner",
+      elevationSource: "model_permission_boundary",
+    }),
+  });
+  harness.service.applyHermesRunEvent({
+    event: "run.completed",
+    run_id: "public_run",
+    output: "visible\nHERMES_PERMISSION_APPROVAL_REQUIRED {\"scope\":\"owner_high_privilege\"}",
+  });
+
+  assert.equal(harness.message.content, "visible");
+  assert.equal(harness.message.elevationRequired, true);
+  assert.equal(harness.message.elevationScope, "owner_high_privilege");
+
+  const stale = makeHarness({
+    modelPermissionApprovalRequest: () => ({ elevationRequired: true, elevationScope: "owner_high_privilege" }),
+    isOrdinaryToolSchemaElevationRequest: () => true,
+  });
+  stale.service.applyHermesRunEvent({ event: "run.completed", run_id: "public_run", output: "stale marker" });
+  assert.equal(stale.message.elevationRequired, false);
+}
+
+function testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued() {
+  const { activeStreams, calls, service, state, thread } = makeHarness();
+  activeStreams.clear();
+  thread.messages.push({ id: "user_2", role: "user", status: "done", taskGroupId: "chat" });
+  thread.messages.push({ id: "assistant_2", role: "assistant", status: "queued", runId: "", taskGroupId: "chat" });
+  const changed = service.reconcileDetachedActiveRuns("detached");
+
+  assert.equal(changed, true);
+  assert.equal(state.threads[0].messages[1].status, "failed");
+  assert.equal(state.threads[0].messages[1].error, "detached");
+  assert.equal(calls.enqueued[0].status, "failed");
+  assert.equal(calls.saved, 1);
+  assert.deepEqual(calls.scheduled, [{ threadId: "thread_1", taskGroupId: "chat" }]);
+}
+
+testPureTargetAndOutputHelpers();
+testResponseCreatedAliasesRunAndBroadcasts();
+testDeltaUpdatesMessageAndThread();
+testStreamingDeltaSavesAreCoalesced();
+testCompletedRunMutatesTerminalStateAndSchedulesQueue();
+testCompletedRunPersistsLoadedSkillReferences();
+testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim();
+testCompletedResponseOutputBackfillsLoadedSkillReferences();
+testCompletedRunUsageKeepsRequestedModelMetadata();
+testOutputItemEventsStoreReadableSummariesOnly();
+testOutputItemEventsUseAliasedResponseRunId();
+testFailedAndCancelledRunsUseTerminalHelpers();
+testApprovalMarkersAreHiddenButValidRequestIsStored();
+testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
+
+console.log("gateway-run-event-service tests passed");

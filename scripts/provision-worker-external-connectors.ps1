@@ -7,6 +7,8 @@ param(
     [string]$GoogleTokenPath = $env:HERMES_WEB_GOOGLE_TOKEN_PATH,
     [string]$GoogleClientSecretPath = $env:HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH,
     [string]$OutlookGraphTokenPath = $env:HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH,
+    [string]$OutlookGraphEnvPath = $env:HERMES_WEB_OUTLOOK_GRAPH_ENV_PATH,
+    [string]$OutlookGraphMcpPath = "",
     [string]$WindowsWorkerAccount = "HermesMobileWorker",
     [switch]$CheckOnly
 )
@@ -31,6 +33,28 @@ function Copy-ConnectorFile {
     $parent = Split-Path -Parent $DestinationPath
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
     Copy-Item -LiteralPath $SourcePath -Destination $DestinationPath -Force
+    return $true
+}
+
+function Copy-FilteredOutlookEnvFile {
+    param(
+        [string]$SourcePath,
+        [string]$DestinationPath
+    )
+    if (-not $SourcePath) { return $false }
+    if (-not (Test-Path -LiteralPath $SourcePath)) { return $false }
+    $lines = @()
+    foreach ($rawLine in Get-Content -LiteralPath $SourcePath) {
+        $line = [string]$rawLine
+        if ($line -match '^\s*(MS_GRAPH_[A-Z0-9_]+|EMAIL_HOME_(CHANNEL|ADDRESS))\s*=') {
+            $lines += $line.Trim()
+        }
+    }
+    if ($lines.Count -eq 0) { return $false }
+    $parent = Split-Path -Parent $DestinationPath
+    if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($DestinationPath, (($lines -join "`n") + "`n"), $utf8NoBom)
     return $true
 }
 
@@ -76,6 +100,12 @@ if (-not $CheckOnly) {
     if (Copy-ConnectorFile -SourcePath $OutlookGraphTokenPath -DestinationPath (Join-Path $stagingRoot "microsoft-graph-outlook-mail\token.json")) {
         $copied += "microsoft-graph-outlook-mail/token.json"
     }
+    if (Copy-FilteredOutlookEnvFile -SourcePath $OutlookGraphEnvPath -DestinationPath (Join-Path $stagingRoot "outlook_graph.env")) {
+        $copied += "outlook_graph.env"
+    }
+    if (Copy-ConnectorFile -SourcePath $OutlookGraphMcpPath -DestinationPath (Join-Path $stagingRoot "outlook_graph_mcp.py")) {
+        $copied += "outlook_graph_mcp.py"
+    }
     if ($copied.Count -eq 0) {
         throw "No connector credential files were found to provision."
     }
@@ -90,6 +120,7 @@ staging="$stagingWslPath"
 worker_user="$WorkerLinuxUser"
 profiles="$profilesText"
 owner_secret_root="/home/$WorkerLinuxUser/.hermes/external-connectors/owner"
+worker_scripts_dir="/home/$WorkerLinuxUser/.hermes/scripts"
 python="/opt/hermes-gateway-runtime/venv/bin/python"
 
 patch_google_workspace_skill() {
@@ -213,7 +244,7 @@ PY
 }
 
 if [ "`$mode" = "install" ]; then
-  mkdir -p "`$owner_secret_root/microsoft-graph-outlook-mail"
+  mkdir -p "`$owner_secret_root/microsoft-graph-outlook-mail" "`$worker_scripts_dir"
   if [ -f "`$staging/google_token.json" ]; then
     install -o "`$worker_user" -g "`$worker_user" -m 600 "`$staging/google_token.json" "`$owner_secret_root/google_token.json"
   fi
@@ -223,8 +254,15 @@ if [ "`$mode" = "install" ]; then
   if [ -f "`$staging/microsoft-graph-outlook-mail/token.json" ]; then
     install -o "`$worker_user" -g "`$worker_user" -m 600 "`$staging/microsoft-graph-outlook-mail/token.json" "`$owner_secret_root/microsoft-graph-outlook-mail/token.json"
   fi
+  if [ -f "`$staging/outlook_graph.env" ]; then
+    install -o "`$worker_user" -g "`$worker_user" -m 600 "`$staging/outlook_graph.env" "`$owner_secret_root/outlook_graph.env"
+  fi
+  if [ -f "`$staging/outlook_graph_mcp.py" ]; then
+    install -o "`$worker_user" -g "`$worker_user" -m 700 "`$staging/outlook_graph_mcp.py" "`$worker_scripts_dir/outlook_graph_mcp.py"
+  fi
   chown -R "`$worker_user:`$worker_user" "`$owner_secret_root"
-  chmod 700 "`$owner_secret_root" "`$owner_secret_root/microsoft-graph-outlook-mail"
+  chown -R "`$worker_user:`$worker_user" "`$worker_scripts_dir"
+  chmod 700 "`$owner_secret_root" "`$owner_secret_root/microsoft-graph-outlook-mail" "`$worker_scripts_dir"
 
   for profile in `$profiles; do
     profile_dir="/home/`$worker_user/.hermes/profiles/`$profile"
@@ -242,6 +280,9 @@ if [ "`$mode" = "install" ]; then
       ln -sfn "`$owner_secret_root/microsoft-graph-outlook-mail/token.json" "`$profile_dir/microsoft-graph-outlook-mail/token.json"
       chown -h "`$worker_user:`$worker_user" "`$profile_dir/microsoft-graph-outlook-mail/token.json" || true
     fi
+    if [ -f "`$owner_secret_root/outlook_graph.env" ]; then
+      install -o "`$worker_user" -g "`$worker_user" -m 600 "`$owner_secret_root/outlook_graph.env" "`$profile_dir/.env"
+    fi
     patch_google_workspace_skill "`$profile_dir"
   done
 fi
@@ -253,11 +294,15 @@ if missing:
     raise SystemExit("missing python modules: " + ", ".join(missing))
 print("python_google_deps=ok")
 PY
+if [ -f "`$worker_scripts_dir/outlook_graph_mcp.py" ]; then
+  runuser -u "`$worker_user" -- env HOME="/home/`$worker_user" HERMES_HOME="/home/`$worker_user/.hermes" PYTHONPATH="/opt/hermes-gateway-runtime/official-clean" "`$python" -m py_compile "`$worker_scripts_dir/outlook_graph_mcp.py"
+  echo "outlook_graph_mcp=installed"
+fi
 
 for profile in `$profiles; do
   profile_dir="/home/`$worker_user/.hermes/profiles/`$profile"
   echo "---`$profile"
-  for rel in google_token.json google_client_secret.json microsoft-graph-outlook-mail/token.json; do
+  for rel in google_token.json google_client_secret.json microsoft-graph-outlook-mail/token.json .env; do
     if [ -e "`$profile_dir/`$rel" ]; then
       runuser -u "`$worker_user" -- test -r "`$profile_dir/`$rel"
       stat -c "link:%N" "`$profile_dir/`$rel" | sed -E "s#`$owner_secret_root#[owner-secret-root]#g"
@@ -266,6 +311,11 @@ for profile in `$profiles; do
       echo "missing:`$rel"
     fi
   done
+  if [ -f "`$profile_dir/.env" ] && grep -q '^MS_GRAPH_CLIENT_ID=' "`$profile_dir/.env"; then
+    echo "outlook_graph_env=present"
+  else
+    echo "outlook_graph_env=missing"
+  fi
   google_setup="`$profile_dir/skills/productivity/google-workspace/scripts/setup.py"
   if [ -f "`$google_setup" ]; then
     runuser -u "`$worker_user" -- env HOME="/home/`$worker_user" HERMES_HOME="/home/`$worker_user/.hermes" HERMES_GOOGLE_PROFILE_HOME="`$profile_dir" python3 "`$google_setup" --check >/tmp/hermes-google-check-`$profile.out 2>&1

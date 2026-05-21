@@ -81,6 +81,17 @@ function testWorkspaceKeyRotationAndScopedAuth() {
   assert.equal(provider.authenticateRequest(reqWithKey(rotated.key)).ok, false);
 }
 
+function testWorkspaceAuthCanCarryAccessibleWorkspaceIds() {
+  const { provider } = makeProvider({ envKey: "owner-key" });
+  const workspace = provider.rotateWorkspaceAccessKey("workspace_a", { actor: "owner" });
+  const originalFind = provider.authenticateRequest;
+  const auth = originalFind(reqWithKey(workspace.key));
+  auth.workspaceIds = ["workspace_a", "workspace_b"];
+  auth.workspaces = ["workspace_a", "workspace_b"];
+  assert.equal(provider.authCanAccessWorkspace(auth, "workspace_a"), true);
+  assert.equal(provider.authCanAccessWorkspace(auth, "workspace_b"), true);
+}
+
 function testGlobalRotationEnvGuardAndDisabledAuth() {
   const envProvider = makeProvider({ envKey: "owner-key" }).provider;
   assert.throws(() => envProvider.rotateGlobalAccessKey(), /HERMES_WEB_KEY/);
@@ -95,5 +106,6 @@ function testGlobalRotationEnvGuardAndDisabledAuth() {
 
 testFirstRunOwnerSetupAndOwnerAuth();
 testWorkspaceKeyRotationAndScopedAuth();
+testWorkspaceAuthCanCarryAccessibleWorkspaceIds();
 testGlobalRotationEnvGuardAndDisabledAuth();
 console.log("auth-provider tests passed");

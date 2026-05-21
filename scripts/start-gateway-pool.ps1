@@ -6,6 +6,8 @@ param(
   [string]$GoogleTokenPath = "",
   [string]$GoogleClientSecretPath = "",
   [string]$OutlookGraphTokenPath = "",
+  [string]$OutlookGraphEnvPath = "",
+  [string]$OutlookGraphMcpPath = "",
   [int]$HealthTimeoutSeconds = 45
 )
 
@@ -61,6 +63,47 @@ function Resolve-ConnectorPath {
   return Join-Path $officialHermesHome $RelativePath
 }
 
+function Assert-SafeGatewayProfileName {
+  param([string]$Profile)
+  if (-not $Profile -or $Profile -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]*$') {
+    throw "Unsafe Gateway profile name in manifest: $Profile"
+  }
+}
+
+function Assert-SafeLinuxUserName {
+  param([string]$UserName)
+  if (-not $UserName -or $UserName -notmatch '^[A-Za-z_][A-Za-z0-9_-]*$') {
+    throw "Unsafe WSL user name: $UserName"
+  }
+}
+
+function Is-OwnerMaintenanceWorker {
+  param($Worker)
+  if (-not $Worker.enabled -or -not $Worker.allowMaintenance -or -not $Worker.profile -or -not $Worker.port) { return $false }
+  if ([string]$Worker.securityLevel -ne "owner-maintenance") { return $false }
+  return [string]$Worker.profile -match '^officialclean[0-9]+$'
+}
+
+function OwnerMaintenanceSharedMemoryEnabled {
+  $value = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_OWNER_MAINTENANCE_SHARED_MEMORY_MODE")
+  if (-not $value) { $value = [Environment]::GetEnvironmentVariable("HERMES_WEB_OWNER_MAINTENANCE_SHARED_MEMORY_MODE") }
+  if (-not $value) { return $true }
+  $value = $value.Trim()
+  if (-not $value) { return $true }
+  return $value -notmatch '^(0|false|no|off|profile-local)$'
+}
+
+function Add-OwnerMaintenanceSharedMemoryCommands {
+  param(
+    [System.Collections.ArrayList]$Commands,
+    [string]$ProfileRoot,
+    [string]$ProfileMemoryPath,
+    [string]$SharedMemoryPath
+  )
+  $backupDir = "{0}/memories.profile-local-markdown-backup-{1}" -f $ProfileRoot, (Get-Date).ToString("yyyyMMddHHmmss")
+  [void]$Commands.Add("if [ -L $ProfileMemoryPath ]; then rm -f $ProfileMemoryPath; elif [ -d $ProfileMemoryPath ]; then mkdir -p $backupDir; find $ProfileMemoryPath -maxdepth 1 -type f -name \*.md -exec cp -n {} $SharedMemoryPath/ \; -exec cp -n {} $backupDir/ \; -delete; find $ProfileMemoryPath -maxdepth 1 -type f -name \*.md.lock -size 0 -delete; if ! rmdir $ProfileMemoryPath 2>/dev/null; then echo profile_memories_contains_non_markdown_files_keeping_profile_local_directory:$ProfileMemoryPath >&2; fi; elif [ -e $ProfileMemoryPath ]; then echo profile_memories_path_is_not_directory_or_symlink:$ProfileMemoryPath >&2; fi; if [ ! -e $ProfileMemoryPath ]; then ln -sfn $SharedMemoryPath $ProfileMemoryPath; fi")
+}
+
 function Ensure-LowGatewayProfileEnv {
   $scriptPath = Join-Path $GatewayWorkerRoot "start-low-gateways.sh"
   if (-not (Test-Path -LiteralPath $scriptPath)) { return }
@@ -109,6 +152,7 @@ EOF
 chmod 755 "$runtime_bin/hermes"
 
 low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
+runtime_hermes="$runtime_bin/hermes"
 
 '@
     if (-not $updated.Contains($bootstrapNeedle)) {
@@ -119,6 +163,30 @@ low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/b
   }
   if ($updated -notmatch 'PATH="\$low_gateway_path"') {
     $updated = $updated.Replace('HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"', 'PATH="$low_gateway_path" HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY="$api_key"')
+  }
+  if ($updated -notmatch 'runtime_hermes="\$runtime_bin/hermes"') {
+    $needle = 'low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"'
+    $replacement = @'
+low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
+runtime_hermes="$runtime_bin/hermes"
+'@
+    if ($updated.Contains($needle)) {
+      $updated = $updated.Replace($needle, $replacement.TrimEnd())
+    } else {
+      Write-GatewayPoolLog "Low gateway runtime hermes shim variable patch skipped; start script shape is unknown."
+    }
+  }
+  if ($updated -match '"\$runtime_python" -m hermes_cli\.main -p "\$profile" gateway run') {
+    $updated = $updated.Replace('"$runtime_python" -m hermes_cli.main -p "$profile" gateway run', '"$runtime_hermes" gateway run')
+  }
+  if ($updated -match 'HERMES_HOME="\$worker_home_dir"') {
+    $updated = $updated.Replace('HERMES_HOME="$worker_home_dir"', 'HERMES_HOME="$worker_home_dir/profiles/$profile"')
+  }
+  if ($updated -match '"\$runtime_hermes" -p "\$profile" gateway run') {
+    $updated = $updated.Replace('"$runtime_hermes" -p "$profile" gateway run', '"$runtime_hermes" gateway run')
+  }
+  if ($updated -match 'gateway run --replace --accept-hooks > "\$log" 2>&1(?! < /dev/null)') {
+    $updated = $updated -replace '(gateway run --replace --accept-hooks > "\$log" 2>&1)(?! < /dev/null)', '$1 < /dev/null'
   }
   if ($updated -eq $text) { return }
   $encoding = New-Object System.Text.UTF8Encoding($false)
@@ -139,7 +207,7 @@ set -euo pipefail
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
 
 if command -v pkill >/dev/null 2>&1; then
-  pkill -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+  pkill -u hermes -f 'hermes_cli\.main .*gateway run' || true
 fi
 sleep 1
 
@@ -158,7 +226,7 @@ done
 sleep 1
 
 if command -v pkill >/dev/null 2>&1; then
-  pkill -9 -u hermes -f 'hermes_cli\.main -p lowgw[0-9]+ gateway run' || true
+  pkill -9 -u hermes -f 'hermes_cli\.main .*gateway run' || true
 fi
 '@
   $stopChildText = @'
@@ -176,6 +244,24 @@ if ($LASTEXITCODE -ne 0) {
   $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $stopChild 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw-stop: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway stop failed with exit code $LASTEXITCODE" }
+
+  $legacyStopScript = @'
+set -euo pipefail
+
+if command -v pkill >/dev/null 2>&1; then
+  pkill -u hermes -f 'hermes_cli\.main .*gateway run' || true
+fi
+sleep 1
+
+if command -v pkill >/dev/null 2>&1; then
+  pkill -9 -u hermes -f 'hermes_cli\.main .*gateway run' || true
+fi
+'@
+
+  Write-GatewayPoolLog "Stopping legacy official-distro low gateway processes before pool start."
+  $legacyOutput = & wsl.exe -d $OfficialDistro -u root -- bash -lc $legacyStopScript 2>&1
+  foreach ($line in $legacyOutput) { Write-GatewayPoolLog ("legacy-lowgw-stop: {0}" -f $line) }
+  if ($LASTEXITCODE -ne 0) { throw "Legacy official-distro low gateway stop failed with exit code $LASTEXITCODE" }
 }
 
 function Start-LowGateways {
@@ -239,6 +325,16 @@ function Provision-OwnerExternalConnectors {
   $resolvedGoogleTokenPath = Resolve-ConnectorPath -ExplicitPath $GoogleTokenPath -EnvName "HERMES_WEB_GOOGLE_TOKEN_PATH" -RelativePath "google_token.json"
   $resolvedGoogleClientSecretPath = Resolve-ConnectorPath -ExplicitPath $GoogleClientSecretPath -EnvName "HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH" -RelativePath "google_client_secret.json"
   $resolvedOutlookGraphTokenPath = Resolve-ConnectorPath -ExplicitPath $OutlookGraphTokenPath -EnvName "HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH" -RelativePath "microsoft-graph-outlook-mail\token.json"
+  $resolvedOutlookGraphEnvPath = Resolve-ConnectorPath -ExplicitPath $OutlookGraphEnvPath -EnvName "HERMES_WEB_OUTLOOK_GRAPH_ENV_PATH" -RelativePath ".env"
+  $resolvedOutlookGraphMcpPath = $OutlookGraphMcpPath
+  if (-not $resolvedOutlookGraphMcpPath) {
+    $candidate = Join-Path $GatewayWorkerRoot "outlook_graph_mcp.py"
+    if (Test-Path -LiteralPath $candidate) { $resolvedOutlookGraphMcpPath = $candidate }
+  }
+  if (-not $resolvedOutlookGraphMcpPath) {
+    $candidate = Join-Path $GatewayWorkerRoot "scripts\python\outlook_graph_mcp.py"
+    if (Test-Path -LiteralPath $candidate) { $resolvedOutlookGraphMcpPath = $candidate }
+  }
   if ($resolvedGoogleTokenPath -and (Test-Path -LiteralPath $resolvedGoogleTokenPath)) {
     $args += @("-GoogleTokenPath", $resolvedGoogleTokenPath)
     $hasCredential = $true
@@ -250,6 +346,12 @@ function Provision-OwnerExternalConnectors {
   if ($resolvedOutlookGraphTokenPath -and (Test-Path -LiteralPath $resolvedOutlookGraphTokenPath)) {
     $args += @("-OutlookGraphTokenPath", $resolvedOutlookGraphTokenPath)
     $hasCredential = $true
+  }
+  if ($resolvedOutlookGraphEnvPath -and (Test-Path -LiteralPath $resolvedOutlookGraphEnvPath)) {
+    $args += @("-OutlookGraphEnvPath", $resolvedOutlookGraphEnvPath)
+  }
+  if ($resolvedOutlookGraphMcpPath -and (Test-Path -LiteralPath $resolvedOutlookGraphMcpPath)) {
+    $args += @("-OutlookGraphMcpPath", $resolvedOutlookGraphMcpPath)
   }
   if (-not $hasCredential) {
     Write-GatewayPoolLog "Owner external connector provisioning skipped; no credential paths are available."
@@ -264,7 +366,8 @@ function Provision-OwnerExternalConnectors {
 function Start-OwnerMaintenanceGateways {
   if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Missing gateway pool manifest: $ManifestPath" }
   $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
-  $workers = @($manifest.workers | Where-Object { $_.enabled -and $_.allowMaintenance -and $_.profile -and $_.port })
+  Assert-SafeLinuxUserName -UserName $OfficialUser
+  $workers = @($manifest.workers | Where-Object { Is-OwnerMaintenanceWorker -Worker $_ })
   if ($workers.Count -eq 0) {
     Write-GatewayPoolLog "No owner-maintenance workers in manifest."
     return @()
@@ -277,19 +380,35 @@ function Start-OwnerMaintenanceGateways {
   $officialPython = "$runtimeRoot/venv/bin/python"
   $sharedAuthPath = "/home/$OfficialUser/.hermes/auth.json"
   $sharedAuthLockPath = "/home/$OfficialUser/.hermes/auth.lock"
-  $commands = @(
+  $sharedMemoryEnabled = OwnerMaintenanceSharedMemoryEnabled
+  $sharedMemoryPath = "/home/$OfficialUser/.hermes/memories"
+  $ownerMaintenanceLockPath = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
+  $commands = [System.Collections.ArrayList]@(
+    "if [ -d $ownerMaintenanceLockPath ]; then rmdir $ownerMaintenanceLockPath 2>/dev/null || { echo owner_maintenance_memory_lock_busy >&2; exit 42; }; fi",
+    "exec 9>$ownerMaintenanceLockPath",
+    "flock -w 60 9 || { echo owner_maintenance_memory_lock_timeout >&2; exit 42; }",
+    "trap 'flock -u 9' EXIT",
     "test -x $officialPython",
     "test -d $officialCleanRoot",
     "mkdir -p /home/$OfficialUser/.hermes/logs",
     "test -s $sharedAuthPath"
   )
+  if ($sharedMemoryEnabled) {
+    [void]$commands.Add("mkdir -p $sharedMemoryPath")
+  }
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
-    $commands += "mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs"
-    $commands += "rm -f /home/$OfficialUser/.hermes/profiles/$profile/auth.json /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
-    $commands += "ln -sfn $sharedAuthPath /home/$OfficialUser/.hermes/profiles/$profile/auth.json"
-    $commands += "ln -sfn $sharedAuthLockPath /home/$OfficialUser/.hermes/profiles/$profile/auth.lock"
-    $commands += "setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1"
+    Assert-SafeGatewayProfileName -Profile $profile
+    $profileRoot = "/home/$OfficialUser/.hermes/profiles/$profile"
+    $profileMemoryPath = "$profileRoot/memories"
+    [void]$commands.Add("mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs")
+    [void]$commands.Add("rm -f /home/$OfficialUser/.hermes/profiles/$profile/auth.json /home/$OfficialUser/.hermes/profiles/$profile/auth.lock")
+    [void]$commands.Add("ln -sfn $sharedAuthPath /home/$OfficialUser/.hermes/profiles/$profile/auth.json")
+    [void]$commands.Add("ln -sfn $sharedAuthLockPath /home/$OfficialUser/.hermes/profiles/$profile/auth.lock")
+    if ($sharedMemoryEnabled) {
+      Add-OwnerMaintenanceSharedMemoryCommands -Commands $commands -ProfileRoot $profileRoot -ProfileMemoryPath $profileMemoryPath -SharedMemoryPath $sharedMemoryPath
+    }
+    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
   }
   $bash = $commands -join "; "
 

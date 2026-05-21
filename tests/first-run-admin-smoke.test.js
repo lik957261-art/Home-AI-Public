@@ -185,6 +185,12 @@ async function main() {
     const autoSingle = await request(baseUrl, "/api/single-window", jsonOptions("POST", ownerKey, {
       workspaceId: "demo-prefill-user",
     }));
+    const emptyMessage = await expectHttpStatus(baseUrl, `/api/threads/${encodeURIComponent(autoSingle.thread.id)}/messages`, jsonOptions("POST", ownerKey, {
+      workspaceId: "demo-prefill-user",
+      text: "",
+      artifacts: [],
+    }), 400);
+    assert.equal(emptyMessage.error, "Message text is required");
     const uploaded = await request(baseUrl, `/api/threads/${encodeURIComponent(autoSingle.thread.id)}/uploads`, jsonOptions("POST", ownerKey, {
       workspaceId: "demo-prefill-user",
       filename: "photo.jpg",
@@ -250,8 +256,7 @@ async function main() {
     assert.equal(workspacePrivateSingle.thread.chatGroup.enabled, false);
     assert.equal(workspacePrivateSingle.groupChatAvailable, true);
     assert.equal(workspacePrivateSingle.groupChatThreadId, ownerSingleBeforeGroup.thread.id);
-    assert.equal(workspacePrivateSingle.groupChatThread.id, ownerSingleBeforeGroup.thread.id);
-    assert.equal(workspacePrivateSingle.groupChatThread.chatGroup.enabled, true);
+    assert.equal(workspacePrivateSingle.groupChatThread, null);
     const workspaceGroupSingle = await request(baseUrl, "/api/single-window", jsonOptions("POST", generated.key, {
       workspaceId: "demo-admin-user",
       groupChat: true,
@@ -289,10 +294,13 @@ async function main() {
     assert.deepEqual(patched.workspace.localConfig.allowedToolsets, [
       "mail",
       "web",
+      "search",
       "http",
       "weather",
+      "browser",
       "file",
       "vision",
+      "video",
       "image_gen",
       "messaging",
       "tts",

@@ -48,8 +48,9 @@ function createTodoProvider(options = {}) {
     });
     if (!result?.ok) return { ok: false, result, error: result?.error || "Todo operation failed" };
 
-    const todos = (Array.isArray(result.todos) ? result.todos : [])
-      .map(publicTodo)
+    const rows = Array.isArray(result.todos) ? result.todos : [];
+    const todos = rows
+      .map((row, index) => publicTodo(row, index, rows))
       .filter((todo) => todoMatchesSearch(todo, args.search));
 
     return {
@@ -77,6 +78,8 @@ function createTodoProvider(options = {}) {
       recurrence: args.recurrence || "none",
       recurrence_days: args.recurrenceDays || args.recurrence_days || "",
       recurrence_until: args.recurrenceUntil || args.recurrence_until || "",
+      manual_only: args.manualOnly ?? args.manual_only ?? true,
+      auto_dispatch: args.autoDispatch ?? args.auto_dispatch ?? false,
     });
   }
 
@@ -100,7 +103,7 @@ function createTodoProvider(options = {}) {
   }
 
   function pendingPushes(args = {}) {
-    return runBridge({
+    const payload = {
       action: "web_pending_pushes",
       source_principal: args.sourcePrincipal || args.source_principal || "owner",
       principals: Array.isArray(args.principals) ? args.principals : [],
@@ -109,7 +112,10 @@ function createTodoProvider(options = {}) {
       confirmed_mark_keys: Array.isArray(args.confirmedMarkKeys) ? args.confirmedMarkKeys : [],
       retry_without_receipt_minutes: positiveNumber(args.retryWithoutReceiptMinutes ?? args.retry_without_receipt_minutes, 3),
       retry_limit: positiveNumber(args.retryLimit ?? args.retry_limit, 3),
-    });
+    };
+    const blockedDelay = Number(args.blockedNotificationDelayMinutes ?? args.blocked_notification_delay_minutes);
+    if (Number.isFinite(blockedDelay)) payload.blocked_notification_delay_minutes = blockedDelay;
+    return runBridge(payload);
   }
 
   function markWebPush(args = {}) {

@@ -13,6 +13,10 @@
       --line: rgba(36, 53, 48, 0.13);
       --accent: #1f7768;
       --word: #477cb3;
+      --viewer-font-scale: 1;
+      --viewer-markdown-font-scale: 1;
+      --viewer-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+      --hermes-markdown-font-family: var(--viewer-font-family);
     }
 
     * {
@@ -28,7 +32,7 @@
       background:
         radial-gradient(circle at 14% 6%, rgba(43, 126, 108, 0.12), transparent 30%),
         linear-gradient(180deg, #fbf6ea 0%, var(--paper) 100%);
-      font: 16px/1.45 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
+      font: calc(16px * var(--viewer-font-scale))/1.45 var(--viewer-font-family);
       overflow: hidden;
       touch-action: pan-y;
       -webkit-text-size-adjust: 100%;
@@ -115,7 +119,9 @@
       color: #fffaf1;
       text-decoration: none;
       background: linear-gradient(145deg, var(--accent), #155b50);
+      border: 0;
       border-radius: 18px;
+      font: inherit;
       font-weight: 820;
       box-shadow: 0 15px 30px rgba(31, 119, 104, 0.20);
     }
@@ -169,14 +175,14 @@
       border-radius: 999px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
       backdrop-filter: blur(14px);
-      font: 760 14px/1.1 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
+      font: 760 calc(14px * var(--viewer-font-scale))/1.1 var(--viewer-font-family);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
 
     .viewer-toast {
       position: fixed;
-      z-index: 6;
+      z-index: 30;
       left: 50%;
       bottom: calc(18px + env(safe-area-inset-bottom));
       transform: translateX(-50%);
@@ -230,7 +236,7 @@
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       color: #17242c;
-      font: 15px/1.72 "Microsoft YaHei", "Aptos", "Segoe UI", sans-serif;
+      font: calc(15px * var(--viewer-font-scale))/1.72 var(--viewer-font-family);
       overscroll-behavior-y: contain;
       -webkit-overflow-scrolling: touch;
       touch-action: pan-y;
@@ -239,35 +245,50 @@
     .preview-text.markdown-preview {
       white-space: normal;
       overflow-wrap: anywhere;
+      word-break: normal;
+      font-size: calc(15px * var(--viewer-markdown-font-scale));
     }
 
-    .markdown-preview article {
+    .markdown-preview article,
+    .markdown-preview .hermes-markdown-doc {
       max-width: 860px;
       margin: 0 auto;
+      color: #24292f;
+      font-family: var(--hermes-markdown-font-family);
+      line-height: 1.72;
     }
 
     .markdown-preview h1,
     .markdown-preview h2,
     .markdown-preview h3,
     .markdown-preview h4 {
-      margin: 1.1em 0 0.46em;
-      color: #111b22;
-      line-height: 1.28;
+      margin: 1.35em 0 0.62em;
+      color: #1f2328;
+      line-height: 1.25;
       letter-spacing: 0;
+      font-weight: 760;
+      overflow-wrap: anywhere;
     }
 
     .markdown-preview h1 {
-      font-size: 1.28em;
+      margin-top: 0.25em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid #d8dee4;
+      font-size: 1.72em;
     }
 
     .markdown-preview h2 {
-      font-size: 1.16em;
-      padding-bottom: 0.25em;
-      border-bottom: 1px solid rgba(36, 53, 48, 0.12);
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid #d8dee4;
+      font-size: 1.36em;
     }
 
     .markdown-preview h3 {
-      font-size: 1.05em;
+      font-size: 1.12em;
+    }
+
+    .markdown-preview h4 {
+      font-size: 1em;
     }
 
     .markdown-preview p,
@@ -276,7 +297,12 @@
     .markdown-preview blockquote,
     .markdown-preview pre,
     .markdown-table-wrap {
-      margin: 0.78em 0;
+      margin: 0.86em 0;
+    }
+
+    .markdown-preview p {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .markdown-preview ul,
@@ -284,30 +310,55 @@
       padding-left: 1.45em;
     }
 
+    .markdown-preview ul.task-list,
+    .markdown-preview .hermes-markdown-task-list {
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .markdown-preview .task-list-item,
+    .markdown-preview .hermes-markdown-task-item {
+      display: grid;
+      grid-template-columns: 1.25em minmax(0, 1fr);
+      gap: 0.42em;
+      align-items: start;
+    }
+
+    .markdown-preview .task-list-item input,
+    .markdown-preview .hermes-markdown-task-checkbox {
+      width: 1em;
+      height: 1em;
+      margin: 0.32em 0 0;
+      accent-color: #1f6feb;
+    }
+
     .markdown-preview li + li {
       margin-top: 0.28em;
     }
 
     .markdown-preview blockquote {
-      padding: 0.08em 0 0.08em 0.82em;
-      color: #40515c;
-      border-left: 4px solid rgba(31, 119, 104, 0.28);
+      padding: 0.05em 0 0.05em 1em;
+      color: #57606a;
+      border-left: 0.25em solid #d0d7de;
     }
 
     .markdown-preview code {
-      padding: 0.08em 0.28em;
-      background: rgba(20, 32, 39, 0.08);
+      padding: 0.12em 0.35em;
+      background: rgba(175, 184, 193, 0.2);
       border-radius: 6px;
       font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
       font-size: 0.88em;
+      overflow-wrap: anywhere;
     }
 
     .markdown-preview pre {
       overflow-x: auto;
-      padding: 0.9em;
-      background: rgba(20, 32, 39, 0.08);
-      border-radius: 12px;
+      padding: 1em;
+      background: #f6f8fa;
+      border: 1px solid #d8dee4;
+      border-radius: 8px;
       line-height: 1.55;
+      -webkit-overflow-scrolling: touch;
     }
 
     .markdown-preview pre code {
@@ -317,12 +368,13 @@
       font-size: 0.9em;
     }
 
-    .markdown-table-wrap {
+    .markdown-table-wrap,
+    .hermes-markdown-table-wrapper {
       max-width: 100%;
       overflow-x: auto;
-      border: 1px solid rgba(36, 53, 48, 0.14);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid #d8dee4;
+      border-radius: 8px;
+      background: #fff;
       -webkit-overflow-scrolling: touch;
       touch-action: pan-x pan-y;
     }
@@ -331,24 +383,40 @@
       width: 100%;
       border-collapse: collapse;
       overflow-wrap: normal;
-      font-size: 0.92em;
+      font-size: 0.94em;
       margin: 0;
     }
 
     .markdown-preview th,
     .markdown-preview td {
-      padding: 0.45em 0.5em;
-      border: 1px solid rgba(36, 53, 48, 0.14);
+      min-width: 0;
+      padding: 0.55em 0.65em;
+      border: 1px solid #d0d7de;
       vertical-align: top;
+      overflow-wrap: anywhere;
     }
 
     .markdown-preview th {
-      background: rgba(31, 119, 104, 0.08);
+      background: #f6f8fa;
       font-weight: 820;
     }
 
+    .markdown-preview tr:nth-child(even) td {
+      background: rgba(246, 248, 250, 0.56);
+    }
+
+    .markdown-preview a {
+      color: #0969da;
+      text-decoration: none;
+    }
+
+    .markdown-preview a:hover {
+      text-decoration: underline;
+    }
+
     @media (max-width: 640px) {
-      .markdown-table-wrap {
+      .markdown-table-wrap,
+      .hermes-markdown-table-wrapper {
         overflow: visible;
         border: 0;
         border-radius: 0;
@@ -377,20 +445,20 @@
 
       .markdown-preview tr {
         margin: 0 0 0.82em;
-        border: 1px solid rgba(36, 53, 48, 0.16);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.48);
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: #fff;
         overflow: hidden;
       }
 
       .markdown-preview td {
         display: grid;
-        grid-template-columns: minmax(6.5em, 38%) minmax(0, 1fr);
-        gap: 0.75em;
+        grid-template-columns: minmax(5.8em, 34%) minmax(0, 1fr);
+        gap: 0.7em;
         align-items: start;
         padding: 0.62em 0.72em;
         border: 0;
-        border-bottom: 1px solid rgba(36, 53, 48, 0.12);
+        border-bottom: 1px solid #d8dee4;
         overflow-wrap: anywhere;
         word-break: break-word;
       }
@@ -401,10 +469,11 @@
 
       .markdown-preview td::before {
         content: attr(data-label);
-        color: #42515c;
+        color: #57606a;
         font-size: 0.82em;
         font-weight: 780;
         line-height: 1.35;
+        overflow-wrap: anywhere;
       }
 
       .markdown-preview td[data-label=""] {
@@ -417,9 +486,9 @@
     }
 
     .markdown-preview hr {
-      margin: 1.2em 0;
+      margin: 1.5em 0;
       border: 0;
-      border-top: 1px solid rgba(36, 53, 48, 0.16);
+      border-top: 1px solid #d8dee4;
     }
 
     .preview-status {
@@ -478,7 +547,7 @@
       background: rgba(255, 255, 255, 0.74);
       border: 1px solid rgba(36, 53, 48, 0.12);
       border-radius: 14px;
-      font: 780 15px/1.2 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
+      font: 780 calc(15px * var(--viewer-font-scale))/1.2 var(--viewer-font-family);
       text-align: left;
     }
 
@@ -493,12 +562,28 @@
       background: transparent;
     }
 
+    .viewer-sheet-status {
+      min-height: 18px;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .viewer-sheet-status.error {
+      color: #9f1239;
+    }
+
+    .viewer-sheet-status.success {
+      color: #047857;
+    }
+
     .hidden {
       display: none !important;
     }
 
     body.text-document-mode {
-      background: #f7f1e8;
+      background: #fff;
       overflow-x: hidden;
     }
 
@@ -615,7 +700,7 @@
       overflow: visible;
       border: 0;
       border-radius: 0;
-      background: #f7f1e8;
+      background: #fff;
       touch-action: pan-y;
     }
 
@@ -628,16 +713,17 @@
       min-height: 100dvh;
       overflow: visible;
       padding: calc(18px + env(safe-area-inset-top)) max(22px, env(safe-area-inset-left)) calc(32px + env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-right));
-      color: #17222b;
-      font: clamp(18px, 1.15vw + 14px, 22px)/1.78 "Microsoft YaHei", "PingFang SC", "Aptos", "Segoe UI", sans-serif;
-      letter-spacing: 0.005em;
-      background: #f7f1e8;
+      color: #24292f;
+      font: calc(18px * var(--viewer-font-scale))/1.72 var(--viewer-font-family);
+      letter-spacing: 0;
+      background: #fff;
       touch-action: pan-y;
     }
 
     body.text-document-mode .preview-text.markdown-preview {
       padding-left: max(22px, calc((100vw - 900px) / 2));
       padding-right: max(22px, calc((100vw - 900px) / 2));
+      font-size: calc(18px * var(--viewer-markdown-font-scale));
       line-height: 1.72;
     }
 
@@ -645,8 +731,12 @@
       body.text-document-mode .preview-text {
         padding-left: 20px;
         padding-right: 20px;
-        font-size: 21px;
-        line-height: 1.76;
+        font-size: calc(18px * var(--viewer-font-scale));
+        line-height: 1.72;
+      }
+
+      body.text-document-mode .preview-text.markdown-preview {
+        font-size: calc(18px * var(--viewer-markdown-font-scale));
       }
     }
   </style>
@@ -665,9 +755,11 @@
         <button type="button" data-markdown-share="print">Print / save as PDF</button>
         <button type="button" data-markdown-share="copy">Copy rendered text</button>
         <button type="button" data-markdown-share="group">转发到群</button>
+        <button type="button" data-markdown-share="weixin">转发到微信</button>
         <button type="button" data-markdown-share="raw">Share raw .md explicitly</button>
         <button class="subtle" type="button" data-markdown-share="close">Cancel</button>
       </div>
+      <p id="markdownShareStatus" class="viewer-sheet-status" role="status" aria-live="polite"></p>
     </div>
   </div>
   <main class="shell">
@@ -694,6 +786,7 @@
       <div class="actions">
         <a id="open" class="button" href="#" target="_blank" rel="noopener">Open Original</a>
         <a id="download" class="button secondary" href="#" download>Download</a>
+        <button id="forwardWeixin" class="button secondary" type="button">转发微信</button>
       </div>
       <div class="note">
         This page keeps Hermes Mobile navigation available. Word/DOCX files are previewed inside Hermes Mobile; use Open Original only when you need the native viewer.
@@ -702,6 +795,7 @@
   </main>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
+  <script src="/markdown-renderer-client.js?v=20260515-md-font-stepdown"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const key = localStorage.getItem("hermesWebKey") || "";
@@ -718,6 +812,75 @@
     let cachedPreviewText = "";
     let imageSwipe = null;
     let handlingViewerBack = false;
+    const VIEWER_FONT_SIZE_OPTIONS = Object.freeze([
+      { id: "small", scale: 0.92 },
+      { id: "standard", scale: 1 },
+      { id: "large", scale: 1.1 },
+      { id: "xlarge", scale: 1.2 },
+      { id: "xxlarge", scale: 1.32 },
+    ]);
+    const VIEWER_FONT_FAMILY_OPTIONS = Object.freeze([
+      {
+        id: "system",
+        family: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif',
+      },
+      {
+        id: "sans",
+        family: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Aptos", "Segoe UI", sans-serif',
+      },
+      {
+        id: "serif",
+        family: '"Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif',
+      },
+      {
+        id: "kai",
+        family: '"Kaiti SC", "KaiTi", "STKaiti", "Microsoft YaHei", serif',
+      },
+    ]);
+
+    function viewerFontSizeOption(value) {
+      const id = String(value || "").trim();
+      return VIEWER_FONT_SIZE_OPTIONS.find((option) => option.id === id)
+        || VIEWER_FONT_SIZE_OPTIONS.find((option) => option.id === "standard");
+    }
+
+    function viewerMarkdownSizeOption(value) {
+      const option = viewerFontSizeOption(value);
+      const index = VIEWER_FONT_SIZE_OPTIONS.findIndex((item) => item.id === option.id);
+      return VIEWER_FONT_SIZE_OPTIONS[Math.min(VIEWER_FONT_SIZE_OPTIONS.length - 1, Math.max(0, index))] || option;
+    }
+
+    function viewerFontFamilyOption(value) {
+      const id = String(value || "").trim();
+      return VIEWER_FONT_FAMILY_OPTIONS.find((option) => option.id === id) || VIEWER_FONT_FAMILY_OPTIONS[0];
+    }
+
+    function currentViewerPreferences() {
+      const fontSize = viewerFontSizeOption(localStorage.getItem("hermesWebFontSize") || "standard");
+      const markdownSize = viewerMarkdownSizeOption(fontSize.id);
+      const fontFamily = viewerFontFamilyOption(localStorage.getItem("hermesWebFontFamily") || "system");
+      return { fontSize, markdownSize, fontFamily };
+    }
+
+    function applyViewerPreferences() {
+      const prefs = currentViewerPreferences();
+      document.documentElement.dataset.fontSize = prefs.fontSize.id;
+      document.documentElement.dataset.fontFamily = prefs.fontFamily.id;
+      document.documentElement.style.setProperty("--viewer-font-scale", String(prefs.fontSize.scale));
+      document.documentElement.style.setProperty("--viewer-markdown-font-scale", String(prefs.markdownSize.scale));
+      document.documentElement.style.setProperty("--viewer-font-family", prefs.fontFamily.family);
+    }
+
+    function cssPx(value) {
+      return `${Number(value || 0).toFixed(2).replace(/\.?0+$/, "")}px`;
+    }
+
+    function viewerMarkdownFontScaleClass(value) {
+      const scale = viewerFontSizeOption(value).id;
+      return `hermes-markdown-font-${scale}`;
+    }
+
+    applyViewerPreferences();
 
     function formatBytes(bytes) {
       const n = Number(bytes || 0);
@@ -1014,155 +1177,15 @@
       }
     }
 
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    }
-
-    function renderInlineMarkdown(value) {
-      const code = [];
-      let html = escapeHtml(value).replace(/`([^`]+)`/g, (_match, text) => {
-        const id = code.length;
-        code.push(`<code>${text}</code>`);
-        return `\u0000CODE${id}\u0000`;
-      });
-      html = html
-        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-        .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-        .replace(/\*([^*\s][^*]*?)\*/g, "<em>$1</em>")
-        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-      return html.replace(/\u0000CODE(\d+)\u0000/g, (_match, id) => code[Number(id)] || "");
-    }
-
-    function splitMarkdownTableRow(line) {
-      return String(line || "")
-        .trim()
-        .replace(/^\|/, "")
-        .replace(/\|$/, "")
-        .split("|")
-        .map((cell) => cell.trim());
-    }
-
-    function isMarkdownTableDivider(line) {
-      return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(String(line || ""));
-    }
-
-    function renderMarkdownTable(lines, startIndex) {
-      const header = splitMarkdownTableRow(lines[startIndex]);
-      const rows = [];
-      let index = startIndex + 2;
-      while (index < lines.length && /\|/.test(lines[index]) && lines[index].trim()) {
-        rows.push(splitMarkdownTableRow(lines[index]));
-        index += 1;
-      }
-      const head = `<thead><tr>${header.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("")}</tr></thead>`;
-      const body = rows.length
-        ? `<tbody>${rows.map((row) => `<tr>${row.map((cell, cellIndex) => {
-            const label = header[cellIndex] || "";
-            return `<td data-label="${escapeHtml(label)}">${renderInlineMarkdown(cell)}</td>`;
-          }).join("")}</tr>`).join("")}</tbody>`
-        : "";
-      return { html: `<div class="markdown-table-wrap"><table>${head}${body}</table></div>`, nextIndex: index };
-    }
+    const markdownRenderer = window.HermesMarkdownRenderer;
+    const escapeHtml = markdownRenderer.escapeHtml;
 
     function renderMarkdownDocument(text) {
-      const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
-      const out = [];
-      let paragraph = [];
-      let list = null;
-      let inFence = false;
-      let fence = [];
-
-      function flushParagraph() {
-        if (!paragraph.length) return;
-        out.push(`<p>${renderInlineMarkdown(paragraph.join(" "))}</p>`);
-        paragraph = [];
-      }
-
-      function flushList() {
-        if (!list) return;
-        out.push(`<${list.type}>${list.items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</${list.type}>`);
-        list = null;
-      }
-
-      function flushFence() {
-        if (!inFence) return;
-        out.push(`<pre><code>${escapeHtml(fence.join("\n"))}</code></pre>`);
-        inFence = false;
-        fence = [];
-      }
-
-      for (let i = 0; i < lines.length; i += 1) {
-        const line = lines[i];
-        const trimmed = line.trim();
-        if (/^```/.test(trimmed)) {
-          flushParagraph();
-          flushList();
-          if (inFence) flushFence();
-          else {
-            inFence = true;
-            fence = [];
-          }
-          continue;
-        }
-        if (inFence) {
-          fence.push(line);
-          continue;
-        }
-        if (!trimmed) {
-          flushParagraph();
-          flushList();
-          continue;
-        }
-        if (i + 1 < lines.length && /\|/.test(line) && isMarkdownTableDivider(lines[i + 1])) {
-          flushParagraph();
-          flushList();
-          const table = renderMarkdownTable(lines, i);
-          out.push(table.html);
-          i = table.nextIndex - 1;
-          continue;
-        }
-        const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
-        if (heading) {
-          flushParagraph();
-          flushList();
-          const level = heading[1].length;
-          out.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
-          continue;
-        }
-        if (/^[-*_]{3,}$/.test(trimmed)) {
-          flushParagraph();
-          flushList();
-          out.push("<hr>");
-          continue;
-        }
-        const quote = trimmed.match(/^>\s?(.*)$/);
-        if (quote) {
-          flushParagraph();
-          flushList();
-          out.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
-          continue;
-        }
-        const unordered = trimmed.match(/^[-*+]\s+(.+)$/);
-        const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
-        if (unordered || ordered) {
-          flushParagraph();
-          const type = ordered ? "ol" : "ul";
-          if (!list || list.type !== type) flushList();
-          if (!list) list = { type, items: [] };
-          list.items.push((unordered || ordered)[1]);
-          continue;
-        }
-        paragraph.push(trimmed);
-      }
-      flushFence();
-      flushParagraph();
-      flushList();
-      return `<article>${out.join("\n")}</article>`;
+      return markdownRenderer.renderMarkdownDocument(text, {
+        fontScale: currentViewerPreferences().markdownSize.id,
+        linkTarget: "_blank",
+        taskListCompatibility: true,
+      });
     }
 
     function renderTextPreview(data, label, options = {}) {
@@ -1299,11 +1322,29 @@
       return btoa(binary);
     }
 
+    function markdownShareStatusElement() {
+      return document.getElementById("markdownShareStatus");
+    }
+
+    function setMarkdownShareStatus(message, kind = "") {
+      const status = markdownShareStatusElement();
+      if (!status) return;
+      status.textContent = message || "";
+      status.classList.toggle("error", kind === "error");
+      status.classList.toggle("success", kind === "success");
+    }
+
+    function setMarkdownShareBusy(button, busy) {
+      if (!button) return;
+      button.disabled = Boolean(busy);
+      button.setAttribute("aria-busy", busy ? "true" : "false");
+    }
+
     async function forwardMarkdownToGroup() {
       const text = await ensureMarkdownPreviewText();
       if (!text.trim()) throw new Error("Markdown preview is empty.");
       const workspaceId = workspaceIdForForward();
-      setTransientStatus("正在转发到群...");
+      setTransientStatus("\u6b63\u5728\u8f6c\u53d1\u5230\u7fa4...");
       const singleWindow = await apiJson("/api/single-window", {
         method: "POST",
         body: JSON.stringify({ workspaceId, groupChat: true }),
@@ -1324,7 +1365,7 @@
       await apiJson(`/api/threads/${encodeURIComponent(threadId)}/messages`, {
         method: "POST",
         body: JSON.stringify({
-          text: `转发 Markdown：${filename}`,
+          text: `\u8f6c\u53d1 Markdown\uff1a${filename}`,
           artifacts: [upload.artifact],
           workspaceId,
           singleWindowMode: "chat",
@@ -1332,10 +1373,45 @@
           messageKind: "plain",
         }),
       });
-      setTransientStatus("已转发到群。");
+      setTransientStatus("\u5df2\u8f6c\u53d1\u5230\u7fa4");
+    }
+
+    async function forwardFileToWeixin() {
+      if (!src) throw new Error("No file URL is available.");
+      const workspaceId = workspaceIdForForward();
+      setTransientStatus("\u6b63\u5728\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217...");
+      if (isMarkdownDocument()) {
+        const text = await ensureMarkdownPreviewText();
+        if (!text.trim()) throw new Error("Markdown preview is empty.");
+        const filename = String(name || "").toLowerCase().endsWith(".md") ? name : markdownBaseName("md");
+        await apiJson("/api/weixin/forward-file", {
+          method: "POST",
+          body: JSON.stringify({
+            workspaceId,
+            inlineFile: {
+              filename,
+              contentType: "text/markdown; charset=utf-8",
+              contentBase64: bytesToBase64(new TextEncoder().encode(text)),
+            },
+          }),
+        });
+        setTransientStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217");
+        return;
+      }
+      await apiJson("/api/weixin/forward-file", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId,
+          sourceUrl: src,
+        }),
+      });
+      setTransientStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217");
     }
 
     function markdownExportHtml(options = {}) {
+      const prefs = currentViewerPreferences();
+      const markdownFontSize = cssPx(18 * prefs.markdownSize.scale);
+      const fontFamily = prefs.fontFamily.family;
       const autoPrintScript = options.autoPrint ? `<script>
 window.addEventListener("load", function () {
   window.setTimeout(function () {
@@ -1350,16 +1426,24 @@ window.addEventListener("load", function () {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(name)}</title>
   <style>
-    body{margin:0;background:#f7f1e8;color:#17222b;font:18px/1.72 "Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;}
-    main{max-width:860px;margin:0 auto;padding:28px 22px 48px;}
-    h1,h2,h3,h4{line-height:1.28;margin:1.1em 0 .46em;color:#111b22;}
-    h2{border-bottom:1px solid rgba(36,53,48,.14);padding-bottom:.25em;}
-    .markdown-table-wrap{max-width:100%;overflow-x:auto;border:1px solid rgba(36,53,48,.16);border-radius:12px;background:rgba(255,255,255,.48);-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;}table{width:100%;border-collapse:collapse;font-size:.92em;margin:0;}th,td{border:1px solid rgba(36,53,48,.16);padding:.45em .5em;vertical-align:top;}th{background:rgba(31,119,104,.08);}
-    blockquote{margin:.8em 0;padding:.08em 0 .08em .82em;border-left:4px solid rgba(31,119,104,.28);color:#40515c;}
-    code{background:rgba(20,32,39,.08);border-radius:6px;padding:.08em .28em;font-family:Consolas,monospace;font-size:.88em;}
-    pre{overflow-x:auto;background:rgba(20,32,39,.08);border-radius:12px;padding:.9em;}pre code{background:transparent;padding:0;}
-    @media(max-width:640px){.markdown-table-wrap{overflow:visible;border:0;border-radius:0;background:transparent;touch-action:pan-y;}table,thead,tbody,tr,th,td{display:block;width:100%;}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}tr{margin:0 0 .82em;border:1px solid rgba(36,53,48,.16);border-radius:12px;background:rgba(255,255,255,.48);overflow:hidden;}td{display:grid;grid-template-columns:minmax(6.5em,38%) minmax(0,1fr);gap:.75em;align-items:start;border:0;border-bottom:1px solid rgba(36,53,48,.12);overflow-wrap:anywhere;word-break:break-word;}td:last-child{border-bottom:0;}td::before{content:attr(data-label);color:#42515c;font-size:.82em;font-weight:780;line-height:1.35;}td[data-label=""]{grid-template-columns:1fr;}td[data-label=""]::before{content:none;}}
-    @media print{body{background:#fff;}main{max-width:none;padding:18mm 16mm;font-size:12pt;}}
+    *{box-sizing:border-box;}
+    body{margin:0;background:#fff;color:#24292f;font:${markdownFontSize}/1.72 ${fontFamily};-webkit-text-size-adjust:100%;}
+    main{max-width:860px;margin:0 auto;padding:28px 22px 48px;overflow-wrap:anywhere;}
+    article{max-width:860px;margin:0 auto;}
+    h1,h2,h3,h4{line-height:1.25;margin:1.35em 0 .62em;color:#1f2328;font-weight:760;letter-spacing:0;overflow-wrap:anywhere;}
+    h1{margin-top:.25em;padding-bottom:.3em;border-bottom:1px solid #d8dee4;font-size:1.72em;}
+    h2{padding-bottom:.3em;border-bottom:1px solid #d8dee4;font-size:1.36em;}
+    h3{font-size:1.12em;}h4{font-size:1em;}
+    p,ul,ol,blockquote,pre,.markdown-table-wrap{margin:.86em 0;}p{min-width:0;overflow-wrap:anywhere;}ul,ol{padding-left:1.45em;}li+li{margin-top:.28em;}
+    ul.task-list{padding-left:0;list-style:none;}.task-list-item{display:grid;grid-template-columns:1.25em minmax(0,1fr);gap:.42em;align-items:start;}.task-list-item input{width:1em;height:1em;margin:.32em 0 0;accent-color:#1f6feb;}
+    a{color:#0969da;text-decoration:none;}a:hover{text-decoration:underline;}
+    blockquote{padding:.05em 0 .05em 1em;color:#57606a;border-left:.25em solid #d0d7de;}
+    code{background:rgba(175,184,193,.2);border-radius:6px;padding:.12em .35em;font-family:"Cascadia Code","SFMono-Regular",Consolas,monospace;font-size:.88em;overflow-wrap:anywhere;}
+    pre{overflow-x:auto;background:#f6f8fa;border:1px solid #d8dee4;border-radius:8px;padding:1em;line-height:1.55;-webkit-overflow-scrolling:touch;}pre code{background:transparent;padding:0;border-radius:0;font-size:.9em;}
+    .markdown-table-wrap{max-width:100%;overflow-x:auto;border:1px solid #d8dee4;border-radius:8px;background:#fff;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;}table{width:100%;border-collapse:collapse;font-size:.94em;margin:0;}th,td{min-width:0;border:1px solid #d0d7de;padding:.55em .65em;vertical-align:top;overflow-wrap:anywhere;}th{background:#f6f8fa;font-weight:820;}tr:nth-child(even) td{background:rgba(246,248,250,.56);}
+    hr{margin:1.5em 0;border:0;border-top:1px solid #d8dee4;}
+    @media(max-width:640px){main{padding:22px 16px 40px;}.markdown-table-wrap{overflow:visible;border:0;border-radius:0;background:transparent;touch-action:pan-y;}table,thead,tbody,tr,th,td{display:block;width:100%;}thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}tr{margin:0 0 .82em;border:1px solid #d0d7de;border-radius:8px;background:#fff;overflow:hidden;}td{display:grid;grid-template-columns:minmax(5.8em,34%) minmax(0,1fr);gap:.7em;align-items:start;border:0;border-bottom:1px solid #d8dee4;overflow-wrap:anywhere;word-break:break-word;}td:last-child{border-bottom:0;}td::before{content:attr(data-label);color:#57606a;font-size:.82em;font-weight:780;line-height:1.35;overflow-wrap:anywhere;}td[data-label=""]{grid-template-columns:1fr;}td[data-label=""]::before{content:none;}}
+    @media print{body{background:#fff;font-size:12pt;}main{max-width:none;padding:18mm 16mm;}a{color:inherit;text-decoration:underline;}}
   </style>
 </head>
 <body><main>${renderMarkdownDocument(cachedPreviewText)}</main>${autoPrintScript}</body>
@@ -1396,9 +1480,11 @@ window.addEventListener("load", function () {
     function openMarkdownPrintWindow() {
       const printWindow = window.open("about:blank", "_blank");
       if (!printWindow) return null;
+      const prefs = currentViewerPreferences();
+      const loadingFontSize = cssPx(18 * prefs.fontSize.scale);
       try {
         printWindow.document.open();
-        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preparing PDF</title><style>body{margin:0;background:#f7f1e8;color:#17222b;font:18px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}main{padding:28px 22px;}</style></head><body><main>Preparing PDF preview...</main></body></html>`);
+        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preparing PDF</title><style>body{margin:0;background:#f7f1e8;color:#17222b;font:${loadingFontSize}/1.7 ${prefs.fontFamily.family};}main{padding:28px 22px;}</style></head><body><main>Preparing PDF preview...</main></body></html>`);
         printWindow.document.close();
       } catch (_) {}
       return printWindow;
@@ -1437,27 +1523,39 @@ window.addEventListener("load", function () {
 
     function hideMarkdownShareSheet() {
       document.getElementById("markdownShareSheet")?.classList.add("hidden");
+      setMarkdownShareStatus("");
     }
 
     function showMarkdownShareSheet() {
+      setMarkdownShareStatus("");
       document.getElementById("markdownShareSheet")?.classList.remove("hidden");
     }
 
-    async function handleMarkdownShareAction(action) {
+    async function handleMarkdownShareAction(action, button = null) {
       if (!action || action === "close") {
         hideMarkdownShareSheet();
         return;
       }
+      setMarkdownShareBusy(button, true);
+      setMarkdownShareStatus(action === "weixin" ? "\u6b63\u5728\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217..." : "");
       try {
         if (action === "html") await shareGeneratedMarkdownFile("html");
         else if (action === "word") await shareGeneratedMarkdownFile("word");
         else if (action === "print") await printMarkdownAsPdf();
         else if (action === "copy") await copyMarkdownText();
         else if (action === "group") await forwardMarkdownToGroup();
+        else if (action === "weixin") await forwardFileToWeixin();
         else if (action === "raw") await shareOriginalFile();
+        if (action === "weixin") setMarkdownShareStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217", "success");
         hideMarkdownShareSheet();
       } catch (err) {
-        if (!isUserCancelledShare(err)) setTransientStatus(err.message || "Share failed.");
+        if (!isUserCancelledShare(err)) {
+          const message = err.message || "Share failed.";
+          setMarkdownShareStatus(message, "error");
+          setTransientStatus(message);
+        }
+      } finally {
+        setMarkdownShareBusy(button, false);
       }
     }
 
@@ -1470,7 +1568,7 @@ window.addEventListener("load", function () {
           if (event.target === sheet) hideMarkdownShareSheet();
           return;
         }
-        handleMarkdownShareAction(button.dataset.markdownShare || "");
+        handleMarkdownShareAction(button.dataset.markdownShare || "", button);
       });
     }
 
@@ -1495,7 +1593,7 @@ window.addEventListener("load", function () {
           return;
         }
         if (!cachedShareBlob) {
-          setTransientStatus("文件还在准备，已先打开原文件。");
+          setTransientStatus("\u6587\u4ef6\u8fd8\u5728\u51c6\u5907\uff0c\u5df2\u5148\u6253\u5f00\u539f\u6587\u4ef6\u3002");
           location.href = downloadUrl;
           return;
         }
@@ -1508,11 +1606,11 @@ window.addEventListener("load", function () {
         const cachedUrl = URL.createObjectURL(cachedShareBlob);
         window.open(cachedUrl, "_blank", "noopener");
         window.setTimeout(() => URL.revokeObjectURL(cachedUrl), 30000);
-        setTransientStatus("此浏览器不支持系统分享，已尝试打开文件。");
+        setTransientStatus("\u6b64\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u5206\u4eab\uff0c\u5df2\u5c1d\u8bd5\u6253\u5f00\u6587\u4ef6\u3002");
         return;
       } catch (err) {
         if (isUserCancelledShare(err)) return;
-        setTransientStatus("系统分享不可用，已打开原文件。");
+        setTransientStatus("\u7cfb\u7edf\u5206\u4eab\u4e0d\u53ef\u7528\uff0c\u5df2\u6253\u5f00\u539f\u6587\u4ef6\u3002");
         location.href = downloadUrl;
         return;
       }
@@ -1528,9 +1626,9 @@ window.addEventListener("load", function () {
         const objectUrl = URL.createObjectURL(blob);
         window.open(objectUrl, "_blank", "noopener");
         window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-        setTransientStatus("此浏览器不支持系统分享，已尝试打开文件。");
+        setTransientStatus("\u6b64\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u5206\u4eab\uff0c\u5df2\u5c1d\u8bd5\u6253\u5f00\u6587\u4ef6\u3002");
       } catch (err) {
-        setTransientStatus(err.message || "无法分享此文件。");
+        setTransientStatus(err.message || "\u65e0\u6cd5\u5206\u4eab\u6b64\u6587\u4ef6\u3002");
       }
     }
 
@@ -1558,6 +1656,9 @@ window.addEventListener("load", function () {
     document.getElementById("download").setAttribute("download", name);
     document.getElementById("download").addEventListener("click", downloadFile);
     document.getElementById("share").addEventListener("click", shareFile);
+    document.getElementById("forwardWeixin").addEventListener("click", () => {
+      forwardFileToWeixin().catch((err) => setTransientStatus(err.message || "Weixin forwarding failed."));
+    });
     if (src && !isMarkdownDocument()) window.setTimeout(() => prepareShareBlob().catch(() => {}), 500);
 
     if (src && kind === "IMG") {

@@ -1,0 +1,7 @@
+name: hermes-mobile-audio
+version: 1.0.0
+description: "Hermes Mobile scoped audio transcription tool for low-permission Gateway profiles."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - file
