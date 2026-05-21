@@ -111,12 +111,31 @@ verify_gateway_profile() {
 
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$worker_home_dir/logs"
 
+stop_gateway_port() {
+  local port="$1"
+  local pids=""
+  pids="$(ss -ltnp "sport = :${port}" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u | tr '\n' ' ' | xargs || true)"
+  if [ -z "$pids" ]; then
+    return 0
+  fi
+  echo "Stopping existing low Gateway listener on port ${port}: ${pids}" >&2
+  kill $pids 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    if ! ss -ltn "sport = :${port}" 2>/dev/null | grep -q ":${port}"; then
+      return 0
+    fi
+    sleep 0.25
+  done
+  kill -9 $pids 2>/dev/null || true
+}
+
 start_gateway_profile() {
   local profile="$1"
   local port="$2"
   log="$worker_home_dir/logs/${profile}-gateway-${port}.log"
   pidfile="$worker_home_dir/${profile}-gateway-${port}.pid"
   api_key="$(tr -d '\r\n' < "$api_key_file")"
+  stop_gateway_port "$port"
   rm -f "$pidfile"
   runuser -u "$worker_user" -- setsid -f env \
     HOME="$worker_home" \
