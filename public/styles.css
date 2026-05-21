@@ -7654,12 +7654,26 @@ button.directory-alias-chip {
   gap: 6px;
 }
 
-.learning-growth-board-card-meta small {
+.learning-growth-board-card-meta small,
+.learning-growth-board-artifact-link {
   padding: 4px 7px;
   border-radius: 999px;
   color: var(--muted);
   font-size: 12px;
   background: rgba(255, 252, 246, 0.8);
+}
+
+.learning-growth-board-artifact-link {
+  min-height: 28px;
+  border: 1px solid rgba(47, 75, 69, 0.12);
+  color: var(--accent);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.learning-growth-board-artifact-link:focus-visible {
+  outline: 2px solid rgba(47, 128, 112, 0.28);
+  outline-offset: 2px;
 }
 
 .learning-growth-board-empty {

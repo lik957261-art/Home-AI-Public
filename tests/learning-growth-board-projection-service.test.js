@@ -30,7 +30,7 @@ function overview() {
         { reflectionId: "refl-done", taskCardId: "task-done", status: "accepted", summary: "understood", submittedAt: "2026-05-20T08:03:00.000Z" },
       ],
       taskArtifacts: [
-        { artifactId: "art-1", taskCardId: "task-reflect", artifactType: "feedback_report", name: "report.md", mime: "text/markdown", size: 12, status: "available", refDigest: "abc" },
+        { artifactId: "art-1", taskCardId: "task-reflect", artifactType: "feedback_report", name: "report.md", mime: "text/markdown", size: 12, status: "available", refDigest: "abc", path: "C:\\Deliverables\\task-reflect\\report.md" },
       ],
       learnerProfile: { profileSummary: "profile summary" },
       skillStates: [{ skillId: "grammar", confidence: 0.42, summary: "weak" }],
@@ -52,6 +52,7 @@ function testBoardClassifiesNativeTasksIntoLanes() {
   assert.equal(reflectCard.primaryAction, "reflect");
   assert.equal(reflectCard.actions.canReflect, true);
   assert.equal(reflectCard.artifactPreview[0].name, "report.md");
+  assert.equal(reflectCard.artifactDirectoryPath, "C:\\Deliverables\\task-reflect");
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").rewardCapCoins, 100);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").openedAt, "2026-05-20T07:30:00.000Z");
   assert.equal(JSON.stringify(board).includes("refDigest"), false);
@@ -75,6 +76,52 @@ function testCompletedLaneSortsByCompletedTimeDescending() {
   const board = buildLearningGrowthBoard({ overview: completedOverview, today: "2026-05-20" });
   const completed = board.lanes.find((lane) => lane.id === "completed_recent");
   assert.deepEqual(completed.cards, ["done-new", "done-mid", "done-old"]);
+}
+
+function testBoardDerivesArtifactDirectoryForHistoricalCounts() {
+  const source = overview();
+  const historicalOverview = Object.assign({}, source, {
+    programs: Object.assign({}, source.programs, {
+      executableTasks: [
+        { taskCardId: "task-history", title: "History", status: "completed", workspaceId: "weixin_stephen", artifactCount: 2 },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({
+    overview: historicalOverview,
+    today: "2026-05-20",
+    artifactDirectoryForTask: (task) => `C:\\Deliverables\\${task.taskCardId}`,
+  });
+  assert.equal(board.cards[0].artifactDirectoryPath, "C:\\Deliverables\\task-history");
+}
+
+function testServiceUsesArtifactServiceForBoardDirectories() {
+  const service = createLearningGrowthBoardProjectionService({
+    learningGrowthService: {
+      overview(input) {
+        return Object.assign({}, overview(), {
+          programs: {
+            executableTasks: [{ taskCardId: "task-service", title: "Service", status: "completed", workspaceId: input.workspaceId, artifactCount: 1 }],
+            taskSubmissions: [],
+            evaluations: [],
+            taskReflections: [],
+            taskArtifacts: [],
+          },
+        });
+      },
+    },
+    artifactService: {
+      caseDeliverableDirectory(workspaceId, caseId, taskCardId) {
+        return `C:\\${workspaceId}\\${caseId}\\${taskCardId}`;
+      },
+    },
+  });
+  const result = service.board({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(result.board.cards[0].artifactDirectoryPath, "C:\\weixin_stephen\\learning-growth\\task-service");
 }
 
 function testBoardKeepsOwnerPanelOwnerOnly() {
@@ -308,6 +355,8 @@ function testBoardFiltersRetiredAndCancelledTasks() {
 
 testBoardClassifiesNativeTasksIntoLanes();
 testCompletedLaneSortsByCompletedTimeDescending();
+testBoardDerivesArtifactDirectoryForHistoricalCounts();
+testServiceUsesArtifactServiceForBoardDirectories();
 testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();

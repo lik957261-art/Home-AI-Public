@@ -547,6 +547,7 @@ async function submitLearningEvaluationForm(event, sessionId) {
 }
 
 function wireLearningCoinsView() {
+  if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks($("conversation"));
   $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
   });

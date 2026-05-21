@@ -18,7 +18,7 @@ const overview = {
     ],
     cards: [
       { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", openedAt: "2026-05-20T09:30:00", primaryAction: "submit", nextAction: "submit", artifactCount: 0, rewardCapCoins: 120 },
-      { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1 },
+      { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1, artifactDirectoryPath: "C:\\Deliverables\\task-2" },
     ],
   },
   capabilities: [
@@ -137,6 +137,8 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /奖励 120 金币/);
   assert.match(html, /开放 2026-05-20 09:30/);
+  assert.match(html, /data-directory-path-open/);
+  assert.match(html, /data-directory-path="C:\\Deliverables\\task-2"/);
   assert.doesNotMatch(html, /上限 120 金币|任务概览|学习任务/);
   assert.doesNotMatch(html, /提交作答|learning-growth-board-card-actions/);
   assert.doesNotMatch(html, /data-learning-growth-tabs/);

@@ -113,6 +113,7 @@ function createLearningApiRoutes(deps = {}) {
   }
   const learningGrowthBoardService = deps.learningGrowthBoardService || createLearningGrowthBoardProjectionService({
     learningGrowthService,
+    artifactService: deps.kanbanStudyArtifactService,
   });
   const registry = createApiRouteRegistry(LEARNING_API_ROUTE_SPECS);
 

@@ -590,6 +590,7 @@ function createMobileApiComposition(deps = {}) {
       learningProgramService,
     }),
     learningGrowthTaskService,
+    kanbanStudyArtifactService: deps.kanbanStudyArtifactService,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
   });

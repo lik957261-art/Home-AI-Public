@@ -53,6 +53,7 @@ function latestForTask(records = [], taskCardId = "", field = "updatedAt") {
 }
 
 function publicArtifactPreview(artifact) {
+  const filePath = artifactFilePath(artifact);
   return {
     artifactId: cleanString(artifact?.artifactId),
     artifactType: cleanString(artifact?.artifactType),
@@ -61,7 +62,36 @@ function publicArtifactPreview(artifact) {
     mime: cleanString(artifact?.mime, 120),
     size: numberValue(artifact?.size),
     status: cleanString(artifact?.status),
+    directoryPath: parentDirectoryPath(filePath),
   };
+}
+
+function artifactFilePath(artifact = {}) {
+  const value = cleanString(artifact.path || artifact.localPath || artifact.sourcePath || artifact.filePath || artifact.ref || "", 2000);
+  return value && value !== "[redacted]" ? value : "";
+}
+
+function parentDirectoryPath(filePath = "") {
+  const value = cleanString(filePath, 2000);
+  if (!value) return "";
+  const trimmed = value.replace(/[\\/]+$/, "");
+  const index = Math.max(trimmed.lastIndexOf("\\"), trimmed.lastIndexOf("/"));
+  return index > 0 ? trimmed.slice(0, index) : "";
+}
+
+function cardArtifactDirectoryPath(task = {}, artifacts = [], latest = {}, context = {}, artifactCount = 0) {
+  const explicitDirectory = cleanString(task.artifactDirectoryPath || task.deliverableDirectoryPath || task.reportDirectoryPath, 2000);
+  if (explicitDirectory) return explicitDirectory;
+  for (const artifact of arrayValue(artifacts)) {
+    const directoryPath = cleanString(artifact?.directoryPath, 2000);
+    if (directoryPath) return directoryPath;
+  }
+  const reportDirectory = parentDirectoryPath(latest.evaluation?.report?.path);
+  if (reportDirectory) return reportDirectory;
+  if (artifactCount > 0 && typeof context.artifactDirectoryForTask === "function") {
+    return cleanString(context.artifactDirectoryForTask(task), 2000);
+  }
+  return "";
 }
 
 function taskLockedUntil(task = {}, nowIso = "") {
@@ -181,6 +211,7 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
   const artifacts = arrayValue(context.artifacts)
     .filter((artifact) => cleanString(artifact?.taskCardId) === taskCardId)
     .map(publicArtifactPreview);
+  const artifactCount = artifacts.length || numberValue(task.artifactCount);
   const action = taskStatus(task, latest, context);
   const laneId = laneForTask(task, latest, context.today, context);
   const actions = actionModel(laneId, action);
@@ -220,8 +251,9 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     latestSubmission: latest.submission || null,
     latestEvaluation: latest.evaluation || null,
     latestReflection: latest.reflection || null,
-    artifactCount: artifacts.length || numberValue(task.artifactCount),
+    artifactCount,
     artifactPreview: artifacts.slice(0, 3),
+    artifactDirectoryPath: cardArtifactDirectoryPath(task, artifacts, latest, context, artifactCount),
     rewardState: cleanString(latest.evaluation?.passed ? "eligible_after_reflection" : ""),
     rewardPolicy,
     rewardCapCoins: rewardPolicy.maxCoins,
@@ -326,6 +358,7 @@ function buildLearningGrowthBoard(input = {}) {
     evaluations: arrayValue(programs.evaluations),
     reflections: arrayValue(programs.taskReflections),
     artifacts: arrayValue(programs.taskArtifacts),
+    artifactDirectoryForTask: input.artifactDirectoryForTask,
   };
   const allCards = mergeTasks(programs).map((task, index) => publicBoardCard(task, context, index));
   const sequence = visibleSequenceCards(allCards);
@@ -382,6 +415,7 @@ function buildLearningGrowthBoard(input = {}) {
 
 function createLearningGrowthBoardProjectionService(options = {}) {
   const learningGrowthService = options.learningGrowthService || null;
+  const artifactService = options.artifactService || null;
   const clock = options.clock || Date;
   if (!learningGrowthService || typeof learningGrowthService.overview !== "function") {
     throw new Error("learning growth board projection requires learningGrowthService.overview");
@@ -392,7 +426,17 @@ function createLearningGrowthBoardProjectionService(options = {}) {
         limit: Math.max(Number(input.limit || 0) || 0, 80),
       }));
       return Object.assign({}, overview, {
-        board: buildLearningGrowthBoard({ overview, clock }),
+        board: buildLearningGrowthBoard({
+          overview,
+          clock,
+          artifactDirectoryForTask: (task) => artifactService && typeof artifactService.caseDeliverableDirectory === "function"
+            ? artifactService.caseDeliverableDirectory(
+              cleanString(task?.workspaceId || input.workspaceId || "owner"),
+              cleanString(task?.kanbanCaseId || task?.kanban_case_id || "learning-growth"),
+              cleanString(task?.taskCardId || task?.id || "card"),
+            )
+            : "",
+        }),
       });
     },
   };

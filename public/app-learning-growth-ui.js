@@ -167,6 +167,14 @@
     return normalized.length > 16 ? normalized.slice(0, 16) : normalized;
   }
 
+  function renderArtifactCountPill(card = {}, artifacts = 0, escapeHtml = defaultEscapeHtml) {
+    const directoryPath = String(card.artifactDirectoryPath || "").trim();
+    const label = `${artifacts} \u4e2a\u4ea4\u4ed8`;
+    if (!artifacts) return "";
+    if (!directoryPath) return `<small>${escapeHtml(label)}</small>`;
+    return `<button type="button" class="learning-growth-board-artifact-link" data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(card.title || "\u4ea4\u4ed8\u76ee\u5f55")}" aria-label="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55">${escapeHtml(label)}</button>`;
+  }
+
   function renderBoardCard(card = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(card.taskCardId || "");
@@ -188,7 +196,7 @@
         ${card.activityType ? `<small>${escapeHtml(card.activityType)}</small>` : ""}
         ${cardOpenTimeText(card) ? `<small>\u5f00\u653e ${escapeHtml(cardOpenTimeText(card))}</small>` : ""}
         ${scoreText ? `<small>${escapeHtml(scoreText)}</small>` : ""}
-        ${artifacts ? `<small>${escapeHtml(String(artifacts))} \u4e2a\u4ea4\u4ed8</small>` : ""}
+        ${renderArtifactCountPill(card, artifacts, escapeHtml)}
       </div>
     </article>`;
   }
