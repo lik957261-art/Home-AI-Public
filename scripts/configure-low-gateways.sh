@@ -13,6 +13,9 @@ shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
 shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$telemetry_profiles_root/shared-auth}"
 shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$shared_auth_default_root/auth.json}"
 shared_auth_lock_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_LOCK_PATH:-$shared_auth_default_root/auth.lock}"
+grok_auth_default_root="${HERMES_GROK_GATEWAY_AUTH_ROOT:-$telemetry_profiles_root/shared-auth-grok}"
+grok_auth_path="${HERMES_GROK_GATEWAY_AUTH_PATH:-$grok_auth_default_root/auth.json}"
+grok_auth_lock_path="${HERMES_GROK_GATEWAY_AUTH_LOCK_PATH:-$grok_auth_default_root/auth.lock}"
 legacy_shared_auth_path="$worker_home_dir/auth.json"
 legacy_shared_auth_lock_path="$worker_home_dir/auth.lock"
 shared_auth_source_profile="${HERMES_LOW_GATEWAY_SHARED_AUTH_SOURCE_PROFILE:-}"
@@ -174,6 +177,7 @@ prepare_low_gateway_profile_link() {
 }
 
 install -d -m 700 -o "$worker_user" -g "$worker_user" "$(dirname "$shared_auth_path")"
+install -d -m 700 -o "$worker_user" -g "$worker_user" "$(dirname "$grok_auth_path")"
 
 if [ "$shared_auth_path" != "$legacy_shared_auth_path" ] && [ ! -s "$shared_auth_path" ] && [ -s "$legacy_shared_auth_path" ]; then
   install -m 600 -o "$worker_user" -g "$worker_user" "$legacy_shared_auth_path" "$shared_auth_path"
@@ -224,6 +228,15 @@ fi
 
 if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ] && [ -s "$shared_auth_seed_path" ]; then
   install -m 600 -o "$worker_user" -g "$worker_user" "$shared_auth_seed_path" "$shared_auth_path"
+fi
+
+if [ "$grok_gateway_count" -gt 0 ] && [ ! -s "$grok_auth_path" ] && [ -s "$shared_auth_path" ]; then
+  install -m 600 -o "$worker_user" -g "$worker_user" "$shared_auth_path" "$grok_auth_path"
+fi
+if [ "$grok_gateway_count" -gt 0 ] && [ ! -e "$grok_auth_lock_path" ]; then
+  install -m 600 -o "$worker_user" -g "$worker_user" /dev/null "$grok_auth_lock_path" || touch "$grok_auth_lock_path"
+  chown "$worker_user:$worker_user" "$grok_auth_lock_path" 2>/dev/null || true
+  chmod 600 "$grok_auth_lock_path" 2>/dev/null || true
 fi
 
 if [ "$shared_auth_enabled" = "1" ]; then
@@ -698,8 +711,8 @@ cron:
 YAML
     if [ "$shared_auth_enabled" = "1" ]; then
       rm -f "$profile_link/auth.json" "$profile_link/auth.lock"
-      ln -s "$shared_auth_path" "$profile_link/auth.json"
-      ln -s "$shared_auth_lock_path" "$profile_link/auth.lock"
+      ln -s "$grok_auth_path" "$profile_link/auth.json"
+      ln -s "$grok_auth_lock_path" "$profile_link/auth.lock"
     elif [ -s "$profile_link/auth.json" ]; then
       chmod 600 "$profile_link/auth.json" || true
     elif [ -s "$profile_seed" ]; then
