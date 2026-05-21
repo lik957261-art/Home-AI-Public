@@ -8,6 +8,7 @@
   }
 
   async function loadLearningAiSummaryRecommendations() {
+    state.learningGrowthActiveTab = "ai-summary";
     state.learningAiSummaryLoading = true;
     state.learningAiSummaryError = "";
     renderLearningCoinsView();
@@ -28,6 +29,7 @@
   }
 
   async function createLearningAiRecommendedDraft(recommendationId) {
+    state.learningGrowthActiveTab = "ai-summary";
     const recommendation = (state.learningAiSummary?.recommendedSeries || []).find((item) => String(item.recommendationId || item.id || "") === String(recommendationId || ""));
     if (!recommendation) return;
     state.learningAiDraftCreatingId = recommendation.recommendationId || recommendation.id;

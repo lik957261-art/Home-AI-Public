@@ -424,6 +424,7 @@ const state = {
   learningAiSummaryLoading: false,
   learningAiSummaryError: "",
   learningAiDraftCreatingId: "",
+  learningGrowthActiveTab: "settings",
   learningCoinRequestSeq: 0,
   learningGrowthSettingsOpen: false,
   directoryThreadId: "",

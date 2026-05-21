@@ -319,11 +319,13 @@
     const visible = tabs.filter((tab) => tab && tab.html);
     if (!visible.length) return "";
     const first = visible[0].id;
+    const requested = String(options.activeTab || options.state?.learningGrowthActiveTab || "").trim();
+    const activeId = visible.some((tab) => tab.id === requested) ? requested : first;
     return `<section class="learning-growth-tabs" data-learning-growth-tabs>
       <div class="learning-growth-tab-list" role="tablist" aria-label="\u590d\u7528\u7684\u5e73\u53f0\u80fd\u529b">
-        ${visible.map((tab, index) => `<button type="button" role="tab" data-learning-growth-tab="${escapeHtml(tab.id)}" aria-selected="${index === 0 ? "true" : "false"}" class="${index === 0 ? "active" : ""}">${escapeHtml(tab.label)}</button>`).join("")}
+        ${visible.map((tab) => `<button type="button" role="tab" data-learning-growth-tab="${escapeHtml(tab.id)}" aria-selected="${tab.id === activeId ? "true" : "false"}" class="${tab.id === activeId ? "active" : ""}">${escapeHtml(tab.label)}</button>`).join("")}
       </div>
-      ${visible.map((tab) => `<section class="learning-growth-tab-panel${tab.id === first ? " active" : ""}" data-learning-growth-tab-panel="${escapeHtml(tab.id)}" role="tabpanel"${tab.id === first ? "" : " hidden"}>
+      ${visible.map((tab) => `<section class="learning-growth-tab-panel${tab.id === activeId ? " active" : ""}" data-learning-growth-tab-panel="${escapeHtml(tab.id)}" role="tabpanel"${tab.id === activeId ? "" : " hidden"}>
         ${tab.html}
       </section>`).join("")}
     </section>`;
@@ -338,7 +340,9 @@
     });
     const execution = programUi.renderExecutionOverview(data, programOptions);
     const guidance = programUi.renderGuidancePanel(data, programOptions);
+    const rewardPolicy = renderOwnerRewardPolicySettings(overview, options);
     const config = [
+      rewardPolicy,
       programUi.renderFoundationPanel(data, programOptions),
       programUi.renderProgramForm(data, programOptions),
     ].join("");
@@ -390,34 +394,70 @@
       ...asArray(overview.programs?.executableTasks),
     ].filter((task) => {
       const id = String(task?.taskCardId || task?.id || "");
-      if (!id || seen.has(id)) return false;
+      if (!id || seen.has(id) || task?.readOnly || id.startsWith("legacy_todo:")) return false;
       seen.add(id);
       return true;
     });
   }
 
+  function taskSeriesKey(task = {}) {
+    return String(task.sequenceGroupId || task.programId || task.templateId || task.taskModel?.templateId || task.taskCardId || task.id || "").trim();
+  }
+
+  function taskSeriesLabel(series = {}) {
+    if (series.templateId === "english-speaking-retell-v1") return "\u82f1\u8bed\u9605\u8bfb\u590d\u8ff0";
+    if (series.templateId === "english-short-writing-v1") return "\u82f1\u8bed\u77ed\u5199\u4f5c";
+    if (series.templateId === "english-vocabulary-active-use-v1") return "\u82f1\u8bed\u8bcd\u6c47\u6d3b\u7528";
+    return series.title || series.skillId || series.templateId || "\u5b66\u4e60\u4efb\u52a1\u7cfb\u5217";
+  }
+
+  function rewardTaskSeries(overview = {}) {
+    const groups = new Map();
+    uniqueRewardTasks(overview).forEach((task) => {
+      const key = taskSeriesKey(task);
+      if (!key) return;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          ids: [],
+          title: task.title,
+          templateId: task.templateId || task.taskModel?.templateId || "",
+          skillId: task.skillId || asArray(task.skillIds)[0] || "",
+          activityType: task.activityType || "",
+          sequenceGroupId: task.sequenceGroupId || "",
+          coins: taskRewardCapCoins(task),
+        });
+      }
+      const group = groups.get(key);
+      const id = String(task.taskCardId || task.id || "");
+      if (id && !group.ids.includes(id)) group.ids.push(id);
+      group.coins = taskRewardCapCoins(task);
+    });
+    return [...groups.values()].sort((a, b) => taskSeriesLabel(a).localeCompare(taskSeriesLabel(b), "zh-Hans-CN"));
+  }
+
   function renderOwnerRewardPolicySettings(overview = {}, options = {}) {
     if (!isOwner(options)) return "";
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    const tasks = uniqueRewardTasks(overview).slice(0, 80);
-    if (!tasks.length) return "";
+    const series = rewardTaskSeries(overview).slice(0, 40);
+    if (!series.length) return "";
     return `<section class="learning-coin-panel learning-task-reward-policy-settings" data-learning-task-reward-policy-settings>
       <div class="learning-section-heading">
-        <h3>\u4efb\u52a1\u5956\u52b1</h3>
-        <span>${escapeHtml(String(tasks.length))}</span>
+        <h3>\u5956\u52b1\u89c4\u5219</h3>
+        <span>\u6309\u7cfb\u5217</span>
       </div>
+      <p class="learning-growth-muted">\u540c\u4e00\u4e2a\u4efb\u52a1\u7cfb\u5217\u5171\u7528\u4e00\u4e2a\u91d1\u5e01\u6570\uff0c\u4e0d\u518d\u6309\u5355\u5f20\u5361\u7247\u5206\u522b\u8bbe\u7f6e\u3002</p>
       <div class="learning-task-reward-policy-list">
-        ${tasks.map((task) => {
-          const id = String(task.taskCardId || task.id || "");
-          const coins = taskRewardCapCoins(task);
-          return `<form class="learning-task-reward-policy-form compact" data-learning-task-reward-policy-form="${escapeHtml(id)}">
+        ${series.map((item) => {
+          const ids = item.ids.join(",");
+          return `<form class="learning-task-reward-policy-form compact" data-learning-task-reward-policy-series-form="${escapeHtml(ids)}">
             <div>
-              <strong>${escapeHtml(task.title || id || "\u5b66\u4e60\u4efb\u52a1")}</strong>
-              <span>${escapeHtml(boardStatusText(task))}</span>
+              <strong>${escapeHtml(taskSeriesLabel(item))}</strong>
+              <span>${escapeHtml([item.templateId, item.skillId, `${item.ids.length} \u5f20\u5361`].filter(Boolean).join(" · "))}</span>
             </div>
-            <label><span>\u91d1\u5e01</span><input class="input" name="maxCoins" type="number" min="1" max="1000" step="1" value="${escapeHtml(String(coins))}"></label>
+            <label><span>\u91d1\u5e01</span><input class="input" name="maxCoins" type="number" min="1" max="1000" step="1" value="${escapeHtml(String(item.coins))}"></label>
             <button type="submit">\u4fdd\u5b58</button>
-            <small data-learning-task-reward-policy-state="${escapeHtml(id)}" aria-live="polite"></small>
+            <small data-learning-task-reward-policy-state="${escapeHtml(ids)}" aria-live="polite"></small>
           </form>`;
         }).join("")}
       </div>
@@ -491,7 +531,6 @@
           <span>${escapeHtml(learnerLabel)}</span>
         </div>
       </div>
-      ${renderOwnerRewardPolicySettings(overview, options)}
       ${adminHtml}
     </div>`;
   }

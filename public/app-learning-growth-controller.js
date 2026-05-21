@@ -102,6 +102,7 @@ function selectLearningGrowthTab(tabId) {
   const id = String(tabId || "").trim();
   const root = $("conversation");
   if (!root || !id) return;
+  state.learningGrowthActiveTab = id;
   root.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
     const active = button.dataset.learningGrowthTab === id;
     button.classList.toggle("active", active);
@@ -135,6 +136,7 @@ function selectLearningGrowthBoardLane(laneId) {
 
 function openLearningGrowthSettingsPage() {
   state.learningGrowthSettingsOpen = true;
+  state.learningGrowthActiveTab = state.learningGrowthActiveTab || "settings";
   state.selectedLearningTaskCardId = "";
   renderLearningCoinsView();
 }
@@ -667,11 +669,7 @@ function wireLearningCoinsView() {
       submitNativeGrowthReflection(event, form.dataset.taskCardId || form.dataset.learningNativeGrowthReflectionForm);
     });
   });
-  $("conversation")?.querySelectorAll("[data-learning-task-reward-policy-form]").forEach((form) => {
-    form.addEventListener("submit", (event) => {
-      submitLearningTaskRewardPolicyForm(event, form.dataset.learningTaskRewardPolicyForm).catch(showError);
-    });
-  });
+  window.HermesLearningGrowthRewardController?.wireLearningGrowthRewardPolicy?.();
   $("conversation")?.querySelectorAll("[data-learning-open-growth-task]").forEach((button) => {
     button.addEventListener("click", () => openLearningGrowthTask(
       button.dataset.learningOpenGrowthTask,

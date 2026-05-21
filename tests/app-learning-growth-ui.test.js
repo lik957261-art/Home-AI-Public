@@ -269,13 +269,14 @@ function testOwnerRendererShowsIndependentSettingsPage() {
     overview,
     coinsUi: CoinsUi,
     programUi: ProgramUi,
-    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningAiSummary },
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningGrowthActiveTab: "ai-summary", learningAiSummary },
   });
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-settings-page/);
   assert.match(html, /data-learning-growth-close-settings/);
   assert.match(html, /data-learning-task-reward-policy-settings/);
-  assert.match(html, /data-learning-task-reward-policy-form="task-1"/);
+  assert.match(html, /data-learning-task-reward-policy-series-form=/);
+  assert.doesNotMatch(html, /data-learning-task-reward-policy-form="task-1"/);
   assert.match(html, /name="maxCoins"/);
   assert.doesNotMatch(html, /data-learning-growth-board-summary/);
   assert.doesNotMatch(html, /data-learning-growth-owner-menu/);
@@ -283,6 +284,9 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.match(html, /data-learning-growth-tabs/);
   assert.match(html, /data-learning-growth-tab="settings"/);
   assert.match(html, /data-learning-growth-tab="ai-summary"/);
+  assert.match(html, /data-learning-growth-tab="ai-summary" aria-selected="true" class="active"/);
+  assert.match(html, /data-learning-growth-tab-panel="settings" role="tabpanel" hidden/);
+  assert.match(html, /data-learning-growth-tab-panel="ai-summary" role="tabpanel">\s*<section/);
   assert.match(html, /data-learning-ai-summary-recommendations/);
   assert.match(html, /data-learning-ai-summary-refresh/);
   assert.match(html, /data-learning-ai-recommendation-draft="rec-1"/);
