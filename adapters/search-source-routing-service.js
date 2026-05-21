@@ -234,13 +234,13 @@ function resolveSearchSourceForMessage(body = {}, text = "") {
   const command = searchSourceFromCommand(text);
   const fromBody = searchSourceFromBody(body);
   const manualBody = Boolean(fromBody.explicit && fromBody.mode === SEARCH_SOURCE_MODE_MANUAL);
-  const selected = manualBody ? fromBody : (command.explicit ? command : fromBody);
+  const selected = fromBody;
   const source = selected.source;
   const explicit = Boolean(selected.explicit);
   const option = searchSourceOption(source);
   const mode = option.source === SEARCH_SOURCE_LOCAL
     ? SEARCH_SOURCE_MODE_LOCAL
-    : normalizeSearchSourceMode(selected.mode, selected === fromBody ? SEARCH_SOURCE_MODE_MANUAL : SEARCH_SOURCE_MODE_AUTO);
+    : normalizeSearchSourceMode(selected.mode, SEARCH_SOURCE_MODE_MANUAL);
   return {
     source: option.source,
     sourceIntent: option.sourceIntent,
@@ -249,7 +249,7 @@ function resolveSearchSourceForMessage(body = {}, text = "") {
     sourceMode: mode,
     manualExplicit: mode === SEARCH_SOURCE_MODE_MANUAL && option.source !== SEARCH_SOURCE_LOCAL,
     autoDetected: mode === SEARCH_SOURCE_MODE_AUTO && option.source !== SEARCH_SOURCE_LOCAL,
-    commandExplicit: Boolean(command.explicit),
+    commandExplicit: Boolean(command.explicit && manualBody),
     bodyExplicit: Boolean(fromBody.explicit),
     accessPolicyContext: searchSourceAccessPolicyContext(option.source),
     instructions: searchSourceInstructions(option.source, mode),

@@ -68,8 +68,7 @@ function composerModelLabel() {
 function composerSearchSourceLabel() {
   if (isChatSearchMode()) return null;
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
-  const info = selectedComposerSearchSourceInfo(getComposerText());
-  const activeInfo = info && info.source !== "local" ? info : activeRunSearchSourceInfo();
+  const activeInfo = activeRunSearchSourceInfo();
   if (!activeInfo || activeInfo.source === "local") return null;
   return { label: `\u4fe1\u6e90 ${activeInfo.label}`, tone: "active" };
 }
@@ -277,7 +276,6 @@ function shouldShowComposerContext(items, counts) {
     || composerHasDraft()
     || state.pendingArtifacts.length
     || Boolean(composerModelLabel()?.label)
-    || selectedComposerSearchSourceInfo(getComposerText()).source !== "local"
     || Boolean(activeRunSearchSourceInfo())
     || state.quotedReply
     || state.pendingTaskDirectory?.projectId
