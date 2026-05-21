@@ -139,6 +139,18 @@ function taskComplete(card = {}) {
   return card.laneId === "completed_recent" || card.nextAction === "complete";
 }
 
+function completionTimeForCard(card = {}) {
+  return cleanString(
+    card.latestReflection?.submittedAt
+      || card.latestReflection?.createdAt
+      || card.completedAt
+      || card.latestEvaluation?.createdAt
+      || card.latestSubmission?.submittedAt
+      || card.generatedAt
+      || card.openedAt,
+  );
+}
+
 function actionModel(laneId, action) {
   return {
     canSubmit: laneId !== "locked_until" && (action === "submit" || action === "revise"),
@@ -152,6 +164,15 @@ function actionModel(laneId, action) {
 function publicBoardCard(task = {}, context = {}, index = 0) {
   const taskCardId = cleanString(task.taskCardId || task.id);
   const rewardPolicy = normalizeLearningCardRewardPolicy(task.rewardPolicy || { rewardCapCoins: task.rewardCapCoins });
+  const openedAt = cleanString(
+    task.availableAt
+      || task.unlockAt
+      || task.learningGrowthUnlockAt
+      || task.learningGrowthJitGeneration?.generatedAt
+      || task.taskModel?.jitGeneration?.generatedAt
+      || task.createdAt
+      || task.plannedDate,
+  );
   const latest = {
     submission: task.latestSubmission || latestForTask(context.submissions, taskCardId, "submittedAt"),
     evaluation: task.latestEvaluation || latestForTask(context.evaluations, taskCardId, "createdAt"),
@@ -188,8 +209,11 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     domain: cleanString(task.domain),
     activityType: cleanString(task.activityType || task.taskModel?.activityType || task.taskModel?.skillId || task.taskCardType),
     plannedDate: cleanString(task.plannedDate),
+    openedAt,
+    generatedAt: openedAt,
     plannedMinutes: numberValue(task.plannedMinutes),
     status: cleanString(task.status || task.executionStatus),
+    completedAt: cleanString(task.completedAt || task.finishedAt || task.closedAt),
     nextCompletionAllowedAt,
     nextAction: action,
     laneId,
@@ -309,6 +333,16 @@ function buildLearningGrowthBoard(input = {}) {
   for (const card of cards) {
     const lane = laneMap.get(card.laneId) || laneMap.get("ready");
     lane.cards.push(card.taskCardId);
+  }
+  const cardById = new Map(cards.map((card) => [card.taskCardId, card]));
+  const completedLane = laneMap.get("completed_recent");
+  if (completedLane) {
+    completedLane.cards.sort((a, b) => {
+      const at = completionTimeForCard(cardById.get(a));
+      const bt = completionTimeForCard(cardById.get(b));
+      if (at !== bt) return at > bt ? -1 : 1;
+      return String(a).localeCompare(String(b));
+    });
   }
   const coins = overview.coins ? {
     balances: overview.coins.balances || null,

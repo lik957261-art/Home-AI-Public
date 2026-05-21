@@ -7181,10 +7181,7 @@ button.directory-alias-chip {
 .learning-growth-board-summary {
   display: grid;
   gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid rgba(20, 32, 39, 0.10);
-  border-radius: 8px;
-  background: var(--paper);
+  padding: 2px 0 6px;
 }
 
 .learning-growth-board-summary-head {
@@ -7260,17 +7257,14 @@ button.directory-alias-chip {
   min-width: 0;
   display: grid;
   gap: 2px;
-  padding: 6px 8px;
-  border: 1px solid rgba(20, 32, 39, 0.08);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.66);
+  padding: 0;
 }
 
 .learning-growth-board-summary-metrics b {
   min-width: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 18px;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -7278,7 +7272,7 @@ button.directory-alias-chip {
 
 .learning-growth-board-summary-metrics small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.1;
 }
 
@@ -7591,10 +7585,7 @@ button.directory-alias-chip {
   display: grid;
   align-content: start;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid rgba(31, 111, 98, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 252, 246, 0.78);
+  padding: 0;
 }
 
 .learning-growth-board-lane[hidden] {
@@ -7826,6 +7817,45 @@ button.directory-alias-chip {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.learning-task-reward-policy-settings {
+  gap: 10px;
+}
+
+.learning-task-reward-policy-list {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-task-reward-policy-form.compact {
+  grid-template-columns: minmax(0, 1fr) 96px auto;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.learning-task-reward-policy-form.compact div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.learning-task-reward-policy-form.compact strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.learning-task-reward-policy-form.compact span,
+.learning-task-reward-policy-form.compact small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .learning-growth-tabs {

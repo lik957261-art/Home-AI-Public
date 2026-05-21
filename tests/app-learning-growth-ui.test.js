@@ -17,7 +17,7 @@ const overview = {
       { id: "waiting_ai", title: "Waiting for AI", count: 1, cards: ["task-2"] },
     ],
     cards: [
-      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", primaryAction: "submit", nextAction: "submit", artifactCount: 0, rewardCapCoins: 120 },
+      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", openedAt: "2026-05-20T09:30:00", primaryAction: "submit", nextAction: "submit", artifactCount: 0, rewardCapCoins: 120 },
       { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1 },
     ],
   },
@@ -82,7 +82,7 @@ const overview = {
     reviewItems: [{ reviewId: "review-1", status: "pending", summary: "review" }],
     parentReviewRequests: [{ reviewRequestId: "parent-review-1", status: "pending", summary: "parent review" }],
     rewardSettlements: [{ rewardSettlementId: "settle-1", status: "pending_review", coinAmount: 10 }],
-    taskCards: [{ taskCardId: "task-1", title: "Task status", status: "published", plannedDate: "2026-05-17", skillIds: ["english_speaking_retell"] }],
+    taskCards: [{ taskCardId: "task-1", title: "Task status", status: "published", plannedDate: "2026-05-17", openedAt: "2026-05-17T08:00:00.000Z", skillIds: ["english_speaking_retell"], rewardCapCoins: 100 }],
     interactionSessions: [{ sessionId: "session-1", taskCardId: "task-1", status: "active", currentStep: "learner_attempt" }],
     dailyPlan: {
       summary: { totalTasks: 1, pendingTasks: 1, totalMinutes: 30, activeDays: 1 },
@@ -129,11 +129,15 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-learning-growth-board-panel="waiting_ai" hidden/);
   assert.match(html, /data-growth-board-lane="today"/);
   assert.match(html, /data-growth-board-lane="waiting_ai"/);
+  assert.doesNotMatch(html, /learning-growth-board-lane-head/);
   assert.match(html, /Native board task/);
+  assert.doesNotMatch(html, /<small>执行者<\/small>|<small>历史累计<\/small>/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /learning-growth-board-card-preview/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
-  assert.match(html, /上限 120 金币/);
+  assert.match(html, /奖励 120 金币/);
+  assert.match(html, /开放 2026-05-20 09:30/);
+  assert.doesNotMatch(html, /上限 120 金币|任务概览|学习任务/);
   assert.doesNotMatch(html, /提交作答|learning-growth-board-card-actions/);
   assert.doesNotMatch(html, /data-learning-growth-tabs/);
   assert.doesNotMatch(html, /data-learning-growth-tab="execution"/);
@@ -142,8 +146,7 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-growth-tab="config"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="review"/);
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
-  assert.match(html, /执行者/);
-  assert.match(html, /历史累计/);
+  assert.doesNotMatch(html, /执行者|历史累计/);
   assert.match(html, /70 金币/);
   assert.match(html, /aria-label="成长概览"/);
   assert.doesNotMatch(html, /凡凡成长系统|凡凡成长|成长看板/);
@@ -253,6 +256,9 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-settings-page/);
   assert.match(html, /data-learning-growth-close-settings/);
+  assert.match(html, /data-learning-task-reward-policy-settings/);
+  assert.match(html, /data-learning-task-reward-policy-form="task-1"/);
+  assert.match(html, /name="maxCoins"/);
   assert.doesNotMatch(html, /data-learning-growth-board-summary/);
   assert.doesNotMatch(html, /data-learning-growth-owner-menu/);
   assert.doesNotMatch(html, /data-learning-growth-owner-tools/);

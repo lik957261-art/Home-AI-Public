@@ -271,7 +271,7 @@ function testNativeTaskWithoutKanbanLinkUsesNativeSubmission() {
   assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
 }
 
-function testNativeTaskDetailShowsRewardPolicyAndOwnerCapForm() {
+function testNativeTaskDetailShowsRewardPolicyWithoutCapForm() {
   const html = ProgramUi.renderNativeGrowthTaskDetail({
     taskCardId: "task-native-reward",
     source: "learning-growth",
@@ -285,9 +285,9 @@ function testNativeTaskDetailShowsRewardPolicyAndOwnerCapForm() {
     state: { auth: { isOwner: true } },
   });
   assert.match(html, /data-learning-task-reward-policy/);
-  assert.match(html, /上限 130 金币/);
-  assert.match(html, /data-learning-task-reward-policy-form="task-native-reward"/);
-  assert.match(html, /name="maxCoins"/);
+  assert.match(html, /奖励 130 金币/);
+  assert.doesNotMatch(html, /data-learning-task-reward-policy-form="task-native-reward"/);
+  assert.doesNotMatch(html, /name="maxCoins"/);
 }
 
 function testNativeSpeakingTaskRendersAudioRecorder() {
@@ -350,7 +350,7 @@ testOwnerFormAndActionsRender();
 testNonOwnerCannotSeeCreateForm();
 testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst();
 testNativeTaskWithoutKanbanLinkUsesNativeSubmission();
-testNativeTaskDetailShowsRewardPolicyAndOwnerCapForm();
+testNativeTaskDetailShowsRewardPolicyWithoutCapForm();
 testNativeSpeakingTaskRendersAudioRecorder();
 testNativeTaskReflectionStateRendersReflectionForm();
 

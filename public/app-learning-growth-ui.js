@@ -24,6 +24,10 @@
     return Boolean(options.state?.auth?.isOwner);
   }
 
+  function asArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
   function statusText(status) {
     const value = String(status || "");
     if (value === "active") return "\u5df2\u63a5\u5165";
@@ -129,6 +133,7 @@
     if (value === "waiting_ai") return "\u7b49\u5f85 AI";
     if (value === "needs_revision") return "\u5f85\u4fee\u8ba2";
     if (value === "reflection_required") return "\u5f85\u590d\u76d8";
+    if (value === "locked_until") return "\u9501\u5b9a";
     if (value === "completed_recent") return "\u6700\u8fd1\u5b8c\u6210";
     return fallback || value || "\u4efb\u52a1";
   }
@@ -149,6 +154,19 @@
     return Number.isFinite(value) && value > 0 ? Math.round(value) : 100;
   }
 
+  function cardOpenTimeText(card = {}) {
+    const value = String(card.openedAt || card.generatedAt || card.availableAt || card.createdAt || card.plannedDate || "").trim();
+    if (!value) return "";
+    const ms = Date.parse(value);
+    if (Number.isFinite(ms)) {
+      const date = new Date(ms);
+      const pad = (number) => String(number).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+    const normalized = value.replace("T", " ");
+    return normalized.length > 16 ? normalized.slice(0, 16) : normalized;
+  }
+
   function renderBoardCard(card = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(card.taskCardId || "");
@@ -161,14 +179,14 @@
       <div class="learning-growth-board-card-head">
         <button type="button" class="learning-growth-board-card-title" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
           <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
-          <small>\u4e0a\u9650 ${escapeHtml(String(taskRewardCapCoins(card)))} \u91d1\u5e01</small>
+          <small>\u5956\u52b1 ${escapeHtml(String(taskRewardCapCoins(card)))} \u91d1\u5e01</small>
         </button>
         <span>${escapeHtml(boardStatusText(card))}</span>
       </div>
       ${card.instructionPreview ? `<p class="learning-growth-board-card-preview">${escapeHtml(card.instructionPreview)}</p>` : ""}
       <div class="learning-growth-board-card-meta">
         ${card.activityType ? `<small>${escapeHtml(card.activityType)}</small>` : ""}
-        ${card.plannedDate ? `<small>${escapeHtml(String(card.plannedDate).slice(0, 10))}</small>` : ""}
+        ${cardOpenTimeText(card) ? `<small>\u5f00\u653e ${escapeHtml(cardOpenTimeText(card))}</small>` : ""}
         ${scoreText ? `<small>${escapeHtml(scoreText)}</small>` : ""}
         ${artifacts ? `<small>${escapeHtml(String(artifacts))} \u4e2a\u4ea4\u4ed8</small>` : ""}
       </div>
@@ -192,22 +210,13 @@
       });
     });
     const requestedLane = String(options.activeGrowthBoardLane || "").trim();
-    const fallbackLane = laneModels.find((lane) => lane.count > 0)?.id || laneModels[0]?.id || "";
-    const activeLaneId = laneModels.some((lane) => lane.id === requestedLane) ? requestedLane : fallbackLane;
-    const summary = board.summary || {};
-    const visibleCount = Number(summary.visibleCardCount ?? summary.cardCount ?? cards.length) || 0;
-    const hiddenFutureCount = Number(summary.hiddenFutureCardCount || 0) || 0;
-    const totalCount = Number(summary.totalCardCount || visibleCount + hiddenFutureCount) || visibleCount;
-    const countText = hiddenFutureCount > 0
-      ? `${visibleCount} \u5f20\u5f53\u524d\u00b7${hiddenFutureCount} \u5f20\u5f85\u89e3\u9501`
-      : `${visibleCount || totalCount} \u5f20\u4efb\u52a1`;
+    const visibleLaneModels = laneModels.filter((lane) => lane.count > 0);
+    const displayLaneModels = visibleLaneModels.length ? visibleLaneModels : laneModels;
+    const fallbackLane = displayLaneModels.find((lane) => lane.count > 0)?.id || displayLaneModels[0]?.id || "";
+    const activeLaneId = displayLaneModels.some((lane) => lane.id === requestedLane) ? requestedLane : fallbackLane;
     return `<section class="learning-growth-board" data-learning-growth-board>
-      <div class="learning-growth-board-heading">
-        <h3>\u4efb\u52a1</h3>
-        <span>${escapeHtml(countText)}</span>
-      </div>
       <div class="learning-growth-board-status-filter" role="tablist" aria-label="\u6210\u957f\u4efb\u52a1\u72b6\u6001">
-        ${laneModels.map((lane) => {
+        ${displayLaneModels.map((lane) => {
           const active = lane.id === activeLaneId;
           return `<button type="button" class="learning-growth-board-status-chip${active ? " active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-learning-growth-board-filter="${escapeHtml(lane.id)}">
             <strong>${escapeHtml(boardLaneTitle(lane.id, lane.title))}</strong>
@@ -216,13 +225,9 @@
         }).join("")}
       </div>
       <div class="learning-growth-board-lanes" data-growth-board-active-lane="${escapeHtml(activeLaneId)}">
-        ${laneModels.map((lane) => {
+        ${displayLaneModels.map((lane) => {
           const active = lane.id === activeLaneId;
           return `<section class="learning-growth-board-lane${active ? " active" : ""}" data-growth-board-lane="${escapeHtml(lane.id)}" data-learning-growth-board-panel="${escapeHtml(lane.id)}"${active ? "" : " hidden"}>
-            <div class="learning-growth-board-lane-head">
-              <strong>${escapeHtml(boardLaneTitle(lane.id, lane.title))}</strong>
-              <span>${escapeHtml(String(lane.count))}</span>
-            </div>
             ${lane.laneCards.length
               ? lane.laneCards.map((card) => renderBoardCard(card, options)).join("")
               : `<div class="learning-growth-board-empty">\u6ca1\u6709\u5f53\u524d\u4efb\u52a1</div>`}
@@ -376,6 +381,48 @@
     </section>`;
   }
 
+  function uniqueRewardTasks(overview = {}) {
+    const seen = new Set();
+    return [
+      ...asArray(overview.board?.cards),
+      ...asArray(overview.programs?.taskCards),
+      ...asArray(overview.programs?.executableTasks),
+    ].filter((task) => {
+      const id = String(task?.taskCardId || task?.id || "");
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+
+  function renderOwnerRewardPolicySettings(overview = {}, options = {}) {
+    if (!isOwner(options)) return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const tasks = uniqueRewardTasks(overview).slice(0, 80);
+    if (!tasks.length) return "";
+    return `<section class="learning-coin-panel learning-task-reward-policy-settings" data-learning-task-reward-policy-settings>
+      <div class="learning-section-heading">
+        <h3>\u4efb\u52a1\u5956\u52b1</h3>
+        <span>${escapeHtml(String(tasks.length))}</span>
+      </div>
+      <div class="learning-task-reward-policy-list">
+        ${tasks.map((task) => {
+          const id = String(task.taskCardId || task.id || "");
+          const coins = taskRewardCapCoins(task);
+          return `<form class="learning-task-reward-policy-form compact" data-learning-task-reward-policy-form="${escapeHtml(id)}">
+            <div>
+              <strong>${escapeHtml(task.title || id || "\u5b66\u4e60\u4efb\u52a1")}</strong>
+              <span>${escapeHtml(boardStatusText(task))}</span>
+            </div>
+            <label><span>\u91d1\u5e01</span><input class="input" name="maxCoins" type="number" min="1" max="1000" step="1" value="${escapeHtml(String(coins))}"></label>
+            <button type="submit">\u4fdd\u5b58</button>
+            <small data-learning-task-reward-policy-state="${escapeHtml(id)}" aria-live="polite"></small>
+          </form>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
   function renderOwnerSettingsPage(programUi, coinsUi, overview = {}, options = {}) {
     if (!isOwner(options) || !programUi || typeof renderOwnerProgramTabs !== "function") return "";
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
@@ -397,6 +444,7 @@
           <span>${escapeHtml(learnerLabel)}</span>
         </div>
       </div>
+      ${renderOwnerRewardPolicySettings(overview, options)}
       ${adminHtml}
     </div>`;
   }
@@ -466,12 +514,9 @@
     }
     return `<div class="learning-growth-view learning-growth-board-page" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
       <section class="learning-growth-board-summary" data-learning-growth-board-summary>
-        <div class="learning-growth-board-summary-head">
-          <span>${escapeHtml(owner ? "\u4efb\u52a1\u6982\u89c8" : "\u5b66\u4e60\u4efb\u52a1")}</span>
-        </div>
         <div class="learning-growth-board-summary-metrics" aria-label="\u6210\u957f\u6982\u89c8">
-          <span><b>${escapeHtml(learnerLabel)}</b><small>\u6267\u884c\u8005</small></span>
-          <span><b>${escapeHtml(coinText)}</b><small>\u5386\u53f2\u7d2f\u8ba1</small></span>
+          <span><b>${escapeHtml(learnerLabel)}</b></span>
+          <span><b>${escapeHtml(coinText)}</b></span>
         </div>
       </section>
       ${boardHtml}

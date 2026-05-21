@@ -14,7 +14,7 @@ function overview() {
     coins: { balances: { availableCoins: 120 }, growth: { activeDaysInLast7: 3 }, rewards: [], redemptions: [{ id: "redeem-1" }] },
     programs: {
       executableTasks: [
-        { taskCardId: "task-ready", title: "Ready", status: "published", plannedDate: "2026-05-20", taskModel: { skillId: "english_short_writing" } },
+        { taskCardId: "task-ready", title: "Ready", status: "published", plannedDate: "2026-05-20", createdAt: "2026-05-20T07:30:00.000Z", taskModel: { skillId: "english_short_writing" } },
         { taskCardId: "task-ai", title: "Waiting", status: "published" },
         { taskCardId: "task-reflect", title: "Reflect", status: "published" },
         { taskCardId: "task-done", title: "Done", status: "completed" },
@@ -53,7 +53,28 @@ function testBoardClassifiesNativeTasksIntoLanes() {
   assert.equal(reflectCard.actions.canReflect, true);
   assert.equal(reflectCard.artifactPreview[0].name, "report.md");
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").rewardCapCoins, 100);
+  assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").openedAt, "2026-05-20T07:30:00.000Z");
   assert.equal(JSON.stringify(board).includes("refDigest"), false);
+}
+
+function testCompletedLaneSortsByCompletedTimeDescending() {
+  const source = overview();
+  const completedOverview = Object.assign({}, source, {
+    programs: Object.assign({}, source.programs, {
+      executableTasks: [
+        { taskCardId: "done-old", sequenceGroupId: "done-old", title: "Old", status: "completed", completedAt: "2026-05-20T08:00:00.000Z" },
+        { taskCardId: "done-new", sequenceGroupId: "done-new", title: "New", status: "completed", completedAt: "2026-05-20T10:00:00.000Z" },
+        { taskCardId: "done-mid", sequenceGroupId: "done-mid", title: "Mid", status: "completed", completedAt: "2026-05-20T09:00:00.000Z" },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: completedOverview, today: "2026-05-20" });
+  const completed = board.lanes.find((lane) => lane.id === "completed_recent");
+  assert.deepEqual(completed.cards, ["done-new", "done-mid", "done-old"]);
 }
 
 function testBoardKeepsOwnerPanelOwnerOnly() {
@@ -113,6 +134,7 @@ function testBoardPrefersFullNativeTaskMetadataOverExecutorSummary() {
           title: "Executor summary",
           status: "published",
           plannedDate: "2026-05-20",
+          createdAt: "2026-05-20T06:00:00.000Z",
         },
       ],
       taskCards: [
@@ -124,6 +146,7 @@ function testBoardPrefersFullNativeTaskMetadataOverExecutorSummary() {
           title: "Full native retell",
           status: "published",
           plannedDate: "2026-05-20",
+          learningGrowthJitGeneration: { generatedAt: "2026-05-20T09:00:00.000Z" },
           learnerInstruction: "Read a new short passage and retell the main idea with two accurate details.",
         },
       ],
@@ -140,6 +163,7 @@ function testBoardPrefersFullNativeTaskMetadataOverExecutorSummary() {
   assert.equal(board.cards[0].sequenceGroupId, "evergreen:english-random-reading-retell");
   assert.equal(board.cards[0].sequenceIndex, 1);
   assert.equal(board.cards[0].rewardCapCoins, 100);
+  assert.equal(board.cards[0].openedAt, "2026-05-20T09:00:00.000Z");
   assert.match(board.cards[0].instructionPreview, /short passage/);
 }
 
@@ -263,6 +287,7 @@ function testBoardShowsLockedCurrentCardBeforeCompletionWindow() {
 }
 
 testBoardClassifiesNativeTasksIntoLanes();
+testCompletedLaneSortsByCompletedTimeDescending();
 testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();
