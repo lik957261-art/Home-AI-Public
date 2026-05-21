@@ -50,7 +50,7 @@ function createGatewayRunInstructionService(options = {}) {
       skills: ["skills_list", "skill_view", "skill_manage"],
       todo: ["todo"],
       kanban: ["kanban_show", "kanban_complete", "kanban_block", "kanban_heartbeat", "kanban_comment", "kanban_create", "kanban_link"],
-      cronjob: ["mobile_cronjob", "cronjob"],
+      cronjob: ["cronjob"],
       memory: ["memory"],
       session_search: ["session_search"],
       clarify: ["clarify"],
@@ -85,7 +85,7 @@ function createGatewayRunInstructionService(options = {}) {
       if (toolsets.includes("http")) lines.push("- For Program API file uploads, pass in-scope local image bytes through `http_request.file_body` or `http_request.multipart_files`; do not put local path strings or file:// URLs inside the target API JSON body.");
       if (toolsets.includes("file")) lines.push("- For Word DOCX text extraction, use `docx_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
       if (toolsets.includes("file")) lines.push("- For MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC voice notes or reading-retelling audio, use `audio_transcribe`; do not route audio-only files through `video_analyze` or ask the user to convert audio to video.");
-      if (toolsets.includes("cronjob")) lines.push("- For Hermes Mobile automation jobs, use `mobile_cronjob` when available; raw `cronjob` may point at an empty profile-local scheduler namespace.");
+      if (toolsets.includes("cronjob")) lines.push("- For Hermes Mobile automation jobs, use `cronjob`; in Hermes Mobile low Gateway profiles it is backed by the live Mobile automation bridge and requires `owner_principal_id`.");
     }
     if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
     else lines.push("- External connector profiles: none");
@@ -133,8 +133,8 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "cronjob")) {
       lines.push(
-        "Current tool schema override: the `cronjob` toolset is enabled for this run. For Hermes Mobile automations, prefer `mobile_cronjob` when available; it talks to the live Mobile automation bridge and scopes list/create/update/pause/resume/delete by `owner_principal_id`.",
-        "Set `owner_principal_id` to the current run Principal exactly. Do not use `mobile_cronjob` to inspect or mutate another principal's jobs unless the current run is explicitly Owner-authorized for that target.",
+        "Current tool schema override: the `cronjob` toolset is enabled for this run. In Hermes Mobile low Gateway profiles, `cronjob` talks to the live Mobile automation bridge and scopes list/create/update/pause/resume/delete by `owner_principal_id`.",
+        "Set `owner_principal_id` to the current run Principal exactly. Do not use `cronjob` to inspect or mutate another principal's jobs unless the current run is explicitly Owner-authorized for that target.",
         "If raw `cronjob list` returns zero jobs, do not treat that as proof Hermes Mobile has no automations; raw `cronjob` may be connected to the Gateway profile-local scheduler rather than the Mobile live automation store."
       );
     }

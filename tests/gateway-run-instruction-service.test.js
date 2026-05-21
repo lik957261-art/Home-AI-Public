@@ -32,13 +32,13 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_extract_text, audio_transcribe/);
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
   assert.match(summary, /x_search -> x_search/);
-  assert.match(summary, /cronjob -> mobile_cronjob, cronjob/);
+  assert.match(summary, /cronjob -> cronjob/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
   assert.match(summary, /http_request\.multipart_files/);
   assert.match(summary, /For Word DOCX text extraction, use `docx_extract_text`/);
   assert.match(summary, /For MP3\/M4A\/WAV\/AAC\/OGG\/OPUS\/AMR\/FLAC voice notes/);
-  assert.match(summary, /use `mobile_cronjob` when available/);
+  assert.match(summary, /use `cronjob`/);
   assert.match(summary, /External connector profiles: google, outlook/);
 }
 
@@ -57,7 +57,7 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`x_search` toolset is enabled/);
   assert.match(text, /Do not claim X was searched unless `x_search` was actually available and used/);
   assert.match(text, /`cronjob` toolset is enabled/);
-  assert.match(text, /prefer `mobile_cronjob` when available/);
+  assert.match(text, /live Mobile automation bridge/);
   assert.match(text, /current run Principal exactly/);
   assert.match(text, /profile-local scheduler/);
   assert.match(text, /function names include `image_generate`, `chatgpt_image_edit`, and `chatgpt_image_erase`/);
