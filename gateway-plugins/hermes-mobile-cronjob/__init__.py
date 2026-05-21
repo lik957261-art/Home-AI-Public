@@ -248,7 +248,7 @@ def register(ctx: Any) -> None:
         name="cronjob_mobile",
         handler=mobile_cronjob,
         schema=MOBILE_CRONJOB_SCHEMA,
-        toolset="http",
+        toolset="cronjob_mobile",
         description="Manage current-principal Hermes Mobile automations through the live Mobile bridge.",
         emoji="automation",
     )
