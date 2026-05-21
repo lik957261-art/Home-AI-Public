@@ -252,3 +252,8 @@ def register(ctx: Any) -> None:
         description="Manage current-principal Hermes Mobile automations through the live Mobile bridge.",
         emoji="automation",
     )
+    try:
+        from model_tools import _tool_defs_cache
+        _tool_defs_cache.clear()
+    except Exception:
+        pass

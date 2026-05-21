@@ -515,6 +515,7 @@ assert.match(httpPlugin, /hermes-mobile:\/\/cron/);
 assert.match(httpPlugin, /Use hermes-mobile:\/\/cron for live Hermes Mobile automation jobs/);
 assert.match(httpPlugin, /owner_principal_id is required/);
 assert.match(httpPlugin, /\/bridge\/cron/);
+assert.match(httpPlugin, /_tool_defs_cache\.clear\(\)/);
 assert.match(httpPlugin, /HERMES_MOBILE_HTTP_ALLOWED_ORIGINS/);
 assert.match(httpPlugin, /HERMES_MOBILE_HTTP_FILE_ROOTS/);
 assert.match(httpPlugin, /file_body/);
@@ -584,6 +585,7 @@ assert.match(cronjobPlugin, /toolset="http"/);
 assert.match(cronjobPlugin, /owner_principal_id is required/);
 assert.match(cronjobPlugin, /\/bridge\/cron/);
 assert.match(cronjobPlugin, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);
+assert.match(cronjobPlugin, /_tool_defs_cache\.clear\(\)/);
 assert.doesNotMatch(cronjobPlugin, /print\(.*key/i);
 
 console.log("startup scripts tests passed");

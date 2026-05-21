@@ -752,3 +752,8 @@ def register(ctx) -> None:
         description="Scoped Hermes Mobile automation management through the live Mobile bridge.",
         emoji="automation",
     )
+    try:
+        from model_tools import _tool_defs_cache
+        _tool_defs_cache.clear()
+    except Exception:
+        pass
