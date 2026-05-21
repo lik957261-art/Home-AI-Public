@@ -503,6 +503,7 @@ assert.match(httpPlugin, /CRONJOB_MOBILE_SCHEMA/);
 assert.match(httpPlugin, /"name": "http_request"/);
 assert.match(httpPlugin, /"name": "cronjob_mobile"/);
 assert.match(httpPlugin, /toolset="http"/);
+assert.match(httpPlugin, /hermes-mobile:\/\/cron/);
 assert.match(httpPlugin, /owner_principal_id is required/);
 assert.match(httpPlugin, /\/bridge\/cron/);
 assert.match(httpPlugin, /HERMES_MOBILE_HTTP_ALLOWED_ORIGINS/);

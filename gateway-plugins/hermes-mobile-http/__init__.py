@@ -42,6 +42,8 @@ HTTP_REQUEST_SCHEMA = {
         "Make a scoped HTTP(S) request to a documented current-workspace Program API. "
         "Use this for low-permission workspace APIs such as the wardrobe manifest/bundle "
         "when the endpoint and credential are documented in an allowed workspace file. "
+        "For Hermes Mobile automation jobs, set url to hermes-mobile://cron and put "
+        "action, owner_principal_id, and job fields in json; this routes through the live Mobile bridge. "
         "Do not pass raw Authorization headers; pass credential_path so the tool can load "
         "and redact the Bearer token internally."
     ),
@@ -50,7 +52,7 @@ HTTP_REQUEST_SCHEMA = {
         "properties": {
             "url": {
                 "type": "string",
-                "description": "Full http:// or https:// URL. The origin must be on the Hermes Mobile HTTP allowlist.",
+                "description": "Full http:// or https:// URL on the Hermes Mobile HTTP allowlist, or hermes-mobile://cron for live Mobile automation jobs.",
             },
             "method": {
                 "type": "string",
@@ -665,6 +667,9 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
     method = str(args.get("method") or "GET").strip().upper() or "GET"
     if method not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"}:
         return _json({"ok": False, "error": "method_not_allowed", "method": method})
+    if url == "hermes-mobile://cron":
+        cron_args = args.get("json") if isinstance(args.get("json"), dict) else args
+        return _cronjob_mobile_handler(cron_args if isinstance(cron_args, dict) else {})
     try:
         origin = _check_allowed_url(url)
         headers = _clean_headers(args.get("headers"))
