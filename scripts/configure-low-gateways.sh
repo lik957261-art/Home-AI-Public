@@ -5,10 +5,30 @@ worker_user="${HERMES_LOW_GATEWAY_USER:-hermes}"
 worker_home="/home/$worker_user"
 worker_home_dir="$worker_home/.hermes"
 gateway_worker_root="${HERMES_GATEWAY_WORKER_ROOT:-/mnt/c/ProgramData/HermesMobile/gateway-worker}"
+gateway_pool_manifest_path="${HERMES_GATEWAY_POOL_MANIFEST_PATH:-/mnt/c/ProgramData/HermesMobile/data/gateway-pool-manifest.json}"
 telemetry_profiles_root="${HERMES_LOW_GATEWAY_TELEMETRY_PROFILES_ROOT:-$gateway_worker_root/telemetry/profiles}"
 profile_auth_seed_root="${HERMES_LOW_GATEWAY_PROFILE_AUTH_ROOT:-$gateway_worker_root/profile-auth}"
-low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
+manifest_low_gateway_count() {
+  python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || echo 10
+import json, re, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    print(10)
+    raise SystemExit(0)
+count = 0
+for worker in data.get("workers") or []:
+    text = str(worker.get("profile") or worker.get("name") or "")
+    match = re.match(r"^lowgw(\d+)$", text, re.I)
+    if match:
+        count = max(count, int(match.group(1)))
+print(count or 10)
+PY
+}
+low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-$(manifest_low_gateway_count)}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
+low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
+grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
 shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
 shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$telemetry_profiles_root/shared-auth}"
 shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$shared_auth_default_root/auth.json}"
@@ -498,7 +518,7 @@ chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" || true
 
 for idx in $(seq 1 "$low_gateway_count"); do
   profile="lowgw${idx}"
-  port=$((18750 + idx))
+  port=$((low_gateway_base_port + idx))
   profile_link="$worker_home_dir/profiles/${profile}"
   profile_dir="${telemetry_profiles_root}/${profile}"
   profile_seed="$profile_auth_seed_root/${profile}/auth.json"
@@ -703,7 +723,7 @@ done
 if [ "$grok_gateway_count" -gt 0 ]; then
   for idx in $(seq 1 "$grok_gateway_count"); do
     profile="grokgw${idx}"
-    port=$((18760 + idx))
+    port=$((grok_gateway_base_port + idx))
     profile_link="$worker_home_dir/profiles/${profile}"
     profile_dir="${telemetry_profiles_root}/${profile}"
     profile_seed="$profile_auth_seed_root/${profile}/auth.json"

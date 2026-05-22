@@ -5,13 +5,33 @@ worker_user="${HERMES_LOW_GATEWAY_USER:-hermes}"
 worker_home="/home/$worker_user"
 worker_home_dir="$worker_home/.hermes"
 gateway_worker_root="${HERMES_GATEWAY_WORKER_ROOT:-/mnt/c/ProgramData/HermesMobile/gateway-worker}"
+gateway_pool_manifest_path="${HERMES_GATEWAY_POOL_MANIFEST_PATH:-/mnt/c/ProgramData/HermesMobile/data/gateway-pool-manifest.json}"
 configure_low_gateway_script="${HERMES_LOW_GATEWAY_CONFIGURE_SCRIPT:-$gateway_worker_root/configure-low-gateways.sh}"
 runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
 runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
 runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
 runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
-low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
+manifest_low_gateway_count() {
+  python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || echo 10
+import json, re, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    print(10)
+    raise SystemExit(0)
+count = 0
+for worker in data.get("workers") or []:
+    text = str(worker.get("profile") or worker.get("name") or "")
+    match = re.match(r"^lowgw(\d+)$", text, re.I)
+    if match:
+        count = max(count, int(match.group(1)))
+print(count or 10)
+PY
+}
+low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-$(manifest_low_gateway_count)}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
+low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
+grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
 
 detect_windows_host_gateway() {
   ip route 2>/dev/null | awk '/^default[[:space:]]/ { print $3; exit }'
@@ -167,13 +187,13 @@ start_gateway_profile() {
 
 for idx in $(seq 1 "$low_gateway_count"); do
   verify_gateway_profile "lowgw${idx}"
-  start_gateway_profile "lowgw${idx}" $((18750 + idx))
+  start_gateway_profile "lowgw${idx}" $((low_gateway_base_port + idx))
 done
 
 if [ "$grok_gateway_count" -gt 0 ]; then
   for idx in $(seq 1 "$grok_gateway_count"); do
     verify_gateway_profile "grokgw${idx}"
-    start_gateway_profile "grokgw${idx}" $((18760 + idx))
+    start_gateway_profile "grokgw${idx}" $((grok_gateway_base_port + idx))
   done
 fi
 
@@ -198,11 +218,11 @@ PY
   fi
 }
 
-for port in $(seq 18751 $((18750 + low_gateway_count))); do
+for port in $(seq $((low_gateway_base_port + 1)) $((low_gateway_base_port + low_gateway_count))); do
   wait_gateway_port "$port"
 done
 if [ "$grok_gateway_count" -gt 0 ]; then
-  for port in $(seq 18761 $((18760 + grok_gateway_count))); do
+  for port in $(seq $((grok_gateway_base_port + 1)) $((grok_gateway_base_port + grok_gateway_count))); do
     wait_gateway_port "$port"
   done
 fi

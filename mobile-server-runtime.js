@@ -49,7 +49,7 @@ const {
 } = require("./adapters/kanban-story-provider");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createLocalBridgeRuntimeService } = require("./adapters/local-bridge-runtime-service");
-const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service");
+const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service"); const { createGatewayWorkspaceProvisioningService } = require("./adapters/gateway-workspace-provisioning-service");
 const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runtime-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
 const { createOwnerElevationRoutingService } = require("./adapters/owner-elevation-routing-service");
@@ -504,9 +504,7 @@ function localWorkspaceDefaults(input = {}, previous = {}) {
 function localWorkspaceRecords() {
   return getLocalWorkspaceStoreService().localWorkspaceRecords();
 }
-function upsertLocalWorkspace(input, actor = "owner") {
-  return getLocalWorkspaceStoreService().upsertLocalWorkspace(input, actor);
-}
+function upsertLocalWorkspace(input, actor = "owner") { const record = getLocalWorkspaceStoreService().upsertLocalWorkspace(input, actor); record.gatewayProvisioning = createGatewayWorkspaceProvisioningService({ fs, path, manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS, nowIso }).ensureWorkspaceGateway({ workspaceId: record.id }); return record; }
 function deleteLocalWorkspace(workspaceId) {
   return getLocalWorkspaceStoreService().deleteLocalWorkspace(workspaceId);
 }
