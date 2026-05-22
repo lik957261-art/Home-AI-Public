@@ -15,6 +15,9 @@ function scheduleRenderCurrentThread() {
   if (state.renderScheduled) return;
   const conversation = $("conversation");
   if (!conversation) return;
+  if (typeof lockCodexMuxViewState === "function" && typeof isCodexMuxView === "function" && isCodexMuxView()) {
+    lockCodexMuxViewState();
+  }
   if (typeof renderCodexMuxViewSoon === "function" && renderCodexMuxViewSoon()) return;
   state.shouldStickToBottom = shouldForceChatStickToBottom() || isNearBottom();
   state.preservedBottomOffset = conversation.scrollHeight - conversation.scrollTop;
@@ -302,10 +305,14 @@ function applyEvent(payload) {
     if (wasRunning) {
       updateComposerAction();
       renderComposerContext();
-      if (typeof isCodexMuxView === "function" && isCodexMuxView()) renderCodexMuxViewSoon();
+      if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
+        if (typeof lockCodexMuxViewState === "function") lockCodexMuxViewState();
+        renderCodexMuxViewSoon();
+      }
       return;
     }
     if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
+      if (typeof lockCodexMuxViewState === "function") lockCodexMuxViewState();
       renderCodexMuxView();
       return;
     }
@@ -342,6 +349,9 @@ function applyEvent(payload) {
       state.currentThread.activeRunIds = payload.thread.activeRunIds || [];
       state.currentThread.updatedAt = payload.thread.updatedAt;
     }
-    if (typeof isCodexMuxView === "function" && isCodexMuxView()) renderCodexMuxViewSoon();
+    if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
+      if (typeof lockCodexMuxViewState === "function") lockCodexMuxViewState();
+      renderCodexMuxViewSoon();
+    }
   }
 }

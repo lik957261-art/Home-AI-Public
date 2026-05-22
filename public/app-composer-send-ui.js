@@ -20,7 +20,8 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   state.currentThread = mergeCurrentThread(result.thread);
   if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
     state.currentThreadId = state.currentThread?.id || state.currentThreadId;
-    state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
+    if (typeof lockCodexMuxViewState === "function") lockCodexMuxViewState();
+    else state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
     renderCodexMuxView();
     suppressComposerAutoFocus(1200);
     blurComposerInput();

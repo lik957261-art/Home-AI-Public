@@ -43,6 +43,7 @@ async function sendMessage(event) {
     return;
   }
   if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
+    if (typeof lockCodexMuxViewState === "function") lockCodexMuxViewState();
     const text = getComposerText().trim();
     const artifacts = state.pendingArtifacts.slice();
     if (!text && !artifacts.length) return;
@@ -52,6 +53,7 @@ async function sendMessage(event) {
       state.pendingArtifacts = [];
       renderPendingArtifacts();
       await sendCodexMuxHermesMessage(text, { artifacts });
+      if (typeof lockCodexMuxViewState === "function") lockCodexMuxViewState();
       suppressComposerAutoFocus(1200);
       blurComposerInput();
     } catch (err) {

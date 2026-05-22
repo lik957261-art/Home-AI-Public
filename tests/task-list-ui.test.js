@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-hermes-mux-tabs-v91";
+const CLIENT_VERSION = "20260522-hermes-mux-tabs-lock-v93";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -114,10 +114,15 @@ assert.match(appJs, /state\.viewMode === "codex-mux"/);
 assert.match(appJs, /async function loadCodexMux\(options = \{\}\)/);
 assert.match(appJs, /function renderCodexMuxView\(\)/);
 assert.match(appJs, /data-codex-mux-page/);
+assert.match(appJs, /function lockCodexMuxViewState\(\)/);
+assert.match(appJs, /state\.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID/);
+assert.match(appJs, /if \(typeof lockCodexMuxViewState === "function"\) lockCodexMuxViewState\(\)/);
 assert.match(appJs, /function renderCodexMuxMilestones\(items = codexMuxMilestoneItems\(\)\)/);
 assert.match(appJs, /CODEX_MUX_VISIBLE_MILESTONE_LIMIT = 24/);
 assert.match(appJs, /CODEX_MUX_VISIBLE_HERMES_MESSAGE_LIMIT = 8/);
 assert.match(appJs, /CODEX_MUX_TAB_STORAGE_KEY/);
+assert.match(appJs, /\.sort\(\(a, b\) => String\(a\.time \|\| ""\)\.localeCompare\(String\(b\.time \|\| ""\)\)\)/);
+assert.match(appJs, /\.slice\(-CODEX_MUX_VISIBLE_MILESTONE_LIMIT\)/);
 assert.match(appJs, /function codexMuxPayloadLines\(payload = \{\}\)/);
 assert.match(appJs, /function captureCodexMuxPaneScroll\(root\)/);
 assert.match(appJs, /function restoreCodexMuxPaneScroll\(snapshot = \{\}\)/);
@@ -139,8 +144,8 @@ assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-tabs-v91/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-tabs-v91/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-tabs-lock-v93/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-tabs-lock-v93/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(stylesCss, /\.codex-mux-mode \.conversation \{[\s\S]*?overflow: hidden/);
 assert.match(stylesCss, /\.codex-mux-tabs \{/);

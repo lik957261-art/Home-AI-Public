@@ -17,6 +17,13 @@ function isCodexMuxView() {
   return state.viewMode === "codex-mux";
 }
 
+function lockCodexMuxViewState() {
+  state.viewMode = "codex-mux";
+  localStorage.setItem("hermesWebViewMode", "codex-mux");
+  state.singleWindowMode = "chat";
+  state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
+}
+
 function codexMuxActiveTab() {
   const value = String(state.codexMuxActiveTab || localStorage.getItem(CODEX_MUX_TAB_STORAGE_KEY) || "hermes");
   return value === "codex" ? "codex" : "hermes";
@@ -215,8 +222,8 @@ function codexMuxMilestoneItems() {
       seen.add(key);
       return true;
     })
-    .sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")))
-    .slice(0, CODEX_MUX_VISIBLE_MILESTONE_LIMIT);
+    .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")))
+    .slice(-CODEX_MUX_VISIBLE_MILESTONE_LIMIT);
 }
 
 function renderCodexMuxMilestones(items = codexMuxMilestoneItems()) {
@@ -258,6 +265,7 @@ async function maybeActivateHermesForCodexMuxEvents() {
   const milestone = codexMuxEventMilestone(event);
   if (!milestone?.summary) return;
   localStorage.setItem(key, "1");
+  lockCodexMuxViewState();
   const detail = Array.isArray(milestone.detailLines) && milestone.detailLines.length
     ? `\n\n关键细节：\n${milestone.detailLines.map((line) => `- ${line}`).join("\n")}`
     : "";
@@ -370,7 +378,7 @@ function restoreCodexMuxPaneScroll(snapshot = {}) {
     const panel = root?.querySelector("[data-codex-mux-active-panel]");
     if (panel) {
       if (snapshot.panelTop === null || snapshot.panelTop === undefined) {
-        panel.scrollTop = codexMuxActiveTab() === "codex" ? 0 : panel.scrollHeight;
+        panel.scrollTop = panel.scrollHeight;
       } else if (Number(snapshot.panelBottomGap || 0) < 72) {
         panel.scrollTop = panel.scrollHeight;
       } else {
@@ -381,6 +389,7 @@ function restoreCodexMuxPaneScroll(snapshot = {}) {
 }
 
 function renderCodexMuxView() {
+  if (isCodexMuxView()) lockCodexMuxViewState();
   state.threads = [];
   const list = $("threadList");
   if (list) list.innerHTML = "";
@@ -443,6 +452,7 @@ function renderCodexMuxViewSoon() {
 }
 
 async function ensureCodexMuxThread() {
+  lockCodexMuxViewState();
   if (state.currentThread?.singleWindow && state.currentThreadId && state.currentTaskGroupId === CODEX_MUX_TASK_GROUP_ID) {
     return state.currentThread;
   }
@@ -459,7 +469,7 @@ async function ensureCodexMuxThread() {
   if (result?.thread) {
     state.currentThread = mergeCurrentThread(result.thread);
     state.currentThreadId = state.currentThread.id || "";
-    state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
+    lockCodexMuxViewState();
   }
   return state.currentThread;
 }
@@ -511,6 +521,7 @@ async function sendCodexMuxHermesMessage(text, options = {}) {
     renderCodexMuxView();
     return null;
   }
+  lockCodexMuxViewState();
   state.codexMuxSubmitting = true;
   state.codexMuxError = "";
   renderCodexMuxView();
@@ -535,7 +546,7 @@ async function sendCodexMuxHermesMessage(text, options = {}) {
     });
     if (result?.thread) state.currentThread = mergeCurrentThread(result.thread);
     state.currentThreadId = state.currentThread?.id || thread.id;
-    state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
+    lockCodexMuxViewState();
     await loadCodexMux({ silent: true, skipActivationCheck: Boolean(options.skipActivationCheck) });
     return result;
   } catch (err) {
@@ -544,6 +555,7 @@ async function sendCodexMuxHermesMessage(text, options = {}) {
     throw err;
   } finally {
     state.codexMuxSubmitting = false;
+    if (isCodexMuxView()) lockCodexMuxViewState();
     renderCodexMuxView();
   }
 }
@@ -564,9 +576,7 @@ async function openCodexMuxPage() {
   closeTopMoreMenu();
   closeSidebar();
   clearQuotedReply({ render: false });
-  state.viewMode = "codex-mux";
-  localStorage.setItem("hermesWebViewMode", state.viewMode);
-  state.currentTaskGroupId = "";
+  lockCodexMuxViewState();
   state.currentThread = null;
   state.currentThreadId = "";
   await loadSelectedView();
