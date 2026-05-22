@@ -100,6 +100,7 @@ function buildLearnerDataChecks(programs = {}, coins = {}) {
   const modelStats = taskModelStats(programs);
   const evaluationCount = count(programs.evaluations);
   const evaluationLoopReady = evaluationCount > 0 || (count(programs.interactionSessions) > 0 && modelStats.total > 0 && modelStats.withModel === modelStats.total);
+  const executableTaskCount = count(programs.executableTasks);
   return [
     check("source-goal-data", "At least one source and one goal", count(programs.sources) > 0 && count(programs.goals) > 0, {
       sources: count(programs.sources),
@@ -112,9 +113,10 @@ function buildLearnerDataChecks(programs = {}, coins = {}) {
       drafts: count(programs.latestDrafts),
       taskCards: count(programs.taskCards),
     }),
-    check("daily-plan-data", "Daily plan has executable tasks", count(dailySummary.totalTasks) > 0 || count(programs.dailyPlan?.nextTask) > 0, {
+    check("daily-plan-data", "Daily plan has executable tasks", count(dailySummary.totalTasks) > 0 || count(programs.dailyPlan?.nextTask) > 0 || executableTaskCount > 0, {
       totalTasks: count(dailySummary.totalTasks),
       hasNextTask: Boolean(programs.dailyPlan?.nextTask),
+      executableTasks: executableTaskCount,
     }),
     check("task-model-data", "Executable tasks carry a learning task model", modelStats.total === 0 || modelStats.withModel === modelStats.total, {
       taskCount: modelStats.total,

@@ -112,6 +112,7 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
     const stats = input.stats || submissionStats(input.text || "");
     const submittedAt = cleanString(input.submittedAt) || new Date().toISOString();
     const structuredResponses = publicStructuredResponses(input.structuredResponses || input.structuredAnswers);
+    const shouldStoreDisplayText = input.storeDisplayText !== false;
     const submissionId = cleanString(input.submissionId)
       || stableRecordId("lsub", [identity.taskCardId, cleanString(input.stage), cleanString(input.submissionKind), submittedAt, digestText(input.text || "")]);
     const record = repository.saveTaskSubmission({
@@ -129,8 +130,8 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
       textDigest: digestText(input.text || ""),
       textChars: Number(stats.chars || 0),
       textWords: Number(stats.words || 0),
-      displayText: boundedDisplayText(input.text || ""),
-      structuredResponses,
+      displayText: shouldStoreDisplayText ? boundedDisplayText(input.text || "") : "",
+      structuredResponses: shouldStoreDisplayText ? structuredResponses : [],
       kanbanCardId: cleanString(input.kanbanCardId),
       kanbanCommentRef: cleanString(input.kanbanCommentRef),
       submittedAt,

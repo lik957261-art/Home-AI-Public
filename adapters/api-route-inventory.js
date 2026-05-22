@@ -269,6 +269,37 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["todo"],
   })),
 
+  exact("codex-mux-tasks-list", "GET", "/api/codex-mux/tasks", "codex-mux", routeOptions("codex-mux", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["codex-mux"],
+  })),
+  exact("codex-mux-tasks-create", "POST", "/api/codex-mux/tasks", "codex-mux", routeOptions("codex-mux", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["codex-mux"],
+  })),
+  regex("codex-mux-task-detail", "GET", /^\/api\/codex-mux\/tasks\/[^/]+$/, "codex-mux", routeOptions("codex-mux", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["codex-mux"],
+  })),
+  regex("codex-mux-task-events-list", "GET", /^\/api\/codex-mux\/tasks\/[^/]+\/events$/, "codex-mux", routeOptions("codex-mux", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["codex-mux"],
+  })),
+  regex("codex-mux-task-events-append", "POST", /^\/api\/codex-mux\/tasks\/[^/]+\/events$/, "codex-mux", routeOptions("codex-mux", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["codex-mux"],
+  })),
+  regex("codex-mux-worker-heartbeat", "POST", /^\/api\/codex-mux\/workers\/[^/]+\/heartbeat$/, "codex-mux", routeOptions("codex-mux", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["codex-mux", "worker"],
+  })),
+
   exact("learning-overview", "GET", "/api/learning/overview", "learning", routeOptions("learning", {
     workspaceScoped: true,
     resourceTypes: ["learning-growth", "learning-coin"],

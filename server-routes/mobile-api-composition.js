@@ -14,6 +14,7 @@ const { createLearningApiRoutes } = require("./learning-api-routes");
 const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
 const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
+const { createHermesCodexMuxApiRoutes } = require("./hermes-codex-mux-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
 const { createLearningGrowthLegacyTodoTaskService } = require("../adapters/learning-growth-legacy-todo-task-service");
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
@@ -628,6 +629,14 @@ function createMobileApiComposition(deps = {}) {
   });
   callBootTrace(deps, "learning coin api routes ready");
 
+  const hermesCodexMuxApiRoutes = createHermesCodexMuxApiRoutes({
+    mobileSqliteStore: deps.mobileSqliteStore,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "hermes codex mux api routes ready");
+
   const automationApiRoutes = createAutomationApiRoutes({
     automationListSortByLatestDeliverable: deps.webPushDeliveryService.automationListSortByLatestDeliverable,
     automationProvider: deps.automationProvider,
@@ -669,6 +678,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanCardApiRoutes,
     kanbanLearningGuidanceApiRoutes,
     kanbanStudyApiRoutes,
+    hermesCodexMuxApiRoutes,
     learningApiRoutes,
     learningCoinApiRoutes,
     learningParentReviewApiRoutes,
@@ -704,6 +714,7 @@ function createMobileApiComposition(deps = {}) {
       kanbanCardApiRoutes,
       kanbanLearningGuidanceApiRoutes,
       kanbanStudyApiRoutes,
+      hermesCodexMuxApiRoutes,
       learningApiRoutes,
       learningCoinApiRoutes,
       learningParentReviewApiRoutes,
