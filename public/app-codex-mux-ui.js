@@ -3,6 +3,7 @@
 const CODEX_MUX_TASK_GROUP_ID = "codex-mux";
 const CODEX_MUX_OWNER_WORKSPACE_ID = "owner";
 const CODEX_MUX_WORKER_ID = "codex-hermes-main";
+const CODEX_MUX_VISIBLE_MILESTONE_LIMIT = 8;
 
 function codexMuxOwnerAllowed() {
   return Boolean(state.auth?.isOwner);
@@ -186,7 +187,7 @@ function renderCodexMuxMilestones() {
   ]
     .filter((item) => item.summary)
     .sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")))
-    .slice(0, 40);
+    .slice(0, CODEX_MUX_VISIBLE_MILESTONE_LIMIT);
   return items.length
     ? items.map(renderCodexMuxMilestone).join("")
     : `<div class="empty-state small">暂无 Codex 阶段性结论。</div>`;
@@ -264,11 +265,9 @@ function renderCodexMuxConversation() {
 
 function captureCodexMuxPaneScroll(root) {
   const chat = root?.querySelector("[data-codex-mux-chat]");
-  const events = root?.querySelector("[data-codex-mux-events]");
   return {
     chatTop: chat ? chat.scrollTop : null,
     chatBottomGap: chat ? chat.scrollHeight - chat.clientHeight - chat.scrollTop : null,
-    eventsTop: events ? events.scrollTop : null,
   };
 }
 
@@ -285,7 +284,6 @@ function restoreCodexMuxPaneScroll(snapshot = {}) {
         chat.scrollTop = Number(snapshot.chatTop || 0);
       }
     }
-    if (events) events.scrollTop = Number(snapshot.eventsTop || 0);
   });
 }
 

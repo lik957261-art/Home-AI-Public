@@ -9490,9 +9490,8 @@ button.directory-alias-chip {
   display: grid;
   align-content: start;
   gap: 9px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
+  touch-action: none;
 }
 
 .codex-mux-mode .conversation {
