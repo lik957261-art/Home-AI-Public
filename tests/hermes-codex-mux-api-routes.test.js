@@ -1,11 +1,15 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const {
   HERMES_CODEX_MUX_API_ROUTE_SPECS,
   createHermesCodexMuxApiRoutes,
 } = require("../server-routes/hermes-codex-mux-api-routes");
 const { createHermesCodexMuxService } = require("../adapters/hermes-codex-mux-service");
+const { createMobileSqliteStore } = require("../adapters/mobile-sqlite-store");
 
 function makeResponse() {
   return {
@@ -132,10 +136,30 @@ async function testOwnerRequired() {
   assert.equal(response.body.error, "Owner access is required");
 }
 
+async function testUsesMobileSqliteStoreFactory() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-mux-api-store-"));
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "mobile.sqlite3") });
+  createHermesCodexMuxService({ mobileStore: store }).upsertTask({
+    taskId: "mux_sqlite_backed",
+    title: "SQLite backed task",
+    status: "open",
+    assignedWorker: "codex-hermes-main",
+  });
+  const routes = makeRoutes({
+    hermesCodexMuxService: null,
+    mobileSqliteStore: () => store,
+  });
+  const response = await request(routes, "GET", "/api/codex-mux/tasks/mux_sqlite_backed");
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.body.task.taskId, "mux_sqlite_backed");
+  assert.equal(response.body.task.title, "SQLite backed task");
+}
+
 async function run() {
   await testRouteMetadata();
   await testCreateListDetailEventAndHeartbeat();
   await testOwnerRequired();
+  await testUsesMobileSqliteStoreFactory();
   console.log("hermes-codex-mux-api-routes tests passed");
 }
 

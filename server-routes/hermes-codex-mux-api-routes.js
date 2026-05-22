@@ -112,12 +112,18 @@ function requireOwner(deps, req, res) {
   return false;
 }
 
+function resolveMuxMobileStore(deps = {}) {
+  if (deps.mobileStore) return deps.mobileStore;
+  if (typeof deps.mobileSqliteStore === "function") return deps.mobileSqliteStore();
+  return deps.mobileSqliteStore || null;
+}
+
 function createHermesCodexMuxApiRoutes(deps = {}) {
   if (typeof deps.sendJson !== "function") throw new Error("codex mux api routes require sendJson");
   if (typeof deps.readBody !== "function") throw new Error("codex mux api routes require readBody");
   const registry = createApiRouteRegistry(HERMES_CODEX_MUX_API_ROUTE_SPECS);
   const service = deps.hermesCodexMuxService || createHermesCodexMuxService({
-    mobileStore: deps.mobileStore || deps.mobileSqliteStore,
+    mobileStore: resolveMuxMobileStore(deps),
   });
 
   async function readJson(req) {
@@ -216,4 +222,5 @@ function createHermesCodexMuxApiRoutes(deps = {}) {
 module.exports = {
   HERMES_CODEX_MUX_API_ROUTE_SPECS,
   createHermesCodexMuxApiRoutes,
+  resolveMuxMobileStore,
 };

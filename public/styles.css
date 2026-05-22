@@ -9404,6 +9404,121 @@ button.directory-alias-chip {
   letter-spacing: 0.08em;
 }
 
+.codex-mux-shell {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 14px;
+}
+
+.codex-mux-create,
+.codex-mux-panel,
+.codex-mux-task,
+.codex-mux-event {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 252, 246, 0.84);
+  box-shadow: 0 10px 28px rgba(34, 28, 20, 0.07);
+}
+
+.codex-mux-create {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.codex-mux-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
+  gap: 12px;
+}
+
+.codex-mux-panel {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.codex-mux-task-list,
+.codex-mux-event-list {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.codex-mux-task {
+  min-width: 0;
+  padding: 10px 11px;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  color: inherit;
+}
+
+.codex-mux-task.active {
+  border-color: rgba(47, 125, 95, 0.32);
+  background: rgba(122, 199, 167, 0.12);
+}
+
+.codex-mux-task-title {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.codex-mux-task-meta,
+.codex-mux-event-head span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.codex-mux-event {
+  min-width: 0;
+  padding: 11px;
+  display: grid;
+  gap: 7px;
+}
+
+.codex-mux-event-head {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.codex-mux-event-head strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.codex-mux-event p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.codex-mux-event pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 9px;
+  color: #32433f;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(96, 118, 111, 0.14);
+  border-radius: 12px;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .automation-card-list {
   display: grid;
   gap: 9px;
@@ -10674,6 +10789,17 @@ button.directory-alias-chip {
     flex: 1 1 0;
   }
 
+  .codex-mux-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .codex-mux-create,
+  .codex-mux-panel,
+  .codex-mux-task,
+  .codex-mux-event {
+    border-radius: 16px;
+  }
+
   .automation-card {
     border-radius: 17px;
   }
@@ -11135,6 +11261,8 @@ button.directory-alias-chip {
 :root[data-font-size] .todo-card-status,
 :root[data-font-size] .automation-card-meta,
 :root[data-font-size] .automation-card-submeta,
+:root[data-font-size] .codex-mux-task-meta,
+:root[data-font-size] .codex-mux-event-head span,
 :root[data-font-size] .automation-state,
 :root[data-font-size] .automation-detail-meta,
 :root[data-font-size] .automation-preview,
@@ -11199,6 +11327,7 @@ button.directory-alias-chip {
 :root[data-font-size] .directory-entry-name,
 :root[data-font-size] .todo-card-title,
 :root[data-font-size] .automation-card-title,
+:root[data-font-size] .codex-mux-task-title,
 :root[data-font-size] .automation-doc-name,
 :root[data-font-size] .directory-breadcrumb button,
 :root[data-font-size] .todo-create-toggle,

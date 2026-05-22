@@ -225,9 +225,10 @@ function updateTopMoreControls() {
   const todoCreate = kanbanComposerOpen();
   const todoList = state.viewMode === "todos" && !todoDetail && !todoCreate;
   const learningView = state.viewMode === "learning";
+  const codexMuxView = state.viewMode === "codex-mux";
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || learningView || automationList || automationDetail;
+  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || learningView || codexMuxView || automationList || automationDetail;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {

@@ -23,6 +23,7 @@ DEFAULT_CREDENTIAL_ROOTS = (
     "/mnt/c/ProgramData/HermesMobile/data/drive/users",
 )
 DEFAULT_SAVE_ROOT = "/mnt/c/ProgramData/HermesMobile/data/artifacts/http-request"
+DEFAULT_CODEX_OWNER_PROFILES = "lowgw1 lowgw2 lowgw3 lowgw4 lowgw10"
 TOKEN_RE = re.compile(r"\bwd_live_[A-Za-z0-9._-]{12,}\b")
 MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -414,6 +415,29 @@ def _cronjob_mobile_handler(args: dict[str, Any], **_: Any) -> str:
         return _json({"ok": False, "status": 400, "error": str(error)})
 
 
+def _split_words(value: Any) -> set[str]:
+    return {item.strip() for item in re.split(r"[\s,;]+", str(value or "")) if item.strip()}
+
+
+def _current_profile_name() -> str:
+    return str(
+        os.environ.get("HERMES_PROFILE")
+        or os.environ.get("HERMES_PROFILE_NAME")
+        or os.environ.get("HERMES_LOW_GATEWAY_PROFILE")
+        or ""
+    ).strip()
+
+
+def _codex_mobile_enabled() -> bool:
+    raw = (
+        os.environ.get("HERMES_MOBILE_CODEX_OWNER_PROFILES")
+        or os.environ.get("HERMES_MOBILE_OWNER_CONNECTOR_PROFILES")
+        or DEFAULT_CODEX_OWNER_PROFILES
+    )
+    profile = _current_profile_name()
+    return bool(profile and profile in _split_words(raw))
+
+
 def _codex_mobile_payload(args: dict[str, Any]) -> dict[str, Any]:
     action = str(args.get("action") or "list_tasks").strip().lower()
     payload: dict[str, Any] = {"action": action}
@@ -457,6 +481,8 @@ def _codex_mobile_payload(args: dict[str, Any]) -> dict[str, Any]:
 
 def _codex_mobile_handler(args: dict[str, Any], **_: Any) -> str:
     try:
+        if not _codex_mobile_enabled():
+            return _json({"ok": False, "status": 403, "error": "codex_mobile_owner_only"})
         payload = _codex_mobile_payload(args if isinstance(args, dict) else {})
         key = _bridge_host_key()
         if not key:
@@ -966,6 +992,8 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
         cron_args = args.get("json") if isinstance(args.get("json"), dict) else args
         return _cronjob_mobile_handler(cron_args if isinstance(cron_args, dict) else {})
     if url == "hermes-mobile://codex-mux":
+        if not _codex_mobile_enabled():
+            return _json({"ok": False, "status": 403, "error": "codex_mobile_owner_only"})
         codex_args = args.get("json") if isinstance(args.get("json"), dict) else args
         return _codex_mobile_handler(codex_args if isinstance(codex_args, dict) else {})
     try:
@@ -1064,14 +1092,15 @@ def register(ctx) -> None:
         description="Scoped Hermes Mobile automation management through the live Mobile bridge.",
         emoji="automation",
     )
-    ctx.register_tool(
-        name="codex_mobile",
-        toolset="http",
-        schema=CODEX_MOBILE_SCHEMA,
-        handler=_codex_mobile_handler,
-        description="Scoped Hermes-Codex Mux task adapter for Codex Mobile coordination.",
-        emoji="codex",
-    )
+    if _codex_mobile_enabled():
+        ctx.register_tool(
+            name="codex_mobile",
+            toolset="http",
+            schema=CODEX_MOBILE_SCHEMA,
+            handler=_codex_mobile_handler,
+            description="Scoped Hermes-Codex Mux task adapter for Codex Mobile coordination.",
+            emoji="codex",
+        )
     try:
         from model_tools import _tool_defs_cache
         _tool_defs_cache.clear()

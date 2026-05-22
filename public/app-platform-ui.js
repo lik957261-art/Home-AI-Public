@@ -164,7 +164,7 @@ async function bootstrap() {
 
 function normalizedRouteView(value, fallback = "") {
   const view = String(value || "").trim().toLowerCase();
-  if (view === "automation" || view === "automations" || view === "cron") return "automation";
+  if (view === "automation" || view === "automations" || view === "cron") return "automation"; if (view === "codex-mux" || view === "codex" || view === "mux") return "codex-mux";
   if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "todo" || view === "todos") return "todos";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";

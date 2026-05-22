@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-chat-soft-layer-reset-v82";
+const CLIENT_VERSION = "20260522-codex-mux-owner-v83";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -109,6 +109,15 @@ assert.match(appApiClientJs, /function createHttpError\(response, body\)/);
 assert.match(appApiClientJs, /requestOptions\.timeoutMs/);
 assert.match(appApiClientJs, /AbortController/);
 assert.match(appApiClientJs, /Request timed out/);
+assert.match(appJs, /codexMuxTasks: \[\]/);
+assert.match(appJs, /state\.viewMode === "codex-mux"/);
+assert.match(appJs, /async function loadCodexMux\(options = \{\}\)/);
+assert.match(appJs, /function renderCodexMuxView\(\)/);
+assert.match(appJs, /data-codex-mux-page/);
+assert.match(appJs, /state\.auth\?\.isOwner/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-codex-mux-owner-v83/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-codex-mux-owner-v83/);
+assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
 assert.match(appJs, /target === "directory"[\s\S]*?navigateDirectoryUp\(\{ animateEntry: true \}\)\.catch\(showError\)/);
