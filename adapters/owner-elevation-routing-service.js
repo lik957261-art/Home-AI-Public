@@ -110,8 +110,7 @@ function createOwnerElevationRoutingService(options = {}) {
       err.elevationScope = routeOptions.elevationScope || routeOptions.elevation_scope || "owner_high_privilege";
       throw err;
     }
-    const classification = securityBoundaryProvider.classifyMaintenanceIntent?.(text)
-      || classifyAutomationAdminIntentForRun(text, routeOptions)
+    const classification = classifyAutomationAdminIntentForRun(text, routeOptions)
       || securityBoundaryProvider.classifySharedSkillWriteIntent?.(text);
     if (!classification) return { securityLevel: "user", maintenance: false };
     const err = new Error(classification.message);

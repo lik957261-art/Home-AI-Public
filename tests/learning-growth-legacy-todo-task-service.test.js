@@ -107,9 +107,25 @@ function testServiceTreatsStaleOpenEarlierCardsAsCompletedWhenLaterSequenceIsDon
   assert.equal(tasks.find((task) => task.todoId === "t_math_5").status, "published");
 }
 
+function testServiceHidesLegacyPythonRowsReplacedByNativeEvergreen() {
+  const service = createLearningGrowthLegacyTodoTaskService({
+    mobileStore: {
+      listTodoItems() {
+        return [
+          { id: "t_py_1", content: "\u51e1\u51e1Python \u7f16\u7a0b\u7b2c 1/10 \u6b21\u7f16\u7a0b\u6d4b\u9a8c", status: "done", assignee: "weixin_stephen" },
+          { id: "t_py_3", content: "\u51e1\u51e1Python \u7f16\u7a0b\u7b2c 3/10 \u6b21\u7f16\u7a0b\u6d4b\u9a8c", status: "archived", archivedBy: "python_evergreen_replacement", assignee: "weixin_stephen" },
+        ];
+      },
+    },
+  });
+  const tasks = service.listExecutableTasks({ learnerId: "weixin_stephen" });
+  assert.deepEqual(tasks.map((task) => task.todoId), ["t_py_1"]);
+}
+
 testProjectLegacyReadingTask();
 testProjectLegacyDoneAssessmentTask();
 testServiceReadsOnlyOfficialMigratedTodosForLearner();
 testServiceSkipsLegacyRepairCardsThatWouldBlockFormalSequence();
 testServiceTreatsStaleOpenEarlierCardsAsCompletedWhenLaterSequenceIsDone();
+testServiceHidesLegacyPythonRowsReplacedByNativeEvergreen();
 console.log("learning growth legacy todo task service tests passed");

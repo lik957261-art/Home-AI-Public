@@ -23,6 +23,10 @@ function isDoneStatus(status) {
   return ["done", "completed", "closed", "archived"].includes(cleanString(status).toLowerCase());
 }
 
+function isReplacedLegacyTodo(todo = {}) {
+  return cleanString(todo.archivedBy || todo.archived_by) === "python_evergreen_replacement";
+}
+
 function isRepairTitle(title = "") {
   const text = cleanString(title, 300);
   return /^(修改|修订|改写|重做|补做)\s*[:：]/.test(text)
@@ -177,7 +181,10 @@ function createLearningGrowthLegacyTodoTaskService(options = {}) {
         includeCompleted: true,
         limit: Math.max(80, Math.min(500, Number(input.limit || 120) || 120)),
       });
-      const tasks = arrayValue(todos).map(projectLegacyTodoTask).filter((task) => task && !task.legacyRepair);
+      const tasks = arrayValue(todos)
+        .filter((todo) => !isReplacedLegacyTodo(todo))
+        .map(projectLegacyTodoTask)
+        .filter((task) => task && !task.legacyRepair);
       return normalizeStaleOpenSequenceTasks(tasks);
     },
   };
@@ -185,6 +192,7 @@ function createLearningGrowthLegacyTodoTaskService(options = {}) {
 
 module.exports = {
   createLearningGrowthLegacyTodoTaskService,
+  isReplacedLegacyTodo,
   isRepairTitle,
   normalizeStaleOpenSequenceTasks,
   projectLegacyTodoTask,
