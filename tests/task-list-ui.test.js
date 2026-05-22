@@ -1577,7 +1577,8 @@ assert.match(serverJs, /threadViewService\.threadMessagesPage\(thread, options\)
 assert.match(serverJs, /threadViewService\.searchThreadMessages\(thread, options\)/);
 assert.match(threadViewServiceJs, /mode === "tasks" \|\| mode === "task"/);
 assert.match(mobileRuntimeEnvironmentServiceJs, /function singleWindowChatTaskGroupId\(requestedTaskGroupId = ""\)/);
-assert.match(runtimeStateNormalizationServiceJs, /next\.singleWindowMode === "chat"[\s\S]*?next\.taskGroupId = singleWindowChatTaskGroupId\(next\.taskGroupId\)/);
+assert.match(runtimeStateNormalizationServiceJs, /singleWindowCodexMuxTaskGroupId/);
+assert.match(runtimeStateNormalizationServiceJs, /next\.singleWindowMode === "chat" && !codexMuxMessage[\s\S]*?next\.taskGroupId = singleWindowChatTaskGroupId\(next\.taskGroupId\)/);
 assert.match(singleWindowThreadServiceJs, /function isExternalIngressThread\(thread\)/);
 assert.match(singleWindowThreadServiceJs, /createSingleWindowMigrationService/);
 assert.match(singleWindowMigrationServiceJs, /&& !isExternalIngressThread\(thread\)/);

@@ -33,6 +33,7 @@ function makeService(overrides = {}) {
     singleWindowChatTaskGroupId: (requested) => (requested === "group-chat" ? "group-chat" : "chat"),
     singleWindowChatTaskGroupIdValue: "chat",
     singleWindowGroupChatTaskGroupId: "group-chat",
+    singleWindowCodexMuxTaskGroupId: "codex-mux",
     validReasoningEfforts: new Set(["low", "medium", "high"]),
     workspaceLabel: (workspaceId) => `label:${workspaceId}`,
   }, overrides));
@@ -84,6 +85,7 @@ function testStateAndThreadNormalization() {
         { id: "m1", role: "user", content: "hello", taskGroupId: "", sender_workspace_id: "learner" },
         { id: "m2", role: "assistant", status: "done", content: "ok", reasoning_effort: "high" },
         { id: "m3", role: "user", message_kind: "plain", taskGroupId: "chat", revoked_at: "2026" },
+        { id: "m4", role: "user", content: "mux", taskGroupId: "codex-mux" },
       ],
       events: [
         { id: 1 },
@@ -118,6 +120,8 @@ function testStateAndThreadNormalization() {
   assert.equal(normalized.threads[0].messages[1].completedAt, "2026-05-15T00:00:00.000Z");
   assert.equal(normalized.threads[0].messages[2].taskGroupId, "group-chat");
   assert.equal(normalized.threads[0].messages[2].content, "revoked");
+  assert.equal(normalized.threads[0].messages[3].taskGroupId, "codex-mux");
+  assert.equal(normalized.threads[0].messages[3].singleWindowMode, "chat");
   assert.equal(normalized.threads[0].taskGroupMeta.bad_key.title, "Topic");
   assert.deepEqual(normalized.pushSubscriptions, [{ keep: true, normalized: true }]);
   assert.deepEqual(normalized.pushReceipts, [{ keep: true }]);
