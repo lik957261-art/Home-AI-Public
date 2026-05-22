@@ -312,10 +312,10 @@ assert.match(serverJs, /function callableFunctionHintsForToolsets\(toolsets = \[
 assert.match(gatewayRunInstructionServiceJs, /web: \["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"\]/);
 assert.match(gatewayRunInstructionServiceJs, /search: \["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"\]/);
 assert.match(gatewayRunInstructionServiceJs, /x_search: \["x_search"\]/);
-assert.match(gatewayRunInstructionServiceJs, /http: \["http_request"\]/);
+assert.match(gatewayRunInstructionServiceJs, /http: \["http_request", "codex_mobile"\]/);
 assert.match(gatewayRunInstructionServiceJs, /file: \["read_file", "write_file", "patch", "search_files", "docx_extract_text", "audio_transcribe"\]/);
 assert.match(gatewayRunInstructionServiceJs, /image_gen: \["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"\]/);
-assert.match(gatewayRunInstructionServiceJs, /For HTTP\/API Program calls, use `http_request`; do not look for or mention a `web_request` function\./);
+assert.match(gatewayRunInstructionServiceJs, /For HTTP\/API Program calls, use `http_request`; for Hermes-Codex Mux coordination with Codex Mobile, use `codex_mobile`; do not look for or mention a `web_request` function\./);
 assert.match(gatewayRunInstructionServiceJs, /http_request\.file_body/);
 assert.match(gatewayRunInstructionServiceJs, /http_request\.multipart_files/);
 assert.match(gatewayRunInstructionServiceJs, /never claim upload success after sending only a local path string/);

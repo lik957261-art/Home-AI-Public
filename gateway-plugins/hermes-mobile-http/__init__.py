@@ -229,6 +229,48 @@ CRONJOB_MOBILE_SCHEMA = {
 }
 
 
+CODEX_MOBILE_SCHEMA = {
+    "name": "codex_mobile",
+    "description": (
+        "Create and inspect fixed-thread Hermes-Codex Mux tasks for the Codex Mobile worker. "
+        "Use this when Hermes Mobile needs Codex Mobile to implement, verify, or coordinate code changes. "
+        "This is not a shell tool; it only writes or reads bounded Mux task/event records through the live Mobile bridge."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["create_task", "list_tasks", "get_task", "list_events", "append_event", "worker_status"],
+                "default": "list_tasks",
+            },
+            "task_id": {"type": "string"},
+            "title": {"type": "string", "description": "Short task title for Codex Mobile."},
+            "instruction": {
+                "type": "string",
+                "description": "Bounded engineering request or coordination message for Codex Mobile.",
+            },
+            "priority": {"type": "string", "enum": ["low", "normal", "high", "urgent"], "default": "normal"},
+            "assigned_worker": {"type": "string", "default": "codex-hermes-main"},
+            "workspace": {"type": "string", "default": "C:\\Users\\xuxin\\Documents\\Agent"},
+            "status": {"type": "string", "description": "Comma-separated task statuses for list_tasks."},
+            "limit": {"type": "integer", "default": 50, "minimum": 1, "maximum": 100},
+            "required_reads": {"type": "array", "items": {"type": "string"}},
+            "deliverables": {"type": "array", "items": {"type": "string"}},
+            "constraints": {"type": "array", "items": {"type": "string"}},
+            "source_thread_id": {"type": "string"},
+            "source_message_id": {"type": "string"},
+            "type": {"type": "string", "description": "Mux event type for append_event."},
+            "summary": {"type": "string", "description": "Short event summary for append_event."},
+            "payload": {"type": "object", "description": "Optional bounded event payload."},
+            "event": {"type": "object", "description": "Optional full event object for append_event."},
+            "worker_id": {"type": "string", "default": "codex-hermes-main"},
+        },
+        "required": ["action"],
+    },
+}
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
         return None
@@ -368,6 +410,81 @@ def _cronjob_mobile_handler(args: dict[str, Any], **_: Any) -> str:
             parsed.setdefault("status", error.code)
             return _json(parsed)
         return _json({"ok": False, "status": error.code, "error": "Mobile cron bridge HTTP error"})
+    except Exception as error:
+        return _json({"ok": False, "status": 400, "error": str(error)})
+
+
+def _codex_mobile_payload(args: dict[str, Any]) -> dict[str, Any]:
+    action = str(args.get("action") or "list_tasks").strip().lower()
+    payload: dict[str, Any] = {"action": action}
+    for source_key, target_key in [
+        ("task_id", "task_id"),
+        ("taskId", "task_id"),
+        ("title", "title"),
+        ("instruction", "instruction"),
+        ("request", "instruction"),
+        ("priority", "priority"),
+        ("assigned_worker", "assigned_worker"),
+        ("assignedWorker", "assigned_worker"),
+        ("worker_id", "worker_id"),
+        ("workerId", "worker_id"),
+        ("workspace", "workspace"),
+        ("status", "status"),
+        ("source_thread_id", "source_thread_id"),
+        ("sourceThreadId", "source_thread_id"),
+        ("source_message_id", "source_message_id"),
+        ("sourceMessageId", "source_message_id"),
+        ("type", "type"),
+        ("summary", "summary"),
+    ]:
+        if source_key in args and args.get(source_key) not in (None, ""):
+            payload[target_key] = args.get(source_key)
+    if "limit" in args:
+        payload["limit"] = int(args.get("limit") or 50)
+    for key in ["required_reads", "requiredReads", "deliverables", "constraints"]:
+        if key in args:
+            normalized = "required_reads" if key in {"required_reads", "requiredReads"} else key
+            payload[normalized] = _string_list(args.get(key), 20)
+    for key in ["payload", "event", "source"]:
+        if isinstance(args.get(key), dict):
+            payload[key] = args.get(key)
+    if action == "create_task" and not str(payload.get("instruction") or "").strip():
+        raise ValueError("instruction is required")
+    if action in {"get_task", "list_events", "append_event"} and not str(payload.get("task_id") or "").strip():
+        raise ValueError("task_id is required")
+    return payload
+
+
+def _codex_mobile_handler(args: dict[str, Any], **_: Any) -> str:
+    try:
+        payload = _codex_mobile_payload(args if isinstance(args, dict) else {})
+        key = _bridge_host_key()
+        if not key:
+            return _json({"ok": False, "status": 503, "error": "Hermes Mobile bridge host key is not configured"})
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            f"{_bridge_host_url()}/bridge/codex-mux",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=20) as response:
+            data = response.read(2 * 1024 * 1024)
+        parsed = json.loads(data.decode("utf-8") or "{}")
+        return _json(parsed if isinstance(parsed, dict) else {"ok": False, "error": "Invalid bridge response"})
+    except urllib.error.HTTPError as error:
+        try:
+            parsed = json.loads(error.read(1024 * 1024).decode("utf-8") or "{}")
+        except Exception:
+            parsed = {}
+        if isinstance(parsed, dict) and parsed:
+            parsed.setdefault("status", error.code)
+            return _json(parsed)
+        return _json({"ok": False, "status": error.code, "error": "Mobile codex bridge HTTP error"})
     except Exception as error:
         return _json({"ok": False, "status": 400, "error": str(error)})
 
@@ -848,6 +965,9 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
     if url == "hermes-mobile://cron":
         cron_args = args.get("json") if isinstance(args.get("json"), dict) else args
         return _cronjob_mobile_handler(cron_args if isinstance(cron_args, dict) else {})
+    if url == "hermes-mobile://codex-mux":
+        codex_args = args.get("json") if isinstance(args.get("json"), dict) else args
+        return _codex_mobile_handler(codex_args if isinstance(codex_args, dict) else {})
     try:
         origin = _check_allowed_url(url)
         headers = _clean_headers(args.get("headers"))
@@ -943,6 +1063,14 @@ def register(ctx) -> None:
         handler=_cronjob_mobile_handler,
         description="Scoped Hermes Mobile automation management through the live Mobile bridge.",
         emoji="automation",
+    )
+    ctx.register_tool(
+        name="codex_mobile",
+        toolset="http",
+        schema=CODEX_MOBILE_SCHEMA,
+        handler=_codex_mobile_handler,
+        description="Scoped Hermes-Codex Mux task adapter for Codex Mobile coordination.",
+        emoji="codex",
     )
     try:
         from model_tools import _tool_defs_cache

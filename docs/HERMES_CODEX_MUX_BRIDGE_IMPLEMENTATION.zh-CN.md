@@ -92,20 +92,20 @@ Mux service 会在该库中按需创建表：
 Hermes Mobile 已有 tailnet HTTPS origin：
 
 ```text
-https://gmk.tail62e8ce.ts.net/
+https://<hermes-mobile-tailnet-host>/
 ```
 
 Codex Mobile worker 可以把 base URL 改为该地址：
 
 ```powershell
-cd C:\Users\xuxin\Documents\codex-mobile-web
-npm.cmd run mux:worker -- --base-url https://gmk.tail62e8ce.ts.net --poll-ms 5000
+cd <codex-mobile-web-workspace>
+npm.cmd run mux:worker -- --base-url https://<hermes-mobile-tailnet-host> --poll-ms 5000
 ```
 
 或通过环境变量：
 
 ```powershell
-$env:CODEX_HERMES_MUX_BASE_URL = "https://gmk.tail62e8ce.ts.net"
+$env:CODEX_HERMES_MUX_BASE_URL = "https://<hermes-mobile-tailnet-host>"
 npm.cmd run mux:worker -- --poll-ms 5000
 ```
 
@@ -143,7 +143,7 @@ Hermes Mobile -> Mux Relay <- Codex Mobile
 ```json
 {
   "bridgeId": "hermes-mobile-codex-main",
-  "workspace": "C:\\Users\\xuxin\\Documents\\Agent",
+  "workspace": "<agent-private-workspace>",
   "workerMode": "sticky",
   "assignedWorker": "codex-hermes-main",
   "requiresSameThread": true,
@@ -177,7 +177,7 @@ Task Capsule 是执行线程的事实合同，不是聊天摘要。
   "schema": "hermes-codex-mux.task.v1",
   "taskId": "hermes-codex-mux-v1",
   "title": "Hermes Mobile 与 Codex Mobile 固定线程双向协作闭环",
-  "workspace": "C:\\Users\\xuxin\\Documents\\Agent",
+  "workspace": "<agent-private-workspace>",
   "bridgeId": "hermes-mobile-codex-main",
   "assignedWorker": "codex-hermes-main",
   "workerMode": "sticky",
@@ -330,12 +330,12 @@ POST /api/codex-mux/tasks
   "taskId": "hermes-codex-mux-v1",
   "title": "Hermes Codex Mux smoke",
   "status": "open",
-  "workspace": "C:\\Users\\xuxin\\Documents\\Agent",
+  "workspace": "<agent-private-workspace>",
   "assignedWorker": "codex-hermes-main",
   "capsule": {
     "taskId": "hermes-codex-mux-v1",
     "assignedWorker": "codex-hermes-main",
-    "workspace": "C:\\Users\\xuxin\\Documents\\Agent"
+    "workspace": "<agent-private-workspace>"
   }
 }
 ```
@@ -375,7 +375,7 @@ POST /api/codex-mux/workers/codex-hermes-main/heartbeat
 ```json
 {
   "bridgeId": "hermes-mobile-codex-main",
-  "workspace": "C:\\Users\\xuxin\\Documents\\Agent",
+  "workspace": "<agent-private-workspace>",
   "mode": "polling",
   "capabilities": [
     "codex.workspace.preflight",
@@ -393,13 +393,13 @@ POST /api/codex-mux/workers/codex-hermes-main/heartbeat
 Codex Mobile 侧最小 worker 已实现于：
 
 ```text
-C:\Users\xuxin\Documents\codex-mobile-web
+<codex-mobile-web-workspace>
 ```
 
 默认运行方式：
 
 ```powershell
-cd C:\Users\xuxin\Documents\codex-mobile-web
+cd <codex-mobile-web-workspace>
 npm.cmd run mux:worker -- --base-url http://127.0.0.1:8797 --poll-ms 5000
 ```
 
@@ -412,7 +412,7 @@ npm.cmd run mux:worker -- --task-id hermes-codex-mux-v1
 跨机器 tailnet：
 
 ```powershell
-npm.cmd run mux:worker -- --base-url https://gmk.tail62e8ce.ts.net --poll-ms 5000
+npm.cmd run mux:worker -- --base-url https://<hermes-mobile-tailnet-host> --poll-ms 5000
 ```
 
 环境变量：
@@ -522,7 +522,7 @@ curl.exe -s -H "x-hermes-web-key: $key" http://127.0.0.1:8797/api/status
 ### 14.2 启动 Codex worker
 
 ```powershell
-cd C:\Users\xuxin\Documents\codex-mobile-web
+cd <codex-mobile-web-workspace>
 npm.cmd run mux:worker -- --base-url http://127.0.0.1:8797 --poll-ms 5000
 ```
 
@@ -559,7 +559,7 @@ curl.exe -s -H "x-hermes-web-key: $key" http://127.0.0.1:8797/api/codex-mux/task
 - Codex worker heartbeat 正常。
 - `workerId=codex-hermes-main`
 - `mode=polling`
-- `workspace=C:\Users\xuxin\Documents\Agent`
+- `workspace=<agent-private-workspace>`
 - `gitStatus=clean`
 - `gitHead=31c77d3...`
 - `conflicts=[]`
