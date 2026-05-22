@@ -64,9 +64,6 @@ function repaintConversationAfterViewportChange(conversation) {
 function resetConversationScrollLayer(conversation, pinned) {
   if (!conversation || Date.now() > Number(state.conversationViewportLayerResetUntil || 0)) return;
   if (conversation.dataset.viewportLayerResetting === "1") return;
-  const parent = conversation.parentNode;
-  if (!parent) return;
-  const nextSibling = conversation.nextSibling;
   const restoreTop = pinned
     ? conversation.scrollHeight
     : Math.max(0, Math.min(
@@ -77,14 +74,17 @@ function resetConversationScrollLayer(conversation, pinned) {
   conversation.classList.add("conversation-layer-reset");
   conversation.style.webkitOverflowScrolling = "auto";
   conversation.style.overflowY = "hidden";
+  conversation.scrollTop = restoreTop;
+  void conversation.offsetHeight;
   requestAnimationFrame(() => {
     if (!document.body.contains(conversation)) {
       delete conversation.dataset.viewportLayerResetting;
       return;
     }
-    parent.removeChild(conversation);
-    void parent.offsetHeight;
-    parent.insertBefore(conversation, nextSibling);
+    const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
+    const nudgedTop = pinned ? conversation.scrollHeight : Math.min(maxTop, restoreTop + 1);
+    conversation.scrollTop = nudgedTop;
+    void conversation.offsetHeight;
     requestAnimationFrame(() => {
       conversation.classList.remove("conversation-layer-reset");
       conversation.style.webkitOverflowScrolling = "";

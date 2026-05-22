@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-chat-orientation-debounce-v81";
+const CLIENT_VERSION = "20260522-chat-soft-layer-reset-v82";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -169,8 +169,10 @@ assert.match(appJs, /state\.conversationViewportRefreshTimer = window\.setTimeou
 assert.match(appJs, /function repaintConversationAfterViewportChange\(conversation\)/);
 assert.match(appJs, /function resetConversationScrollLayer\(conversation, pinned\)/);
 assert.match(appJs, /conversation\.classList\.add\("conversation-layer-reset"\)/);
-assert.match(appJs, /parent\.removeChild\(conversation\)/);
-assert.match(appJs, /parent\.insertBefore\(conversation, nextSibling\)/);
+assert.match(appJs, /conversation\.style\.webkitOverflowScrolling = "auto"/);
+assert.match(appJs, /const nudgedTop = pinned \? conversation\.scrollHeight : Math\.min\(maxTop, restoreTop \+ 1\)/);
+assert.doesNotMatch(appJs, /parent\.removeChild\(conversation\)/);
+assert.doesNotMatch(appJs, /parent\.insertBefore\(conversation, nextSibling\)/);
 assert.match(stylesCss, /\.conversation-layer-reset\s*\{[\s\S]*?-webkit-overflow-scrolling:\s*auto !important;/);
 assert.match(appJs, /return isSingleWindowChatView\(\) \|\| isTaskDetailView\(\)/);
 assert.match(appJs, /conversation\.style\.overflowAnchor = "none"/);
