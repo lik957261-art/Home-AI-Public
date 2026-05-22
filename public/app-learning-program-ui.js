@@ -596,6 +596,21 @@
     return `\u81f3\u5c11 ${Number(guard.minWords || 0)} \u4e2a\u82f1\u6587\u8bcd / ${Number(guard.minChars || 0)} \u4e2a\u6709\u6548\u5b57\u7b26`;
   }
 
+  function nativeGrowthFeedbackHistory(task = {}, evaluation = {}, options = {}) {
+    const helper = growthTaskUi(options);
+    if (helper && typeof helper.renderFeedbackHistory === "function") {
+      return helper.renderFeedbackHistory(task, evaluation);
+    }
+    const status = evaluation.status || (evaluation.passed ? "passed" : "needs_revision");
+    const score = Number(evaluation.score);
+    const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
+    const summary = evaluation.summary || evaluation.feedbackSummary || evaluation.resultSummary || "";
+    return `<div class="todo-learning-growth-outcome is-${defaultEscapeHtml(status)}">
+      <strong>${defaultEscapeHtml(scoreText || status || "\u5f85\u4fee\u8ba2")}</strong>
+      ${summary ? `<p>${defaultEscapeHtml(summary)}</p>` : ""}
+    </div>`;
+  }
+
   function nativeGrowthRequiresAudio(task = {}) {
     const model = task.taskModel || task.learningTaskModel || {};
     const activityType = String(model.activityType || "").toLowerCase();
@@ -815,7 +830,7 @@
     if (!taskCardId) return `<div class="learning-coin-empty">\u672a\u627e\u5230\u8fd9\u5f20\u5b66\u4e60\u5361\u3002</div>`;
     const model = task.taskModel || task.learningTaskModel || {};
     const skills = compactFocus(task.skillIds || model.skillTargets || []).slice(0, 120);
-    const latestEvaluation = latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const latestEvaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
     const meta = [task.plannedDate, task.plannedMinutes ? `${task.plannedMinutes} min` : "", skills].filter(Boolean);
     const instruction = task.learnerInstruction || task.instruction || model.learnerInstruction || task.instructionPreview || task.summary || "";
     const taskForForm = Object.assign({ source: "learning-growth" }, task, {
@@ -832,7 +847,7 @@
       ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
       ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
-      ${latestEvaluation ? `<section class="learning-growth-answer-feedback"><h4>\u6700\u8fd1\u6279\u6539</h4>${renderFeedbackHistory(taskForForm, latestEvaluation)}</section>` : ""}
+      ${latestEvaluation ? `<section class="learning-growth-answer-feedback"><h4>\u6700\u8fd1\u6279\u6539</h4>${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}</section>` : ""}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;
   }

@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const CoinsUi = require("../public/app-learning-coins-ui");
 const GrowthUi = require("../public/app-learning-growth-ui");
+const GrowthTaskUi = require("../public/app-learning-growth-task-ui");
 const ProgramUi = require("../public/app-learning-program-ui");
 
 const overview = {
@@ -188,18 +189,28 @@ function testGrowthRendererCanOpenBoardOnlyRevisionTask() {
     nextAction: "revise",
     laneId: "needs_revision",
     rewardCapCoins: 100,
+    latestEvaluation: {
+      evaluationId: "eval-revise",
+      taskCardId: "task-revise",
+      status: "needs_repair",
+      score: 68,
+      summary: "Revise the explanation.",
+      createdAt: "2026-05-21T10:00:00.000Z",
+    },
   }];
   boardOnlyOverview.programs.taskCards = [];
   boardOnlyOverview.programs.executableTasks = [];
   const html = GrowthUi.renderLearningGrowthView({
     overview: boardOnlyOverview,
     coinsUi: CoinsUi,
+    growthTaskUi: GrowthTaskUi,
     programUi: ProgramUi,
     state: { auth: { isOwner: false }, selectedLearningTaskCardId: "task-revise" },
   });
   assert.match(html, /data-learning-growth-task-focus="task-revise"/);
   assert.match(html, /data-learning-growth-answer-card/);
   assert.match(html, /Revision only board task/);
+  assert.match(html, /\u6700\u8fd1\u6279\u6539/);
   assert.doesNotMatch(html, /\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0/);
 }
 
