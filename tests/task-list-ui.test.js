@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-chat-layer-reset-v80";
+const CLIENT_VERSION = "20260522-chat-orientation-debounce-v81";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -160,7 +160,12 @@ assert.match(appJs, /function shouldFollowConversationBottomDuringViewport\(\)/)
 assert.match(appJs, /conversationViewportBottomFollowUntil/);
 assert.match(appJs, /conversationViewportSettleUntil/);
 assert.match(appJs, /conversationViewportLayerResetUntil/);
-assert.match(appJs, /for \(const delay of \[80, 180, 360, 720, 1200\]\)/);
+assert.match(appJs, /conversationViewportRefreshTimer/);
+assert.match(appJs, /conversationViewportLayerResetDoneUntil/);
+assert.match(appJs, /const orientationSettle = Boolean\(options\.orientationSettle\)/);
+assert.match(appJs, /window\.setTimeout\(refresh, 260\)/);
+assert.match(appJs, /window\.setTimeout\(refresh, 720\)/);
+assert.match(appJs, /state\.conversationViewportRefreshTimer = window\.setTimeout\(refresh, 160\)/);
 assert.match(appJs, /function repaintConversationAfterViewportChange\(conversation\)/);
 assert.match(appJs, /function resetConversationScrollLayer\(conversation, pinned\)/);
 assert.match(appJs, /conversation\.classList\.add\("conversation-layer-reset"\)/);
@@ -179,6 +184,7 @@ assert.match(appJs, /requestCurrentThreadRefresh\(\{ stickToBottom: false, delay
 assert.match(appJs, /if \(state\.currentTaskGroupId\) scheduleConversationViewportRefresh\(conversation\)/);
 assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
 assert.match(appJs, /function handleViewportLayoutChange\(event = null\)[\s\S]*scheduleConversationViewportRefresh/);
+assert.match(appJs, /orientationSettle: orientationEvent/);
 assert.match(appJs, /orientationEvent && conversationViewportRefreshApplies\(\)/);
 assert.match(appJs, /incomingPage && !incomingMessages\.length && existingThreadMessages\.length/);
 assert.match(appJs, /messages: existingThreadMessages/);
