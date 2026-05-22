@@ -43,6 +43,7 @@ function applyViewMode() {
   $("bottomProjectsMode")?.classList.toggle("active", directory);
   $("automationMode")?.classList.toggle("active", automation);
   $("bottomAutomationMode")?.classList.toggle("active", automation);
+  $("codexMuxMode")?.classList.toggle("active", codexMux);
   $("learningMode")?.classList.toggle("active", learning);
   $("bottomLearningMode")?.classList.toggle("active", learning);
   $("todosMode").classList.toggle("active", learning);

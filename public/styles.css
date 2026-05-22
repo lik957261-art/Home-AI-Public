@@ -596,7 +596,7 @@ button {
 
 .section-toggle {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -9414,11 +9414,36 @@ button.directory-alias-chip {
 .codex-mux-create,
 .codex-mux-panel,
 .codex-mux-task,
-.codex-mux-event {
+.codex-mux-event,
+.codex-mux-intro,
+.codex-mux-chat {
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 8px;
   background: rgba(255, 252, 246, 0.84);
-  box-shadow: 0 10px 28px rgba(34, 28, 20, 0.07);
+}
+
+.codex-mux-intro {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.codex-mux-intro strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.codex-mux-intro span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.codex-mux-chat {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
 }
 
 .codex-mux-create {
@@ -9502,20 +9527,6 @@ button.directory-alias-chip {
   color: var(--ink);
   font-size: 14px;
   line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.codex-mux-event pre {
-  margin: 0;
-  max-height: 220px;
-  overflow: auto;
-  padding: 9px;
-  color: #32433f;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid rgba(96, 118, 111, 0.14);
-  border-radius: 12px;
-  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
@@ -10796,8 +10807,10 @@ button.directory-alias-chip {
   .codex-mux-create,
   .codex-mux-panel,
   .codex-mux-task,
-  .codex-mux-event {
-    border-radius: 16px;
+  .codex-mux-event,
+  .codex-mux-intro,
+  .codex-mux-chat {
+    border-radius: 8px;
   }
 
   .automation-card {

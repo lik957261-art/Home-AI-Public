@@ -209,7 +209,7 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = false; node.disabled = false; } });
+  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "codexMuxMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = id === "codexMuxMode" ? !state.auth?.isOwner : false; node.disabled = id === "codexMuxMode" ? !state.auth?.isOwner : false; } });
   updateTopMoreControls();
 }
 

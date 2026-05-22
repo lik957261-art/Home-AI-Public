@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-codex-mux-owner-v83";
+const CLIENT_VERSION = "20260522-hermes-mux-nav-v84";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -114,9 +114,13 @@ assert.match(appJs, /state\.viewMode === "codex-mux"/);
 assert.match(appJs, /async function loadCodexMux\(options = \{\}\)/);
 assert.match(appJs, /function renderCodexMuxView\(\)/);
 assert.match(appJs, /data-codex-mux-page/);
+assert.match(appJs, /function codexMuxCoordinatorInstructions\(\)/);
+assert.match(appJs, /async function sendCodexMuxHermesMessage\(text\)/);
+assert.match(appJs, /codexMuxMode: true/);
+assert.match(appJs, /allowed_toolsets: \["http"\]/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-codex-mux-owner-v83/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-codex-mux-owner-v83/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-nav-v84/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-nav-v84/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
@@ -963,7 +967,7 @@ assert.doesNotMatch(appJs, /routeView && routeView !== "learning"/);
 assert.match(appJs, /function applyDefaultLaunchView\(\) \{\s*state\.viewMode = "single";/);
 assert.doesNotMatch(appJs, /node\.hidden = Boolean\(state\.auth && !state\.auth\.isOwner\)/);
 assert.doesNotMatch(appJs, /node\.disabled = Boolean\(state\.auth && !state\.auth\.isOwner\)/);
-assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"/);
+assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "codexMuxMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"/);
 assert.match(appJs, /params\.set\("workspaceId", learningGrowthLearnerWorkspaceId\(\)\)/);
 assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(appLearningGrowthControllerJs, /function setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
@@ -1280,9 +1284,12 @@ assert.match(appJs, /body: serializedBody/);
 assert.match(indexHtml, /hermesWebFontFamily/);
 assert.match(indexHtml, /--app-font-family/);
 assert.match(indexHtml, /id="chatManagementMode"/);
+assert.match(indexHtml, /id="codexMuxMode"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.addEventListener\("click"/);
+assert.match(appJs, /\$\("codexMuxMode"\)\?\.addEventListener\("click"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.classList\.toggle\("active", single && state\.singleWindowMode === "chat"\)/);
-assert.match(stylesCss, /\.section-toggle \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+assert.match(appJs, /\$\("codexMuxMode"\)\?\.classList\.toggle\("active", codexMux\)/);
+assert.match(stylesCss, /\.section-toggle \{[\s\S]*?grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)/);
 assert.match(appJs, /window\.matchMedia\("\(max-width: 1099px\)"\)/);
 assert.match(appJs, /const mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| skillDetail \|\| directoryBack/);
@@ -1574,7 +1581,8 @@ assert.ok(weixinIngressEventServiceJs.indexOf("weixinIngressProvider.isInboundHe
 assert.match(weixinIngressProviderJs, /function isInboundHeartbeatEvent\(event\)/);
 assert.match(weixinIngressProviderJs, /text === "#" \|\| text === "＃"/);
 assert.match(serverJs, /taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID/);
-assert.match(threadMessageCreateServiceJs, /singleWindowMode === "chat" \? singleWindowChatTaskGroupId\(requestedTaskGroupId\) : \(requestedTaskGroupId \|\| makeId\("task"\)\)/);
+assert.match(threadMessageCreateServiceJs, /requestedCodexMuxChat \? requestedTaskGroupId : singleWindowChatTaskGroupId\(requestedTaskGroupId\)/);
+assert.match(threadMessageCreateServiceJs, /Codex Mux chat is Owner-only/);
 assert.match(threadMessageCreateServiceJs, /"The latest user message is a Hermes Mobile continuous-chat turn/);
 assert.equal(serverJs.includes("\"weixin-chat\""), false);
 assert.match(weixinWindowMigrationServiceJs, /\|\| isWeixinSingleWindowThread\(sourceThread\)/);

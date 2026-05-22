@@ -186,7 +186,7 @@ function createThreadMessageCreateService(options = {}) {
     return { ok: true, replyToMessageId, quotedMessage };
   }
 
-  function resolveTaskGroup(thread, body, singleWindowMode, quotedMessage) {
+  function resolveTaskGroup(thread, body, singleWindowMode, quotedMessage, auth = {}) {
     const bodyTaskGroupId = body.taskGroupId ? sanitizeTaskGroupId(body.taskGroupId) : "";
     const quotedTaskGroupId = quotedMessage?.taskGroupId ? sanitizeTaskGroupId(quotedMessage.taskGroupId) : "";
     if (bodyTaskGroupId && quotedTaskGroupId && bodyTaskGroupId !== quotedTaskGroupId) {
@@ -194,6 +194,15 @@ function createThreadMessageCreateService(options = {}) {
     }
 
     const requestedTaskGroupId = bodyTaskGroupId || quotedTaskGroupId;
+    const requestedCodexMuxChat = Boolean(
+      thread.singleWindow
+      && singleWindowMode === "chat"
+      && requestedTaskGroupId
+      && (body.codexMuxMode || body.codex_mux_mode)
+    );
+    if (requestedCodexMuxChat && !isOwnerAuth(auth)) {
+      return errorResult(403, "Codex Mux chat is Owner-only", { code: "codex_mux_owner_only" });
+    }
     const normalizedTaskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
     const requestedCaseTopicChat = Boolean(
       thread.singleWindow
@@ -206,7 +215,9 @@ function createThreadMessageCreateService(options = {}) {
       ? (
         requestedCaseTopicChat
           ? requestedTaskGroupId
-          : (singleWindowMode === "chat" ? singleWindowChatTaskGroupId(requestedTaskGroupId) : (requestedTaskGroupId || makeId("task")))
+          : (singleWindowMode === "chat"
+            ? (requestedCodexMuxChat ? requestedTaskGroupId : singleWindowChatTaskGroupId(requestedTaskGroupId))
+            : (requestedTaskGroupId || makeId("task")))
       )
       : "";
 
@@ -219,6 +230,7 @@ function createThreadMessageCreateService(options = {}) {
       bodyTaskGroupId,
       quotedTaskGroupId,
       requestedTaskGroupId,
+      requestedCodexMuxChat,
       normalizedTaskGroupMeta,
       requestedCaseTopicChat,
       taskGroupId,
@@ -493,7 +505,7 @@ function createThreadMessageCreateService(options = {}) {
     const quoted = resolveQuotedMessage(thread, body, normalized.singleWindowMode);
     if (!quoted.ok) return quoted;
 
-    const taskGroup = resolveTaskGroup(thread, body, normalized.singleWindowMode, quoted.quotedMessage);
+    const taskGroup = resolveTaskGroup(thread, body, normalized.singleWindowMode, quoted.quotedMessage, auth);
     if (!taskGroup.ok) return taskGroup;
 
     const groupChat = resolveGroupChat(thread, normalized.singleWindowMode, taskGroup.taskGroupId, taskGroup.requestedCaseTopicChat);

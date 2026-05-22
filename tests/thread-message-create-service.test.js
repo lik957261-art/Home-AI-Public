@@ -234,6 +234,51 @@ function testSingleWindowGroupChatPlainMessageCommit() {
   assert.deepEqual(calls.mentions, [{ threadId: "thread-1", messageId: "msg_1" }]);
 }
 
+function testOwnerCodexMuxChatKeepsDedicatedTaskGroup() {
+  const { service } = makeHarness();
+  const thread = baseThread({
+    singleWindow: true,
+    memberWorkspaceIds: ["owner"],
+    activeRunIds: [],
+  });
+
+  const denied = service.prepareThreadMessageCreate({
+    thread,
+    body: { text: "coordinate", singleWindowMode: "chat", taskGroupId: "codex-mux", codexMuxMode: true },
+    auth: { owner: false, workspaceId: "child" },
+  });
+  assert.equal(denied.status, 403);
+  assert.equal(denied.response.code, "codex_mux_owner_only");
+
+  const plan = service.prepareThreadMessageCreate({
+    thread,
+    body: {
+      text: "coordinate",
+      singleWindowMode: "chat",
+      taskGroupId: "codex-mux",
+      codexMuxMode: true,
+      instructions: "Mux coordinator instructions",
+      access_policy_context: { allowed_toolsets: ["http"] },
+    },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.nextAction, "start-run");
+  assert.equal(plan.taskGroupId, "codex-mux");
+  assert.equal(plan.userMessage.taskGroupId, "codex-mux");
+  assert.equal(plan.assistantMessage.taskGroupId, "codex-mux");
+  assert.match(plan.runOptions.instructions, /Mux coordinator instructions/);
+  assert.deepEqual(plan.responseDescriptor, {
+    type: "message-page",
+    options: {
+      mode: "chat",
+      taskGroupId: "codex-mux",
+      groupChat: false,
+      limit: undefined,
+    },
+  });
+}
+
 function testTaskGroupAndCaseTopicValidation() {
   const { service } = makeHarness();
   const quotedThread = baseThread({
@@ -519,6 +564,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   testValidationAndGatewayErrorShape();
   testPlannerParagraphIsAcceptedAndOversizeTextIsRejected();
   testSingleWindowGroupChatPlainMessageCommit();
+  testOwnerCodexMuxChatKeepsDedicatedTaskGroup();
   testTaskGroupAndCaseTopicValidation();
   testDirectoryAttachmentPrecedence();
   testDirectCreateRoutingAndPayloads();

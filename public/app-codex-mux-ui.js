@@ -1,5 +1,9 @@
 "use strict";
 
+const CODEX_MUX_TASK_GROUP_ID = "codex-mux";
+const CODEX_MUX_OWNER_WORKSPACE_ID = "owner";
+const CODEX_MUX_WORKER_ID = "codex-hermes-main";
+
 function codexMuxOwnerAllowed() {
   return Boolean(state.auth?.isOwner);
 }
@@ -18,22 +22,15 @@ function codexMuxEventSummary(event) {
   return String(event?.summary || event?.payload?.instruction || event?.payload?.message || event?.type || "").trim();
 }
 
-function codexMuxNewTaskId() {
-  if (window.crypto?.getRandomValues) {
-    const bytes = new Uint8Array(8);
-    window.crypto.getRandomValues(bytes);
-    return `mux_${Array.from(bytes).map((item) => item.toString(16).padStart(2, "0")).join("")}`;
-  }
-  return `mux_${Date.now().toString(16)}${Math.random().toString(16).slice(2, 8)}`;
+function codexMuxEventIsDecisionLevel(event) {
+  const type = String(event?.type || "").toLowerCase();
+  if (!type) return false;
+  if (type.includes("heartbeat") || type.includes("tool") || type.includes("progress") || type.includes("poll")) return false;
+  return Boolean(codexMuxEventSummary(event));
 }
 
 function codexMuxSettingsEntryHtml() {
-  if (!codexMuxOwnerAllowed()) return "";
-  return `<div class="settings-row-title">Owner</div>
-      <div class="settings-account-actions">
-        <button class="settings-logout-button" type="button" data-open-codex-mux>Codex Mux</button>
-        <span>Owner-only fixed-thread coordination stream between Hermes Mobile and Codex Mobile.</span>
-      </div>`;
+  return "";
 }
 
 function renderCodexMuxTaskCard(task) {
@@ -46,30 +43,44 @@ function renderCodexMuxTaskCard(task) {
 
 function renderCodexMuxEvent(event) {
   const summary = codexMuxEventSummary(event);
-  const payload = event?.payload && typeof event.payload === "object"
-    ? JSON.stringify(event.payload, null, 2)
-    : "";
   return `<article class="codex-mux-event">
     <div class="codex-mux-event-head">
       <strong>${escapeHtml(event?.type || "event")}</strong>
       <span>${escapeHtml(event?.createdAt || "")}</span>
     </div>
     ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
-    ${payload && payload !== "{}" ? `<pre>${escapeHtml(payload)}</pre>` : ""}
   </article>`;
 }
 
+function codexMuxCoordinatorInstructions() {
+  return [
+    "You are Hermes Mobile inside the Owner-only Hermes-Codex Mux collaboration stream.",
+    "The user is speaking to Hermes first. Do not treat the message as an automatic instruction to Codex.",
+    "Clarify, analyze, and decide the next step in this same conversation. Use Codex only when code/workspace execution or verification is needed.",
+    `When Codex is needed, call the codex_mobile function through the HTTP/API toolset with assignedWorker=${CODEX_MUX_WORKER_ID}, workerMode=sticky, requiresSameThread=true, and a bounded task capsule.`,
+    "After Codex reports back, summarize the result here and continue coordinating follow-up work with the user. Keep the user-facing stream readable and do not expose secrets.",
+  ].join("\n");
+}
+
+function renderCodexMuxMessage(message) {
+  return renderMessage(message);
+}
+
+function renderCodexMuxConversation() {
+  const messages = (state.currentThread?.messages || []).filter((message) => message.taskGroupId === CODEX_MUX_TASK_GROUP_ID);
+  return messages.length
+    ? messages.map(renderCodexMuxMessage).join("")
+    : `<div class="empty-state small">向 Hermes 描述需求；Hermes 需要 Codex 配合时会在这里发起并跟进。</div>`;
+}
+
 function renderCodexMuxView() {
-  state.currentThread = null;
-  state.currentThreadId = "";
-  state.currentTaskGroupId = "";
   state.threads = [];
   const list = $("threadList");
   if (list) list.innerHTML = "";
-  $("threadTitle").textContent = "Codex Mux";
-  $("threadMeta").textContent = codexMuxOwnerAllowed() ? "Owner coordination stream" : "Owner only";
+  $("threadTitle").textContent = "Hermes 协作流";
+  $("threadMeta").textContent = codexMuxOwnerAllowed() ? "Owner-only Mux" : "Owner only";
   $("interruptRun").disabled = true;
-  configureComposer({ enabled: false, placeholder: "Codex Mux" });
+  configureComposer({ enabled: false, placeholder: "Hermes 协作流" });
   const conversation = $("conversation");
   if (!conversation) return;
   if (!codexMuxOwnerAllowed()) {
@@ -81,13 +92,19 @@ function renderCodexMuxView() {
   const taskList = state.codexMuxTasks.length
     ? state.codexMuxTasks.map(renderCodexMuxTaskCard).join("")
     : `<div class="empty-state small">No Mux tasks yet.</div>`;
+  const decisionEvents = state.codexMuxEvents.filter(codexMuxEventIsDecisionLevel).slice(-40);
   const events = selected
-    ? (state.codexMuxEvents.length ? state.codexMuxEvents.map(renderCodexMuxEvent).join("") : `<div class="empty-state small">No events recorded.</div>`)
+    ? (decisionEvents.length ? decisionEvents.map(renderCodexMuxEvent).join("") : `<div class="empty-state small">No decision-level events yet.</div>`)
     : `<div class="empty-state small">Select a Mux task to inspect the event stream.</div>`;
   conversation.innerHTML = `<section class="codex-mux-shell" data-codex-mux-page>
-    <form class="codex-mux-create" data-codex-mux-create-form>
-      <label class="automation-create-label" for="codexMuxInstruction">New request</label>
-      <textarea id="codexMuxInstruction" class="automation-create-input" rows="4" data-codex-mux-draft placeholder="Describe one Codex coordination request for the fixed worker thread.">${escapeHtml(state.codexMuxDraft || "")}</textarea>
+    <div class="codex-mux-intro">
+      <strong>Hermes 协作流</strong>
+      <span>先和 Hermes 沟通；只有需要代码执行或工作区验证时，Hermes 才会调用固定 Codex 线程。</span>
+    </div>
+    <div class="codex-mux-chat" data-codex-mux-chat>${renderCodexMuxConversation()}</div>
+    <form class="codex-mux-create" data-codex-mux-message-form>
+      <label class="automation-create-label" for="codexMuxInstruction">发给 Hermes</label>
+      <textarea id="codexMuxInstruction" class="automation-create-input" rows="4" data-codex-mux-draft placeholder="描述你要 Hermes 协调的需求；Hermes 会判断是否需要 Codex 参与。">${escapeHtml(state.codexMuxDraft || "")}</textarea>
       <div class="automation-create-actions">
         <button class="secondary-small" type="button" data-codex-mux-refresh ${state.codexMuxLoading ? "disabled" : ""}>Refresh</button>
         <button class="primary-small" type="submit" ${state.codexMuxSubmitting ? "disabled" : ""}>Send</button>
@@ -101,14 +118,44 @@ function renderCodexMuxView() {
         <div class="codex-mux-task-list">${taskList}</div>
       </section>
       <section class="codex-mux-panel">
-        <div class="automation-section-title">${escapeHtml(selected ? codexMuxTaskTitle(selected) : "Events")}</div>
+        <div class="automation-section-title">${escapeHtml(selected ? codexMuxTaskTitle(selected) : "Milestones")}</div>
         <div class="codex-mux-event-list">${events}</div>
       </section>
     </div>
   </section>`;
   wireCodexMuxView();
+  wireQuoteButtons(conversation);
+  wireMessageRevokeButtons(conversation);
+  wireMessageScrollButtons(conversation);
+  wireMessageReplyActionButtons(conversation);
+  wireArtifactWeixinButtons(conversation);
+  wireSkillLinks(conversation);
+  wireUsagePanels(conversation);
+  wireLongMessageButtons(conversation);
+  syncRunProgressTicker(conversation);
   updateNavigationControls();
   ensureVerticalScrollAffordance();
+}
+
+async function ensureCodexMuxThread() {
+  if (state.currentThread?.singleWindow && state.currentThreadId && state.currentTaskGroupId === CODEX_MUX_TASK_GROUP_ID) {
+    return state.currentThread;
+  }
+  const result = await api("/api/single-window", {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: CODEX_MUX_OWNER_WORKSPACE_ID,
+      messageMode: "chat",
+      taskGroupId: CODEX_MUX_TASK_GROUP_ID,
+      messageLimit: 80,
+    }),
+  });
+  if (result?.thread) {
+    state.currentThread = mergeCurrentThread(result.thread);
+    state.currentThreadId = state.currentThread.id || "";
+    state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
+  }
+  return state.currentThread;
 }
 
 async function loadCodexMux(options = {}) {
@@ -120,7 +167,8 @@ async function loadCodexMux(options = {}) {
   state.codexMuxError = "";
   if (!options.silent) renderCodexMuxView();
   try {
-    const result = await api("/api/codex-mux/tasks?assignedWorker=codex-hermes-main&limit=50");
+    await ensureCodexMuxThread();
+    const result = await api(`/api/codex-mux/tasks?assignedWorker=${encodeURIComponent(CODEX_MUX_WORKER_ID)}&limit=50`);
     state.codexMuxTasks = Array.isArray(result?.tasks) ? result.tasks : [];
     if (!state.codexMuxTaskId && state.codexMuxTasks[0]?.taskId) state.codexMuxTaskId = state.codexMuxTasks[0].taskId;
     await loadCodexMuxEvents({ render: false });
@@ -145,51 +193,41 @@ async function loadCodexMuxEvents(options = {}) {
 }
 
 async function createCodexMuxTaskFromDraft(text) {
-  const instruction = String(text || "").trim();
-  if (!instruction) {
-    state.codexMuxError = "Request text is required.";
+  return sendCodexMuxHermesMessage(text);
+}
+
+async function sendCodexMuxHermesMessage(text) {
+  const message = String(text || "").trim();
+  if (!message) {
+    state.codexMuxError = "Message text is required.";
     renderCodexMuxView();
     return;
   }
-  const taskId = codexMuxNewTaskId();
-  const title = instruction.split(/\r?\n/)[0].slice(0, 80) || taskId;
-  const capsule = {
-    schema: "hermes-codex-mux.task.v1",
-    taskId,
-    title,
-    userIntent: instruction,
-    bridgeId: "hermes-mobile-codex-main",
-    assignedWorker: "codex-hermes-main",
-    workerMode: "sticky",
-    requiresSameThread: true,
-    handoverAllowed: false,
-    source: { channel: "hermes-mobile-mux-window" },
-  };
   state.codexMuxSubmitting = true;
   state.codexMuxError = "";
   renderCodexMuxView();
   try {
-    await api("/api/codex-mux/tasks", {
+    const thread = await ensureCodexMuxThread();
+    if (!thread?.id) throw new Error("Codex Mux thread is unavailable.");
+    const result = await api(`/api/threads/${encodeURIComponent(thread.id)}/messages`, {
       method: "POST",
       body: JSON.stringify({
-        taskId,
-        title,
-        status: "open",
-        assignedWorker: "codex-hermes-main",
-        capsule,
-        event: {
-          type: "task.requested",
-          from: "hermes-mobile",
-          to: "codex-hermes-main",
-          workerId: "codex-hermes-main",
-          status: "open",
-          summary: title,
-          payload: { instruction, capsule },
+        text: message,
+        workspaceId: CODEX_MUX_OWNER_WORKSPACE_ID,
+        singleWindowMode: "chat",
+        taskGroupId: CODEX_MUX_TASK_GROUP_ID,
+        codexMuxMode: true,
+        messageLimit: 80,
+        instructions: codexMuxCoordinatorInstructions(),
+        access_policy_context: {
+          allowed_toolsets: ["http"],
         },
       }),
     });
+    if (result?.thread) state.currentThread = mergeCurrentThread(result.thread);
+    state.currentThreadId = state.currentThread?.id || thread.id;
+    state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
     state.codexMuxDraft = "";
-    state.codexMuxTaskId = taskId;
     await loadCodexMux({ silent: true });
   } catch (err) {
     state.codexMuxError = err.message || String(err);
@@ -204,9 +242,9 @@ function wireCodexMuxView() {
   conversation?.querySelector("[data-codex-mux-draft]")?.addEventListener("input", (event) => {
     state.codexMuxDraft = event.target.value || "";
   });
-  conversation?.querySelector("[data-codex-mux-create-form]")?.addEventListener("submit", (event) => {
+  conversation?.querySelector("[data-codex-mux-message-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    createCodexMuxTaskFromDraft(conversation.querySelector("[data-codex-mux-draft]")?.value || "").catch(showError);
+    sendCodexMuxHermesMessage(conversation.querySelector("[data-codex-mux-draft]")?.value || "").catch(showError);
   });
   conversation?.querySelector("[data-codex-mux-refresh]")?.addEventListener("click", () => loadCodexMux().catch(showError));
   conversation?.querySelectorAll("[data-codex-mux-task]").forEach((button) => {

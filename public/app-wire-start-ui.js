@@ -205,6 +205,9 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
+  $("codexMuxMode")?.addEventListener("click", async () => {
+    await openCodexMuxPage();
+  });
   $("bottomAutomationMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
     state.viewMode = "automation";

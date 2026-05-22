@@ -319,7 +319,6 @@ function renderSettingsOverlay() {
       <span class="default-model-option-meta">${escapeHtml(modelMeta || option.description || "")}</span>
     </button>`;
   }).join("");
-  const ownerTools = typeof codexMuxSettingsEntryHtml === "function" ? codexMuxSettingsEntryHtml() : "";
   overlay.innerHTML = `<section class="access-key-sheet settings-sheet">
     <header class="access-key-header">
       <div>
@@ -341,7 +340,6 @@ function renderSettingsOverlay() {
       <div class="default-model-options" role="group" aria-label="\u9ed8\u8ba4\u6a21\u578b">
         ${modelOptions}
       </div>
-      ${ownerTools}
       <div class="settings-row-title">\u8d26\u53f7</div>
       <div class="settings-account-actions">
         <button class="settings-logout-button" type="button" data-settings-logout>\u9000\u51fa\u8d26\u53f7</button>
@@ -370,7 +368,6 @@ function renderSettingsOverlay() {
     button.addEventListener("click", () => setDefaultComposerModelPreference(button.dataset.defaultModelOption || DEFAULT_COMPOSER_MODEL_ID));
   });
   overlay.querySelector("[data-settings-logout]")?.addEventListener("click", logoutCurrentAccount);
-  overlay.querySelector("[data-open-codex-mux]")?.addEventListener("click", () => openCodexMuxPage().catch(showError));
 }
 
 function openSettings() {
