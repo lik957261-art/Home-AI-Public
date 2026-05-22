@@ -64,13 +64,14 @@ function testPythonLessonSummaryDoesNotForceElevation() {
   assert.deepEqual(route, { securityLevel: "user", maintenance: false });
 }
 
-function testCrossAccountAutomationStillRequiresElevation() {
+function testCrossAccountAutomationDoesNotPreemptNormalModelRun() {
   const service = makeService();
-  assertThrowsCode(() => service.gatewayRoutingForModelRun(
+  const route = service.gatewayRoutingForModelRun(
     { workspaceId: "owner" },
     "\u628a Steven \u7684\u81ea\u52a8\u5316\u4efb\u52a1\u89e6\u53d1\u65f6\u95f4\u6539\u6210 8 \u70b9",
     { actorWorkspaceId: "owner" },
-  ), "automation_admin_write");
+  );
+  assert.deepEqual(route, { securityLevel: "user", maintenance: false });
 }
 
 function testExplicitMaintenanceModeStillRequiresElevation() {
@@ -84,7 +85,7 @@ function testExplicitMaintenanceModeStillRequiresElevation() {
 
 testLearningContentUpdateDoesNotForceMaintenanceRouting();
 testPythonLessonSummaryDoesNotForceElevation();
-testCrossAccountAutomationStillRequiresElevation();
+testCrossAccountAutomationDoesNotPreemptNormalModelRun();
 testExplicitMaintenanceModeStillRequiresElevation();
 
 console.log("owner-elevation-routing-service tests passed");

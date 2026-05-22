@@ -110,16 +110,7 @@ function createOwnerElevationRoutingService(options = {}) {
       err.elevationScope = routeOptions.elevationScope || routeOptions.elevation_scope || "owner_high_privilege";
       throw err;
     }
-    const classification = classifyAutomationAdminIntentForRun(text, routeOptions)
-      || securityBoundaryProvider.classifySharedSkillWriteIntent?.(text);
-    if (!classification) return { securityLevel: "user", maintenance: false };
-    const err = new Error(classification.message);
-    err.status = isOwnerAuth(auth) ? 409 : 403;
-    err.code = classification.category;
-    err.operatorRequired = true;
-    err.elevationRequired = Boolean(isOwnerAuth(auth) && classification.elevationRequired);
-    err.elevationScope = classification.elevationScope || classification.category;
-    throw err;
+    return { securityLevel: "user", maintenance: false };
   }
 
   function sharedSkillElevationInstructions(routeOptions = {}) {

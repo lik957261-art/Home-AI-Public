@@ -7701,6 +7701,38 @@ button.directory-alias-chip {
   gap: 6px;
 }
 
+.learning-growth-board-decay-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(122, 85, 20, 0.18);
+  border-radius: 10px;
+  color: #7a5514;
+  font-size: 12px;
+  line-height: 1.35;
+  background: rgba(255, 239, 190, 0.52);
+}
+
+.learning-growth-board-decay-rule strong {
+  flex: 0 0 auto;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.learning-growth-board-decay-rule span {
+  min-width: 0;
+  color: inherit;
+}
+
+.learning-growth-board-decay-rule.is-danger {
+  border-color: rgba(143, 47, 38, 0.18);
+  color: #8f2f26;
+  background: rgba(255, 225, 220, 0.58);
+}
+
 .learning-growth-board-card-meta small,
 .learning-growth-board-artifact-link {
   padding: 4px 7px;

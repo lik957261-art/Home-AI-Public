@@ -138,7 +138,8 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /learning-growth-board-card-preview/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /奖励 120 金币/);
-  assert.match(html, /开放 2026-05-20 09:30/);
+  assert.match(html, /2026-05-20 09:30/);
+  assert.doesNotMatch(html, /开放 2026-05-20 09:30/);
   assert.match(html, /data-directory-path-open/);
   assert.match(html, /data-learning-growth-artifact-link/);
   assert.match(html, /learning-growth-board-artifact-icon/);
@@ -199,8 +200,10 @@ function testGrowthBoardShowsEvergreenRewardDecayAndAge() {
   });
   assert.match(html, /learning-growth-board-card is-reward-warning/);
   assert.match(html, /\u5df2\u53d1\u5e03 2d 1h/);
-  assert.match(html, /\u6bcf\u65e5 -5%/);
-  assert.match(html, /95\/100/);
+  assert.match(html, /learning-growth-board-decay-rule is-warning/);
+  assert.match(html, /\u53d1\u5e03 48 \u5c0f\u65f6\u540e\u6bcf\u65e5\u6263 5%/);
+  assert.doesNotMatch(html, /\u5f00\u653e 2026-05-20/);
+  assert.doesNotMatch(html, /95\/100/);
 }
 
 function testGrowthRendererCanOpenBoardOnlyRevisionTask() {

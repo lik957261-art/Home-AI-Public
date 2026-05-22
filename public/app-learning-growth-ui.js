@@ -199,6 +199,18 @@
     return "规则 48h 黄 -5%/日，72h 红 -10%/日";
   }
 
+  function boardRewardDecayRule(board = {}) {
+    const cards = Array.isArray(board.cards) ? board.cards : [];
+    if (!cards.some((card) => card?.rewardDecay?.applies)) return "";
+    const hasDanger = cards.some((card) => String(card?.rewardDecay?.severity || "") === "danger");
+    const hasWarning = cards.some((card) => String(card?.rewardDecay?.severity || "") === "warning");
+    const severityClass = hasDanger ? " is-danger" : hasWarning ? " is-warning" : "";
+    return `<div class="learning-growth-board-decay-rule${severityClass}">
+      <strong>超时规则</strong>
+      <span>发布 48 小时后每日扣 5%，72 小时后每日扣 10%。</span>
+    </div>`;
+  }
+
   function renderArtifactCountPill(card = {}, artifacts = 0, escapeHtml = defaultEscapeHtml) {
     const directoryPath = String(card.artifactDirectoryPath || "").trim();
     if (!artifacts || !directoryPath) return "";
@@ -215,7 +227,6 @@
     const artifacts = Number(card.artifactCount || 0);
     const openTime = cardOpenTimeText(card);
     const ageText = cardPublishedAgeText(card);
-    const decayText = rewardDecayText(card);
     return `<article class="learning-growth-board-card${rewardDecayClass(card)}" data-learning-executable-task-id="${escapeHtml(taskCardId)}" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
       <div class="learning-growth-board-card-head">
         <button type="button" class="learning-growth-board-card-title" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
@@ -227,11 +238,10 @@
       ${card.instructionPreview ? `<p class="learning-growth-board-card-preview">${escapeHtml(card.instructionPreview)}</p>` : ""}
       <div class="learning-growth-board-card-meta">
         ${card.activityType ? `<small>${escapeHtml(card.activityType)}</small>` : ""}
-        ${openTime ? `<small>\u5f00\u653e ${escapeHtml(openTime)}${ageText ? ` · \u5df2\u53d1\u5e03 ${escapeHtml(ageText)}` : ""}</small>` : ""}
+        ${openTime ? `<small>${escapeHtml(openTime)}${ageText ? ` · \u5df2\u53d1\u5e03 ${escapeHtml(ageText)}` : ""}</small>` : ""}
         ${scoreText ? `<small>${escapeHtml(scoreText)}</small>` : ""}
         ${renderArtifactCountPill(card, artifacts, escapeHtml)}
       </div>
-      ${decayText ? `<div class="learning-growth-board-card-decay">${escapeHtml(decayText)}</div>` : ""}
     </article>`;
   }
 
@@ -266,6 +276,7 @@
           </button>`;
         }).join("")}
       </div>
+      ${boardRewardDecayRule(board)}
       <div class="learning-growth-board-lanes" data-growth-board-active-lane="${escapeHtml(activeLaneId)}">
         ${displayLaneModels.map((lane) => {
           const active = lane.id === activeLaneId;
