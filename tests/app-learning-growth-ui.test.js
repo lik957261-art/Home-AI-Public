@@ -132,6 +132,7 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /learning-growth-board-lane-head/);
   assert.match(html, /Native board task/);
   assert.doesNotMatch(html, /<small>历史累计<\/small>/);
+  assert.match(html, /<article class="learning-growth-board-card"[^>]+data-learning-open-growth-task="task-1"/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /learning-growth-board-card-preview/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
@@ -174,6 +175,32 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-evaluation-settle/);
   assert.doesNotMatch(html, /Owner|家长|后台与平台能力|learningRewardForm|人民币/);
   assert.doesNotMatch(html, /学习档案与目标录入/);
+}
+
+function testGrowthRendererCanOpenBoardOnlyRevisionTask() {
+  const boardOnlyOverview = JSON.parse(JSON.stringify(overview));
+  boardOnlyOverview.board.lanes = [{ id: "needs_revision", title: "Needs revision", count: 1, cards: ["task-revise"] }];
+  boardOnlyOverview.board.cards = [{
+    taskCardId: "task-revise",
+    title: "Revision only board task",
+    instructionPreview: "Revise the first answer.",
+    activityType: "math_reasoning",
+    nextAction: "revise",
+    laneId: "needs_revision",
+    rewardCapCoins: 100,
+  }];
+  boardOnlyOverview.programs.taskCards = [];
+  boardOnlyOverview.programs.executableTasks = [];
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: boardOnlyOverview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, selectedLearningTaskCardId: "task-revise" },
+  });
+  assert.match(html, /data-learning-growth-task-focus="task-revise"/);
+  assert.match(html, /data-learning-growth-answer-card/);
+  assert.match(html, /Revision only board task/);
+  assert.doesNotMatch(html, /\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0/);
 }
 
 function testGrowthRendererContainsProgramSubsystem() {
@@ -349,6 +376,7 @@ function testReadinessPanelRenderer() {
 testCoinSubsystemRendererIsStandalone();
 testExecutorCoinSubsystemHidesOwnerSettlementDetails();
 testGrowthRendererContainsProductShellAndNestedCoins();
+testGrowthRendererCanOpenBoardOnlyRevisionTask();
 testGrowthRendererContainsProgramSubsystem();
 testGrowthRendererShowsStandaloneTaskCardWhenSelected();
 testGrowthRendererOpensLegacyTodoAsReadOnlyTask();

@@ -673,10 +673,10 @@ function wireLearningCoinsView() {
     button.addEventListener("click", () => window.HermesLearningGrowthSettingsController?.openSettingsTask?.(button.dataset.learningOpenSettingsTask));
   });
   $("conversation")?.querySelectorAll("[data-learning-open-growth-task]").forEach((button) => {
-    button.addEventListener("click", () => openLearningGrowthTask(
-      button.dataset.learningOpenGrowthTask,
-      button.dataset.workspaceId,
-    ).catch(showError));
+    button.addEventListener("click", (event) => {
+      if (event.currentTarget?.classList?.contains("learning-growth-board-card") && event.target?.closest?.("[data-directory-path-open]")) return;
+      event.preventDefault(); event.stopPropagation(); openLearningGrowthTask(button.dataset.learningOpenGrowthTask, button.dataset.workspaceId).catch(showError);
+    });
   });
   $("conversation")?.querySelectorAll("[data-learning-open-kanban-card]").forEach((button) => {
     button.addEventListener("click", () => openLearningKanbanCard(

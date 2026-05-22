@@ -57,9 +57,15 @@ function mergeCurrentThread(incomingThread) {
   if (!state.currentThread || state.currentThread.id !== incomingThread.id) return incomingThread;
   const existingPage = state.currentThread.messagesPage || null;
   const incomingPage = incomingThread.messagesPage || null;
+  const incomingMessages = Array.isArray(incomingThread.messages) ? incomingThread.messages : [];
+  const existingThreadMessages = state.currentThread.messages || [];
+  if (incomingPage && !incomingMessages.length && existingThreadMessages.length) {
+    const messagesPage = mergeMessagesPage(existingPage, incomingPage, chatMessagesForThread(state.currentThread));
+    return Object.assign({}, state.currentThread, incomingThread, { messages: existingThreadMessages, messagesPage });
+  }
   const existingMessages = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));
   const incomingIds = new Set();
-  const messages = (incomingThread.messages || []).map((message) => {
+  const messages = incomingMessages.map((message) => {
     incomingIds.add(message.id);
     return mergeServerMessage(existingMessages.get(message.id), message);
   });

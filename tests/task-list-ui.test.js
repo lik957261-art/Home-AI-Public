@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-chat-repaint-grok-auth-v70";
+const CLIENT_VERSION = "20260522-growth-revision-chat-stable-v72";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -156,6 +156,8 @@ assert.match(appJs, /conversation\.style\.overflowAnchor = "none"/);
 assert.match(appJs, /conversation\.scrollTop = Math\.min\(maxTop, top \+ 1\)/);
 assert.match(appJs, /if \(isSingleWindowChatView\(\)\) scheduleConversationViewportRefresh\(conversation\)/);
 assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
+assert.match(appJs, /incomingPage && !incomingMessages\.length && existingThreadMessages\.length/);
+assert.match(appJs, /messages: existingThreadMessages/);
 assert.match(appJs, /currentThreadHasPendingMessages\(thread\) \|\| state\.currentThreadRefreshInFlight/);
 assert.match(appJs, /timeoutMs: 8000/);
 assert.match(appJs, /timeoutMs: 90000/);
@@ -979,17 +981,21 @@ assert.match(appLearningGrowthUiJs, /renderLearningGrowthBoard/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-board-summary/);
 assert.match(appLearningGrowthUiJs, /learning-growth-board-page/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-board/);
+assert.match(appLearningGrowthUiJs, /<article class="learning-growth-board-card"[^`]+data-learning-open-growth-task/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-board-filter/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-board-panel/);
 assert.match(appLearningGrowthUiJs, /data-directory-path-open/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-artifact-link/);
 assert.match(appLearningGrowthUiJs, /artifactDirectoryPath/);
 assert.match(appLearningGrowthUiJs, /renderSelectedGrowthTaskView/);
+assert.match(appLearningGrowthUiJs, /boardFallback/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-task-focus/);
 assert.match(appLearningProgramUiJs, /renderNativeGrowthTaskDetail/);
 assert.match(appLearningProgramUiJs, /data-learning-growth-answer-card/);
 assert.match(appLearningGrowthControllerJs, /state\.learningGrowthBoardLane/);
 assert.match(appLearningGrowthControllerJs, /selectLearningGrowthBoardLane/);
+assert.match(appLearningGrowthControllerJs, /event\.target\?\.closest\?\.\("\[data-directory-path-open\]"\)/);
+assert.match(appLearningGrowthControllerJs, /event\.stopPropagation\(\)/);
 assert.match(appLearningGrowthControllerJs, /wireDirectoryProjectLinks\(\$\("conversation"\)\)/);
 assert.match(mobileApiComposition, /directoryMaterializationService: learningGrowthDirectoryMaterializationService/);
 assert.match(mobileApiComposition, /reportDirectoryForCard: \(workspaceId, taskCardId, task\) => learningGrowthDirectoryMaterializationService\.reportDirectoryForCard/);

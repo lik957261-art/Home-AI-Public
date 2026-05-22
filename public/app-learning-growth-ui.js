@@ -181,7 +181,7 @@
     const score = Number(evaluation.score);
     const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
     const artifacts = Number(card.artifactCount || 0);
-    return `<article class="learning-growth-board-card" data-learning-executable-task-id="${escapeHtml(taskCardId)}">
+    return `<article class="learning-growth-board-card" data-learning-executable-task-id="${escapeHtml(taskCardId)}" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
       <div class="learning-growth-board-card-head">
         <button type="button" class="learning-growth-board-card-title" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
           <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
@@ -726,7 +726,8 @@
     const programUi = options.programUi || ProgramUi;
     const programs = overview.programs || {};
     const taskCardId = String(options.selectedGrowthTaskCardId || options.state?.selectedLearningTaskCardId || "");
-    const task = findSelectedGrowthTask(programs, taskCardId);
+    const boardFallback = { taskCards: Array.isArray(overview.board?.cards) ? overview.board.cards : [] };
+    const task = findSelectedGrowthTask(programs, taskCardId) || findSelectedGrowthTask(boardFallback, taskCardId);
     const detail = task && programUi && typeof programUi.renderNativeGrowthTaskDetail === "function"
       ? programUi.renderNativeGrowthTaskDetail(task, programs, options)
       : `<div class="learning-coin-empty">\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0\u6216\u4e0d\u5728\u5f53\u524d\u72b6\u6001\u91cc\u3002</div>`;
