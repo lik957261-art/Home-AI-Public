@@ -188,7 +188,8 @@ assert.match(runAsWorker, /\$psi\.LoadUserProfile = \$true/);
 assert.match(runAsWorker, /worker_exit=/);
 assert.doesNotMatch(runAsWorker, /Write-Host .*Password/i);
 
-assert.match(startLowGatewaysChild, /HermesGatewayWorker/);
+assert.match(startLowGatewaysChild, /HERMES_LOW_GATEWAY_DISTRO_NAME/);
+assert.match(startLowGatewaysChild, /Ubuntu-24\.04/);
 assert.match(startLowGatewaysChild, /start-low-gateways\.sh/);
 assert.match(startLowGatewaysChild, /wsl\.exe -d \$distroName -u root/);
 
