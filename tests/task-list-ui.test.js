@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-hermes-mux-y-scroll-v90";
+const CLIENT_VERSION = "20260522-hermes-mux-tabs-v91";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -114,14 +114,19 @@ assert.match(appJs, /state\.viewMode === "codex-mux"/);
 assert.match(appJs, /async function loadCodexMux\(options = \{\}\)/);
 assert.match(appJs, /function renderCodexMuxView\(\)/);
 assert.match(appJs, /data-codex-mux-page/);
-assert.match(appJs, /function renderCodexMuxMilestones\(\)/);
+assert.match(appJs, /function renderCodexMuxMilestones\(items = codexMuxMilestoneItems\(\)\)/);
 assert.match(appJs, /CODEX_MUX_VISIBLE_MILESTONE_LIMIT = 24/);
 assert.match(appJs, /CODEX_MUX_VISIBLE_HERMES_MESSAGE_LIMIT = 8/);
+assert.match(appJs, /CODEX_MUX_TAB_STORAGE_KEY/);
 assert.match(appJs, /function codexMuxPayloadLines\(payload = \{\}\)/);
 assert.match(appJs, /function captureCodexMuxPaneScroll\(root\)/);
 assert.match(appJs, /function restoreCodexMuxPaneScroll\(snapshot = \{\}\)/);
 assert.match(appJs, /class="codex-mux-event-details"/);
 assert.match(appJs, /data-codex-mux-events/);
+assert.match(appJs, /function renderCodexMuxTabs\(activeTab, counts\)/);
+assert.match(appJs, /data-codex-mux-tab="hermes"/);
+assert.match(appJs, /data-codex-mux-tab="codex"/);
+assert.match(appJs, /data-codex-mux-active-panel/);
 assert.match(appJs, /需要 Hermes 跟进/);
 assert.match(appJs, /function maybeActivateHermesForCodexMuxEvents\(\)/);
 assert.match(appJs, /Codex 已回报，需要 Hermes 继续判断和跟进/);
@@ -134,11 +139,13 @@ assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-y-scroll-v90/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-y-scroll-v90/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-tabs-v91/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-tabs-v91/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(stylesCss, /\.codex-mux-mode \.conversation \{[\s\S]*?overflow: hidden/);
-assert.match(stylesCss, /\.codex-mux-stack \{[\s\S]*?grid-template-rows: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+assert.match(stylesCss, /\.codex-mux-tabs \{/);
+assert.match(stylesCss, /\.codex-mux-tab\.active/);
+assert.match(stylesCss, /\.codex-mux-tab-body \{/);
 assert.match(stylesCss, /\.codex-mux-event-list \{[\s\S]*?overflow-y: auto[\s\S]*?overflow-x: hidden[\s\S]*?touch-action: pan-y/);
 assert.match(stylesCss, /\.codex-mux-message \{/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);

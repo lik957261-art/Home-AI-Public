@@ -5,6 +5,9 @@ const CODEX_MUX_OWNER_WORKSPACE_ID = "owner";
 const CODEX_MUX_WORKER_ID = "codex-hermes-main";
 const CODEX_MUX_VISIBLE_MILESTONE_LIMIT = 24;
 const CODEX_MUX_VISIBLE_HERMES_MESSAGE_LIMIT = 8;
+const CODEX_MUX_TAB_STORAGE_KEY = "hermesCodexMuxActiveTab";
+const CODEX_MUX_SEEN_HERMES_KEY = "hermesCodexMuxSeenHermesCount";
+const CODEX_MUX_SEEN_CODEX_KEY = "hermesCodexMuxSeenCodexCount";
 
 function codexMuxOwnerAllowed() {
   return Boolean(state.auth?.isOwner);
@@ -12,6 +15,18 @@ function codexMuxOwnerAllowed() {
 
 function isCodexMuxView() {
   return state.viewMode === "codex-mux";
+}
+
+function codexMuxActiveTab() {
+  const value = String(state.codexMuxActiveTab || localStorage.getItem(CODEX_MUX_TAB_STORAGE_KEY) || "hermes");
+  return value === "codex" ? "codex" : "hermes";
+}
+
+function codexMuxSetActiveTab(tab) {
+  state.codexMuxActiveTab = tab === "codex" ? "codex" : "hermes";
+  state.codexMuxTabJustChanged = true;
+  localStorage.setItem(CODEX_MUX_TAB_STORAGE_KEY, state.codexMuxActiveTab);
+  codexMuxMarkTabSeen(state.codexMuxActiveTab);
 }
 
 function codexMuxSettingsEntryHtml() {
@@ -187,9 +202,9 @@ function codexMuxTaskMilestones() {
   }));
 }
 
-function renderCodexMuxMilestones() {
+function codexMuxMilestoneItems() {
   const seen = new Set();
-  const items = [
+  return [
     ...codexMuxTaskMilestones(),
     ...(state.codexMuxEvents || []).map(codexMuxEventMilestone).filter(Boolean),
   ]
@@ -202,6 +217,9 @@ function renderCodexMuxMilestones() {
     })
     .sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")))
     .slice(0, CODEX_MUX_VISIBLE_MILESTONE_LIMIT);
+}
+
+function renderCodexMuxMilestones(items = codexMuxMilestoneItems()) {
   return items.length
     ? items.map(renderCodexMuxMilestone).join("")
     : `<div class="empty-state small">暂无 Codex 阶段性结论。</div>`;
@@ -283,20 +301,65 @@ function renderCodexMuxMessage(message) {
   </article>`;
 }
 
-function renderCodexMuxConversation() {
-  const messages = (state.currentThread?.messages || [])
-    .filter((message) => message.taskGroupId === CODEX_MUX_TASK_GROUP_ID)
-    .slice(-CODEX_MUX_VISIBLE_HERMES_MESSAGE_LIMIT);
+function codexMuxMessages() {
+  return (state.currentThread?.messages || [])
+    .filter((message) => message.taskGroupId === CODEX_MUX_TASK_GROUP_ID);
+}
+
+function codexMuxVisibleMessages(messages = codexMuxMessages()) {
+  return messages.slice(-CODEX_MUX_VISIBLE_HERMES_MESSAGE_LIMIT);
+}
+
+function renderCodexMuxConversation(messages = codexMuxVisibleMessages()) {
   return messages.length
     ? messages.map(renderCodexMuxMessage).join("")
     : `<div class="empty-state small">先在底部输入框告诉 Hermes 你的需求；Hermes 判断需要代码处理时，会再调用 Codex。</div>`;
 }
 
+function codexMuxSeenCount(key) {
+  return Math.max(0, Number(localStorage.getItem(key) || 0));
+}
+
+function codexMuxMarkTabSeen(tab) {
+  const target = tab === "codex" ? "codex" : "hermes";
+  if (target === "codex") {
+    const count = codexMuxMilestoneItems().length;
+    state.codexMuxSeenCodexCount = count;
+    localStorage.setItem(CODEX_MUX_SEEN_CODEX_KEY, String(count));
+  } else {
+    const count = codexMuxMessages().length;
+    state.codexMuxSeenHermesCount = count;
+    localStorage.setItem(CODEX_MUX_SEEN_HERMES_KEY, String(count));
+  }
+}
+
+function codexMuxTabUnread(tab, counts) {
+  if (tab === "codex") return counts.codex > codexMuxSeenCount(CODEX_MUX_SEEN_CODEX_KEY);
+  return counts.hermes > codexMuxSeenCount(CODEX_MUX_SEEN_HERMES_KEY);
+}
+
+function renderCodexMuxTabs(activeTab, counts) {
+  const hermesUnread = activeTab !== "hermes" && codexMuxTabUnread("hermes", counts);
+  const codexUnread = activeTab !== "codex" && codexMuxTabUnread("codex", counts);
+  return `<div class="codex-mux-tabs" role="tablist" aria-label="Hermes Codex collaboration stream">
+    <button class="codex-mux-tab ${activeTab === "hermes" ? "active" : ""}" type="button" role="tab" aria-selected="${activeTab === "hermes" ? "true" : "false"}" data-codex-mux-tab="hermes">
+      <span>Hermes</span>
+      <small>${counts.hermes}</small>
+      ${hermesUnread ? `<i aria-label="Hermes 有新内容"></i>` : ""}
+    </button>
+    <button class="codex-mux-tab ${activeTab === "codex" ? "active" : ""}" type="button" role="tab" aria-selected="${activeTab === "codex" ? "true" : "false"}" data-codex-mux-tab="codex">
+      <span>Codex</span>
+      <small>${counts.codex}</small>
+      ${codexUnread ? `<i aria-label="Codex 有新内容"></i>` : ""}
+    </button>
+  </div>`;
+}
+
 function captureCodexMuxPaneScroll(root) {
-  const chat = root?.querySelector("[data-codex-mux-chat]");
+  const panel = root?.querySelector("[data-codex-mux-active-panel]");
   return {
-    chatTop: chat ? chat.scrollTop : null,
-    chatBottomGap: chat ? chat.scrollHeight - chat.clientHeight - chat.scrollTop : null,
+    panelTop: panel ? panel.scrollTop : null,
+    panelBottomGap: panel ? panel.scrollHeight - panel.clientHeight - panel.scrollTop : null,
   };
 }
 
@@ -304,13 +367,14 @@ function restoreCodexMuxPaneScroll(snapshot = {}) {
   requestAnimationFrame(() => {
     if (!isCodexMuxView()) return;
     const root = $("conversation");
-    const chat = root?.querySelector("[data-codex-mux-chat]");
-    const events = root?.querySelector("[data-codex-mux-events]");
-    if (chat) {
-      if (snapshot.chatTop === null || snapshot.chatTop === undefined || Number(snapshot.chatBottomGap || 0) < 72) {
-        chat.scrollTop = chat.scrollHeight;
+    const panel = root?.querySelector("[data-codex-mux-active-panel]");
+    if (panel) {
+      if (snapshot.panelTop === null || snapshot.panelTop === undefined) {
+        panel.scrollTop = codexMuxActiveTab() === "codex" ? 0 : panel.scrollHeight;
+      } else if (Number(snapshot.panelBottomGap || 0) < 72) {
+        panel.scrollTop = panel.scrollHeight;
       } else {
-        chat.scrollTop = Number(snapshot.chatTop || 0);
+        panel.scrollTop = Number(snapshot.panelTop || 0);
       }
     }
   });
@@ -326,12 +390,25 @@ function renderCodexMuxView() {
   configureComposer({ enabled: codexMuxOwnerAllowed(), placeholder: "发给 Hermes 协作流..." });
   const conversation = $("conversation");
   if (!conversation) return;
-  const scrollSnapshot = captureCodexMuxPaneScroll(conversation);
+  const scrollSnapshot = state.codexMuxTabJustChanged ? {} : captureCodexMuxPaneScroll(conversation);
+  state.codexMuxTabJustChanged = false;
   if (!codexMuxOwnerAllowed()) {
     conversation.innerHTML = `<section class="codex-mux-shell"><div class="automation-warning">Codex Mux is Owner-only.</div></section>`;
     updateNavigationControls();
     return;
   }
+  const activeTab = codexMuxActiveTab();
+  const hermesMessages = codexMuxMessages();
+  const codexMilestones = codexMuxMilestoneItems();
+  const counts = { hermes: hermesMessages.length, codex: codexMilestones.length };
+  codexMuxMarkTabSeen(activeTab);
+  const activePanel = activeTab === "codex"
+    ? `<section class="codex-mux-panel codex-mux-codex-panel" data-codex-mux-active-panel>
+        <div class="codex-mux-event-list" data-codex-mux-events>${renderCodexMuxMilestones(codexMilestones)}</div>
+      </section>`
+    : `<section class="codex-mux-panel codex-mux-hermes-panel" data-codex-mux-active-panel>
+        <div class="codex-mux-chat" data-codex-mux-chat>${renderCodexMuxConversation(codexMuxVisibleMessages(hermesMessages))}</div>
+      </section>`;
   conversation.innerHTML = `<section class="codex-mux-shell" data-codex-mux-page>
     <div class="codex-mux-intro">
       <strong>Hermes 协作流</strong>
@@ -339,16 +416,8 @@ function renderCodexMuxView() {
     </div>
     ${state.codexMuxError ? `<div class="automation-warning">${escapeHtml(state.codexMuxError)}</div>` : ""}
     ${state.codexMuxLoading ? `<div class="automation-loading" role="status"><span class="automation-loading-spinner" aria-hidden="true"></span><span>刷新协作流</span></div>` : ""}
-    <div class="codex-mux-stack">
-      <section class="codex-mux-panel codex-mux-hermes-panel">
-        <div class="automation-section-title">Hermes</div>
-        <div class="codex-mux-chat" data-codex-mux-chat>${renderCodexMuxConversation()}</div>
-      </section>
-      <section class="codex-mux-panel codex-mux-codex-panel">
-        <div class="automation-section-title">Codex</div>
-        <div class="codex-mux-event-list" data-codex-mux-events>${renderCodexMuxMilestones()}</div>
-      </section>
-    </div>
+    ${renderCodexMuxTabs(activeTab, counts)}
+    <div class="codex-mux-tab-body">${activePanel}</div>
   </section>`;
   wireCodexMuxView();
   wireQuoteButtons(conversation);
@@ -482,6 +551,12 @@ async function sendCodexMuxHermesMessage(text, options = {}) {
 function wireCodexMuxView() {
   const conversation = $("conversation");
   conversation?.querySelector("[data-codex-mux-refresh]")?.addEventListener("click", () => loadCodexMux().catch(showError));
+  conversation?.querySelectorAll("[data-codex-mux-tab]")?.forEach((button) => {
+    button.addEventListener("click", () => {
+      codexMuxSetActiveTab(button.dataset.codexMuxTab);
+      renderCodexMuxView();
+    });
+  });
 }
 
 async function openCodexMuxPage() {
