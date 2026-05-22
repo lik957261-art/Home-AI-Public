@@ -38,6 +38,11 @@ function defaultNormalizeState(value) {
   return safeCloneJson(value && typeof value === "object" ? value : DEFAULT_RUNTIME_STATE, DEFAULT_RUNTIME_STATE);
 }
 
+function sleepSync(ms) {
+  if (!ms) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function createRuntimeStatePersistenceService(options = {}) {
   const fsImpl = options.fs || fs;
   const pathImpl = options.path || path;
@@ -68,6 +73,9 @@ function createRuntimeStatePersistenceService(options = {}) {
   const ensureDataDir = typeof options.ensureDataDir === "function"
     ? options.ensureDataDir
     : (() => fsImpl.mkdirSync(dataDir, { recursive: true }));
+  const renameRetryDelaysMs = Array.isArray(options.renameRetryDelaysMs)
+    ? options.renameRetryDelaysMs.map((value) => Math.max(0, Number(value) || 0))
+    : [25, 75, 150, 300, 600];
 
   let lastStateBackupAt = 0;
 
@@ -156,9 +164,25 @@ function createRuntimeStatePersistenceService(options = {}) {
 
   function writeStateFile(next) {
     ensureDataDir();
-    const tmp = `${statePath}.${pid}.tmp`;
+    const tmp = `${statePath}.${pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
     fsImpl.writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
-    fsImpl.renameSync(tmp, statePath);
+    let lastErr = null;
+    for (let attempt = 0; attempt <= renameRetryDelaysMs.length; attempt += 1) {
+      try {
+        fsImpl.renameSync(tmp, statePath);
+        return;
+      } catch (err) {
+        lastErr = err;
+        if (!err || !["EPERM", "EACCES", "EBUSY"].includes(err.code) || attempt >= renameRetryDelaysMs.length) break;
+        sleepSync(renameRetryDelaysMs[attempt]);
+      }
+    }
+    try {
+      fsImpl.unlinkSync(tmp);
+    } catch (_) {
+      // Best-effort cleanup for a failed snapshot write.
+    }
+    throw lastErr;
   }
 
   function loadStateFromSqlite() {

@@ -167,7 +167,7 @@ async function loadSingleWindow(options = {}) {
     localStorage.setItem("hermesWebWeixinChatOpen", "1");
     localStorage.setItem("hermesWebGroupChatOpen", "0");
   }
-  if (groupChat && !selectedWorkspaceInThreadGroup(state.currentThread)) {
+  if (groupChat && !currentUserCanUseGroupChatThread(state.currentThread)) {
     state.groupChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
   }
@@ -199,7 +199,7 @@ async function selectChatScope(scope) {
   state.weixinChatOpen = false;
   localStorage.setItem("hermesWebWeixinChatOpen", "0");
   await loadSingleWindow({ groupChat: true, weixinChat: false });
-  if (selectedWorkspaceInThreadGroup(state.currentThread)) {
+  if (currentUserCanUseGroupChatThread(state.currentThread)) {
     state.groupChatOpen = true;
     localStorage.setItem("hermesWebGroupChatOpen", "1");
     renderCurrentThread({ stickToBottom: true });

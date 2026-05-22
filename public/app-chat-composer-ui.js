@@ -170,6 +170,10 @@ function selectedWorkspaceInThreadGroup(thread = state.currentThread) {
   return isThreadGroupChat(thread) && threadGroupMemberIds(thread).includes(state.selectedWorkspaceId);
 }
 
+function currentUserCanUseGroupChatThread(thread = state.currentThread) {
+  return selectedWorkspaceInThreadGroup(thread) || Boolean(state.auth?.isOwner && isThreadGroupChat(thread));
+}
+
 function isThreadWeixinChat(thread = state.currentThread) {
   return Boolean(thread?.singleWindow && thread?.externalIngress?.source === "weixin");
 }
@@ -179,7 +183,7 @@ function isWeixinChatView() {
 }
 
 function isGroupChatView() {
-  return isSingleWindowChatView() && !isWeixinChatView() && state.groupChatOpen && selectedWorkspaceInThreadGroup(state.currentThread);
+  return isSingleWindowChatView() && !isWeixinChatView() && state.groupChatOpen && currentUserCanUseGroupChatThread(state.currentThread);
 }
 
 function groupChatSelectable(thread = state.currentThread) {

@@ -247,6 +247,33 @@ function testSaveCanAllowMessageDropAndWriteSqliteThenSnapshot() {
   });
 }
 
+function testStateSnapshotRenameRetriesTransientWindowsLock() {
+  withTempDir((dir) => {
+    const attempts = [];
+    const fsWithTransientRenameLock = Object.assign({}, fs, {
+      renameSync(source, target) {
+        attempts.push({ source, target });
+        if (attempts.length === 1) {
+          const err = new Error("operation not permitted");
+          err.code = "EPERM";
+          throw err;
+        }
+        return fs.renameSync(source, target);
+      },
+    });
+    const { service, statePath } = makeService(dir, {
+      fs: fsWithTransientRenameLock,
+      renameRetryDelaysMs: [0],
+    });
+
+    service.writeStateFile(baseState({ threads: [{ id: "thread-a", messages: messages(1) }] }));
+
+    assert.equal(attempts.length, 2);
+    assert.equal(readJson(statePath).threads[0].id, "thread-a");
+    assert.equal(fs.readdirSync(dir).filter((name) => /\.tmp$/.test(name)).length, 0);
+  });
+}
+
 function testBackupPruningKeepsNewestFiles() {
   withTempDir((dir) => {
     const { service, statePath, stateBackupDir } = makeService(dir, { maxStateBackups: 2 });
@@ -302,6 +329,7 @@ function run() {
   testSqliteExistingRuntimeExportsAndSnapshots();
   testSaveRefusesLargeMessageDropAndKeepsExistingFile();
   testSaveCanAllowMessageDropAndWriteSqliteThenSnapshot();
+  testStateSnapshotRenameRetriesTransientWindowsLock();
   testBackupPruningKeepsNewestFiles();
   testBackupThrottleSkipsNonForcedBackups();
   console.log("runtime state persistence service tests passed");
