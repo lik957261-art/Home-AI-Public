@@ -141,8 +141,10 @@ function renderCurrentThreadUnsafe(options = {}) {
   }
   const thread = state.currentThread;
   const conversation = $("conversation");
+  const forceChatBottom = shouldForceChatStickToBottom();
+  const stickToBottom = Boolean(options.stickToBottom || forceChatBottom);
   let bottomOffset = state.preservedBottomOffset;
-  if (!options.stickToBottom && conversation.scrollHeight) {
+  if (!stickToBottom && conversation.scrollHeight) {
     bottomOffset = conversation.scrollHeight - conversation.scrollTop;
   }
   if (!thread) {
@@ -208,7 +210,7 @@ function renderCurrentThreadUnsafe(options = {}) {
   if (state.chatSearchScrollPending) {
     state.chatSearchScrollPending = false;
     requestAnimationFrame(() => scrollToCurrentChatSearchMatch(conversation));
-  } else if (options.stickToBottom) {
+  } else if (stickToBottom) {
     conversation.scrollTop = conversation.scrollHeight;
     state.conversationPinnedToBottom = true;
   } else {

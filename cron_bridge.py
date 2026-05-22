@@ -683,6 +683,7 @@ def public_job(job: dict[str, Any]) -> dict[str, Any]:
         "prompt": compact_text(job.get("prompt"), 4000),
         "promptPreview": compact_text(job.get("prompt"), 220),
         "skills": skills,
+        "enabledToolsets": normalize_string_list(job.get("enabled_toolsets") or job.get("enabledToolsets")),
         "model": compact_text(job.get("model"), 80),
         "provider": compact_text(job.get("provider"), 80),
         "schedule": schedule["display"],

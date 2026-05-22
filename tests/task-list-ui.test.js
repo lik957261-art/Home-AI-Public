@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-automation-http-growth-hotfix-v73";
+const CLIENT_VERSION = "20260522-growth-chat-http-xsearch-v74";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -151,6 +151,9 @@ assert.match(appJs, /wireSkillLinks\(conversation\);\s+wireUsagePanels\(conversa
 assert.match(appJs, /function renderCurrentThreadUnsafe\(options = \{\}\)/);
 assert.match(appJs, /renderCurrentThread failed/);
 assert.match(appJs, /Restoring topic/);
+assert.match(appJs, /function shouldForceChatStickToBottom\(\)/);
+assert.match(appJs, /state\.forceChatStickToBottomUntil = Date\.now\(\) \+ 12000/);
+assert.match(appJs, /state\.shouldStickToBottom = shouldForceChatStickToBottom\(\) \|\| isNearBottom\(\)/);
 assert.match(appJs, /function scheduleConversationViewportRefresh\(conversation = \$\("conversation"\)\)/);
 assert.match(appJs, /conversation\.style\.overflowAnchor = "none"/);
 assert.match(appJs, /conversation\.scrollTop = Math\.min\(maxTop, top \+ 1\)/);
@@ -947,6 +950,7 @@ assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-se
   assert.match(appJs, /function decideLearningParentReviewRequest\(reviewRequestId, decision\)/);
   assert.match(appJs, /function startLearningTaskSession\(taskCardId\)/);
   assert.match(appJs, /function openLearningGrowthTask\(taskCardId, workspaceId = ""\)/);
+  assert.match(appLearningGrowthControllerJs, /renderLearningCoinsView\(\);\s*loadProjects\(\)\.catch\(\(err\) => console\.warn\("Learning Growth project refresh failed", err\)\);\s*await loadLearningCoins\(\{ limit: 80 \}\)/);
   assert.match(appJs, /data-learning-open-growth-task/);
   assert.match(appJs, /localStorage\.setItem\("hermesWebViewMode", "learning"\)/);
   assert.match(appJs, /function advanceLearningSession\(sessionId\)/);

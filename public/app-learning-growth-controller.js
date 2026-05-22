@@ -191,7 +191,8 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   state.todoRouteMissingTargetId = "";
   state.pendingReadingQuizTodoId = "";
   state.pendingAssessmentExamTodoId = "";
-  await loadProjects();
+  renderLearningCoinsView();
+  loadProjects().catch((err) => console.warn("Learning Growth project refresh failed", err));
   await loadLearningCoins({ limit: 80 });
   const boardCard = state.learningGrowth?.board?.cards?.find((card) => String(card.taskCardId || "") === id);
   if (boardCard?.laneId) state.learningGrowthBoardLane = boardCard.laneId;

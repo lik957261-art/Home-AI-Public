@@ -9,6 +9,10 @@ function isNearBottom(threshold = 96) {
   return conversationBottomOffset() < threshold;
 }
 
+function shouldForceChatStickToBottom() {
+  return isSingleWindowChatView() && Date.now() < Number(state.forceChatStickToBottomUntil || 0);
+}
+
 function shouldStickConversationOnViewportChange() {
   if (isChatSearchMode()) return false;
   return isSingleWindowChatView() || isTaskDetailView();

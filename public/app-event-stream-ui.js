@@ -128,6 +128,10 @@ async function sendMessage(event) {
       return;
     }
     setComposerText("");
+    if (isSingleWindowChatView()) {
+      state.forceChatStickToBottomUntil = Date.now() + 12000;
+      state.conversationPinnedToBottom = true;
+    }
     const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
       method: "POST",
       body: serializedBody,

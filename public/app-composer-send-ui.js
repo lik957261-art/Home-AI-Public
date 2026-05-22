@@ -5,6 +5,8 @@ function showError(err) {
 }
 
 function handleSendMessageResult(result, createsNewTask, consumedPendingDirectory) {
+  state.forceChatStickToBottomUntil = Date.now() + 12000;
+  state.conversationPinnedToBottom = true;
   state.pendingArtifacts = [];
   if (createsNewTask) {
     state.pendingTaskDirectory = null;

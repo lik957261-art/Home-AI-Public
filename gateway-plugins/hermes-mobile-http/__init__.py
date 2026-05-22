@@ -173,6 +173,17 @@ HTTP_REQUEST_SCHEMA = {
                     "content_type": {"type": "string", "description": "Image MIME type. Inferred from data URL or filename when omitted."},
                 },
             },
+            "save_as": {
+                "type": "object",
+                "description": (
+                    "Optional save-as rule for a binary HTTP response such as image/jpeg, application/pdf, or audio. "
+                    "The response body is saved under the Hermes Mobile HTTP artifact root and returned as saved_file."
+                ),
+                "properties": {
+                    "filename": {"type": "string", "description": "Output filename such as wardrobe-photo.jpeg or report.pdf."},
+                    "content_type": {"type": "string", "description": "Expected MIME type. Inferred from response or filename when omitted."},
+                },
+            },
         },
         "required": ["url"],
     },
@@ -545,6 +556,34 @@ def _safe_saved_image_filename(value: Any, content_type: str = "") -> str:
     return name
 
 
+def _safe_saved_response_filename(value: Any, content_type: str = "") -> str:
+    mime = str(content_type or "").split(";", 1)[0].strip().lower()
+    fallback_suffix = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+        "application/pdf": ".pdf",
+        "audio/mpeg": ".mp3",
+        "audio/mp3": ".mp3",
+        "audio/mp4": ".m4a",
+        "audio/x-m4a": ".m4a",
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+        "audio/ogg": ".ogg",
+        "audio/opus": ".opus",
+        "video/mp4": ".mp4",
+        "text/plain": ".txt",
+        "text/markdown": ".md",
+        "application/json": ".json",
+    }.get(mime, ".bin")
+    name = _safe_filename(value, f"http-response{fallback_suffix}")
+    if not Path(name).suffix:
+        name = f"{name}{fallback_suffix}"
+    return name
+
+
 def _json_path_value(value: Any, path_value: Any) -> Any:
     if not path_value:
         return value
@@ -609,6 +648,33 @@ def _save_base64_from_payload(parsed_payload: dict[str, Any], args: dict[str, An
             "name": output_path.name,
             "mime": mime,
             "bytes": len(data),
+        }
+    }
+
+
+def _save_response_body(raw: bytes, args: dict[str, Any], content_type: str) -> dict[str, Any]:
+    spec = args.get("save_as")
+    if not isinstance(spec, dict):
+        return {}
+    if not raw:
+        raise ValueError("save_as_empty_response")
+    if len(raw) > MAX_SAVE_BYTES:
+        raise ValueError("save_as_too_large")
+    mime = str(spec.get("content_type") or content_type or "").split(";", 1)[0].strip().lower()
+    if not mime:
+        mime = mimetypes.guess_type(str(spec.get("filename") or ""))[0] or "application/octet-stream"
+    root = _save_root()
+    filename = _safe_saved_response_filename(spec.get("filename"), mime)
+    root.mkdir(parents=True, exist_ok=True)
+    output_path = (root / filename).resolve()
+    output_path.relative_to(root)
+    output_path.write_bytes(raw)
+    return {
+        "saved_file": {
+            "path": str(output_path),
+            "name": output_path.name,
+            "mime": mime,
+            "bytes": len(raw),
         }
     }
 
@@ -751,8 +817,16 @@ def _body(args: dict[str, Any], headers: dict[str, str]) -> tuple[bytes | None, 
 
 
 def _parse_response(data: bytes, content_type: str) -> dict[str, Any]:
+    content_type_lower = content_type.lower()
+    if not (
+        "json" in content_type_lower
+        or "text/" in content_type_lower
+        or "xml" in content_type_lower
+        or "javascript" in content_type_lower
+    ):
+        return {"body_omitted": "binary_response"}
     text = data.decode("utf-8", errors="replace")
-    if "json" in content_type.lower():
+    if "json" in content_type_lower:
         try:
             return {"json": json.loads(text)}
         except Exception:
@@ -788,9 +862,13 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
         limit = _max_bytes(args.get("max_bytes"))
         try:
             with opener.open(request, timeout=_timeout(args.get("timeout_seconds"))) as response:
-                raw = response.read(limit + 1)
+                read_limit = MAX_SAVE_BYTES if isinstance(args.get("save_as"), dict) else limit
+                raw = response.read(read_limit + 1)
                 truncated = len(raw) > limit
-                raw = raw[:limit]
+                save_truncated = len(raw) > read_limit
+                if save_truncated and isinstance(args.get("save_as"), dict):
+                    raise ValueError("save_as_too_large")
+                raw = raw[:read_limit]
                 content_type = response.headers.get("content-type", "")
                 payload = {
                     "ok": 200 <= int(response.status) < 300,
@@ -801,18 +879,24 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
                     "content_type": content_type,
                     "bytes": len(raw),
                     "truncated": truncated,
+                    "save_truncated": save_truncated,
                     "credential_loaded": bool(token),
                     "credential_path": credential_path or "",
                 }
                 payload.update(request_meta)
                 if method != "HEAD":
                     payload.update(_parse_response(raw, content_type))
+                    payload.update(_save_response_body(raw, args, content_type))
                     payload.update(_save_base64_from_payload(payload, args))
                 return _json(payload)
         except urllib.error.HTTPError as error:
-            raw = error.read(limit + 1)
+            read_limit = MAX_SAVE_BYTES if isinstance(args.get("save_as"), dict) else limit
+            raw = error.read(read_limit + 1)
             truncated = len(raw) > limit
-            raw = raw[:limit]
+            save_truncated = len(raw) > read_limit
+            if save_truncated and isinstance(args.get("save_as"), dict):
+                raise ValueError("save_as_too_large")
+            raw = raw[:read_limit]
             content_type = error.headers.get("content-type", "")
             payload = {
                 "ok": False,
@@ -823,11 +907,13 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
                 "content_type": content_type,
                 "bytes": len(raw),
                 "truncated": truncated,
+                "save_truncated": save_truncated,
                 "credential_loaded": bool(token),
                 "credential_path": credential_path or "",
             }
             payload.update(request_meta)
             payload.update(_parse_response(raw, content_type))
+            payload.update(_save_response_body(raw, args, content_type))
             payload.update(_save_base64_from_payload(payload, args))
             return _json(payload)
     except Exception as error:
