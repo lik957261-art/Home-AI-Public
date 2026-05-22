@@ -15,9 +15,13 @@ function shouldForceChatStickToBottom() {
     && Date.now() < Number(state.forceChatStickToBottomUntil || 0);
 }
 
-function shouldStickConversationOnViewportChange() {
+function conversationViewportRefreshApplies() {
   if (isChatSearchMode()) return false;
   return isSingleWindowChatView() || isTaskDetailView();
+}
+
+function shouldStickConversationOnViewportChange() {
+  return conversationViewportRefreshApplies();
 }
 
 function scrollConversationToBottom() {
@@ -42,10 +46,10 @@ function scrollConversationToBottomSmooth() {
 }
 
 function scheduleConversationViewportRefresh(conversation = $("conversation")) {
-  if (!conversation || !isSingleWindowChatView()) return;
+  if (!conversation || !conversationViewportRefreshApplies()) return;
   if (!conversation.querySelector("[data-message-id], .chat-history-pager, .empty-state")) return;
   const refresh = () => {
-    if (!isSingleWindowChatView() || !document.body.contains(conversation)) return;
+    if (!conversationViewportRefreshApplies() || !document.body.contains(conversation)) return;
     const top = conversation.scrollTop;
     const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
     const pinned = shouldForceChatStickToBottom() || state.conversationPinnedToBottom || isNearBottom(160);
@@ -162,6 +166,7 @@ function handleViewportLayoutChange() {
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));
   updateConversationJumpBottomButton();
+  scheduleConversationViewportRefresh();
   if (!shouldStickConversationOnViewportChange()) return;
   if (!state.conversationPinnedToBottom && !isNearBottom(160)) return;
   scheduleConversationBottomStick();

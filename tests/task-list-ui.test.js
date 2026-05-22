@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-chat-send-scroll-v77";
+const CLIENT_VERSION = "20260522-chat-viewport-stable-v78";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -155,10 +155,18 @@ assert.match(appJs, /function shouldForceChatStickToBottom\(\)/);
 assert.match(appJs, /state\.forceChatStickToBottomUntil = Date\.now\(\) \+ 12000/);
 assert.match(appJs, /state\.shouldStickToBottom = shouldForceChatStickToBottom\(\) \|\| isNearBottom\(\)/);
 assert.match(appJs, /function scheduleConversationViewportRefresh\(conversation = \$\("conversation"\)\)/);
+assert.match(appJs, /function conversationViewportRefreshApplies\(\)/);
+assert.match(appJs, /return isSingleWindowChatView\(\) \|\| isTaskDetailView\(\)/);
 assert.match(appJs, /conversation\.style\.overflowAnchor = "none"/);
 assert.match(appJs, /conversation\.scrollTop = Math\.min\(maxTop, top \+ 1\)/);
 assert.match(appJs, /if \(isSingleWindowChatView\(\)\) scheduleConversationViewportRefresh\(conversation\)/);
+assert.match(appJs, /const keepRenderedChatMessages = isSingleWindowChatView\(\)/);
+assert.match(appJs, /requestCurrentThreadRefresh\(\{ stickToBottom: true, delayMs: 120 \}\)/);
+assert.match(appJs, /const keepRenderedTaskMessages = !selectedMessages\.length/);
+assert.match(appJs, /requestCurrentThreadRefresh\(\{ stickToBottom: false, delayMs: 120 \}\)/);
+assert.match(appJs, /if \(state\.currentTaskGroupId\) scheduleConversationViewportRefresh\(conversation\)/);
 assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
+assert.match(appJs, /function handleViewportLayoutChange\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
 assert.match(appJs, /incomingPage && !incomingMessages\.length && existingThreadMessages\.length/);
 assert.match(appJs, /messages: existingThreadMessages/);
 assert.match(appJs, /currentThreadHasPendingMessages\(thread\) \|\| state\.currentThreadRefreshInFlight/);

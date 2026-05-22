@@ -199,6 +199,20 @@ function renderCurrentThreadUnsafe(options = {}) {
     && !displayMessages.length
     && (thread.messages || []).length
     && (shouldForceChatStickToBottom() || currentThreadHasPendingMessages(thread) || state.currentThreadRefreshInFlight);
+  const keepRenderedChatMessages = isSingleWindowChatView()
+    && !displayMessages.length
+    && conversation.querySelector("[data-message-id]")
+    && (
+      transientChatGap
+      || shouldForceChatStickToBottom()
+      || currentThreadHasPendingMessages(thread)
+      || state.currentThreadRefreshInFlight
+    );
+  if (keepRenderedChatMessages) {
+    requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 120 });
+    scheduleConversationViewportRefresh(conversation);
+    return;
+  }
   conversation.innerHTML = `${historyPager}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">${transientChatGap ? "Refreshing messages..." : "No messages yet."}</div>`}`;
   wireChatHistoryPager(conversation);
   wireTaskDocumentLinks(conversation);
@@ -299,7 +313,20 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
         ? "\u65e0\u6743\u53d1\u8a00"
         : (selected.sharedTopic ? "\u53d1\u5230\u5b66\u4e60\u8bdd\u9898\uff1b@ChatGPT \u624d\u4f1a\u8c03\u7528 AI" : "Reply in this task..."),
     });
-    conversation.innerHTML = `${(selected.messages || []).map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
+    const selectedMessages = selected.messages || [];
+    const keepRenderedTaskMessages = !selectedMessages.length
+      && conversation.querySelector("[data-message-id]")
+      && (
+        currentThreadHasPendingMessages(thread)
+        || state.currentThreadRefreshInFlight
+        || groupActiveRuns.length
+      );
+    if (keepRenderedTaskMessages) {
+      requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 120 });
+      scheduleConversationViewportRefresh(conversation);
+      return;
+    }
+    conversation.innerHTML = `${selectedMessages.map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
     renderTaskDetailToolbar(selected);
   }
   wireTaskDocumentLinks(conversation);
@@ -327,4 +354,5 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     conversation.scrollTop = Math.max(0, conversation.scrollHeight - bottomOffset);
     state.conversationPinnedToBottom = isNearBottom();
   }
+  if (state.currentTaskGroupId) scheduleConversationViewportRefresh(conversation);
 }

@@ -108,7 +108,7 @@ function handleAppForegrounded() {
   suppressComposerAutoFocus(900);
   blurComposerInput();
   if (state.viewMode === "todos") scheduleTodoAutoRefresh();
-  if (isSingleWindowChatView()) scheduleConversationViewportRefresh();
+  scheduleConversationViewportRefresh();
 }
 
 function focusComposerSoon(options = {}) {
