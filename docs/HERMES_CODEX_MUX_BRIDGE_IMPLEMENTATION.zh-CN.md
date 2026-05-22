@@ -1,60 +1,144 @@
-# Hermes-Codex Mux Bridge 实现方案
+# Hermes-Codex Mux Bridge 正式实现文档
 
-本文描述 Hermes Mobile 与 Codex Mobile 之间的双向协作入口。目标不是让 Hermes 直接控制 Codex，也不是让 Codex 直接控制 Hermes，而是把 Hermes 中产生的工程需求升级成可见、可审计、可恢复的 Mux 任务流，由固定 Codex 工程线程执行，Hermes 按能力协作，用户在手机界面看到完整闭环。
+本文是 Hermes Mobile 与 Codex Mobile 之间固定线程协作机制的正式说明。它用于后续续接、部署、联调和排障，不依赖聊天上下文。
 
-## 目标
+## 1. 当前状态
 
-- 用户在 Hermes Mobile 聊天中提出需求后，可以一键升级为工程任务。
-- 任务进入 Hermes Mobile 的 Mux 任务面板，而不是散落在聊天上下文里。
-- Hermes Mobile 默认把 Hermes Mobile 工程任务绑定到一个固定 Codex 工程线程。
-- Codex 执行过程中可以向 Hermes 请求协作，例如查询生产状态、查询 Growth 摘要、发送确认请求、运行 Hermes 自有能力。
-- Hermes 和 Codex 都通过结构化事件交换进度、请求、结果、交付物和审批状态。
-- 即使 Codex 线程压缩、重启或换线程，也能从 Mux task capsule 与工作区 handoff 恢复。
+截至 2026-05-22，本机制已经完成第一阶段最小闭环：
 
-## 非目标
+- Hermes Mobile 侧已实现并部署生产：
+  - `adapters/hermes-codex-mux-service.js`
+  - `server-routes/hermes-codex-mux-api-routes.js`
+  - 已接入 `server-routes/mobile-api-composition.js`
+  - 已接入 `server-routes/mobile-api-dispatcher.js`
+  - 已接入 `adapters/api-route-inventory.js`
+- Codex Mobile 侧已实现轮询 worker：
+  - 默认 workerId：`codex-hermes-main`
+  - 默认 bridgeId：`hermes-mobile-codex-main`
+  - 默认 Hermes Mux base URL：`http://127.0.0.1:8797`
+  - 第一版不开放 Codex 入站端口，采用 Codex worker 主动轮询 Hermes Mux API。
+- 生产已验证：
+  - Hermes Mux task 创建成功。
+  - Codex worker heartbeat 成功。
+  - Codex worker preflight 成功。
+  - Hermes 和 Codex 均可向同一个 task event log 写入事件。
+  - Codex worker 能读取 task capsule 和 workspace context metadata。
 
-- 不做任意远程 shell。
-- 不让 Hermes 直接执行 Codex 内部命令。
-- 不让 Codex 绕过 Hermes Mobile 权限边界直接修改生产状态。
-- 不跨桥传 raw secrets、Access Keys、OAuth tokens、push endpoints、完整学生提交、完整转写、完整题目、完整 raw prompts 或长日志。
-- 第一阶段不做通用多 Codex worker 调度。默认使用固定 worker。
+对应本地提交：
 
-## 架构
+- `31c77d3 接入 Hermes Codex Mux 固定线程桥接 API`
+
+## 2. 设计目标
+
+用户在 Hermes Mobile 中讨论工程需求时，不希望 Hermes 直接把 Codex 当作不可控工具调用。目标是让需求进入一个可见、可审计、可恢复的 Mux 任务流：
 
 ```text
 Hermes Mobile Chat
-    |
-    | task.requested
-    v
-Hermes-Codex Mux
-    |                         ^
-    | assignment / events      | assistance.result / user decision
-    v                         |
-Sticky Codex Worker Thread ----
-    |
-    | optional assistance.request
-    v
-Hermes Capability Runner
+  -> Hermes-Codex Mux task
+  -> 固定 Codex Mobile worker
+  -> Codex 执行工程任务
+  -> 必要时向 Hermes 请求协作
+  -> Hermes 返回结构化结果
+  -> Codex 继续执行
+  -> 验证、交付、归档
 ```
 
-### 组件
+关键要求：
 
-- Hermes Mux service
-  - 存储任务、事件、worker lease、能力请求、交付物引用、审批状态。
-  - 建议文件：`adapters/hermes-codex-mux-service.js`。
-- Hermes Mux routes
-  - 提供任务创建、事件写入、事件读取、协作请求、审批接口。
-  - 建议文件：`server-routes/hermes-codex-mux-api-routes.js`。
-- Hermes Mux UI
-  - 手机端任务面板，显示当前 Codex 工程线程、任务状态、事件流、阻塞点和操作按钮。
-  - 建议文件：`public/app-hermes-codex-mux-ui.js`、`public/app-hermes-codex-mux-controller.js`。
-- Codex Mobile bridge worker
-  - 固定线程轮询或接收 Mux 任务，执行 preflight，写回事件，必要时请求 Hermes 协作。
-  - 另一线程实现，见 `.agent-context/mux-tasks/hermes-codex-mux-v1/CODEX_MOBILE_HANDOFF.md`。
+- 手机界面最终要能看到完整任务事件流。
+- Hermes 与 Codex 之间通过结构化事件协作。
+- 默认固定一个 Codex 工程线程，避免多线程争抢同一工作区。
+- 线程上下文不能靠聊天继承，必须靠 task capsule、event log 和 workspace handoff 恢复。
+- 跨系统通信不能成为远程 shell。
 
-## 固定线程策略
+## 3. 当前通信方式
 
-默认每个 Hermes Mobile 工程 workspace 只绑定一个 Codex engineering worker：
+当前机制是 **HTTP listener API 机制**，不是进程内调用，也不是文件轮询。
+
+当前生产默认：
+
+```text
+Hermes Mobile listener: http://127.0.0.1:8797
+Codex worker base URL: http://127.0.0.1:8797
+```
+
+也就是说，当前已部署的形态是：
+
+```text
+Codex Mobile worker
+  -> HTTP polling
+  -> Hermes Mobile /api/codex-mux/*
+  -> Hermes Mobile SQLite
+```
+
+当前 Hermes Mobile 持久化位置是生产 Hermes Mobile SQLite：
+
+```text
+C:\ProgramData\HermesMobile\data\hermes-mobile.sqlite3
+```
+
+Mux service 会在该库中按需创建表：
+
+- `codex_mux_tasks`
+- `codex_mux_events`
+- `codex_mux_worker_heartbeats`
+
+## 4. 跨机器部署方式
+
+如果 Hermes Mobile 与 Codex Mobile 不在同一台机器，机制仍然可以工作，因为协议是 HTTP。
+
+### 4.1 推荐方式：Tailnet HTTPS
+
+Hermes Mobile 已有 tailnet HTTPS origin：
+
+```text
+https://gmk.tail62e8ce.ts.net/
+```
+
+Codex Mobile worker 可以把 base URL 改为该地址：
+
+```powershell
+cd C:\Users\xuxin\Documents\codex-mobile-web
+npm.cmd run mux:worker -- --base-url https://gmk.tail62e8ce.ts.net --poll-ms 5000
+```
+
+或通过环境变量：
+
+```powershell
+$env:CODEX_HERMES_MUX_BASE_URL = "https://gmk.tail62e8ce.ts.net"
+npm.cmd run mux:worker -- --poll-ms 5000
+```
+
+这种方式要求：
+
+- Codex Mobile 所在机器能访问 tailnet HTTPS 地址。
+- Codex worker 请求携带有效认证 header。
+- 后续应改用 Mux 专用 Bridge Key，而不是长期复用 Owner Access Key。
+
+### 4.2 公网域名方式
+
+可以使用公网 HTTPS 域名，但不建议第一阶段采用。若采用，必须具备：
+
+- HTTPS。
+- Mux 专用 key。
+- IP allowlist 或 VPN。
+- rate limit。
+- audit log。
+- 禁止任意 shell capability。
+
+### 4.3 中继 Mux 服务方式
+
+如果双方都不能接受入站连接，可以未来改为：
+
+```text
+Hermes Mobile -> Mux Relay <- Codex Mobile
+```
+
+两边都主动 outbound polling 或 WebSocket。该方式最通用，但第一阶段复杂度过高，暂不实现。
+
+## 5. 固定 worker 策略
+
+第一阶段不做通用多 worker 调度。Hermes Mobile 工程任务默认绑定一个固定 Codex worker：
 
 ```json
 {
@@ -67,64 +151,74 @@ Hermes Capability Runner
 }
 ```
 
-如果固定线程不可用，Mux 只标记 `worker_unavailable`。是否允许新线程接管，需要用户确认。接管线程必须读取 task capsule、Mux event log、工作区 `.agent-context/PROJECT_CONTEXT.md`、`.agent-context/HANDOFF.md` 和任务 handoff。
+这样做的原因：
 
-## Task Capsule
+- Hermes Mobile 工程修改通常只应由一个 Codex 工程线程处理。
+- 固定线程更容易维持连续上下文。
+- 避免多个 Codex worker 同时修改同一个工作区。
+- 用户在 Hermes Mobile 上看到的是一个稳定的工程执行者。
 
-Hermes 把需求升级成任务时生成 task capsule。它是执行线程的事实合同，不是聊天摘要。
+如果固定 worker 不可用，Mux 应标记 worker unavailable。是否允许新线程接管，需要用户确认。接管线程必须读取 task capsule、event log、`.agent-context/PROJECT_CONTEXT.md`、`.agent-context/HANDOFF.md` 和任务 handoff。
+
+## 6. Task Capsule
+
+Task Capsule 是执行线程的事实合同，不是聊天摘要。
+
+当前共享任务 capsule 示例文件：
+
+```text
+.agent-context/mux-tasks/hermes-codex-mux-v1/TASK_CAPSULE.json
+```
+
+基本结构：
 
 ```json
 {
   "schema": "hermes-codex-mux.task.v1",
-  "taskId": "mux_...",
-  "title": "修复 Growth 待修订任务回显",
-  "source": {
-    "system": "hermes-mobile",
-    "threadId": "single-window-or-topic-thread",
-    "messageIds": ["..."]
-  },
+  "taskId": "hermes-codex-mux-v1",
+  "title": "Hermes Mobile 与 Codex Mobile 固定线程双向协作闭环",
   "workspace": "C:\\Users\\xuxin\\Documents\\Agent",
+  "bridgeId": "hermes-mobile-codex-main",
   "assignedWorker": "codex-hermes-main",
-  "userIntent": "...",
-  "constraints": [
-    "默认只做本地 commit，不 push",
-    "生产部署前确认 activeGlobal=0",
-    "不打印 raw secrets 或完整学生内容",
-    "mobile-server-runtime.js <= 2500"
-  ],
+  "workerMode": "sticky",
+  "requiresSameThread": true,
+  "handoverAllowed": false,
   "requiredReads": [
     ".agent-context/PROJECT_CONTEXT.md",
     ".agent-context/HANDOFF.md",
-    ".agent-context/mux-tasks/<taskId>/HANDOFF.md"
-  ],
-  "acceptanceCriteria": [
-    "用户手机界面能看到任务事件流",
-    "Codex 可以请求 Hermes 协作并收到结果",
-    "上下文切换时可恢复"
+    ".agent-context/mux-tasks/hermes-codex-mux-v1/CODEX_MOBILE_HANDOFF.md",
+    "docs/HERMES_CODEX_MUX_BRIDGE_IMPLEMENTATION.zh-CN.md"
   ]
 }
 ```
 
-## Event Schema
+Codex worker 接到任务后必须先按 capsule 做 preflight。
 
-所有跨系统通信都用事件。事件必须有 `eventId`、`taskId`、`type`、`from`、`createdAt`。
+## 7. Event Envelope
+
+所有跨系统通信都写入 task event log。
+
+标准事件 envelope：
 
 ```json
 {
   "schema": "hermes-codex-mux.event.v1",
   "eventId": "evt_...",
-  "taskId": "mux_...",
+  "taskId": "hermes-codex-mux-v1",
   "type": "progress",
   "from": "codex",
   "to": "mux",
-  "summary": "已定位到发送后滚动回跳的原因",
+  "workerId": "codex-hermes-main",
+  "requestId": "",
   "status": "running",
+  "summary": "Codex worker is ready for the Mux task.",
   "artifactRefs": [],
-  "createdAt": "2026-05-22T10:30:00+08:00"
+  "payload": {},
+  "createdAt": "2026-05-22T03:46:06.452Z"
 }
 ```
 
-### 事件类型
+当前允许的事件类型：
 
 - `task.requested`
 - `task.accepted`
@@ -146,15 +240,19 @@ Hermes 把需求升级成任务时生成 task capsule。它是执行线程的事
 - `task.error`
 - `worker.blocked.context_conflict`
 
-## Assistance Request
+不支持的事件类型会 fail closed。例如不允许通过事件写入 `remote.shell` 之类任意执行语义。
 
-Codex 需要 Hermes 配合时，发结构化请求：
+## 8. Assistance Request
+
+当 Codex 需要 Hermes 配合时，Codex 不应通过聊天临时喊话，而应写 `assistance.requested`。
+
+示例：
 
 ```json
 {
   "type": "assistance.requested",
   "requestId": "req_...",
-  "taskId": "mux_...",
+  "taskId": "hermes-codex-mux-v1",
   "from": "codex",
   "to": "hermes",
   "capability": "hermes.production.status.query",
@@ -164,23 +262,24 @@ Codex 需要 Hermes 配合时，发结构化请求：
   },
   "constraints": {
     "noSecrets": true,
-    "noFullLearnerContent": true
+    "noFullLearnerContent": true,
+    "noLongLogs": true
   }
 }
 ```
 
-Hermes 返回：
+Hermes 返回 `assistance.result`，必须使用相同 `taskId` 和 matching `requestId`：
 
 ```json
 {
   "type": "assistance.result",
   "requestId": "req_...",
-  "taskId": "mux_...",
+  "taskId": "hermes-codex-mux-v1",
   "from": "hermes",
   "to": "codex",
   "status": "ok",
   "summary": "activeGlobal=0, health=ok, workerCount=13",
-  "data": {
+  "payload": {
     "activeGlobal": 0,
     "health": "ok",
     "workerCount": 13
@@ -188,168 +287,331 @@ Hermes 返回：
 }
 ```
 
-## Capability Registry
+Codex worker 通过读取 task events，按 `requestId` 匹配结果后继续。
 
-第一阶段只开放少量高价值能力。
+## 9. Hermes Mobile API
 
-### Hermes 暴露给 Codex
+当前生产已实现以下 Owner-only API：
 
-- `hermes.production.status.query`
-  - 查询 `/api/status`、client version、worker pool summary。
-- `hermes.growth.task.summary.query`
-  - 查询 Growth 任务摘要，不返回完整学生提交、完整题目、完整报告。
-- `hermes.notification.send`
-  - 发用户可见状态通知。
-- `hermes.automation.run.request`
-  - 请求 Hermes Mobile 自动化立即运行，必须走权限与任务存在性校验。
+```text
+GET  /api/codex-mux/tasks
+POST /api/codex-mux/tasks
+GET  /api/codex-mux/tasks/:taskId
+GET  /api/codex-mux/tasks/:taskId/events
+POST /api/codex-mux/tasks/:taskId/events
+POST /api/codex-mux/workers/:workerId/heartbeat
+```
 
-### Codex 暴露给 Hermes
+### 9.1 List Tasks
 
-- `codex.workspace.preflight`
-  - 报告 cwd、git status、HEAD、已读取上下文。
-- `codex.repo.inspect`
-  - 做只读诊断并返回摘要。
-- `codex.patch.propose`
-  - 提交补丁计划或 diff 摘要。
-- `codex.validation.run`
-  - 运行指定测试并回传摘要。
-- `codex.handoff.update`
-  - 更新任务 handoff 和工作区 handoff。
+```text
+GET /api/codex-mux/tasks?assignedWorker=codex-hermes-main&status=open,running
+```
 
-## Preflight
-
-固定 Codex 线程开始处理任何 Mux 任务前，必须写入：
+返回：
 
 ```json
 {
-  "type": "worker.preflight.completed",
-  "taskId": "mux_...",
-  "workspaceOk": true,
-  "gitHead": "...",
-  "gitStatus": "clean-or-dirty-summary",
-  "contextRead": [
-    ".agent-context/PROJECT_CONTEXT.md",
-    ".agent-context/HANDOFF.md",
-    ".agent-context/mux-tasks/<taskId>/HANDOFF.md"
-  ],
-  "conflicts": [],
-  "ready": true
+  "ok": true,
+  "tasks": []
 }
 ```
 
-如果 cwd、HEAD、lease、生产状态或任务目标冲突，必须写 `worker.blocked.context_conflict`，不能继续执行。
-
-## 存储
-
-Hermes Mobile 生产运行态建议落 SQLite，避免只靠 JSON 文件：
-
-- `codex_mux_tasks`
-  - `task_id`
-  - `title`
-  - `status`
-  - `workspace`
-  - `assigned_worker`
-  - `source_thread_id`
-  - `capsule_json`
-  - `created_at`
-  - `updated_at`
-- `codex_mux_events`
-  - `event_id`
-  - `task_id`
-  - `type`
-  - `from_party`
-  - `to_party`
-  - `request_id`
-  - `status`
-  - `summary`
-  - `payload_json`
-  - `created_at`
-- `codex_mux_worker_leases`
-  - `workspace`
-  - `worker_id`
-  - `lease_until`
-  - `last_heartbeat_at`
-  - `status`
-- `codex_mux_capabilities`
-  - `capability`
-  - `provider`
-  - `permission_level`
-  - `requires_approval`
-  - `enabled`
-
-工作区文件只做人类可读 handoff 和跨线程启动包：
+### 9.2 Create Or Update Task
 
 ```text
-.agent-context/mux-tasks/<taskId>/TASK_CAPSULE.json
-.agent-context/mux-tasks/<taskId>/HANDOFF.md
-.agent-context/mux-tasks/<taskId>/events.jsonl
+POST /api/codex-mux/tasks
 ```
 
-## API 草案
+请求示例：
 
-Hermes Mobile:
+```json
+{
+  "taskId": "hermes-codex-mux-v1",
+  "title": "Hermes Codex Mux smoke",
+  "status": "open",
+  "workspace": "C:\\Users\\xuxin\\Documents\\Agent",
+  "assignedWorker": "codex-hermes-main",
+  "capsule": {
+    "taskId": "hermes-codex-mux-v1",
+    "assignedWorker": "codex-hermes-main",
+    "workspace": "C:\\Users\\xuxin\\Documents\\Agent"
+  }
+}
+```
 
-- `POST /api/codex-mux/tasks`
-- `GET /api/codex-mux/tasks`
-- `GET /api/codex-mux/tasks/:taskId`
-- `GET /api/codex-mux/tasks/:taskId/events`
-- `POST /api/codex-mux/tasks/:taskId/events`
-- `POST /api/codex-mux/tasks/:taskId/assistance`
-- `POST /api/codex-mux/assistance/:requestId/result`
-- `POST /api/codex-mux/tasks/:taskId/approval`
-- `POST /api/codex-mux/workers/:workerId/heartbeat`
+### 9.3 Task Detail
 
-Codex Mobile 侧建议提供：
+```text
+GET /api/codex-mux/tasks/:taskId
+```
 
-- `POST /api/hermes-mux/inbox`
-- `GET /api/hermes-mux/tasks/:taskId`
-- `POST /api/hermes-mux/tasks/:taskId/events`
-- `POST /api/hermes-mux/tasks/:taskId/assistance-result`
+返回包含：
 
-第一版也可以不用 Codex 入站端口，先由 Codex worker 轮询 Hermes Mobile 的 Mux API。这样更容易调试，也少一个本地端口安全面。
+- `task`
+- `capsule`
+- `workerLease`
+- `heartbeat`
 
-## 手机 UI
+当前第一阶段 `workerLease.leaseUntil` 为空，仅返回 assigned worker 的 placeholder。后续应实现真实 lease。
 
-Hermes Mobile 里新增 Mux 任务卡或任务页：
+### 9.4 Task Events
 
-- 标题
-- 当前处理方：Codex / Hermes / 用户
-- 固定 Codex 线程状态：在线、离线、最后心跳
-- 当前阻塞点
-- 最近事件流
-- 操作：
-  - 继续
-  - 暂停
-  - 批准部署
-  - 允许新线程接管
-  - 打开交付物
-  - 查看上下文 capsule
+```text
+GET /api/codex-mux/tasks/:taskId/events
+POST /api/codex-mux/tasks/:taskId/events
+```
 
-UI 必须遵守 Hermes Mobile control-panel 风格：移动端优先、低噪声、高状态可见性、避免大段解释性文本。
+`POST` body 使用 event envelope。
 
-## 分工
+### 9.5 Worker Heartbeat
 
-### 本 Hermes Mobile 线程负责
+```text
+POST /api/codex-mux/workers/codex-hermes-main/heartbeat
+```
 
-- 设计并实现 Hermes Mobile Mux service、SQLite 存储、route、UI。
-- 提供 Hermes capability runner 的第一批能力。
-- 生成 task capsule 与事件流。
-- 在 Hermes Mobile 页面展示任务闭环。
+请求示例：
 
-### Codex Mobile 线程负责
+```json
+{
+  "bridgeId": "hermes-mobile-codex-main",
+  "workspace": "C:\\Users\\xuxin\\Documents\\Agent",
+  "mode": "polling",
+  "capabilities": [
+    "codex.workspace.preflight",
+    "codex.repo.inspect",
+    "codex.patch.propose",
+    "codex.validation.run",
+    "codex.handoff.update"
+  ],
+  "currentTaskId": ""
+}
+```
 
-- 实现 Codex 侧 bridge worker/inbox。
-- 支持固定 worker identity 与 heartbeat。
-- 按 task capsule 做 preflight。
-- 能写回 progress、assistance.requested、validation.result、task.final。
-- 能从 `.agent-context/mux-tasks/<taskId>/` 读取启动上下文。
+## 10. Codex Mobile Worker
 
-## 第一阶段验收
+Codex Mobile 侧最小 worker 已实现于：
 
-- Hermes Mobile 能从聊天需求创建 Mux 任务。
-- Mux 任务在手机页面可见，显示固定 Codex worker 与事件流。
-- Codex worker 能接收任务、完成 preflight、写回 progress。
-- Codex 能请求 Hermes 查询生产状态，Hermes 返回结果，Codex 继续。
-- 上下文文件能让另一个 Codex Mobile 线程准确理解分工和接口。
-- 不 push；完成后只做本地 commit，除非用户明确要求 push。
+```text
+C:\Users\xuxin\Documents\codex-mobile-web
+```
+
+默认运行方式：
+
+```powershell
+cd C:\Users\xuxin\Documents\codex-mobile-web
+npm.cmd run mux:worker -- --base-url http://127.0.0.1:8797 --poll-ms 5000
+```
+
+指定任务：
+
+```powershell
+npm.cmd run mux:worker -- --task-id hermes-codex-mux-v1
+```
+
+跨机器 tailnet：
+
+```powershell
+npm.cmd run mux:worker -- --base-url https://gmk.tail62e8ce.ts.net --poll-ms 5000
+```
+
+环境变量：
+
+- `CODEX_HERMES_MUX_BASE_URL`
+- `CODEX_HERMES_MUX_WORKSPACE`
+- `CODEX_HERMES_MUX_WORKER_ID`
+- `CODEX_HERMES_MUX_TIMEOUT_MS`
+- `CODEX_HERMES_MUX_POLL_MS`
+- `CODEX_HERMES_MUX_AUTH_HEADER_NAME`
+- `CODEX_HERMES_MUX_AUTH_VALUE_FILE`
+
+## 11. Preflight 规则
+
+Codex worker 接到任务后必须先写：
+
+- `worker.preflight.started`
+- `worker.preflight.completed`
+
+preflight 必须检查：
+
+- workspace 是否存在。
+- workspace 是否等于 task capsule 中的 workspace。
+- task 是否分配给 `codex-hermes-main`。
+- 是否存在其他未过期 worker lease。
+- required context 文件是否存在。
+- git root、HEAD、branch。
+- `git status -sb`。
+- `git status --short --untracked-files=all`。
+
+如果发现冲突，必须写：
+
+```text
+worker.blocked.context_conflict
+```
+
+并停止执行。
+
+## 12. 安全边界
+
+当前实现的安全边界：
+
+- API 为 Owner-only。
+- 不支持任意远程 shell 事件类型。
+- event payload 会做基础 sanitization：
+  - exact secret/token/access-key/password/push-endpoint 字段 redaction。
+  - 长字符串截断。
+  - 数组长度限制。
+  - 嵌套深度限制。
+- Codex preflight 只上传上下文文件 metadata：
+  - 相对路径
+  - exists
+  - bytes
+  - 短 sha256
+  - 不上传文件正文。
+
+仍需后续增强：
+
+- 独立 Mux Bridge Key。
+- 只允许 Bridge Key 访问 `/api/codex-mux/*`。
+- worker lease 真实过期/接管机制。
+- capability registry 的权限等级和审批规则。
+- Mux task UI 中的用户确认按钮。
+
+## 13. 当前认证状态
+
+当前生产 smoke 和本机联调用的是 Owner Access Key header。
+
+这是第一阶段可接受的工程联调方式，但不应作为长期跨机器 worker 认证方式。
+
+后续推荐新增：
+
+```text
+HERMES_CODEX_MUX_BRIDGE_KEY_PATH
+```
+
+并支持独立 header，例如：
+
+```text
+x-hermes-codex-mux-key: <bridge-key>
+```
+
+该 key 只能访问：
+
+```text
+/api/codex-mux/*
+```
+
+不能访问普通聊天、文件、Growth 学生内容、Access Key 管理、runtime config 等接口。
+
+## 14. 联调 Runbook
+
+### 14.1 查 Hermes Mobile 状态
+
+```powershell
+$key = (Get-Content -LiteralPath "C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret" -Raw).Trim()
+curl.exe -s -H "x-hermes-web-key: $key" http://127.0.0.1:8797/api/status
+```
+
+关注：
+
+- `ok=true`
+- `health.status=ok`
+- `concurrency.activeGlobal=0`
+- `gatewayPool.workerCount`
+
+### 14.2 启动 Codex worker
+
+```powershell
+cd C:\Users\xuxin\Documents\codex-mobile-web
+npm.cmd run mux:worker -- --base-url http://127.0.0.1:8797 --poll-ms 5000
+```
+
+### 14.3 查看 worker heartbeat
+
+```powershell
+$key = (Get-Content -LiteralPath "C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret" -Raw).Trim()
+curl.exe -s -H "x-hermes-web-key: $key" http://127.0.0.1:8797/api/codex-mux/tasks/hermes-codex-mux-v1
+```
+
+确认：
+
+- `heartbeat.workerId=codex-hermes-main`
+- `heartbeat.mode=polling`
+- `heartbeat.observedAt` 持续更新。
+
+### 14.4 查看事件流
+
+```powershell
+curl.exe -s -H "x-hermes-web-key: $key" http://127.0.0.1:8797/api/codex-mux/tasks/hermes-codex-mux-v1/events?limit=80
+```
+
+正常应看到：
+
+- `worker.preflight.started`
+- `worker.preflight.completed`
+- `progress`
+- `plan.proposed`
+
+## 15. 已验证的生产联通事实
+
+2026-05-22 生产联调观察到：
+
+- Codex worker heartbeat 正常。
+- `workerId=codex-hermes-main`
+- `mode=polling`
+- `workspace=C:\Users\xuxin\Documents\Agent`
+- `gitStatus=clean`
+- `gitHead=31c77d3...`
+- `conflicts=[]`
+- required context 文件全部存在。
+- Hermes 已向同一 task event log 写入确认事件：
+
+```text
+Hermes Mobile confirms Codex worker heartbeat and preflight are normal.
+```
+
+## 16. 尚未完成
+
+以下属于下一阶段，不属于当前最小闭环：
+
+- Hermes 聊天中“一键升级为 Mux 任务”的 UI/自然语言入口。
+- Hermes Mobile Mux 任务面板。
+- `assistance.requested` 的 Hermes capability runner。
+- `assistance.result` 自动写回。
+- 真实 worker lease。
+- Mux Bridge Key。
+- 用户审批流。
+- artifact/diff/validation 的移动端展示。
+- Codex 入站端口。第一版暂不需要。
+
+## 17. 开发与验证命令
+
+Hermes Mobile 侧 focused checks：
+
+```powershell
+node tests\hermes-codex-mux-service.test.js
+node tests\hermes-codex-mux-api-routes.test.js
+node tests\api-route-inventory.test.js
+node tests\mobile-api-dispatcher.test.js
+node tests\architecture-refactor-boundary.test.js
+git diff --check
+```
+
+完整门禁：
+
+```powershell
+npm.cmd run productization:check
+```
+
+生产部署前：
+
+```powershell
+curl.exe -s -H "x-hermes-web-key: <key>" http://127.0.0.1:8797/api/status
+```
+
+部署后：
+
+```powershell
+curl.exe -s -H "x-hermes-web-key: <key>" http://127.0.0.1:8797/api/codex-mux/tasks?assignedWorker=codex-hermes-main&status=open,running
+```
 
