@@ -15,9 +15,6 @@ function createGatewayRunInstructionService(options = {}) {
   const createDeliveryBoundaryInstructions = typeof options.createDeliveryBoundaryInstructions === "function"
     ? options.createDeliveryBoundaryInstructions
     : (() => "");
-  const permissionBoundarySkillInstructions = typeof options.permissionBoundarySkillInstructions === "function"
-    ? options.permissionBoundarySkillInstructions
-    : (() => "");
   const semanticProjectRoutingInstructions = typeof options.semanticProjectRoutingInstructions === "function"
     ? options.semanticProjectRoutingInstructions
     : (() => "");
@@ -165,7 +162,6 @@ function createGatewayRunInstructionService(options = {}) {
       "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
       formatAccessPolicyInstructionSummary(policy),
       currentToolSchemaOverrideInstructions(policy),
-      permissionBoundarySkillInstructions(policy),
       "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
       "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
       "Do not send external chat/app messages unless the user explicitly asks for external delivery.",

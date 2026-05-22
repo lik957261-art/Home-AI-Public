@@ -10,7 +10,6 @@ function createService() {
     createDeliveryBoundaryInstructions: (options = {}) => options.deliveryTarget
       ? `DELIVERY:${options.deliveryTarget}`
       : "",
-    permissionBoundarySkillInstructions: () => "PERMISSION_BOUNDARY",
     semanticProjectRoutingInstructions: () => "SEMANTIC_ROUTE",
     isKanbanCaseTopicThread: (thread) => Boolean(thread && thread.caseTopic),
   });
@@ -112,7 +111,7 @@ function testBuildHermesInstructionsPreservesChatAndAttachmentGuidance() {
     },
   );
 
-  assert.match(text, /PERMISSION_BOUNDARY/);
+  assert.doesNotMatch(text, /PERMISSION_BOUNDARY|hermes-mobile-permission-boundary-check|mandatory pre-flight/);
   assert.match(text, /DELIVERY:the group delivery directory: C:\/group-delivery/);
   assert.match(text, /Attached task directory: Attached => C:\/project\/data/);
   assert.match(text, /single-window chat mode/);

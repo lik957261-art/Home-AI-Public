@@ -47,6 +47,23 @@ function testLearningContentUpdateDoesNotForceMaintenanceRouting() {
   assert.deepEqual(route, { securityLevel: "user", maintenance: false });
 }
 
+function testPythonLessonSummaryDoesNotForceElevation() {
+  const service = makeService();
+  const text = [
+    "课堂总结 Summary of Lesson 42",
+    "try except Exception finally Attributes",
+    "attrib +-R .\\filename 文件的权限",
+    "Playwright and Selenium",
+    "用try except实现 safe_divide(a, b)",
+  ].join("\n");
+  const route = service.gatewayRoutingForModelRun(
+    { workspaceId: "weixin_stephen" },
+    text,
+    { actorWorkspaceId: "weixin_stephen" },
+  );
+  assert.deepEqual(route, { securityLevel: "user", maintenance: false });
+}
+
 function testCrossAccountAutomationStillRequiresElevation() {
   const service = makeService();
   assertThrowsCode(() => service.gatewayRoutingForModelRun(
@@ -66,6 +83,7 @@ function testExplicitMaintenanceModeStillRequiresElevation() {
 }
 
 testLearningContentUpdateDoesNotForceMaintenanceRouting();
+testPythonLessonSummaryDoesNotForceElevation();
 testCrossAccountAutomationStillRequiresElevation();
 testExplicitMaintenanceModeStillRequiresElevation();
 
