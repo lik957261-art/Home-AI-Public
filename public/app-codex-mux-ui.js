@@ -18,10 +18,24 @@ function isCodexMuxView() {
 }
 
 function lockCodexMuxViewState() {
+  if (!codexMuxOwnerAllowed()) return false;
   state.viewMode = "codex-mux";
   localStorage.setItem("hermesWebViewMode", "codex-mux");
   state.singleWindowMode = "chat";
   state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
+  return true;
+}
+
+function clearCodexMuxViewForNonOwner() {
+  if (codexMuxOwnerAllowed()) return false;
+  if (state.viewMode !== "codex-mux") return false;
+  state.viewMode = "single";
+  state.singleWindowMode = "chat";
+  state.currentTaskGroupId = "";
+  state.currentThread = null;
+  state.currentThreadId = "";
+  localStorage.setItem("hermesWebViewMode", "single");
+  return true;
 }
 
 function codexMuxActiveTab() {
@@ -452,7 +466,7 @@ function renderCodexMuxViewSoon() {
 }
 
 async function ensureCodexMuxThread() {
-  lockCodexMuxViewState();
+  if (!lockCodexMuxViewState()) throw new Error("Codex Mux is Owner-only.");
   if (state.currentThread?.singleWindow && state.currentThreadId && state.currentTaskGroupId === CODEX_MUX_TASK_GROUP_ID) {
     return state.currentThread;
   }
@@ -514,6 +528,11 @@ async function createCodexMuxTaskFromDraft(text) {
 }
 
 async function sendCodexMuxHermesMessage(text, options = {}) {
+  if (!codexMuxOwnerAllowed()) {
+    state.codexMuxError = "Codex Mux is Owner-only.";
+    renderCodexMuxView();
+    return null;
+  }
   const message = String(text || "").trim();
   const artifacts = Array.isArray(options.artifacts) ? options.artifacts : [];
   if (!message && !artifacts.length) {
@@ -572,6 +591,12 @@ function wireCodexMuxView() {
 }
 
 async function openCodexMuxPage() {
+  if (!codexMuxOwnerAllowed()) {
+    clearCodexMuxViewForNonOwner();
+    updateNavigationControls();
+    showError(new Error("Codex Mux is Owner-only."));
+    return;
+  }
   closeSettings();
   closeTopMoreMenu();
   closeSidebar();

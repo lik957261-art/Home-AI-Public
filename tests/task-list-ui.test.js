@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-hermes-mux-tabs-lock-v93";
+const CLIENT_VERSION = "20260522-codex-mux-owner-only-v94";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -132,6 +132,8 @@ assert.match(appJs, /function renderCodexMuxTabs\(activeTab, counts\)/);
 assert.match(appJs, /data-codex-mux-tab="hermes"/);
 assert.match(appJs, /data-codex-mux-tab="codex"/);
 assert.match(appJs, /data-codex-mux-active-panel/);
+assert.match(appJs, /function clearCodexMuxViewForNonOwner\(\)/);
+assert.match(appJs, /if \(!codexMuxOwnerAllowed\(\)\)/);
 assert.match(appJs, /需要 Hermes 跟进/);
 assert.match(appJs, /function maybeActivateHermesForCodexMuxEvents\(\)/);
 assert.match(appJs, /Codex 已回报，需要 Hermes 继续判断和跟进/);
@@ -144,8 +146,8 @@ assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-tabs-lock-v93/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-tabs-lock-v93/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-codex-mux-owner-only-v94/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-codex-mux-owner-only-v94/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(stylesCss, /\.codex-mux-mode \.conversation \{[\s\S]*?overflow: hidden/);
 assert.match(stylesCss, /\.codex-mux-tabs \{/);
@@ -1602,6 +1604,8 @@ assert.match(runtimeStateNormalizationServiceJs, /singleWindowCodexMuxTaskGroupI
 assert.match(runtimeStateNormalizationServiceJs, /next\.singleWindowMode === "chat" && !codexMuxMessage[\s\S]*?next\.taskGroupId = singleWindowChatTaskGroupId\(next\.taskGroupId\)/);
 assert.match(singleWindowThreadServiceJs, /function isExternalIngressThread\(thread\)/);
 assert.match(singleWindowThreadServiceJs, /createSingleWindowMigrationService/);
+assert.match(singleWindowGroupChatApiRoutes, /body\.codexMuxMode \|\| body\.codex_mux_mode/);
+assert.match(singleWindowGroupChatApiRoutes, /deps\.requireOwner\(req, res\)/);
 assert.match(singleWindowMigrationServiceJs, /&& !isExternalIngressThread\(thread\)/);
 assert.match(singleWindowMigrationServiceJs, /function externalIngressThreadsForPrivateMigration\(workspaceId, state = stateObject\(\)\)/);
 assert.match(singleWindowMigrationServiceJs, /state\.threads = \(state\.threads \|\| \[\]\)\.filter\(\(thread\) => thread\.id !== externalThread\.id\)/);

@@ -116,6 +116,9 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
   async function handleSingleWindow(req, res, _url, context = {}) {
     const body = await deps.readBody(req);
     const auth = context.auth || deps.authenticateRequest(req);
+    if (body.codexMuxMode || body.codex_mux_mode) {
+      if (!deps.requireOwner(req, res)) return;
+    }
     const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
     const weixinRequested = Boolean(body.weixinChat || body.weixin_chat);

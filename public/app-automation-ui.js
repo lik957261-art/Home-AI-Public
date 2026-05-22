@@ -60,6 +60,9 @@ function applyViewMode() {
 }
 
 async function loadSelectedView() {
+  if (state.viewMode === "codex-mux" && typeof clearCodexMuxViewForNonOwner === "function" && clearCodexMuxViewForNonOwner()) {
+    applyViewMode();
+  }
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
   if (state.viewMode !== "todos") clearTodoAutoRefresh();
   const leavingSkillDetail = Boolean(state.skillDetail && (state.viewMode !== "tasks" || !state.currentTaskGroupId));

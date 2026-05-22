@@ -279,6 +279,18 @@ async function main() {
   }
 
   {
+    const { routes, calls } = makeRoutes();
+    const got = await request(routes, "POST", "/api/single-window", {
+      body: { workspaceId: "owner", messageMode: "chat", taskGroupId: "codex-mux", codexMuxMode: true },
+      ownerDenied: true,
+    });
+    assert.equal(got.res.statusCode, 403);
+    assert.equal(got.body.error, "Owner access required");
+    assert.equal(calls.requireOwner.length, 1);
+    assert.deepEqual(calls.compactWithPage, []);
+  }
+
+  {
     const { routes, calls } = makeRoutes({
       ensureSingleWindowThread(workspaceId) {
         return {
