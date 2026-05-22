@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-chat-orientation-stable-v79";
+const CLIENT_VERSION = "20260522-chat-layer-reset-v80";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -159,8 +159,14 @@ assert.match(appJs, /function conversationViewportRefreshApplies\(\)/);
 assert.match(appJs, /function shouldFollowConversationBottomDuringViewport\(\)/);
 assert.match(appJs, /conversationViewportBottomFollowUntil/);
 assert.match(appJs, /conversationViewportSettleUntil/);
+assert.match(appJs, /conversationViewportLayerResetUntil/);
 assert.match(appJs, /for \(const delay of \[80, 180, 360, 720, 1200\]\)/);
 assert.match(appJs, /function repaintConversationAfterViewportChange\(conversation\)/);
+assert.match(appJs, /function resetConversationScrollLayer\(conversation, pinned\)/);
+assert.match(appJs, /conversation\.classList\.add\("conversation-layer-reset"\)/);
+assert.match(appJs, /parent\.removeChild\(conversation\)/);
+assert.match(appJs, /parent\.insertBefore\(conversation, nextSibling\)/);
+assert.match(stylesCss, /\.conversation-layer-reset\s*\{[\s\S]*?-webkit-overflow-scrolling:\s*auto !important;/);
 assert.match(appJs, /return isSingleWindowChatView\(\) \|\| isTaskDetailView\(\)/);
 assert.match(appJs, /conversation\.style\.overflowAnchor = "none"/);
 assert.match(appJs, /conversation\.scrollTop = Math\.min\(maxTop, clampedTop \+ 1\)/);

@@ -1610,6 +1610,11 @@ button {
   -webkit-overflow-scrolling: touch;
 }
 
+.conversation-layer-reset {
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: auto !important;
+}
+
 .conversation-jump-bottom {
   position: absolute;
   right: max(18px, env(safe-area-inset-right));

@@ -61,6 +61,41 @@ function repaintConversationAfterViewportChange(conversation) {
   });
 }
 
+function resetConversationScrollLayer(conversation, pinned) {
+  if (!conversation || Date.now() > Number(state.conversationViewportLayerResetUntil || 0)) return;
+  if (conversation.dataset.viewportLayerResetting === "1") return;
+  const parent = conversation.parentNode;
+  if (!parent) return;
+  const nextSibling = conversation.nextSibling;
+  const restoreTop = pinned
+    ? conversation.scrollHeight
+    : Math.max(0, Math.min(
+      Math.max(0, conversation.scrollHeight - conversation.clientHeight),
+      conversation.scrollTop
+    ));
+  conversation.dataset.viewportLayerResetting = "1";
+  conversation.classList.add("conversation-layer-reset");
+  conversation.style.webkitOverflowScrolling = "auto";
+  conversation.style.overflowY = "hidden";
+  requestAnimationFrame(() => {
+    if (!document.body.contains(conversation)) {
+      delete conversation.dataset.viewportLayerResetting;
+      return;
+    }
+    parent.removeChild(conversation);
+    void parent.offsetHeight;
+    parent.insertBefore(conversation, nextSibling);
+    requestAnimationFrame(() => {
+      conversation.classList.remove("conversation-layer-reset");
+      conversation.style.webkitOverflowScrolling = "";
+      conversation.style.overflowY = "";
+      conversation.scrollTop = pinned ? conversation.scrollHeight : restoreTop;
+      delete conversation.dataset.viewportLayerResetting;
+      updateConversationJumpBottomButton();
+    });
+  });
+}
+
 function clearConversationViewportRefreshTimers() {
   for (const timer of state.conversationViewportRefreshTimers || []) window.clearTimeout(timer);
   state.conversationViewportRefreshTimers = [];
@@ -88,6 +123,7 @@ function scheduleConversationViewportRefresh(conversation = $("conversation"), o
       conversation.scrollTop = 0;
     }
     repaintConversationAfterViewportChange(conversation);
+    resetConversationScrollLayer(conversation, pinned);
     requestAnimationFrame(() => {
       conversation.style.overflowAnchor = "";
       updateConversationJumpBottomButton();
@@ -193,6 +229,7 @@ function handleViewportLayoutChange(event = null) {
   if (orientationEvent && conversationViewportRefreshApplies()) {
     state.conversationViewportSettleUntil = Date.now() + 1400;
     state.conversationViewportBottomFollowUntil = Date.now() + 1600;
+    state.conversationViewportLayerResetUntil = Date.now() + 1600;
     state.conversationPinnedToBottom = true;
   }
   updateKeyboardViewportMetrics();
