@@ -24,6 +24,7 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   }
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
+  if (isSingleWindowChatView()) scheduleConversationBottomStick();
   suppressComposerAutoFocus(1200);
   blurComposerInput();
 }

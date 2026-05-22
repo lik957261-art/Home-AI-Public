@@ -195,9 +195,15 @@ function mergeChatScopeThread(existingThread, incomingThread) {
   if (!existingThread || existingThread.id !== incomingThread.id) return incomingThread;
   const existingPage = existingThread.messagesPage || null;
   const incomingPage = incomingThread.messagesPage || null;
+  const incomingMessages = Array.isArray(incomingThread.messages) ? incomingThread.messages : [];
+  const existingThreadMessages = existingThread.messages || [];
+  if (incomingPage && !incomingMessages.length && existingThreadMessages.length) {
+    const messagesPage = mergeMessagesPage(existingPage, incomingPage, chatMessagesForThread(existingThread, incomingPage.taskGroupId || activeChatTaskGroupId()));
+    return Object.assign({}, existingThread, incomingThread, { messages: existingThreadMessages, messagesPage });
+  }
   const existingMessages = new Map((existingThread.messages || []).map((message) => [message.id, message]));
   const incomingIds = new Set();
-  const messages = (incomingThread.messages || []).map((message) => {
+  const messages = incomingMessages.map((message) => {
     incomingIds.add(message.id);
     return mergeServerMessage(existingMessages.get(message.id), message);
   });
@@ -207,8 +213,11 @@ function mergeChatScopeThread(existingThread, incomingThread) {
     }
   }
   const sortedMessages = sortedThreadMessages(messages);
+  const pageMessages = incomingPage?.mode === "chat" || existingPage?.mode === "chat"
+    ? sortedMessages.filter((message) => String(message?.taskGroupId || "") === String((incomingPage || existingPage)?.taskGroupId || activeChatTaskGroupId()))
+    : sortedMessages;
   const messagesPage = incomingPage || existingPage
-    ? mergeMessagesPage(existingPage, incomingPage, sortedMessages)
+    ? mergeMessagesPage(existingPage, incomingPage, pageMessages)
     : null;
   return Object.assign({}, existingThread, incomingThread, { messages: sortedMessages, messagesPage });
 }

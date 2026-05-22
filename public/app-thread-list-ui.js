@@ -174,7 +174,11 @@ function renderCurrentThreadUnsafe(options = {}) {
   if (weixinChat) $("threadTitle").textContent = "\u5fae\u4fe1";
   const project = state.projects.find((item) => item.id === thread.projectId);
   const subproject = (project?.children || []).find((item) => item.id === thread.subprojectId);
-  const displayMessages = isSingleWindowChatView() ? chatMessagesForThread(thread) : (thread.messages || []);
+  let displayMessages = isSingleWindowChatView() ? chatMessagesForThread(thread) : (thread.messages || []);
+  if (isSingleWindowChatView() && !displayMessages.length && (thread.messages || []).length) {
+    const cached = chatMessagesForThread(chatScopeThread(thread, activeChatScope()));
+    displayMessages = cached.length ? cached : displayMessages;
+  }
   const activeRuns = isSingleWindowChatView() ? activeChatRunIds(thread) : activeThreadRunIds(thread);
   const projectScope = project ? projectDisplayLabel(project) : "";
   const scope = infoStream || thread.singleWindow
@@ -191,7 +195,11 @@ function renderCurrentThreadUnsafe(options = {}) {
     syncChatSearchMatches();
   }
   const historyPager = renderChatHistoryPager(thread);
-  conversation.innerHTML = `${historyPager}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">No messages yet.</div>`}`;
+  const transientChatGap = isSingleWindowChatView()
+    && !displayMessages.length
+    && (thread.messages || []).length
+    && (shouldForceChatStickToBottom() || currentThreadHasPendingMessages(thread) || state.currentThreadRefreshInFlight);
+  conversation.innerHTML = `${historyPager}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">${transientChatGap ? "Refreshing messages..." : "No messages yet."}</div>`}`;
   wireChatHistoryPager(conversation);
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);
@@ -213,6 +221,7 @@ function renderCurrentThreadUnsafe(options = {}) {
   } else if (stickToBottom) {
     conversation.scrollTop = conversation.scrollHeight;
     state.conversationPinnedToBottom = true;
+    if (isSingleWindowChatView()) scheduleConversationBottomStick();
   } else {
     conversation.scrollTop = Math.max(0, conversation.scrollHeight - bottomOffset);
     state.conversationPinnedToBottom = isNearBottom();

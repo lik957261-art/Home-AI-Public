@@ -485,6 +485,7 @@ const state = {
   preservedBottomOffset: 0,
   conversationPinnedToBottom: true,
   suppressConversationPinUntil: 0,
+  suppressChatAutoBottomUntil: 0,
   conversationBottomStickTimer: 0,
   routeScrollTaskGroupId: "",
   routeScrollMessageId: "",

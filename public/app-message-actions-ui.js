@@ -10,7 +10,9 @@ function isNearBottom(threshold = 96) {
 }
 
 function shouldForceChatStickToBottom() {
-  return isSingleWindowChatView() && Date.now() < Number(state.forceChatStickToBottomUntil || 0);
+  return isSingleWindowChatView()
+    && Date.now() >= Number(state.suppressChatAutoBottomUntil || 0)
+    && Date.now() < Number(state.forceChatStickToBottomUntil || 0);
 }
 
 function shouldStickConversationOnViewportChange() {
@@ -46,9 +48,13 @@ function scheduleConversationViewportRefresh(conversation = $("conversation")) {
     if (!isSingleWindowChatView() || !document.body.contains(conversation)) return;
     const top = conversation.scrollTop;
     const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
+    const pinned = shouldForceChatStickToBottom() || state.conversationPinnedToBottom || isNearBottom(160);
     conversation.style.overflowAnchor = "none";
     void conversation.offsetHeight;
-    if (maxTop > 0) {
+    if (pinned) {
+      conversation.scrollTop = conversation.scrollHeight;
+      state.conversationPinnedToBottom = true;
+    } else if (maxTop > 0) {
       conversation.scrollTop = Math.min(maxTop, top + 1);
       conversation.scrollTop = Math.min(maxTop, top);
     } else {
@@ -97,6 +103,7 @@ function wireConversationJumpBottomButton() {
 }
 
 function scheduleConversationBottomStick() {
+  if (Date.now() < Number(state.suppressChatAutoBottomUntil || 0)) return;
   window.clearTimeout(state.conversationBottomStickTimer);
   state.suppressConversationPinUntil = Date.now() + 700;
   const stick = () => {
@@ -121,6 +128,7 @@ function handleConversationScrollState() {
 function maybeLoadOlderChatMessages() {
   const conversation = $("conversation");
   if (!conversation || !isSingleWindowChatView() || isChatSearchMode()) return;
+  if (shouldForceChatStickToBottom()) return;
   if (state.olderChatMessagesLoading) return;
   const page = state.currentThread?.messagesPage || {};
   if (page.hasMoreBefore === false) return;
@@ -198,6 +206,9 @@ function scrollMessageIntoView(messageId, position = "start") {
   const conversation = $("conversation");
   const target = messageElementById(messageId);
   if (!conversation || !target) return;
+  state.suppressChatAutoBottomUntil = Date.now() + 5000;
+  state.conversationPinnedToBottom = false;
+  window.clearTimeout(state.conversationBottomStickTimer);
   const conversationRect = conversation.getBoundingClientRect();
   const targetRect = target.getBoundingClientRect();
   const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
@@ -206,6 +217,7 @@ function scrollMessageIntoView(messageId, position = "start") {
     : conversation.scrollTop + targetRect.top - conversationRect.top - 8;
   const top = Math.max(0, Math.min(maxTop, rawTop));
   conversation.scrollTo({ top, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  window.setTimeout(updateConversationJumpBottomButton, prefersReducedMotion() ? 0 : 260);
 }
 
 function renderMessageScrollButton(message, position) {

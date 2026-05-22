@@ -48,6 +48,7 @@ function renderStreamingMessageContent(message) {
     const conversation = $("conversation");
     conversation.scrollTop = conversation.scrollHeight;
     state.conversationPinnedToBottom = true;
+    if (isSingleWindowChatView()) scheduleConversationBottomStick();
   } else {
     state.conversationPinnedToBottom = false;
   }
