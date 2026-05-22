@@ -10,6 +10,9 @@ const {
   clampLearningCardRewardAmount,
   normalizeLearningCardRewardPolicy,
 } = require("./learning-card-reward-policy-service");
+const {
+  applyLearningGrowthRewardDecayPolicy,
+} = require("./learning-growth-reward-decay-service");
 
 const DEFAULT_AUTO_REWARD_LIMIT = 100;
 const DEFAULT_REWARD_REASON = "Learning growth evaluation reward";
@@ -89,7 +92,9 @@ function createLearningRewardSettlementService(options = {}) {
   function baseSettlement(evaluation, input = {}) {
     const card = repository.getTaskCard ? repository.getTaskCard(evaluation.taskCardId) : null;
     const rewardPolicy = normalizeLearningCardRewardPolicy(input.rewardPolicy || card?.rewardPolicy || evaluation.rewardPolicy || { rewardCapCoins: card?.rewardCapCoins });
-    const coinAmount = rewardAmountForEvaluation(evaluation, Object.assign({}, input, { card, rewardPolicy }));
+    const rewardDecayResult = applyLearningGrowthRewardDecayPolicy(card || {}, rewardPolicy, { now: now() });
+    const effectiveRewardPolicy = rewardDecayResult.rewardPolicy;
+    const coinAmount = rewardAmountForEvaluation(evaluation, Object.assign({}, input, { card, rewardPolicy: effectiveRewardPolicy }));
     const idempotencyKey = cleanString(input.idempotencyKey) || rewardSettlementKey(evaluation.evaluationId);
     const existingForEvaluation = repository.listRewardSettlements({ evaluationId: evaluation.evaluationId, limit: 1 })[0] || null;
     if (existingForEvaluation) return existingForEvaluation;
@@ -106,6 +111,7 @@ function createLearningRewardSettlementService(options = {}) {
       evaluationId: evaluation.evaluationId,
       status: "ready",
       coinAmount,
+      rewardDecay: rewardDecayResult.decay,
       reason: compactLearningSummary(input.reason || evaluation.rewardPolicy?.reason || DEFAULT_REWARD_REASON, 200),
       sourceType: "learning-growth-evaluation",
       sourceId: evaluation.evaluationId,
@@ -221,6 +227,7 @@ function createLearningRewardSettlementService(options = {}) {
         verificationStatus: evaluation.verification?.status || "unknown",
         score: Number(evaluation.score || 0),
         confidence: Number(evaluation.confidence || 0),
+        rewardDecay: settlement.rewardDecay || null,
       },
     });
     const at = now().toISOString();

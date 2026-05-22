@@ -178,6 +178,31 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /学习档案与目标录入/);
 }
 
+function testGrowthBoardShowsEvergreenRewardDecayAndAge() {
+  const html = GrowthUi.renderLearningGrowthBoard({
+    lanes: [{ id: "today", title: "Today", count: 1, cards: ["evergreen-yellow"] }],
+    cards: [{
+      taskCardId: "evergreen-yellow",
+      title: "Evergreen math",
+      activityType: "math_reasoning",
+      openedAt: "2026-05-20T08:00:00.000Z",
+      rewardCapCoins: 100,
+      rewardDecay: {
+        applies: true,
+        severity: "warning",
+        ageLabel: "2d 1h",
+        rewardCapCoins: 100,
+        effectiveRewardCapCoins: 95,
+        dailyPenaltyPercent: 5,
+      },
+    }],
+  });
+  assert.match(html, /learning-growth-board-card is-reward-warning/);
+  assert.match(html, /\u5df2\u53d1\u5e03 2d 1h/);
+  assert.match(html, /\u6bcf\u65e5 -5%/);
+  assert.match(html, /95\/100/);
+}
+
 function testGrowthRendererCanOpenBoardOnlyRevisionTask() {
   const boardOnlyOverview = JSON.parse(JSON.stringify(overview));
   boardOnlyOverview.board.lanes = [{ id: "needs_revision", title: "Needs revision", count: 1, cards: ["task-revise"] }];
@@ -410,6 +435,7 @@ function testReadinessPanelRenderer() {
 testCoinSubsystemRendererIsStandalone();
 testExecutorCoinSubsystemHidesOwnerSettlementDetails();
 testGrowthRendererContainsProductShellAndNestedCoins();
+testGrowthBoardShowsEvergreenRewardDecayAndAge();
 testGrowthRendererCanOpenBoardOnlyRevisionTask();
 testGrowthRendererContainsProgramSubsystem();
 testGrowthRendererShowsStandaloneTaskCardWhenSelected();

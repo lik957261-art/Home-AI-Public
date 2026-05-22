@@ -167,6 +167,38 @@
     return normalized.length > 16 ? normalized.slice(0, 16) : normalized;
   }
 
+  function cardPublishedAgeText(card = {}) {
+    const decay = card.rewardDecay || {};
+    if (decay.ageLabel) return decay.ageLabel;
+    const value = String(card.openedAt || card.generatedAt || card.availableAt || card.createdAt || card.plannedDate || "").trim();
+    const ms = Date.parse(value);
+    if (!Number.isFinite(ms)) return "";
+    const hours = Math.max(0, Math.floor((Date.now() - ms) / (60 * 60 * 1000)));
+    if (hours < 48) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    const remainder = hours % 24;
+    return remainder ? `${days}d ${remainder}h` : `${days}d`;
+  }
+
+  function rewardDecayClass(card = {}) {
+    const severity = String(card.rewardDecay?.severity || "");
+    if (severity === "warning") return " is-reward-warning";
+    if (severity === "danger") return " is-reward-danger";
+    return "";
+  }
+
+  function rewardDecayText(card = {}) {
+    const decay = card.rewardDecay || {};
+    if (!decay.applies) return "";
+    if (decay.severity === "warning" || decay.severity === "danger") {
+      const rate = Number(decay.dailyPenaltyPercent || 0);
+      const current = Number(decay.effectiveRewardCapCoins || 0);
+      const total = Number(decay.rewardCapCoins || taskRewardCapCoins(card));
+      return `已发布 ${cardPublishedAgeText(card)} · 每日 -${rate}% · 当前 ${current}/${total}`;
+    }
+    return "规则 48h 黄 -5%/日，72h 红 -10%/日";
+  }
+
   function renderArtifactCountPill(card = {}, artifacts = 0, escapeHtml = defaultEscapeHtml) {
     const directoryPath = String(card.artifactDirectoryPath || "").trim();
     if (!artifacts || !directoryPath) return "";
@@ -181,7 +213,10 @@
     const score = Number(evaluation.score);
     const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
     const artifacts = Number(card.artifactCount || 0);
-    return `<article class="learning-growth-board-card" data-learning-executable-task-id="${escapeHtml(taskCardId)}" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
+    const openTime = cardOpenTimeText(card);
+    const ageText = cardPublishedAgeText(card);
+    const decayText = rewardDecayText(card);
+    return `<article class="learning-growth-board-card${rewardDecayClass(card)}" data-learning-executable-task-id="${escapeHtml(taskCardId)}" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
       <div class="learning-growth-board-card-head">
         <button type="button" class="learning-growth-board-card-title" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
           <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
@@ -192,10 +227,11 @@
       ${card.instructionPreview ? `<p class="learning-growth-board-card-preview">${escapeHtml(card.instructionPreview)}</p>` : ""}
       <div class="learning-growth-board-card-meta">
         ${card.activityType ? `<small>${escapeHtml(card.activityType)}</small>` : ""}
-        ${cardOpenTimeText(card) ? `<small>\u5f00\u653e ${escapeHtml(cardOpenTimeText(card))}</small>` : ""}
+        ${openTime ? `<small>\u5f00\u653e ${escapeHtml(openTime)}${ageText ? ` · \u5df2\u53d1\u5e03 ${escapeHtml(ageText)}` : ""}</small>` : ""}
         ${scoreText ? `<small>${escapeHtml(scoreText)}</small>` : ""}
         ${renderArtifactCountPill(card, artifacts, escapeHtml)}
       </div>
+      ${decayText ? `<div class="learning-growth-board-card-decay">${escapeHtml(decayText)}</div>` : ""}
     </article>`;
   }
 

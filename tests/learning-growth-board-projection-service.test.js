@@ -215,6 +215,53 @@ function testBoardPrefersFullNativeTaskMetadataOverExecutorSummary() {
   assert.match(board.cards[0].instructionPreview, /short passage/);
 }
 
+function testBoardMarksEvergreenRewardDecayAfterThresholds() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      taskCards: [
+        {
+          taskCardId: "evergreen-yellow",
+          sequenceGroupId: "evergreen:math",
+          sequenceMode: "evergreen_jit",
+          sequenceIndex: 1,
+          title: "Math current",
+          status: "published",
+          createdAt: "2026-05-20T08:00:00.000Z",
+          plannedDate: "2026-05-20",
+          rewardCapCoins: 100,
+          rewardPolicy: { maxCoins: 100 },
+        },
+      ],
+      executableTasks: [],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const yellowBoard = buildLearningGrowthBoard({
+    overview: sequenceOverview,
+    today: "2026-05-22",
+    nowIso: "2026-05-22T09:00:00.000Z",
+  });
+  const yellow = yellowBoard.cards[0].rewardDecay;
+  assert.equal(yellow.severity, "warning");
+  assert.equal(yellow.ageHours, 49);
+  assert.equal(yellow.dailyPenaltyPercent, 5);
+  assert.equal(yellow.effectiveRewardCapCoins, 95);
+
+  const redBoard = buildLearningGrowthBoard({
+    overview: sequenceOverview,
+    today: "2026-05-23",
+    nowIso: "2026-05-23T09:00:00.000Z",
+  });
+  const red = redBoard.cards[0].rewardDecay;
+  assert.equal(red.severity, "danger");
+  assert.equal(red.ageHours, 73);
+  assert.equal(red.dailyPenaltyPercent, 10);
+  assert.equal(red.effectiveRewardCapCoins, 90);
+}
+
 function testBoardGroupsDuplicateDraftsByProgram() {
   const sequenceOverview = Object.assign({}, overview(), {
     programs: Object.assign({}, overview().programs, {
@@ -362,6 +409,7 @@ testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();
 testBoardPrefersFullNativeTaskMetadataOverExecutorSummary();
+testBoardMarksEvergreenRewardDecayAfterThresholds();
 testBoardGroupsDuplicateDraftsByProgram();
 testBoardProjectsLegacyTodosAsReadOnlyOpenTasks();
 testBoardShowsLockedCurrentCardBeforeCompletionWindow();

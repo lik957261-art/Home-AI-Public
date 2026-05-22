@@ -7643,6 +7643,16 @@ button.directory-alias-chip {
   background: rgba(236, 249, 245, 0.46);
 }
 
+.learning-growth-board-card.is-reward-warning {
+  border-color: rgba(185, 129, 26, 0.36);
+  background: rgba(255, 248, 225, 0.7);
+}
+
+.learning-growth-board-card.is-reward-danger {
+  border-color: rgba(162, 72, 62, 0.42);
+  background: rgba(255, 243, 240, 0.76);
+}
+
 .learning-growth-board-card-head strong {
   min-width: 0;
   color: var(--ink);
@@ -7698,6 +7708,27 @@ button.directory-alias-chip {
   color: var(--muted);
   font-size: 12px;
   background: rgba(255, 252, 246, 0.8);
+}
+
+.learning-growth-board-card-decay {
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  background: rgba(255, 252, 246, 0.76);
+}
+
+.learning-growth-board-card.is-reward-warning .learning-growth-board-card-decay {
+  color: #7a5514;
+  background: rgba(255, 239, 190, 0.82);
+}
+
+.learning-growth-board-card.is-reward-danger .learning-growth-board-card-decay {
+  color: #8f2f26;
+  background: rgba(255, 225, 220, 0.88);
 }
 
 .learning-growth-board-artifact-link {
@@ -11399,6 +11430,7 @@ button.directory-alias-chip {
 :root[data-font-size] .automation-doc-meta,
 :root[data-font-size] .learning-growth-board-card-title small,
 :root[data-font-size] .learning-growth-board-card-meta small,
+:root[data-font-size] .learning-growth-board-card-decay,
 :root[data-font-size] .learning-growth-board-artifact-link,
 :root[data-font-size] .learning-growth-board-empty,
 :root[data-font-size] .learning-growth-answer-card-head span,

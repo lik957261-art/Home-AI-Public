@@ -3,6 +3,9 @@
 const {
   normalizeLearningCardRewardPolicy,
 } = require("./learning-card-reward-policy-service");
+const {
+  learningGrowthRewardDecayState,
+} = require("./learning-growth-reward-decay-service");
 
 function cleanString(value, limit = 1000) {
   const text = String(value ?? "").trim();
@@ -207,6 +210,27 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
   const laneId = laneForTask(task, latest, context.today, context);
   const actions = actionModel(laneId, action);
   const nextCompletionAllowedAt = cleanString(task.nextCompletionAllowedAt || task.learningGrowthUnlockAt || task.unlockAt || task.availableAt || task.notBefore);
+  const sequenceMode = cleanString(
+    task.sequenceMode
+      || task.learningGrowthSequenceMode
+      || task.learningGrowthJitGeneration?.sequenceMode
+      || task.taskModel?.sequenceMode
+      || task.taskModel?.jitGeneration?.sequenceMode,
+  );
+  const rewardDecay = learningGrowthRewardDecayState(Object.assign({}, task, {
+    openedAt,
+    generatedAt: openedAt,
+    rewardCapCoins: rewardPolicy.maxCoins,
+    rewardPolicy,
+    sequenceGroupId: sequenceGroupForTask(task),
+    sequenceMode,
+    status: cleanString(task.status || task.executionStatus),
+    nextAction: action,
+    laneId,
+  }), {
+    now: context.nowIso,
+    rewardPolicy,
+  });
   return {
     taskCardId,
     todoId: cleanString(task.todoId || task.kanbanCardId),
@@ -217,6 +241,7 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     programId: cleanString(task.programId || task.learningProgramId || task.learning_program_id),
     draftId: cleanString(task.draftId || task.learningDraftId || task.learning_draft_id),
     sequenceGroupId: sequenceGroupForTask(task),
+    sequenceMode,
     sequenceIndex: sequenceIndexForTask(task, index),
     title: cleanString(task.title, 180) || taskCardId,
     instructionPreview: cleanString(
@@ -248,6 +273,7 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     rewardState: cleanString(latest.evaluation?.passed ? "eligible_after_reflection" : ""),
     rewardPolicy,
     rewardCapCoins: rewardPolicy.maxCoins,
+    rewardDecay,
     primaryAction: actions.primaryAction,
     actions,
   };

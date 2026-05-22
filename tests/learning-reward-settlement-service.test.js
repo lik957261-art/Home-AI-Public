@@ -268,11 +268,45 @@ function testTaskRewardCapLimitsSettlement() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function testEvergreenRewardDecayLimitsLateSettlement() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const session = seed(repository);
+  const current = repository.getTaskCard("task-1");
+  repository.upsertTaskCard(Object.assign({}, current, {
+    sequenceGroupId: "evergreen:math",
+    sequenceMode: "evergreen_jit",
+    learningGrowthJitGeneration: { generatedAt: "2026-05-13T09:00:00.000Z" },
+    rewardCapCoins: 100,
+    rewardPolicy: { maxCoins: 100 },
+  }));
+  recordEvaluation(repository, session.sessionId, {
+    evaluationId: "eval-decay",
+    score: 100,
+    confidence: 0.9,
+    summary: "summary only",
+    evidenceRefs: ["rubric:verified"],
+    verificationMethod: "answer_key_match",
+  });
+  const coinService = makeCoinService();
+  const settlement = makeService(repository, coinService, {
+    now: () => new Date("2026-05-16T10:00:00.000Z"),
+  }).settleEvaluationReward("eval-decay", { coinAmount: 100 });
+  assert.equal(settlement.status, "settled");
+  assert.equal(settlement.coinAmount, 90);
+  assert.equal(settlement.rewardDecay.severity, "danger");
+  assert.equal(settlement.rewardDecay.dailyPenaltyPercent, 10);
+  assert.equal(coinService.grants[0].coinAmount, 90);
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 testVerifiedEvaluationSettlesOnce();
 testModelOnlyCreatesReviewWithoutCoins();
 testApprovedReviewAllowsModelOnlySettlement();
 testHardVerificationFailureBlocksReward();
 testLargeRewardNeedsSettlementReview();
 testTaskRewardCapLimitsSettlement();
+testEvergreenRewardDecayLimitsLateSettlement();
 
 console.log("learning reward settlement service tests passed");
