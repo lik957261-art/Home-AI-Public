@@ -6,6 +6,7 @@ import copy
 import html
 import ipaddress
 import json
+import os
 import re
 import urllib.error
 import urllib.parse
@@ -17,6 +18,8 @@ from typing import Any
 MAX_EXTRACT_URLS = 5
 MAX_EXTRACT_BYTES = 2_000_000
 MAX_TEXT_CHARS = 20_000
+MAX_X_SEARCH_CHARS = 12_000
+DEFAULT_X_SEARCH_PROXY_PORT = 18762
 
 
 WEB_SEARCH_SCHEMA = {
@@ -73,8 +76,200 @@ MOBILE_WEB_SEARCH_SCHEMA = _schema_alias(WEB_SEARCH_SCHEMA, "mobile_web_search")
 MOBILE_WEB_EXTRACT_SCHEMA = _schema_alias(WEB_EXTRACT_SCHEMA, "mobile_web_extract")
 
 
+X_SEARCH_SCHEMA = {
+    "name": "x_search",
+    "description": (
+        "Search public X/Twitter content through the dedicated Hermes Mobile Grok Gateway. "
+        "Use this for current public discussion on X while keeping the current ChatGPT Gateway "
+        "as the main answering model. The tool returns bounded Grok Gateway search findings for "
+        "the current run to interpret."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "X/Twitter search query."},
+            "limit": {
+                "type": "integer",
+                "description": "Maximum result count to request from 1 to 10. Defaults to 5.",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5,
+            },
+        },
+        "required": ["query"],
+    },
+}
+
+
 def _json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
+
+
+def _compact_text(value: Any, max_chars: int = MAX_X_SEARCH_CHARS) -> str:
+    text = str(value or "").strip()
+    if len(text) <= max_chars:
+        return text
+    side = max_chars // 2
+    return f"{text[:side]}\n\n[truncated: {len(text)} chars]\n\n{text[-side:]}"
+
+
+def _gateway_api_key() -> str:
+    key = os.environ.get("API_SERVER_KEY", "").strip()
+    if key:
+        return key
+    for path in (
+        os.environ.get("HERMES_MOBILE_GATEWAY_API_KEY_PATH", ""),
+        os.environ.get("HERMES_WEB_HERMES_API_KEY_PATH", ""),
+        "/home/hermes/.hermes/api-server-key.secret",
+    ):
+        if not path:
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                key = handle.read().strip()
+            if key:
+                return key
+        except OSError:
+            continue
+    return ""
+
+
+def _x_search_proxy_url() -> str:
+    raw = (
+        os.environ.get("HERMES_MOBILE_X_SEARCH_PROXY_URL")
+        or os.environ.get("HERMES_GROK_GATEWAY_URL")
+        or ""
+    ).strip()
+    if raw:
+        return raw.rstrip("/")
+    port = os.environ.get("HERMES_MOBILE_X_SEARCH_PROXY_PORT", "").strip()
+    try:
+        parsed_port = int(port or DEFAULT_X_SEARCH_PROXY_PORT)
+    except ValueError:
+        parsed_port = DEFAULT_X_SEARCH_PROXY_PORT
+    return f"http://127.0.0.1:{parsed_port}"
+
+
+def _current_profile_name() -> str:
+    explicit = os.environ.get("HERMES_PROFILE", "").strip()
+    if explicit:
+        return explicit
+    home = os.environ.get("HERMES_HOME", "").strip().replace("\\", "/").rstrip("/")
+    return home.rsplit("/", 1)[-1] if home else ""
+
+
+def _is_grok_gateway_profile() -> bool:
+    return _current_profile_name().lower().startswith("grokgw")
+
+
+def _parse_sse_frame(frame: str) -> dict[str, Any] | None:
+    data_lines: list[str] = []
+    event_name = ""
+    for raw_line in str(frame or "").splitlines():
+        line = raw_line.rstrip()
+        if not line or line.startswith(":"):
+            continue
+        if line.startswith("event:"):
+            event_name = line[6:].strip()
+        elif line.startswith("data:"):
+            data_lines.append(line[5:].lstrip())
+    if not data_lines:
+        return None
+    try:
+        parsed = json.loads("\n".join(data_lines))
+    except json.JSONDecodeError:
+        return None
+    if event_name and isinstance(parsed, dict) and not parsed.get("event"):
+        parsed["event"] = event_name
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _completed_output(event: dict[str, Any]) -> str:
+    response = event.get("response") if isinstance(event.get("response"), dict) else {}
+    chunks: list[str] = []
+    for item in response.get("output") if isinstance(response.get("output"), list) else []:
+        if not isinstance(item, dict) or item.get("type") != "message":
+            continue
+        for part in item.get("content") if isinstance(item.get("content"), list) else []:
+            if isinstance(part, dict) and part.get("type") == "output_text" and part.get("text"):
+                chunks.append(str(part.get("text")))
+    return "\n\n".join(chunks).strip()
+
+
+def _proxy_x_search_response(query: str, limit: int) -> dict[str, Any]:
+    key = _gateway_api_key()
+    if not key:
+        return {"ok": False, "error": "gateway_api_key_unavailable", "source": "grok-gateway-proxy"}
+
+    prompt = (
+        "Use the available x_search tool exactly once for this query, then return a concise JSON object "
+        "with fields ok, query, results, and notes. Keep each result bounded with title/user/time/url/snippet "
+        "when available. Do not invent X results.\n\n"
+        f"Query: {query}\nLimit: {limit}"
+    )
+    body = json.dumps({
+        "input": prompt,
+        "stream": True,
+        "store": False,
+        "conversation": f"hermes-mobile-x-search-proxy-{abs(hash(query))}",
+        "instructions": (
+            "You are a Hermes Mobile XSearch proxy running on the dedicated Grok Gateway. "
+            "Call x_search when available. Return only bounded search findings; no broad final answer."
+        ),
+    }, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        f"{_x_search_proxy_url()}/v1/responses",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=90) as response:
+            content_type = response.headers.get("content-type", "")
+            raw = response.read(2_000_000).decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read(800).decode("utf-8", errors="replace")
+        return {
+            "ok": False,
+            "error": f"grok_gateway_http_{exc.code}",
+            "detail": detail[:500],
+            "source": "grok-gateway-proxy",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": "grok_gateway_proxy_failed",
+            "detail": str(exc)[:500],
+            "source": "grok-gateway-proxy",
+        }
+
+    output = ""
+    if "text/event-stream" in content_type:
+        for frame in raw.split("\n\n"):
+            event = _parse_sse_frame(frame)
+            if not event:
+                continue
+            if event.get("event") in {"response.output_text.delta", "message.delta"}:
+                output += str(event.get("delta") or event.get("text") or "")
+            if event.get("event") in {"response.completed", "run.completed"}:
+                output = _completed_output(event) or output
+    else:
+        try:
+            parsed = json.loads(raw)
+            output = _completed_output({"response": parsed}) or json.dumps(parsed, ensure_ascii=False)
+        except json.JSONDecodeError:
+            output = raw
+    return {
+        "ok": True,
+        "source": "grok-gateway-proxy",
+        "query": query,
+        "limit": limit,
+        "data": _compact_text(output),
+    }
 
 
 def _official_web_available() -> bool:
@@ -191,6 +386,14 @@ def _clamp_limit(value: Any) -> int:
     except Exception:
         limit = 5
     return max(1, min(10, limit))
+
+
+def _x_search_handler(args: dict[str, Any], **_: Any) -> str:
+    query = str(args.get("query") or "").strip()
+    if not query:
+        return _json({"ok": False, "error": "query is required", "source": "grok-gateway-proxy"})
+    limit = _clamp_limit(args.get("limit", 5))
+    return _json(_proxy_x_search_response(query, limit))
 
 
 def _fetch_text(url: str, timeout: int = 12, max_bytes: int = MAX_EXTRACT_BYTES) -> tuple[str, str]:
@@ -312,6 +515,15 @@ async def _web_extract_handler(args: dict[str, Any], **_: Any) -> str:
 
 
 def register(ctx) -> None:
+    if not _is_grok_gateway_profile():
+        ctx.register_tool(
+            name="x_search",
+            toolset="x_search",
+            schema=X_SEARCH_SCHEMA,
+            handler=_x_search_handler,
+            description="Proxy X/Twitter search through the dedicated Hermes Mobile Grok Gateway.",
+            emoji="x",
+        )
     ctx.register_tool(
         name="web_search",
         toolset="web",

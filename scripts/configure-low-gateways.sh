@@ -33,9 +33,9 @@ shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
 shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$telemetry_profiles_root/shared-auth}"
 shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$shared_auth_default_root/auth.json}"
 shared_auth_lock_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_LOCK_PATH:-$shared_auth_default_root/auth.lock}"
-grok_auth_default_root="${HERMES_GROK_GATEWAY_AUTH_ROOT:-$shared_auth_default_root}"
-grok_auth_path="${HERMES_GROK_GATEWAY_AUTH_PATH:-$shared_auth_path}"
-grok_auth_lock_path="${HERMES_GROK_GATEWAY_AUTH_LOCK_PATH:-$shared_auth_lock_path}"
+grok_auth_default_root="${HERMES_GROK_GATEWAY_AUTH_ROOT:-$telemetry_profiles_root/shared-auth-grok}"
+grok_auth_path="${HERMES_GROK_GATEWAY_AUTH_PATH:-$grok_auth_default_root/auth.json}"
+grok_auth_lock_path="${HERMES_GROK_GATEWAY_AUTH_LOCK_PATH:-$grok_auth_default_root/auth.lock}"
 legacy_shared_auth_path="$worker_home_dir/auth.json"
 legacy_shared_auth_lock_path="$worker_home_dir/auth.lock"
 shared_auth_source_profile="${HERMES_LOW_GATEWAY_SHARED_AUTH_SOURCE_PROFILE:-}"
@@ -116,47 +116,6 @@ file_size_or_zero() {
     return 0
   fi
   stat -c %s "$file_path" 2>/dev/null || echo 0
-}
-
-merge_grok_xai_oauth_to_shared_auth() {
-  local source_path="$1"
-  local target_path="$2"
-  if [ ! -s "$source_path" ] || [ ! -s "$target_path" ]; then
-    return 0
-  fi
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "WARNING: python3 not found; skipping xAI OAuth merge into shared low Gateway auth" >&2
-    return 0
-  fi
-  python3 - "$source_path" "$target_path" <<'PY'
-import json
-import pathlib
-import sys
-
-source = pathlib.Path(sys.argv[1])
-target = pathlib.Path(sys.argv[2])
-try:
-    source_data = json.loads(source.read_text(encoding="utf-8"))
-    target_data = json.loads(target.read_text(encoding="utf-8"))
-except Exception as exc:
-    print(f"WARNING: unable to read auth files for xAI OAuth merge: {type(exc).__name__}", file=sys.stderr)
-    sys.exit(0)
-
-source_entries = source_data.get("credential_pool", {}).get("xai-oauth") or []
-if not source_entries:
-    sys.exit(0)
-ok_entries = [entry for entry in source_entries if isinstance(entry, dict) and entry.get("last_status") == "ok"]
-if not ok_entries:
-    sys.exit(0)
-
-target_data.setdefault("credential_pool", {})["xai-oauth"] = [ok_entries[0]]
-if isinstance(source_data.get("providers"), dict) and "xai-oauth" in source_data["providers"]:
-    target_data.setdefault("providers", {})["xai-oauth"] = source_data["providers"]["xai-oauth"]
-target_data["updated_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat().replace("+00:00", "Z")
-target.write_text(json.dumps(target_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-PY
-  chown "$worker_user:$worker_user" "$target_path" 2>/dev/null || true
-  chmod 600 "$target_path" 2>/dev/null || true
 }
 
 is_owner_connector_profile() {
@@ -301,10 +260,6 @@ if [ "$grok_gateway_count" -gt 0 ] && [ ! -e "$grok_auth_lock_path" ]; then
   chown "$worker_user:$worker_user" "$grok_auth_lock_path" 2>/dev/null || true
   chmod 600 "$grok_auth_lock_path" 2>/dev/null || true
 fi
-if [ "$shared_auth_enabled" = "1" ] && [ "$grok_gateway_count" -gt 0 ]; then
-  merge_grok_xai_oauth_to_shared_auth "$grok_auth_path" "$shared_auth_path"
-fi
-
 if [ "$shared_auth_enabled" = "1" ]; then
   shared_auth_real="$(readlink -f "$shared_auth_path" 2>/dev/null || echo "$shared_auth_path")"
   legacy_auth_real="$(readlink -f "$legacy_shared_auth_path" 2>/dev/null || echo "$legacy_shared_auth_path")"

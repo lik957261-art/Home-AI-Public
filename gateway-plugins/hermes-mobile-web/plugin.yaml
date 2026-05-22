@@ -6,3 +6,4 @@ kind: standalone
 provides_tools:
   - web
   - search
+  - x_search

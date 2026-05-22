@@ -44,6 +44,7 @@ if [ -n "$windows_host_gateway" ]; then
 fi
 mobile_bridge_host_url="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-$default_mobile_bridge_host_url}}"
 mobile_bridge_key_path="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret}}"
+x_search_proxy_url="${HERMES_MOBILE_X_SEARCH_PROXY_URL:-http://127.0.0.1:$((grok_gateway_base_port + 1))}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -179,6 +180,7 @@ start_gateway_profile() {
     HERMES_WEB_BRIDGE_HOST_URL="$mobile_bridge_host_url" \
     HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$mobile_bridge_key_path" \
     HERMES_WEB_BRIDGE_HOST_KEY_PATH="$mobile_bridge_key_path" \
+    HERMES_MOBILE_X_SEARCH_PROXY_URL="$x_search_proxy_url" \
     API_SERVER_KEY="$api_key" \
     "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2

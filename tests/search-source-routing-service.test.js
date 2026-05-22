@@ -84,11 +84,11 @@ function testResolvePrecedence() {
   assert.equal(manualBodyWins.commandExplicit, true);
   assert.deepEqual(manualBodyWins.accessPolicyContext.allowed_toolsets, ["web", "search"]);
 
-  const naturalTextStaysDefault = resolveSearchSourceForMessage({}, "\u8bf7\u5728 X \u4e0a\u641c\u6700\u65b0\u8ba8\u8bba");
-  assert.equal(naturalTextStaysDefault.source, SEARCH_SOURCE_LOCAL);
-  assert.equal(naturalTextStaysDefault.sourceMode, SEARCH_SOURCE_MODE_LOCAL);
-  assert.equal(naturalTextStaysDefault.autoDetected, false);
-  assert.equal(naturalTextStaysDefault.instructions, "");
+  const naturalTextRoutesToX = resolveSearchSourceForMessage({}, "\u8bf7\u5728 X \u4e0a\u641c\u6700\u65b0\u8ba8\u8bba");
+  assert.equal(naturalTextRoutesToX.source, SEARCH_SOURCE_X);
+  assert.equal(naturalTextRoutesToX.sourceMode, SEARCH_SOURCE_MODE_AUTO);
+  assert.equal(naturalTextRoutesToX.autoDetected, true);
+  assert.match(naturalTextRoutesToX.instructions, /Hermes Mobile proxy/);
 }
 
 testNormalizeAndCommands();

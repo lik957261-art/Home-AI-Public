@@ -222,9 +222,9 @@ function searchSourceInstructions(source, mode = SEARCH_SOURCE_MODE_MANUAL) {
   if (normalized === SEARCH_SOURCE_X) {
     return [
       `${lead}: X search.`,
-      "First use `x_search` if it is present in the current run's callable functions. Treat X search as the primary evidence source for current public discussion on X.",
+      "First use `x_search` if it is present in the current run's callable functions. In ordinary ChatGPT runs this may be a Hermes Mobile proxy that executes search through the dedicated Grok Gateway while keeping this run as the final answering model.",
       "Local data and ordinary web/search may be used only as supplemental context after the X search attempt; explicitly say when ordinary web/search was used as a supplement.",
-      "If `x_search` is unavailable or the Gateway profile lacks xAI OAuth/API credentials, say that X search is unavailable for this run instead of answering as if X was searched.",
+      "If `x_search` is unavailable or returns an error, say that X search is unavailable for this run instead of answering as if X was searched.",
     ].join("\n");
   }
   return "";
@@ -234,7 +234,7 @@ function resolveSearchSourceForMessage(body = {}, text = "") {
   const command = searchSourceFromCommand(text);
   const fromBody = searchSourceFromBody(body);
   const manualBody = Boolean(fromBody.explicit && fromBody.mode === SEARCH_SOURCE_MODE_MANUAL);
-  const selected = fromBody;
+  const selected = manualBody ? fromBody : (command.explicit ? command : fromBody);
   const source = selected.source;
   const explicit = Boolean(selected.explicit);
   const option = searchSourceOption(source);
@@ -249,7 +249,7 @@ function resolveSearchSourceForMessage(body = {}, text = "") {
     sourceMode: mode,
     manualExplicit: mode === SEARCH_SOURCE_MODE_MANUAL && option.source !== SEARCH_SOURCE_LOCAL,
     autoDetected: mode === SEARCH_SOURCE_MODE_AUTO && option.source !== SEARCH_SOURCE_LOCAL,
-    commandExplicit: Boolean(command.explicit && manualBody),
+    commandExplicit: Boolean(command.explicit),
     bodyExplicit: Boolean(fromBody.explicit),
     accessPolicyContext: searchSourceAccessPolicyContext(option.source),
     instructions: searchSourceInstructions(option.source, mode),

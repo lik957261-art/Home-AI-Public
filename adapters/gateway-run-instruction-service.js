@@ -127,7 +127,7 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "x_search")) {
       lines.push(
-        "Current tool schema override: the `x_search` toolset is enabled for this run, and its callable function name is `x_search` when the Gateway profile has xAI OAuth/API credentials.",
+        "Current tool schema override: the `x_search` toolset is enabled for this run, and its callable function name is `x_search` when available. In ordinary ChatGPT Gateway profiles, `x_search` may be a Hermes Mobile proxy that queries the dedicated Grok Gateway and returns bounded search findings to this run.",
         "For X/Twitter lookup, use `x_search` when available. Do not claim X was searched unless `x_search` was actually available and used."
       );
     }
