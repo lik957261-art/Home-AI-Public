@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-hermes-mux-composer-v86";
+const CLIENT_VERSION = "20260522-hermes-mux-readable-v87";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -115,16 +115,22 @@ assert.match(appJs, /async function loadCodexMux\(options = \{\}\)/);
 assert.match(appJs, /function renderCodexMuxView\(\)/);
 assert.match(appJs, /data-codex-mux-page/);
 assert.match(appJs, /function renderCodexMuxMilestones\(\)/);
+assert.match(appJs, /function codexMuxPayloadLines\(payload = \{\}\)/);
+assert.match(appJs, /class="codex-mux-event-details"/);
+assert.match(appJs, /需要 Hermes 跟进/);
+assert.match(appJs, /function maybeActivateHermesForCodexMuxEvents\(\)/);
+assert.match(appJs, /Codex 已回报，需要 Hermes 继续判断和跟进/);
 assert.match(appJs, /function codexMuxCoordinatorInstructions\(\)/);
 assert.match(appJs, /async function sendCodexMuxHermesMessage\(text, options = \{\}\)/);
 assert.match(appJs, /codexMuxMode: true/);
+assert.match(appJs, /taskGroupId: CODEX_MUX_TASK_GROUP_ID,[\s\S]*?codexMuxMode: true,[\s\S]*?messageLimit: 80/);
 assert.match(appJs, /allowed_toolsets: \["http"\]/);
 assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView\(\)\)/);
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-composer-v86/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-composer-v86/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-readable-v87/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-readable-v87/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
