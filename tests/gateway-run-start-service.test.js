@@ -70,6 +70,28 @@ function makeHarness(overrides = {}) {
       calls.hermesInstructions.push({ thread, policy, project, latestText, taskDirectory, buildOptions });
       return `instructions:${thread.workspaceId}:${project.id}`;
     },
+    routeRunToolsets: ({ policy, userMessage, runOptions }) => {
+      const text = String(userMessage?.content || "");
+      if (/plain chat/i.test(text)) {
+        return {
+          policy: Object.assign({}, policy, {
+            allowed_toolsets: ["web", "search", "x_search", "http", "clarify"],
+            toolset_routing: { mode: "minimal", reason: "plain_chat_light_tools" },
+          }),
+          routing: { mode: "minimal", reason: "plain_chat_light_tools" },
+        };
+      }
+      if (runOptions.searchSource === "x") {
+        return {
+          policy: Object.assign({}, policy, {
+            allowed_toolsets: (policy.allowed_toolsets || []).filter((item) => ["x_search", "web", "search"].includes(item)),
+            toolset_routing: { mode: "intent", reason: "matched_intent" },
+          }),
+          routing: { mode: "intent", reason: "matched_intent" },
+        };
+      }
+      return { policy, routing: { mode: "compatible", reason: "test_default" } };
+    },
     makePublicTaskId: () => "web_test_1",
     gatewaySkillRoutingForWorkspace: (workspaceId) => ({ skillWorkspaceId: workspaceId, requireSkillProfile: true }),
     chooseGatewayRunTarget: async (routing) => {
@@ -198,6 +220,7 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
   assert.equal(assistant.reasoningEffort, "medium");
   assert.equal(assistant.runOptions.existing, true);
   assert.equal(assistant.runOptions.gatewayConversation, "session_1:user_1:file,terminal,http");
+  assert.deepEqual(assistant.runOptions.toolsetRouting, { mode: "compatible", reason: "test_default" });
   assert.equal(assistant.runOptions.toolSchemaEpoch, "epoch-test");
   assert.equal(assistant.runOptions.access_policy_context.connector_profiles.extra.type, "profile");
   assert.equal(thread.status, "running");
@@ -288,7 +311,23 @@ async function testStartRunPreservesSearchSourceRouting() {
   assert.equal(assistant.runOptions.searchSource, "x");
   assert.equal(assistant.runOptions.sourceIntent, "x_search");
   assert.equal(assistant.runOptions.sourceMode, "manual");
-  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "x_search", "web", "search"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["x_search", "web", "search"]);
+  assert.deepEqual(assistant.runOptions.toolsetRouting, { mode: "intent", reason: "matched_intent" });
+}
+
+function testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions() {
+  const { calls, service } = makeHarness();
+  const request = service.buildRunRequest(
+    baseThread(),
+    baseUserMessage({ content: "plain chat" }),
+    baseAssistantMessage(),
+    {},
+  );
+
+  assert.deepEqual(request.runPolicy.allowed_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.deepEqual(request.toolsetRouting, { mode: "minimal", reason: "plain_chat_light_tools" });
+  assert.deepEqual(calls.hermesInstructions[0].policy.allowed_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.equal(request.body.access_policy_context.toolset_routing.mode, "minimal");
 }
 
 async function testStartRunUsesSelectedGatewayProviderFallback() {
@@ -349,6 +388,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
+  testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
   await testStartRunUsesSelectedGatewayProviderFallback();
   await testConcurrencyErrorStopsBeforeGatewaySelection();
   testMarkStartFailedUsesInjectedHooks();

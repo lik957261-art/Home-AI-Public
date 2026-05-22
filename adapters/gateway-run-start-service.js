@@ -76,6 +76,7 @@ function createGatewayRunStartService(options = {}) {
   const gatewayConversationId = maybeCall(options.gatewayConversationId, () => "");
   const buildConversationHistory = maybeCall(options.buildConversationHistory, () => []);
   const buildHermesInstructions = maybeCall(options.buildHermesInstructions, () => "");
+  const routeRunToolsets = maybeCall(options.routeRunToolsets, ({ policy }) => ({ policy: objectValue(policy), routing: null }));
   const makePublicTaskId = maybeCall(options.makePublicTaskId, () => `web_${Date.now()}`);
   const gatewaySkillRoutingForWorkspace = maybeCall(options.gatewaySkillRoutingForWorkspace, () => ({}));
   const chooseGatewayRunTarget = maybeCall(options.chooseGatewayRunTarget, async () => ({ apiBase: "" }));
@@ -130,9 +131,22 @@ function createGatewayRunStartService(options = {}) {
     let basePolicy = buildAccessPolicy(routePolicy, {}, project, policyHardeningOptions);
     const groupChat = buildGroupChatRunContext(thread, userMessage, objectValue(basePolicy));
     basePolicy = sanitizePolicy(groupChat.policy, policyHardeningOptions);
-    const runPolicy = runOptions.access_policy_context && typeof runOptions.access_policy_context === "object"
+    let runPolicy = runOptions.access_policy_context && typeof runOptions.access_policy_context === "object"
       ? sanitizePolicy(mergeAccessPolicyOverride(basePolicy, runOptions.access_policy_context), policyHardeningOptions)
       : basePolicy;
+    const routedPolicy = routeRunToolsets({
+      policy: runPolicy,
+      thread,
+      policyThread,
+      userMessage,
+      assistantMessage,
+      runOptions,
+      project,
+      taskDirectory,
+      groupChat,
+      policyHardeningOptions,
+    }) || {};
+    runPolicy = sanitizePolicy(objectValue(routedPolicy.policy, runPolicy), policyHardeningOptions);
     const conversation = gatewayConversationId(thread, userMessage, runPolicy);
     const instructions = [
       buildHermesInstructions(
@@ -184,6 +198,7 @@ function createGatewayRunStartService(options = {}) {
       policyThread,
       project,
       requestedGatewayRouting,
+      toolsetRouting: routedPolicy.routing || runPolicy.toolset_routing || null,
       runPolicy,
       taskDirectory,
       toolSchemaEpoch,
@@ -229,6 +244,7 @@ function createGatewayRunStartService(options = {}) {
       gatewayConversation: request.body.conversation,
       toolSchemaEpoch,
     });
+    if (request.toolsetRouting) assistantMessage.runOptions.toolsetRouting = request.toolsetRouting;
     if (runOptions.searchSource) assistantMessage.runOptions.searchSource = cleanString(runOptions.searchSource);
     if (runOptions.sourceIntent) assistantMessage.runOptions.sourceIntent = cleanString(runOptions.sourceIntent);
     if (runOptions.sourceMode) assistantMessage.runOptions.sourceMode = cleanString(runOptions.sourceMode);

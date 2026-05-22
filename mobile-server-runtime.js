@@ -21,7 +21,7 @@ const { createExternalIntegrationProvider } = require("./adapters/external-integ
 const { createArtifactTextRegistrationService } = require("./adapters/artifact-text-registration-service");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
-const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service");
+const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service"); const { createGatewayRunToolsetRoutingService } = require("./adapters/gateway-run-toolset-routing-service");
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
 const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
@@ -163,7 +163,7 @@ function getGatewayRuntimeCompositionService() {
       appendBounded, assertRunConcurrencyCapacity, buildAccessPolicy, buildConversationHistory, buildHermesInstructions,
       broadcast, chooseGatewayRunTarget, compactFullContent, compactMessage, dedupe, effectiveProjectForThread,
       ensureGroupChatSharedArtifactCopies, enqueueExternalDeliveryForTerminalMessage, findWorkspace, gatewayConversationId,
-      gatewayPool, gatewaySkillRoutingForWorkspace,
+      gatewayPool, gatewaySkillRoutingForWorkspace, routeRunToolsets: (...args) => gatewayRunToolsetRoutingService.routePolicy(...args),
       gatewayUrlForRun: (...args) => getRuntimeStateThreadService().storedGatewayUrlForRun(...args),
       groupChatDeliveryRootForThread, groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
       isOrdinaryToolSchemaElevationRequest, logger: console, makePublicTaskId, maxMessageChars: MAX_MESSAGE_CHARS,
@@ -1785,7 +1785,7 @@ const gatewayRunInstructionService = createGatewayRunInstructionService({
   semanticProjectRoutingInstructions: (...args) => getSemanticDirectoryAttachmentService().semanticProjectRoutingInstructions(...args),
   isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
 });
-const topicContextCompactionService = createTopicContextCompactionService({ store: { getTopicContextSummary: (...args) => mobileSqliteStore().getTopicContextSummary(...args), getTopicWorkingState: (...args) => mobileSqliteStore().getTopicWorkingState(...args), listTopicContextRefs: (...args) => mobileSqliteStore().listTopicContextRefs(...args), upsertTopicContextSummary: (...args) => mobileSqliteStore().upsertTopicContextSummary(...args), upsertTopicWorkingState: (...args) => mobileSqliteStore().upsertTopicWorkingState(...args), replaceTopicContextRefs: (...args) => mobileSqliteStore().replaceTopicContextRefs(...args) }, nowIso }); const conversationHistoryService = createConversationHistoryService({
+const gatewayRunToolsetRoutingService = createGatewayRunToolsetRoutingService({ dedupe }); const topicContextCompactionService = createTopicContextCompactionService({ store: { getTopicContextSummary: (...args) => mobileSqliteStore().getTopicContextSummary(...args), getTopicWorkingState: (...args) => mobileSqliteStore().getTopicWorkingState(...args), listTopicContextRefs: (...args) => mobileSqliteStore().listTopicContextRefs(...args), upsertTopicContextSummary: (...args) => mobileSqliteStore().upsertTopicContextSummary(...args), upsertTopicWorkingState: (...args) => mobileSqliteStore().upsertTopicWorkingState(...args), replaceTopicContextRefs: (...args) => mobileSqliteStore().replaceTopicContextRefs(...args) }, nowIso }); const conversationHistoryService = createConversationHistoryService({
   policyHasToolset,
   compactText,
   isSingleWindowConversationTaskGroupId,
