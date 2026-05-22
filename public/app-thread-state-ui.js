@@ -205,24 +205,9 @@ async function selectChatScope(scope) {
     renderCurrentThread({ stickToBottom: true });
     return;
   }
-  if (!state.auth?.isOwner) {
-    state.groupChatOpen = false;
-    localStorage.setItem("hermesWebGroupChatOpen", "0");
-    throw new Error("当前账号还没有可加入的群聊");
-  }
-  const ownerId = state.currentThread?.workspaceId || state.selectedWorkspaceId || "owner";
-  const memberWorkspaceIds = [...new Set([ownerId, state.selectedWorkspaceId || ownerId].filter(Boolean))];
-  const result = await api(`/api/threads/${encodeURIComponent(state.currentThread.id)}/group-chat`, {
-    method: "PATCH",
-    body: JSON.stringify({ enabled: true, memberWorkspaceIds }),
-  });
-  state.currentThread = mergeCurrentThread(result.thread);
-  state.currentThreadId = state.currentThread.id;
-  state.threads = [summarizeThread(state.currentThread)];
-  state.groupChatOpen = true;
-  localStorage.setItem("hermesWebGroupChatOpen", "1");
-  renderThreads();
-  renderCurrentThread({ stickToBottom: true });
+  state.groupChatOpen = false;
+  localStorage.setItem("hermesWebGroupChatOpen", "0");
+  throw new Error("Group chat is not available for this workspace yet.");
 }
 
 async function toggleGroupChat() {

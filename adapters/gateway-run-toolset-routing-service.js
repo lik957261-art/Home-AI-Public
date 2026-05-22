@@ -156,16 +156,27 @@ function createGatewayRunToolsetRoutingService(options = {}) {
 
   function routePolicy(context = {}) {
     const policy = context.policy && typeof context.policy === "object" ? context.policy : {};
+    const baseAllowed = dedupe(policy.allowed_toolsets || policy.allowedToolsets || []);
     const selected = selectToolsets(context);
     return {
       policy: Object.assign({}, policy, {
-        allowed_toolsets: selected.allowed_toolsets,
+        allowed_toolsets: baseAllowed,
         toolset_routing: {
-          mode: selected.mode,
-          reason: selected.reason,
+          mode: "disabled",
+          reason: "toolset_pruning_disabled",
+          suggested_toolsets: selected.allowed_toolsets,
+          suggested_mode: selected.mode,
+          suggested_reason: selected.reason,
         },
       }),
-      routing: selected,
+      routing: {
+        allowed_toolsets: baseAllowed,
+        mode: "disabled",
+        reason: "toolset_pruning_disabled",
+        suggested_toolsets: selected.allowed_toolsets,
+        suggested_mode: selected.mode,
+        suggested_reason: selected.reason,
+      },
     };
   }
 

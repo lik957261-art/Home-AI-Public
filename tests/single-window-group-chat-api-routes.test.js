@@ -128,6 +128,17 @@ function makeRoutes(overrides = {}) {
     ensureWeixinSingleWindowThread(workspaceId) {
       return state.threads.find((thread) => thread.id === "weixin-thread" && thread.workspaceId === workspaceId) || null;
     },
+    ensureGroupChatThreadForWorkspace(workspaceId, memberWorkspaceIds = []) {
+      const thread = {
+        id: "created-group-thread",
+        singleWindow: true,
+        workspaceId,
+        chatGroup: { enabled: true, memberWorkspaceIds },
+        messages: [],
+      };
+      state.threads.unshift(thread);
+      return thread;
+    },
     findGroupChatThreadForWorkspace(workspaceId) {
       return state.threads.find((thread) => thread.id === "group-thread" && thread.workspaceId === workspaceId) || null;
     },
@@ -312,13 +323,30 @@ async function main() {
     });
     const got = await request(routes, "POST", "/api/single-window", {
       body: { workspaceId: "child-a", messageMode: "chat", groupChat: true, messageLimit: 5 },
-      auth: { ok: true, workspaceId: "owner" },
+      auth: { ok: true, workspaceId: "child-a" },
     });
     assert.equal(got.res.statusCode, 200);
     assert.equal(got.body.thread.id, "child-private-thread");
     assert.equal(got.body.groupChatAvailable, false);
     assert.deepEqual(calls.compactWithPage.map((item) => item.threadId), ["child-private-thread"]);
     assert.equal(calls.compactWithPage[0].options.groupChat, false);
+  }
+
+  {
+    const { routes, state } = makeRoutes({
+      findGroupChatThreadForWorkspace() {
+        return null;
+      },
+    });
+    const got = await request(routes, "POST", "/api/single-window", {
+      body: { workspaceId: "owner", messageMode: "chat", groupChat: true, messageLimit: 5 },
+      auth: { ok: true, workspaceId: "owner", owner: true },
+    });
+    assert.equal(got.res.statusCode, 200);
+    assert.equal(got.body.thread.id, "created-group-thread");
+    assert.equal(got.body.groupChatAvailable, true);
+    assert.equal(state.threads[0].id, "created-group-thread");
+    assert.equal(state.threads.find((thread) => thread.id === "private-thread").chatGroup, undefined);
   }
 
   {
@@ -380,6 +408,16 @@ async function main() {
     assert.equal((await request(routes, "PATCH", "/api/threads/missing/group-chat")).res.statusCode, 404);
     assert.equal((await request(routes, "PATCH", "/api/threads/normal-thread/group-chat")).res.statusCode, 400);
     assert.equal((await request(routes, "PATCH", "/api/threads/group-thread/group-chat", { ownerDenied: true })).res.statusCode, 403);
+  }
+
+  {
+    const { routes, state } = makeRoutes();
+    const got = await request(routes, "PATCH", "/api/threads/private-thread/group-chat", {
+      body: { enabled: true, memberWorkspaceIds: ["child-a"] },
+    });
+    assert.equal(got.res.statusCode, 409);
+    assert.equal(got.body.error, "Cannot convert an existing private task thread into group chat");
+    assert.equal(state.threads.find((thread) => thread.id === "private-thread").chatGroup, undefined);
   }
 
   {

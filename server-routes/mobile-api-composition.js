@@ -341,6 +341,7 @@ function createMobileApiComposition(deps = {}) {
     compactMessage: deps.compactMessage,
     compactThread: deps.compactThread,
     compactThreadWithMessagePage: deps.compactThreadWithMessagePage,
+    ensureGroupChatThreadForWorkspace: (...args) => deps.getSingleWindowThreadService().ensureGroupChatThreadForWorkspace(...args),
     ensureSingleWindowThread: (...args) => deps.getSingleWindowThreadService().ensureSingleWindowThread(...args),
     ensureWeixinSingleWindowThread: (...args) => deps.getSingleWindowThreadService().ensureWeixinSingleWindowThread(...args),
     findGroupChatThreadForWorkspace: (...args) => deps.getSingleWindowThreadService().findGroupChatThreadForWorkspace(...args),

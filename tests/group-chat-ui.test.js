@@ -7,6 +7,7 @@ const { readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
 const appJs = readAppShellSource(repoRoot);
+const threadStateUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-thread-state-ui.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
@@ -45,6 +46,7 @@ assert.match(indexHtml, /id="topToggleWeixinChat"/);
 assert.match(appJs, /function selectChatScope\(scope\)/);
 assert.match(appJs, /function selectWeixinChat\(open = true\)/);
 assert.match(appJs, /await selectChatScope\(isGroupChatView\(\) \? "chat" : "group"\)/);
+assert.doesNotMatch(threadStateUiJs, /\/group-chat`/);
 assert.match(appJs, /toggleGroupChat\.hidden = true/);
 assert.match(appJs, /\$\("topToggleWeixinChat"\)\?\.addEventListener\("click"/);
 assert.doesNotMatch(appJs, /data-open-group-members/);

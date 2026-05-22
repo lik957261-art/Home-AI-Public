@@ -35,9 +35,12 @@ function testPlainChatUsesMinimalToolsets() {
     runOptions: {},
   });
 
-  assert.deepEqual(result.policy.allowed_toolsets, ["web", "search", "x_search", "http", "clarify"]);
-  assert.equal(result.routing.mode, "minimal");
-  assert.equal(result.routing.reason, "plain_chat_light_tools");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.mode, "disabled");
+  assert.equal(result.routing.reason, "toolset_pruning_disabled");
+  assert.deepEqual(result.routing.suggested_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.equal(result.routing.suggested_mode, "minimal");
+  assert.equal(result.routing.suggested_reason, "plain_chat_light_tools");
 }
 
 function testExplicitXSearchKeepsOnlyXSearchWhenAllowed() {
@@ -48,8 +51,10 @@ function testExplicitXSearchKeepsOnlyXSearchWhenAllowed() {
     runOptions: {},
   });
 
-  assert.deepEqual(result.policy.allowed_toolsets, ["x_search"]);
-  assert.equal(result.routing.mode, "intent");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.mode, "disabled");
+  assert.deepEqual(result.routing.suggested_toolsets, ["x_search"]);
+  assert.equal(result.routing.suggested_mode, "intent");
 }
 
 function testSearchSourceOptionsAddXSearch() {
@@ -60,8 +65,10 @@ function testSearchSourceOptionsAddXSearch() {
     runOptions: { searchSource: "x", sourceIntent: "x_search", sourceMode: "manual" },
   });
 
-  assert.deepEqual(result.policy.allowed_toolsets, ["x_search"]);
-  assert.equal(result.routing.reason, "matched_intent");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.reason, "toolset_pruning_disabled");
+  assert.deepEqual(result.routing.suggested_toolsets, ["x_search"]);
+  assert.equal(result.routing.suggested_reason, "matched_intent");
 }
 
 function testFileAndSkillIntentCanCombine() {
@@ -72,7 +79,8 @@ function testFileAndSkillIntentCanCombine() {
     runOptions: {},
   });
 
-  assert.deepEqual(result.policy.allowed_toolsets, ["file", "skills"]);
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.deepEqual(result.routing.suggested_toolsets, ["file", "skills"]);
 }
 
 function testAmbiguousRequestFailsOpenToBaseToolsets() {
@@ -84,8 +92,10 @@ function testAmbiguousRequestFailsOpenToBaseToolsets() {
   });
 
   assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
-  assert.equal(result.routing.mode, "compatible");
-  assert.equal(result.routing.reason, "ambiguous_fail_open");
+  assert.equal(result.routing.mode, "disabled");
+  assert.equal(result.routing.reason, "toolset_pruning_disabled");
+  assert.equal(result.routing.suggested_mode, "compatible");
+  assert.equal(result.routing.suggested_reason, "ambiguous_fail_open");
 }
 
 function testNeverGrantsToolsetsNotAlreadyAllowed() {
@@ -96,7 +106,8 @@ function testNeverGrantsToolsetsNotAlreadyAllowed() {
     runOptions: {},
   });
 
-  assert.deepEqual(result.policy.allowed_toolsets, []);
+  assert.deepEqual(result.policy.allowed_toolsets, ["web", "search"]);
+  assert.deepEqual(result.routing.suggested_toolsets, []);
 }
 
 testPlainChatUsesMinimalToolsets();
