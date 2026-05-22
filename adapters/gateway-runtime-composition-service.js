@@ -179,6 +179,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
         stripPermissionApprovalMarkers: deps.stripPermissionApprovalMarkers,
         supplementGatewayUsage: deps.supplementGatewayUsage,
         threadSummary: deps.threadSummary,
+        topicContextCompactionService: deps.topicContextCompactionService,
       });
     }
     return eventService;

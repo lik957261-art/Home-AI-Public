@@ -301,6 +301,7 @@ function createGatewayRunEventService(options = {}) {
       console.error(err);
     } catch (_) {}
   });
+  const topicContextCompactionService = options.topicContextCompactionService || null;
   const broadcast = typeof options.broadcast === "function" ? options.broadcast : (() => {});
   const compactMessage = typeof options.compactMessage === "function" ? options.compactMessage : compactFallback;
   const threadSummary = typeof options.threadSummary === "function" ? options.threadSummary : compactFallback;
@@ -399,6 +400,17 @@ function createGatewayRunEventService(options = {}) {
       }
     }, streamingSaveThrottleMs);
     if (streamingSaveTimer && typeof streamingSaveTimer.unref === "function") streamingSaveTimer.unref();
+  }
+
+  function compactTerminalTopicContext(thread, message, reason) {
+    if (!topicContextCompactionService || typeof topicContextCompactionService.compactTaskGroup !== "function") return null;
+    if (!message?.taskGroupId) return null;
+    try {
+      return topicContextCompactionService.compactTaskGroup(thread, message.taskGroupId, { reason });
+    } catch (err) {
+      logError(`Hermes Mobile topic context compaction failed: ${err.message || String(err)}`);
+      return { changed: false, error: err.message || String(err) };
+    }
   }
 
   function markResponseCreated(context) {
@@ -511,6 +523,7 @@ function createGatewayRunEventService(options = {}) {
     enqueueExternalDeliveryForTerminalMessage(thread, message, "done");
     removeThreadActiveRun(thread, runId, "idle");
     thread.updatedAt = completedAt;
+    compactTerminalTopicContext(thread, message, "run-completed");
     saveState();
     broadcast({ type: "run.completed", threadId: thread.id, runId, message: compactMessage(message), thread: threadSummary(thread) });
     notifyTaskTerminal(thread, message, "done");
@@ -533,6 +546,7 @@ function createGatewayRunEventService(options = {}) {
     enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
     removeThreadActiveRun(thread, runId, "failed");
     thread.updatedAt = failedAt;
+    compactTerminalTopicContext(thread, message, "run-failed");
     saveState();
     broadcast({ type: "run.failed", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
     notifyTaskTerminal(thread, message, "failed");
@@ -553,6 +567,7 @@ function createGatewayRunEventService(options = {}) {
     message.updatedAt = cancelledAt;
     removeThreadActiveRun(thread, runId, "idle");
     thread.updatedAt = cancelledAt;
+    compactTerminalTopicContext(thread, message, "run-cancelled");
     saveState();
     broadcast({ type: "run.cancelled", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
     scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);

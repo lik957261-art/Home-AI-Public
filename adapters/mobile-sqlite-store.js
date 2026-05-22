@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 function nowIso() {
   return new Date().toISOString();
@@ -98,6 +98,52 @@ function publicAutomationFromRow(row) {
   };
 }
 
+function publicTopicContextSummaryFromRow(row) {
+  if (!row) return null;
+  const summary = parseJson(row.summary_json, {});
+  return Object.assign({}, summary && typeof summary === "object" ? summary : {}, {
+    topicId: String(row.topic_id || ""),
+    taskGroupId: String(row.task_group_id || ""),
+    workspaceId: String(row.workspace_id || ""),
+    summaryVersion: Number(row.summary_version || summary?.summaryVersion || 0),
+    lastCompactedMessageId: String(row.last_compacted_message_id || summary?.lastCompactedMessageId || ""),
+    lastCompactedEventId: String(row.last_compacted_event_id || summary?.lastCompactedEventId || ""),
+    inputHash: String(row.input_hash || ""),
+    createdAt: String(row.created_at || ""),
+    updatedAt: String(row.updated_at || ""),
+  });
+}
+
+function publicTopicWorkingStateFromRow(row) {
+  if (!row) return null;
+  const state = parseJson(row.state_json, {});
+  return Object.assign({}, state && typeof state === "object" ? state : {}, {
+    topicId: String(row.topic_id || ""),
+    taskGroupId: String(row.task_group_id || ""),
+    workspaceId: String(row.workspace_id || ""),
+    stateVersion: Number(row.state_version || state?.stateVersion || 0),
+    status: String(row.status || state?.status || ""),
+    createdAt: String(row.created_at || ""),
+    updatedAt: String(row.updated_at || ""),
+  });
+}
+
+function publicTopicContextRefFromRow(row) {
+  if (!row) return null;
+  const ref = parseJson(row.ref_json, {});
+  return Object.assign({}, ref && typeof ref === "object" ? ref : {}, {
+    refId: String(row.ref_id || ""),
+    topicId: String(row.topic_id || ""),
+    taskGroupId: String(row.task_group_id || ""),
+    workspaceId: String(row.workspace_id || ""),
+    refType: String(row.ref_type || ref?.refType || ""),
+    targetId: String(row.target_id || ref?.targetId || ""),
+    role: String(row.role || ref?.role || ""),
+    createdAt: String(row.created_at || ref?.createdAt || ""),
+    updatedAt: String(row.updated_at || ""),
+  });
+}
+
 function publicKanbanCaseShareFromRow(row) {
   if (!row) return null;
   const raw = parseJson(row.raw_json, {});
@@ -143,6 +189,9 @@ function sqlQuoteIdent(name) {
 const TABLES = [
   "audit_log",
   "automation_jobs",
+  "topic_context_refs",
+  "topic_working_states",
+  "topic_context_summaries",
   "todo_items",
   "kanban_case_shares",
   "shared_directories",
@@ -173,6 +222,9 @@ const TABLE_COUNT_COLUMNS = {
   kanban_case_shares: "id",
   todo_items: "id",
   automation_jobs: "id",
+  topic_context_summaries: "topic_id",
+  topic_working_states: "topic_id",
+  topic_context_refs: "ref_id",
   audit_log: "id",
 };
 
@@ -450,6 +502,56 @@ function createMobileSqliteStore(options = {}) {
         updated_at TEXT NOT NULL DEFAULT ''
       );
 
+      CREATE TABLE IF NOT EXISTS topic_context_summaries (
+        topic_id TEXT NOT NULL,
+        task_group_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL DEFAULT '',
+        summary_json TEXT NOT NULL,
+        summary_version INTEGER NOT NULL DEFAULT 0,
+        last_compacted_message_id TEXT NOT NULL DEFAULT '',
+        last_compacted_event_id TEXT NOT NULL DEFAULT '',
+        input_hash TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY(topic_id, task_group_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_topic_context_summaries_workspace
+        ON topic_context_summaries(workspace_id, updated_at);
+
+      CREATE TABLE IF NOT EXISTS topic_working_states (
+        topic_id TEXT NOT NULL,
+        task_group_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL DEFAULT '',
+        state_json TEXT NOT NULL,
+        state_version INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY(topic_id, task_group_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_topic_working_states_workspace
+        ON topic_working_states(workspace_id, updated_at);
+
+      CREATE TABLE IF NOT EXISTS topic_context_refs (
+        ref_id TEXT PRIMARY KEY,
+        topic_id TEXT NOT NULL,
+        task_group_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL DEFAULT '',
+        ref_type TEXT NOT NULL DEFAULT '',
+        target_id TEXT NOT NULL DEFAULT '',
+        role TEXT NOT NULL DEFAULT '',
+        ref_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_topic_context_refs_topic
+        ON topic_context_refs(topic_id, task_group_id, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_topic_context_refs_target
+        ON topic_context_refs(ref_type, target_id);
+
       CREATE TABLE IF NOT EXISTS audit_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         event_type TEXT NOT NULL,
@@ -479,6 +581,7 @@ function createMobileSqliteStore(options = {}) {
 
     markMigration(1, "initial_mobile_service_layer");
     markMigration(2, "kanban_case_shares");
+    markMigration(3, "topic_context");
     setMeta("schemaVersion", CURRENT_SCHEMA_VERSION);
   }
 
@@ -1252,6 +1355,134 @@ function createMobileSqliteStore(options = {}) {
     return rows;
   }
 
+  function getTopicContextSummary(topicId, taskGroupId) {
+    const row = open().prepare("SELECT * FROM topic_context_summaries WHERE topic_id = ? AND task_group_id = ?").get(
+      String(topicId || ""),
+      String(taskGroupId || ""),
+    );
+    return publicTopicContextSummaryFromRow(row);
+  }
+
+  function upsertTopicContextSummary(input = {}) {
+    const topicId = String(input.topicId || input.topic_id || "").trim();
+    const taskGroupId = String(input.taskGroupId || input.task_group_id || "").trim();
+    if (!topicId || !taskGroupId) return null;
+    const before = getTopicContextSummary(topicId, taskGroupId);
+    const createdAt = before?.createdAt || nowIso();
+    const updatedAt = nowIso();
+    const summary = input.summary && typeof input.summary === "object" ? input.summary : {};
+    open().prepare(`
+      INSERT INTO topic_context_summaries(topic_id, task_group_id, workspace_id, summary_json, summary_version,
+        last_compacted_message_id, last_compacted_event_id, input_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(topic_id, task_group_id) DO UPDATE SET
+        workspace_id = excluded.workspace_id,
+        summary_json = excluded.summary_json,
+        summary_version = excluded.summary_version,
+        last_compacted_message_id = excluded.last_compacted_message_id,
+        last_compacted_event_id = excluded.last_compacted_event_id,
+        input_hash = excluded.input_hash,
+        updated_at = excluded.updated_at
+    `).run(
+      topicId,
+      taskGroupId,
+      String(input.workspaceId || input.workspace_id || ""),
+      stableJson(summary),
+      Number(input.summaryVersion || input.summary_version || summary.summaryVersion || 0),
+      String(input.lastCompactedMessageId || input.last_compacted_message_id || summary.lastCompactedMessageId || ""),
+      String(input.lastCompactedEventId || input.last_compacted_event_id || summary.lastCompactedEventId || ""),
+      String(input.inputHash || input.input_hash || ""),
+      createdAt,
+      updatedAt,
+    );
+    return getTopicContextSummary(topicId, taskGroupId);
+  }
+
+  function getTopicWorkingState(topicId, taskGroupId) {
+    const row = open().prepare("SELECT * FROM topic_working_states WHERE topic_id = ? AND task_group_id = ?").get(
+      String(topicId || ""),
+      String(taskGroupId || ""),
+    );
+    return publicTopicWorkingStateFromRow(row);
+  }
+
+  function upsertTopicWorkingState(input = {}) {
+    const topicId = String(input.topicId || input.topic_id || "").trim();
+    const taskGroupId = String(input.taskGroupId || input.task_group_id || "").trim();
+    if (!topicId || !taskGroupId) return null;
+    const before = getTopicWorkingState(topicId, taskGroupId);
+    const createdAt = before?.createdAt || nowIso();
+    const updatedAt = nowIso();
+    const state = input.state && typeof input.state === "object" ? input.state : {};
+    open().prepare(`
+      INSERT INTO topic_working_states(topic_id, task_group_id, workspace_id, state_json, state_version, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(topic_id, task_group_id) DO UPDATE SET
+        workspace_id = excluded.workspace_id,
+        state_json = excluded.state_json,
+        state_version = excluded.state_version,
+        status = excluded.status,
+        updated_at = excluded.updated_at
+    `).run(
+      topicId,
+      taskGroupId,
+      String(input.workspaceId || input.workspace_id || ""),
+      stableJson(state),
+      Number(input.stateVersion || input.state_version || state.stateVersion || 0),
+      String(input.status || state.status || ""),
+      createdAt,
+      updatedAt,
+    );
+    return getTopicWorkingState(topicId, taskGroupId);
+  }
+
+  function listTopicContextRefs(args = {}) {
+    const topicId = String(args.topicId || args.topic_id || "").trim();
+    const taskGroupId = String(args.taskGroupId || args.task_group_id || "").trim();
+    if (!topicId || !taskGroupId) return [];
+    const limit = Math.max(1, Math.min(500, Number(args.limit) || 80));
+    return open().prepare(`
+      SELECT * FROM topic_context_refs
+      WHERE topic_id = ? AND task_group_id = ?
+      ORDER BY created_at DESC, updated_at DESC, ref_id DESC
+      LIMIT ?
+    `).all(topicId, taskGroupId, limit)
+      .map(publicTopicContextRefFromRow)
+      .reverse();
+  }
+
+  function replaceTopicContextRefs(input = {}) {
+    const topicId = String(input.topicId || input.topic_id || "").trim();
+    const taskGroupId = String(input.taskGroupId || input.task_group_id || "").trim();
+    if (!topicId || !taskGroupId) return [];
+    const workspaceId = String(input.workspaceId || input.workspace_id || "");
+    const refs = asArray(input.refs).slice(-Math.max(1, Math.min(500, Number(input.limit) || 80)));
+    const database = open();
+    database.prepare("DELETE FROM topic_context_refs WHERE topic_id = ? AND task_group_id = ?").run(topicId, taskGroupId);
+    const stmt = database.prepare(`
+      INSERT INTO topic_context_refs(ref_id, topic_id, task_group_id, workspace_id, ref_type, target_id, role, ref_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const updatedAt = nowIso();
+    for (const ref of refs) {
+      const refId = String(ref.refId || ref.ref_id || `${topicId}:${taskGroupId}:${ref.refType || "ref"}:${ref.targetId || updatedAt}`).trim();
+      if (!refId) continue;
+      stmt.run(
+        refId,
+        topicId,
+        taskGroupId,
+        workspaceId,
+        String(ref.refType || ref.ref_type || ""),
+        String(ref.targetId || ref.target_id || ""),
+        String(ref.role || ""),
+        stableJson(ref),
+        String(ref.createdAt || ref.created_at || updatedAt),
+        updatedAt,
+      );
+    }
+    return listTopicContextRefs({ topicId, taskGroupId, limit: refs.length || 1 });
+  }
+
   function importState(state = {}) {
     const stats = {
       threads: 0,
@@ -1665,9 +1896,12 @@ function createMobileSqliteStore(options = {}) {
     getAutomationJob,
     getKanbanCaseShare,
     getTodoItem,
+    getTopicContextSummary,
+    getTopicWorkingState,
     exportRuntimeState,
     listAutomationJobs,
     listKanbanCaseShares,
+    listTopicContextRefs,
     listTodoItems,
     migrate,
     replaceRuntimeState,
@@ -1675,7 +1909,10 @@ function createMobileSqliteStore(options = {}) {
     open,
     setMeta,
     tableCounts,
+    upsertTopicContextSummary,
+    upsertTopicWorkingState,
     upsertKanbanCaseShare,
+    replaceTopicContextRefs,
   };
 }
 

@@ -459,10 +459,59 @@ function testAuditStoresDecisionPayload() {
   store.close();
 }
 
+function testTopicContextCrud() {
+  const dir = tempDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "topic-context.sqlite3") });
+  store.migrate();
+  assert.equal(store.getMeta("schemaVersion"), CURRENT_SCHEMA_VERSION);
+  store.upsertTopicContextSummary({
+    topicId: "thread_1",
+    taskGroupId: "chat",
+    workspaceId: "owner",
+    summaryVersion: 1,
+    lastCompactedMessageId: "m2",
+    summary: {
+      summaryVersion: 1,
+      objective: "Keep context compact.",
+      currentState: "Summary stored.",
+      sourceRefs: ["message:m1", "message:m2"],
+    },
+  });
+  store.upsertTopicWorkingState({
+    topicId: "thread_1",
+    taskGroupId: "chat",
+    workspaceId: "owner",
+    stateVersion: 1,
+    status: "active",
+    state: {
+      stateVersion: 1,
+      status: "active",
+      currentStep: "Run tests.",
+    },
+  });
+  store.replaceTopicContextRefs({
+    topicId: "thread_1",
+    taskGroupId: "chat",
+    workspaceId: "owner",
+    refs: [
+      { refId: "message:m1", refType: "message", targetId: "m1", role: "user", preview: "request", createdAt: "2026-05-22T00:00:00.000Z" },
+      { refId: "message:m2", refType: "message", targetId: "m2", role: "assistant", preview: "answer", createdAt: "2026-05-22T00:01:00.000Z" },
+    ],
+  });
+  assert.equal(store.getTopicContextSummary("thread_1", "chat").lastCompactedMessageId, "m2");
+  assert.equal(store.getTopicWorkingState("thread_1", "chat").status, "active");
+  assert.deepEqual(store.listTopicContextRefs({ topicId: "thread_1", taskGroupId: "chat" }).map((ref) => ref.refId), [
+    "message:m1",
+    "message:m2",
+  ]);
+  store.close();
+}
+
 testImportAndIntegrity();
 testWorkspaceInferenceFallback();
 testServiceLayerLocalRows();
 testKanbanCaseShareCrud();
 testRuntimeStateRoundTrip();
 testAuditStoresDecisionPayload();
+testTopicContextCrud();
 console.log("mobile-sqlite-store tests passed");

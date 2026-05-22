@@ -42,6 +42,7 @@ function makeHarness(overrides = {}) {
   const calls = {
     broadcasts: [],
     enqueued: [],
+    compacted: [],
     notified: [],
     scheduled: [],
     saved: 0,
@@ -79,6 +80,9 @@ function makeHarness(overrides = {}) {
     enqueueExternalDeliveryForTerminalMessage: (item, message, status) => calls.enqueued.push({ threadId: item.id, messageId: message.id, status }),
     notifyTaskTerminal: (item, message, status) => calls.notified.push({ threadId: item.id, messageId: message.id, status }),
     scheduleNextQueuedRunForTaskGroup: (item, taskGroupId) => calls.scheduled.push({ threadId: item.id, taskGroupId }),
+    topicContextCompactionService: {
+      compactTaskGroup: (item, taskGroupId, options) => calls.compacted.push({ threadId: item.id, taskGroupId, reason: options.reason }),
+    },
   }, overrides));
   return { activeStreams, calls, message: thread.messages[1], service, state, thread };
 }
@@ -187,6 +191,7 @@ function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
   assert.deepEqual(calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
   assert.deepEqual(calls.notified, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
   assert.deepEqual(calls.scheduled, [{ threadId: "thread_1", taskGroupId: "chat" }]);
+  assert.deepEqual(calls.compacted, [{ threadId: "thread_1", taskGroupId: "chat", reason: "run-completed" }]);
   assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
 }
 
