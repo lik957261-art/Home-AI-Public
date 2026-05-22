@@ -9448,11 +9448,53 @@ button.directory-alias-chip {
   min-height: 0;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 8px;
   padding: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+.codex-mux-message {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.codex-mux-message.user {
+  background: rgba(235, 247, 242, 0.58);
+}
+
+.codex-mux-message-head {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.codex-mux-message-head strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.codex-mux-message-head span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.codex-mux-message p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .codex-mux-stack {
@@ -9490,8 +9532,11 @@ button.directory-alias-chip {
   display: grid;
   align-content: start;
   gap: 9px;
-  overflow: hidden;
-  touch-action: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .codex-mux-mode .conversation {
@@ -9507,9 +9552,11 @@ button.directory-alias-chip {
 
 .codex-mux-event {
   min-width: 0;
-  padding: 11px;
+  max-width: 100%;
+  padding: 9px 10px;
   display: grid;
-  gap: 7px;
+  gap: 5px;
+  overflow-x: hidden;
 }
 
 .codex-mux-event-head {
@@ -9530,8 +9577,8 @@ button.directory-alias-chip {
 .codex-mux-event p {
   margin: 0;
   color: var(--ink);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.38;
   overflow-wrap: anywhere;
 }
 
@@ -9539,10 +9586,11 @@ button.directory-alias-chip {
   margin: 2px 0 0;
   padding-left: 18px;
   display: grid;
-  gap: 4px;
+  gap: 3px;
   color: var(--text);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .codex-mux-followup {

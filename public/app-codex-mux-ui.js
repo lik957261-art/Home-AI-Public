@@ -3,7 +3,8 @@
 const CODEX_MUX_TASK_GROUP_ID = "codex-mux";
 const CODEX_MUX_OWNER_WORKSPACE_ID = "owner";
 const CODEX_MUX_WORKER_ID = "codex-hermes-main";
-const CODEX_MUX_VISIBLE_MILESTONE_LIMIT = 8;
+const CODEX_MUX_VISIBLE_MILESTONE_LIMIT = 24;
+const CODEX_MUX_VISIBLE_HERMES_MESSAGE_LIMIT = 8;
 
 function codexMuxOwnerAllowed() {
   return Boolean(state.auth?.isOwner);
@@ -77,7 +78,13 @@ function codexMuxPayloadLines(payload = {}) {
 function codexMuxEventMilestone(event) {
   const type = String(event?.type || "").toLowerCase();
   if (!type) return null;
-  if (type.includes("heartbeat") || type.includes("tool") || type.includes("progress") || type.includes("poll")) return null;
+  if (
+    type.includes("heartbeat")
+    || type.includes("tool")
+    || type.includes("progress")
+    || type.includes("poll")
+    || type.includes("preflight.started")
+  ) return null;
   const payload = event?.payload && typeof event.payload === "object" ? event.payload : {};
   const explicitSummary = codexMuxMeaningfulText(
     event?.summary
@@ -181,11 +188,18 @@ function codexMuxTaskMilestones() {
 }
 
 function renderCodexMuxMilestones() {
+  const seen = new Set();
   const items = [
     ...codexMuxTaskMilestones(),
     ...(state.codexMuxEvents || []).map(codexMuxEventMilestone).filter(Boolean),
   ]
     .filter((item) => item.summary)
+    .filter((item) => {
+      const key = `${item.label || ""}:${item.type || ""}:${item.summary || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")))
     .slice(0, CODEX_MUX_VISIBLE_MILESTONE_LIMIT);
   return items.length
@@ -251,13 +265,28 @@ function codexMuxCoordinatorInstructions() {
   ].join("\n");
 }
 
+function codexMuxMessagePreview(content) {
+  const text = String(content || "").replace(/\s+/g, " ").trim();
+  if (text.length <= 360) return text;
+  return `${text.slice(0, 360)}...`;
+}
+
 function renderCodexMuxMessage(message) {
-  return renderMessage(message);
+  const role = message?.role === "user" ? "Owner" : "Hermes";
+  const content = codexMuxMessagePreview(message?.content);
+  return `<article class="codex-mux-message ${escapeHtml(message?.role || "assistant")}">
+    <div class="codex-mux-message-head">
+      <strong>${escapeHtml(role)}</strong>
+      <span>${escapeHtml(formatTime(message?.createdAt || message?.updatedAt || ""))}</span>
+    </div>
+    <p>${escapeHtml(content || "暂无内容")}</p>
+  </article>`;
 }
 
 function renderCodexMuxConversation() {
   const messages = (state.currentThread?.messages || [])
-    .filter((message) => message.taskGroupId === CODEX_MUX_TASK_GROUP_ID);
+    .filter((message) => message.taskGroupId === CODEX_MUX_TASK_GROUP_ID)
+    .slice(-CODEX_MUX_VISIBLE_HERMES_MESSAGE_LIMIT);
   return messages.length
     ? messages.map(renderCodexMuxMessage).join("")
     : `<div class="empty-state small">先在底部输入框告诉 Hermes 你的需求；Hermes 判断需要代码处理时，会再调用 Codex。</div>`;
