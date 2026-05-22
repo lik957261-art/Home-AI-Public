@@ -24,6 +24,13 @@ function shouldStickConversationOnViewportChange() {
   return conversationViewportRefreshApplies();
 }
 
+function shouldFollowConversationBottomDuringViewport() {
+  return shouldForceChatStickToBottom()
+    || Date.now() < Number(state.conversationViewportBottomFollowUntil || 0)
+    || state.conversationPinnedToBottom
+    || isNearBottom(180);
+}
+
 function scrollConversationToBottom() {
   const conversation = $("conversation");
   if (!conversation) return;
@@ -45,34 +52,51 @@ function scrollConversationToBottomSmooth() {
   window.setTimeout(updateConversationJumpBottomButton, prefersReducedMotion() ? 0 : 260);
 }
 
-function scheduleConversationViewportRefresh(conversation = $("conversation")) {
+function repaintConversationAfterViewportChange(conversation) {
+  if (!conversation) return;
+  conversation.style.transform = "translateZ(0)";
+  void conversation.offsetHeight;
+  requestAnimationFrame(() => {
+    if (document.body.contains(conversation)) conversation.style.transform = "";
+  });
+}
+
+function clearConversationViewportRefreshTimers() {
+  for (const timer of state.conversationViewportRefreshTimers || []) window.clearTimeout(timer);
+  state.conversationViewportRefreshTimers = [];
+}
+
+function scheduleConversationViewportRefresh(conversation = $("conversation"), options = {}) {
   if (!conversation || !conversationViewportRefreshApplies()) return;
   if (!conversation.querySelector("[data-message-id], .chat-history-pager, .empty-state")) return;
+  if (options.resetTimers !== false) clearConversationViewportRefreshTimers();
   const refresh = () => {
     if (!conversationViewportRefreshApplies() || !document.body.contains(conversation)) return;
     const top = conversation.scrollTop;
     const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
-    const pinned = shouldForceChatStickToBottom() || state.conversationPinnedToBottom || isNearBottom(160);
+    const pinned = shouldFollowConversationBottomDuringViewport();
     conversation.style.overflowAnchor = "none";
     void conversation.offsetHeight;
     if (pinned) {
       conversation.scrollTop = conversation.scrollHeight;
       state.conversationPinnedToBottom = true;
     } else if (maxTop > 0) {
-      conversation.scrollTop = Math.min(maxTop, top + 1);
-      conversation.scrollTop = Math.min(maxTop, top);
+      const clampedTop = Math.max(0, Math.min(maxTop, top));
+      conversation.scrollTop = Math.min(maxTop, clampedTop + 1);
+      conversation.scrollTop = clampedTop;
     } else {
-      conversation.style.transform = "translateZ(0)";
-      void conversation.offsetHeight;
-      conversation.style.transform = "";
+      conversation.scrollTop = 0;
     }
+    repaintConversationAfterViewportChange(conversation);
     requestAnimationFrame(() => {
       conversation.style.overflowAnchor = "";
       updateConversationJumpBottomButton();
     });
   };
   requestAnimationFrame(() => requestAnimationFrame(refresh));
-  window.setTimeout(refresh, 180);
+  for (const delay of [80, 180, 360, 720, 1200]) {
+    state.conversationViewportRefreshTimers.push(window.setTimeout(refresh, delay));
+  }
 }
 
 function conversationJumpBottomApplies() {
@@ -123,6 +147,10 @@ function scheduleConversationBottomStick() {
 }
 
 function handleConversationScrollState() {
+  if (Date.now() < Number(state.conversationViewportSettleUntil || 0)) {
+    updateConversationJumpBottomButton();
+    return;
+  }
   if (Date.now() < state.suppressConversationPinUntil) return;
   state.conversationPinnedToBottom = isNearBottom();
   maybeLoadOlderChatMessages();
@@ -159,16 +187,23 @@ async function loadOlderChatMessages() {
   }
 }
 
-function handleViewportLayoutChange() {
+function handleViewportLayoutChange(event = null) {
+  const type = String(event?.type || "");
+  const orientationEvent = type === "orientationchange" || type === "change";
+  if (orientationEvent && conversationViewportRefreshApplies()) {
+    state.conversationViewportSettleUntil = Date.now() + 1400;
+    state.conversationViewportBottomFollowUntil = Date.now() + 1600;
+    state.conversationPinnedToBottom = true;
+  }
   updateKeyboardViewportMetrics();
   updateMobileBottomNavReservation();
   updateNavigationControls();
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));
   updateConversationJumpBottomButton();
-  scheduleConversationViewportRefresh();
+  scheduleConversationViewportRefresh($("conversation"), { resetTimers: orientationEvent });
   if (!shouldStickConversationOnViewportChange()) return;
-  if (!state.conversationPinnedToBottom && !isNearBottom(160)) return;
+  if (!shouldFollowConversationBottomDuringViewport()) return;
   scheduleConversationBottomStick();
 }
 
