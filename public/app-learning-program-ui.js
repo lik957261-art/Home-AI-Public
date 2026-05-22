@@ -611,6 +611,86 @@
     </div>`;
   }
 
+  function nativeGrowthSubmissionEvidence(task = {}, data = {}) {
+    const taskCardId = String(task?.taskCardId || "");
+    const latest = task.latestSubmission || latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
+    if (!latest) return null;
+    const structuredResponses = asArray(latest.structuredResponses);
+    const displayText = String(latest.displayText || latest.text || "").trim();
+    return Object.assign({}, latest, { displayText, structuredResponses });
+  }
+
+  function structuredResponseMap(submission = {}) {
+    const map = new Map();
+    asArray(submission.structuredResponses).forEach((item, index) => {
+      const key = String(item?.questionId || item?.id || `q${index + 1}`).trim();
+      if (key) map.set(key, item);
+    });
+    return map;
+  }
+
+  function renderNativeGrowthPreviousSubmission(submission = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const responses = asArray(submission.structuredResponses);
+    const displayText = String(submission.displayText || "").trim();
+    if (!responses.length && !displayText) {
+      return `<section class="learning-growth-answer-submission" data-learning-growth-previous-submission>
+        <h4>\u4e0a\u6b21\u63d0\u4ea4</h4>
+        <p>\u5df2\u6709\u63d0\u4ea4\u8bb0\u5f55\uff0c\u4f46\u6b64\u6b21\u65e9\u671f\u8bb0\u5f55\u672a\u4fdd\u7559\u53ef\u56de\u663e\u7684\u7ed3\u6784\u5316\u4f5c\u7b54\u3002</p>
+      </section>`;
+    }
+    return `<section class="learning-growth-answer-submission" data-learning-growth-previous-submission>
+      <h4>\u4e0a\u6b21\u63d0\u4ea4</h4>
+      ${responses.length ? `<div class="learning-growth-previous-responses">
+        ${responses.map((item, index) => {
+          const title = item.title || item.questionId || `Q${index + 1}`;
+          const choice = item.choice ? `<b>${escapeHtml(item.choice)}</b>` : "";
+          const body = item.response || item.reason || "";
+          return `<article class="learning-growth-previous-response">
+            <strong>${escapeHtml(title)}</strong>
+            ${choice ? `<p>${choice}</p>` : ""}
+            ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+          </article>`;
+        }).join("")}
+      </div>` : ""}
+      ${displayText && !responses.length ? `<p>${escapeHtml(displayText)}</p>` : ""}
+    </section>`;
+  }
+
+  function renderNativeGrowthEvaluationDetails(evaluation = {}, task = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const sections = evaluation.feedbackSections || {};
+    const revisionRequirements = asArray(evaluation.revisionRequirements);
+    const focusAreas = asArray(sections.focusAreas);
+    const rewriteChecklist = asArray(sections.rewriteChecklist);
+    const criterionFeedback = asArray(sections.criterionFeedback);
+    const sentenceFeedback = asArray(sections.sentenceFeedback);
+    if (!revisionRequirements.length && !focusAreas.length && !rewriteChecklist.length && !criterionFeedback.length && !sentenceFeedback.length) {
+      return "";
+    }
+    const list = (items) => items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "";
+    return `<section class="learning-growth-answer-feedback-detail" data-learning-growth-feedback-detail>
+      <h4>\u4fee\u8ba2\u8981\u70b9</h4>
+      ${list(revisionRequirements)}
+      ${focusAreas.length ? `<h5>\u9700\u8981\u5173\u6ce8</h5>${list(focusAreas)}` : ""}
+      ${rewriteChecklist.length ? `<h5>\u4fee\u6539\u6e05\u5355</h5>${list(rewriteChecklist)}` : ""}
+      ${criterionFeedback.length ? `<div class="learning-growth-feedback-criteria">
+        ${criterionFeedback.map((item) => `<article>
+          <strong>${escapeHtml(item.dimension || "\u6279\u6539\u7ef4\u5ea6")}</strong>
+          ${item.observation ? `<p>${escapeHtml(item.observation)}</p>` : ""}
+          ${item.action ? `<p>${escapeHtml(item.action)}</p>` : ""}
+        </article>`).join("")}
+      </div>` : ""}
+      ${sentenceFeedback.length ? `<div class="learning-growth-feedback-criteria">
+        ${sentenceFeedback.map((item) => `<article>
+          <strong>${escapeHtml(item.evidence || item.issue || "\u7ec6\u8282\u53cd\u9988")}</strong>
+          ${item.issue ? `<p>${escapeHtml(item.issue)}</p>` : ""}
+          ${item.fix ? `<p>${escapeHtml(item.fix)}</p>` : ""}
+        </article>`).join("")}
+      </div>` : ""}
+    </section>`;
+  }
+
   function nativeGrowthRequiresAudio(task = {}) {
     const model = task.taskModel || task.learningTaskModel || {};
     const activityType = String(model.activityType || "").toLowerCase();
@@ -711,19 +791,22 @@
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const questions = structuredQuestionItems(task);
     if (!questions.length) return "";
+    const previousResponses = structuredResponseMap(task.latestSubmission || {});
     return `<div class="learning-native-growth-questions" data-learning-native-growth-questions>
       ${questions.map((item, index) => {
         const questionId = String(item.id || `q${index + 1}`);
         const type = String(item.type || "written");
         const title = String(item.title || `第 ${index + 1} 题`);
         const prompt = String(item.stem || item.body || item.prompt || item.question || "");
+        const previous = previousResponses.get(questionId) || {};
         if (type === "multiple_choice") {
           const choices = asArray(item.choices).map((choice, choiceIndex) => {
             const value = String(choice?.id || choice?.value || String.fromCharCode(65 + choiceIndex));
             const label = String(choice?.label || value);
             const text = String(choice?.text || choice?.content || choice?.label || value);
+            const checked = String(previous.choice || "") === value ? " checked" : "";
             return `<label class="learning-native-growth-choice">
-              <input type="radio" name="learning-growth-${escapeHtml(questionId)}" value="${escapeHtml(value)}" data-learning-native-growth-question-choice="${escapeHtml(questionId)}">
+              <input type="radio" name="learning-growth-${escapeHtml(questionId)}" value="${escapeHtml(value)}" data-learning-native-growth-question-choice="${escapeHtml(questionId)}"${checked}>
               <span><b>${escapeHtml(label)}</b>${escapeHtml(text === label ? "" : ` ${text}`)}</span>
             </label>`;
           }).join("");
@@ -733,14 +816,14 @@
             <div class="learning-native-growth-choice-list">${choices}</div>
             <label class="learning-native-growth-reason-label">
               <span>${escapeHtml(item.reasonLabel || "简短理由")}</span>
-              <textarea class="input learning-native-growth-question-reason" rows="2" maxlength="1200" data-learning-native-growth-question-reason="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.reasonPlaceholder || "写 1-2 句理由")}"></textarea>
+              <textarea class="input learning-native-growth-question-reason" rows="2" maxlength="1200" data-learning-native-growth-question-reason="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.reasonPlaceholder || "写 1-2 句理由")}">${escapeHtml(previous.reason || "")}</textarea>
             </label>
           </fieldset>`;
         }
         return `<fieldset class="learning-native-growth-question" data-learning-native-growth-question="${escapeHtml(questionId)}" data-question-type="written" data-question-title="${escapeHtml(title)}">
           <legend>${escapeHtml(title)}</legend>
           ${prompt ? `<p>${escapeHtml(prompt)}</p>` : ""}
-          <textarea class="input learning-native-growth-question-response" rows="5" maxlength="5000" data-learning-native-growth-question-response="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.responsePlaceholder || "写出关键推理过程")}"></textarea>
+          <textarea class="input learning-native-growth-question-response" rows="5" maxlength="5000" data-learning-native-growth-question-response="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.responsePlaceholder || "写出关键推理过程")}">${escapeHtml(previous.response || "")}</textarea>
         </fieldset>`;
       }).join("")}
     </div>`;
@@ -757,6 +840,7 @@
     const workspaceId = String(task?.workspaceId || "");
     const nativeState = task?.nativeState || {};
     const nextAction = String(nativeState.nextAction || "");
+    const previousText = String(task?.latestSubmission?.displayText || "").trim();
     const detailButton = options.hideNativeGrowthDetailButton ? "" : `<button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>`;
     const stateLabel = {
       submit: "\u5f85\u4f5c\u7b54",
@@ -782,7 +866,7 @@
     return `<form class="learning-native-growth-submission-form" data-learning-native-growth-submission-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}" data-requires-audio="${requiresAudio ? "1" : "0"}">
       <p class="learning-native-growth-prompt">${escapeHtml(nativeGrowthSubmissionPrompt(task, options))}</p>
       ${stateLabel ? `<div class="learning-native-growth-submission-state">${escapeHtml(stateLabel)}</div>` : ""}
-      ${requiresAudio ? renderNativeGrowthAudioRecorder(task, options) : structuredQuestions || `<textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539"></textarea>
+      ${requiresAudio ? renderNativeGrowthAudioRecorder(task, options) : structuredQuestions || `<textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539">${escapeHtml(previousText)}</textarea>
       <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>`}
       <div class="learning-program-task-actions">
         <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">${requiresAudio ? "\u63d0\u4ea4\u5f55\u97f3\u7ed9 AI \u6279\u6539" : "\u63d0\u4ea4\u7ed9 AI \u6279\u6539"}</button>
@@ -830,11 +914,14 @@
     if (!taskCardId) return `<div class="learning-coin-empty">\u672a\u627e\u5230\u8fd9\u5f20\u5b66\u4e60\u5361\u3002</div>`;
     const model = task.taskModel || task.learningTaskModel || {};
     const skills = compactFocus(task.skillIds || model.skillTargets || []).slice(0, 120);
+    const latestSubmission = nativeGrowthSubmissionEvidence(task, data);
     const latestEvaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
     const meta = [task.plannedDate, task.plannedMinutes ? `${task.plannedMinutes} min` : "", skills].filter(Boolean);
     const instruction = task.learnerInstruction || task.instruction || model.learnerInstruction || task.instructionPreview || task.summary || "";
     const taskForForm = Object.assign({ source: "learning-growth" }, task, {
       nativeState: Object.assign({}, task.nativeState || {}, { nextAction: taskActionFromRecords(task, data) }),
+      latestSubmission,
+      latestEvaluation,
     });
     return `<section class="learning-growth-answer-card" data-learning-growth-answer-card data-learning-executable-task-id="${escapeHtml(taskCardId)}">
       <div class="learning-growth-answer-card-head">
@@ -847,7 +934,9 @@
       ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
       ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
+      ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
       ${latestEvaluation ? `<section class="learning-growth-answer-feedback"><h4>\u6700\u8fd1\u6279\u6539</h4>${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}</section>` : ""}
+      ${latestEvaluation ? renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options) : ""}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;
   }

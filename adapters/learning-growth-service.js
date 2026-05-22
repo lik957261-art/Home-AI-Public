@@ -171,6 +171,11 @@ function projectEvaluationForExecutor(evaluation) {
     "passed",
     "summary",
     "skillId",
+    "revisionRequirements",
+    "feedbackSections",
+    "feedbackMethod",
+    "aiFeedbackStatus",
+    "nextStep",
     "createdAt",
   ]);
 }
@@ -187,6 +192,8 @@ function projectTaskSubmissionForExecutor(submission) {
     "attemptNo",
     "status",
     "summary",
+    "displayText",
+    "structuredResponses",
     "textDigest",
     "textChars",
     "textWords",

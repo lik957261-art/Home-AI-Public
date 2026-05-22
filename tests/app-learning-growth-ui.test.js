@@ -189,12 +189,29 @@ function testGrowthRendererCanOpenBoardOnlyRevisionTask() {
     nextAction: "revise",
     laneId: "needs_revision",
     rewardCapCoins: 100,
+    latestSubmission: {
+      submissionId: "sub-revise",
+      taskCardId: "task-revise",
+      status: "submitted",
+      submittedAt: "2026-05-21T09:00:00.000Z",
+      displayText: "Q1: B because ratios match.",
+      structuredResponses: [
+        { questionId: "q1", type: "multiple_choice", title: "Question 1", choice: "B", reason: "The ratios match." },
+        { questionId: "q3", type: "written", title: "Question 3", response: "I compare the favorable cases." },
+      ],
+    },
     latestEvaluation: {
       evaluationId: "eval-revise",
       taskCardId: "task-revise",
       status: "needs_repair",
       score: 68,
       summary: "Revise the explanation.",
+      revisionRequirements: ["Add one complete reason."],
+      feedbackSections: {
+        focusAreas: ["Reason is too short."],
+        rewriteChecklist: ["Explain q1 in one full sentence."],
+        criterionFeedback: [{ dimension: "reasoning", observation: "The answer is too brief.", action: "Add the comparison." }],
+      },
       createdAt: "2026-05-21T10:00:00.000Z",
     },
   }];
@@ -211,6 +228,12 @@ function testGrowthRendererCanOpenBoardOnlyRevisionTask() {
   assert.match(html, /data-learning-growth-answer-card/);
   assert.match(html, /Revision only board task/);
   assert.match(html, /\u6700\u8fd1\u6279\u6539/);
+  assert.match(html, /data-learning-growth-previous-submission/);
+  assert.match(html, /The ratios match/);
+  assert.match(html, /I compare the favorable cases/);
+  assert.match(html, /data-learning-growth-feedback-detail/);
+  assert.match(html, /Add one complete reason/);
+  assert.match(html, /Explain q1 in one full sentence/);
   assert.doesNotMatch(html, /\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0/);
 }
 

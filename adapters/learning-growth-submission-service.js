@@ -446,6 +446,11 @@ async function settleViaProgramService(programService, card, evaluation, input =
     evidenceRefs: evaluation.evidenceRefs,
     sourceBasisRefs: asArray(task.sourceBasisRefs),
     summary: evaluation.summary,
+    revisionRequirements: evaluation.revisionRequirements,
+    feedbackSections: evaluation.feedbackSections,
+    feedbackMethod: evaluation.feedbackMethod,
+    aiFeedbackStatus: evaluation.aiFeedbackStatus,
+    nextStep: evaluation.nextStep,
     skillResults: [{
       skillId: cleanString(evaluation.skillId) || cleanString(evaluation.activityType) || "learning_growth_task",
       status: evaluation.passed ? "passed" : "needs_revision",
@@ -800,6 +805,7 @@ function createLearningGrowthSubmissionService(options = {}) {
           submissionKind,
           status: "submitted",
           text,
+          structuredResponses: input.structuredAnswers,
           stats: submissionStats(text),
           summary: submissionAudio
             ? `${activityLabel(taskModel.activityType)} audio submission received and transcribed.`

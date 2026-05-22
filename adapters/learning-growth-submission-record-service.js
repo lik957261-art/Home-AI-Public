@@ -29,6 +29,24 @@ function submissionStats(text) {
   };
 }
 
+function boundedDisplayText(value) {
+  return cleanString(value, 12000);
+}
+
+function publicStructuredResponses(items = []) {
+  return asArray(items).map((item, index) => {
+    const type = cleanString(item?.type || "written", 40);
+    return {
+      questionId: cleanString(item?.questionId || item?.id || `q${index + 1}`, 80),
+      type,
+      title: cleanString(item?.title || `Question ${index + 1}`, 160),
+      choice: cleanString(item?.choice, 40),
+      reason: cleanString(item?.reason, 1200),
+      response: cleanString(item?.response, 5000),
+    };
+  }).filter((item) => item.questionId && (item.choice || item.reason || item.response));
+}
+
 function stableRecordId(prefix, parts = []) {
   const digest = crypto.createHash("sha256")
     .update(parts.map((part) => cleanString(part, 500)).join(":"))
@@ -93,6 +111,7 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
     const identity = taskIdentity(task, input);
     const stats = input.stats || submissionStats(input.text || "");
     const submittedAt = cleanString(input.submittedAt) || new Date().toISOString();
+    const structuredResponses = publicStructuredResponses(input.structuredResponses || input.structuredAnswers);
     const submissionId = cleanString(input.submissionId)
       || stableRecordId("lsub", [identity.taskCardId, cleanString(input.stage), cleanString(input.submissionKind), submittedAt, digestText(input.text || "")]);
     const record = repository.saveTaskSubmission({
@@ -110,6 +129,8 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
       textDigest: digestText(input.text || ""),
       textChars: Number(stats.chars || 0),
       textWords: Number(stats.words || 0),
+      displayText: boundedDisplayText(input.text || ""),
+      structuredResponses,
       kanbanCardId: cleanString(input.kanbanCardId),
       kanbanCommentRef: cleanString(input.kanbanCommentRef),
       submittedAt,
@@ -156,6 +177,32 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
         evidenceRefs: evidenceRefs.map((item) => cleanString(item)).filter(Boolean),
         sourceBasisRefs: asArray(task.sourceBasisRefs).map((item) => cleanString(item)).filter(Boolean),
         summary: compactLearningSummary(evaluation.summary || input.summary || "", 700),
+        revisionRequirements: asArray(evaluation.revisionRequirements).map((item) => cleanString(item, 800)).filter(Boolean),
+        feedbackSections: evaluation.feedbackSections && typeof evaluation.feedbackSections === "object"
+          ? {
+            strengths: asArray(evaluation.feedbackSections.strengths).map((item) => cleanString(item, 800)).filter(Boolean),
+            focusAreas: asArray(evaluation.feedbackSections.focusAreas).map((item) => cleanString(item, 800)).filter(Boolean),
+            criterionFeedback: asArray(evaluation.feedbackSections.criterionFeedback).map((item) => ({
+              dimension: cleanString(item?.dimension, 120),
+              observation: cleanString(item?.observation, 800),
+              action: cleanString(item?.action, 800),
+            })).filter((item) => item.dimension || item.observation || item.action),
+            rewriteChecklist: asArray(evaluation.feedbackSections.rewriteChecklist).map((item) => cleanString(item, 800)).filter(Boolean),
+            reflectionPrompts: asArray(evaluation.feedbackSections.reflectionPrompts).map((item) => cleanString(item, 800)).filter(Boolean),
+            sentenceFeedback: asArray(evaluation.feedbackSections.sentenceFeedback).map((item) => ({
+              evidence: cleanString(item?.evidence, 300),
+              issue: cleanString(item?.issue, 800),
+              whyItMatters: cleanString(item?.whyItMatters, 800),
+              fix: cleanString(item?.fix, 800),
+              example: cleanString(item?.example, 800),
+            })).filter((item) => item.evidence || item.issue || item.fix || item.example),
+            nextPractice: cleanString(evaluation.feedbackSections.nextPractice, 800),
+            parentNote: cleanString(evaluation.feedbackSections.parentNote, 800),
+          }
+          : null,
+        feedbackMethod: cleanString(evaluation.feedbackMethod || evaluation.verificationMethod, 120),
+        aiFeedbackStatus: cleanString(evaluation.aiFeedbackStatus, 80),
+        nextStep: cleanString(evaluation.nextStep, 120),
         skillResults: [{
           skillId: cleanString(evaluation.skillId) || cleanString(evaluation.activityType) || "learning_growth_task",
           status: evaluation.passed ? "passed" : "needs_revision",

@@ -615,6 +615,21 @@ async function testNativeTaskSubmissionWorksWithoutKanbanLink() {
         activityType: "grammar",
         skillId: "english_grammar",
         learnerInstruction: "Repair grammar and explain why.",
+        questionItems: [
+          {
+            id: "q1",
+            type: "multiple_choice",
+            title: "Question 1",
+            stem: "Which sentence uses the correct tense?",
+            choices: [{ id: "A", text: "He go yesterday." }, { id: "B", text: "He went yesterday." }],
+          },
+          {
+            id: "q2",
+            type: "written",
+            title: "Question 2",
+            stem: "Explain the rule.",
+          },
+        ],
       },
       privacyLevel: "summary_only",
     });
@@ -655,18 +670,33 @@ async function testNativeTaskSubmissionWorksWithoutKanbanLink() {
       workspaceId: "weixin_stephen",
       taskCardId: "task-native-only",
       text: [
-        "First, I correct the tense because the sentence describes yesterday.",
-        "Then I explain the grammar rule and add one example sentence.",
-        "Finally, I check the subject and verb before writing the final answer.",
-        "I also compare the old sentence with the new sentence, notice the time signal, and write a clear correction plan.",
+        "1. Question 1",
+        "选择：B",
+        "理由：The time signal yesterday needs the past tense.",
+        "I choose this option because the sentence describes a completed action in the past, and the corrected verb form must match that time signal.",
+        "",
+        "2. Question 2",
+        "推理：I compare the time signal and the verb form before writing the final answer.",
+        "Then I check whether the subject and verb still agree, explain the rule in my own words, and write a final correction plan.",
       ].join("\n"),
+      structuredAnswers: [
+        { questionId: "q1", type: "multiple_choice", title: "Question 1", choice: "B", reason: "The time signal yesterday needs the past tense." },
+        { questionId: "q2", type: "written", title: "Question 2", response: "I compare the time signal and the verb form before writing the final answer." },
+      ],
       author: "weixin_stephen",
     });
     assert.equal(result.ok, true);
     assert.equal(result.cardId, "task-native-only");
     assert.equal(result.result.nativeSubmission.status, "submitted");
-    assert.equal(repository.listTaskSubmissions({ taskCardId: "task-native-only", limit: 1 }).length, 1);
-    assert.match(repository.listEvaluations({ taskCardId: "task-native-only", limit: 1 })[0].status, /needs_(revision|review)/);
+    const savedSubmission = repository.listTaskSubmissions({ taskCardId: "task-native-only", limit: 1 })[0];
+    assert.equal(savedSubmission.status, "submitted");
+    assert.equal(savedSubmission.structuredResponses[0].choice, "B");
+    assert.match(savedSubmission.structuredResponses[1].response, /verb form/);
+    assert.match(savedSubmission.displayText, /Question 1/);
+    const savedEvaluation = repository.listEvaluations({ taskCardId: "task-native-only", limit: 1 })[0];
+    assert.match(savedEvaluation.status, /needs_(revision|review)/);
+    assert.deepEqual(savedEvaluation.revisionRequirements, ["repair tense"]);
+    assert.deepEqual(savedEvaluation.feedbackSections.focusAreas, ["verb tense"]);
     assert.equal(repository.listTaskArtifacts({ taskCardId: "task-native-only", limit: 1 }).length, 1);
   } finally {
     repository.close();

@@ -7800,6 +7800,8 @@ button.directory-alias-chip {
 
 .learning-growth-answer-instruction,
 .learning-growth-answer-feedback,
+.learning-growth-answer-feedback-detail,
+.learning-growth-answer-submission,
 .learning-growth-answer-reward {
   display: grid;
   gap: 8px;
@@ -7810,6 +7812,9 @@ button.directory-alias-chip {
 
 .learning-growth-answer-instruction h4,
 .learning-growth-answer-feedback h4,
+.learning-growth-answer-feedback-detail h4,
+.learning-growth-answer-feedback-detail h5,
+.learning-growth-answer-submission h4,
 .learning-growth-answer-reward h4 {
   margin: 0;
   color: var(--ink);
@@ -7817,6 +7822,9 @@ button.directory-alias-chip {
 }
 
 .learning-growth-answer-instruction p,
+.learning-growth-answer-feedback-detail p,
+.learning-growth-answer-feedback-detail li,
+.learning-growth-answer-submission p,
 .learning-growth-answer-reward p {
   margin: 0;
   color: var(--ink);
@@ -7827,6 +7835,33 @@ button.directory-alias-chip {
 
 .learning-growth-answer-instruction p {
   font-size: 16px;
+}
+
+.learning-growth-previous-responses,
+.learning-growth-feedback-criteria {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-growth-previous-response,
+.learning-growth-feedback-criteria article {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.learning-growth-previous-response strong,
+.learning-growth-feedback-criteria strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.learning-growth-answer-feedback-detail ul {
+  margin: 0;
+  padding-left: 18px;
 }
 
 .learning-growth-answer-reward-head {
@@ -11135,6 +11170,9 @@ button.directory-alias-chip {
 :root[data-font-size] .message-prose th,
 :root[data-font-size] .task-prompt,
 :root[data-font-size] .learning-growth-answer-instruction p,
+:root[data-font-size] .learning-growth-answer-feedback-detail p,
+:root[data-font-size] .learning-growth-answer-feedback-detail li,
+:root[data-font-size] .learning-growth-answer-submission p,
 :root[data-font-size] .learning-growth-answer-reward p,
 :root[data-font-size] .learning-native-growth-question p,
 :root[data-font-size] .learning-native-growth-submission-input,
@@ -11187,6 +11225,11 @@ button.directory-alias-chip {
 :root[data-font-size] .learning-growth-board-card-preview,
 :root[data-font-size] .learning-growth-answer-instruction h4,
 :root[data-font-size] .learning-growth-answer-feedback h4,
+:root[data-font-size] .learning-growth-answer-feedback-detail h4,
+:root[data-font-size] .learning-growth-answer-feedback-detail h5,
+:root[data-font-size] .learning-growth-answer-submission h4,
+:root[data-font-size] .learning-growth-previous-response strong,
+:root[data-font-size] .learning-growth-feedback-criteria strong,
 :root[data-font-size] .learning-growth-answer-reward h4,
 :root[data-font-size] .learning-growth-answer-reward-head strong,
 :root[data-font-size] .learning-task-reward-policy-form.compact strong,
