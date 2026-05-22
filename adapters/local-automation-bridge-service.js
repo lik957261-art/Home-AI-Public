@@ -173,7 +173,7 @@ function createLocalAutomationBridgeService(options = {}) {
 
     const jobId = String(payload.job_id || "").trim();
     const job = store.getAutomationJob(jobId);
-    if (["delete", "pause", "resume", "update"].includes(action) && !job) {
+    if (["delete", "pause", "resume", "run", "update"].includes(action) && !job) {
       return { ok: false, error: "Automation job not found" };
     }
     if (job && String(job.ownerPrincipalId || "owner") !== String(payload.owner_principal_id || "owner")) {
@@ -198,6 +198,20 @@ function createLocalAutomationBridgeService(options = {}) {
         ok: true,
         job: publicJob(job),
         source: source("sqlite_automations", "sqlite"),
+      };
+    }
+    if (action === "run") {
+      job.enabled = true;
+      job.state = "scheduled";
+      job.status = "scheduled";
+      job.nextRunAt = nowIso();
+      job.manualRunRequestedAt = nowIso();
+      job.updatedAt = nowIso();
+      if (!payload.dry_run) store.importAutomationJob(job);
+      return {
+        ok: true,
+        job: publicJob(job),
+        source: source("sqlite_automations", "sqlite", { action: "run", runMode: "next_tick" }),
       };
     }
     if (action === "update") {
@@ -244,7 +258,7 @@ function createLocalAutomationBridgeService(options = {}) {
     const jobId = String(payload.job_id || "").trim();
     const index = store.jobs.findIndex((job) => String(job.id || "") === jobId);
     const job = index >= 0 ? store.jobs[index] : null;
-    if (["delete", "pause", "resume", "update"].includes(action) && !job) {
+    if (["delete", "pause", "resume", "run", "update"].includes(action) && !job) {
       return { ok: false, error: "Automation job not found" };
     }
     if (job && String(job.ownerPrincipalId || "owner") !== String(payload.owner_principal_id || "owner")) {
@@ -272,6 +286,20 @@ function createLocalAutomationBridgeService(options = {}) {
         ok: true,
         job: publicJob(job),
         source: source("local_automations", "local"),
+      };
+    }
+    if (action === "run") {
+      job.enabled = true;
+      job.state = "scheduled";
+      job.status = "scheduled";
+      job.nextRunAt = nowIso();
+      job.manualRunRequestedAt = nowIso();
+      job.updatedAt = nowIso();
+      if (!payload.dry_run) saveLocalAutomationStore(store);
+      return {
+        ok: true,
+        job: publicJob(job),
+        source: source("local_automations", "local", { action: "run", runMode: "next_tick" }),
       };
     }
     if (action === "update") {

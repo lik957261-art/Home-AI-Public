@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-growth-revision-chat-stable-v72";
+const CLIENT_VERSION = "20260522-automation-http-growth-hotfix-v73";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -995,8 +995,11 @@ assert.match(appLearningProgramUiJs, /data-learning-growth-answer-card/);
 assert.match(appLearningGrowthControllerJs, /state\.learningGrowthBoardLane/);
 assert.match(appLearningGrowthControllerJs, /selectLearningGrowthBoardLane/);
 assert.match(appLearningGrowthControllerJs, /event\.target\?\.closest\?\.\("\[data-directory-path-open\]"\)/);
+assert.match(appLearningGrowthControllerJs, /data-learning-open-growth-task/);
+assert.match(appLearningGrowthControllerJs, /data-learning-open-kanban-card/);
+assert.match(appLearningGrowthControllerJs, /learningGrowthOpenDelegated/);
 assert.match(appLearningGrowthControllerJs, /event\.stopPropagation\(\)/);
-assert.match(appLearningGrowthControllerJs, /wireDirectoryProjectLinks\(\$\("conversation"\)\)/);
+assert.match(appLearningGrowthControllerJs, /wireDirectoryProjectLinks\(root\)/);
 assert.match(mobileApiComposition, /directoryMaterializationService: learningGrowthDirectoryMaterializationService/);
 assert.match(mobileApiComposition, /reportDirectoryForCard: \(workspaceId, taskCardId, task\) => learningGrowthDirectoryMaterializationService\.reportDirectoryForCard/);
 assert.match(appLearningGrowthControllerJs, /data-learning-close-growth-task/);

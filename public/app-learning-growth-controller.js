@@ -548,7 +548,14 @@ async function submitLearningEvaluationForm(event, sessionId) {
 }
 
 function wireLearningCoinsView() {
-  if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks($("conversation"));
+  const root = $("conversation");
+  if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks(root);
+  if (root && !root.dataset.learningGrowthOpenDelegated) { root.dataset.learningGrowthOpenDelegated = "1"; root.addEventListener("click", (event) => {
+    const growth = event.target?.closest?.("[data-learning-open-growth-task]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]");
+    if (event.target?.closest?.("[data-directory-path-open]")) return;
+    if (growth && root.contains(growth)) { event.preventDefault(); event.stopPropagation(); openLearningGrowthTask(growth.dataset.learningOpenGrowthTask, growth.dataset.workspaceId).catch(showError); return; }
+    if (kanban && root.contains(kanban)) { event.preventDefault(); event.stopPropagation(); openLearningKanbanCard(kanban.dataset.learningOpenKanbanCard, kanban.dataset.workspaceId).catch(showError); }
+  }); }
   $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
   });
@@ -671,18 +678,6 @@ function wireLearningCoinsView() {
   window.HermesLearningGrowthRewardController?.wireLearningGrowthRewardPolicy?.();
   $("conversation")?.querySelectorAll("[data-learning-open-settings-task]").forEach((button) => {
     button.addEventListener("click", () => window.HermesLearningGrowthSettingsController?.openSettingsTask?.(button.dataset.learningOpenSettingsTask));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-open-growth-task]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      if (event.currentTarget?.classList?.contains("learning-growth-board-card") && event.target?.closest?.("[data-directory-path-open]")) return;
-      event.preventDefault(); event.stopPropagation(); openLearningGrowthTask(button.dataset.learningOpenGrowthTask, button.dataset.workspaceId).catch(showError);
-    });
-  });
-  $("conversation")?.querySelectorAll("[data-learning-open-kanban-card]").forEach((button) => {
-    button.addEventListener("click", () => openLearningKanbanCard(
-      button.dataset.learningOpenKanbanCard,
-      button.dataset.workspaceId,
-    ).catch(showError));
   });
   $("conversation")?.querySelectorAll("[data-learning-session-advance]").forEach((button) => {
     button.addEventListener("click", () => advanceLearningSession(button.dataset.learningSessionAdvance).catch(showError));

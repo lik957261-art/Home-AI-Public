@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import os
 import re
 import tempfile
@@ -927,7 +928,17 @@ def try_native_create_job(payload: dict[str, Any]) -> dict[str, Any] | None:
         "access_policy_context": payload.get("access_policy_context"),
     }
     try:
-        return create_job(**kwargs)
+        signature = inspect.signature(create_job)
+        supported = {
+            key: value
+            for key, value in kwargs.items()
+            if key in signature.parameters
+        }
+        return create_job(**supported)
+    except TypeError as exc:
+        if "unexpected keyword argument" in str(exc):
+            return None
+        raise
     except Exception as exc:
         if "croniter" in str(exc).lower():
             return None
@@ -1136,6 +1147,47 @@ def mutate_job_from_request(request: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def run_job_from_request(request: dict[str, Any]) -> dict[str, Any]:
+    job_id = str(request.get("job_id") or request.get("jobId") or "").strip()
+    owner_principal_id = request.get("owner_principal_id") or request.get("ownerPrincipalId")
+    dry_run = bool(request.get("dry_run") or request.get("dryRun"))
+    if not job_id:
+        return {"ok": False, "status": 400, "error": "job_id is required"}
+
+    jobs, source, warning, path, document = load_jobs_document()
+    _index, job = find_owned_job(jobs, job_id, owner_principal_id)
+    if job is None:
+        return {"ok": False, "status": 404, "error": "Automation job was not found for this workspace"}
+
+    now = datetime.now().astimezone()
+    job["enabled"] = True
+    job["state"] = "scheduled"
+    job["paused_at"] = None
+    job["paused_reason"] = None
+    job["next_run_at"] = (now - timedelta(seconds=1)).isoformat()
+    job["manual_run_requested_at"] = now.isoformat()
+    job["updated_at"] = now.isoformat()
+
+    if not dry_run:
+        write_path = path or jobs_path_for_write()
+        document = document if isinstance(document, dict) else {"jobs": jobs}
+        save_jobs_document(write_path, document)
+
+    payload = {
+        "ok": True,
+        "job": public_job(job),
+        "source": {
+            **source,
+            "action": "run",
+            "dryRun": dry_run,
+            "runMode": "next_tick",
+        },
+    }
+    if warning:
+        payload["warning"] = warning
+    return payload
+
+
 def main() -> None:
     request = read_request()
     action = str(request.get("action") or "list").strip().lower()
@@ -1143,6 +1195,9 @@ def main() -> None:
         json_response(create_job_from_request(request))
     if action in {"delete", "pause", "resume", "update"}:
         result = mutate_job_from_request(request)
+        json_response(result, 0 if result.get("ok") else 2)
+    if action == "run":
+        result = run_job_from_request(request)
         json_response(result, 0 if result.get("ok") else 2)
     if action == "read_output":
         result = read_output_file_from_request(request)

@@ -9,7 +9,7 @@ const path = require("node:path");
 const repoRoot = path.resolve(__dirname, "..");
 const python = process.platform === "win32" ? "python" : "python3";
 
-function runBridge(env, request = { action: "list", include_disabled: true, limit: 0 }) {
+function runBridge(env, request = { action: "list", include_disabled: true, limit: 0 }, expectedStatus = 0) {
   const result = spawnSync(python, [path.join(repoRoot, "cron_bridge.py")], {
     cwd: repoRoot,
     env: Object.assign({}, process.env, env),
@@ -17,7 +17,7 @@ function runBridge(env, request = { action: "list", include_disabled: true, limi
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
   });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.status, expectedStatus, result.stderr || result.stdout);
   return JSON.parse(result.stdout);
 }
 
@@ -56,6 +56,7 @@ function main() {
     HERMES_WEB_HERMES_HOME: hermesHome,
     HERMES_WEB_CRON_OUTPUT_ROOT: outputRoot,
   };
+  const jobsPath = path.join(hermesHome, "cron", "jobs.json");
 
   const limited = runBridge(Object.assign({}, baseEnv, {
     HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT: "2",
@@ -75,6 +76,20 @@ function main() {
     ["report-5.pdf", "report-4.pdf", "report-3.pdf", "report-2.pdf", "report-1.pdf", "report-0.pdf"],
   );
 
+  const triggered = runBridge(baseEnv, { action: "run", job_id: "job_1", owner_principal_id: "owner" });
+  assert.equal(triggered.ok, true);
+  assert.equal(triggered.source.action, "run");
+  assert.equal(triggered.source.runMode, "next_tick");
+  assert.equal(triggered.job.id, "job_1");
+  assert.equal(triggered.job.enabled, true);
+  const triggeredDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  const triggeredJob = triggeredDoc.jobs.find((job) => job.id === "job_1");
+  assert.ok(triggeredJob.next_run_at);
+  assert.ok(new Date(triggeredJob.next_run_at).getTime() <= Date.now());
+
+  const deniedRun = runBridge(baseEnv, { action: "run", job_id: "job_1", owner_principal_id: "other" }, 2);
+  assert.equal(deniedRun.ok, false);
+
   const mdJobRoot = path.join(outputRoot, "job_md");
   const mdDelivery = path.join(tempRoot, "delivery.md");
   const pdfDelivery = path.join(tempRoot, "delivery.pdf");
@@ -85,7 +100,6 @@ function main() {
     `MEDIA: ${pdfDelivery}`,
     `MEDIA: ${mdDelivery}`,
   ].join("\n"));
-  const jobsPath = path.join(hermesHome, "cron", "jobs.json");
   const jobsDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
   jobsDoc.jobs.push({
     id: "job_md",

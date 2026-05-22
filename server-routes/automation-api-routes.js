@@ -36,7 +36,7 @@ const AUTOMATION_API_ROUTE_SPECS = Object.freeze([
   {
     id: "automations-action",
     method: "POST",
-    pathRegex: /^\/api\/automations\/[^/]+\/(?:delete|pause|resume|update)$/,
+    pathRegex: /^\/api\/automations\/[^/]+\/(?:delete|pause|resume|run|update)$/,
     group: "automation",
     moduleKey: "automation",
     handlerKey: "mutateAutomation",
@@ -136,7 +136,7 @@ function compactError(deps, err) {
 }
 
 function automationActionFromPath(pathname) {
-  const match = String(pathname || "").match(/^\/api\/automations\/([^/]+)\/(delete|pause|resume|update)$/);
+  const match = String(pathname || "").match(/^\/api\/automations\/([^/]+)\/(delete|pause|resume|run|update)$/);
   if (!match) return null;
   return {
     jobId: decodeURIComponent(match[1] || ""),

@@ -129,6 +129,12 @@ async function testLocalListCreateMutateAndDelete() {
   assert.equal(update.job.schedule, "monthly");
   assert.deepEqual(update.job.skills, ["math"]);
 
+  const run = await service.runBridge({ action: "run", job_id: "enabled", owner_principal_id: "owner-a" });
+  assert.equal(run.ok, true);
+  assert.equal(run.job.status, "scheduled");
+  assert.equal(run.source.action, "run");
+  assert.equal(json.data().jobs.find((job) => job.id === "enabled").nextRunAt, "2026-05-15T01:00:00.000Z");
+
   const wrongOwner = await service.runBridge({ action: "delete", job_id: "enabled", owner_principal_id: "owner-b" });
   assert.deepEqual(wrongOwner, { ok: false, error: "Automation job is not owned by this workspace" });
 
@@ -174,6 +180,11 @@ async function testSqliteListCreateAndDryRun() {
   const resume = await service.runBridge({ action: "resume", job_id: "old", owner_principal_id: "owner-a" });
   assert.equal(resume.job.status, "scheduled");
   assert.equal(sqlite.imported.at(-1).id, "old");
+
+  const run = await service.runBridge({ action: "run", job_id: "old", owner_principal_id: "owner-a" });
+  assert.equal(run.ok, true);
+  assert.equal(run.source.runMode, "next_tick");
+  assert.equal(sqlite.imported.at(-1).nextRunAt, "2026-05-15T01:00:00.000Z");
 
   const missing = await service.runBridge({ action: "pause", job_id: "missing", owner_principal_id: "owner-a" });
   assert.deepEqual(missing, { ok: false, error: "Automation job not found" });

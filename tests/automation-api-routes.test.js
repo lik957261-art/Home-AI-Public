@@ -188,7 +188,7 @@ async function testRouteMetadataAndFallthrough() {
   assert.equal(routes.match({ method: "GET", path: "/api/automations" }).id, "automations-list");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/job%2F1/pause" }).id, "automations-action");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/push/tick" }).id, "automations-push-tick");
-  assert.equal(routes.match({ method: "POST", path: "/api/automations/job-1/run" }), null);
+  assert.equal(routes.match({ method: "POST", path: "/api/automations/job-1/run" }).id, "automations-action");
   const summary = routes.summary({ public: true });
   assert.equal(summary.total, 8);
   assert.deepEqual(summary.byAuthMode, { "access-key": 7, owner: 1 });
@@ -263,6 +263,17 @@ async function testActionDecodesJobAndClearsCache() {
     },
     reason: "manual",
   });
+
+  const run = await request(routes, "POST", "/api/automations/job%2F42/run?workspaceId=child", {
+    body: { dryRun: true, reason: "manual run" },
+  });
+  assert.equal(run.res.statusCode, 200);
+  assert.equal(run.body.ok, true);
+  assert.equal(calls.cacheClear, 1);
+  assert.equal(calls.mutate[1].action, "run");
+  assert.equal(calls.mutate[1].jobId, "job/42");
+  assert.equal(calls.mutate[1].ownerPrincipalId, "principal-child");
+  assert.equal(calls.mutate[1].dryRun, true);
 }
 
 async function testPushTickOwnerOnly() {

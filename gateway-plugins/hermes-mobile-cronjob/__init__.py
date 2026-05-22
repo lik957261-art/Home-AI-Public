@@ -32,6 +32,7 @@ MOBILE_CRONJOB_SCHEMA = {
                     "update",
                     "pause",
                     "resume",
+                    "run",
                     "delete",
                     "read_output",
                     "read_deliverable",
@@ -133,7 +134,7 @@ def _payload(args: dict[str, Any]) -> dict[str, Any]:
             payload["limit"] = 100
         return payload
 
-    if action in {"update", "pause", "resume", "delete", "read_output", "read_deliverable"}:
+    if action in {"update", "pause", "resume", "run", "delete", "read_output", "read_deliverable"}:
         job_id = str(args.get("job_id") or args.get("jobId") or "").strip()
         if not job_id:
             raise ValueError("job_id is required")
@@ -189,7 +190,7 @@ def _payload(args: dict[str, Any]) -> dict[str, Any]:
             payload["index"] = 0
         return payload
 
-    if action in {"resume", "delete"}:
+    if action in {"resume", "run", "delete"}:
         return payload
 
     raise ValueError(f"Unsupported mobile_cronjob action: {action}")

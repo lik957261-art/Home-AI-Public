@@ -7,6 +7,7 @@ import mimetypes
 import os
 import re
 import secrets
+import base64
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,9 +22,11 @@ DEFAULT_ALLOWED_ORIGINS = (
 DEFAULT_CREDENTIAL_ROOTS = (
     "/mnt/c/ProgramData/HermesMobile/data/drive/users",
 )
+DEFAULT_SAVE_ROOT = "/mnt/c/ProgramData/HermesMobile/data/artifacts/http-request"
 TOKEN_RE = re.compile(r"\bwd_live_[A-Za-z0-9._-]{12,}\b")
 MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_SAVE_BYTES = 20 * 1024 * 1024
 UPLOAD_ALLOWED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"}
 UPLOAD_CONTENT_TYPES = {
     ".jpg": "image/jpeg",
@@ -157,6 +160,19 @@ HTTP_REQUEST_SCHEMA = {
                 "maximum": MAX_RESPONSE_BYTES,
                 "default": 262144,
             },
+            "save_base64": {
+                "type": "object",
+                "description": (
+                    "Optional save-as rule for a base64 image returned by the response. "
+                    "Set json_path to a top-level or dotted JSON field containing base64 or a data URL. "
+                    "The file is saved under the Hermes Mobile HTTP artifact root and returned as saved_file."
+                ),
+                "properties": {
+                    "json_path": {"type": "string", "description": "Dotted JSON path to the base64 value, for example image.dataBase64."},
+                    "filename": {"type": "string", "description": "Output image filename such as wardrobe-photo.png."},
+                    "content_type": {"type": "string", "description": "Image MIME type. Inferred from data URL or filename when omitted."},
+                },
+            },
         },
         "required": ["url"],
     },
@@ -175,7 +191,7 @@ CRONJOB_MOBILE_SCHEMA = {
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["list", "create", "update", "pause", "resume", "delete", "read_output", "read_deliverable"],
+                "enum": ["list", "create", "update", "pause", "resume", "run", "delete", "read_output", "read_deliverable"],
                 "default": "list",
             },
             "owner_principal_id": {"type": "string"},
@@ -259,7 +275,7 @@ def _cronjob_mobile_payload(args: dict[str, Any]) -> dict[str, Any]:
         payload["include_disabled"] = bool(args.get("include_disabled") or args.get("includeDisabled"))
         payload["limit"] = int(args.get("limit") or 100)
         return payload
-    if action in {"update", "pause", "resume", "delete", "read_output", "read_deliverable"}:
+    if action in {"update", "pause", "resume", "run", "delete", "read_output", "read_deliverable"}:
         job_id = str(args.get("job_id") or args.get("jobId") or "").strip()
         if not job_id:
             raise ValueError("job_id is required")
@@ -306,7 +322,7 @@ def _cronjob_mobile_payload(args: dict[str, Any]) -> dict[str, Any]:
         payload["run"] = str(args.get("run") or "").strip()
         payload["index"] = int(args.get("index") or 0)
         return payload
-    if action in {"resume", "delete"}:
+    if action in {"resume", "run", "delete"}:
         return payload
     raise ValueError(f"Unsupported cronjob_mobile action: {action}")
 
@@ -408,6 +424,11 @@ def _file_roots() -> list[Path]:
     return roots
 
 
+def _save_root() -> Path:
+    root = os.environ.get("HERMES_MOBILE_HTTP_SAVE_ROOT") or DEFAULT_SAVE_ROOT
+    return Path(_windows_to_wsl_path(root)).resolve()
+
+
 def _inside_roots(path: Path, roots: list[Path]) -> bool:
     try:
         resolved = path.resolve()
@@ -507,6 +528,89 @@ def _safe_filename(value: Any, fallback: str) -> str:
     if not name:
         name = fallback
     return name[:160]
+
+
+def _safe_saved_image_filename(value: Any, content_type: str = "") -> str:
+    name = _safe_filename(value, "http-image.png")
+    suffix = Path(name).suffix.lower()
+    inferred = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+    }.get(str(content_type or "").split(";", 1)[0].strip().lower(), "")
+    if suffix not in UPLOAD_ALLOWED_SUFFIXES:
+        name = f"{Path(name).stem or 'http-image'}{inferred or '.png'}"
+    return name
+
+
+def _json_path_value(value: Any, path_value: Any) -> Any:
+    if not path_value:
+        return value
+    current = value
+    for part in str(path_value or "").strip().split("."):
+        key = part.strip()
+        if not key:
+            continue
+        if isinstance(current, dict):
+            current = current.get(key)
+        elif isinstance(current, list) and key.isdigit():
+            index = int(key)
+            current = current[index] if 0 <= index < len(current) else None
+        else:
+            return None
+    return current
+
+
+def _decode_base64_image(value: Any, content_type: str = "") -> tuple[bytes, str]:
+    text = str(value or "").strip()
+    mime = str(content_type or "").split(";", 1)[0].strip().lower()
+    match = re.match(r"^data:([^;,]+);base64,(.+)$", text, re.I | re.S)
+    if match:
+        mime = match.group(1).strip().lower()
+        text = match.group(2).strip()
+    if not text:
+        raise ValueError("save_base64_value_missing")
+    data = base64.b64decode(re.sub(r"\s+", "", text), validate=True)
+    if len(data) > MAX_SAVE_BYTES:
+        raise ValueError("save_base64_too_large")
+    if not mime:
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            mime = "image/png"
+        elif data.startswith(b"\xff\xd8\xff"):
+            mime = "image/jpeg"
+        elif data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+            mime = "image/webp"
+        elif data.startswith(b"GIF8"):
+            mime = "image/gif"
+    if mime not in {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}:
+        raise ValueError("save_base64_unsupported_image_type")
+    return data, ("image/jpeg" if mime == "image/jpg" else mime)
+
+
+def _save_base64_from_payload(parsed_payload: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
+    spec = args.get("save_base64")
+    if not isinstance(spec, dict):
+        return {}
+    json_payload = parsed_payload.get("json")
+    source = json_payload if json_payload is not None else parsed_payload.get("text", "")
+    raw_value = _json_path_value(source, spec.get("json_path"))
+    data, mime = _decode_base64_image(raw_value, str(spec.get("content_type") or ""))
+    root = _save_root()
+    filename = _safe_saved_image_filename(spec.get("filename"), mime)
+    root.mkdir(parents=True, exist_ok=True)
+    output_path = (root / filename).resolve()
+    output_path.relative_to(root)
+    output_path.write_bytes(data)
+    return {
+        "saved_file": {
+            "path": str(output_path),
+            "name": output_path.name,
+            "mime": mime,
+            "bytes": len(data),
+        }
+    }
 
 
 def _upload_content_type(path: Path, supplied: Any) -> str:
@@ -703,6 +807,7 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
                 payload.update(request_meta)
                 if method != "HEAD":
                     payload.update(_parse_response(raw, content_type))
+                    payload.update(_save_base64_from_payload(payload, args))
                 return _json(payload)
         except urllib.error.HTTPError as error:
             raw = error.read(limit + 1)
@@ -723,6 +828,7 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
             }
             payload.update(request_meta)
             payload.update(_parse_response(raw, content_type))
+            payload.update(_save_base64_from_payload(payload, args))
             return _json(payload)
     except Exception as error:
         return _json({
