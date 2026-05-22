@@ -9411,9 +9411,7 @@ button.directory-alias-chip {
   gap: 14px;
 }
 
-.codex-mux-create,
 .codex-mux-panel,
-.codex-mux-task,
 .codex-mux-event,
 .codex-mux-intro,
 .codex-mux-chat {
@@ -9446,16 +9444,9 @@ button.directory-alias-chip {
   padding: 12px;
 }
 
-.codex-mux-create {
+.codex-mux-stack {
   display: grid;
-  gap: 10px;
-  padding: 12px;
-}
-
-.codex-mux-grid {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
-  gap: 12px;
+  gap: 14px;
 }
 
 .codex-mux-panel {
@@ -9465,35 +9456,20 @@ button.directory-alias-chip {
   padding: 12px;
 }
 
-.codex-mux-task-list,
+.codex-mux-hermes-panel {
+  gap: 12px;
+}
+
+.codex-mux-codex-panel {
+  align-content: start;
+}
+
 .codex-mux-event-list {
   min-width: 0;
   display: grid;
   gap: 9px;
 }
 
-.codex-mux-task {
-  min-width: 0;
-  padding: 10px 11px;
-  display: grid;
-  gap: 3px;
-  text-align: left;
-  color: inherit;
-}
-
-.codex-mux-task.active {
-  border-color: rgba(47, 125, 95, 0.32);
-  background: rgba(122, 199, 167, 0.12);
-}
-
-.codex-mux-task-title {
-  min-width: 0;
-  font-size: 15px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.codex-mux-task-meta,
 .codex-mux-event-head span {
   color: var(--muted);
   font-size: 12px;
@@ -10800,13 +10776,7 @@ button.directory-alias-chip {
     flex: 1 1 0;
   }
 
-  .codex-mux-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .codex-mux-create,
   .codex-mux-panel,
-  .codex-mux-task,
   .codex-mux-event,
   .codex-mux-intro,
   .codex-mux-chat {
@@ -11274,7 +11244,6 @@ button.directory-alias-chip {
 :root[data-font-size] .todo-card-status,
 :root[data-font-size] .automation-card-meta,
 :root[data-font-size] .automation-card-submeta,
-:root[data-font-size] .codex-mux-task-meta,
 :root[data-font-size] .codex-mux-event-head span,
 :root[data-font-size] .automation-state,
 :root[data-font-size] .automation-detail-meta,
@@ -11340,7 +11309,6 @@ button.directory-alias-chip {
 :root[data-font-size] .directory-entry-name,
 :root[data-font-size] .todo-card-title,
 :root[data-font-size] .automation-card-title,
-:root[data-font-size] .codex-mux-task-title,
 :root[data-font-size] .automation-doc-name,
 :root[data-font-size] .directory-breadcrumb button,
 :root[data-font-size] .todo-create-toggle,

@@ -42,6 +42,29 @@ async function sendMessage(event) {
     }
     return;
   }
+  if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
+    const text = getComposerText().trim();
+    const artifacts = state.pendingArtifacts.slice();
+    if (!text && !artifacts.length) return;
+    $("sendMessage").disabled = true;
+    try {
+      setComposerText("");
+      state.pendingArtifacts = [];
+      renderPendingArtifacts();
+      await sendCodexMuxHermesMessage(text, { artifacts });
+      suppressComposerAutoFocus(1200);
+      blurComposerInput();
+    } catch (err) {
+      setComposerText(text);
+      state.pendingArtifacts = artifacts;
+      renderPendingArtifacts();
+      showError(err);
+    } finally {
+      $("sendMessage").disabled = false;
+      updateComposerAction();
+    }
+    return;
+  }
   if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
   if (!state.currentThreadId) return;
   let text = getComposerText().trim();

@@ -18,6 +18,14 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   clearQuotedReply({ render: false });
   renderPendingArtifacts();
   state.currentThread = mergeCurrentThread(result.thread);
+  if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
+    state.currentThreadId = state.currentThread?.id || state.currentThreadId;
+    state.currentTaskGroupId = CODEX_MUX_TASK_GROUP_ID;
+    renderCodexMuxView();
+    suppressComposerAutoFocus(1200);
+    blurComposerInput();
+    return;
+  }
   if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
     const latestUser = [...(state.currentThread?.messages || [])].reverse().find((message) => message.role === "user");
     state.currentTaskGroupId = latestUser?.taskGroupId || "";

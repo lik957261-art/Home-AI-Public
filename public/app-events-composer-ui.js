@@ -15,6 +15,7 @@ function scheduleRenderCurrentThread() {
   if (state.renderScheduled) return;
   const conversation = $("conversation");
   if (!conversation) return;
+  if (typeof renderCodexMuxViewSoon === "function" && renderCodexMuxViewSoon()) return;
   state.shouldStickToBottom = shouldForceChatStickToBottom() || isNearBottom();
   state.preservedBottomOffset = conversation.scrollHeight - conversation.scrollTop;
   state.renderScheduled = true;
@@ -129,6 +130,10 @@ function upsertMessage(message) {
   const mergedMessage = index >= 0 ? messages[index] : message;
   offerOwnerElevationForMessage(mergedMessage).catch(showError);
   if (state.viewMode === "tasks") renderThreads();
+  if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
+    renderCodexMuxView();
+    return;
+  }
   if (
     index >= 0
     && mergedMessage?.role === "assistant"
@@ -297,6 +302,11 @@ function applyEvent(payload) {
     if (wasRunning) {
       updateComposerAction();
       renderComposerContext();
+      if (typeof isCodexMuxView === "function" && isCodexMuxView()) renderCodexMuxViewSoon();
+      return;
+    }
+    if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
+      renderCodexMuxView();
       return;
     }
     renderCurrentThread({ stickToBottom: false });
@@ -332,5 +342,6 @@ function applyEvent(payload) {
       state.currentThread.activeRunIds = payload.thread.activeRunIds || [];
       state.currentThread.updatedAt = payload.thread.updatedAt;
     }
+    if (typeof isCodexMuxView === "function" && isCodexMuxView()) renderCodexMuxViewSoon();
   }
 }
