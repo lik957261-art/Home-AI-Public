@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260522-hermes-mux-nav-v84";
+const CLIENT_VERSION = "20260522-hermes-mux-menu-v85";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -119,8 +119,8 @@ assert.match(appJs, /async function sendCodexMuxHermesMessage\(text\)/);
 assert.match(appJs, /codexMuxMode: true/);
 assert.match(appJs, /allowed_toolsets: \["http"\]/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-nav-v84/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-nav-v84/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-menu-v85/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260522-hermes-mux-menu-v85/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
@@ -1285,10 +1285,13 @@ assert.match(indexHtml, /hermesWebFontFamily/);
 assert.match(indexHtml, /--app-font-family/);
 assert.match(indexHtml, /id="chatManagementMode"/);
 assert.match(indexHtml, /id="codexMuxMode"/);
+assert.match(indexHtml, /id="topCodexMux"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.addEventListener\("click"/);
 assert.match(appJs, /\$\("codexMuxMode"\)\?\.addEventListener\("click"/);
+assert.match(appJs, /\$\("topCodexMux"\)\?\.addEventListener\("click"/);
 assert.match(appJs, /\$\("chatManagementMode"\)\?\.classList\.toggle\("active", single && state\.singleWindowMode === "chat"\)/);
 assert.match(appJs, /\$\("codexMuxMode"\)\?\.classList\.toggle\("active", codexMux\)/);
+assert.match(appJs, /topCodexMux\.hidden = !state\.auth\?\.isOwner \|\| codexMuxView/);
 assert.match(stylesCss, /\.section-toggle \{[\s\S]*?grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)/);
 assert.match(appJs, /window\.matchMedia\("\(max-width: 1099px\)"\)/);

@@ -328,6 +328,9 @@ function wireUi() {
     closeTopMoreMenu();
     openLearningGrowthSettingsPage();
   });
+  $("topCodexMux")?.addEventListener("click", () => {
+    openCodexMuxPage().catch(showError);
+  });
   $("topDeleteTodo")?.addEventListener("click", () => {
     deleteTodo(state.selectedTodoId).catch(showError);
   });

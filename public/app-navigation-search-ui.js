@@ -275,6 +275,11 @@ function updateTopMoreControls() {
     learningSettings.hidden = !learningOwnerAction;
     learningSettings.disabled = !learningOwnerAction;
   }
+  const topCodexMux = $("topCodexMux");
+  if (topCodexMux) {
+    topCodexMux.hidden = !state.auth?.isOwner || codexMuxView;
+    topCodexMux.disabled = !state.auth?.isOwner || codexMuxView;
+  }
   const newAutomation = $("topNewAutomation");
   if (newAutomation) {
     newAutomation.hidden = !automationList;
