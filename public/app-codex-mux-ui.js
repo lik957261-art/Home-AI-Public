@@ -262,6 +262,33 @@ function renderCodexMuxConversation() {
     : `<div class="empty-state small">先在底部输入框告诉 Hermes 你的需求；Hermes 判断需要代码处理时，会再调用 Codex。</div>`;
 }
 
+function captureCodexMuxPaneScroll(root) {
+  const chat = root?.querySelector("[data-codex-mux-chat]");
+  const events = root?.querySelector("[data-codex-mux-events]");
+  return {
+    chatTop: chat ? chat.scrollTop : null,
+    chatBottomGap: chat ? chat.scrollHeight - chat.clientHeight - chat.scrollTop : null,
+    eventsTop: events ? events.scrollTop : null,
+  };
+}
+
+function restoreCodexMuxPaneScroll(snapshot = {}) {
+  requestAnimationFrame(() => {
+    if (!isCodexMuxView()) return;
+    const root = $("conversation");
+    const chat = root?.querySelector("[data-codex-mux-chat]");
+    const events = root?.querySelector("[data-codex-mux-events]");
+    if (chat) {
+      if (snapshot.chatTop === null || snapshot.chatTop === undefined || Number(snapshot.chatBottomGap || 0) < 72) {
+        chat.scrollTop = chat.scrollHeight;
+      } else {
+        chat.scrollTop = Number(snapshot.chatTop || 0);
+      }
+    }
+    if (events) events.scrollTop = Number(snapshot.eventsTop || 0);
+  });
+}
+
 function renderCodexMuxView() {
   state.threads = [];
   const list = $("threadList");
@@ -272,6 +299,7 @@ function renderCodexMuxView() {
   configureComposer({ enabled: codexMuxOwnerAllowed(), placeholder: "发给 Hermes 协作流..." });
   const conversation = $("conversation");
   if (!conversation) return;
+  const scrollSnapshot = captureCodexMuxPaneScroll(conversation);
   if (!codexMuxOwnerAllowed()) {
     conversation.innerHTML = `<section class="codex-mux-shell"><div class="automation-warning">Codex Mux is Owner-only.</div></section>`;
     updateNavigationControls();
@@ -291,7 +319,7 @@ function renderCodexMuxView() {
       </section>
       <section class="codex-mux-panel codex-mux-codex-panel">
         <div class="automation-section-title">Codex</div>
-        <div class="codex-mux-event-list">${renderCodexMuxMilestones()}</div>
+        <div class="codex-mux-event-list" data-codex-mux-events>${renderCodexMuxMilestones()}</div>
       </section>
     </div>
   </section>`;
@@ -307,6 +335,7 @@ function renderCodexMuxView() {
   syncRunProgressTicker(conversation);
   updateNavigationControls();
   ensureVerticalScrollAffordance();
+  restoreCodexMuxPaneScroll(scrollSnapshot);
 }
 
 function renderCodexMuxViewSoon() {

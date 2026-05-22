@@ -9406,9 +9406,12 @@ button.directory-alias-chip {
 
 .codex-mux-shell {
   width: min(920px, 100%);
+  min-height: 0;
+  height: 100%;
   margin: 0 auto;
   display: grid;
-  gap: 14px;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 10px;
 }
 
 .codex-mux-panel,
@@ -9421,9 +9424,11 @@ button.directory-alias-chip {
 }
 
 .codex-mux-intro {
-  display: grid;
-  gap: 4px;
-  padding: 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
 }
 
 .codex-mux-intro strong {
@@ -9435,39 +9440,64 @@ button.directory-alias-chip {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+  text-align: right;
 }
 
 .codex-mux-chat {
   min-width: 0;
+  min-height: 0;
   display: grid;
+  align-content: start;
   gap: 10px;
   padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .codex-mux-stack {
+  min-height: 0;
   display: grid;
-  gap: 14px;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
 }
 
 .codex-mux-panel {
   min-width: 0;
+  min-height: 0;
   display: grid;
-  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
   padding: 12px;
 }
 
 .codex-mux-hermes-panel {
   gap: 12px;
+  border-radius: 8px 8px 0 0;
+  border-bottom-color: rgba(31, 111, 98, 0.18);
 }
 
 .codex-mux-codex-panel {
   align-content: start;
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
 }
 
 .codex-mux-event-list {
   min-width: 0;
+  min-height: 0;
   display: grid;
+  align-content: start;
   gap: 9px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.codex-mux-mode .conversation {
+  overflow: hidden;
+  padding: 12px 14px 14px;
 }
 
 .codex-mux-event-head span {
