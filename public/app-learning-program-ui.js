@@ -653,17 +653,6 @@
     return Math.max(1, Math.round(count || 1));
   }
 
-  function nativeGrowthSubmissionCount(task = {}) {
-    const candidates = [
-      task.totalSubmissionCount,
-      task.submissionCount,
-      task.latestSubmission?.totalSubmissionCount,
-      task.latestSubmission?.submissionCount,
-    ];
-    const count = candidates.map((value) => Number(value)).find((value) => Number.isFinite(value) && value > 0);
-    return Math.max(1, Math.round(count || 1));
-  }
-
   function nativeGrowthArtifactDirectoryPath(task = {}, evaluation = {}) {
     return String(task.artifactDirectoryPath
       || task.reportDirectoryPath
@@ -675,15 +664,15 @@
 
   function renderNativeGrowthFeedbackHead(task = {}, evaluation = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    const submissionCount = nativeGrowthSubmissionCount(task);
     const evaluationCount = nativeGrowthEvaluationCount(task, evaluation);
     const directoryPath = nativeGrowthArtifactDirectoryPath(task, evaluation);
-    const label = `\u603b\u63d0\u4ea4 ${submissionCount} \u6b21 \u00b7 \u603b\u6279\u6539 ${evaluationCount} \u6b21`;
+    const label = `\u6279\u6539\uff1a${evaluationCount}\u6b21`;
     const evaluatedAt = nativeGrowthTimeLabel(evaluation.createdAt || evaluation.completedAt || evaluation.updatedAt || "", options);
-    const countHtml = directoryPath
-      ? `<button type="button" class="learning-growth-feedback-count" data-learning-growth-feedback-count data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(task.title || "\u6279\u6539\u76ee\u5f55")}" title="\u6253\u5f00\u6279\u6539\u76ee\u5f55">${escapeHtml(label)}</button>`
-      : `<span class="learning-growth-feedback-count" data-learning-growth-feedback-count>${escapeHtml(label)}</span>`;
-    const right = `${evaluatedAt ? `<span class="learning-growth-feedback-time" data-learning-growth-feedback-time>${escapeHtml(`\u6279\u6539 ${evaluatedAt}`)}</span>` : ""}${countHtml}`;
+    const directoryHtml = directoryPath
+      ? `<button type="button" class="learning-growth-board-artifact-link learning-growth-feedback-directory-link" data-learning-growth-feedback-directory-link data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(task.title || "\u6279\u6539\u76ee\u5f55")}" aria-label="\u6253\u5f00\u6279\u6539\u76ee\u5f55" title="\u6253\u5f00\u6279\u6539\u76ee\u5f55"><span class="learning-growth-board-artifact-icon" aria-hidden="true"></span></button>`
+      : "";
+    const countHtml = `<span class="learning-growth-feedback-meta"><span class="learning-growth-feedback-count" data-learning-growth-feedback-count>${escapeHtml(label)}</span>${directoryHtml}</span>`;
+    const right = `${evaluatedAt ? `<span class="learning-growth-feedback-time" data-learning-growth-feedback-time>${escapeHtml(evaluatedAt)}</span>` : ""}${countHtml}`;
     return renderLearningGrowthSectionHead("\u6700\u8fd1\u6279\u6539", right, escapeHtml);
   }
 

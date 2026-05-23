@@ -442,8 +442,12 @@ function testReviewedNativeMathTaskCollapsesQuestionsUntilEdit() {
   assert.match(html, /05\/23 17:30/);
   assert.match(html, /data-learning-growth-feedback-count/);
   assert.match(html, /data-learning-growth-feedback-time/);
-  assert.match(html, /\u6279\u6539 05\/23 17:30/);
-  assert.match(html, /\u603b\u63d0\u4ea4 4 \u6b21 \u00b7 \u603b\u6279\u6539 2 \u6b21/);
+  assert.doesNotMatch(html, /\u6279\u6539 05\/23 17:30/);
+  assert.match(html, /\u6279\u6539\uff1a2\u6b21/);
+  assert.doesNotMatch(html, /\u603b\u63d0\u4ea4/);
+  assert.doesNotMatch(html, /\u603b\u6279\u6539/);
+  assert.match(html, /data-learning-growth-feedback-directory-link/);
+  assert.match(html, /learning-growth-board-artifact-icon/);
   assert.match(html, /data-directory-path-open/);
   assert.match(html, /data-directory-path="C:\\reports\\task-native-math-review"/);
   assert.match(html, /data-learning-native-growth-revision-collapsed="task-native-math-review"/);

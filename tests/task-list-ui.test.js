@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-wechat-shell-v117";
+const CLIENT_VERSION = "20260523-growth-feedback-header-v118";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1068,6 +1068,12 @@ assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-se
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-recorder/);
   assert.match(appLearningProgramUiJs, /data-learning-growth-submission-time/);
   assert.match(appLearningProgramUiJs, /data-learning-growth-feedback-count/);
+  assert.match(appLearningProgramUiJs, /data-learning-growth-feedback-directory-link/);
+  assert.match(appLearningProgramUiJs, /learning-growth-board-artifact-icon/);
+  assert.match(appLearningProgramUiJs, /\\u6279\\u6539\\uff1a\$\{evaluationCount\}\\u6b21/);
+  assert.doesNotMatch(appLearningProgramUiJs, /nativeGrowthSubmissionCount/);
+  assert.doesNotMatch(appLearningProgramUiJs, /\\u603b\\u63d0\\u4ea4/);
+  assert.doesNotMatch(appLearningProgramUiJs, /\\u603b\\u6279\\u6539/);
   assert.match(appLearningProgramUiJs, /data-learning-growth-feedback-detail/);
   assert.match(appLearningProgramUiJs, /learning-growth-feedback-detail-note/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-revision-collapsed/);

@@ -7910,20 +7910,30 @@ button.directory-alias-chip {
   font-weight: 700;
 }
 
-.learning-growth-feedback-count {
-  min-height: 22px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(31, 111, 98, 0.18);
-  background: rgba(31, 111, 98, 0.08);
-  color: var(--accent);
-  font-size: 12px;
-  line-height: 1.1;
-  font-weight: 750;
+.learning-growth-feedback-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
 }
 
-button.learning-growth-feedback-count {
-  cursor: pointer;
+.learning-growth-feedback-count {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.learning-growth-feedback-directory-link {
+  width: 18px;
+  min-width: 18px;
+  min-height: 18px;
+}
+
+.learning-growth-feedback-directory-link .learning-growth-board-artifact-icon {
+  width: 11px;
+  height: 11px;
 }
 
 .learning-growth-answer-instruction p,
