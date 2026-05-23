@@ -730,34 +730,47 @@
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const sections = evaluation.feedbackSections || {};
     const revisionRequirements = asArray(evaluation.revisionRequirements);
+    const strengths = asArray(sections.strengths);
     const focusAreas = asArray(sections.focusAreas);
     const rewriteChecklist = asArray(sections.rewriteChecklist);
+    const reflectionPrompts = asArray(sections.reflectionPrompts);
     const criterionFeedback = asArray(sections.criterionFeedback);
     const sentenceFeedback = asArray(sections.sentenceFeedback);
-    if (!revisionRequirements.length && !focusAreas.length && !rewriteChecklist.length && !criterionFeedback.length && !sentenceFeedback.length) {
+    const finalConclusion = String(sections.finalConclusion || evaluation.finalConclusion || "").trim();
+    const nextPractice = String(sections.nextPractice || evaluation.nextPractice || "").trim();
+    const parentNote = String(sections.parentNote || evaluation.parentNote || "").trim();
+    if (!revisionRequirements.length && !strengths.length && !focusAreas.length && !rewriteChecklist.length && !reflectionPrompts.length && !criterionFeedback.length && !sentenceFeedback.length && !finalConclusion && !nextPractice && !parentNote) {
       return "";
     }
-    const list = (items) => items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "";
-    return `<section class="learning-growth-answer-feedback-detail" data-learning-growth-feedback-detail>
-      <h4>\u4fee\u8ba2\u8981\u70b9</h4>
-      ${list(revisionRequirements)}
-      ${focusAreas.length ? `<h5>\u9700\u8981\u5173\u6ce8</h5>${list(focusAreas)}` : ""}
-      ${rewriteChecklist.length ? `<h5>\u4fee\u6539\u6e05\u5355</h5>${list(rewriteChecklist)}` : ""}
+    const list = (title, items) => items.length ? `<div class="learning-growth-feedback-detail-list"><h5>${escapeHtml(title)}</h5><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : "";
+    const note = (title, value) => value ? `<article class="learning-growth-feedback-detail-note"><strong>${escapeHtml(title)}</strong><p>${escapeHtml(value)}</p></article>` : "";
+    return `<div class="learning-growth-answer-feedback-detail" data-learning-growth-feedback-detail>
+      <h4>\u8be6\u7ec6\u6279\u6539</h4>
+      ${note("\u603b\u7ed3", finalConclusion)}
+      ${list("\u9700\u4fee\u8ba2", revisionRequirements)}
+      ${list("\u5df2\u505a\u5230", strengths)}
+      ${list("\u9700\u8981\u5173\u6ce8", focusAreas)}
+      ${list("\u4fee\u6539\u6e05\u5355", rewriteChecklist)}
       ${criterionFeedback.length ? `<div class="learning-growth-feedback-criteria">
         ${criterionFeedback.map((item) => `<article>
           <strong>${escapeHtml(item.dimension || "\u6279\u6539\u7ef4\u5ea6")}</strong>
-          ${item.observation ? `<p>${escapeHtml(item.observation)}</p>` : ""}
-          ${item.action ? `<p>${escapeHtml(item.action)}</p>` : ""}
+          ${item.observation ? `<p><b>\u89c2\u5bdf</b>${escapeHtml(` ${item.observation}`)}</p>` : ""}
+          ${item.action ? `<p><b>\u4fee\u6539</b>${escapeHtml(` ${item.action}`)}</p>` : ""}
         </article>`).join("")}
       </div>` : ""}
       ${sentenceFeedback.length ? `<div class="learning-growth-feedback-criteria">
         ${sentenceFeedback.map((item) => `<article>
           <strong>${escapeHtml(item.evidence || item.issue || "\u7ec6\u8282\u53cd\u9988")}</strong>
-          ${item.issue ? `<p>${escapeHtml(item.issue)}</p>` : ""}
-          ${item.fix ? `<p>${escapeHtml(item.fix)}</p>` : ""}
+          ${item.issue ? `<p><b>\u95ee\u9898</b>${escapeHtml(` ${item.issue}`)}</p>` : ""}
+          ${item.whyItMatters ? `<p><b>\u539f\u56e0</b>${escapeHtml(` ${item.whyItMatters}`)}</p>` : ""}
+          ${item.fix ? `<p><b>\u4fee\u6539</b>${escapeHtml(` ${item.fix}`)}</p>` : ""}
+          ${item.example ? `<p><b>\u793a\u4f8b</b>${escapeHtml(` ${item.example}`)}</p>` : ""}
         </article>`).join("")}
       </div>` : ""}
-    </section>`;
+      ${list("\u590d\u76d8\u63d0\u793a", reflectionPrompts)}
+      ${note("\u4e0b\u4e00\u6b65\u7ec3\u4e60", nextPractice)}
+      ${note("\u5bb6\u957f\u5907\u6ce8", parentNote)}
+    </div>`;
   }
 
   function nativeGrowthRequiresAudio(task = {}) {
@@ -1022,8 +1035,7 @@
       ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
       ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
-      ${latestEvaluation ? `<section class="learning-growth-answer-feedback">${renderNativeGrowthFeedbackHead(taskForForm, latestEvaluation, options)}${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}</section>` : ""}
-      ${latestEvaluation ? renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options) : ""}
+      ${latestEvaluation ? `<section class="learning-growth-answer-feedback">${renderNativeGrowthFeedbackHead(taskForForm, latestEvaluation, options)}${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}${renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options)}</section>` : ""}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;
   }

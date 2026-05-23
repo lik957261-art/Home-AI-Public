@@ -389,6 +389,29 @@ function reviewedNativeMathTask() {
       nextStep: "revise_and_resubmit",
       passed: false,
       score: 68,
+      summary: "Latest math feedback summary.",
+      revisionRequirements: ["Show the operation path."],
+      feedbackSections: {
+        strengths: ["The selected answer is recorded."],
+        focusAreas: ["Write the missing reasoning steps."],
+        criterionFeedback: [{
+          dimension: "reasoning",
+          observation: "The answer is visible but the reason is too short.",
+          action: "Add two checkable steps.",
+        }],
+        sentenceFeedback: [{
+          evidence: "short reason",
+          issue: "The reason does not show the calculation.",
+          whyItMatters: "The grader cannot verify the method.",
+          fix: "Write the operation in order.",
+          example: "2x + 3 = 11, so x = 4.",
+        }],
+        rewriteChecklist: ["Add one calculation line."],
+        reflectionPrompts: ["Name the missing step."],
+        finalConclusion: "Needs a clearer math process.",
+        nextPractice: "Check each answer with one equation.",
+        parentNote: "Review the revision before reflection.",
+      },
       reportHistory: [
         { name: "01-feedback.md", path: "C:\\reports\\one.md" },
         { name: "02-feedback.md", path: "C:\\reports\\two.md" },
@@ -421,6 +444,15 @@ function testReviewedNativeMathTaskCollapsesQuestionsUntilEdit() {
   assert.match(html, /data-learning-native-growth-revision-collapsed="task-native-math-review"/);
   assert.match(html, /data-learning-native-growth-edit-answer="task-native-math-review"/);
   assert.match(html, /\u786e\u5b9a\u5206\u6570 68\/100/);
+  assert.match(html, /\u8be6\u7ec6\u6279\u6539/);
+  assert.match(html, /Show the operation path/);
+  assert.match(html, /The selected answer is recorded/);
+  assert.match(html, /Write the missing reasoning steps/);
+  assert.match(html, /reasoning/);
+  assert.match(html, /The grader cannot verify the method/);
+  assert.match(html, /2x \+ 3 = 11/);
+  assert.match(html, /Check each answer with one equation/);
+  assert.ok(html.indexOf("data-learning-growth-feedback-detail") > html.indexOf("learning-growth-answer-feedback"));
   assert.doesNotMatch(html, /data-learning-native-growth-question="q1"/);
 }
 

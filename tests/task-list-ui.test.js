@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-growth-feedback-ui-v113";
+const CLIENT_VERSION = "20260523-growth-feedback-inline-v114";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1065,11 +1065,14 @@ assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-se
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-recorder/);
   assert.match(appLearningProgramUiJs, /data-learning-growth-submission-time/);
   assert.match(appLearningProgramUiJs, /data-learning-growth-feedback-count/);
+  assert.match(appLearningProgramUiJs, /data-learning-growth-feedback-detail/);
+  assert.match(appLearningProgramUiJs, /learning-growth-feedback-detail-note/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-revision-collapsed/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-edit-answer/);
   assert.match(appLearningGrowthControllerJs, /learningNativeGrowthAnswerEditing/);
   assert.match(appLearningGrowthControllerJs, /data-learning-native-growth-edit-answer/);
   assert.match(appLearningGrowthTaskUiJs, /data-learning-growth-feedback-score/);
+  assert.doesNotMatch(appLearningGrowthTaskUiJs, /\\u6253\\u5f00\\u6700\\u65b0\\u6279\\u6539\\u6587\\u4ef6/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/advance/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/evaluations/);
   assert.match(appJs, /data-learning-program-publish/);
@@ -1211,6 +1214,8 @@ assert.equal(indexHtml.includes('id="topLearningRewards"'), false);
 assert.match(stylesCss, /\.learning-mode #interruptRun \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /\.learning-growth-answer-instruction p \{[\s\S]*?font-size: 16px;/);
 assert.match(stylesCss, /\.learning-native-growth-submission-input \{[\s\S]*?font-size: 16px;/);
+assert.match(stylesCss, /\.learning-growth-feedback-detail-note/);
+assert.match(stylesCss, /\.learning-growth-feedback-criteria b/);
 assert.match(stylesCss, /:root\[data-font-size\] \.learning-growth-board-card-head strong/);
 assert.match(stylesCss, /:root\[data-font-size\] \.learning-settings-task-row strong/);
 assert.match(stylesCss, /:root\[data-font-size\] \.learning-native-growth-question p/);

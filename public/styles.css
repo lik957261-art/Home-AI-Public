@@ -7975,6 +7975,30 @@ button.learning-growth-feedback-count {
   padding-left: 18px;
 }
 
+.learning-growth-feedback-detail-list,
+.learning-growth-feedback-detail-note {
+  display: grid;
+  gap: 5px;
+}
+
+.learning-growth-feedback-detail-note {
+  padding: 8px;
+  border: 1px solid rgba(31, 111, 98, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.learning-growth-feedback-detail-note strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.learning-growth-feedback-criteria b {
+  margin-right: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .learning-growth-answer-reward-head {
   display: flex;
   align-items: center;
