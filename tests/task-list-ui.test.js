@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-growth-revision-state-v111";
+const CLIENT_VERSION = "20260523-growth-submit-poll-v112";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1056,8 +1056,11 @@ assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-se
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /function submitNativeGrowthTask\(/);
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /\/api\/learning\/task-cards\/\$\{encodeURIComponent\(taskCardId\)\}\/growth-submission/);
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /learningNativeGrowthSubmissionSubmitting\[taskCardId\]/);
+  assert.match(appLearningNativeGrowthSubmissionControllerJs, /startNativeGrowthSubmissionResultPolling/);
+  assert.match(appLearningNativeGrowthSubmissionControllerJs, /loadLearningCoins\(\{ limit: 80 \}\)/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-submission-form/);
   assert.match(appLearningProgramUiJs, /data-learning-submit-native-growth/);
+  assert.match(appLearningProgramUiJs, /learningNativeGrowthSubmissionSubmitting/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-recorder/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/advance/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/evaluations/);

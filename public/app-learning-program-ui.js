@@ -841,14 +841,18 @@
     const nativeState = task?.nativeState || {};
     const nextAction = String(nativeState.nextAction || "");
     const previousText = String(task?.latestSubmission?.displayText || "").trim();
+    const submitting = Boolean(options.state?.learningNativeGrowthSubmissionSubmitting?.[taskCardId]);
     const detailButton = options.hideNativeGrowthDetailButton ? "" : `<button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>`;
-    const stateLabel = {
+    const stateLabel = submitting ? (requiresAudio
+      ? "\u5df2\u63d0\u4ea4\u5f55\u97f3\uff0c\u6b63\u5728\u8f6c\u5199\u5e76\u7b49\u5f85 AI \u6279\u6539\uff1b\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c\u3002"
+      : "\u5df2\u63d0\u4ea4\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\uff1b\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c\u3002")
+      : ({
       submit: "\u5f85\u4f5c\u7b54",
       waiting_feedback: "\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539",
       revise: "\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4",
       spoken_reflection: "\u9700\u8981\u5f55\u97f3\u6216\u6587\u5b57\u590d\u76d8",
       complete: "\u5df2\u5b8c\u6210",
-    }[nextAction] || "";
+    }[nextAction] || "");
     if (nextAction === "complete") {
       return `<div class="learning-native-growth-submission-state is-ready">${escapeHtml(stateLabel || "\u5df2\u5b8c\u6210")}</div>`;
     }
@@ -869,7 +873,7 @@
       ${requiresAudio ? renderNativeGrowthAudioRecorder(task, options) : structuredQuestions || `<textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539">${escapeHtml(previousText)}</textarea>
       <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>`}
       <div class="learning-program-task-actions">
-        <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">${requiresAudio ? "\u63d0\u4ea4\u5f55\u97f3\u7ed9 AI \u6279\u6539" : "\u63d0\u4ea4\u7ed9 AI \u6279\u6539"}</button>
+        <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}" ${submitting ? "disabled" : ""}>${requiresAudio ? "\u63d0\u4ea4\u5f55\u97f3\u7ed9 AI \u6279\u6539" : "\u63d0\u4ea4\u7ed9 AI \u6279\u6539"}</button>
         ${detailButton}
       </div>
       <div class="learning-native-growth-submission-state" data-learning-native-growth-submission-state="${escapeHtml(taskCardId)}" aria-live="polite"></div>

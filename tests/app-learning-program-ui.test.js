@@ -391,6 +391,28 @@ function testNativeTaskReflectionStateRendersReflectionForm() {
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-native-reflect"/);
 }
 
+function testNativeSubmittingTaskShowsAutoRefreshState() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail({
+    taskCardId: "task-native-submitting",
+    source: "learning-growth",
+    title: "Native submitting task",
+    status: "published",
+    workspaceId: "weixin_stephen",
+    nativeState: { nextAction: "submit" },
+  }, { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+    state: {
+      auth: { isOwner: false },
+      learningNativeGrowthSubmissionSubmitting: {
+        "task-native-submitting": { startedAtMs: 1779528000000 },
+      },
+    },
+  });
+  assert.match(html, /data-learning-native-growth-submission-form="task-native-submitting"/);
+  assert.match(html, /data-learning-submit-native-growth="task-native-submitting" disabled/);
+  assert.match(html, /\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c/);
+  assert.doesNotMatch(html, /\u5f85\u4f5c\u7b54/);
+}
+
 testOwnerFormAndActionsRender();
 testNonOwnerCannotSeeCreateForm();
 testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst();
@@ -399,5 +421,6 @@ testNativeTaskDetailShowsRewardPolicyWithoutCapForm();
 testNativeSpeakingTaskRendersAudioRecorder();
 testNativeMathTaskRendersStructuredQuestionInputs();
 testNativeTaskReflectionStateRendersReflectionForm();
+testNativeSubmittingTaskShowsAutoRefreshState();
 
 console.log("app learning program ui tests passed");

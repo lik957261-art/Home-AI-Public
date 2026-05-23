@@ -267,6 +267,63 @@ function testGrowthRendererCanOpenBoardOnlyRevisionTask() {
   assert.doesNotMatch(html, /\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0/);
 }
 
+function testGrowthSelectedTaskMergesBoardLatestEvaluation() {
+  const mergedOverview = JSON.parse(JSON.stringify(overview));
+  mergedOverview.programs.taskCards = [{
+    taskCardId: "task-merge",
+    title: "Merged task definition",
+    status: "published",
+    learnerInstruction: "Keep the full instruction from the task definition.",
+    taskModel: { activityType: "math_reasoning" },
+  }];
+  mergedOverview.programs.executableTasks = [{
+    taskCardId: "task-merge",
+    source: "learning-growth",
+    status: "published",
+    nativeState: { nextAction: "submit" },
+  }];
+  mergedOverview.board.lanes = [{ id: "needs_revision", title: "Needs revision", count: 1, cards: ["task-merge"] }];
+  mergedOverview.board.cards = [{
+    taskCardId: "task-merge",
+    title: "Merged board task",
+    laneId: "needs_revision",
+    nextAction: "revise",
+    primaryAction: "revise",
+    latestSubmission: {
+      submissionId: "sub-merge",
+      taskCardId: "task-merge",
+      status: "submitted",
+      submittedAt: "2026-05-23T09:26:00.000Z",
+      displayText: "summary only answer",
+    },
+    latestEvaluation: {
+      evaluationId: "eval-merge",
+      taskCardId: "task-merge",
+      status: "needs_repair",
+      score: 68,
+      summary: "summary only feedback",
+      revisionRequirements: ["Board latest repair requirement"],
+      feedbackSections: {
+        focusAreas: ["Board latest focus area"],
+      },
+      createdAt: "2026-05-23T09:28:00.000Z",
+    },
+  }];
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: mergedOverview,
+    coinsUi: CoinsUi,
+    growthTaskUi: GrowthTaskUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, selectedLearningTaskCardId: "task-merge" },
+  });
+  assert.match(html, /Keep the full instruction from the task definition/);
+  assert.match(html, /Board latest repair requirement/);
+  assert.match(html, /Board latest focus area/);
+  assert.match(html, /data-learning-growth-previous-submission/);
+  assert.match(html, /\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4/);
+  assert.doesNotMatch(html, /\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539/);
+}
+
 function testGrowthRendererContainsProgramSubsystem() {
   const html = GrowthUi.renderLearningGrowthView({ overview, coinsUi: CoinsUi, programUi: ProgramUi, state: { auth: { isOwner: false } } });
   assert.match(html, /data-learning-growth-board-summary/);
@@ -442,6 +499,7 @@ testExecutorCoinSubsystemHidesOwnerSettlementDetails();
 testGrowthRendererContainsProductShellAndNestedCoins();
 testGrowthBoardShowsEvergreenRewardDecayAndAge();
 testGrowthRendererCanOpenBoardOnlyRevisionTask();
+testGrowthSelectedTaskMergesBoardLatestEvaluation();
 testGrowthRendererContainsProgramSubsystem();
 testGrowthRendererShowsStandaloneTaskCardWhenSelected();
 testGrowthRendererOpensLegacyTodoAsReadOnlyTask();
