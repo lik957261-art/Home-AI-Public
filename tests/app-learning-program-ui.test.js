@@ -291,6 +291,9 @@ function testNativeTaskDetailShowsRewardPolicyWithoutCapForm() {
   });
   assert.match(html, /data-learning-task-reward-policy/);
   assert.match(html, /奖励 130 金币/);
+  assert.match(html, /40%/);
+  assert.match(html, /30%/);
+  assert.match(html, /奖励比例/);
   assert.doesNotMatch(html, /data-learning-task-reward-policy-form="task-native-reward"/);
   assert.doesNotMatch(html, /name="maxCoins"/);
 }

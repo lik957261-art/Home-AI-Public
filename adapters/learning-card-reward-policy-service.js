@@ -25,6 +25,11 @@ function clampInteger(value, min, max) {
   return Math.round(clampNumber(value, min, max));
 }
 
+function percentToCoinAmount(percent, maxCoins) {
+  const safeMax = positiveInteger(maxCoins, DEFAULT_MAX_CARD_COINS);
+  return Math.round(safeMax * clampNumber(percent, 0, 100) / 100);
+}
+
 function positiveInteger(value, fallback = 0) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -233,22 +238,31 @@ function calculateLearningCardReward(input = {}, options = {}) {
   }
 
   const score = scoreFromEvaluation(input);
+  const baseWeight = clampNumber(policy.minCoins, 0, 100);
   const accuracyMax = policy.accuracyBonusMax;
-  const accuracyCoins = Math.round((clampNumber(score, 70, 100) - 70) / 30 * accuracyMax);
+  const accuracyWeight = Math.round((clampNumber(score, 70, 100) - 70) / 30 * accuracyMax);
   const timeliness = timelinessComponent(input, policy);
   const interaction = interactionComponent(input, policy);
-  const raw = minCoins + accuracyCoins + timeliness.coins + interaction.coins;
-  const coinAmount = clampInteger(raw, minCoins, maxCoins);
+  const timelinessWeight = clampNumber(timeliness.coins, 0, 100);
+  const interactionWeight = clampNumber(interaction.coins, 0, 100);
+  const totalWeight = clampNumber(baseWeight + accuracyWeight + timelinessWeight + interactionWeight, 0, 100);
+  const minCoinAmount = percentToCoinAmount(baseWeight, maxCoins);
+  const coinAmount = clampInteger(percentToCoinAmount(totalWeight, maxCoins), minCoinAmount, maxCoins);
   return {
     eligible: true,
     coinAmount,
-    minCoins,
+    minCoins: minCoinAmount,
     maxCoins,
     breakdown: {
-      baseCoins: minCoins,
-      accuracyCoins,
-      timelinessCoins: timeliness.coins,
-      interactionCoins: interaction.coins,
+      baseCoins: percentToCoinAmount(baseWeight, maxCoins),
+      accuracyCoins: percentToCoinAmount(accuracyWeight, maxCoins),
+      timelinessCoins: percentToCoinAmount(timelinessWeight, maxCoins),
+      interactionCoins: percentToCoinAmount(interactionWeight, maxCoins),
+      baseWeightPercent: baseWeight,
+      accuracyWeightPercent: accuracyWeight,
+      timelinessWeightPercent: timelinessWeight,
+      interactionWeightPercent: interactionWeight,
+      totalWeightPercent: totalWeight,
       score: Math.round(score),
       timelinessStatus: timeliness.status,
       interactionStatus: interaction.status,
@@ -259,8 +273,8 @@ function calculateLearningCardReward(input = {}, options = {}) {
 
 function clampLearningCardRewardAmount(value, options = {}) {
   const policy = normalizeLearningCardRewardPolicy(options.rewardPolicy || options);
-  const minCoins = policy.minCoins;
   const maxCoins = policy.maxCoins;
+  const minCoins = percentToCoinAmount(policy.minCoins, maxCoins);
   return clampInteger(value, minCoins, maxCoins);
 }
 

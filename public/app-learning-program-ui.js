@@ -1022,12 +1022,12 @@
       </div>
       ${settlementText ? `<p class="learning-growth-answer-reward-settlement" data-learning-task-reward-settlement>${escapeHtml(settlementText)}</p>` : ""}
       <div class="learning-growth-answer-reward-grid">
-        <span><b>${escapeHtml(String(policy.minCoins))}</b><small>\u901a\u8fc7\u57fa\u7840</small></span>
-        <span><b>${escapeHtml(String(policy.accuracyBonusMax))}</b><small>\u51c6\u786e\u5ea6\u52a0\u6210</small></span>
-        <span><b>${escapeHtml(String(policy.timelinessBonusMax))}</b><small>\u6309\u65f6\u52a0\u6210</small></span>
-        <span><b>${escapeHtml(String(policy.interactionBonusMax))}</b><small>\u4fee\u6539\u4e92\u52a8\u52a0\u6210</small></span>
+        <span><b>${escapeHtml(String(policy.minCoins))}%</b><small>\u901a\u8fc7\u57fa\u7840\u6743\u91cd</small></span>
+        <span><b>${escapeHtml(String(policy.accuracyBonusMax))}%</b><small>\u51c6\u786e\u5ea6\u6743\u91cd</small></span>
+        <span><b>${escapeHtml(String(policy.timelinessBonusMax))}%</b><small>\u6309\u65f6\u6743\u91cd</small></span>
+        <span><b>${escapeHtml(String(policy.interactionBonusMax))}%</b><small>\u4fee\u6539\u4e92\u52a8\u6743\u91cd</small></span>
       </div>
-      <p>\u5956\u52b1\u5728 AI \u8bc4\u4ef7\u901a\u8fc7\u3001\u5b8c\u6210\u5fc5\u8981\u590d\u76d8\u540e\u8fdb\u5165\u7ed3\u7b97\uff1b\u8d85\u51fa\u81ea\u52a8\u7ed3\u7b97\u9608\u503c\u6216\u8bc1\u636e\u4e0d\u8db3\u65f6\u9700\u8981 Owner \u590d\u6838\u3002</p>
+      <p>\u4e0a\u9762\u6570\u5b57\u662f\u5956\u52b1\u6bd4\u4f8b\uff0c\u6700\u7ec8\u91d1\u5e01\u6570\u6309\u672c\u5361\u4e0a\u9650\u6298\u7b97\uff1b\u8bc1\u636e\u4e0d\u8db3\u6216\u8d85\u51fa\u81ea\u52a8\u7ed3\u7b97\u9608\u503c\u65f6\u9700\u8981 Owner \u590d\u6838\u3002</p>
     </section>`;
   }
 

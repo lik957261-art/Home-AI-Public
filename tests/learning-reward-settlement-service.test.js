@@ -262,8 +262,8 @@ function testTaskRewardCapLimitsSettlement() {
   const coinService = makeCoinService();
   const settlement = makeService(repository, coinService).settleEvaluationReward("eval-capped");
   assert.equal(settlement.status, "settled");
-  assert.equal(settlement.coinAmount, 60);
-  assert.equal(coinService.grants[0].coinAmount, 60);
+  assert.equal(settlement.coinAmount, 49);
+  assert.equal(coinService.grants[0].coinAmount, 49);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
