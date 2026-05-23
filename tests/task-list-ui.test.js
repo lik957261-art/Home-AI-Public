@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-contained-v103";
+const CLIENT_VERSION = "20260523-inapp-preview-v104";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -149,14 +149,18 @@ assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-preview-contained-v103/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-preview-contained-v103/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-inapp-preview-v104/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-inapp-preview-v104/);
 assert.equal(manifest.id, "/");
 assert.equal(manifest.start_url, "/?source=pwa");
 assert.equal(manifest.scope, "/");
 assert.doesNotMatch(manifestJson, /\/hermes-mobile\//);
 assert.match(appJs, /function openTaskDocumentLink\(link\)/);
 assert.doesNotMatch(appJs, /window\.open\(href/);
+assert.match(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
+assert.match(appJs, /taskDocumentPreviewFrame/);
+assert.match(stylesCss, /\.task-document-preview-overlay/);
+assert.doesNotMatch(appJs, /if \(kind === "html"\) return url/);
 assert.match(fileViewerHtml, /function renderIframePreview\(label\)/);
 assert.doesNotMatch(fileViewerHtml, /kind === "HTML"[\s\S]{0,80}location\.replace/);
 assert.match(directoryViewerHtml, /viewerChrome: standalone \? "hermes" : "native"/);

@@ -73,7 +73,7 @@ assert.match(taskArtifactHelpersJs, /return "markdown"/);
 assert.match(taskArtifactHelpersJs, /return "html"/);
 assert.match(appJs, /if \(kind === "markdown"\) return "MD"/);
 assert.match(appJs, /if \(kind === "html"\) return "HTML"/);
-assert.match(appJs, /if \(kind === "html"\) return url/);
+assert.doesNotMatch(appJs, /if \(kind === "html"\) return url/);
 assert.match(appJs, /function checkAppUpdate\(reason = "login"\)/);
 assert.match(appJs, /function applyAppUpdateFromBadge\(\)/);
 assert.match(appJs, /function isSelfUpdateUnsupported\(result\)/);

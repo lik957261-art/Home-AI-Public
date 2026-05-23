@@ -564,7 +564,6 @@ function artifactHref(artifact) {
   });
   if (state.selectedWorkspaceId) query.set("workspaceId", state.selectedWorkspaceId);
   if (state.currentThreadId) query.set("threadId", state.currentThreadId);
-  if (kind === "html") return url;
   if (kind === "pdf") return `/pdf-viewer.html?${query.toString()}`;
   return `/file-viewer.html?${query.toString()}`;
 }

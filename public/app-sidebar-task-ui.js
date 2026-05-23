@@ -548,11 +548,45 @@ function isTaskSwipeInteractiveTarget(target) {
   ));
 }
 
+function closeTaskDocumentPreviewOverlay() {
+  const overlay = document.getElementById("taskDocumentPreviewOverlay");
+  const frame = document.getElementById("taskDocumentPreviewFrame");
+  if (frame) frame.src = "about:blank";
+  overlay?.classList.add("hidden");
+  document.body.classList.remove("task-document-preview-open");
+}
+
+function ensureTaskDocumentPreviewOverlay() {
+  let overlay = document.getElementById("taskDocumentPreviewOverlay");
+  if (overlay) return overlay;
+  overlay = document.createElement("div");
+  overlay.id = "taskDocumentPreviewOverlay";
+  overlay.className = "task-document-preview-overlay hidden";
+  overlay.innerHTML = `
+    <div class="task-document-preview-head">
+      <button class="task-document-preview-close" type="button" data-close-task-document-preview aria-label="关闭预览">×</button>
+      <span class="task-document-preview-title">文档预览</span>
+    </div>
+    <iframe id="taskDocumentPreviewFrame" class="task-document-preview-frame" title="文档预览"></iframe>`;
+  document.body.append(overlay);
+  overlay.querySelector("[data-close-task-document-preview]")?.addEventListener("click", closeTaskDocumentPreviewOverlay);
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.classList.contains("hidden")) closeTaskDocumentPreviewOverlay();
+  });
+  return overlay;
+}
+
 function openTaskDocumentLink(link) {
   const href = link?.href || link?.getAttribute?.("href") || "";
   if (!href) return;
   closeTaskSwipeRows(document);
-  window.location.assign(href);
+  const overlay = ensureTaskDocumentPreviewOverlay();
+  const frame = document.getElementById("taskDocumentPreviewFrame");
+  const title = link.getAttribute?.("title") || link.getAttribute?.("aria-label") || "文档预览";
+  overlay.querySelector(".task-document-preview-title").textContent = title;
+  if (frame) frame.src = href;
+  overlay.classList.remove("hidden");
+  document.body.classList.add("task-document-preview-open");
 }
 
 function wireTaskDocumentLinks(root) {
