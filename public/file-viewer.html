@@ -982,6 +982,9 @@
     function originalUrlFor(value) {
       const url = sameOriginUrl(value);
       if (!url) return value || "#";
+      if (url.pathname === "/" || url.pathname === "/hermes-mobile/" || url.pathname === "/index.html") {
+        return "#";
+      }
       if (url.pathname === "/api/files/preview") {
         url.pathname = "/api/files";
       }
@@ -1277,7 +1280,12 @@
       document.getElementById("previewLabel").textContent = label;
       document.getElementById("previewInfo").textContent = "";
       const frame = document.getElementById("preview");
-      frame.src = originalUrlFor(src);
+      const frameSrc = originalUrlFor(src);
+      if (!frameSrc || frameSrc === "#") {
+        setStatus("This document cannot be previewed in place.");
+        return;
+      }
+      frame.src = frameSrc;
       frame.classList.remove("hidden");
       setStatus("");
     }

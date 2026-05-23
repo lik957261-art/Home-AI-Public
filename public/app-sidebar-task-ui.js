@@ -592,7 +592,13 @@ function embeddedTaskDocumentHref(href) {
 
 function openTaskDocumentLink(link) {
   const href = link?.href || link?.getAttribute?.("href") || "";
-  if (!href) return;
+  if (!href || href === "#") return;
+  try {
+    const url = new URL(href, window.location.origin);
+    if (url.origin === window.location.origin && (url.pathname === "/" || url.pathname === "/hermes-mobile/" || url.pathname === "/index.html")) return;
+  } catch (_) {
+    return;
+  }
   closeTaskSwipeRows(document);
   const overlay = ensureTaskDocumentPreviewOverlay();
   const frame = document.getElementById("taskDocumentPreviewFrame");

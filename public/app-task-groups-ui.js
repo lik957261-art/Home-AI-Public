@@ -553,6 +553,12 @@ function viewerChromeModeForCurrentShell() {
 function artifactHref(artifact) {
   const url = String(artifact?.url || "#");
   if (!url || url === "#") return url;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (parsed.origin === window.location.origin && (parsed.pathname === "/" || parsed.pathname === "/hermes-mobile/" || parsed.pathname === "/index.html")) return "#";
+  } catch (_) {
+    return "#";
+  }
   const kind = artifactKind(artifact);
   const query = new URLSearchParams({
     src: url,

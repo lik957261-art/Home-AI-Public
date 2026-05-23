@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-embedded-v105";
+const CLIENT_VERSION = "20260523-preview-url-guard-v106";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -159,6 +159,7 @@ assert.match(appJs, /function openTaskDocumentLink\(link\)/);
 assert.doesNotMatch(appJs, /window\.open\(href/);
 assert.match(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
 assert.match(appJs, /taskDocumentPreviewFrame/);
+assert.match(appJs, /url\.pathname === "\/" \|\| url\.pathname === "\/hermes-mobile\/" \|\| url\.pathname === "\/index\.html"/);
 assert.match(appJs, /function embeddedTaskDocumentHref\(href\)/);
 assert.match(appJs, /url\.searchParams\.set\("embedded", "1"\)/);
 assert.match(appJs, /url\.searchParams\.set\("viewerChrome", "embedded"\)/);
@@ -1335,6 +1336,7 @@ assert.match(fileViewerHtml, /const viewerChrome = params\.get\("viewerChrome"\)
 assert.match(fileViewerHtml, /const embeddedViewer = params\.get\("embedded"\) === "1" \|\| viewerChrome === "embedded"/);
 assert.match(fileViewerHtml, /if \(embeddedViewer\) return false/);
 assert.match(fileViewerHtml, /body\.embedded-viewer \.shell/);
+assert.match(fileViewerHtml, /This document cannot be previewed in place\./);
 assert.match(fileViewerHtml, /body\.native-browser-chrome \.viewer-more-button/);
 assert.match(pdfViewerHtml, /function shouldShowHermesViewerChrome\(\)/);
 assert.match(pdfViewerHtml, /const viewerChrome = params\.get\("viewerChrome"\) \|\| ""/);
