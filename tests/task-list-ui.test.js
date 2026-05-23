@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-directory-chip-ui-v134";
+const CLIENT_VERSION = "20260524-preview-share-menu-v135";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -170,6 +170,16 @@ assert.match(stylesCss, /\.task-image-preview-overlay/);
 assert.match(appJs, /function openMarkdownPreviewOverlay\(link\)/);
 assert.match(appJs, /previews\.isMarkdownPreviewLink\?\.\(link\) && previews\.openMarkdownPreviewOverlay\?\.\(link\)/);
 assert.match(stylesCss, /\.task-markdown-preview-overlay/);
+assert.match(appJs, /data-preview-action="weixin"[\s\S]*?分享到微信/);
+assert.match(appJs, /data-preview-action="group"[\s\S]*?分享到群/);
+assert.match(appJs, /data-preview-action="md"[\s\S]*?Markdown 分享/);
+assert.match(appJs, /data-preview-action="html"[\s\S]*?转成 HTML 分享/);
+assert.match(appJs, /data-preview-action="word"[\s\S]*?转成 Word 分享/);
+assert.match(appJs, /data-preview-action="pdf"[\s\S]*?转成 PDF 分享/);
+assert.match(appJs, /function forwardMarkdownToGroup\(markdown, title\)/);
+assert.match(appJs, /function forwardFileLinkToGroup\(sourceUrl, title\)/);
+assert.match(appJs, /\/api\/weixin\/forward-file/);
+assert.match(stylesCss, /\.task-preview-more-menu/);
 assert.match(appJs, /const PREVIEW_HISTORY_KEY = "__hermesTaskPreview"/);
 assert.match(appJs, /global\.addEventListener\("popstate"/);
 assert.match(appJs, /global\.history\.pushState\(nextState/);
