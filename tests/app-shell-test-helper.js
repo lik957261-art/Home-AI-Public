@@ -12,6 +12,7 @@ const appSplitModuleFiles = Object.freeze([
   "app-composer-context-ui.js",
   "app-run-progress-ui.js",
   "app-navigation-search-ui.js",
+  "app-task-preview-ui.js",
   "app-sidebar-task-ui.js",
   "app-message-skill-ui.js",
   "app-message-actions-ui.js",

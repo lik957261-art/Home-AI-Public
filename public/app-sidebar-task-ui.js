@@ -548,60 +548,13 @@ function isTaskSwipeInteractiveTarget(target) {
   ));
 }
 
-function isTaskImagePreviewLink(link) {
-  const mime = String(link?.dataset?.artifactMime || "").toLowerCase();
-  if (mime.startsWith("image/")) return true;
-  const href = String(link?.href || link?.getAttribute?.("href") || "").toLowerCase();
-  return /\.(png|jpe?g|gif|webp|avif|bmp|heic|heif)(?:[?#]|$)/i.test(href);
-}
-
-function closeTaskImagePreviewOverlay() {
-  const overlay = document.getElementById("taskImagePreviewOverlay");
-  if (!overlay) return;
-  overlay.remove();
-  document.body.classList.remove("task-image-preview-open");
-}
-
-function openTaskImagePreviewOverlay(link) {
-  const href = link?.href || link?.getAttribute?.("href") || "";
-  if (!href) return false;
-  closeTaskImagePreviewOverlay();
-  const overlay = document.createElement("div");
-  overlay.id = "taskImagePreviewOverlay";
-  overlay.className = "task-image-preview-overlay";
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  const title = String(link?.dataset?.artifactName || link?.getAttribute?.("aria-label") || "图片预览").trim();
-  overlay.innerHTML = `
-    <button class="task-image-preview-close" type="button" aria-label="关闭预览">×</button>
-    <div class="task-image-preview-stage">
-      <img class="task-image-preview-image" alt="${escapeHtml(title)}">
-    </div>
-  `;
-  const image = overlay.querySelector(".task-image-preview-image");
-  image.src = href;
-  image.decoding = "async";
-  overlay.addEventListener("click", (event) => {
-    if (event.target === overlay) closeTaskImagePreviewOverlay();
-  });
-  const closeButton = overlay.querySelector(".task-image-preview-close");
-  ["pointerdown", "touchstart", "click"].forEach((eventName) => {
-    closeButton.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      closeTaskImagePreviewOverlay();
-    }, { passive: false });
-  });
-  document.body.appendChild(overlay);
-  document.body.classList.add("task-image-preview-open");
-  return true;
-}
-
 function openTaskDocumentLink(link) {
   const href = link?.href || link?.getAttribute?.("href") || "";
   if (!href) return;
   closeTaskSwipeRows(document);
-  if (isTaskImagePreviewLink(link) && openTaskImagePreviewOverlay(link)) return;
+  const previews = window.TaskDocumentPreviewUi || {};
+  if (previews.isImagePreviewLink?.(link) && previews.openImagePreviewOverlay?.(link)) return;
+  if (previews.isMarkdownPreviewLink?.(link) && previews.openMarkdownPreviewOverlay?.(link)) return;
   if (isMobileLayout()) {
     window.location.assign(href);
     return;
@@ -617,10 +570,7 @@ function wireTaskDocumentLinks(root) {
     let lastTouchOpen = 0;
     link.addEventListener("touchstart", (event) => {
       if (!event.touches?.length) return;
-      touchStart = {
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY,
-      };
+      touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
     }, { passive: true });
     link.addEventListener("touchend", (event) => {
       const touch = event.changedTouches?.[0];

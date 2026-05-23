@@ -14,7 +14,7 @@
       --link: #0969da;
       --viewer-font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif;
       --hermes-markdown-font-family: var(--viewer-font-family);
-      --viewer-markdown-font-scale: 1.32;
+      --viewer-markdown-font-scale: 1.18;
     }
 
     * {
@@ -348,7 +348,7 @@
         ? markdownRenderer.renderMarkdownDocument
         : ((value) => `<pre>${String(value || "").replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))}</pre>`);
       previewEl.innerHTML = render(text, {
-        fontScale: "xlarge",
+        fontScale: "large",
         linkTarget: "_blank",
         taskListCompatibility: true,
       });

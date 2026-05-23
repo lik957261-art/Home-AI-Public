@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-image-preview-overlay-v125";
+const CLIENT_VERSION = "20260523-inline-md-preview-v126";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -163,15 +163,18 @@ assert.doesNotMatch(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
 assert.doesNotMatch(appJs, /taskDocumentPreviewFrame/);
 assert.doesNotMatch(appJs, /task-document-preview-overlay/);
 assert.doesNotMatch(stylesCss, /\.task-document-preview-overlay/);
-assert.match(appJs, /function openTaskImagePreviewOverlay\(link\)/);
-assert.match(appJs, /isTaskImagePreviewLink\(link\) && openTaskImagePreviewOverlay\(link\)/);
+assert.match(appJs, /function openImagePreviewOverlay\(link\)/);
+assert.match(appJs, /previews\.isImagePreviewLink\?\.\(link\) && previews\.openImagePreviewOverlay\?\.\(link\)/);
 assert.match(appJs, /data-artifact-mime="\$\{escapeHtml\(artifact\?\.mime \|\| ""\)\}"/);
 assert.match(stylesCss, /\.task-image-preview-overlay/);
+assert.match(appJs, /function openMarkdownPreviewOverlay\(link\)/);
+assert.match(appJs, /previews\.isMarkdownPreviewLink\?\.\(link\) && previews\.openMarkdownPreviewOverlay\?\.\(link\)/);
+assert.match(stylesCss, /\.task-markdown-preview-overlay/);
 assert.match(appJs, /kind === "html" \|\| mime\.startsWith\("image\/"\)/);
 assert.match(appJs, /if \(kind === "markdown"\) return `\/markdown-viewer\.html\?\$\{query\.toString\(\)\}`/);
 assert.match(markdownViewerHtml, /markdownRenderer\.renderMarkdownDocument/);
-assert.match(markdownViewerHtml, /--viewer-markdown-font-scale: 1\.32/);
-assert.match(markdownViewerHtml, /fontScale: "xlarge"/);
+assert.match(markdownViewerHtml, /--viewer-markdown-font-scale: 1\.18/);
+assert.match(markdownViewerHtml, /fontScale: "large"/);
 assert.match(markdownViewerHtml, /function collapseBrowserChrome\(\)/);
 assert.match(markdownViewerHtml, /taskListCompatibility: true/);
 assert.doesNotMatch(markdownViewerHtml, /viewer-more-button|viewer-done-button|topbar/);

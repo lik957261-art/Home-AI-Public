@@ -2,6 +2,11 @@
 
 const assert = require("node:assert/strict");
 const ProgramUi = require("../public/app-learning-program-ui");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const repoRoot = path.resolve(__dirname, "..");
+const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
 const programs = {
   programs: [{
@@ -363,6 +368,9 @@ function testNativeMathTaskRendersStructuredQuestionInputs() {
   assert.match(html, /data-learning-native-growth-question="q3"/);
   assert.match(html, /data-learning-native-growth-question-response="q3"/);
   assert.doesNotMatch(html, /data-learning-native-growth-submission-input="task-native-math"/);
+  assert.match(stylesCss, /\.learning-native-growth-questions \{[\s\S]*?min-width: 0;[\s\S]*?max-width: 100%;/);
+  assert.match(stylesCss, /\.learning-native-growth-question \{[\s\S]*?min-width: 0;[\s\S]*?max-width: 100%;/);
+  assert.match(stylesCss, /\.learning-native-growth-choice span \{[\s\S]*?overflow-wrap: anywhere;/);
   assert.doesNotMatch(html, /answerKey|correctAnswer|rawTranscript|pushEndpoint|apiKey/);
 }
 
