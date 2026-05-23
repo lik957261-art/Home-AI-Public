@@ -129,6 +129,12 @@
       display: none !important;
     }
 
+    body.embedded-viewer .pdf-scroll,
+    body.embedded-viewer .pages {
+      min-height: 100dvh;
+      background: #050607;
+    }
+
     .fallback {
       min-height: 100dvh;
       display: grid;
@@ -185,6 +191,7 @@
     const key = localStorage.getItem("hermesWebKey") || "";
     const returnUrl = params.get("return") || "";
     const viewerChrome = params.get("viewerChrome") || "";
+    const embeddedViewer = params.get("embedded") === "1" || viewerChrome === "embedded";
     let pdfDocument = null;
     let renderSerial = 0;
     let resizeTimer = 0;
@@ -196,6 +203,7 @@
     const isAndroid = /Android/i.test(navigator.userAgent || "");
 
     function shouldShowHermesViewerChrome() {
+      if (embeddedViewer) return false;
       if (viewerChrome) return viewerChrome === "hermes";
       return Boolean(
         window.matchMedia?.("(display-mode: standalone)")?.matches
@@ -203,6 +211,7 @@
       );
     }
 
+    document.body.classList.toggle("embedded-viewer", embeddedViewer);
     document.body.classList.toggle("native-browser-chrome", !shouldShowHermesViewerChrome());
 
     function setStatus(message) {

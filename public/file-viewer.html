@@ -662,6 +662,15 @@
       display: none !important;
     }
 
+    body.embedded-viewer .shell,
+    body.embedded-viewer .card {
+      min-height: 100dvh;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
     .image-stage {
       display: grid;
       place-items: center;
@@ -810,6 +819,7 @@
     const size = Number(params.get("size") || 0);
     const returnUrl = params.get("return") || "";
     const viewerChrome = params.get("viewerChrome") || "";
+    const embeddedViewer = params.get("embedded") === "1" || viewerChrome === "embedded";
     const previewStatus = document.getElementById("previewStatus");
     const toast = document.getElementById("toast");
     let toastTimer = 0;
@@ -889,6 +899,7 @@
     applyViewerPreferences();
 
     function shouldShowHermesViewerChrome() {
+      if (embeddedViewer) return false;
       if (viewerChrome) return viewerChrome === "hermes";
       return Boolean(
         window.matchMedia?.("(display-mode: standalone)")?.matches
@@ -896,6 +907,7 @@
       );
     }
 
+    document.body.classList.toggle("embedded-viewer", embeddedViewer);
     document.body.classList.toggle("native-browser-chrome", !shouldShowHermesViewerChrome());
 
     function formatBytes(bytes) {

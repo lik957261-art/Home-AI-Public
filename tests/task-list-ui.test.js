@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-inapp-preview-v104";
+const CLIENT_VERSION = "20260523-preview-embedded-v105";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -149,8 +149,8 @@ assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-inapp-preview-v104/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-inapp-preview-v104/);
+assert.match(indexHtml, new RegExp(`app-codex-mux-ui\\.js\\?v=${CLIENT_VERSION}`));
+assert.match(serviceWorkerJs, new RegExp(`app-codex-mux-ui\\.js\\?v=${CLIENT_VERSION}`));
 assert.equal(manifest.id, "/");
 assert.equal(manifest.start_url, "/?source=pwa");
 assert.equal(manifest.scope, "/");
@@ -159,6 +159,9 @@ assert.match(appJs, /function openTaskDocumentLink\(link\)/);
 assert.doesNotMatch(appJs, /window\.open\(href/);
 assert.match(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
 assert.match(appJs, /taskDocumentPreviewFrame/);
+assert.match(appJs, /function embeddedTaskDocumentHref\(href\)/);
+assert.match(appJs, /url\.searchParams\.set\("embedded", "1"\)/);
+assert.match(appJs, /url\.searchParams\.set\("viewerChrome", "embedded"\)/);
 assert.match(stylesCss, /\.task-document-preview-overlay/);
 assert.doesNotMatch(appJs, /if \(kind === "html"\) return url/);
 assert.match(fileViewerHtml, /function renderIframePreview\(label\)/);
@@ -1329,9 +1332,14 @@ assert.match(appJs, /function viewerChromeModeForCurrentShell\(\)/);
 assert.match(appJs, /viewerChrome: viewerChromeModeForCurrentShell\(\)/);
 assert.match(fileViewerHtml, /function shouldShowHermesViewerChrome\(\)/);
 assert.match(fileViewerHtml, /const viewerChrome = params\.get\("viewerChrome"\) \|\| ""/);
+assert.match(fileViewerHtml, /const embeddedViewer = params\.get\("embedded"\) === "1" \|\| viewerChrome === "embedded"/);
+assert.match(fileViewerHtml, /if \(embeddedViewer\) return false/);
+assert.match(fileViewerHtml, /body\.embedded-viewer \.shell/);
 assert.match(fileViewerHtml, /body\.native-browser-chrome \.viewer-more-button/);
 assert.match(pdfViewerHtml, /function shouldShowHermesViewerChrome\(\)/);
 assert.match(pdfViewerHtml, /const viewerChrome = params\.get\("viewerChrome"\) \|\| ""/);
+assert.match(pdfViewerHtml, /const embeddedViewer = params\.get\("embedded"\) === "1" \|\| viewerChrome === "embedded"/);
+assert.match(pdfViewerHtml, /if \(embeddedViewer\) return false/);
 assert.match(pdfViewerHtml, /body\.native-browser-chrome \.back-button/);
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);

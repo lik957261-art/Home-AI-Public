@@ -576,6 +576,20 @@ function ensureTaskDocumentPreviewOverlay() {
   return overlay;
 }
 
+function embeddedTaskDocumentHref(href) {
+  try {
+    const url = new URL(href, window.location.origin);
+    if (url.origin === window.location.origin && (url.pathname === "/file-viewer.html" || url.pathname === "/pdf-viewer.html")) {
+      url.searchParams.set("embedded", "1");
+      url.searchParams.set("viewerChrome", "embedded");
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+  } catch (_) {
+    // Keep the original href when URL parsing is not available for a custom scheme.
+  }
+  return href;
+}
+
 function openTaskDocumentLink(link) {
   const href = link?.href || link?.getAttribute?.("href") || "";
   if (!href) return;
@@ -584,7 +598,7 @@ function openTaskDocumentLink(link) {
   const frame = document.getElementById("taskDocumentPreviewFrame");
   const title = link.getAttribute?.("title") || link.getAttribute?.("aria-label") || "文档预览";
   overlay.querySelector(".task-document-preview-title").textContent = title;
-  if (frame) frame.src = href;
+  if (frame) frame.src = embeddedTaskDocumentHref(href);
   overlay.classList.remove("hidden");
   document.body.classList.add("task-document-preview-open");
 }
