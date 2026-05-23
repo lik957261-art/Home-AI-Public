@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   createLearningGrowthSubmissionService,
   resolveSubmissionGuard,
+  submissionAttemptPolicy,
   validateSubmissionText,
 } = require("../adapters/learning-growth-submission-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
@@ -1193,6 +1194,79 @@ async function testLockedSequenceTaskRejectsSubmissionBeforeModelWork() {
   }
 }
 
+async function testOwnerManualPassRecordsEvaluationAndSettlementPath() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({
+    dbPath: path.join(root, "learning-growth.sqlite3"),
+  });
+  try {
+    seedGrowthProgram(repository);
+    const programService = createLearningProgramService({ repository });
+    const growthProgramService = Object.assign({}, programService, {
+      settleEvaluationReward(evaluationId, input) {
+        return { rewardSettlementId: "settle-manual", evaluationId, status: "settled", input };
+      },
+    });
+    const mutations = [];
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: growthProgramService,
+      kanbanCardProvider: {
+        async listCards() {
+          return { ok: true, data: [{ id: "t_growth", workspaceId: "weixin_stephen", kanbanCaseTemplate: "learning-growth" }] };
+        },
+        async mutateCard(input) {
+          mutations.push(input);
+          return { ok: true, action: input.action };
+        },
+      },
+    });
+    const result = await service.manualPassTask({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-growth",
+      author: "owner",
+      reason: "summary only manual pass",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "completed");
+    assert.equal(result.evaluation.completionDecision, "owner_manual_pass");
+    assert.equal(result.rewardSettlement.status, "settled");
+    assert.equal(programService.listEvaluations({ taskCardId: "task-growth", limit: 1 })[0].verification.method, "owner_manual_pass");
+    assert.equal(mutations.some((item) => item.action === "complete"), true);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function testSubmissionAttemptPolicyRejectsRapidAndTinyRepeatSubmissions() {
+  const previous = {
+    submittedAt: "2026-05-23T09:00:00.000Z",
+    displayText: [
+      "First, I wrote a full correction with the calculation and the reason.",
+      "Then I checked the previous mistake and explained the new method.",
+      "Finally, I wrote the next practice point for the same problem type.",
+    ].join(" "),
+  };
+  const rapid = submissionAttemptPolicy({
+    records: [previous],
+    nowMs: Date.parse("2026-05-23T09:03:00.000Z"),
+    text: previous.displayText + " One more word.",
+    minIntervalMs: 5 * 60 * 1000,
+  });
+  assert.equal(rapid.canSubmit, false);
+  assert.equal(rapid.reason, "submission_cooldown");
+  assert.equal(rapid.seriousSubmission, false);
+
+  const tinyChange = submissionAttemptPolicy({
+    records: [previous],
+    nowMs: Date.parse("2026-05-23T09:08:00.000Z"),
+    text: previous.displayText + " ok",
+    minIntervalMs: 5 * 60 * 1000,
+  });
+  assert.equal(tinyChange.canSubmit, false);
+  assert.equal(tinyChange.reason, "submission_too_similar");
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createLearningGrowthSubmissionService({ kanbanCardProvider: { listCards() {} } }),
@@ -1217,6 +1291,8 @@ function testDependencyValidation() {
   await testNativeSpeakingSubmissionRequiresServerTranscription();
   await testCompletedNativeTaskPreparesNextSequenceTask();
   await testLockedSequenceTaskRejectsSubmissionBeforeModelWork();
+  await testOwnerManualPassRecordsEvaluationAndSettlementPath();
+  testSubmissionAttemptPolicyRejectsRapidAndTinyRepeatSubmissions();
   console.log("learning growth submission service tests passed");
 })().catch((err) => {
   console.error(err);

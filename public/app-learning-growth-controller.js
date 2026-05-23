@@ -466,14 +466,14 @@ async function decideLearningParentReviewRequest(reviewRequestId, decision) {
 
 async function settleLearningEvaluationReward(evaluationId) {
   if (!evaluationId) return;
-  await api(`/api/learning/evaluations/${encodeURIComponent(evaluationId)}/reward-settlement`, {
-    method: "POST",
-    body: JSON.stringify({ reason: "owner_learning_growth_settlement" }),
-  });
-  showPushToast("\u5b66\u4e60\u5956\u52b1\u7ed3\u7b97\u5df2\u5904\u7406", "success");
-  await loadLearningCoins({ limit: 30 });
+  await api(`/api/learning/evaluations/${encodeURIComponent(evaluationId)}/reward-settlement`, { method: "POST", body: JSON.stringify({ reason: "owner_learning_growth_settlement" }) });
+  showPushToast("\u5b66\u4e60\u5956\u52b1\u7ed3\u7b97\u5df2\u5904\u7406", "success"); await loadLearningCoins({ limit: 30 });
 }
-
+async function manualPassLearningGrowthTask(taskCardId) {
+  const id = String(taskCardId || "").trim();
+  if (!id || (window.confirm && !window.confirm("\u786e\u8ba4\u624b\u5de5\u901a\u8fc7\u8fd9\u5f20\u6210\u957f\u5361\u7247\uff1f\u7cfb\u7edf\u4f1a\u8bb0\u5f55 Owner \u624b\u5de5\u901a\u8fc7\uff0c\u5e76\u8fdb\u5165\u5956\u52b1\u7ed3\u7b97\u901a\u9053\u3002"))) return;
+  await api(`/api/learning/task-cards/${encodeURIComponent(id)}/manual-pass`, { method: "POST", body: JSON.stringify(Object.assign(learningLearnerBody(), { reason: "owner_manual_pass_from_task_menu" })) }); delete (state.learningNativeGrowthAnswerEditing = state.learningNativeGrowthAnswerEditing || {})[id]; showPushToast("\u5df2\u624b\u5de5\u901a\u8fc7\u5e76\u5904\u7406\u7ed3\u7b97", "success"); await loadLearningCoins({ limit: 80 });
+}
 async function submitLearningRewardForm(event) {
   event?.preventDefault?.();
   const title = $("learningRewardTitle")?.value?.trim() || "";
@@ -552,8 +552,9 @@ function wireLearningCoinsView() {
   const root = $("conversation");
   if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks(root);
   if (root && !root.dataset.learningGrowthOpenDelegated) { root.dataset.learningGrowthOpenDelegated = "1"; root.addEventListener("click", (event) => {
-    const growth = event.target?.closest?.("[data-learning-open-growth-task]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]"), edit = event.target?.closest?.("[data-learning-native-growth-edit-answer]");
+    const growth = event.target?.closest?.("[data-learning-open-growth-task]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]"), edit = event.target?.closest?.("[data-learning-native-growth-edit-answer]"), manualPass = event.target?.closest?.("[data-learning-growth-manual-pass]");
     if (event.target?.closest?.("[data-directory-path-open]")) return;
+    if (manualPass && root.contains(manualPass)) { event.preventDefault(); event.stopPropagation(); manualPassLearningGrowthTask(manualPass.dataset.learningGrowthManualPass).catch(showError); return; }
     if (edit && root.contains(edit)) { event.preventDefault(); event.stopPropagation(); const taskCardId = String(edit.dataset.learningNativeGrowthEditAnswer || "").trim(); if (taskCardId) { state.learningNativeGrowthAnswerEditing = state.learningNativeGrowthAnswerEditing || {}; state.learningNativeGrowthAnswerEditing[taskCardId] = true; renderLearningCoinsView(); } return; }
     if (growth && root.contains(growth)) { event.preventDefault(); event.stopPropagation(); openLearningGrowthTask(growth.dataset.learningOpenGrowthTask, growth.dataset.workspaceId).catch(showError); return; }
     if (kanban && root.contains(kanban)) { event.preventDefault(); event.stopPropagation(); openLearningKanbanCard(kanban.dataset.learningOpenKanbanCard, kanban.dataset.workspaceId).catch(showError); }

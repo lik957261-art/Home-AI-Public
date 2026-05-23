@@ -1002,6 +1002,32 @@
     </section>`;
   }
 
+  function renderNativeGrowthInstruction(task = {}, instruction = "", options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!instruction) return "";
+    if (task.latestEvaluation) {
+      return `<details class="learning-growth-answer-instruction learning-growth-answer-instruction-collapsed" data-learning-growth-task-prompt-collapsed>
+        <summary>\u67e5\u770b\u9898\u76ee\u8981\u6c42</summary>
+        <p>${escapeHtml(instruction)}</p>
+      </details>`;
+    }
+    return `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>`;
+  }
+
+  function renderNativeGrowthOwnerMenu(task = {}, options = {}) {
+    if (!isOwner(options)) return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    const status = String(task?.status || "").toLowerCase();
+    if (!taskCardId || ["completed", "archived", "blocked"].includes(status)) return "";
+    return `<details class="learning-growth-owner-menu" data-learning-growth-owner-menu>
+      <summary aria-label="\u66f4\u591a\u64cd\u4f5c" title="\u66f4\u591a\u64cd\u4f5c">&#8942;</summary>
+      <div class="learning-growth-owner-menu-panel">
+        <button type="button" data-learning-growth-manual-pass="${escapeHtml(taskCardId)}">\u624b\u5de5\u901a\u8fc7</button>
+      </div>
+    </details>`;
+  }
+
   function renderNativeGrowthTaskDetail(task = {}, data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(task?.taskCardId || "");
@@ -1028,13 +1054,16 @@
           <span>\u7b54\u9898\u5361</span>
           <h3>${escapeHtml(task.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</h3>
         </div>
-        <strong>${escapeHtml(taskStatusText(task.status, options))}</strong>
+        <div class="learning-growth-answer-card-status">
+          <strong>${escapeHtml(taskStatusText(task.status, options))}</strong>
+          ${renderNativeGrowthOwnerMenu(taskForForm, options)}
+        </div>
       </div>
       ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
-      ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
       ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
       ${latestEvaluation ? `<section class="learning-growth-answer-feedback">${renderNativeGrowthFeedbackHead(taskForForm, latestEvaluation, options)}${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}${renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options)}</section>` : ""}
+      ${renderNativeGrowthInstruction(taskForForm, instruction, options)}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;
   }

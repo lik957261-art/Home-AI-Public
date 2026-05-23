@@ -458,6 +458,8 @@ function testReviewedNativeMathTaskCollapsesQuestionsUntilEdit() {
   assert.match(html, /learning-growth-board-artifact-icon/);
   assert.match(html, /data-directory-path-open/);
   assert.match(html, /data-directory-path="C:\\reports\\task-native-math-review"/);
+  assert.match(html, /data-learning-growth-task-prompt-collapsed/);
+  assert.match(html, /\u67e5\u770b\u9898\u76ee\u8981\u6c42/);
   assert.match(html, /data-learning-native-growth-revision-collapsed="task-native-math-review"/);
   assert.match(html, /data-learning-native-growth-edit-answer="task-native-math-review"/);
   assert.match(html, /\u786e\u5b9a\u5206\u6570 68\/100/);
@@ -471,6 +473,16 @@ function testReviewedNativeMathTaskCollapsesQuestionsUntilEdit() {
   assert.match(html, /Check each answer with one equation/);
   assert.ok(html.indexOf("data-learning-growth-feedback-detail") > html.indexOf("learning-growth-answer-feedback"));
   assert.doesNotMatch(html, /data-learning-native-growth-question="q1"/);
+}
+
+function testOwnerReviewedNativeMathTaskShowsManualPassMenu() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail(reviewedNativeMathTask(), { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+    state: { auth: { isOwner: true } },
+    formatTime: () => "05/23 17:30",
+  });
+  assert.match(html, /data-learning-growth-owner-menu/);
+  assert.match(html, /data-learning-growth-manual-pass="task-native-math-review"/);
+  assert.match(html, /\u624b\u5de5\u901a\u8fc7/);
 }
 
 function testReviewedNativeMathTaskTreatsEmptySourceAsNativeGrowth() {
@@ -552,6 +564,7 @@ testNativeTaskDetailShowsRewardPolicyWithoutCapForm();
 testNativeSpeakingTaskRendersAudioRecorder();
 testNativeMathTaskRendersStructuredQuestionInputs();
 testReviewedNativeMathTaskCollapsesQuestionsUntilEdit();
+testOwnerReviewedNativeMathTaskShowsManualPassMenu();
 testReviewedNativeMathTaskTreatsEmptySourceAsNativeGrowth();
 testReviewedNativeMathTaskExpandsAfterEditClickState();
 testNativeTaskReflectionStateRendersReflectionForm();

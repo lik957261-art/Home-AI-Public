@@ -19,6 +19,7 @@ const {
 } = require("./learning-growth-task-interaction-state-service");
 
 const FINAL_MODEL_SCORE_PASS_FLOOR = 80;
+const THREE_SERIOUS_ATTEMPT_COMPLETION_FLOOR = 3;
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -278,9 +279,21 @@ function hasHardSafetyBlock(deterministic = {}) {
   return asArray(deterministic.revisionRequirements).some((item) => /too short|at least|short/i.test(item));
 }
 
-function modelFinalPass(raw = {}, stage = "final", score = 0, safetyBlock = false) {
+function completionDecisionText(value) {
+  return cleanString(value).toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function modelFinalPass(raw = {}, stage = "final", score = 0, safetyBlock = false, input = {}) {
   if (stage !== "final" || safetyBlock) return false;
   if (Boolean(raw.passed) && score >= 60) return true;
+  const decision = completionDecisionText(raw.completionDecision || raw.completion_decision);
+  if (["complete_current_card", "card_completed", "completed", "pass_current_card"].includes(decision)) return true;
+  const policy = input.completionPolicy || {};
+  if (policy.threeSeriousSubmissionsComplete === true
+    && Number(input.attemptNo || policy.attemptNo || 0) >= THREE_SERIOUS_ATTEMPT_COMPLETION_FLOOR
+    && policy.seriousSubmission !== false) {
+    return true;
+  }
   return score >= FINAL_MODEL_SCORE_PASS_FLOOR;
 }
 
@@ -312,6 +325,18 @@ function modelEvaluationPrompt(input = {}, deterministic = {}) {
       revisionRequirements: asArray(deterministic.revisionRequirements).slice(0, 8),
       hardBlock: asArray(deterministic.revisionRequirements).some((item) => /too short|at least|short/i.test(item)),
     },
+    attemptContext: {
+      attemptNo: Number(input.attemptNo || 1) || 1,
+      previousAttempts: Math.max(0, Number(input.attemptNo || 1) - 1),
+      stage,
+      completionPolicy: input.completionPolicy || {},
+      previousEvaluation: input.previousEvaluation ? {
+        status: cleanString(input.previousEvaluation.status),
+        score: Number(input.previousEvaluation.score || 0),
+        summary: compactText(input.previousEvaluation.summary, 360),
+        remainingWeaknesses: asArray(input.previousEvaluation.remainingWeaknesses || input.previousEvaluation.revisionRequirements).slice(0, 6),
+      } : null,
+    },
     coachingContract: {
       rubricDimensions: contract.rubricDimensions,
       requiredEvidence: contract.requiredEvidence,
@@ -326,10 +351,13 @@ function modelEvaluationPrompt(input = {}, deterministic = {}) {
     "Do not copy the full learner submission. Evidence phrases must be short, at most 12 words each.",
     "Do not include raw prompts, answer keys, hidden rubrics, local paths, endpoints, secrets, full transcripts, or full learner history.",
     "For draft stage, status must be draft_feedback and passed must be false.",
-    "For final stage, decide completed vs needs_revision from the task, submission, and rubric. Require visible evidence and repair, not a completion note.",
+    "For final stage, decide completed vs needs_revision from the task, submission, rubric, and attempt context. Require visible evidence and repair, not a completion note.",
+    "For the second and later serious attempts, explicitly compare whether the learner repaired earlier feedback. Reward visible improvement with extra credit and encouragement even if mastery is still incomplete.",
+    "Do not trap a learner on one card forever. If the current answer is serious but still below mastery, put remaining weaknesses into remainingWeaknesses/nextPractice for a future similar card.",
+    "If attemptContext.completionPolicy.threeSeriousSubmissionsComplete is true and this is the third serious final attempt with no hard safety block, set completionDecision=\"complete_current_card\" even if score remains below 80; keep score honest.",
     "For final stage, if the score is 80 or higher and there is no hard safety block, set passed=true; route remaining consolidation into spoken reflection instead of another rewrite.",
     "Use Chinese for explanations; short corrected English examples are allowed.",
-    "Return schema: {\"score\":0-100,\"passed\":true,\"status\":\"completed|needs_revision|draft_feedback\",\"confidence\":0.0-1.0,\"summary\":\"...\",\"revisionRequirements\":[\"...\"],\"strengths\":[\"...\"],\"focusAreas\":[\"...\"],\"criterionFeedback\":[{\"dimension\":\"...\",\"observation\":\"...\",\"action\":\"...\"}],\"sentenceFeedback\":[{\"evidence\":\"short phrase\",\"issue\":\"...\",\"whyItMatters\":\"...\",\"fix\":\"...\",\"example\":\"...\"}],\"rewriteChecklist\":[\"...\"],\"reflectionPrompts\":[\"...\"],\"nextPractice\":\"...\",\"parentNote\":\"...\"}",
+    "Return schema: {\"score\":0-100,\"passed\":true,\"completionDecision\":\"complete_current_card|needs_more_revision|draft_feedback\",\"status\":\"completed|needs_revision|draft_feedback\",\"confidence\":0.0-1.0,\"summary\":\"...\",\"remainingWeaknesses\":[\"...\"],\"revisionRequirements\":[\"...\"],\"strengths\":[\"...\"],\"focusAreas\":[\"...\"],\"criterionFeedback\":[{\"dimension\":\"...\",\"observation\":\"...\",\"action\":\"...\"}],\"sentenceFeedback\":[{\"evidence\":\"short phrase\",\"issue\":\"...\",\"whyItMatters\":\"...\",\"fix\":\"...\",\"example\":\"...\"}],\"rewriteChecklist\":[\"...\"],\"reflectionPrompts\":[\"...\"],\"nextPractice\":\"...\",\"parentNote\":\"...\"}",
     JSON.stringify(payload),
   ].join("\n\n");
 }
@@ -343,7 +371,10 @@ function normalizeModelEvaluation(parsed = {}, deterministic = {}, input = {}, o
   const score = clampScore(raw.score ?? deterministic.score);
   const confidence = Math.max(0, Math.min(1, Number(raw.confidence ?? deterministic.confidence ?? 0.72) || 0.72));
   const safetyBlock = hasHardSafetyBlock(deterministic);
-  const passed = modelFinalPass(raw, stage, score, safetyBlock);
+  const passed = modelFinalPass(raw, stage, score, safetyBlock, input);
+  const completionDecision = passed && stage === "final"
+    ? "complete_current_card"
+    : (stage === "draft" ? "draft_feedback" : "needs_more_revision");
   const status = stage === "draft" ? "draft_feedback" : (passed ? "completed" : "needs_revision");
   const at = options.now().toISOString();
   const reward = calculateLearningCardReward({
@@ -355,7 +386,10 @@ function normalizeModelEvaluation(parsed = {}, deterministic = {}, input = {}, o
     evaluatedAt: at,
     completedAt: at,
   });
-  const revisionRequirements = normalizeFeedbackArray(raw.revisionRequirements || raw.requirements || deterministic.revisionRequirements, 6, 260);
+  const remainingWeaknesses = normalizeFeedbackArray(raw.remainingWeaknesses || raw.remaining_weaknesses || raw.carryForwardWeaknesses, 6, 260);
+  const revisionRequirements = passed
+    ? remainingWeaknesses.slice(0, 4)
+    : normalizeFeedbackArray(raw.revisionRequirements || raw.requirements || deterministic.revisionRequirements, 6, 260);
   const sections = deterministic.feedbackSections || {};
   return {
     evaluationId: deterministic.evaluationId || createEvaluationId(input.cardId || card.id || card.todoId || "", input.text, activityType),
@@ -368,6 +402,9 @@ function normalizeModelEvaluation(parsed = {}, deterministic = {}, input = {}, o
     score,
     maxScore: 100,
     passed,
+    completionDecision,
+    remainingWeaknesses,
+    completionPolicy: input.completionPolicy || null,
     confidence,
     summary: compactText(raw.summary || deterministic.summary, 500),
     wordCount: deterministic.wordCount || words(input.text).length,
@@ -431,7 +468,13 @@ function createLearningGrowthTaskEvaluationService(options = {}) {
     }
     const stage = normalizeEvaluationStage(input.stage || input.submissionStage || input.submissionKind, "final");
     const scored = scoreGeneric({ text: input.text, model, activityType });
-    const passed = stage === "final" && scored.passed;
+    const safetyBlock = hasHardSafetyBlock({ revisionRequirements: requirementsFor(scored, stage) });
+    const policyCompletion = stage === "final"
+      && !safetyBlock
+      && input.completionPolicy?.threeSeriousSubmissionsComplete === true
+      && Number(input.attemptNo || input.completionPolicy?.attemptNo || 0) >= THREE_SERIOUS_ATTEMPT_COMPLETION_FLOOR
+      && input.completionPolicy?.seriousSubmission !== false;
+    const passed = stage === "final" && (scored.passed || policyCompletion);
     const status = stage === "draft" ? "draft_feedback" : (passed ? "completed" : "needs_revision");
     const at = now().toISOString();
     const reward = calculateLearningCardReward({
@@ -461,6 +504,9 @@ function createLearningGrowthTaskEvaluationService(options = {}) {
       score: scored.score,
       maxScore: scored.maxScore,
       passed,
+      completionDecision: passed && stage === "final" ? "complete_current_card" : (stage === "draft" ? "draft_feedback" : "needs_more_revision"),
+      remainingWeaknesses: passed && scored.score < FINAL_MODEL_SCORE_PASS_FLOOR ? requirementsFor(scored, stage).slice(0, 4) : [],
+      completionPolicy: input.completionPolicy || null,
       confidence: scored.confidence,
       summary,
       wordCount: scored.wordCount,
@@ -473,6 +519,7 @@ function createLearningGrowthTaskEvaluationService(options = {}) {
         `learning-growth-task-rubric:v1`,
         `activity:${activityType}`,
         `stage:${stage}`,
+        ...(policyCompletion ? ["completion-policy:three-serious-submissions"] : []),
       ],
       reward: {
         eligible: passed && reward.coinAmount > 0,

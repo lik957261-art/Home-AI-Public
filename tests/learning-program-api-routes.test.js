@@ -236,6 +236,10 @@ function makeRoutes(overrides = {}) {
         calls.push(["submitGrowthReflection", input]);
         return { ok: true, status: "completed", reflection: { status: "accepted" } };
       },
+      async manualPassTask(input) {
+        calls.push(["manualPassGrowthTask", input]);
+        return { ok: true, status: "completed", taskCardId: input.taskCardId, rewardSettlement: { status: "settled" } };
+      },
     },
     async readBody(req) {
       return req.body || {};
@@ -268,7 +272,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 39);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 40);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -288,11 +292,12 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission" }).id, "learning-task-card-growth-submission");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission/withdraw" }).id, "learning-task-card-growth-submission-withdraw");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/manual-pass" }).id, "learning-task-card-growth-manual-pass");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-reflection" }).id, "learning-task-card-growth-reflection");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 39);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 40);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -546,6 +551,22 @@ async function testTaskSessionEvaluationRoutes() {
   });
   assert.equal(growthReflection.res.statusCode, 200);
   assert.equal(calls.at(-1)[0], "submitGrowthReflection");
+
+  const manualPassDenied = await request(routes, "POST", "/api/learning/task-cards/task-1/manual-pass", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { reason: "manual" },
+  });
+  assert.equal(manualPassDenied.res.statusCode, 403);
+
+  const manualPass = await request(routes, "POST", "/api/learning/task-cards/task-1/manual-pass", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "owner", isOwner: true },
+    body: { reason: "summary only manual pass" },
+  });
+  assert.equal(manualPass.res.statusCode, 200);
+  assert.equal(calls.at(-1)[0], "manualPassGrowthTask");
+  assert.equal(calls.at(-1)[1].taskCardId, "task-1");
+  assert.equal(calls.at(-1)[1].cardId, "kanban-1");
+  assert.equal(calls.at(-1)[1].author, "owner");
 
   const advanced = await request(routes, "POST", "/api/learning/sessions/session-1/advance", {
     auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },

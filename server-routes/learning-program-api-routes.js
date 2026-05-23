@@ -452,6 +452,22 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "growth", "task-card", "submission", "withdraw"],
   },
   {
+    id: "learning-task-card-growth-manual-pass",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/manual-pass$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "manualPassGrowthTask",
+    summary: "Owner manually completes a Growth learning task through the reward settlement path.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-evaluation", "learning-reward-settlement"],
+    tags: ["learning", "growth", "task-card", "owner", "manual-pass"],
+  },
+  {
     id: "learning-task-card-growth-reflection",
     method: "POST",
     pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/growth-reflection$/,
@@ -1206,6 +1222,38 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
   }
 
+  async function handleGrowthManualPass(req, res, url, auth) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/manual-pass$/);
+    const taskCard = service.getTaskCard(taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const growthService = getGrowthSubmissionService();
+      if (typeof growthService.manualPassTask !== "function") {
+        deps.sendJson(res, 503, { ok: false, error: "Growth manual pass service is not available" });
+        return;
+      }
+      const result = await growthService.manualPassTask(Object.assign({}, body, {
+        workspaceId: taskCard.workspaceId,
+        cardId: taskCard.kanbanCardId || "",
+        taskCardId,
+        author: owner.principalId || actorFromAuth(auth),
+      }));
+      deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
+        taskCardId,
+        kanbanCardId: taskCard.kanbanCardId || "",
+      }));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
   async function handleGrowthReflection(req, res, url, auth) {
     const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/growth-reflection$/);
     const taskCard = service.getTaskCard(taskCardId);
@@ -1406,6 +1454,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-submission") await handleGrowthSubmission(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-submission-withdraw") await handleGrowthSubmissionWithdraw(req, res, url, auth);
+    else if (route.id === "learning-task-card-growth-manual-pass") await handleGrowthManualPass(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-reflection") await handleGrowthReflection(req, res, url, auth);
     else if (route.id === "learning-sessions-list") await handleSessionsList(req, res, url, auth);
     else if (route.id === "learning-session-advance") await handleSessionAdvance(req, res, url, auth);

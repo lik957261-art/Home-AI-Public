@@ -11,6 +11,7 @@ const VERIFIED_METHODS = new Set([
   "deterministic_template",
   "deterministic_growth_task_template",
   "model_assisted_growth_task_evaluation",
+  "owner_manual_pass",
   "answer_key_match",
   "python_execution",
 ]);
@@ -18,6 +19,7 @@ const KNOWN_METHODS = new Set([
   "deterministic_template",
   "deterministic_growth_task_template",
   "model_assisted_growth_task_evaluation",
+  "owner_manual_pass",
   "answer_key_match",
   "python_execution",
   "python_static_review",
@@ -73,7 +75,7 @@ function createLearningEvaluationVerifierService(options = {}) {
       .map(cleanString)
       .filter(Boolean);
 
-    if (!sourceBasisRefs.length) addRisk(riskFlags, "missing_source_basis", "block", "Evaluation has no source basis references.");
+    if (!sourceBasisRefs.length && method !== "owner_manual_pass") addRisk(riskFlags, "missing_source_basis", "block", "Evaluation has no source basis references.");
     if (!evidenceRefs.length) addRisk(riskFlags, "missing_evidence_refs", "review", "Evaluation has no verifier evidence references.");
     if (confidence < 0.6) addRisk(riskFlags, "low_evaluation_confidence", "review", "Evaluation confidence is low.");
     if (method === "model_only") addRisk(riskFlags, "model_only_verification", "review", "Evaluation is model-only.");

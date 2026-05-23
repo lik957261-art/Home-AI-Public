@@ -174,6 +174,16 @@ function publicEvaluation(evaluation = {}, settlement = null) {
     taskModelVersion: cleanString(evaluation.taskModelVersion),
     score: Number(evaluation.score || 0),
     maxScore: Number(evaluation.maxScore || 100),
+    completionDecision: cleanString(evaluation.completionDecision),
+    remainingWeaknesses: asArray(evaluation.remainingWeaknesses).map(cleanString).filter(Boolean),
+    completionPolicy: evaluation.completionPolicy && typeof evaluation.completionPolicy === "object"
+      ? {
+        mode: cleanString(evaluation.completionPolicy.mode),
+        attemptNo: Number(evaluation.completionPolicy.attemptNo || 0) || 0,
+        seriousSubmission: evaluation.completionPolicy.seriousSubmission !== false,
+        threeSeriousSubmissionsComplete: Boolean(evaluation.completionPolicy.threeSeriousSubmissionsComplete),
+      }
+      : null,
     finalPassingScore,
     passingScore: finalPassingScore,
     finalStage: cleanString(evaluation.finalStage || "final"),
@@ -415,8 +425,169 @@ function parseTimeMs(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function comparableSubmissionText(value) {
+  return cleanString(value)
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .trim();
+}
+
+function tokenSet(value) {
+  return new Set(comparableSubmissionText(value).split(/\s+/).filter(Boolean));
+}
+
+function jaccardSimilarity(left, right) {
+  const a = tokenSet(left);
+  const b = tokenSet(right);
+  if (!a.size && !b.size) return 1;
+  let intersection = 0;
+  for (const item of a) if (b.has(item)) intersection += 1;
+  return intersection / Math.max(1, a.size + b.size - intersection);
+}
+
+function textChangeStats(previousText = "", nextText = "") {
+  const previous = comparableSubmissionText(previousText);
+  const next = comparableSubmissionText(nextText);
+  const previousChars = previous.replace(/\s+/g, "").length;
+  const nextChars = next.replace(/\s+/g, "").length;
+  const charDelta = Math.abs(nextChars - previousChars);
+  const ratio = charDelta / Math.max(1, previousChars);
+  return {
+    previousChars,
+    nextChars,
+    charDelta,
+    ratio,
+    similarity: jaccardSimilarity(previous, next),
+  };
+}
+
+function activeSubmissionRecords(programService, taskCardId, limit = 8) {
+  if (!programService || typeof programService.listTaskSubmissions !== "function" || !taskCardId) return [];
+  return asArray(programService.listTaskSubmissions({ taskCardId, limit }))
+    .filter((item) => cleanString(item.status).toLowerCase() !== "withdrawn" && !cleanString(item.withdrawnAt));
+}
+
+function submissionAttemptPolicy(input = {}) {
+  const records = asArray(input.records);
+  const latest = records[0] || null;
+  const nowMs = Number(input.nowMs || Date.now());
+  const minIntervalMs = Math.max(0, Number(input.minIntervalMs ?? 5 * 60 * 1000));
+  const minChangedChars = Math.max(0, Number(input.minChangedChars ?? 80));
+  const maxSimilarity = Math.max(0, Math.min(1, Number(input.maxSimilarity ?? 0.92)));
+  const attemptNo = records.length + 1;
+  const policy = {
+    mode: "card_completion",
+    attemptNo,
+    previousAttempts: records.length,
+    minIntervalMs,
+    seriousSubmission: true,
+    threeSeriousSubmissionsComplete: attemptNo >= 3,
+    canSubmit: true,
+    reason: "",
+  };
+  if (!latest) return policy;
+  const latestAtMs = parseTimeMs(latest.submittedAt || latest.createdAt);
+  const elapsedMs = latestAtMs ? Math.max(0, nowMs - latestAtMs) : 0;
+  if (minIntervalMs && latestAtMs && elapsedMs < minIntervalMs) {
+    return Object.assign(policy, {
+      canSubmit: false,
+      seriousSubmission: false,
+      reason: "submission_cooldown",
+      retryAfterMs: minIntervalMs - elapsedMs,
+    });
+  }
+  if (cleanString(latest.displayText)) {
+    const change = textChangeStats(latest.displayText, input.text);
+    policy.change = change;
+    if (change.nextChars >= 120 && change.charDelta < minChangedChars && change.similarity >= maxSimilarity) {
+      return Object.assign(policy, {
+        canSubmit: false,
+        seriousSubmission: false,
+        reason: "submission_too_similar",
+      });
+    }
+  }
+  return policy;
+}
+
+function submissionPolicyError(policy = {}) {
+  if (policy.reason === "submission_cooldown") {
+    const minutes = Math.max(1, Math.ceil(Number(policy.retryAfterMs || 0) / 60000));
+    return `提交间隔太短，请先按批改意见认真修改，约 ${minutes} 分钟后再提交。`;
+  }
+  if (policy.reason === "submission_too_similar") {
+    return "这次修改和上一次几乎一样，请先补充实质订正、解释或新推理，再提交。";
+  }
+  return "这次提交暂时不能进入批改，请先补充认真订正后再提交。";
+}
+
 function evaluationComment(evaluation = {}, settlement = null) {
   return readableEvaluationComment(evaluation, settlement);
+}
+
+function manualPassEvaluationForTask(card = {}, input = {}) {
+  const model = taskModelForSubmission(card, input);
+  const latestEvaluation = input.latestEvaluation || {};
+  const score = Number(input.score ?? latestEvaluation.score ?? 80) || 80;
+  const at = new Date().toISOString();
+  const taskCardId = cleanString(input.taskCardId || resolveTaskCardId(card) || cardId(card));
+  const evaluationId = cleanString(input.evaluationId)
+    || `lgte_manual_${digestText([taskCardId, cleanString(input.author || "owner"), at].join("|")).slice(0, 18)}`;
+  const remainingWeaknesses = asArray(latestEvaluation.remainingWeaknesses || latestEvaluation.revisionRequirements)
+    .map(cleanString)
+    .filter(Boolean)
+    .slice(0, 6);
+  return {
+    evaluationId,
+    submissionDigest: cleanString(latestEvaluation.submissionDigest),
+    stage: "final",
+    status: "completed",
+    activityType: cleanString(model.activityType || latestEvaluation.activityType || "task"),
+    skillId: cleanString(model.skillId || latestEvaluation.skillId),
+    taskModelVersion: cleanString(model.version || latestEvaluation.taskModelVersion),
+    score,
+    maxScore: Number(latestEvaluation.maxScore || 100) || 100,
+    passed: true,
+    completionDecision: "owner_manual_pass",
+    remainingWeaknesses,
+    completionPolicy: {
+      mode: "owner_manual_pass",
+      attemptNo: Number(input.attemptNo || 0) || 0,
+      seriousSubmission: true,
+      threeSeriousSubmissionsComplete: false,
+    },
+    confidence: 1,
+    summary: cleanString(input.reason) || "Owner manually completed this Growth card after reviewing the learner's effort and current feedback.",
+    revisionRequirements: remainingWeaknesses,
+    feedbackSections: {
+      strengths: ["Owner reviewed the card and accepted the current learning effort."],
+      focusAreas: remainingWeaknesses,
+      criterionFeedback: [],
+      rewriteChecklist: [],
+      reflectionPrompts: [],
+      sentenceFeedback: [],
+      finalConclusion: cleanString(input.reason) || "Owner manual pass.",
+      nextPractice: remainingWeaknesses.length
+        ? `Carry forward: ${remainingWeaknesses.slice(0, 2).join(" ")}`
+        : "Continue with the next Growth card.",
+      parentNote: "Owner manual pass; use remaining weaknesses for future similar tasks.",
+    },
+    nextStep: "completed",
+    verificationMethod: "owner_manual_pass",
+    feedbackMethod: "owner_manual_pass",
+    aiFeedbackStatus: "owner_manual_pass",
+    evidenceRefs: ["owner-manual-pass:v1", `task:${taskCardId}`],
+    reward: {
+      eligible: true,
+      coinAmount: 0,
+      minCoinAmount: 0,
+      maxCoinAmount: 0,
+      status: "pending",
+      reason: "owner_manual_pass",
+    },
+    evaluatedAt: at,
+  };
 }
 
 async function settleViaProgramService(programService, card, evaluation, input = {}) {
@@ -595,6 +766,7 @@ function createLearningGrowthSubmissionService(options = {}) {
   });
   const maxSubmissionChars = Math.max(1000, Number(options.maxSubmissionChars || 12000));
   const withdrawWindowMs = Math.max(60_000, Number(options.withdrawWindowMs || 5 * 60 * 1000));
+  const minResubmitIntervalMs = Math.max(0, Number(options.minResubmitIntervalMs ?? 5 * 60 * 1000));
   const now = typeof options.now === "function" ? options.now : () => Date.now();
   const hasKanbanProvider = Boolean(kanbanCardProvider
     && typeof kanbanCardProvider.listCards === "function"
@@ -813,6 +985,18 @@ function createLearningGrowthSubmissionService(options = {}) {
         completionGate: gate,
       });
     }
+    const priorSubmissions = activeSubmissionRecords(programService, nativeTask?.taskCardId || loaded.taskCardId, 8);
+    const attemptPolicy = submissionAttemptPolicy({
+      records: priorSubmissions,
+      text,
+      nowMs: now(),
+      minIntervalMs: minResubmitIntervalMs,
+    });
+    if (!attemptPolicy.canSubmit) {
+      return createError(attemptPolicy.reason === "submission_cooldown" ? 429 : 409, submissionPolicyError(attemptPolicy), {
+        submissionPolicy: attemptPolicy,
+      });
+    }
     const submissionRecordService = submissionRecords();
     let nativeSubmission = null;
     if (submissionRecordService && nativeTask) {
@@ -825,6 +1009,7 @@ function createLearningGrowthSubmissionService(options = {}) {
           kanbanCommentRef: "",
           stage,
           submissionKind,
+          attemptNo: attemptPolicy.attemptNo,
           status: "submitted",
           text,
           structuredResponses: input.structuredAnswers,
@@ -860,6 +1045,9 @@ function createLearningGrowthSubmissionService(options = {}) {
         learningTaskModel: taskModel,
         submissionKind,
         workspaceId,
+        attemptNo: attemptPolicy.attemptNo,
+        completionPolicy: attemptPolicy,
+        previousEvaluation: latestNativeEvaluation(nativeTask?.taskCardId || loaded.taskCardId),
       });
     } catch (err) {
       return createError(Number(err?.status || 502) || 502, cleanString(err?.message || err || "Growth task model evaluation failed"));
@@ -1054,6 +1242,96 @@ function createLearningGrowthSubmissionService(options = {}) {
     };
   }
 
+  async function manualPassTask(input = {}) {
+    const workspaceId = cleanString(input.workspaceId) || "owner";
+    const loaded = await loadGrowthWorkItem(workspaceId, input);
+    if (!loaded.ok) return loaded;
+    const programService = getProgramService(options);
+    const nativeTask = loaded.nativeTask || resolveProgramTaskCard(programService, loaded.card);
+    if (!programService || !nativeTask?.taskCardId) {
+      return createError(503, "Growth manual pass requires a native learning task record");
+    }
+    const priorSubmissions = activeSubmissionRecords(programService, nativeTask.taskCardId, 12);
+    const latestEvaluation = latestNativeEvaluation(nativeTask.taskCardId);
+    const evaluation = manualPassEvaluationForTask(loaded.card, {
+      taskCardId: nativeTask.taskCardId,
+      author: input.author,
+      reason: input.reason,
+      score: input.score,
+      latestEvaluation,
+      attemptNo: priorSubmissions.length,
+    });
+    const submissionRecordService = submissionRecords();
+    let nativeEvaluation = null;
+    try {
+      nativeEvaluation = submissionRecordService?.recordEvaluation?.({
+        task: nativeTask,
+        evaluation,
+        status: "completed",
+        summary: evaluation.summary,
+        author: cleanString(input.author) || "owner",
+      });
+    } catch (err) {
+      return createError(Number(err?.status || 502) || 502, cleanString(err?.message || err || "Unable to record manual pass evaluation"));
+    }
+    const recordedEvaluation = nativeEvaluation?.evaluation || evaluation;
+    let settlement = null;
+    try {
+      settlement = programService.settleEvaluationReward(recordedEvaluation.evaluationId, {
+        principalId: cleanString(input.author) || "owner",
+        reason: "owner_manual_pass",
+      });
+    } catch (err) {
+      settlement = { status: "settlement_error", error: cleanString(err.message || err) };
+    }
+    const publicEval = publicEvaluation(Object.assign({}, evaluation, recordedEvaluation), settlement);
+    const evaluationText = evaluationComment(Object.assign({}, evaluation, recordedEvaluation), settlement);
+    const evaluationMutation = await projectKanbanComment(loaded, {
+      action: "comment",
+      workspaceId,
+      comment: evaluationText,
+      author: "learning-growth-owner",
+      learningGrowthEvaluation: publicEval,
+    });
+    if (!evaluationMutation?.ok) {
+      return createError(evaluationMutation?.status || 502, cleanString(evaluationMutation?.error || "Unable to persist manual pass evaluation"));
+    }
+    const completion = await projectKanbanComment(loaded, {
+      action: "complete",
+      workspaceId,
+      comment: readableCompletionComment(Object.assign({}, evaluation, recordedEvaluation), publicEval),
+      author: "learning-growth-owner",
+    });
+    const nextTask = completion?.ok
+      ? await prepareNextSequenceTask({
+        taskCardId: nativeTask.taskCardId,
+        task: nativeTask,
+        workspaceId,
+        learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
+        author: input.author,
+      })
+      : null;
+    return {
+      ok: true,
+      status: publicEval.status,
+      cardId: loaded.cardIdValue,
+      taskCardId: nativeTask.taskCardId,
+      workspaceId,
+      evaluation: publicEval,
+      reward: publicEval.reward,
+      rewardSettlement: settlement,
+      nextTask,
+      result: {
+        ok: true,
+        completed: Boolean(completion?.ok),
+        nativeEvaluation: recordedEvaluation?.evaluationId
+          ? { evaluationId: recordedEvaluation.evaluationId, status: recordedEvaluation.status }
+          : null,
+        nextTask,
+      },
+    };
+  }
+
   async function submitReflection(input = {}) {
     const workspaceId = cleanString(input.workspaceId) || "owner";
     const loaded = await loadGrowthWorkItem(workspaceId, input);
@@ -1234,6 +1512,7 @@ function createLearningGrowthSubmissionService(options = {}) {
   }
 
   return {
+    manualPassTask,
     submitReflection,
     submitTask,
     withdrawSubmission,
@@ -1244,6 +1523,7 @@ module.exports = {
   createLearningGrowthSubmissionService,
   evaluationComment,
   resolveSubmissionGuard,
+  submissionAttemptPolicy,
   submissionStageForCard,
   submissionTextStats,
   validateSubmissionText,

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-app-swipe-exit-v128";
+const CLIENT_VERSION = "20260523-growth-manual-pass-v129";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1102,8 +1102,13 @@ assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-se
   assert.match(appLearningProgramUiJs, /learning-growth-feedback-detail-note/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-revision-collapsed/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-edit-answer/);
+  assert.match(appLearningProgramUiJs, /data-learning-growth-owner-menu/);
+  assert.match(appLearningProgramUiJs, /data-learning-growth-manual-pass/);
+  assert.match(appLearningProgramUiJs, /data-learning-growth-task-prompt-collapsed/);
   assert.match(appLearningGrowthControllerJs, /learningNativeGrowthAnswerEditing/);
   assert.match(appLearningGrowthControllerJs, /data-learning-native-growth-edit-answer/);
+  assert.match(appLearningGrowthControllerJs, /manual-pass/);
+  assert.match(appLearningGrowthControllerJs, /window\.confirm/);
   assert.match(appLearningGrowthTaskUiJs, /data-learning-growth-feedback-score/);
   assert.doesNotMatch(appLearningGrowthTaskUiJs, /\\u6253\\u5f00\\u6700\\u65b0\\u6279\\u6539\\u6587\\u4ef6/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/advance/);
@@ -1251,6 +1256,8 @@ assert.match(stylesCss, /\.learning-growth-answer-instruction p \{[\s\S]*?font-s
 assert.match(stylesCss, /\.learning-native-growth-submission-input \{[\s\S]*?font-size: 16px;/);
 assert.match(stylesCss, /\.learning-growth-feedback-detail-note/);
 assert.match(stylesCss, /\.learning-growth-feedback-criteria b/);
+assert.match(stylesCss, /\.learning-growth-owner-menu/);
+assert.match(stylesCss, /\.learning-growth-answer-instruction-collapsed/);
 assert.match(stylesCss, /:root\[data-font-size\] \.learning-growth-board-card-head strong/);
 assert.match(stylesCss, /:root\[data-font-size\] \.learning-settings-task-row strong/);
 assert.match(stylesCss, /:root\[data-font-size\] \.learning-native-growth-question p/);
