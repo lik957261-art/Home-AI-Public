@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-markdown-reader-font-v124";
+const CLIENT_VERSION = "20260523-image-preview-overlay-v125";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -163,6 +163,10 @@ assert.doesNotMatch(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
 assert.doesNotMatch(appJs, /taskDocumentPreviewFrame/);
 assert.doesNotMatch(appJs, /task-document-preview-overlay/);
 assert.doesNotMatch(stylesCss, /\.task-document-preview-overlay/);
+assert.match(appJs, /function openTaskImagePreviewOverlay\(link\)/);
+assert.match(appJs, /isTaskImagePreviewLink\(link\) && openTaskImagePreviewOverlay\(link\)/);
+assert.match(appJs, /data-artifact-mime="\$\{escapeHtml\(artifact\?\.mime \|\| ""\)\}"/);
+assert.match(stylesCss, /\.task-image-preview-overlay/);
 assert.match(appJs, /kind === "html" \|\| mime\.startsWith\("image\/"\)/);
 assert.match(appJs, /if \(kind === "markdown"\) return `\/markdown-viewer\.html\?\$\{query\.toString\(\)\}`/);
 assert.match(markdownViewerHtml, /markdownRenderer\.renderMarkdownDocument/);
