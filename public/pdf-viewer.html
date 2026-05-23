@@ -123,6 +123,12 @@
       display: none !important;
     }
 
+    body.native-browser-chrome .back-button,
+    body.native-browser-chrome .share-button,
+    body.native-browser-chrome .weixin-button {
+      display: none !important;
+    }
+
     .fallback {
       min-height: 100dvh;
       display: grid;
@@ -187,6 +193,16 @@
     let renderObjectUrl = "";
     let handlingViewerBack = false;
     const isAndroid = /Android/i.test(navigator.userAgent || "");
+
+    function isStandaloneViewerShell() {
+      return Boolean(
+        window.matchMedia?.("(display-mode: standalone)")?.matches
+        || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+        || window.navigator?.standalone
+      );
+    }
+
+    document.body.classList.toggle("native-browser-chrome", !isStandaloneViewerShell());
 
     function setStatus(message) {
       status.textContent = message;

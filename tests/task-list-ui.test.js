@@ -1309,6 +1309,10 @@ assert.match(serviceWorkerJs, /function isViewerShellRequest\(url\) \{[\s\S]*?ur
 assert.match(serviceWorkerJs, /function networkFirstViewerShell\(request\)/);
 assert.match(serviceWorkerJs, /if \(isViewerShellRequest\(url\)\) \{[\s\S]*?event\.respondWith\(networkFirstViewerShell\(request\)\)/);
 assert.match(serviceWorkerJs, /function deleteCachedViewerShell\(cache\)/);
+assert.match(fileViewerHtml, /function isStandaloneViewerShell\(\)/);
+assert.match(fileViewerHtml, /body\.native-browser-chrome \.viewer-more-button/);
+assert.match(pdfViewerHtml, /function isStandaloneViewerShell\(\)/);
+assert.match(pdfViewerHtml, /body\.native-browser-chrome \.back-button/);
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);
 assert.match(appJs, /function composerRequestSizeError\(text, serializedBody\)/);

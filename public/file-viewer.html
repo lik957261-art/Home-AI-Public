@@ -657,6 +657,11 @@
       display: inline-flex;
     }
 
+    body.native-browser-chrome .viewer-more-button,
+    body.native-browser-chrome .viewer-done-button {
+      display: none !important;
+    }
+
     .image-stage {
       display: grid;
       place-items: center;
@@ -881,6 +886,16 @@
     }
 
     applyViewerPreferences();
+
+    function isStandaloneViewerShell() {
+      return Boolean(
+        window.matchMedia?.("(display-mode: standalone)")?.matches
+        || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+        || window.navigator?.standalone
+      );
+    }
+
+    document.body.classList.toggle("native-browser-chrome", !isStandaloneViewerShell());
 
     function formatBytes(bytes) {
       const n = Number(bytes || 0);
