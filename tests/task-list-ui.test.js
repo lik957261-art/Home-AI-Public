@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-raw-md-image-preview-v122";
+const CLIENT_VERSION = "20260523-markdown-html-preview-v123";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -17,6 +17,7 @@ const manifestJson = fs.readFileSync(path.join(repoRoot, "public", "manifest-202
 const manifest = JSON.parse(manifestJson);
 const directoryViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "directory-viewer.html"), "utf8");
 const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
+const markdownViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "markdown-viewer.html"), "utf8");
 const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "markdown-renderer-client.js"), "utf8");
 const markdownRendererJs = fs.readFileSync(path.join(repoRoot, "adapters", "markdown-renderer.js"), "utf8");
 const conversationHistoryServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "conversation-history-service.js"), "utf8");
@@ -162,7 +163,11 @@ assert.doesNotMatch(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
 assert.doesNotMatch(appJs, /taskDocumentPreviewFrame/);
 assert.doesNotMatch(appJs, /task-document-preview-overlay/);
 assert.doesNotMatch(stylesCss, /\.task-document-preview-overlay/);
-assert.match(appJs, /kind === "html" \|\| kind === "markdown" \|\| mime\.startsWith\("image\/"\)/);
+assert.match(appJs, /kind === "html" \|\| mime\.startsWith\("image\/"\)/);
+assert.match(appJs, /if \(kind === "markdown"\) return `\/markdown-viewer\.html\?\$\{query\.toString\(\)\}`/);
+assert.match(markdownViewerHtml, /markdownRenderer\.renderMarkdownDocument/);
+assert.match(markdownViewerHtml, /taskListCompatibility: true/);
+assert.doesNotMatch(markdownViewerHtml, /viewer-more-button|viewer-done-button|topbar/);
 assert.doesNotMatch(fileViewerHtml, /function renderIframePreview\(label\)/);
 assert.match(fileViewerHtml, /kind === "HTML"[\s\S]{0,80}location\.replace\(originalUrlFor\(src\)\)/);
 assert.doesNotMatch(directoryViewerHtml, /viewerChrome/);
@@ -1351,6 +1356,7 @@ assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>
 assert.ok(indexHtml.includes(CLIENT_VERSION));
 assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
 assert.match(serviceWorkerJs, /function isViewerShellRequest\(url\) \{[\s\S]*?url\.pathname === "\/file-viewer\.html"/);
+assert.match(serviceWorkerJs, /\/markdown-viewer\.html\?v=/);
 assert.match(serviceWorkerJs, /function networkFirstViewerShell\(request\)/);
 assert.match(serviceWorkerJs, /if \(isViewerShellRequest\(url\)\) \{[\s\S]*?event\.respondWith\(networkFirstViewerShell\(request\)\)/);
 assert.match(serviceWorkerJs, /function deleteCachedViewerShell\(cache\)/);

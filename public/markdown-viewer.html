@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Markdown Preview</title>
+  <style>
+    :root {
+      --paper: #ffffff;
+      --ink: #24292f;
+      --muted: #57606a;
+      --line: #d8dee4;
+      --code: #f6f8fa;
+      --link: #0969da;
+      --viewer-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+      --hermes-markdown-font-family: var(--viewer-font-family);
+      --viewer-markdown-font-scale: 1;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: var(--viewer-font-family);
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+
+    main {
+      width: 100%;
+      min-height: 100dvh;
+      padding:
+        max(18px, env(safe-area-inset-top))
+        max(18px, env(safe-area-inset-right))
+        max(24px, env(safe-area-inset-bottom))
+        max(18px, env(safe-area-inset-left));
+    }
+
+    .markdown-preview {
+      max-width: 900px;
+      margin: 0 auto;
+      font-size: calc(18px * var(--viewer-markdown-font-scale));
+      line-height: 1.72;
+      overflow-wrap: anywhere;
+    }
+
+    .markdown-preview article,
+    .markdown-preview .hermes-markdown-doc {
+      max-width: 860px;
+      margin: 0 auto;
+      color: var(--ink);
+      font-family: var(--hermes-markdown-font-family);
+      line-height: 1.72;
+    }
+
+    .markdown-preview h1,
+    .markdown-preview h2,
+    .markdown-preview h3,
+    .markdown-preview h4 {
+      margin: 1.35em 0 0.62em;
+      color: #1f2328;
+      line-height: 1.25;
+      letter-spacing: 0;
+      font-weight: 760;
+    }
+
+    .markdown-preview h1 {
+      margin-top: 0.25em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--line);
+      font-size: 1.72em;
+    }
+
+    .markdown-preview h2 {
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--line);
+      font-size: 1.36em;
+    }
+
+    .markdown-preview h3 {
+      font-size: 1.12em;
+    }
+
+    .markdown-preview h4 {
+      font-size: 1em;
+    }
+
+    .markdown-preview p,
+    .markdown-preview ul,
+    .markdown-preview ol,
+    .markdown-preview blockquote,
+    .markdown-preview pre,
+    .markdown-table-wrap {
+      margin: 0.86em 0;
+    }
+
+    .markdown-preview ul,
+    .markdown-preview ol {
+      padding-left: 1.45em;
+    }
+
+    .markdown-preview ul.task-list,
+    .markdown-preview .hermes-markdown-task-list {
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .markdown-preview .task-list-item,
+    .markdown-preview .hermes-markdown-task-item {
+      display: grid;
+      grid-template-columns: 1.25em minmax(0, 1fr);
+      gap: 0.42em;
+      align-items: start;
+    }
+
+    .markdown-preview .task-list-item input,
+    .markdown-preview .hermes-markdown-task-checkbox {
+      width: 1em;
+      height: 1em;
+      margin: 0.32em 0 0;
+      accent-color: #1f6feb;
+    }
+
+    .markdown-preview blockquote {
+      padding: 0.05em 0 0.05em 1em;
+      color: var(--muted);
+      border-left: 0.25em solid #d0d7de;
+    }
+
+    .markdown-preview code {
+      padding: 0.12em 0.35em;
+      background: rgba(175, 184, 193, 0.2);
+      border-radius: 6px;
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.88em;
+    }
+
+    .markdown-preview pre {
+      overflow-x: auto;
+      padding: 1em;
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .markdown-preview pre code {
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+      font-size: 0.9em;
+    }
+
+    .markdown-table-wrap,
+    .hermes-markdown-table-wrapper {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .markdown-preview table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow-wrap: normal;
+      font-size: 0.94em;
+      margin: 0;
+    }
+
+    .markdown-preview th,
+    .markdown-preview td {
+      min-width: 0;
+      padding: 0.55em 0.65em;
+      border: 1px solid #d0d7de;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    .markdown-preview th {
+      background: var(--code);
+      font-weight: 820;
+    }
+
+    .markdown-preview a {
+      color: var(--link);
+      text-decoration: none;
+    }
+
+    .markdown-preview a:hover {
+      text-decoration: underline;
+    }
+
+    .status {
+      max-width: 900px;
+      margin: 0 auto;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .status.error {
+      color: #b42318;
+    }
+
+    @media (max-width: 640px) {
+      main {
+        padding:
+          max(14px, env(safe-area-inset-top))
+          max(16px, env(safe-area-inset-right))
+          max(22px, env(safe-area-inset-bottom))
+          max(16px, env(safe-area-inset-left));
+      }
+
+      .markdown-preview {
+        font-size: calc(18px * var(--viewer-markdown-font-scale));
+      }
+
+      .markdown-table-wrap,
+      .hermes-markdown-table-wrapper {
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        touch-action: pan-y;
+      }
+
+      .markdown-preview table,
+      .markdown-preview thead,
+      .markdown-preview tbody,
+      .markdown-preview tr,
+      .markdown-preview th,
+      .markdown-preview td {
+        display: block;
+        width: 100%;
+      }
+
+      .markdown-preview thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+      }
+
+      .markdown-preview tr {
+        margin: 0 0 0.82em;
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        background: #fff;
+        overflow: hidden;
+      }
+
+      .markdown-preview td {
+        display: grid;
+        grid-template-columns: minmax(5.8em, 34%) minmax(0, 1fr);
+        gap: 0.7em;
+        align-items: start;
+        padding: 0.62em 0.72em;
+        border: 0;
+        border-bottom: 1px solid #d0d7de;
+      }
+
+      .markdown-preview td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 0.82em;
+        font-weight: 780;
+        line-height: 1.35;
+      }
+
+      .markdown-preview td[data-label=""] {
+        grid-template-columns: 1fr;
+      }
+
+      .markdown-preview td[data-label=""]::before {
+        content: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div id="status" class="status">Loading Markdown preview...</div>
+    <div id="preview" class="markdown-preview" hidden></div>
+  </main>
+  <script src="/fixed-viewport.js?v=20260505-1135"></script>
+  <script src="/markdown-renderer-client.js?v=20260515-md-font-stepdown"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const key = localStorage.getItem("hermesWebKey") || "";
+    const src = params.get("src") || "";
+    const statusEl = document.getElementById("status");
+    const previewEl = document.getElementById("preview");
+    const markdownRenderer = window.HermesMarkdownRenderer || {};
+
+    function sameOriginUrl(value) {
+      try {
+        const url = new URL(value, location.origin);
+        return url.origin === location.origin ? url : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function previewUrlFor(value) {
+      const url = sameOriginUrl(value);
+      if (!url) return "";
+      if (url.pathname === "/api/files") return `/api/files/preview?${url.searchParams.toString()}`;
+      if (url.pathname === "/api/files/preview") return `/api/files/preview?${url.searchParams.toString()}`;
+      if (url.pathname === "/api/automations/output") return `/api/automations/output/preview?${url.searchParams.toString()}`;
+      if (url.pathname === "/api/automations/deliverable") return `/api/automations/deliverable/preview?${url.searchParams.toString()}`;
+      if (url.pathname === "/api/kanban/cards/output") return `/api/kanban/cards/output/preview?${url.searchParams.toString()}`;
+      const artifact = url.pathname.match(/^\/api\/artifacts\/([^/]+)$/);
+      if (artifact) return `/api/files/preview?artifactId=${encodeURIComponent(decodeURIComponent(artifact[1]))}`;
+      return "";
+    }
+
+    function setStatus(message, kind = "") {
+      statusEl.textContent = message || "";
+      statusEl.classList.toggle("error", kind === "error");
+      statusEl.hidden = !message;
+    }
+
+    async function loadMarkdownPreview() {
+      const previewUrl = previewUrlFor(src);
+      if (!previewUrl) {
+        setStatus("No internal preview route is available for this Markdown file.", "error");
+        return;
+      }
+      const headers = key ? { "X-Hermes-Web-Key": key } : {};
+      const res = await fetch(previewUrl, { headers });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
+      const text = String(body.text || "");
+      const render = typeof markdownRenderer.renderMarkdownDocument === "function"
+        ? markdownRenderer.renderMarkdownDocument
+        : ((value) => `<pre>${String(value || "").replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))}</pre>`);
+      previewEl.innerHTML = render(text, {
+        fontScale: "standard",
+        linkTarget: "_blank",
+        taskListCompatibility: true,
+      });
+      previewEl.hidden = false;
+      setStatus("");
+    }
+
+    loadMarkdownPreview().catch((err) => {
+      setStatus(err.message || "Markdown preview failed.", "error");
+    });
+  </script>
+</body>
+</html>

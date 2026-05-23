@@ -547,7 +547,7 @@ function artifactHref(artifact) {
   if (!url || url === "#") return url;
   const kind = artifactKind(artifact);
   const mime = String(artifact?.mime || "").toLowerCase();
-  if (kind === "html" || kind === "markdown" || mime.startsWith("image/")) return url;
+  if (kind === "html" || mime.startsWith("image/")) return url;
   const query = new URLSearchParams({
     src: url,
     name: artifact?.name || artifact?.id || "document",
@@ -557,6 +557,7 @@ function artifactHref(artifact) {
   });
   if (state.selectedWorkspaceId) query.set("workspaceId", state.selectedWorkspaceId);
   if (state.currentThreadId) query.set("threadId", state.currentThreadId);
+  if (kind === "markdown") return `/markdown-viewer.html?${query.toString()}`;
   if (kind === "pdf") return `/pdf-viewer.html?${query.toString()}`;
   return `/file-viewer.html?${query.toString()}`;
 }
