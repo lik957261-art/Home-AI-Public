@@ -1711,7 +1711,12 @@ window.addEventListener("load", function () {
     }
 
     if (src && kind === "HTML") {
-      renderIframePreview("HTML preview");
+      const original = originalUrlFor(src);
+      if (original && original !== "#") {
+        location.replace(original);
+      } else {
+        renderIframePreview("HTML preview");
+      }
     }
 
     if (src && kind === "DOC" && String(name).toLowerCase().endsWith(".docx")) {

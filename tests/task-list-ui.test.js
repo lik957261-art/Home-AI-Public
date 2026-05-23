@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-growth-feedback-header-v118";
+const CLIENT_VERSION = "20260523-preview-html-composer-v119";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -162,9 +162,9 @@ assert.doesNotMatch(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
 assert.doesNotMatch(appJs, /taskDocumentPreviewFrame/);
 assert.doesNotMatch(appJs, /task-document-preview-overlay/);
 assert.doesNotMatch(stylesCss, /\.task-document-preview-overlay/);
-assert.doesNotMatch(appJs, /if \(kind === "html"\) return url/);
+assert.match(appJs, /if \(kind === "html"\) return url/);
 assert.match(fileViewerHtml, /function renderIframePreview\(label\)/);
-assert.doesNotMatch(fileViewerHtml, /kind === "HTML"[\s\S]{0,80}location\.replace/);
+assert.match(fileViewerHtml, /kind === "HTML"[\s\S]{0,160}location\.replace\(original\)/);
 assert.match(directoryViewerHtml, /viewerChrome: standalone \? "hermes" : "native"/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(stylesCss, /\.codex-mux-mode \.conversation \{[\s\S]*?overflow: hidden/);
@@ -1368,6 +1368,8 @@ assert.match(pdfViewerHtml, /const viewerChrome = params\.get\("viewerChrome"\) 
 assert.match(pdfViewerHtml, /const embeddedViewer = params\.get\("embedded"\) === "1" \|\| viewerChrome === "embedded"/);
 assert.match(pdfViewerHtml, /if \(embeddedViewer\) return false/);
 assert.match(pdfViewerHtml, /body\.native-browser-chrome \.back-button/);
+assert.match(stylesCss, /\.composer \{[\s\S]*?padding: 9px 14px calc\(14px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\)[\s\S]*?\.composer \{[\s\S]*?calc\(8px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);
 assert.match(appJs, /function composerRequestSizeError\(text, serializedBody\)/);

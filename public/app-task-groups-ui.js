@@ -560,6 +560,7 @@ function artifactHref(artifact) {
     return "#";
   }
   const kind = artifactKind(artifact);
+  if (kind === "html") return url;
   const query = new URLSearchParams({
     src: url,
     name: artifact?.name || artifact?.id || "document",

@@ -73,7 +73,7 @@ assert.match(taskArtifactHelpersJs, /return "markdown"/);
 assert.match(taskArtifactHelpersJs, /return "html"/);
 assert.match(appJs, /if \(kind === "markdown"\) return "MD"/);
 assert.match(appJs, /if \(kind === "html"\) return "HTML"/);
-assert.doesNotMatch(appJs, /if \(kind === "html"\) return url/);
+assert.match(appJs, /if \(kind === "html"\) return url/);
 assert.match(appJs, /function checkAppUpdate\(reason = "login"\)/);
 assert.match(appJs, /function applyAppUpdateFromBadge\(\)/);
 assert.match(appJs, /function isSelfUpdateUnsupported\(result\)/);
@@ -157,8 +157,8 @@ assert.match(fileViewer, /if \(isMarkdownDocument\(\)\) \{/);
 assert.match(fileViewer, /loadTextPreview\("Markdown preview", \{ markdown: true \}\)/);
 assert.match(fileViewer, /return "HTML"/);
 assert.match(fileViewer, /if \(src && kind === "HTML"\) \{/);
+assert.match(fileViewer, /location\.replace\(original\)/);
 assert.match(fileViewer, /renderIframePreview\("HTML preview"\)/);
-assert.doesNotMatch(fileViewer, /location\.replace\(originalUrlFor\(src\)\)/);
 assert.match(fileViewer, /if \(src && !isMarkdownDocument\(\)\) window\.setTimeout\(\(\) => prepareShareBlob/);
 
 assert.ok(adapterJs.includes("const aMarkdown = /\\.md$/i.test(a) ? 0 : 1;"));
