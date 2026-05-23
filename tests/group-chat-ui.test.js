@@ -47,6 +47,8 @@ assert.match(appJs, /function selectChatScope\(scope\)/);
 assert.match(appJs, /function selectWeixinChat\(open = true\)/);
 assert.match(appJs, /await selectChatScope\(isGroupChatView\(\) \? "chat" : "group"\)/);
 assert.doesNotMatch(threadStateUiJs, /\/group-chat`/);
+assert.match(threadStateUiJs, /state\.groupChatOpen = true;\s*localStorage\.setItem\("hermesWebWeixinChatOpen", "0"\);\s*localStorage\.setItem\("hermesWebGroupChatOpen", "1"\);\s*try \{\s*await loadSingleWindow\(\{ groupChat: true, weixinChat: false \}\)/);
+assert.match(threadStateUiJs, /catch \(err\) \{\s*state\.groupChatOpen = false;\s*localStorage\.setItem\("hermesWebGroupChatOpen", "0"\);\s*throw err;/);
 assert.match(appJs, /toggleGroupChat\.hidden = true/);
 assert.match(appJs, /\$\("topToggleWeixinChat"\)\?\.addEventListener\("click"/);
 assert.doesNotMatch(appJs, /data-open-group-members/);

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-toolset-group-hotfix-v98";
+const CLIENT_VERSION = "20260523-group-click-hotfix-v99";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -146,8 +146,8 @@ assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-toolset-group-hotfix-v98/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-toolset-group-hotfix-v98/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-group-click-hotfix-v99/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-group-click-hotfix-v99/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(stylesCss, /\.codex-mux-mode \.conversation \{[\s\S]*?overflow: hidden/);
 assert.match(stylesCss, /\.codex-mux-tabs \{/);
