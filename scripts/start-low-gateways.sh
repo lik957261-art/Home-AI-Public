@@ -181,6 +181,7 @@ start_gateway_profile() {
     HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$mobile_bridge_key_path" \
     HERMES_WEB_BRIDGE_HOST_KEY_PATH="$mobile_bridge_key_path" \
     HERMES_MOBILE_X_SEARCH_PROXY_URL="$x_search_proxy_url" \
+    HERMES_KANBAN_DISPATCH_IN_GATEWAY=0 \
     API_SERVER_KEY="$api_key" \
     "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2
