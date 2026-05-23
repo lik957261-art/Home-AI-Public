@@ -880,9 +880,9 @@
     const nativeAction = String(task?.nativeState?.nextAction || "");
     if (nativeAction) return nativeAction;
     const taskCardId = String(task?.taskCardId || "");
-    const reflection = latestRecordForTask(data.taskReflections || [], taskCardId, "submittedAt");
-    const evaluation = latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
-    const submission = latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
+    const reflection = task.latestReflection || latestRecordForTask(data.taskReflections || [], taskCardId, "submittedAt");
+    const evaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const submission = task.latestSubmission || latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
     if (String(task.status || "").toLowerCase() === "completed" || String(reflection?.status || "") === "accepted") return "complete";
     if (String(evaluation?.status || "") === "reflection_required") return "spoken_reflection";
     if (["needs_repair", "needs_revision"].includes(String(evaluation?.status || ""))) return "revise";

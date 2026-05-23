@@ -120,6 +120,19 @@ function testMigrationAndPersistence() {
   });
   assert.equal(evaluation.evaluationId, "eval-1");
   assert.equal(evaluation.questionText, "[redacted]");
+  const refreshedEvaluation = repository.saveEvaluation(Object.assign({}, evaluation, {
+    status: "needs_repair",
+    score: 68,
+    passed: false,
+    confidence: 0.86,
+    summary: "updated summary only",
+    createdAt: "2026-05-16T10:05:00.000Z",
+  }));
+  assert.equal(refreshedEvaluation.evaluationId, "eval-1");
+  assert.equal(refreshedEvaluation.createdAt, "2026-05-16T10:05:00.000Z");
+  assert.equal(refreshedEvaluation.score, 68);
+  assert.equal(repository.listEvaluations({ taskCardId: "task-1", limit: 1 })[0].createdAt, "2026-05-16T10:05:00.000Z");
+  assert.equal(repository.listEvaluations({ taskCardId: "task-1" }).length, 1);
 
   const submission = repository.saveTaskSubmission({
     submissionId: "submission-1",

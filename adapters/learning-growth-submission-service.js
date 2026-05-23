@@ -643,7 +643,7 @@ function createLearningGrowthSubmissionService(options = {}) {
       }
       return {
         ok: true,
-        card: mergeNativeTaskCard(task, kanbanCard, Object.assign({}, input, { workspaceId })),
+        card: mergeNativeTaskCard(withNativeTaskState(programService, task), kanbanCard, Object.assign({}, input, { workspaceId })),
         nativeTask: task,
         taskCardId,
         cardIdValue: kanbanCardId || taskCardId,
@@ -659,7 +659,7 @@ function createLearningGrowthSubmissionService(options = {}) {
     const nativeTask = resolveProgramTaskCard(programService, loaded.card);
     return {
       ok: true,
-      card: nativeTask ? mergeNativeTaskCard(nativeTask, loaded.card, input) : loaded.card,
+      card: nativeTask ? mergeNativeTaskCard(withNativeTaskState(programService, nativeTask), loaded.card, input) : loaded.card,
       nativeTask,
       taskCardId: nativeTask?.taskCardId || resolveTaskCardId(loaded.card),
       cardIdValue,
@@ -686,6 +686,28 @@ function createLearningGrowthSubmissionService(options = {}) {
     const programService = getProgramService(options);
     if (!taskCardId || !programService || typeof programService.listEvaluations !== "function") return null;
     return programService.listEvaluations({ taskCardId, limit: 1 })[0] || null;
+  }
+
+  function withNativeTaskState(programService, task = {}) {
+    const taskCardId = cleanString(task.taskCardId);
+    if (!taskCardId || !programService) return task;
+    const latestEvaluation = typeof programService.listEvaluations === "function"
+      ? programService.listEvaluations({ taskCardId, limit: 1 })[0]
+      : null;
+    const latestSubmission = typeof programService.listTaskSubmissions === "function"
+      ? programService.listTaskSubmissions({ taskCardId, limit: 1 })[0]
+      : null;
+    return Object.assign({}, task, {
+      latestSubmission: latestSubmission || task.latestSubmission || null,
+      latestEvaluation: latestEvaluation || task.latestEvaluation || null,
+      learningGrowthSubmissionStatus: cleanString(latestSubmission?.status || task.learningGrowthSubmissionStatus),
+      learningGrowthSubmissionAt: cleanString(latestSubmission?.submittedAt || task.learningGrowthSubmissionAt),
+      learningGrowthSubmissionKind: cleanString(latestSubmission?.submissionKind || task.learningGrowthSubmissionKind),
+      learningGrowthEvaluationId: cleanString(latestEvaluation?.evaluationId || task.learningGrowthEvaluationId),
+      learningGrowthEvaluationStatus: cleanString(latestEvaluation?.status || task.learningGrowthEvaluationStatus),
+      learningGrowthNextStep: cleanString(latestEvaluation?.nextStep || task.learningGrowthNextStep),
+      learningGrowthScore: latestEvaluation ? Number(latestEvaluation.score || 0) : task.learningGrowthScore,
+    });
   }
 
   function completionWindowGate(task) {

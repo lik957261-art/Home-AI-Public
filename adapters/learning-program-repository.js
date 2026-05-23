@@ -1665,7 +1665,8 @@ function createLearningProgramRepository(options = {}) {
         skill_results_json=excluded.skill_results_json,
         reward_policy_json=excluded.reward_policy_json,
         source_basis_refs_json=excluded.source_basis_refs_json,
-        raw_json=excluded.raw_json
+        raw_json=excluded.raw_json,
+        created_at=excluded.created_at
     `).run(
       row.evaluationId,
       row.taskCardId,

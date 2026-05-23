@@ -262,6 +262,8 @@ function testGrowthRendererCanOpenBoardOnlyRevisionTask() {
   assert.match(html, /data-learning-growth-feedback-detail/);
   assert.match(html, /Add one complete reason/);
   assert.match(html, /Explain q1 in one full sentence/);
+  assert.match(html, /\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4/);
+  assert.doesNotMatch(html, /\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539/);
   assert.doesNotMatch(html, /\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0/);
 }
 

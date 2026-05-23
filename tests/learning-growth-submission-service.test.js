@@ -704,6 +704,109 @@ async function testNativeTaskSubmissionWorksWithoutKanbanLink() {
   }
 }
 
+async function testNativeRevisionSubmissionUsesPersistedEvaluationState() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-native-revision",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Native revision task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      plannedDate: "2026-05-18",
+      plannedMinutes: 15,
+      skillIds: ["english_grammar"],
+      templateId: "english-grammar-v1",
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "grammar",
+        skillId: "english_grammar",
+        learnerInstruction: "Repair grammar and explain why.",
+        submissionContract: {
+          firstSubmissionKind: "grammar_first",
+          revisionSubmissionKind: "grammar_revision",
+        },
+      },
+      privacyLevel: "summary_only",
+    });
+    repository.saveInteractionSession({
+      sessionId: "session-native-revision",
+      taskCardId: "task-native-revision",
+      programId: "program-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      status: "needs_review",
+      currentStep: "mistake_explanation",
+      summary: "draft feedback recorded",
+    });
+    repository.saveEvaluation({
+      evaluationId: "eval-native-revision-draft",
+      taskCardId: "task-native-revision",
+      sessionId: "session-native-revision",
+      programId: "program-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      status: "needs_repair",
+      score: 68,
+      passed: false,
+      confidence: 0.86,
+      summary: "needs revision",
+      nextStep: "rewrite_and_reflect",
+      createdAt: "2026-05-18T10:00:00.000Z",
+    });
+    const stages = [];
+    const programService = createLearningProgramService({ repository });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      evaluationService: {
+        async evaluate(input) {
+          stages.push(input.stage);
+          return {
+            evaluationId: "eval-native-revision-final",
+            status: "needs_revision",
+            activityType: "grammar",
+            skillId: "english_grammar",
+            score: 76,
+            maxScore: 100,
+            passed: false,
+            confidence: 0.82,
+            summary: "summary only feedback",
+            feedbackMethod: "test",
+            feedbackSections: { focusAreas: ["add clearer evidence"], reflectionPrompts: [] },
+            revisionRequirements: ["add clearer evidence"],
+            reward: { eligible: false },
+          };
+        },
+      },
+      reportService: { writeReport: () => null },
+    });
+    const result = await service.submitTask({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-native-revision",
+      text: [
+        "First, I compare the old sentence with the corrected sentence and explain the verb pattern.",
+        "Then I add a new school example so the correction is not only copied from the first answer.",
+        "Finally, I reflect that my revision changes the evidence and makes the grammar rule clearer.",
+      ].join("\n"),
+      author: "weixin_stephen",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(stages[0], "final");
+    const savedSubmission = repository.listTaskSubmissions({ taskCardId: "task-native-revision", limit: 1 })[0];
+    assert.equal(savedSubmission.stage, "final");
+    assert.equal(savedSubmission.submissionKind, "grammar_revision");
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function testNativeSpeakingSubmissionUsesAudioTranscription() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
@@ -1108,6 +1211,7 @@ function testDependencyValidation() {
   await testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSettlement();
   await testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard();
   await testNativeTaskSubmissionWorksWithoutKanbanLink();
+  await testNativeRevisionSubmissionUsesPersistedEvaluationState();
   await testNativeSpeakingSubmissionUsesAudioTranscription();
   await testNativeSpeakingSubmissionRequiresAudio();
   await testNativeSpeakingSubmissionRequiresServerTranscription();
