@@ -1,6 +1,8 @@
 "use strict";
 
 (function initTaskDocumentPreviewUi(global) {
+  const PREVIEW_HISTORY_KEY = "__hermesTaskPreview";
+
   function escapeValue(value) {
     if (typeof global.escapeHtml === "function") return global.escapeHtml(value);
     return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
@@ -10,6 +12,46 @@
       '"': "&quot;",
       "'": "&#39;",
     }[ch]));
+  }
+
+  function hasArtifactPreviewOverlay() {
+    return Boolean(
+      document.getElementById("taskImagePreviewOverlay")
+      || document.getElementById("taskMarkdownPreviewOverlay")
+    );
+  }
+
+  function isPreviewHistoryActive() {
+    try {
+      return Boolean(global.history?.state?.[PREVIEW_HISTORY_KEY]);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function markPreviewHistory(kind) {
+    try {
+      if (!global.history?.pushState) return;
+      const baseState = global.history.state && typeof global.history.state === "object"
+        ? { ...global.history.state }
+        : {};
+      const nextState = { ...baseState, [PREVIEW_HISTORY_KEY]: kind };
+      if (baseState[PREVIEW_HISTORY_KEY]) {
+        global.history.replaceState(nextState, "", global.location.href);
+      } else {
+        global.history.pushState(nextState, "", global.location.href);
+      }
+    } catch (_) {
+      // Browser history is best-effort; the explicit close button still works.
+    }
+  }
+
+  function closePreviewFromUser(closeFn) {
+    if (isPreviewHistoryActive()) {
+      global.history.back();
+      return;
+    }
+    closeFn();
   }
 
   function closeImagePreviewOverlay() {
@@ -30,6 +72,11 @@
     closeImagePreviewOverlay();
     closeMarkdownPreviewOverlay();
   }
+
+  global.addEventListener("popstate", () => {
+    if (!hasArtifactPreviewOverlay()) return;
+    closeArtifactPreviewOverlays();
+  });
 
   function isImagePreviewLink(link) {
     const mime = String(link?.dataset?.artifactMime || "").toLowerCase();
@@ -58,18 +105,19 @@
     image.src = href;
     image.decoding = "async";
     overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) closeImagePreviewOverlay();
+      if (event.target === overlay) closePreviewFromUser(closeImagePreviewOverlay);
     });
     const closeButton = overlay.querySelector(".task-image-preview-close");
     ["pointerdown", "touchstart", "click"].forEach((eventName) => {
       closeButton.addEventListener(eventName, (event) => {
         event.preventDefault();
         event.stopPropagation();
-        closeImagePreviewOverlay();
+        closePreviewFromUser(closeImagePreviewOverlay);
       }, { passive: false });
     });
     document.body.appendChild(overlay);
     document.body.classList.add("task-image-preview-open");
+    markPreviewHistory("image");
     return true;
   }
 
@@ -161,11 +209,12 @@
       closeButton.addEventListener(eventName, (event) => {
         event.preventDefault();
         event.stopPropagation();
-        closeMarkdownPreviewOverlay();
+        closePreviewFromUser(closeMarkdownPreviewOverlay);
       }, { passive: false });
     });
     document.body.appendChild(overlay);
     document.body.classList.add("task-markdown-preview-open");
+    markPreviewHistory("markdown");
     const status = overlay.querySelector(".task-markdown-preview-status");
     const doc = overlay.querySelector(".task-markdown-preview-doc");
     const headers = {};

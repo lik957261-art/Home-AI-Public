@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-inline-md-preview-v126";
+const CLIENT_VERSION = "20260523-preview-swipe-md-title-v127";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -170,6 +170,12 @@ assert.match(stylesCss, /\.task-image-preview-overlay/);
 assert.match(appJs, /function openMarkdownPreviewOverlay\(link\)/);
 assert.match(appJs, /previews\.isMarkdownPreviewLink\?\.\(link\) && previews\.openMarkdownPreviewOverlay\?\.\(link\)/);
 assert.match(stylesCss, /\.task-markdown-preview-overlay/);
+assert.match(appJs, /const PREVIEW_HISTORY_KEY = "__hermesTaskPreview"/);
+assert.match(appJs, /global\.addEventListener\("popstate"/);
+assert.match(appJs, /global\.history\.pushState\(nextState/);
+assert.match(stylesCss, /\.task-markdown-preview-doc h1/);
+assert.match(stylesCss, /\.task-markdown-preview-doc h1 \{[\s\S]*?font-size: 24px;/);
+assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22px;/);
 assert.match(appJs, /kind === "html" \|\| mime\.startsWith\("image\/"\)/);
 assert.match(appJs, /if \(kind === "markdown"\) return `\/markdown-viewer\.html\?\$\{query\.toString\(\)\}`/);
 assert.match(markdownViewerHtml, /markdownRenderer\.renderMarkdownDocument/);

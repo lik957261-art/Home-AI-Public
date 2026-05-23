@@ -4151,6 +4151,35 @@ body.task-markdown-preview-open {
 .task-markdown-preview-doc article {
   min-width: 0;
   max-width: 100%;
+  font-family: inherit;
+}
+
+.task-markdown-preview-doc h1,
+.task-markdown-preview-doc h2,
+.task-markdown-preview-doc h3,
+.task-markdown-preview-doc h4,
+.task-markdown-preview-doc h5,
+.task-markdown-preview-doc h6 {
+  font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif;
+  line-height: 1.35;
+}
+
+.task-markdown-preview-doc h1 {
+  font-size: 24px;
+}
+
+.task-markdown-preview-doc h2 {
+  font-size: 22px;
+}
+
+.task-markdown-preview-doc h3 {
+  font-size: 21px;
+}
+
+.task-markdown-preview-doc h4,
+.task-markdown-preview-doc h5,
+.task-markdown-preview-doc h6 {
+  font-size: 20px;
 }
 
 .task-markdown-preview-doc pre,
