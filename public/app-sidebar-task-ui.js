@@ -552,7 +552,11 @@ function openTaskDocumentLink(link) {
   const href = link?.href || link?.getAttribute?.("href") || "";
   if (!href) return;
   closeTaskSwipeRows(document);
-  window.location.assign(href);
+  if (isMobileLayout()) {
+    window.location.assign(href);
+    return;
+  }
+  window.open(href, link.getAttribute("target") || "_blank", "noopener");
 }
 
 function wireTaskDocumentLinks(root) {

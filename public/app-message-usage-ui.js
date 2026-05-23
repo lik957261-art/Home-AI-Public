@@ -2,7 +2,7 @@
 
 function renderArtifacts(artifacts) {
   return `<div class="artifacts">${displayArtifacts(artifacts).map((artifact) => `<div class="artifact-row">
-    <a class="artifact-card doc-${escapeHtml(artifactKind(artifact))}" href="${escapeHtml(artifactHref(artifact))}" data-task-doc>
+    <a class="artifact-card doc-${escapeHtml(artifactKind(artifact))}" href="${escapeHtml(artifactHref(artifact))}" target="_blank" rel="noopener" data-task-doc>
       <div class="artifact-icon">${escapeHtml(iconForArtifact(artifact))}</div>
       <div>
         <div class="artifact-name">${escapeHtml(artifactDisplayName(artifact))}</div>

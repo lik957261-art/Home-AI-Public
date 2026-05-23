@@ -542,23 +542,9 @@ function currentViewerReturnUrl() {
   return `/?${params.toString()}`;
 }
 
-function viewerChromeModeForCurrentShell() {
-  const standalone = Boolean(
-    window.matchMedia?.("(display-mode: standalone)")?.matches
-    || window.navigator?.standalone === true,
-  );
-  return standalone ? "hermes" : "native";
-}
-
 function artifactHref(artifact) {
   const url = String(artifact?.url || "#");
   if (!url || url === "#") return url;
-  try {
-    const parsed = new URL(url, window.location.origin);
-    if (parsed.origin === window.location.origin && (parsed.pathname === "/" || parsed.pathname === "/hermes-mobile/" || parsed.pathname === "/index.html")) return "#";
-  } catch (_) {
-    return "#";
-  }
   const kind = artifactKind(artifact);
   if (kind === "html") return url;
   const query = new URLSearchParams({
@@ -567,7 +553,6 @@ function artifactHref(artifact) {
     mime: artifact?.mime || "",
     size: String(artifact?.size || 0),
     return: currentViewerReturnUrl(),
-    viewerChrome: viewerChromeModeForCurrentShell(),
   });
   if (state.selectedWorkspaceId) query.set("workspaceId", state.selectedWorkspaceId);
   if (state.currentThreadId) query.set("threadId", state.currentThreadId);

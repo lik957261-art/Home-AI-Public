@@ -10261,7 +10261,7 @@ button.directory-alias-chip {
   grid-template-columns: 40px minmax(0, 1fr) minmax(50px, auto);
   align-items: center;
   gap: 6px;
-  padding: 9px 14px calc(14px + env(safe-area-inset-bottom));
+  padding: 9px 14px calc(9px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: rgba(250, 246, 237, 0.88);
   backdrop-filter: blur(18px);
@@ -11184,8 +11184,12 @@ button.directory-alias-chip {
 
   .composer {
     grid-template-columns: 40px minmax(0, 1fr) 52px;
-    padding: 7px 8px calc(14px + env(safe-area-inset-bottom));
+    padding: 7px 8px 6px;
     gap: 5px;
+  }
+
+  .main-back-visible .composer {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
   }
 
   .composer-context {

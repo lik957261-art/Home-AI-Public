@@ -319,17 +319,12 @@
     function entryHref(entry) {
       if (entry.type === "directory") return entry.url;
       const returnUrl = `${location.pathname}${location.search}`;
-      const standalone = Boolean(
-        window.matchMedia?.("(display-mode: standalone)")?.matches
-        || window.navigator?.standalone === true,
-      );
       const query = new URLSearchParams({
         src: entry.url,
         name: entry.name || "",
         mime: entry.mime || "",
         size: String(entry.size || 0),
         return: returnUrl,
-        viewerChrome: standalone ? "hermes" : "native",
       });
       if (entryKind(entry) === "pdf") return `/pdf-viewer.html?${query.toString()}`;
       return `/file-viewer.html?${query.toString()}`;

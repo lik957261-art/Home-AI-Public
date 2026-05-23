@@ -657,20 +657,6 @@
       display: inline-flex;
     }
 
-    body.native-browser-chrome .viewer-more-button,
-    body.native-browser-chrome .viewer-done-button {
-      display: none !important;
-    }
-
-    body.embedded-viewer .shell,
-    body.embedded-viewer .card {
-      min-height: 100dvh;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      box-shadow: none;
-    }
-
     .image-stage {
       display: grid;
       place-items: center;
@@ -818,8 +804,6 @@
     const mime = params.get("mime") || "file";
     const size = Number(params.get("size") || 0);
     const returnUrl = params.get("return") || "";
-    const viewerChrome = params.get("viewerChrome") || "";
-    const embeddedViewer = params.get("embedded") === "1" || viewerChrome === "embedded";
     const previewStatus = document.getElementById("previewStatus");
     const toast = document.getElementById("toast");
     let toastTimer = 0;
@@ -898,18 +882,6 @@
 
     applyViewerPreferences();
 
-    function shouldShowHermesViewerChrome() {
-      if (embeddedViewer) return false;
-      if (viewerChrome) return viewerChrome === "hermes";
-      return Boolean(
-        window.matchMedia?.("(display-mode: standalone)")?.matches
-        || window.navigator?.standalone === true
-      );
-    }
-
-    document.body.classList.toggle("embedded-viewer", embeddedViewer);
-    document.body.classList.toggle("native-browser-chrome", !shouldShowHermesViewerChrome());
-
     function formatBytes(bytes) {
       const n = Number(bytes || 0);
       if (n < 1024) return `${n} B`;
@@ -982,9 +954,6 @@
     function originalUrlFor(value) {
       const url = sameOriginUrl(value);
       if (!url) return value || "#";
-      if (url.pathname === "/" || url.pathname === "/hermes-mobile/" || url.pathname === "/index.html") {
-        return "#";
-      }
       if (url.pathname === "/api/files/preview") {
         url.pathname = "/api/files";
       }
@@ -1274,20 +1243,6 @@
       } catch (_) {
         if (src) image.src = src;
       }
-    }
-
-    function renderIframePreview(label) {
-      document.getElementById("previewLabel").textContent = label;
-      document.getElementById("previewInfo").textContent = "";
-      const frame = document.getElementById("preview");
-      const frameSrc = originalUrlFor(src);
-      if (!frameSrc || frameSrc === "#") {
-        setStatus("This document cannot be previewed in place.");
-        return;
-      }
-      frame.src = frameSrc;
-      frame.classList.remove("hidden");
-      setStatus("");
     }
 
     async function downloadFile(event) {
@@ -1711,12 +1666,7 @@ window.addEventListener("load", function () {
     }
 
     if (src && kind === "HTML") {
-      const original = originalUrlFor(src);
-      if (original && original !== "#") {
-        location.replace(original);
-      } else {
-        renderIframePreview("HTML preview");
-      }
+      location.replace(originalUrlFor(src));
     }
 
     if (src && kind === "DOC" && String(name).toLowerCase().endsWith(".docx")) {
