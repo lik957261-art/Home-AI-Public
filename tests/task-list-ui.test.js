@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-mobile-top-title-size-v143";
+const CLIENT_VERSION = "20260524-mobile-top-title-size-v144";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -197,8 +197,9 @@ assert.match(stylesCss, /\.directory-alias-open \{[\s\S]*?width: 18px;[\s\S]*?he
 assert.match(stylesCss, /\.directory-alias-open\.learning-growth-board-artifact-link \{[\s\S]*?height: 20px;/);
 assert.match(stylesCss, /\.directory-alias-icon\.learning-growth-board-artifact-icon \{[\s\S]*?border: 0;[\s\S]*?opacity: 1;/);
 assert.match(stylesCss, /\.directory-alias-icon\.learning-growth-board-artifact-icon::before \{[\s\S]*?content: none;/);
-assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 22px;[\s\S]*?font-size: 15px;/);
-assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 22px;[\s\S]*?font-size: 14px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 14px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 14px;/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);
