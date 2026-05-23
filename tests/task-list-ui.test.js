@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-directory-chip-cascade-v138";
+const CLIENT_VERSION = "20260524-directory-text-link-v139";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -192,11 +192,14 @@ assert.match(stylesCss, /\.task-markdown-preview-doc h1 \{[\s\S]*?font-size: 24p
 assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22px;/);
 assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]*?justify-content: center;/);
 assert.match(stylesCss, /\.directory-alias-chip \{[\s\S]*?font-size: 10px;[\s\S]*?line-height: 1\.15;/);
-assert.match(stylesCss, /button\.directory-alias-chip \{[\s\S]*?font-size: 10px;[\s\S]*?line-height: 1\.15;/);
-assert.match(stylesCss, /\.directory-alias-project \{[\s\S]*?font-size: inherit;[\s\S]*?line-height: inherit;/);
-assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 19px;[\s\S]*?font-size: 10px;/);
-assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-icon \{[\s\S]*?font-size: 8px;/);
+assert.match(stylesCss, /\.directory-alias-text \{[\s\S]*?white-space: nowrap;[\s\S]*?text-overflow: ellipsis;/);
+assert.match(stylesCss, /\.directory-alias-open \{[\s\S]*?width: 18px;[\s\S]*?height: 18px;/);
+assert.match(stylesCss, /\.directory-alias-icon::before/);
+assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 18px;[\s\S]*?font-size: 10px;/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 9\.5px;[\s\S]*?line-height: 1\.15;/);
+assert.match(appJs, /directory-alias-text/);
+assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);
+assert.doesNotMatch(appJs, /<span class="directory-alias-icon">DIR<\/span>/);
 assert.match(appJs, /kind === "html" \|\| mime\.startsWith\("image\/"\)/);
 assert.match(appJs, /if \(kind === "markdown"\) return `\/markdown-viewer\.html\?\$\{query\.toString\(\)\}`/);
 assert.match(markdownViewerHtml, /markdownRenderer\.renderMarkdownDocument/);

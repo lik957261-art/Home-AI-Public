@@ -1526,9 +1526,9 @@ button {
 }
 
 .task-toolbar-directories .directory-alias-chip {
-  min-height: 19px;
+  min-height: 18px;
   max-width: 100%;
-  padding: 1px 6px;
+  padding: 0;
   gap: 3px;
   font-size: 10px;
   line-height: 1.15;
@@ -1536,13 +1536,8 @@ button {
   box-shadow: none;
 }
 
-.task-toolbar-directories .directory-alias-open,
-.task-toolbar-directories .directory-alias-icon {
-  display: none;
-}
-
 .task-toolbar-directories .directory-alias-project,
-.task-toolbar-directories .directory-alias-chip span:last-child {
+.task-toolbar-directories .directory-alias-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2324,7 +2319,7 @@ button {
 .directory-aliases {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 8px 12px;
   margin: 0 0 12px;
   white-space: normal;
 }
@@ -2332,23 +2327,23 @@ button {
 .directory-alias-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 7px 11px 7px 8px;
+  gap: 4px;
+  min-height: 18px;
+  padding: 0;
   color: #12342f;
   text-decoration: none;
-  background: rgba(241, 247, 241, 0.86);
-  border: 1px solid rgba(31, 111, 98, 0.20);
-  border-radius: 999px;
-  box-shadow: 0 10px 24px rgba(35, 54, 48, 0.07);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   font-size: 10px;
   line-height: 1.15;
 }
 
 .directory-alias-chip-reference {
   color: #566864;
-  background: rgba(246, 241, 232, 0.62);
-  border-color: rgba(86, 104, 100, 0.18);
+  background: transparent;
+  border-color: transparent;
 }
 
 button.directory-alias-chip {
@@ -2363,11 +2358,14 @@ button.directory-alias-chip {
 .directory-alias-open {
   appearance: none;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
   color: inherit;
-  background: transparent;
-  border: 0;
+  background: rgba(255, 252, 246, 0.84);
+  border: 1px solid rgba(31, 111, 98, 0.22);
+  border-radius: 6px;
   font: inherit;
   font-size: inherit;
   line-height: inherit;
@@ -2389,20 +2387,36 @@ button.directory-alias-chip {
   cursor: pointer;
 }
 
+.directory-alias-text {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .directory-alias-icon {
-  display: inline-grid;
-  place-items: center;
-  min-width: 34px;
-  height: 22px;
-  font-size: 8px;
-  line-height: 1;
-  padding: 0 7px;
-  color: #fffaf1;
-  background: linear-gradient(145deg, #2d8a79, #1f5f54);
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  position: relative;
+  display: block;
+  width: 11px;
+  height: 9px;
+  border: 1.4px solid currentColor;
+  border-radius: 2px;
+  opacity: 0.72;
+}
+
+.directory-alias-icon::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: -4px;
+  width: 5px;
+  height: 3px;
+  border: 1.4px solid currentColor;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+  background: rgba(255, 252, 246, 0.84);
 }
 
 .learning-growth-reading-material article {
@@ -3530,33 +3544,21 @@ button.directory-alias-chip {
 }
 
 .task-card-directories .directory-alias-chip {
-  min-height: 19px;
+  min-height: 18px;
   max-width: 100%;
   gap: 3px;
-  padding: 1px 6px;
+  padding: 0;
   font-size: 9.5px;
   line-height: 1.15;
   box-shadow: none;
 }
 
-.task-card-directories .directory-alias-open,
-.task-card-directories .directory-alias-icon {
-  display: none;
-}
-
 .task-card-directories .directory-alias-chip {
-  padding: 1px 6px;
-}
-
-.task-card-directories .directory-alias-icon {
-  min-width: 28px;
-  height: 19px;
-  padding: 0 6px;
-  font-size: 9px;
+  padding: 0;
 }
 
 .task-card-directories .directory-alias-project,
-.task-card-directories .directory-alias-chip span:last-child {
+.task-card-directories .directory-alias-text {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -11497,9 +11499,9 @@ body.task-markdown-preview-open {
   }
 
   .message .directory-alias-chip {
-    min-height: 19px;
+    min-height: 18px;
     max-width: 100%;
-    padding: 1px 6px;
+    padding: 0;
     gap: 3px;
     font-size: 10px;
     line-height: 1.15;
@@ -11507,10 +11509,8 @@ body.task-markdown-preview-open {
   }
 
   .message .directory-alias-icon {
-    min-width: 24px;
-    height: 15px;
-    padding: 0 5px;
-    font-size: 8px;
+    width: 11px;
+    height: 9px;
   }
 
   .directory-shell {

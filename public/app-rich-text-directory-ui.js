@@ -563,21 +563,21 @@ function renderDirectoryAliases(aliases, message, options = {}) {
         : (reference || pathIsNested
         ? logicalDirectoryDisplayPath(directoryPath, route.label || displayAlias.label)
         : directoryRouteDisplayPath(route, route.label || displayAlias.label));
-      const label = reference ? `\u4ea4\u4ed8 \u00b7 ${baseLabel}` : baseLabel;
+      const label = reference ? `\u4ea4\u4ed8 \u00b7 ${baseLabel}` : `绑定目录：${baseLabel}`;
       return `<span class="${chipClass} directory-alias-chip-mapped" title="${escapeHtml(label)}">
-        <button class="directory-alias-open" type="button" data-directory-project data-project-id="${escapeHtml(route.projectId)}" data-subproject-id="${escapeHtml(route.subprojectId || "")}" data-directory-path="${escapeHtml(directoryPath)}" aria-label="打开目录管理">
-          <span class="directory-alias-icon">DIR</span>
-        </button>
-        <button class="directory-alias-project" type="button" data-directory-project data-project-id="${escapeHtml(route.projectId)}" data-subproject-id="${escapeHtml(route.subprojectId || "")}" data-directory-path="${escapeHtml(directoryPath)}">
-          ${escapeHtml(label)}
+        <span class="directory-alias-text">${escapeHtml(label)}</span>
+        <button class="directory-alias-open" type="button" data-directory-project data-project-id="${escapeHtml(route.projectId)}" data-subproject-id="${escapeHtml(route.subprojectId || "")}" data-directory-path="${escapeHtml(directoryPath)}" aria-label="打开目录">
+          <span class="directory-alias-icon" aria-hidden="true"></span>
         </button>
       </span>`;
     }
-    const fallbackLabel = reference ? `\u4ea4\u4ed8 \u00b7 ${shortDirectoryAliasLabel(displayAlias.label)}` : shortDirectoryAliasLabel(displayAlias.label);
-    return `<button class="${chipClass}" type="button" data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(displayAlias.label || "")}">
-      <span class="directory-alias-icon">DIR</span>
-      <span>${escapeHtml(fallbackLabel)}</span>
-    </button>`;
+    const fallbackLabel = reference ? `\u4ea4\u4ed8 \u00b7 ${shortDirectoryAliasLabel(displayAlias.label)}` : `\u7ed1\u5b9a\u76ee\u5f55\uff1a${shortDirectoryAliasLabel(displayAlias.label)}`;
+    return `<span class="${chipClass}" title="${escapeHtml(fallbackLabel)}">
+      <span class="directory-alias-text">${escapeHtml(fallbackLabel)}</span>
+      <button class="directory-alias-open" type="button" data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(displayAlias.label || "")}" aria-label="打开目录">
+        <span class="directory-alias-icon" aria-hidden="true"></span>
+      </button>
+    </span>`;
   }).join("")}</div>`;
 }
 
