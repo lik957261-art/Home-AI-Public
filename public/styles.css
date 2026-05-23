@@ -1530,7 +1530,7 @@ button {
   max-width: 100%;
   padding: 0;
   gap: 5px;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.32;
   white-space: nowrap;
   box-shadow: none;
@@ -11459,7 +11459,7 @@ body.task-markdown-preview-open {
   }
 
   .thread-title {
-    font-size: 17px;
+    font-size: 15px;
     line-height: 1.15;
     font-weight: 650;
   }
