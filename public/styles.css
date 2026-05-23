@@ -1495,6 +1495,7 @@ button {
   min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -1508,34 +1509,43 @@ button {
 }
 
 .task-toolbar-meta .task-toolbar-directories {
-  flex: 0 0 auto;
-  max-width: 70%;
-  overflow: visible;
+  flex: 0 1 auto;
+  max-width: min(74vw, 420px);
+  overflow: hidden;
   display: flex;
   justify-content: center;
 }
 
 .task-toolbar-directories .directory-aliases {
   flex-wrap: nowrap;
-  gap: 7px;
+  justify-content: center;
+  gap: 5px;
   margin: 0;
-  overflow: visible;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .task-toolbar-directories .directory-alias-chip {
-  min-height: 24px;
-  padding: 3px 8px 3px 4px;
-  gap: 5px;
+  min-height: 22px;
+  max-width: 100%;
+  padding: 2px 8px;
+  gap: 4px;
   font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;
+  box-shadow: none;
 }
 
+.task-toolbar-directories .directory-alias-open,
 .task-toolbar-directories .directory-alias-icon {
-  min-width: 25px;
-  height: 16px;
-  padding: 0 5px;
-  font-size: 8px;
+  display: none;
+}
+
+.task-toolbar-directories .directory-alias-project,
+.task-toolbar-directories .directory-alias-chip span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .task-detail-mode .message .directory-aliases {
@@ -3510,12 +3520,13 @@ button.directory-alias-chip {
 }
 
 .task-card-directories .directory-alias-chip {
-  min-height: 28px;
+  min-height: 22px;
   max-width: 100%;
-  gap: 6px;
-  padding: 2px 7px 2px 4px;
-  font-size: 12px;
+  gap: 5px;
+  padding: 2px 7px;
+  font-size: 11.5px;
   line-height: 1.2;
+  box-shadow: none;
 }
 
 .task-card-directories .directory-alias-open,
@@ -3524,7 +3535,7 @@ button.directory-alias-chip {
 }
 
 .task-card-directories .directory-alias-chip {
-  padding: 2px 8px;
+  padding: 2px 7px;
 }
 
 .task-card-directories .directory-alias-icon {
@@ -11349,6 +11360,28 @@ body.task-markdown-preview-open {
 
   .conversation {
     padding: 10px 10px 16px;
+  }
+
+  .message .directory-aliases {
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+
+  .message .directory-alias-chip {
+    min-height: 24px;
+    max-width: 100%;
+    padding: 2px 8px;
+    gap: 5px;
+    font-size: 12px;
+    line-height: 1.2;
+    box-shadow: none;
+  }
+
+  .message .directory-alias-icon {
+    min-width: 24px;
+    height: 15px;
+    padding: 0 5px;
+    font-size: 8px;
   }
 
   .directory-shell {
