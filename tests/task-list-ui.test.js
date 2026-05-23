@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-growth-feedback-counts-v116";
+const CLIENT_VERSION = "20260523-wechat-shell-v117";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -175,6 +175,9 @@ assert.match(stylesCss, /\.codex-mux-event-list \{[\s\S]*?overflow-y: auto[\s\S]
 assert.match(stylesCss, /\.codex-mux-message \{/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
+assert.match(appJs, /const learningGrowthDetail = state\.viewMode === "learning" && Boolean\(state\.selectedLearningTaskCardId\)/);
+assert.match(appJs, /mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail/);
+assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
 assert.match(appJs, /target === "directory"[\s\S]*?navigateDirectoryUp\(\{ animateEntry: true \}\)\.catch\(showError\)/);
 assert.match(appJs, /learningGrowthWorkspaceId: state\.learningGrowthWorkspaceId/);
 assert.match(appJs, /selectedLearningTaskCardId: state\.selectedLearningTaskCardId/);
@@ -1113,7 +1116,8 @@ assert.match(appLearningGrowthControllerJs, /event\.stopPropagation\(\)/);
 assert.match(appLearningGrowthControllerJs, /wireDirectoryProjectLinks\(root\)/);
 assert.match(mobileApiComposition, /directoryMaterializationService: learningGrowthDirectoryMaterializationService/);
 assert.match(mobileApiComposition, /reportDirectoryForCard: \(workspaceId, taskCardId, task\) => learningGrowthDirectoryMaterializationService\.reportDirectoryForCard/);
-assert.match(appLearningGrowthControllerJs, /data-learning-close-growth-task/);
+assert.doesNotMatch(appLearningGrowthUiJs, /data-learning-close-growth-task/);
+assert.doesNotMatch(appLearningGrowthControllerJs, /data-learning-close-growth-task/);
 assert.match(stylesCss, /\.learning-growth-board-status-filter/);
 assert.match(stylesCss, /\.learning-growth-board-status-chip/);
 assert.match(stylesCss, /\.learning-growth-board-page/);
@@ -1121,6 +1125,7 @@ assert.match(stylesCss, /\.learning-growth-board-summary/);
 assert.match(stylesCss, /\.learning-growth-board-card-preview/);
 assert.match(stylesCss, /\.learning-growth-board-artifact-link/);
 assert.match(stylesCss, /\.learning-growth-task-focus/);
+assert.doesNotMatch(stylesCss, /\.learning-growth-task-focus-head/);
 assert.match(stylesCss, /\.learning-growth-answer-card/);
 assert.match(stylesCss, /\.learning-growth-board-lanes/);
 assert.match(appLearningGrowthTaskUiJs, /HermesLearningGrowthTaskUi/);
@@ -1384,9 +1389,15 @@ assert.match(singleWindowGroupChatApiRoutes, /groupChatThread/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatAvailable/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThreadId/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThread/);
-assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(80px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(58px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height/);
-assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 12px\)/);
+assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 8px\)/);
+assert.match(stylesCss, /\.app\.main-back-visible \{[\s\S]*?padding-bottom: 0/);
+assert.match(stylesCss, /\.main-back-visible \.bottom-nav \{[\s\S]*?display: none/);
+assert.match(stylesCss, /\.topbar \{[\s\S]*?min-height: calc\(44px \+ env\(safe-area-inset-top\)\)/);
+assert.match(stylesCss, /\.thread-meta \{[\s\S]*?display: none/);
+assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?line-height: 1\.05/);
+assert.match(stylesCss, /\.top-nav-button\.back-mode \.top-nav-button-glyph \{[\s\S]*?background: transparent[\s\S]*?font-size: 27px/);
 assert.match(appJs, /Math\.max\(96, rectHeight \+ 12, contentHeight \+ 12\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(50px \+ env\(safe-area-inset-bottom\)\)/);

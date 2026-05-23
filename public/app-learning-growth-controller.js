@@ -565,7 +565,6 @@ function wireLearningCoinsView() {
   $("conversation")?.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
   });
-  $("conversation")?.querySelector("[data-learning-close-growth-task]")?.addEventListener("click", () => { state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsOpen = false; renderLearningCoinsView(); });
   $("conversation")?.querySelector("[data-learning-settings-task-back]")?.addEventListener("click", () => window.HermesLearningGrowthSettingsController?.closeSettingsTask?.());
   window.HermesLearningGrowthSettingsController?.wireSettingsTaskSwipe?.($("conversation"));
   window.HermesLearningGrowthAiController?.wireLearningGrowthAi?.();

@@ -799,10 +799,6 @@
       ? programUi.renderNativeGrowthTaskDetail(task, programs, options)
       : `<div class="learning-coin-empty">\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0\u6216\u4e0d\u5728\u5f53\u524d\u72b6\u6001\u91cc\u3002</div>`;
     return `<div class="learning-growth-view learning-growth-task-focus" data-learning-product="fanfan-growth" data-learning-growth-task-focus="${escapeHtml(taskCardId)}">
-      <div class="learning-growth-task-focus-head">
-        <button type="button" data-learning-close-growth-task>\u8fd4\u56de\u770b\u677f</button>
-        <span>\u5355\u5f20\u4efb\u52a1</span>
-      </div>
       ${detail}
     </div>`;
   }

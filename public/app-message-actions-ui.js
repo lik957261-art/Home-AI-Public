@@ -421,6 +421,12 @@ function activateTopNavButton() {
     openAutomationList();
     return;
   }
+  if (state.viewMode === "learning" && state.selectedLearningTaskCardId) {
+    state.selectedLearningTaskCardId = "";
+    state.learningGrowthSettingsOpen = false;
+    renderLearningCoinsView();
+    return;
+  }
   if (state.viewMode === "projects" && directoryActivePath()) {
     navigateDirectoryUp({ animateEntry: true }).catch(showError);
     return;

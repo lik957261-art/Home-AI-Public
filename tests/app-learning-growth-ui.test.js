@@ -344,7 +344,8 @@ function testGrowthRendererShowsStandaloneTaskCardWhenSelected() {
     state: { auth: { isOwner: false }, selectedLearningTaskCardId: "task-1" },
   });
   assert.match(html, /data-learning-growth-task-focus="task-1"/);
-  assert.match(html, /data-learning-close-growth-task/);
+  assert.doesNotMatch(html, /data-learning-close-growth-task/);
+  assert.doesNotMatch(html, /\u8fd4\u56de\u770b\u677f/);
   assert.match(html, /data-learning-growth-answer-card/);
   assert.match(html, /data-learning-native-growth-submission-form="task-1"/);
   assert.match(html, /Task status/);

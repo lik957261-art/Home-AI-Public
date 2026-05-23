@@ -176,7 +176,8 @@ function updateNavigationControls() {
   const skillDetail = isSkillDetailView();
   const taskList = isTaskListView();
   const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || skillDetail || directoryBack;
+  const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || skillDetail || directoryBack || learningGrowthDetail;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
