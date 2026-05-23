@@ -596,19 +596,86 @@
     return `\u81f3\u5c11 ${Number(guard.minWords || 0)} \u4e2a\u82f1\u6587\u8bcd / ${Number(guard.minChars || 0)} \u4e2a\u6709\u6548\u5b57\u7b26`;
   }
 
+  function nativeGrowthDeterministicScoreText(evaluation = {}) {
+    const score = Number(evaluation.score);
+    if (!Number.isFinite(score)) return "";
+    const maxScore = Number(evaluation.maxScore || evaluation.totalScore || 100);
+    const boundedMax = Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100;
+    const cleanScore = Number.isInteger(score) ? String(score) : score.toFixed(1).replace(/\.0$/, "");
+    const cleanMax = Number.isInteger(boundedMax) ? String(boundedMax) : boundedMax.toFixed(1).replace(/\.0$/, "");
+    return `\u786e\u5b9a\u5206\u6570 ${cleanScore}/${cleanMax}`;
+  }
+
   function nativeGrowthFeedbackHistory(task = {}, evaluation = {}, options = {}) {
     const helper = growthTaskUi(options);
     if (helper && typeof helper.renderFeedbackHistory === "function") {
       return helper.renderFeedbackHistory(task, evaluation);
     }
     const status = evaluation.status || (evaluation.passed ? "passed" : "needs_revision");
-    const score = Number(evaluation.score);
-    const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
+    const scoreText = nativeGrowthDeterministicScoreText(evaluation);
     const summary = evaluation.summary || evaluation.feedbackSummary || evaluation.resultSummary || "";
     return `<div class="todo-learning-growth-outcome is-${defaultEscapeHtml(status)}">
       <strong>${defaultEscapeHtml(scoreText || status || "\u5f85\u4fee\u8ba2")}</strong>
       ${summary ? `<p>${defaultEscapeHtml(summary)}</p>` : ""}
     </div>`;
+  }
+
+  function nativeGrowthTimeLabel(value, options = {}) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const formatTime = optionFn(options, "formatTime", null);
+    if (formatTime) {
+      const formatted = String(formatTime(raw) || "").trim();
+      if (formatted) return formatted;
+    }
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+    return date.toLocaleString([], { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function renderLearningGrowthSectionHead(title, rightHtml = "", escapeHtml = defaultEscapeHtml) {
+    return `<div class="learning-growth-section-head">
+      <h4>${escapeHtml(title)}</h4>
+      ${rightHtml ? `<div class="learning-growth-section-head-actions">${rightHtml}</div>` : ""}
+    </div>`;
+  }
+
+  function nativeGrowthAttemptCount(task = {}, evaluation = {}) {
+    const candidates = [
+      task.totalSubmissionCount,
+      task.submissionCount,
+      task.totalEvaluationCount,
+      task.evaluationCount,
+      evaluation.totalSubmissionCount,
+      evaluation.submissionCount,
+      evaluation.totalEvaluationCount,
+      evaluation.evaluationCount,
+      Array.isArray(evaluation.reportHistory) ? evaluation.reportHistory.length : 0,
+      Array.isArray(task.learningGrowthReportHistory) ? task.learningGrowthReportHistory.length : 0,
+      task.artifactCount,
+    ];
+    const count = candidates.map((value) => Number(value)).find((value) => Number.isFinite(value) && value > 0);
+    return Math.max(1, Math.round(count || 1));
+  }
+
+  function nativeGrowthArtifactDirectoryPath(task = {}, evaluation = {}) {
+    return String(task.artifactDirectoryPath
+      || task.reportDirectoryPath
+      || task.deliverableDirectoryPath
+      || evaluation.artifactDirectoryPath
+      || evaluation.reportDirectoryPath
+      || "").trim();
+  }
+
+  function renderNativeGrowthFeedbackHead(task = {}, evaluation = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const count = nativeGrowthAttemptCount(task, evaluation);
+    const directoryPath = nativeGrowthArtifactDirectoryPath(task, evaluation);
+    const label = `\u603b\u63d0\u4ea4 ${count} \u6b21`;
+    const right = directoryPath
+      ? `<button type="button" class="learning-growth-feedback-count" data-learning-growth-feedback-count data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(task.title || "\u6279\u6539\u76ee\u5f55")}" title="\u6253\u5f00\u6279\u6539\u76ee\u5f55">${escapeHtml(label)}</button>`
+      : `<span class="learning-growth-feedback-count" data-learning-growth-feedback-count>${escapeHtml(label)}</span>`;
+    return renderLearningGrowthSectionHead("\u6700\u8fd1\u6279\u6539", right, escapeHtml);
   }
 
   function nativeGrowthSubmissionEvidence(task = {}, data = {}) {
@@ -633,14 +700,16 @@
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const responses = asArray(submission.structuredResponses);
     const displayText = String(submission.displayText || "").trim();
+    const submittedAt = nativeGrowthTimeLabel(submission.submittedAt || submission.createdAt || submission.updatedAt || "", options);
+    const head = renderLearningGrowthSectionHead("\u4e0a\u6b21\u63d0\u4ea4", submittedAt ? `<span class="learning-growth-submission-time" data-learning-growth-submission-time>${escapeHtml(`\u63d0\u4ea4 ${submittedAt}`)}</span>` : "", escapeHtml);
     if (!responses.length && !displayText) {
       return `<section class="learning-growth-answer-submission" data-learning-growth-previous-submission>
-        <h4>\u4e0a\u6b21\u63d0\u4ea4</h4>
+        ${head}
         <p>\u5df2\u6709\u63d0\u4ea4\u8bb0\u5f55\uff0c\u4f46\u6b64\u6b21\u65e9\u671f\u8bb0\u5f55\u672a\u4fdd\u7559\u53ef\u56de\u663e\u7684\u7ed3\u6784\u5316\u4f5c\u7b54\u3002</p>
       </section>`;
     }
     return `<section class="learning-growth-answer-submission" data-learning-growth-previous-submission>
-      <h4>\u4e0a\u6b21\u63d0\u4ea4</h4>
+      ${head}
       ${responses.length ? `<div class="learning-growth-previous-responses">
         ${responses.map((item, index) => {
           const title = item.title || item.questionId || `Q${index + 1}`;
@@ -842,6 +911,9 @@
     const nextAction = String(nativeState.nextAction || "");
     const previousText = String(task?.latestSubmission?.displayText || "").trim();
     const submitting = Boolean(options.state?.learningNativeGrowthSubmissionSubmitting?.[taskCardId]);
+    const editing = Boolean(options.state?.learningNativeGrowthAnswerEditing?.[taskCardId]);
+    const latestEvaluationStatus = String(task?.latestEvaluation?.status || "").trim();
+    const hasGradedResult = Boolean(task?.latestEvaluation && latestEvaluationStatus && latestEvaluationStatus !== "pending");
     const detailButton = options.hideNativeGrowthDetailButton ? "" : `<button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>`;
     const stateLabel = submitting ? (requiresAudio
       ? "\u5df2\u63d0\u4ea4\u5f55\u97f3\uff0c\u6b63\u5728\u8f6c\u5199\u5e76\u7b49\u5f85 AI \u6279\u6539\uff1b\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c\u3002"
@@ -855,6 +927,13 @@
     }[nextAction] || "");
     if (nextAction === "complete") {
       return `<div class="learning-native-growth-submission-state is-ready">${escapeHtml(stateLabel || "\u5df2\u5b8c\u6210")}</div>`;
+    }
+    if (nextAction === "revise" && hasGradedResult && !editing && !submitting) {
+      return `<div class="learning-native-growth-revision-collapsed" data-learning-native-growth-revision-collapsed="${escapeHtml(taskCardId)}">
+        <p>${escapeHtml(stateLabel || "\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4")}</p>
+        <button type="button" data-learning-native-growth-edit-answer="${escapeHtml(taskCardId)}">\u4fee\u6539\u7b54\u6848</button>
+        ${detailButton}
+      </div>`;
     }
     if (nextAction === "spoken_reflection") {
       return `<form class="learning-native-growth-submission-form" data-learning-native-growth-reflection-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}">
@@ -920,12 +999,16 @@
     const skills = compactFocus(task.skillIds || model.skillTargets || []).slice(0, 120);
     const latestSubmission = nativeGrowthSubmissionEvidence(task, data);
     const latestEvaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const taskSubmissionCount = asArray(data.taskSubmissions).filter((item) => String(item?.taskCardId || "") === taskCardId).length;
+    const taskEvaluationCount = asArray(data.evaluations).filter((item) => String(item?.taskCardId || "") === taskCardId).length;
     const meta = [task.plannedDate, task.plannedMinutes ? `${task.plannedMinutes} min` : "", skills].filter(Boolean);
     const instruction = task.learnerInstruction || task.instruction || model.learnerInstruction || task.instructionPreview || task.summary || "";
     const taskForForm = Object.assign({ source: "learning-growth" }, task, {
       nativeState: Object.assign({}, task.nativeState || {}, { nextAction: taskActionFromRecords(task, data) }),
       latestSubmission,
       latestEvaluation,
+      totalSubmissionCount: Number(task.totalSubmissionCount || 0) || taskSubmissionCount || undefined,
+      totalEvaluationCount: Number(task.totalEvaluationCount || 0) || taskEvaluationCount || undefined,
     });
     return `<section class="learning-growth-answer-card" data-learning-growth-answer-card data-learning-executable-task-id="${escapeHtml(taskCardId)}">
       <div class="learning-growth-answer-card-head">
@@ -939,7 +1022,7 @@
       ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
       ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
-      ${latestEvaluation ? `<section class="learning-growth-answer-feedback"><h4>\u6700\u8fd1\u6279\u6539</h4>${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}</section>` : ""}
+      ${latestEvaluation ? `<section class="learning-growth-answer-feedback">${renderNativeGrowthFeedbackHead(taskForForm, latestEvaluation, options)}${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}</section>` : ""}
       ${latestEvaluation ? renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options) : ""}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-growth-submit-poll-v112";
+const CLIENT_VERSION = "20260523-growth-feedback-ui-v113";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1058,10 +1058,18 @@ assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-se
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /learningNativeGrowthSubmissionSubmitting\[taskCardId\]/);
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /startNativeGrowthSubmissionResultPolling/);
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /loadLearningCoins\(\{ limit: 80 \}\)/);
+  assert.match(appLearningNativeGrowthSubmissionControllerJs, /clearNativeGrowthAnswerEditing/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-submission-form/);
   assert.match(appLearningProgramUiJs, /data-learning-submit-native-growth/);
   assert.match(appLearningProgramUiJs, /learningNativeGrowthSubmissionSubmitting/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-recorder/);
+  assert.match(appLearningProgramUiJs, /data-learning-growth-submission-time/);
+  assert.match(appLearningProgramUiJs, /data-learning-growth-feedback-count/);
+  assert.match(appLearningProgramUiJs, /data-learning-native-growth-revision-collapsed/);
+  assert.match(appLearningProgramUiJs, /data-learning-native-growth-edit-answer/);
+  assert.match(appLearningGrowthControllerJs, /learningNativeGrowthAnswerEditing/);
+  assert.match(appLearningGrowthControllerJs, /data-learning-native-growth-edit-answer/);
+  assert.match(appLearningGrowthTaskUiJs, /data-learning-growth-feedback-score/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/advance/);
   assert.match(appJs, /\/api\/learning\/sessions\/\$\{encodeURIComponent\(sessionId\)\}\/evaluations/);
   assert.match(appJs, /data-learning-program-publish/);

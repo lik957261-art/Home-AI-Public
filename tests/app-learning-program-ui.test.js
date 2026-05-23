@@ -366,6 +366,77 @@ function testNativeMathTaskRendersStructuredQuestionInputs() {
   assert.doesNotMatch(html, /answerKey|correctAnswer|rawTranscript|pushEndpoint|apiKey/);
 }
 
+function reviewedNativeMathTask() {
+  return {
+    taskCardId: "task-native-math-review",
+    source: "learning-growth",
+    title: "Native reviewed math task",
+    status: "published",
+    workspaceId: "weixin_stephen",
+    plannedMinutes: 20,
+    artifactDirectoryPath: "C:\\reports\\task-native-math-review",
+    learningGrowthReportHistory: [
+      { name: "01-feedback.md", path: "C:\\reports\\one.md" },
+      { name: "02-feedback.md", path: "C:\\reports\\two.md" },
+    ],
+    learnerInstruction: "Complete each question below.",
+    latestSubmission: {
+      submittedAt: "2026-05-23T09:30:00.000Z",
+      structuredResponses: [{ questionId: "q1", choice: "A", reason: "first try" }],
+    },
+    latestEvaluation: {
+      status: "needs_repair",
+      nextStep: "revise_and_resubmit",
+      passed: false,
+      score: 68,
+      reportHistory: [
+        { name: "01-feedback.md", path: "C:\\reports\\one.md" },
+        { name: "02-feedback.md", path: "C:\\reports\\two.md" },
+      ],
+    },
+    taskModel: {
+      activityType: "math_reasoning",
+      questionItems: [{
+        id: "q1",
+        type: "multiple_choice",
+        title: "Question 1",
+        prompt: "Choose one.",
+        choices: [{ id: "A", text: "2" }, { id: "B", text: "3" }],
+      }],
+    },
+  };
+}
+
+function testReviewedNativeMathTaskCollapsesQuestionsUntilEdit() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail(reviewedNativeMathTask(), { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+    state: { auth: { isOwner: false } },
+    formatTime: () => "05/23 17:30",
+  });
+  assert.match(html, /data-learning-growth-submission-time/);
+  assert.match(html, /05\/23 17:30/);
+  assert.match(html, /data-learning-growth-feedback-count/);
+  assert.match(html, /\u603b\u63d0\u4ea4 2 \u6b21/);
+  assert.match(html, /data-directory-path-open/);
+  assert.match(html, /data-directory-path="C:\\reports\\task-native-math-review"/);
+  assert.match(html, /data-learning-native-growth-revision-collapsed="task-native-math-review"/);
+  assert.match(html, /data-learning-native-growth-edit-answer="task-native-math-review"/);
+  assert.match(html, /\u786e\u5b9a\u5206\u6570 68\/100/);
+  assert.doesNotMatch(html, /data-learning-native-growth-question="q1"/);
+}
+
+function testReviewedNativeMathTaskExpandsAfterEditClickState() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail(reviewedNativeMathTask(), { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+    state: {
+      auth: { isOwner: false },
+      learningNativeGrowthAnswerEditing: { "task-native-math-review": true },
+    },
+  });
+  assert.match(html, /data-learning-native-growth-submission-form="task-native-math-review"/);
+  assert.match(html, /data-learning-native-growth-question="q1"/);
+  assert.match(html, /data-learning-native-growth-question-choice="q1"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-revision-collapsed="task-native-math-review"/);
+}
+
 function testNativeTaskReflectionStateRendersReflectionForm() {
   const html = ProgramUi.renderProgramSubsystem({
     programs: Object.assign({}, programs, {
@@ -420,6 +491,8 @@ testNativeTaskWithoutKanbanLinkUsesNativeSubmission();
 testNativeTaskDetailShowsRewardPolicyWithoutCapForm();
 testNativeSpeakingTaskRendersAudioRecorder();
 testNativeMathTaskRendersStructuredQuestionInputs();
+testReviewedNativeMathTaskCollapsesQuestionsUntilEdit();
+testReviewedNativeMathTaskExpandsAfterEditClickState();
 testNativeTaskReflectionStateRendersReflectionForm();
 testNativeSubmittingTaskShowsAutoRefreshState();
 

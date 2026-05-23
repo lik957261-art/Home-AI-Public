@@ -177,13 +177,24 @@
     return { kind: "review", title: "\u6279\u6539\u7ed3\u679c", body: "\u67e5\u770b\u672c\u6b21\u6279\u6539\u548c\u5386\u53f2\u8bb0\u5f55\uff0c\u518d\u6309\u4e0b\u4e00\u6b65\u63d0\u4ea4\u3002" };
   }
 
+  function deterministicScoreText(evaluation = {}) {
+    const score = Number(evaluation.score);
+    if (!Number.isFinite(score)) return "\u672a\u8fd4\u56de\u786e\u5b9a\u5206\u6570";
+    const maxScore = Number(evaluation.maxScore || evaluation.totalScore || 100);
+    const boundedMax = Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100;
+    const cleanScore = Number.isInteger(score) ? String(score) : score.toFixed(1).replace(/\.0$/, "");
+    const cleanMax = Number.isInteger(boundedMax) ? String(boundedMax) : boundedMax.toFixed(1).replace(/\.0$/, "");
+    return `\u786e\u5b9a\u5206\u6570 ${cleanScore}/${cleanMax}`;
+  }
+
   function renderFeedbackHistory(todo = {}, evaluation = {}) {
     const outcome = outcomeText(evaluation, todo.learningGrowthInteractionState || {});
     const history = reportHistory(todo, evaluation);
     const renderer = typeof globalThis !== "undefined" && typeof globalThis.renderKanbanOutputLinks === "function" ? globalThis.renderKanbanOutputLinks : null;
     const links = history.length ? (renderer ? renderer(history, "todo-detail-outputs compact todo-learning-growth-report-history-links") : `<div class="todo-detail-outputs compact todo-learning-growth-report-history-links">${history.map((item) => `<span>${escapeHtmlLocal(item.name || "\u6279\u6539\u6587\u4ef6")}</span>`).join("")}</div>`) : "";
     const count = history.length ? `<span>${escapeHtmlLocal(`${history.length} \u6b21\u6279\u6539`)}</span>` : "";
-    return `<div class="todo-learning-growth-outcome is-${escapeHtmlLocal(outcome.kind)}"><strong>${escapeHtmlLocal(outcome.title)}</strong><p>${escapeHtmlLocal(outcome.body)}</p></div>${history.length ? `<div class="todo-learning-growth-report-history"><div class="todo-learning-growth-report-history-head"><strong>${escapeHtmlLocal("\u6279\u6539\u5386\u53f2")}</strong>${count}</div>${links}</div>` : ""}`;
+    const score = deterministicScoreText(evaluation);
+    return `<div class="todo-learning-growth-outcome is-${escapeHtmlLocal(outcome.kind)}"><div class="todo-learning-growth-outcome-head"><strong>${escapeHtmlLocal(outcome.title)}</strong><span class="todo-learning-growth-score-pill" data-learning-growth-feedback-score>${escapeHtmlLocal(score)}</span></div><p>${escapeHtmlLocal(outcome.body)}</p></div>${history.length ? `<div class="todo-learning-growth-report-history"><div class="todo-learning-growth-report-history-head"><strong>${escapeHtmlLocal("\u6279\u6539\u5386\u53f2")}</strong>${count}</div>${links}</div>` : ""}`;
   }
 
   return {

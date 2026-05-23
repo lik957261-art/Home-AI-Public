@@ -162,6 +162,11 @@ function clearNativeGrowthSubmissionDraft(form, taskCardId) {
   clearNativeGrowthDraft(nativeGrowthStructuredDraftStorageKey(form, taskCardId));
 }
 
+function clearNativeGrowthAnswerEditing(taskCardId) {
+  if (!taskCardId || !state.learningNativeGrowthAnswerEditing) return;
+  delete state.learningNativeGrowthAnswerEditing[taskCardId];
+}
+
 function collectStructuredNativeGrowthAnswers(form) {
   const blocks = Array.from(form?.querySelectorAll?.("[data-learning-native-growth-question]") || []);
   if (!blocks.length) return null;
@@ -252,6 +257,7 @@ async function refreshNativeGrowthSubmissionResult(taskCardId, startedAtMs = 0) 
   const result = nativeGrowthSubmissionSettledResult(taskCardId, startedAtMs);
   if (result) {
     if (state.learningNativeGrowthSubmissionSubmitting) delete state.learningNativeGrowthSubmissionSubmitting[taskCardId];
+    clearNativeGrowthAnswerEditing(taskCardId);
     if (typeof renderLearningCoinsView === "function") renderLearningCoinsView();
   }
   return result;
@@ -378,6 +384,7 @@ async function submitNativeGrowthTask(event, taskCardId) {
       delete state.learningNativeGrowthSubmissionRecorders[taskCardId];
     }
     clearNativeGrowthSubmissionDraft(form, taskCardId);
+    clearNativeGrowthAnswerEditing(taskCardId);
     delete state.learningNativeGrowthSubmissionSubmitting[taskCardId];
     if (stateNode) stateNode.textContent = nativeGrowthSubmissionCompletionText(response.evaluation || {});
     showPushToast("AI \u6279\u6539\u5df2\u5b8c\u6210", "success");
@@ -387,6 +394,7 @@ async function submitNativeGrowthTask(event, taskCardId) {
     if (refreshed) {
       settledByRefresh = true;
       clearNativeGrowthSubmissionDraft(form, taskCardId);
+      clearNativeGrowthAnswerEditing(taskCardId);
       if (stateNode) stateNode.textContent = nativeGrowthSubmissionCompletionText(refreshed);
       showPushToast("\u6700\u65b0 AI \u6279\u6539\u5df2\u5237\u65b0", "success");
       return;

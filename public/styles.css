@@ -7085,6 +7085,14 @@ button.directory-alias-chip {
   background: rgba(255, 245, 242, 0.74);
 }
 
+.todo-learning-growth-outcome-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .todo-learning-growth-outcome p {
   margin: 0;
 }
@@ -7889,6 +7897,41 @@ button.directory-alias-chip {
   font-size: 14px;
 }
 
+.learning-growth-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.learning-growth-section-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.learning-growth-submission-time {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-growth-feedback-count {
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  background: rgba(31, 111, 98, 0.08);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+button.learning-growth-feedback-count {
+  cursor: pointer;
+}
+
 .learning-growth-answer-instruction p,
 .learning-growth-answer-feedback-detail p,
 .learning-growth-answer-feedback-detail li,
@@ -8641,6 +8684,22 @@ button.directory-alias-chip {
   display: grid;
   gap: 8px;
   margin-top: 2px;
+}
+
+.learning-native-growth-revision-collapsed {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(155, 61, 53, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 245, 242, 0.7);
+}
+
+.learning-native-growth-revision-collapsed p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .learning-native-growth-prompt,

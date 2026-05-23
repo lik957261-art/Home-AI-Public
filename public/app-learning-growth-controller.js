@@ -552,8 +552,9 @@ function wireLearningCoinsView() {
   const root = $("conversation");
   if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks(root);
   if (root && !root.dataset.learningGrowthOpenDelegated) { root.dataset.learningGrowthOpenDelegated = "1"; root.addEventListener("click", (event) => {
-    const growth = event.target?.closest?.("[data-learning-open-growth-task]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]");
+    const growth = event.target?.closest?.("[data-learning-open-growth-task]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]"), edit = event.target?.closest?.("[data-learning-native-growth-edit-answer]");
     if (event.target?.closest?.("[data-directory-path-open]")) return;
+    if (edit && root.contains(edit)) { event.preventDefault(); event.stopPropagation(); const taskCardId = String(edit.dataset.learningNativeGrowthEditAnswer || "").trim(); if (taskCardId) { state.learningNativeGrowthAnswerEditing = state.learningNativeGrowthAnswerEditing || {}; state.learningNativeGrowthAnswerEditing[taskCardId] = true; renderLearningCoinsView(); } return; }
     if (growth && root.contains(growth)) { event.preventDefault(); event.stopPropagation(); openLearningGrowthTask(growth.dataset.learningOpenGrowthTask, growth.dataset.workspaceId).catch(showError); return; }
     if (kanban && root.contains(kanban)) { event.preventDefault(); event.stopPropagation(); openLearningKanbanCard(kanban.dataset.learningOpenKanbanCard, kanban.dataset.workspaceId).catch(showError); }
   }); }
