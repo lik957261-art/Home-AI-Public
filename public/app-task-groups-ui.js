@@ -542,6 +542,14 @@ function currentViewerReturnUrl() {
   return `/?${params.toString()}`;
 }
 
+function viewerChromeModeForCurrentShell() {
+  const standalone = Boolean(
+    window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.navigator?.standalone === true,
+  );
+  return standalone ? "hermes" : "native";
+}
+
 function artifactHref(artifact) {
   const url = String(artifact?.url || "#");
   if (!url || url === "#") return url;
@@ -552,6 +560,7 @@ function artifactHref(artifact) {
     mime: artifact?.mime || "",
     size: String(artifact?.size || 0),
     return: currentViewerReturnUrl(),
+    viewerChrome: viewerChromeModeForCurrentShell(),
   });
   if (state.selectedWorkspaceId) query.set("workspaceId", state.selectedWorkspaceId);
   if (state.currentThreadId) query.set("threadId", state.currentThreadId);

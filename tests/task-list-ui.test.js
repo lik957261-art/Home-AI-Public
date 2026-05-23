@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-group-click-hotfix-v99";
+const CLIENT_VERSION = "20260523-viewer-chrome-v100";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -146,8 +146,8 @@ assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-group-click-hotfix-v99/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-group-click-hotfix-v99/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-viewer-chrome-v100/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-viewer-chrome-v100/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(stylesCss, /\.codex-mux-mode \.conversation \{[\s\S]*?overflow: hidden/);
 assert.match(stylesCss, /\.codex-mux-tabs \{/);
@@ -1309,9 +1309,13 @@ assert.match(serviceWorkerJs, /function isViewerShellRequest\(url\) \{[\s\S]*?ur
 assert.match(serviceWorkerJs, /function networkFirstViewerShell\(request\)/);
 assert.match(serviceWorkerJs, /if \(isViewerShellRequest\(url\)\) \{[\s\S]*?event\.respondWith\(networkFirstViewerShell\(request\)\)/);
 assert.match(serviceWorkerJs, /function deleteCachedViewerShell\(cache\)/);
-assert.match(fileViewerHtml, /function isStandaloneViewerShell\(\)/);
+assert.match(appJs, /function viewerChromeModeForCurrentShell\(\)/);
+assert.match(appJs, /viewerChrome: viewerChromeModeForCurrentShell\(\)/);
+assert.match(fileViewerHtml, /function shouldShowHermesViewerChrome\(\)/);
+assert.match(fileViewerHtml, /const viewerChrome = params\.get\("viewerChrome"\) \|\| ""/);
 assert.match(fileViewerHtml, /body\.native-browser-chrome \.viewer-more-button/);
-assert.match(pdfViewerHtml, /function isStandaloneViewerShell\(\)/);
+assert.match(pdfViewerHtml, /function shouldShowHermesViewerChrome\(\)/);
+assert.match(pdfViewerHtml, /const viewerChrome = params\.get\("viewerChrome"\) \|\| ""/);
 assert.match(pdfViewerHtml, /body\.native-browser-chrome \.back-button/);
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);

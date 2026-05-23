@@ -809,6 +809,7 @@
     const mime = params.get("mime") || "file";
     const size = Number(params.get("size") || 0);
     const returnUrl = params.get("return") || "";
+    const viewerChrome = params.get("viewerChrome") || "";
     const previewStatus = document.getElementById("previewStatus");
     const toast = document.getElementById("toast");
     let toastTimer = 0;
@@ -887,15 +888,15 @@
 
     applyViewerPreferences();
 
-    function isStandaloneViewerShell() {
+    function shouldShowHermesViewerChrome() {
+      if (viewerChrome) return viewerChrome === "hermes";
       return Boolean(
         window.matchMedia?.("(display-mode: standalone)")?.matches
-        || window.matchMedia?.("(display-mode: fullscreen)")?.matches
-        || window.navigator?.standalone
+        || window.navigator?.standalone === true
       );
     }
 
-    document.body.classList.toggle("native-browser-chrome", !isStandaloneViewerShell());
+    document.body.classList.toggle("native-browser-chrome", !shouldShowHermesViewerChrome());
 
     function formatBytes(bytes) {
       const n = Number(bytes || 0);

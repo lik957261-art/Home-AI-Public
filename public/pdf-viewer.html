@@ -184,6 +184,7 @@
     const name = params.get("name") || "document.pdf";
     const key = localStorage.getItem("hermesWebKey") || "";
     const returnUrl = params.get("return") || "";
+    const viewerChrome = params.get("viewerChrome") || "";
     let pdfDocument = null;
     let renderSerial = 0;
     let resizeTimer = 0;
@@ -194,15 +195,15 @@
     let handlingViewerBack = false;
     const isAndroid = /Android/i.test(navigator.userAgent || "");
 
-    function isStandaloneViewerShell() {
+    function shouldShowHermesViewerChrome() {
+      if (viewerChrome) return viewerChrome === "hermes";
       return Boolean(
         window.matchMedia?.("(display-mode: standalone)")?.matches
-        || window.matchMedia?.("(display-mode: fullscreen)")?.matches
-        || window.navigator?.standalone
+        || window.navigator?.standalone === true
       );
     }
 
-    document.body.classList.toggle("native-browser-chrome", !isStandaloneViewerShell());
+    document.body.classList.toggle("native-browser-chrome", !shouldShowHermesViewerChrome());
 
     function setStatus(message) {
       status.textContent = message;
