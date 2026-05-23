@@ -154,11 +154,6 @@ function wireBackNavigationGuard() {
   }
   window.addEventListener("popstate", () => {
     if (state.handlingBackNavigation) return;
-    if (isTaskDocumentPreviewOverlayOpen()) {
-      closeTaskDocumentPreviewOverlay();
-      pushBackNavigationGuard();
-      return;
-    }
     state.handlingBackNavigation = true;
     handleInAppBackNavigation({ animateEntry: true })
       .then((handled) => {
@@ -553,89 +548,11 @@ function isTaskSwipeInteractiveTarget(target) {
   ));
 }
 
-function closeTaskDocumentPreviewOverlay() {
-  const overlay = document.getElementById("taskDocumentPreviewOverlay");
-  document.body.classList.remove("task-document-preview-open");
-  if (!overlay) return;
-  overlay.classList.add("closing");
-  overlay.classList.add("hidden");
-  overlay.setAttribute("hidden", "");
-  overlay.style.display = "none";
-  overlay.remove();
-}
-
-function isTaskDocumentPreviewOverlayOpen() {
-  const overlay = document.getElementById("taskDocumentPreviewOverlay");
-  return Boolean(overlay && !overlay.classList.contains("hidden"));
-}
-
-function handleTaskDocumentPreviewCloseEvent(event) {
-  event?.preventDefault?.();
-  event?.stopPropagation?.();
-  event?.stopImmediatePropagation?.();
-  closeTaskDocumentPreviewOverlay();
-}
-
-function ensureTaskDocumentPreviewOverlay() {
-  let overlay = document.getElementById("taskDocumentPreviewOverlay");
-  if (overlay) return overlay;
-  overlay = document.createElement("div");
-  overlay.id = "taskDocumentPreviewOverlay";
-  overlay.className = "task-document-preview-overlay hidden";
-  overlay.innerHTML = `
-    <div class="task-document-preview-head">
-      <button class="task-document-preview-close" type="button" data-close-task-document-preview aria-label="关闭预览">×</button>
-      <span class="task-document-preview-title">文档预览</span>
-    </div>
-    <iframe id="taskDocumentPreviewFrame" class="task-document-preview-frame" title="文档预览"></iframe>`;
-  document.body.append(overlay);
-  overlay.querySelector("[data-close-task-document-preview]")?.addEventListener("pointerdown", handleTaskDocumentPreviewCloseEvent, { capture: true });
-  overlay.querySelector("[data-close-task-document-preview]")?.addEventListener("touchstart", handleTaskDocumentPreviewCloseEvent, { capture: true, passive: false });
-  overlay.querySelector("[data-close-task-document-preview]")?.addEventListener("click", handleTaskDocumentPreviewCloseEvent, { capture: true });
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !overlay.classList.contains("hidden")) closeTaskDocumentPreviewOverlay();
-  });
-  return overlay;
-}
-
-function embeddedTaskDocumentHref(href) {
-  try {
-    const url = new URL(href, window.location.origin);
-    if (url.origin === window.location.origin && (url.pathname === "/file-viewer.html" || url.pathname === "/pdf-viewer.html")) {
-      url.searchParams.set("embedded", "1");
-      url.searchParams.set("viewerChrome", "embedded");
-      return `${url.pathname}${url.search}${url.hash}`;
-    }
-  } catch (_) {
-    // Keep the original href when URL parsing is not available for a custom scheme.
-  }
-  return href;
-}
-
 function openTaskDocumentLink(link) {
   const href = link?.href || link?.getAttribute?.("href") || "";
-  if (!href || href === "#") return;
-  try {
-    const url = new URL(href, window.location.origin);
-    if (url.origin === window.location.origin && (url.pathname === "/" || url.pathname === "/hermes-mobile/" || url.pathname === "/index.html")) return;
-  } catch (_) {
-    return;
-  }
+  if (!href) return;
   closeTaskSwipeRows(document);
-  const overlay = ensureTaskDocumentPreviewOverlay();
-  const frame = document.getElementById("taskDocumentPreviewFrame");
-  const title = link.getAttribute?.("title") || link.getAttribute?.("aria-label") || "文档预览";
-  overlay.querySelector(".task-document-preview-title").textContent = title;
-  overlay.classList.remove("closing");
-  overlay.removeAttribute("hidden");
-  overlay.style.display = "";
-  if (frame) {
-    frame.classList.add("loading");
-    frame.addEventListener("load", () => frame.classList.remove("loading"), { once: true });
-    frame.src = embeddedTaskDocumentHref(href);
-  }
-  overlay.classList.remove("hidden");
-  document.body.classList.add("task-document-preview-open");
+  window.location.assign(href);
 }
 
 function wireTaskDocumentLinks(root) {
