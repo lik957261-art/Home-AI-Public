@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-url-guard-v106";
+const CLIENT_VERSION = "20260523-preview-close-v107";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -159,6 +159,11 @@ assert.match(appJs, /function openTaskDocumentLink\(link\)/);
 assert.doesNotMatch(appJs, /window\.open\(href/);
 assert.match(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
 assert.match(appJs, /taskDocumentPreviewFrame/);
+assert.match(appJs, /function isTaskDocumentPreviewOverlayOpen\(\)/);
+assert.match(appJs, /function handleTaskDocumentPreviewCloseEvent\(event\)/);
+assert.match(appJs, /if \(isTaskDocumentPreviewOverlayOpen\(\)\) \{[\s\S]*?closeTaskDocumentPreviewOverlay\(\);[\s\S]*?pushBackNavigationGuard\(\);[\s\S]*?return;/);
+assert.match(appJs, /addEventListener\("pointerdown", handleTaskDocumentPreviewCloseEvent, \{ capture: true \}\)/);
+assert.match(appJs, /addEventListener\("touchstart", handleTaskDocumentPreviewCloseEvent, \{ capture: true, passive: false \}\)/);
 assert.match(appJs, /url\.pathname === "\/" \|\| url\.pathname === "\/hermes-mobile\/" \|\| url\.pathname === "\/index\.html"/);
 assert.match(appJs, /function embeddedTaskDocumentHref\(href\)/);
 assert.match(appJs, /url\.searchParams\.set\("embedded", "1"\)/);

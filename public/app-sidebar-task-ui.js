@@ -154,6 +154,11 @@ function wireBackNavigationGuard() {
   }
   window.addEventListener("popstate", () => {
     if (state.handlingBackNavigation) return;
+    if (isTaskDocumentPreviewOverlayOpen()) {
+      closeTaskDocumentPreviewOverlay();
+      pushBackNavigationGuard();
+      return;
+    }
     state.handlingBackNavigation = true;
     handleInAppBackNavigation({ animateEntry: true })
       .then((handled) => {
@@ -556,6 +561,18 @@ function closeTaskDocumentPreviewOverlay() {
   document.body.classList.remove("task-document-preview-open");
 }
 
+function isTaskDocumentPreviewOverlayOpen() {
+  const overlay = document.getElementById("taskDocumentPreviewOverlay");
+  return Boolean(overlay && !overlay.classList.contains("hidden"));
+}
+
+function handleTaskDocumentPreviewCloseEvent(event) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  event?.stopImmediatePropagation?.();
+  closeTaskDocumentPreviewOverlay();
+}
+
 function ensureTaskDocumentPreviewOverlay() {
   let overlay = document.getElementById("taskDocumentPreviewOverlay");
   if (overlay) return overlay;
@@ -569,7 +586,9 @@ function ensureTaskDocumentPreviewOverlay() {
     </div>
     <iframe id="taskDocumentPreviewFrame" class="task-document-preview-frame" title="文档预览"></iframe>`;
   document.body.append(overlay);
-  overlay.querySelector("[data-close-task-document-preview]")?.addEventListener("click", closeTaskDocumentPreviewOverlay);
+  overlay.querySelector("[data-close-task-document-preview]")?.addEventListener("pointerdown", handleTaskDocumentPreviewCloseEvent, { capture: true });
+  overlay.querySelector("[data-close-task-document-preview]")?.addEventListener("touchstart", handleTaskDocumentPreviewCloseEvent, { capture: true, passive: false });
+  overlay.querySelector("[data-close-task-document-preview]")?.addEventListener("click", handleTaskDocumentPreviewCloseEvent, { capture: true });
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !overlay.classList.contains("hidden")) closeTaskDocumentPreviewOverlay();
   });
