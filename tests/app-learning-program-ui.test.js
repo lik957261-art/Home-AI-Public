@@ -332,6 +332,40 @@ function testNativeSpeakingTaskRendersAudioRecorder() {
   assert.doesNotMatch(html, /rawTranscript|questionText|answerKey|pushEndpoint|apiKey/);
 }
 
+function testReviewedEnglishRetellCanReopenReadingMaterial() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail({
+    taskCardId: "task-native-reading-retell",
+    source: "learning-growth",
+    title: "Native reading retell task",
+    status: "published",
+    workspaceId: "weixin_stephen",
+    learnerInstruction: "Record a retell after reading.",
+    latestEvaluation: {
+      status: "needs_repair",
+      passed: false,
+      score: 72,
+      summary: "Feedback summary.",
+    },
+    taskModel: {
+      activityType: "speaking",
+      readingMaterial: {
+        title: "Short passage",
+        cefr: "B1",
+        wordCount: 120,
+        estimatedReadingMinutes: 3,
+        passage: "This compact passage is the original reading material.",
+      },
+    },
+  }, { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+    state: { auth: { isOwner: false } },
+  });
+  assert.match(html, /data-learning-growth-reading-material/);
+  assert.match(html, /\u67e5\u770b\u539f\u59cb\u9605\u8bfb\u6750\u6599/);
+  assert.match(html, /Short passage/);
+  assert.match(html, /This compact passage is the original reading material/);
+  assert.match(html, /data-learning-growth-task-prompt-collapsed/);
+}
+
 function testNativeMathTaskRendersStructuredQuestionInputs() {
   const html = ProgramUi.renderNativeGrowthTaskDetail({
     taskCardId: "task-native-math",
@@ -598,6 +632,7 @@ testNativeTaskWithKanbanLinkUsesNativeSubmissionFirst();
 testNativeTaskWithoutKanbanLinkUsesNativeSubmission();
 testNativeTaskDetailShowsRewardPolicyWithoutCapForm();
 testNativeSpeakingTaskRendersAudioRecorder();
+testReviewedEnglishRetellCanReopenReadingMaterial();
 testNativeMathTaskRendersStructuredQuestionInputs();
 testReviewedNativeMathTaskCollapsesQuestionsUntilEdit();
 testOwnerReviewedNativeMathTaskShowsManualPassMenu();

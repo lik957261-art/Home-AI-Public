@@ -1043,6 +1043,32 @@
     return `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>`;
   }
 
+  function nativeGrowthReadingMaterial(task = {}) {
+    const model = task.taskModel || task.learningTaskModel || {};
+    const material = model.readingMaterial || task.readingMaterial || {};
+    const passage = String(material.passage || material.text || material.content || "").trim();
+    if (!passage) return null;
+    return {
+      title: String(material.title || "\u539f\u59cb\u9605\u8bfb\u6750\u6599").trim(),
+      passage,
+      meta: [material.cefr, material.wordCount ? `${material.wordCount} words` : "", material.estimatedReadingMinutes ? `${material.estimatedReadingMinutes} min` : ""].filter(Boolean),
+    };
+  }
+
+  function renderNativeGrowthReadingMaterial(task = {}, options = {}) {
+    const material = nativeGrowthReadingMaterial(task);
+    if (!material) return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    return `<details class="learning-growth-answer-instruction learning-growth-reading-material" data-learning-growth-reading-material>
+      <summary>\u67e5\u770b\u539f\u59cb\u9605\u8bfb\u6750\u6599</summary>
+      <article>
+        <h4>${escapeHtml(material.title)}</h4>
+        ${material.meta.length ? `<div class="learning-growth-reading-material-meta">${material.meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
+        <p>${escapeHtml(material.passage)}</p>
+      </article>
+    </details>`;
+  }
+
   function renderNativeGrowthOwnerMenu(task = {}, options = {}) {
     if (!isOwner(options)) return "";
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
@@ -1097,6 +1123,7 @@
       ${renderTaskRewardPolicy(taskForForm, options)}
       ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
       ${latestEvaluation ? `<section class="learning-growth-answer-feedback">${renderNativeGrowthFeedbackHead(taskForForm, latestEvaluation, options)}${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}${renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options)}</section>` : ""}
+      ${renderNativeGrowthReadingMaterial(taskForForm, options)}
       ${renderNativeGrowthInstruction(taskForForm, instruction, options)}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;

@@ -1511,6 +1511,8 @@ button {
   flex: 0 0 auto;
   max-width: 70%;
   overflow: visible;
+  display: flex;
+  justify-content: center;
 }
 
 .task-toolbar-directories .directory-aliases {
@@ -1521,8 +1523,19 @@ button {
 }
 
 .task-toolbar-directories .directory-alias-chip {
-  min-height: 38px;
+  min-height: 24px;
+  padding: 3px 8px 3px 4px;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1.2;
   white-space: nowrap;
+}
+
+.task-toolbar-directories .directory-alias-icon {
+  min-width: 25px;
+  height: 16px;
+  padding: 0 5px;
+  font-size: 8px;
 }
 
 .task-detail-mode .message .directory-aliases {
@@ -2370,6 +2383,31 @@ button.directory-alias-chip {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.03em;
+}
+
+.learning-growth-reading-material article {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-growth-reading-material h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.learning-growth-reading-material-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.learning-growth-reading-material-meta span {
+  padding: 2px 7px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
 }
 
 .artifacts {
@@ -3450,8 +3488,9 @@ button.directory-alias-chip {
   min-height: 28px;
   max-width: 100%;
   gap: 6px;
-  padding: 3px 8px 3px 4px;
+  padding: 2px 7px 2px 4px;
   font-size: 12px;
+  line-height: 1.2;
 }
 
 .task-card-directories .directory-alias-open,
@@ -3460,7 +3499,7 @@ button.directory-alias-chip {
 }
 
 .task-card-directories .directory-alias-chip {
-  padding: 3px 9px;
+  padding: 2px 8px;
 }
 
 .task-card-directories .directory-alias-icon {

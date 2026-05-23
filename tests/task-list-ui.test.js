@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-growth-reward-weight-v131";
+const CLIENT_VERSION = "20260523-growth-reading-dir-ui-v132";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -179,6 +179,10 @@ assert.match(appJs, /current\.target === "artifact-preview"/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1 \{[\s\S]*?font-size: 24px;/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22px;/);
+assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]*?justify-content: center;/);
+assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 24px;[\s\S]*?font-size: 12px;/);
+assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-icon \{[\s\S]*?font-size: 8px;/);
+assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 12px;[\s\S]*?line-height: 1\.2;/);
 assert.match(appJs, /kind === "html" \|\| mime\.startsWith\("image\/"\)/);
 assert.match(appJs, /if \(kind === "markdown"\) return `\/markdown-viewer\.html\?\$\{query\.toString\(\)\}`/);
 assert.match(markdownViewerHtml, /markdownRenderer\.renderMarkdownDocument/);
