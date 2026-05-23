@@ -546,7 +546,8 @@ function artifactHref(artifact) {
   const url = String(artifact?.url || "#");
   if (!url || url === "#") return url;
   const kind = artifactKind(artifact);
-  if (kind === "html") return url;
+  const mime = String(artifact?.mime || "").toLowerCase();
+  if (kind === "html" || kind === "markdown" || mime.startsWith("image/")) return url;
   const query = new URLSearchParams({
     src: url,
     name: artifact?.name || artifact?.id || "document",

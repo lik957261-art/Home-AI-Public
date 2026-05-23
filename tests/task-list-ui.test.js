@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-rollback-composer-scope-v121";
+const CLIENT_VERSION = "20260523-raw-md-image-preview-v122";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -162,7 +162,7 @@ assert.doesNotMatch(appJs, /function ensureTaskDocumentPreviewOverlay\(\)/);
 assert.doesNotMatch(appJs, /taskDocumentPreviewFrame/);
 assert.doesNotMatch(appJs, /task-document-preview-overlay/);
 assert.doesNotMatch(stylesCss, /\.task-document-preview-overlay/);
-assert.match(appJs, /if \(kind === "html"\) return url/);
+assert.match(appJs, /kind === "html" \|\| kind === "markdown" \|\| mime\.startsWith\("image\/"\)/);
 assert.doesNotMatch(fileViewerHtml, /function renderIframePreview\(label\)/);
 assert.match(fileViewerHtml, /kind === "HTML"[\s\S]{0,80}location\.replace\(originalUrlFor\(src\)\)/);
 assert.doesNotMatch(directoryViewerHtml, /viewerChrome/);
