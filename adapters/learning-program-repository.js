@@ -335,7 +335,12 @@ function publicEvaluationFromRow(row) {
 
 function publicTaskSubmissionFromRow(row) {
   if (!row) return null;
-  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+  const raw = parseJson(row.raw_json, {}) || {};
+  const nestedAudio = raw.raw?.audio || null;
+  const audio = raw.audio && nestedAudio && typeof raw.audio === "object" && typeof nestedAudio === "object"
+    ? Object.assign({}, nestedAudio, raw.audio)
+    : (raw.audio || nestedAudio || null);
+  return Object.assign(raw, {
     submissionId: row.id,
     taskCardId: row.task_card_id,
     sessionId: row.session_id,
@@ -356,6 +361,7 @@ function publicTaskSubmissionFromRow(row) {
     withdrawnAt: row.withdrawn_at || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    audio,
   });
 }
 

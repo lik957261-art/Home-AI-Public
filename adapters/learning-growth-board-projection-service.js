@@ -204,6 +204,19 @@ function sequenceGroupForTask(task = {}) {
   return taskCardId ? `task:${taskCardId}` : "task:unknown";
 }
 
+function displayTitleForTask(task = {}, sequenceIndex = 1) {
+  const title = cleanString(task.title, 180) || cleanString(task.taskCardId || task.id);
+  const mode = cleanString(
+    task.sequenceMode
+      || task.learningGrowthSequenceMode
+      || task.learningGrowthJitGeneration?.sequenceMode
+      || task.taskModel?.sequenceMode
+      || task.taskModel?.jitGeneration?.sequenceMode,
+  );
+  if (sequenceIndex > 1 && mode.includes("evergreen")) return `${title} \u00b7 \u7b2c ${sequenceIndex} \u5f20`;
+  return title;
+}
+
 function taskComplete(card = {}) {
   return card.laneId === "completed_recent" || card.nextAction === "complete";
 }
@@ -270,6 +283,7 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
   const action = taskStatus(task, latest, context);
   const laneId = laneForTask(task, latest, context.today, context);
   const actions = actionModel(laneId, action);
+  const sequenceIndex = sequenceIndexForTask(task, index);
   const nextCompletionAllowedAt = cleanString(task.nextCompletionAllowedAt || task.learningGrowthUnlockAt || task.unlockAt || task.availableAt || task.notBefore);
   const sequenceMode = cleanString(
     task.sequenceMode
@@ -308,8 +322,8 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     draftId: cleanString(task.draftId || task.learningDraftId || task.learning_draft_id),
     sequenceGroupId: sequenceGroupForTask(task),
     sequenceMode,
-    sequenceIndex: sequenceIndexForTask(task, index),
-    title: cleanString(task.title, 180) || taskCardId,
+    sequenceIndex,
+    title: displayTitleForTask(task, sequenceIndex) || taskCardId,
     instructionPreview: cleanString(
       task.learnerInstruction
         || task.instruction

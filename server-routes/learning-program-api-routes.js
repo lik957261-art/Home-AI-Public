@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
 const { createApiRouteRegistry } = require("../adapters/api-route-registry");
 const { executionQueueSummary } = require("../adapters/learning-task-card-service");
 
@@ -391,6 +393,21 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "task-card"],
   },
   {
+    id: "learning-task-submission-audio-read",
+    method: "GET",
+    pathRegex: /^\/api\/learning\/task-submissions\/[^/]+\/audio$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "readTaskSubmissionAudio",
+    summary: "Stream authorized Growth task submission audio evidence.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-submission", "audio"],
+    tags: ["learning", "task-submission", "audio"],
+  },
+  {
     id: "learning-task-card-reward-policy-update",
     method: "PATCH",
     pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/reward-policy$/,
@@ -634,6 +651,93 @@ function cleanString(value) {
 function pathId(pathname, pattern) {
   const match = String(pathname || "").match(pattern);
   return match ? decodeURIComponent(match[1] || "") : "";
+}
+
+function safeHeaderValue(value) {
+  return String(value || "").replace(/[\r\n"]/g, "_");
+}
+
+function audioEvidenceFromSubmission(submission = {}) {
+  const nested = submission.raw?.raw?.audio || submission.raw?.audio || null;
+  if (submission.audio && nested && typeof submission.audio === "object" && typeof nested === "object") {
+    return Object.assign({}, nested, submission.audio);
+  }
+  return submission.audio || nested || null;
+}
+
+function submissionAudioCandidates(submission = {}, taskCard = {}) {
+  const audio = audioEvidenceFromSubmission(submission);
+  const candidates = [];
+  const audioPath = cleanString(audio?.path || audio?.filePath || audio?.absolutePath);
+  if (audioPath) candidates.push(audioPath);
+  const fileName = path.basename(cleanString(audio?.name || audio?.fileName || audio?.filename));
+  if (!fileName) return candidates;
+  for (const dir of [
+    taskCard.artifactDirectoryPath,
+    taskCard.deliverableDirectoryPath,
+    taskCard.reportDirectoryPath,
+    taskCard.directoryPath,
+  ]) {
+    const baseDir = cleanString(dir);
+    if (!baseDir) continue;
+    candidates.push(path.join(baseDir, fileName));
+    try {
+      for (const entry of fs.readdirSync(baseDir, { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith(fileName)) candidates.push(path.join(baseDir, entry.name));
+      }
+    } catch (_) {
+      // Missing directories are reported as not found below.
+    }
+  }
+  const dataRoot = dataRootFromTaskCard(taskCard);
+  const workspaceId = cleanString(submission.workspaceId || taskCard.workspaceId);
+  if (dataRoot && workspaceId) {
+    const baseDir = path.join(dataRoot, "artifacts", "kanban-reading", workspaceId);
+    candidates.push(...findSubmissionAudioFiles(baseDir, fileName, cleanString(taskCard.taskCardId || submission.taskCardId)));
+  }
+  return [...new Set(candidates)];
+}
+
+function dataRootFromTaskCard(taskCard = {}) {
+  for (const dir of [taskCard.artifactDirectoryPath, taskCard.deliverableDirectoryPath, taskCard.reportDirectoryPath]) {
+    const value = cleanString(dir);
+    const marker = `${path.sep}drive${path.sep}`;
+    const index = value.indexOf(marker);
+    if (index > 0) return value.slice(0, index);
+  }
+  return "";
+}
+
+function findSubmissionAudioFiles(baseDir, fileName, taskCardId, depth = 0) {
+  if (!baseDir || !fileName || depth > 4) return [];
+  const found = [];
+  let entries = [];
+  try {
+    entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  } catch (_) {
+    return found;
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(baseDir, entry.name);
+    if (entry.isFile() && entry.name.endsWith(fileName) && (!taskCardId || fullPath.includes(taskCardId))) {
+      found.push(fullPath);
+    } else if (entry.isDirectory()) {
+      found.push(...findSubmissionAudioFiles(fullPath, fileName, taskCardId, depth + 1));
+    }
+  }
+  return found;
+}
+
+function firstReadableFile(paths = []) {
+  for (const candidate of paths) {
+    try {
+      const stat = fs.statSync(candidate);
+      if (stat.isFile()) return { filePath: candidate, stat };
+    } catch (_) {
+      // Try the next bounded candidate.
+    }
+  }
+  return null;
 }
 
 function sendRouteError(deps, res, err) {
@@ -1131,6 +1235,35 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, taskCard: deps.isOwnerAuth(auth) ? taskCard : executionQueueSummary(taskCard) });
   }
 
+  async function handleTaskSubmissionAudioRead(req, res, url, auth) {
+    const submissionId = pathId(url.pathname, /^\/api\/learning\/task-submissions\/([^/]+)\/audio$/);
+    const submission = service.getTaskSubmission(submissionId);
+    if (!authorizeRecord(req, res, auth, submission, "Learning task submission not found")) return;
+    const taskCard = service.getTaskCard(submission.taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    const audio = audioEvidenceFromSubmission(submission);
+    if (!audio?.name && !audio?.path && !audio?.filePath && !audio?.absolutePath) {
+      deps.sendJson(res, 404, { ok: false, error: "Learning task submission audio not found" });
+      return;
+    }
+    const found = firstReadableFile(submissionAudioCandidates(submission, taskCard));
+    if (!found) {
+      deps.sendJson(res, 404, { ok: false, error: "Learning task submission audio file not found" });
+      return;
+    }
+    const fileName = path.basename(cleanString(audio.name || audio.fileName || audio.filename) || found.filePath);
+    res.writeHead(200, {
+      "Content-Type": cleanString(audio.mime || audio.type) || "application/octet-stream",
+      "Content-Length": found.stat.size,
+      "Content-Disposition": `inline; filename="${safeHeaderValue(fileName)}"`,
+      "Cache-Control": "private, max-age=60",
+    });
+    fs.createReadStream(found.filePath).on("error", () => {
+      if (!res.headersSent) deps.sendJson(res, 500, { ok: false, error: "Unable to read learning task submission audio" });
+      else res.end();
+    }).pipe(res);
+  }
+
   async function handleTaskRewardPolicyUpdate(req, res, url, auth) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -1450,6 +1583,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-task-execution-queue") await handleTaskExecutionQueue(req, res, url, auth);
     else if (route.id === "learning-daily-plan") await handleDailyPlan(req, res, url, auth);
     else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
+    else if (route.id === "learning-task-submission-audio-read") await handleTaskSubmissionAudioRead(req, res, url, auth);
     else if (route.id === "learning-task-card-reward-policy-update") await handleTaskRewardPolicyUpdate(req, res, url, auth);
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-submission") await handleGrowthSubmission(req, res, url, auth);

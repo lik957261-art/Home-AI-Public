@@ -356,13 +356,30 @@ function testReviewedEnglishRetellCanReopenReadingMaterial() {
         passage: "This compact passage is the original reading material.",
       },
     },
-  }, { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+  }, { evaluations: [], taskSubmissions: [{
+    taskCardId: "task-native-reading-retell",
+    submittedAt: "2026-05-23T12:34:50.168Z",
+    displayText: "This is the server transcript and it should be collapsed when audio exists.",
+    audio: {
+      kind: "audio",
+      name: "retell.webm",
+      mime: "audio/webm",
+      size: 2048,
+      url: "/api/files?path=retell.webm",
+    },
+  }], taskReflections: [] }, {
     state: { auth: { isOwner: false } },
   });
+  assert.ok(html.indexOf("data-learning-growth-reading-material") < html.indexOf("data-learning-growth-previous-submission"));
   assert.match(html, /data-learning-growth-reading-material/);
   assert.match(html, /\u67e5\u770b\u539f\u59cb\u9605\u8bfb\u6750\u6599/);
   assert.match(html, /Short passage/);
   assert.match(html, /This compact passage is the original reading material/);
+  assert.match(html, /data-learning-growth-submission-audio/);
+  assert.match(html, /<audio controls preload="metadata" src="\/api\/files\?path=retell\.webm"><\/audio>/);
+  assert.match(html, /learning-growth-submission-transcript/);
+  assert.match(html, /\u67e5\u770b\u8f6c\u5199\u5185\u5bb9/);
+  assert.doesNotMatch(html, /<details class="learning-growth-submission-transcript" open>/);
   assert.match(html, /data-learning-growth-task-prompt-collapsed/);
 }
 

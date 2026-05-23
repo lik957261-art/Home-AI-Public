@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-growth-reading-dir-ui-v132";
+const CLIENT_VERSION = "20260523-growth-sequence-nav-v133";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -206,7 +206,8 @@ assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLea
 assert.match(appJs, /const learningGrowthDetail = state\.viewMode === "learning" && Boolean\(state\.selectedLearningTaskCardId\)/);
 assert.match(appJs, /mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
-assert.match(appJs, /target === "directory"[\s\S]*?navigateDirectoryUp\(\{ animateEntry: true \}\)\.catch\(showError\)/);
+assert.match(appJs, /target === "directory"[\s\S]*?state\.directoryReturnRoute \? restoreDirectoryReturnRoute\(\) : navigateDirectoryUp\(\{ animateEntry: true \}\)\.catch\(showError\)/);
+assert.match(appJs, /if \(target === "directory"\) state\.directoryReturnRoute \? restoreDirectoryReturnRoute\(\) : await navigateDirectoryUp/);
 assert.match(appJs, /learningGrowthWorkspaceId: state\.learningGrowthWorkspaceId/);
 assert.match(appJs, /selectedLearningTaskCardId: state\.selectedLearningTaskCardId/);
 assert.match(appJs, /learningGrowthBoardLane: state\.learningGrowthBoardLane/);

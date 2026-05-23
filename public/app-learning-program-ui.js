@@ -702,13 +702,26 @@
     return renderLearningGrowthSectionHead("\u6700\u8fd1\u6279\u6539", right, escapeHtml);
   }
 
+  function nativeGrowthSubmissionAudio(submission = {}) {
+    const audio = submission.audio || submission.raw?.audio || null;
+    if (!audio || typeof audio !== "object") return null;
+    const url = String(audio.url || audio.href || "").trim();
+    if (!url) return null;
+    return {
+      url,
+      name: String(audio.name || "\u539f\u59cb\u5f55\u97f3").trim(),
+      mime: String(audio.mime || "audio/webm").trim(),
+      size: Number(audio.size || 0) || 0,
+    };
+  }
+
   function nativeGrowthSubmissionEvidence(task = {}, data = {}) {
     const taskCardId = String(task?.taskCardId || "");
     const latest = task.latestSubmission || latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
     if (!latest) return null;
     const structuredResponses = asArray(latest.structuredResponses);
     const displayText = String(latest.displayText || latest.text || "").trim();
-    return Object.assign({}, latest, { displayText, structuredResponses });
+    return Object.assign({}, latest, { audio: nativeGrowthSubmissionAudio(latest), displayText, structuredResponses });
   }
 
   function structuredResponseMap(submission = {}) {
@@ -724,9 +737,10 @@
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const responses = asArray(submission.structuredResponses);
     const displayText = String(submission.displayText || "").trim();
+    const audio = nativeGrowthSubmissionAudio(submission);
     const submittedAt = nativeGrowthTimeLabel(submission.submittedAt || submission.createdAt || submission.updatedAt || "", options);
     const head = renderLearningGrowthSectionHead("\u4e0a\u6b21\u63d0\u4ea4", submittedAt ? `<span class="learning-growth-submission-time" data-learning-growth-submission-time>${escapeHtml(`\u63d0\u4ea4 ${submittedAt}`)}</span>` : "", escapeHtml);
-    if (!responses.length && !displayText) {
+    if (!responses.length && !displayText && !audio) {
       return `<section class="learning-growth-answer-submission" data-learning-growth-previous-submission>
         ${head}
         <p>\u5df2\u6709\u63d0\u4ea4\u8bb0\u5f55\uff0c\u4f46\u6b64\u6b21\u65e9\u671f\u8bb0\u5f55\u672a\u4fdd\u7559\u53ef\u56de\u663e\u7684\u7ed3\u6784\u5316\u4f5c\u7b54\u3002</p>
@@ -734,6 +748,10 @@
     }
     return `<section class="learning-growth-answer-submission" data-learning-growth-previous-submission>
       ${head}
+      ${audio ? `<div class="learning-growth-submission-audio" data-learning-growth-submission-audio>
+        <strong>${escapeHtml(audio.name)}</strong>
+        <audio controls preload="metadata" src="${escapeHtml(audio.url)}"></audio>
+      </div>` : ""}
       ${responses.length ? `<div class="learning-growth-previous-responses">
         ${responses.map((item, index) => {
           const title = item.title || item.questionId || `Q${index + 1}`;
@@ -746,7 +764,7 @@
           </article>`;
         }).join("")}
       </div>` : ""}
-      ${displayText && !responses.length ? `<p>${escapeHtml(displayText)}</p>` : ""}
+      ${displayText && !responses.length ? `<details class="learning-growth-submission-transcript" ${audio ? "" : "open"}><summary>\u67e5\u770b\u8f6c\u5199\u5185\u5bb9</summary><p>${escapeHtml(displayText)}</p></details>` : ""}
     </section>`;
   }
 
@@ -1046,10 +1064,24 @@
   function nativeGrowthReadingMaterial(task = {}) {
     const model = task.taskModel || task.learningTaskModel || {};
     const material = model.readingMaterial || task.readingMaterial || {};
-    const passage = String(material.passage || material.text || material.content || "").trim();
+    let passage = String(material.passage || material.text || material.content || "").trim();
+    let title = String(material.title || "\u539f\u59cb\u9605\u8bfb\u6750\u6599").trim();
+    if (!passage) {
+      const instruction = String(task.learnerInstruction || task.instruction || model.learnerInstruction || "").trim();
+      const match = instruction.match(/(?:Reading material|Reading passage|Passage|Article)\s*:\s*([\s\S]+)$/i);
+      if (match) {
+        passage = String(match[1] || "").trim();
+        const firstLineEnd = passage.indexOf("\n");
+        const firstLine = firstLineEnd >= 0 ? passage.slice(0, firstLineEnd).trim() : "";
+        if (firstLine && firstLine.length <= 120) {
+          title = firstLine;
+          passage = passage.slice(firstLineEnd + 1).trim();
+        }
+      }
+    }
     if (!passage) return null;
     return {
-      title: String(material.title || "\u539f\u59cb\u9605\u8bfb\u6750\u6599").trim(),
+      title,
       passage,
       meta: [material.cefr, material.wordCount ? `${material.wordCount} words` : "", material.estimatedReadingMinutes ? `${material.estimatedReadingMinutes} min` : ""].filter(Boolean),
     };
@@ -1121,9 +1153,9 @@
       </div>
       ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
+      ${renderNativeGrowthReadingMaterial(taskForForm, options)}
       ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
       ${latestEvaluation ? `<section class="learning-growth-answer-feedback">${renderNativeGrowthFeedbackHead(taskForForm, latestEvaluation, options)}${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}${renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options)}</section>` : ""}
-      ${renderNativeGrowthReadingMaterial(taskForForm, options)}
       ${renderNativeGrowthInstruction(taskForForm, instruction, options)}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;

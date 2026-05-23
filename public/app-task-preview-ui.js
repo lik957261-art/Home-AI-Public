@@ -55,8 +55,11 @@
 
   function closePreviewFromUser(closeFn) {
     if (isPreviewHistoryActive()) {
-      global.history.back();
-      return;
+      try {
+        const nextState = { ...(global.history.state || {}) };
+        delete nextState[PREVIEW_HISTORY_KEY];
+        global.history.replaceState(nextState, "", global.location.href);
+      } catch (_) {}
     }
     closeFn();
   }

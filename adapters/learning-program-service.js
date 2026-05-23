@@ -640,6 +640,10 @@ function createLearningProgramService(options = {}) {
     return typeof repository.listTaskSubmissions === "function" ? repository.listTaskSubmissions(filters) : [];
   }
 
+  function getTaskSubmission(submissionId) {
+    return typeof repository.getTaskSubmission === "function" ? repository.getTaskSubmission(submissionId) : null;
+  }
+
   function listTaskReflections(filters = {}) {
     return typeof repository.listTaskReflections === "function" ? repository.listTaskReflections(filters) : [];
   }
@@ -714,6 +718,7 @@ function createLearningProgramService(options = {}) {
     listTaskArtifacts,
     listTaskReflections,
     listTaskSubmissions,
+    getTaskSubmission,
     listGoals,
     listSourceDirectories,
     listSources,

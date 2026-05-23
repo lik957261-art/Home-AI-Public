@@ -114,7 +114,7 @@ function performBackSwipeAction(target) {
     state.learningGrowthSettingsOpen = false;
     renderLearningCoinsView();
   }
-  else if (target === "directory") navigateDirectoryUp({ animateEntry: true }).catch(showError);
+  else if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : navigateDirectoryUp({ animateEntry: true }).catch(showError);
   else if (target === "automation") openAutomationList();
 }
 
@@ -125,9 +125,8 @@ async function handleInAppBackNavigation(options = {}) {
   }
   const target = backSwipeTarget();
   if (!target) return false;
-  if (target === "directory") {
-    await navigateDirectoryUp({ animateEntry: Boolean(options.animateEntry) });
-  } else {
+  if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : await navigateDirectoryUp({ animateEntry: Boolean(options.animateEntry) });
+  else {
     performBackSwipeAction(target);
   }
   return true;

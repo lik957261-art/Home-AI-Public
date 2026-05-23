@@ -2410,6 +2410,31 @@ button.directory-alias-chip {
   font-size: 11px;
 }
 
+.learning-growth-submission-audio {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.learning-growth-submission-audio strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.learning-growth-submission-audio audio {
+  width: 100%;
+}
+
+.learning-growth-submission-transcript {
+  margin-top: 8px;
+}
+
+.learning-growth-submission-transcript summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .artifacts {
   display: grid;
   gap: 9px;

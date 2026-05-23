@@ -335,6 +335,8 @@ function publicSubmissionAudioEvidence(audio = {}, input = {}) {
   const mime = cleanString(audio.mime || audio.type || input.type || input.mime || input.mimeType || "audio/webm");
   const size = Number(audio.size || input.size || 0) || 0;
   const durationMs = Number(input.durationMs || input.duration_ms || audio.durationMs || 0) || 0;
+  const audioPath = cleanString(audio.path);
+  const url = cleanString(audio.url || audio.href) || (audioPath ? `/api/files?path=${encodeURIComponent(audioPath)}` : "");
   const contentBasis = cleanString(input.dataBase64 || input.data_base64 || input.audioDataBase64);
   const digestBasis = contentBasis || [name, mime, size, durationMs, cleanString(audio.path)].join("|");
   return {
@@ -344,6 +346,7 @@ function publicSubmissionAudioEvidence(audio = {}, input = {}) {
     size,
     durationMs,
     digest: digestText(digestBasis).slice(0, 24),
+    url,
   };
 }
 
@@ -1019,6 +1022,7 @@ function createLearningGrowthSubmissionService(options = {}) {
             : `${activityLabel(taskModel.activityType)} task submission received.`,
           audio: submissionAudio,
         });
+        if (submissionAudio && nativeSubmission?.record?.audio?.url) submissionAudio.url = nativeSubmission.record.audio.url;
       } catch (err) {
         nativeSubmission = { error: cleanString(err.message || err) };
       }

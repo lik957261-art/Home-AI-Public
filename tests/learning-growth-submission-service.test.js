@@ -906,10 +906,13 @@ async function testNativeSpeakingSubmissionUsesAudioTranscription() {
     assert.equal(savedAudio.length, 1);
     assert.equal(evaluated.length, 1);
     assert.equal(result.submissionAudio.kind, "audio");
+    assert.match(result.submissionAudio.url, /^\/api\/learning\/task-submissions\/[^/]+\/audio$/);
     assert.equal(result.evaluation.evidenceRefs.some((ref) => /^audio:/.test(ref)), true);
     const nativeSubmission = repository.listTaskSubmissions({ taskCardId: "task-native-speaking", limit: 1 })[0];
+    assert.equal(nativeSubmission.audio.url, result.submissionAudio.url);
     assert.equal(nativeSubmission.raw.audio.kind, "audio");
     assert.equal(nativeSubmission.raw.audio.digest, result.submissionAudio.digest);
+    assert.equal(nativeSubmission.raw.audio.url, result.submissionAudio.url);
     assert.doesNotMatch(JSON.stringify(nativeSubmission.raw), /First I introduce/);
   } finally {
     repository.close();

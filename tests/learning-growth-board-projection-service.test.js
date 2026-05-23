@@ -396,11 +396,38 @@ function testBoardShowsLockedCurrentCardBeforeCompletionWindow() {
   });
   const card = board.cards[0];
   assert.equal(card.laneId, "locked_until");
+  assert.equal(card.title, "Tomorrow task");
   assert.equal(card.nextAction, "locked_until");
   assert.equal(card.primaryAction, "locked");
   assert.equal(card.actions.canSubmit, false);
   assert.equal(card.nextCompletionAllowedAt, "2026-05-21T08:00:00.000Z");
   assert.ok(board.lanes.find((lane) => lane.id === "locked_until").cards.includes("seq-locked"));
+}
+
+function testBoardAppendsEvergreenSequenceIndexToRepeatedTitles() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        {
+          taskCardId: "seq-evergreen-2",
+          programId: "program-1",
+          sequenceGroupId: "evergreen:math",
+          sequenceMode: "evergreen_jit",
+          sequenceIndex: 2,
+          title: "Math reasoning",
+          status: "published",
+          plannedDate: "2026-05-20",
+        },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.equal(board.cards[0].sequenceIndex, 2);
+  assert.equal(board.cards[0].title, "Math reasoning \u00b7 \u7b2c 2 \u5f20");
 }
 
 function testBoardFiltersRetiredAndCancelledTasks() {
@@ -435,5 +462,6 @@ testBoardMarksEvergreenRewardDecayAfterThresholds();
 testBoardGroupsDuplicateDraftsByProgram();
 testBoardProjectsLegacyTodosAsReadOnlyOpenTasks();
 testBoardShowsLockedCurrentCardBeforeCompletionWindow();
+testBoardAppendsEvergreenSequenceIndexToRepeatedTitles();
 testBoardFiltersRetiredAndCancelledTasks();
 console.log("learning growth board projection service tests passed");

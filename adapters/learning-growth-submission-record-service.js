@@ -115,6 +115,7 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
     const shouldStoreDisplayText = input.storeDisplayText !== false;
     const submissionId = cleanString(input.submissionId)
       || stableRecordId("lsub", [identity.taskCardId, cleanString(input.stage), cleanString(input.submissionKind), submittedAt, digestText(input.text || "")]);
+    const audioUrl = `/api/learning/task-submissions/${encodeURIComponent(submissionId)}/audio`;
     const record = repository.saveTaskSubmission({
       submissionId,
       taskCardId: identity.taskCardId,
@@ -147,6 +148,7 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
           size: Number(input.audio.size || 0),
           durationMs: Number(input.audio.durationMs || 0),
           digest: cleanString(input.audio.digest),
+          url: audioUrl,
         } : null,
       },
     });

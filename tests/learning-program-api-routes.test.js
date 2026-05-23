@@ -177,6 +177,16 @@ function makeRoutes(overrides = {}) {
       calls.push(["getTaskCard", taskCardId]);
       return { taskCardId, kanbanCardId: "kanban-1", workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published" };
     },
+    getTaskSubmission(submissionId) {
+      calls.push(["getTaskSubmission", submissionId]);
+      return {
+        submissionId,
+        taskCardId: "task-1",
+        workspaceId: "weixin_stephen",
+        learnerId: "weixin_stephen",
+        audio: { kind: "audio", name: "missing-audio.ogg", mime: "audio/ogg" },
+      };
+    },
     updateTaskRewardPolicy(taskCardId, input) {
       calls.push(["updateTaskRewardPolicy", taskCardId, input]);
       return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published", rewardCapCoins: input.rewardCapCoins || input.maxCoins };
@@ -272,7 +282,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 40);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 41);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -289,6 +299,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "PATCH", path: "/api/learning/task-cards/task-1/reward-policy" }).id, "learning-task-card-reward-policy-update");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/daily-plan" }).id, "learning-daily-plan");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/task-submissions/lsub-1/audio" }).id, "learning-task-submission-audio-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission" }).id, "learning-task-card-growth-submission");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission/withdraw" }).id, "learning-task-card-growth-submission-withdraw");
@@ -297,7 +308,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 40);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 41);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -727,6 +738,29 @@ async function testExecutorCannotReadUnpublishedTaskDetail() {
   assert.equal(response.body.error, "Learning task is not executable");
 }
 
+async function testTaskSubmissionAudioRouteIsScopedAndBounded() {
+  const { routes, calls } = makeRoutes({
+    service: {
+      getTaskCard(taskCardId) {
+        calls.push(["getTaskCard", taskCardId]);
+        return {
+          taskCardId,
+          workspaceId: "weixin_stephen",
+          learnerId: "weixin_stephen",
+          status: "published",
+          artifactDirectoryPath: "C:\\missing-learning-audio-dir",
+        };
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning/task-submissions/lsub-1/audio", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(response.res.statusCode, 404);
+  assert.equal(response.body.error, "Learning task submission audio file not found");
+  assert.deepEqual(calls.slice(-2).map((call) => call[0]), ["getTaskSubmission", "getTaskCard"]);
+}
+
 async function testExecutorCannotEvaluateOtherLearnerSession() {
   const { routes, calls } = makeRoutes({
     service: {
@@ -755,6 +789,7 @@ async function testExecutorCannotEvaluateOtherLearnerSession() {
   await testTaskSessionEvaluationRoutes();
   await testExecutorTaskReadUsesSummaryProjectionOnly();
   await testExecutorCannotReadUnpublishedTaskDetail();
+  await testTaskSubmissionAudioRouteIsScopedAndBounded();
   await testExecutorCannotStartUnpublishedTask();
   await testNativeGrowthSubmissionDoesNotRequireKanbanLink();
   await testNativeGrowthSubmissionUsesUploadSizedBodyLimit();
