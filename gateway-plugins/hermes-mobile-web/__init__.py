@@ -114,9 +114,6 @@ def _compact_text(value: Any, max_chars: int = MAX_X_SEARCH_CHARS) -> str:
 
 
 def _gateway_api_key() -> str:
-    key = os.environ.get("API_SERVER_KEY", "").strip()
-    if key:
-        return key
     for path in (
         os.environ.get("HERMES_MOBILE_GATEWAY_API_KEY_PATH", ""),
         os.environ.get("HERMES_WEB_HERMES_API_KEY_PATH", ""),
@@ -131,6 +128,9 @@ def _gateway_api_key() -> str:
                 return key
         except OSError:
             continue
+    key = os.environ.get("API_SERVER_KEY", "").strip()
+    if key:
+        return key
     return ""
 
 
@@ -159,7 +159,12 @@ def _current_profile_name() -> str:
 
 
 def _is_grok_gateway_profile() -> bool:
-    return _current_profile_name().lower().startswith("grokgw")
+    disabled = os.environ.get("HERMES_MOBILE_DISABLE_X_SEARCH_PROXY_TOOL", "").strip().lower()
+    if disabled not in {"1", "true", "yes", "on"}:
+        return False
+    home = os.environ.get("HERMES_HOME", "").strip().replace("\\", "/").rstrip("/")
+    profile = _current_profile_name().lower()
+    return "/profiles/" in home and profile.startswith("grokgw")
 
 
 def _parse_sse_frame(frame: str) -> dict[str, Any] | None:
@@ -518,11 +523,12 @@ def register(ctx) -> None:
     if not _is_grok_gateway_profile():
         ctx.register_tool(
             name="x_search",
-            toolset="x_search",
+            toolset="web",
             schema=X_SEARCH_SCHEMA,
             handler=_x_search_handler,
             description="Proxy X/Twitter search through the dedicated Hermes Mobile Grok Gateway.",
             emoji="x",
+            override=True,
         )
     ctx.register_tool(
         name="web_search",

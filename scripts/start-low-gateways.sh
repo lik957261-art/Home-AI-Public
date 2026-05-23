@@ -163,6 +163,10 @@ stop_gateway_port() {
 start_gateway_profile() {
   local profile="$1"
   local port="$2"
+  local disable_x_search_proxy_tool="0"
+  if [[ "$profile" == grokgw* ]]; then
+    disable_x_search_proxy_tool="1"
+  fi
   log="$worker_home_dir/logs/${profile}-gateway-${port}.log"
   pidfile="$worker_home_dir/${profile}-gateway-${port}.pid"
   api_key="$(tr -d '\r\n' < "$api_key_file")"
@@ -181,6 +185,7 @@ start_gateway_profile() {
     HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$mobile_bridge_key_path" \
     HERMES_WEB_BRIDGE_HOST_KEY_PATH="$mobile_bridge_key_path" \
     HERMES_MOBILE_X_SEARCH_PROXY_URL="$x_search_proxy_url" \
+    HERMES_MOBILE_DISABLE_X_SEARCH_PROXY_TOOL="$disable_x_search_proxy_tool" \
     HERMES_KANBAN_DISPATCH_IN_GATEWAY=0 \
     API_SERVER_KEY="$api_key" \
     "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
