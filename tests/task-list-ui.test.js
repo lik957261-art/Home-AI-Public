@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-preview-share-menu-v135";
+const CLIENT_VERSION = "20260524-preview-menu-layer-v137";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -179,7 +179,8 @@ assert.match(appJs, /data-preview-action="pdf"[\s\S]*?转成 PDF 分享/);
 assert.match(appJs, /function forwardMarkdownToGroup\(markdown, title\)/);
 assert.match(appJs, /function forwardFileLinkToGroup\(sourceUrl, title\)/);
 assert.match(appJs, /\/api\/weixin\/forward-file/);
-assert.match(stylesCss, /\.task-preview-more-menu/);
+assert.match(stylesCss, /\.task-preview-more-menu \{[\s\S]*?z-index: 1211;[\s\S]*?pointer-events: auto;[\s\S]*?background: #fffaf3;[\s\S]*?font: 650 13px\/1\.3 var\(--font-sans\);/);
+assert.match(stylesCss, /\.task-markdown-preview-head \{[\s\S]*?position: relative;[\s\S]*?z-index: 3;/);
 assert.match(appJs, /const PREVIEW_HISTORY_KEY = "__hermesTaskPreview"/);
 assert.match(appJs, /global\.addEventListener\("popstate"/);
 assert.match(appJs, /global\.history\.pushState\(nextState/);
@@ -190,9 +191,9 @@ assert.match(stylesCss, /\.task-markdown-preview-doc h1/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1 \{[\s\S]*?font-size: 24px;/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22px;/);
 assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]*?justify-content: center;/);
-assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 24px;[\s\S]*?font-size: 12px;/);
+assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 19px;[\s\S]*?font-size: 10px;/);
 assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-icon \{[\s\S]*?font-size: 8px;/);
-assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 12px;[\s\S]*?line-height: 1\.2;/);
+assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 9\.5px;[\s\S]*?line-height: 1\.15;/);
 assert.match(appJs, /kind === "html" \|\| mime\.startsWith\("image\/"\)/);
 assert.match(appJs, /if \(kind === "markdown"\) return `\/markdown-viewer\.html\?\$\{query\.toString\(\)\}`/);
 assert.match(markdownViewerHtml, /markdownRenderer\.renderMarkdownDocument/);
