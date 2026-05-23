@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-html-composer-v119";
+const CLIENT_VERSION = "20260523-composer-mobile-safearea-v120";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1369,6 +1369,7 @@ assert.match(pdfViewerHtml, /const embeddedViewer = params\.get\("embedded"\) ==
 assert.match(pdfViewerHtml, /if \(embeddedViewer\) return false/);
 assert.match(pdfViewerHtml, /body\.native-browser-chrome \.back-button/);
 assert.match(stylesCss, /\.composer \{[\s\S]*?padding: 9px 14px calc\(14px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer \{[\s\S]*?padding: 7px 8px calc\(14px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\)[\s\S]*?\.composer \{[\s\S]*?calc\(8px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);

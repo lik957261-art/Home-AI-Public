@@ -11184,7 +11184,7 @@ button.directory-alias-chip {
 
   .composer {
     grid-template-columns: 40px minmax(0, 1fr) 52px;
-    padding: 7px 8px 6px;
+    padding: 7px 8px calc(14px + env(safe-area-inset-bottom));
     gap: 5px;
   }
 
