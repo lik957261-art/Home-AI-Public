@@ -21,8 +21,10 @@ function overview() {
       ],
       taskSubmissions: [
         { submissionId: "sub-ai", taskCardId: "task-ai", status: "submitted", textDigest: "digest", submittedAt: "2026-05-20T08:00:00.000Z" },
+        { submissionId: "sub-ai-2", taskCardId: "task-ai", status: "submitted", textDigest: "digest-2", submittedAt: "2026-05-20T08:05:00.000Z" },
       ],
       evaluations: [
+        { evaluationId: "eval-reflect-old", taskCardId: "task-reflect", status: "needs_repair", score: 62, passed: false, summary: "old summary", createdAt: "2026-05-20T07:59:00.000Z" },
         { evaluationId: "eval-reflect", taskCardId: "task-reflect", status: "reflection_required", score: 84, passed: true, summary: "summary", createdAt: "2026-05-20T08:01:00.000Z" },
         { evaluationId: "eval-done", taskCardId: "task-done", status: "passed", score: 91, passed: true, summary: "summary", createdAt: "2026-05-20T08:02:00.000Z" },
       ],
@@ -49,10 +51,19 @@ function testBoardClassifiesNativeTasksIntoLanes() {
   assert.ok(laneById.get("reflection_required").cards.includes("task-reflect"));
   assert.ok(laneById.get("completed_recent").cards.includes("task-done"));
   const reflectCard = board.cards.find((card) => card.taskCardId === "task-reflect");
+  assert.equal(reflectCard.source, "learning-growth");
   assert.equal(reflectCard.primaryAction, "reflect");
   assert.equal(reflectCard.actions.canReflect, true);
+  assert.equal(reflectCard.evaluationCount, 2);
+  assert.equal(reflectCard.totalEvaluationCount, 2);
+  assert.equal(reflectCard.latestEvaluation.evaluationId, "eval-reflect");
+  assert.equal(reflectCard.latestEvaluation.totalEvaluationCount, 2);
   assert.equal(reflectCard.artifactPreview[0].name, "report.md");
   assert.equal(reflectCard.artifactDirectoryPath, "C:\\Deliverables\\task-reflect");
+  const waitingCard = board.cards.find((card) => card.taskCardId === "task-ai");
+  assert.equal(waitingCard.submissionCount, 2);
+  assert.equal(waitingCard.latestSubmission.submissionId, "sub-ai-2");
+  assert.equal(waitingCard.latestSubmission.totalSubmissionCount, 2);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").rewardCapCoins, 100);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").openedAt, "2026-05-20T07:30:00.000Z");
   assert.equal(JSON.stringify(board).includes("refDigest"), false);

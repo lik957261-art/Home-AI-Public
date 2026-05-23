@@ -374,6 +374,8 @@ function reviewedNativeMathTask() {
     status: "published",
     workspaceId: "weixin_stephen",
     plannedMinutes: 20,
+    totalSubmissionCount: 4,
+    totalEvaluationCount: 2,
     artifactDirectoryPath: "C:\\reports\\task-native-math-review",
     learningGrowthReportHistory: [
       { name: "01-feedback.md", path: "C:\\reports\\one.md" },
@@ -389,6 +391,7 @@ function reviewedNativeMathTask() {
       nextStep: "revise_and_resubmit",
       passed: false,
       score: 68,
+      createdAt: "2026-05-23T10:30:00.000Z",
       summary: "Latest math feedback summary.",
       revisionRequirements: ["Show the operation path."],
       feedbackSections: {
@@ -438,7 +441,9 @@ function testReviewedNativeMathTaskCollapsesQuestionsUntilEdit() {
   assert.match(html, /data-learning-growth-submission-time/);
   assert.match(html, /05\/23 17:30/);
   assert.match(html, /data-learning-growth-feedback-count/);
-  assert.match(html, /\u603b\u63d0\u4ea4 2 \u6b21/);
+  assert.match(html, /data-learning-growth-feedback-time/);
+  assert.match(html, /\u6279\u6539 05\/23 17:30/);
+  assert.match(html, /\u603b\u63d0\u4ea4 4 \u6b21 \u00b7 \u603b\u6279\u6539 2 \u6b21/);
   assert.match(html, /data-directory-path-open/);
   assert.match(html, /data-directory-path="C:\\reports\\task-native-math-review"/);
   assert.match(html, /data-learning-native-growth-revision-collapsed="task-native-math-review"/);
@@ -454,6 +459,17 @@ function testReviewedNativeMathTaskCollapsesQuestionsUntilEdit() {
   assert.match(html, /Check each answer with one equation/);
   assert.ok(html.indexOf("data-learning-growth-feedback-detail") > html.indexOf("learning-growth-answer-feedback"));
   assert.doesNotMatch(html, /data-learning-native-growth-question="q1"/);
+}
+
+function testReviewedNativeMathTaskTreatsEmptySourceAsNativeGrowth() {
+  const task = Object.assign({}, reviewedNativeMathTask(), { source: "" });
+  const html = ProgramUi.renderNativeGrowthTaskDetail(task, { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+    state: { auth: { isOwner: false } },
+    formatTime: () => "05/23 17:30",
+  });
+  assert.match(html, /data-learning-native-growth-revision-collapsed="task-native-math-review"/);
+  assert.match(html, /data-learning-native-growth-edit-answer="task-native-math-review"/);
+  assert.doesNotMatch(html, /data-learning-task-start="task-native-math-review"/);
 }
 
 function testReviewedNativeMathTaskExpandsAfterEditClickState() {
@@ -524,6 +540,7 @@ testNativeTaskDetailShowsRewardPolicyWithoutCapForm();
 testNativeSpeakingTaskRendersAudioRecorder();
 testNativeMathTaskRendersStructuredQuestionInputs();
 testReviewedNativeMathTaskCollapsesQuestionsUntilEdit();
+testReviewedNativeMathTaskTreatsEmptySourceAsNativeGrowth();
 testReviewedNativeMathTaskExpandsAfterEditClickState();
 testNativeTaskReflectionStateRendersReflectionForm();
 testNativeSubmittingTaskShowsAutoRefreshState();

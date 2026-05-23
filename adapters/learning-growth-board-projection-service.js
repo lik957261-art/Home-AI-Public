@@ -55,6 +55,20 @@ function latestForTask(records = [], taskCardId = "", field = "updatedAt") {
   return latest;
 }
 
+function countForTask(records = [], taskCardId = "") {
+  const id = cleanString(taskCardId);
+  if (!id) return 0;
+  return arrayValue(records).filter((record) => cleanString(record?.taskCardId) === id).length;
+}
+
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
+  }
+  return 0;
+}
+
 function publicArtifactPreview(artifact) {
   const filePath = artifactFilePath(artifact);
   return {
@@ -202,6 +216,22 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     evaluation: task.latestEvaluation || latestForTask(context.evaluations, taskCardId, "createdAt"),
     reflection: task.latestReflection || latestForTask(context.reflections, taskCardId, "submittedAt"),
   };
+  const submissionCount = firstPositiveNumber(
+    task.totalSubmissionCount,
+    task.submissionCount,
+    latest.submission?.totalSubmissionCount,
+    latest.submission?.submissionCount,
+    countForTask(context.submissions, taskCardId),
+    latest.submission ? 1 : 0,
+  );
+  const evaluationCount = firstPositiveNumber(
+    task.totalEvaluationCount,
+    task.evaluationCount,
+    latest.evaluation?.totalEvaluationCount,
+    latest.evaluation?.evaluationCount,
+    countForTask(context.evaluations, taskCardId),
+    latest.evaluation ? 1 : 0,
+  );
   const artifacts = arrayValue(context.artifacts)
     .filter((artifact) => cleanString(artifact?.taskCardId) === taskCardId)
     .map(publicArtifactPreview);
@@ -234,7 +264,7 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
   return {
     taskCardId,
     todoId: cleanString(task.todoId || task.kanbanCardId),
-    source: cleanString(task.source),
+    source: cleanString(task.source) || "learning-growth",
     legacySource: cleanString(task.legacySource),
     readOnly: Boolean(task.readOnly),
     workspaceId: cleanString(task.workspaceId || task.learnerId || task.assignee),
@@ -264,8 +294,18 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     nextCompletionAllowedAt,
     nextAction: action,
     laneId,
-    latestSubmission: latest.submission || null,
-    latestEvaluation: latest.evaluation || null,
+    submissionCount,
+    totalSubmissionCount: submissionCount,
+    evaluationCount,
+    totalEvaluationCount: evaluationCount,
+    latestSubmission: latest.submission ? Object.assign({}, latest.submission, {
+      submissionCount,
+      totalSubmissionCount: submissionCount,
+    }) : null,
+    latestEvaluation: latest.evaluation ? Object.assign({}, latest.evaluation, {
+      evaluationCount,
+      totalEvaluationCount: evaluationCount,
+    }) : null,
     latestReflection: latest.reflection || null,
     artifactCount,
     artifactPreview: artifacts.slice(0, 3),

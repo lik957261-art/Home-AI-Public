@@ -640,19 +640,25 @@
     </div>`;
   }
 
-  function nativeGrowthAttemptCount(task = {}, evaluation = {}) {
+  function nativeGrowthEvaluationCount(task = {}, evaluation = {}) {
     const candidates = [
-      task.totalSubmissionCount,
-      task.submissionCount,
       task.totalEvaluationCount,
       task.evaluationCount,
-      evaluation.totalSubmissionCount,
-      evaluation.submissionCount,
       evaluation.totalEvaluationCount,
       evaluation.evaluationCount,
       Array.isArray(evaluation.reportHistory) ? evaluation.reportHistory.length : 0,
       Array.isArray(task.learningGrowthReportHistory) ? task.learningGrowthReportHistory.length : 0,
-      task.artifactCount,
+    ];
+    const count = candidates.map((value) => Number(value)).find((value) => Number.isFinite(value) && value > 0);
+    return Math.max(1, Math.round(count || 1));
+  }
+
+  function nativeGrowthSubmissionCount(task = {}) {
+    const candidates = [
+      task.totalSubmissionCount,
+      task.submissionCount,
+      task.latestSubmission?.totalSubmissionCount,
+      task.latestSubmission?.submissionCount,
     ];
     const count = candidates.map((value) => Number(value)).find((value) => Number.isFinite(value) && value > 0);
     return Math.max(1, Math.round(count || 1));
@@ -669,12 +675,15 @@
 
   function renderNativeGrowthFeedbackHead(task = {}, evaluation = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    const count = nativeGrowthAttemptCount(task, evaluation);
+    const submissionCount = nativeGrowthSubmissionCount(task);
+    const evaluationCount = nativeGrowthEvaluationCount(task, evaluation);
     const directoryPath = nativeGrowthArtifactDirectoryPath(task, evaluation);
-    const label = `\u603b\u63d0\u4ea4 ${count} \u6b21`;
-    const right = directoryPath
+    const label = `\u603b\u63d0\u4ea4 ${submissionCount} \u6b21 \u00b7 \u603b\u6279\u6539 ${evaluationCount} \u6b21`;
+    const evaluatedAt = nativeGrowthTimeLabel(evaluation.createdAt || evaluation.completedAt || evaluation.updatedAt || "", options);
+    const countHtml = directoryPath
       ? `<button type="button" class="learning-growth-feedback-count" data-learning-growth-feedback-count data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(task.title || "\u6279\u6539\u76ee\u5f55")}" title="\u6253\u5f00\u6279\u6539\u76ee\u5f55">${escapeHtml(label)}</button>`
       : `<span class="learning-growth-feedback-count" data-learning-growth-feedback-count>${escapeHtml(label)}</span>`;
+    const right = `${evaluatedAt ? `<span class="learning-growth-feedback-time" data-learning-growth-feedback-time>${escapeHtml(`\u6279\u6539 ${evaluatedAt}`)}</span>` : ""}${countHtml}`;
     return renderLearningGrowthSectionHead("\u6700\u8fd1\u6279\u6539", right, escapeHtml);
   }
 
@@ -1016,7 +1025,8 @@
     const taskEvaluationCount = asArray(data.evaluations).filter((item) => String(item?.taskCardId || "") === taskCardId).length;
     const meta = [task.plannedDate, task.plannedMinutes ? `${task.plannedMinutes} min` : "", skills].filter(Boolean);
     const instruction = task.learnerInstruction || task.instruction || model.learnerInstruction || task.instructionPreview || task.summary || "";
-    const taskForForm = Object.assign({ source: "learning-growth" }, task, {
+    const taskForForm = Object.assign({}, task, {
+      source: String(task.source || "").trim() || "learning-growth",
       nativeState: Object.assign({}, task.nativeState || {}, { nextAction: taskActionFromRecords(task, data) }),
       latestSubmission,
       latestEvaluation,
