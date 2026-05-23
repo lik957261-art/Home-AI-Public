@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-close-fast-v108";
+const CLIENT_VERSION = "20260523-preview-destroy-v109";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -162,8 +162,11 @@ assert.match(appJs, /taskDocumentPreviewFrame/);
 assert.match(appJs, /function isTaskDocumentPreviewOverlayOpen\(\)/);
 assert.match(appJs, /function handleTaskDocumentPreviewCloseEvent\(event\)/);
 assert.match(appJs, /if \(isTaskDocumentPreviewOverlayOpen\(\)\) \{[\s\S]*?closeTaskDocumentPreviewOverlay\(\);[\s\S]*?pushBackNavigationGuard\(\);[\s\S]*?return;/);
-assert.match(appJs, /overlay\?\.classList\.add\("closing"\)/);
-assert.match(appJs, /window\.setTimeout\(\(\) => \{[\s\S]*?frame\.src = "about:blank"/);
+assert.match(appJs, /overlay\.classList\.add\("closing"\)/);
+assert.match(appJs, /overlay\.setAttribute\("hidden", ""\)/);
+assert.match(appJs, /overlay\.style\.display = "none"/);
+assert.match(appJs, /overlay\.remove\(\)/);
+assert.match(appJs, /overlay\.removeAttribute\("hidden"\)/);
 assert.match(appJs, /frame\.classList\.add\("loading"\)/);
 assert.match(appJs, /addEventListener\("pointerdown", handleTaskDocumentPreviewCloseEvent, \{ capture: true \}\)/);
 assert.match(appJs, /addEventListener\("touchstart", handleTaskDocumentPreviewCloseEvent, \{ capture: true, passive: false \}\)/);
