@@ -103,6 +103,32 @@
     return `${Number.isFinite(amount) ? amount : 0} \u91d1\u5e01`;
   }
 
+  function rewardSettlementTime(settlement = {}) {
+    return String(settlement.settledAt || settlement.updatedAt || settlement.createdAt || "").trim();
+  }
+
+  function latestRewardSettlementForTask(rewardSettlements = [], task = {}) {
+    const taskCardId = String(task?.taskCardId || "").trim();
+    const evaluationId = String(task?.latestEvaluation?.evaluationId || "").trim();
+    let latest = null;
+    asArray(rewardSettlements).forEach((item) => {
+      const matchesTask = taskCardId && String(item?.taskCardId || "").trim() === taskCardId;
+      const matchesEvaluation = evaluationId && String(item?.evaluationId || "").trim() === evaluationId;
+      if (!matchesTask && !matchesEvaluation) return;
+      if (!latest || rewardSettlementTime(item) > rewardSettlementTime(latest)) latest = item;
+    });
+    return latest;
+  }
+
+  function rewardSettlementDisplayText(settlement = null) {
+    const coinAmount = Number(settlement?.coinAmount || 0);
+    const amount = Number.isFinite(coinAmount) && coinAmount > 0 ? Math.round(coinAmount) : 0;
+    const status = String(settlement?.status || "");
+    if (amount && status === "settled") return `\u5df2\u5f97 ${amount} \u91d1\u5e01`;
+    if (amount && (status === "ready" || status === "pending_review")) return `\u5f85\u7ed3\u7b97 ${amount} \u91d1\u5e01`;
+    return "";
+  }
+
   function compactRiskFlags(flags = []) {
     return asArray(flags).map((flag) => (flag && typeof flag === "object" ? (flag.code || flag.reason || "") : flag)).filter(Boolean).join(" / ");
   }
@@ -971,8 +997,6 @@
   }
 
   function taskActionFromRecords(task = {}, data = {}) {
-    const nativeAction = String(task?.nativeState?.nextAction || "");
-    if (nativeAction) return nativeAction;
     const taskCardId = String(task?.taskCardId || "");
     const reflection = task.latestReflection || latestRecordForTask(data.taskReflections || [], taskCardId, "submittedAt");
     const evaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
@@ -980,18 +1004,23 @@
     if (String(task.status || "").toLowerCase() === "completed" || String(reflection?.status || "") === "accepted") return "complete";
     if (String(evaluation?.status || "") === "reflection_required") return "spoken_reflection";
     if (["needs_repair", "needs_revision"].includes(String(evaluation?.status || ""))) return "revise";
+    if (evaluation?.passed || ["passed", "completed", "complete"].includes(String(evaluation?.status || ""))) return "complete";
+    const nativeAction = String(task?.nativeState?.nextAction || "");
+    if (nativeAction && nativeAction !== "submit") return nativeAction;
     if (String(submission?.status || "")) return "waiting_feedback";
-    return "submit";
+    return nativeAction || "submit";
   }
 
   function renderTaskRewardPolicy(task = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const policy = taskRewardPolicy(task);
+    const settlementText = rewardSettlementDisplayText(task.latestRewardSettlement || task.rewardSettlement || null);
     return `<section class="learning-growth-answer-reward" data-learning-task-reward-policy>
       <div class="learning-growth-answer-reward-head">
         <h4>\u5956\u52b1\u673a\u5236</h4>
-        <strong>\u5956\u52b1 ${escapeHtml(String(policy.maxCoins))} \u91d1\u5e01</strong>
+        <strong>${settlementText ? escapeHtml(settlementText) : `\u5956\u52b1 ${escapeHtml(String(policy.maxCoins))} \u91d1\u5e01`}</strong>
       </div>
+      ${settlementText ? `<p class="learning-growth-answer-reward-settlement" data-learning-task-reward-settlement>${escapeHtml(settlementText)}</p>` : ""}
       <div class="learning-growth-answer-reward-grid">
         <span><b>${escapeHtml(String(policy.minCoins))}</b><small>\u901a\u8fc7\u57fa\u7840</small></span>
         <span><b>${escapeHtml(String(policy.accuracyBonusMax))}</b><small>\u51c6\u786e\u5ea6\u52a0\u6210</small></span>
@@ -1036,6 +1065,10 @@
     const skills = compactFocus(task.skillIds || model.skillTargets || []).slice(0, 120);
     const latestSubmission = nativeGrowthSubmissionEvidence(task, data);
     const latestEvaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const latestRewardSettlement = task.latestRewardSettlement || latestRewardSettlementForTask(data.rewardSettlements || [], {
+      taskCardId,
+      latestEvaluation,
+    });
     const taskSubmissionCount = asArray(data.taskSubmissions).filter((item) => String(item?.taskCardId || "") === taskCardId).length;
     const taskEvaluationCount = asArray(data.evaluations).filter((item) => String(item?.taskCardId || "") === taskCardId).length;
     const meta = [task.plannedDate, task.plannedMinutes ? `${task.plannedMinutes} min` : "", skills].filter(Boolean);
@@ -1045,6 +1078,7 @@
       nativeState: Object.assign({}, task.nativeState || {}, { nextAction: taskActionFromRecords(task, data) }),
       latestSubmission,
       latestEvaluation,
+      latestRewardSettlement,
       totalSubmissionCount: Number(task.totalSubmissionCount || 0) || taskSubmissionCount || undefined,
       totalEvaluationCount: Number(task.totalEvaluationCount || 0) || taskEvaluationCount || undefined,
     });

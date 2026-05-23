@@ -154,6 +154,16 @@
     return Number.isFinite(value) && value > 0 ? Math.round(value) : 100;
   }
 
+  function cardRewardText(card = {}) {
+    const settlement = card.latestRewardSettlement || card.rewardSettlement || null;
+    const coinAmount = Number(settlement?.coinAmount || 0);
+    const amount = Number.isFinite(coinAmount) && coinAmount > 0 ? Math.round(coinAmount) : 0;
+    const status = String(settlement?.status || "");
+    if (amount && status === "settled") return `\u5df2\u5f97 ${amount} \u91d1\u5e01`;
+    if (amount && (status === "ready" || status === "pending_review")) return `\u5f85\u7ed3\u7b97 ${amount} \u91d1\u5e01`;
+    return `\u5956\u52b1 ${taskRewardCapCoins(card)} \u91d1\u5e01`;
+  }
+
   function cardOpenTimeText(card = {}) {
     const value = String(card.openedAt || card.generatedAt || card.availableAt || card.createdAt || card.plannedDate || "").trim();
     if (!value) return "";
@@ -231,7 +241,7 @@
       <div class="learning-growth-board-card-head">
         <button type="button" class="learning-growth-board-card-title" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
           <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
-          <small>\u5956\u52b1 ${escapeHtml(String(taskRewardCapCoins(card)))} \u91d1\u5e01</small>
+          <small data-learning-growth-board-card-reward="${escapeHtml(taskCardId)}">${escapeHtml(cardRewardText(card))}</small>
         </button>
         <span>${escapeHtml(boardStatusText(card))}</span>
       </div>
@@ -778,6 +788,7 @@
       latestSubmission: primary.latestSubmission || boardTask.latestSubmission || null,
       latestEvaluation: primary.latestEvaluation || boardTask.latestEvaluation || null,
       latestReflection: primary.latestReflection || boardTask.latestReflection || null,
+      latestRewardSettlement: primary.latestRewardSettlement || boardTask.latestRewardSettlement || null,
       artifactCount: primary.artifactCount ?? boardTask.artifactCount,
       laneId: primary.laneId || boardTask.laneId || "",
       nextAction: boardTask.nextAction || primary.nextAction || "",

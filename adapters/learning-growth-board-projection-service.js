@@ -61,6 +61,37 @@ function countForTask(records = [], taskCardId = "") {
   return arrayValue(records).filter((record) => cleanString(record?.taskCardId) === id).length;
 }
 
+function latestRewardSettlementForTask(records = [], taskCardId = "", evaluationId = "") {
+  const id = cleanString(taskCardId);
+  const evalId = cleanString(evaluationId);
+  if (!id && !evalId) return null;
+  let latest = null;
+  for (const record of arrayValue(records)) {
+    const matchesTask = id && cleanString(record?.taskCardId) === id;
+    const matchesEvaluation = evalId && cleanString(record?.evaluationId) === evalId;
+    if (!matchesTask && !matchesEvaluation) continue;
+    const currentTime = cleanString(record?.settledAt || record?.updatedAt || record?.createdAt);
+    const latestTime = cleanString(latest?.settledAt || latest?.updatedAt || latest?.createdAt);
+    if (!latest || currentTime > latestTime) latest = record;
+  }
+  return latest;
+}
+
+function publicRewardSettlementSummary(settlement = null) {
+  if (!settlement) return null;
+  return {
+    rewardSettlementId: cleanString(settlement.rewardSettlementId || settlement.id),
+    taskCardId: cleanString(settlement.taskCardId),
+    evaluationId: cleanString(settlement.evaluationId),
+    status: cleanString(settlement.status),
+    coinAmount: numberValue(settlement.coinAmount),
+    reason: cleanString(settlement.reason, 160),
+    settledAt: cleanString(settlement.settledAt),
+    updatedAt: cleanString(settlement.updatedAt),
+    createdAt: cleanString(settlement.createdAt),
+  };
+}
+
 function firstPositiveNumber(...values) {
   for (const value of values) {
     const parsed = Number(value);
@@ -261,6 +292,11 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     now: context.nowIso,
     rewardPolicy,
   });
+  const latestSettlement = latestRewardSettlementForTask(
+    context.rewardSettlements,
+    taskCardId,
+    latest.evaluation?.evaluationId,
+  );
   return {
     taskCardId,
     todoId: cleanString(task.todoId || task.kanbanCardId),
@@ -311,6 +347,7 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     artifactPreview: artifacts.slice(0, 3),
     artifactDirectoryPath: cardArtifactDirectoryPath(task, artifacts, latest, context, artifactCount),
     rewardState: cleanString(latest.evaluation?.passed ? "eligible_after_reflection" : ""),
+    latestRewardSettlement: publicRewardSettlementSummary(latestSettlement),
     rewardPolicy,
     rewardCapCoins: rewardPolicy.maxCoins,
     rewardDecay,
@@ -415,6 +452,7 @@ function buildLearningGrowthBoard(input = {}) {
     evaluations: arrayValue(programs.evaluations),
     reflections: arrayValue(programs.taskReflections),
     artifacts: arrayValue(programs.taskArtifacts),
+    rewardSettlements: arrayValue(programs.rewardSettlements),
   };
   const allCards = mergeTasks(programs).map((task, index) => publicBoardCard(task, context, index));
   const sequence = visibleSequenceCards(allCards);

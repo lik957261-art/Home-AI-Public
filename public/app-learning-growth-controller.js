@@ -472,7 +472,9 @@ async function settleLearningEvaluationReward(evaluationId) {
 async function manualPassLearningGrowthTask(taskCardId) {
   const id = String(taskCardId || "").trim();
   if (!id || (window.confirm && !window.confirm("\u786e\u8ba4\u624b\u5de5\u901a\u8fc7\u8fd9\u5f20\u6210\u957f\u5361\u7247\uff1f\u7cfb\u7edf\u4f1a\u8bb0\u5f55 Owner \u624b\u5de5\u901a\u8fc7\uff0c\u5e76\u8fdb\u5165\u5956\u52b1\u7ed3\u7b97\u901a\u9053\u3002"))) return;
-  await api(`/api/learning/task-cards/${encodeURIComponent(id)}/manual-pass`, { method: "POST", body: JSON.stringify(Object.assign(learningLearnerBody(), { reason: "owner_manual_pass_from_task_menu" })) }); delete (state.learningNativeGrowthAnswerEditing = state.learningNativeGrowthAnswerEditing || {})[id]; showPushToast("\u5df2\u624b\u5de5\u901a\u8fc7\u5e76\u5904\u7406\u7ed3\u7b97", "success"); await loadLearningCoins({ limit: 80 });
+  await api(`/api/learning/task-cards/${encodeURIComponent(id)}/manual-pass`, { method: "POST", body: JSON.stringify(Object.assign(learningLearnerBody(), { reason: "owner_manual_pass_from_task_menu" })) });
+  delete (state.learningNativeGrowthAnswerEditing = state.learningNativeGrowthAnswerEditing || {})[id]; state.selectedLearningTaskCardId = ""; state.learningGrowthBoardLane = "completed_recent";
+  showPushToast("\u5df2\u624b\u5de5\u901a\u8fc7\u5e76\u5237\u65b0\u5df2\u5b8c\u6210\u5217\u8868", "success"); await loadLearningCoins({ limit: 80 });
 }
 async function submitLearningRewardForm(event) {
   event?.preventDefault?.();

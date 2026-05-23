@@ -37,7 +37,15 @@ function overview() {
       learnerProfile: { profileSummary: "profile summary" },
       skillStates: [{ skillId: "grammar", confidence: 0.42, summary: "weak" }],
       parentReviewRequests: [{ reviewRequestId: "review-1" }],
-      rewardSettlements: [{ rewardSettlementId: "settle-1" }],
+      rewardSettlements: [{
+        rewardSettlementId: "settle-1",
+        taskCardId: "task-done",
+        evaluationId: "eval-done",
+        status: "settled",
+        coinAmount: 88,
+        reason: "owner_manual_pass",
+        settledAt: "2026-05-20T08:04:00.000Z",
+      }],
       reviewItems: [{ reviewId: "item-1" }],
     },
   };
@@ -66,6 +74,9 @@ function testBoardClassifiesNativeTasksIntoLanes() {
   assert.equal(waitingCard.latestSubmission.totalSubmissionCount, 2);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").rewardCapCoins, 100);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").openedAt, "2026-05-20T07:30:00.000Z");
+  const doneCard = board.cards.find((card) => card.taskCardId === "task-done");
+  assert.equal(doneCard.latestRewardSettlement.status, "settled");
+  assert.equal(doneCard.latestRewardSettlement.coinAmount, 88);
   assert.equal(JSON.stringify(board).includes("refDigest"), false);
 }
 

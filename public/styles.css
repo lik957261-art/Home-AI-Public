@@ -8315,6 +8315,14 @@ body.task-markdown-preview-open {
   font-size: 14px;
 }
 
+.learning-growth-answer-reward-settlement {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #276347;
+  background: rgba(84, 160, 120, 0.12);
+  font-weight: 800;
+}
+
 .learning-growth-answer-reward-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

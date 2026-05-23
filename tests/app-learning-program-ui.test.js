@@ -485,6 +485,39 @@ function testOwnerReviewedNativeMathTaskShowsManualPassMenu() {
   assert.match(html, /\u624b\u5de5\u901a\u8fc7/);
 }
 
+function testCompletedNativeTaskShowsSettledCoinsAndNoAnswerForm() {
+  const task = Object.assign({}, reviewedNativeMathTask(), {
+    nativeState: { nextAction: "submit" },
+    latestEvaluation: Object.assign({}, reviewedNativeMathTask().latestEvaluation, {
+      status: "completed",
+      passed: true,
+      score: 100,
+      evaluationId: "eval-manual-pass",
+    }),
+  });
+  const html = ProgramUi.renderNativeGrowthTaskDetail(task, {
+    evaluations: [],
+    taskSubmissions: [],
+    taskReflections: [],
+    rewardSettlements: [{
+      rewardSettlementId: "settle-manual-pass",
+      taskCardId: "task-native-math-review",
+      evaluationId: "eval-manual-pass",
+      status: "settled",
+      coinAmount: 88,
+      settledAt: "2026-05-23T10:35:00.000Z",
+    }],
+  }, {
+    state: { auth: { isOwner: true } },
+    formatTime: () => "05/23 17:30",
+  });
+  assert.match(html, /data-learning-task-reward-settlement/);
+  assert.match(html, /\u5df2\u5f97 88 \u91d1\u5e01/);
+  assert.match(html, /\u5df2\u5b8c\u6210/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-native-math-review"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-question="q1"/);
+}
+
 function testReviewedNativeMathTaskTreatsEmptySourceAsNativeGrowth() {
   const task = Object.assign({}, reviewedNativeMathTask(), { source: "" });
   const html = ProgramUi.renderNativeGrowthTaskDetail(task, { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
@@ -565,6 +598,7 @@ testNativeSpeakingTaskRendersAudioRecorder();
 testNativeMathTaskRendersStructuredQuestionInputs();
 testReviewedNativeMathTaskCollapsesQuestionsUntilEdit();
 testOwnerReviewedNativeMathTaskShowsManualPassMenu();
+testCompletedNativeTaskShowsSettledCoinsAndNoAnswerForm();
 testReviewedNativeMathTaskTreatsEmptySourceAsNativeGrowth();
 testReviewedNativeMathTaskExpandsAfterEditClickState();
 testNativeTaskReflectionStateRendersReflectionForm();
