@@ -1261,6 +1261,15 @@
       }
     }
 
+    function renderIframePreview(label) {
+      document.getElementById("previewLabel").textContent = label;
+      document.getElementById("previewInfo").textContent = "";
+      const frame = document.getElementById("preview");
+      frame.src = originalUrlFor(src);
+      frame.classList.remove("hidden");
+      setStatus("");
+    }
+
     async function downloadFile(event) {
       event.preventDefault();
       const downloadUrl = downloadUrlFor(src);
@@ -1682,7 +1691,7 @@ window.addEventListener("load", function () {
     }
 
     if (src && kind === "HTML") {
-      location.replace(originalUrlFor(src));
+      renderIframePreview("HTML preview");
     }
 
     if (src && kind === "DOC" && String(name).toLowerCase().endsWith(".docx")) {

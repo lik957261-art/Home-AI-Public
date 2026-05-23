@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-pwa-preview-scope-v102";
+const CLIENT_VERSION = "20260523-preview-contained-v103";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -15,6 +15,7 @@ const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
 const manifestJson = fs.readFileSync(path.join(repoRoot, "public", "manifest-20260509.json"), "utf8");
 const manifest = JSON.parse(manifestJson);
+const directoryViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "directory-viewer.html"), "utf8");
 const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
 const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "markdown-renderer-client.js"), "utf8");
 const markdownRendererJs = fs.readFileSync(path.join(repoRoot, "adapters", "markdown-renderer.js"), "utf8");
@@ -148,14 +149,17 @@ assert.match(appJs, /if \(typeof isCodexMuxView === "function" && isCodexMuxView
 assert.doesNotMatch(appJs, /data-codex-mux-message-form/);
 assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
-assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-pwa-preview-scope-v102/);
-assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-pwa-preview-scope-v102/);
+assert.match(indexHtml, /app-codex-mux-ui\.js\?v=20260523-preview-contained-v103/);
+assert.match(serviceWorkerJs, /app-codex-mux-ui\.js\?v=20260523-preview-contained-v103/);
 assert.equal(manifest.id, "/");
 assert.equal(manifest.start_url, "/?source=pwa");
 assert.equal(manifest.scope, "/");
 assert.doesNotMatch(manifestJson, /\/hermes-mobile\//);
 assert.match(appJs, /function openTaskDocumentLink\(link\)/);
-assert.doesNotMatch(appJs, /window\.open\(href,\s*link\.getAttribute\("target"\) \|\| "_blank"/);
+assert.doesNotMatch(appJs, /window\.open\(href/);
+assert.match(fileViewerHtml, /function renderIframePreview\(label\)/);
+assert.doesNotMatch(fileViewerHtml, /kind === "HTML"[\s\S]{0,80}location\.replace/);
+assert.match(directoryViewerHtml, /viewerChrome: standalone \? "hermes" : "native"/);
 assert.match(stylesCss, /\.codex-mux-shell/);
 assert.match(stylesCss, /\.codex-mux-mode \.conversation \{[\s\S]*?overflow: hidden/);
 assert.match(stylesCss, /\.codex-mux-tabs \{/);

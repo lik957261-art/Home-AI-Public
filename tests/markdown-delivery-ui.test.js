@@ -157,7 +157,8 @@ assert.match(fileViewer, /if \(isMarkdownDocument\(\)\) \{/);
 assert.match(fileViewer, /loadTextPreview\("Markdown preview", \{ markdown: true \}\)/);
 assert.match(fileViewer, /return "HTML"/);
 assert.match(fileViewer, /if \(src && kind === "HTML"\) \{/);
-assert.match(fileViewer, /location\.replace\(originalUrlFor\(src\)\)/);
+assert.match(fileViewer, /renderIframePreview\("HTML preview"\)/);
+assert.doesNotMatch(fileViewer, /location\.replace\(originalUrlFor\(src\)\)/);
 assert.match(fileViewer, /if \(src && !isMarkdownDocument\(\)\) window\.setTimeout\(\(\) => prepareShareBlob/);
 
 assert.ok(adapterJs.includes("const aMarkdown = /\\.md$/i.test(a) ? 0 : 1;"));
