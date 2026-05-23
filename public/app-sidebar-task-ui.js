@@ -556,9 +556,14 @@ function isTaskSwipeInteractiveTarget(target) {
 function closeTaskDocumentPreviewOverlay() {
   const overlay = document.getElementById("taskDocumentPreviewOverlay");
   const frame = document.getElementById("taskDocumentPreviewFrame");
-  if (frame) frame.src = "about:blank";
+  overlay?.classList.add("closing");
   overlay?.classList.add("hidden");
   document.body.classList.remove("task-document-preview-open");
+  window.setTimeout(() => {
+    if (!overlay || !overlay.classList.contains("hidden")) return;
+    if (frame) frame.src = "about:blank";
+    overlay.classList.remove("closing");
+  }, 80);
 }
 
 function isTaskDocumentPreviewOverlayOpen() {
@@ -623,7 +628,12 @@ function openTaskDocumentLink(link) {
   const frame = document.getElementById("taskDocumentPreviewFrame");
   const title = link.getAttribute?.("title") || link.getAttribute?.("aria-label") || "文档预览";
   overlay.querySelector(".task-document-preview-title").textContent = title;
-  if (frame) frame.src = embeddedTaskDocumentHref(href);
+  overlay.classList.remove("closing");
+  if (frame) {
+    frame.classList.add("loading");
+    frame.addEventListener("load", () => frame.classList.remove("loading"), { once: true });
+    frame.src = embeddedTaskDocumentHref(href);
+  }
   overlay.classList.remove("hidden");
   document.body.classList.add("task-document-preview-open");
 }

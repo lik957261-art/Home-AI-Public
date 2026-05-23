@@ -3440,6 +3440,10 @@ button.directory-alias-chip {
   display: none;
 }
 
+.task-document-preview-overlay.closing {
+  pointer-events: none;
+}
+
 .task-document-preview-head {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -3476,6 +3480,10 @@ button.directory-alias-chip {
   height: 100%;
   border: 0;
   background: var(--paper);
+}
+
+.task-document-preview-frame.loading {
+  opacity: 0.01;
 }
 
 body.task-document-preview-open {

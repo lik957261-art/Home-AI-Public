@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-close-v107";
+const CLIENT_VERSION = "20260523-preview-close-fast-v108";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -162,6 +162,9 @@ assert.match(appJs, /taskDocumentPreviewFrame/);
 assert.match(appJs, /function isTaskDocumentPreviewOverlayOpen\(\)/);
 assert.match(appJs, /function handleTaskDocumentPreviewCloseEvent\(event\)/);
 assert.match(appJs, /if \(isTaskDocumentPreviewOverlayOpen\(\)\) \{[\s\S]*?closeTaskDocumentPreviewOverlay\(\);[\s\S]*?pushBackNavigationGuard\(\);[\s\S]*?return;/);
+assert.match(appJs, /overlay\?\.classList\.add\("closing"\)/);
+assert.match(appJs, /window\.setTimeout\(\(\) => \{[\s\S]*?frame\.src = "about:blank"/);
+assert.match(appJs, /frame\.classList\.add\("loading"\)/);
 assert.match(appJs, /addEventListener\("pointerdown", handleTaskDocumentPreviewCloseEvent, \{ capture: true \}\)/);
 assert.match(appJs, /addEventListener\("touchstart", handleTaskDocumentPreviewCloseEvent, \{ capture: true, passive: false \}\)/);
 assert.match(appJs, /url\.pathname === "\/" \|\| url\.pathname === "\/hermes-mobile\/" \|\| url\.pathname === "\/index\.html"/);
@@ -169,6 +172,8 @@ assert.match(appJs, /function embeddedTaskDocumentHref\(href\)/);
 assert.match(appJs, /url\.searchParams\.set\("embedded", "1"\)/);
 assert.match(appJs, /url\.searchParams\.set\("viewerChrome", "embedded"\)/);
 assert.match(stylesCss, /\.task-document-preview-overlay/);
+assert.match(stylesCss, /\.task-document-preview-overlay\.closing/);
+assert.match(stylesCss, /\.task-document-preview-frame\.loading/);
 assert.doesNotMatch(appJs, /if \(kind === "html"\) return url/);
 assert.match(fileViewerHtml, /function renderIframePreview\(label\)/);
 assert.doesNotMatch(fileViewerHtml, /kind === "HTML"[\s\S]{0,80}location\.replace/);
