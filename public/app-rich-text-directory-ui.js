@@ -563,19 +563,19 @@ function renderDirectoryAliases(aliases, message, options = {}) {
         : (reference || pathIsNested
         ? logicalDirectoryDisplayPath(directoryPath, route.label || displayAlias.label)
         : directoryRouteDisplayPath(route, route.label || displayAlias.label));
-      const label = reference ? `\u4ea4\u4ed8 \u00b7 ${baseLabel}` : `绑定目录：${baseLabel}`;
+      const label = reference ? `\u4ea4\u4ed8 \u00b7 ${baseLabel}` : baseLabel;
       return `<span class="${chipClass} directory-alias-chip-mapped" title="${escapeHtml(label)}">
         <span class="directory-alias-text">${escapeHtml(label)}</span>
-        <button class="directory-alias-open" type="button" data-directory-project data-project-id="${escapeHtml(route.projectId)}" data-subproject-id="${escapeHtml(route.subprojectId || "")}" data-directory-path="${escapeHtml(directoryPath)}" aria-label="打开目录">
-          <span class="directory-alias-icon" aria-hidden="true"></span>
+        <button class="directory-alias-open learning-growth-board-artifact-link" type="button" data-directory-project data-project-id="${escapeHtml(route.projectId)}" data-subproject-id="${escapeHtml(route.subprojectId || "")}" data-directory-path="${escapeHtml(directoryPath)}" aria-label="打开目录">
+          <span class="directory-alias-icon learning-growth-board-artifact-icon" aria-hidden="true"></span>
         </button>
       </span>`;
     }
-    const fallbackLabel = reference ? `\u4ea4\u4ed8 \u00b7 ${shortDirectoryAliasLabel(displayAlias.label)}` : `\u7ed1\u5b9a\u76ee\u5f55\uff1a${shortDirectoryAliasLabel(displayAlias.label)}`;
+    const fallbackLabel = reference ? `\u4ea4\u4ed8 \u00b7 ${shortDirectoryAliasLabel(displayAlias.label)}` : shortDirectoryAliasLabel(displayAlias.label);
     return `<span class="${chipClass}" title="${escapeHtml(fallbackLabel)}">
       <span class="directory-alias-text">${escapeHtml(fallbackLabel)}</span>
-      <button class="directory-alias-open" type="button" data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(displayAlias.label || "")}" aria-label="打开目录">
-        <span class="directory-alias-icon" aria-hidden="true"></span>
+      <button class="directory-alias-open learning-growth-board-artifact-link" type="button" data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(displayAlias.label || "")}" aria-label="打开目录">
+        <span class="directory-alias-icon learning-growth-board-artifact-icon" aria-hidden="true"></span>
       </button>
     </span>`;
   }).join("")}</div>`;

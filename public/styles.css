@@ -1526,12 +1526,12 @@ button {
 }
 
 .task-toolbar-directories .directory-alias-chip {
-  min-height: 18px;
+  min-height: 22px;
   max-width: 100%;
   padding: 0;
-  gap: 3px;
-  font-size: 10px;
-  line-height: 1.15;
+  gap: 5px;
+  font-size: 14px;
+  line-height: 1.32;
   white-space: nowrap;
   box-shadow: none;
 }
@@ -2327,8 +2327,8 @@ button {
 .directory-alias-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 18px;
+  gap: 5px;
+  min-height: 22px;
   padding: 0;
   color: #12342f;
   text-decoration: none;
@@ -2336,8 +2336,8 @@ button {
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  font-size: 10px;
-  line-height: 1.15;
+  font-size: 14px;
+  line-height: 1.32;
 }
 
 .directory-alias-chip-reference {
@@ -2349,8 +2349,8 @@ button {
 button.directory-alias-chip {
   appearance: none;
   font: inherit;
-  font-size: 10px;
-  line-height: 1.15;
+  font-size: 14px;
+  line-height: 1.32;
   text-align: left;
   cursor: pointer;
 }
@@ -2371,6 +2371,10 @@ button.directory-alias-chip {
   line-height: inherit;
   text-decoration: none;
   cursor: pointer;
+}
+
+.directory-alias-open.learning-growth-board-artifact-link {
+  height: 20px;
 }
 
 .directory-alias-project {
@@ -2417,6 +2421,16 @@ button.directory-alias-chip {
   border-bottom: 0;
   border-radius: 2px 2px 0 0;
   background: rgba(255, 252, 246, 0.84);
+}
+
+.directory-alias-icon.learning-growth-board-artifact-icon {
+  border: 0;
+  border-radius: 0;
+  opacity: 1;
+}
+
+.directory-alias-icon.learning-growth-board-artifact-icon::before {
+  content: none;
 }
 
 .learning-growth-reading-material article {
@@ -3544,12 +3558,12 @@ button.directory-alias-chip {
 }
 
 .task-card-directories .directory-alias-chip {
-  min-height: 18px;
+  min-height: 22px;
   max-width: 100%;
-  gap: 3px;
+  gap: 5px;
   padding: 0;
-  font-size: 9.5px;
-  line-height: 1.15;
+  font-size: 14px;
+  line-height: 1.32;
   box-shadow: none;
 }
 
@@ -11499,12 +11513,12 @@ body.task-markdown-preview-open {
   }
 
   .message .directory-alias-chip {
-    min-height: 18px;
+    min-height: 22px;
     max-width: 100%;
     padding: 0;
-    gap: 3px;
-    font-size: 10px;
-    line-height: 1.15;
+    gap: 5px;
+    font-size: 14px;
+    line-height: 1.32;
     box-shadow: none;
   }
 
