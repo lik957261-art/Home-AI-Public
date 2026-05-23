@@ -12,9 +12,9 @@
       --line: #d8dee4;
       --code: #f6f8fa;
       --link: #0969da;
-      --viewer-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+      --viewer-font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif;
       --hermes-markdown-font-family: var(--viewer-font-family);
-      --viewer-markdown-font-scale: 1;
+      --viewer-markdown-font-scale: 1.32;
     }
 
     * {
@@ -33,11 +33,12 @@
 
     body {
       overflow-x: hidden;
+      min-height: calc(100dvh + 2px);
     }
 
     main {
       width: 100%;
-      min-height: 100dvh;
+      min-height: calc(100dvh + 2px);
       padding:
         max(18px, env(safe-area-inset-top))
         max(18px, env(safe-area-inset-right))
@@ -347,12 +348,25 @@
         ? markdownRenderer.renderMarkdownDocument
         : ((value) => `<pre>${String(value || "").replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))}</pre>`);
       previewEl.innerHTML = render(text, {
-        fontScale: "standard",
+        fontScale: "xlarge",
         linkTarget: "_blank",
         taskListCompatibility: true,
       });
       previewEl.hidden = false;
       setStatus("");
+      collapseBrowserChrome();
+    }
+
+    function collapseBrowserChrome() {
+      if (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone === true) return;
+      const scroll = () => {
+        if (window.scrollY < 1 && document.documentElement.scrollHeight > window.innerHeight) {
+          window.scrollTo(0, 1);
+        }
+      };
+      requestAnimationFrame(scroll);
+      window.setTimeout(scroll, 120);
+      window.setTimeout(scroll, 360);
     }
 
     loadMarkdownPreview().catch((err) => {

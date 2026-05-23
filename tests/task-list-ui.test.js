@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-markdown-html-preview-v123";
+const CLIENT_VERSION = "20260523-markdown-reader-font-v124";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -166,6 +166,9 @@ assert.doesNotMatch(stylesCss, /\.task-document-preview-overlay/);
 assert.match(appJs, /kind === "html" \|\| mime\.startsWith\("image\/"\)/);
 assert.match(appJs, /if \(kind === "markdown"\) return `\/markdown-viewer\.html\?\$\{query\.toString\(\)\}`/);
 assert.match(markdownViewerHtml, /markdownRenderer\.renderMarkdownDocument/);
+assert.match(markdownViewerHtml, /--viewer-markdown-font-scale: 1\.32/);
+assert.match(markdownViewerHtml, /fontScale: "xlarge"/);
+assert.match(markdownViewerHtml, /function collapseBrowserChrome\(\)/);
 assert.match(markdownViewerHtml, /taskListCompatibility: true/);
 assert.doesNotMatch(markdownViewerHtml, /viewer-more-button|viewer-done-button|topbar/);
 assert.doesNotMatch(fileViewerHtml, /function renderIframePreview\(label\)/);
