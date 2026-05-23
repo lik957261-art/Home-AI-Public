@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260523-preview-swipe-md-title-v127";
+const CLIENT_VERSION = "20260523-preview-app-swipe-exit-v128";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -173,6 +173,9 @@ assert.match(stylesCss, /\.task-markdown-preview-overlay/);
 assert.match(appJs, /const PREVIEW_HISTORY_KEY = "__hermesTaskPreview"/);
 assert.match(appJs, /global\.addEventListener\("popstate"/);
 assert.match(appJs, /global\.history\.pushState\(nextState/);
+assert.match(appJs, /function closeActivePreviewFromUser\(\)/);
+assert.match(appJs, /const previewOpen = Boolean\(previewUi\.hasArtifactPreviewOverlay\?\.\(\)\)/);
+assert.match(appJs, /current\.target === "artifact-preview"/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1 \{[\s\S]*?font-size: 24px;/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22px;/);

@@ -70,6 +70,8 @@ assert.match(appJs, /fontScale: "large"/);
 assert.match(appJs, /const PREVIEW_HISTORY_KEY = "__hermesTaskPreview"/);
 assert.match(appJs, /global\.addEventListener\("popstate"/);
 assert.match(appJs, /global\.history\.pushState\(nextState/);
+assert.match(appJs, /function closeActivePreviewFromUser\(\)/);
+assert.match(appJs, /current\.target === "artifact-preview"/);
 assert.match(appJs, /query\.set\("workspaceId", state\.selectedWorkspaceId\)/);
 assert.match(appJs, /workspaceId: state\.selectedWorkspaceId \|\| "owner"/);
 assert.match(appJs, /query\.set\("threadId", state\.currentThreadId\)/);

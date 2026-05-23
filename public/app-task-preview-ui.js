@@ -21,6 +21,13 @@
     );
   }
 
+  function previewBackSwipeSurface() {
+    return document.querySelector(".task-markdown-preview-shell")
+      || document.querySelector(".task-image-preview-stage")
+      || document.getElementById("taskMarkdownPreviewOverlay")
+      || document.getElementById("taskImagePreviewOverlay");
+  }
+
   function isPreviewHistoryActive() {
     try {
       return Boolean(global.history?.state?.[PREVIEW_HISTORY_KEY]);
@@ -52,6 +59,10 @@
       return;
     }
     closeFn();
+  }
+
+  function closeActivePreviewFromUser() {
+    closePreviewFromUser(closeArtifactPreviewOverlays);
   }
 
   function closeImagePreviewOverlay() {
@@ -241,11 +252,14 @@
 
   global.TaskDocumentPreviewUi = {
     closeArtifactPreviewOverlays,
+    closeActivePreviewFromUser,
     closeImagePreviewOverlay,
     closeMarkdownPreviewOverlay,
+    hasArtifactPreviewOverlay,
     isImagePreviewLink,
     isMarkdownPreviewLink,
     openImagePreviewOverlay,
     openMarkdownPreviewOverlay,
+    previewBackSwipeSurface,
   };
 }(window));

@@ -251,7 +251,9 @@ function wireRightSwipeGuard() {
       return;
     }
     const point = event.touches[0];
-    const target = backSwipeTarget();
+    const previewUi = window.TaskDocumentPreviewUi || {};
+    const previewOpen = Boolean(previewUi.hasArtifactPreviewOverlay?.());
+    const target = previewOpen ? "artifact-preview" : backSwipeTarget();
     touch = {
       startX: point.clientX,
       startY: point.clientY,
@@ -260,7 +262,9 @@ function wireRightSwipeGuard() {
       blocked: point.clientX <= EDGE_SWIPE_HIT_PX,
       accepted: false,
       target,
-      surface: target ? backSwipeSurface(target) : document.querySelector(".main"),
+      surface: previewOpen
+        ? previewUi.previewBackSwipeSurface?.()
+        : (target ? backSwipeSurface(target) : document.querySelector(".main")),
     };
     if (touch.blocked) event.preventDefault();
   }, { passive: false, capture: true });
@@ -293,6 +297,10 @@ function wireRightSwipeGuard() {
       window.setTimeout(() => clearBackSwipeSurface(current.surface), prefersReducedMotion() ? 0 : 180);
     }
     if (!current.accepted || !current.target) return;
+    if (current.target === "artifact-preview") {
+      window.TaskDocumentPreviewUi?.closeActivePreviewFromUser?.();
+      return;
+    }
     handleInAppBackNavigation({ animateEntry: true }).catch(showError);
   }, { passive: true, capture: true });
   document.addEventListener("touchcancel", () => {
