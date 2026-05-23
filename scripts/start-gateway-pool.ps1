@@ -3,6 +3,7 @@ param(
   [string]$ManifestPath = "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json",
   [string]$OfficialDistro = "Ubuntu-24.04",
   [string]$OfficialUser = "xuxin",
+  [string]$LowGatewayDistroName = "HermesGatewayWorker",
   [string]$GoogleTokenPath = "",
   [string]$GoogleClientSecretPath = "",
   [string]$OutlookGraphTokenPath = "",
@@ -272,7 +273,7 @@ function Start-LowGateways {
   Ensure-LowGatewayProfileEnv
   Stop-LowGateways
   Write-GatewayPoolLog "Starting low gateway pool."
-  $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $child 2>&1
+  $output = & $runAsWorker -ChildScript $child -ChildArgs @("-DistroName", $LowGatewayDistroName) 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway pool start failed with exit code $LASTEXITCODE" }
 }
