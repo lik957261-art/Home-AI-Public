@@ -11656,7 +11656,7 @@ body.task-markdown-preview-open {
   }
 
   .composer {
-    grid-template-columns: 38px minmax(0, 1fr) 50px;
+    grid-template-columns: 36px minmax(0, 1fr) 48px;
     padding: 6px max(10px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
     gap: 6px;
   }
@@ -11712,21 +11712,21 @@ body.task-markdown-preview-open {
   }
 
   .composer button {
-    min-height: 34px;
+    min-height: 33px;
     padding: 0 11px;
   }
 
   .composer-editor {
-    min-height: 34px;
+    min-height: 33px;
     padding: 7px 9px;
     font-size: 15px;
   }
 
   #attachFile {
-    width: 38px;
-    min-width: 38px;
-    min-height: 38px;
-    font-size: 20px;
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 19px;
   }
 
   #composerSearchSource {
@@ -11741,8 +11741,10 @@ body.task-markdown-preview-open {
   }
 
   #sendMessage {
-    min-width: 50px;
-    padding: 0 7px;
+    min-width: 48px;
+    min-height: 33px;
+    padding: 0 6px;
+    font-size: 13px;
   }
 }
 

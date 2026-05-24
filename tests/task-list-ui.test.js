@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-bottom-label-10-v179";
+const CLIENT_VERSION = "20260524-composer-compact-v180";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -266,9 +266,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-bottom-label-10-v179/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-bottom-label-10-v179/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-bottom-label-10-v179/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-composer-compact-v180/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-composer-compact-v180/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-composer-compact-v180/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1509,8 +1509,12 @@ assert.doesNotMatch(pdfViewerHtml, /viewerChrome/);
 assert.doesNotMatch(pdfViewerHtml, /embeddedViewer/);
 assert.doesNotMatch(pdfViewerHtml, /native-browser-chrome/);
 assert.match(stylesCss, /\.composer \{[\s\S]*?padding: 8px 13px calc\(8px \+ env\(safe-area-inset-bottom\)\)/);
-assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer \{[\s\S]*?grid-template-columns: 38px minmax\(0, 1fr\) 50px;[\s\S]*?padding: 6px max\(10px, env\(safe-area-inset-right\)\) 6px max\(8px, env\(safe-area-inset-left\)\)/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer \{[\s\S]*?grid-template-columns: 36px minmax\(0, 1fr\) 48px;[\s\S]*?padding: 6px max\(10px, env\(safe-area-inset-right\)\) 6px max\(8px, env\(safe-area-inset-left\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.main-back-visible \.composer \{[\s\S]*?padding-bottom: calc\(12px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer button \{[\s\S]*?min-height: 33px;[\s\S]*?padding: 0 11px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer-editor \{[\s\S]*?min-height: 33px;[\s\S]*?padding: 7px 9px;[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?#attachFile \{[\s\S]*?width: 36px;[\s\S]*?min-width: 36px;[\s\S]*?min-height: 36px;[\s\S]*?font-size: 19px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?#sendMessage \{[\s\S]*?min-width: 48px;[\s\S]*?min-height: 33px;[\s\S]*?padding: 0 6px;[\s\S]*?font-size: 13px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\)[\s\S]*?\.composer \{[\s\S]*?grid-template-columns: 36px minmax\(0, 1fr\) auto;[\s\S]*?calc\(7px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);
