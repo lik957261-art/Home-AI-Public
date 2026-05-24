@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260524-growth-pdf-composer-v175";
+const HERMES_SW_VERSION = "20260524-webpush-top-client-v176";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,73 +8,73 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260524-growth-pdf-composer-v175",
-  "/markdown-viewer.html?v=20260524-growth-pdf-composer-v175",
-  "/app-task-artifact-helpers.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-story-helpers.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-reading-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-coins-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-program-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-growth-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-growth-task-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-growth-reflection-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-api-client.js?v=20260524-growth-pdf-composer-v175",
-  "/app.js?v=20260524-growth-pdf-composer-v175",
-  "/app-shell-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-task-groups-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-chat-composer-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-composer-source-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-composer-context-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-run-progress-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-navigation-search-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-task-preview-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-sidebar-task-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-message-skill-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-message-actions-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-platform-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-pwa-settings-push-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-workspace-admin-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-access-key-manager-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-share-image-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-draft-thread-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-directory-automation-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-shared-directory-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-automation-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-native-growth-submission-controller.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-growth-ai-controller.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-growth-reward-controller.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-growth-settings-controller.js?v=20260524-growth-pdf-composer-v175",
-  "/app-learning-growth-controller.js?v=20260524-growth-pdf-composer-v175",
-  "/app-automation-controller-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-thread-state-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-group-topic-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-core-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-story-core-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-todo-core-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-render-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-list-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-learning-panel-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-recorder-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-todo-detail-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-actions-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-composer-actions-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-card-actions-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-kanban-study-actions-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-thread-message-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-thread-list-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-thread-directory-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-thread-card-message-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-long-message-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-rich-text-directory-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-message-usage-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-events-composer-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-event-stream-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-upload-sidebar-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-composer-send-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-wire-start-ui.js?v=20260524-growth-pdf-composer-v175",
-  "/app-start.js?v=20260524-growth-pdf-composer-v175",
+  "/styles.css?v=20260524-webpush-top-client-v176",
+  "/markdown-viewer.html?v=20260524-webpush-top-client-v176",
+  "/app-task-artifact-helpers.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-story-helpers.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-reading-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-coins-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-program-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-growth-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-growth-task-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-growth-reflection-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-api-client.js?v=20260524-webpush-top-client-v176",
+  "/app.js?v=20260524-webpush-top-client-v176",
+  "/app-shell-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-task-groups-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-chat-composer-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-composer-source-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-composer-context-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-run-progress-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-navigation-search-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-task-preview-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-sidebar-task-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-message-skill-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-message-actions-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-platform-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-pwa-settings-push-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-workspace-admin-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-access-key-manager-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-share-image-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-draft-thread-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-directory-automation-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-shared-directory-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-automation-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-native-growth-submission-controller.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-growth-ai-controller.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-growth-reward-controller.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-growth-settings-controller.js?v=20260524-webpush-top-client-v176",
+  "/app-learning-growth-controller.js?v=20260524-webpush-top-client-v176",
+  "/app-automation-controller-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-thread-state-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-group-topic-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-core-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-story-core-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-todo-core-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-render-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-list-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-learning-panel-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-recorder-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-todo-detail-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-actions-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-composer-actions-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-card-actions-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-kanban-study-actions-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-thread-message-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-thread-list-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-thread-directory-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-thread-card-message-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-long-message-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-rich-text-directory-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-message-usage-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-events-composer-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-event-stream-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-upload-sidebar-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-composer-send-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-wire-start-ui.js?v=20260524-webpush-top-client-v176",
+  "/app-start.js?v=20260524-webpush-top-client-v176",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260524-growth-pdf-composer-v175",
+  "/markdown-renderer-client.js?v=20260524-webpush-top-client-v176",
   "/file-viewer.html",
   "/pdf-viewer.html",
   "/manifest.json",
@@ -144,7 +144,9 @@ async function matchCachedStatic(request) {
 }
 
 function isViewerShellRequest(url) {
-  return url.pathname === "/file-viewer.html";
+  return url.pathname === "/file-viewer.html"
+    || url.pathname === "/pdf-viewer.html"
+    || url.pathname === "/markdown-viewer.html";
 }
 
 async function deleteCachedViewerShell(cache) {
@@ -152,7 +154,7 @@ async function deleteCachedViewerShell(cache) {
   await Promise.all(requests
     .filter((request) => {
       try {
-        return new URL(request.url).pathname === "/file-viewer.html";
+        return isViewerShellRequest(new URL(request.url));
       } catch (_) {
         return false;
       }
@@ -256,12 +258,18 @@ function isForegroundClient(client) {
 
 function isAppShellClient(client) {
   try {
+    if (!isTopLevelWindowClient(client)) return false;
     const url = new URL(client.url || "", self.location.origin);
     if (url.origin !== self.location.origin) return false;
     return url.pathname === "/" || url.pathname === "/hermes-mobile/" || url.pathname === "/index.html";
   } catch (_) {
     return false;
   }
+}
+
+function isTopLevelWindowClient(client) {
+  const frameType = String(client?.frameType || "");
+  return !frameType || frameType === "top-level" || frameType === "auxiliary";
 }
 
 function routeUrlForNotificationData(rawData = {}) {
@@ -314,6 +322,11 @@ function appWindowRouteForUrl(url) {
   try {
     const parsed = url instanceof URL ? url : new URL(url || "/", self.location.origin);
     if (parsed.origin !== self.location.origin) return "/";
+    if (isViewerShellRequest(parsed)) {
+      const returnUrl = parsed.searchParams.get("return") || "";
+      if (returnUrl) return appWindowRouteForUrl(new URL(returnUrl, self.location.origin));
+      return "/?source=pwa";
+    }
     const params = new URLSearchParams(parsed.search || "");
     if (!params.has("source")) params.set("source", "pwa");
     const search = params.toString();
@@ -401,12 +414,13 @@ self.addEventListener("notificationclick", (event) => {
   const targetWindowRoute = appWindowRouteForUrl(parsedTargetUrl);
   event.waitUntil((async () => {
     const windowClients = await sameOriginWindowClients();
-    for (const client of windowClients.filter(isAppShellClient)) {
+    const topLevelClients = windowClients.filter(isTopLevelWindowClient);
+    for (const client of topLevelClients.filter(isAppShellClient)) {
       postNotificationOpenToClient(client, targetUrl, notificationData);
       await client.focus();
       return;
     }
-    for (const client of windowClients) {
+    for (const client of topLevelClients) {
       let targetClient = client;
       if ("navigate" in client) {
         try {

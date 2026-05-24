@@ -668,7 +668,7 @@ button {
   color: var(--muted);
   background: transparent;
   border: 0;
-  font-size: 9.5px;
+  font-size: 8.75px;
   font-weight: 500;
   line-height: 1.08;
 }
@@ -12113,7 +12113,6 @@ body.task-markdown-preview-open {
 :root[data-font-size] .directory-entry-menu-item,
 :root[data-font-size] .task-card-menu-item,
 :root[data-font-size] .top-more-action,
-:root[data-font-size] .bottom-tab-label,
 :root[data-font-size] .access-key-row-title,
 :root[data-font-size] .workspace-admin-title,
 :root[data-font-size] .settings-preview-body,

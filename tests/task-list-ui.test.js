@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-growth-pdf-composer-v175";
+const CLIENT_VERSION = "20260524-webpush-top-client-v176";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -196,7 +196,8 @@ assert.match(stylesCss, /\.push-button \{[\s\S]*?background: var\(--ui-control-b
 assert.match(stylesCss, /\.access-key-sheet \{[\s\S]*?border-radius: 12px;[\s\S]*?box-shadow: 0 12px 30px rgba\(34, 28, 20, 0\.08\);/);
 assert.match(stylesCss, /--ui-accent-active: #4f8790;/);
 assert.match(stylesCss, /--ui-accent-active-soft: rgba\(95, 139, 148, 0\.18\);/);
-assert.match(stylesCss, /\.bottom-tab \{[\s\S]*?font-size: 9\.5px;/);
+assert.match(stylesCss, /\.bottom-tab \{[\s\S]*?font-size: 8\.75px;/);
+assert.doesNotMatch(stylesCss, /:root\[data-font-size\] \.bottom-tab-label/);
 assert.match(stylesCss, /\.bottom-tab\.active \{[\s\S]*?color: var\(--ui-accent-active\);/);
 assert.match(stylesCss, /\.bottom-tab-icon \{[\s\S]*?width: 31px;[\s\S]*?height: 31px;/);
 assert.match(stylesCss, /\.bottom-tab\.active \.bottom-tab-icon \{[\s\S]*?background: var\(--ui-accent-active-soft\);[\s\S]*?transform: translateY\(-1px\);/);
@@ -264,9 +265,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-pdf-composer-v175/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-pdf-composer-v175/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-pdf-composer-v175/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-webpush-top-client-v176/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-webpush-top-client-v176/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-webpush-top-client-v176/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1468,16 +1469,18 @@ assert.match(stylesCss, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>/);
 assert.ok(indexHtml.includes(CLIENT_VERSION));
 assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
-assert.match(serviceWorkerJs, /function isAppShellClient\(client\) \{[\s\S]*?url\.pathname === "\/"[\s\S]*?url\.pathname === "\/hermes-mobile\/"/);
-assert.match(serviceWorkerJs, /function appWindowRouteForUrl\(url\) \{[\s\S]*?if \(!params\.has\("source"\)\) params\.set\("source", "pwa"\);[\s\S]*?return `\$\{parsed\.pathname \|\| "\/"\}\$\{search \? `\?\$\{search\}` : ""\}\$\{parsed\.hash \|\| ""\}`;/);
+assert.match(serviceWorkerJs, /function isTopLevelWindowClient\(client\) \{[\s\S]*?frameType === "top-level"[\s\S]*?frameType === "auxiliary"/);
+assert.match(serviceWorkerJs, /function isAppShellClient\(client\) \{[\s\S]*?if \(!isTopLevelWindowClient\(client\)\) return false;[\s\S]*?url\.pathname === "\/"[\s\S]*?url\.pathname === "\/hermes-mobile\/"/);
+assert.match(serviceWorkerJs, /function appWindowRouteForUrl\(url\) \{[\s\S]*?if \(isViewerShellRequest\(parsed\)\) \{[\s\S]*?return appWindowRouteForUrl\(new URL\(returnUrl, self\.location\.origin\)\);[\s\S]*?return "\/\?source=pwa";[\s\S]*?if \(!params\.has\("source"\)\) params\.set\("source", "pwa"\);/);
 assert.match(serviceWorkerJs, /return "\/\?source=pwa";/);
 assert.match(serviceWorkerJs, /"\/manifest\.json"/);
 assert.match(serviceWorkerJs, /const rawTargetUrl = routeUrlForNotificationData\(notificationData\);/);
 assert.match(serviceWorkerJs, /const targetWindowRoute = appWindowRouteForUrl\(parsedTargetUrl\);/);
-assert.match(serviceWorkerJs, /for \(const client of windowClients\.filter\(isAppShellClient\)\) \{[\s\S]*?postNotificationOpenToClient\(client, targetUrl, notificationData\);[\s\S]*?await client\.focus\(\);[\s\S]*?return;/);
+assert.match(serviceWorkerJs, /const topLevelClients = windowClients\.filter\(isTopLevelWindowClient\);/);
+assert.match(serviceWorkerJs, /for \(const client of topLevelClients\.filter\(isAppShellClient\)\) \{[\s\S]*?postNotificationOpenToClient\(client, targetUrl, notificationData\);[\s\S]*?await client\.focus\(\);[\s\S]*?return;/);
 {
-  const appShellLoopStart = serviceWorkerJs.indexOf("for (const client of windowClients.filter(isAppShellClient))");
-  const fallbackLoopStart = serviceWorkerJs.indexOf("for (const client of windowClients) {", appShellLoopStart + 1);
+  const appShellLoopStart = serviceWorkerJs.indexOf("for (const client of topLevelClients.filter(isAppShellClient))");
+  const fallbackLoopStart = serviceWorkerJs.indexOf("for (const client of topLevelClients) {", appShellLoopStart + 1);
   assert.ok(appShellLoopStart > -1 && fallbackLoopStart > appShellLoopStart);
   assert.equal(serviceWorkerJs.slice(appShellLoopStart, fallbackLoopStart).includes("client.navigate(targetUrl)"), false);
 }
@@ -1489,7 +1492,7 @@ assert.match(serviceWorkerJs, /client\.navigate\(targetWindowRoute\)/);
 assert.match(serviceWorkerJs, /self\.clients\.openWindow\(targetWindowRoute\)/);
 assert.doesNotMatch(serviceWorkerJs, /self\.clients\.openWindow\(targetUrl\)/);
 assert.ok(appJs.includes("window.TaskDocumentPreviewUi?.closeArtifactPreviewOverlays?.()"));
-assert.match(serviceWorkerJs, /function isViewerShellRequest\(url\) \{[\s\S]*?url\.pathname === "\/file-viewer\.html"/);
+assert.match(serviceWorkerJs, /function isViewerShellRequest\(url\) \{[\s\S]*?url\.pathname === "\/file-viewer\.html"[\s\S]*?url\.pathname === "\/pdf-viewer\.html"[\s\S]*?url\.pathname === "\/markdown-viewer\.html"/);
 assert.match(serviceWorkerJs, /\/markdown-viewer\.html\?v=/);
 assert.match(serviceWorkerJs, /function networkFirstViewerShell\(request\)/);
 assert.match(serviceWorkerJs, /if \(isViewerShellRequest\(url\)\) \{[\s\S]*?event\.respondWith\(networkFirstViewerShell\(request\)\)/);
