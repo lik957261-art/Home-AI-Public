@@ -187,13 +187,20 @@ function numericUsage(base, ...keys) {
 }
 
 function sessionTotal(row, baseUsage) {
-  const existing = numericUsage(baseUsage, "total_tokens", "total");
-  if (existing !== null) return existing;
   const input = numberOrNull(row.input_tokens) || 0;
   const cached = numberOrNull(row.cache_read_tokens) || 0;
   const cacheWrite = numberOrNull(row.cache_write_tokens) || 0;
   const output = numberOrNull(row.output_tokens) || 0;
-  return input + cached + cacheWrite + output;
+  if (
+    numberOrNull(row.input_tokens) !== null
+    || numberOrNull(row.cache_read_tokens) !== null
+    || numberOrNull(row.cache_write_tokens) !== null
+    || numberOrNull(row.output_tokens) !== null
+  ) {
+    return input + cached + cacheWrite + output;
+  }
+  const existing = numericUsage(baseUsage, "total_tokens", "total");
+  return existing !== null ? existing : 0;
 }
 
 function usageFromSession(row, baseUsage = {}, context = {}) {

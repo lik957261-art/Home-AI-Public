@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-preview-borderless-title-v146";
+const CLIENT_VERSION = "20260524-tab-switch-race-v151";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -152,6 +152,11 @@ assert.doesNotMatch(appJs, /data-codex-mux-draft/);
 assert.match(appJs, /state\.auth\?\.isOwner/);
 assert.match(indexHtml, new RegExp(`app-codex-mux-ui\\.js\\?v=${CLIENT_VERSION}`));
 assert.match(serviceWorkerJs, new RegExp(`app-codex-mux-ui\\.js\\?v=${CLIENT_VERSION}`));
+assert.match(appJs, /const viewLoadId = \(state\.viewLoadSeq \|\| 0\) \+ 1;/);
+assert.match(appJs, /state\.viewLoadSeq = viewLoadId;/);
+assert.match(appJs, /const currentViewStillSelected = \(\) => state\.viewLoadSeq === viewLoadId;/);
+assert.match(appJs, /await loadAutomations\(\);[\s\S]*?if \(!currentViewStillSelected\(\)\) return;/);
+assert.match(appJs, /await loadDirectoryView\(\);[\s\S]*?if \(!currentViewStillSelected\(\)\) return;/);
 assert.equal(manifest.id, "/");
 assert.equal(manifest.start_url, "/?source=pwa");
 assert.equal(manifest.scope, "/");
@@ -169,6 +174,9 @@ assert.match(appJs, /data-artifact-mime="\$\{escapeHtml\(artifact\?\.mime \|\| "
 assert.match(stylesCss, /\.task-image-preview-overlay/);
 assert.match(appJs, /function openMarkdownPreviewOverlay\(link\)/);
 assert.match(appJs, /previews\.isMarkdownPreviewLink\?\.\(link\) && previews\.openMarkdownPreviewOverlay\?\.\(link\)/);
+assert.match(appJs, /function automationDocumentMime\(doc\)/);
+assert.match(appJs, /data-task-doc data-artifact-name="\$\{escapeHtml\(name\)\}" data-artifact-mime="\$\{escapeHtml\(mime\)\}"/);
+assert.match(appJs, /wireTaskDocumentLinks\(conversation\)/);
 assert.match(stylesCss, /\.task-markdown-preview-overlay/);
 assert.match(appJs, /data-preview-action="weixin"[\s\S]*?分享到微信/);
 assert.match(appJs, /data-preview-action="group"[\s\S]*?分享到群/);
@@ -193,16 +201,20 @@ assert.match(stylesCss, /\.task-markdown-preview-doc h1/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1 \{[\s\S]*?font-size: 24px;/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22px;/);
 assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]*?justify-content: center;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.topbar \{[\s\S]*?border-bottom-color: rgba\(31, 43, 51, 0\.045\);[\s\S]*?background: rgba\(247, 247, 247, 0\.88\);/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \{[\s\S]*?width: 36px;[\s\S]*?height: 36px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \.top-nav-button-glyph \{[\s\S]*?width: 28px;[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-more-button,[\s\S]*?\.task-more-button,[\s\S]*?\.danger-button \{[\s\S]*?width: 34px;[\s\S]*?font-size: 18px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(stylesCss, /\.directory-alias-text \{[\s\S]*?white-space: nowrap;[\s\S]*?text-overflow: ellipsis;/);
 assert.match(stylesCss, /\.directory-alias-open \{[\s\S]*?width: 18px;[\s\S]*?height: 18px;/);
 assert.match(stylesCss, /\.directory-alias-open\.learning-growth-board-artifact-link \{[\s\S]*?height: 20px;/);
 assert.match(stylesCss, /\.directory-alias-icon\.learning-growth-board-artifact-icon \{[\s\S]*?border: 0;[\s\S]*?opacity: 1;/);
 assert.match(stylesCss, /\.directory-alias-icon\.learning-growth-board-artifact-icon::before \{[\s\S]*?content: none;/);
-assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 22px;[\s\S]*?font-size: 14px;/);
-assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 14px;/);
-assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 14px;/);
-assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font-size\] \.thread-title,[\s\S]*?:root\[data-font-size\] \.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?font-size: calc\(14px \* var\(--app-font-scale\)\);[\s\S]*?font-weight: 650;/);
+assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 22px;[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 15px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font-size\] \.thread-title,[\s\S]*?:root\[data-font-size\] \.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?font-size: calc\(15px \* var\(--app-font-scale\)\);[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);

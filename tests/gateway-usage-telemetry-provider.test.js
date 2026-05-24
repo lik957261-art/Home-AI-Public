@@ -102,7 +102,7 @@ function testUsageFromSessionAddsCachedTokensCallsAndCost() {
     api_call_count: 2,
     estimated_cost_usd: 0.0123,
     cost_status: "estimated",
-  }, { input_tokens: 15, output_tokens: 2, total_tokens: 17 }, { profile: "worker1" });
+  }, { input_tokens: 15, output_tokens: 2, total_tokens: 999 }, { profile: "worker1" });
   assert.equal(enriched.input_tokens, 10);
   assert.equal(enriched.uncached_input_tokens, 10);
   assert.equal(enriched.gateway_reported_input_tokens, 15);
@@ -113,6 +113,7 @@ function testUsageFromSessionAddsCachedTokensCallsAndCost() {
   assert.equal(enriched.api_calls, 2);
   assert.equal(enriched.api_call_count, 2);
   assert.equal(enriched.api_cost_usd, 0.0123);
+  assert.equal(enriched.total_tokens, 18);
   assert.equal(enriched.telemetry_source, "gateway_sessiondb");
   assert.equal(enriched.telemetry_profile, "worker1");
 
@@ -138,7 +139,7 @@ function testProviderSupplementsFromProfileDb() {
     profileRoots: [path.join(root, "profiles")],
   });
   const usage = provider.supplementUsage(
-    { input_tokens: 101084, output_tokens: 212, total_tokens: 101296 },
+    { input_tokens: 101084, output_tokens: 212, total_tokens: 999999 },
     { responseId: "resp_1", profile: "officialclean2" },
   );
   assert.equal(usage.input_tokens, 28892);

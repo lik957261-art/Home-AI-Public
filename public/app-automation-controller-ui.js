@@ -162,10 +162,16 @@ function automationOutputHref(doc) {
   }
 }
 
+function automationDocumentMime(doc) {
+  return doc?.mime || doc?.contentType || doc?.content_type || "";
+}
+
 function renderAutomationDocumentPreview(doc, options = {}) {
   if (!doc) return "";
   const kind = artifactKind(doc);
   const name = doc.name || "document";
+  const href = automationOutputHref(doc);
+  const mime = automationDocumentMime(doc);
   const meta = [formatBytes(doc.size), formatTime(doc.updatedAt)].filter(Boolean).join(" | ");
   const classes = [
     "automation-doc-preview",
@@ -173,7 +179,7 @@ function renderAutomationDocumentPreview(doc, options = {}) {
     options.compact ? "compact" : "",
     options.history ? "history" : "",
   ].filter(Boolean).join(" ");
-  return `<a class="${escapeHtml(classes)}" href="${escapeHtml(automationOutputHref(doc))}" target="_self" aria-label="${escapeHtml(`预览 ${name}`)}">
+  return `<a class="${escapeHtml(classes)}" href="${escapeHtml(href)}" target="_self" data-task-doc data-artifact-name="${escapeHtml(name)}" data-artifact-mime="${escapeHtml(mime)}" aria-label="${escapeHtml(`预览 ${name}`)}">
     <span class="automation-doc-icon" aria-hidden="true"></span>
     <span class="automation-doc-copy">
       <span class="automation-doc-label">${escapeHtml(options.label || "最后交付")}</span>
@@ -228,6 +234,7 @@ function renderAutomationPanel() {
       ${selected ? renderAutomationDetail(selected) : renderAutomationSections()}
     </section>
   `;
+  if (typeof wireTaskDocumentLinks === "function") wireTaskDocumentLinks(conversation);
   conversation.querySelectorAll("[data-automation-id]").forEach((button) => {
     button.addEventListener("click", () => {
       const nextId = button.dataset.automationId || "";

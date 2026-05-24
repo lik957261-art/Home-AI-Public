@@ -60,6 +60,9 @@ function applyViewMode() {
 }
 
 async function loadSelectedView() {
+  const viewLoadId = (state.viewLoadSeq || 0) + 1;
+  state.viewLoadSeq = viewLoadId;
+  const currentViewStillSelected = () => state.viewLoadSeq === viewLoadId;
   if (state.viewMode === "codex-mux" && typeof clearCodexMuxViewForNonOwner === "function" && clearCodexMuxViewForNonOwner()) {
     applyViewMode();
   }
@@ -80,28 +83,37 @@ async function loadSelectedView() {
       return;
     }
     await loadSingleWindow();
+    if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "todos") {
     await loadTodos({ preferCache: true });
+    if (!currentViewStillSelected()) return;
     if (state.pendingReadingQuizTodoId && state.pendingReadingQuizTodoId === state.selectedTodoId) {
       const todoId = state.pendingReadingQuizTodoId;
       state.pendingReadingQuizTodoId = "";
       await loadReadingQuiz(todoId);
+      if (!currentViewStillSelected()) return;
     }
     if (state.pendingAssessmentExamTodoId && state.pendingAssessmentExamTodoId === state.selectedTodoId) {
       const todoId = state.pendingAssessmentExamTodoId;
       state.pendingAssessmentExamTodoId = "";
       await loadAssessmentExam(todoId);
+      if (!currentViewStillSelected()) return;
     }
   } else if (state.viewMode === "automation") {
     await loadAutomations();
+    if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "codex-mux") {
     await loadCodexMux();
+    if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "learning") {
     await loadLearningCoins();
+    if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "projects") {
     await loadDirectoryView();
+    if (!currentViewStillSelected()) return;
   } else {
     await loadThreads();
+    if (!currentViewStillSelected()) return;
   }
 }
 
