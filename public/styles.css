@@ -2151,21 +2151,21 @@ button {
 .assistant-receipt-callout {
   position: relative;
   display: grid;
-  grid-template-columns: 3px minmax(0, 1fr);
-  gap: 9px;
-  padding: 9px 11px;
+  grid-template-columns: 2px minmax(0, 1fr);
+  gap: 7px;
+  padding: 4px 2px 4px 6px;
   color: #1a2b34;
-  background: rgba(248, 249, 248, 0.72);
-  border: 1px solid rgba(31, 43, 51, 0.075);
-  border-radius: 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .assistant-receipt-callout::before {
   content: "";
-  width: 3px;
+  width: 2px;
   min-height: 100%;
   border-radius: 999px;
-  background: rgba(74, 103, 112, 0.52);
+  background: rgba(74, 103, 112, 0.34);
 }
 
 .assistant-receipt-callout-main {
@@ -2189,10 +2189,10 @@ button {
 .assistant-receipt ul,
 .assistant-receipt ol {
   gap: 5px;
-  padding: 9px 11px 9px 1.35em;
-  background: rgba(248, 249, 248, 0.58);
-  border: 1px solid rgba(31, 43, 51, 0.07);
-  border-radius: 10px;
+  padding: 2px 2px 2px 1.08em;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .assistant-receipt li {
@@ -2215,7 +2215,7 @@ button {
 
 .assistant-receipt-callout.tone-success::before,
 .assistant-receipt-heading.tone-success::before {
-  background: rgba(78, 116, 100, 0.58);
+  background: rgba(78, 116, 100, 0.38);
 }
 
 .assistant-receipt-callout.tone-success .assistant-receipt-kicker,
@@ -2227,7 +2227,7 @@ button {
 .assistant-receipt-heading.tone-next::before,
 .assistant-receipt-callout.tone-file::before,
 .assistant-receipt-heading.tone-file::before {
-  background: rgba(78, 102, 130, 0.58);
+  background: rgba(78, 102, 130, 0.38);
 }
 
 .assistant-receipt-callout.tone-next .assistant-receipt-kicker,
@@ -2239,7 +2239,7 @@ button {
 
 .assistant-receipt-callout.tone-warn::before,
 .assistant-receipt-heading.tone-warn::before {
-  background: rgba(146, 112, 60, 0.56);
+  background: rgba(146, 112, 60, 0.38);
 }
 
 .assistant-receipt-callout.tone-warn .assistant-receipt-kicker,
@@ -2249,7 +2249,7 @@ button {
 
 .assistant-receipt-callout.tone-danger::before,
 .assistant-receipt-heading.tone-danger::before {
-  background: rgba(143, 76, 70, 0.54);
+  background: rgba(143, 76, 70, 0.36);
 }
 
 .assistant-receipt-callout.tone-danger .assistant-receipt-kicker,
@@ -2259,7 +2259,7 @@ button {
 
 .assistant-receipt-callout.tone-diagnostic::before,
 .assistant-receipt-heading.tone-diagnostic::before {
-  background: rgba(89, 98, 112, 0.52);
+  background: rgba(89, 98, 112, 0.34);
 }
 
 .assistant-receipt-callout.tone-diagnostic .assistant-receipt-kicker,
@@ -2466,15 +2466,15 @@ button {
   }
 
   .assistant-receipt-callout {
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: 9px;
+    gap: 6px;
+    padding: 3px 1px 3px 5px;
+    border-radius: 0;
   }
 
   .assistant-receipt ul,
   .assistant-receipt ol {
-    padding: 8px 10px 8px 1.28em;
-    border-radius: 9px;
+    padding: 2px 1px 2px 1.02em;
+    border-radius: 0;
   }
 
   .message-prose h2 {
