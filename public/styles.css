@@ -7999,6 +7999,8 @@ body.task-markdown-preview-open {
 
 .learning-growth-board-summary-metrics span {
   min-width: 0;
+  width: max-content;
+  max-width: 100%;
   display: grid;
   gap: 3px;
   padding: 0;
@@ -8006,6 +8008,7 @@ body.task-markdown-preview-open {
 
 .learning-growth-board-summary-metrics b {
   min-width: 0;
+  width: 100%;
   overflow: hidden;
   color: var(--ink);
   font-size: 16px;
