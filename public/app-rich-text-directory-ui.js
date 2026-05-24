@@ -13,32 +13,21 @@ function renderText(text, message = {}) {
 }
 
 function cleanDisplayText(value) {
-  return String(value || "")
-    .split(/\n/)
-    .filter((line) => !/^\s*MEDIA:\s*/i.test(line))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return String(value || "").split(/\n/).filter((line) => !/^\s*MEDIA:\s*/i.test(line)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function renderInlineMarkdown(value) {
-  return escapeHtml(value)
-    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
-    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+  return escapeHtml(value).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_\n]+)__/g, "<strong>$1</strong>").replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
 }
 
 const ASSISTANT_RECEIPT_LABEL_PATTERN = /^(结论|关键结论|重点|重点结论|摘要|总结|结果|处理结果|状态|当前状态|已完成|完成|修复|变更|改动|修改|处理|影响|影响范围|验证|验证结果|测试|测试结果|本地验证|生产验证|部署|生产|已部署|文件|代码|路径|下一步|后续|后续步骤|建议|待办|待确认|风险|注意|限制|原因|诊断|发现|问题|说明|summary|result|status|done|completed|changed?|impact|validation|tests?|deploy(?:ed|ment)?|files?|paths?|next|todo|risk|warning|note|diagnosis|issue)\s*[：:]\s*(.*)$/i;
 
 function assistantReceiptLabelForText(value) {
   const lines = String(value || "").split(/\n/);
-  const first = String(lines[0] || "").trim();
-  const match = first.match(ASSISTANT_RECEIPT_LABEL_PATTERN);
+  const match = String(lines[0] || "").trim().match(ASSISTANT_RECEIPT_LABEL_PATTERN);
   if (!match) return null;
   const label = match[1].trim();
-  const bodyLines = [match[2] || "", ...lines.slice(1)].map((line) => String(line || "").trimEnd());
-  const body = bodyLines.join("\n").trim();
+  const body = [match[2] || "", ...lines.slice(1)].map((line) => String(line || "").trimEnd()).join("\n").trim();
   return { label, body, tone: assistantReceiptTone(label) };
 }
 
@@ -53,31 +42,22 @@ function assistantReceiptTone(label) {
   return "focus";
 }
 
-function renderAssistantReceiptInline(value) {
-  return String(value || "").split(/\n/).map(renderInlineMarkdown).join("<br>");
-}
+function renderAssistantReceiptInline(value) { return String(value || "").split(/\n/).map(renderInlineMarkdown).join("<br>"); }
 
 function renderAssistantReceiptCallout(labelInfo) {
   const body = labelInfo.body ? renderAssistantReceiptInline(labelInfo.body) : "";
-  return `<div class="assistant-receipt-callout tone-${escapeHtml(labelInfo.tone)}">
-    <div class="assistant-receipt-callout-main">
-      <div class="assistant-receipt-kicker">${escapeHtml(labelInfo.label)}</div>
-      ${body ? `<div class="assistant-receipt-callout-body">${body}</div>` : ""}
-    </div>
-  </div>`;
+  return `<div class="assistant-receipt-callout tone-${escapeHtml(labelInfo.tone)}"><div class="assistant-receipt-callout-main"><div class="assistant-receipt-kicker">${escapeHtml(labelInfo.label)}</div>${body ? `<div class="assistant-receipt-callout-body">${body}</div>` : ""}</div></div>`;
 }
 
 function renderAssistantReceiptParagraph(paragraph, options = {}) {
   const labelInfo = options.assistantReceipt ? assistantReceiptLabelForText(paragraph.join("\n")) : null;
-  if (labelInfo) return renderAssistantReceiptCallout(labelInfo);
-  return `<p>${paragraph.map(renderInlineMarkdown).join("<br>")}</p>`;
+  return labelInfo ? renderAssistantReceiptCallout(labelInfo) : `<p>${paragraph.map(renderInlineMarkdown).join("<br>")}</p>`;
 }
 
 function assistantReceiptHeadingClass(text, options = {}) {
   if (!options.assistantReceipt) return "";
   const labelInfo = assistantReceiptLabelForText(`${String(text || "").replace(/[：:]\s*$/, "")}:`);
-  const tone = labelInfo?.tone || "focus";
-  return ` class="assistant-receipt-heading tone-${escapeHtml(tone)}"`;
+  return ` class="assistant-receipt-heading tone-${escapeHtml(labelInfo?.tone || "focus")}"`;
 }
 
 function renderAssistantReceiptListItem(item, options = {}) {
@@ -88,9 +68,7 @@ function renderAssistantReceiptListItem(item, options = {}) {
 }
 
 function renderTable(lines) {
-  const rows = lines
-    .map((line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim()))
-    .filter((row) => row.length > 1);
+  const rows = lines.map((line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim())).filter((row) => row.length > 1);
   if (!rows.length) return "";
   const isSeparator = (row) => row.every((cell) => /^:?-{3,}:?$/.test(cell));
   const hasHeader = rows.length > 1 && isSeparator(rows[1]);
@@ -110,28 +88,10 @@ function renderRichText(text, options = {}) {
   let tableLines = [];
   let codeLines = null;
 
-  const flushParagraph = () => {
-    if (!paragraph.length) return;
-    out.push(renderAssistantReceiptParagraph(paragraph, options));
-    paragraph = [];
-  };
-  const flushList = () => {
-    if (!listItems.length) return;
-    const tag = listType === "ol" ? "ol" : "ul";
-    out.push(`<${tag}>${listItems.map((item) => renderAssistantReceiptListItem(item, options)).join("")}</${tag}>`);
-    listType = "";
-    listItems = [];
-  };
-  const flushTable = () => {
-    if (!tableLines.length) return;
-    out.push(renderTable(tableLines));
-    tableLines = [];
-  };
-  const flushBlocks = () => {
-    flushParagraph();
-    flushList();
-    flushTable();
-  };
+  const flushParagraph = () => { if (paragraph.length) { out.push(renderAssistantReceiptParagraph(paragraph, options)); paragraph = []; } };
+  const flushList = () => { if (listItems.length) { const tag = listType === "ol" ? "ol" : "ul"; out.push(`<${tag}>${listItems.map((item) => renderAssistantReceiptListItem(item, options)).join("")}</${tag}>`); listType = ""; listItems = []; } };
+  const flushTable = () => { if (tableLines.length) { out.push(renderTable(tableLines)); tableLines = []; } };
+  const flushBlocks = () => { flushParagraph(); flushList(); flushTable(); };
 
   for (const rawLine of lines) {
     const line = rawLine.replace(/\s+$/, "");

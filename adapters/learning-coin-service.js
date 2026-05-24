@@ -258,6 +258,15 @@ function dayOffsetKey(baseDate, offsetDays) {
   return utcDayKey(date);
 }
 
+function recentCoinTotal(dailyMap, now, days) {
+  const totalDays = Math.max(1, Math.round(Number(days) || 1));
+  let total = 0;
+  for (let offset = -(totalDays - 1); offset <= 0; offset += 1) {
+    total += dailyMap.get(dayOffsetKey(now, offset)) || 0;
+  }
+  return total;
+}
+
 function earningLedgerEntries(store, studentId, workspaceId) {
   return store.ledger.filter((entry) => (
     entry.studentId === studentId
@@ -335,6 +344,7 @@ function learningCoinGrowthProfile(store, studentId, workspaceId, options = {}) 
     level: levelForCoins(totalEarnedCoins),
     recentDays,
     sevenDayCoins: recentDays.reduce((sum, day) => sum + day.coins, 0),
+    thirtyDayCoins: recentCoinTotal(dailyMap, now, 30),
     activeDaysInLast7: recentDays.filter((day) => day.coins > 0).length,
     streakDays,
     sourceBreakdown: Array.from(sourceMap.entries())

@@ -108,6 +108,12 @@
     return `${Number.isFinite(amount) ? amount : 0} \u91d1\u5e01`;
   }
 
+  function averageCoinsForWindow(coins = {}, metrics = {}, days = 7) {
+    const totalField = days === 30 ? "thirtyDayCoins" : "sevenDayCoins";
+    const total = Number(metrics?.[totalField] ?? coins?.growth?.[totalField] ?? 0);
+    return Number.isFinite(total) ? Math.round(total / days) : 0;
+  }
+
   function renderGrowthWorkflow(options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const steps = [
@@ -411,7 +417,8 @@
     const completed = cards.filter((card) => /complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
     const activeTasks = cards.filter((card) => !/complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
     const earned = Number(growth.totalEarnedCoins || coins.balances?.earnedCoins || 0);
-    const sevenDayAverage = Math.round(Number(growth.sevenDayCoins || overview.metrics?.sevenDayCoins || 0) / 7) || 0;
+    const sevenDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 7);
+    const thirtyDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 30);
     return `<section class="learning-settings-overview" data-learning-settings-overview>
       <div class="learning-settings-kpi-grid">
         <span><small>执行者</small><strong>${escapeHtml(overview.learner?.displayName || overview.learner?.id || options.learnerId || "执行者")}</strong></span>
@@ -419,6 +426,7 @@
         <span><small>已完成</small><strong>${escapeHtml(String(completed || counts.completedTasks || 0))}</strong></span>
         <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(earned || 0)))}</strong></span>
         <span><small>七日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
+        <span><small>三十日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
         <span><small>待结算</small><strong>${escapeHtml(String(counts.pendingRewardSettlements || 0))}</strong></span>
       </div>
       ${programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions)}
@@ -562,6 +570,8 @@
     const settled = settlements.filter((item) => String(item.status || "") === "settled");
     const settledCoins = settled.reduce((sum, item) => sum + (Number(item.coinAmount) || 0), 0);
     const averageSettled = settled.length ? Math.round(settledCoins / settled.length) : 0;
+    const sevenDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 7);
+    const thirtyDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 30);
     const stats = `<section class="learning-coin-panel learning-settings-reward-stats" data-learning-settings-reward-stats>
       <div class="learning-section-heading">
         <h3>奖励统计</h3>
@@ -569,7 +579,8 @@
       </div>
       <div class="learning-settings-reward-rows">
         <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(Number(growth.totalEarnedCoins || balances.earnedCoins || 0) || 0)))}</strong></span>
-        <span><small>七日均值</small><strong>${escapeHtml(String(Math.round((Number(growth.sevenDayCoins || 0) || 0) / 7)))}</strong></span>
+        <span><small>七日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
+        <span><small>三十日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
         <span><small>已结算次数</small><strong>${escapeHtml(String(settled.length))}</strong></span>
         <span><small>平均每次</small><strong>${escapeHtml(String(averageSettled))}</strong></span>
       </div>
@@ -840,8 +851,8 @@
       || availableCoins
       || 0);
     const coinText = String(Number.isFinite(historicalCoins) ? Math.round(historicalCoins) : 0);
-    const sevenDayCoins = Number(metrics.sevenDayCoins || coins.growth?.sevenDayCoins || 0);
-    const sevenDayAverage = Number.isFinite(sevenDayCoins) ? Math.round(sevenDayCoins / 7) : 0;
+    const sevenDayAverage = averageCoinsForWindow(coins, metrics, 7);
+    const thirtyDayAverage = averageCoinsForWindow(coins, metrics, 30);
     const coinsUi = options.coinsUi || CoinsUi;
     if (owner && options.state?.learningGrowthSettingsOpen) {
       return renderOwnerSettingsPage(programUi, coinsUi, overview, options);
@@ -852,6 +863,7 @@
           <span><small>\u6267\u884c\u8005</small><b>${escapeHtml(learnerLabel)}</b></span>
           <span><small>\u7d2f\u8ba1\u91d1\u5e01</small><b>${escapeHtml(coinText)}</b></span>
           <span><small>\u4e03\u65e5\u5747\u503c</small><b>${escapeHtml(String(sevenDayAverage))}</b></span>
+          <span><small>\u4e09\u5341\u65e5\u5747\u503c</small><b>${escapeHtml(String(thirtyDayAverage))}</b></span>
         </div>
       </section>
       ${boardHtml}

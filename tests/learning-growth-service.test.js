@@ -17,7 +17,7 @@ function makeCoinService() {
         studentId: input.studentId,
         workspaceId: input.workspaceId,
         balances: { availableCoins: 70, heldCoins: 10, earnedCoins: 90, spentCoins: 20 },
-        growth: { sevenDayCoins: 45, activeDaysInLast7: 3 },
+        growth: { sevenDayCoins: 45, thirtyDayCoins: 300, activeDaysInLast7: 3 },
         redemptions: [
           { id: "r1", status: "requested" },
           { id: "r2", status: "approved" },
@@ -138,6 +138,7 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   assert.equal(overview.learner.studentId, "weixin_stephen");
   assert.equal(overview.coins.studentId, "weixin_stephen");
   assert.equal(overview.metrics.availableCoins, 70);
+  assert.equal(overview.metrics.thirtyDayCoins, 300);
   assert.equal(overview.metrics.pendingRedemptions, 1);
   assert.ok(overview.capabilities.some((item) => item.id === "curriculum-reference"));
   assert.ok(overview.capabilities.some((item) => item.id === "ai-reliability-guard"));

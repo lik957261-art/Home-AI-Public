@@ -9,7 +9,7 @@ const ProgramUi = require("../public/app-learning-program-ui");
 const overview = {
   module: { title: "凡凡成长系统", currentEntry: "金币标签" },
   learner: { id: "weixin_stephen", displayName: "凡凡" },
-  metrics: { sevenDayCoins: 70, pendingRedemptions: 1 },
+  metrics: { sevenDayCoins: 70, thirtyDayCoins: 900, pendingRedemptions: 1 },
   board: {
     learner: { id: "weixin_stephen", workspaceId: "weixin_stephen", displayName: "Fanfan" },
     summary: { cardCount: 2 },
@@ -55,6 +55,7 @@ const overview = {
     growth: {
       totalEarnedCoins: 70,
       sevenDayCoins: 70,
+      thirtyDayCoins: 900,
       activeDaysInLast7: 2,
       streakDays: 2,
       level: { current: { level: 1, title: "新手" }, progressPct: 35, toNextLevelCoins: 130 },
@@ -159,6 +160,8 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, />凡凡</);
   assert.match(html, />70</);
   assert.match(html, />10</);
+  assert.match(html, /\u4e09\u5341\u65e5\u5747\u503c/);
+  assert.match(html, />30</);
   assert.doesNotMatch(html, /70 金币|10 金币|历史累计/);
   assert.match(html, /aria-label="成长概览"/);
   assert.doesNotMatch(html, /凡凡成长系统|凡凡成长|成长看板/);

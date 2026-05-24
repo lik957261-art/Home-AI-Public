@@ -376,6 +376,7 @@ function coinMetric(coins = {}) {
     heldCoins: numberValue(balances.heldCoins),
     spentCoins: numberValue(balances.spentCoins),
     sevenDayCoins: numberValue(growth.sevenDayCoins),
+    thirtyDayCoins: numberValue(growth.thirtyDayCoins),
     activeDaysInLast7: numberValue(growth.activeDaysInLast7),
     pendingRedemptions: redemptions.filter((item) => item && item.status === "requested").length,
   };
