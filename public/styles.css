@@ -695,7 +695,10 @@ button {
 }
 
 .bottom-tab-label {
+  font-size: 8.5px !important;
+  font-weight: 520;
   line-height: 1.05;
+  letter-spacing: 0;
 }
 
 .nav-chat-icon::before {
@@ -2754,22 +2757,25 @@ button.directory-alias-chip {
 @media (max-width: 720px) {
   .message-skill-details {
     position: fixed;
-    left: max(10px, env(safe-area-inset-left));
-    right: max(10px, env(safe-area-inset-right));
-    top: calc(env(safe-area-inset-top) + 118px);
-    bottom: calc(var(--mobile-bottom-nav-reserved-height) + 112px);
+    left: max(18px, env(safe-area-inset-left));
+    right: max(18px, env(safe-area-inset-right));
+    bottom: calc(var(--mobile-bottom-nav-reserved-height) + 92px);
     width: auto;
-    max-height: none;
+    max-height: min(220px, 34vh);
     transform: none;
     z-index: 80;
-    padding: 8px;
-    border-radius: 14px;
+    gap: 1px;
+    padding: 6px;
+    border-radius: 12px;
+    background: rgba(255, 255, 252, 0.99);
+    box-shadow: 0 12px 28px rgba(31, 43, 51, 0.14);
   }
 
   .message-skill-item {
-    min-height: 42px;
-    padding: 9px 10px;
-    font-size: 14px;
+    min-height: 34px;
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
   }
 }
 
