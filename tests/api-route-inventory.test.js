@@ -372,6 +372,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/curriculum-references" }).id, "learning-curriculum-references-list");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/recommendations/task-series" }).id, "learning-task-series-recommendations-read");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/recommendations/task-series" }).id, "learning-task-series-recommendations-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/recommendations/task-series/draft" }).id, "learning-task-series-recommendation-draft-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/programs/program-1/rebuild-draft-plan" }).id, "learning-program-rebuild-draft-plan");
@@ -398,7 +399,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
 function testLearningProgramInventoryMatchesRouteModuleSpecs() {
   const inventoryById = new Map(listHermesMobileApiRoutes().map((route) => [route.id, route]));
   const moduleRoutes = createApiRouteRegistry(LEARNING_PROGRAM_API_ROUTE_SPECS).list();
-  assert.equal(moduleRoutes.length, 41);
+  assert.equal(moduleRoutes.length, 42);
   for (const expected of moduleRoutes) {
     const actual = inventoryById.get(expected.id);
     assert.ok(actual, `global inventory is missing ${expected.id}`);

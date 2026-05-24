@@ -58,6 +58,8 @@ async function testModelRecommendationIsTemplateValidated() {
   assert.equal(result.recommendedSeries[0].recommendedReadingMinutes, 12);
   assert.equal(calls[0].reasoning_effort, "medium");
   assert.equal(calls[0].stream, true);
+  assert.match(calls[0].input, /Simplified Chinese/);
+  assert.match(calls[0].input, /analysisSummary, weakSignals, riskFlags, rationale/);
 }
 
 async function testUnknownTemplateFailsClosed() {
@@ -209,9 +211,40 @@ async function testRequireModelRepairsEmptySeriesWithSecondModelCall() {
   assert.equal(calls[0].reasoning_effort, "medium");
   assert.equal(calls[1].reasoning_effort, "medium");
   assert.match(calls[1].input, /Repair the previous Growth task-series recommendation/);
+  assert.match(calls[1].input, /Simplified Chinese/);
   assert.equal(result.modelStatus, "completed_after_repair");
   assert.equal(result.recommendedSeries[0].templateId, "english-speaking-retell-v1");
   assert.equal(result.recommendedSeries[0].skillId, "english_speaking_retell");
+}
+
+async function testRecommendationPersistsAndReadsLatest() {
+  let saved = null;
+  const repository = Object.assign(makeRepository(), {
+    saveTaskSeriesRecommendation(record) {
+      saved = Object.assign({ recommendationRunId: "rec-1", createdAt: "2026-05-24T12:00:00.000Z" }, record);
+      return saved;
+    },
+    latestTaskSeriesRecommendation() {
+      return saved;
+    },
+  });
+  const service = createLearningTaskSeriesRecommendationService({
+    repository,
+    hermesModelText: async () => JSON.stringify({
+      analysisSummary: "Persisted learner-state analysis.",
+      recommendedSeries: [{
+        title: "Persisted retell",
+        templateId: "english-speaking-retell-v1",
+        skillId: "english_speaking_retell",
+      }],
+    }),
+  });
+  const generated = await service.recommendTaskSeries({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen", requestedByPrincipalId: "owner" });
+  assert.equal(generated.recommendationRunId, "rec-1");
+  assert.equal(saved.requestedByPrincipalId, "owner");
+  const latest = service.latestTaskSeriesRecommendation({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(latest.recommendationRunId, "rec-1");
+  assert.equal(latest.recommendedSeries[0].templateId, "english-speaking-retell-v1");
 }
 
 function testRecommendationBuildsProgramInput() {
@@ -244,6 +277,7 @@ function testRecommendationBuildsProgramInput() {
   await testRequireModelRejectsInvalidJsonInsteadOfFallback();
   await testRequireModelRejectsEmptySeriesInsteadOfFallback();
   await testRequireModelRepairsEmptySeriesWithSecondModelCall();
+  await testRecommendationPersistsAndReadsLatest();
   testRecommendationBuildsProgramInput();
   console.log("learning task series recommendation service tests passed");
 })();

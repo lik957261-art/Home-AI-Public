@@ -362,6 +362,19 @@ function testMigrationAndPersistence() {
   assert.equal(repository.listReviewRequests({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.getRewardSettlement("settle-1").coinAmount, 15);
+  const aiRecommendation = repository.saveTaskSeriesRecommendation({
+    recommendationRunId: "ai-rec-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    domain: "english",
+    modelStatus: "completed",
+    analysisSummary: "summary-only analysis",
+    recommendedSeries: [{ templateId: "english-speaking-retell-v1", skillId: "english_speaking_retell" }],
+    learnerAnswer: "must not be exposed",
+  });
+  assert.equal(aiRecommendation.recommendationRunId, "ai-rec-1");
+  assert.equal(aiRecommendation.learnerAnswer, "[redacted]");
+  assert.equal(repository.latestTaskSeriesRecommendation({ learnerId: "weixin_stephen", workspaceId: "weixin_stephen", domain: "english" }).recommendationRunId, "ai-rec-1");
   assert.equal(repository.latestDraftForProgram("program-1").draftId, "draft-1");
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).sources, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).goals, 1);
@@ -375,6 +388,7 @@ function testMigrationAndPersistence() {
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskArtifacts, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).reviewRequests, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).rewardSettlements, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskSeriesRecommendations, 1);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }

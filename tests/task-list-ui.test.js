@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-growth-ai-repair-progress-v198";
+const CLIENT_VERSION = "20260524-growth-ai-persisted-refresh-v200";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -285,9 +285,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-ai-repair-progress-v198/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-ai-repair-progress-v198/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-ai-repair-progress-v198/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-ai-persisted-refresh-v200/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-ai-persisted-refresh-v200/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-ai-persisted-refresh-v200/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1315,14 +1315,17 @@ assert.match(appJs, /learningAiSummary/);
 assert.match(appJs, /learningAiSummaryLoading/);
 assert.match(appJs, /learningAiSummaryError/);
 assert.match(appJs, /learningAiSummaryProgress/);
+assert.match(appJs, /learningAiSummaryScopeKey/);
 assert.match(appLearningGrowthAiControllerJs, /\/api\/learning\/recommendations\/task-series/);
 assert.match(appLearningGrowthAiControllerJs, /\/api\/learning\/recommendations\/task-series\/draft/);
 assert.match(appLearningGrowthAiControllerJs, /friendlyLearningAiError/);
+assert.match(appLearningGrowthAiControllerJs, /loadLatestLearningAiSummary/);
 assert.match(appLearningGrowthAiControllerJs, /startLearningAiProgress/);
 assert.match(appLearningGrowthAiControllerJs, /data-learning-ai-summary-refresh/);
 assert.match(appLearningGrowthAiControllerJs, /data-learning-ai-recommendation-draft/);
 assert.match(appLearningGrowthAiControllerJs, /learningGrowthActiveTab = "ai-analysis"/);
 assert.match(appLearningGrowthAiControllerJs, /reasoningEffort: "medium"/);
+assert.match(appLearningGrowthControllerJs, /loadLatestLearningAiSummary/);
 assert.match(appLearningGrowthRewardControllerJs, /data-learning-task-reward-policy-series-form/);
 assert.match(appLearningGrowthRewardControllerJs, /Promise\.all\(ids\.map/);
 assert.match(appLearningGrowthUiJs, /function rewardTaskSeries/);
@@ -1330,6 +1333,7 @@ assert.match(appLearningGrowthUiJs, /data-learning-task-reward-policy-series-for
 assert.match(appLearningGrowthUiJs, /options\.state\?\.learningGrowthActiveTab/);
 assert.match(appLearningGrowthUiJs, /data-learning-product="fanfan-growth"/);
 assert.match(appLearningGrowthUiJs, /learning-ai-progress/);
+assert.match(appLearningGrowthUiJs, /重新生成 AI 总结/);
 assert.match(stylesCss, /\.learning-ai-progress\s*\{[\s\S]*?background: rgba\(239, 246, 244, 0\.62\);/);
 assert.match(appLearningGrowthUiJs, /data-learning-role/);
 assert.match(appLearningGrowthUiJs, /function renderReadinessPanel/);

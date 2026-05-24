@@ -717,6 +717,7 @@
     const error = options.aiSummaryError || pageState.learningAiSummaryError || "";
     const progress = pageState.learningAiSummaryProgress || "";
     const series = asArray(result?.recommendedSeries);
+    const buttonText = result?.recommendationRunId || result?.generatedAt ? "重新生成 AI 总结" : "生成 AI 总结";
     const creatingId = String(pageState.learningAiDraftCreatingId || "");
     return `<section class="learning-coin-panel learning-ai-summary-panel" data-learning-ai-summary-recommendations>
       <div class="learning-section-heading">
@@ -725,7 +726,7 @@
       </div>
       <p class="learning-growth-muted">基于学习记录摘要和当前任务模板推荐任务系列。推荐只生成可审核草稿，不直接发布。</p>
       <div class="learning-program-report-actions">
-        <button type="button" data-learning-ai-summary-refresh ${loading ? "disabled" : ""}>${loading ? "分析中..." : "生成 AI 总结"}</button>
+        <button type="button" data-learning-ai-summary-refresh ${loading ? "disabled" : ""}>${loading ? "分析中..." : buttonText}</button>
       </div>
       ${loading ? `<div class="learning-ai-progress" role="status" aria-live="polite"><span></span><p>${escapeHtml(progress || "\u6b63\u5728\u8bf7\u6a21\u578b\u5206\u6790...")}</p></div>` : ""}
       ${error ? `<div class="learning-error">${escapeHtml(error)}</div>` : ""}

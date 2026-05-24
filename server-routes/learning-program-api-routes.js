@@ -240,6 +240,22 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "report", "parent", "summary-only", "owner"],
   },
   {
+    id: "learning-task-series-recommendations-read",
+    method: "GET",
+    path: "/api/learning/recommendations/task-series",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "latestTaskSeriesRecommendation",
+    summary: "Owner reads the latest persisted summary-only learning task series recommendation.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-recommendation", "learning-template", "learning-program"],
+    tags: ["learning", "recommendation", "template", "owner", "summary-only"],
+  },
+  {
     id: "learning-task-series-recommendations-create",
     method: "POST",
     path: "/api/learning/recommendations/task-series",
@@ -1019,6 +1035,23 @@ function createLearningProgramApiRoutes(deps = {}) {
   async function handleTaskSeriesRecommendations(req, res, url) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
+    if (req.method === "GET") {
+      try {
+        const workspaceId = requestedWorkspaceId(url, "weixin_stephen");
+        const learnerId = cleanString(url.searchParams.get("learnerId") || url.searchParams.get("studentId")) || workspaceId;
+        const allowed = deps.requireWorkspaceAccess(req, res, workspaceId);
+        if (!allowed) return;
+        deps.sendJson(res, 200, service.latestTaskSeriesRecommendation({
+          workspaceId,
+          learnerId,
+          domain: cleanString(url.searchParams.get("domain")) || "english",
+          requestedByPrincipalId: owner.principalId || "owner",
+        }));
+      } catch (err) {
+        sendRouteError(deps, res, err);
+      }
+      return;
+    }
     const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
@@ -1575,7 +1608,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-curriculum-references-list") await handleCurriculumReferences(req, res, url);
     else if (route.id === "learning-foundation-import") await handleFoundationImport(req, res, url);
     else if (route.id === "learning-parent-report-read") await handleParentReport(req, res, url);
-    else if (route.id === "learning-task-series-recommendations-create") await handleTaskSeriesRecommendations(req, res, url);
+    else if (route.id === "learning-task-series-recommendations-read" || route.id === "learning-task-series-recommendations-create") await handleTaskSeriesRecommendations(req, res, url);
     else if (route.id === "learning-task-series-recommendation-draft-create") await handleTaskSeriesRecommendationDraft(req, res, url);
     else if (route.id === "learning-program-update") await handleUpdate(req, res, url);
     else if (route.id === "learning-program-draft-plan") await handleDraft(req, res, url);

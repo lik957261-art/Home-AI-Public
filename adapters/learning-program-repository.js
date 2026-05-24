@@ -463,6 +463,19 @@ function publicRewardSettlementFromRow(row) {
   });
 }
 
+function publicTaskSeriesRecommendationFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    recommendationRunId: row.id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    domain: row.domain,
+    modelStatus: row.model_status,
+    requestedByPrincipalId: row.requested_by_principal_id || "",
+    createdAt: row.created_at,
+  });
+}
+
 function createLearningProgramRepository(options = {}) {
   const dataDir = path.resolve(String(options.dataDir || process.env.HERMES_WEB_DATA_DIR || path.join(process.cwd(), "workspace", "hermes-web")));
   const dbPath = path.resolve(String(options.dbPath || process.env.HERMES_MOBILE_LEARNING_DB_PATH || process.env.HERMES_WEB_LEARNING_DB_PATH || path.join(dataDir, "learning-growth.sqlite3")));
@@ -851,6 +864,17 @@ function createLearningProgramRepository(options = {}) {
         FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS learning_task_series_recommendations (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        model_status TEXT NOT NULL,
+        requested_by_principal_id TEXT NOT NULL DEFAULT '',
+        raw_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_learning_programs_learner ON learning_programs(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_drafts_program ON learning_plan_drafts(program_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_reviews_status ON learning_parent_review_items(status, updated_at);
@@ -879,6 +903,7 @@ function createLearningProgramRepository(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_learning_reward_settlements_evaluation ON learning_reward_settlements(evaluation_id, updated_at);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_reward_settlements_unique_evaluation ON learning_reward_settlements(evaluation_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_reward_settlements_idempotency ON learning_reward_settlements(idempotency_key) WHERE idempotency_key <> '';
+      CREATE INDEX IF NOT EXISTS idx_learning_task_series_recommendations_latest ON learning_task_series_recommendations(learner_id, workspace_id, domain, created_at);
     `);
     ensureColumn("learning_task_cards", "reward_cap_coins", "reward_cap_coins INTEGER NOT NULL DEFAULT 100");
     const row = database.prepare("SELECT version FROM learning_schema_migrations WHERE version = ?").get(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION);
@@ -2266,7 +2291,46 @@ function createLearningProgramRepository(options = {}) {
       taskArtifacts: count("learning_task_artifacts"),
       reviewRequests: count("learning_parent_review_requests"),
       rewardSettlements: count("learning_reward_settlements"),
+      taskSeriesRecommendations: count("learning_task_series_recommendations"),
     };
+  }
+
+  function saveTaskSeriesRecommendation(recommendation = {}) {
+    migrate();
+    const createdAt = recommendation.createdAt || nowIso();
+    const id = cleanString(recommendation.recommendationRunId || recommendation.id) || `ltsr_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+    const row = Object.assign({}, stripPrivateLearningFields(recommendation) || {}, {
+      recommendationRunId: id,
+      createdAt,
+    });
+    open().prepare(`
+      INSERT INTO learning_task_series_recommendations(
+        id, learner_id, workspace_id, domain, model_status, requested_by_principal_id, raw_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      cleanString(row.learnerId),
+      cleanString(row.workspaceId),
+      cleanString(row.domain || "english"),
+      cleanString(row.modelStatus || "completed"),
+      cleanString(row.requestedByPrincipalId),
+      stableJson(row),
+      createdAt,
+    );
+    return publicTaskSeriesRecommendationFromRow(open().prepare("SELECT * FROM learning_task_series_recommendations WHERE id = ?").get(id));
+  }
+
+  function latestTaskSeriesRecommendation(filters = {}) {
+    migrate();
+    const learnerId = cleanString(filters.learnerId || filters.studentId);
+    const workspaceId = cleanString(filters.workspaceId);
+    const domain = cleanString(filters.domain || "english");
+    if (!learnerId || !workspaceId) return null;
+    return publicTaskSeriesRecommendationFromRow(open().prepare(`
+      SELECT * FROM learning_task_series_recommendations
+      WHERE learner_id = ? AND workspace_id = ? AND domain = ?
+      ORDER BY created_at DESC LIMIT 1
+    `).get(learnerId, workspaceId, domain));
   }
 
   function integritySummary() {
@@ -2301,6 +2365,7 @@ function createLearningProgramRepository(options = {}) {
     getTaskSubmission,
     integritySummary,
     latestDraftForProgram,
+    latestTaskSeriesRecommendation,
     listCurriculumReferences,
     listEvaluations,
     listGoals,
@@ -2329,6 +2394,7 @@ function createLearningProgramRepository(options = {}) {
     saveTaskArtifact,
     saveTaskReflection,
     saveTaskSubmission,
+    saveTaskSeriesRecommendation,
     upsertTaskCard,
     upsertCurriculumReference,
     upsertGoal,
@@ -2353,6 +2419,7 @@ module.exports = {
   publicReviewRequestFromRow,
   publicRewardSettlementFromRow,
   publicSourceFromRow,
+  publicTaskSeriesRecommendationFromRow,
   publicTaskArtifactFromRow,
   publicTaskCardFromRow,
   publicTaskReflectionFromRow,

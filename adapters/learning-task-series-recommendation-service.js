@@ -162,6 +162,7 @@ function buildRecommendationPrompt(summary = {}, templates = []) {
   return [
     "Analyze the learner's summary-only Growth history and recommend task series as strict JSON only.",
     "The response must first explain the learner state: current pattern, strengths, weaknesses, why the next card series is needed, and what the new series is intended to repair.",
+    "Write parent-facing analysis fields in Simplified Chinese: analysisSummary, weakSignals, riskFlags, rationale, and any explanation of why the series is recommended. English is allowed only inside learner-facing task content, titles, source labels, template ids, skill ids, or English practice requirements.",
     "Every recommendation must use exactly one templateId and one skillId from availableTemplates. Copy the templateId and skillId strings exactly. Do not invent templates or skills.",
     "Return at least one and at most three recommendedSeries items. If evidence is thin, still choose the safest registered review-only series and state the uncertainty in riskFlags.",
     "Do not include raw prompts, full learner answers, full transcripts, full reading passages, questions, answer keys, endpoints, local paths, or secrets.",
@@ -184,6 +185,7 @@ function buildRecommendationRepairPrompt(summary = {}, templates = [], previous 
     "Do not add deterministic fallback content. Use the previous learner analysis if useful, but the repaired output must contain at least one valid recommendedSeries item.",
     "Each recommendedSeries item must copy one templateId and one skillId exactly from availableTemplates. Do not invent names.",
     "The analysisSummary must describe: learner state, strengths, weaknesses, why this series should be opened, and the purpose of the next card series.",
+    "Write parent-facing analysis fields in Simplified Chinese: analysisSummary, weakSignals, riskFlags, rationale, and any explanation of why the series is recommended. English is allowed only inside learner-facing task content, titles, source labels, template ids, skill ids, or English practice requirements.",
     "Do not include raw learner answers, full transcripts, full reading passages, questions, answer keys, raw prompts, endpoints, local paths, or secrets.",
     "Return schema: {\"analysisSummary\":\"...\",\"weakSignals\":[\"...\"],\"recommendedSeries\":[{\"title\":\"...\",\"templateId\":\"...\",\"skillId\":\"...\",\"rationale\":\"...\",\"requirements\":\"...\",\"sequenceMode\":\"evergreen_jit\",\"durationDays\":28,\"daysPerWeek\":5,\"minutesPerDay\":30,\"recommendedReadingMinutes\":12,\"rewardCapCoins\":100,\"sourceSignalRefs\":[\"...\"]}],\"riskFlags\":[\"model_repair\"]}",
     JSON.stringify(payload),
@@ -389,11 +391,36 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
       throw normalizedAttempt.error;
     }
     const recommendation = normalizedAttempt.recommendation;
-    return Object.assign(recommendation, {
+    const result = Object.assign(recommendation, {
       workspaceId,
       learnerId,
+      domain,
+      generatedAt,
+      requestedByPrincipalId: cleanString(input.requestedByPrincipalId),
       availableTemplates: templates.map(templateSummary),
     });
+    if (typeof repository?.saveTaskSeriesRecommendation === "function") {
+      return repository.saveTaskSeriesRecommendation(result);
+    }
+    return result;
+  }
+
+  function latestTaskSeriesRecommendation(input = {}) {
+    const workspaceId = cleanString(input.workspaceId) || "weixin_stephen";
+    const learnerId = cleanString(input.learnerId || input.studentId) || workspaceId;
+    const domain = cleanString(input.domain) || "english";
+    const latest = typeof repository?.latestTaskSeriesRecommendation === "function"
+      ? repository.latestTaskSeriesRecommendation({ workspaceId, learnerId, domain })
+      : null;
+    return latest || {
+      ok: true,
+      privacyLevel: "summary_only",
+      workspaceId,
+      learnerId,
+      domain,
+      modelStatus: "not_generated",
+      recommendedSeries: [],
+    };
   }
 
   function programInputFromRecommendation(input = {}) {
@@ -435,6 +462,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
   }
 
   return {
+    latestTaskSeriesRecommendation,
     programInputFromRecommendation,
     recommendTaskSeries,
   };

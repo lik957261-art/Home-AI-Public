@@ -421,6 +421,7 @@ const state = {
   learningParentReportLoading: false,
   learningParentReportError: "",
   learningAiSummary: null,
+  learningAiSummaryScopeKey: "",
   learningAiSummaryLoading: false,
   learningAiSummaryError: "",
   learningAiSummaryProgress: "",

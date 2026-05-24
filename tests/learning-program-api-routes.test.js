@@ -118,6 +118,17 @@ function makeRoutes(overrides = {}) {
         recommendedSeries: [{ recommendationId: "rec-1", templateId: "english-speaking-retell-v1", skillId: "english_speaking_retell" }],
       };
     },
+    latestTaskSeriesRecommendation(input) {
+      calls.push(["latestTaskSeriesRecommendation", input]);
+      return {
+        ok: true,
+        privacyLevel: "summary_only",
+        recommendationRunId: "run-1",
+        workspaceId: input.workspaceId,
+        learnerId: input.learnerId,
+        recommendedSeries: [{ recommendationId: "rec-1", templateId: "english-speaking-retell-v1", skillId: "english_speaking_retell" }],
+      };
+    },
     async createRecommendedTaskSeriesDraft(input) {
       calls.push(["createRecommendedTaskSeriesDraft", input]);
       return {
@@ -282,7 +293,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 41);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 42);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -291,6 +302,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/recommendations/task-series" }).id, "learning-task-series-recommendations-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/recommendations/task-series" }).id, "learning-task-series-recommendations-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/recommendations/task-series/draft" }).id, "learning-task-series-recommendation-draft-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
@@ -308,7 +320,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 41);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 42);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -466,6 +478,12 @@ async function testAiRecommendationRoutesRequireOwnerAndCreateDraft() {
   assert.equal(recommendation.res.statusCode, 200);
   assert.equal(recommendation.body.privacyLevel, "summary_only");
   assert.equal(calls.at(-1)[0], "recommendTaskSeries");
+  assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
+
+  const latest = await request(routes, "GET", "/api/learning/recommendations/task-series?workspaceId=weixin_stephen&learnerId=weixin_stephen&domain=english");
+  assert.equal(latest.res.statusCode, 200);
+  assert.equal(latest.body.recommendationRunId, "run-1");
+  assert.equal(calls.at(-1)[0], "latestTaskSeriesRecommendation");
   assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
 
   const draft = await request(routes, "POST", "/api/learning/recommendations/task-series/draft", {

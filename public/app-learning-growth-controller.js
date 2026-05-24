@@ -115,7 +115,7 @@ function selectLearningGrowthTab(tabId) {
     const active = panel.dataset.learningGrowthTabPanel === id;
     panel.classList.toggle("active", active);
     panel.hidden = !active;
-  });
+  }); if (id === "ai-analysis") window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
 }
 
 function selectLearningGrowthBoardLane(laneId) {
@@ -140,7 +140,7 @@ function selectLearningGrowthBoardLane(laneId) {
 function openLearningGrowthSettingsPage() {
   state.learningGrowthSettingsOpen = true; state.learningGrowthActiveTab = state.learningGrowthActiveTab || "overview";
   state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
-  renderLearningCoinsView();
+  renderLearningCoinsView(); window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
 }
 
 function closeLearningGrowthSettingsPage() {

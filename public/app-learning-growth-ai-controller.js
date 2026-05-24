@@ -59,6 +59,7 @@
         body: JSON.stringify(Object.assign({}, body, { domain: "english", limit: 180, reasoningEffort: "medium" })),
         timeoutMs: 720000,
       });
+      state.learningAiSummaryScopeKey = `${body.workspaceId}:${body.learnerId}:english`;
       showPushToast("AI 总结已更新", "success");
     } catch (err) {
       state.learningAiSummaryError = friendlyLearningAiError(err);
@@ -67,6 +68,30 @@
       stopLearningAiProgress();
       state.learningAiSummaryProgress = "";
       state.learningAiSummaryLoading = false;
+      renderLearningCoinsView();
+    }
+  }
+
+  async function loadLatestLearningAiSummary(options = {}) {
+    if (!state.auth?.isOwner) return;
+    const body = learnerBody();
+    const scopeKey = `${body.workspaceId}:${body.learnerId}:english`;
+    if (!options.force && state.learningAiSummaryScopeKey === scopeKey) return;
+    state.learningAiSummaryScopeKey = scopeKey;
+    try {
+      const params = new URLSearchParams();
+      params.set("workspaceId", body.workspaceId);
+      params.set("learnerId", body.learnerId);
+      params.set("studentId", body.studentId);
+      params.set("domain", "english");
+      const latest = await api(`/api/learning/recommendations/task-series?${params.toString()}`, { timeoutMs: 30000 });
+      if (state.learningAiSummaryScopeKey !== scopeKey) return;
+      state.learningAiSummary = latest?.modelStatus === "not_generated" ? null : latest;
+      state.learningAiSummaryError = "";
+      renderLearningCoinsView();
+    } catch (err) {
+      if (state.learningAiSummaryScopeKey !== scopeKey) return;
+      state.learningAiSummaryError = friendlyLearningAiError(err);
       renderLearningCoinsView();
     }
   }
@@ -108,6 +133,7 @@
 
   root.HermesLearningGrowthAiController = {
     createLearningAiRecommendedDraft,
+    loadLatestLearningAiSummary,
     loadLearningAiSummaryRecommendations,
     wireLearningGrowthAi,
   };

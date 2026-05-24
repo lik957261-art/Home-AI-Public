@@ -684,6 +684,10 @@ function createLearningProgramService(options = {}) {
     return taskSeriesRecommendationService.recommendTaskSeries(input);
   }
 
+  function latestTaskSeriesRecommendation(input = {}) {
+    return taskSeriesRecommendationService.latestTaskSeriesRecommendation(input);
+  }
+
   async function createRecommendedTaskSeriesDraft(input = {}) {
     const programInput = taskSeriesRecommendationService.programInputFromRecommendation(input);
     const program = createProgram(programInput);
@@ -698,6 +702,7 @@ function createLearningProgramService(options = {}) {
     decideParentReviewRequest,
     decideReview,
     draftPlan,
+    latestTaskSeriesRecommendation,
     rebuildDraftPlan,
     recommendTaskSeries,
     generateParentReport,
