@@ -487,11 +487,14 @@ function Start-OwnerMaintenanceGateways {
   $sharedMemoryEnabled = OwnerMaintenanceSharedMemoryEnabled
   $sharedMemoryPath = "/home/$OfficialUser/.hermes/memories"
   $ownerMaintenanceLockPath = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
+  $bridgeKeyPath = "/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret"
   $commands = [System.Collections.ArrayList]@(
     "if [ -d $ownerMaintenanceLockPath ]; then rmdir $ownerMaintenanceLockPath 2>/dev/null || { echo owner_maintenance_memory_lock_busy >&2; exit 42; }; fi",
     "exec 9>$ownerMaintenanceLockPath",
     "flock -w 60 9 || { echo owner_maintenance_memory_lock_timeout >&2; exit 42; }",
     "trap 'flock -u 9' EXIT",
+    "windows_host_gateway=`$(ip route 2>/dev/null | awk '/^default[[:space:]]/ { print `$3; exit }')",
+    "if [ -n `"`${HERMES_MOBILE_BRIDGE_HOST_URL:-}`" ]; then mobile_bridge_host_url=`"$HERMES_MOBILE_BRIDGE_HOST_URL`"; elif [ -n `"`$windows_host_gateway`" ]; then mobile_bridge_host_url=`"http://`$windows_host_gateway`:8798`"; else mobile_bridge_host_url=`"http://127.0.0.1:8798`"; fi",
     "test -x $officialPython",
     "test -d $officialCleanRoot",
     "mkdir -p /home/$OfficialUser/.hermes/logs",
@@ -512,7 +515,7 @@ function Start-OwnerMaintenanceGateways {
     if ($sharedMemoryEnabled) {
       Add-OwnerMaintenanceSharedMemoryCommands -Commands $commands -ProfileRoot $profileRoot -ProfileMemoryPath $profileMemoryPath -SharedMemoryPath $sharedMemoryPath
     }
-    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
+    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_WEB_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
   }
   $bash = $commands -join "; "
 

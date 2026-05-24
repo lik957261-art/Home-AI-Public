@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from typing import Any
 
 
@@ -92,12 +94,72 @@ def _is_owner_maintenance_profile() -> bool:
     return enabled in {"1", "true", "yes", "on"}
 
 
+def _wsl_windows_host_gateway() -> str:
+    try:
+        output = subprocess.check_output(
+            ["/bin/sh", "-lc", "ip route 2>/dev/null | awk '/^default[[:space:]]/ { print $3; exit }'"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        ).strip()
+    except Exception:
+        return ""
+    return output if output.replace(".", "").isdigit() else ""
+
+
+def _bridge_host_base_url() -> str:
+    explicit = (
+        os.environ.get("HERMES_MOBILE_BRIDGE_HOST_URL")
+        or os.environ.get("HERMES_WEB_BRIDGE_HOST_URL")
+        or ""
+    ).strip().rstrip("/")
+    if _is_http_url(explicit):
+        return explicit
+    gateway = _wsl_windows_host_gateway()
+    if gateway:
+        return f"http://{gateway}:8798"
+    return "http://127.0.0.1:8798"
+
+
 def _bridge_url() -> str:
-    return (
+    value = (
         os.environ.get("HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL")
         or os.environ.get("HERMES_WEB_CHATGPT_PRO_BRIDGE_URL")
         or ""
     ).strip().rstrip("/")
+    if value.startswith("/"):
+        return f"{_bridge_host_base_url()}{value}"
+    return value
+
+
+def _is_http_url(value: str) -> bool:
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return False
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _read_text(path: str) -> str:
+    if not path:
+        return ""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read().strip()
+    except Exception:
+        return ""
+
+
+def _bridge_key() -> str:
+    return (
+        os.environ.get("HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY")
+        or os.environ.get("HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY")
+        or _read_text(os.environ.get("HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY_PATH", ""))
+        or _read_text(os.environ.get("HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY_PATH", ""))
+        or _read_text(os.environ.get("HERMES_MOBILE_BRIDGE_HOST_KEY_PATH", ""))
+        or _read_text(os.environ.get("HERMES_WEB_BRIDGE_HOST_KEY_PATH", ""))
+        or ""
+    ).strip()
 
 
 def _timeout_seconds() -> int:
@@ -133,14 +195,18 @@ def _safe_payload(args: dict[str, Any]) -> dict[str, Any]:
 
 def _post_bridge(url: str, payload: dict[str, Any]) -> dict[str, Any]:
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Content-Length": str(len(data)),
+        "User-Agent": "HermesMobileChatGPTPro/1.0",
+    }
+    key = _bridge_key()
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
     request = urllib.request.Request(
         url,
         data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Content-Length": str(len(data)),
-            "User-Agent": "HermesMobileChatGPTPro/1.0",
-        },
+        headers=headers,
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=_timeout_seconds()) as response:
@@ -165,6 +231,13 @@ def _chatgpt_pro_generate_handler(args: dict[str, Any], **_: Any) -> str:
             "tool": "chatgpt_pro_generate",
             "error": "chatgpt_pro_bridge_unconfigured",
             "message": "Set HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL to the local Codex/Chrome ChatGPT Pro bridge endpoint.",
+        })
+    if not _is_http_url(url):
+        return _json({
+            "ok": False,
+            "tool": "chatgpt_pro_generate",
+            "error": "chatgpt_pro_bridge_invalid_url",
+            "message": "HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL must be an absolute http(s) URL.",
         })
     try:
         result = _post_bridge(url, payload)

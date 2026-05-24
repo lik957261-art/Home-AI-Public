@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const assessmentExamService = require("../adapters/assessment-exam-service");
 const assessmentExamWorkflowService = require("../adapters/assessment-exam-workflow-service");
 const bridgeCommandProvider = require("../adapters/bridge-command-provider");
+const chatGptProCodexBridgeService = require("../adapters/chatgpt-pro-codex-bridge-service");
 const conversationHistoryService = require("../adapters/conversation-history-service");
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
@@ -187,6 +188,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof assessmentExamWorkflowService.createAssessmentExamWorkflowService, "function");
   assert.equal(typeof bridgeCommandProvider.createBridgeCommandProvider, "function");
   assert.equal(typeof bridgeCommandProvider.runJsonBridgeCommand, "function");
+  assert.equal(typeof chatGptProCodexBridgeService.createChatGptProCodexBridgeService, "function");
+  assert.equal(typeof chatGptProCodexBridgeService.buildCodexPrompt, "function");
   assert.equal(typeof conversationHistoryService.createConversationHistoryService, "function");
   assert.equal(typeof routeRegistry.createApiRouteRegistry, "function");
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");

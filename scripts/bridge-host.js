@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { createBridgeCommandProvider } = require("../adapters/bridge-command-provider");
+const { createChatGptProCodexBridgeService } = require("../adapters/chatgpt-pro-codex-bridge-service");
 
 const TOOL_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_TODO_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "todo_bridge.py");
@@ -16,6 +17,7 @@ const TIMEOUT_MS = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_TIMEOUT_MS || "2
 const STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_STDOUT_LIMIT_BYTES || "50000000");
 const KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
 const KEY = String(process.env.HERMES_MOBILE_BRIDGE_HOST_KEY || process.env.HERMES_WEB_BRIDGE_HOST_KEY || readText(KEY_PATH)).trim();
+const chatGptProBridge = createChatGptProCodexBridgeService();
 
 function readText(filePath) {
   if (!filePath) return "";
@@ -179,6 +181,20 @@ async function handle(req, res) {
     "/bridge/directory": "directory",
   };
   const kind = routeKinds[req.url || ""];
+  if (req.method === "POST" && req.url === "/bridge/chatgpt-pro") {
+    if (!authorized(req)) {
+      sendJson(res, 401, { error: "Unauthorized" });
+      return;
+    }
+    try {
+      const payload = await readBody(req);
+      const result = await chatGptProBridge.generate(payload);
+      sendJson(res, result.ok ? 200 : 502, result);
+    } catch (err) {
+      sendJson(res, err.status || 502, { ok: false, error: err.message || String(err) });
+    }
+    return;
+  }
   if (req.method !== "POST" || !kind) {
     sendJson(res, 404, { error: "Not found" });
     return;
