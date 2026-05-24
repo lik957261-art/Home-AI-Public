@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-ui-phase4-tools-v159";
+const CLIENT_VERSION = "20260524-ui-phase5-warm-white-v161";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -203,6 +203,17 @@ assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22p
 assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]*?justify-content: center;/);
 assert.match(stylesCss, /--ui-accent: #6b858c;/);
 assert.match(stylesCss, /--ui-accent-fill: rgba\(144, 166, 170, 0\.20\);/);
+assert.match(stylesCss, /--ui-page: #fbfaf7;/);
+assert.match(stylesCss, /--paper: #faf8f4;/);
+assert.match(stylesCss, /--accent: #6b858c;/);
+assert.match(stylesCss, /html,[\s\S]*?body \{[\s\S]*?background: var\(--ui-page\);/);
+assert.match(stylesCss, /\.app \{[\s\S]*?background: var\(--ui-page\);/);
+assert.match(stylesCss, /\.main \{[\s\S]*?background: var\(--ui-page\);/);
+assert.match(stylesCss, /\.boot-splash-mark \{[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.login-panel \{[\s\S]*?border-radius: 14px;[\s\S]*?box-shadow: 0 12px 30px rgba\(34, 28, 20, 0\.08\);/);
+assert.match(stylesCss, /\.section-toggle button\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.push-button \{[\s\S]*?background: var\(--ui-control-bg\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.access-key-sheet \{[\s\S]*?border-radius: 12px;[\s\S]*?box-shadow: 0 12px 30px rgba\(34, 28, 20, 0\.08\);/);
 assert.match(stylesCss, /\.bottom-tab\.active \{[\s\S]*?color: var\(--ui-accent\);/);
 assert.match(stylesCss, /\.bottom-tab\.active \.bottom-tab-icon \{[\s\S]*?background: var\(--ui-accent-soft\);[\s\S]*?transform: translateY\(-1px\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.topbar \{[\s\S]*?border-bottom-color: var\(--ui-hairline\);[\s\S]*?background: var\(--ui-chrome\);/);
@@ -222,7 +233,7 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-segment \{[\s\S]*?min-height: 30px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-header-button \{[\s\S]*?min-height: 26px;[\s\S]*?font-size: 15px !important;[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /\.chat-scope-header-button\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
-assert.match(stylesCss, /\.composer \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);[\s\S]*?background: rgba\(247, 244, 238, 0\.82\);/);
+assert.match(stylesCss, /\.composer \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);[\s\S]*?background: rgba\(251, 250, 247, 0\.84\);/);
 assert.match(stylesCss, /#sendMessage \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.composer-context-chip \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-control-bg\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
 assert.match(stylesCss, /\.top-more-menu \{[\s\S]*?border: 1px solid var\(--ui-hairline-strong\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.08\);/);

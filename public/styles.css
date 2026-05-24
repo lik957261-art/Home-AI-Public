@@ -1,19 +1,19 @@
 :root {
   color-scheme: light;
-  --paper: #f3efe7;
-  --paper-deep: #e8e0d3;
+  --paper: #faf8f4;
+  --paper-deep: #f0ece5;
   --panel: rgba(255, 252, 246, 0.84);
   --panel-strong: #fffaf1;
   --ink: #17212a;
   --muted: #6f7779;
   --line: rgba(31, 43, 51, 0.14);
   --line-strong: rgba(31, 43, 51, 0.24);
-  --accent: #1f6f62;
-  --accent-soft: rgba(63, 127, 114, 0.09);
-  --accent-mist: rgba(122, 199, 167, 0.16);
-  --ui-page: #f7f4ee;
-  --ui-chrome: rgba(247, 247, 247, 0.84);
-  --ui-surface: rgba(255, 252, 246, 0.72);
+  --accent: #6b858c;
+  --accent-soft: rgba(144, 166, 170, 0.14);
+  --accent-mist: rgba(144, 166, 170, 0.16);
+  --ui-page: #fbfaf7;
+  --ui-chrome: rgba(250, 250, 248, 0.86);
+  --ui-surface: rgba(255, 254, 250, 0.74);
   --ui-control-bg: rgba(255, 255, 255, 0.42);
   --ui-hairline: rgba(31, 43, 51, 0.055);
   --ui-hairline-strong: rgba(31, 43, 51, 0.10);
@@ -27,7 +27,7 @@
   --word-soft: rgba(53, 106, 160, 0.1);
   --gold: #9a6b2f;
   --danger: #a43d35;
-  --shadow: 0 28px 70px rgba(34, 28, 20, 0.16);
+  --shadow: 0 18px 44px rgba(34, 28, 20, 0.08);
   --radius: 18px;
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
   --app-font-scale: 1;
@@ -71,10 +71,7 @@ body {
   min-height: 100%;
   margin: 0;
   color: var(--ink);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(154, 107, 47, 0.12), transparent 28%),
-    radial-gradient(circle at 100% 18%, rgba(31, 111, 98, 0.13), transparent 30%),
-    linear-gradient(180deg, #faf6ed, var(--paper));
+  background: var(--ui-page);
 }
 
 html {
@@ -133,10 +130,11 @@ button {
   height: 54px;
   display: grid;
   place-items: center;
-  color: #fffaf1;
-  background: linear-gradient(160deg, #2d7b6d, #3f8e7e);
-  border-radius: 16px;
-  box-shadow: 0 18px 42px rgba(31, 111, 98, 0.18);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border: 1px solid rgba(144, 166, 170, 0.24);
+  border-radius: 14px;
+  box-shadow: none;
   font-size: 26px;
   font-weight: 600;
 }
@@ -170,7 +168,7 @@ button {
   display: block;
   width: 42%;
   height: 100%;
-  background: linear-gradient(90deg, rgba(31, 111, 98, 0.18), #3f8e7e);
+  background: var(--ui-accent);
   border-radius: inherit;
   animation: boot-splash-progress 1100ms var(--motion-snap) infinite;
 }
@@ -196,11 +194,11 @@ button {
   display: grid;
   gap: 14px;
   padding: 28px;
-  border: 1px solid var(--line);
-  border-radius: 26px;
-  background: rgba(255, 250, 241, 0.92);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 14px;
+  background: var(--ui-surface);
+  box-shadow: 0 12px 30px rgba(34, 28, 20, 0.08);
+  backdrop-filter: blur(12px);
 }
 
 .login-panel h1 {
@@ -272,9 +270,9 @@ button {
   display: grid;
   gap: 10px;
   padding: 12px;
-  background: var(--accent-mist);
-  border: 1px solid rgba(31, 111, 98, 0.22);
-  border-radius: 14px;
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
 }
 
 .setup-result-label {
@@ -308,10 +306,7 @@ button {
   position: relative;
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(154, 107, 47, 0.12), transparent 28%),
-    radial-gradient(circle at 100% 18%, rgba(31, 111, 98, 0.13), transparent 30%),
-    linear-gradient(180deg, #faf6ed, var(--paper));
+  background: var(--ui-page);
   overflow: hidden;
   touch-action: pan-y;
 }
@@ -324,9 +319,9 @@ button {
   gap: 10px;
   padding: 16px;
   font-size: 14px;
-  border-right: 1px solid var(--line);
-  background: rgba(244, 237, 225, 0.82);
-  backdrop-filter: blur(18px);
+  border-right: 1px solid var(--ui-hairline);
+  background: rgba(251, 250, 247, 0.88);
+  backdrop-filter: blur(12px);
   overflow-x: hidden;
   overflow-y: scroll;
   overscroll-behavior: contain;
@@ -380,9 +375,9 @@ button {
 }
 
 .client-version.update-available {
-  color: #0f6c5b;
-  background: rgba(207, 244, 232, 0.82);
-  border: 1px solid rgba(31, 111, 98, 0.2);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
 }
 
 .eyebrow,
@@ -414,7 +409,7 @@ button {
 
 .workspace-access-panel summary {
   padding: 8px 10px;
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -593,9 +588,9 @@ button {
 }
 
 .workspace-permission-primary {
-  color: #fffaf1;
-  background: var(--accent);
-  border: 0;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border: 1px solid rgba(144, 166, 170, 0.28);
 }
 
 .workspace-permission-secondary {
@@ -609,9 +604,9 @@ button {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.32);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-control-bg);
 }
 
 .section-toggle button {
@@ -626,9 +621,9 @@ button {
 }
 
 .section-toggle button.active {
-  color: #fffaf1;
-  background: var(--accent);
-  box-shadow: 0 8px 18px rgba(31, 111, 98, 0.16);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  box-shadow: none;
 }
 
 .mode-toggle {
@@ -636,9 +631,9 @@ button {
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.36);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-control-bg);
 }
 
 .mode-toggle button {
@@ -652,9 +647,9 @@ button {
 }
 
 .mode-toggle button.active {
-  color: #fffaf1;
-  background: var(--accent);
-  box-shadow: 0 8px 18px rgba(31, 111, 98, 0.16);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  box-shadow: none;
 }
 
 .bottom-nav {
@@ -903,25 +898,23 @@ button {
   place-items: center;
   font-size: 14px;
   line-height: 1;
-  color: #1e5d53;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 246, 0.62)),
-    rgba(122, 199, 167, 0.12);
-  border: 1px solid rgba(31, 111, 98, 0.18);
+  color: var(--ui-accent-ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
   font-weight: 600;
-  box-shadow: 0 8px 18px rgba(31, 111, 98, 0.08);
+  box-shadow: none;
 }
 
 .push-button.enabled {
-  color: var(--accent);
-  border-color: rgba(31, 111, 98, 0.26);
+  color: var(--ui-accent-ink);
+  border-color: rgba(144, 166, 170, 0.28);
 }
 
 .push-button.active {
-  color: #fffaf1;
-  background: var(--accent);
-  border-color: rgba(31, 111, 98, 0.28);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(144, 166, 170, 0.32);
 }
 
 .push-button.warning,
@@ -1026,12 +1019,12 @@ button {
   min-height: 36px;
   font-size: 15px;
   flex: 0 0 auto;
-  color: var(--accent);
-  background: rgba(255, 250, 241, 0.72);
-  border: 1px solid rgba(31, 111, 98, 0.22);
-  border-radius: 14px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
   font-weight: 600;
-  box-shadow: 0 8px 20px rgba(34, 28, 20, 0.08);
+  box-shadow: none;
 }
 
 .thread-card {
@@ -1172,10 +1165,7 @@ button {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  background:
-    radial-gradient(circle at 18% 0%, rgba(154, 107, 47, 0.10), transparent 28%),
-    radial-gradient(circle at 100% 18%, rgba(31, 111, 98, 0.11), transparent 30%),
-    linear-gradient(180deg, #faf6ed, var(--paper));
+  background: var(--ui-page);
   will-change: transform;
   touch-action: pan-y;
 }
@@ -1315,12 +1305,12 @@ button {
   max-width: min(520px, calc(100vw - 32px));
   padding: 10px 12px 10px 14px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.96);
-  border: 1px solid var(--line-strong);
-  border-radius: 16px;
-  box-shadow: 0 18px 44px rgba(34, 28, 20, 0.18);
+  background: rgba(255, 252, 246, 0.98);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
   transform: translateX(-50%);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(12px);
 }
 
 .refresh-notice span {
@@ -1340,9 +1330,9 @@ button {
 }
 
 .refresh-notice-primary {
-  color: #fffaf1;
-  background: var(--accent);
-  border: 0;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border: 1px solid rgba(144, 166, 170, 0.28);
 }
 
 .refresh-notice-secondary {
@@ -1358,13 +1348,13 @@ button {
   z-index: 91;
   max-width: min(460px, calc(100vw - 32px));
   padding: 10px 14px;
-  color: #315f55;
+  color: var(--ui-accent-ink);
   background: rgba(255, 252, 246, 0.97);
-  border: 1px solid rgba(63, 127, 114, 0.20);
-  border-radius: 14px;
-  box-shadow: 0 18px 42px rgba(34, 28, 20, 0.16);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
   transform: translateX(-50%);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(12px);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
@@ -1372,9 +1362,9 @@ button {
 }
 
 .push-toast.success {
-  color: #1f6f62;
-  border-color: rgba(31, 111, 98, 0.28);
-  background: rgba(246, 252, 246, 0.97);
+  color: var(--ui-accent-ink);
+  border-color: rgba(144, 166, 170, 0.28);
+  background: rgba(255, 252, 246, 0.98);
 }
 
 .push-toast.error {
@@ -4441,10 +4431,10 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 12px;
   padding: 14px;
-  background: rgba(255, 252, 246, 0.96);
-  border: 1px solid rgba(31, 43, 51, 0.14);
-  border-radius: 18px;
-  box-shadow: var(--shadow);
+  background: rgba(255, 252, 246, 0.98);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(34, 28, 20, 0.08);
 }
 
 .pwa-install-sheet {
@@ -4502,9 +4492,9 @@ body.task-markdown-preview-open {
   gap: 12px;
   align-items: center;
   padding: 12px;
-  background: rgba(31, 111, 98, 0.07);
-  border: 1px solid rgba(31, 111, 98, 0.15);
-  border-radius: 14px;
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
 }
 
 .pwa-install-icon {
@@ -4512,30 +4502,31 @@ body.task-markdown-preview-open {
   height: 54px;
   display: grid;
   place-items: center;
-  color: #fffaf1;
-  background: var(--accent);
-  border-radius: 14px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border: 1px solid rgba(144, 166, 170, 0.24);
+  border-radius: 12px;
   font-size: 25px;
   font-weight: 600;
-  box-shadow: 0 10px 24px rgba(31, 111, 98, 0.18);
+  box-shadow: none;
 }
 
 .pwa-install-primary {
   width: 100%;
   min-height: 42px;
-  color: #fffaf1;
-  background: var(--accent);
-  border: 0;
-  border-radius: 12px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border: 1px solid rgba(144, 166, 170, 0.28);
+  border-radius: 10px;
   font-size: 15px;
   font-weight: 560;
 }
 
 .pwa-install-instructions {
   padding: 12px;
-  background: rgba(255, 250, 241, 0.74);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
 }
 
 .settings-sheet {
@@ -10834,7 +10825,7 @@ body.task-markdown-preview-open {
   gap: 6px;
   padding: 9px 14px calc(9px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--ui-hairline);
-  background: rgba(247, 244, 238, 0.82);
+  background: rgba(251, 250, 247, 0.84);
   backdrop-filter: blur(14px);
 }
 
