@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-mobile-top-title-size-v144";
+const CLIENT_VERSION = "20260524-preview-borderless-title-v146";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -181,6 +181,8 @@ assert.match(appJs, /function forwardFileLinkToGroup\(sourceUrl, title\)/);
 assert.match(appJs, /\/api\/weixin\/forward-file/);
 assert.match(stylesCss, /\.task-preview-more-menu \{[\s\S]*?z-index: 1211;[\s\S]*?pointer-events: auto;[\s\S]*?background: #fffaf3;[\s\S]*?font: 650 13px\/1\.3 var\(--font-sans\);/);
 assert.match(stylesCss, /\.task-markdown-preview-head \{[\s\S]*?position: relative;[\s\S]*?z-index: 3;/);
+assert.match(stylesCss, /\.task-markdown-preview-overlay \{[\s\S]*?padding: 0;[\s\S]*?background: #fff;/);
+assert.match(stylesCss, /\.task-markdown-preview-shell \{[\s\S]*?width: 100%;[\s\S]*?height: 100%;[\s\S]*?border: 0;[\s\S]*?border-radius: 0;[\s\S]*?box-shadow: none;/);
 assert.match(appJs, /const PREVIEW_HISTORY_KEY = "__hermesTaskPreview"/);
 assert.match(appJs, /global\.addEventListener\("popstate"/);
 assert.match(appJs, /global\.history\.pushState\(nextState/);
@@ -200,6 +202,7 @@ assert.match(stylesCss, /\.directory-alias-icon\.learning-growth-board-artifact-
 assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?min-height: 22px;[\s\S]*?font-size: 14px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 14px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 14px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font-size\] \.thread-title,[\s\S]*?:root\[data-font-size\] \.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?font-size: calc\(14px \* var\(--app-font-scale\)\);[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);
