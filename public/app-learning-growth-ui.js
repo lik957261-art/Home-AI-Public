@@ -429,8 +429,7 @@
         <span><small>30日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
         <span><small>待结算</small><strong>${escapeHtml(String(counts.pendingRewardSettlements || 0))}</strong></span>
       </div>
-      ${programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions)}
-      ${coinsHtml ? `<div class="learning-settings-overview-coins">${coinsHtml}</div>` : ""}
+      ${programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, Object.assign({}, programOptions, { compactOwnerSettings: true }))}
     </section>`;
   }
 

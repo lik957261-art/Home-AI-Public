@@ -7934,35 +7934,40 @@ body.task-markdown-preview-open {
 
 .learning-growth-settings-page {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .learning-growth-settings-head {
   position: sticky;
   top: 0;
   z-index: 3;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 0 8px;
-  background: var(--bg);
+  gap: 12px;
+  padding: 8px 0 8px;
+  border-bottom: 1px solid var(--ui-hairline);
+  background: rgba(247, 248, 247, 0.94);
+  backdrop-filter: blur(12px);
 }
 
 .learning-growth-settings-head button {
-  min-height: 38px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
 .learning-growth-settings-head div {
   min-width: 0;
   display: grid;
-  gap: 2px;
-  text-align: right;
+  gap: 1px;
+  text-align: left;
 }
 
 .learning-growth-settings-head strong {
   color: var(--ink);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
 }
 
@@ -8966,16 +8971,19 @@ body.task-markdown-preview-open {
 }
 
 .learning-growth-settings-tabs .learning-growth-tab-list {
-  top: 58px;
+  top: 51px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
 }
 
 .learning-growth-tab-list button {
-  min-height: 38px;
+  min-height: 34px;
   border: 1px solid transparent;
   border-radius: 6px;
   color: var(--muted);
   background: transparent;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -9021,19 +9029,27 @@ body.task-markdown-preview-open {
   background: var(--ui-surface);
 }
 
+.learning-growth-settings-page .learning-settings-kpi-grid span,
+.learning-growth-settings-page .learning-settings-reward-rows span {
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
 .learning-settings-kpi-grid small,
 .learning-settings-reward-rows small {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .learning-settings-kpi-grid strong,
 .learning-settings-reward-rows strong {
   overflow: hidden;
   color: var(--ink);
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 800;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -9484,6 +9500,100 @@ body.task-markdown-preview-open {
   background: rgba(31, 111, 98, 0.07);
   font-size: 13px;
   font-weight: 800;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary {
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary .learning-section-heading {
+  margin-bottom: 0;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary .learning-section-heading h3 {
+  font-size: 18px;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary .learning-program-report-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary .learning-program-report-grid span {
+  gap: 1px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary .learning-program-report-grid strong {
+  font-size: 18px;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary .learning-program-report-grid small {
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary .learning-launch-next-actions {
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 6px;
+}
+
+.learning-launch-operations-panel.is-owner-settings-summary .learning-launch-next-actions span {
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.learning-launch-queue-compact {
+  gap: 8px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--ui-hairline);
+}
+
+.learning-launch-queue-compact summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.learning-launch-queue-compact summary::-webkit-details-marker {
+  display: none;
+}
+
+.learning-launch-queue-compact summary strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.learning-launch-queue-compact summary span {
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--ui-accent-ink);
+  background: rgba(86, 132, 140, 0.1);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.learning-launch-queue-compact .learning-program-review-list {
+  margin-top: 6px;
+}
+
+.learning-launch-queue-compact .learning-program-review-item {
+  padding: 9px 10px;
+  border-radius: 8px;
 }
 
 .learning-program-task-list,
@@ -12461,6 +12571,44 @@ body.task-markdown-preview-open {
 :root[data-font-size] .sidebar .workspace-permission-select,
 :root[data-font-size] .sidebar .workspace-permission-actions button {
   font-size: 10.75px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-growth-settings-head button {
+  font-size: 13px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-growth-settings-head strong {
+  font-size: 17px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-growth-settings-head span {
+  font-size: 12px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-growth-tab-list button {
+  font-size: 13px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-settings-kpi-grid strong,
+:root[data-font-size] .learning-growth-settings-page .learning-settings-reward-rows strong,
+:root[data-font-size] .learning-growth-settings-page .learning-program-report-grid strong {
+  font-size: 18px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-settings-kpi-grid small,
+:root[data-font-size] .learning-growth-settings-page .learning-settings-reward-rows small,
+:root[data-font-size] .learning-growth-settings-page .learning-program-report-grid small {
+  font-size: 12px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-launch-next-actions span,
+:root[data-font-size] .learning-growth-settings-page .learning-launch-queue-compact summary strong,
+:root[data-font-size] .learning-growth-settings-page .learning-program-review-item p {
+  font-size: 12px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-program-review-item strong {
+  font-size: 13px;
 }
 
 .chat-history-pager {

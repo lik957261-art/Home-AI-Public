@@ -1412,19 +1412,28 @@
 
   function renderLaunchQueue(title, items = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    const list = asArray(items).slice(0, 4);
+    const sourceItems = asArray(items);
+    const compact = Boolean(options.compactOwnerSettings);
+    const list = sourceItems.slice(0, compact ? 3 : 4);
     if (!list.length) return "";
+    const body = `<div class="learning-program-review-list">
+      ${list.map((item) => `<article class="learning-program-review-item" data-learning-launch-operation-item="${escapeHtml(item.resourceType || item.type || "")}:${escapeHtml(item.resourceId || "")}">
+        <div>
+          <strong>${escapeHtml(item.title || item.resourceId || item.resourceType || "")}</strong>
+          <p>${escapeHtml(operationReasonText(item.reasonCode))}</p>
+        </div>
+        <span class="learning-program-status-chip">${escapeHtml(item.priority || item.status || "normal")}</span>
+      </article>`).join("")}
+    </div>`;
+    if (compact) {
+      return `<details class="learning-launch-queue learning-launch-queue-compact">
+        <summary><strong>${escapeHtml(title)}</strong><span>${escapeHtml(String(sourceItems.length))}</span></summary>
+        ${body}
+      </details>`;
+    }
     return `<div class="learning-launch-queue">
       <strong>${escapeHtml(title)}</strong>
-      <div class="learning-program-review-list">
-        ${list.map((item) => `<article class="learning-program-review-item" data-learning-launch-operation-item="${escapeHtml(item.resourceType || item.type || "")}:${escapeHtml(item.resourceId || "")}">
-          <div>
-            <strong>${escapeHtml(item.title || item.resourceId || item.resourceType || "")}</strong>
-            <p>${escapeHtml(operationReasonText(item.reasonCode))}</p>
-          </div>
-          <span class="learning-program-status-chip">${escapeHtml(item.priority || item.status || "normal")}</span>
-        </article>`).join("")}
-      </div>
+      ${body}
     </div>`;
   }
 
@@ -1433,10 +1442,11 @@
     if (!isOwner(options) || !launchOperations || typeof launchOperations !== "object") return "";
     const counts = launchOperations.counts || {};
     const queues = launchOperations.queues || {};
-    const nextActions = asArray(launchOperations.nextActions).slice(0, 5);
-    return `<section class="learning-coin-panel learning-launch-operations-panel" data-learning-launch-operations data-launch-status="${escapeHtml(launchOperations.status || "")}">
+    const nextActions = asArray(launchOperations.nextActions).slice(0, options.compactOwnerSettings ? 3 : 5);
+    const compact = Boolean(options.compactOwnerSettings);
+    return `<section class="learning-coin-panel learning-launch-operations-panel${compact ? " is-owner-settings-summary" : ""}" data-learning-launch-operations data-launch-status="${escapeHtml(launchOperations.status || "")}">
       <div class="learning-section-heading">
-        <h3>4. \u751f\u6210\u8ba1\u5212\u5e76\u5ba1\u6838</h3>
+        <h3>${compact ? "\u5f85\u5904\u7406" : "4. \u751f\u6210\u8ba1\u5212\u5e76\u5ba1\u6838"}</h3>
         <span>${escapeHtml(launchStatusText(launchOperations.status))}</span>
       </div>
       <div class="learning-program-report-grid">

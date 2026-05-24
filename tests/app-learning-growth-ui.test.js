@@ -476,6 +476,10 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.match(html, /data-learning-growth-tab="ai-analysis" aria-selected="true" class="active"/);
   assert.match(html, /data-learning-growth-tab-panel="overview" role="tabpanel" hidden/);
   assert.match(html, /data-learning-growth-tab-panel="ai-analysis" role="tabpanel">\s*<section/);
+  const overviewPanel = html.match(/data-learning-growth-tab-panel="overview"[\s\S]*?data-learning-growth-tab-panel="tasks"/)?.[0] || "";
+  assert.match(overviewPanel, /is-owner-settings-summary/);
+  assert.match(overviewPanel, /learning-launch-queue-compact/);
+  assert.doesNotMatch(overviewPanel, /data-learning-growth-module="coins"/);
   assert.match(html, /data-learning-ai-summary-recommendations/);
   assert.match(html, /data-learning-ai-summary-refresh/);
   assert.match(html, /data-learning-ai-recommendation-draft="rec-1"/);

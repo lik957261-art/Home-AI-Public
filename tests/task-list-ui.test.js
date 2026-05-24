@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-sidebar-menu-type-v187";
+const CLIENT_VERSION = "20260524-growth-owner-settings-v188";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -283,9 +283,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-sidebar-menu-type-v187/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-sidebar-menu-type-v187/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-sidebar-menu-type-v187/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-owner-settings-v188/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-owner-settings-v188/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-owner-settings-v188/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1284,6 +1284,8 @@ assert.match(appLearningGrowthUiJs, /\{ id: "ai-analysis"/);
 assert.match(appLearningGrowthUiJs, /data-learning-ai-summary-recommendations/);
 assert.match(appLearningGrowthUiJs, /data-learning-ai-recommendation-draft/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-settings-page/);
+assert.match(appLearningGrowthUiJs, /compactOwnerSettings: true/);
+assert.doesNotMatch(appLearningGrowthUiJs, /learning-settings-overview-coins/);
 assert.match(appLearningGrowthUiJs, /data-learning-open-settings-task/);
 assert.match(appLearningGrowthUiJs, /data-learning-settings-task-detail/);
 assert.match(appLearningGrowthUiJs, /data-learning-settings-reward-stats/);
@@ -1358,6 +1360,9 @@ assert.match(stylesCss, /\.learning-program-task-actions/);
 assert.match(stylesCss, /\.learning-native-growth-submission-form/);
 assert.match(stylesCss, /\.learning-growth-settings-page/);
 assert.match(stylesCss, /\.learning-growth-settings-head/);
+assert.match(stylesCss, /\.learning-launch-operations-panel\.is-owner-settings-summary/);
+assert.match(stylesCss, /\.learning-launch-queue-compact summary/);
+assert.match(stylesCss, /:root\[data-font-size\] \.learning-growth-settings-page \.learning-growth-tab-list button/);
 assert.match(indexHtml, /id="topLearningSettings"/);
 assert.equal(indexHtml.includes('id="topLearningNewTask"'), false);
 assert.equal(indexHtml.includes('id="topLearningRewards"'), false);
