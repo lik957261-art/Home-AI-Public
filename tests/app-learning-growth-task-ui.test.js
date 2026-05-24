@@ -78,6 +78,27 @@ function testFeedbackHistoryPrioritizesReflectionGate() {
   assert.match(html, /\u590d\u76d8\u901a\u8fc7\u540e\u518d\u7ed3\u7b97/);
 }
 
+function testFeedbackHistoryDistinguishesThreeSeriousAttemptCompletion() {
+  const html = TaskUi.renderFeedbackHistory({}, {
+    status: "reflection_required",
+    nextStep: "spoken_reflection_required",
+    passed: true,
+    score: 55,
+    finalPassingScore: 80,
+    completionDecision: "complete_current_card",
+    completionPolicy: {
+      attemptNo: 3,
+      threeSeriousSubmissionsComplete: true,
+    },
+  });
+  assert.match(html, /\u4e09\u6b21\u8ba4\u771f\u63d0\u4ea4\u5df2\u5b8c\u6210/);
+  assert.match(html, /\u786e\u5b9a\u5206\u6570 55\/100/);
+  assert.match(html, /\u771f\u5b9e\u5206/);
+  assert.match(html, /\u540e\u7eed\u7ec3\u4e60/);
+  assert.doesNotMatch(html, /80 \u5206\u7ebf/);
+  assert.doesNotMatch(html, /\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807/);
+}
+
 testNewEnglishTemplateActivityLabels();
 testNewEnglishTemplateSubmissionPrompts();
 testSpokenReflectionActionLabel();
@@ -85,4 +106,5 @@ testWritingSubmissionGuardAndLiveLabel();
 testRevisionPromptLeavesReflectionToRecorder();
 testFeedbackHistoryRendersOutcomeAndReports();
 testFeedbackHistoryPrioritizesReflectionGate();
+testFeedbackHistoryDistinguishesThreeSeriousAttemptCompletion();
 console.log("app learning growth task UI tests passed");

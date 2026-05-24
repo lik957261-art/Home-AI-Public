@@ -208,8 +208,8 @@ function updateMobileBottomNavReservation() {
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
   const compact = isMobileLandscapeCompactLayout();
   const reserve = compact
-    ? Math.max(58, rectHeight + 4, contentHeight + 4)
-    : Math.max(76, rectHeight + 4, contentHeight + 4);
+    ? Math.max(58, rectHeight + 8, contentHeight + 8)
+    : Math.max(76, rectHeight + 10, contentHeight + 10);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
 }
 

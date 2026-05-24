@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-preview-pdf-tabbar-v173";
+const CLIENT_VERSION = "20260524-growth-pdf-composer-v175";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -167,7 +167,8 @@ assert.match(stylesCss, /\.task-markdown-preview-shell \{[\s\S]*?width: 100%;[\s
 assert.match(appJs, /const PREVIEW_HISTORY_KEY = "__hermesTaskPreview"/);
 assert.match(appJs, /global\.addEventListener\("popstate"/);
 assert.match(appJs, /global\.history\.pushState\(nextState/);
-assert.match(appJs, /const historyActive = isPreviewHistoryActive\(\);[\s\S]*?closeFn\(\);[\s\S]*?global\.history\.back\(\);/);
+assert.match(appJs, /const historyActive = isPreviewHistoryActive\(\);[\s\S]*?global\.history\.back\(\);[\s\S]*?closeFn\(\);/);
+assert.match(appJs, /event\?\.stopImmediatePropagation\?\.\(\);[\s\S]*?event\?\.stopPropagation\?\.\(\);[\s\S]*?\}, \{ capture: true \}\);/);
 assert.match(appJs, /function closeActivePreviewFromUser\(\)/);
 assert.match(appJs, /const previewOpen = Boolean\(previewUi\.hasArtifactPreviewOverlay\?\.\(\)\)/);
 assert.match(appJs, /current\.target === "artifact-preview"/);
@@ -260,11 +261,12 @@ assert.match(pdfViewerHtml, /\.pdf-scroll \{[\s\S]*?overflow-x: auto;[\s\S]*?tou
 assert.match(pdfViewerHtml, /const EDGE_BACK_SWIPE_PX = 38/);
 assert.match(pdfViewerHtml, /function pdfDeviceClass\(width = viewportWidth\(\)\)/);
 assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
+assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-preview-pdf-tabbar-v173/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-preview-pdf-tabbar-v173/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-preview-pdf-tabbar-v173/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-pdf-composer-v175/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-pdf-composer-v175/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-pdf-composer-v175/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1528,7 +1530,7 @@ assert.match(singleWindowGroupChatApiRoutes, /weixinChatThreadId/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThread/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(58px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height/);
-assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 4px\)/);
+assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 10px\)/);
 assert.match(stylesCss, /\.app\.main-back-visible \{[\s\S]*?padding-bottom: 0/);
 assert.match(stylesCss, /\.main-back-visible \.bottom-nav \{[\s\S]*?display: none/);
 assert.match(stylesCss, /\.topbar \{[\s\S]*?min-height: calc\(44px \+ env\(safe-area-inset-top\)\)/);
@@ -1537,13 +1539,13 @@ assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?line-height: 1\.05/);
 assert.match(stylesCss, /\.top-nav-button\.back-mode \.top-nav-button-glyph \{[\s\S]*?background: transparent[\s\S]*?font-size: 27px/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(50px \+ env\(safe-area-inset-bottom\)\)/);
-assert.match(stylesCss, /--mobile-bottom-nav-reserved-height-runtime, calc\(var\(--mobile-bottom-nav-height\) \+ 4px\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-reserved-height-runtime, calc\(var\(--mobile-bottom-nav-height\) \+ 8px\)/);
 assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.thread-meta \{[\s\S]*?display: none;/);
 assert.match(appJs, /function isMobileLandscapeCompactLayout\(\)/);
 assert.match(appJs, /window\.matchMedia\("\(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\)"\)/);
-assert.match(appJs, /Math\.max\(58, rectHeight \+ 4, contentHeight \+ 4\)/);
-assert.match(appJs, /Math\.max\(76, rectHeight \+ 4, contentHeight \+ 4\)/);
+assert.match(appJs, /Math\.max\(58, rectHeight \+ 8, contentHeight \+ 8\)/);
+assert.match(appJs, /Math\.max\(76, rectHeight \+ 10, contentHeight \+ 10\)/);
 assert.match(indexHtml, /id="topToggleReadingFullscreen"/);
 assert.match(indexHtml, /id="readingFullscreenEnter"/);
 assert.match(indexHtml, /id="readingFullscreenExit"/);

@@ -191,7 +191,6 @@
 
   function closePreviewFromUser(closeFn) {
     const historyActive = isPreviewHistoryActive();
-    closeFn();
     if (historyActive && global.history?.back) {
       try {
         global.history.back();
@@ -200,6 +199,7 @@
         // Fall through and clear the marker if the browser refuses history.back().
       }
     }
+    closeFn();
     if (historyActive) {
       try {
         const nextState = { ...(global.history.state || {}) };
@@ -240,10 +240,12 @@
     closeDocumentPreviewOverlay();
   }
 
-  global.addEventListener("popstate", () => {
+  global.addEventListener("popstate", (event) => {
     if (!hasArtifactPreviewOverlay()) return;
     closeArtifactPreviewOverlays();
-  });
+    event?.stopImmediatePropagation?.();
+    event?.stopPropagation?.();
+  }, { capture: true });
 
   function isImagePreviewLink(link) {
     const mime = String(link?.dataset?.artifactMime || "").toLowerCase();

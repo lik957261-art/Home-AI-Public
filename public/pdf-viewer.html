@@ -541,6 +541,7 @@
       const unitViewport = page.getViewport({ scale: 1 });
       const portrait = unitViewport.height >= unitViewport.width;
       const deviceClass = pdfDeviceClass(width);
+      if (embedded && deviceClass === "phone") return width;
       if (deviceClass === "phone") {
         const multiplier = portrait ? (width <= 430 ? 1.46 : 1.38) : 1.16;
         return Math.min(860, Math.round(width * multiplier));

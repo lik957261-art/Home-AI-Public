@@ -35,7 +35,7 @@
   --app-font-scale: 1;
   --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
   --mobile-bottom-nav-height: calc(58px + env(safe-area-inset-bottom));
-  --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 4px));
+  --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
   font-family: var(--app-font-family);
 }
 
@@ -11743,7 +11743,7 @@ body.task-markdown-preview-open {
 @media (max-width: 1099px) and (orientation: landscape) and (max-height: 620px) {
   :root {
     --mobile-bottom-nav-height: calc(50px + env(safe-area-inset-bottom));
-    --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 4px));
+    --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 8px));
   }
 
   .topbar {

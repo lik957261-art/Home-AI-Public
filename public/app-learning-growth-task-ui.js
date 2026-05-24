@@ -170,7 +170,22 @@
     const status = String(evaluation.status || "").trim();
     const nextStep = String(evaluation.nextStep || interactionState.nextStep || "").trim();
     const passLine = Number(evaluation.finalPassingScore || evaluation.passingScore || interactionState.finalPassingScore || 80) || 80;
-    if (nextStep === "spoken_reflection_required" || status === "reflection_required" || interactionState.requiresReflection || interactionState.canSubmitReflection) return { kind: "reflection", title: "\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807\uff0c\u5f85\u5f55\u97f3\u590d\u76d8", body: `\u6700\u7ec8\u5206\u6570\u5df2\u8fbe\u5230 ${passLine} \u5206\u7ebf\uff0c\u5148\u770b\u672c\u9875\u6700\u8fd1\u6279\u6539\u548c\u590d\u76d8\u63d0\u793a\uff0c\u518d\u7528\u5f55\u97f3\u8bf4\u660e\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u6539\u8fdb\u3002\u590d\u76d8\u901a\u8fc7\u540e\u518d\u7ed3\u7b97\u5206\u6570\u548c\u91d1\u5e01\u3002` };
+    const score = Number(evaluation.score);
+    const scoreReachedPassLine = Number.isFinite(score) && score >= passLine;
+    const completionPolicy = Object.assign({}, interactionState.completionPolicy || {}, evaluation.completionPolicy || {});
+    const completionDecision = String(evaluation.completionDecision || interactionState.completionDecision || "").trim();
+    const completedBySeriousAttempts = completionPolicy.threeSeriousSubmissionsComplete === true
+      || (completionDecision === "complete_current_card" && Number(completionPolicy.attemptNo || 0) >= 3);
+    if (nextStep === "spoken_reflection_required" || status === "reflection_required" || interactionState.requiresReflection || interactionState.canSubmitReflection) {
+      if (completedBySeriousAttempts || !scoreReachedPassLine) {
+        return {
+          kind: "reflection",
+          title: "\u4e09\u6b21\u8ba4\u771f\u63d0\u4ea4\u5df2\u5b8c\u6210\uff0c\u5f85\u5f55\u97f3\u590d\u76d8",
+          body: "\u672c\u5361\u6309\u4e09\u6b21\u8ba4\u771f\u63d0\u4ea4\u673a\u5236\u8fdb\u5165\u590d\u76d8\uff1b\u786e\u5b9a\u5206\u6570\u4ecd\u4fdd\u7559\u4e3a\u672c\u9875\u663e\u793a\u7684\u771f\u5b9e\u5206\u3002\u5f55\u97f3\u590d\u76d8\u63d0\u4ea4\u540e\u5b8c\u6210\u7ed3\u7b97\uff0c\u8584\u5f31\u70b9\u4f1a\u8fdb\u5165\u540e\u7eed\u7ec3\u4e60\u3002",
+        };
+      }
+      return { kind: "reflection", title: "\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807\uff0c\u5f85\u5f55\u97f3\u590d\u76d8", body: `\u6700\u7ec8\u5206\u6570\u5df2\u8fbe\u5230 ${passLine} \u5206\u7ebf\uff0c\u5148\u770b\u672c\u9875\u6700\u8fd1\u6279\u6539\u548c\u590d\u76d8\u63d0\u793a\uff0c\u518d\u7528\u5f55\u97f3\u8bf4\u660e\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u6539\u8fdb\u3002\u590d\u76d8\u901a\u8fc7\u540e\u518d\u7ed3\u7b97\u5206\u6570\u548c\u91d1\u5e01\u3002` };
+    }
     if (evaluation.passed || nextStep === "completed" || status === "completed") return { kind: "passed", title: "\u672c\u6b21\u5df2\u901a\u8fc7", body: "\u6309\u672c\u9875\u6700\u8fd1\u6279\u6539\u7684\u8981\u70b9\u5b8c\u6210\u540e\u7eed\u590d\u76d8\u6216\u7ed3\u7b97\u3002" };
     if (nextStep === "rewrite_and_reflect" || nextStep === "revise_and_resubmit" || status === "needs_revision" || status === "draft_feedback") return { kind: "revision", title: "\u672c\u6b21\u672a\u901a\u8fc7\uff0c\u9700\u8981\u7ee7\u7eed\u4fee\u6539", body: "\u5148\u770b\u672c\u9875\u4e0b\u65b9\u7684\u8be6\u7ec6\u6279\u6539\u4fe1\u606f\uff0c\u6309\u91cd\u70b9\u4fee\u6539\u540e\u518d\u63d0\u4ea4\u3002\u6279\u6539\u5386\u53f2\u4f1a\u7ee7\u7eed\u4fdd\u7559\u5728\u4ea4\u4ed8\u76ee\u5f55\u4e2d\u3002" };
     if (status === "pending") return { kind: "pending", title: "\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539", body: "\u4f5c\u7b54\u5df2\u4fdd\u5b58\uff0c\u8bf7\u7b49\u5f85\u672c\u6b21\u6279\u6539\u5b8c\u6210\u3002" };
