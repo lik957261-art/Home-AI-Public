@@ -8010,6 +8010,7 @@ body.task-markdown-preview-open {
   color: var(--ink);
   font-size: 16px;
   line-height: 1.25;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

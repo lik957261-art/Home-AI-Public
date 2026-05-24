@@ -425,8 +425,8 @@
         <span><small>当前任务</small><strong>${escapeHtml(String(activeTasks))}</strong></span>
         <span><small>已完成</small><strong>${escapeHtml(String(completed || counts.completedTasks || 0))}</strong></span>
         <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(earned || 0)))}</strong></span>
-        <span><small>七日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
-        <span><small>三十日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
+        <span><small>7日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
+        <span><small>30日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
         <span><small>待结算</small><strong>${escapeHtml(String(counts.pendingRewardSettlements || 0))}</strong></span>
       </div>
       ${programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions)}
@@ -579,8 +579,8 @@
       </div>
       <div class="learning-settings-reward-rows">
         <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(Number(growth.totalEarnedCoins || balances.earnedCoins || 0) || 0)))}</strong></span>
-        <span><small>七日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
-        <span><small>三十日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
+        <span><small>7日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
+        <span><small>30日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
         <span><small>已结算次数</small><strong>${escapeHtml(String(settled.length))}</strong></span>
         <span><small>平均每次</small><strong>${escapeHtml(String(averageSettled))}</strong></span>
       </div>
@@ -862,8 +862,8 @@
         <div class="learning-growth-board-summary-metrics" aria-label="\u6210\u957f\u6982\u89c8">
           <span><small>\u6267\u884c\u8005</small><b>${escapeHtml(learnerLabel)}</b></span>
           <span><small>\u7d2f\u8ba1\u91d1\u5e01</small><b>${escapeHtml(coinText)}</b></span>
-          <span><small>\u4e03\u65e5\u5747\u503c</small><b>${escapeHtml(String(sevenDayAverage))}</b></span>
-          <span><small>\u4e09\u5341\u65e5\u5747\u503c</small><b>${escapeHtml(String(thirtyDayAverage))}</b></span>
+          <span><small>7\u65e5\u5747\u503c</small><b>${escapeHtml(String(sevenDayAverage))}</b></span>
+          <span><small>30\u65e5\u5747\u503c</small><b>${escapeHtml(String(thirtyDayAverage))}</b></span>
         </div>
       </section>
       ${boardHtml}

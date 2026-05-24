@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-growth-thirty-day-average-v184";
+const CLIENT_VERSION = "20260524-growth-average-label-v185";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -276,9 +276,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-thirty-day-average-v184/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-thirty-day-average-v184/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-thirty-day-average-v184/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-average-label-v185/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-average-label-v185/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-average-label-v185/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1333,6 +1333,7 @@ assert.match(appJs, /data-assessment-exam-review/);
 assert.match(stylesCss, /\.learning-coin-view/);
 assert.match(stylesCss, /\.learning-growth-view/);
 assert.match(stylesCss, /\.learning-growth-board-summary-metrics \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+assert.match(stylesCss, /\.learning-growth-board-summary-metrics b \{[\s\S]*?text-align: center;/);
 assert.match(stylesCss, /\.learning-growth-platform-strip \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
 assert.match(stylesCss, /\.learning-growth-tab-list \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(92px, 1fr\)\)/);
 assert.match(stylesCss, /\.learning-growth-tab-panel\.active \{[\s\S]*?display: grid;/);

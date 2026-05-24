@@ -156,11 +156,12 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
   assert.match(html, /执行者/);
   assert.match(html, /累计金币/);
-  assert.match(html, /七日均值/);
+  assert.match(html, /7日均值/);
+  assert.match(html, /30日均值/);
+  assert.doesNotMatch(html, /七日均值|三十日均值/);
   assert.match(html, />凡凡</);
   assert.match(html, />70</);
   assert.match(html, />10</);
-  assert.match(html, /\u4e09\u5341\u65e5\u5747\u503c/);
   assert.match(html, />30</);
   assert.doesNotMatch(html, /70 金币|10 金币|历史累计/);
   assert.match(html, /aria-label="成长概览"/);
