@@ -2117,11 +2117,13 @@ button {
 }
 
 .message-prose.assistant-receipt {
-  gap: 12px;
+  gap: 9px;
+  line-height: 1.54;
 }
 
 .assistant-receipt p {
   max-width: 72ch;
+  line-height: 1.54;
 }
 
 .assistant-receipt p:first-of-type {
@@ -2150,8 +2152,8 @@ button {
   position: relative;
   display: grid;
   grid-template-columns: 3px minmax(0, 1fr);
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 9px;
+  padding: 9px 11px;
   color: #1a2b34;
   background: rgba(248, 249, 248, 0.72);
   border: 1px solid rgba(31, 43, 51, 0.075);
@@ -2181,15 +2183,20 @@ button {
 
 .assistant-receipt-callout-body {
   color: #1b2d35;
-  line-height: 1.62;
+  line-height: 1.5;
 }
 
 .assistant-receipt ul,
 .assistant-receipt ol {
-  padding: 10px 12px 10px 1.45em;
+  gap: 5px;
+  padding: 9px 11px 9px 1.35em;
   background: rgba(248, 249, 248, 0.58);
   border: 1px solid rgba(31, 43, 51, 0.07);
   border-radius: 10px;
+}
+
+.assistant-receipt li {
+  line-height: 1.48;
 }
 
 .assistant-receipt-list-label {
@@ -2459,14 +2466,14 @@ button {
   }
 
   .assistant-receipt-callout {
-    gap: 9px;
-    padding: 9px 10px;
+    gap: 8px;
+    padding: 8px 10px;
     border-radius: 9px;
   }
 
   .assistant-receipt ul,
   .assistant-receipt ol {
-    padding: 9px 10px 9px 1.35em;
+    padding: 8px 10px 8px 1.28em;
     border-radius: 9px;
   }
 

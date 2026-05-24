@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-message-receipt-layout-v181";
+const CLIENT_VERSION = "20260524-message-receipt-tight-v182";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -233,8 +233,11 @@ assert.match(stylesCss, /\.message \{[\s\S]*?border: 1px solid var\(--ui-hairlin
 assert.match(appJs, /ASSISTANT_RECEIPT_LABEL_PATTERN/);
 assert.match(appJs, /renderRichText\(cleaned, \{ assistantReceipt: true \}\)/);
 assert.match(appJs, /function renderAssistantReceiptCallout\(labelInfo\)/);
-assert.match(stylesCss, /\.message-prose\.assistant-receipt \{[\s\S]*?gap: 12px;/);
-assert.match(stylesCss, /\.assistant-receipt-callout \{[\s\S]*?grid-template-columns: 3px minmax\(0, 1fr\);[\s\S]*?background: rgba\(248, 249, 248, 0\.72\);/);
+assert.match(stylesCss, /\.message-prose\.assistant-receipt \{[\s\S]*?gap: 9px;[\s\S]*?line-height: 1\.54;/);
+assert.match(stylesCss, /\.assistant-receipt p \{[\s\S]*?max-width: 72ch;[\s\S]*?line-height: 1\.54;/);
+assert.match(stylesCss, /\.assistant-receipt-callout \{[\s\S]*?grid-template-columns: 3px minmax\(0, 1fr\);[\s\S]*?gap: 9px;[\s\S]*?padding: 9px 11px;[\s\S]*?background: rgba\(248, 249, 248, 0\.72\);/);
+assert.match(stylesCss, /\.assistant-receipt-callout-body \{[\s\S]*?line-height: 1\.5;/);
+assert.match(stylesCss, /\.assistant-receipt li \{[\s\S]*?line-height: 1\.48;/);
 assert.match(stylesCss, /\.assistant-receipt-heading::before \{[\s\S]*?background: rgba\(74, 103, 112, 0\.54\);/);
 assert.match(stylesCss, /\.assistant-receipt-list-label \{[\s\S]*?background: rgba\(96, 122, 130, 0\.12\);/);
 assert.match(stylesCss, /\.task-card \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?box-shadow: none;/);
@@ -273,9 +276,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-message-receipt-layout-v181/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-message-receipt-layout-v181/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-message-receipt-layout-v181/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-message-receipt-tight-v182/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-message-receipt-tight-v182/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-message-receipt-tight-v182/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
