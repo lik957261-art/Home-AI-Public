@@ -1,0 +1,7 @@
+name: hermes-mobile-chatgpt-pro
+version: 1.0.0
+description: "Owner-maintenance ChatGPT Pro generation bridge for Hermes Mobile."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - chatgpt_pro

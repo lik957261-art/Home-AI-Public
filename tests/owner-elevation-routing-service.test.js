@@ -83,9 +83,34 @@ function testExplicitMaintenanceModeStillRequiresElevation() {
   ), "owner_high_privilege_required");
 }
 
+function testChatGptProRoutesOnlyToOwnerMaintenanceProfilesAfterApproval() {
+  const service = makeService({
+    consumeOwnerElevationOnce: (_auth, token) => token === "one-shot",
+  });
+  const route = service.gatewayRoutingForModelRun(
+    { workspaceId: "owner" },
+    "@ChatGPT Pro generate a document",
+    {
+      actorWorkspaceId: "owner",
+      maintenanceMode: true,
+      ownerElevationOnceToken: "one-shot",
+      chatGptProGenerate: true,
+      requiredTool: "chatgpt_pro_generate",
+    },
+  );
+  assert.equal(route.securityLevel, "owner-maintenance");
+  assert.equal(route.maintenance, true);
+  assert.equal(route.maintenanceCategory, "chatgpt_pro_generate");
+  assert.deepEqual(route.preferred_worker_profiles, ["officialclean1", "officialclean2"]);
+  assert.equal(route.requiredTool, "chatgpt_pro_generate");
+  assert.equal(service.routeRequestsChatGptPro({ elevationScope: "chatgpt_pro_generate" }), true);
+  assert.match(service.ownerElevationInstructions({ chatGptProGenerate: true }), /chatgpt_pro_generate/);
+}
+
 testLearningContentUpdateDoesNotForceMaintenanceRouting();
 testPythonLessonSummaryDoesNotForceElevation();
 testCrossAccountAutomationDoesNotPreemptNormalModelRun();
 testExplicitMaintenanceModeStillRequiresElevation();
+testChatGptProRoutesOnlyToOwnerMaintenanceProfilesAfterApproval();
 
 console.log("owner-elevation-routing-service tests passed");

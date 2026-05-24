@@ -11,6 +11,9 @@ runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
 runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
 runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
 runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
+log_step() {
+  printf '%s %s\n' "$(date -Is)" "$*"
+}
 manifest_low_gateway_count() {
   python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || echo 10
 import json, re, sys
@@ -63,7 +66,9 @@ if [ ! -d "$runtime_source" ]; then
   exit 1
 fi
 
+log_step "lowgw-configure-start"
 bash "$configure_low_gateway_script"
+log_step "lowgw-configure-done"
 
 install -d -m 755 "$runtime_bin"
 cat > "$runtime_bin/hermes" <<EOF
@@ -170,6 +175,7 @@ start_gateway_profile() {
   log="$worker_home_dir/logs/${profile}-gateway-${port}.log"
   pidfile="$worker_home_dir/${profile}-gateway-${port}.pid"
   api_key="$(tr -d '\r\n' < "$api_key_file")"
+  log_step "lowgw-start-profile-start profile=${profile} port=${port}"
   stop_gateway_port "$port"
   rm -f "$pidfile"
   runuser -u "$worker_user" -- setsid -f env \
@@ -191,6 +197,7 @@ start_gateway_profile() {
     "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2
   pgrep -u "$worker_user" -f "hermes_cli.main .*gateway run --replace --accept-hooks" | tail -1 > "$pidfile" || true
+  log_step "lowgw-start-profile-done profile=${profile} port=${port}"
 }
 
 for idx in $(seq 1 "$low_gateway_count"); do
@@ -208,6 +215,7 @@ fi
 wait_gateway_port() {
   local port="$1"
   ok=0
+  log_step "lowgw-wait-health-start port=${port}"
   for _ in $(seq 1 80); do
     if "$runtime_python" - <<PY >/dev/null 2>&1
 import urllib.request
@@ -224,6 +232,7 @@ PY
     tail -80 "$worker_home_dir/logs/"*"-gateway-${port}.log" >&2 || true
     exit 1
   fi
+  log_step "lowgw-wait-health-done port=${port}"
 }
 
 for port in $(seq $((low_gateway_base_port + 1)) $((low_gateway_base_port + low_gateway_count))); do

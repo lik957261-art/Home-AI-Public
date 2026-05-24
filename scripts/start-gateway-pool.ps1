@@ -24,6 +24,24 @@ function Write-GatewayPoolLog {
   Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
 }
 
+function Invoke-GatewayPoolPhase {
+  param(
+    [string]$Name,
+    [scriptblock]$ScriptBlock
+  )
+  $started = Get-Date
+  Write-GatewayPoolLog ("phase-start {0}" -f $Name)
+  try {
+    & $ScriptBlock
+    $elapsedMs = [int]((Get-Date) - $started).TotalMilliseconds
+    Write-GatewayPoolLog ("phase-done {0} elapsedMs={1}" -f $Name, $elapsedMs)
+  } catch {
+    $elapsedMs = [int]((Get-Date) - $started).TotalMilliseconds
+    Write-GatewayPoolLog ("phase-failed {0} elapsedMs={1} error={2}" -f $Name, $elapsedMs, $_.Exception.Message)
+    throw
+  }
+}
+
 function Test-HttpHealth {
   param([int]$Port)
   try {
@@ -78,6 +96,13 @@ function Assert-SafeLinuxUserName {
   }
 }
 
+function Assert-SafeWslDistroName {
+  param([string]$DistroName)
+  if (-not $DistroName -or $DistroName -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
+    throw "Unsafe WSL distro name: $DistroName"
+  }
+}
+
 function Is-OwnerMaintenanceWorker {
   param($Worker)
   if (-not $Worker.enabled -or -not $Worker.allowMaintenance -or -not $Worker.profile -or -not $Worker.port) { return $false }
@@ -103,6 +128,82 @@ function Add-OwnerMaintenanceSharedMemoryCommands {
   )
   $backupDir = "{0}/memories.profile-local-markdown-backup-{1}" -f $ProfileRoot, (Get-Date).ToString("yyyyMMddHHmmss")
   [void]$Commands.Add("if [ -L $ProfileMemoryPath ]; then rm -f $ProfileMemoryPath; elif [ -d $ProfileMemoryPath ]; then mkdir -p $backupDir; find $ProfileMemoryPath -maxdepth 1 -type f -name \*.md -exec cp -n {} $SharedMemoryPath/ \; -exec cp -n {} $backupDir/ \; -delete; find $ProfileMemoryPath -maxdepth 1 -type f -name \*.md.lock -size 0 -delete; if ! rmdir $ProfileMemoryPath 2>/dev/null; then echo profile_memories_contains_non_markdown_files_keeping_profile_local_directory:$ProfileMemoryPath >&2; fi; elif [ -e $ProfileMemoryPath ]; then echo profile_memories_path_is_not_directory_or_symlink:$ProfileMemoryPath >&2; fi; if [ ! -e $ProfileMemoryPath ]; then ln -sfn $SharedMemoryPath $ProfileMemoryPath; fi")
+}
+
+function Ensure-ProfilePluginEnabled {
+  param(
+    [string]$ConfigPath,
+    [string]$PluginName
+  )
+  if (-not (Test-Path -LiteralPath $ConfigPath)) { return }
+  $text = [System.IO.File]::ReadAllText($ConfigPath, [System.Text.Encoding]::UTF8)
+  if ($text -match "(?m)^\s*-\s*$([Regex]::Escape($PluginName))\s*$") { return }
+  if ($text -match "(?ms)^plugins:\s*\r?\n\s*enabled:\s*\[\]\s*$") {
+    $text = [Regex]::Replace($text, "(?ms)^plugins:\s*\r?\n\s*enabled:\s*\[\]\s*$", "plugins:`n  enabled:`n    - $PluginName")
+  } elseif ($text -match "(?m)^plugins:\s*$" -and $text -match "(?m)^\s*enabled:\s*$") {
+    $text = [Regex]::Replace($text, "(?m)^(\s*enabled:\s*)$", "`$1`n    - $PluginName", 1)
+  } elseif ($text -match "(?m)^plugins:\s*$") {
+    $text = [Regex]::Replace($text, "(?m)^plugins:\s*$", "plugins:`n  enabled:`n    - $PluginName", 1)
+  } else {
+    $text = $text.TrimEnd() + "`nplugins:`n  enabled:`n    - $PluginName`n"
+  }
+  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllText($ConfigPath, $text, $utf8NoBom)
+}
+
+function Ensure-ProfileToolsetEnabled {
+  param(
+    [string]$ConfigPath,
+    [string]$ToolsetName
+  )
+  if (-not (Test-Path -LiteralPath $ConfigPath)) { return }
+  $text = [System.IO.File]::ReadAllText($ConfigPath, [System.Text.Encoding]::UTF8)
+  if ($text -match "(?m)^\s*-\s*$([Regex]::Escape($ToolsetName))\s*$") { return }
+  if ($text -match "(?m)^toolsets:\s*$") {
+    $text = [Regex]::Replace($text, "(?m)^toolsets:\s*$", "toolsets:`n  - $ToolsetName", 1)
+  } else {
+    $text = $text.TrimEnd() + "`ntoolsets:`n  - $ToolsetName`n"
+  }
+  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllText($ConfigPath, $text, $utf8NoBom)
+}
+
+function Install-OwnerMaintenanceChatGptProPlugin {
+  if (-not (Test-Path -LiteralPath $ManifestPath)) { return }
+  $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+  $workers = @($manifest.workers | Where-Object { Is-OwnerMaintenanceWorker -Worker $_ })
+  if ($workers.Count -eq 0) { return }
+  $pluginName = "hermes-mobile-chatgpt-pro"
+  $programRoot = Split-Path -Parent $PSScriptRoot
+  $sourceCandidates = @(
+    (Join-Path $programRoot "app\gateway-plugins\$pluginName"),
+    (Join-Path $programRoot "gateway-plugins\$pluginName"),
+    (Join-Path (Split-Path -Parent $programRoot) "gateway-plugins\$pluginName")
+  )
+  $source = [string]($sourceCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1)
+  if (-not (Test-Path -LiteralPath $source)) { throw "Missing ChatGPT Pro plugin source: $source" }
+  $pluginsRoot = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\plugins"
+  if (-not (Test-Path -LiteralPath $pluginsRoot)) {
+    New-Item -ItemType Directory -Force -Path $pluginsRoot | Out-Null
+  }
+  $target = Join-Path $pluginsRoot $pluginName
+  if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+  Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
+  foreach ($worker in $workers) {
+    $profile = [string]$worker.profile
+    Assert-SafeGatewayProfileName -Profile $profile
+    $configPath = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\config.yaml"
+    $profilePluginRoot = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\plugins"
+    if (-not (Test-Path -LiteralPath $profilePluginRoot)) {
+      New-Item -ItemType Directory -Force -Path $profilePluginRoot | Out-Null
+    }
+    $profilePluginTarget = Join-Path $profilePluginRoot $pluginName
+    if (Test-Path -LiteralPath $profilePluginTarget) { Remove-Item -LiteralPath $profilePluginTarget -Recurse -Force }
+    Copy-Item -LiteralPath $source -Destination $profilePluginTarget -Recurse -Force
+    Ensure-ProfilePluginEnabled -ConfigPath $configPath -PluginName $pluginName
+    Ensure-ProfileToolsetEnabled -ConfigPath $configPath -ToolsetName "chatgpt_pro"
+  }
+  Write-GatewayPoolLog "Installed ChatGPT Pro plugin for owner-maintenance profiles."
 }
 
 function Ensure-LowGatewayProfileEnv {
@@ -198,6 +299,7 @@ runtime_hermes="$runtime_bin/hermes"
 function Stop-LowGateways {
   $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
   if (-not (Test-Path -LiteralPath $runAsWorker)) { throw "Missing worker runner: $runAsWorker" }
+  Assert-SafeWslDistroName -DistroName $LowGatewayDistroName
 
   $stopShell = Join-Path $GatewayWorkerRoot "stop-low-gateways.sh"
   $stopChild = Join-Path $GatewayWorkerRoot "stop-low-gateways-child.ps1"
@@ -230,13 +332,14 @@ if command -v pkill >/dev/null 2>&1; then
   pkill -9 -u hermes -f 'hermes_cli\.main .*gateway run' || true
 fi
 '@
-  $stopChildText = @'
-$ErrorActionPreference = "Stop"
-wsl.exe -d HermesGatewayWorker -u root -- bash /mnt/c/ProgramData/HermesMobile/gateway-worker/stop-low-gateways.sh
-if ($LASTEXITCODE -ne 0) {
-  throw "Low gateway stop failed with exit code $LASTEXITCODE"
+  $stopChildText = @"
+`$ErrorActionPreference = "Stop"
+`$distroName = "$LowGatewayDistroName"
+wsl.exe -d `$distroName -u root -- bash /mnt/c/ProgramData/HermesMobile/gateway-worker/stop-low-gateways.sh
+if (`$LASTEXITCODE -ne 0) {
+  throw "Low gateway stop failed with exit code `$LASTEXITCODE"
 }
-'@
+"@
   $encoding = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($stopShell, $stopShellText, $encoding)
   [System.IO.File]::WriteAllText($stopChild, $stopChildText, $encoding)
@@ -409,7 +512,7 @@ function Start-OwnerMaintenanceGateways {
     if ($sharedMemoryEnabled) {
       Add-OwnerMaintenanceSharedMemoryCommands -Commands $commands -ProfileRoot $profileRoot -ProfileMemoryPath $profileMemoryPath -SharedMemoryPath $sharedMemoryPath
     }
-    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=/home/$OfficialUser/.hermes PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main -p $profile gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
+    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
   }
   $bash = $commands -join "; "
 
@@ -427,12 +530,13 @@ function Start-OwnerMaintenanceGateways {
 }
 
 Write-GatewayPoolLog "Gateway pool startup begin."
-Provision-OwnerExternalConnectors
-Start-LowGateways
-Check-LowGatewayCodexAuth
-Start-OwnerMaintenanceGateways | Out-Null
+Invoke-GatewayPoolPhase -Name "provision-owner-external-connectors" -ScriptBlock { Provision-OwnerExternalConnectors }
+Invoke-GatewayPoolPhase -Name "start-low-gateways" -ScriptBlock { Start-LowGateways }
+Invoke-GatewayPoolPhase -Name "check-low-gateway-codex-auth" -ScriptBlock { Check-LowGatewayCodexAuth }
+Invoke-GatewayPoolPhase -Name "install-owner-maintenance-chatgpt-pro-plugin" -ScriptBlock { Install-OwnerMaintenanceChatGptProPlugin }
+Invoke-GatewayPoolPhase -Name "start-owner-maintenance-gateways" -ScriptBlock { Start-OwnerMaintenanceGateways | Out-Null }
 
 $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
 $ports = @($manifest.workers | Where-Object { $_.enabled -and $_.port } | ForEach-Object { [int]$_.port })
-Wait-HealthPorts -Ports $ports
+Invoke-GatewayPoolPhase -Name "wait-gateway-health" -ScriptBlock { Wait-HealthPorts -Ports $ports }
 Write-GatewayPoolLog "Gateway pool startup OK; healthy ports: $($ports -join ', ')."

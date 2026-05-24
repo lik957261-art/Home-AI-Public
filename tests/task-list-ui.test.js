@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-growth-settings-scroll-v205";
+const CLIENT_VERSION = "20260524-chatgpt-pro-owner-tool-v206";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -72,6 +72,8 @@ const gatewayRunStartServiceJs = fs.readFileSync(path.join(repoRoot, "adapters",
 const groupChatSharedAttachmentServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "group-chat-shared-attachment-service.js"), "utf8");
 const ownerElevationGrantServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "owner-elevation-grant-service.js"), "utf8");
 const ownerElevationRoutingServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "owner-elevation-routing-service.js"), "utf8");
+const chatGptProPluginPy = fs.readFileSync(path.join(repoRoot, "gateway-plugins", "hermes-mobile-chatgpt-pro", "__init__.py"), "utf8");
+const startGatewayPoolPs1 = fs.readFileSync(path.join(repoRoot, "scripts", "start-gateway-pool.ps1"), "utf8");
 const fileResourceServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "file-resource-service.js"), "utf8");
 const semanticDirectoryAttachmentServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "semantic-directory-attachment-service.js"), "utf8");
 const runtimeStateNormalizationServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "runtime-state-normalization-service.js"), "utf8");
@@ -285,9 +287,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-settings-scroll-v205/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-settings-scroll-v205/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-settings-scroll-v205/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-chatgpt-pro-owner-tool-v206/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-chatgpt-pro-owner-tool-v206/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-chatgpt-pro-owner-tool-v206/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -487,6 +489,13 @@ assert.match(ownerElevationRoutingServiceJs, /consumeOwnerElevationOnce\(auth, o
 assert.match(serverJs, /isOwnerElevationActive\(auth\)/);
 assert.match(ownerElevationRoutingServiceJs, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
 assert.match(ownerElevationRoutingServiceJs, /function modelPermissionApprovalRequest\(text, message = \{\}\)/);
+assert.match(ownerElevationRoutingServiceJs, /preferred_worker_profiles: chatGptProProfiles/);
+assert.match(ownerElevationRoutingServiceJs, /requiredTool: "chatgpt_pro_generate"/);
+assert.match(chatGptProPluginPy, /name="chatgpt_pro_generate"/);
+assert.match(chatGptProPluginPy, /toolset="chatgpt_pro"/);
+assert.match(chatGptProPluginPy, /_is_owner_maintenance_profile\(\)/);
+assert.match(chatGptProPluginPy, /chatgpt_pro_bridge_unconfigured/);
+assert.match(startGatewayPoolPs1, /Install-OwnerMaintenanceChatGptProPlugin/);
 assert.match(threadViewServiceJs, /elevationRequired: Boolean\(message\.elevationRequired\)/);
 assert.match(threadMessageRunApiRoutes, /id: "thread-message-owner-elevation"/);
 assert.ok(threadMessageRunApiRoutes.includes("pathRegex: /^\\/api\\/threads\\/[^/]+\\/messages\\/[^/]+\\/owner-elevation$/"));

@@ -13,9 +13,7 @@ function learningGrowthLearnerWorkspaceId() {
   }
   const scoped = String(state.learningGrowthWorkspaceId || "").trim();
   if (state.auth?.isOwner && scoped && (!selected || selected === "owner")) return scoped;
-  if (state.auth?.isOwner && (!selected || selected === "owner")) {
-    return LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
-  }
+  if (state.auth?.isOwner && (!selected || selected === "owner")) return LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
   return selected || authWorkspace || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
 }
 
@@ -25,9 +23,7 @@ function setLearningGrowthLearnerWorkspaceId(workspaceId) {
   state.learningGrowthWorkspaceId = target;
 }
 
-function learningCoinStudentId() {
-  return learningGrowthLearnerWorkspaceId();
-}
+function learningCoinStudentId() { return learningGrowthLearnerWorkspaceId(); }
 
 function learningCoinRequestParams(options = {}) {
   const params = new URLSearchParams();

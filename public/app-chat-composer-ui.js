@@ -440,6 +440,15 @@ function composerModelOptionForMention(primary, secondary = "") {
   const primaryKey = normalizeMentionSearch(primary);
   const secondaryKey = normalizeMentionSearch(secondary);
   if (!primaryKey) return null;
+  const proOption = chatGptProMentionOption();
+  const specialOptions = [proOption];
+  if (secondaryKey) {
+    const combinedKey = `${primaryKey}${secondaryKey}`;
+    const combinedSpecial = specialOptions.find((option) => composerModelMentionAliases(option).has(combinedKey));
+    if (combinedSpecial) return combinedSpecial;
+  }
+  const special = specialOptions.find((option) => composerModelMentionAliases(option).has(primaryKey));
+  if (special) return special;
   const options = composerModelOptions();
   if (secondaryKey) {
     const combinedKey = `${primaryKey}${secondaryKey}`;
@@ -447,6 +456,23 @@ function composerModelOptionForMention(primary, secondary = "") {
     if (combined) return combined;
   }
   return options.find((option) => composerModelMentionAliases(option).has(primaryKey)) || null;
+}
+
+function chatGptProMentionOption() {
+  return {
+    id: "chatgpt-pro",
+    workspaceId: "assistant-chatgpt-pro",
+    label: "ChatGPT Pro",
+    virtual: true,
+    mentionText: "@ChatGPT Pro",
+    aliases: ["chatgptpro", "chatgpt-pro", "pro"],
+    description: "Owner approval / maintenance Gateway",
+    model: "",
+    provider: "openai-codex",
+    modelExplicit: true,
+    chatGptPro: true,
+    ownerElevationRequired: true,
+  };
 }
 
 function composerAiMentionOptions() {
@@ -477,7 +503,7 @@ function composerAiMentionOptions() {
       provider: option.provider || "",
       modelExplicit: true,
     }));
-  return [chatGptXhigh, ...grokOptions].slice(0, 2);
+  return [chatGptProMentionOption(), chatGptXhigh, ...grokOptions].slice(0, 3);
 }
 
 function assistantMentionAliases() {
@@ -514,6 +540,8 @@ function composerAiMentionInfo(text) {
   let model = "";
   let provider = "";
   let modelExplicit = false;
+  let chatGptPro = false;
+  let ownerElevationRequired = false;
   let match;
   while ((match = pattern.exec(normalized)) !== null) {
     const modelOption = composerModelOptionForMention(match[2], match[3] || "");
@@ -522,10 +550,12 @@ function composerAiMentionInfo(text) {
     model = modelOption.model || "";
     provider = modelOption.provider || "";
     modelExplicit = true;
+    chatGptPro = Boolean(modelOption.chatGptPro);
+    ownerElevationRequired = Boolean(modelOption.ownerElevationRequired);
     const effort = reasoningEffortFromAiAlias(match[3] || "");
     if (effort) reasoningEffort = effort;
   }
-  return { mentionsAi, reasoningEffort, model, provider, modelExplicit };
+  return { mentionsAi, reasoningEffort, model, provider, modelExplicit, chatGptPro, ownerElevationRequired };
 }
 
 function selectedComposerModel(text = getComposerText()) {

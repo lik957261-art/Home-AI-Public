@@ -686,7 +686,7 @@ async function activateOwnerElevationOnce(options = {}) {
   if (options.confirm !== false) {
     const ok = await openOwnerElevationApprovalDialog({
       title: "Owner Approval",
-      message: "Approve high-privilege Gateway routing for this message only? The approval is consumed after this send.",
+      message: options.message || "Approve high-privilege Gateway routing for this message only? The approval is consumed after this send.",
     });
     if (!ok) return false;
   }
