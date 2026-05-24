@@ -554,7 +554,6 @@ function isComposerStopMode() {
   if (isChatSearchMode()) return false;
   if (!activeComposerRunIds().length) return false;
   if (isSingleWindowView() && composerHasDraft()) return false;
-  if (typeof isCodexMuxView === "function" && isCodexMuxView() && composerHasDraft()) return false;
   return true;
 }
 

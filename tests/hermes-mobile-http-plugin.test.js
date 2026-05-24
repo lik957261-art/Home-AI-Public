@@ -183,41 +183,10 @@ print(json.dumps({
   assert.equal(result.body_omitted, "binary_response");
 }
 
-function testCodexMobileOwnerProfileGate() {
-  const script = `
-import importlib.util, json
-spec = importlib.util.spec_from_file_location("hermes_mobile_http", ${JSON.stringify(pluginPath)})
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-class Ctx:
-    def __init__(self):
-        self.tools = []
-    def register_tool(self, **kwargs):
-        self.tools.append(kwargs.get("name"))
-ctx = Ctx()
-module.register(ctx)
-blocked = json.loads(module._http_request_handler({"url": "hermes-mobile://codex-mux", "json": {"action": "list_tasks"}}))
-print(json.dumps({
-    "tools": sorted(ctx.tools),
-    "blocked_status": blocked.get("status"),
-    "blocked_error": blocked.get("error"),
-}, ensure_ascii=False))
-`;
-  let result = JSON.parse(runPython(script, { HERMES_PROFILE: "lowgw1" }));
-  assert.equal(result.tools.includes("codex_mobile"), true);
-  assert.notEqual(result.blocked_status, 403);
-
-  result = JSON.parse(runPython(script, { HERMES_PROFILE: "lowgw5" }));
-  assert.equal(result.tools.includes("codex_mobile"), false);
-  assert.equal(result.blocked_status, 403);
-  assert.equal(result.blocked_error, "codex_mobile_owner_only");
-}
-
 testFileBodyLoadsAllowedImageBytes();
 testMultipartLoadsAllowedImageBytes();
 testRejectsOutOfScopeUploadPath();
 testSaveBase64ImagePayload();
 testSaveBinaryHttpResponsePayload();
-testCodexMobileOwnerProfileGate();
 
 console.log("hermes-mobile-http-plugin tests passed");

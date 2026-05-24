@@ -194,15 +194,6 @@ function createThreadMessageCreateService(options = {}) {
     }
 
     const requestedTaskGroupId = bodyTaskGroupId || quotedTaskGroupId;
-    const requestedCodexMuxChat = Boolean(
-      thread.singleWindow
-      && singleWindowMode === "chat"
-      && requestedTaskGroupId
-      && (body.codexMuxMode || body.codex_mux_mode)
-    );
-    if (requestedCodexMuxChat && !isOwnerAuth(auth)) {
-      return errorResult(403, "Codex Mux chat is Owner-only", { code: "codex_mux_owner_only" });
-    }
     const normalizedTaskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
     const requestedCaseTopicChat = Boolean(
       thread.singleWindow
@@ -216,7 +207,7 @@ function createThreadMessageCreateService(options = {}) {
         requestedCaseTopicChat
           ? requestedTaskGroupId
           : (singleWindowMode === "chat"
-            ? (requestedCodexMuxChat ? requestedTaskGroupId : singleWindowChatTaskGroupId(requestedTaskGroupId))
+            ? singleWindowChatTaskGroupId(requestedTaskGroupId)
             : (requestedTaskGroupId || makeId("task")))
       )
       : "";
@@ -230,7 +221,6 @@ function createThreadMessageCreateService(options = {}) {
       bodyTaskGroupId,
       quotedTaskGroupId,
       requestedTaskGroupId,
-      requestedCodexMuxChat,
       normalizedTaskGroupMeta,
       requestedCaseTopicChat,
       taskGroupId,

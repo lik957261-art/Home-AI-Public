@@ -161,7 +161,7 @@ async function bootstrap() {
 
 function normalizedRouteView(value, fallback = "") {
   const view = String(value || "").trim().toLowerCase();
-  if (view === "automation" || view === "automations" || view === "cron") return "automation"; if (view === "codex-mux" || view === "codex" || view === "mux") return "codex-mux";
+  if (view === "automation" || view === "automations" || view === "cron") return "automation";
   if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "todo" || view === "todos") return "todos";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
@@ -193,7 +193,7 @@ function applyRouteParams(params) {
   const assessmentExamRequested = ["1", "true", "yes"].includes(String(params.get("assessmentExam") || params.get("assessment_exam") || "").trim().toLowerCase());
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
-  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : ""); if (routeView === "codex-mux" && !state.auth?.isOwner) routeView = "single";
+  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && routeView === "learning" && taskCardId) {
     setLearningGrowthLearnerWorkspaceId(workspaceId);

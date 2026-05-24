@@ -96,7 +96,6 @@ function createRuntimeStateNormalizationService(options = {}) {
   const messageTimeFields = Array.isArray(options.messageTimeFields) ? options.messageTimeFields : [];
   const singleWindowChatTaskGroupIdValue = String(options.singleWindowChatTaskGroupIdValue || "chat");
   const singleWindowGroupChatTaskGroupId = String(options.singleWindowGroupChatTaskGroupId || "group-chat");
-  const singleWindowCodexMuxTaskGroupId = String(options.singleWindowCodexMuxTaskGroupId || "codex-mux");
   const validReasoningEfforts = options.validReasoningEfforts instanceof Set
     ? options.validReasoningEfforts
     : new Set(Array.isArray(options.validReasoningEfforts) ? options.validReasoningEfforts : []);
@@ -269,10 +268,9 @@ function createRuntimeStateNormalizationService(options = {}) {
       if (thread.singleWindow) {
         const rawSingleWindowMode = String(next.singleWindowMode || next.single_window_mode || "").trim();
         const weixinIngressMessage = next.externalIngress?.source === "weixin" || next.externalDelivery?.source === "weixin";
-        const codexMuxMessage = next.taskGroupId === singleWindowCodexMuxTaskGroupId;
-        const conversationMessage = isSingleWindowConversationTaskGroupId(next.taskGroupId) || codexMuxMessage || weixinIngressMessage;
+        const conversationMessage = isSingleWindowConversationTaskGroupId(next.taskGroupId) || weixinIngressMessage;
         next.singleWindowMode = normalizeSingleWindowMode(rawSingleWindowMode || (conversationMessage ? "chat" : "task"));
-        if (next.singleWindowMode === "chat" && !codexMuxMessage) next.taskGroupId = singleWindowChatTaskGroupId(next.taskGroupId);
+        if (next.singleWindowMode === "chat") next.taskGroupId = singleWindowChatTaskGroupId(next.taskGroupId);
       }
       if (
         thread.singleWindow
@@ -306,7 +304,7 @@ function createRuntimeStateNormalizationService(options = {}) {
 
   function isSingleWindowConversationTaskGroupId(value) {
     const id = String(value || "");
-    return id === singleWindowChatTaskGroupIdValue || id === singleWindowGroupChatTaskGroupId || id === singleWindowCodexMuxTaskGroupId;
+    return id === singleWindowChatTaskGroupIdValue || id === singleWindowGroupChatTaskGroupId;
   }
 
   function sanitizeTaskGroupId(value) {

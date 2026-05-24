@@ -42,31 +42,6 @@ async function sendMessage(event) {
     }
     return;
   }
-  if (typeof isCodexMuxView === "function" && isCodexMuxView()) {
-    if (typeof lockCodexMuxViewState === "function") lockCodexMuxViewState();
-    const text = getComposerText().trim();
-    const artifacts = state.pendingArtifacts.slice();
-    if (!text && !artifacts.length) return;
-    $("sendMessage").disabled = true;
-    try {
-      setComposerText("");
-      state.pendingArtifacts = [];
-      renderPendingArtifacts();
-      await sendCodexMuxHermesMessage(text, { artifacts });
-      if (typeof lockCodexMuxViewState === "function") lockCodexMuxViewState();
-      suppressComposerAutoFocus(1200);
-      blurComposerInput();
-    } catch (err) {
-      setComposerText(text);
-      state.pendingArtifacts = artifacts;
-      renderPendingArtifacts();
-      showError(err);
-    } finally {
-      $("sendMessage").disabled = false;
-      updateComposerAction();
-    }
-    return;
-  }
   if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
   if (!state.currentThreadId) return;
   let text = getComposerText().trim();

@@ -131,10 +131,6 @@ function renderCurrentThreadUnsafe(options = {}) {
     renderAutomationView();
     return;
   }
-  if (state.viewMode === "codex-mux") {
-    renderCodexMuxView();
-    return;
-  }
   if (state.viewMode === "todos") {
     renderTodoPanel();
     return;

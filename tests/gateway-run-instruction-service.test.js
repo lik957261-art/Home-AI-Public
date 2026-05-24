@@ -27,12 +27,12 @@ function testPolicySummaryIncludesCallableToolHints() {
 
   assert.match(summary, /Principal: owner/);
   assert.match(summary, /Allowed roots: C:\/workspace; D:\/shared/);
-  assert.match(summary, /http -> http_request, codex_mobile/);
+  assert.match(summary, /http -> http_request/);
   assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_extract_text, audio_transcribe/);
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
-  assert.match(summary, /For HTTP\/API Program calls, use `http_request`; for Hermes-Codex Mux coordination with Codex Mobile, use `codex_mobile`/);
+  assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
   assert.match(summary, /http_request\.multipart_files/);
   assert.match(summary, /For Word DOCX text extraction, use `docx_extract_text`/);
@@ -49,8 +49,7 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   });
 
   assert.match(text, /`http` toolset is enabled/);
-  assert.match(text, /`http_request` and `codex_mobile`/);
-  assert.match(text, /bounded Hermes-Codex Mux task\/event coordination/);
+  assert.match(text, /`http_request`/);
   assert.match(text, /`file_body` or `multipart_files`/);
   assert.match(text, /never claim upload success after sending only a local path string/);
   assert.match(text, /Word DOCX text extraction is available as `docx_extract_text`/);

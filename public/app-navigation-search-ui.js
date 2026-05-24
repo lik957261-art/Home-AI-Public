@@ -210,7 +210,7 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "codexMuxMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = id === "codexMuxMode" ? !state.auth?.isOwner : false; node.disabled = id === "codexMuxMode" ? !state.auth?.isOwner : false; } });
+  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = false; node.disabled = false; } });
   updateTopMoreControls();
 }
 
@@ -226,10 +226,9 @@ function updateTopMoreControls() {
   const todoCreate = kanbanComposerOpen();
   const todoList = state.viewMode === "todos" && !todoDetail && !todoCreate;
   const learningView = state.viewMode === "learning";
-  const codexMuxView = state.viewMode === "codex-mux";
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || learningView || codexMuxView || automationList || automationDetail;
+  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || learningView || automationList || automationDetail;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {
@@ -275,11 +274,6 @@ function updateTopMoreControls() {
   if (learningSettings) {
     learningSettings.hidden = !learningOwnerAction;
     learningSettings.disabled = !learningOwnerAction;
-  }
-  const topCodexMux = $("topCodexMux");
-  if (topCodexMux) {
-    topCodexMux.hidden = !state.auth?.isOwner || codexMuxView;
-    topCodexMux.disabled = !state.auth?.isOwner || codexMuxView;
   }
   const newAutomation = $("topNewAutomation");
   if (newAutomation) {

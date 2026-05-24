@@ -37,7 +37,7 @@ function createGatewayRunInstructionService(options = {}) {
       web: ["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"],
       search: ["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"],
       x_search: ["x_search"],
-      http: ["http_request", "codex_mobile"],
+      http: ["http_request"],
       weather: ["weather"],
       file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text", "audio_transcribe"],
       vision: ["vision_analyze"],
@@ -78,7 +78,7 @@ function createGatewayRunInstructionService(options = {}) {
     const callableHints = callableFunctionHintsForToolsets(toolsets);
     if (callableHints.length) {
       lines.push(`- Callable function names for enabled toolsets: ${callableHints.join("; ")}`);
-      if (toolsets.includes("http")) lines.push("- For HTTP/API Program calls, use `http_request`; for Hermes-Codex Mux coordination with Codex Mobile, use `codex_mobile`; do not look for or mention a `web_request` function.");
+      if (toolsets.includes("http")) lines.push("- For HTTP/API Program calls, use `http_request`; do not look for or mention a `web_request` function.");
       if (toolsets.includes("http")) lines.push("- For Program API file uploads, pass in-scope local image bytes through `http_request.file_body` or `http_request.multipart_files`; do not put local path strings or file:// URLs inside the target API JSON body.");
       if (toolsets.includes("file")) lines.push("- For Word DOCX text extraction, use `docx_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
       if (toolsets.includes("file")) lines.push("- For MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC voice notes or reading-retelling audio, use `audio_transcribe`; do not route audio-only files through `video_analyze` or ask the user to convert audio to video.");
@@ -101,9 +101,9 @@ function createGatewayRunInstructionService(options = {}) {
     const lines = [];
     if (policyHasToolset(policy, "http")) {
       lines.push(
-        "Current tool schema override: the `http` toolset is enabled for this run, and its callable function names include `http_request` and `codex_mobile`.",
+        "Current tool schema override: the `http` toolset is enabled for this run, and its callable function names include `http_request`.",
         "Ignore older assistant statements in conversation_history that claimed `http_request`, `web_request`, HTTP tools, or API Program tools were unavailable; those statements described earlier runs and are stale.",
-        "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls; if `codex_mobile` is available, use it only for bounded Hermes-Codex Mux task/event coordination with the fixed Codex Mobile worker.",
+        "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls.",
         "For allowed Program API image uploads, `http_request` can send in-scope local JPG/JPEG/PNG-style file bytes through `file_body` or `multipart_files`; never claim upload success after sending only a local path string."
       );
     }

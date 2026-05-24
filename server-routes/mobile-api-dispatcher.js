@@ -16,7 +16,6 @@ const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "kanbanCardApiRoutes", passAuth: true }),
   Object.freeze({ key: "kanbanStudyApiRoutes", passAuth: true }),
   Object.freeze({ key: "kanbanLearningGuidanceApiRoutes", passAuth: true }),
-  Object.freeze({ key: "hermesCodexMuxApiRoutes", passAuth: false }),
   Object.freeze({ key: "learningApiRoutes", passAuth: true }),
   Object.freeze({ key: "learningProgramApiRoutes", passAuth: true }),
   Object.freeze({ key: "learningParentReviewApiRoutes", passAuth: true }),

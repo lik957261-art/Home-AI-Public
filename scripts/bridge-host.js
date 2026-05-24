@@ -5,8 +5,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { createBridgeCommandProvider } = require("../adapters/bridge-command-provider");
-const { createHermesCodexMuxService } = require("../adapters/hermes-codex-mux-service");
-const { createMobileSqliteStore } = require("../adapters/mobile-sqlite-store");
 
 const TOOL_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_TODO_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "todo_bridge.py");
@@ -18,10 +16,6 @@ const TIMEOUT_MS = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_TIMEOUT_MS || "2
 const STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_STDOUT_LIMIT_BYTES || "50000000");
 const KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
 const KEY = String(process.env.HERMES_MOBILE_BRIDGE_HOST_KEY || process.env.HERMES_WEB_BRIDGE_HOST_KEY || readText(KEY_PATH)).trim();
-const DEFAULT_CODEX_MUX_WORKSPACE = "C:\\Users\\xuxin\\Documents\\Agent";
-const DEFAULT_CODEX_MUX_WORKER = "codex-hermes-main";
-const DEFAULT_CODEX_MUX_BRIDGE = "hermes-mobile-codex-main";
-let codexMuxService = null;
 
 function readText(filePath) {
   if (!filePath) return "";
@@ -92,141 +86,6 @@ function readBody(req) {
     });
     req.on("error", reject);
   });
-}
-
-function mobileDbPath() {
-  return path.resolve(
-    process.env.HERMES_WEB_DB_PATH ||
-      process.env.HERMES_MOBILE_DB_PATH ||
-      path.join(process.env.HERMES_WEB_DATA_DIR || "C:\\ProgramData\\HermesMobile\\data", "hermes-mobile.sqlite3"),
-  );
-}
-
-function getCodexMuxService() {
-  if (!codexMuxService) {
-    codexMuxService = createHermesCodexMuxService({
-      mobileStore: createMobileSqliteStore({ dbPath: mobileDbPath() }),
-    });
-  }
-  return codexMuxService;
-}
-
-function normalizeCodexMuxAction(value) {
-  const action = String(value || "list_tasks").trim().toLowerCase();
-  if (action === "create") return "create_task";
-  if (action === "list") return "list_tasks";
-  if (action === "get" || action === "read") return "get_task";
-  if (action === "events") return "list_events";
-  if (action === "append") return "append_event";
-  if (action === "worker" || action === "heartbeat") return "worker_status";
-  return action;
-}
-
-function buildCodexMuxTask(payload = {}) {
-  const service = getCodexMuxService();
-  const title = trimText(payload.title || "Hermes Mobile Codex task", 160);
-  const instruction = trimText(payload.instruction || payload.request || payload.user_intent || payload.userIntent || "", 6000);
-  if (!instruction) {
-    const err = new Error("instruction is required");
-    err.status = 400;
-    throw err;
-  }
-  const assignedWorker = trimText(payload.assigned_worker || payload.assignedWorker || DEFAULT_CODEX_MUX_WORKER, 80);
-  const bridgeId = trimText(payload.bridge_id || payload.bridgeId || DEFAULT_CODEX_MUX_BRIDGE, 80);
-  const workspace = trimText(payload.workspace || DEFAULT_CODEX_MUX_WORKSPACE, 260);
-  const source = payload.source && typeof payload.source === "object" ? payload.source : {};
-  const capsule = {
-    schema: "hermes-codex-mux.task.v1",
-    title,
-    workspace,
-    bridgeId,
-    assignedWorker,
-    workerMode: "sticky",
-    requiresSameThread: true,
-    handoverAllowed: false,
-    priority: trimText(payload.priority || "normal", 30),
-    userIntent: instruction,
-    requiredReads: compactList(payload.required_reads || payload.requiredReads, 20).map((item) => trimText(item, 260)),
-    deliverables: compactList(payload.deliverables, 20).map((item) => trimText(item, 260)),
-    constraints: compactList(payload.constraints, 20).map((item) => trimText(item, 260)),
-    source: {
-      channel: trimText(source.channel || payload.source_channel || "hermes-mobile", 80),
-      threadId: trimText(source.threadId || source.thread_id || payload.source_thread_id || payload.sourceThreadId || "", 120),
-      messageId: trimText(source.messageId || source.message_id || payload.source_message_id || payload.sourceMessageId || "", 120),
-    },
-    createdAt: new Date().toISOString(),
-  };
-  const taskId = trimText(payload.task_id || payload.taskId || "", 120);
-  if (taskId) capsule.taskId = taskId;
-  const task = service.upsertTask({
-    taskId: taskId || undefined,
-    title,
-    status: "open",
-    workspace,
-    assignedWorker,
-    sourceThreadId: capsule.source.threadId,
-    capsule,
-  });
-  capsule.taskId = task.taskId;
-  service.appendEvent(task.taskId, {
-    type: "task.requested",
-    from: "hermes-mobile",
-    to: assignedWorker,
-    workerId: assignedWorker,
-    status: "open",
-    summary: title,
-    payload: {
-      capsule,
-      instruction,
-    },
-  });
-  return { ok: true, action: "create_task", task };
-}
-
-function handleCodexMux(payload = {}) {
-  const service = getCodexMuxService();
-  const action = normalizeCodexMuxAction(payload.action);
-  if (action === "create_task") return buildCodexMuxTask(payload);
-  if (action === "list_tasks") {
-    return {
-      ok: true,
-      action,
-      tasks: service.listTasks({
-        assignedWorker: payload.assigned_worker || payload.assignedWorker || DEFAULT_CODEX_MUX_WORKER,
-        status: payload.status || "open,running,waiting,blocked",
-        limit: payload.limit || 50,
-      }),
-    };
-  }
-  if (action === "get_task") {
-    const taskId = trimText(payload.task_id || payload.taskId, 120);
-    if (!taskId) throw new Error("task_id is required");
-    return { ok: true, action, task: service.getTask(taskId) };
-  }
-  if (action === "list_events") {
-    const taskId = trimText(payload.task_id || payload.taskId, 120);
-    if (!taskId) throw new Error("task_id is required");
-    return { ok: true, action, taskId, events: service.listEvents(taskId, { limit: payload.limit || 100 }) };
-  }
-  if (action === "append_event") {
-    const taskId = trimText(payload.task_id || payload.taskId, 120);
-    if (!taskId) throw new Error("task_id is required");
-    const event = service.appendEvent(taskId, Object.assign({}, payload.event || {}, {
-      type: payload.type || payload.event?.type || "progress",
-      from: payload.from || payload.event?.from || "hermes-mobile",
-      to: payload.to || payload.event?.to || "mux",
-      summary: payload.summary || payload.event?.summary || "",
-      payload: payload.payload || payload.event?.payload || {},
-    }));
-    return { ok: true, action, event };
-  }
-  if (action === "worker_status") {
-    const workerId = trimText(payload.worker_id || payload.workerId || DEFAULT_CODEX_MUX_WORKER, 120);
-    return { ok: true, action, worker: service.getHeartbeat(workerId) };
-  }
-  const err = new Error(`Unsupported codex_mobile action: ${action}`);
-  err.status = 400;
-  throw err;
 }
 
 function bridgeCommand(kind) {
@@ -319,12 +178,8 @@ async function handle(req, res) {
     "/bridge/cron": "cron",
     "/bridge/directory": "directory",
   };
-  const directHandlers = {
-    "/bridge/codex-mux": handleCodexMux,
-  };
   const kind = routeKinds[req.url || ""];
-  const directHandler = directHandlers[req.url || ""];
-  if (req.method !== "POST" || (!kind && !directHandler)) {
+  if (req.method !== "POST" || !kind) {
     sendJson(res, 404, { error: "Not found" });
     return;
   }
@@ -334,7 +189,7 @@ async function handle(req, res) {
   }
   try {
     const payload = await readBody(req);
-    const result = directHandler ? directHandler(payload) : await runBridge(kind, payload);
+      const result = await runBridge(kind, payload);
     sendJson(res, 200, result);
   } catch (err) {
     sendJson(res, err.status || 502, { ok: false, error: err.message || String(err) });

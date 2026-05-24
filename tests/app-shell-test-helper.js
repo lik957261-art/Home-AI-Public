@@ -4,7 +4,6 @@ const fs = require("fs");
 const path = require("path");
 
 const appSplitModuleFiles = Object.freeze([
-  "app-codex-mux-ui.js",
   "app-shell-ui.js",
   "app-task-groups-ui.js",
   "app-chat-composer-ui.js",

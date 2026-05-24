@@ -190,7 +190,7 @@ async function main() {
   if (!targets.length) throw new Error("No matching Gateway worker found for schema smoke.");
   const requiredTools = cleanList(argValue(
     "--require",
-    "http_request,codex_mobile,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_extract_text,audio_transcribe",
+    "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_extract_text,audio_transcribe",
   ));
   const forbiddenTools = forbidToolsFromArgs();
   const requiredDescriptionChecks = cleanToolDescriptionChecks(argValue("--require-tool-description", ""));

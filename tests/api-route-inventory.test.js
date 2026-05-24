@@ -220,20 +220,6 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
-    key: "hermes-codex-mux-api-routes",
-    exportName: "createHermesCodexMuxApiRoutes",
-    required: true,
-    minRoutes: 6,
-    probes: [
-      { method: "GET", path: "/api/codex-mux/tasks", id: "codex-mux-tasks-list" },
-      { method: "POST", path: "/api/codex-mux/tasks", id: "codex-mux-tasks-create" },
-      { method: "GET", path: "/api/codex-mux/tasks/task-1", id: "codex-mux-task-detail" },
-      { method: "GET", path: "/api/codex-mux/tasks/task-1/events", id: "codex-mux-task-events-list" },
-      { method: "POST", path: "/api/codex-mux/tasks/task-1/events", id: "codex-mux-task-events-append" },
-      { method: "POST", path: "/api/codex-mux/workers/codex-hermes-main/heartbeat", id: "codex-mux-worker-heartbeat" },
-    ],
-  },
-  {
     key: "learning-api-routes",
     exportName: "createLearningApiRoutes",
     required: true,
@@ -412,7 +398,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
 function testLearningProgramInventoryMatchesRouteModuleSpecs() {
   const inventoryById = new Map(listHermesMobileApiRoutes().map((route) => [route.id, route]));
   const moduleRoutes = createApiRouteRegistry(LEARNING_PROGRAM_API_ROUTE_SPECS).list();
-  assert.equal(moduleRoutes.length, 39);
+  assert.equal(moduleRoutes.length, 41);
   for (const expected of moduleRoutes) {
     const actual = inventoryById.get(expected.id);
     assert.ok(actual, `global inventory is missing ${expected.id}`);

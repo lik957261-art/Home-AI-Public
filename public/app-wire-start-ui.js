@@ -205,9 +205,6 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
-  $("codexMuxMode")?.addEventListener("click", async () => {
-    await openCodexMuxPage();
-  });
   $("bottomAutomationMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
     state.viewMode = "automation";
@@ -327,9 +324,6 @@ function wireUi() {
   $("topLearningSettings")?.addEventListener("click", () => {
     closeTopMoreMenu();
     openLearningGrowthSettingsPage();
-  });
-  $("topCodexMux")?.addEventListener("click", () => {
-    openCodexMuxPage().catch(showError);
   });
   $("topDeleteTodo")?.addEventListener("click", () => {
     deleteTodo(state.selectedTodoId).catch(showError);
