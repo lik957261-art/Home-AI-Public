@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-tab-switch-race-v151";
+const CLIENT_VERSION = "20260524-chat-scope-compact-v152";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -215,6 +215,8 @@ assert.match(stylesCss, /\.task-toolbar-directories \.directory-alias-chip \{[\s
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 15px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\) \{[\s\S]*?\.thread-title \{[\s\S]*?font-size: 15px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font-size\] \.thread-title,[\s\S]*?:root\[data-font-size\] \.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?font-size: calc\(15px \* var\(--app-font-scale\)\);[\s\S]*?font-weight: 650;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-segment \{[\s\S]*?min-height: 30px;[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-header-button \{[\s\S]*?min-height: 26px;[\s\S]*?font-size: 15px !important;[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);

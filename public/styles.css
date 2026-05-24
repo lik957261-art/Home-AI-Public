@@ -11532,6 +11532,22 @@ body.task-markdown-preview-open {
     pointer-events: auto;
   }
 
+  .chat-scope-segment {
+    min-height: 30px;
+    padding: 2px;
+    gap: 2px;
+    border-radius: 9px;
+    box-shadow: none;
+  }
+
+  .chat-scope-header-button {
+    min-height: 26px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-size: 15px !important;
+    font-weight: 650;
+  }
+
   .conversation {
     padding: 10px 10px 16px;
   }
