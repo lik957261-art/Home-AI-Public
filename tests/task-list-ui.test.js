@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-skill-menu-compact-v177";
+const CLIENT_VERSION = "20260524-bottom-label-size-v178";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -197,7 +197,7 @@ assert.match(stylesCss, /\.access-key-sheet \{[\s\S]*?border-radius: 12px;[\s\S]
 assert.match(stylesCss, /--ui-accent-active: #4f8790;/);
 assert.match(stylesCss, /--ui-accent-active-soft: rgba\(95, 139, 148, 0\.18\);/);
 assert.match(stylesCss, /\.bottom-tab \{[\s\S]*?font-size: 8\.75px;/);
-assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?font-size: 8\.5px !important;[\s\S]*?font-weight: 520;/);
+assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?font-size: 9px !important;[\s\S]*?font-weight: 520;/);
 assert.doesNotMatch(stylesCss, /:root\[data-font-size\] \.bottom-tab-label/);
 assert.match(stylesCss, /\.bottom-tab\.active \{[\s\S]*?color: var\(--ui-accent-active\);/);
 assert.match(stylesCss, /\.bottom-tab-icon \{[\s\S]*?width: 31px;[\s\S]*?height: 31px;/);
@@ -266,9 +266,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-skill-menu-compact-v177/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-skill-menu-compact-v177/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-skill-menu-compact-v177/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-bottom-label-size-v178/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-bottom-label-size-v178/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-bottom-label-size-v178/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
