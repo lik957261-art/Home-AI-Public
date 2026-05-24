@@ -18,8 +18,10 @@
   --ui-hairline: rgba(31, 43, 51, 0.055);
   --ui-hairline-strong: rgba(31, 43, 51, 0.10);
   --ui-accent: #6b858c;
+  --ui-accent-active: #4f8790;
   --ui-accent-ink: #465f66;
   --ui-accent-soft: rgba(144, 166, 170, 0.14);
+  --ui-accent-active-soft: rgba(95, 139, 148, 0.18);
   --ui-accent-fill: rgba(144, 166, 170, 0.20);
   --pdf: #a6423d;
   --pdf-soft: rgba(166, 66, 61, 0.1);
@@ -661,24 +663,24 @@ button {
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 2px;
-  padding: 3px 2px 2px;
+  gap: 1px;
+  padding: 2px 2px 1px;
   color: var(--muted);
   background: transparent;
   border: 0;
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 500;
   line-height: 1.08;
 }
 
 .bottom-tab.active {
-  color: var(--ui-accent);
-  font-weight: 560;
+  color: var(--ui-accent-active);
+  font-weight: 600;
 }
 
 .bottom-tab-icon {
-  width: 27px;
-  height: 27px;
+  width: 31px;
+  height: 31px;
   position: relative;
   display: block;
   color: currentColor;
@@ -687,8 +689,8 @@ button {
 }
 
 .bottom-tab.active .bottom-tab-icon {
-  background: var(--ui-accent-soft);
-  box-shadow: inset 0 0 0 1px rgba(144, 166, 170, 0.18);
+  background: var(--ui-accent-active-soft);
+  box-shadow: inset 0 0 0 1px rgba(95, 139, 148, 0.22);
   transform: translateY(-1px);
 }
 
@@ -699,10 +701,10 @@ button {
 .nav-chat-icon::before {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 3px;
-  width: 17px;
-  height: 12px;
+  left: 4px;
+  top: 4px;
+  width: 19px;
+  height: 14px;
   border: 2px solid currentColor;
   border-radius: 7px;
 }
@@ -710,10 +712,10 @@ button {
 .nav-chat-icon::after {
   content: "";
   position: absolute;
-  left: 8px;
-  top: 15px;
-  width: 7px;
-  height: 7px;
+  left: 10px;
+  top: 18px;
+  width: 8px;
+  height: 8px;
   border-left: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: skew(-28deg);
@@ -722,34 +724,34 @@ button {
 .nav-task-icon::before {
   content: "";
   position: absolute;
-  left: 7px;
-  top: 3px;
-  width: 13px;
+  left: 8px;
+  top: 4px;
+  width: 15px;
   height: 2px;
   border-radius: 2px;
   background: currentColor;
-  box-shadow: 0 7px 0 currentColor, 0 14px 0 currentColor;
+  box-shadow: 0 8px 0 currentColor, 0 16px 0 currentColor;
 }
 
 .nav-task-icon::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 3px;
+  left: 4px;
+  top: 4px;
   width: 3px;
   height: 3px;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 7px 0 currentColor, 0 14px 0 currentColor;
+  box-shadow: 0 8px 0 currentColor, 0 16px 0 currentColor;
 }
 
 .nav-directory-icon::before {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 7px;
-  width: 18px;
-  height: 12px;
+  left: 4px;
+  top: 8px;
+  width: 20px;
+  height: 14px;
   border: 2px solid currentColor;
   border-radius: 4px;
 }
@@ -757,10 +759,10 @@ button {
 .nav-directory-icon::after {
   content: "";
   position: absolute;
-  left: 5px;
-  top: 4px;
-  width: 8px;
-  height: 5px;
+  left: 6px;
+  top: 5px;
+  width: 9px;
+  height: 6px;
   border: 2px solid currentColor;
   border-bottom: 0;
   border-radius: 4px 4px 0 0;
@@ -769,10 +771,10 @@ button {
 .nav-todo-icon::before {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 2px;
-  width: 16px;
-  height: 16px;
+  left: 4px;
+  top: 3px;
+  width: 18px;
+  height: 18px;
   border: 2px solid currentColor;
   border-radius: 50%;
 }
@@ -780,10 +782,10 @@ button {
 .nav-todo-icon::after {
   content: "";
   position: absolute;
-  left: 9px;
-  top: 7px;
-  width: 8px;
-  height: 4px;
+  left: 11px;
+  top: 8px;
+  width: 9px;
+  height: 5px;
   border-left: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: rotate(-45deg);
@@ -792,22 +794,22 @@ button {
 .nav-learning-icon::before {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 13px;
-  width: 4px;
-  height: 6px;
+  left: 4px;
+  top: 15px;
+  width: 5px;
+  height: 7px;
   border-radius: 2px 2px 0 0;
   background: currentColor;
-  box-shadow: 7px -4px 0 currentColor, 14px -9px 0 currentColor;
+  box-shadow: 8px -5px 0 currentColor, 16px -10px 0 currentColor;
 }
 
 .nav-learning-icon::after {
   content: "";
   position: absolute;
-  left: 13px;
-  top: 3px;
-  width: 7px;
-  height: 7px;
+  left: 15px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
   border-top: 2px solid currentColor;
   border-right: 2px solid currentColor;
   transform: rotate(45deg);
@@ -816,10 +818,10 @@ button {
 .nav-automation-icon::before {
   content: "";
   position: absolute;
-  left: 4px;
-  top: 3px;
-  width: 16px;
-  height: 16px;
+  left: 5px;
+  top: 4px;
+  width: 18px;
+  height: 18px;
   border: 2px solid currentColor;
   border-radius: 50%;
 }
@@ -827,10 +829,10 @@ button {
 .nav-automation-icon::after {
   content: "";
   position: absolute;
-  left: 12px;
-  top: 6px;
-  width: 6px;
-  height: 7px;
+  left: 14px;
+  top: 7px;
+  width: 7px;
+  height: 8px;
   border-left: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform-origin: 0 100%;
@@ -11649,8 +11651,8 @@ body.task-markdown-preview-open {
 
   .composer {
     grid-template-columns: 38px minmax(0, 1fr) 50px;
-    padding: 6px 8px 5px;
-    gap: 5px;
+    padding: 6px max(10px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
+    gap: 6px;
   }
 
   .main-back-visible .composer {
@@ -11824,7 +11826,7 @@ body.task-markdown-preview-open {
   .composer {
     grid-template-columns: 36px minmax(0, 1fr) auto;
     gap: 5px;
-    padding: 4px max(8px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    padding: 4px max(10px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   }
 
   .composer-context {

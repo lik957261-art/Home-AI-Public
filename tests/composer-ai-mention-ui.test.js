@@ -105,7 +105,7 @@ assert.doesNotMatch(indexHtml, /id="composerSearchSource"[^>]*>本地/);
 assert.match(stylesCss, /\.composer\s*\{[^}]*grid-template-columns:\s*38px minmax\(0, 1fr\) minmax\(48px, auto\);/s);
 assert.match(stylesCss, /#messageInput\s*\{[^}]*grid-column:\s*2;/s);
 assert.match(stylesCss, /#sendMessage\s*\{[^}]*grid-column:\s*3;[\s\S]*?min-width:\s*56px;[\s\S]*?padding:\s*0 10px;/);
-assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer\s*\{[^}]*grid-template-columns:\s*38px minmax\(0, 1fr\) 50px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer\s*\{[^}]*grid-template-columns:\s*38px minmax\(0, 1fr\) 50px;[\s\S]*?padding:\s*6px max\(10px, env\(safe-area-inset-right\)\) 6px max\(8px, env\(safe-area-inset-left\)\);/);
 assert.match(appJs, /composerSearchSource: "local"/);
 assert.match(appJs, /function selectedComposerSearchSourceInfo\(text = getComposerText\(\)\)/);
 assert.match(appJs, /function composerSearchSourceAutoHint\(text = ""\)/);

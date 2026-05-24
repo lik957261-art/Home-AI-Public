@@ -190,14 +190,23 @@
   }
 
   function closePreviewFromUser(closeFn) {
-    if (isPreviewHistoryActive()) {
+    const historyActive = isPreviewHistoryActive();
+    closeFn();
+    if (historyActive && global.history?.back) {
+      try {
+        global.history.back();
+        return;
+      } catch (_) {
+        // Fall through and clear the marker if the browser refuses history.back().
+      }
+    }
+    if (historyActive) {
       try {
         const nextState = { ...(global.history.state || {}) };
         delete nextState[PREVIEW_HISTORY_KEY];
         global.history.replaceState(nextState, "", global.location.href);
       } catch (_) {}
     }
-    closeFn();
   }
 
   function closeActivePreviewFromUser() {
