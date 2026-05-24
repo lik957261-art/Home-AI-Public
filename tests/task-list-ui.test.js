@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-webpush-pwa-window-v158";
+const CLIENT_VERSION = "20260524-ui-phase4-tools-v159";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -187,7 +187,7 @@ assert.match(appJs, /data-preview-action="pdf"[\s\S]*?转成 PDF 分享/);
 assert.match(appJs, /function forwardMarkdownToGroup\(markdown, title\)/);
 assert.match(appJs, /function forwardFileLinkToGroup\(sourceUrl, title\)/);
 assert.match(appJs, /\/api\/weixin\/forward-file/);
-assert.match(stylesCss, /\.task-preview-more-menu \{[\s\S]*?z-index: 1211;[\s\S]*?pointer-events: auto;[\s\S]*?background: #fffaf3;[\s\S]*?font: 650 13px\/1\.3 var\(--font-sans\);/);
+assert.match(stylesCss, /\.task-preview-more-menu \{[\s\S]*?z-index: 1211;[\s\S]*?pointer-events: auto;[\s\S]*?background: rgba\(255, 252, 246, 0\.99\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.10\);[\s\S]*?font: 650 13px\/1\.3 var\(--font-sans\);/);
 assert.match(stylesCss, /\.task-markdown-preview-head \{[\s\S]*?position: relative;[\s\S]*?z-index: 3;/);
 assert.match(stylesCss, /\.task-markdown-preview-overlay \{[\s\S]*?padding: 0;[\s\S]*?background: #fff;/);
 assert.match(stylesCss, /\.task-markdown-preview-shell \{[\s\S]*?width: 100%;[\s\S]*?height: 100%;[\s\S]*?border: 0;[\s\S]*?border-radius: 0;[\s\S]*?box-shadow: none;/);
@@ -222,6 +222,15 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-segment \{[\s\S]*?min-height: 30px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-header-button \{[\s\S]*?min-height: 26px;[\s\S]*?font-size: 15px !important;[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /\.chat-scope-header-button\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.composer \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);[\s\S]*?background: rgba\(247, 244, 238, 0\.82\);/);
+assert.match(stylesCss, /#sendMessage \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.composer-context-chip \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-control-bg\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
+assert.match(stylesCss, /\.top-more-menu \{[\s\S]*?border: 1px solid var\(--ui-hairline-strong\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.08\);/);
+assert.match(stylesCss, /\.task-card-menu \{[\s\S]*?border: 1px solid var\(--ui-hairline-strong\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.08\);/);
+assert.match(stylesCss, /\.settings-panel \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;/);
+assert.match(stylesCss, /\.owner-workspace-card \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
+assert.match(stylesCss, /\.kanban-composer-panel \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?background: var\(--ui-surface\);/);
+assert.match(stylesCss, /\.codex-mux-tab\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);/);
 assert.match(stylesCss, /\.thread-card \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;/);
 assert.match(stylesCss, /\.thread-card\.active \{[\s\S]*?border-color: rgba\(144, 166, 170, 0\.28\);[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.message \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?box-shadow: none;/);

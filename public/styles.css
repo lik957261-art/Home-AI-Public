@@ -236,25 +236,25 @@ button {
 .primary-small,
 .secondary-small,
 .secondary-button {
-  color: #fffaf1;
-  background: var(--accent);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
   border: 0;
   border-radius: 14px;
   font-weight: 600;
-  box-shadow: 0 12px 26px rgba(31, 111, 98, 0.18);
+  box-shadow: 0 8px 20px rgba(34, 28, 20, 0.07);
 }
 
 .secondary-button {
-  color: var(--accent);
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(31, 111, 98, 0.24);
+  color: var(--ui-accent-ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline-strong);
   box-shadow: none;
 }
 
 .secondary-small {
-  color: var(--accent);
-  background: rgba(255, 255, 255, 0.50);
-  border: 1px solid rgba(31, 111, 98, 0.18);
+  color: var(--ui-accent-ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
   box-shadow: none;
 }
 
@@ -1297,11 +1297,11 @@ button {
   z-index: 30;
   min-width: 136px;
   padding: 6px;
-  background: rgba(255, 252, 246, 0.96);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: 0 14px 34px rgba(34, 28, 20, 0.16);
-  backdrop-filter: blur(18px);
+  background: rgba(255, 252, 246, 0.98);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
+  backdrop-filter: blur(14px);
 }
 
 .refresh-notice {
@@ -1455,9 +1455,9 @@ button {
   padding: 0;
   display: grid;
   place-items: center;
-  color: #1f6f62;
-  background: rgba(31, 111, 98, 0.06);
-  border: 1px solid rgba(31, 111, 98, 0.12);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
   border-radius: 9px;
   box-shadow: none;
   font-size: 14px;
@@ -1482,8 +1482,8 @@ button {
 }
 
 .composer.chat-search-composer .composer-editor {
-  border-color: rgba(31, 111, 98, 0.22);
-  background: rgba(255, 255, 255, 0.82);
+  border-color: var(--ui-hairline-strong);
+  background: rgba(255, 255, 255, 0.76);
 }
 
 .minimal-window-mode .thread-title-wrap,
@@ -1593,11 +1593,11 @@ button {
   z-index: 6;
   min-width: 148px;
   padding: 7px;
-  background: rgba(255, 252, 246, 0.96);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: 0 18px 42px rgba(34, 28, 20, 0.18);
-  backdrop-filter: blur(18px);
+  background: rgba(255, 252, 246, 0.98);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
+  backdrop-filter: blur(14px);
 }
 
 .task-more-delete {
@@ -3019,8 +3019,8 @@ button.directory-alias-chip {
 
 .task-card-menu-wrap.open .task-card-menu-button,
 .task-card-menu-button:active {
-  color: var(--text);
-  background: rgba(31, 111, 98, 0.08);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
 }
 
 .task-card-menu {
@@ -3029,10 +3029,10 @@ button.directory-alias-chip {
   top: calc(100% + 5px);
   min-width: 118px;
   padding: 6px;
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   background: rgba(255, 252, 246, 0.98);
-  box-shadow: 0 10px 24px rgba(31, 43, 51, 0.12);
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
 }
 
 .task-card-menu[hidden] {
@@ -3052,7 +3052,7 @@ button.directory-alias-chip {
 }
 
 .task-card-menu-item:active {
-  background: rgba(31, 111, 98, 0.08);
+  background: var(--ui-accent-soft);
 }
 
 .task-rename-sheet {
@@ -3897,8 +3897,8 @@ button.directory-alias-chip {
 
 .directory-entry-menu-wrap.open .directory-entry-menu-button,
 .directory-entry-menu-button:active {
-  color: var(--text);
-  background: rgba(31, 43, 51, 0.06);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
 }
 
 .directory-entry-menu {
@@ -3911,9 +3911,9 @@ button.directory-alias-chip {
   display: grid;
   gap: 2px;
   background: rgba(255, 252, 246, 0.98);
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  box-shadow: 0 16px 34px rgba(31, 43, 51, 0.16);
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
 }
 
 .directory-entry-menu[hidden] {
@@ -4212,11 +4212,11 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 2px;
   padding: 6px;
-  border: 1px solid rgba(31, 43, 51, 0.18);
-  border-radius: 8px;
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 10px;
   color: var(--ink);
-  background: #fffaf3;
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.22);
+  background: rgba(255, 252, 246, 0.99);
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.10);
   font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.3;
@@ -4244,7 +4244,7 @@ body.task-markdown-preview-open {
 
 .task-preview-more-menu button:active,
 .task-preview-more-menu button:hover {
-  background: rgba(46, 110, 95, 0.1);
+  background: var(--ui-accent-soft);
 }
 
 .task-preview-toast {
@@ -4486,14 +4486,14 @@ body.task-markdown-preview-open {
 
 .owner-elevation-cancel {
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline-strong);
 }
 
 .owner-elevation-approve {
-  color: #fffaf1;
-  background: var(--accent);
-  border: 1px solid rgba(31, 111, 98, 0.22);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border: 1px solid rgba(144, 166, 170, 0.28);
 }
 
 .pwa-install-panel {
@@ -4546,9 +4546,9 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
 }
 
 .settings-row-title {
@@ -4583,8 +4583,8 @@ body.task-markdown-preview-open {
   gap: 2px;
   padding: 7px 4px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.82);
-  border: 1px solid var(--line);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
   border-radius: 11px;
   font-weight: 560;
 }
@@ -4597,8 +4597,8 @@ body.task-markdown-preview-open {
   gap: 3px;
   padding: 7px 5px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.82);
-  border: 1px solid var(--line);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
   border-radius: 11px;
   font-family: var(--font-preview-family, var(--app-font-family));
   font-weight: 560;
@@ -4612,29 +4612,29 @@ body.task-markdown-preview-open {
   gap: 3px;
   padding: 8px 9px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.82);
-  border: 1px solid var(--line);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
   border-radius: 11px;
   text-align: left;
   font-weight: 560;
 }
 
 .font-size-option.active {
-  color: #fffaf1;
-  background: var(--accent);
-  border-color: rgba(31, 111, 98, 0.45);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(144, 166, 170, 0.30);
 }
 
 .font-family-option.active {
-  color: #fffaf1;
-  background: var(--accent);
-  border-color: rgba(31, 111, 98, 0.45);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(144, 166, 170, 0.30);
 }
 
 .default-model-option.active {
-  color: #fffaf1;
-  background: var(--accent);
-  border-color: rgba(31, 111, 98, 0.45);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(144, 166, 170, 0.30);
 }
 
 .settings-account-actions {
@@ -4712,8 +4712,8 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 5px;
   padding: 12px;
-  background: rgba(31, 111, 98, 0.06);
-  border: 1px solid rgba(31, 111, 98, 0.12);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
   border-radius: 12px;
 }
 
@@ -4840,13 +4840,13 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 10px;
   padding: 12px;
-  background: rgba(255, 252, 246, 0.74);
-  border: 1px solid rgba(31, 43, 51, 0.10);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-hairline);
   border-radius: 12px;
 }
 
 .owner-workspace-card.local {
-  border-color: rgba(31, 111, 98, 0.18);
+  border-color: rgba(144, 166, 170, 0.28);
 }
 
 .owner-workspace-card-head {
@@ -4922,9 +4922,9 @@ body.task-markdown-preview-open {
   flex: 0 0 auto;
   min-height: 34px;
   padding: 0 12px;
-  color: var(--accent);
-  background: rgba(232, 244, 235, 0.92);
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
   font-size: 13px;
   font-weight: 560;
@@ -4941,8 +4941,8 @@ body.task-markdown-preview-open {
 }
 
 .owner-key-card {
-  background: rgba(31, 111, 98, 0.07);
-  border-color: rgba(31, 111, 98, 0.16);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-hairline);
 }
 
 .access-key-create-section {
@@ -5581,9 +5581,9 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 12px;
   padding: 12px;
-  border: 1px solid rgba(20, 32, 39, 0.09);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.44);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-surface);
 }
 
 .kanban-create-page {
@@ -5609,17 +5609,17 @@ body.task-markdown-preview-open {
   min-height: 40px;
   padding: 0 12px;
   color: var(--muted);
-  background: rgba(255, 252, 246, 0.78);
-  border: 1px solid rgba(20, 32, 39, 0.1);
-  border-radius: 13px;
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 560;
 }
 
 .kanban-create-mode-button.active {
-  color: var(--accent-strong);
-  background: rgba(231, 244, 238, 0.78);
-  border-color: rgba(31, 111, 98, 0.32);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(144, 166, 170, 0.28);
 }
 
 .kanban-composer-input {
@@ -6226,27 +6226,27 @@ body.task-markdown-preview-open {
 .kanban-plan-actions button {
   min-height: 34px;
   padding: 0 12px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid rgba(31, 111, 98, 0.18);
-  border-radius: 12px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
   font-size: 12px;
   font-weight: 600;
 }
 
 .kanban-composer-toolbar button[type="submit"],
 .kanban-plan-actions [data-create-kanban-plan] {
-  color: #fff;
-  background: var(--accent);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
 }
 
 .kanban-create-progress {
   display: grid;
   gap: 10px;
   padding: 11px;
-  border: 1px solid rgba(31, 111, 98, 0.16);
-  border-radius: 14px;
-  background: rgba(231, 244, 238, 0.46);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-accent-soft);
 }
 
 .kanban-create-progress-head {
@@ -6330,14 +6330,14 @@ body.task-markdown-preview-open {
   gap: 4px;
   max-width: 92%;
   padding: 9px 10px;
-  border: 1px solid rgba(20, 32, 39, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 252, 246, 0.76);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-surface);
 }
 
 .kanban-composer-message.user {
   justify-self: end;
-  background: rgba(231, 244, 238, 0.72);
+  background: var(--ui-accent-soft);
 }
 
 .kanban-composer-message strong {
@@ -7348,9 +7348,9 @@ body.task-markdown-preview-open {
   height: 22px;
   display: grid;
   place-items: center;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid rgba(31, 111, 98, 0.16);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
   border-radius: 999px;
   font-size: 16px;
   line-height: 1;
@@ -7376,8 +7376,8 @@ body.task-markdown-preview-open {
 }
 
 .todo-revision-panel {
-  border-color: rgba(31, 111, 98, 0.24);
-  background: rgba(232, 245, 239, 0.52);
+  border-color: var(--ui-hairline);
+  background: var(--ui-accent-soft);
 }
 
 .todo-learning-growth-panel {
@@ -8339,8 +8339,8 @@ body.task-markdown-preview-open {
 }
 
 .learning-growth-owner-menu[open] summary {
-  color: var(--text);
-  background: rgba(31, 111, 98, 0.08);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
 }
 
 .learning-growth-owner-menu-panel {
@@ -8350,10 +8350,10 @@ body.task-markdown-preview-open {
   z-index: 20;
   min-width: 126px;
   padding: 6px;
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 10px;
-  background: var(--panel);
-  box-shadow: 0 10px 24px rgba(31, 43, 51, 0.14);
+  background: rgba(255, 252, 246, 0.98);
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
 }
 
 .learning-growth-owner-menu-panel button {
@@ -8362,7 +8362,7 @@ body.task-markdown-preview-open {
   padding: 0 10px;
   border: 0;
   border-radius: 8px;
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   background: transparent;
   font-size: 13px;
   font-weight: 800;
@@ -8755,9 +8755,9 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 3px;
   padding: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--ui-surface);
 }
 
 .learning-settings-kpi-grid small,
@@ -8791,10 +8791,10 @@ body.task-markdown-preview-open {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
   color: var(--ink);
-  background: var(--surface);
+  background: var(--ui-surface);
   text-align: left;
 }
 
@@ -8823,7 +8823,7 @@ body.task-markdown-preview-open {
 
 .learning-settings-task-row em {
   flex: 0 0 auto;
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-size: 13px;
   font-style: normal;
   font-weight: 800;
@@ -8835,7 +8835,7 @@ body.task-markdown-preview-open {
 }
 
 .learning-owner-step {
-  border-left: 4px solid rgba(31, 111, 98, 0.58);
+  border-left: 3px solid rgba(144, 166, 170, 0.42);
 }
 
 .learning-owner-fact-grid {
@@ -8849,13 +8849,13 @@ body.task-markdown-preview-open {
   gap: 2px;
   min-width: 0;
   padding: 10px;
-  border: 1px solid rgba(31, 111, 98, 0.12);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--ui-surface);
 }
 
 .learning-owner-fact-grid strong {
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-size: 15px;
   overflow-wrap: anywhere;
 }
@@ -8869,7 +8869,7 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 10px;
   padding: 10px;
-  border: 1px dashed rgba(31, 111, 98, 0.2);
+  border: 1px dashed rgba(144, 166, 170, 0.24);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.48);
 }
@@ -8880,7 +8880,7 @@ body.task-markdown-preview-open {
 
 .learning-owner-advanced summary {
   cursor: pointer;
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-size: 13px;
   font-weight: 800;
 }
@@ -8901,9 +8901,9 @@ body.task-markdown-preview-open {
   gap: 10px;
   min-width: 0;
   padding: 12px;
-  border: 1px solid rgba(22, 128, 107, 0.18);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
-  background: rgba(236, 248, 244, 0.68);
+  background: var(--ui-surface);
 }
 
 .learning-source-directory-card strong,
@@ -10139,9 +10139,9 @@ body.task-markdown-preview-open {
 .codex-mux-event,
 .codex-mux-intro,
 .codex-mux-chat {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 252, 246, 0.84);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+  background: var(--ui-surface);
 }
 
 .codex-mux-intro {
@@ -10193,18 +10193,18 @@ body.task-markdown-preview-open {
   justify-content: center;
   gap: 7px;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.48);
-  border: 1px solid rgba(31, 111, 98, 0.14);
-  border-radius: 8px;
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
   font: inherit;
   font-size: 14px;
   font-weight: 650;
 }
 
 .codex-mux-tab.active {
-  color: #0f5f4d;
-  background: rgba(222, 242, 234, 0.70);
-  border-color: rgba(31, 111, 98, 0.28);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(144, 166, 170, 0.28);
 }
 
 .codex-mux-tab small {
@@ -10235,13 +10235,13 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 5px;
   padding: 10px;
-  border: 1px solid rgba(31, 111, 98, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .codex-mux-message.user {
-  background: rgba(235, 247, 242, 0.58);
+  background: var(--ui-accent-soft);
 }
 
 .codex-mux-message-head {
@@ -10833,9 +10833,9 @@ body.task-markdown-preview-open {
   align-items: center;
   gap: 6px;
   padding: 9px 14px calc(9px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--line);
-  background: rgba(250, 246, 237, 0.88);
-  backdrop-filter: blur(18px);
+  border-top: 1px solid var(--ui-hairline);
+  background: rgba(247, 244, 238, 0.82);
+  backdrop-filter: blur(14px);
 }
 
 .composer-source-toggle {
@@ -10857,7 +10857,7 @@ body.task-markdown-preview-open {
   padding: 0;
   display: inline-grid;
   place-items: center;
-  color: rgba(31, 76, 68, 0.42);
+  color: rgba(70, 95, 102, 0.48);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -10865,15 +10865,15 @@ body.task-markdown-preview-open {
 }
 
 .composer .composer-source-button.active {
-  color: #0f5f4d;
-  background: rgba(214, 242, 232, 0.62);
-  border-color: rgba(31, 111, 98, 0.24);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(144, 166, 170, 0.28);
 }
 
 .composer .composer-source-button.auto-detected {
-  color: rgba(31, 111, 98, 0.58);
-  background: rgba(214, 242, 232, 0.22);
-  border-color: rgba(31, 111, 98, 0.10);
+  color: rgba(70, 95, 102, 0.64);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-hairline);
 }
 
 .composer .composer-source-button:disabled {
@@ -10909,10 +10909,10 @@ body.task-markdown-preview-open {
   padding: 5px;
   overflow-y: auto;
   color: var(--ink);
-  background: rgba(255, 253, 248, 0.96);
-  border: 1px solid rgba(63, 127, 114, 0.18);
+  background: rgba(255, 252, 246, 0.98);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  box-shadow: 0 18px 42px rgba(31, 43, 51, 0.12);
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
   -webkit-overflow-scrolling: touch;
   font-size: 15px;
   line-height: 1.15;
@@ -10928,10 +10928,10 @@ body.task-markdown-preview-open {
   gap: 5px;
   padding: 6px;
   color: var(--ink);
-  background: rgba(255, 253, 248, 0.97);
-  border: 1px solid rgba(63, 127, 114, 0.18);
+  background: rgba(255, 252, 246, 0.98);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  box-shadow: 0 18px 42px rgba(31, 43, 51, 0.12);
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
 }
 
 .composer-source-menu[hidden] {
@@ -10947,17 +10947,17 @@ body.task-markdown-preview-open {
   gap: 7px;
   padding: 7px 9px;
   color: rgba(31, 43, 51, 0.82);
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(63, 127, 114, 0.12);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
   font: inherit;
   text-align: left;
 }
 
 .composer-source-option.active {
-  color: #0f5f4d;
-  background: rgba(216, 239, 230, 0.58);
-  border-color: rgba(31, 111, 98, 0.22);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(144, 166, 170, 0.28);
 }
 
 .composer-source-name {
@@ -10991,7 +10991,7 @@ body.task-markdown-preview-open {
   padding: 0 1px 1px;
   margin-bottom: -2px;
   overflow-x: auto;
-  color: rgba(38, 64, 60, 0.74);
+  color: rgba(70, 95, 102, 0.74);
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -11012,9 +11012,9 @@ body.task-markdown-preview-open {
   display: inline-flex;
   align-items: center;
   padding: 0 7px;
-  color: rgba(40, 76, 69, 0.74);
-  background: rgba(255, 253, 248, 0.58);
-  border: 1px solid rgba(63, 127, 114, 0.12);
+  color: var(--ui-accent-ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
@@ -11030,9 +11030,9 @@ body.task-markdown-preview-open {
 }
 
 .composer-context-chip.primary {
-  color: #0f5f4d;
-  background: rgba(216, 239, 230, 0.42);
-  border-color: rgba(31, 111, 98, 0.16);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-hairline);
 }
 
 .composer-context-chip.active {
@@ -11056,11 +11056,11 @@ body.task-markdown-preview-open {
   min-height: 36px;
   padding: 6px 8px;
   margin: 0;
-  background: rgba(255, 253, 248, 0.9);
-  border: 1px solid rgba(63, 127, 114, 0.16);
+  background: rgba(255, 252, 246, 0.92);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 999px;
-  box-shadow: 0 12px 30px rgba(31, 43, 51, 0.14);
-  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
+  backdrop-filter: blur(14px);
 }
 
 .composer.keyboard-context-mode .composer-context-chip {
@@ -11086,7 +11086,7 @@ body.task-markdown-preview-open {
 
 .composer .group-mention-option.active,
 .composer .group-mention-option:focus-visible {
-  background: rgba(216, 239, 230, 0.72);
+  background: var(--ui-accent-soft);
   outline: none;
 }
 
@@ -11139,10 +11139,10 @@ body.task-markdown-preview-open {
   order: 0;
   min-width: 58px;
   padding: 0 10px;
-  color: #0f5f4d;
-  background: #d8efe6;
-  border: 1px solid rgba(31, 111, 98, 0.18);
-  box-shadow: 0 8px 18px rgba(31, 111, 98, 0.08);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+  border: 1px solid rgba(144, 166, 170, 0.28);
+  box-shadow: none;
 }
 
 .pending-artifacts {
@@ -11162,9 +11162,9 @@ body.task-markdown-preview-open {
   align-items: center;
   gap: 5px;
   padding: 0 10px 0 7px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid rgba(31, 111, 98, 0.18);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -11199,12 +11199,12 @@ body.task-markdown-preview-open {
   align-items: center;
   gap: 8px;
   padding: 7px 8px 7px 10px;
-  color: #214840;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(31, 111, 98, 0.18);
-  border-left: 4px solid rgba(31, 111, 98, 0.46);
-  border-radius: 15px;
-  box-shadow: 0 10px 24px rgba(31, 111, 98, 0.07);
+  color: var(--ui-accent-ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-left: 3px solid rgba(144, 166, 170, 0.40);
+  border-radius: 12px;
+  box-shadow: none;
 }
 
 .quoted-reply-text {
@@ -11244,18 +11244,16 @@ body.task-markdown-preview-open {
 }
 
 .composer .secondary-button {
-  color: #315f55;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(245, 249, 245, 0.66)),
-    var(--accent-mist);
-  border: 1px solid rgba(63, 127, 114, 0.18);
-  box-shadow: 0 10px 28px rgba(31, 111, 98, 0.08);
+  color: var(--ui-accent-ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline-strong);
+  box-shadow: none;
 }
 
 .composer .secondary-button:disabled {
-  color: rgba(49, 95, 85, 0.46);
+  color: rgba(70, 95, 102, 0.46);
   background: rgba(255, 255, 255, 0.46);
-  border-color: rgba(31, 43, 51, 0.12);
+  border-color: var(--ui-hairline);
   box-shadow: none;
 }
 
