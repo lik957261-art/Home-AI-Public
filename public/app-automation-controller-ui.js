@@ -5,7 +5,7 @@ function automationRequestParams(options = {}) {
   params.set("workspaceId", state.selectedWorkspaceId || "owner");
   params.set("includeDisabled", "1");
   params.set("limit", "200");
-  params.set("detail", options.detail === "full" ? "full" : "summary");
+  params.set("detail", options.detail === "full" || options.refresh ? "full" : "summary");
   const search = currentSearchText();
   if (search) params.set("search", search);
   if (options.refresh) params.set("refresh", "1");
@@ -31,7 +31,21 @@ function automationIsSummaryJob(job) {
   return String(job?.detailLevel || "").toLowerCase() === "summary";
 }
 
-function mergeAutomationJobs(existing = [], incoming = []) {
+function mergeAutomationJobs(existing = [], incoming = [], options = {}) {
+  if (options.preferIncomingOrder) {
+    const existingById = new Map((existing || []).map((job) => [String(job?.id || ""), job]));
+    const seen = new Set();
+    const merged = (incoming || []).map((job) => {
+      const id = String(job?.id || "");
+      seen.add(id);
+      return Object.assign({}, existingById.get(id) || {}, job);
+    });
+    for (const job of existing || []) {
+      const id = String(job?.id || "");
+      if (id && !seen.has(id)) merged.push(job);
+    }
+    return merged;
+  }
   const fullById = new Map();
   for (const job of incoming || []) {
     if (job?.id) fullById.set(String(job.id), job);
@@ -71,7 +85,7 @@ async function hydrateAutomationDetails(options = {}) {
   try {
     const result = await api(`/api/automations?${params}`);
     if (seq !== state.automationDetailRequestSeq || state.viewMode !== "automation") return;
-    state.automations = mergeAutomationJobs(state.automations, result.data || []);
+    state.automations = mergeAutomationJobs(state.automations, result.data || [], { preferIncomingOrder: true });
     state.automationSource = Object.assign({}, state.automationSource || {}, result.source || {}, { warning: result.warning || "" });
     state.automationFullCacheKey = cacheKey;
   } finally {
@@ -113,7 +127,7 @@ async function loadAutomations(options = {}) {
   }
   if (seq !== state.automationRequestSeq) return;
   const detail = params.get("detail") || "summary";
-  state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || []) : (result.data || []);
+  state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || [], { preferIncomingOrder: true }) : (result.data || []);
   state.automationSource = Object.assign({}, result.source || {}, { warning: result.warning || "" });
   state.automationCacheKey = cacheKey;
   if (detail === "full") {

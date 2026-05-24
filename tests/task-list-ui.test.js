@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260525-learning-audio-history-v212";
+const CLIENT_VERSION = "20260525-automation-refresh-order-v213";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -151,8 +151,10 @@ assert.match(appJs, /taskDocumentPreviewOverlay/);
 assert.match(stylesCss, /\.task-document-preview-overlay/);
 assert.match(stylesCss, /\.task-document-preview-frame \{[\s\S]*?border: 0;/);
 assert.match(appJs, /function automationDocumentMime\(doc\)/);
-assert.match(appJs, /params\.set\("detail", options\.detail === "full" \? "full" : "summary"\)/);
+assert.match(appJs, /params\.set\("detail", options\.detail === "full" \|\| options\.refresh \? "full" : "summary"\)/);
 assert.match(appJs, /function hydrateAutomationDetails\(options = \{\}\)/);
+assert.match(appJs, /preferIncomingOrder/);
+assert.match(appJs, /detail === "full" \? mergeAutomationJobs\(state\.automations, result\.data \|\| \[\], \{ preferIncomingOrder: true \}\)/);
 assert.match(appJs, /scheduleAutomationDetailHydration\(summaryCacheKey\)/);
 assert.match(appJs, /function automationIsSummaryJob\(job\)/);
 assert.match(appJs, /data-task-doc data-artifact-name="\$\{escapeHtml\(name\)\}" data-artifact-mime="\$\{escapeHtml\(mime\)\}"/);
@@ -292,9 +294,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-learning-audio-history-v212/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-learning-audio-history-v212/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-learning-audio-history-v212/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-automation-refresh-order-v213/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-automation-refresh-order-v213/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-automation-refresh-order-v213/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
