@@ -39,6 +39,14 @@ function createOwnerElevationRoutingService(options = {}) {
     return String(value || "").toLowerCase().replace(/\s+/g, "");
   }
 
+  function textRequestsChatGptPro(text) {
+    const compact = mentionSearchText(text);
+    if (!compact) return false;
+    return compact.includes("@chatgptpro")
+      || compact.includes("chatgptpro")
+      || String(text || "").toLowerCase().includes("chatgpt-pro");
+  }
+
   function workspaceMentionCandidates(workspace = {}) {
     const policy = workspace.policy && typeof workspace.policy === "object" ? workspace.policy : {};
     return [...new Set([
@@ -109,10 +117,11 @@ function createOwnerElevationRoutingService(options = {}) {
 
   function gatewayRoutingForModelRun(auth, text, routeOptions = {}) {
     const explicitMaintenance = Boolean(routeOptions.maintenanceMode || routeOptions.maintenance_mode);
+    const chatGptProIntent = routeRequestsChatGptPro(routeOptions) || textRequestsChatGptPro(text);
     if (explicitMaintenance) {
       const onceToken = routeOptions.ownerElevationOnceToken || routeOptions.owner_elevation_once_token || "";
       if (consumeOwnerElevationOnce(auth, onceToken) || isOwnerElevationActive(auth)) {
-        const chatGptPro = routeRequestsChatGptPro(routeOptions);
+        const chatGptPro = chatGptProIntent;
         return {
           securityLevel: "owner-maintenance",
           maintenance: true,
@@ -129,6 +138,15 @@ function createOwnerElevationRoutingService(options = {}) {
       err.operatorRequired = true;
       err.elevationRequired = Boolean(isOwnerAuth(auth));
       err.elevationScope = routeOptions.elevationScope || routeOptions.elevation_scope || "owner_high_privilege";
+      throw err;
+    }
+    if (chatGptProIntent) {
+      const err = new Error("ChatGPT Pro requires Owner high-privilege approval before routing to the Owner maintenance Gateway.");
+      err.status = isOwnerAuth(auth) ? 409 : 403;
+      err.code = "owner_high_privilege_required";
+      err.operatorRequired = true;
+      err.elevationRequired = Boolean(isOwnerAuth(auth));
+      err.elevationScope = "chatgpt_pro_generate";
       throw err;
     }
     return { securityLevel: "user", maintenance: false };
@@ -294,6 +312,7 @@ function createOwnerElevationRoutingService(options = {}) {
     sanitizeElevationScope,
     sharedSkillElevationInstructions,
     routeRequestsChatGptPro,
+    textRequestsChatGptPro,
     stripPermissionApprovalMarkers,
     textLooksLikeAutomationWrite,
     workspaceMentionCandidates,

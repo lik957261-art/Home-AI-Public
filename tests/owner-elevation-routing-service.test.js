@@ -83,6 +83,16 @@ function testExplicitMaintenanceModeStillRequiresElevation() {
   ), "owner_high_privilege_required");
 }
 
+function testChatGptProTextRequiresElevationEvenWithoutFrontendFlags() {
+  const service = makeService();
+  assertThrowsCode(() => service.gatewayRoutingForModelRun(
+    { workspaceId: "owner" },
+    "@ChatGPT Pro 帮我生成报告",
+    { actorWorkspaceId: "owner" },
+  ), "owner_high_privilege_required");
+  assert.equal(service.textRequestsChatGptPro("@ChatGPT Pro 帮我生成报告"), true);
+}
+
 function testChatGptProRoutesOnlyToOwnerMaintenanceProfilesAfterApproval() {
   const service = makeService({
     consumeOwnerElevationOnce: (_auth, token) => token === "one-shot",
@@ -111,6 +121,7 @@ testLearningContentUpdateDoesNotForceMaintenanceRouting();
 testPythonLessonSummaryDoesNotForceElevation();
 testCrossAccountAutomationDoesNotPreemptNormalModelRun();
 testExplicitMaintenanceModeStillRequiresElevation();
+testChatGptProTextRequiresElevationEvenWithoutFrontendFlags();
 testChatGptProRoutesOnlyToOwnerMaintenanceProfilesAfterApproval();
 
 console.log("owner-elevation-routing-service tests passed");
