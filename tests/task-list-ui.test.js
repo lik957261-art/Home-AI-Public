@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-collab-rollback-v166";
+const CLIENT_VERSION = "20260524-bottom-composer-frame-v169";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1467,10 +1467,10 @@ assert.doesNotMatch(fileViewerHtml, /native-browser-chrome/);
 assert.doesNotMatch(pdfViewerHtml, /viewerChrome/);
 assert.doesNotMatch(pdfViewerHtml, /embeddedViewer/);
 assert.doesNotMatch(pdfViewerHtml, /native-browser-chrome/);
-assert.match(stylesCss, /\.composer \{[\s\S]*?padding: 9px 14px calc\(9px \+ env\(safe-area-inset-bottom\)\)/);
-assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer \{[\s\S]*?padding: 7px 8px 6px/);
-assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.main-back-visible \.composer \{[\s\S]*?padding-bottom: calc\(14px \+ env\(safe-area-inset-bottom\)\)/);
-assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\)[\s\S]*?\.composer \{[\s\S]*?calc\(8px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /\.composer \{[\s\S]*?padding: 8px 13px calc\(8px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer \{[\s\S]*?padding: 6px 8px 5px/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.main-back-visible \.composer \{[\s\S]*?padding-bottom: calc\(12px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\)[\s\S]*?\.composer \{[\s\S]*?calc\(7px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);
 assert.match(appJs, /function composerRequestSizeError\(text, serializedBody\)/);
@@ -1492,7 +1492,7 @@ assert.match(singleWindowGroupChatApiRoutes, /groupChatThread/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatAvailable/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThreadId/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThread/);
-assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(58px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(54px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height/);
 assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 8px\)/);
 assert.match(stylesCss, /\.app\.main-back-visible \{[\s\S]*?padding-bottom: 0/);
@@ -1503,7 +1503,7 @@ assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?line-height: 1\.05/);
 assert.match(stylesCss, /\.top-nav-button\.back-mode \.top-nav-button-glyph \{[\s\S]*?background: transparent[\s\S]*?font-size: 27px/);
 assert.match(appJs, /Math\.max\(96, rectHeight \+ 12, contentHeight \+ 12\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\)/);
-assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(50px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(46px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height-runtime, calc\(var\(--mobile-bottom-nav-height\) \+ 8px\)/);
 assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.thread-meta \{[\s\S]*?display: none;/);
