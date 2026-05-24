@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-tools-push-ai-strict-v195";
+const CLIENT_VERSION = "20260524-skill-analyze-button-v196";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -285,9 +285,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-tools-push-ai-strict-v195/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-tools-push-ai-strict-v195/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-tools-push-ai-strict-v195/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-skill-analyze-button-v196/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-skill-analyze-button-v196/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-skill-analyze-button-v196/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -433,8 +433,9 @@ assert.match(stylesCss, /width: min\(460px, calc\(100vw - 24px\)\)/);
 assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.message-skill-details\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?left:\s*max\(18px, env\(safe-area-inset-left\)\);[\s\S]*?right:\s*max\(18px, env\(safe-area-inset-right\)\);[\s\S]*?max-height: min\(220px, 34vh\);/);
 assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.message-skill-item\s*\{[\s\S]*?min-height:\s*34px;[\s\S]*?font-size:\s*13px;/);
 assert.match(stylesCss, /\.skill-detail-analyze/);
-assert.match(stylesCss, /\.skill-detail-analyze \{[\s\S]*?min-width: 32px;[\s\S]*?font-size: 9\.5px;/);
-assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.skill-detail-analyze \{[\s\S]*?min-width: 30px;[\s\S]*?font-size: 9\.5px;/);
+assert.match(stylesCss, /\.skill-detail-analyze \{[\s\S]*?height: 17px;[\s\S]*?font-size: 9px !important;/);
+assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.skill-detail-analyze \{[\s\S]*?height: 17px;[\s\S]*?font-size: 9px !important;/);
+assert.match(stylesCss, /:root\[data-font-size\] \.skill-detail-analyze \{[\s\S]*?height: 17px;[\s\S]*?font-size: 9px !important;/);
 assert.match(stylesCss, /\.skill-detail-title-row/);
 assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.skill-detail-head\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*34px minmax\(0, 1fr\);/);
 assert.doesNotMatch(stylesCss, /\.skill-detail-close/);
