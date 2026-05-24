@@ -32,7 +32,7 @@
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
   --app-font-scale: 1;
   --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
-  --mobile-bottom-nav-height: calc(54px + env(safe-area-inset-bottom));
+  --mobile-bottom-nav-height: calc(58px + env(safe-area-inset-bottom));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 8px));
   font-family: var(--app-font-family);
 }
@@ -11082,7 +11082,7 @@ body.task-markdown-preview-open {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: center;
-    padding: 3px max(6px, env(safe-area-inset-right)) calc(2px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    padding: 4px max(6px, env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
     border-top: 1px solid var(--ui-hairline);
     background: var(--ui-chrome);
     backdrop-filter: blur(12px);
@@ -11645,7 +11645,7 @@ body.task-markdown-preview-open {
 
 @media (max-width: 1099px) and (orientation: landscape) and (max-height: 620px) {
   :root {
-    --mobile-bottom-nav-height: calc(46px + env(safe-area-inset-bottom));
+    --mobile-bottom-nav-height: calc(50px + env(safe-area-inset-bottom));
     --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 8px));
   }
 
@@ -11775,7 +11775,7 @@ body.task-markdown-preview-open {
 
   .bottom-nav {
     align-items: center;
-    padding: 2px 10px calc(2px + env(safe-area-inset-bottom));
+    padding: 3px 10px calc(3px + env(safe-area-inset-bottom));
   }
 
   .bottom-tab {
@@ -12083,7 +12083,7 @@ body.task-markdown-preview-open {
 }
 
 :root[data-font-size] .bottom-nav {
-  min-height: var(--mobile-bottom-nav-height);
+  min-height: calc(78px * var(--app-font-scale));
 }
 
 .chat-history-pager {

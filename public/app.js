@@ -24,8 +24,8 @@ const FONT_FAMILY_OPTIONS = Object.freeze([
   },
   {
     id: "sans",
-    label: "黑体",
-    sample: "黑",
+    label: "微软雅黑",
+    sample: "微",
     family: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Aptos", "Segoe UI", sans-serif',
   },
   {

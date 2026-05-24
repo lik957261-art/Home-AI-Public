@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-directory-preview-v170";
+const CLIENT_VERSION = "20260524-bottom-safe-font-v171";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -244,9 +244,9 @@ assert.match(markdownViewerHtml, /taskListCompatibility: true/);
 assert.doesNotMatch(markdownViewerHtml, /viewer-more-button|viewer-done-button|topbar/);
 assert.doesNotMatch(fileViewerHtml, /function renderIframePreview\(label\)/);
 assert.match(fileViewerHtml, /kind === "HTML"[\s\S]{0,80}location\.replace\(originalUrlFor\(src\)\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-directory-preview-v170/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-directory-preview-v170/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-directory-preview-v170/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-bottom-safe-font-v171/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-bottom-safe-font-v171/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-bottom-safe-font-v171/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -665,6 +665,8 @@ assert.match(appJs, /deleteKanbanStoryCase\(itemId\)/);
 assert.match(appJs, /kanban-story-swipe-delete/);
 assert.match(appJs, /FONT_FAMILY_OPTIONS/);
 assert.match(appJs, /hermesWebFontFamily/);
+assert.match(appJs, /label: "微软雅黑"/);
+assert.doesNotMatch(appJs, /label: "黑体"/);
 assert.match(appJs, /function applyFontFamilyPreference\(value = state\.fontFamily\)/);
 assert.match(appJs, /data-font-family-option/);
 assert.match(stylesCss, /\.kanban-story-swipe-content/);
@@ -1504,7 +1506,7 @@ assert.match(singleWindowGroupChatApiRoutes, /groupChatThread/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatAvailable/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThreadId/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThread/);
-assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(54px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(58px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height/);
 assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 8px\)/);
 assert.match(stylesCss, /\.app\.main-back-visible \{[\s\S]*?padding-bottom: 0/);
@@ -1515,7 +1517,7 @@ assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?line-height: 1\.05/);
 assert.match(stylesCss, /\.top-nav-button\.back-mode \.top-nav-button-glyph \{[\s\S]*?background: transparent[\s\S]*?font-size: 27px/);
 assert.match(appJs, /Math\.max\(96, rectHeight \+ 12, contentHeight \+ 12\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\)/);
-assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(46px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(50px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height-runtime, calc\(var\(--mobile-bottom-nav-height\) \+ 8px\)/);
 assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.thread-meta \{[\s\S]*?display: none;/);
