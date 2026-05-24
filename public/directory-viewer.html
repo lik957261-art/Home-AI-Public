@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Directory</title>
-  <link rel="stylesheet" href="/styles.css?v=20260524-bottom-safe-font-v171">
+  <link rel="stylesheet" href="/styles.css?v=20260524-embedded-document-preview-v172">
   <style>
     :root {
       --paper: #f6f0e4;
@@ -238,8 +238,8 @@
   </main>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260524-bottom-safe-font-v171"></script>
-  <script src="/app-task-preview-ui.js?v=20260524-bottom-safe-font-v171"></script>
+  <script src="/markdown-renderer-client.js?v=20260524-embedded-document-preview-v172"></script>
+  <script src="/app-task-preview-ui.js?v=20260524-embedded-document-preview-v172"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const key = localStorage.getItem("hermesWebKey") || "";
@@ -316,6 +316,8 @@
       const mime = String(entry.mime || "").toLowerCase();
       if (mime.includes("pdf") || name.endsWith(".pdf")) return "pdf";
       if (mime.includes("word") || name.endsWith(".doc") || name.endsWith(".docx")) return "word";
+      if (mime.includes("spreadsheet") || mime.includes("excel") || name.endsWith(".xls") || name.endsWith(".xlsx")) return "sheet";
+      if (mime.startsWith("text/") || mime.includes("json") || mime.includes("csv") || /\.(txt|csv|json)$/i.test(name)) return "text";
       return "file";
     }
 
@@ -340,7 +342,15 @@
       return mime.startsWith("image/")
         || mime.includes("markdown")
         || mime === "text/x-markdown"
-        || /\.(png|jpe?g|gif|webp|avif|bmp|heic|heif|md|markdown)$/i.test(name);
+        || mime.includes("pdf")
+        || mime.includes("word")
+        || mime.includes("spreadsheet")
+        || mime.includes("excel")
+        || mime.includes("vnd.ms-excel")
+        || mime.startsWith("text/")
+        || mime.includes("json")
+        || mime.includes("csv")
+        || /\.(png|jpe?g|gif|webp|avif|bmp|heic|heif|md|markdown|pdf|docx?|xlsx?|txt|csv|json)$/i.test(name);
     }
 
     function entryPreviewHref(entry) {
@@ -349,13 +359,14 @@
 
     function entryPreviewAttrs(entry) {
       if (!isPreviewableEntry(entry)) return "";
-      return ` data-directory-preview-file="1" data-artifact-mime="${escapeHtml(entry.mime || "")}" data-artifact-name="${escapeHtml(entry.name || "file")}"`;
+      return ` data-directory-preview-file="1" data-artifact-mime="${escapeHtml(entry.mime || "")}" data-artifact-name="${escapeHtml(entry.name || "file")}" data-artifact-size="${escapeHtml(String(entry.size || 0))}"`;
     }
 
     function openDirectoryPreviewLink(link) {
       const previews = window.TaskDocumentPreviewUi || {};
       if (previews.isImagePreviewLink?.(link) && previews.openImagePreviewOverlay?.(link)) return true;
       if (previews.isMarkdownPreviewLink?.(link) && previews.openMarkdownPreviewOverlay?.(link)) return true;
+      if (previews.isDocumentPreviewLink?.(link) && previews.openDocumentPreviewOverlay?.(link)) return true;
       return false;
     }
 

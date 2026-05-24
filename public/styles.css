@@ -33,7 +33,7 @@
   --app-font-scale: 1;
   --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
   --mobile-bottom-nav-height: calc(58px + env(safe-area-inset-bottom));
-  --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 8px));
+  --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 4px));
   font-family: var(--app-font-family);
 }
 
@@ -4109,6 +4109,7 @@ button.directory-alias-chip {
 }
 
 body.task-image-preview-open,
+body.task-document-preview-open,
 body.task-markdown-preview-open {
   overflow: hidden;
 }
@@ -4270,6 +4271,100 @@ body.task-markdown-preview-open {
   padding: 0;
   background: #fff;
   touch-action: none;
+}
+
+.task-document-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  padding: 0;
+  background: #fff;
+  touch-action: none;
+}
+
+.task-document-preview-shell {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+
+.task-document-preview-head {
+  position: relative;
+  z-index: 3;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid rgba(31, 43, 51, 0.08);
+  background: rgba(255, 255, 252, 0.96);
+}
+
+.task-document-preview-head strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-document-preview-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-document-preview-actions .task-preview-more-button {
+  width: 40px;
+  height: 40px;
+  border-color: rgba(31, 43, 51, 0.12);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 20px;
+}
+
+.task-document-preview-close {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(31, 43, 51, 0.12);
+  border-radius: 999px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 25px;
+  line-height: 1;
+}
+
+.task-document-preview-body {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  background: #fff;
+}
+
+.task-document-preview-frame {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: #fff;
 }
 
 .task-markdown-preview-shell {
@@ -11646,7 +11741,7 @@ body.task-markdown-preview-open {
 @media (max-width: 1099px) and (orientation: landscape) and (max-height: 620px) {
   :root {
     --mobile-bottom-nav-height: calc(50px + env(safe-area-inset-bottom));
-    --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 8px));
+    --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 4px));
   }
 
   .topbar {

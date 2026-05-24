@@ -150,14 +150,17 @@
   function hasArtifactPreviewOverlay() {
     return Boolean(
       document.getElementById("taskImagePreviewOverlay")
+      || document.getElementById("taskDocumentPreviewOverlay")
       || document.getElementById("taskMarkdownPreviewOverlay")
     );
   }
 
   function previewBackSwipeSurface() {
     return document.querySelector(".task-markdown-preview-shell")
+      || document.querySelector(".task-document-preview-shell")
       || document.querySelector(".task-image-preview-stage")
       || document.getElementById("taskMarkdownPreviewOverlay")
+      || document.getElementById("taskDocumentPreviewOverlay")
       || document.getElementById("taskImagePreviewOverlay");
   }
 
@@ -215,9 +218,17 @@
     document.body.classList.remove("task-markdown-preview-open");
   }
 
+  function closeDocumentPreviewOverlay() {
+    const overlay = document.getElementById("taskDocumentPreviewOverlay");
+    if (!overlay) return;
+    overlay.remove();
+    document.body.classList.remove("task-document-preview-open");
+  }
+
   function closeArtifactPreviewOverlays() {
     closeImagePreviewOverlay();
     closeMarkdownPreviewOverlay();
+    closeDocumentPreviewOverlay();
   }
 
   global.addEventListener("popstate", () => {
@@ -437,6 +448,105 @@
     return "";
   }
 
+  function sourceFromViewerUrl(url) {
+    if (!url) return "";
+    if (url.pathname === "/file-viewer.html" || url.pathname === "/pdf-viewer.html") {
+      return url.searchParams.get("src") || "";
+    }
+    return url.href;
+  }
+
+  function documentSourceFromLink(link) {
+    const href = link?.href || link?.getAttribute?.("href") || "";
+    if (!href) return "";
+    try {
+      const url = new URL(href, global.location.origin);
+      return sourceFromViewerUrl(url);
+    } catch (_) {
+      return href;
+    }
+  }
+
+  function documentKindFromMimeName(mimeValue, nameValue) {
+    const mime = String(mimeValue || "").toLowerCase();
+    const name = String(nameValue || "").toLowerCase();
+    if (mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif|bmp|heic|heif)(?:[?#]|$)/i.test(name)) return "";
+    if (mime.includes("markdown") || mime === "text/x-markdown" || /\.(md|markdown)(?:[?#]|$)/i.test(name)) return "";
+    if (mime.includes("pdf") || /\.pdf(?:[?#]|$)/i.test(name)) return "pdf";
+    if (
+      mime.includes("word")
+      || mime.includes("officedocument.wordprocessingml")
+      || /\.(doc|docx)(?:[?#]|$)/i.test(name)
+    ) return "word";
+    if (
+      mime.includes("spreadsheet")
+      || mime.includes("excel")
+      || mime.includes("vnd.ms-excel")
+      || /\.(xls|xlsx)(?:[?#]|$)/i.test(name)
+    ) return "spreadsheet";
+    if (
+      mime.includes("presentation")
+      || mime.includes("powerpoint")
+      || /\.(ppt|pptx)(?:[?#]|$)/i.test(name)
+    ) return "presentation";
+    if (
+      mime.startsWith("text/")
+      || mime.includes("json")
+      || mime.includes("csv")
+      || /\.(txt|csv|json)(?:[?#]|$)/i.test(name)
+    ) return "text";
+    return "";
+  }
+
+  function documentKindFromLink(link) {
+    const href = link?.href || link?.getAttribute?.("href") || "";
+    if (!href) return "";
+    try {
+      const url = new URL(href, global.location.origin);
+      const viewerName = url.searchParams.get("name") || "";
+      const viewerMime = url.searchParams.get("mime") || "";
+      const source = sourceFromViewerUrl(url);
+      const datasetName = link?.dataset?.artifactName || "";
+      const datasetMime = link?.dataset?.artifactMime || "";
+      const name = datasetName || viewerName || source || url.pathname;
+      const mime = datasetMime || viewerMime;
+      if (url.pathname === "/pdf-viewer.html") return "pdf";
+      return documentKindFromMimeName(mime, name || source);
+    } catch (_) {
+      return documentKindFromMimeName(link?.dataset?.artifactMime, href);
+    }
+  }
+
+  function isDocumentPreviewLink(link) {
+    return Boolean(documentKindFromLink(link));
+  }
+
+  function documentViewerUrlFromLink(link) {
+    const href = link?.href || link?.getAttribute?.("href") || "";
+    const kind = documentKindFromLink(link);
+    if (!href || !kind) return "";
+    try {
+      const url = new URL(href, global.location.origin);
+      if (url.origin !== global.location.origin) return "";
+      if (url.pathname === "/file-viewer.html" || url.pathname === "/pdf-viewer.html") {
+        url.searchParams.set("embed", "1");
+        return `${url.pathname}?${url.searchParams.toString()}${url.hash || ""}`;
+      }
+      const query = new URLSearchParams({
+        src: url.href,
+        name: link?.dataset?.artifactName || url.pathname.split("/").pop() || "document",
+        mime: link?.dataset?.artifactMime || "",
+        size: link?.dataset?.artifactSize || "0",
+        return: `${global.location.pathname}${global.location.search}${global.location.hash}`,
+        embed: "1",
+      });
+      const viewer = kind === "pdf" ? "/pdf-viewer.html" : "/file-viewer.html";
+      return `${viewer}?${query.toString()}`;
+    } catch (_) {
+      return "";
+    }
+  }
+
   function renderMarkdownDocument(markdown) {
     const renderer = global.HermesMarkdownRenderer || {};
     if (typeof renderer.renderMarkdownDocument === "function") {
@@ -625,14 +735,75 @@ window.addEventListener("load", function () {
     return true;
   }
 
+  function openDocumentPreviewOverlay(link) {
+    const viewerUrl = documentViewerUrlFromLink(link);
+    if (!viewerUrl) return false;
+    closeArtifactPreviewOverlays();
+    const source = documentSourceFromLink(link);
+    const title = String(link?.dataset?.artifactName || link?.getAttribute?.("aria-label") || "文件预览").trim();
+    const mime = link?.dataset?.artifactMime || "";
+    const overlay = document.createElement("div");
+    overlay.id = "taskDocumentPreviewOverlay";
+    overlay.className = "task-document-preview-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.innerHTML = `
+      <div class="task-document-preview-shell">
+        <div class="task-document-preview-head">
+          <strong>${escapeValue(title || "文件预览")}</strong>
+          <div class="task-document-preview-actions">
+            <div class="task-preview-more-wrap">
+              <button class="task-preview-more-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="更多操作">...</button>
+              <div class="task-preview-more-menu" role="menu" hidden>
+                <button type="button" role="menuitem" data-preview-action="weixin">分享到微信</button>
+                <button type="button" role="menuitem" data-preview-action="group">分享到群</button>
+                <button type="button" role="menuitem" data-preview-action="system">系统分享</button>
+                <button type="button" role="menuitem" data-preview-action="copy">复制链接</button>
+                <button type="button" role="menuitem" data-preview-action="open">打开原始文件</button>
+              </div>
+            </div>
+            <button class="task-document-preview-close" type="button" aria-label="关闭预览">×</button>
+          </div>
+        </div>
+        <div class="task-document-preview-body">
+          <iframe class="task-document-preview-frame" title="${escapeValue(title || "文件预览")}" src="${escapeValue(viewerUrl)}"></iframe>
+        </div>
+        <div class="task-preview-toast" data-preview-status hidden></div>
+      </div>
+    `;
+    const closeButton = overlay.querySelector(".task-document-preview-close");
+    ["pointerdown", "touchstart", "click"].forEach((eventName) => {
+      closeButton.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closePreviewFromUser(closeDocumentPreviewOverlay);
+      }, { passive: false });
+    });
+    bindPreviewMoreMenu(overlay, {
+      onAction: (action) => handleFilePreviewAction(action, {
+        root: overlay,
+        sourceUrl: source,
+        title,
+        mime,
+      }),
+    });
+    document.body.appendChild(overlay);
+    document.body.classList.add("task-document-preview-open");
+    markPreviewHistory("document");
+    return true;
+  }
+
   global.TaskDocumentPreviewUi = {
     closeArtifactPreviewOverlays,
     closeActivePreviewFromUser,
+    closeDocumentPreviewOverlay,
     closeImagePreviewOverlay,
     closeMarkdownPreviewOverlay,
     hasArtifactPreviewOverlay,
+    isDocumentPreviewLink,
     isImagePreviewLink,
     isMarkdownPreviewLink,
+    openDocumentPreviewOverlay,
     openImagePreviewOverlay,
     openMarkdownPreviewOverlay,
     previewBackSwipeSurface,

@@ -554,6 +554,7 @@ function openTaskDocumentLink(link) {
   const previews = window.TaskDocumentPreviewUi || {};
   if (previews.isImagePreviewLink?.(link) && previews.openImagePreviewOverlay?.(link)) return;
   if (previews.isMarkdownPreviewLink?.(link) && previews.openMarkdownPreviewOverlay?.(link)) return;
+  if (previews.isDocumentPreviewLink?.(link) && previews.openDocumentPreviewOverlay?.(link)) return;
   if (isMobileLayout()) {
     window.location.assign(href);
     return;
