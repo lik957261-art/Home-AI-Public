@@ -56,7 +56,8 @@ async function testModelRecommendationIsTemplateValidated() {
   assert.equal(result.recommendedSeries[0].skillId, "english_speaking_retell");
   assert.equal(result.recommendedSeries[0].activityType, "speaking");
   assert.equal(result.recommendedSeries[0].recommendedReadingMinutes, 12);
-  assert.equal(calls[0].reasoning_effort, "xhigh");
+  assert.equal(calls[0].reasoning_effort, "medium");
+  assert.equal(calls[0].stream, true);
 }
 
 async function testUnknownTemplateFailsClosed() {
@@ -174,6 +175,45 @@ async function testRequireModelRejectsEmptySeriesInsteadOfFallback() {
   );
 }
 
+async function testRequireModelRepairsEmptySeriesWithSecondModelCall() {
+  const calls = [];
+  const service = createLearningTaskSeriesRecommendationService({
+    repository: makeRepository(),
+    requireModel: true,
+    hermesModelText: async (request) => {
+      calls.push(request);
+      if (calls.length === 1) {
+        return JSON.stringify({
+          analysis_summary: "The learner needs better retell structure, but the first response omitted a valid series.",
+          recommended_task_series: [],
+        });
+      }
+      return JSON.stringify({
+        analysisSummary: "The learner has useful reading exposure but needs a lower-friction oral retell series to repair order and detail support.",
+        weakSignals: ["content_order", "detail_support"],
+        recommendedSeries: [{
+          title: "Retell order repair",
+          templateId: "english-speaking-retell-v1",
+          skillId: "english_speaking_retell",
+          rationale: "Open a review-only retell series to repair ordered detail and spoken structure.",
+          requirements: "Generate original reading material, then require a main idea, ordered details, and a short repair retell.",
+          recommendedReadingMinutes: 12,
+        }],
+      });
+    },
+  });
+  const result = await service.recommendTaskSeries({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].stream, true);
+  assert.equal(calls[1].stream, true);
+  assert.equal(calls[0].reasoning_effort, "medium");
+  assert.equal(calls[1].reasoning_effort, "medium");
+  assert.match(calls[1].input, /Repair the previous Growth task-series recommendation/);
+  assert.equal(result.modelStatus, "completed_after_repair");
+  assert.equal(result.recommendedSeries[0].templateId, "english-speaking-retell-v1");
+  assert.equal(result.recommendedSeries[0].skillId, "english_speaking_retell");
+}
+
 function testRecommendationBuildsProgramInput() {
   const service = createLearningTaskSeriesRecommendationService({ repository: makeRepository() });
   const input = service.programInputFromRecommendation({
@@ -203,6 +243,7 @@ function testRecommendationBuildsProgramInput() {
   await testRequireModelRejectsMissingModel();
   await testRequireModelRejectsInvalidJsonInsteadOfFallback();
   await testRequireModelRejectsEmptySeriesInsteadOfFallback();
+  await testRequireModelRepairsEmptySeriesWithSecondModelCall();
   testRecommendationBuildsProgramInput();
   console.log("learning task series recommendation service tests passed");
 })();

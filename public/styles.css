@@ -8967,6 +8967,31 @@ body.task-markdown-preview-open {
   line-height: 1.55;
 }
 
+.learning-ai-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid rgba(94, 127, 123, 0.16);
+  border-radius: 10px;
+  background: rgba(239, 246, 244, 0.62);
+  color: rgba(61, 86, 84, 0.88);
+}
+
+.learning-ai-progress span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(67, 132, 123, 0.72);
+  box-shadow: 0 0 0 4px rgba(67, 132, 123, 0.08);
+}
+
+.learning-ai-progress p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
 .learning-ai-recommendation-list {
   display: grid;
   gap: 10px;

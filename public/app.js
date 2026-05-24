@@ -423,6 +423,8 @@ const state = {
   learningAiSummary: null,
   learningAiSummaryLoading: false,
   learningAiSummaryError: "",
+  learningAiSummaryProgress: "",
+  learningAiSummaryProgressTimers: [],
   learningAiDraftCreatingId: "",
   learningGrowthActiveTab: "settings",
   learningCoinRequestSeq: 0,

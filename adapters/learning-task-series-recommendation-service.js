@@ -161,10 +161,31 @@ function buildRecommendationPrompt(summary = {}, templates = []) {
   };
   return [
     "Analyze the learner's summary-only Growth history and recommend task series as strict JSON only.",
-    "Every recommendation must use one templateId and one skillId from availableTemplates. Do not invent templates or skills.",
+    "The response must first explain the learner state: current pattern, strengths, weaknesses, why the next card series is needed, and what the new series is intended to repair.",
+    "Every recommendation must use exactly one templateId and one skillId from availableTemplates. Copy the templateId and skillId strings exactly. Do not invent templates or skills.",
+    "Return at least one and at most three recommendedSeries items. If evidence is thin, still choose the safest registered review-only series and state the uncertainty in riskFlags.",
     "Do not include raw prompts, full learner answers, full transcripts, full reading passages, questions, answer keys, endpoints, local paths, or secrets.",
     "For reading retell or speaking retell series, require enough original reading material for 10-15 minutes of reading before recording.",
     "Return schema: {\"analysisSummary\":\"...\",\"weakSignals\":[\"...\"],\"recommendedSeries\":[{\"title\":\"...\",\"templateId\":\"...\",\"skillId\":\"...\",\"rationale\":\"...\",\"requirements\":\"...\",\"sequenceMode\":\"evergreen_jit\",\"durationDays\":28,\"daysPerWeek\":5,\"minutesPerDay\":30,\"recommendedReadingMinutes\":12,\"rewardCapCoins\":100,\"sourceSignalRefs\":[\"...\"]}],\"riskFlags\":[\"...\"]}",
+    JSON.stringify(payload),
+  ].join("\n\n");
+}
+
+function buildRecommendationRepairPrompt(summary = {}, templates = [], previous = {}, reason = "") {
+  const payload = {
+    version: VERSION,
+    learnerSummary: summary,
+    availableTemplates: templates.map(templateSummary),
+    previousModelJson: previous && typeof previous === "object" ? previous : {},
+    repairReason: compactLearningSummary(reason || "", 300),
+  };
+  return [
+    "Repair the previous Growth task-series recommendation into strict JSON only.",
+    "Do not add deterministic fallback content. Use the previous learner analysis if useful, but the repaired output must contain at least one valid recommendedSeries item.",
+    "Each recommendedSeries item must copy one templateId and one skillId exactly from availableTemplates. Do not invent names.",
+    "The analysisSummary must describe: learner state, strengths, weaknesses, why this series should be opened, and the purpose of the next card series.",
+    "Do not include raw learner answers, full transcripts, full reading passages, questions, answer keys, raw prompts, endpoints, local paths, or secrets.",
+    "Return schema: {\"analysisSummary\":\"...\",\"weakSignals\":[\"...\"],\"recommendedSeries\":[{\"title\":\"...\",\"templateId\":\"...\",\"skillId\":\"...\",\"rationale\":\"...\",\"requirements\":\"...\",\"sequenceMode\":\"evergreen_jit\",\"durationDays\":28,\"daysPerWeek\":5,\"minutesPerDay\":30,\"recommendedReadingMinutes\":12,\"rewardCapCoins\":100,\"sourceSignalRefs\":[\"...\"]}],\"riskFlags\":[\"model_repair\"]}",
     JSON.stringify(payload),
   ].join("\n\n");
 }
@@ -260,6 +281,14 @@ function normalizeRecommendation(parsed = {}, templateRegistry, fallback = {}) {
   };
 }
 
+function normalizeRecommendationOrError(parsed = {}, templateRegistry, fallback = {}) {
+  try {
+    return { recommendation: normalizeRecommendation(parsed, templateRegistry, fallback), error: null };
+  } catch (err) {
+    return { recommendation: null, error: err };
+  }
+}
+
 function createLearningTaskSeriesRecommendationService(options = {}) {
   const repository = options.repository;
   const templateRegistry = options.templateRegistry || createLearningTemplateRegistryService();
@@ -271,7 +300,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
   const model = cleanString(options.model || options.automationCreateModel || "automation-create");
   const requireModel = options.requireModel === true;
   const timeoutMs = Math.max(10000, Number(options.timeoutMs || 600000) || 600000);
-  const reasoningEffort = cleanString(options.reasoningEffort || options.reasoning_effort || "xhigh") || "xhigh";
+  const reasoningEffort = cleanString(options.reasoningEffort || options.reasoning_effort || "medium") || "medium";
 
   async function recommendTaskSeries(input = {}) {
     const workspaceId = cleanString(input.workspaceId) || "weixin_stephen";
@@ -297,7 +326,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
       try {
         const output = await hermesModelText({
           input: buildRecommendationPrompt(summary, templates),
-          stream: false,
+          stream: true,
           store: false,
           model,
           reasoning_effort: requestReasoningEffort,
@@ -322,11 +351,44 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
       }
     }
     const templateFallback = fallbackRecommendation(summary, templates);
-    const recommendation = normalizeRecommendation(
+    let normalizedAttempt = normalizeRecommendationOrError(
       parsed || templateFallback,
       templateRegistry,
       { generatedAt, modelStatus, fallbackRecommendation: requireModel ? null : templateFallback },
     );
+    if (requireModel && normalizedAttempt.error && hermesModelText && parsed) {
+      const repairOutput = await hermesModelText({
+        input: buildRecommendationRepairPrompt(summary, templates, parsed, normalizedAttempt.error.message || ""),
+        stream: true,
+        store: false,
+        model,
+        reasoning_effort: requestReasoningEffort,
+        conversation: `learning_growth_recommend_repair_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+        instructions: "Repair the Growth task-series recommendation as strict JSON only.",
+        access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
+      }, timeoutMs);
+      const repaired = extractJsonObject(repairOutput || "");
+      if (!repaired) {
+        const wrapped = new Error("Learning task series model repair returned invalid JSON");
+        wrapped.status = 502;
+        throw wrapped;
+      }
+      modelStatus = "completed_after_repair";
+      normalizedAttempt = normalizeRecommendationOrError(
+        repaired,
+        templateRegistry,
+        { generatedAt, modelStatus, fallbackRecommendation: null },
+      );
+    }
+    if (normalizedAttempt.error) {
+      if (requireModel) {
+        const wrapped = new Error(`Learning task series model recommendation failed validation: ${normalizedAttempt.error.message || normalizedAttempt.error}`);
+        wrapped.status = normalizedAttempt.error.status || 502;
+        throw wrapped;
+      }
+      throw normalizedAttempt.error;
+    }
+    const recommendation = normalizedAttempt.recommendation;
     return Object.assign(recommendation, {
       workspaceId,
       learnerId,
@@ -380,6 +442,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
 
 module.exports = {
   VERSION,
+  buildRecommendationRepairPrompt,
   buildRecommendationPrompt,
   createLearningTaskSeriesRecommendationService,
   normalizeRecommendation,
