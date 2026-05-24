@@ -592,6 +592,128 @@ async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
   }
 }
 
+async function testThreeSeriousAttemptReflectionAlwaysSettlesAfterRecording() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const grants = [];
+  const mutations = [];
+  try {
+    seedGrowthProgram(repository);
+    const programService = createLearningProgramService({
+      repository,
+      learningCoinService: {
+        grantCoins(input) {
+          grants.push(input);
+          return {
+            entry: {
+              entryId: `coin-${grants.length}`,
+              studentId: input.studentId,
+              workspaceId: input.workspaceId,
+              coinDelta: input.coinAmount,
+              sourceType: input.sourceType,
+              sourceId: input.sourceId,
+            },
+            duplicate: false,
+          };
+        },
+      },
+    });
+    const session = programService.startTaskSession("task-growth", {
+      actor: "weixin_stephen",
+      summary: "Third serious attempt is waiting for spoken reflection.",
+    });
+    programService.recordEvaluation(session.sessionId, {
+      evaluationId: "eval-three-serious",
+      status: "reflection_required",
+      score: 55,
+      passed: true,
+      confidence: 0.82,
+      verificationMethod: "model_assisted_growth_task_evaluation",
+      evidenceRefs: ["submission:summary", "completion-policy:three-serious-submissions"],
+      sourceBasisRefs: ["source:growth-summary"],
+      summary: "Serious third attempt completed the current card; weaknesses carry forward.",
+      revisionRequirements: ["Retell in clearer order next time."],
+      completionDecision: "complete_current_card",
+      completionPolicy: {
+        mode: "card_completion",
+        attemptNo: 3,
+        seriousSubmission: true,
+        threeSeriousSubmissionsComplete: true,
+      },
+      remainingWeaknesses: ["Retell in clearer order next time."],
+      reflectionPolicy: {
+        required: true,
+        mode: "spoken",
+        reflectionWeight: 0.3,
+        taskWeight: 0.7,
+      },
+      reward: {
+        eligible: true,
+        coinAmount: 60,
+        minCoinAmount: 0,
+        maxCoinAmount: 100,
+      },
+      nextStep: "spoken_reflection_required",
+    });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      kanbanCardProvider: {
+        async listCards() {
+          return {
+            ok: true,
+            data: [{
+              id: "t_growth",
+              workspaceId: "weixin_stephen",
+              kanbanCaseTemplate: "learning-growth",
+              learningTaskCardId: "task-growth",
+              learningGrowthEvaluationId: "eval-three-serious",
+              learningGrowthEvaluationStatus: "reflection_required",
+              learningGrowthNextStep: "spoken_reflection_required",
+              learningGrowthScore: 55,
+              learningGrowthMaxScore: 100,
+              learningGrowthRewardCoins: 60,
+              learningGrowthFeedbackSummary: "Serious third attempt completed the current card.",
+              learningGrowthRevisionRequirements: ["Retell in clearer order next time."],
+              learningTaskModel: {
+                version: "learning-task-model-v1",
+                activityType: "speaking",
+                skillId: "english_speaking_retell",
+              },
+            }],
+          };
+        },
+        async mutateCard(input) {
+          mutations.push(input);
+          return { ok: true, id: input.cardId, action: input.action };
+        },
+      },
+    });
+    const result = await service.submitReflection({
+      workspaceId: "weixin_stephen",
+      cardId: "t_growth",
+      author: "weixin_stephen",
+      audio: { name: "reflection.webm", mime: "audio/webm", size: 1200 },
+      transcript: "ok",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "completed");
+    assert.equal(result.reflection.status, "accepted");
+    assert.equal(result.reflection.checks.completionPolicyAccepted, true);
+    assert.equal(result.evaluation.score, 55);
+    assert.equal(result.evaluation.passed, true);
+    assert.equal(result.evaluation.completionPolicy.threeSeriousSubmissionsComplete, true);
+    assert.equal(result.reward.status, "settled");
+    assert.equal(grants.length, 1);
+    assert.equal(grants[0].coinAmount, 60);
+    assert.equal(repository.listEvaluations({ taskCardId: "task-growth", limit: 1 })[0].status, "completed");
+    assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen", limit: 1 }).length, 1);
+    assert.equal(mutations.some((call) => call.action === "complete"), true);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function testNativeTaskSubmissionWorksWithoutKanbanLink() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
@@ -1287,6 +1409,7 @@ function testDependencyValidation() {
   await testExpiredSubmissionCannotBeWithdrawn();
   await testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSettlement();
   await testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard();
+  await testThreeSeriousAttemptReflectionAlwaysSettlesAfterRecording();
   await testNativeTaskSubmissionWorksWithoutKanbanLink();
   await testNativeRevisionSubmissionUsesPersistedEvaluationState();
   await testNativeSpeakingSubmissionUsesAudioTranscription();

@@ -210,6 +210,37 @@ async function testThirdSeriousAttemptCompletesCurrentCardWithCarryForwardWeakne
   assert.deepEqual(evaluation.revisionRequirements, ["continue checking the last calculation step"]);
 }
 
+async function testThirdSeriousAttemptAllowsNonHardAtLeastRevision() {
+  const service = createLearningGrowthTaskEvaluationService();
+  const evaluation = await service.evaluate({
+    card: {
+      title: "English reading retell",
+      domain: "english",
+      learningTaskModel: {
+        version: "learning-task-model-v1",
+        activityType: "speaking",
+        skillId: "english_speaking_retell",
+        learnerInstruction: "Retell the reading with beginning, middle, ending, and one corrected detail.",
+      },
+    },
+    stage: "final",
+    attemptNo: 3,
+    completionPolicy: {
+      attemptNo: 3,
+      seriousSubmission: true,
+      threeSeriousSubmissionsComplete: true,
+    },
+    text: [
+      "I retell the reading with the beginning, middle, ending, character, problem, and corrected detail in one clear response because I fixed the missing sequence from last time.",
+    ].join(" "),
+  });
+  assert.equal(evaluation.passed, true);
+  assert.equal(evaluation.status, "completed");
+  assert.equal(evaluation.completionDecision, "complete_current_card");
+  assert.equal(evaluation.evidenceRefs.includes("completion-policy:three-serious-submissions"), true);
+  assert.equal(evaluation.revisionRequirements.some((item) => item.includes("Include at least")), true);
+}
+
 async function testHardSafetyBlockStillPreventsHighScorePass() {
   const service = createLearningGrowthTaskEvaluationService({
     extractJsonObject: (text) => JSON.parse(text),
@@ -328,6 +359,7 @@ async function testWritingUsesModelMainEvaluation() {
   await testGenericFinalPassSettlesRewardRange();
   await testHighScoreFinalModelRevisionDoesNotLoop();
   await testThirdSeriousAttemptCompletesCurrentCardWithCarryForwardWeaknesses();
+  await testThirdSeriousAttemptAllowsNonHardAtLeastRevision();
   await testHardSafetyBlockStillPreventsHighScorePass();
   testTooShortGenericAnswerBlocksFinalPass();
   testRewriteAndWeeklyChallengeHaveSpecificRuntimeContracts();

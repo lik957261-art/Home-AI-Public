@@ -148,6 +148,39 @@ function perpetualPolicyForTask(task = {}, program = {}, draft = {}) {
   };
 }
 
+function completionPolicyLearningSource(evaluation = {}) {
+  if (!evaluation || typeof evaluation !== "object") return null;
+  const score = numberValue(evaluation.score);
+  const policy = evaluation.completionPolicy && typeof evaluation.completionPolicy === "object" ? evaluation.completionPolicy : {};
+  const threeAttemptCompletion = cleanString(evaluation.completionDecision).toLowerCase() === "complete_current_card"
+    && policy.threeSeriousSubmissionsComplete === true
+    && numberValue(policy.attemptNo) >= 3;
+  if (score >= 70 && !threeAttemptCompletion) return null;
+  const weaknesses = asArray(evaluation.remainingWeaknesses).length
+    ? asArray(evaluation.remainingWeaknesses)
+    : asArray(evaluation.revisionRequirements);
+  return {
+    sourceRef: `evaluation:${cleanString(evaluation.evaluationId || "latest")}:completion-policy`,
+    sourceType: "completion_policy_feedback",
+    title: "Recent Growth completion policy feedback",
+    summary: cleanString([
+      `Previous card completed with low score ${score || 0}/100.`,
+      threeAttemptCompletion ? "It needed three serious attempts, so lower the next difficulty and focus on repair." : "",
+      weaknesses.slice(0, 3).map(cleanString).filter(Boolean).join(" "),
+    ].filter(Boolean).join(" "), 220),
+    tags: ["low score", "repair", "difficulty-down"],
+  };
+}
+
+function withCompletionPolicyLearningState(state = null, evaluation = {}) {
+  const source = completionPolicyLearningSource(evaluation);
+  if (!source) return state;
+  const base = state && typeof state === "object" ? state : {};
+  return Object.assign({}, base, {
+    sources: [source].concat(asArray(base.sources)).slice(0, 80),
+  });
+}
+
 function evergreenTaskCardId(groupId, sequenceIndex, previousTaskCardId) {
   const digest = crypto
     .createHash("sha256")
@@ -323,7 +356,7 @@ function createLearningGrowthSequenceService(options = {}) {
         return publicNextTaskResult({ ok: false, status: "jit_unavailable", previousTaskCardId, taskCardId: nextTask.taskCardId, error: "Growth JIT task service is unavailable" });
       }
       const sequenceIndex = sequenceIndexForTask(nextTask);
-      const recentLearningState = typeof jitTaskService.recentLearningState === "function"
+      const baseRecentLearningState = typeof jitTaskService.recentLearningState === "function"
         ? jitTaskService.recentLearningState({
           program,
           draft,
@@ -332,6 +365,7 @@ function createLearningGrowthSequenceService(options = {}) {
           completedTask: currentTask,
         })
         : null;
+      const recentLearningState = withCompletionPolicyLearningState(baseRecentLearningState, input.completedEvaluation);
       const prepared = await jitTaskService.prepareTaskForCard({
         program,
         draft,

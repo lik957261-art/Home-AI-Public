@@ -206,6 +206,35 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
         feedbackMethod: cleanString(evaluation.feedbackMethod || evaluation.verificationMethod, 120),
         aiFeedbackStatus: cleanString(evaluation.aiFeedbackStatus, 80),
         nextStep: cleanString(evaluation.nextStep, 120),
+        completionDecision: cleanString(evaluation.completionDecision, 120),
+        completionPolicy: evaluation.completionPolicy && typeof evaluation.completionPolicy === "object"
+          ? {
+            mode: cleanString(evaluation.completionPolicy.mode, 80),
+            attemptNo: Number(evaluation.completionPolicy.attemptNo || 0) || 0,
+            seriousSubmission: evaluation.completionPolicy.seriousSubmission !== false,
+            threeSeriousSubmissionsComplete: Boolean(evaluation.completionPolicy.threeSeriousSubmissionsComplete),
+          }
+          : null,
+        remainingWeaknesses: asArray(evaluation.remainingWeaknesses).map((item) => cleanString(item, 800)).filter(Boolean),
+        finalPassingScore: Number(evaluation.finalPassingScore || evaluation.passingScore || 80) || 80,
+        passingScore: Number(evaluation.passingScore || evaluation.finalPassingScore || 80) || 80,
+        reflectionPolicy: evaluation.reflectionPolicy && typeof evaluation.reflectionPolicy === "object"
+          ? {
+            required: Boolean(evaluation.reflectionPolicy.required),
+            mode: cleanString(evaluation.reflectionPolicy.mode || "spoken", 60),
+            reflectionWeight: Number(evaluation.reflectionPolicy.reflectionWeight || 0) || 0,
+            taskWeight: Number(evaluation.reflectionPolicy.taskWeight || 0) || 0,
+          }
+          : null,
+        rewardPolicy: evaluation.rewardPolicy && typeof evaluation.rewardPolicy === "object" ? evaluation.rewardPolicy : null,
+        reward: evaluation.reward && typeof evaluation.reward === "object" ? {
+          eligible: Boolean(evaluation.reward.eligible),
+          coinAmount: Number(evaluation.reward.coinAmount || 0) || 0,
+          minCoinAmount: Number(evaluation.reward.minCoinAmount || evaluation.reward.minCoins || 0) || 0,
+          maxCoinAmount: Number(evaluation.reward.maxCoinAmount || evaluation.reward.maxCoins || 0) || 0,
+          status: cleanString(evaluation.reward.status, 80),
+          reason: cleanString(evaluation.reward.reason, 200),
+        } : null,
         skillResults: [{
           skillId: cleanString(evaluation.skillId) || cleanString(evaluation.activityType) || "learning_growth_task",
           status: evaluation.passed ? "passed" : "needs_revision",

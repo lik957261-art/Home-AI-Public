@@ -90,6 +90,11 @@ function createLearningEvaluationService(options = {}) {
     const status = cleanString(input.status)
       || (verification.parentReviewRequired ? "needs_review" : (passed ? "passed" : "needs_repair"));
     const at = now().toISOString();
+    const rewardPolicy = Object.assign(
+      {},
+      input.rewardPolicy && typeof input.rewardPolicy === "object" ? input.rewardPolicy : {},
+      rewardPolicyForEvaluation({ score, confidence, passed, verification }),
+    );
     const evaluation = repository.saveEvaluation({
       evaluationId: cleanString(input.evaluationId) || createId("leval"),
       taskCardId: task.taskCardId,
@@ -108,7 +113,14 @@ function createLearningEvaluationService(options = {}) {
       aiFeedbackStatus: cleanString(input.aiFeedbackStatus),
       nextStep: cleanString(input.nextStep),
       skillResults: normalizeSkillResults(input.skillResults, task),
-      rewardPolicy: rewardPolicyForEvaluation({ score, confidence, passed, verification }),
+      completionDecision: cleanString(input.completionDecision),
+      completionPolicy: input.completionPolicy && typeof input.completionPolicy === "object" ? input.completionPolicy : null,
+      remainingWeaknesses: Array.isArray(input.remainingWeaknesses) ? input.remainingWeaknesses.map((item) => compactLearningSummary(item, 800)).filter(Boolean) : [],
+      finalPassingScore: Number(input.finalPassingScore || input.passingScore || 80) || 80,
+      passingScore: Number(input.passingScore || input.finalPassingScore || 80) || 80,
+      reflectionPolicy: input.reflectionPolicy && typeof input.reflectionPolicy === "object" ? input.reflectionPolicy : null,
+      rewardPolicy,
+      reward: input.reward && typeof input.reward === "object" ? input.reward : null,
       verification,
       sourceBasisRefs,
       createdAt: at,

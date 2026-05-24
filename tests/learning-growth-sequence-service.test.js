@@ -122,6 +122,17 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
     taskCardId: "task-1",
     workspaceId: "learner-1",
     learnerId: "learner-1",
+    completedEvaluation: {
+      evaluationId: "eval-low-score",
+      score: 55,
+      completionDecision: "complete_current_card",
+      completionPolicy: {
+        attemptNo: 3,
+        seriousSubmission: true,
+        threeSeriousSubmissionsComplete: true,
+      },
+      remainingWeaknesses: ["Retell in clearer order next time."],
+    },
   });
   assert.equal(result.ok, true);
   assert.equal(result.status, "next_task_prepared");
@@ -140,6 +151,8 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
   assert.equal(savedTasks[1].artifactDirectoryPath, savedTasks[1].deliverableDirectoryPath);
   assert.equal(jitInputs.length, 1);
   assert.equal(jitInputs[0].task.taskCardId, "task-2");
+  assert.equal(jitInputs[0].recentLearningState.sources[0].sourceType, "completion_policy_feedback");
+  assert.equal(jitInputs[0].recentLearningState.sources[0].tags.includes("low score"), true);
   assert.equal(savedArtifacts.length, 1);
   assert.equal(savedArtifacts[0].taskCardId, "task-2");
   assert.equal(savedArtifacts[0].artifactType, "jit_decision_report");

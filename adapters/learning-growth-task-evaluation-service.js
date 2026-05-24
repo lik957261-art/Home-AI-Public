@@ -276,7 +276,9 @@ function normalizeSentenceFeedback(value) {
 }
 
 function hasHardSafetyBlock(deterministic = {}) {
-  return asArray(deterministic.revisionRequirements).some((item) => /too short|at least|short/i.test(item));
+  const issues = asArray(deterministic.issues);
+  if (issues.some((issue) => issue?.severity === "block")) return true;
+  return asArray(deterministic.revisionRequirements).some((item) => /\btoo short\b/i.test(item));
 }
 
 function completionDecisionText(value) {
@@ -323,7 +325,7 @@ function modelEvaluationPrompt(input = {}, deterministic = {}) {
       status: cleanString(deterministic.status),
       passed: Boolean(deterministic.passed),
       revisionRequirements: asArray(deterministic.revisionRequirements).slice(0, 8),
-      hardBlock: asArray(deterministic.revisionRequirements).some((item) => /too short|at least|short/i.test(item)),
+      hardBlock: hasHardSafetyBlock(deterministic),
     },
     attemptContext: {
       attemptNo: Number(input.attemptNo || 1) || 1,
@@ -468,7 +470,7 @@ function createLearningGrowthTaskEvaluationService(options = {}) {
     }
     const stage = normalizeEvaluationStage(input.stage || input.submissionStage || input.submissionKind, "final");
     const scored = scoreGeneric({ text: input.text, model, activityType });
-    const safetyBlock = hasHardSafetyBlock({ revisionRequirements: requirementsFor(scored, stage) });
+    const safetyBlock = hasHardSafetyBlock({ issues: scored.issues, revisionRequirements: requirementsFor(scored, stage) });
     const policyCompletion = stage === "final"
       && !safetyBlock
       && input.completionPolicy?.threeSeriousSubmissionsComplete === true

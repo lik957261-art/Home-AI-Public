@@ -514,6 +514,38 @@ function submissionAttemptPolicy(input = {}) {
   return policy;
 }
 
+function threeSeriousAttemptCompletion(evaluation = {}) {
+  if (!evaluation || typeof evaluation !== "object") return false;
+  const policy = evaluation && typeof evaluation.completionPolicy === "object" ? evaluation.completionPolicy : {};
+  const decision = cleanString(evaluation.completionDecision).toLowerCase();
+  return decision === "complete_current_card"
+    && policy.threeSeriousSubmissionsComplete === true
+    && Number(policy.attemptNo || 0) >= 3
+    && policy.seriousSubmission !== false;
+}
+
+function forceThreeSeriousAttemptReflectionPass(evaluation = {}, priorEvaluation = {}, reflection = null) {
+  const previousWeaknesses = asArray(priorEvaluation.remainingWeaknesses).length
+    ? asArray(priorEvaluation.remainingWeaknesses)
+    : asArray(priorEvaluation.revisionRequirements);
+  const reward = Object.assign({}, priorEvaluation.reward || {}, evaluation.reward || {}, {
+    eligible: Number(evaluation.reward?.coinAmount ?? priorEvaluation.reward?.coinAmount ?? 0) > 0,
+    status: "",
+    reason: "Three serious attempts completed; spoken reflection was recorded.",
+  });
+  return Object.assign({}, evaluation, {
+    status: "completed",
+    passed: true,
+    nextStep: "completed",
+    completionDecision: cleanString(priorEvaluation.completionDecision) || "complete_current_card",
+    completionPolicy: priorEvaluation.completionPolicy || evaluation.completionPolicy || null,
+    remainingWeaknesses: previousWeaknesses.map(cleanString).filter(Boolean),
+    revisionRequirements: previousWeaknesses.length ? previousWeaknesses : asArray(evaluation.revisionRequirements),
+    reward,
+    reflection,
+  });
+}
+
 function submissionPolicyError(policy = {}) {
   if (policy.reason === "submission_cooldown") {
     const minutes = Math.max(1, Math.ceil(Number(policy.retryAfterMs || 0) / 60000));
@@ -613,6 +645,7 @@ async function settleViaProgramService(programService, card, evaluation, input =
   if (!session?.sessionId) return null;
   const recorded = programService.recordEvaluation(session.sessionId, {
     evaluationId: evaluation.evaluationId,
+    status: evaluation.status,
     score: evaluation.score,
     passed: evaluation.passed,
     confidence: evaluation.confidence,
@@ -625,6 +658,14 @@ async function settleViaProgramService(programService, card, evaluation, input =
     feedbackMethod: evaluation.feedbackMethod,
     aiFeedbackStatus: evaluation.aiFeedbackStatus,
     nextStep: evaluation.nextStep,
+    completionDecision: evaluation.completionDecision,
+    completionPolicy: evaluation.completionPolicy,
+    remainingWeaknesses: evaluation.remainingWeaknesses,
+    finalPassingScore: evaluation.finalPassingScore,
+    passingScore: evaluation.passingScore,
+    reflectionPolicy: evaluation.reflectionPolicy,
+    rewardPolicy: evaluation.rewardPolicy,
+    reward: evaluation.reward,
     skillResults: [{
       skillId: cleanString(evaluation.skillId) || cleanString(evaluation.activityType) || "learning_growth_task",
       status: evaluation.passed ? "passed" : "needs_revision",
@@ -899,6 +940,7 @@ function createLearningGrowthSubmissionService(options = {}) {
         workspaceId: input.workspaceId,
         learnerId: input.learnerId,
         author: input.author,
+        completedEvaluation: input.evaluation,
       });
     } catch (err) {
       return {
@@ -1137,6 +1179,7 @@ function createLearningGrowthSubmissionService(options = {}) {
           status: "reflection_required",
           summary: evaluation.summary,
           author: input.author,
+          evaluation,
         });
         if (nativeSubmission?.session?.sessionId) {
           submissionRecordService.advanceSession({
@@ -1217,6 +1260,7 @@ function createLearningGrowthSubmissionService(options = {}) {
           workspaceId,
           learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
           author: input.author,
+          evaluation,
         });
       }
     }
@@ -1313,6 +1357,7 @@ function createLearningGrowthSubmissionService(options = {}) {
         workspaceId,
         learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
         author: input.author,
+        evaluation: recordedEvaluation,
       })
       : null;
     return {
@@ -1349,10 +1394,12 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (status !== "reflection_required" && nextStep !== "spoken_reflection_required" && nativeStatus !== "reflection_required" && nativeNextStep !== "spoken_reflection_required") {
       return createError(409, "Growth card is not waiting for spoken reflection");
     }
+    const forceReflectionPass = threeSeriousAttemptCompletion(priorEvaluation);
     const reflectionResult = await reflectionService.submitReflection(Object.assign({}, input, {
       workspaceId,
       cardId: cardIdValue,
       card: loaded.card,
+      acceptRegardlessOfScore: forceReflectionPass,
     }));
     if (!reflectionResult?.ok) return reflectionResult;
     const reflection = reflectionResult.reflection;
@@ -1369,10 +1416,19 @@ function createLearningGrowthSubmissionService(options = {}) {
         summary: cleanString(priorEvaluation.summary) || evaluation.summary,
         revisionRequirements: asArray(priorEvaluation.revisionRequirements).length ? priorEvaluation.revisionRequirements : evaluation.revisionRequirements,
         feedbackSections: Object.assign({}, evaluation.feedbackSections || {}, priorEvaluation.feedbackSections || {}),
+        completionDecision: cleanString(priorEvaluation.completionDecision) || evaluation.completionDecision,
+        completionPolicy: priorEvaluation.completionPolicy || evaluation.completionPolicy || null,
+        remainingWeaknesses: asArray(priorEvaluation.remainingWeaknesses).length ? priorEvaluation.remainingWeaknesses : evaluation.remainingWeaknesses,
+        rewardPolicy: priorEvaluation.rewardPolicy || evaluation.rewardPolicy || null,
+        reflectionPolicy: priorEvaluation.reflectionPolicy || evaluation.reflectionPolicy || null,
+        reward: Object.assign({}, priorEvaluation.reward || {}, evaluation.reward || {}),
         report: priorEvaluation.report || evaluation.report,
       });
     }
-    if (reflection.status === "accepted") {
+    if (forceReflectionPass) {
+      evaluation = forceThreeSeriousAttemptReflectionPass(evaluation, priorEvaluation, reflection);
+    }
+    if (reflection.status === "accepted" || forceReflectionPass) {
       evaluation = Object.assign({}, evaluation, {
         confidence: Number(evaluation.confidence || 0.82),
         verificationMethod: cleanString(evaluation.verificationMethod || evaluation.feedbackMethod) || "model_assisted_growth_task_evaluation",
@@ -1396,7 +1452,7 @@ function createLearningGrowthSubmissionService(options = {}) {
       }
     }
     let settlement = null;
-    if (reflection.status === "accepted" && evaluation.passed) {
+    if ((reflection.status === "accepted" || forceReflectionPass) && evaluation.passed) {
       try {
         settlement = await settleViaProgramService(programService, loaded.card, evaluation, { workspaceId, author: input.author });
       } catch (err) {
@@ -1423,7 +1479,7 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (!reflectionMutation?.ok) return createError(reflectionMutation?.status || 502, cleanString(reflectionMutation?.error || "Unable to persist Growth reflection"));
     let completion = null;
     let nextTask = null;
-    if (reflection.status === "accepted" && evaluation.passed) {
+    if ((reflection.status === "accepted" || forceReflectionPass) && evaluation.passed) {
       completion = await projectKanbanComment(loaded, {
         action: "complete",
         workspaceId,
@@ -1437,6 +1493,7 @@ function createLearningGrowthSubmissionService(options = {}) {
           workspaceId,
           learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
           author: input.author,
+          evaluation,
         });
       }
     }
