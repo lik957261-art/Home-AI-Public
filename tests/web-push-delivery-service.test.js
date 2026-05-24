@@ -256,6 +256,8 @@ function testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes() {
       assert.equal(result.deliveries.length, 1);
       assert.equal(result.deliveries[0].jobId, "recent-job");
       assert.equal(calls.sends[0].payload.data.automationId, "recent-job");
+      assert.equal(calls.sends[0].payload.data.url, "/?view=automation&workspaceId=owner&automationId=recent-job");
+      assert.notEqual(calls.sends[0].payload.data.url, "/recent");
       assert.equal(Boolean(state.automationPushMarks["old-job"]), true);
       assert.equal(Boolean(state.automationPushMarks["recent-job"]), true);
     });

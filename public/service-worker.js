@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260524-ui-phase3-growth-automation-v156";
+const HERMES_SW_VERSION = "20260524-webpush-route-focus-v157";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,74 +8,74 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260524-ui-phase3-growth-automation-v156",
-  "/markdown-viewer.html?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-task-artifact-helpers.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-story-helpers.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-reading-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-coins-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-program-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-growth-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-growth-task-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-growth-reflection-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-api-client.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-codex-mux-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-shell-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-task-groups-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-chat-composer-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-composer-source-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-composer-context-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-run-progress-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-navigation-search-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-task-preview-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-sidebar-task-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-message-skill-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-message-actions-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-platform-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-pwa-settings-push-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-workspace-admin-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-access-key-manager-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-share-image-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-draft-thread-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-directory-automation-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-shared-directory-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-automation-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-native-growth-submission-controller.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-growth-ai-controller.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-growth-reward-controller.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-growth-settings-controller.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-learning-growth-controller.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-automation-controller-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-thread-state-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-group-topic-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-core-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-story-core-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-todo-core-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-render-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-list-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-learning-panel-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-recorder-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-todo-detail-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-actions-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-composer-actions-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-card-actions-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-kanban-study-actions-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-thread-message-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-thread-list-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-thread-directory-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-thread-card-message-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-long-message-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-rich-text-directory-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-message-usage-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-events-composer-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-event-stream-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-upload-sidebar-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-composer-send-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-wire-start-ui.js?v=20260524-ui-phase3-growth-automation-v156",
-  "/app-start.js?v=20260524-ui-phase3-growth-automation-v156",
+  "/styles.css?v=20260524-webpush-route-focus-v157",
+  "/markdown-viewer.html?v=20260524-webpush-route-focus-v157",
+  "/app-task-artifact-helpers.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-story-helpers.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-reading-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-coins-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-program-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-growth-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-growth-task-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-growth-reflection-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-api-client.js?v=20260524-webpush-route-focus-v157",
+  "/app.js?v=20260524-webpush-route-focus-v157",
+  "/app-codex-mux-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-shell-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-task-groups-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-chat-composer-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-composer-source-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-composer-context-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-run-progress-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-navigation-search-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-task-preview-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-sidebar-task-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-message-skill-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-message-actions-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-platform-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-pwa-settings-push-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-workspace-admin-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-access-key-manager-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-share-image-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-draft-thread-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-directory-automation-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-shared-directory-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-automation-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-native-growth-submission-controller.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-growth-ai-controller.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-growth-reward-controller.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-growth-settings-controller.js?v=20260524-webpush-route-focus-v157",
+  "/app-learning-growth-controller.js?v=20260524-webpush-route-focus-v157",
+  "/app-automation-controller-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-thread-state-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-group-topic-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-core-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-story-core-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-todo-core-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-render-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-list-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-learning-panel-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-recorder-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-todo-detail-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-actions-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-composer-actions-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-card-actions-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-kanban-study-actions-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-thread-message-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-thread-list-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-thread-directory-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-thread-card-message-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-long-message-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-rich-text-directory-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-message-usage-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-events-composer-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-event-stream-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-upload-sidebar-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-composer-send-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-wire-start-ui.js?v=20260524-webpush-route-focus-v157",
+  "/app-start.js?v=20260524-webpush-route-focus-v157",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260524-ui-phase3-growth-automation-v156",
+  "/markdown-renderer-client.js?v=20260524-webpush-route-focus-v157",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",
@@ -253,10 +253,19 @@ function isForegroundClient(client) {
   return client.focused === true || client.visibilityState === "visible";
 }
 
+function isAppShellClient(client) {
+  try {
+    const url = new URL(client.url || "", self.location.origin);
+    if (url.origin !== self.location.origin) return false;
+    return url.pathname === "/" || url.pathname === "/hermes-mobile/" || url.pathname === "/index.html";
+  } catch (_) {
+    return false;
+  }
+}
+
 function routeUrlForNotificationData(rawData = {}) {
   const data = rawData && typeof rawData === "object" ? rawData : {};
   const explicitUrl = String(data.url || "").trim();
-  if (explicitUrl && explicitUrl !== "/") return explicitUrl;
   const params = new URLSearchParams();
   const workspaceId = String(data.workspaceId || data.principalId || "owner").trim() || "owner";
   if (data.automationId) {
@@ -284,6 +293,20 @@ function routeUrlForNotificationData(rawData = {}) {
     return `/?${params.toString()}`;
   }
   return explicitUrl || "/";
+}
+
+function postNotificationOpenToClient(client, targetUrl, notificationData) {
+  try {
+    client.postMessage({
+      type: "hermes.notification.open",
+      version: HERMES_SW_VERSION,
+      url: targetUrl,
+      data: notificationData,
+    });
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 async function postPushReceipt(payload, notification, foreground) {
@@ -358,11 +381,16 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const notificationData = event.notification.data || {};
-  const rawTargetUrl = event.notification.data?.url || "/";
+  const rawTargetUrl = routeUrlForNotificationData(notificationData);
   const parsedTargetUrl = new URL(rawTargetUrl, self.location.origin);
   const targetUrl = parsedTargetUrl.origin === self.location.origin ? parsedTargetUrl.href : `${self.location.origin}/`;
   event.waitUntil((async () => {
     const windowClients = await sameOriginWindowClients();
+    for (const client of windowClients.filter(isAppShellClient)) {
+      postNotificationOpenToClient(client, targetUrl, notificationData);
+      await client.focus();
+      return;
+    }
     for (const client of windowClients) {
       let targetClient = client;
       if ("navigate" in client) {
@@ -372,16 +400,7 @@ self.addEventListener("notificationclick", (event) => {
           targetClient = client;
         }
       }
-      try {
-        targetClient.postMessage({
-          type: "hermes.notification.open",
-          version: HERMES_SW_VERSION,
-          url: targetUrl,
-          data: notificationData,
-        });
-      } catch (_) {
-        // A full navigation may replace the client before it can receive the fallback message.
-      }
+      postNotificationOpenToClient(targetClient, targetUrl, notificationData);
       await targetClient.focus();
       return;
     }

@@ -306,6 +306,9 @@ async function openNotificationRoute(value) {
   if (!applyRouteParams(new URLSearchParams(parsed.search || ""))) return;
   suppressComposerAutoFocus(1200);
   blurComposerInput();
+  try {
+    window.TaskDocumentPreviewUi?.closeArtifactPreviewOverlays?.();
+  } catch (_) {}
   closeSidebar();
   closeTopMoreMenu();
   try {

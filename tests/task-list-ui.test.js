@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-ui-phase3-growth-automation-v156";
+const CLIENT_VERSION = "20260524-webpush-route-focus-v157";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1442,6 +1442,20 @@ assert.match(stylesCss, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>/);
 assert.ok(indexHtml.includes(CLIENT_VERSION));
 assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
+assert.match(serviceWorkerJs, /function isAppShellClient\(client\) \{[\s\S]*?url\.pathname === "\/"[\s\S]*?url\.pathname === "\/hermes-mobile\/"/);
+assert.match(serviceWorkerJs, /const rawTargetUrl = routeUrlForNotificationData\(notificationData\);/);
+assert.match(serviceWorkerJs, /for \(const client of windowClients\.filter\(isAppShellClient\)\) \{[\s\S]*?postNotificationOpenToClient\(client, targetUrl, notificationData\);[\s\S]*?await client\.focus\(\);[\s\S]*?return;/);
+{
+  const appShellLoopStart = serviceWorkerJs.indexOf("for (const client of windowClients.filter(isAppShellClient))");
+  const fallbackLoopStart = serviceWorkerJs.indexOf("for (const client of windowClients) {", appShellLoopStart + 1);
+  assert.ok(appShellLoopStart > -1 && fallbackLoopStart > appShellLoopStart);
+  assert.equal(serviceWorkerJs.slice(appShellLoopStart, fallbackLoopStart).includes("client.navigate(targetUrl)"), false);
+}
+assert.ok(
+  serviceWorkerJs.indexOf("if (data.automationId)") < serviceWorkerJs.indexOf("return explicitUrl || \"/\";"),
+  "notification structured route fields should take precedence over explicit file/preview urls",
+);
+assert.ok(appJs.includes("window.TaskDocumentPreviewUi?.closeArtifactPreviewOverlays?.()"));
 assert.match(serviceWorkerJs, /function isViewerShellRequest\(url\) \{[\s\S]*?url\.pathname === "\/file-viewer\.html"/);
 assert.match(serviceWorkerJs, /\/markdown-viewer\.html\?v=/);
 assert.match(serviceWorkerJs, /function networkFirstViewerShell\(request\)/);
