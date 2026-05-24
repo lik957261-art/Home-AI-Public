@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Directory</title>
+  <link rel="stylesheet" href="/styles.css?v=20260524-directory-preview-v170">
   <style>
     :root {
       --paper: #f6f0e4;
@@ -237,6 +238,8 @@
   </main>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
+  <script src="/markdown-renderer-client.js?v=20260524-directory-preview-v170"></script>
+  <script src="/app-task-preview-ui.js?v=20260524-directory-preview-v170"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const key = localStorage.getItem("hermesWebKey") || "";
@@ -296,7 +299,7 @@
       return query;
     }
 
-    async function api(path, payload) {
+    async function directoryApi(path, payload) {
       const res = await fetch(path, {
         method: "POST",
         headers: headers(),
@@ -330,6 +333,32 @@
       return `/file-viewer.html?${query.toString()}`;
     }
 
+    function isPreviewableEntry(entry) {
+      if (!entry || entry.type === "directory") return false;
+      const name = String(entry.name || "").toLowerCase();
+      const mime = String(entry.mime || "").toLowerCase();
+      return mime.startsWith("image/")
+        || mime.includes("markdown")
+        || mime === "text/x-markdown"
+        || /\.(png|jpe?g|gif|webp|avif|bmp|heic|heif|md|markdown)$/i.test(name);
+    }
+
+    function entryPreviewHref(entry) {
+      return isPreviewableEntry(entry) ? entry.url : entryHref(entry);
+    }
+
+    function entryPreviewAttrs(entry) {
+      if (!isPreviewableEntry(entry)) return "";
+      return ` data-directory-preview-file="1" data-artifact-mime="${escapeHtml(entry.mime || "")}" data-artifact-name="${escapeHtml(entry.name || "file")}"`;
+    }
+
+    function openDirectoryPreviewLink(link) {
+      const previews = window.TaskDocumentPreviewUi || {};
+      if (previews.isImagePreviewLink?.(link) && previews.openImagePreviewOverlay?.(link)) return true;
+      if (previews.isMarkdownPreviewLink?.(link) && previews.openMarkdownPreviewOverlay?.(link)) return true;
+      return false;
+    }
+
     async function loadDirectory() {
       const res = await fetch(`/api/directories/preview?${currentDirectoryQuery().toString()}`, {
         headers: key ? { "X-Hermes-Web-Key": key } : {},
@@ -353,7 +382,7 @@
           ? `Folder | ${formatTime(entry.mtime)}`
           : `${formatBytes(entry.size)} | ${formatTime(entry.mtime)}`;
         return `<div class="entry ${escapeHtml(kind)}">
-          <a class="entry-main" href="${escapeHtml(entryHref(entry))}">
+          <a class="entry-main" href="${escapeHtml(entryPreviewHref(entry))}"${entryPreviewAttrs(entry)}>
             <div class="icon">${escapeHtml(kind === "dir" ? "DIR" : kind.toUpperCase())}</div>
             <div>
               <div class="name">${escapeHtml(entry.name)}</div>
@@ -380,7 +409,7 @@
       if (!name || !name.trim()) return;
       statusEl.hidden = false;
       statusEl.textContent = "Creating folder...";
-      await api("/api/directories/create", currentDirectoryPayload({ name: name.trim() }));
+      await directoryApi("/api/directories/create", currentDirectoryPayload({ name: name.trim() }));
       await reloadDirectory();
     }
 
@@ -403,7 +432,7 @@
         const file = list[index];
         statusEl.hidden = false;
         statusEl.textContent = `Uploading ${index + 1}/${list.length}: ${file.name}`;
-        await api("/api/directories/upload", currentDirectoryPayload({
+        await directoryApi("/api/directories/upload", currentDirectoryPayload({
           filename: file.name,
           dataBase64: await readFileBase64(file),
         }));
@@ -421,7 +450,7 @@
       if (!window.confirm(message)) return;
       statusEl.hidden = false;
       statusEl.textContent = "Deleting...";
-      await api("/api/directories/delete", {
+      await directoryApi("/api/directories/delete", {
         threadId: params.get("threadId") || "",
         path: button.dataset.deletePath || "",
       });
@@ -442,6 +471,13 @@
       });
     });
     listEl.addEventListener("click", (event) => {
+      const previewLink = event.target.closest("[data-directory-preview-file]");
+      if (previewLink && openDirectoryPreviewLink(previewLink)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        return;
+      }
       const button = event.target.closest("[data-delete-path]");
       if (!button) return;
       event.preventDefault();

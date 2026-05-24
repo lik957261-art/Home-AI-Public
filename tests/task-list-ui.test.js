@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-bottom-composer-frame-v169";
+const CLIENT_VERSION = "20260524-directory-preview-v170";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -244,6 +244,18 @@ assert.match(markdownViewerHtml, /taskListCompatibility: true/);
 assert.doesNotMatch(markdownViewerHtml, /viewer-more-button|viewer-done-button|topbar/);
 assert.doesNotMatch(fileViewerHtml, /function renderIframePreview\(label\)/);
 assert.match(fileViewerHtml, /kind === "HTML"[\s\S]{0,80}location\.replace\(originalUrlFor\(src\)\)/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-directory-preview-v170/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-directory-preview-v170/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-directory-preview-v170/);
+assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
+assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
+assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
+assert.match(directoryViewerHtml, /openMarkdownPreviewOverlay/);
+assert.match(directoryViewerHtml, /async function directoryApi\(/);
+assert.doesNotMatch(directoryViewerHtml, /async function api\(/);
+assert.match(appJs, /function directoryEntryDocumentAttrs\(entry\)/);
+assert.match(appJs, /data-task-doc data-artifact-name/);
+assert.match(appJs, /function wireDirectoryView\(root\) \{[\s\S]*?wireTaskDocumentLinks\(root\)/);
 assert.doesNotMatch(directoryViewerHtml, /viewerChrome/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId\) return "learning-growth-task"/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);

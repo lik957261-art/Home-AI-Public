@@ -100,7 +100,7 @@ function renderDirectoryEntries() {
     const meta = directoryEntryMeta(entry);
     const main = entry.type === "directory"
       ? `<button class="directory-entry-main" type="button" data-open-directory-path="${escapeHtml(entry.path || "")}">`
-      : `<a class="directory-entry-main" href="${escapeHtml(directoryEntryHref(entry))}" target="_self" rel="noopener">`;
+      : `<a class="directory-entry-main" href="${escapeHtml(directoryEntryHref(entry))}" target="_self" rel="noopener"${directoryEntryDocumentAttrs(entry)}>`;
     const close = entry.type === "directory" ? "</button>" : "</a>";
     return `<article class="directory-entry ${escapeHtml(kind)}">
       ${main}
@@ -476,6 +476,7 @@ function wireDirectorySwipe(root) {
 
 function wireDirectoryView(root) {
   wireDirectorySwipe(root);
+  if (typeof wireTaskDocumentLinks === "function") wireTaskDocumentLinks(root);
   root.querySelector("[data-directory-refresh]")?.addEventListener("click", () => loadDirectoryView().catch(showError));
   root.querySelector("[data-directory-new]")?.addEventListener("click", () => createDirectoryFolder().catch(showError));
   const uploadInput = root.querySelector("#directoryUploadInput");
