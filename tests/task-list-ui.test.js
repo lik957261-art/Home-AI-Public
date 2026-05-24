@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-ui-phase5-warm-white-v161";
+const CLIENT_VERSION = "20260524-webpush-pwa-route-v162";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -15,6 +15,8 @@ const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
 const manifestJson = fs.readFileSync(path.join(repoRoot, "public", "manifest-20260509.json"), "utf8");
 const manifest = JSON.parse(manifestJson);
+const legacyManifestJson = fs.readFileSync(path.join(repoRoot, "public", "manifest.json"), "utf8");
+const legacyManifest = JSON.parse(legacyManifestJson);
 const directoryViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "directory-viewer.html"), "utf8");
 const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
 const markdownViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "markdown-viewer.html"), "utf8");
@@ -161,6 +163,10 @@ assert.equal(manifest.id, "/");
 assert.equal(manifest.start_url, "/?source=pwa");
 assert.equal(manifest.scope, "/");
 assert.doesNotMatch(manifestJson, /\/hermes-mobile\//);
+assert.equal(legacyManifest.id, "/");
+assert.equal(legacyManifest.start_url, "/?source=pwa");
+assert.equal(legacyManifest.scope, "/");
+assert.doesNotMatch(legacyManifestJson, /\/hermes-mobile\//);
 assert.match(appJs, /function openTaskDocumentLink\(link\)/);
 assert.match(appJs, /if \(isMobileLayout\(\)\) \{[\s\S]*?window\.location\.assign\(href\);[\s\S]*?return;[\s\S]*?\}/);
 assert.match(appJs, /window\.open\(href, link\.getAttribute\("target"\) \|\| "_blank", "noopener"\)/);
@@ -1463,7 +1469,9 @@ assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>
 assert.ok(indexHtml.includes(CLIENT_VERSION));
 assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
 assert.match(serviceWorkerJs, /function isAppShellClient\(client\) \{[\s\S]*?url\.pathname === "\/"[\s\S]*?url\.pathname === "\/hermes-mobile\/"/);
-assert.match(serviceWorkerJs, /function appWindowRouteForUrl\(url\) \{[\s\S]*?return `\$\{parsed\.pathname \|\| "\/"\}\$\{parsed\.search \|\| ""\}\$\{parsed\.hash \|\| ""\}`;/);
+assert.match(serviceWorkerJs, /function appWindowRouteForUrl\(url\) \{[\s\S]*?if \(!params\.has\("source"\)\) params\.set\("source", "pwa"\);[\s\S]*?return `\$\{parsed\.pathname \|\| "\/"\}\$\{search \? `\?\$\{search\}` : ""\}\$\{parsed\.hash \|\| ""\}`;/);
+assert.match(serviceWorkerJs, /return "\/\?source=pwa";/);
+assert.match(serviceWorkerJs, /"\/manifest\.json"/);
 assert.match(serviceWorkerJs, /const rawTargetUrl = routeUrlForNotificationData\(notificationData\);/);
 assert.match(serviceWorkerJs, /const targetWindowRoute = appWindowRouteForUrl\(parsedTargetUrl\);/);
 assert.match(serviceWorkerJs, /for \(const client of windowClients\.filter\(isAppShellClient\)\) \{[\s\S]*?postNotificationOpenToClient\(client, targetUrl, notificationData\);[\s\S]*?await client\.focus\(\);[\s\S]*?return;/);
