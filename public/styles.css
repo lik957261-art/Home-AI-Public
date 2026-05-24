@@ -12357,6 +12357,112 @@ body.task-markdown-preview-open {
   min-height: calc(78px * var(--app-font-scale));
 }
 
+.sidebar .field-label {
+  font-size: 10.5px;
+  line-height: 1.25;
+  letter-spacing: 0.10em;
+}
+
+.sidebar #workspaceSelect {
+  min-height: 38px;
+  padding: 6px 9px;
+  border-radius: 12px;
+  font-size: 14.5px;
+  font-weight: 520;
+  line-height: 1.2;
+}
+
+.sidebar .client-version {
+  min-width: 34px;
+  height: 24px;
+  padding: 0 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+}
+
+.sidebar .workspace-access-panel summary {
+  padding: 7px 9px;
+  font-size: 11.5px;
+  font-weight: 580;
+  line-height: 1.25;
+}
+
+.sidebar .workspace-permission-panel {
+  margin: 0 9px 9px;
+  padding: 9px;
+  font-size: 12px;
+}
+
+.sidebar .workspace-permission-title {
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.sidebar .workspace-permission-state {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.sidebar .workspace-permission-badge {
+  font-size: 9.5px;
+  line-height: 1.1;
+}
+
+.sidebar .workspace-permission-meta,
+.sidebar .workspace-permission-hint,
+.sidebar .workspace-permission-warning {
+  font-size: 10.5px;
+  line-height: 1.32;
+}
+
+.sidebar .workspace-permission-select,
+.sidebar .workspace-permission-actions button {
+  min-height: 29px;
+  padding: 0 7px;
+  font-size: 10.75px;
+  line-height: 1.1;
+}
+
+:root[data-font-size] .sidebar .field-label {
+  font-size: 10.5px;
+}
+
+:root[data-font-size] .sidebar #workspaceSelect {
+  font-size: 14.5px;
+}
+
+:root[data-font-size] .sidebar .client-version {
+  font-size: 9.5px;
+}
+
+:root[data-font-size] .sidebar .workspace-access-panel summary {
+  font-size: 11.5px;
+}
+
+:root[data-font-size] .sidebar .workspace-permission-panel {
+  font-size: 12px;
+}
+
+:root[data-font-size] .sidebar .workspace-permission-title,
+:root[data-font-size] .sidebar .workspace-permission-meta,
+:root[data-font-size] .sidebar .workspace-permission-hint,
+:root[data-font-size] .sidebar .workspace-permission-warning {
+  font-size: 10.5px;
+}
+
+:root[data-font-size] .sidebar .workspace-permission-state {
+  font-size: 13px;
+}
+
+:root[data-font-size] .sidebar .workspace-permission-badge {
+  font-size: 9.5px;
+}
+
+:root[data-font-size] .sidebar .workspace-permission-select,
+:root[data-font-size] .sidebar .workspace-permission-actions button {
+  font-size: 10.75px;
+}
+
 .chat-history-pager {
   display: flex;
   justify-content: center;

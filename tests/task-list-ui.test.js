@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-growth-average-value-align-v186";
+const CLIENT_VERSION = "20260524-sidebar-menu-type-v187";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -202,6 +202,13 @@ assert.doesNotMatch(stylesCss, /:root\[data-font-size\] \.bottom-tab-label/);
 assert.match(stylesCss, /\.bottom-tab\.active \{[\s\S]*?color: var\(--ui-accent-active\);/);
 assert.match(stylesCss, /\.bottom-tab-icon \{[\s\S]*?width: 31px;[\s\S]*?height: 31px;/);
 assert.match(stylesCss, /\.bottom-tab\.active \.bottom-tab-icon \{[\s\S]*?background: var\(--ui-accent-active-soft\);[\s\S]*?transform: translateY\(-1px\);/);
+assert.match(stylesCss, /\.sidebar #workspaceSelect \{[\s\S]*?font-size: 14\.5px;[\s\S]*?line-height: 1\.2;/);
+assert.match(stylesCss, /\.sidebar \.client-version \{[\s\S]*?font-size: 9\.5px;/);
+assert.match(stylesCss, /\.sidebar \.workspace-access-panel summary \{[\s\S]*?font-size: 11\.5px;[\s\S]*?line-height: 1\.25;/);
+assert.match(stylesCss, /\.sidebar \.workspace-permission-state \{[\s\S]*?font-size: 13px;[\s\S]*?line-height: 1\.25;/);
+assert.match(stylesCss, /\.sidebar \.workspace-permission-select,[\s\S]*?\.sidebar \.workspace-permission-actions button \{[\s\S]*?font-size: 10\.75px;[\s\S]*?line-height: 1\.1;/);
+assert.match(stylesCss, /:root\[data-font-size\] \.sidebar #workspaceSelect \{[\s\S]*?font-size: 14\.5px;/);
+assert.match(stylesCss, /:root\[data-font-size\] \.sidebar \.workspace-permission-select,[\s\S]*?:root\[data-font-size\] \.sidebar \.workspace-permission-actions button \{[\s\S]*?font-size: 10\.75px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.topbar \{[\s\S]*?border-bottom-color: var\(--ui-hairline\);[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \{[\s\S]*?width: 36px;[\s\S]*?height: 36px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \.top-nav-button-glyph \{[\s\S]*?width: 28px;[\s\S]*?font-size: 15px;/);
@@ -276,9 +283,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-average-value-align-v186/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-average-value-align-v186/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-average-value-align-v186/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-sidebar-menu-type-v187/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-sidebar-menu-type-v187/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-sidebar-menu-type-v187/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
