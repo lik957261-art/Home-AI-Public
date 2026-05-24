@@ -3487,30 +3487,27 @@ button.directory-alias-chip {
   flex: 1 1 auto;
 }
 
-.skill-detail-actions {
-  flex: 0 0 auto;
+.skill-detail-title-row {
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 7px;
-}
-
-.skill-detail-analyze,
-.skill-detail-close {
-  min-width: 48px;
-  min-height: 30px;
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.52);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 650;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 .skill-detail-analyze {
+  flex: 0 0 auto;
+  min-width: 42px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.52);
   color: var(--green);
   border-color: rgba(28, 121, 102, 0.24);
   background: rgba(222, 244, 237, 0.54);
+  font-size: 11.5px;
+  font-weight: 650;
 }
 
 .skill-detail-analyze:disabled {
@@ -3556,6 +3553,44 @@ button.directory-alias-chip {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font: 13px/1.55 "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+@media (max-width: 720px) {
+  .skill-detail-card {
+    gap: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    box-shadow: none;
+  }
+
+  .skill-detail-head {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 9px;
+    row-gap: 8px;
+  }
+
+  .skill-detail-head > div {
+    grid-column: 2;
+  }
+
+  .skill-detail-analyze {
+    min-width: 38px;
+    min-height: 23px;
+    padding: 2px 7px;
+    font-size: 11px;
+  }
+
+  .skill-detail-head h2 {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+
+  .skill-detail-path,
+  .skill-detail-note {
+    font-size: 11.5px;
+  }
 }
 
 .skill-analysis-card {

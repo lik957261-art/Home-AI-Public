@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-message-capability-tags-v191";
+const CLIENT_VERSION = "20260524-skill-detail-action-inline-v193";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -285,9 +285,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-message-capability-tags-v191/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-message-capability-tags-v191/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-message-capability-tags-v191/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-skill-detail-action-inline-v193/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-skill-detail-action-inline-v193/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-skill-detail-action-inline-v193/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -391,8 +391,8 @@ assert.match(appJs, /incomingPage && !incomingMessages\.length && existingThread
 assert.match(appJs, /messages: existingThreadMessages/);
 assert.match(appJs, /currentThreadHasPendingMessages\(thread\) \|\| state\.currentThreadRefreshInFlight/);
 assert.match(appJs, /timeoutMs: 8000/);
-assert.match(appJs, /timeoutMs: 90000/);
-assert.match(appJs, /data-close-skill-detail/);
+assert.match(appJs, /timeoutMs: 130000/);
+assert.doesNotMatch(appJs, /data-close-skill-detail/);
 assert.match(appJs, /data-skill-analysis/);
 assert.match(appJs, /\/api\/skills\/analysis\?skill=/);
 assert.match(appJs, /data-skill-fix-id/);
@@ -432,8 +432,10 @@ assert.match(stylesCss, /\.message-skill-title/);
 assert.match(stylesCss, /width: min\(460px, calc\(100vw - 24px\)\)/);
 assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.message-skill-details\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?left:\s*max\(18px, env\(safe-area-inset-left\)\);[\s\S]*?right:\s*max\(18px, env\(safe-area-inset-right\)\);[\s\S]*?max-height: min\(220px, 34vh\);/);
 assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.message-skill-item\s*\{[\s\S]*?min-height:\s*34px;[\s\S]*?font-size:\s*13px;/);
-assert.match(stylesCss, /\.skill-detail-close/);
 assert.match(stylesCss, /\.skill-detail-analyze/);
+assert.match(stylesCss, /\.skill-detail-title-row/);
+assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.skill-detail-head\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*34px minmax\(0, 1fr\);/);
+assert.doesNotMatch(stylesCss, /\.skill-detail-close/);
 assert.match(stylesCss, /\.skill-analysis-card/);
 assert.match(stylesCss, /\.skill-analysis-fix/);
 assert.match(taskArtifactHelpersJs, /return \[\.\.\.groups\.values\(\)\]\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\);/);

@@ -310,7 +310,7 @@ async function analyzeSkillDetail() {
   });
   renderSkillDetailPanel();
   try {
-    const result = await api(`/api/skills/analysis?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 90000 });
+    const result = await api(`/api/skills/analysis?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 130000 });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     state.skillDetail = Object.assign({}, state.skillDetail, {
       analysis: { loading: false, error: "", data: result.data || null },
@@ -445,13 +445,12 @@ function renderSkillDetailPanel(options = {}) {
       <div class="skill-detail-head">
         <span class="task-skill-icon skill-detail-icon" aria-hidden="true">S</span>
         <div>
-          <div class="skill-detail-eyebrow">Skill</div>
+          <div class="skill-detail-title-row">
+            <div class="skill-detail-eyebrow">Skill</div>
+            <button class="skill-detail-analyze" type="button" data-skill-analysis${analyzeDisabled ? " disabled" : ""}>\u5206\u6790</button>
+          </div>
           <h2>${escapeHtml(title)}</h2>
           <div class="skill-detail-path">${escapeHtml(skill.path || "")}</div>
-        </div>
-        <div class="skill-detail-actions">
-          <button class="skill-detail-analyze" type="button" data-skill-analysis${analyzeDisabled ? " disabled" : ""}>\u5206\u6790</button>
-          <button class="skill-detail-close" type="button" data-close-skill-detail aria-label="Close Skill">\u5173\u95ed</button>
         </div>
       </div>
       ${renderSkillAnalysisPanel(skill)}
@@ -460,11 +459,6 @@ function renderSkillDetailPanel(options = {}) {
     </article>
   </section>`;
   updateNavigationControls();
-  conversation.querySelector("[data-close-skill-detail]")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    closeSkillDetail();
-  });
   conversation.querySelector("[data-skill-analysis]")?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
