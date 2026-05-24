@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-webpush-pwa-route-v162";
+const CLIENT_VERSION = "20260524-ui-cool-neutral-bg-v163";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -162,10 +162,14 @@ assert.match(appJs, /await loadDirectoryView\(\);[\s\S]*?if \(!currentViewStillS
 assert.equal(manifest.id, "/");
 assert.equal(manifest.start_url, "/?source=pwa");
 assert.equal(manifest.scope, "/");
+assert.equal(manifest.theme_color, "#f7f8f7");
+assert.equal(manifest.background_color, "#f7f8f7");
 assert.doesNotMatch(manifestJson, /\/hermes-mobile\//);
 assert.equal(legacyManifest.id, "/");
 assert.equal(legacyManifest.start_url, "/?source=pwa");
 assert.equal(legacyManifest.scope, "/");
+assert.equal(legacyManifest.theme_color, "#f7f8f7");
+assert.equal(legacyManifest.background_color, "#f7f8f7");
 assert.doesNotMatch(legacyManifestJson, /\/hermes-mobile\//);
 assert.match(appJs, /function openTaskDocumentLink\(link\)/);
 assert.match(appJs, /if \(isMobileLayout\(\)\) \{[\s\S]*?window\.location\.assign\(href\);[\s\S]*?return;[\s\S]*?\}/);
@@ -209,8 +213,9 @@ assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22p
 assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]*?justify-content: center;/);
 assert.match(stylesCss, /--ui-accent: #6b858c;/);
 assert.match(stylesCss, /--ui-accent-fill: rgba\(144, 166, 170, 0\.20\);/);
-assert.match(stylesCss, /--ui-page: #fbfaf7;/);
-assert.match(stylesCss, /--paper: #faf8f4;/);
+assert.match(indexHtml, /<meta name="theme-color" content="#f7f8f7">/);
+assert.match(stylesCss, /--ui-page: #f7f8f7;/);
+assert.match(stylesCss, /--paper: #f8f8f6;/);
 assert.match(stylesCss, /--accent: #6b858c;/);
 assert.match(stylesCss, /html,[\s\S]*?body \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.app \{[\s\S]*?background: var\(--ui-page\);/);
@@ -239,7 +244,7 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-segment \{[\s\S]*?min-height: 30px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-header-button \{[\s\S]*?min-height: 26px;[\s\S]*?font-size: 15px !important;[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /\.chat-scope-header-button\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
-assert.match(stylesCss, /\.composer \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);[\s\S]*?background: rgba\(251, 250, 247, 0\.84\);/);
+assert.match(stylesCss, /\.composer \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);[\s\S]*?background: rgba\(248, 249, 248, 0\.86\);/);
 assert.match(stylesCss, /#sendMessage \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.composer-context-chip \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-control-bg\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
 assert.match(stylesCss, /\.top-more-menu \{[\s\S]*?border: 1px solid var\(--ui-hairline-strong\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.08\);/);
