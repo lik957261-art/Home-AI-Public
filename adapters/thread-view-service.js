@@ -12,6 +12,101 @@ function normalizeTaskGroupMetaFallback(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
+const DEFAULT_RESPONSE_SKILL = Object.freeze({
+  id: "response-grounding-baseline",
+  label: "response-grounding-baseline",
+  path: "response-grounding-baseline",
+  namespace: "",
+});
+
+function normalizeLoadedSkill(value = {}) {
+  const path = String(value.path || value.skillPath || value.name || value.id || "").trim();
+  if (!path) return null;
+  const parts = path.split(/[\\/]+/).filter(Boolean);
+  const id = String(value.id || parts[parts.length - 1] || path).trim();
+  const namespace = String(value.namespace || (parts.length > 1 ? parts.slice(0, -1).join("/") : "")).trim();
+  return {
+    id,
+    label: String(value.label || id || path).trim(),
+    path,
+    namespace,
+  };
+}
+
+function loadedSkillsForPublicMessage(message = {}) {
+  const byPath = new Map();
+  if (message.role === "assistant") {
+    byPath.set(DEFAULT_RESPONSE_SKILL.path, Object.assign({}, DEFAULT_RESPONSE_SKILL));
+  }
+  for (const item of Array.isArray(message.loadedSkills) ? message.loadedSkills : []) {
+    const skill = normalizeLoadedSkill(item);
+    if (skill && !byPath.has(skill.path)) byPath.set(skill.path, skill);
+  }
+  return [...byPath.values()];
+}
+
+function normalizeToolName(value) {
+  const text = String(
+    value && typeof value === "object"
+      ? (value.name || value.tool || value.function || value.functionName || value.function_name || value.label || value.id || "")
+      : value || "",
+  ).trim();
+  if (!text || !/^[A-Za-z0-9_.:-]+$/.test(text)) return "";
+  const lower = text.toLowerCase();
+  if (["message", "function_call", "function_call_output", "skill_view"].includes(lower)) return "";
+  return text.slice(0, 96);
+}
+
+function parseJsonObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  const text = String(value || "").trim();
+  if (!text || !/^[{[]/.test(text)) return null;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function toolNameFromEventPreview(value) {
+  const parsed = parseJsonObject(value);
+  return normalizeToolName(parsed || value);
+}
+
+function addLoadedTool(map, value) {
+  const name = toolNameFromEventPreview(value);
+  if (!name) return;
+  const id = name.toLowerCase();
+  if (!map.has(id)) map.set(id, { id, name, label: name });
+}
+
+function messageRunIds(message = {}) {
+  return new Set([
+    message.runId,
+    message.originalRunId,
+    message.responseRunId,
+    message.gatewayRunId,
+    message.usage?.runId,
+  ].map((value) => String(value || "").trim()).filter(Boolean));
+}
+
+function loadedToolsForPublicMessage(message = {}, thread = null) {
+  const byName = new Map();
+  for (const item of Array.isArray(message.loadedTools) ? message.loadedTools : []) addLoadedTool(byName, item);
+  const runIds = messageRunIds(message);
+  if (thread && runIds.size) {
+    for (const event of Array.isArray(thread.events) ? thread.events : []) {
+      const runId = String(event?.runId || event?.run_id || "").trim();
+      if (!runId || !runIds.has(runId)) continue;
+      const tool = String(event?.tool || event?.item?.type || "").trim().toLowerCase();
+      if (tool !== "function_call" && tool !== "function_call_output") continue;
+      addLoadedTool(byName, event.preview || event.arguments || event.input || event.text || "");
+    }
+  }
+  return [...byName.values()];
+}
+
 function createThreadViewService(deps = {}) {
   const maxApiTextChars = Math.max(1, Number(deps.maxApiTextChars || 80_000) || 80_000);
   const maxEventPreviewChars = Math.max(0, Number(deps.maxEventPreviewChars || 240) || 240);
@@ -384,7 +479,8 @@ function createThreadViewService(deps = {}) {
       revokedByPrincipalId: message.revokedByPrincipalId || "",
       revokedByLabel: message.revokedByLabel || "",
       usage: message.usage || null,
-      loadedSkills: Array.isArray(message.loadedSkills) ? message.loadedSkills : [],
+      loadedSkills: loadedSkillsForPublicMessage(message),
+      loadedTools: loadedToolsForPublicMessage(message, resolvedThread),
       model: message.model || message.modelName || message.runOptions?.model || "",
       modelProvider: message.modelProvider || message.model_provider || message.provider || message.runOptions?.provider || "",
       error: message.error || null,

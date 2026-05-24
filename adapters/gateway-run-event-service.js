@@ -10,6 +10,13 @@ function cleanString(value) {
   return String(value || "").trim();
 }
 
+const DEFAULT_RESPONSE_SKILL = Object.freeze({
+  id: "response-grounding-baseline",
+  label: "response-grounding-baseline",
+  path: "response-grounding-baseline",
+  namespace: "",
+});
+
 function compactFallback(value) {
   return value;
 }
@@ -125,6 +132,44 @@ function mergeLoadedSkills(...sources) {
   return [...byPath.values()];
 }
 
+function normalizeToolName(value) {
+  const parsed = parseJsonObject(value);
+  const raw = parsed
+    ? (parsed.name || parsed.tool || parsed.function || parsed.functionName || parsed.function_name || "")
+    : value;
+  const text = cleanString(raw);
+  if (!text || !/^[A-Za-z0-9_.:-]+$/.test(text)) return "";
+  const lower = text.toLowerCase();
+  if (["message", "function_call", "function_call_output", "skill_view"].includes(lower)) return "";
+  return text.slice(0, 96);
+}
+
+function toolEntryFromName(value) {
+  const name = normalizeToolName(value);
+  if (!name) return null;
+  return { id: name.toLowerCase(), name, label: name };
+}
+
+function loadedToolFromRunEvent(event = {}) {
+  const tool = cleanString(event.tool).toLowerCase();
+  if (tool !== "function_call" && tool !== "function_call_output") return null;
+  return toolEntryFromName(event.preview || event.arguments || event.input || event.text || "");
+}
+
+function mergeLoadedTools(...sources) {
+  const byName = new Map();
+  for (const source of sources) {
+    const tools = Array.isArray(source) ? source : [source];
+    for (const tool of tools) {
+      const entry = toolEntryFromName(typeof tool === "object" ? (tool.name || tool.label || tool.id || "") : tool);
+      if (!entry) continue;
+      const key = entry.id;
+      if (!byName.has(key)) byName.set(key, Object.assign({}, entry, typeof tool === "object" ? tool : null, { name: entry.name, label: entry.label }));
+    }
+  }
+  return [...byName.values()];
+}
+
 function outputItemToolName(item = {}) {
   const type = cleanString(item.type).toLowerCase();
   if (outputItemFunctionName(item) === "skill_view") return "skill_view";
@@ -219,6 +264,33 @@ function loadedSkillsFromCompletedResponse(event = {}) {
     if (skill) skills.push(skill);
   }
   return mergeLoadedSkills(skills);
+}
+
+function loadedToolsForRun(thread = {}, runIds = "") {
+  const ids = new Set(uniqueCleanStrings(Array.isArray(runIds) ? runIds : [runIds]));
+  if (!ids.size) return [];
+  const tools = [];
+  for (const event of Array.isArray(thread.events) ? thread.events : []) {
+    const eventRunId = cleanString(event?.runId || event?.run_id);
+    if (!eventRunId || !ids.has(eventRunId)) continue;
+    const tool = loadedToolFromRunEvent(event);
+    if (tool) tools.push(tool);
+  }
+  return mergeLoadedTools(tools);
+}
+
+function loadedToolsFromCompletedResponse(event = {}) {
+  const response = event.response || {};
+  const tools = [];
+  for (const item of Array.isArray(response.output) ? response.output : []) {
+    const type = cleanString(item.type).toLowerCase();
+    const tool = cleanString(outputItemToolName(item)).toLowerCase();
+    if (tool !== "function_call" && type !== "function_call") continue;
+    const preview = outputItemPreview(item);
+    const entry = loadedToolFromRunEvent({ tool: "function_call", preview });
+    if (entry) tools.push(entry);
+  }
+  return mergeLoadedTools(tools);
 }
 
 function usageWithRunMetadata(usage, event = {}, message = {}) {
@@ -474,6 +546,8 @@ function createGatewayRunEventService(options = {}) {
     });
     const loadedSkill = loadedSkillFromRunEvent({ tool, preview });
     if (loadedSkill) message.loadedSkills = mergeLoadedSkills(message.loadedSkills, loadedSkill);
+    const loadedTool = loadedToolFromRunEvent({ tool, preview });
+    if (loadedTool) message.loadedTools = mergeLoadedTools(message.loadedTools, loadedTool);
     saveState();
     broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
     return { action: "output_item" };
@@ -495,6 +569,7 @@ function createGatewayRunEventService(options = {}) {
       message,
     );
     message.loadedSkills = mergeLoadedSkills(
+      DEFAULT_RESPONSE_SKILL,
       message.loadedSkills,
       loadedSkillsForRun(thread, [
         runId,
@@ -504,6 +579,17 @@ function createGatewayRunEventService(options = {}) {
         stream?.realRunId,
       ]),
       loadedSkillsFromCompletedResponse(event),
+    );
+    message.loadedTools = mergeLoadedTools(
+      message.loadedTools,
+      loadedToolsForRun(thread, [
+        runId,
+        originalRunId,
+        responseRunId,
+        message.runId,
+        stream?.realRunId,
+      ]),
+      loadedToolsFromCompletedResponse(event),
     );
     if (validApprovalRequest) {
       message.elevationRequired = true;

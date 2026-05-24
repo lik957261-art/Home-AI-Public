@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-message-receipt-edge-v190";
+const CLIENT_VERSION = "20260524-message-capability-tags-v191";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -285,9 +285,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-message-receipt-edge-v190/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-message-receipt-edge-v190/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-message-receipt-edge-v190/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-message-capability-tags-v191/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-message-capability-tags-v191/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-message-capability-tags-v191/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -340,6 +340,10 @@ for (const file of appShellFiles) {
 }
 assert.match(appJs, /function renderMessageSkillPanel\(message = \{\}, thread = state\.currentThread\)/);
 assert.match(appJs, /String\(event\.tool \|\| ""\)\.trim\(\)\.toLowerCase\(\) !== "skill_view"/);
+assert.match(appJs, /function messageToolNameFromValue\(value\)/);
+assert.match(appJs, /function collectMessageTools\(message = \{\}, thread = state\.currentThread\)/);
+assert.match(appJs, /const tools = collectMessageTools\(message, thread\)/);
+assert.match(appJs, /const summary = skills\.length && tools\.length \? "Skill · Tool" : \(skills\.length \? "Skill" : "Tool"\)/);
 assert.match(appJs, /const skills = renderMessageSkillPanel\(message, state\.currentThread\)/);
 assert.match(appJs, /existing\.loadedSkills[\s\S]*merged\.loadedSkills = existing\.loadedSkills/);
 assert.match(appJs, /wireSkillLinks\(conversation\);\s+wireUsagePanels\(conversation\)/);

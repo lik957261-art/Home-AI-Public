@@ -195,6 +195,7 @@ function makeThread() {
         gatewayProfile: "default",
         gatewaySource: "codex",
         loadedSkills: [{ id: "write", label: "write", path: "productivity/write", namespace: "productivity" }],
+        loadedTools: [{ id: "x_search", name: "x_search", label: "x_search" }],
         externalDelivery: { source: "weixin" },
         runOptions: {
           model: "gpt-test",
@@ -331,7 +332,11 @@ function testCompactMessage(subject) {
   assert.equal(got.taskId, "task-alpha");
   assert.equal(got.taskGroupId, "task-a");
   assert.equal(got.messageKind, "ai");
-  assert.deepEqual(got.loadedSkills, [{ id: "write", label: "write", path: "productivity/write", namespace: "productivity" }]);
+  assert.deepEqual(got.loadedSkills, [
+    { id: "response-grounding-baseline", label: "response-grounding-baseline", path: "response-grounding-baseline", namespace: "" },
+    { id: "write", label: "write", path: "productivity/write", namespace: "productivity" },
+  ]);
+  assert.deepEqual(got.loadedTools, [{ id: "x_search", name: "x_search", label: "x_search" }]);
   assert.equal(got.model, "gpt-test");
   assert.equal(got.modelProvider, "openai-codex");
   assert.equal(got.gatewaySecurityLevel, "workspace");
@@ -362,6 +367,27 @@ function testCompactMessage(subject) {
     messageId: "orphan-weixin",
   });
   assert.equal(fallback.artifacts[0].threadId, "thread-view");
+  assert.deepEqual(fallback.loadedSkills, [
+    { id: "response-grounding-baseline", label: "response-grounding-baseline", path: "response-grounding-baseline", namespace: "" },
+  ]);
+
+  const toolFallback = compactMessage({
+    id: "tool-fallback",
+    role: "assistant",
+    content: "tool output",
+    status: "done",
+    runId: "resp_tool",
+    createdAt: "2026-05-14T10:12:30.000Z",
+  }, Object.assign({}, thread, {
+    events: [
+      { event: "response.output_item.added", runId: "resp_tool", tool: "function_call", preview: "{\"name\":\"x_search\"}" },
+      { event: "response.output_item.done", runId: "other", tool: "function_call", preview: "{\"name\":\"web_search\"}" },
+    ],
+  }));
+  assert.deepEqual(toolFallback.loadedSkills, [
+    { id: "response-grounding-baseline", label: "response-grounding-baseline", path: "response-grounding-baseline", namespace: "" },
+  ]);
+  assert.deepEqual(toolFallback.loadedTools, [{ id: "x_search", name: "x_search", label: "x_search" }]);
 
   const notWeixin = compactMessage({
     id: "not-weixin",

@@ -92,6 +92,25 @@ function messageSkillEventPayload(event = {}) {
   return parseMessageSkillObject(preview) || preview;
 }
 
+function messageToolNameFromValue(value) {
+  const parsed = parseMessageSkillObject(value);
+  const raw = parsed
+    ? (parsed.name || parsed.tool || parsed.function || parsed.functionName || parsed.function_name || "")
+    : value;
+  const text = String(raw || "").trim();
+  if (!text || !/^[A-Za-z0-9_.:-]+$/.test(text)) return "";
+  const lower = text.toLowerCase();
+  if (["message", "function_call", "function_call_output", "skill_view"].includes(lower)) return "";
+  return text.slice(0, 96);
+}
+
+function addMessageTool(map, raw) {
+  const name = messageToolNameFromValue(raw);
+  if (!name) return;
+  const key = name.toLowerCase();
+  if (!map.has(key)) map.set(key, { id: key, label: name, name });
+}
+
 function collectMessageSkills(message = {}, thread = state.currentThread) {
   const byPath = new Map();
   for (const rows of messageDirectSkillArrays(message)) {
@@ -112,6 +131,29 @@ function collectMessageSkills(message = {}, thread = state.currentThread) {
   });
 }
 
+function collectMessageTools(message = {}, thread = state.currentThread) {
+  const byName = new Map();
+  const directRows = [
+    message.loadedTools,
+    message.toolReferences,
+    message.tools,
+    message.usage?.loadedTools,
+    message.usage?.tools,
+  ].filter(Array.isArray);
+  for (const rows of directRows) rows.forEach((item) => addMessageTool(byName, item));
+  const runIds = messageRunSkillIds(message);
+  if (runIds.size) {
+    for (const event of Array.isArray(thread?.events) ? thread.events : []) {
+      const runId = String(event?.runId || event?.run_id || "").trim();
+      if (!runId || !runIds.has(runId)) continue;
+      const tool = String(event?.tool || "").trim().toLowerCase();
+      if (tool !== "function_call" && tool !== "function_call_output") continue;
+      addMessageTool(byName, event.preview || event.arguments || event.input || event.text || "");
+    }
+  }
+  return [...byName.values()].sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")));
+}
+
 function renderMessageSkillItem(skill) {
   const title = skillTitle(skill);
   return `<button class="message-skill-item" type="button" data-skill-path="${escapeHtml(skill.path)}" data-skill-label="${escapeHtml(skill.label || skill.id || "")}" data-skill-namespace="${escapeHtml(skill.namespace || "")}">
@@ -120,11 +162,26 @@ function renderMessageSkillItem(skill) {
   </button>`;
 }
 
+function renderMessageToolItem(tool) {
+  const title = String(tool?.label || tool?.name || tool?.id || "").trim();
+  if (!title) return "";
+  return `<span class="message-skill-item message-tool-item" data-message-tool="${escapeHtml(title)}">
+    <span class="task-skill-icon" aria-hidden="true">T</span>
+    <span class="message-skill-title">${escapeHtml(title)}</span>
+  </span>`;
+}
+
 function renderMessageSkillPanel(message = {}, thread = state.currentThread) {
   const skills = collectMessageSkills(message, thread);
-  if (!skills.length) return "";
-  const label = skills.length === 1 ? "1 skill" : `${skills.length} skills`;
-  return `<details class="message-skills" title="${escapeHtml(label)}"><summary aria-label="${escapeHtml(label)}">Skill</summary><div class="message-skill-details">
+  const tools = collectMessageTools(message, thread);
+  if (!skills.length && !tools.length) return "";
+  const labelParts = [];
+  if (skills.length) labelParts.push(skills.length === 1 ? "1 skill" : `${skills.length} skills`);
+  if (tools.length) labelParts.push(tools.length === 1 ? "1 tool" : `${tools.length} tools`);
+  const label = labelParts.join(", ");
+  const summary = skills.length && tools.length ? "Skill · Tool" : (skills.length ? "Skill" : "Tool");
+  return `<details class="message-skills" title="${escapeHtml(label)}"><summary aria-label="${escapeHtml(label)}">${escapeHtml(summary)}</summary><div class="message-skill-details">
     ${skills.map(renderMessageSkillItem).join("")}
+    ${tools.map(renderMessageToolItem).join("")}
   </div></details>`;
 }
