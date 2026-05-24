@@ -44,14 +44,6 @@ function createPlanIdempotencyKey(planId, clientId) {
   return `hm-plan-${hash}`;
 }
 
-function publicTopicResult(topic, plan, titleForPlan) {
-  return topic ? {
-    threadId: topic.thread.id,
-    taskGroupId: topic.taskGroupId,
-    title: titleForPlan(plan),
-  } : null;
-}
-
 function publicSharedDirectoryResult(directoryInfo) {
   return directoryInfo ? {
     path: directoryInfo.sharedDirectoryPath,
@@ -92,15 +84,9 @@ function createKanbanPlanCardCreationService(deps = {}) {
   const ensureKanbanCaseSharedDirectory = typeof deps.ensureKanbanCaseSharedDirectory === "function"
     ? deps.ensureKanbanCaseSharedDirectory
     : () => null;
-  const ensureKanbanCaseTopicThread = typeof deps.ensureKanbanCaseTopicThread === "function"
-    ? deps.ensureKanbanCaseTopicThread
-    : () => null;
   const upsertKanbanCaseShare = typeof deps.upsertKanbanCaseShare === "function"
     ? deps.upsertKanbanCaseShare
     : () => null;
-  const kanbanCaseTopicTitle = typeof deps.kanbanCaseTopicTitle === "function"
-    ? deps.kanbanCaseTopicTitle
-    : (plan) => plan?.title || plan?.summary || plan?.id || "";
   const studyCoverNote = String(deps.studyCoverNote || DEFAULT_STUDY_COVER_NOTE);
 
   function requireFn(name) {
@@ -108,13 +94,13 @@ function createKanbanPlanCardCreationService(deps = {}) {
     return deps[name];
   }
 
-  function planShareInput(input, topic, directoryInfo) {
+  function planShareInput(input, directoryInfo) {
     return {
       performerWorkspaceIds: input.plan.performerWorkspaceIds,
       viewerWorkspaceIds: input.plan.viewerWorkspaceIds,
       managerWorkspaceIds: input.raw.managerWorkspaceIds || input.raw.manager_workspace_ids || [],
-      topicThreadId: topic?.thread?.id || "",
-      topicTaskGroupId: topic?.taskGroupId || "",
+      topicThreadId: "",
+      topicTaskGroupId: "",
       sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
       caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
     };
@@ -233,8 +219,7 @@ function createKanbanPlanCardCreationService(deps = {}) {
     const cover = saveKanbanReadingCoverUpload(workspaceId, plan.id, input.coverImage || input.cover_image || input.cover || null);
     if (cover) plan.cover = publicKanbanCoverFile(workspaceId, cover) || cover;
     const directoryInfo = ensureKanbanCaseSharedDirectory(workspaceId, plan);
-    const topic = ensureKanbanCaseTopicThread(workspaceId, plan, directoryInfo);
-    const share = upsertKanbanCaseShare(workspaceId, plan.id, planShareInput({ plan, raw: input }, topic, directoryInfo));
+    const share = upsertKanbanCaseShare(workspaceId, plan.id, planShareInput({ plan, raw: input }, directoryInfo));
     const requestedAssignee = requestedPlanAssignee(workspaceId, plan, input);
     const created = [];
     for (const [index, card] of plan.cards.entries()) {
@@ -263,8 +248,8 @@ function createKanbanPlanCardCreationService(deps = {}) {
         caseSourceText: cardSourceText,
         caseSummary: plan.summary,
         caseCover: cover || null,
-        topicThreadId: topic?.thread?.id || "",
-        topicTaskGroupId: topic?.taskGroupId || "",
+        topicThreadId: "",
+        topicTaskGroupId: "",
         sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
         caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
         caseCardId: card.clientId,
@@ -321,15 +306,14 @@ function createKanbanPlanCardCreationService(deps = {}) {
       plan,
       cards: created,
       share,
-      topic: publicTopicResult(topic, plan, kanbanCaseTopicTitle),
+      topic: null,
       sharedDirectory: publicSharedDirectoryResult(directoryInfo),
     };
   }
 
   async function createKanbanAssessmentPlanCardsFromPlan(workspaceId, plan, input = {}) {
     const directoryInfo = ensureKanbanCaseSharedDirectory(workspaceId, plan);
-    const topic = ensureKanbanCaseTopicThread(workspaceId, plan, directoryInfo);
-    const share = upsertKanbanCaseShare(workspaceId, plan.id, planShareInput({ plan, raw: input }, topic, directoryInfo));
+    const share = upsertKanbanCaseShare(workspaceId, plan.id, planShareInput({ plan, raw: input }, directoryInfo));
     const requestedAssignee = requestedPlanAssignee(workspaceId, plan, input);
     const created = [];
     for (const [index, card] of plan.cards.entries()) {
@@ -349,8 +333,8 @@ function createKanbanPlanCardCreationService(deps = {}) {
         caseTemplate: plan.template,
         caseSourceText: sourceText,
         caseSummary: plan.summary,
-        topicThreadId: topic?.thread?.id || "",
-        topicTaskGroupId: topic?.taskGroupId || "",
+        topicThreadId: "",
+        topicTaskGroupId: "",
         sharedDirectoryPath: directoryInfo?.sharedDirectoryPath || "",
         caseDirectoryPath: directoryInfo?.caseDirectoryPath || "",
         caseCardId: card.clientId,
@@ -393,7 +377,7 @@ function createKanbanPlanCardCreationService(deps = {}) {
       plan,
       cards: created,
       share,
-      topic: publicTopicResult(topic, plan, kanbanCaseTopicTitle),
+      topic: null,
       sharedDirectory: publicSharedDirectoryResult(directoryInfo),
     };
   }

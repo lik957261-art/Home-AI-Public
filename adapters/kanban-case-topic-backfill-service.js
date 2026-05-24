@@ -2,7 +2,7 @@
 
 const { groupKanbanCaseCards } = require("./kanban-story-provider");
 
-const DEFAULT_CASE_MODES = new Set(["study-plan", "assessment-plan", "learning-growth"]);
+const DEFAULT_CASE_MODES = new Set([]);
 
 function cleanString(value) {
   return String(value ?? "").trim();

@@ -444,6 +444,8 @@ async function run() {
   assert.equal(revision.status, "open");
   assert.equal(revision.kanban_revision_of, "t_created");
   assert.equal(revision.kanban_revision_request, "revise the final copy");
+  assert.equal(revision.topic_thread_id, "");
+  assert.equal(revision.topic_task_group_id, "");
   assert.ok(calls.some(([, args]) => args.includes("create") && args.includes("修改：Read chapter")));
   assert.ok(calls.some(([, args]) => args.includes("comment") && args.includes("Manual revision requested: revise the final copy\nFollow-up card: t_created_5")));
 
@@ -462,6 +464,8 @@ async function run() {
   assert.equal(readingRevision.kanban_case_card_index, 2);
   assert.equal(readingRevision.kanban_case_card_count, 10);
   assert.deepEqual(readingRevision.kanban_case_depends_on, []);
+  assert.equal(readingRevision.topic_thread_id, "");
+  assert.equal(readingRevision.topic_task_group_id, "");
 
   const assessmentRevision = await provider.run({
     action: "revise",
@@ -478,6 +482,8 @@ async function run() {
   assert.equal(assessmentRevision.kanban_case_card_index, 2);
   assert.equal(assessmentRevision.kanban_case_card_count, 10);
   assert.deepEqual(assessmentRevision.kanban_case_depends_on, []);
+  assert.equal(assessmentRevision.topic_thread_id, "");
+  assert.equal(assessmentRevision.topic_task_group_id, "");
 
   const firstAssessment = await provider.run({
     action: "add",

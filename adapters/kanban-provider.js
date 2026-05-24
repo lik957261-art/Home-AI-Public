@@ -1339,8 +1339,8 @@ function createKanbanTodoBridge(options = {}) {
       const caseSourceText = String(meta.caseSourceText || meta.case_source_text || originalTitle).trim();
       const caseSummary = String(meta.caseSummary || meta.case_summary || `Manual revision for ${originalTitle}`).trim();
       const caseCover = meta.caseCover || meta.case_cover || null;
-      const topicThreadId = String(meta.topicThreadId || meta.topic_thread_id || "").trim();
-      const topicTaskGroupId = String(meta.topicTaskGroupId || meta.topic_task_group_id || "").trim();
+      const topicThreadId = "";
+      const topicTaskGroupId = "";
       const sharedDirectoryPath = String(meta.sharedDirectoryPath || meta.shared_directory_path || "").trim();
       const caseDirectoryPath = String(meta.caseDirectoryPath || meta.case_directory_path || "").trim();
       const manualWorkflowRevision = caseMode === "study-plan" || caseMode === "assessment-plan";

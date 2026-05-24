@@ -261,7 +261,7 @@ async function testMultiAgentCreationAndParking() {
   assert.equal(calls.verify.length, 3);
 }
 
-async function testStudyPlanCreatesCoverShareTopicAndSequentialBlocks() {
+async function testStudyPlanCreatesCoverShareWithoutTopicAndSequentialBlocks() {
   const { service, calls } = makeHarness();
   const result = await service.createKanbanStudyPlanCards("owner", {
     coverImage: { dataBase64: "abc" },
@@ -272,13 +272,13 @@ async function testStudyPlanCreatesCoverShareTopicAndSequentialBlocks() {
   assert.deepEqual(calls.cover, [{ workspaceId: "owner", planId: "study-one", cover: { dataBase64: "abc" } }]);
   assert.equal(result.plan.cover.path, "/public/cover.png");
   assert.deepEqual(calls.directory, [{ workspaceId: "owner", planId: "study-one" }]);
-  assert.equal(calls.topic[0].directoryInfo.caseDirectoryPath, "shared/owner/study-one/case");
+  assert.equal(calls.topic.length, 0);
   assert.deepEqual(calls.share[0].input, {
     performerWorkspaceIds: ["child"],
     viewerWorkspaceIds: ["viewer"],
     managerWorkspaceIds: ["manager"],
-    topicThreadId: "thread-study-one",
-    topicTaskGroupId: "case_study-one",
+    topicThreadId: "",
+    topicTaskGroupId: "",
     sharedDirectoryPath: "shared/owner/study-one",
     caseDirectoryPath: "shared/owner/study-one/case",
   });
@@ -286,8 +286,8 @@ async function testStudyPlanCreatesCoverShareTopicAndSequentialBlocks() {
   assert.equal(calls.add[0].assigneeLabel, "owner:principal-child");
   assert.match(calls.add[0].description, /Hermes Mobile/);
   assert.equal(calls.add[0].caseCover.name, "cover.png");
-  assert.equal(calls.add[0].topicThreadId, "thread-study-one");
-  assert.equal(calls.add[0].topicTaskGroupId, "case_study-one");
+  assert.equal(calls.add[0].topicThreadId, "");
+  assert.equal(calls.add[0].topicTaskGroupId, "");
   assert.equal(calls.add[0].sharedDirectoryPath, "shared/owner/study-one");
   assert.equal(calls.add[0].caseDirectoryPath, "shared/owner/study-one/case");
   assert.equal(calls.add[0].learningProgramId, "program-1");
@@ -300,11 +300,7 @@ async function testStudyPlanCreatesCoverShareTopicAndSequentialBlocks() {
   assert.equal(calls.block.length, 1);
   assert.match(calls.block[0].reason, /previous study session completion/);
   assert.equal(result.cards[1].card.kanbanStatus, "blocked");
-  assert.deepEqual(result.topic, {
-    threadId: "thread-study-one",
-    taskGroupId: "case_study-one",
-    title: "Topic study-one",
-  });
+  assert.equal(result.topic, null);
   assert.deepEqual(result.sharedDirectory, {
     path: "shared/owner/study-one",
     caseDirectoryPath: "shared/owner/study-one/case",
@@ -358,6 +354,7 @@ async function testProgrammingStudyTemplateUsesAssessmentParking() {
   assert.equal(calls.add[0].caseMode, "assessment-plan");
   assert.equal(calls.add[0].caseTemplate, "programming");
   assert.equal(calls.add[0].caseSourceText, "Programming blueprint\n\nCONFIG:programming");
+  assert.equal(calls.topic.length, 0);
   assert.equal(calls.block.length, 2);
   assert.match(calls.block[0].reason, /Manual formal assessment is open/);
   assert.match(calls.block[1].reason, /previous assessment completion/);
@@ -372,12 +369,13 @@ async function testAssessmentPlanCreatesAndParksAllCards() {
 
   assert.equal(result.ok, true);
   assert.equal(calls.add.length, 2);
+  assert.equal(calls.topic.length, 0);
   assert.equal(calls.add[0].assignee, "explicit-assignee");
   assert.equal(calls.add[0].reason, "Created from Hermes Mobile assessment plan.");
   assert.equal(calls.add[0].caseSourceText, "Blueprint\n\nCONFIG:exam-1");
   assert.equal(calls.add[0].caseCardGoal, "CONFIG:exam-1\n\nDescription 1");
-  assert.equal(calls.add[0].topicThreadId, "thread-assessment-one");
-  assert.equal(calls.add[0].topicTaskGroupId, "case_assessment-one");
+  assert.equal(calls.add[0].topicThreadId, "");
+  assert.equal(calls.add[0].topicTaskGroupId, "");
   assert.equal(calls.add[0].sharedDirectoryPath, "shared/owner/assessment-one");
   assert.equal(calls.add[0].caseDirectoryPath, "shared/owner/assessment-one/case");
   assert.equal(calls.add[0].idempotencyKey, createIdempotencyKey("assessment-plan", "assessment-one", "assessment-1"));
@@ -387,7 +385,7 @@ async function testAssessmentPlanCreatesAndParksAllCards() {
   assert.match(calls.block[1].reason, /previous assessment completion/);
   assert.deepEqual(result.cards.map((card) => card.blocked), [true, true]);
   assert.equal(result.cards[1].dependsOn[0], "assessment-1");
-  assert.equal(result.share.topicThreadId, "thread-assessment-one");
+  assert.equal(result.share.topicThreadId, "");
 }
 
 async function testProviderAndBlockFailureShapes() {
@@ -437,7 +435,7 @@ function testHelperExports() {
 async function run() {
   testHelperExports();
   await testMultiAgentCreationAndParking();
-  await testStudyPlanCreatesCoverShareTopicAndSequentialBlocks();
+  await testStudyPlanCreatesCoverShareWithoutTopicAndSequentialBlocks();
   await testProgrammingStudyTemplateUsesAssessmentParking();
   await testAssessmentPlanCreatesAndParksAllCards();
   await testProviderAndBlockFailureShapes();
