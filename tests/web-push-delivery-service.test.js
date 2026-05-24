@@ -296,7 +296,8 @@ function testTaskTerminalAndGroupMentionNotifications() {
 
     return service.notifyTaskTerminal(thread, message, "done").then(() => {
       assert.equal(calls.sends.at(-1).payload.data.viewMode, "tasks");
-      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=a1");
+      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=u1");
+      assert.equal(calls.sends.at(-1).payload.data.messageId, "u1");
       assert.equal(calls.sends.at(-1).payload.data.messageType, "task_completed");
 
       const weixinThread = Object.assign({}, thread, {

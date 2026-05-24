@@ -147,6 +147,33 @@ async function testRequireModelRejectsMissingModel() {
   );
 }
 
+async function testRequireModelRejectsInvalidJsonInsteadOfFallback() {
+  const service = createLearningTaskSeriesRecommendationService({
+    repository: makeRepository(),
+    hermesModelText: async () => "not json",
+    requireModel: true,
+  });
+  await assert.rejects(
+    () => service.recommendTaskSeries({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" }),
+    /invalid JSON/,
+  );
+}
+
+async function testRequireModelRejectsEmptySeriesInsteadOfFallback() {
+  const service = createLearningTaskSeriesRecommendationService({
+    repository: makeRepository(),
+    hermesModelText: async () => JSON.stringify({
+      analysis_summary: "The learner state was analyzed, but the model omitted registered task series.",
+      recommended_task_series: [],
+    }),
+    requireModel: true,
+  });
+  await assert.rejects(
+    () => service.recommendTaskSeries({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" }),
+    /no supported task series/,
+  );
+}
+
 function testRecommendationBuildsProgramInput() {
   const service = createLearningTaskSeriesRecommendationService({ repository: makeRepository() });
   const input = service.programInputFromRecommendation({
@@ -174,6 +201,8 @@ function testRecommendationBuildsProgramInput() {
   await testEmptyModelSeriesFallsBackToRegisteredTemplate();
   await testPrivatePayloadKeysAreRejected();
   await testRequireModelRejectsMissingModel();
+  await testRequireModelRejectsInvalidJsonInsteadOfFallback();
+  await testRequireModelRejectsEmptySeriesInsteadOfFallback();
   testRecommendationBuildsProgramInput();
   console.log("learning task series recommendation service tests passed");
 })();

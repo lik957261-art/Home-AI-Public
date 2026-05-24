@@ -270,7 +270,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const model = cleanString(options.model || options.automationCreateModel || "automation-create");
   const requireModel = options.requireModel === true;
-  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 600000) || 600000);
   const reasoningEffort = cleanString(options.reasoningEffort || options.reasoning_effort || "xhigh") || "xhigh";
 
   async function recommendTaskSeries(input = {}) {
@@ -307,6 +307,11 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
         }, timeoutMs);
         parsed = extractJsonObject(output || "");
         modelStatus = parsed ? "completed" : "parse_error";
+        if (!parsed && requireModel) {
+          const wrapped = new Error("Learning task series model recommendation returned invalid JSON");
+          wrapped.status = 502;
+          throw wrapped;
+        }
       } catch (err) {
         if (requireModel) {
           const wrapped = new Error(`Learning task series model recommendation failed: ${err.message || err}`);
@@ -320,7 +325,7 @@ function createLearningTaskSeriesRecommendationService(options = {}) {
     const recommendation = normalizeRecommendation(
       parsed || templateFallback,
       templateRegistry,
-      { generatedAt, modelStatus, fallbackRecommendation: templateFallback },
+      { generatedAt, modelStatus, fallbackRecommendation: requireModel ? null : templateFallback },
     );
     return Object.assign(recommendation, {
       workspaceId,

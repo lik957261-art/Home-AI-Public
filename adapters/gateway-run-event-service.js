@@ -156,6 +156,18 @@ function loadedToolFromRunEvent(event = {}) {
   return toolEntryFromName(event.preview || event.arguments || event.input || event.text || "");
 }
 
+function loadedToolFromOutputItem(item = {}) {
+  const type = cleanString(item.type).toLowerCase();
+  if (!type || type === "message") return null;
+  const name = outputItemFunctionName(item)
+    || item.name
+    || item.tool
+    || item.tool_name
+    || (type.includes("search") || type.includes("tool") || (type.endsWith("_call") && type !== "function_call") ? type : "");
+  if (cleanString(name).toLowerCase() === "skill_view") return null;
+  return toolEntryFromName(name);
+}
+
 function mergeLoadedTools(...sources) {
   const byName = new Map();
   for (const source of sources) {
@@ -285,9 +297,10 @@ function loadedToolsFromCompletedResponse(event = {}) {
   for (const item of Array.isArray(response.output) ? response.output : []) {
     const type = cleanString(item.type).toLowerCase();
     const tool = cleanString(outputItemToolName(item)).toLowerCase();
-    if (tool !== "function_call" && type !== "function_call") continue;
+    if (tool === "skill_view") continue;
     const preview = outputItemPreview(item);
-    const entry = loadedToolFromRunEvent({ tool: "function_call", preview });
+    const entry = loadedToolFromRunEvent({ tool: "function_call", preview })
+      || loadedToolFromOutputItem(item);
     if (entry) tools.push(entry);
   }
   return mergeLoadedTools(tools);
@@ -546,7 +559,7 @@ function createGatewayRunEventService(options = {}) {
     });
     const loadedSkill = loadedSkillFromRunEvent({ tool, preview });
     if (loadedSkill) message.loadedSkills = mergeLoadedSkills(message.loadedSkills, loadedSkill);
-    const loadedTool = loadedToolFromRunEvent({ tool, preview });
+    const loadedTool = loadedToolFromRunEvent({ tool, preview }) || loadedToolFromOutputItem(item);
     if (loadedTool) message.loadedTools = mergeLoadedTools(message.loadedTools, loadedTool);
     saveState();
     broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });

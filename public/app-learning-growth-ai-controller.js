@@ -17,6 +17,7 @@
       state.learningAiSummary = await api("/api/learning/recommendations/task-series", {
         method: "POST",
         body: JSON.stringify(Object.assign({}, body, { domain: "english", limit: 180, reasoningEffort: "xhigh" })),
+        timeoutMs: 720000,
       });
       showPushToast("AI 总结已更新", "success");
     } catch (err) {

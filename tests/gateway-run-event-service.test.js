@@ -325,6 +325,33 @@ function testCompletedRunBackfillsDefaultResponseSkillAndTools() {
   assert.deepEqual(message.loadedTools, [{ id: "x_search", name: "x_search", label: "x_search" }]);
 }
 
+function testHostedSearchOutputItemBackfillsToolTag() {
+  const { message, service } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "web_search_call",
+      id: "search_1",
+    },
+  });
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { input_tokens: 1, output_tokens: 2 },
+      output: [
+        { type: "web_search_call", id: "search_1" },
+        { type: "message", content: [{ type: "output_text", text: "Final" }] },
+      ],
+    },
+  });
+
+  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL]);
+  assert.deepEqual(message.loadedTools, [{ id: "web_search_call", name: "web_search_call", label: "web_search_call" }]);
+}
+
 function testCompletedRunUsageKeepsRequestedModelMetadata() {
   const { message, service } = makeHarness();
   message.runOptions = { model: "grok-4.3", provider: "xai-oauth", reasoning_effort: "xhigh" };
@@ -502,6 +529,7 @@ testCompletedRunPersistsLoadedSkillReferences();
 testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim();
 testCompletedResponseOutputBackfillsLoadedSkillReferences();
 testCompletedRunBackfillsDefaultResponseSkillAndTools();
+testHostedSearchOutputItemBackfillsToolTag();
 testCompletedRunUsageKeepsRequestedModelMetadata();
 testOutputItemEventsStoreReadableSummariesOnly();
 testOutputItemEventsUseAliasedResponseRunId();

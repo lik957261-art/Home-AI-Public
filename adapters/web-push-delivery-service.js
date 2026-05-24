@@ -905,12 +905,19 @@ function createWebPushDeliveryService(options = {}) {
     });
   }
 
+  function taskReceiptStartMessageId(thread, message) {
+    const taskGroupId = String(message?.taskGroupId || "").trim();
+    if (!taskGroupId) return String(message?.id || "").trim();
+    const first = (thread?.messages || []).find((item) => item?.taskGroupId === taskGroupId && item?.id);
+    return String(first?.id || message?.id || "").trim();
+  }
+
   function taskDetailUrl(thread, message) {
     return appRouteUrl({
       view: "tasks",
       workspaceId: thread?.workspaceId || "owner",
       taskGroupId: message?.taskGroupId || "",
-      messageId: message?.id || "",
+      messageId: taskReceiptStartMessageId(thread, message),
     });
   }
 
@@ -1068,7 +1075,7 @@ function createWebPushDeliveryService(options = {}) {
         messageType,
         threadId: thread?.id || "",
         taskGroupId: message?.taskGroupId || "",
-        messageId: message?.id || "",
+        messageId: taskReceiptStartMessageId(thread, message),
         runId: message?.runId || "",
         status,
         requireInteraction: true,
