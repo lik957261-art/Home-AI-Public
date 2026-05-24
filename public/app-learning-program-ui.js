@@ -705,7 +705,7 @@
   function nativeGrowthSubmissionAudio(submission = {}) {
     const audio = submission.audio || submission.raw?.audio || null;
     if (!audio || typeof audio !== "object") return null;
-    const url = String(audio.url || audio.href || "").trim();
+    const url = learningGrowthPlayableAudioUrl(String(audio.url || audio.href || "").trim());
     if (!url) return null;
     return {
       url,
@@ -713,6 +713,14 @@
       mime: String(audio.mime || "audio/webm").trim(),
       size: Number(audio.size || 0) || 0,
     };
+  }
+
+  function learningGrowthPlayableAudioUrl(url) {
+    const raw = String(url || "").trim();
+    if (!raw) return "";
+    if (/([?&])format=mp3(?:&|$)/i.test(raw)) return raw;
+    const separator = raw.includes("?") ? "&" : "?";
+    return `${raw}${separator}format=mp3`;
   }
 
   function nativeGrowthSubmissionEvidence(task = {}, data = {}) {

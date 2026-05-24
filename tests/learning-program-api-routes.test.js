@@ -293,7 +293,7 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 42);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 43);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
@@ -312,6 +312,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/daily-plan" }).id, "learning-daily-plan");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-submissions/lsub-1/audio" }).id, "learning-task-submission-audio-read");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/task-reflections/lrefl-1/audio" }).id, "learning-task-reflection-audio-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission" }).id, "learning-task-card-growth-submission");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission/withdraw" }).id, "learning-task-card-growth-submission-withdraw");
@@ -320,7 +321,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 42);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 43);
 }
 
 async function testCreateAndDraftRequireOwner() {

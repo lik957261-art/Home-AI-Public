@@ -376,7 +376,7 @@ function testReviewedEnglishRetellCanReopenReadingMaterial() {
   assert.match(html, /Short passage/);
   assert.match(html, /This compact passage is the original reading material/);
   assert.match(html, /data-learning-growth-submission-audio/);
-  assert.match(html, /<audio controls preload="metadata" src="\/api\/files\?path=retell\.webm"><\/audio>/);
+  assert.match(html, /<audio controls preload="metadata" src="\/api\/files\?path=retell\.webm&amp;format=mp3"><\/audio>/);
   assert.match(html, /learning-growth-submission-transcript/);
   assert.match(html, /\u67e5\u770b\u8f6c\u5199\u5185\u5bb9/);
   assert.doesNotMatch(html, /<details class="learning-growth-submission-transcript" open>/);

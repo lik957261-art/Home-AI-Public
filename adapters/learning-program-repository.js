@@ -367,7 +367,12 @@ function publicTaskSubmissionFromRow(row) {
 
 function publicTaskReflectionFromRow(row) {
   if (!row) return null;
-  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+  const raw = parseJson(row.raw_json, {}) || {};
+  const nestedAudio = raw.raw?.audio || null;
+  const audio = raw.audio && nestedAudio && typeof raw.audio === "object" && typeof nestedAudio === "object"
+    ? Object.assign({}, nestedAudio, raw.audio)
+    : (raw.audio || nestedAudio || null);
+  return Object.assign(raw, {
     reflectionId: row.id,
     taskCardId: row.task_card_id,
     sessionId: row.session_id,
@@ -386,6 +391,9 @@ function publicTaskReflectionFromRow(row) {
     submittedAt: row.submitted_at || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    audio: audio ? Object.assign({}, audio, {
+      url: audio.url || audio.href || `/api/learning/task-reflections/${encodeURIComponent(row.id)}/audio`,
+    }) : null,
   });
 }
 

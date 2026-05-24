@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const childProcess = require("node:child_process");
 const { createApiRouteRegistry } = require("../adapters/api-route-registry");
 const { executionQueueSummary } = require("../adapters/learning-task-card-service");
 
@@ -424,6 +425,21 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "task-submission", "audio"],
   },
   {
+    id: "learning-task-reflection-audio-read",
+    method: "GET",
+    pathRegex: /^\/api\/learning\/task-reflections\/[^/]+\/audio$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "readTaskReflectionAudio",
+    summary: "Stream authorized Growth task reflection audio evidence.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-reflection", "audio"],
+    tags: ["learning", "task-reflection", "audio"],
+  },
+  {
     id: "learning-task-card-reward-policy-update",
     method: "PATCH",
     pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/reward-policy$/,
@@ -681,8 +697,15 @@ function audioEvidenceFromSubmission(submission = {}) {
   return submission.audio || nested || null;
 }
 
-function submissionAudioCandidates(submission = {}, taskCard = {}) {
-  const audio = audioEvidenceFromSubmission(submission);
+function audioEvidenceFromReflection(reflection = {}) {
+  const nested = reflection.raw?.raw?.audio || reflection.raw?.audio || null;
+  if (reflection.audio && nested && typeof reflection.audio === "object" && typeof nested === "object") {
+    return Object.assign({}, nested, reflection.audio);
+  }
+  return reflection.audio || nested || null;
+}
+
+function learningAudioCandidates(record = {}, taskCard = {}, audio = {}) {
   const candidates = [];
   const audioPath = cleanString(audio?.path || audio?.filePath || audio?.absolutePath);
   if (audioPath) candidates.push(audioPath);
@@ -706,12 +729,20 @@ function submissionAudioCandidates(submission = {}, taskCard = {}) {
     }
   }
   const dataRoot = dataRootFromTaskCard(taskCard);
-  const workspaceId = cleanString(submission.workspaceId || taskCard.workspaceId);
+  const workspaceId = cleanString(record.workspaceId || taskCard.workspaceId);
   if (dataRoot && workspaceId) {
     const baseDir = path.join(dataRoot, "artifacts", "kanban-reading", workspaceId);
-    candidates.push(...findSubmissionAudioFiles(baseDir, fileName, cleanString(taskCard.taskCardId || submission.taskCardId)));
+    candidates.push(...findSubmissionAudioFiles(baseDir, fileName, cleanString(taskCard.taskCardId || record.taskCardId)));
   }
   return [...new Set(candidates)];
+}
+
+function submissionAudioCandidates(submission = {}, taskCard = {}) {
+  return learningAudioCandidates(submission, taskCard, audioEvidenceFromSubmission(submission));
+}
+
+function reflectionAudioCandidates(reflection = {}, taskCard = {}) {
+  return learningAudioCandidates(reflection, taskCard, audioEvidenceFromReflection(reflection));
 }
 
 function dataRootFromTaskCard(taskCard = {}) {
@@ -742,6 +773,63 @@ function findSubmissionAudioFiles(baseDir, fileName, taskCardId, depth = 0) {
     }
   }
   return found;
+}
+
+function audioMimeForPlayback(audio = {}, filePath = "") {
+  const ext = path.extname(filePath || cleanString(audio.name || audio.fileName || audio.filename)).toLowerCase();
+  if (ext === ".mp3") return "audio/mpeg";
+  if (ext === ".m4a" || ext === ".aac") return "audio/mp4";
+  if (ext === ".wav") return "audio/wav";
+  if (ext === ".ogg" || ext === ".opus") return "audio/ogg";
+  return cleanString(audio.mime || audio.type) || "application/octet-stream";
+}
+
+function wantsMp3Playback(url) {
+  return /^(mp3|mpeg)$/i.test(cleanString(url?.searchParams?.get("format") || url?.searchParams?.get("playback")));
+}
+
+function ffmpegPath() {
+  return cleanString(process.env.HERMES_MOBILE_FFMPEG_PATH)
+    || cleanString(process.env.FFMPEG_PATH)
+    || "C:\\ffmpeg\\bin\\ffmpeg.exe";
+}
+
+function mp3CachePathForAudio(sourceFile, recordId, taskCard = {}) {
+  const dataRoot = dataRootFromTaskCard(taskCard) || path.resolve(sourceFile, "..", "..", "..", "..", "..");
+  const stat = fs.statSync(sourceFile);
+  const suffix = `${stat.size}-${Math.floor(stat.mtimeMs)}`;
+  return path.join(dataRoot, "cache", "learning-audio", `${safeHeaderValue(recordId || path.basename(sourceFile))}-${suffix}.mp3`);
+}
+
+function playableAudioFile(found, recordId, taskCard, url) {
+  if (!wantsMp3Playback(url)) return Object.assign({}, found, { contentType: null });
+  const cachePath = mp3CachePathForAudio(found.filePath, recordId, taskCard);
+  try {
+    const cached = fs.statSync(cachePath);
+    if (cached.isFile() && cached.size > 0) return { filePath: cachePath, stat: cached, contentType: "audio/mpeg" };
+  } catch (_) {
+    // Cache miss; transcode below.
+  }
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+  const result = childProcess.spawnSync(ffmpegPath(), [
+    "-y",
+    "-i", found.filePath,
+    "-vn",
+    "-codec:a", "libmp3lame",
+    "-b:a", "96k",
+    cachePath,
+  ], {
+    encoding: "utf8",
+    timeout: 60000,
+    windowsHide: true,
+  });
+  if (result.status !== 0) {
+    const err = new Error("Unable to prepare playable learning audio");
+    err.status = 502;
+    throw err;
+  }
+  const stat = fs.statSync(cachePath);
+  return { filePath: cachePath, stat, contentType: "audio/mpeg" };
 }
 
 function firstReadableFile(paths = []) {
@@ -1286,15 +1374,58 @@ function createLearningProgramApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { ok: false, error: "Learning task submission audio file not found" });
       return;
     }
+    let playable = found;
+    try {
+      playable = playableAudioFile(found, submission.submissionId || submissionId, taskCard, url);
+    } catch (err) {
+      deps.sendJson(res, err.status || 502, { ok: false, error: err.message || "Unable to prepare learning task submission audio" });
+      return;
+    }
     const fileName = path.basename(cleanString(audio.name || audio.fileName || audio.filename) || found.filePath);
     res.writeHead(200, {
-      "Content-Type": cleanString(audio.mime || audio.type) || "application/octet-stream",
-      "Content-Length": found.stat.size,
+      "Content-Type": playable.contentType || audioMimeForPlayback(audio, playable.filePath),
+      "Content-Length": playable.stat.size,
       "Content-Disposition": `inline; filename="${safeHeaderValue(fileName)}"`,
       "Cache-Control": "private, max-age=60",
     });
-    fs.createReadStream(found.filePath).on("error", () => {
+    fs.createReadStream(playable.filePath).on("error", () => {
       if (!res.headersSent) deps.sendJson(res, 500, { ok: false, error: "Unable to read learning task submission audio" });
+      else res.end();
+    }).pipe(res);
+  }
+
+  async function handleTaskReflectionAudioRead(req, res, url, auth) {
+    const reflectionId = pathId(url.pathname, /^\/api\/learning\/task-reflections\/([^/]+)\/audio$/);
+    const reflection = service.getTaskReflection(reflectionId);
+    if (!authorizeRecord(req, res, auth, reflection, "Learning task reflection not found")) return;
+    const taskCard = service.getTaskCard(reflection.taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    const audio = audioEvidenceFromReflection(reflection);
+    if (!audio?.name && !audio?.path && !audio?.filePath && !audio?.absolutePath) {
+      deps.sendJson(res, 404, { ok: false, error: "Learning task reflection audio not found" });
+      return;
+    }
+    const found = firstReadableFile(reflectionAudioCandidates(reflection, taskCard));
+    if (!found) {
+      deps.sendJson(res, 404, { ok: false, error: "Learning task reflection audio file not found" });
+      return;
+    }
+    let playable = found;
+    try {
+      playable = playableAudioFile(found, reflection.reflectionId || reflectionId, taskCard, url);
+    } catch (err) {
+      deps.sendJson(res, err.status || 502, { ok: false, error: err.message || "Unable to prepare learning task reflection audio" });
+      return;
+    }
+    const fileName = path.basename(cleanString(audio.name || audio.fileName || audio.filename) || found.filePath);
+    res.writeHead(200, {
+      "Content-Type": playable.contentType || audioMimeForPlayback(audio, playable.filePath),
+      "Content-Length": playable.stat.size,
+      "Content-Disposition": `inline; filename="${safeHeaderValue(fileName)}"`,
+      "Cache-Control": "private, max-age=60",
+    });
+    fs.createReadStream(playable.filePath).on("error", () => {
+      if (!res.headersSent) deps.sendJson(res, 500, { ok: false, error: "Unable to read learning task reflection audio" });
       else res.end();
     }).pipe(res);
   }
@@ -1619,6 +1750,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-daily-plan") await handleDailyPlan(req, res, url, auth);
     else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
     else if (route.id === "learning-task-submission-audio-read") await handleTaskSubmissionAudioRead(req, res, url, auth);
+    else if (route.id === "learning-task-reflection-audio-read") await handleTaskReflectionAudioRead(req, res, url, auth);
     else if (route.id === "learning-task-card-reward-policy-update") await handleTaskRewardPolicyUpdate(req, res, url, auth);
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-submission") await handleGrowthSubmission(req, res, url, auth);

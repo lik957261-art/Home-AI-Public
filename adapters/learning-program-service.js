@@ -648,6 +648,10 @@ function createLearningProgramService(options = {}) {
     return typeof repository.listTaskReflections === "function" ? repository.listTaskReflections(filters) : [];
   }
 
+  function getTaskReflection(reflectionId) {
+    return typeof repository.getTaskReflection === "function" ? repository.getTaskReflection(reflectionId) : null;
+  }
+
   function listTaskArtifacts(filters = {}) {
     return typeof repository.listTaskArtifacts === "function" ? repository.listTaskArtifacts(filters) : [];
   }
@@ -722,6 +726,7 @@ function createLearningProgramService(options = {}) {
     listRewardSettlements,
     listTaskArtifacts,
     listTaskReflections,
+    getTaskReflection,
     listTaskSubmissions,
     getTaskSubmission,
     listGoals,
