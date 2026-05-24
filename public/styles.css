@@ -505,7 +505,7 @@ button {
   padding: 10px;
   border: 1px solid rgba(31, 43, 51, 0.10);
   border-radius: 10px;
-  background: rgba(255, 250, 241, 0.55);
+  background: rgba(248, 249, 248, 0.55);
 }
 
 .workspace-permission-panel.active {
@@ -583,7 +583,7 @@ button {
 
 .workspace-permission-select {
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.72);
+  background: rgba(255, 255, 252, 0.72);
   border: 1px solid var(--line);
 }
 
@@ -1040,7 +1040,7 @@ button {
 
 .thread-card.active {
   border-color: rgba(144, 166, 170, 0.28);
-  background: rgba(255, 252, 246, 0.86);
+  background: rgba(255, 255, 252, 0.86);
   box-shadow: none;
 }
 
@@ -1235,7 +1235,7 @@ button {
   display: grid;
   place-items: center;
   color: #0f5f4d;
-  background: rgba(255, 253, 248, 0.72);
+  background: rgba(248, 249, 248, 0.72);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
   box-shadow: 0 8px 18px rgba(31, 43, 51, 0.10);
@@ -1249,7 +1249,7 @@ button {
 .topbar {
   padding: 10px 16px;
   border-bottom: 1px solid var(--line);
-  background: rgba(250, 246, 237, 0.86);
+  background: rgba(247, 248, 247, 0.86);
   backdrop-filter: blur(18px);
   position: relative;
   z-index: 20;
@@ -1287,7 +1287,7 @@ button {
   z-index: 30;
   min-width: 136px;
   padding: 6px;
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -1305,7 +1305,7 @@ button {
   max-width: min(520px, calc(100vw - 32px));
   padding: 10px 12px 10px 14px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -1349,7 +1349,7 @@ button {
   max-width: min(460px, calc(100vw - 32px));
   padding: 10px 14px;
   color: var(--ui-accent-ink);
-  background: rgba(255, 252, 246, 0.97);
+  background: rgba(255, 255, 252, 0.97);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -1364,7 +1364,7 @@ button {
 .push-toast.success {
   color: var(--ui-accent-ink);
   border-color: rgba(144, 166, 170, 0.28);
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
 }
 
 .push-toast.error {
@@ -1566,7 +1566,7 @@ button {
   display: grid;
   place-items: center;
   color: var(--ink);
-  background: rgba(255, 250, 241, 0.72);
+  background: rgba(248, 249, 248, 0.72);
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: 0 8px 20px rgba(34, 28, 20, 0.08);
@@ -1583,7 +1583,7 @@ button {
   z-index: 6;
   min-width: 148px;
   padding: 7px;
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -1752,7 +1752,7 @@ button {
   padding: 0 4px;
   color: #fffaf1;
   background: #d94841;
-  border: 1px solid rgba(255, 250, 241, 0.92);
+  border: 1px solid rgba(248, 249, 248, 0.92);
   border-radius: 999px;
   font-size: 10px;
   font-weight: 600;
@@ -1800,7 +1800,7 @@ button {
 
 .message.assistant {
   color: #142027;
-  background: rgba(255, 252, 246, 0.82);
+  background: rgba(255, 255, 252, 0.82);
   border-color: rgba(154, 107, 47, 0.12);
 }
 
@@ -1933,7 +1933,7 @@ button {
 
 .message.assistant .message-head {
   color: #7f735f;
-  background: rgba(255, 252, 246, 0.36);
+  background: rgba(255, 255, 252, 0.36);
   border-bottom-color: rgba(31, 43, 51, 0.055);
 }
 
@@ -2370,7 +2370,7 @@ button.directory-alias-chip {
   display: inline-grid;
   place-items: center;
   color: inherit;
-  background: rgba(255, 252, 246, 0.84);
+  background: rgba(255, 255, 252, 0.84);
   border: 1px solid rgba(31, 111, 98, 0.22);
   border-radius: 6px;
   font: inherit;
@@ -2427,7 +2427,7 @@ button.directory-alias-chip {
   border: 1.4px solid currentColor;
   border-bottom: 0;
   border-radius: 2px 2px 0 0;
-  background: rgba(255, 252, 246, 0.84);
+  background: rgba(255, 255, 252, 0.84);
 }
 
 .directory-alias-icon.learning-growth-board-artifact-icon {
@@ -2651,7 +2651,7 @@ button.directory-alias-chip {
   margin: 0 0 9px;
   padding: 2px 6px;
   color: rgba(95, 83, 63, 0.74);
-  background: rgba(255, 252, 246, 0.52);
+  background: rgba(255, 255, 252, 0.52);
   border: 1px solid rgba(95, 83, 63, 0.12);
   border-radius: 999px;
   font-size: 11px;
@@ -2705,7 +2705,7 @@ button.directory-alias-chip {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   box-shadow: 0 14px 32px rgba(31, 43, 51, 0.13);
   transform: translateX(var(--usage-panel-shift, 0px));
 }
@@ -2895,7 +2895,7 @@ button.directory-alias-chip {
   max-width: 128px;
   padding: 0 24px 0 9px;
   color: var(--accent);
-  background: rgba(255, 250, 241, 0.72);
+  background: rgba(248, 249, 248, 0.72);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
   font: inherit;
@@ -2907,7 +2907,7 @@ button.directory-alias-chip {
   min-height: 28px;
   padding: 0 10px;
   color: var(--accent);
-  background: rgba(255, 250, 241, 0.72);
+  background: rgba(248, 249, 248, 0.72);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
   font-weight: 600;
@@ -2982,7 +2982,7 @@ button.directory-alias-chip {
   gap: 10px;
   padding: 10px 12px;
   color: var(--ink);
-  background: rgba(255, 250, 241, 0.72);
+  background: rgba(248, 249, 248, 0.72);
   border: 1px solid var(--line);
   border-radius: inherit;
   box-shadow: 0 12px 32px rgba(34, 28, 20, 0.08);
@@ -3004,7 +3004,7 @@ button.directory-alias-chip {
   border: 1px solid rgba(31, 43, 51, 0.1);
   border-radius: 10px;
   color: var(--muted);
-  background: rgba(255, 252, 246, 0.82);
+  background: rgba(255, 255, 252, 0.82);
 }
 
 .task-card-menu-wrap.open .task-card-menu-button,
@@ -3021,7 +3021,7 @@ button.directory-alias-chip {
   padding: 6px;
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
 }
 
@@ -3300,7 +3300,7 @@ button.directory-alias-chip {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: rgba(255, 252, 246, 0.84);
+  background: rgba(255, 255, 252, 0.84);
   box-shadow: 0 12px 32px rgba(34, 28, 20, 0.08);
 }
 
@@ -3900,7 +3900,7 @@ button.directory-alias-chip {
   padding: 6px;
   display: grid;
   gap: 2px;
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -3941,7 +3941,7 @@ button.directory-alias-chip {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  background: rgba(255, 252, 246, 0.78);
+  background: rgba(255, 255, 252, 0.78);
   border: 1px solid var(--line);
   border-radius: 16px;
 }
@@ -3996,7 +3996,7 @@ button.directory-alias-chip {
 
 .shared-directory-list {
   display: block;
-  background: rgba(255, 252, 246, 0.78);
+  background: rgba(255, 255, 252, 0.78);
   border: 1px solid var(--line);
   border-radius: 18px;
   overflow: visible;
@@ -4065,7 +4065,7 @@ button.directory-alias-chip {
   min-height: 30px;
   padding: 0 26px 0 9px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.9);
+  background: rgba(255, 255, 252, 0.9);
   border: 1px solid var(--line);
   border-radius: 9px;
   font-weight: 600;
@@ -4205,7 +4205,7 @@ body.task-markdown-preview-open {
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 10px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.99);
+  background: rgba(255, 255, 252, 0.99);
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.10);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -4297,7 +4297,7 @@ body.task-markdown-preview-open {
   gap: 10px;
   padding: 8px 10px 8px 14px;
   border-bottom: 1px solid rgba(31, 43, 51, 0.1);
-  background: rgba(255, 252, 246, 0.96);
+  background: rgba(255, 255, 252, 0.96);
 }
 
 .task-markdown-preview-head strong {
@@ -4431,7 +4431,7 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 12px;
   padding: 14px;
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 12px 30px rgba(34, 28, 20, 0.08);
@@ -4634,7 +4634,7 @@ body.task-markdown-preview-open {
   padding: 10px;
   border: 1px solid rgba(172, 58, 58, 0.18);
   border-radius: 8px;
-  background: rgba(255, 250, 247, 0.82);
+  background: rgba(248, 249, 248, 0.82);
 }
 
 .settings-logout-button {
@@ -5208,7 +5208,7 @@ body.task-markdown-preview-open {
   margin: 0 10px 8px;
   padding: 9px 10px;
   color: var(--muted);
-  background: rgba(255, 252, 246, 0.54);
+  background: rgba(255, 255, 252, 0.54);
   border: 1px solid rgba(31, 43, 51, 0.08);
   border-radius: 10px;
   font-size: 11px;
@@ -5365,7 +5365,7 @@ body.task-markdown-preview-open {
 .directory-status {
   padding: 18px 14px;
   color: var(--muted);
-  background: rgba(255, 252, 246, 0.78);
+  background: rgba(255, 255, 252, 0.78);
   border: 1px solid var(--line);
   border-radius: 18px;
 }
@@ -5517,7 +5517,7 @@ body.task-markdown-preview-open {
 .todo-detail-card {
   border: 1px solid var(--line);
   border-radius: 20px;
-  background: rgba(255, 252, 246, 0.84);
+  background: rgba(255, 255, 252, 0.84);
   box-shadow: 0 12px 32px rgba(34, 28, 20, 0.08);
 }
 
@@ -5531,7 +5531,7 @@ body.task-markdown-preview-open {
   min-height: 44px;
   padding: 0 14px;
   color: var(--accent);
-  background: rgba(255, 252, 246, 0.84);
+  background: rgba(255, 255, 252, 0.84);
   font-size: 15px;
   font-weight: 600;
   text-align: left;
@@ -5713,7 +5713,7 @@ body.task-markdown-preview-open {
   min-height: 30px;
   padding: 0 10px;
   color: var(--muted);
-  background: rgba(255, 252, 246, 0.78);
+  background: rgba(255, 255, 252, 0.78);
   border: 1px solid rgba(20, 32, 39, 0.1);
   border-radius: 10px;
   font-size: 12px;
@@ -6483,7 +6483,7 @@ body.task-markdown-preview-open {
   text-align: left;
   border: 1px solid rgba(20, 32, 39, 0.1);
   border-radius: 13px;
-  background: rgba(255, 252, 246, 0.74);
+  background: rgba(255, 255, 252, 0.74);
 }
 
 .todo-kanban-tab.active {
@@ -6528,7 +6528,7 @@ body.task-markdown-preview-open {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(255, 252, 246, 0.62);
+  background: rgba(255, 255, 252, 0.62);
 }
 
 .todo-kanban-current {
@@ -6743,7 +6743,7 @@ body.task-markdown-preview-open {
   padding: 9px;
   border: 1px solid rgba(20, 32, 39, 0.075);
   border-radius: 12px;
-  background: rgba(255, 252, 246, 0.56);
+  background: rgba(255, 255, 252, 0.56);
 }
 
 .kanban-archive-story-grid strong {
@@ -6945,7 +6945,7 @@ body.task-markdown-preview-open {
   padding: 10px 11px;
   border: 1px solid var(--line);
   border-radius: inherit;
-  background: rgba(255, 252, 246, 0.84);
+  background: rgba(255, 255, 252, 0.84);
   box-shadow: 0 12px 32px rgba(34, 28, 20, 0.08);
 }
 
@@ -6953,7 +6953,7 @@ body.task-markdown-preview-open {
 .todo-card.cancelled,
 .todo-detail-card.done,
 .todo-detail-card.cancelled {
-  background: rgba(255, 252, 246, 0.58);
+  background: rgba(255, 255, 252, 0.58);
 }
 
 .todo-card.task-swipe-row.done,
@@ -6963,7 +6963,7 @@ body.task-markdown-preview-open {
 
 .todo-card.task-swipe-row.done .task-swipe-content,
 .todo-card.task-swipe-row.cancelled .task-swipe-content {
-  background: rgba(255, 252, 246, 0.58);
+  background: rgba(255, 255, 252, 0.58);
 }
 
 .todo-card-main {
@@ -7728,7 +7728,7 @@ body.task-markdown-preview-open {
   padding: 10px 12px;
   border: 1px solid rgba(47, 75, 69, 0.12);
   border-radius: 8px;
-  background: rgba(255, 252, 246, 0.78);
+  background: rgba(255, 255, 252, 0.78);
 }
 
 .learning-growth-board-summary-metrics span {
@@ -8049,7 +8049,7 @@ body.task-markdown-preview-open {
 
 .learning-growth-board-status-chip.active span {
   color: var(--ui-accent-ink);
-  background: rgba(255, 252, 246, 0.58);
+  background: rgba(255, 255, 252, 0.58);
 }
 
 .learning-growth-board-lanes {
@@ -8181,7 +8181,7 @@ body.task-markdown-preview-open {
   border-radius: 999px;
   color: var(--muted);
   font-size: 12px;
-  background: rgba(255, 252, 246, 0.8);
+  background: rgba(255, 255, 252, 0.8);
 }
 
 .learning-growth-board-card-decay {
@@ -8192,7 +8192,7 @@ body.task-markdown-preview-open {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.3;
-  background: rgba(255, 252, 246, 0.76);
+  background: rgba(255, 255, 252, 0.76);
 }
 
 .learning-growth-board-card.is-reward-warning .learning-growth-board-card-decay {
@@ -8214,7 +8214,7 @@ body.task-markdown-preview-open {
   border: 1px solid var(--ui-hairline);
   box-shadow: none;
   color: var(--muted);
-  background: rgba(255, 252, 246, 0.72);
+  background: rgba(255, 255, 252, 0.72);
   display: inline-grid;
   place-items: center;
   cursor: pointer;
@@ -8252,7 +8252,7 @@ body.task-markdown-preview-open {
   padding: 14px;
   border: 1px solid rgba(31, 111, 98, 0.16);
   border-radius: 8px;
-  background: rgba(255, 252, 246, 0.9);
+  background: rgba(255, 255, 252, 0.9);
 }
 
 .learning-growth-answer-card-head {
@@ -8343,7 +8343,7 @@ body.task-markdown-preview-open {
   padding: 6px;
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 10px;
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
 }
 
@@ -9590,7 +9590,7 @@ body.task-markdown-preview-open {
 .learning-coin-panel {
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(255, 252, 246, 0.78);
+  background: rgba(255, 255, 252, 0.78);
   box-shadow: var(--shadow-soft);
 }
 
@@ -10384,7 +10384,7 @@ body.task-markdown-preview-open {
 .automation-card.done,
 .automation-detail-card.paused,
 .automation-detail-card.done {
-  background: rgba(255, 252, 246, 0.54);
+  background: rgba(255, 255, 252, 0.54);
 }
 
 .automation-card.error,
@@ -10900,7 +10900,7 @@ body.task-markdown-preview-open {
   padding: 5px;
   overflow-y: auto;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -10919,7 +10919,7 @@ body.task-markdown-preview-open {
   gap: 5px;
   padding: 6px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.98);
+  background: rgba(255, 255, 252, 0.98);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -11047,7 +11047,7 @@ body.task-markdown-preview-open {
   min-height: 36px;
   padding: 6px 8px;
   margin: 0;
-  background: rgba(255, 252, 246, 0.92);
+  background: rgba(255, 255, 252, 0.92);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 999px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -12089,7 +12089,7 @@ body.task-markdown-preview-open {
     display: grid;
     place-items: center;
     color: #0f5f4d;
-    background: rgba(255, 253, 248, 0.68);
+    background: rgba(248, 249, 248, 0.68);
     border: 1px solid rgba(31, 111, 98, 0.16);
     border-radius: 10px;
     box-shadow: 0 8px 18px rgba(31, 43, 51, 0.09);

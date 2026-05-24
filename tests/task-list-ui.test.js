@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-ui-cool-neutral-bg-v163";
+const CLIENT_VERSION = "20260524-ui-cool-surfaces-v164";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -197,7 +197,7 @@ assert.match(appJs, /data-preview-action="pdf"[\s\S]*?转成 PDF 分享/);
 assert.match(appJs, /function forwardMarkdownToGroup\(markdown, title\)/);
 assert.match(appJs, /function forwardFileLinkToGroup\(sourceUrl, title\)/);
 assert.match(appJs, /\/api\/weixin\/forward-file/);
-assert.match(stylesCss, /\.task-preview-more-menu \{[\s\S]*?z-index: 1211;[\s\S]*?pointer-events: auto;[\s\S]*?background: rgba\(255, 252, 246, 0\.99\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.10\);[\s\S]*?font: 650 13px\/1\.3 var\(--font-sans\);/);
+assert.match(stylesCss, /\.task-preview-more-menu \{[\s\S]*?z-index: 1211;[\s\S]*?pointer-events: auto;[\s\S]*?background: rgba\(255, 255, 252, 0\.99\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.10\);[\s\S]*?font: 650 13px\/1\.3 var\(--font-sans\);/);
 assert.match(stylesCss, /\.task-markdown-preview-head \{[\s\S]*?position: relative;[\s\S]*?z-index: 3;/);
 assert.match(stylesCss, /\.task-markdown-preview-overlay \{[\s\S]*?padding: 0;[\s\S]*?background: #fff;/);
 assert.match(stylesCss, /\.task-markdown-preview-shell \{[\s\S]*?width: 100%;[\s\S]*?height: 100%;[\s\S]*?border: 0;[\s\S]*?border-radius: 0;[\s\S]*?box-shadow: none;/);
@@ -216,6 +216,10 @@ assert.match(stylesCss, /--ui-accent-fill: rgba\(144, 166, 170, 0\.20\);/);
 assert.match(indexHtml, /<meta name="theme-color" content="#f7f8f7">/);
 assert.match(stylesCss, /--ui-page: #f7f8f7;/);
 assert.match(stylesCss, /--paper: #f8f8f6;/);
+assert.doesNotMatch(stylesCss, /rgba\(255, 252, 246,/);
+assert.doesNotMatch(stylesCss, /rgba\(255, 250, 241,/);
+assert.doesNotMatch(stylesCss, /rgba\(255, 253, 248,/);
+assert.doesNotMatch(stylesCss, /rgba\(250, 246, 237,/);
 assert.match(stylesCss, /--accent: #6b858c;/);
 assert.match(stylesCss, /html,[\s\S]*?body \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.app \{[\s\S]*?background: var\(--ui-page\);/);
