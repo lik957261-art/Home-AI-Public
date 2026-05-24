@@ -9060,6 +9060,61 @@ body.task-markdown-preview-open {
   gap: 8px;
 }
 
+.learning-settings-tab-intro,
+.learning-settings-fold {
+  border-radius: 10px;
+}
+
+.learning-settings-tab-intro .learning-section-heading {
+  margin-bottom: 6px;
+}
+
+.learning-settings-fold {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-hairline);
+  background: rgba(255, 255, 252, 0.72);
+}
+
+.learning-settings-fold summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.learning-settings-fold summary::-webkit-details-marker {
+  display: none;
+}
+
+.learning-settings-fold summary strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.learning-settings-fold summary span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.learning-settings-fold-body {
+  padding-top: 8px;
+  border-top: 1px solid var(--ui-hairline);
+}
+
+.learning-settings-fold-body > .learning-coin-panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .learning-settings-task-row {
   width: 100%;
   min-height: 58px;
@@ -12609,6 +12664,14 @@ body.task-markdown-preview-open {
 
 :root[data-font-size] .learning-growth-settings-page .learning-program-review-item strong {
   font-size: 13px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-settings-fold summary strong {
+  font-size: 14px;
+}
+
+:root[data-font-size] .learning-growth-settings-page .learning-settings-fold summary span {
+  font-size: 12px;
 }
 
 .chat-history-pager {

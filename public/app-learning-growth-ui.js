@@ -433,6 +433,15 @@
     </section>`;
   }
 
+  function renderOwnerSettingsFold(title, meta, html, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!html) return "";
+    return `<details class="learning-settings-fold" data-learning-settings-fold>
+      <summary><strong>${escapeHtml(title)}</strong>${meta ? `<span>${escapeHtml(meta)}</span>` : ""}</summary>
+      <div class="learning-settings-fold-body">${html}</div>
+    </details>`;
+  }
+
   function renderOwnerTaskList(overview = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const tasks = uniqueRewardTasks(overview).slice(0, 80);
@@ -537,21 +546,17 @@
     if (options.state?.learningGrowthSettingsTaskId) {
       return renderOwnerSettingsTaskDetail(overview, options);
     }
+    const scopeHtml = renderOwnerSettingsFold("\u5b66\u4e60\u8303\u56f4", "\u76ee\u6807 / \u5185\u5bb9", programUi.renderProgramForm(data, programOptions), options);
     return [
-      `<section class="learning-coin-panel learning-settings-task-create" data-learning-settings-task-create>
+      `<section class="learning-coin-panel learning-settings-task-create is-settings-tab-intro" data-learning-settings-task-create>
         <div class="learning-section-heading">
-          <h3>新建任务</h3>
-          <span>模板 Skill / XHigh</span>
+          <h3>任务管理</h3>
+          <span>范围 / 列表</span>
         </div>
-        <p class="learning-growth-muted">新任务必须使用已注册学习任务模板，可建永续任务或阶段性任务；生成、批改、修订、语音反思和奖励结算继续走现有 Growth 规则。</p>
+        <p class="learning-growth-muted">学习范围与当前任务列表。</p>
       </section>`,
-      renderOwnerAiSummaryRecommendationsPanel(data, Object.assign({}, programOptions, { compact: true })),
-      programUi.renderProgramForm(data, programOptions),
+      scopeHtml,
       renderOwnerTaskList(overview, options),
-      programUi.renderExecutionOverview(data, programOptions),
-      programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions),
-      programUi.renderReviewQueue(data.reviewItems || [], programOptions),
-      programUi.renderParentReviewRequests(data.parentReviewRequests || [], programOptions),
     ].join("");
   }
 
@@ -571,6 +576,8 @@
     const averageSettled = settled.length ? Math.round(settledCoins / settled.length) : 0;
     const sevenDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 7);
     const thirtyDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 30);
+    const policyHtml = renderOwnerSettingsFold("奖励规则", "按系列", renderOwnerRewardPolicySettings(overview, options), options);
+    const settlementsHtml = renderOwnerSettingsFold("结算记录", String(settlements.length), programUi.renderRewardSettlements(data.rewardSettlements || [], programOptions), options);
     const stats = `<section class="learning-coin-panel learning-settings-reward-stats" data-learning-settings-reward-stats>
       <div class="learning-section-heading">
         <h3>奖励统计</h3>
@@ -586,9 +593,8 @@
     </section>`;
     return [
       stats,
-      renderOwnerRewardPolicySettings(overview, options),
-      coinsHtml,
-      programUi.renderRewardSettlements(data.rewardSettlements || [], programOptions),
+      policyHtml,
+      settlementsHtml,
     ].join("");
   }
 

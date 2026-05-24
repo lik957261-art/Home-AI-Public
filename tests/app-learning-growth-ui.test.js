@@ -487,6 +487,13 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.match(html, /12/);
   assert.match(html, /data-learning-settings-task-list/);
   assert.match(html, /data-learning-settings-task-create/);
+  const tasksPanel = html.match(/data-learning-growth-tab-panel="tasks"[\s\S]*?data-learning-growth-tab-panel="rewards"/)?.[0] || "";
+  assert.match(tasksPanel, /data-learning-settings-fold/);
+  assert.doesNotMatch(tasksPanel, /data-learning-ai-summary-recommendations/);
+  assert.doesNotMatch(tasksPanel, /data-learning-growth-category="execution"/);
+  const rewardsPanel = html.match(/data-learning-growth-tab-panel="rewards"[\s\S]*?data-learning-growth-tab-panel="ai-analysis"/)?.[0] || "";
+  assert.match(rewardsPanel, /data-learning-settings-reward-stats/);
+  assert.doesNotMatch(rewardsPanel, /data-learning-growth-module="coins"/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
   assert.match(html, /data-learning-program-create/);
   assert.match(html, /data-learning-launch-operations/);
