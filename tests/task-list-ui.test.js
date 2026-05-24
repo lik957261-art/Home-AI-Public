@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-skill-analyze-button-v196";
+const CLIENT_VERSION = "20260524-jump-bottom-compact-v197";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -285,9 +285,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-skill-analyze-button-v196/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-skill-analyze-button-v196/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-skill-analyze-button-v196/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-jump-bottom-compact-v197/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-jump-bottom-compact-v197/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-jump-bottom-compact-v197/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1012,6 +1012,8 @@ assert.match(appJs, /function updateConversationJumpBottomButton\(\)/);
 assert.match(appJs, /conversationBottomOffset\(conversation\) > 240/);
 assert.match(appJs, /wireConversationJumpBottomButton\(\)/);
 assert.match(stylesCss, /\.conversation-jump-bottom/);
+assert.match(stylesCss, /\.conversation-jump-bottom\s*\{[\s\S]*?width: 30px;[\s\S]*?height: 30px;[\s\S]*?background: rgba\(247, 250, 249, 0\.86\);[\s\S]*?font-size: 16px;/);
+assert.match(stylesCss, /\.conversation-jump-bottom:active\s*\{[\s\S]*?background: rgba\(232, 241, 239, 0\.92\);/);
 assert.match(stylesCss, /bottom: calc\(72px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(appJs, /const KANBAN_TOPIC_CARD_SNAPSHOT_CACHE_MS = 60 \* 1000/);
 assert.match(appJs, /function scheduleKanbanTopicCardSnapshotRefresh\(options = \{\}\)/);

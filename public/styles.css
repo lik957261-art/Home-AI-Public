@@ -1657,30 +1657,31 @@ button {
 
 .conversation-jump-bottom {
   position: absolute;
-  right: max(18px, env(safe-area-inset-right));
+  right: max(20px, env(safe-area-inset-right));
   bottom: calc(72px + env(safe-area-inset-bottom));
   z-index: 32;
-  width: 42px;
-  min-width: 42px;
-  height: 42px;
-  min-height: 42px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
   padding: 0;
   display: grid;
   place-items: center;
-  color: #fffaf1;
-  background: rgba(31, 111, 98, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.54);
+  color: rgba(49, 91, 88, 0.78);
+  background: rgba(247, 250, 249, 0.86);
+  border: 1px solid rgba(103, 129, 127, 0.20);
   border-radius: 50%;
-  box-shadow: 0 14px 32px rgba(31, 43, 51, 0.20);
-  font-size: 22px;
-  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(31, 43, 51, 0.10);
+  font-size: 16px;
+  font-weight: 560;
   line-height: 1;
   backdrop-filter: blur(12px);
 }
 
 .conversation-jump-bottom:active {
   transform: translateY(1px);
-  background: rgba(23, 77, 69, 0.96);
+  color: rgba(30, 78, 74, 0.88);
+  background: rgba(232, 241, 239, 0.92);
 }
 
 .conversation-jump-bottom:disabled {
