@@ -1915,7 +1915,7 @@ button {
 
 .todo-learning-growth-submit-progress {
   margin: 8px 0 10px;
-  border-color: rgba(31, 111, 98, 0.22);
+  border-color: var(--ui-hairline-strong);
 }
 
 .todo-learning-growth-submit-progress .run-progress-row.pending {
@@ -1923,11 +1923,11 @@ button {
 }
 
 .todo-learning-growth-submit-progress .run-progress-row.active .run-progress-main {
-  color: var(--accent);
+  color: var(--ui-accent-ink);
 }
 
 .todo-learning-growth-submit-progress .run-progress-row.done .run-progress-dot {
-  background: rgba(31, 111, 98, 0.56);
+  background: var(--ui-accent);
 }
 
 .message-head {
@@ -7381,8 +7381,8 @@ body.task-markdown-preview-open {
 }
 
 .todo-learning-growth-panel {
-  border-color: rgba(31, 111, 98, 0.24);
-  background: rgba(236, 249, 245, 0.48);
+  border-color: var(--ui-hairline);
+  background: var(--ui-surface);
 }
 
 .todo-learning-growth-prompt {
@@ -7407,13 +7407,13 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 6px;
   padding: 10px;
-  border: 1px solid rgba(31, 111, 98, 0.18);
+  border: 1px solid var(--ui-hairline);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.7);
 }
 
 .todo-learning-growth-status strong {
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-size: 13px;
 }
 
@@ -7438,7 +7438,7 @@ body.task-markdown-preview-open {
 }
 
 .todo-learning-growth-submit-requirement.is-ready {
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-weight: 700;
 }
 
@@ -7460,15 +7460,15 @@ body.task-markdown-preview-open {
 
 .todo-learning-growth-reflection,
 .todo-learning-growth-reflection-status {
-  border-color: rgba(34, 133, 117, 0.28);
-  background: rgba(229, 247, 242, 0.74);
+  border-color: rgba(144, 166, 170, 0.24);
+  background: var(--ui-accent-soft);
 }
 
 .todo-learning-growth-reflection {
   display: grid;
   gap: 10px;
   padding: 10px;
-  border: 1px solid rgba(34, 133, 117, 0.24);
+  border: 1px solid rgba(144, 166, 170, 0.22);
   border-radius: 12px;
 }
 
@@ -7480,7 +7480,7 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 10px;
   padding: 10px;
-  border: 1px solid rgba(31, 111, 98, 0.2);
+  border: 1px solid var(--ui-hairline);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.78);
 }
@@ -7575,10 +7575,10 @@ body.task-markdown-preview-open {
 
 .todo-detail-chip-row span {
   padding: 5px 8px;
-  border: 1px solid rgba(31, 111, 98, 0.16);
+  border: 1px solid var(--ui-hairline);
   border-radius: 999px;
-  color: var(--accent);
-  background: rgba(255, 255, 255, 0.62);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
   font-size: 12px;
   font-weight: 700;
 }
@@ -7810,14 +7810,14 @@ body.task-markdown-preview-open {
   min-height: 74px;
   align-content: start;
   padding: 9px 10px;
-  border: 1px solid rgba(31, 111, 98, 0.13);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.66);
+  background: var(--ui-surface);
 }
 
 .learning-growth-metric-card strong {
   min-width: 0;
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-size: 17px;
   line-height: 1.2;
   overflow-wrap: anywhere;
@@ -7846,9 +7846,9 @@ body.task-markdown-preview-open {
   gap: 2px 7px;
   align-items: center;
   padding: 8px 9px;
-  border: 1px solid rgba(20, 32, 39, 0.09);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.52);
+  background: var(--ui-surface);
 }
 
 .learning-growth-workflow b {
@@ -7858,8 +7858,8 @@ body.task-markdown-preview-open {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: #fffaf1;
-  background: var(--accent);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
   font-size: 12px;
   font-weight: 800;
 }
@@ -7889,10 +7889,10 @@ body.task-markdown-preview-open {
 .learning-growth-platform-strip span {
   min-height: 34px;
   padding: 8px 10px;
-  border: 1px solid rgba(31, 111, 98, 0.14);
+  border: 1px solid var(--ui-hairline);
   border-radius: 12px;
-  color: var(--accent);
-  background: rgba(236, 249, 245, 0.55);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
   font-size: 13px;
   font-weight: 700;
   text-align: center;
@@ -7908,9 +7908,9 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 8px;
   padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255, 252, 246, 0.76);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-surface);
 }
 
 .learning-growth-module-top {
@@ -7930,8 +7930,8 @@ body.task-markdown-preview-open {
   flex: 0 0 auto;
   padding: 4px 8px;
   border-radius: 999px;
-  color: var(--accent);
-  background: rgba(31, 111, 98, 0.1);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
   font-size: 12px;
   font-weight: 700;
 }
@@ -8021,10 +8021,10 @@ body.task-markdown-preview-open {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid rgba(31, 111, 98, 0.14);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
   color: var(--muted);
-  background: rgba(255, 252, 246, 0.82);
+  background: var(--ui-surface);
   box-shadow: none;
 }
 
@@ -8045,20 +8045,20 @@ body.task-markdown-preview-open {
   justify-content: center;
   border-radius: 999px;
   color: var(--muted);
-  background: rgba(31, 111, 98, 0.08);
+  background: rgba(144, 166, 170, 0.10);
   font-size: 12px;
   font-weight: 800;
 }
 
 .learning-growth-board-status-chip.active {
-  border-color: rgba(31, 111, 98, 0.32);
-  color: var(--accent);
-  background: rgba(236, 249, 245, 0.92);
+  border-color: rgba(144, 166, 170, 0.30);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
 }
 
 .learning-growth-board-status-chip.active span {
-  color: var(--accent);
-  background: rgba(31, 111, 98, 0.12);
+  color: var(--ui-accent-ink);
+  background: rgba(255, 252, 246, 0.58);
 }
 
 .learning-growth-board-lanes {
@@ -8089,9 +8089,9 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 10px;
   padding: 12px;
-  border: 1px solid rgba(31, 111, 98, 0.12);
-  border-radius: 8px;
-  background: rgba(236, 249, 245, 0.46);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-surface);
 }
 
 .learning-growth-board-card.is-reward-warning {
@@ -8128,7 +8128,7 @@ body.task-markdown-preview-open {
 
 .learning-growth-board-card-title small {
   margin-top: 4px;
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-size: 13px;
   font-weight: 800;
 }
@@ -8220,7 +8220,7 @@ body.task-markdown-preview-open {
   min-width: 20px;
   min-height: 20px;
   padding: 0;
-  border: 1px solid rgba(47, 75, 69, 0.1);
+  border: 1px solid var(--ui-hairline);
   box-shadow: none;
   color: var(--muted);
   background: rgba(255, 252, 246, 0.72);
@@ -10018,10 +10018,10 @@ body.task-markdown-preview-open {
 .automation-create,
 .automation-card,
 .automation-detail-card {
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: rgba(255, 252, 246, 0.84);
-  box-shadow: 0 12px 32px rgba(34, 28, 20, 0.08);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  box-shadow: none;
 }
 
 .automation-create {
@@ -10042,9 +10042,9 @@ body.task-markdown-preview-open {
   resize: vertical;
   padding: 10px 11px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid var(--line-strong);
-  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.54);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 10px;
   outline: none;
   font: inherit;
   font-size: 14px;
@@ -10055,9 +10055,9 @@ body.task-markdown-preview-open {
   min-height: 38px;
   padding: 8px 10px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.54);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 10px;
   outline: none;
   font: inherit;
   font-size: 14px;
@@ -10083,10 +10083,10 @@ body.task-markdown-preview-open {
   gap: 9px;
   min-height: 38px;
   padding: 9px 12px;
-  color: #315f55;
-  background: rgba(122, 199, 167, 0.12);
-  border: 1px solid rgba(63, 127, 114, 0.16);
-  border-radius: 14px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
   font-size: 13px;
   font-weight: 500;
 }
@@ -10095,8 +10095,8 @@ body.task-markdown-preview-open {
   flex: 0 0 auto;
   width: 15px;
   height: 15px;
-  border: 2px solid rgba(63, 127, 114, 0.22);
-  border-top-color: #3f8e7e;
+  border: 2px solid rgba(144, 166, 170, 0.24);
+  border-top-color: var(--ui-accent);
   border-radius: 999px;
   animation: automation-spin 760ms linear infinite;
 }
@@ -10393,7 +10393,7 @@ body.task-markdown-preview-open {
 .automation-card.done,
 .automation-detail-card.paused,
 .automation-detail-card.done {
-  background: rgba(255, 252, 246, 0.58);
+  background: rgba(255, 252, 246, 0.54);
 }
 
 .automation-card.error,
@@ -10435,8 +10435,8 @@ body.task-markdown-preview-open {
 .automation-state {
   flex: 0 0 auto;
   padding: 5px 10px;
-  color: var(--accent);
-  background: var(--accent-soft);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
@@ -10531,13 +10531,13 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 3px;
   padding: 8px 9px;
-  background: rgba(31, 111, 98, 0.08);
-  border: 1px solid rgba(31, 111, 98, 0.18);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
 }
 
 .automation-run-times strong {
-  color: var(--accent);
+  color: var(--ui-accent-ink);
   font-size: 12px;
 }
 

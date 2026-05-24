@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-ui-phase2-light-lists-v155";
+const CLIENT_VERSION = "20260524-ui-phase3-growth-automation-v156";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -227,6 +227,11 @@ assert.match(stylesCss, /\.thread-card\.active \{[\s\S]*?border-color: rgba\(144
 assert.match(stylesCss, /\.message \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.task-card \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.directory-entry-list \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;/);
+assert.match(stylesCss, /\.learning-growth-board-status-chip\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);/);
+assert.match(stylesCss, /\.learning-growth-board-card \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?background: var\(--ui-surface\);/);
+assert.match(stylesCss, /\.todo-learning-growth-panel \{[\s\S]*?border-color: var\(--ui-hairline\);[\s\S]*?background: var\(--ui-surface\);/);
+assert.match(stylesCss, /\.automation-warning,[\s\S]*?\.automation-create,[\s\S]*?\.automation-card,[\s\S]*?\.automation-detail-card \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?background: var\(--ui-surface\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.automation-run-times div \{[\s\S]*?background: var\(--ui-accent-soft\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);
