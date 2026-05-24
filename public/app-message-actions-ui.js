@@ -421,6 +421,10 @@ function activateTopNavButton() {
     openAutomationList();
     return;
   }
+  if (state.viewMode === "learning" && state.learningGrowthSettingsOpen) {
+    closeLearningGrowthSettingsPage();
+    return;
+  }
   if (state.viewMode === "learning" && state.selectedLearningTaskCardId) {
     state.selectedLearningTaskCardId = "";
     state.learningGrowthSettingsOpen = false;

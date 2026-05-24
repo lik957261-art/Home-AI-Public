@@ -460,7 +460,8 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   });
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-settings-page/);
-  assert.match(html, /data-learning-growth-close-settings/);
+  assert.doesNotMatch(html, /data-learning-growth-close-settings/);
+  assert.doesNotMatch(html, /\u8fd4\u56de\u770b\u677f/);
   assert.match(html, /data-learning-task-reward-policy-settings/);
   assert.match(html, /data-learning-task-reward-policy-series-form=/);
   assert.doesNotMatch(html, /data-learning-task-reward-policy-form="task-1"/);

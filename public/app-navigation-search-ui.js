@@ -177,7 +177,8 @@ function updateNavigationControls() {
   const taskList = isTaskListView();
   const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
   const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || skillDetail || directoryBack || learningGrowthDetail;
+  const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
@@ -195,6 +196,7 @@ function updateNavigationControls() {
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
   app?.classList.toggle("learning-mode", state.viewMode === "learning");
+  app?.classList.toggle("learning-settings-mode", learningGrowthSettings);
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);
   app?.classList.toggle("main-back-visible", mainBack);
   app?.classList.toggle("reading-fullscreen-mode", state.readingFullscreen);

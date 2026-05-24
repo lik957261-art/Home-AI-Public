@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-growth-ai-persisted-refresh-v200";
+const CLIENT_VERSION = "20260524-growth-settings-scroll-v205";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -285,9 +285,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-ai-persisted-refresh-v200/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-ai-persisted-refresh-v200/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-ai-persisted-refresh-v200/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260524-growth-settings-scroll-v205/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260524-growth-settings-scroll-v205/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260524-growth-settings-scroll-v205/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1308,6 +1308,7 @@ assert.match(appLearningGrowthSettingsControllerJs, /openSettingsTask/);
 assert.match(appLearningGrowthSettingsControllerJs, /wireSettingsTaskSwipe/);
 assert.match(appLearningGrowthControllerJs, /HermesLearningGrowthSettingsController/);
 assert.match(appLearningGrowthControllerJs, /HermesLearningGrowthAiController/);
+assert.match(appLearningGrowthControllerJs, /function openLearningGrowthSettingsPage\(\)[\s\S]*?\$\("conversation"\)[\s\S]*?conversation\.scrollTop = 0/);
 assert.match(appLearningGrowthControllerJs, /HermesLearningGrowthRewardController/);
 assert.match(appJs, /learningGrowthSettingsOpen/);
 assert.match(appJs, /learningGrowthActiveTab/);
@@ -1382,7 +1383,11 @@ assert.match(stylesCss, /\.learning-daily-plan-list/);
 assert.match(stylesCss, /\.learning-program-task-actions/);
 assert.match(stylesCss, /\.learning-native-growth-submission-form/);
 assert.match(stylesCss, /\.learning-growth-settings-page/);
-assert.match(stylesCss, /\.learning-growth-settings-head/);
+assert.match(stylesCss, /\.learning-growth-settings-page \{[\s\S]*?padding-top: 0;/);
+assert.doesNotMatch(stylesCss, /\.learning-growth-settings-head/);
+assert.doesNotMatch(appLearningGrowthUiJs, /data-learning-growth-close-settings/);
+assert.match(stylesCss, /\.learning-growth-settings-tabs \.learning-growth-tab-list \{[\s\S]*?top: 0;[\s\S]*?margin: 0 -12px 2px;[\s\S]*?border-width: 0 0 1px;[\s\S]*?background: rgba\(247, 248, 247, 0\.96\);/);
+assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.learning-growth-settings-page \{[\s\S]*?padding-top: 0 !important;[\s\S]*?\.learning-growth-settings-tabs \.learning-growth-tab-list \{[\s\S]*?margin-top: -54px;/);
 assert.match(stylesCss, /\.learning-launch-operations-panel\.is-owner-settings-summary/);
 assert.match(stylesCss, /\.learning-launch-queue-compact summary/);
 assert.match(stylesCss, /\.learning-settings-fold summary/);
@@ -1578,7 +1583,10 @@ assert.match(appJs, /\$\("chatManagementMode"\)\?\.classList\.toggle\("active", 
 assert.match(stylesCss, /\.section-toggle \{[\s\S]*?grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)/);
 assert.match(appJs, /window\.matchMedia\("\(max-width: 1099px\)"\)/);
-assert.match(appJs, /const mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| skillDetail \|\| directoryBack/);
+assert.match(appJs, /const learningGrowthSettings = state\.viewMode === "learning" && Boolean\(state\.learningGrowthSettingsOpen\)/);
+assert.match(appJs, /const mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail \|\| learningGrowthSettings/);
+assert.match(appJs, /classList\.toggle\("learning-settings-mode", learningGrowthSettings\)/);
+assert.match(stylesCss, /\.learning-mode\.learning-settings-mode \.thread-title-wrap \{[\s\S]*?display: flex !important;/);
 assert.match(stylesCss, /\.main-back-visible \.top-nav-button \{[\s\S]*?display: grid;/);
 assert.match(singleWindowGroupChatApiRoutes, /groupChatAvailable/);
 assert.match(singleWindowGroupChatApiRoutes, /groupChatThreadId/);

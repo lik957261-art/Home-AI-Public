@@ -1205,6 +1205,10 @@ button {
   display: none !important;
 }
 
+.learning-mode.learning-settings-mode .thread-title-wrap {
+  display: flex !important;
+}
+
 .reading-fullscreen-mode {
   grid-template-columns: minmax(0, 1fr);
   padding-bottom: 0 !important;
@@ -7986,47 +7990,8 @@ body.task-markdown-preview-open {
 
 .learning-growth-settings-page {
   display: grid;
-  gap: 10px;
-}
-
-.learning-growth-settings-head {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0 8px;
-  border-bottom: 1px solid var(--ui-hairline);
-  background: rgba(247, 248, 247, 0.94);
-  backdrop-filter: blur(12px);
-}
-
-.learning-growth-settings-head button {
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.learning-growth-settings-head div {
-  min-width: 0;
-  display: grid;
-  gap: 1px;
-  text-align: left;
-}
-
-.learning-growth-settings-head strong {
-  color: var(--ink);
-  font-size: 17px;
-  font-weight: 800;
-}
-
-.learning-growth-settings-head span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
+  gap: 8px;
+  padding-top: 0;
 }
 
 .learning-growth-board-summary span {
@@ -9048,10 +9013,19 @@ body.task-markdown-preview-open {
 }
 
 .learning-growth-settings-tabs .learning-growth-tab-list {
-  top: 51px;
+  top: 0;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
-  padding: 3px;
+  margin: 0 -12px 2px;
+  padding: 6px 12px;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: rgba(247, 248, 247, 0.96);
+  box-shadow: 0 6px 14px rgba(42, 54, 52, 0.04);
+}
+
+.learning-growth-settings-tabs {
+  gap: 8px;
 }
 
 .learning-growth-tab-list button {
@@ -10406,6 +10380,14 @@ body.task-markdown-preview-open {
 
   .learning-growth-board-page {
     padding: 8px 10px 12px;
+  }
+
+  .learning-growth-settings-page {
+    padding-top: 0 !important;
+  }
+
+  .learning-growth-settings-tabs .learning-growth-tab-list {
+    margin-top: -54px;
   }
 
   .learning-growth-board-summary-metrics {
@@ -12703,18 +12685,6 @@ body.task-markdown-preview-open {
 :root[data-font-size] .sidebar .workspace-permission-select,
 :root[data-font-size] .sidebar .workspace-permission-actions button {
   font-size: 10.75px;
-}
-
-:root[data-font-size] .learning-growth-settings-page .learning-growth-settings-head button {
-  font-size: 13px;
-}
-
-:root[data-font-size] .learning-growth-settings-page .learning-growth-settings-head strong {
-  font-size: 17px;
-}
-
-:root[data-font-size] .learning-growth-settings-page .learning-growth-settings-head span {
-  font-size: 12px;
 }
 
 :root[data-font-size] .learning-growth-settings-page .learning-growth-tab-list button {

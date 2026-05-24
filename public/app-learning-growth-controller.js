@@ -73,7 +73,7 @@ function renderLearningCoinsView() {
     return;
   }
   if (list) list.innerHTML = `<div class="empty-state small">\u5b66\u4e60\u4efb\u52a1\u5165\u53e3\u3002</div>`;
-  $("threadTitle").textContent = "\u4efb\u52a1";
+  $("threadTitle").textContent = state.learningGrowthSettingsOpen ? "\u8bbe\u7f6e" : "\u4efb\u52a1";
   $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
   configureComposer({ enabled: false, placeholder: "\u5b66\u4e60\u4efb\u52a1" });
@@ -140,7 +140,10 @@ function selectLearningGrowthBoardLane(laneId) {
 function openLearningGrowthSettingsPage() {
   state.learningGrowthSettingsOpen = true; state.learningGrowthActiveTab = state.learningGrowthActiveTab || "overview";
   state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
-  renderLearningCoinsView(); window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
+  renderLearningCoinsView();
+  const conversation = $("conversation");
+  if (conversation) conversation.scrollTop = 0;
+  window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
 }
 
 function closeLearningGrowthSettingsPage() {
@@ -565,7 +568,6 @@ function wireLearningCoinsView() {
   $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
   });
-  $("conversation")?.querySelector("[data-learning-growth-close-settings]")?.addEventListener("click", closeLearningGrowthSettingsPage);
   $("conversation")?.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
     button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
   });

@@ -759,25 +759,14 @@
 
   function renderOwnerSettingsPage(programUi, coinsUi, overview = {}, options = {}) {
     if (!isOwner(options) || !programUi || typeof renderOwnerProgramTabs !== "function") return "";
-    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const coins = options.coins || overview.coins || {};
     const learnerId = overview.learner?.id || options.learnerId;
-    const learnerLabel = overview.learner?.displayName
-      || (learnerId === "weixin_stephen" ? "鍑″嚒" : learnerId)
-      || "\u6267\u884c\u8005";
     const coinsHtml = coinsUi && typeof coinsUi.renderCoinsSubsystem === "function"
       ? coinsUi.renderCoinsSubsystem({ summary: coins, learnerId, state: options.state || {}, escapeHtml: optionFn(options, "escapeHtml", defaultEscapeHtml) })
       : "";
     const adminHtml = renderOwnerProgramTabs(programUi, coinsHtml, overview, options);
     if (!adminHtml) return "";
     return `<div class="learning-growth-view learning-growth-settings-page" data-learning-product="fanfan-growth" data-learning-role="owner" data-learning-growth-settings-page>
-      <div class="learning-growth-settings-head">
-        <button type="button" data-learning-growth-close-settings>\u8fd4\u56de\u770b\u677f</button>
-        <div>
-          <strong>\u8bbe\u7f6e</strong>
-          <span>${escapeHtml(learnerLabel)}</span>
-        </div>
-      </div>
       ${adminHtml}
     </div>`;
   }
