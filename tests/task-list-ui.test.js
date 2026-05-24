@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-ui-foundation-warm-neutral-v154";
+const CLIENT_VERSION = "20260524-ui-phase2-light-lists-v155";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -204,6 +204,7 @@ assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]
 assert.match(stylesCss, /--ui-accent: #6b858c;/);
 assert.match(stylesCss, /--ui-accent-fill: rgba\(144, 166, 170, 0\.20\);/);
 assert.match(stylesCss, /\.bottom-tab\.active \{[\s\S]*?color: var\(--ui-accent\);/);
+assert.match(stylesCss, /\.bottom-tab\.active \.bottom-tab-icon \{[\s\S]*?background: var\(--ui-accent-soft\);[\s\S]*?transform: translateY\(-1px\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.topbar \{[\s\S]*?border-bottom-color: var\(--ui-hairline\);[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \{[\s\S]*?width: 36px;[\s\S]*?height: 36px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \.top-nav-button-glyph \{[\s\S]*?width: 28px;[\s\S]*?font-size: 15px;/);
@@ -221,6 +222,11 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-segment \{[\s\S]*?min-height: 30px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-header-button \{[\s\S]*?min-height: 26px;[\s\S]*?font-size: 15px !important;[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /\.chat-scope-header-button\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.thread-card \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;/);
+assert.match(stylesCss, /\.thread-card\.active \{[\s\S]*?border-color: rgba\(144, 166, 170, 0\.28\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.message \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.task-card \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.directory-entry-list \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);

@@ -687,6 +687,14 @@ button {
   position: relative;
   display: block;
   color: currentColor;
+  border-radius: 999px;
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.bottom-tab.active .bottom-tab-icon {
+  background: var(--ui-accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(144, 166, 170, 0.18);
+  transform: translateY(-1px);
 }
 
 .bottom-tab-label {
@@ -1028,19 +1036,19 @@ button {
 
 .thread-card {
   text-align: left;
-  padding: 13px;
+  padding: 12px 13px;
   color: var(--ink);
-  background: rgba(255, 250, 241, 0.54);
-  border: 1px solid transparent;
-  border-radius: 16px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
   display: grid;
   gap: 6px;
 }
 
 .thread-card.active {
-  border-color: rgba(31, 111, 98, 0.42);
-  background: var(--panel-strong);
-  box-shadow: 0 12px 30px rgba(31, 111, 98, 0.10);
+  border-color: rgba(144, 166, 170, 0.28);
+  background: rgba(255, 252, 246, 0.86);
+  box-shadow: none;
 }
 
 .thread-card-title {
@@ -1788,33 +1796,32 @@ button {
   max-width: 100%;
   min-width: 0;
   margin: 0 auto 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
-  box-shadow: 0 10px 28px rgba(34, 28, 20, 0.07);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  box-shadow: none;
   overflow: hidden;
 }
 
 .message.user {
-  background: rgba(31, 111, 98, 0.08);
-  border-color: rgba(31, 111, 98, 0.22);
+  background: rgba(244, 248, 246, 0.72);
+  border-color: rgba(144, 166, 170, 0.20);
 }
 
 .message.assistant {
   color: #142027;
-  background:
-    linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(250, 244, 234, 0.94));
-  border-color: rgba(154, 107, 47, 0.20);
+  background: rgba(255, 252, 246, 0.82);
+  border-color: rgba(154, 107, 47, 0.12);
 }
 
 .message.chat-search-match {
-  border-color: rgba(31, 111, 98, 0.34);
-  box-shadow: 0 12px 30px rgba(31, 111, 98, 0.10);
+  border-color: rgba(144, 166, 170, 0.34);
+  box-shadow: 0 0 0 2px rgba(144, 166, 170, 0.10);
 }
 
 .message.chat-search-current-match {
-  border-color: rgba(31, 111, 98, 0.58);
-  box-shadow: 0 0 0 3px rgba(31, 111, 98, 0.10), 0 14px 34px rgba(31, 111, 98, 0.14);
+  border-color: rgba(144, 166, 170, 0.52);
+  box-shadow: 0 0 0 3px rgba(144, 166, 170, 0.12);
 }
 
 .run-progress-panel {
@@ -1931,13 +1938,13 @@ button {
   padding: 10px 13px;
   color: var(--muted);
   font-size: 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-hairline);
 }
 
 .message.assistant .message-head {
-  color: #7e6846;
-  background: rgba(255, 248, 235, 0.58);
-  border-bottom-color: rgba(154, 107, 47, 0.14);
+  color: #7f735f;
+  background: rgba(255, 252, 246, 0.36);
+  border-bottom-color: rgba(31, 43, 51, 0.055);
 }
 
 .message-head-main-wrap {
@@ -2925,10 +2932,10 @@ button.directory-alias-chip {
   gap: 10px;
   padding: 15px;
   color: var(--ink);
-  background: rgba(255, 250, 241, 0.72);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  box-shadow: 0 12px 32px rgba(34, 28, 20, 0.08);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  box-shadow: none;
 }
 
 .task-card-main {
@@ -2940,7 +2947,7 @@ button.directory-alias-chip {
   align-items: center;
   gap: 9px;
   padding: 10px 12px;
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .task-card-collapsed .task-card-main {
@@ -5380,9 +5387,9 @@ body.task-markdown-preview-open {
 
 .directory-entry-list {
   display: block;
-  background: rgba(255, 252, 246, 0.78);
-  border: 1px solid var(--line);
-  border-radius: 18px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
   overflow: visible;
 }
 
@@ -5393,7 +5400,7 @@ body.task-markdown-preview-open {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
   gap: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-hairline);
 }
 
 .directory-entry.menu-open {
