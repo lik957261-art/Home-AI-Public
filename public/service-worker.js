@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260524-webpush-route-focus-v157";
+const HERMES_SW_VERSION = "20260524-webpush-pwa-window-v158";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,74 +8,74 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260524-webpush-route-focus-v157",
-  "/markdown-viewer.html?v=20260524-webpush-route-focus-v157",
-  "/app-task-artifact-helpers.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-story-helpers.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-reading-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-coins-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-program-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-growth-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-growth-task-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-growth-reflection-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-api-client.js?v=20260524-webpush-route-focus-v157",
-  "/app.js?v=20260524-webpush-route-focus-v157",
-  "/app-codex-mux-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-shell-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-task-groups-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-chat-composer-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-composer-source-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-composer-context-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-run-progress-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-navigation-search-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-task-preview-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-sidebar-task-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-message-skill-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-message-actions-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-platform-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-pwa-settings-push-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-workspace-admin-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-access-key-manager-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-share-image-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-draft-thread-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-directory-automation-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-shared-directory-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-automation-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-native-growth-submission-controller.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-growth-ai-controller.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-growth-reward-controller.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-growth-settings-controller.js?v=20260524-webpush-route-focus-v157",
-  "/app-learning-growth-controller.js?v=20260524-webpush-route-focus-v157",
-  "/app-automation-controller-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-thread-state-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-group-topic-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-core-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-story-core-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-todo-core-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-render-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-list-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-learning-panel-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-recorder-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-todo-detail-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-actions-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-composer-actions-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-card-actions-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-kanban-study-actions-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-thread-message-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-thread-list-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-thread-directory-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-thread-card-message-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-long-message-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-rich-text-directory-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-message-usage-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-events-composer-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-event-stream-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-upload-sidebar-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-composer-send-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-wire-start-ui.js?v=20260524-webpush-route-focus-v157",
-  "/app-start.js?v=20260524-webpush-route-focus-v157",
+  "/styles.css?v=20260524-webpush-pwa-window-v158",
+  "/markdown-viewer.html?v=20260524-webpush-pwa-window-v158",
+  "/app-task-artifact-helpers.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-story-helpers.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-reading-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-coins-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-program-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-growth-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-growth-task-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-growth-reflection-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-api-client.js?v=20260524-webpush-pwa-window-v158",
+  "/app.js?v=20260524-webpush-pwa-window-v158",
+  "/app-codex-mux-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-shell-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-task-groups-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-chat-composer-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-composer-source-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-composer-context-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-run-progress-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-navigation-search-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-task-preview-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-sidebar-task-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-message-skill-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-message-actions-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-platform-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-pwa-settings-push-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-workspace-admin-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-access-key-manager-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-share-image-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-draft-thread-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-directory-automation-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-shared-directory-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-automation-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-native-growth-submission-controller.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-growth-ai-controller.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-growth-reward-controller.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-growth-settings-controller.js?v=20260524-webpush-pwa-window-v158",
+  "/app-learning-growth-controller.js?v=20260524-webpush-pwa-window-v158",
+  "/app-automation-controller-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-thread-state-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-group-topic-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-core-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-story-core-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-todo-core-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-render-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-list-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-learning-panel-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-recorder-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-todo-detail-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-actions-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-composer-actions-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-card-actions-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-kanban-study-actions-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-thread-message-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-thread-list-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-thread-directory-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-thread-card-message-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-long-message-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-rich-text-directory-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-message-usage-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-events-composer-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-event-stream-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-upload-sidebar-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-composer-send-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-wire-start-ui.js?v=20260524-webpush-pwa-window-v158",
+  "/app-start.js?v=20260524-webpush-pwa-window-v158",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260524-webpush-route-focus-v157",
+  "/markdown-renderer-client.js?v=20260524-webpush-pwa-window-v158",
   "/file-viewer.html",
   "/manifest-20260509.json",
   "/icons/hermes-mobile-icon-192-20260509.png",
@@ -309,6 +309,16 @@ function postNotificationOpenToClient(client, targetUrl, notificationData) {
   }
 }
 
+function appWindowRouteForUrl(url) {
+  try {
+    const parsed = url instanceof URL ? url : new URL(url || "/", self.location.origin);
+    if (parsed.origin !== self.location.origin) return "/";
+    return `${parsed.pathname || "/"}${parsed.search || ""}${parsed.hash || ""}`;
+  } catch (_) {
+    return "/";
+  }
+}
+
 async function postPushReceipt(payload, notification, foreground) {
   try {
     await fetch("/api/push/receipt", {
@@ -384,6 +394,7 @@ self.addEventListener("notificationclick", (event) => {
   const rawTargetUrl = routeUrlForNotificationData(notificationData);
   const parsedTargetUrl = new URL(rawTargetUrl, self.location.origin);
   const targetUrl = parsedTargetUrl.origin === self.location.origin ? parsedTargetUrl.href : `${self.location.origin}/`;
+  const targetWindowRoute = appWindowRouteForUrl(parsedTargetUrl);
   event.waitUntil((async () => {
     const windowClients = await sameOriginWindowClients();
     for (const client of windowClients.filter(isAppShellClient)) {
@@ -395,7 +406,7 @@ self.addEventListener("notificationclick", (event) => {
       let targetClient = client;
       if ("navigate" in client) {
         try {
-          targetClient = await client.navigate(targetUrl) || client;
+          targetClient = await client.navigate(targetWindowRoute) || client;
         } catch (_) {
           targetClient = client;
         }
@@ -404,6 +415,6 @@ self.addEventListener("notificationclick", (event) => {
       await targetClient.focus();
       return;
     }
-    await self.clients.openWindow(targetUrl);
+    await self.clients.openWindow(targetWindowRoute);
   })());
 });

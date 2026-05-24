@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-webpush-route-focus-v157";
+const CLIENT_VERSION = "20260524-webpush-pwa-window-v158";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1443,7 +1443,9 @@ assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>
 assert.ok(indexHtml.includes(CLIENT_VERSION));
 assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
 assert.match(serviceWorkerJs, /function isAppShellClient\(client\) \{[\s\S]*?url\.pathname === "\/"[\s\S]*?url\.pathname === "\/hermes-mobile\/"/);
+assert.match(serviceWorkerJs, /function appWindowRouteForUrl\(url\) \{[\s\S]*?return `\$\{parsed\.pathname \|\| "\/"\}\$\{parsed\.search \|\| ""\}\$\{parsed\.hash \|\| ""\}`;/);
 assert.match(serviceWorkerJs, /const rawTargetUrl = routeUrlForNotificationData\(notificationData\);/);
+assert.match(serviceWorkerJs, /const targetWindowRoute = appWindowRouteForUrl\(parsedTargetUrl\);/);
 assert.match(serviceWorkerJs, /for \(const client of windowClients\.filter\(isAppShellClient\)\) \{[\s\S]*?postNotificationOpenToClient\(client, targetUrl, notificationData\);[\s\S]*?await client\.focus\(\);[\s\S]*?return;/);
 {
   const appShellLoopStart = serviceWorkerJs.indexOf("for (const client of windowClients.filter(isAppShellClient))");
@@ -1455,6 +1457,9 @@ assert.ok(
   serviceWorkerJs.indexOf("if (data.automationId)") < serviceWorkerJs.indexOf("return explicitUrl || \"/\";"),
   "notification structured route fields should take precedence over explicit file/preview urls",
 );
+assert.match(serviceWorkerJs, /client\.navigate\(targetWindowRoute\)/);
+assert.match(serviceWorkerJs, /self\.clients\.openWindow\(targetWindowRoute\)/);
+assert.doesNotMatch(serviceWorkerJs, /self\.clients\.openWindow\(targetUrl\)/);
 assert.ok(appJs.includes("window.TaskDocumentPreviewUi?.closeArtifactPreviewOverlays?.()"));
 assert.match(serviceWorkerJs, /function isViewerShellRequest\(url\) \{[\s\S]*?url\.pathname === "\/file-viewer\.html"/);
 assert.match(serviceWorkerJs, /\/markdown-viewer\.html\?v=/);
