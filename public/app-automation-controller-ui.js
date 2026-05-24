@@ -5,11 +5,19 @@ function automationRequestParams(options = {}) {
   params.set("workspaceId", state.selectedWorkspaceId || "owner");
   params.set("includeDisabled", "1");
   params.set("limit", "200");
-  params.set("detail", options.detail === "full" || options.refresh ? "full" : "summary");
+  params.set("detail", options.detail === "summary" ? "summary" : "full");
   const search = currentSearchText();
   if (search) params.set("search", search);
   if (options.refresh) params.set("refresh", "1");
   return params;
+}
+
+function automationFullStorageKey(params) {
+  const copy = new URLSearchParams(params);
+  copy.delete("refresh");
+  copy.delete("fresh");
+  copy.set("detail", "full");
+  return `hermes:automation:full:${copy.toString()}`;
 }
 
 function automationRequestCacheKey(params) {
@@ -25,6 +33,29 @@ function automationSummaryCacheKey(params) {
   copy.delete("fresh");
   copy.set("detail", "summary");
   return copy.toString();
+}
+
+function readAutomationFullCache(params) {
+  try {
+    const raw = window.localStorage?.getItem(automationFullStorageKey(params));
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    return Array.isArray(payload?.data) ? payload : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeAutomationFullCache(params, result = {}) {
+  if ((params?.get("detail") || "") !== "full" || !Array.isArray(result.data)) return;
+  try {
+    window.localStorage?.setItem(automationFullStorageKey(params), JSON.stringify({
+      savedAt: new Date().toISOString(),
+      data: result.data,
+      source: result.source || {},
+      warning: result.warning || "",
+    }));
+  } catch (_) {}
 }
 
 function automationIsSummaryJob(job) {
@@ -100,6 +131,21 @@ async function loadAutomations(options = {}) {
   const params = automationRequestParams(options);
   const cacheKey = automationRequestCacheKey(params);
   const summaryCacheKey = automationSummaryCacheKey(params);
+  if (!options.refresh && params.get("detail") === "full") {
+    const cached = readAutomationFullCache(params);
+    if (cached?.data?.length) {
+      state.automations = cached.data;
+      state.automationSource = Object.assign({}, cached.source || {}, { warning: cached.warning || "", cached: true });
+      state.automationCacheKey = cacheKey;
+      state.automationFullCacheKey = summaryCacheKey;
+      state.automationLastLoadedAt = Date.now();
+      state.automationLoading = false;
+      renderAutomationView();
+      window.setTimeout(() => loadAutomations({ detail: "full", refresh: true, silent: true }).catch(showError), 0);
+      setComposerEnabled(false);
+      return;
+    }
+  }
   const cacheFresh = state.automationCacheKey === cacheKey
     && state.automationLastLoadedAt
     && Date.now() - state.automationLastLoadedAt < 10000;
@@ -110,11 +156,11 @@ async function loadAutomations(options = {}) {
     return;
   }
   const seq = ++state.automationRequestSeq;
-  state.automationLoading = true;
-  if (state.automations.length) {
+  state.automationLoading = !options.silent;
+  if (!options.silent && state.automations.length) {
     $("connectionState").textContent = "刷新 CRON";
   }
-  renderAutomationView();
+  if (!options.silent) renderAutomationView();
   let result;
   try {
     result = await api(`/api/automations?${params}`);
@@ -128,6 +174,7 @@ async function loadAutomations(options = {}) {
   if (seq !== state.automationRequestSeq) return;
   const detail = params.get("detail") || "summary";
   state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || [], { preferIncomingOrder: true }) : (result.data || []);
+  if (detail === "full") writeAutomationFullCache(params, result);
   state.automationSource = Object.assign({}, result.source || {}, { warning: result.warning || "" });
   state.automationCacheKey = cacheKey;
   if (detail === "full") {
@@ -147,7 +194,7 @@ async function loadAutomations(options = {}) {
     state.automationOutputHistoryOpen = false;
   }
   updateSearchButton();
-  renderAutomationView();
+  if (!options.silent) renderAutomationView();
   if (detail !== "full") scheduleAutomationDetailHydration(summaryCacheKey);
   setComposerEnabled(false);
   $("connectionState").textContent = "Hermes OK";
@@ -560,7 +607,7 @@ async function createAutomationFromForm(root) {
     });
     state.automationCreateOpen = false;
     state.selectedAutomationId = result?.job?.id || result?.data?.id || "";
-    await loadAutomations();
+    await loadAutomations({ detail: "full", refresh: true });
     $("connectionState").textContent = "Hermes OK";
   } finally {
     if (submit) submit.disabled = false;
@@ -607,7 +654,7 @@ async function toggleAutomationPause() {
   const action = automationStatusLabel(job) === "paused" ? "resume" : "pause";
   await postAutomationAction(job.id, action);
   state.selectedAutomationId = job.id;
-  await loadAutomations();
+  await loadAutomations({ detail: "full", refresh: true });
 }
 
 async function deleteAutomationJob() {
@@ -619,7 +666,7 @@ async function deleteAutomationJob() {
   state.automationEditOpen = false;
   state.automationEditJobId = "";
   state.automationOutputHistoryOpen = false;
-  await loadAutomations();
+  await loadAutomations({ detail: "full", refresh: true });
 }
 
 async function updateAutomationFromForm(root) {
@@ -639,7 +686,7 @@ async function updateAutomationFromForm(root) {
     state.automationEditOpen = false;
     state.automationEditJobId = "";
     state.selectedAutomationId = result?.job?.id || jobId;
-    await loadAutomations();
+    await loadAutomations({ detail: "full", refresh: true });
   } finally {
     if (submit) submit.disabled = false;
   }
