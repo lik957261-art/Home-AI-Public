@@ -358,6 +358,8 @@ function testReviewedEnglishRetellCanReopenReadingMaterial() {
     },
   }, { evaluations: [], taskSubmissions: [{
     taskCardId: "task-native-reading-retell",
+    submissionId: "sub-1",
+    attemptNo: 1,
     submittedAt: "2026-05-23T12:34:50.168Z",
     displayText: "This is the server transcript and it should be collapsed when audio exists.",
     audio: {
@@ -367,7 +369,32 @@ function testReviewedEnglishRetellCanReopenReadingMaterial() {
       size: 2048,
       url: "/api/files?path=retell.webm",
     },
-  }], taskReflections: [] }, {
+  }, {
+    taskCardId: "task-native-reading-retell",
+    submissionId: "sub-2",
+    attemptNo: 2,
+    submittedAt: "2026-05-23T12:54:50.168Z",
+    displayText: "This is the latest server transcript and it should stay collapsed when audio exists.",
+    audio: {
+      kind: "audio",
+      name: "retell-second.webm",
+      mime: "audio/webm",
+      size: 4096,
+      url: "/api/learning/task-submissions/sub-2/audio",
+    },
+  }], taskReflections: [{
+    taskCardId: "task-native-reading-retell",
+    reflectionId: "refl-1",
+    submittedAt: "2026-05-23T13:04:50.168Z",
+    status: "accepted",
+    audio: {
+      kind: "audio",
+      name: "reflection.webm",
+      mime: "audio/webm",
+      size: 2048,
+      url: "/api/learning/task-reflections/refl-1/audio",
+    },
+  }] }, {
     state: { auth: { isOwner: false } },
   });
   assert.ok(html.indexOf("data-learning-growth-reading-material") < html.indexOf("data-learning-growth-previous-submission"));
@@ -377,6 +404,12 @@ function testReviewedEnglishRetellCanReopenReadingMaterial() {
   assert.match(html, /This compact passage is the original reading material/);
   assert.match(html, /data-learning-growth-submission-audio/);
   assert.match(html, /<audio controls preload="metadata" src="\/api\/files\?path=retell\.webm&amp;format=mp3"><\/audio>/);
+  assert.match(html, /data-learning-growth-audio-evidence/);
+  assert.match(html, /data-learning-growth-audio-evidence-item="sub-1"/);
+  assert.match(html, /data-learning-growth-audio-evidence-item="sub-2"/);
+  assert.match(html, /data-learning-growth-audio-evidence-item="refl-1"/);
+  assert.match(html, /\/api\/learning\/task-submissions\/sub-2\/audio\?format=mp3/);
+  assert.match(html, /\/api\/learning\/task-reflections\/refl-1\/audio\?format=mp3/);
   assert.match(html, /learning-growth-submission-transcript/);
   assert.match(html, /\u67e5\u770b\u8f6c\u5199\u5185\u5bb9/);
   assert.doesNotMatch(html, /<details class="learning-growth-submission-transcript" open>/);

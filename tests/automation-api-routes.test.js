@@ -201,19 +201,53 @@ async function testRouteMetadataAndFallthrough() {
 
 async function testListFiltersWorkspaceOwnerAndSearch() {
   const { routes, calls } = makeRoutes();
-  const got = await request(routes, "GET", "/api/automations?workspaceId=child&search=search&limit=1&fresh=1");
+  const got = await request(routes, "GET", "/api/automations?workspaceId=child&search=search&limit=1&fresh=1&detail=summary");
   assert.equal(got.result.handled, true);
   assert.equal(got.res.statusCode, 200);
   assert.deepEqual(calls.workspaceAccess, ["child"]);
-  assert.deepEqual(calls.cronList, [{ includeDisabled: true, bypassCache: true, ownerPrincipalId: "principal-child" }]);
-  assert.deepEqual(got.body.data.map((job) => job.id), ["beta"]);
+  assert.deepEqual(calls.cronList, [{ includeDisabled: true, bypassCache: true, ownerPrincipalId: "principal-child", detail: "summary" }]);
+  assert.deepEqual(got.body.data.map((job) => job.id), ["alpha"]);
   assert.deepEqual(got.body.source, {
     name: "hermes_cron",
     jobCount: 1,
+    detailLevel: "summary",
     totalJobCount: 3,
     workspaceId: "child",
     ownerPrincipalId: "principal-child",
   });
+}
+
+async function testListFullDetailKeepsDeliverableSort() {
+  const { routes, calls } = makeRoutes({
+    runCronListBridgeCached(payload) {
+      calls.cronList.push(payload);
+      return Promise.resolve({
+        ok: true,
+        jobs: [
+          {
+            id: "next",
+            name: "Next",
+            ownerPrincipalId: "principal-child",
+            nextRunAt: "2026-01-01T00:00:00Z",
+            outputDocuments: [],
+          },
+          {
+            id: "delivered",
+            name: "Delivered",
+            ownerPrincipalId: "principal-child",
+            updatedAt: "2026-02-01T00:00:00Z",
+            outputDocuments: [{ updatedAt: "2026-02-01T00:00:00Z" }],
+          },
+        ],
+        source: { name: "hermes_cron", jobCount: 2 },
+      });
+    },
+  });
+  const got = await request(routes, "GET", "/api/automations?workspaceId=child&detail=full");
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.cronList, [{ includeDisabled: true, bypassCache: false, ownerPrincipalId: "principal-child", detail: "full" }]);
+  assert.deepEqual(got.body.data.map((job) => job.id), ["delivered", "next"]);
+  assert.equal(got.body.source.detailLevel, "full");
 }
 
 async function testCreateDryRunAndCreateFailure() {
@@ -354,6 +388,7 @@ function testDependencyValidation() {
 (async () => {
   await testRouteMetadataAndFallthrough();
   await testListFiltersWorkspaceOwnerAndSearch();
+  await testListFullDetailKeepsDeliverableSort();
   await testCreateDryRunAndCreateFailure();
   await testActionDecodesJobAndClearsCache();
   await testPushTickOwnerOnly();

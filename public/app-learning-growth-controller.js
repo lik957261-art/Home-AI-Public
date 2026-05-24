@@ -22,9 +22,7 @@ function setLearningGrowthLearnerWorkspaceId(workspaceId) {
   if (!target || !state.auth?.isOwner) return;
   state.learningGrowthWorkspaceId = target;
 }
-
 function learningCoinStudentId() { return learningGrowthLearnerWorkspaceId(); }
-
 function learningCoinRequestParams(options = {}) {
   const params = new URLSearchParams();
   params.set("workspaceId", learningGrowthLearnerWorkspaceId());
@@ -32,25 +30,22 @@ function learningCoinRequestParams(options = {}) {
   params.set("limit", String(options.limit || 30));
   return params;
 }
-
 function learningCoinCurrentScopeKey() {
   return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`;
 }
-
 function isLearningGrowthViewActive() {
   return state.viewMode === "learning";
 }
-
 function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
   state.learningGrowth = null; state.learningGrowthBoardLane = "";
   state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
+  state.learningGrowthHistoryTaskCardId = "";
   state.learningGrowthSettingsOpen = false;
   state.learningCoins = null; state.learningCoinsError = "";
   state.learningParentReport = null; state.learningParentReportError = "";
   state.learningParentReportLoading = false; state.learningCoinScopeKey = learningCoinCurrentScopeKey();
 }
-
 function renderLearningCoinsView() {
   if (!isLearningGrowthViewActive()) return;
   state.currentThread = null;
@@ -69,7 +64,7 @@ function renderLearningCoinsView() {
     return;
   }
   if (list) list.innerHTML = `<div class="empty-state small">\u5b66\u4e60\u4efb\u52a1\u5165\u53e3\u3002</div>`;
-  $("threadTitle").textContent = state.learningGrowthSettingsOpen ? "\u8bbe\u7f6e" : "\u4efb\u52a1";
+  $("threadTitle").textContent = state.learningGrowthSettingsOpen ? "\u8bbe\u7f6e" : (state.learningGrowthHistoryTaskCardId ? "\u5386\u53f2" : "\u4efb\u52a1");
   $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
   configureComposer({ enabled: false, placeholder: "\u5b66\u4e60\u4efb\u52a1" });
@@ -96,7 +91,6 @@ function renderLearningCoinsView() {
   ensureVerticalScrollAffordance();
   return;
 }
-
 function selectLearningGrowthTab(tabId) {
   const id = String(tabId || "").trim();
   const root = $("conversation");
@@ -113,7 +107,6 @@ function selectLearningGrowthTab(tabId) {
     panel.hidden = !active;
   }); if (id === "ai-analysis") window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
 }
-
 function selectLearningGrowthBoardLane(laneId) {
   const root = $("conversation"), id = String(laneId || "").trim();
   if (!root || !id) return;
@@ -132,21 +125,19 @@ function selectLearningGrowthBoardLane(laneId) {
     panel.dataset.growthBoardActiveLane = id;
   });
 }
-
 function openLearningGrowthSettingsPage() {
   state.learningGrowthSettingsOpen = true; state.learningGrowthActiveTab = state.learningGrowthActiveTab || "overview";
   state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
+  state.learningGrowthHistoryTaskCardId = "";
   renderLearningCoinsView();
   const conversation = $("conversation");
   if (conversation) conversation.scrollTop = 0;
   window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
 }
-
 function closeLearningGrowthSettingsPage() {
   state.learningGrowthSettingsOpen = false; state.learningGrowthSettingsTaskId = "";
   renderLearningCoinsView();
 }
-
 async function loadLearningCoins(options = {}) {
   const seq = ++state.learningCoinRequestSeq;
   const scopeKey = learningCoinCurrentScopeKey();
@@ -172,7 +163,6 @@ async function loadLearningCoins(options = {}) {
     }
   }
 }
-
 async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   const id = String(taskCardId || "").trim();
   if (!id) return;
@@ -186,6 +176,7 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   state.viewMode = "learning";
   localStorage.setItem("hermesWebViewMode", "learning");
   state.learningGrowthSettingsOpen = false;
+  state.learningGrowthHistoryTaskCardId = "";
   state.selectedLearningTaskCardId = id;
   state.selectedTodoId = "";
   state.todoRouteMissingTargetId = "";
@@ -197,6 +188,15 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   const boardCard = state.learningGrowth?.board?.cards?.find((card) => String(card.taskCardId || "") === id);
   if (boardCard?.laneId) state.learningGrowthBoardLane = boardCard.laneId;
 }
+async function openLearningGrowthHistory(taskCardId, workspaceId = "") {
+  const id = String(taskCardId || "").trim(); if (!id) return;
+  const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId();
+  setLearningGrowthLearnerWorkspaceId(targetWorkspaceId); state.viewMode = "learning"; localStorage.setItem("hermesWebViewMode", "learning");
+  state.learningGrowthSettingsOpen = false; state.selectedLearningTaskCardId = ""; state.learningGrowthHistoryTaskCardId = id; state.selectedTodoId = "";
+  renderLearningCoinsView(); await loadLearningCoins({ limit: 80 });
+}
+
+function closeLearningGrowthHistory() { state.learningGrowthHistoryTaskCardId = ""; renderLearningCoinsView(); }
 
 async function openLearningKanbanCard(todoId, workspaceId = "") {
   const id = String(todoId || "").trim(); if (!id) return;
@@ -554,10 +554,12 @@ function wireLearningCoinsView() {
   const root = $("conversation");
   if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks(root);
   if (root && !root.dataset.learningGrowthOpenDelegated) { root.dataset.learningGrowthOpenDelegated = "1"; root.addEventListener("click", (event) => {
-    const growth = event.target?.closest?.("[data-learning-open-growth-task]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]"), edit = event.target?.closest?.("[data-learning-native-growth-edit-answer]"), manualPass = event.target?.closest?.("[data-learning-growth-manual-pass]");
+    const growth = event.target?.closest?.("[data-learning-open-growth-task]"), history = event.target?.closest?.("[data-learning-open-growth-history]"), historyBack = event.target?.closest?.("[data-learning-growth-history-back]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]"), edit = event.target?.closest?.("[data-learning-native-growth-edit-answer]"), manualPass = event.target?.closest?.("[data-learning-growth-manual-pass]");
     if (event.target?.closest?.("[data-directory-path-open]")) return;
     if (manualPass && root.contains(manualPass)) { event.preventDefault(); event.stopPropagation(); manualPassLearningGrowthTask(manualPass.dataset.learningGrowthManualPass).catch(showError); return; }
     if (edit && root.contains(edit)) { event.preventDefault(); event.stopPropagation(); const taskCardId = String(edit.dataset.learningNativeGrowthEditAnswer || "").trim(); if (taskCardId) { state.learningNativeGrowthAnswerEditing = state.learningNativeGrowthAnswerEditing || {}; state.learningNativeGrowthAnswerEditing[taskCardId] = true; renderLearningCoinsView(); } return; }
+    if (historyBack && root.contains(historyBack)) { event.preventDefault(); event.stopPropagation(); closeLearningGrowthHistory(); return; }
+    if (history && root.contains(history)) { event.preventDefault(); event.stopPropagation(); openLearningGrowthHistory(history.dataset.learningOpenGrowthHistory, history.dataset.workspaceId).catch(showError); return; }
     if (growth && root.contains(growth)) { event.preventDefault(); event.stopPropagation(); openLearningGrowthTask(growth.dataset.learningOpenGrowthTask, growth.dataset.workspaceId).catch(showError); return; }
     if (kanban && root.contains(kanban)) { event.preventDefault(); event.stopPropagation(); openLearningKanbanCard(kanban.dataset.learningOpenKanbanCard, kanban.dataset.workspaceId).catch(showError); }
   }); }

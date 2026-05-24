@@ -70,12 +70,11 @@ function closeSidebar() {
   $("sidebarOverlay")?.classList.remove("open");
   restoreTransientProjectRoute();
 }
-
 function backSwipeTarget() {
   if (isSkillDetailView()) return "skill";
   if (isTaskDetailView()) return "task";
-  if (isTodoDetailView()) return "todo";
-  if (state.viewMode === "learning" && state.selectedLearningTaskCardId) return "learning-growth-task";
+  if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
+  if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
   if (isAutomationDetailView()) return "automation";
   if (state.viewMode === "projects" && directoryActivePath()) return "directory";
   return "";
@@ -108,7 +107,8 @@ function applyBackSwipeDrag(swipe, dx) {
 function performBackSwipeAction(target) {
   if (target === "skill") closeSkillDetail();
   else if (target === "task") openTaskList();
-  else if (target === "todo") openTodoList();
+  else if (target === "todo" || target === "todo-create") openTodoList();
+  else if (target === "learning-growth-settings") closeLearningGrowthSettingsPage();
   else if (target === "learning-growth-task") {
     state.selectedLearningTaskCardId = "";
     state.learningGrowthSettingsOpen = false;

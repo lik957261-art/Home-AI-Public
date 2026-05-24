@@ -233,6 +233,12 @@
     return `<button type="button" class="learning-growth-board-artifact-link" data-learning-growth-artifact-link data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(card.title || "\u4ea4\u4ed8\u76ee\u5f55")}" aria-label="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55" title="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55"><span class="learning-growth-board-artifact-icon" aria-hidden="true"></span></button>`;
   }
 
+  function renderHistoryPill(card = {}, escapeHtml = defaultEscapeHtml) {
+    const taskCardId = String(card.taskCardId || card.id || "").trim();
+    if (!taskCardId) return "";
+    return `<button type="button" class="learning-growth-board-history-link" data-learning-open-growth-history="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(card.workspaceId || "")}" aria-label="\u67e5\u770b\u540c\u7cfb\u5217\u5386\u53f2\u5361\u7247" title="\u67e5\u770b\u540c\u7cfb\u5217\u5386\u53f2\u5361\u7247"><span aria-hidden="true"></span></button>`;
+  }
+
   function renderBoardCard(card = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(card.taskCardId || "");
@@ -257,6 +263,7 @@
         ${openTime ? `<small>${escapeHtml(openTime)}${ageText ? ` · \u5df2\u53d1\u5e03 ${escapeHtml(ageText)}` : ""}</small>` : ""}
         ${scoreText ? `<small>${escapeHtml(scoreText)}</small>` : ""}
         ${renderArtifactCountPill(card, artifacts, escapeHtml)}
+        ${renderHistoryPill(card, escapeHtml)}
       </div>
     </article>`;
   }
@@ -822,6 +829,56 @@
     </div>`;
   }
 
+  function findGrowthHistorySeed(overview = {}, taskCardId = "") {
+    const id = String(taskCardId || "");
+    if (!id) return null;
+    return uniqueRewardTasks(overview).find((task) => String(task.taskCardId || task.id || "") === id) || null;
+  }
+
+  function relatedGrowthHistoryCards(overview = {}, seed = {}) {
+    const key = taskSeriesKey(seed);
+    if (!key) return [];
+    return uniqueRewardTasks(overview)
+      .filter((task) => taskSeriesKey(task) === key)
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.completedAt || left.updatedAt || left.createdAt || left.openedAt || left.generatedAt || "") || 0;
+        const rightTime = Date.parse(right.completedAt || right.updatedAt || right.createdAt || right.openedAt || right.generatedAt || "") || 0;
+        return rightTime - leftTime;
+      });
+  }
+
+  function renderGrowthHistoryPage(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(options.state?.learningGrowthHistoryTaskCardId || options.historyTaskCardId || "");
+    const seed = findGrowthHistorySeed(overview, taskCardId);
+    const cards = seed ? relatedGrowthHistoryCards(overview, seed) : [];
+    const workspaceId = String(seed?.workspaceId || overview.learner?.workspaceId || options.workspaceId || "");
+    return `<div class="learning-growth-view learning-growth-history-page" data-learning-growth-history-page="${escapeHtml(taskCardId)}">
+      <section class="learning-coin-panel learning-growth-history-panel">
+        <button type="button" class="learning-settings-back" data-learning-growth-history-back>\u8fd4\u56de\u4efb\u52a1</button>
+        <div class="learning-section-heading">
+          <h3>${escapeHtml(seed ? taskSeriesLabel({ title: seed.title, templateId: seed.templateId || seed.taskModel?.templateId, skillId: seed.skillId }) : "\u5386\u53f2\u5361\u7247")}</h3>
+          <span>${escapeHtml(String(cards.length))}</span>
+        </div>
+        <div class="learning-growth-history-list">
+          ${cards.length ? cards.map((card) => {
+            const id = String(card.taskCardId || card.id || "");
+            const score = Number(card.latestEvaluation?.score);
+            const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
+            const timeText = cardOpenTimeText(card);
+            return `<button type="button" class="learning-growth-history-row" data-learning-open-growth-task="${escapeHtml(id)}" data-workspace-id="${escapeHtml(card.workspaceId || workspaceId)}">
+              <span>
+                <strong>${escapeHtml(card.title || id || "\u5b66\u4e60\u4efb\u52a1")}</strong>
+                <small>${escapeHtml([card.status || card.nextAction || "", timeText, scoreText].filter(Boolean).join(" / "))}</small>
+              </span>
+              <em>${escapeHtml(boardStatusText(card))}</em>
+            </button>`;
+          }).join("") : `<div class="learning-coin-empty">\u6682\u65e0\u540c\u7cfb\u5217\u5386\u53f2\u5361\u7247\u3002</div>`}
+        </div>
+      </section>
+    </div>`;
+  }
+
   function renderLearningGrowthView(options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const overview = options.overview || {};
@@ -834,6 +891,9 @@
       || "Learner";
     const coins = options.coins || overview.coins || {};
     const owner = isOwner(options);
+    if (options.state?.learningGrowthHistoryTaskCardId || options.historyTaskCardId) {
+      return renderGrowthHistoryPage(overview, options);
+    }
     if (options.selectedGrowthTaskCardId || options.state?.selectedLearningTaskCardId) {
       return renderSelectedGrowthTaskView(overview, options);
     }

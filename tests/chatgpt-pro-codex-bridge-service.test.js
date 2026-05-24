@@ -1,6 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const {
   buildCodexPrompt,
   createChatGptProCodexBridgeService,
@@ -21,6 +24,11 @@ async function testStartsCodexMobileThreadAndReturnsFinalAssistantText() {
       assert.match(body.text, /must use the Chrome plugin \/ Chrome skill/);
       assert.match(body.text, /Do not impersonate ChatGPT Pro output/);
       return { ok: true, text: async () => JSON.stringify({ threadId: "thread_1" }) };
+    }
+    if (url.endsWith("/api/threads/thread_1/name")) {
+      const body = JSON.parse(options.body);
+      assert.equal(body.name, "ChatGPT Pro");
+      return { ok: true, text: async () => JSON.stringify({ ok: true }) };
     }
     if (url.endsWith("/api/threads/thread_1")) {
       return {
@@ -44,6 +52,7 @@ async function testStartsCodexMobileThreadAndReturnsFinalAssistantText() {
     workspace: "C:\\Work",
     pollIntervalMs: 1,
     timeoutMs: 1000,
+    statePath: path.join(fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-pro-new-")), "state.json"),
   });
   const result = await service.generate({
     title: "Tesla FSD report",
@@ -52,8 +61,51 @@ async function testStartsCodexMobileThreadAndReturnsFinalAssistantText() {
   });
   assert.equal(result.ok, true);
   assert.equal(result.threadId, "thread_1");
+  assert.equal(result.threadName, "ChatGPT Pro");
   assert.match(result.result_text, /C:\\Report\.docx/);
   assert.equal(calls[0].options.headers["x-codex-mobile-key"], "test-key");
+}
+
+async function testReusesPersistedNamedCodexMobileThread() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-pro-state-"));
+  const statePath = path.join(tempDir, "state.json");
+  fs.writeFileSync(statePath, JSON.stringify({ threadId: "thread_existing", threadName: "ChatGPT Pro" }), "utf8");
+  const calls = [];
+  const fakeFetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.endsWith("/api/threads/thread_existing") && options.method === "GET") {
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          thread: { id: "thread_existing", name: "ChatGPT Pro", status: { type: "idle" }, turns: [] },
+        }),
+      };
+    }
+    if (url.endsWith("/api/threads/thread_existing/name")) {
+      return { ok: true, text: async () => JSON.stringify({ ok: true }) };
+    }
+    if (url.endsWith("/api/threads/thread_existing/messages")) {
+      const body = JSON.parse(options.body);
+      assert.match(body.text, /must use the Chrome plugin \/ Chrome skill/);
+      return { ok: true, text: async () => JSON.stringify({ turn: { id: "turn_2" } }) };
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+  const service = createChatGptProCodexBridgeService({
+    fetch: fakeFetch,
+    key: "test-key",
+    baseUrl: "http://codex.local",
+    workspace: "C:\\Work",
+    pollIntervalMs: 1,
+    timeoutMs: 200,
+    statePath,
+  });
+  const result = await service.generate({ prompt: "Generate text" });
+  assert.equal(result.ok, false);
+  assert.equal(result.threadId, "thread_existing");
+  assert.equal(result.error, "codex_thread_finished_without_result");
+  assert.ok(calls.some((call) => call.url.endsWith("/api/threads/thread_existing/messages")));
+  assert.ok(!calls.some((call) => call.url.endsWith("/api/threads/new-message")));
 }
 
 function testPromptKeepsChatGptProBoundary() {
@@ -85,6 +137,7 @@ function testThreadStatusAndExtraction() {
 }
 async function main() {
   await testStartsCodexMobileThreadAndReturnsFinalAssistantText();
+  await testReusesPersistedNamedCodexMobileThread();
   testPromptKeepsChatGptProBoundary();
   testThreadStatusAndExtraction();
   console.log("chatgpt-pro-codex-bridge-service tests passed");

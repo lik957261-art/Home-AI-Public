@@ -3,6 +3,7 @@
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
 const DEFAULT_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
+const CHATGPT_PRO_MIN_WAIT_MS = 30 * 60 * 1000;
 
 function cleanString(value, fallback = "") {
   const text = String(value || "").trim();
@@ -23,6 +24,16 @@ function defaultDedupe(values = []) {
 
 function objectValue(value, fallback = {}) {
   return value && typeof value === "object" ? value : fallback;
+}
+
+function isChatGptProRunOptions(runOptions = {}) {
+  const text = [
+    runOptions.requiredTool,
+    runOptions.elevationScope,
+    runOptions.sourceIntent,
+    runOptions.provider,
+  ].map((value) => cleanString(value).toLowerCase()).join(" ");
+  return text.includes("chatgpt_pro_generate");
 }
 
 function maybeCall(fn, fallback) {
@@ -258,13 +269,19 @@ function createGatewayRunStartService(options = {}) {
     }
     saveState();
     broadcastMessageUpdated(thread, assistantMessage);
-    streamResponse(taskId, thread.id, assistantMessage.id, request.body, {
+    const streamOptions = {
       gatewayUrl,
       gatewayApiKey: gatewayTarget?.apiKey || "",
       gatewayName: gatewayTarget?.name || "",
       gatewayProfile: gatewayTarget?.profile || "",
       gatewaySource: gatewayTarget?.source || "",
-    });
+    };
+    if (isChatGptProRunOptions(runOptions)) {
+      streamOptions.runStartTimeoutMs = CHATGPT_PRO_MIN_WAIT_MS;
+      streamOptions.runLivenessCheckAfterMs = CHATGPT_PRO_MIN_WAIT_MS;
+      streamOptions.runLivenessStaleAfterMs = 0;
+    }
+    streamResponse(taskId, thread.id, assistantMessage.id, request.body, streamOptions);
     return {
       run_id: taskId,
       status: "started",

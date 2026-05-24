@@ -153,10 +153,12 @@ function testMigrationAndPersistence() {
     kanbanCommentRef: "comment-1",
     submittedAt: "2026-05-16T10:00:00.000Z",
     submissionText: "must not be exposed",
+    audio: { name: "attempt.webm", mime: "audio/webm", size: 1234 },
   });
   assert.equal(submission.submissionId, "submission-1");
   assert.equal(submission.submissionText, "[redacted]");
   assert.equal(submission.textChars, 320);
+  assert.equal(submission.audio.url, "/api/learning/task-submissions/submission-1/audio");
 
   const reflection = repository.saveTaskReflection({
     reflectionId: "reflection-1",

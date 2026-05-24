@@ -348,6 +348,20 @@ async function testStartRunUsesSelectedGatewayProviderFallback() {
   assert.equal(assistant.modelProvider, "openai-codex");
 }
 
+async function testChatGptProRunExtendsStreamWaits() {
+  const { calls, service } = makeHarness();
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), baseAssistantMessage(), {
+    requiredTool: "chatgpt_pro_generate",
+    elevationScope: "chatgpt_pro_generate",
+  });
+
+  assert.equal(calls.streams.length, 1);
+  assert.equal(calls.streams[0].options.runStartTimeoutMs, 30 * 60 * 1000);
+  assert.equal(calls.streams[0].options.runLivenessCheckAfterMs, 30 * 60 * 1000);
+  assert.equal(calls.streams[0].options.runLivenessStaleAfterMs, 0);
+}
+
 async function testConcurrencyErrorStopsBeforeGatewaySelection() {
   const err = new Error("limit");
   err.status = 429;
@@ -390,6 +404,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunPreservesSearchSourceRouting();
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
   await testStartRunUsesSelectedGatewayProviderFallback();
+  await testChatGptProRunExtendsStreamWaits();
   await testConcurrencyErrorStopsBeforeGatewaySelection();
   testMarkStartFailedUsesInjectedHooks();
   console.log("gateway-run-start-service tests passed");

@@ -715,6 +715,19 @@
     };
   }
 
+  function nativeGrowthReflectionAudio(reflection = {}) {
+    const audio = reflection.audio || reflection.raw?.audio || null;
+    if (!audio || typeof audio !== "object") return null;
+    const url = learningGrowthPlayableAudioUrl(String(audio.url || audio.href || "").trim());
+    if (!url) return null;
+    return {
+      url,
+      name: String(audio.name || "\u590d\u76d8\u5f55\u97f3").trim(),
+      mime: String(audio.mime || "audio/webm").trim(),
+      size: Number(audio.size || 0) || 0,
+    };
+  }
+
   function learningGrowthPlayableAudioUrl(url) {
     const raw = String(url || "").trim();
     if (!raw) return "";
@@ -730,6 +743,14 @@
     const structuredResponses = asArray(latest.structuredResponses);
     const displayText = String(latest.displayText || latest.text || "").trim();
     return Object.assign({}, latest, { audio: nativeGrowthSubmissionAudio(latest), displayText, structuredResponses });
+  }
+
+  function recordsForTask(records = [], taskCardId = "", field = "submittedAt") {
+    const id = String(taskCardId || "");
+    return asArray(records)
+      .filter((record) => String(record?.taskCardId || "") === id)
+      .slice()
+      .sort((a, b) => String(b?.[field] || b?.updatedAt || b?.createdAt || "").localeCompare(String(a?.[field] || a?.updatedAt || a?.createdAt || "")));
   }
 
   function structuredResponseMap(submission = {}) {
@@ -773,6 +794,41 @@
         }).join("")}
       </div>` : ""}
       ${displayText && !responses.length ? `<details class="learning-growth-submission-transcript" ${audio ? "" : "open"}><summary>\u67e5\u770b\u8f6c\u5199\u5185\u5bb9</summary><p>${escapeHtml(displayText)}</p></details>` : ""}
+    </section>`;
+  }
+
+  function renderNativeGrowthAudioEvidence(task = {}, data = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    if (!taskCardId) return "";
+    const submissionItems = recordsForTask(data.taskSubmissions || [], taskCardId, "submittedAt")
+      .map((submission) => Object.assign({}, submission, { audio: nativeGrowthSubmissionAudio(submission), evidenceType: "submission" }))
+      .filter((item) => item.audio);
+    const reflectionItems = recordsForTask(data.taskReflections || [], taskCardId, "submittedAt")
+      .map((reflection) => Object.assign({}, reflection, { audio: nativeGrowthReflectionAudio(reflection), evidenceType: "reflection" }))
+      .filter((item) => item.audio);
+    const items = submissionItems.concat(reflectionItems)
+      .sort((a, b) => String(b.submittedAt || b.updatedAt || b.createdAt || "").localeCompare(String(a.submittedAt || a.updatedAt || a.createdAt || "")));
+    if (!items.length) return "";
+    const label = (item, index) => {
+      if (item.evidenceType === "reflection") return `\u590d\u76d8\u5f55\u97f3 ${reflectionItems.length - reflectionItems.indexOf(item)}`;
+      const attempt = Number(item.attemptNo || 0);
+      return attempt ? `\u7b2c ${attempt} \u6b21\u63d0\u4ea4\u5f55\u97f3` : `\u63d0\u4ea4\u5f55\u97f3 ${index + 1}`;
+    };
+    return `<section class="learning-growth-audio-evidence" data-learning-growth-audio-evidence>
+      ${renderLearningGrowthSectionHead("\u5f55\u97f3\u8bc1\u636e", `<span>${escapeHtml(String(items.length))}</span>`, escapeHtml)}
+      <div class="learning-growth-audio-evidence-list">
+        ${items.map((item, index) => {
+          const submittedAt = nativeGrowthTimeLabel(item.submittedAt || item.createdAt || item.updatedAt || "", options);
+          return `<article class="learning-growth-audio-evidence-item" data-learning-growth-audio-evidence-item="${escapeHtml(item.submissionId || item.reflectionId || String(index + 1))}">
+            <div>
+              <strong>${escapeHtml(label(item, index))}</strong>
+              <small>${escapeHtml([submittedAt, item.status || ""].filter(Boolean).join(" / "))}</small>
+            </div>
+            <audio controls preload="metadata" src="${escapeHtml(item.audio.url)}"></audio>
+          </article>`;
+        }).join("")}
+      </div>
     </section>`;
   }
 
@@ -1163,6 +1219,7 @@
       ${renderTaskRewardPolicy(taskForForm, options)}
       ${renderNativeGrowthReadingMaterial(taskForForm, options)}
       ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
+      ${renderNativeGrowthAudioEvidence(taskForForm, data, options)}
       ${latestEvaluation ? `<section class="learning-growth-answer-feedback">${renderNativeGrowthFeedbackHead(taskForForm, latestEvaluation, options)}${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}${renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options)}</section>` : ""}
       ${renderNativeGrowthInstruction(taskForForm, instruction, options)}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}

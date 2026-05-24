@@ -18,8 +18,8 @@ const overview = {
       { id: "waiting_ai", title: "Waiting for AI", count: 1, cards: ["task-2"] },
     ],
     cards: [
-      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", openedAt: "2026-05-20T09:30:00", primaryAction: "submit", nextAction: "submit", artifactCount: 0, rewardCapCoins: 120 },
-      { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1, artifactDirectoryPath: "C:\\Deliverables\\task-2" },
+      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", openedAt: "2026-05-20T09:30:00", primaryAction: "submit", nextAction: "submit", artifactCount: 0, rewardCapCoins: 120, sequenceGroupId: "series-english-retell", templateId: "english-speaking-retell-v1" },
+      { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1, artifactDirectoryPath: "C:\\Deliverables\\task-2", sequenceGroupId: "series-english-retell", templateId: "english-speaking-retell-v1", latestEvaluation: { score: 88 } },
     ],
   },
   capabilities: [
@@ -145,6 +145,8 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.match(html, /data-learning-growth-artifact-link/);
   assert.match(html, /learning-growth-board-artifact-icon/);
   assert.match(html, /data-directory-path="C:\\Deliverables\\task-2"/);
+  assert.match(html, /data-learning-open-growth-history="task-1"/);
+  assert.match(html, /data-learning-open-growth-history="task-2"/);
   assert.doesNotMatch(html, /上限 120 金币|任务概览|学习任务/);
   assert.doesNotMatch(html, /提交作答|learning-growth-board-card-actions/);
   assert.doesNotMatch(html, /data-learning-growth-tabs/);
@@ -181,6 +183,24 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-evaluation-settle/);
   assert.doesNotMatch(html, /Owner|家长|后台与平台能力|learningRewardForm|人民币/);
   assert.doesNotMatch(html, /学习档案与目标录入/);
+}
+
+function testGrowthHistoryPageShowsRelatedSeriesCardsOnly() {
+  const html = GrowthUi.renderLearningGrowthView({
+    overview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, learningGrowthHistoryTaskCardId: "task-1" },
+  });
+  assert.match(html, /data-learning-growth-history-page="task-1"/);
+  assert.match(html, /data-learning-growth-history-back/);
+  assert.match(html, /data-learning-open-growth-task="task-1"/);
+  assert.match(html, /data-learning-open-growth-task="task-2"/);
+  assert.match(html, /Native board task/);
+  assert.match(html, /Waiting task/);
+  assert.match(html, /88 \u5206/);
+  assert.doesNotMatch(html, /Write a short answer with a clear revision target/);
+  assert.doesNotMatch(html, /data-learning-growth-board/);
 }
 
 function testGrowthBoardShowsEvergreenRewardDecayAndAge() {
@@ -539,6 +559,7 @@ function testReadinessPanelRenderer() {
 testCoinSubsystemRendererIsStandalone();
 testExecutorCoinSubsystemHidesOwnerSettlementDetails();
 testGrowthRendererContainsProductShellAndNestedCoins();
+testGrowthHistoryPageShowsRelatedSeriesCardsOnly();
 testGrowthBoardShowsEvergreenRewardDecayAndAge();
 testGrowthBoardShowsSettledCoinsOnCompletedCards();
 testGrowthRendererCanOpenBoardOnlyRevisionTask();

@@ -361,7 +361,9 @@ function publicTaskSubmissionFromRow(row) {
     withdrawnAt: row.withdrawn_at || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    audio,
+    audio: audio ? Object.assign({}, audio, {
+      url: audio.url || audio.href || `/api/learning/task-submissions/${encodeURIComponent(row.id)}/audio`,
+    }) : null,
   });
 }
 

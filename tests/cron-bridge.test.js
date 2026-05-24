@@ -67,6 +67,12 @@ function main() {
     ["report-5.pdf", "report-4.pdf"],
   );
 
+  const summary = runBridge(baseEnv, { action: "list", include_disabled: true, detail: "summary", limit: 0 });
+  assert.equal(summary.ok, true);
+  assert.equal(summary.jobs[0].detailLevel, "summary");
+  assert.equal(Object.hasOwn(summary.jobs[0], "prompt"), false);
+  assert.equal(Object.hasOwn(summary.jobs[0], "outputDocuments"), false);
+
   const full = runBridge(Object.assign({}, baseEnv, {
     HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT: "0",
   }));

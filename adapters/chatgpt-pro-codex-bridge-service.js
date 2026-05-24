@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const DEFAULT_CODEX_MOBILE_URL = "http://127.0.0.1:8787";
+const DEFAULT_THREAD_NAME = "ChatGPT Pro";
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 5000;
 const MAX_PROMPT_CHARS = 120000;
@@ -29,6 +30,15 @@ function readText(filePath) {
 function defaultCodexMobileKeyPath(env = process.env) {
   const home = env.USERPROFILE || env.HOME || "";
   return home ? path.join(home, ".codex-mobile-web", "access_key") : "";
+}
+
+function defaultStatePath(env = process.env) {
+  const dataDir = env.HERMES_MOBILE_DATA_DIR || env.HERMES_WEB_DATA_DIR || "";
+  if (dataDir) return path.join(dataDir, "chatgpt-pro-bridge-state.json");
+  if (process.platform === "win32") {
+    return "C:\\ProgramData\\HermesMobile\\data\\chatgpt-pro-bridge-state.json";
+  }
+  return path.join(process.cwd(), "chatgpt-pro-bridge-state.json");
 }
 
 function codexMobileKey(env = process.env) {
@@ -103,6 +113,31 @@ function extractFinalAssistantText(threadReadResult) {
   return candidates.length ? compactText(candidates[candidates.length - 1], MAX_RESULT_CHARS) : "";
 }
 
+function readJsonFile(fsImpl, filePath) {
+  if (!filePath) return null;
+  try {
+    return JSON.parse(fsImpl.readFileSync(filePath, "utf8"));
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeJsonFile(fsImpl, filePath, value) {
+  if (!filePath) return;
+  try {
+    fsImpl.mkdirSync(path.dirname(filePath), { recursive: true });
+    fsImpl.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  } catch (_) {}
+}
+
+function threadNameOf(thread) {
+  return String(thread?.name || thread?.title || "").trim();
+}
+
+function threadIdOf(value) {
+  return String(value?.id || value?.threadId || value?.thread_id || "").trim();
+}
+
 function buildCodexPrompt(payload) {
   const title = compactText(payload.title || "ChatGPT Pro generation", 400);
   const prompt = compactText(payload.prompt, MAX_PROMPT_CHARS);
@@ -138,9 +173,12 @@ function buildCodexPrompt(payload) {
 }
 function createChatGptProCodexBridgeService(options = {}) {
   const env = options.env || process.env;
+  const fsImpl = options.fs || fs;
   const fetchImpl = options.fetch || globalThis.fetch;
   const baseUrl = normalizeBaseUrl(options.baseUrl || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL || env.CODEX_MOBILE_URL);
   const workspace = options.workspace || env.HERMES_MOBILE_CHATGPT_PRO_WORKSPACE || "C:\\Users\\xuxin\\Documents\\Agent";
+  const threadName = options.threadName || env.HERMES_MOBILE_CHATGPT_PRO_THREAD_NAME || DEFAULT_THREAD_NAME;
+  const statePath = options.statePath || env.HERMES_MOBILE_CHATGPT_PRO_STATE_PATH || env.HERMES_WEB_CHATGPT_PRO_STATE_PATH || defaultStatePath(env);
   const timeoutMs = Math.max(30000, Number(options.timeoutMs || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_TIMEOUT_MS || DEFAULT_TIMEOUT_MS));
   const pollIntervalMs = Math.max(1000, Number(options.pollIntervalMs || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_POLL_MS || DEFAULT_POLL_INTERVAL_MS));
   const model = options.model || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MODEL || "gpt-5.5";
@@ -176,6 +214,86 @@ function createChatGptProCodexBridgeService(options = {}) {
     return parsed;
   }
 
+  async function nameThread(threadId, signal) {
+    if (!threadId || !threadName) return false;
+    try {
+      await requestJson("POST", `/api/threads/${encodeURIComponent(threadId)}/name`, { name: threadName }, signal);
+      return true;
+    } catch (_) {
+      try {
+        await requestJson("PATCH", `/api/threads/${encodeURIComponent(threadId)}/name`, { name: threadName }, signal);
+        return true;
+      } catch (__) {
+        return false;
+      }
+    }
+  }
+
+  async function readThread(threadId, signal) {
+    if (!threadId) return null;
+    try {
+      return await requestJson("GET", `/api/threads/${encodeURIComponent(threadId)}`, null, signal);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function listThreads(signal) {
+    try {
+      const result = await requestJson("GET", "/api/threads", null, signal);
+      const candidates = result.threads || result.items || result.data || [];
+      return Array.isArray(candidates) ? candidates : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function findNamedThread(signal) {
+    const threads = await listThreads(signal);
+    const exact = threads.find((thread) => threadNameOf(thread) === threadName);
+    return threadIdOf(exact);
+  }
+
+  function persistThreadId(threadId) {
+    if (!threadId) return;
+    writeJsonFile(fsImpl, statePath, {
+      schemaVersion: 1,
+      threadId,
+      threadName,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  async function ensureThread(initialPayload, signal) {
+    const state = readJsonFile(fsImpl, statePath);
+    const stateThreadId = String(state?.threadId || "").trim();
+    if (stateThreadId) {
+      const existing = await readThread(stateThreadId, signal);
+      if (existing) {
+        await nameThread(stateThreadId, signal);
+        persistThreadId(stateThreadId);
+        return { threadId: stateThreadId, created: false };
+      }
+    }
+
+    const namedThreadId = await findNamedThread(signal);
+    if (namedThreadId) {
+      persistThreadId(namedThreadId);
+      return { threadId: namedThreadId, created: false };
+    }
+
+    const start = await requestJson("POST", "/api/threads/new-message", initialPayload, signal);
+    const threadId = start.threadId || start.thread?.id || "";
+    if (!threadId) throw new Error("codex_thread_id_missing");
+    await nameThread(threadId, signal);
+    persistThreadId(threadId);
+    return { threadId, created: true };
+  }
+
+  async function appendMessage(threadId, payload, signal) {
+    return requestJson("POST", `/api/threads/${encodeURIComponent(threadId)}/messages`, payload, signal);
+  }
+
   async function generate(payload = {}) {
     const prompt = compactText(payload.prompt, MAX_PROMPT_CHARS);
     if (!prompt) return { ok: false, error: "prompt_required" };
@@ -183,15 +301,15 @@ function createChatGptProCodexBridgeService(options = {}) {
     const timer = setTimeout(() => controller.abort(), timeoutMs + 10000);
     const deadline = Date.now() + timeoutMs;
     try {
-      const start = await requestJson("POST", "/api/threads/new-message", {
+      const messagePayload = {
         cwd: workspace,
         text: buildCodexPrompt(payload),
         model,
         effort,
         permissionMode,
-      }, controller.signal);
-      const threadId = start.threadId || start.thread?.id || "";
-      if (!threadId) throw new Error("codex_thread_id_missing");
+      };
+      const { threadId, created } = await ensureThread(messagePayload, controller.signal);
+      if (!created) await appendMessage(threadId, messagePayload, controller.signal);
       let latest = null;
       while (Date.now() < deadline) {
         latest = await requestJson("GET", `/api/threads/${encodeURIComponent(threadId)}`, null, controller.signal);
@@ -202,6 +320,7 @@ function createChatGptProCodexBridgeService(options = {}) {
             ok: Boolean(resultText),
             source: "codex-mobile-chatgpt-pro",
             threadId,
+            threadName,
             result_text: resultText,
             error: resultText ? undefined : "codex_thread_finished_without_result",
           };
@@ -212,6 +331,7 @@ function createChatGptProCodexBridgeService(options = {}) {
         ok: false,
         source: "codex-mobile-chatgpt-pro",
         threadId,
+        threadName,
         error: "codex_thread_timeout",
         message: "Codex ChatGPT Pro execution did not finish before the bridge timeout.",
       };
@@ -227,6 +347,7 @@ module.exports = {
   buildCodexPrompt,
   codexMobileKey,
   createChatGptProCodexBridgeService,
+  defaultStatePath,
   extractFinalAssistantText,
   isActiveThread,
 };

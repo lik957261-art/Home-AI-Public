@@ -5,6 +5,7 @@ function automationRequestParams(options = {}) {
   params.set("workspaceId", state.selectedWorkspaceId || "owner");
   params.set("includeDisabled", "1");
   params.set("limit", "200");
+  params.set("detail", options.detail === "full" ? "full" : "summary");
   const search = currentSearchText();
   if (search) params.set("search", search);
   if (options.refresh) params.set("refresh", "1");
@@ -18,14 +19,79 @@ function automationRequestCacheKey(params) {
   return copy.toString();
 }
 
+function automationSummaryCacheKey(params) {
+  const copy = new URLSearchParams(params);
+  copy.delete("refresh");
+  copy.delete("fresh");
+  copy.set("detail", "summary");
+  return copy.toString();
+}
+
+function automationIsSummaryJob(job) {
+  return String(job?.detailLevel || "").toLowerCase() === "summary";
+}
+
+function mergeAutomationJobs(existing = [], incoming = []) {
+  const fullById = new Map();
+  for (const job of incoming || []) {
+    if (job?.id) fullById.set(String(job.id), job);
+  }
+  const merged = (existing || []).map((job) => {
+    const full = fullById.get(String(job?.id || ""));
+    return full ? Object.assign({}, job, full) : job;
+  });
+  const seen = new Set(merged.map((job) => String(job?.id || "")));
+  for (const job of incoming || []) {
+    const id = String(job?.id || "");
+    if (id && !seen.has(id)) merged.push(job);
+  }
+  return merged;
+}
+
+function scheduleAutomationDetailHydration(cacheKey) {
+  if (!cacheKey || state.automationFullCacheKey === cacheKey || state.automationDetailLoading) return;
+  const hydrate = () => {
+    if (state.viewMode !== "automation" || state.automationFullCacheKey === cacheKey) return;
+    hydrateAutomationDetails({ cacheKey, silent: true }).catch(showError);
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(hydrate, { timeout: 1500 });
+  } else {
+    window.setTimeout(hydrate, 250);
+  }
+}
+
+async function hydrateAutomationDetails(options = {}) {
+  const params = automationRequestParams({ detail: "full" });
+  const cacheKey = options.cacheKey || automationSummaryCacheKey(params);
+  if (state.automationFullCacheKey === cacheKey && !options.refresh) return;
+  const seq = ++state.automationDetailRequestSeq;
+  state.automationDetailLoading = !options.silent;
+  if (!options.silent) renderAutomationView();
+  try {
+    const result = await api(`/api/automations?${params}`);
+    if (seq !== state.automationDetailRequestSeq || state.viewMode !== "automation") return;
+    state.automations = mergeAutomationJobs(state.automations, result.data || []);
+    state.automationSource = Object.assign({}, state.automationSource || {}, result.source || {}, { warning: result.warning || "" });
+    state.automationFullCacheKey = cacheKey;
+  } finally {
+    if (seq === state.automationDetailRequestSeq && state.viewMode === "automation") {
+      state.automationDetailLoading = false;
+      renderAutomationView();
+    }
+  }
+}
+
 async function loadAutomations(options = {}) {
   const params = automationRequestParams(options);
   const cacheKey = automationRequestCacheKey(params);
+  const summaryCacheKey = automationSummaryCacheKey(params);
   const cacheFresh = state.automationCacheKey === cacheKey
     && state.automationLastLoadedAt
     && Date.now() - state.automationLastLoadedAt < 10000;
   if (!options.refresh && cacheFresh) {
     renderAutomationView();
+    if (params.get("detail") !== "full") scheduleAutomationDetailHydration(summaryCacheKey);
     setComposerEnabled(false);
     return;
   }
@@ -46,9 +112,14 @@ async function loadAutomations(options = {}) {
     throw err;
   }
   if (seq !== state.automationRequestSeq) return;
-  state.automations = result.data || [];
+  const detail = params.get("detail") || "summary";
+  state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || []) : (result.data || []);
   state.automationSource = Object.assign({}, result.source || {}, { warning: result.warning || "" });
   state.automationCacheKey = cacheKey;
+  if (detail === "full") {
+    state.automationFullCacheKey = summaryCacheKey;
+    state.automationDetailLoading = false;
+  }
   state.automationLastLoadedAt = Date.now();
   state.automationLoading = false;
   state.currentThread = null;
@@ -63,6 +134,7 @@ async function loadAutomations(options = {}) {
   }
   updateSearchButton();
   renderAutomationView();
+  if (detail !== "full") scheduleAutomationDetailHydration(summaryCacheKey);
   setComposerEnabled(false);
   $("connectionState").textContent = "Hermes OK";
 }
@@ -243,6 +315,7 @@ function renderAutomationPanel() {
       state.automationEditOpen = false;
       state.automationEditJobId = "";
       renderAutomationView();
+      if (automationIsSummaryJob(currentAutomation())) hydrateAutomationDetails().catch(showError);
     });
   });
   conversation.querySelector("[data-toggle-automation-output-history]")?.addEventListener("click", () => {
@@ -408,6 +481,13 @@ function renderAutomationDetail(job) {
     job.hasWorkdir ? "workdir" : "",
     job.hasContextFrom ? "context chain" : "",
   ].filter(Boolean);
+  const detailLoading = automationIsSummaryJob(job) || state.automationDetailLoading;
+  const detailLoadingBlock = detailLoading
+    ? `<div class="automation-loading compact" role="status" aria-live="polite">
+      <span class="automation-loading-spinner" aria-hidden="true"></span>
+      <span>${"\u6b63\u5728\u540e\u53f0\u52a0\u8f7d\u8be6\u60c5\u548c\u4ea4\u4ed8\u6587\u4ef6"}</span>
+    </div>`
+    : "";
   return `<article class="automation-detail-card ${escapeHtml(status)}">
     <div class="automation-detail-head">
       <div>
@@ -420,6 +500,7 @@ function renderAutomationDetail(job) {
     <div class="automation-run-times">
       ${timeRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}
     </div>
+    ${detailLoadingBlock}
     ${renderAutomationOutputLinks(job)}
     ${detailRows.length ? `<div class="automation-detail-grid">
       ${detailRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}

@@ -576,9 +576,9 @@ function wireArtifactWeixinButtons(root) {
   });
 }
 
-function positionUsagePanel(details) {
+function positionMessageFooterPanel(details, panelSelector) {
   if (!details?.open) return;
-  const panel = details.querySelector(".usage-details");
+  const panel = details.querySelector(panelSelector);
   if (!panel) return;
   panel.style.setProperty("--usage-panel-shift", "0px");
   requestAnimationFrame(() => {
@@ -594,30 +594,62 @@ function positionUsagePanel(details) {
   });
 }
 
+function positionUsagePanel(details) {
+  positionMessageFooterPanel(details, ".usage-details");
+}
+
+function positionMessageSkillPanel(details) {
+  positionMessageFooterPanel(details, ".message-skill-details");
+}
+
 function closeOpenUsagePanels(root = document) {
   root.querySelectorAll?.(".usage[open]")?.forEach((details) => {
     details.open = false;
   });
 }
 
-function wireUsageOutsideDismiss() {
-  if (document.documentElement.dataset.usageOutsideDismissBound) return;
-  document.documentElement.dataset.usageOutsideDismissBound = "1";
+function closeOpenMessageSkillPanels(root = document) {
+  root.querySelectorAll?.(".message-skills[open]")?.forEach((details) => {
+    details.open = false;
+  });
+}
+
+function wireMessageFooterPopupDismiss() {
+  if (document.documentElement.dataset.messageFooterPopupDismissBound) return;
+  document.documentElement.dataset.messageFooterPopupDismissBound = "1";
   document.addEventListener("pointerdown", (event) => {
-    if (event.target?.closest?.(".usage")) return;
+    if (event.target?.closest?.(".usage, .message-skills")) return;
     closeOpenUsagePanels();
+    closeOpenMessageSkillPanels();
   }, { capture: true });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeOpenUsagePanels();
+    if (event.key !== "Escape") return;
+    closeOpenUsagePanels();
+    closeOpenMessageSkillPanels();
   });
 }
 
 function wireUsagePanels(root) {
-  wireUsageOutsideDismiss();
+  wireMessageFooterPopupDismiss();
   root?.querySelectorAll?.(".usage").forEach((details) => {
     if (details.dataset.boundUsagePanel) return;
     details.dataset.boundUsagePanel = "1";
-    details.addEventListener("toggle", () => positionUsagePanel(details));
+    details.addEventListener("toggle", () => {
+      if (details.open) closeOpenMessageSkillPanels();
+      positionUsagePanel(details);
+    });
+  });
+}
+
+function wireMessageSkillPanels(root) {
+  wireMessageFooterPopupDismiss();
+  root?.querySelectorAll?.(".message-skills").forEach((details) => {
+    if (details.dataset.boundSkillPanel) return;
+    details.dataset.boundSkillPanel = "1";
+    details.addEventListener("toggle", () => {
+      if (details.open) closeOpenUsagePanels();
+      positionMessageSkillPanel(details);
+    });
   });
 }
 

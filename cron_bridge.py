@@ -673,19 +673,14 @@ def status_label(job: dict[str, Any]) -> str:
     return state or "scheduled"
 
 
-def public_job(job: dict[str, Any]) -> dict[str, Any]:
+def public_job(job: dict[str, Any], detail: str = "full") -> dict[str, Any]:
     schedule = schedule_info(job)
     skills = canonical_skills(job)
     job_id = str(job.get("id") or "")
-    return {
+    payload = {
         "id": job_id,
         "name": compact_text(job.get("name") or job.get("id") or "Cron job", 120),
-        "prompt": compact_text(job.get("prompt"), 4000),
         "promptPreview": compact_text(job.get("prompt"), 220),
-        "skills": skills,
-        "enabledToolsets": normalize_string_list(job.get("enabled_toolsets") or job.get("enabledToolsets")),
-        "model": compact_text(job.get("model"), 80),
-        "provider": compact_text(job.get("provider"), 80),
         "schedule": schedule["display"],
         "scheduleText": schedule_edit_text(job),
         "scheduleKind": schedule["kind"],
@@ -700,12 +695,24 @@ def public_job(job: dict[str, Any]) -> dict[str, Any]:
         "lastDeliveryError": compact_text(job.get("last_delivery_error"), 400),
         "deliver": delivery_label(job.get("deliver")),
         "ownerPrincipalId": compact_text(job.get("owner_principal_id"), 120),
+    }
+    if str(detail or "").lower() in {"summary", "list", "light"}:
+        payload["detailLevel"] = "summary"
+        return payload
+    payload.update({
+        "prompt": compact_text(job.get("prompt"), 4000),
+        "skills": skills,
+        "enabledToolsets": normalize_string_list(job.get("enabled_toolsets") or job.get("enabledToolsets")),
+        "model": compact_text(job.get("model"), 80),
+        "provider": compact_text(job.get("provider"), 80),
         "workdir": compact_text(job.get("workdir"), 600),
         "hasScript": bool(job.get("script")),
         "hasWorkdir": bool(job.get("workdir")),
         "hasContextFrom": bool(job.get("context_from")),
         "outputDocuments": output_documents(job_id),
-    }
+        "detailLevel": "full",
+    })
+    return payload
 
 
 def timestamp_score(value: Any) -> float:
@@ -1215,10 +1222,16 @@ def main() -> None:
     jobs, source, warning = load_jobs_file()
     if owner_principal_id:
         jobs = [job for job in jobs if job_matches_owner(job, owner_principal_id)]
-    public_jobs = [public_job(job) for job in jobs]
+    detail = str(request.get("detail") or request.get("fields") or "full").strip().lower()
+    summary_mode = detail in {"summary", "list", "light"}
+    public_jobs = [public_job(job, "summary" if summary_mode else "full") for job in jobs]
     if not include_disabled:
         public_jobs = [job for job in public_jobs if job.get("enabled")]
-    public_jobs.sort(key=sort_key)
+    public_jobs.sort(key=(lambda job: (
+        0 if timestamp_score(job.get("nextRunAt")) else 1,
+        timestamp_score(job.get("nextRunAt")) or float("inf"),
+        str(job.get("name") or job.get("id") or ""),
+    )) if summary_mode else sort_key)
     if limit > 0:
         public_jobs = public_jobs[:limit]
     payload = {

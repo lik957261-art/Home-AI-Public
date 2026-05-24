@@ -14,6 +14,10 @@ const DEFAULT_DIRECTORY_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "directory_bridge.p
 const HOST = process.env.HERMES_MOBILE_BRIDGE_HOST || "127.0.0.1";
 const PORT = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_PORT || "8798");
 const TIMEOUT_MS = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_TIMEOUT_MS || "20000");
+const CHATGPT_PRO_TIMEOUT_MS = Math.max(
+  30 * 60 * 1000,
+  Number(process.env.HERMES_MOBILE_CHATGPT_PRO_BRIDGE_TIMEOUT_MS || process.env.HERMES_WEB_CHATGPT_PRO_BRIDGE_TIMEOUT_MS || "1800000"),
+);
 const STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_STDOUT_LIMIT_BYTES || "50000000");
 const KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
 const KEY = String(process.env.HERMES_MOBILE_BRIDGE_HOST_KEY || process.env.HERMES_WEB_BRIDGE_HOST_KEY || readText(KEY_PATH)).trim();
@@ -220,6 +224,9 @@ if (!KEY) {
 const server = http.createServer((req, res) => {
   handle(req, res).catch((err) => sendJson(res, 500, { error: err.message || String(err) }));
 });
+server.requestTimeout = CHATGPT_PRO_TIMEOUT_MS + 60000;
+server.headersTimeout = Math.max(60000, Math.min(server.requestTimeout, 120000));
+server.keepAliveTimeout = 65000;
 
 server.listen(PORT, HOST, () => {
   console.log(`Hermes Mobile bridge host listening on http://${HOST}:${PORT}`);

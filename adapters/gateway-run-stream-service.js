@@ -78,6 +78,13 @@ function createGatewayRunStreamService(options = {}) {
     return readNumber(options[name], fallback);
   }
 
+  function configuredForStream(stream, name, fallback = 0) {
+    const value = stream && Object.prototype.hasOwnProperty.call(stream, name)
+      ? stream[name]
+      : options[name];
+    return readNumber(value, fallback);
+  }
+
   function activeStreamForRun(runId) {
     return activeStreams.get(cleanString(runId));
   }
@@ -191,7 +198,7 @@ function createGatewayRunStreamService(options = {}) {
     const stream = activeStreamForRun(publicRunId);
     if (!stream) return { action: "missing" };
     const now = nowMs();
-    const runStartTimeoutMs = Math.max(0, configured("runStartTimeoutMs", 0));
+    const runStartTimeoutMs = Math.max(0, configuredForStream(stream, "runStartTimeoutMs", 0));
     if (!stream.realRunId) {
       if (runStartTimeoutMs > 0 && now - Number(stream.startedAt || now) >= runStartTimeoutMs) {
         abortActiveStreamAsFailed(publicRunId, `Hermes Gateway did not create a run within ${Math.round(runStartTimeoutMs / 1000)} seconds; the queued task was released.`);
@@ -200,7 +207,7 @@ function createGatewayRunStreamService(options = {}) {
       return { action: "waiting_for_real_run" };
     }
 
-    const checkAfterMs = Math.max(0, configured("runLivenessCheckAfterMs", 0));
+    const checkAfterMs = Math.max(0, configuredForStream(stream, "runLivenessCheckAfterMs", 0));
     if (checkAfterMs > 0 && now - Number(stream.lastEventAt || now) < checkAfterMs) {
       return { action: "recent_event" };
     }
@@ -214,7 +221,7 @@ function createGatewayRunStreamService(options = {}) {
       await pool.runnerFor(target).checkRun(stream.realRunId, {
         gatewayUrl: target.apiBase,
         apiKey: target.apiKey,
-        signal: createTimeoutSignal(abortSignal, configured("apiTimeoutMs", 30000)),
+        signal: createTimeoutSignal(abortSignal, configuredForStream(stream, "apiTimeoutMs", 30000)),
       });
       stream.livenessMisses = 0;
       stream.lastLivenessWarningAt = 0;
@@ -225,7 +232,7 @@ function createGatewayRunStreamService(options = {}) {
         error: err,
         nowMs: now,
         lastEventAtMs: stream.lastEventAt,
-        staleAfterMs: configured("runLivenessStaleAfterMs", 0),
+        staleAfterMs: configuredForStream(stream, "runLivenessStaleAfterMs", 0),
         livenessMisses: stream.livenessMisses,
         lastWarningAtMs: stream.lastLivenessWarningAt,
       });
@@ -302,6 +309,10 @@ function createGatewayRunStreamService(options = {}) {
       livenessMisses: 0,
       lastLivenessWarningAt: 0,
       failureReason: "",
+      apiTimeoutMs: streamOptions.apiTimeoutMs,
+      runStartTimeoutMs: streamOptions.runStartTimeoutMs,
+      runLivenessCheckAfterMs: streamOptions.runLivenessCheckAfterMs,
+      runLivenessStaleAfterMs: streamOptions.runLivenessStaleAfterMs,
     };
     const livenessIntervalMs = Math.max(0, configured("runLivenessCheckIntervalMs", 0));
     if (livenessIntervalMs > 0) {

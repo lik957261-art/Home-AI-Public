@@ -92,7 +92,13 @@ async function testLocalListCreateMutateAndDelete() {
 
   const listed = await service.runBridge({ action: "list", include_disabled: false });
   assert.deepEqual(listed.jobs.map((job) => job.id), ["enabled"]);
+  assert.equal(listed.jobs[0].detailLevel, "full");
   assert.deepEqual(listed.source, { name: "local_automations", available: true, pathKind: "local", jobCount: 1 });
+
+  const summary = await service.runBridge({ action: "list", include_disabled: true, detail: "summary" });
+  assert.equal(summary.jobs[0].detailLevel, "summary");
+  assert.equal(Object.hasOwn(summary.jobs[0], "prompt"), false);
+  assert.equal(Object.hasOwn(summary.jobs[0], "outputDocuments"), false);
 
   const dryRun = await service.runBridge({
     action: "create",

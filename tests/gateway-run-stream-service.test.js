@@ -180,6 +180,34 @@ async function testLivenessStaleAbortWhenOptedIn() {
   assert.match(stream.failureReason, /no longer reports run real_response/);
 }
 
+async function testStreamSpecificLivenessOverrides() {
+  const activeStreams = new Map();
+  const controller = createController();
+  const stream = Object.assign(baseStream(controller), {
+    realRunId: "real_response",
+    lastEventAt: 0,
+    runLivenessCheckAfterMs: 30 * 60 * 1000,
+    runLivenessStaleAfterMs: 0,
+  });
+  const service = createGatewayRunStreamService({
+    activeStreams,
+    gatewayPool: createGatewayPool({
+      checkRun: async () => {
+        throw new Error("should not check before stream override delay");
+      },
+    }),
+    nowMs: () => 100000,
+    runLivenessCheckAfterMs: 0,
+    runLivenessStaleAfterMs: 50000,
+  });
+  service.registerActiveStream("public_run", stream);
+
+  const decision = await service.checkActiveStreamLiveness("public_run");
+
+  assert.equal(decision.action, "recent_event");
+  assert.equal(controller.signal.aborted, false);
+}
+
 async function testReadResponseEventsWrapsGatewayRunnerAndEventHook() {
   const activeStreams = new Map();
   const events = [];
@@ -243,6 +271,7 @@ function testGatewayTargetLookup() {
   await testStopBehaviorUsesAbortThenGatewayStop();
   await testLiveness404WarnsAndContinuesByDefault();
   await testLivenessStaleAbortWhenOptedIn();
+  await testStreamSpecificLivenessOverrides();
   await testReadResponseEventsWrapsGatewayRunnerAndEventHook();
   testGatewayTargetLookup();
   console.log("gateway-run-stream-service tests passed");
