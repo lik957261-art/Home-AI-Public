@@ -90,6 +90,24 @@ function makeProgramService() {
   };
 }
 
+function makeEvergreenProgramService() {
+  const base = makeProgramService();
+  return {
+    overview() {
+      const overview = base.overview();
+      const evergreen = {
+        sequenceGroupId: "evergreen:english-short-writing",
+        sequenceMode: "evergreen_jit",
+        sequenceIndex: 1,
+        title: "English short writing 1",
+      };
+      overview.taskCards = [Object.assign({}, overview.taskCards[0], evergreen)];
+      overview.executableTasks = [Object.assign({}, overview.executableTasks[0], evergreen)];
+      return overview;
+    },
+  };
+}
+
 function testRequestNormalizationKeepsExecutorAccountId() {
   assert.deepEqual(normalizeLearningGrowthRequest({
     workspaceId: "weixin_stephen",
@@ -168,6 +186,16 @@ function testOverviewMergesLegacyTodoTasks() {
   assert.equal(overview.programs.executableTasks[1].readOnly, true);
 }
 
+function testOverviewFormatsEvergreenTaskTitles() {
+  const service = createLearningGrowthService({
+    learningCoinService: makeCoinService(),
+    learningProgramService: makeEvergreenProgramService(),
+  });
+  const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(overview.programs.taskCards[0].title, "English short writing \u00b7 \u7b2c1\u5f20\u5361");
+  assert.equal(overview.programs.executableTasks[0].title, "English short writing \u00b7 \u7b2c1\u5f20\u5361");
+}
+
 function testExecutorOverviewStripsOwnerManagementData() {
   const service = createLearningGrowthService({
     learningCoinService: makeCoinService(),
@@ -231,6 +259,7 @@ function testOverviewCanRenderWithoutCoinService() {
 testRequestNormalizationKeepsExecutorAccountId();
 testOverviewContainsGrowthShellAndCoinsSubsystem();
 testOverviewMergesLegacyTodoTasks();
+testOverviewFormatsEvergreenTaskTitles();
 testExecutorOverviewStripsOwnerManagementData();
 testOverviewCanRenderWithoutCoinService();
 

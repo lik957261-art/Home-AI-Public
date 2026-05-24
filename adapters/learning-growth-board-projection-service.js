@@ -6,6 +6,9 @@ const {
 const {
   learningGrowthRewardDecayState,
 } = require("./learning-growth-reward-decay-service");
+const {
+  displayTitleForLearningGrowthTask,
+} = require("./learning-growth-title-service");
 
 function cleanString(value, limit = 1000) {
   const text = String(value ?? "").trim();
@@ -205,16 +208,7 @@ function sequenceGroupForTask(task = {}) {
 }
 
 function displayTitleForTask(task = {}, sequenceIndex = 1) {
-  const title = cleanString(task.title, 180) || cleanString(task.taskCardId || task.id);
-  const mode = cleanString(
-    task.sequenceMode
-      || task.learningGrowthSequenceMode
-      || task.learningGrowthJitGeneration?.sequenceMode
-      || task.taskModel?.sequenceMode
-      || task.taskModel?.jitGeneration?.sequenceMode,
-  );
-  if (sequenceIndex > 1 && mode.includes("evergreen")) return `${title} \u00b7 \u7b2c ${sequenceIndex} \u5f20`;
-  return title;
+  return displayTitleForLearningGrowthTask(task, Math.max(0, sequenceIndex - 1));
 }
 
 function taskComplete(card = {}) {

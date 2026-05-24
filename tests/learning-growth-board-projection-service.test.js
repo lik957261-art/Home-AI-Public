@@ -229,7 +229,7 @@ function testBoardPrefersFullNativeTaskMetadataOverExecutorSummary() {
   const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
   assert.equal(board.cards.length, 1);
   assert.equal(board.cards[0].taskCardId, "native-retell-1");
-  assert.equal(board.cards[0].title, "Full native retell");
+  assert.equal(board.cards[0].title, "Full native retell \u00b7 \u7b2c1\u5f20\u5361");
   assert.equal(board.cards[0].sequenceGroupId, "evergreen:english-random-reading-retell");
   assert.equal(board.cards[0].sequenceIndex, 1);
   assert.equal(board.cards[0].rewardCapCoins, 100);
@@ -414,7 +414,7 @@ function testBoardAppendsEvergreenSequenceIndexToRepeatedTitles() {
           sequenceGroupId: "evergreen:math",
           sequenceMode: "evergreen_jit",
           sequenceIndex: 2,
-          title: "Math reasoning",
+          title: "Math reasoning 1",
           status: "published",
           plannedDate: "2026-05-20",
         },
@@ -427,7 +427,32 @@ function testBoardAppendsEvergreenSequenceIndexToRepeatedTitles() {
   });
   const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
   assert.equal(board.cards[0].sequenceIndex, 2);
-  assert.equal(board.cards[0].title, "Math reasoning \u00b7 \u7b2c 2 \u5f20");
+  assert.equal(board.cards[0].title, "Math reasoning \u00b7 \u7b2c2\u5f20\u5361");
+}
+
+function testBoardShowsFirstEvergreenCardNumberWithoutStoredOrdinal() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        {
+          taskCardId: "seq-evergreen-1",
+          programId: "program-1",
+          sequenceGroupId: "evergreen:english-retell",
+          sequenceMode: "evergreen_jit",
+          sequenceIndex: 1,
+          title: "Evergreen English Random Reading Retell 001",
+          status: "published",
+          plannedDate: "2026-05-20",
+        },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.equal(board.cards[0].title, "Evergreen English Random Reading Retell \u00b7 \u7b2c1\u5f20\u5361");
 }
 
 function testBoardFiltersRetiredAndCancelledTasks() {
@@ -463,5 +488,6 @@ testBoardGroupsDuplicateDraftsByProgram();
 testBoardProjectsLegacyTodosAsReadOnlyOpenTasks();
 testBoardShowsLockedCurrentCardBeforeCompletionWindow();
 testBoardAppendsEvergreenSequenceIndexToRepeatedTitles();
+testBoardShowsFirstEvergreenCardNumberWithoutStoredOrdinal();
 testBoardFiltersRetiredAndCancelledTasks();
 console.log("learning growth board projection service tests passed");

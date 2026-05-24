@@ -1,6 +1,9 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const {
+  storageTitleForEvergreenClone,
+} = require("./learning-growth-title-service");
 
 function cleanString(value, limit = 1000) {
   const text = String(value ?? "").trim();
@@ -176,7 +179,7 @@ function cloneEvergreenTask(input = {}) {
     sequenceGroupId: groupId,
     sequenceIndex,
     sequenceMode: "evergreen_jit",
-    title: cleanString(currentTask.title, 160) || `Learning task ${sequenceIndex}`,
+    title: storageTitleForEvergreenClone(currentTask, sequenceIndex) || `Learning task ${sequenceIndex}`,
     plannedDate: availableAt.slice(0, 10),
     learnerInstruction: "",
     instruction: "",

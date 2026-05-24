@@ -150,6 +150,7 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
 async function testPrepareNextAfterCompletionCreatesEvergreenTaskWhenSequenceEnds() {
   const tasks = [
     Object.assign(task("task-1", 1, "published"), {
+      title: "Evergreen math 1",
       sequenceMode: "evergreen_jit",
       completionPolicy: { scope: "learner_sequence", minIntervalHours: 24 },
     }),
@@ -217,6 +218,7 @@ async function testPrepareNextAfterCompletionCreatesEvergreenTaskWhenSequenceEnd
   assert.equal(savedTasks[0].nextCompletionAllowedAt, "2026-05-21T08:00:00.000Z");
   assert.equal(savedTasks[1].sequenceIndex, 2);
   assert.equal(savedTasks[1].sequenceMode, "evergreen_jit");
+  assert.equal(savedTasks[1].title, "Evergreen math");
   assert.equal(savedTasks[1].nextCompletionAllowedAt, "2026-05-21T08:00:00.000Z");
   assert.equal(savedTasks[1].deliverableDirectoryPath, "C:\\LearningPlan\\learner-1\\series\\program:program-1\\deliverables");
   assert.equal(jitInputs.length, 1);
