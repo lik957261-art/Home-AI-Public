@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-chat-scope-compact-v152";
+const CLIENT_VERSION = "20260524-ui-foundation-warm-neutral-v154";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -201,7 +201,10 @@ assert.match(stylesCss, /\.task-markdown-preview-doc h1/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1 \{[\s\S]*?font-size: 24px;/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22px;/);
 assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]*?justify-content: center;/);
-assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.topbar \{[\s\S]*?border-bottom-color: rgba\(31, 43, 51, 0\.045\);[\s\S]*?background: rgba\(247, 247, 247, 0\.88\);/);
+assert.match(stylesCss, /--ui-accent: #6b858c;/);
+assert.match(stylesCss, /--ui-accent-fill: rgba\(144, 166, 170, 0\.20\);/);
+assert.match(stylesCss, /\.bottom-tab\.active \{[\s\S]*?color: var\(--ui-accent\);/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.topbar \{[\s\S]*?border-bottom-color: var\(--ui-hairline\);[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \{[\s\S]*?width: 36px;[\s\S]*?height: 36px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \.top-nav-button-glyph \{[\s\S]*?width: 28px;[\s\S]*?font-size: 15px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-more-button,[\s\S]*?\.task-more-button,[\s\S]*?\.danger-button \{[\s\S]*?width: 34px;[\s\S]*?font-size: 18px;[\s\S]*?box-shadow: none;/);
@@ -217,6 +220,7 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landsca
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font-size\] \.thread-title,[\s\S]*?:root\[data-font-size\] \.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?font-size: calc\(15px \* var\(--app-font-scale\)\);[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-segment \{[\s\S]*?min-height: 30px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-header-button \{[\s\S]*?min-height: 26px;[\s\S]*?font-size: 15px !important;[\s\S]*?font-weight: 650;/);
+assert.match(stylesCss, /\.chat-scope-header-button\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);
