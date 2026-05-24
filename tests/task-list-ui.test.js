@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260524-ui-cool-surfaces-v164";
+const CLIENT_VERSION = "20260524-wuping-stephen-growth-access-v165";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1145,6 +1145,8 @@ assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "
 assert.match(appJs, /params\.set\("workspaceId", learningGrowthLearnerWorkspaceId\(\)\)/);
 assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(appLearningGrowthControllerJs, /function setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
+assert.match(appLearningGrowthControllerJs, /const listedWorkspaceIds = Array\.isArray\(state\.workspaces\)/);
+assert.match(appLearningGrowthControllerJs, /accessibleWorkspaceIds\.includes\(selected\) \|\| listedWorkspaceIds\.includes\(selected\)/);
 assert.match(appLearningGrowthControllerJs, /if \(!state\.auth\?\.isOwner && state\.workspaces\.some\(\(item\) => item\.id === targetWorkspaceId\)\)/);
 assert.match(appLearningGrowthControllerJs, /function isLearningGrowthViewActive\(\) \{\s*return state\.viewMode === "learning";\s*\}/);
 assert.match(appLearningGrowthControllerJs, /function renderLearningCoinsView\(\) \{\s*if \(!isLearningGrowthViewActive\(\)\) return;/);

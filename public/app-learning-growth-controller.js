@@ -3,11 +3,12 @@
 function learningGrowthLearnerWorkspaceId() {
   const selected = String(state.selectedWorkspaceId || "").trim();
   const authWorkspace = String(state.auth?.workspaceId || "").trim();
+  const listedWorkspaceIds = Array.isArray(state.workspaces) ? state.workspaces.map((item) => String(item?.id || "").trim()).filter(Boolean) : [];
   const accessibleWorkspaceIds = Array.isArray(state.auth?.workspaceIds) && state.auth.workspaceIds.length
-    ? state.auth.workspaceIds
+    ? state.auth.workspaceIds.map((item) => String(item || "").trim()).filter(Boolean)
     : (authWorkspace ? [authWorkspace] : []);
   if (state.auth && !state.auth.isOwner) {
-    if (selected && accessibleWorkspaceIds.includes(selected)) return selected;
+    if (selected && (accessibleWorkspaceIds.includes(selected) || listedWorkspaceIds.includes(selected))) return selected;
     return authWorkspace || selected;
   }
   const scoped = String(state.learningGrowthWorkspaceId || "").trim();

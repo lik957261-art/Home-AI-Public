@@ -613,6 +613,35 @@ async function testTaskSessionEvaluationRoutes() {
   assert.ok(calls.some((call) => call[0] === "settleEvaluationReward"));
 }
 
+async function testSharedWorkspaceMemberCanReadGrowthTaskDetail() {
+  const { routes, calls } = makeRoutes({
+    deps: {
+      requireWorkspaceAccess(req, res, workspaceId) {
+        const target = String(workspaceId || "owner");
+        const allowed = new Set([req.auth?.workspaceId].concat(req.auth?.workspaceIds || []));
+        if (!allowed.has(target)) {
+          sendJson(res, 403, { error: "Workspace access is not allowed" });
+          return "";
+        }
+        return target;
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning/task-cards/task-1", {
+    auth: {
+      ok: true,
+      workspaceId: "weixin_wuping",
+      workspaceIds: ["weixin_wuping", "weixin_stephen"],
+      principalId: "weixin_wuping",
+      isOwner: false,
+    },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.body.taskCard.taskCardId, "task-1");
+  assert.equal(response.body.taskCard.workspaceId, "weixin_stephen");
+  assert.equal(calls.some((call) => call[0] === "getTaskCard"), true);
+}
+
 async function testExecutorCannotStartUnpublishedTask() {
   const { routes, calls } = makeRoutes({
     service: {
@@ -787,6 +816,7 @@ async function testExecutorCannotEvaluateOtherLearnerSession() {
   await testFoundationRoutes();
   await testAiRecommendationRoutesRequireOwnerAndCreateDraft();
   await testTaskSessionEvaluationRoutes();
+  await testSharedWorkspaceMemberCanReadGrowthTaskDetail();
   await testExecutorTaskReadUsesSummaryProjectionOnly();
   await testExecutorCannotReadUnpublishedTaskDetail();
   await testTaskSubmissionAudioRouteIsScopedAndBounded();

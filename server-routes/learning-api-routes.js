@@ -86,9 +86,10 @@ function requestedLearnerId(deps, auth, requested, workspaceId) {
   if (deps.isOwnerAuth(auth)) return learnerId || workspaceId || "owner";
   const ownWorkspace = String(auth?.workspaceId || workspaceId || "").trim();
   const targetLearnerId = learnerId || workspaceId || ownWorkspace || "owner";
-  const canAccess = typeof deps.authCanAccessWorkspace === "function"
+  const authorizedWorkspaceId = String(workspaceId || "").trim();
+  const canAccess = (authorizedWorkspaceId && authorizedWorkspaceId !== "owner" && targetLearnerId === authorizedWorkspaceId) || (typeof deps.authCanAccessWorkspace === "function"
     ? deps.authCanAccessWorkspace(auth, targetLearnerId)
-    : targetLearnerId === ownWorkspace;
+    : targetLearnerId === ownWorkspace);
   if (targetLearnerId && !canAccess) {
     const err = new Error("Learner access is not allowed");
     err.status = 403;

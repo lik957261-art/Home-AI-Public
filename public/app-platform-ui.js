@@ -13,7 +13,6 @@ const hermesApiClient = AppApiClient.createApiClient({
 async function api(path, options = {}) {
   return hermesApiClient(path, options);
 }
-
 function clearStoredAccessKey() {
   state.key = "";
   localStorage.removeItem("hermesWebKey");
@@ -62,7 +61,6 @@ function showBootSplash(message = "正在载入工作区") {
 function hideBootSplash() {
   $("bootSplash")?.classList.add("hidden");
 }
-
 async function hasCookieSession() {
   const res = await fetch("/api/status", { cache: "no-store" });
   return res.status !== 401;
@@ -99,8 +97,7 @@ function renderSetup() {
   if (error) error.textContent = state.setupError || "";
   const result = $("setupResult");
   const key = $("setupKey");
-  if (result) result.hidden = !state.setupOwnerKey;
-  if (key) key.textContent = state.setupOwnerKey || "";
+  if (result) result.hidden = !state.setupOwnerKey; if (key) key.textContent = state.setupOwnerKey || "";
   const submit = $("setupSubmit");
   if (submit) submit.hidden = Boolean(state.setupOwnerKey);
 }
