@@ -19,12 +19,31 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Skill permissions: `docs/MODULES/skill-permissions.md`
 - Automation/Cron: `docs/MODULES/automation.md`
 - Static client/cache/deploy: `docs/MODULES/static-client.md`, `docs/MODULES/deployment.md`
+- Workspace auth, keys, and access policy: `docs/MODULES/workspace-auth-permissions.md`
+- Directory, files, previews, and shared roots: `docs/MODULES/directory-files.md`
+- Web Push delivery and deep links: `docs/MODULES/web-push.md`
+- Weixin/iLink ingress and delivery: `docs/MODULES/weixin-ingress.md`
+- Grok/xAI Gateway profile routing: `docs/MODULES/grok-gateway.md`
+- Runtime state, SQLite, and disaster backup: `docs/MODULES/runtime-state-backup.md`
+- Group chat and shared messages: `docs/MODULES/group-chat.md`
 
 ## Current Priority Runbooks
 
 - Growth card stuck waiting for AI: `docs/RUNBOOKS/growth-card-stuck-waiting-ai.md`
 - Maintenance Gateway terminated during ChatGPT Pro: `docs/RUNBOOKS/maintenance-gateway-terminated.md`
 - Static client cache/version refresh: `docs/RUNBOOKS/static-client-cache-version.md`
+- Web Push opens the wrong page or embedded viewer: `docs/RUNBOOKS/web-push-wrong-page.md`
+- Growth submit button disabled or local submission is misleading: `docs/RUNBOOKS/growth-submit-button-disabled.md`
+- Grok Gateway authentication or routing failure: `docs/RUNBOOKS/grok-gateway-auth.md`
+- Disaster recovery backup verification: `docs/RUNBOOKS/disaster-recovery-backup.md`
+
+## Current Priority Implementation Notes
+
+- Learning mastery profile: `docs/IMPLEMENTATION_NOTES/learning-mastery-profile.md`
+- Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
+- Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`
+- Skill write protection: `docs/IMPLEMENTATION_NOTES/skill-write-protection.md`
+- Web Push deep-link routing: `docs/IMPLEMENTATION_NOTES/web-push-deeplink-routing.md`
 
 ## Documentation Rule
 
