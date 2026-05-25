@@ -10,6 +10,7 @@ param(
   [string]$OutlookGraphEnvPath = "",
   [string]$OutlookGraphMcpPath = "",
   [int]$HealthTimeoutSeconds = 45,
+  [int]$OwnerMaintenanceBusyGraceMinutes = 45,
   [switch]$OwnerMaintenanceOnly,
   [switch]$OnlyWhenOwnerMaintenanceUnhealthy
 )
@@ -54,6 +55,23 @@ function Test-HttpHealth {
   }
 }
 
+function Test-TcpPortOpen {
+  param([int]$Port)
+  try {
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+      $async = $client.BeginConnect("127.0.0.1", $Port, $null, $null)
+      if (-not $async.AsyncWaitHandle.WaitOne(1000, $false)) { return $false }
+      $client.EndConnect($async)
+      return $true
+    } finally {
+      $client.Close()
+    }
+  } catch {
+    return $false
+  }
+}
+
 function Wait-HealthPorts {
   param([int[]]$Ports)
   $deadline = (Get-Date).AddSeconds($HealthTimeoutSeconds)
@@ -69,6 +87,98 @@ function Wait-HealthPorts {
   if ($pending.Count -gt 0) {
     throw "Gateway pool ports did not become healthy: $($pending -join ', ')"
   }
+}
+
+function Get-OwnerMaintenanceWatchdogStatePath {
+  return (Join-Path $GatewayWorkerRoot "owner-maintenance-watchdog-state.json")
+}
+
+function Read-OwnerMaintenanceWatchdogState {
+  $path = Get-OwnerMaintenanceWatchdogStatePath
+  if (-not (Test-Path -LiteralPath $path)) { return @{} }
+  try {
+    $raw = Get-Content -Raw -LiteralPath $path
+    if (-not $raw) { return @{} }
+    $parsed = $raw | ConvertFrom-Json
+    $state = @{}
+    foreach ($property in $parsed.PSObject.Properties) {
+      $state[$property.Name] = $property.Value
+    }
+    return $state
+  } catch {
+    Write-GatewayPoolLog "Owner-maintenance watchdog state unreadable; resetting state."
+    return @{}
+  }
+}
+
+function Write-OwnerMaintenanceWatchdogState {
+  param([hashtable]$State)
+  $path = Get-OwnerMaintenanceWatchdogStatePath
+  $State | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $path -Encoding UTF8
+}
+
+function Update-OwnerMaintenanceUnhealthyState {
+  param(
+    [hashtable]$State,
+    [object]$Worker,
+    [bool]$Unhealthy
+  )
+  $profile = [string]$Worker.profile
+  $now = (Get-Date).ToUniversalTime()
+  if (-not $Unhealthy) {
+    if ($State.ContainsKey($profile)) { $State.Remove($profile) }
+    return $null
+  }
+  $entry = $State[$profile]
+  if (-not $entry) {
+    $entry = [pscustomobject]@{
+      firstUnhealthyAt = $now.ToString("o")
+      lastUnhealthyAt = $now.ToString("o")
+      count = 1
+    }
+  } else {
+    $entry.lastUnhealthyAt = $now.ToString("o")
+    $entry.count = [int]$entry.count + 1
+  }
+  $State[$profile] = $entry
+  return $entry
+}
+
+function Select-OwnerMaintenanceWorkersNeedingRepair {
+  param([object[]]$Workers)
+  $state = Read-OwnerMaintenanceWatchdogState
+  $needsRepair = @()
+  $graceMs = [Math]::Max(1, $OwnerMaintenanceBusyGraceMinutes) * 60 * 1000
+  foreach ($worker in $Workers) {
+    $port = [int]$worker.port
+    $profile = [string]$worker.profile
+    $healthy = Test-HttpHealth -Port $port
+    $entry = Update-OwnerMaintenanceUnhealthyState -State $state -Worker $worker -Unhealthy (-not $healthy)
+    if ($healthy) { continue }
+
+    $tcpOpen = Test-TcpPortOpen -Port $port
+    if (-not $tcpOpen) {
+      Write-GatewayPoolLog "Owner-maintenance repair required for $profile; HTTP health failed and TCP port $port is closed."
+      $needsRepair += $worker
+      continue
+    }
+
+    $firstSeen = $null
+    if ($entry -and $entry.firstUnhealthyAt) {
+      try { $firstSeen = [DateTime]::Parse($entry.firstUnhealthyAt).ToUniversalTime() } catch { $firstSeen = (Get-Date).ToUniversalTime() }
+    } else {
+      $firstSeen = (Get-Date).ToUniversalTime()
+    }
+    $elapsedMs = ((Get-Date).ToUniversalTime() - $firstSeen).TotalMilliseconds
+    if ($elapsedMs -ge $graceMs) {
+      Write-GatewayPoolLog "Owner-maintenance repair required for $profile; HTTP health failed for $([Math]::Round($elapsedMs / 60000, 1)) minutes while TCP port remained open."
+      $needsRepair += $worker
+    } else {
+      Write-GatewayPoolLog "Owner-maintenance repair deferred for $profile; HTTP health failed but TCP port $port is open, likely busy with a long tool call. graceMinutes=$OwnerMaintenanceBusyGraceMinutes count=$($entry.count)"
+    }
+  }
+  Write-OwnerMaintenanceWatchdogState -State $state
+  return $needsRepair
 }
 
 function Resolve-ConnectorPath {
@@ -548,6 +658,9 @@ function Repair-OwnerMaintenanceGateways {
     return
   }
   $unhealthyWorkers = @($workers | Where-Object { -not (Test-HttpHealth -Port ([int]$_.port)) })
+  if ($OnlyWhenOwnerMaintenanceUnhealthy) {
+    $unhealthyWorkers = @(Select-OwnerMaintenanceWorkersNeedingRepair -Workers $workers)
+  }
   if ($OnlyWhenOwnerMaintenanceUnhealthy -and $unhealthyWorkers.Count -eq 0) {
     Write-GatewayPoolLog "Owner-maintenance repair skipped; all owner-maintenance ports are healthy."
     return
