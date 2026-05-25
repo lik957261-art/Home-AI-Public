@@ -44,9 +44,9 @@ Pool 部署可以由另一个 Agent 按公开文档完成。
   - 创建 `HermesMobileWorker`。
   - 准备 `C:\ProgramData\HermesMobile\app` / `data` / `gateway-worker`。
   - 安装 runtime package。
-  - 启动 WSL `HermesGatewayWorker` lowgw pool。
+  - 启动 WSL `HermesGatewayWorker` lowgw pool 和可选 `grokgw1`。
   - 启动 Hermes Mobile listener。
-  - 检查 `/api/status`、真实 callable schema、auth realpath、SQLite integrity。
+  - 检查 `/api/status`、真实 callable schema、Grok/xAI worker、auth realpath、SQLite integrity。
 - 看板卡片详情支持回执/过程、Markdown HTML preview、响应式回执字体和更均衡的 Worker 分配。
 - Weixin / Mobile ingress 启动脚本同步到 public，但仍要求部署方自己提供账号、密钥和唯一 poller 边界。
 
@@ -108,7 +108,8 @@ Quick Start below is only for a minimal single-Gateway listener or local smoke
 test. It does not create `HermesMobileWorker`, does not prepare the
 `gateway-worker` directory, does not start `lowgw1..10`, and does not build a
 Gateway Pool manifest. A clean install that only follows Quick Start can log in
-to Hermes Mobile but will not have production workers.
+to Hermes Mobile but will not have production workers or the dedicated
+`@Grok4.3` worker unless the single Gateway was already configured for xAI.
 
 ## Quick Start
 
@@ -183,6 +184,30 @@ HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE=3
 See `examples/gateway-pool-manifest.example.json` and
 `docs/GATEWAY_POOL_ARCHITECTURE.md`. Do not commit real worker API keys or
 worker manifests containing secrets.
+
+For Windows production, copy the script entrypoints from this repo into the
+runtime app/gateway-worker directories as described in the deployment runbook.
+The operational restart paths are script-owned: use `start-worker-host.ps1`
+with `-ReplaceExisting` for the listener/bridge host, `start-gateway-pool.ps1`
+or the `Hermes Mobile Gateway Pool` scheduled task for Gateway workers, and
+`start-cron-tick-sidecar.ps1` with `-ReplaceExisting` for the cron dispatcher
+sidecar.
+Do not restart production by killing arbitrary `node`, `python`, or `wsl`
+processes without first checking active runs.
+
+### Grok / xAI Worker
+
+Hermes Mobile supports `@Grok4.3` by routing those runs to an official Hermes
+Gateway profile whose provider is `xai-oauth`. In the Windows production
+runbook, that worker is `grokgw1` on port `18761` by default.
+
+This repository does not include xAI OAuth state, Codex auth, API keys, or any
+other credential seed. A production Gateway Pool manifest must include a worker
+such as `profile=grokgw1`, `provider=xai-oauth`, and `securityLevel=user`; the
+target machine must also complete the official Hermes/xAI OAuth setup for that
+profile. If `@Grok4.3` is visible but calls fail with authentication errors, fix
+the `grokgw1` Gateway profile/auth store and restart the Gateway Pool; do not
+work around it by routing Grok requests to ordinary lowgw workers.
 
 ## Runtime Data
 

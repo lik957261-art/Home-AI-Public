@@ -17,6 +17,21 @@
       "telemetryResponseStoreDbPath": "/var/lib/hermes-gateway/profiles/user-worker-1/response_store.db"
     },
     {
+      "name": "grok-worker-1",
+      "profile": "grokgw1",
+      "host": "127.0.0.1",
+      "port": 18761,
+      "api_key": "replace-with-grok-worker-api-key",
+      "enabled": true,
+      "securityLevel": "user",
+      "provider": "xai-oauth",
+      "allowedWorkspaceIds": ["*"],
+      "skillProfile": "owner-full",
+      "skillWorkspaceIds": ["owner"],
+      "telemetryStateDbPath": "/var/lib/hermes-gateway/profiles/grokgw1/state.db",
+      "telemetryResponseStoreDbPath": "/var/lib/hermes-gateway/profiles/grokgw1/response_store.db"
+    },
+    {
       "name": "maintenance-worker-1",
       "profile": "maintenance-worker-1",
       "host": "127.0.0.1",
