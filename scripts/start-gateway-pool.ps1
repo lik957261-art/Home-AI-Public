@@ -9,7 +9,9 @@ param(
   [string]$OutlookGraphTokenPath = "",
   [string]$OutlookGraphEnvPath = "",
   [string]$OutlookGraphMcpPath = "",
-  [int]$HealthTimeoutSeconds = 45
+  [int]$HealthTimeoutSeconds = 45,
+  [switch]$OwnerMaintenanceOnly,
+  [switch]$OnlyWhenOwnerMaintenanceUnhealthy
 )
 
 $ErrorActionPreference = "Stop"
@@ -108,6 +110,12 @@ function Is-OwnerMaintenanceWorker {
   if (-not $Worker.enabled -or -not $Worker.allowMaintenance -or -not $Worker.profile -or -not $Worker.port) { return $false }
   if ([string]$Worker.securityLevel -ne "owner-maintenance") { return $false }
   return [string]$Worker.profile -match '^officialclean[0-9]+$'
+}
+
+function Get-OwnerMaintenanceWorkers {
+  if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Missing gateway pool manifest: $ManifestPath" }
+  $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+  return @($manifest.workers | Where-Object { Is-OwnerMaintenanceWorker -Worker $_ })
 }
 
 function OwnerMaintenanceSharedMemoryEnabled {
@@ -468,15 +476,16 @@ function Provision-OwnerExternalConnectors {
 }
 
 function Start-OwnerMaintenanceGateways {
-  if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Missing gateway pool manifest: $ManifestPath" }
-  $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+  param([object[]]$TargetWorkers = @())
   Assert-SafeLinuxUserName -UserName $OfficialUser
-  $workers = @($manifest.workers | Where-Object { Is-OwnerMaintenanceWorker -Worker $_ })
+  $allWorkers = Get-OwnerMaintenanceWorkers
+  $workers = @($TargetWorkers)
+  if ($workers.Count -eq 0) { $workers = $allWorkers }
   if ($workers.Count -eq 0) {
     Write-GatewayPoolLog "No owner-maintenance workers in manifest."
     return @()
   }
-  $apiKey = [string]($workers | Where-Object { $_.api_key } | Select-Object -First 1).api_key
+  $apiKey = [string]($allWorkers | Where-Object { $_.api_key } | Select-Object -First 1).api_key
   if (-not $apiKey) { throw "Owner-maintenance gateway API key missing from manifest." }
 
   $runtimeRoot = "/opt/hermes-gateway-runtime"
@@ -530,6 +539,32 @@ function Start-OwnerMaintenanceGateways {
     Remove-Item Env:\WSLENV -ErrorAction SilentlyContinue
   }
   return @($workers | ForEach-Object { [int]$_.port })
+}
+
+function Repair-OwnerMaintenanceGateways {
+  $workers = Get-OwnerMaintenanceWorkers
+  if ($workers.Count -eq 0) {
+    Write-GatewayPoolLog "Owner-maintenance repair skipped; no owner-maintenance workers in manifest."
+    return
+  }
+  $unhealthyWorkers = @($workers | Where-Object { -not (Test-HttpHealth -Port ([int]$_.port)) })
+  if ($OnlyWhenOwnerMaintenanceUnhealthy -and $unhealthyWorkers.Count -eq 0) {
+    Write-GatewayPoolLog "Owner-maintenance repair skipped; all owner-maintenance ports are healthy."
+    return
+  }
+  if ($unhealthyWorkers.Count -eq 0) { $unhealthyWorkers = $workers }
+  Write-GatewayPoolLog ("Owner-maintenance repair starting profiles: {0}" -f (($unhealthyWorkers | ForEach-Object { [string]$_.profile }) -join ', '))
+  Invoke-GatewayPoolPhase -Name "install-owner-maintenance-chatgpt-pro-plugin" -ScriptBlock { Install-OwnerMaintenanceChatGptProPlugin }
+  $repairPorts = @()
+  Invoke-GatewayPoolPhase -Name "start-owner-maintenance-gateways" -ScriptBlock { $script:repairPorts = @(Start-OwnerMaintenanceGateways -TargetWorkers $unhealthyWorkers) }
+  Invoke-GatewayPoolPhase -Name "wait-owner-maintenance-health" -ScriptBlock { Wait-HealthPorts -Ports $script:repairPorts }
+  Write-GatewayPoolLog "Owner-maintenance gateway repair OK; healthy ports: $($script:repairPorts -join ', ')."
+}
+
+if ($OwnerMaintenanceOnly) {
+  Write-GatewayPoolLog "Owner-maintenance gateway repair begin."
+  Repair-OwnerMaintenanceGateways
+  exit 0
 }
 
 Write-GatewayPoolLog "Gateway pool startup begin."
