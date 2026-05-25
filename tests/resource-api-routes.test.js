@@ -42,20 +42,11 @@ function makeRoutes(overrides = {}) {
     shared: [],
     skillDetail: [],
     skillFix: [],
-    owner: [],
     workspaceAccess: [],
   };
   const deps = Object.assign({
     readBody(req) {
       return Promise.resolve(req.body || {});
-    },
-    requireOwner(req, res) {
-      calls.owner.push(req.auth?.role || "");
-      if (req.auth?.role === "blocked") {
-        sendJson(res, 403, { error: "Owner access is required" });
-        return null;
-      }
-      return { role: "owner", isOwner: true };
     },
     requireWorkspaceAccess(req, res, workspaceId) {
       calls.workspaceAccess.push({
@@ -86,24 +77,24 @@ function makeRoutes(overrides = {}) {
       },
     },
     skillDetailProvider: {
-      detail(skill) {
-        calls.skillDetail.push(skill);
+      detail(skill, options = {}) {
+        calls.skillDetail.push({ skill, auth: options.auth || null });
         return Promise.resolve({
           id: skill,
           name: skill.split("/").pop(),
           summary: "Skill summary",
         });
       },
-      analyze(skill) {
-        calls.skillDetail.push(`analysis:${skill}`);
+      analyze(skill, options = {}) {
+        calls.skillDetail.push({ skill: `analysis:${skill}`, auth: options.auth || null });
         return Promise.resolve({
           skill: { path: skill },
           summary: "Skill analysis",
           invocationConditions: ["Use when analysis is requested."],
         });
       },
-      applyFix(skill, fixId) {
-        calls.skillFix.push({ skill, fixId });
+      applyFix(skill, fixId, options = {}) {
+        calls.skillFix.push({ skill, fixId, auth: options.auth || null });
         return Promise.resolve({
           ok: true,
           changed: true,
@@ -152,7 +143,7 @@ async function testRouteMetadataAndFallthrough() {
   const summary = routes.summary({ public: true });
   assert.equal(summary.total, 5);
   assert.deepEqual(summary.byModule, { resource: 5 });
-  assert.deepEqual(summary.byAuthMode, { "access-key": 4, owner: 1 });
+  assert.deepEqual(summary.byAuthMode, { "access-key": 5 });
   assert.equal(JSON.stringify(summary).includes("/api/projects"), false);
 
   const publicRoutes = routes.list({ public: true });
@@ -242,7 +233,7 @@ async function testSkillDetailSuccessAndError() {
   const got = await request(routes, "GET", "/api/skills/detail?skill=%20productivity%2Fwrite%20");
 
   assert.equal(got.res.statusCode, 200);
-  assert.deepEqual(calls.skillDetail, ["productivity/write"]);
+  assert.deepEqual(calls.skillDetail, [{ skill: "productivity/write", auth: null }]);
   assert.deepEqual(got.body, {
     data: {
       id: "productivity/write",
@@ -285,7 +276,7 @@ async function testSkillAnalysisSuccessAndError() {
   const got = await request(routes, "GET", "/api/skills/analysis?skill=x-social-monitoring-and-briefs");
 
   assert.equal(got.res.statusCode, 200);
-  assert.deepEqual(calls.skillDetail, ["analysis:x-social-monitoring-and-briefs"]);
+  assert.deepEqual(calls.skillDetail, [{ skill: "analysis:x-social-monitoring-and-briefs", auth: null }]);
   assert.deepEqual(got.body, {
     data: {
       skill: { path: "x-social-monitoring-and-briefs" },
@@ -319,32 +310,55 @@ async function testSkillAnalysisSuccessAndError() {
   });
 }
 
-async function testSkillAnalysisFixSuccessAndOwnerGate() {
+async function testSkillAnalysisFixSuccessAndPermissionGate() {
   const { routes, calls } = makeRoutes();
+  const auth = { ok: true, workspaceId: "owner", principalId: "owner", role: "owner", isOwner: true };
   const got = await request(routes, "POST", "/api/skills/analysis/fix", {
-    auth: { role: "owner", isOwner: true },
+    auth,
     body: { skill: "social-media/x-social-monitoring-and-briefs", fixId: "narrow-x-search-invocation" },
   });
 
   assert.equal(got.result.handled, true);
   assert.equal(got.result.route.id, "skills-analysis-fix");
   assert.equal(got.res.statusCode, 200);
-  assert.deepEqual(calls.skillFix, [{ skill: "social-media/x-social-monitoring-and-briefs", fixId: "narrow-x-search-invocation" }]);
+  assert.deepEqual(calls.skillFix, [{ skill: "social-media/x-social-monitoring-and-briefs", fixId: "narrow-x-search-invocation", auth }]);
   assert.equal(got.body.data.changed, true);
   assert.equal(got.body.data.detail.path, "social-media/x-social-monitoring-and-briefs");
 
   const missing = await request(routes, "POST", "/api/skills/analysis/fix", {
-    auth: { role: "owner", isOwner: true },
+    auth,
     body: { skill: "", fixId: "" },
   });
   assert.equal(missing.res.statusCode, 400);
   assert.deepEqual(missing.body, { error: "Skill and fixId are required" });
 
-  const blocked = await request(routes, "POST", "/api/skills/analysis/fix", {
-    auth: { role: "blocked" },
+  const unauthenticated = await request(routes, "POST", "/api/skills/analysis/fix", {
+    auth: {},
     body: { skill: "x", fixId: "narrow-x-search-invocation" },
   });
+  assert.equal(unauthenticated.res.statusCode, 401);
+
+  const err = new Error("Skill write access is limited to the Skill creator; system shared Skills are writable by Owner only");
+  err.status = 403;
+  const denied = makeRoutes({
+    skillDetailProvider: {
+      detail() {
+        throw new Error("not used");
+      },
+      analyze() {
+        throw new Error("not used");
+      },
+      applyFix() {
+        throw err;
+      },
+    },
+  });
+  const blocked = await request(denied.routes, "POST", "/api/skills/analysis/fix", {
+    auth: { ok: true, workspaceId: "child", principalId: "child" },
+    body: { skill: "shared/custom", fixId: "model-suggested-skill-rewrite" },
+  });
   assert.equal(blocked.res.statusCode, 403);
+  assert.equal(blocked.body.error, "compact:Skill write access");
 }
 
 function testDependencyValidation() {
@@ -355,7 +369,6 @@ function testDependencyValidation() {
   assert.throws(
     () => createResourceApiRoutes({
       requireWorkspaceAccess() {},
-      requireOwner() {},
       readBody() {},
       sendJson() {},
       compactText() {},
@@ -369,7 +382,6 @@ function testDependencyValidation() {
   assert.throws(
     () => createResourceApiRoutes({
       requireWorkspaceAccess() {},
-      requireOwner() {},
       readBody() {},
       sendJson() {},
       compactText() {},
@@ -384,7 +396,6 @@ function testDependencyValidation() {
   assert.throws(
     () => createResourceApiRoutes({
       requireWorkspaceAccess() {},
-      requireOwner() {},
       readBody() {},
       sendJson() {},
       compactText() {},
@@ -401,7 +412,6 @@ function testDependencyValidation() {
   assert.throws(
     () => createResourceApiRoutes({
       requireWorkspaceAccess() {},
-      requireOwner() {},
       readBody() {},
       sendJson() {},
       compactText() {},
@@ -425,7 +435,7 @@ async function run() {
   await testSkillRequired();
   await testSkillDetailSuccessAndError();
   await testSkillAnalysisSuccessAndError();
-  await testSkillAnalysisFixSuccessAndOwnerGate();
+  await testSkillAnalysisFixSuccessAndPermissionGate();
   testDependencyValidation();
   console.log("resource api routes tests passed");
 }

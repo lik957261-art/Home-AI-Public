@@ -4,6 +4,11 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { createSkillAnalysisService } = require("./skill-analysis-service");
+const {
+  assertSkillWriteAllowed,
+  inferSkillOwnership,
+  skillAccessForAuth,
+} = require("./skill-permission-service");
 
 function defaultCompactText(value, maxChars = 800) {
   const text = String(value || "");
@@ -132,7 +137,7 @@ function directSkillCandidate(root, skillPath) {
   const candidate = path.resolve(rootResolved, skillPath, "SKILL.md");
   if (!(candidate === rootResolved || candidate.startsWith(`${rootResolved}${path.sep}`))) return null;
   if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) return null;
-  return { path: skillPath, file: candidate };
+  return { path: skillPath, file: candidate, root: rootResolved };
 }
 
 function collectNamedSkillCandidates(root, skillPath, options = {}) {
@@ -171,11 +176,17 @@ function collectNamedSkillCandidates(root, skillPath, options = {}) {
   return matches;
 }
 
-function skillDetailFromFile(filePath, resolvedPath, maxChars) {
+function skillDetailFromFile(filePath, resolvedPath, maxChars, options = {}) {
   const content = fs.readFileSync(filePath, "utf8");
   const totalChars = content.length;
   const truncated = totalChars > maxChars;
   const parts = resolvedPath.split("/");
+  const ownership = inferSkillOwnership({
+    content,
+    file: filePath,
+    root: options.root || "",
+    path: resolvedPath,
+  });
   return {
     id: parts[parts.length - 1],
     label: parts[parts.length - 1],
@@ -184,6 +195,7 @@ function skillDetailFromFile(filePath, resolvedPath, maxChars) {
     content: truncated ? content.slice(0, maxChars).trimEnd() : content,
     totalChars,
     truncated,
+    access: skillAccessForAuth(ownership, options.auth || {}),
   };
 }
 
@@ -223,9 +235,9 @@ function createDirectSkillResolver(options = {}) {
     return match;
   }
 
-  function detail(skill) {
+  function detail(skill, detailOptions = {}) {
     const match = resolve(skill);
-    return match ? skillDetailFromFile(match.file, match.path, maxChars) : null;
+    return match ? skillDetailFromFile(match.file, match.path, maxChars, { root: match.root, auth: detailOptions.auth }) : null;
   }
 
   return { detail, resolve };
@@ -308,12 +320,12 @@ function createSkillDetailProvider(options = {}) {
   const skillAnalysisService = options.skillAnalysisService || createSkillAnalysisService(options);
   const maxChars = Number(options.maxSkillChars || 60000);
 
-  async function detail(skill) {
+  async function detail(skill, options = {}) {
     const requestedSkill = String(skill || "").trim();
     if (!requestedSkill) {
       throw errorWithStatus("Skill is required", 400);
     }
-    const direct = directResolver?.detail?.(requestedSkill);
+    const direct = directResolver?.detail?.(requestedSkill, options);
     if (direct) return direct;
     let bridgeError = null;
     try {
@@ -330,21 +342,22 @@ function createSkillDetailProvider(options = {}) {
     throw bridgeError || errorWithStatus("Skill was not found", 404, { skill: requestedSkill });
   }
 
-  async function analyze(skill) {
-    return await skillAnalysisService.analyze(await detail(skill));
+  async function analyze(skill, options = {}) {
+    return await skillAnalysisService.analyze(await detail(skill, options));
   }
 
-  async function applyFix(skill, fixId) {
+  async function applyFix(skill, fixId, options = {}) {
     const requestedSkill = String(skill || "").trim();
     if (!requestedSkill) throw errorWithStatus("Skill is required", 400);
     const match = directResolver?.resolve?.(requestedSkill);
     if (!match?.file) {
       throw errorWithStatus("Skill can only be modified when it resolves to a local SKILL.md", 404, { skill: requestedSkill });
     }
-    const current = skillDetailFromFile(match.file, match.path, maxChars);
+    const current = skillDetailFromFile(match.file, match.path, maxChars, { root: match.root, auth: options.auth });
+    assertSkillWriteAllowed(current.access?.ownership || {}, options.auth || {});
     const applied = await skillAnalysisService.applyFix(current, fixId);
     if (applied.changed) fs.writeFileSync(match.file, applied.content, "utf8");
-    const next = skillDetailFromFile(match.file, match.path, maxChars);
+    const next = skillDetailFromFile(match.file, match.path, maxChars, { root: match.root, auth: options.auth });
     return {
       ok: true,
       changed: Boolean(applied.changed),

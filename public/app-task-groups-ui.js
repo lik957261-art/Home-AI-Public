@@ -382,11 +382,12 @@ function renderSkillAnalysisList(title, items) {
   </div>`;
 }
 
-function renderSkillAnalysisFixes(fixes, applyingFixId = "") {
+function renderSkillAnalysisFixes(fixes, applyingFixId = "", canWrite = false) {
   const values = Array.isArray(fixes) ? fixes.filter((item) => item?.id) : [];
   if (!values.length) return "";
   return `<div class="skill-analysis-section skill-analysis-fixes">
     <h3>\u53ef\u4fee\u6539 Skill</h3>
+    ${canWrite ? "" : `<p class="learning-growth-muted">当前账号只有只读权限，只有 Skill 创建者可以修改；系统共享 Skill 由 Owner 修改。</p>`}
     ${values.map((fix) => {
       const busy = applyingFixId && applyingFixId === fix.id;
       const actionLabel = fix.modelAssisted ? "\u4fee\u6539" : "\u4fee\u6b63";
@@ -395,7 +396,7 @@ function renderSkillAnalysisFixes(fixes, applyingFixId = "") {
           <strong>${escapeHtml(fix.label || fix.id)}</strong>
           <p>${escapeHtml(fix.description || "")}</p>
         </div>
-        <button type="button" data-skill-fix-id="${escapeHtml(fix.id)}"${busy ? " disabled" : ""}>${busy ? "\u4fee\u6539\u4e2d" : actionLabel}</button>
+        ${canWrite ? `<button type="button" data-skill-fix-id="${escapeHtml(fix.id)}"${busy ? " disabled" : ""}>${busy ? "\u4fee\u6539\u4e2d" : actionLabel}</button>` : ""}
       </div>`;
     }).join("")}
   </div>`;
@@ -418,7 +419,7 @@ function renderSkillAnalysisPanel(skill) {
     ${renderSkillAnalysisList("\u4e0d\u8981\u8c03\u7528", data.nonInvocationConditions)}
     ${renderSkillAnalysisList("\u8f93\u5165 / \u8f93\u51fa / \u5de5\u5177\u8fb9\u754c", data.inputsOutputs)}
     ${renderSkillAnalysisList("\u4fee\u6539\u5173\u6ce8\u70b9", data.modificationNotes)}
-    ${renderSkillAnalysisFixes(data.fixes, analysis.applyingFixId)}
+    ${renderSkillAnalysisFixes(data.fixes, analysis.applyingFixId, Boolean(skill.access?.canWrite))}
     <div class="skill-analysis-source">\u6765\u6e90\uff1a${escapeHtml((source.sectionTitles || []).slice(0, 5).join(" / ") || "SKILL.md")}${source.truncated ? "\uff08\u5185\u5bb9\u5df2\u622a\u65ad\uff09" : ""}</div>
     ${error}
   </section>`;
