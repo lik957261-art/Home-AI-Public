@@ -25,6 +25,7 @@ const runKanbanGatewayWorkerChild = read(path.join("scripts", "run-kanban-gatewa
 const runKanbanGatewayWorkerShell = read(path.join("scripts", "run-kanban-gateway-worker.sh"));
 const startCronTickSidecar = read(path.join("scripts", "start-cron-tick-sidecar.ps1"));
 const runCronTickSidecar = read(path.join("scripts", "run-cron-tick-sidecar.ps1"));
+const hermesMobileCronDispatcher = read(path.join("scripts", "hermes-mobile-cron-dispatcher.py"));
 const startWeixinFrontGateway = read(path.join("scripts", "start-weixin-front-gateway.ps1"));
 const startWeixinMobileIngressBridge = read(path.join("scripts", "start-weixin-mobile-ingress-bridge.ps1"));
 const weixinMobileIngressBridge = read(path.join("scripts", "weixin-mobile-ingress-bridge.py"));
@@ -335,14 +336,35 @@ assert.match(startCronTickSidecar, /Start-Process/);
 assert.match(startCronTickSidecar, /run-cron-tick-sidecar\.ps1/);
 assert.match(startCronTickSidecar, /HERMES_WEB_HERMES_HOME/);
 assert.match(startCronTickSidecar, /HERMES_MOBILE_CRON_TICK_LOG_PATH/);
+assert.match(startCronTickSidecar, /HERMES_MOBILE_CRON_TICK_TIMEOUT_SECONDS/);
+assert.match(startCronTickSidecar, /TickTimeoutSeconds/);
+assert.match(startCronTickSidecar, /hermes-mobile-cron-dispatcher\.py/);
+assert.match(startCronTickSidecar, /DispatcherScript/);
 
-assert.match(runCronTickSidecar, /cron", "tick"/);
-assert.match(runCronTickSidecar, /--accept-hooks/);
+assert.match(runCronTickSidecar, /hermes-mobile-cron-dispatcher\.py/);
+assert.match(runCronTickSidecar, /--dispatch/);
+assert.match(runCronTickSidecar, /\/mnt\/\$drive\/\$tail/);
 assert.match(runCronTickSidecar, /HERMES_ACCEPT_HOOKS=1/);
 assert.match(runCronTickSidecar, /HERMES_HOME=\$HermesHome/);
 assert.match(runCronTickSidecar, /PYTHONPATH=\$pythonPath/);
+assert.match(runCronTickSidecar, /WaitForExit\(\$TickTimeoutSeconds \* 1000\)/);
+assert.match(runCronTickSidecar, /Stop-Process -Id \$process\.Id -Force/);
+assert.match(runCronTickSidecar, /exitCode = 124/);
+assert.match(runCronTickSidecar, /\$process\.Refresh\(\)/);
+assert.match(runCronTickSidecar, /timed_out=\$timedOut/);
 assert.match(runCronTickSidecar, /Select-Object -Last \$maxLines/);
+assert.doesNotMatch(runCronTickSidecar, /cron", "tick"/);
 assert.doesNotMatch(runCronTickSidecar, /gateway", "run"/);
+
+assert.match(hermesMobileCronDispatcher, /def dispatch_due_jobs/);
+assert.match(hermesMobileCronDispatcher, /subprocess\.Popen/);
+assert.match(hermesMobileCronDispatcher, /start_new_session=True/);
+assert.match(hermesMobileCronDispatcher, /advance_next_run\(job_id\)/);
+assert.match(hermesMobileCronDispatcher, /def run_one_job/);
+assert.match(hermesMobileCronDispatcher, /run_job\(job\)/);
+assert.match(hermesMobileCronDispatcher, /mark_job_run\(job_id/);
+assert.match(hermesMobileCronDispatcher, /save_job_output\(job_id/);
+assert.doesNotMatch(hermesMobileCronDispatcher, /cron tick/);
 
 assert.match(startWeixinFrontGateway, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY/);
 assert.match(startWeixinFrontGateway, /gateway_state\.json/);
