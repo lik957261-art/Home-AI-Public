@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260525-growth-completed-time-v236";
+const CLIENT_VERSION = "20260525-run-progress-dismiss-v237";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -305,9 +305,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-growth-completed-time-v236/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-growth-completed-time-v236/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-growth-completed-time-v236/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-run-progress-dismiss-v237/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-run-progress-dismiss-v237/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-run-progress-dismiss-v237/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -445,9 +445,9 @@ assert.match(appJs, /data-run-progress-offset/);
 assert.match(appJs, /runProgressDisplayEvents\(allEvents, startMs\)/);
 assert.match(appJs, /}, 1000\)/);
 assert.match(appJs, /options\.terminal \? "\\u8fd0\\u884c\\u8bb0\\u5f55" : "\\u8fd0\\u884c\\u4e2d"/);
-assert.match(appJs, /RUN_PROGRESS_TERMINAL_STATUSES\.has\(status\) && !runProgressEvents/);
+assert.match(appJs, /if \(RUN_PROGRESS_TERMINAL_STATUSES\.has\(status\)\) return ""/);
 assert.match(appJs, /message\.originalRunId/);
-assert.match(appJs, /terminalMs: runProgressTerminalMs\(message\)/);
+assert.doesNotMatch(appJs, /terminalMs: runProgressTerminalMs\(message\)/);
 assert.doesNotMatch(appJs, /shortTaskDisplayId\(ids\[0\]\)/);
 assert.match(appJs, /state\.messageScrollVisibilityScheduled/);
 assert.match(appJs, /updateMessageScrollButtonVisibility\(target\)/);
@@ -456,6 +456,7 @@ assert.match(stylesCss, /\.message-footer-row\s*\{[\s\S]*?display:\s*grid;[\s\S]
 assert.match(stylesCss, /\.message-footer-meta\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?display:\s*flex;/);
 assert.match(appMessageActionsUiJs, /dataset\.messageScrollButtonVisible/);
 assert.match(appMessageActionsUiJs, /hasRunProgress/);
+assert.match(appMessageActionsUiJs, /\.run-progress-panel\.inline:not\(\.terminal\)/);
 assert.match(appMessageActionsUiJs, /!hasRunProgress && \(/);
 assert.match(stylesCss, /\.message-scroll-button\.hidden\s*\{[\s\S]*?visibility: hidden;[\s\S]*?pointer-events: none;/);
 assert.doesNotMatch(stylesCss, /\.message-scroll-button\.hidden\s*\{\s*display:\s*none;/);

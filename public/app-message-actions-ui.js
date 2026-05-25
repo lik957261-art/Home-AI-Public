@@ -660,7 +660,7 @@ function updateMessageScrollButtonVisibility(root) {
   root.querySelectorAll(".message[data-message-id]").forEach((article) => {
     const messageHeight = article.getBoundingClientRect().height || article.offsetHeight || 0;
     const wasShown = article.dataset.messageScrollButtonVisible === "1";
-    const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline"));
+    const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline:not(.terminal)"));
     const showThreshold = Math.max(420, viewportHeight - 28);
     const hideThreshold = Math.max(360, viewportHeight - 140);
     const shouldShow = viewportHeight > 0 && !hasRunProgress && (

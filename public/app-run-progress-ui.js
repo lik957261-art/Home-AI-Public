@@ -275,6 +275,7 @@ function renderMessageRunProgress(thread, message = {}) {
   if (message?.role !== "assistant") return "";
   const status = String(message.status || "");
   if (!["queued", "running", "done", "failed", "cancelled"].includes(status)) return "";
+  if (RUN_PROGRESS_TERMINAL_STATUSES.has(status)) return "";
   const runIds = [
     message.originalRunId,
     message.responseRunId,
@@ -282,11 +283,9 @@ function renderMessageRunProgress(thread, message = {}) {
     thread?.activeRunId,
   ].map((value) => String(value || "").trim()).filter(Boolean);
   if (!runIds.length) return "";
-  if (RUN_PROGRESS_TERMINAL_STATUSES.has(status) && !runProgressEvents(thread, runIds).length) return "";
   return renderRunProgressPanel(thread, runIds, {
     inline: true,
-    terminal: RUN_PROGRESS_TERMINAL_STATUSES.has(status),
-    terminalMs: runProgressTerminalMs(message),
+    terminal: false,
   });
 }
 
