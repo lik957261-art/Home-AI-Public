@@ -1029,14 +1029,20 @@
     const nativeState = task?.nativeState || {};
     const nextAction = String(nativeState.nextAction || "");
     const previousText = String(task?.latestSubmission?.displayText || "").trim();
-    const submitting = Boolean(options.state?.learningNativeGrowthSubmissionSubmitting?.[taskCardId]);
+    const submittingRecord = options.state?.learningNativeGrowthSubmissionSubmitting?.[taskCardId];
+    const submittingStartedAt = Number(submittingRecord?.startedAtMs || 0);
+    const submittingLockMs = requiresAudio ? 5 * 60 * 1000 : 15 * 1000;
+    const submitting = Boolean(submittingRecord && (!submittingStartedAt || Date.now() - submittingStartedAt < submittingLockMs));
+    if (submittingRecord && !submitting && options.state?.learningNativeGrowthSubmissionSubmitting) {
+      delete options.state.learningNativeGrowthSubmissionSubmitting[taskCardId];
+    }
     const editing = Boolean(options.state?.learningNativeGrowthAnswerEditing?.[taskCardId]);
     const latestEvaluationStatus = String(task?.latestEvaluation?.status || "").trim();
     const hasGradedResult = Boolean(task?.latestEvaluation && latestEvaluationStatus && latestEvaluationStatus !== "pending");
     const detailButton = options.hideNativeGrowthDetailButton ? "" : `<button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>`;
     const stateLabel = submitting ? (requiresAudio
-      ? "\u5df2\u63d0\u4ea4\u5f55\u97f3\uff0c\u6b63\u5728\u8f6c\u5199\u5e76\u7b49\u5f85 AI \u6279\u6539\uff1b\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c\u3002"
-      : "\u5df2\u63d0\u4ea4\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\uff1b\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c\u3002")
+      ? "\u6b63\u5728\u53d1\u9001\u5f55\u97f3\uff0c\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58\uff1b\u8bf7\u4fdd\u6301\u672c\u9875\u9762\u6253\u5f00\u3002"
+      : "\u6b63\u5728\u53d1\u9001\u4f5c\u7b54\uff0c\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58\uff1b\u8bf7\u4fdd\u6301\u672c\u9875\u9762\u6253\u5f00\u3002")
       : ({
       submit: "\u5f85\u4f5c\u7b54",
       waiting_feedback: "\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539",
@@ -1084,13 +1090,25 @@
     const evaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
     const submission = task.latestSubmission || latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
     if (String(task.status || "").toLowerCase() === "completed" || String(reflection?.status || "") === "accepted") return "complete";
-    if (String(evaluation?.status || "") === "reflection_required") return "spoken_reflection";
+    if (nativeGrowthEvaluationNeedsReflection(evaluation)) return "spoken_reflection";
     if (["needs_repair", "needs_revision"].includes(String(evaluation?.status || ""))) return "revise";
     if (evaluation?.passed || ["passed", "completed", "complete"].includes(String(evaluation?.status || ""))) return "complete";
     const nativeAction = String(task?.nativeState?.nextAction || "");
     if (nativeAction && nativeAction !== "submit") return nativeAction;
     if (String(submission?.status || "")) return "waiting_feedback";
     return nativeAction || "submit";
+  }
+
+  function nativeGrowthEvaluationNeedsReflection(evaluation = {}) {
+    const status = String(evaluation?.status || "").trim().toLowerCase();
+    const nextStep = String(evaluation?.nextStep || evaluation?.reflectionGate?.nextStep || "").trim().toLowerCase();
+    if (status === "reflection_required" || nextStep === "spoken_reflection_required" || evaluation?.reflectionRequired === true) {
+      return true;
+    }
+    if (status !== "draft_feedback" && nextStep !== "rewrite_and_reflect") return false;
+    const score = Number(evaluation?.score);
+    const passLine = Number(evaluation?.finalPassingScore || evaluation?.passingScore || 80) || 80;
+    return Number.isFinite(score) && score >= passLine;
   }
 
   function renderTaskRewardPolicy(task = {}, options = {}) {

@@ -506,6 +506,8 @@ function createGatewayRunEventService(options = {}) {
         aliasStream.realRunId = responseRunId;
         activeStreams.set(responseRunId, aliasStream);
       }
+      if (!message.originalRunId) message.originalRunId = runId;
+      message.responseRunId = responseRunId;
       message.runId = responseRunId;
       replaceThreadActiveRun(thread, runId, responseRunId);
     }

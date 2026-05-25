@@ -1480,13 +1480,17 @@ function createLearningProgramApiRoutes(deps = {}) {
       return;
     }
     try {
-      const result = await getGrowthSubmissionService().submitTask(Object.assign({}, body, {
+      const growthService = getGrowthSubmissionService();
+      const submit = typeof growthService.submitTaskAsync === "function"
+        ? growthService.submitTaskAsync
+        : growthService.submitTask;
+      const result = await submit.call(growthService, Object.assign({}, body, {
         workspaceId: taskCard.workspaceId,
         cardId: taskCard.kanbanCardId || "",
         taskCardId,
         author: actorFromAuth(auth),
       }));
-      deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
+      deps.sendJson(res, result?.ok && result?.async ? 202 : (result?.ok ? 200 : (result?.status || 502)), Object.assign({}, result, {
         taskCardId,
         kanbanCardId: taskCard.kanbanCardId || "",
       }));

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260525-skill-owner-write-v221";
+const CLIENT_VERSION = "20260525-growth-completed-time-v236";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -89,6 +89,7 @@ const appLearningCoinsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-
 const appLearningProgramUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-program-ui.js"), "utf8");
 const appLearningGrowthUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ui.js"), "utf8");
 const appLearningGrowthTaskUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-task-ui.js"), "utf8");
+const appKanbanLearningPanelUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-kanban-learning-panel-ui.js"), "utf8");
 const appLearningGrowthControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-controller.js"), "utf8");
 const appLearningGrowthAiControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ai-controller.js"), "utf8");
 const appLearningGrowthRewardControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reward-controller.js"), "utf8");
@@ -304,9 +305,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-skill-owner-write-v221/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-skill-owner-write-v221/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-skill-owner-write-v221/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-growth-completed-time-v236/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-growth-completed-time-v236/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-growth-completed-time-v236/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -429,9 +430,24 @@ assert.match(appJs, /function activeRunSearchSourceInfo\(\)/);
 assert.match(appJs, /message\.searchSource \|\| message\.runOptions\?\.searchSource/);
 assert.match(appJs, /tool === "function_call_output"/);
 assert.match(appJs, /RUN_PROGRESS_RENDER_THROTTLE_MS = 750/);
+assert.match(appJs, /RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000/);
+assert.match(appJs, /RUN_PROGRESS_TERMINAL_STATUSES = new Set\(\["done", "failed", "cancelled"\]\)/);
+assert.match(appJs, /function runProgressVisibleEvents\(events = \[\], startMs = 0, now = Date\.now\(\)\)/);
+assert.match(appJs, /function runProgressDisplayEvents\(events = \[\], startMs = 0\)/);
+assert.match(appJs, /function runProgressTerminalMs\(message = \{\}\)/);
+assert.match(appJs, /const startEvents = visible\.filter\(isRunProgressStartEvent\)/);
+assert.match(appJs, /const runtimeEvents = visible\.filter\(\(event\) => !isRunProgressStartEvent\(event\)\)\.slice\(-3\)/);
 assert.match(appJs, /function runProgressDurationText\(seconds, options = \{\}\)/);
 assert.match(appJs, /runProgressDurationText\(\(eventMs - startMs\) \/ 1000, \{ allowZero: true \}\)/);
 assert.match(appJs, /runEventTimeLabel\(event, startMs\)/);
+assert.match(appJs, /name === "run\.context_ready"/);
+assert.match(appJs, /data-run-progress-offset/);
+assert.match(appJs, /runProgressDisplayEvents\(allEvents, startMs\)/);
+assert.match(appJs, /}, 1000\)/);
+assert.match(appJs, /options\.terminal \? "\\u8fd0\\u884c\\u8bb0\\u5f55" : "\\u8fd0\\u884c\\u4e2d"/);
+assert.match(appJs, /RUN_PROGRESS_TERMINAL_STATUSES\.has\(status\) && !runProgressEvents/);
+assert.match(appJs, /message\.originalRunId/);
+assert.match(appJs, /terminalMs: runProgressTerminalMs\(message\)/);
 assert.doesNotMatch(appJs, /shortTaskDisplayId\(ids\[0\]\)/);
 assert.match(appJs, /state\.messageScrollVisibilityScheduled/);
 assert.match(appJs, /updateMessageScrollButtonVisibility\(target\)/);
@@ -591,7 +607,10 @@ assert.match(serverJs, /function isOrdinaryToolSchemaElevationRequest\(approvalR
 assert.match(conversationHistoryServiceJs, /Stale assistant tool-availability claim omitted by Hermes Mobile/);
 assert.match(weixinOutboundDeliveryServiceJs, /internal_owner_elevation_request_not_external_delivered/);
 assert.match(weixinOutboundDeliveryServiceJs, /internal_tool_schema_failure_not_external_delivered/);
-assert.match(gatewayRunStartServiceJs, /conversation_history: buildConversationHistory\(thread, userMessage\?\.id, runPolicy\)/);
+assert.match(gatewayRunStartServiceJs, /const conversationHistory = buildConversationHistory\(thread, userMessage\?\.id, runPolicy\)/);
+assert.match(gatewayRunStartServiceJs, /conversation_history: conversationHistory/);
+assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.context_ready"/);
+assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.request_sent"/);
 assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
 assert.match(gatewayRunInstructionServiceJs, /Group-chat shared attachments authorized for this run/);
 assert.match(gatewayRunStartServiceJs, /groupChatAttachmentCopies/);
@@ -1239,10 +1258,22 @@ assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-se
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /function submitNativeGrowthTask\(/);
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /\/api\/learning\/task-cards\/\$\{encodeURIComponent\(taskCardId\)\}\/growth-submission/);
   assert.match(appLearningNativeGrowthSubmissionControllerJs, /learningNativeGrowthSubmissionSubmitting\[taskCardId\]/);
-  assert.match(appLearningNativeGrowthSubmissionControllerJs, /startNativeGrowthSubmissionResultPolling/);
-  assert.match(appLearningNativeGrowthSubmissionControllerJs, /loadLearningCoins\(\{ limit: 80 \}\)/);
-  assert.match(appLearningNativeGrowthSubmissionControllerJs, /clearNativeGrowthAnswerEditing/);
-  assert.match(appLearningProgramUiJs, /data-learning-native-growth-submission-form/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /startNativeGrowthSubmissionResultPolling/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /loadLearningCoins\(\{ limit: 80 \}\)/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /clearNativeGrowthAnswerEditing/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /status === "accepted"/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /AI \\u6279\\u6539\\u5df2\\u8f6c\\u5165\\u540e\\u53f0/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /\\u670d\\u52a1\\u7aef\\u786e\\u8ba4\\u524d\\u5c1a\\u672a\\u4fdd\\u5b58/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /\\u63d0\\u4ea4\\u5c1a\\u672a\\u786e\\u8ba4/);
+assert.match(appLearningProgramUiJs, /\\u670d\\u52a1\\u7aef\\u786e\\u8ba4\\u524d\\u5c1a\\u672a\\u4fdd\\u5b58/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /5 \* 60 \* 1000/);
+assert.match(appLearningProgramUiJs, /5 \* 60 \* 1000/);
+assert.match(appLearningNativeGrowthSubmissionControllerJs, /15 \* 1000/);
+assert.match(appLearningProgramUiJs, /15 \* 1000/);
+assert.match(appLearningProgramUiJs, /data-learning-native-growth-submission-form/);
+assert.match(appLearningGrowthTaskUiJs, /\\u521d\\u7a3f\\u6279\\u6539\\u5df2\\u8fbe\\u6807/);
+assert.match(appLearningGrowthTaskUiJs, /\\u8fd8\\u6ca1\\u6709\\u6700\\u7ec8\\u5b8c\\u6210/);
+assert.match(appKanbanLearningPanelUiJs, /\\u521d\\u7a3f\\u5df2\\u8fbe\\u6807/);
   assert.match(appLearningProgramUiJs, /data-learning-submit-native-growth/);
   assert.match(appLearningProgramUiJs, /learningNativeGrowthSubmissionSubmitting/);
   assert.match(appLearningProgramUiJs, /data-learning-native-growth-recorder/);
@@ -1580,6 +1611,7 @@ assert.ok(
   serviceWorkerJs.indexOf("if (data.automationId)") < serviceWorkerJs.indexOf("return explicitUrl || \"/\";"),
   "notification structured route fields should take precedence over explicit file/preview urls",
 );
+assert.match(serviceWorkerJs, /if \(data\.taskCardId\) \{[\s\S]*?params\.set\("view", "learning"\)[\s\S]*?params\.set\("taskCardId", String\(data\.taskCardId\)\)/);
 assert.match(serviceWorkerJs, /client\.navigate\(targetWindowRoute\)/);
 assert.match(serviceWorkerJs, /self\.clients\.openWindow\(targetWindowRoute\)/);
 assert.doesNotMatch(serviceWorkerJs, /self\.clients\.openWindow\(targetUrl\)/);

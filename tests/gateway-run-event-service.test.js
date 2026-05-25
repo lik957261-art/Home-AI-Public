@@ -123,6 +123,8 @@ function testResponseCreatedAliasesRunAndBroadcasts() {
 
   assert.equal(result.action, "response_created");
   assert.equal(message.runId, "real_response");
+  assert.equal(message.originalRunId, "public_run");
+  assert.equal(message.responseRunId, "real_response");
   assert.equal(thread.activeRunId, "real_response");
   assert.deepEqual(thread.activeRunIds, ["real_response"]);
   assert.equal(activeStreams.get("real_response"), activeStreams.get("public_run"));

@@ -240,6 +240,15 @@ function nativeGrowthSubmissionSettledResult(taskCardId, startedAtMs = 0) {
   return { card, evaluation, status };
 }
 
+function nativeGrowthSubmissionReceivedResult(taskCardId, startedAtMs = 0) {
+  const card = nativeGrowthSubmissionStateCard(taskCardId);
+  const submission = card?.latestSubmission || card?.nativeState?.latestSubmission || null;
+  if (!submission) return null;
+  const submittedAt = nativeGrowthRecordTime(submission);
+  if (startedAtMs && submittedAt && submittedAt + 30000 < startedAtMs) return null;
+  return { card, submission, status: String(submission.status || "submitted") };
+}
+
 function nativeGrowthSubmissionCompletionText(result = {}) {
   const evaluation = result.evaluation || result || {};
   const status = String(evaluation.status || result.status || "").trim();
@@ -272,6 +281,7 @@ function startNativeGrowthSubmissionResultPolling(taskCardId, startedAtMs = 0, s
   let inFlight = false;
   let attempts = 0;
   let timer = 0;
+  let receiptShown = false;
   const stop = () => {
     stopped = true;
     if (timer && typeof clearInterval === "function") clearInterval(timer);
@@ -282,7 +292,9 @@ function startNativeGrowthSubmissionResultPolling(taskCardId, startedAtMs = 0, s
     attempts += 1;
     if (attempts > 30) {
       if (state.learningNativeGrowthSubmissionSubmitting) delete state.learningNativeGrowthSubmissionSubmitting[taskCardId];
-      if (stateNode) stateNode.textContent = "\u6279\u6539\u7ed3\u679c\u4ecd\u672a\u8fd4\u56de\uff0c\u8bf7\u8fd4\u56de\u770b\u677f\u540e\u518d\u6253\u5f00\u8fd9\u5f20\u5361\u67e5\u770b\u6700\u65b0\u72b6\u6001\u3002";
+      if (stateNode) stateNode.textContent = receiptShown
+        ? "\u4f5c\u7b54\u5df2\u6536\u5230\uff0cAI \u6279\u6539\u4ecd\u5728\u8fdb\u884c\uff1b\u53ef\u8fd4\u56de\u770b\u677f\u540e\u518d\u6253\u5f00\u8fd9\u5f20\u5361\u67e5\u770b\u6700\u65b0\u72b6\u6001\u3002"
+        : "\u670d\u52a1\u7aef\u6682\u672a\u786e\u8ba4\u6536\u5230\u8fd9\u6b21\u4f5c\u7b54\uff1b\u8349\u7a3f\u5df2\u4fdd\u7559\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u540e\u91cd\u8bd5\u3002";
       if (typeof renderLearningCoinsView === "function") renderLearningCoinsView();
       stop();
       return;
@@ -294,6 +306,17 @@ function startNativeGrowthSubmissionResultPolling(taskCardId, startedAtMs = 0, s
         if (stateNode) stateNode.textContent = nativeGrowthSubmissionCompletionText(result);
         if (typeof showPushToast === "function") showPushToast("\u6700\u65b0 AI \u6279\u6539\u5df2\u5237\u65b0", "success");
         stop();
+      } else {
+        const receipt = nativeGrowthSubmissionReceivedResult(taskCardId, startedAtMs);
+        if (receipt) {
+          receiptShown = true;
+          if (stateNode) stateNode.textContent = "\u4f5c\u7b54\u5df2\u6536\u5230\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\u548c\u751f\u6210\u53cd\u9988\uff1b\u53ef\u4fdd\u6301\u672c\u9875\u9762\u6216\u7a0d\u540e\u5237\u65b0\u67e5\u770b\u3002";
+        } else if (attempts >= 9) {
+          if (state.learningNativeGrowthSubmissionSubmitting) delete state.learningNativeGrowthSubmissionSubmitting[taskCardId];
+          if (stateNode) stateNode.textContent = "\u670d\u52a1\u7aef\u6682\u672a\u786e\u8ba4\u6536\u5230\u8fd9\u6b21\u4f5c\u7b54\uff1b\u8349\u7a3f\u5df2\u4fdd\u7559\uff0c\u53ef\u91cd\u8bd5\u63d0\u4ea4\u3002";
+          if (typeof renderLearningCoinsView === "function") renderLearningCoinsView();
+          stop();
+        }
       }
     } catch (_) {
       // Keep the foreground submit request responsible for user-facing errors.
@@ -319,6 +342,12 @@ async function submitNativeGrowthTask(event, taskCardId) {
   let body = null;
   let submittedFile = null;
   state.learningNativeGrowthSubmissionSubmitting = state.learningNativeGrowthSubmissionSubmitting || {};
+  const existingSubmitting = state.learningNativeGrowthSubmissionSubmitting[taskCardId];
+  const existingStartedAt = Number(existingSubmitting?.startedAtMs || 0);
+  const existingLockMs = requiresAudio ? 5 * 60 * 1000 : 15 * 1000;
+  if (existingSubmitting && existingStartedAt && Date.now() - existingStartedAt >= existingLockMs) {
+    delete state.learningNativeGrowthSubmissionSubmitting[taskCardId];
+  }
   if (state.learningNativeGrowthSubmissionSubmitting[taskCardId]) {
     if (stateNode) stateNode.textContent = requiresAudio ? "\u5f55\u97f3\u6b63\u5728\u63d0\u4ea4\u548c\u8f6c\u5199\u4e2d\uff0c\u8bf7\u7a0d\u7b49\u3002" : "\u4f5c\u7b54\u6b63\u5728\u63d0\u4ea4\u4e2d\uff0c\u8bf7\u7a0d\u7b49\u3002";
     return;
@@ -362,7 +391,7 @@ async function submitNativeGrowthTask(event, taskCardId) {
   let settledByRefresh = false;
   state.learningNativeGrowthSubmissionSubmitting[taskCardId] = { startedAtMs };
   if (button) button.disabled = true;
-  if (stateNode) stateNode.textContent = requiresAudio ? "\u5f55\u97f3\u5df2\u63d0\u4ea4\uff0c\u6b63\u5728\u8f6c\u5199\u5e76\u7b49\u5f85 AI \u6279\u6539\uff1b\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c..." : "\u5df2\u63d0\u4ea4\uff0c\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539\u548c\u751f\u6210\u53cd\u9988\uff1b\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c...";
+  if (stateNode) stateNode.textContent = requiresAudio ? "\u6b63\u5728\u53d1\u9001\u5f55\u97f3\uff0c\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58\uff1b\u8bf7\u4fdd\u6301\u672c\u9875\u9762\u6253\u5f00\u3002" : "\u6b63\u5728\u53d1\u9001\u4f5c\u7b54\uff0c\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58\uff1b\u8bf7\u4fdd\u6301\u672c\u9875\u9762\u6253\u5f00\u3002";
   const poller = startNativeGrowthSubmissionResultPolling(taskCardId, startedAtMs, stateNode);
   try {
     if (requiresAudio && submittedFile) {
@@ -375,9 +404,20 @@ async function submitNativeGrowthTask(event, taskCardId) {
     }
     const response = await api(`/api/learning/task-cards/${encodeURIComponent(taskCardId)}/growth-submission`, {
       method: "POST",
+      timeoutMs: 180000,
       body: JSON.stringify(body),
     });
     if (!response?.ok) throw new Error(response?.error || "Growth task submission failed");
+    if (response.async || response.status === "accepted") {
+      clearNativeGrowthSubmissionDraft(form, taskCardId);
+      delete state.learningNativeGrowthSubmissionSubmitting[taskCardId];
+      if (stateNode) stateNode.textContent = "\u4f5c\u7b54\u5df2\u6536\u5230\uff0cAI \u6279\u6539\u5df2\u8f6c\u5165\u540e\u53f0\uff1b\u5b8c\u6210\u540e\u4f1a\u63a8\u9001\u901a\u77e5\uff0c\u70b9\u51fb\u53ef\u76f4\u8fbe\u6279\u6539\u5185\u5bb9\u3002";
+      showPushToast("\u4f5c\u7b54\u5df2\u6536\u5230\uff0c\u7b49\u5f85 AI \u6279\u6539", "success");
+      await loadLearningCoins({ limit: 80 });
+      if (button) button.disabled = false;
+      keepPolling = true;
+      return;
+    }
     const latest = state.learningNativeGrowthSubmissionRecorders?.[taskCardId];
     if (submittedFile && latest?.file === submittedFile) {
       if (latest.url && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(latest.url);
@@ -401,8 +441,8 @@ async function submitNativeGrowthTask(event, taskCardId) {
     }
     if (!err?.status) {
       keepPolling = true;
-      if (stateNode) stateNode.textContent = "\u63d0\u4ea4\u8bf7\u6c42\u4e2d\u65ad\uff0c\u6b63\u5728\u81ea\u52a8\u67e5\u627e\u662f\u5426\u5df2\u751f\u6210 AI \u6279\u6539\u7ed3\u679c...";
-      showPushToast("\u6b63\u5728\u81ea\u52a8\u67e5\u627e AI \u6279\u6539\u7ed3\u679c", "warning");
+      if (stateNode) stateNode.textContent = "\u63d0\u4ea4\u8bf7\u6c42\u4e2d\u65ad\uff0c\u670d\u52a1\u7aef\u5c1a\u672a\u786e\u8ba4\u4fdd\u5b58\uff1b\u6b63\u5728\u81ea\u52a8\u67e5\u627e\u662f\u5426\u5df2\u6536\u5230\u4f5c\u7b54...";
+      showPushToast("\u63d0\u4ea4\u5c1a\u672a\u786e\u8ba4\uff0c\u6b63\u5728\u67e5\u627e\u670d\u52a1\u7aef\u56de\u6267", "warning");
       return;
     }
     if (stateNode) stateNode.textContent = err.message || String(err);

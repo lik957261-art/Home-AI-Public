@@ -92,12 +92,18 @@ function createGatewayRunStartService(options = {}) {
   const gatewaySkillRoutingForWorkspace = maybeCall(options.gatewaySkillRoutingForWorkspace, () => ({}));
   const chooseGatewayRunTarget = maybeCall(options.chooseGatewayRunTarget, async () => ({ apiBase: "" }));
   const addThreadActiveRun = maybeCall(options.addThreadActiveRun, () => {});
+  const addThreadEvent = maybeCall(options.addThreadEvent, (thread, event) => {
+    if (!thread || !event) return;
+    thread.events = Array.isArray(thread.events) ? thread.events : [];
+    thread.events.push(event);
+  });
   const removeThreadActiveRun = maybeCall(options.removeThreadActiveRun, () => {});
   const saveState = maybeCall(options.saveState, () => {});
   const broadcast = maybeCall(options.broadcast, () => {});
   const compactMessage = maybeCall(options.compactMessage, (message) => message);
   const threadSummary = maybeCall(options.threadSummary, (thread) => thread);
   const streamResponse = maybeCall(options.streamResponse, () => null);
+  const nowMs = maybeCall(options.nowMs, () => Date.now());
 
   function buildGroupChatRunContext(thread, userMessage, policy) {
     const deliveryRoot = thread?.singleWindow && cleanString(userMessage?.taskGroupId) === groupChatTaskGroupId
@@ -173,12 +179,13 @@ function createGatewayRunStartService(options = {}) {
       ),
       runOptions.instructions || "",
     ].filter(Boolean).join("\n\n");
+    const conversationHistory = buildConversationHistory(thread, userMessage?.id, runPolicy);
     const body = {
       input: userMessage?.content,
       stream: true,
       store: true,
       conversation,
-      conversation_history: buildConversationHistory(thread, userMessage?.id, runPolicy),
+      conversation_history: conversationHistory,
       instructions,
       access_policy_context: runPolicy,
     };
@@ -214,7 +221,52 @@ function createGatewayRunStartService(options = {}) {
       taskDirectory,
       toolSchemaEpoch,
       assistantMessage,
+      conversationHistorySummary: summarizeConversationHistory(conversationHistory),
     };
+  }
+
+  function summarizeConversationHistory(messages = []) {
+    const items = Array.isArray(messages) ? messages : [];
+    return {
+      messageCount: items.length,
+      estimatedChars: items.reduce((sum, item) => sum + String(item?.content || "").length, 0),
+    };
+  }
+
+  function appendRunStartEvent(thread, assistantMessage, eventName, preview) {
+    const runId = cleanString(assistantMessage?.runId || assistantMessage?.taskId);
+    if (!thread || !runId) return;
+    addThreadEvent(thread, {
+      event: eventName,
+      timestamp: nowMs() / 1000,
+      runId,
+      tool: "hermes_mobile",
+      preview,
+      error: false,
+    });
+    broadcast({
+      type: "run.event",
+      threadId: thread.id,
+      runId,
+      event: thread.events?.[thread.events.length - 1],
+      thread: threadSummary(thread),
+    });
+  }
+
+  function contextReadyPreview(request = {}) {
+    const summary = request.conversationHistorySummary || {};
+    const count = Math.max(0, Number(summary.messageCount || 0) || 0);
+    const chars = Math.max(0, Number(summary.estimatedChars || 0) || 0);
+    return `上下文 ${count} 条，约 ${chars} 字`;
+  }
+
+  function gatewaySelectedPreview(gatewayTarget = {}, request = {}) {
+    const parts = [
+      cleanString(gatewayTarget?.profile || gatewayTarget?.name),
+      cleanString(request?.body?.model || gatewayTarget?.model || gatewayTarget?.defaultModel),
+      cleanString(request?.body?.provider || gatewayTarget?.provider),
+    ].filter(Boolean);
+    return parts.join(" · ");
   }
 
   function applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, startedAt = nowIso()) {
@@ -269,6 +321,8 @@ function createGatewayRunStartService(options = {}) {
     }
     saveState();
     broadcastMessageUpdated(thread, assistantMessage);
+    appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
+    appendRunStartEvent(thread, assistantMessage, "run.gateway_selected", gatewaySelectedPreview(gatewayTarget, request));
     const streamOptions = {
       gatewayUrl,
       gatewayApiKey: gatewayTarget?.apiKey || "",
@@ -281,6 +335,8 @@ function createGatewayRunStartService(options = {}) {
       streamOptions.runLivenessCheckAfterMs = CHATGPT_PRO_MIN_WAIT_MS;
       streamOptions.runLivenessStaleAfterMs = 0;
     }
+    appendRunStartEvent(thread, assistantMessage, "run.request_sent", "等待模型或工具返回");
+    saveState();
     streamResponse(taskId, thread.id, assistantMessage.id, request.body, streamOptions);
     return {
       run_id: taskId,

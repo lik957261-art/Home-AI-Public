@@ -237,6 +237,8 @@ function testGrowthBoardShowsSettledCoinsOnCompletedCards() {
       taskCardId: "done-card",
       title: "Completed math",
       status: "completed",
+      openedAt: "2026-05-20T08:00:00.000Z",
+      rewardDecay: { ageLabel: "2d 1h" },
       latestRewardSettlement: {
         status: "settled",
         coinAmount: 88,
@@ -246,6 +248,8 @@ function testGrowthBoardShowsSettledCoinsOnCompletedCards() {
   assert.match(html, /data-learning-growth-board-card-reward="done-card"/);
   assert.match(html, /\u5df2\u5f97 88 \u91d1\u5e01/);
   assert.doesNotMatch(html, /\u5956\u52b1 100 \u91d1\u5e01/);
+  assert.doesNotMatch(html, /2026-05-20 08:00/);
+  assert.doesNotMatch(html, /\u5df2\u53d1\u5e03 2d 1h/);
 }
 
 function testGrowthRendererCanOpenBoardOnlyRevisionTask() {

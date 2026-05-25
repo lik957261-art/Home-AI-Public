@@ -59,6 +59,7 @@ cronjob_plugin_source="${HERMES_MOBILE_CRONJOB_PLUGIN_SOURCE:-$mobile_app_root/g
 cronjob_plugin_target="$worker_home_dir/plugins/hermes-mobile-cronjob"
 owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
 outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
+owner_skill_store="${HERMES_MOBILE_OWNER_SKILL_STORE:-/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills}"
 
 shared_auth_enabled=0
 case "${shared_auth_mode,,}" in
@@ -127,6 +128,25 @@ is_owner_connector_profile() {
     fi
   done
   return 1
+}
+
+ensure_low_gateway_skill_link() {
+  local skill_dir="$1"
+  local parent
+  parent="$(dirname "$skill_dir")"
+  install -d -m 700 "$owner_skill_store"
+  if [ -L "$skill_dir" ] && [ "$(readlink -f "$skill_dir")" = "$(readlink -f "$owner_skill_store")" ]; then
+    return 0
+  fi
+  if [ -e "$skill_dir" ] || [ -L "$skill_dir" ]; then
+    local stamp
+    local backup_root
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    backup_root="$parent/skill-store-backups"
+    install -d -m 700 "$backup_root"
+    mv "$skill_dir" "$backup_root/skills-before-owner-link-${stamp}"
+  fi
+  ln -s "$owner_skill_store" "$skill_dir"
 }
 
 quarantine_sqlite_files() {
@@ -483,6 +503,7 @@ for idx in $(seq 1 "$low_gateway_count"); do
   repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
   repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
   ln -s "$profile_dir" "$profile_link"
+  ensure_low_gateway_skill_link "$profile_dir/skills"
   if [ "$weather_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-weather"
@@ -688,6 +709,7 @@ if [ "$grok_gateway_count" -gt 0 ]; then
     repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
     repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
     ln -s "$profile_dir" "$profile_link"
+    ensure_low_gateway_skill_link "$profile_dir/skills"
     grok_plugin_block="  enabled: []"
     if [ "$video_plugin_enabled" = "1" ]; then
       install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"

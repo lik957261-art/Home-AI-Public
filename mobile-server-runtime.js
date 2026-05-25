@@ -2419,7 +2419,7 @@ const getThreadOwnerElevationRetryService = (...args) => getThreadRuntimeComposi
 const getThreadMessageCreateService = (...args) => getThreadRuntimeCompositionService().getThreadMessageCreateService(...args);
 const getThreadDirectCreateExecutionService = (...args) => getThreadRuntimeCompositionService().getThreadDirectCreateExecutionService(...args);
 const getThreadMessageRunRouteService = (...args) => getThreadRuntimeCompositionService().getThreadMessageRunRouteService(...args);
-const { eventStreamApiRoutes, mobileApiDispatcher } = createMobileApiComposition({
+const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices = {} } = createMobileApiComposition({
   accessToken: null, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
   applyAppUpdate, attachClientVersionHeaders, authCanAccessWorkspace, authenticateRequest, authProvider,
   automationCreateModel: AUTOMATION_CREATE_MODEL, learningGrowthJitModel: LEARNING_GROWTH_JIT_MODEL, learningGrowthJitReasoningEffort: LEARNING_GROWTH_JIT_REASONING_EFFORT, automationProvider, basename: (value) => path.basename(value), boolParam, bootTrace, broadcast,
@@ -2494,6 +2494,6 @@ server.listen(PORT, HOST, () => {
   if (!DISABLE_AUTH && authProvider.ownerKeySource() !== "env") {
     console.log("Current process login key is not printed; use the configured Owner key file or HERMES_WEB_KEY.");
   }
-  webPushDeliveryService.startTodoWebPushDispatcher();
-  webPushDeliveryService.startAutomationWebPushDispatcher();
+  webPushDeliveryService.startTodoWebPushDispatcher(); webPushDeliveryService.startAutomationWebPushDispatcher();
+  mobileApiServices.learningGrowthSubmissionService?.scheduleEvaluationQueue?.();
 });

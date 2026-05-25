@@ -456,6 +456,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanCardProvider: deps.kanbanCardProvider,
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
+    notifyEvaluationComplete: deps.webPushDeliveryService.notifyLearningGrowthEvaluationComplete,
     reflectionService: learningGrowthReflectionService,
     saveSubmissionAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
     sequenceService: learningGrowthSequenceService,
@@ -705,6 +706,9 @@ function createMobileApiComposition(deps = {}) {
   return {
     eventStreamApiRoutes,
     mobileApiDispatcher,
+    services: {
+      learningGrowthSubmissionService,
+    },
     routes: {
       accessKeyApiRoutes,
       automationApiRoutes,

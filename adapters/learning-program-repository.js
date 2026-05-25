@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 8;
+const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 9;
 
 function nowIso() {
   return new Date().toISOString();
@@ -364,6 +364,26 @@ function publicTaskSubmissionFromRow(row) {
     audio: audio ? Object.assign({}, audio, {
       url: audio.url || audio.href || `/api/learning/task-submissions/${encodeURIComponent(row.id)}/audio`,
     }) : null,
+  });
+}
+
+function publicGrowthEvaluationJobFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    jobId: row.id,
+    submissionId: row.submission_id,
+    taskCardId: row.task_card_id,
+    learnerId: row.learner_id || "",
+    workspaceId: row.workspace_id,
+    status: row.status,
+    attemptCount: Number(row.attempt_count || 0),
+    leaseOwner: row.lease_owner || "",
+    leaseUntil: row.lease_until || "",
+    lastError: row.last_error || "",
+    availableAt: row.available_at || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    completedAt: row.completed_at || "",
   });
 }
 
@@ -885,6 +905,26 @@ function createLearningProgramRepository(options = {}) {
         created_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS learning_growth_evaluation_jobs (
+        id TEXT PRIMARY KEY,
+        submission_id TEXT NOT NULL,
+        task_card_id TEXT NOT NULL,
+        learner_id TEXT NOT NULL DEFAULT '',
+        workspace_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        lease_owner TEXT NOT NULL DEFAULT '',
+        lease_until TEXT NOT NULL DEFAULT '',
+        last_error TEXT NOT NULL DEFAULT '',
+        raw_json TEXT NOT NULL DEFAULT '{}',
+        available_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT NOT NULL DEFAULT '',
+        FOREIGN KEY(submission_id) REFERENCES learning_task_submissions(id) ON DELETE CASCADE,
+        FOREIGN KEY(task_card_id) REFERENCES learning_task_cards(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS idx_learning_programs_learner ON learning_programs(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_drafts_program ON learning_plan_drafts(program_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_reviews_status ON learning_parent_review_items(status, updated_at);
@@ -914,13 +954,16 @@ function createLearningProgramRepository(options = {}) {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_reward_settlements_unique_evaluation ON learning_reward_settlements(evaluation_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_reward_settlements_idempotency ON learning_reward_settlements(idempotency_key) WHERE idempotency_key <> '';
       CREATE INDEX IF NOT EXISTS idx_learning_task_series_recommendations_latest ON learning_task_series_recommendations(learner_id, workspace_id, domain, created_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_growth_evaluation_jobs_submission ON learning_growth_evaluation_jobs(submission_id);
+      CREATE INDEX IF NOT EXISTS idx_learning_growth_evaluation_jobs_status ON learning_growth_evaluation_jobs(status, available_at, lease_until);
     `);
     ensureColumn("learning_task_cards", "reward_cap_coins", "reward_cap_coins INTEGER NOT NULL DEFAULT 100");
+    ensureColumn("learning_growth_evaluation_jobs", "learner_id", "learner_id TEXT NOT NULL DEFAULT ''");
     const row = database.prepare("SELECT version FROM learning_schema_migrations WHERE version = ?").get(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION);
     if (!row) {
       database.prepare("INSERT INTO learning_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
         CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION,
-        "learning task reward caps v0.8",
+        "learning growth evaluation durable jobs v0.9",
         nowIso(),
       );
     }
@@ -1868,6 +1911,151 @@ function createLearningProgramRepository(options = {}) {
     return open().prepare(sql).all(...values, limit).map(publicTaskSubmissionFromRow);
   }
 
+  function saveGrowthEvaluationJob(job = {}) {
+    migrate();
+    const now = nowIso();
+    const submissionId = cleanString(job.submissionId);
+    const taskCardId = cleanString(job.taskCardId);
+    const learnerId = cleanString(job.learnerId || job.studentId || job.workspaceId);
+    const workspaceId = cleanString(job.workspaceId);
+    const jobId = cleanString(job.jobId || job.id) || (submissionId ? `lgjob_${submissionId}` : `lgjob_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`);
+    const current = getGrowthEvaluationJob(jobId) || (submissionId ? getGrowthEvaluationJobForSubmission(submissionId) : null);
+    const createdAt = current?.createdAt || job.createdAt || now;
+    const updatedAt = job.updatedAt || now;
+    const row = Object.assign({}, job, { jobId, submissionId, taskCardId, learnerId, workspaceId, createdAt, updatedAt });
+    open().prepare(`
+      INSERT INTO learning_growth_evaluation_jobs(
+        id, submission_id, task_card_id, learner_id, workspace_id, status, attempt_count,
+        lease_owner, lease_until, last_error, raw_json, available_at,
+        created_at, updated_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(submission_id) DO UPDATE SET
+        task_card_id=excluded.task_card_id,
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        status=CASE
+          WHEN learning_growth_evaluation_jobs.status = 'done' THEN learning_growth_evaluation_jobs.status
+          ELSE excluded.status
+        END,
+        raw_json=excluded.raw_json,
+        available_at=excluded.available_at,
+        updated_at=excluded.updated_at
+    `).run(
+      row.jobId,
+      row.submissionId,
+      row.taskCardId,
+      row.learnerId,
+      row.workspaceId,
+      cleanString(row.status || "pending"),
+      Number(row.attemptCount || 0),
+      cleanString(row.leaseOwner),
+      cleanString(row.leaseUntil),
+      cleanString(row.lastError),
+      stableJson(stripPrivateLearningFields(row)),
+      cleanString(row.availableAt) || now,
+      createdAt,
+      updatedAt,
+      cleanString(row.completedAt),
+    );
+    return submissionId ? getGrowthEvaluationJobForSubmission(submissionId) : getGrowthEvaluationJob(jobId);
+  }
+
+  function getGrowthEvaluationJob(jobId) {
+    migrate();
+    return publicGrowthEvaluationJobFromRow(open().prepare("SELECT * FROM learning_growth_evaluation_jobs WHERE id = ?").get(cleanString(jobId)));
+  }
+
+  function getGrowthEvaluationJobForSubmission(submissionId) {
+    migrate();
+    return publicGrowthEvaluationJobFromRow(open().prepare("SELECT * FROM learning_growth_evaluation_jobs WHERE submission_id = ?").get(cleanString(submissionId)));
+  }
+
+  function listGrowthEvaluationJobs(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.status) {
+      const statuses = Array.isArray(filters.status) ? filters.status.map(cleanString).filter(Boolean) : [cleanString(filters.status)].filter(Boolean);
+      if (statuses.length === 1) {
+        where.push("status = ?");
+        values.push(statuses[0]);
+      } else if (statuses.length > 1) {
+        where.push(`status IN (${statuses.map(() => "?").join(", ")})`);
+        values.push(...statuses);
+      }
+    }
+    if (filters.taskCardId) {
+      where.push("task_card_id = ?");
+      values.push(cleanString(filters.taskCardId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.availableBefore) {
+      where.push("available_at <= ?");
+      values.push(cleanString(filters.availableBefore));
+    }
+    const limit = Math.max(1, Math.min(100, Number(filters.limit || 20) || 20));
+    const sql = `SELECT * FROM learning_growth_evaluation_jobs ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY available_at ASC, created_at ASC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicGrowthEvaluationJobFromRow);
+  }
+
+  function claimGrowthEvaluationJob(jobId, input = {}) {
+    migrate();
+    const now = cleanString(input.nowIso) || nowIso();
+    const leaseUntil = cleanString(input.leaseUntil) || new Date(Date.parse(now) + 10 * 60 * 1000).toISOString();
+    const leaseOwner = cleanString(input.leaseOwner) || "learning-growth-evaluator";
+    const result = open().prepare(`
+      UPDATE learning_growth_evaluation_jobs
+      SET status = 'processing',
+          attempt_count = attempt_count + 1,
+          lease_owner = ?,
+          lease_until = ?,
+          updated_at = ?
+      WHERE id = ?
+        AND status IN ('pending', 'retry', 'processing')
+        AND (status <> 'processing' OR lease_until = '' OR lease_until <= ?)
+        AND available_at <= ?
+    `).run(leaseOwner, leaseUntil, now, cleanString(jobId), now, now);
+    if (!result.changes) return null;
+    return getGrowthEvaluationJob(jobId);
+  }
+
+  function completeGrowthEvaluationJob(jobId, input = {}) {
+    migrate();
+    const now = cleanString(input.completedAt || input.nowIso) || nowIso();
+    open().prepare(`
+      UPDATE learning_growth_evaluation_jobs
+      SET status = 'done',
+          lease_owner = '',
+          lease_until = '',
+          last_error = '',
+          completed_at = ?,
+          updated_at = ?
+      WHERE id = ?
+    `).run(now, now, cleanString(jobId));
+    return getGrowthEvaluationJob(jobId);
+  }
+
+  function failGrowthEvaluationJob(jobId, input = {}) {
+    migrate();
+    const now = cleanString(input.nowIso) || nowIso();
+    const status = cleanString(input.status || "retry");
+    const availableAt = cleanString(input.availableAt) || now;
+    open().prepare(`
+      UPDATE learning_growth_evaluation_jobs
+      SET status = ?,
+          lease_owner = '',
+          lease_until = '',
+          last_error = ?,
+          available_at = ?,
+          updated_at = ?
+      WHERE id = ?
+    `).run(status, cleanString(input.error), availableAt, now, cleanString(jobId));
+    return getGrowthEvaluationJob(jobId);
+  }
+
   function saveTaskReflection(reflection) {
     migrate();
     const now = nowIso();
@@ -2297,6 +2485,7 @@ function createLearningProgramRepository(options = {}) {
       interactionSessions: count("learning_interaction_sessions"),
       evaluations: count("learning_evaluations"),
       taskSubmissions: count("learning_task_submissions"),
+      growthEvaluationJobs: count("learning_growth_evaluation_jobs"),
       taskReflections: count("learning_task_reflections"),
       taskArtifacts: count("learning_task_artifacts"),
       reviewRequests: count("learning_parent_review_requests"),
@@ -2359,8 +2548,13 @@ function createLearningProgramRepository(options = {}) {
     counts,
     dbPath,
     deletePlanDraft,
+    claimGrowthEvaluationJob,
+    completeGrowthEvaluationJob,
+    failGrowthEvaluationJob,
     getEvaluation,
     getGoal,
+    getGrowthEvaluationJob,
+    getGrowthEvaluationJobForSubmission,
     getInteractionSession,
     getLearnerProfile,
     getPlanDraft,
@@ -2378,6 +2572,7 @@ function createLearningProgramRepository(options = {}) {
     latestTaskSeriesRecommendation,
     listCurriculumReferences,
     listEvaluations,
+    listGrowthEvaluationJobs,
     listGoals,
     listInteractionSessions,
     listPlanDrafts,
@@ -2395,6 +2590,7 @@ function createLearningProgramRepository(options = {}) {
     migrate,
     open,
     saveEvaluation,
+    saveGrowthEvaluationJob,
     saveInteractionSession,
     savePlanDraft,
     savePublication,

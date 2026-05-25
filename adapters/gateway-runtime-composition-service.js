@@ -62,6 +62,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
     if (!startService) {
       startService = createGatewayRunStartService({
         accessPolicyHardeningOptionsForGatewayRouting: deps.accessPolicyHardeningOptionsForGatewayRouting,
+        addThreadEvent: deps.addThreadEvent,
         addThreadActiveRun,
         assertRunConcurrencyCapacity: deps.assertRunConcurrencyCapacity,
         buildAccessPolicy: deps.buildAccessPolicy,
@@ -80,6 +81,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
         mergeAccessPolicyOverride: deps.mergeAccessPolicyOverride,
         mkdirSync: deps.mkdirSync,
         nowIso: deps.nowIso,
+        nowMs: deps.nowMs,
         projectForTaskDirectoryAttachment: deps.projectForTaskDirectoryAttachment,
         removeThreadActiveRun,
         routeRunToolsets: deps.routeRunToolsets,

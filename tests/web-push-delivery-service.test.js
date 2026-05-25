@@ -334,6 +334,34 @@ function testTaskTerminalAndGroupMentionNotifications() {
   });
 }
 
+function testLearningGrowthEvaluationPushRoutesToTaskCard() {
+  withTempDir((root) => {
+    const { calls, service, state } = createHarness(root);
+    service.savePushSubscription({
+      endpoint: "https://push.example/learning",
+      keys: { p256dh: "p256dh", auth: "auth" },
+    }, { workspaceId: "child" });
+    return service.notifyLearningGrowthEvaluationComplete({
+      workspaceId: "child",
+      taskCardId: "ltask_science_001",
+      submissionId: "lsub_001",
+      evaluation: { evaluationId: "leval_001", status: "needs_repair", score: 72 },
+    }).then((result) => {
+      assert.equal(result.sent, 1);
+      assert.equal(calls.sends.length, 1);
+      const payload = calls.sends[0].payload;
+      assert.equal(payload.data.viewMode, "learning");
+      assert.equal(payload.data.workspaceId, "child");
+      assert.equal(payload.data.principalId, "child-principal");
+      assert.equal(payload.data.taskCardId, "ltask_science_001");
+      assert.equal(payload.data.evaluationId, "leval_001");
+      assert.equal(payload.data.submissionId, "lsub_001");
+      assert.equal(payload.data.url, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      assert.equal(state.pushDeliveries.length, 1);
+    });
+  });
+}
+
 Promise.resolve()
   .then(testVapidLifecycleAndPublicStatus)
   .then(testSubscriptionSendAndRemoval)
@@ -341,6 +369,7 @@ Promise.resolve()
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)
   .then(testTaskTerminalAndGroupMentionNotifications)
+  .then(testLearningGrowthEvaluationPushRoutesToTaskCard)
   .then(() => {
     console.log("web-push-delivery-service tests passed");
   });

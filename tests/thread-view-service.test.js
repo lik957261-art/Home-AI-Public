@@ -329,6 +329,8 @@ function testCompactMessage(subject) {
   assert.equal(got.content, "Alpha result mentions needle");
   assert.equal(got.status, "done");
   assert.equal(got.runId, "run-task-a");
+  assert.equal(got.originalRunId, null);
+  assert.equal(got.responseRunId, null);
   assert.equal(got.taskId, "task-alpha");
   assert.equal(got.taskGroupId, "task-a");
   assert.equal(got.messageKind, "ai");

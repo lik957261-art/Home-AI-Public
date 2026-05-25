@@ -457,6 +457,8 @@ function createThreadViewService(deps = {}) {
       content: compactText(message.content || "", maxApiTextChars),
       status: message.status || "done",
       runId: message.runId || null,
+      originalRunId: message.originalRunId || null,
+      responseRunId: message.responseRunId || null,
       taskId: message.taskId || null,
       taskGroupId: message.taskGroupId || "",
       messageKind: message.messageKind || "ai",

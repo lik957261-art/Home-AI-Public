@@ -55,13 +55,28 @@ function testFeedbackHistoryRendersOutcomeAndReports() {
       { name: "02-\u518d\u6b21\u63d0\u4ea4\u6279\u6539.md", path: "C:\\reports\\two.md" },
     ],
   }, { status: "needs_revision", nextStep: "revise_and_resubmit", passed: false, score: 68 });
-  assert.match(html, /\u672c\u6b21\u672a\u901a\u8fc7/);
+  assert.match(html, /\u672c\u6b21\u8fd8\u9700\u8981\u4fee\u6539/);
   assert.match(html, /\u786e\u5b9a\u5206\u6570 68\/100/);
   assert.match(html, /\u672c\u9875\u4e0b\u65b9\u7684\u8be6\u7ec6\u6279\u6539/);
   assert.doesNotMatch(html, /\u6253\u5f00\u6700\u65b0\u6279\u6539\u6587\u4ef6/);
   assert.match(html, /\u6279\u6539\u5386\u53f2/);
   assert.match(html, /2 \u6b21\u6279\u6539/);
   assert.match(html, /\u518d\u6b21\u63d0\u4ea4\u6279\u6539/);
+}
+
+function testDraftFeedbackReachedScoreLineNeedsReflectionNotFailure() {
+  const html = TaskUi.renderFeedbackHistory({}, {
+    status: "draft_feedback",
+    nextStep: "rewrite_and_reflect",
+    passed: false,
+    score: 90,
+    passingScore: 80,
+  });
+  assert.match(html, /\u521d\u7a3f\u6279\u6539\u5df2\u8fbe\u6807/);
+  assert.match(html, /\u5f85\u53cd\u601d\u548c\u4fee\u6539\u590d\u76d8/);
+  assert.match(html, /\u786e\u5b9a\u5206\u6570 90\/100/);
+  assert.match(html, /\u8fd8\u6ca1\u6709\u6700\u7ec8\u5b8c\u6210/);
+  assert.doesNotMatch(html, /\u672c\u6b21\u672a\u901a\u8fc7/);
 }
 
 function testFeedbackHistoryPrioritizesReflectionGate() {
@@ -105,6 +120,7 @@ testSpokenReflectionActionLabel();
 testWritingSubmissionGuardAndLiveLabel();
 testRevisionPromptLeavesReflectionToRecorder();
 testFeedbackHistoryRendersOutcomeAndReports();
+testDraftFeedbackReachedScoreLineNeedsReflectionNotFailure();
 testFeedbackHistoryPrioritizesReflectionGate();
 testFeedbackHistoryDistinguishesThreeSeriousAttemptCompletion();
 console.log("app learning growth task UI tests passed");

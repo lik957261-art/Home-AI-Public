@@ -905,6 +905,52 @@ function createWebPushDeliveryService(options = {}) {
     });
   }
 
+  function notifyLearningGrowthEvaluationComplete(input = {}) {
+    const taskCardId = String(input.taskCardId || "").trim();
+    const workspaceId = String(input.workspaceId || "").trim() || "owner";
+    if (!taskCardId) return null;
+    const principalId = workspacePrincipal(workspaceId);
+    const evaluation = input.evaluation && typeof input.evaluation === "object" ? input.evaluation : {};
+    const score = Number(evaluation.score || 0);
+    const scoreText = Number.isFinite(score) && score > 0 ? ` (${Math.round(score)}分)` : "";
+    const failed = String(input.error || "").trim();
+    const status = String(evaluation.status || "").trim();
+    const event = {
+      title: failed ? "Growth 批改未完成" : "Growth 批改完成",
+      body: failed
+        ? "一次 Growth 作答已收到，但 AI 批改未完成；请打开卡片查看状态。"
+        : `AI 批改已完成${scoreText}；点击查看这张卡的批改内容。`,
+      tag: `hermes-learning-growth-${taskCardId}-${input.submissionId || status || "evaluation"}`,
+      data: {
+        viewMode: "learning",
+        workspaceId,
+        principalId,
+        taskCardId,
+        submissionId: input.submissionId || "",
+        evaluationId: evaluation.evaluationId || "",
+        messageType: failed ? "learning_growth_evaluation_failed" : "learning_growth_evaluation_completed",
+      },
+    };
+    return sendPushNotification({
+      title: event.title,
+      body: event.body,
+      tag: event.tag,
+      renotify: true,
+      requireInteraction: true,
+      timestamp: Date.now(),
+      data: Object.assign({}, event.data, {
+        url: appRouteUrl({ view: "learning", workspaceId, taskCardId }),
+      }),
+    }, {
+      principalId,
+      urgency: "high",
+      ttl: 24 * 60 * 60,
+    }).catch((err) => {
+      logger.error?.(`Hermes Learning Growth Web Push send failed: ${err.message || String(err)}`);
+      return null;
+    });
+  }
+
   function taskReceiptStartMessageId(thread, message) {
     const taskGroupId = String(message?.taskGroupId || "").trim();
     if (!taskGroupId) return String(message?.id || "").trim();
@@ -1121,6 +1167,7 @@ function createWebPushDeliveryService(options = {}) {
     normalizePushReceipt,
     normalizePushSubscription,
     notifyGroupChatMentions,
+    notifyLearningGrowthEvaluationComplete,
     notifyTaskTerminal,
     notifyTodoCreated,
     publicPushStatus,

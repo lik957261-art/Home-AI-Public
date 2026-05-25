@@ -654,7 +654,52 @@ function testNativeTaskReflectionStateRendersReflectionForm() {
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-native-reflect"/);
 }
 
+function testScoreReachedDraftFeedbackRendersReflectionForm() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail({
+    taskCardId: "task-native-draft-reflect",
+    source: "learning-growth",
+    title: "Native Growth draft feedback task",
+    status: "published",
+    workspaceId: "weixin_stephen",
+    skillIds: ["english_short_writing"],
+    nativeState: { nextAction: "submit" },
+    taskModel: {
+      activityType: "writing",
+      skillId: "english_short_writing",
+      learnerInstruction: "Write a short first draft.",
+    },
+  }, {
+    evaluations: [{
+      taskCardId: "task-native-draft-reflect",
+      evaluationId: "eval-draft-reflect",
+      status: "draft_feedback",
+      nextStep: "rewrite_and_reflect",
+      score: 90,
+      passingScore: 80,
+      finalPassingScore: 80,
+      createdAt: "2026-05-25T12:11:50.875Z",
+    }],
+    taskSubmissions: [{
+      taskCardId: "task-native-draft-reflect",
+      submissionId: "sub-draft-reflect",
+      status: "submitted",
+      displayText: "PREVIOUS_ANSWER_SHOULD_NOT_PREFILL",
+      submittedAt: "2026-05-25T12:10:09.573Z",
+    }],
+    taskReflections: [],
+  }, {
+    state: { auth: { isOwner: false } },
+  });
+  assert.match(html, /data-learning-native-growth-reflection-form="task-native-draft-reflect"/);
+  assert.match(html, /data-learning-native-growth-reflection-recorder="task-native-draft-reflect"/);
+  assert.match(html, /data-learning-submit-native-growth-reflection="task-native-draft-reflect"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-native-draft-reflect"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-input="task-native-draft-reflect"[^>]*>PREVIOUS_ANSWER_SHOULD_NOT_PREFILL/);
+}
+
 function testNativeSubmittingTaskShowsAutoRefreshState() {
+  const previousDateNow = Date.now;
+  Date.now = () => 1779528005000;
   const html = ProgramUi.renderNativeGrowthTaskDetail({
     taskCardId: "task-native-submitting",
     source: "learning-growth",
@@ -670,10 +715,38 @@ function testNativeSubmittingTaskShowsAutoRefreshState() {
       },
     },
   });
+  Date.now = previousDateNow;
   assert.match(html, /data-learning-native-growth-submission-form="task-native-submitting"/);
   assert.match(html, /data-learning-submit-native-growth="task-native-submitting" disabled/);
-  assert.match(html, /\u9875\u9762\u4f1a\u81ea\u52a8\u5237\u65b0\u7ed3\u679c/);
+  assert.match(html, /\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58/);
   assert.doesNotMatch(html, /\u5f85\u4f5c\u7b54/);
+}
+
+function testNativeStaleSubmittingTaskEnablesSubmit() {
+  const previousDateNow = Date.now;
+  Date.now = () => 1779528060000;
+  try {
+    const html = ProgramUi.renderNativeGrowthTaskDetail({
+      taskCardId: "task-native-stale-submitting",
+      source: "learning-growth",
+      title: "Native stale submitting task",
+      status: "published",
+      workspaceId: "weixin_stephen",
+      nativeState: { nextAction: "submit" },
+    }, { evaluations: [], taskSubmissions: [], taskReflections: [] }, {
+      state: {
+        auth: { isOwner: false },
+        learningNativeGrowthSubmissionSubmitting: {
+          "task-native-stale-submitting": { startedAtMs: 1779528060000 - 16 * 1000 },
+        },
+      },
+    });
+    assert.match(html, /data-learning-native-growth-submission-form="task-native-stale-submitting"/);
+    assert.doesNotMatch(html, /data-learning-submit-native-growth="task-native-stale-submitting" disabled/);
+    assert.match(html, /\u5f85\u4f5c\u7b54/);
+  } finally {
+    Date.now = previousDateNow;
+  }
 }
 
 testOwnerFormAndActionsRender();
@@ -690,6 +763,8 @@ testCompletedNativeTaskShowsSettledCoinsAndNoAnswerForm();
 testReviewedNativeMathTaskTreatsEmptySourceAsNativeGrowth();
 testReviewedNativeMathTaskExpandsAfterEditClickState();
 testNativeTaskReflectionStateRendersReflectionForm();
+testScoreReachedDraftFeedbackRendersReflectionForm();
 testNativeSubmittingTaskShowsAutoRefreshState();
+testNativeStaleSubmittingTaskEnablesSubmit();
 
 console.log("app learning program ui tests passed");

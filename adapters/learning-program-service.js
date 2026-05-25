@@ -645,6 +645,34 @@ function createLearningProgramService(options = {}) {
     return typeof repository.getTaskSubmission === "function" ? repository.getTaskSubmission(submissionId) : null;
   }
 
+  function saveGrowthEvaluationJob(job = {}) {
+    return typeof repository.saveGrowthEvaluationJob === "function" ? repository.saveGrowthEvaluationJob(job) : null;
+  }
+
+  function listGrowthEvaluationJobs(filters = {}) {
+    return typeof repository.listGrowthEvaluationJobs === "function" ? repository.listGrowthEvaluationJobs(filters) : [];
+  }
+
+  function getGrowthEvaluationJob(jobId) {
+    return typeof repository.getGrowthEvaluationJob === "function" ? repository.getGrowthEvaluationJob(jobId) : null;
+  }
+
+  function getGrowthEvaluationJobForSubmission(submissionId) {
+    return typeof repository.getGrowthEvaluationJobForSubmission === "function" ? repository.getGrowthEvaluationJobForSubmission(submissionId) : null;
+  }
+
+  function claimGrowthEvaluationJob(jobId, input = {}) {
+    return typeof repository.claimGrowthEvaluationJob === "function" ? repository.claimGrowthEvaluationJob(jobId, input) : null;
+  }
+
+  function completeGrowthEvaluationJob(jobId, input = {}) {
+    return typeof repository.completeGrowthEvaluationJob === "function" ? repository.completeGrowthEvaluationJob(jobId, input) : null;
+  }
+
+  function failGrowthEvaluationJob(jobId, input = {}) {
+    return typeof repository.failGrowthEvaluationJob === "function" ? repository.failGrowthEvaluationJob(jobId, input) : null;
+  }
+
   function listTaskReflections(filters = {}) {
     return typeof repository.listTaskReflections === "function" ? repository.listTaskReflections(filters) : [];
   }
@@ -717,9 +745,12 @@ function createLearningProgramService(options = {}) {
     getRewardSettlement,
     getTaskCard,
     getTaskCardForKanbanCard,
+    getGrowthEvaluationJob,
+    getGrowthEvaluationJobForSubmission,
     importFoundationData,
     importSourceDirectory,
     listEvaluations,
+    listGrowthEvaluationJobs,
     listExecutorTaskQueue,
     listInteractionSessions,
     listParentReviewRequests,
@@ -740,6 +771,10 @@ function createLearningProgramService(options = {}) {
     rebuildLearnerProfile,
     updateTaskRewardPolicy,
     recordEvaluation,
+    saveGrowthEvaluationJob,
+    claimGrowthEvaluationJob,
+    completeGrowthEvaluationJob,
+    failGrowthEvaluationJob,
     settleEvaluationReward,
     repository,
     reviewQueue: reviewQueueList,

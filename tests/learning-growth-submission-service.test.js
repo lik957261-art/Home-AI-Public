@@ -467,7 +467,7 @@ async function testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSet
       text,
       author: "weixin_stephen",
     });
-    assert.equal(result.ok, true);
+    assert.equal(result.ok, true, result.error || JSON.stringify(result));
     assert.equal(result.status, "reflection_required");
     assert.equal(result.evaluation.nextStep, "spoken_reflection_required");
     assert.equal(result.evaluation.finalPassingScore, 80);
@@ -563,7 +563,7 @@ async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
         "Next time I will check the subject first and practice the corrected pattern.",
       ].join(" "),
     });
-    assert.equal(result.ok, true);
+    assert.equal(result.ok, true, result.error || JSON.stringify(result));
     assert.equal(result.status, "completed");
     assert.equal(result.reflection.status, "accepted");
     assert.equal(result.evaluation.reflection.status, "accepted");
@@ -584,6 +584,115 @@ async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
     assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen", limit: 1 }).length, 1);
     assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen", limit: 1 }).length, 1);
     assert.equal(result.result.nativeReflection.status, "accepted");
+    assert.equal(mutations.some((call) => call.action === "comment" && call.learningGrowthEvaluation?.reflection?.status === "accepted"), true);
+    assert.equal(mutations.some((call) => call.action === "complete"), true);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function testScoreReachedDraftFeedbackAcceptsReflection() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const grants = [];
+  const mutations = [];
+  try {
+    seedGrowthProgram(repository);
+    const programService = createLearningProgramService({
+      repository,
+      learningCoinService: {
+        grantCoins(input) {
+          grants.push(input);
+          return {
+            entry: {
+              entryId: `coin-${grants.length}`,
+              studentId: input.studentId,
+              workspaceId: input.workspaceId,
+              coinDelta: input.coinAmount,
+              sourceType: input.sourceType,
+              sourceId: input.sourceId,
+            },
+            duplicate: false,
+          };
+        },
+      },
+    });
+    const session = programService.startTaskSession("task-growth", {
+      actor: "weixin_stephen",
+      summary: "Draft feedback reached the score line and is waiting for reflection.",
+    });
+    programService.recordEvaluation(session.sessionId, {
+      evaluationId: "eval-draft-reflect",
+      status: "draft_feedback",
+      score: 90,
+      maxScore: 100,
+      passed: false,
+      confidence: 0.86,
+      summary: "First draft reached the score line but still needs reflection.",
+      revisionRequirements: ["Explain one improvement before completion."],
+      finalPassingScore: 80,
+      passingScore: 80,
+      reward: {
+        eligible: true,
+        coinAmount: 30,
+        minCoinAmount: 0,
+        maxCoinAmount: 30,
+      },
+      nextStep: "rewrite_and_reflect",
+    });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      kanbanCardProvider: {
+        async listCards() {
+          return {
+            ok: true,
+            data: [{
+              id: "t_growth",
+              workspaceId: "weixin_stephen",
+              kanbanCaseTemplate: "learning-growth",
+              learningTaskCardId: "task-growth",
+              learningGrowthEvaluationId: "eval-draft-reflect",
+              learningGrowthEvaluationStatus: "draft_feedback",
+              learningGrowthNextStep: "rewrite_and_reflect",
+              learningGrowthScore: 90,
+              learningGrowthMaxScore: 100,
+              learningGrowthFinalPassingScore: 80,
+              learningGrowthRewardCoins: 30,
+              learningGrowthFeedbackSummary: "First draft reached the score line but still needs reflection.",
+              learningGrowthReflectionPrompts: ["Name one improvement.", "Explain the next check."],
+              learningTaskModel: {
+                version: "learning-task-model-v1",
+                activityType: "writing",
+                skillId: "english_short_writing",
+              },
+            }],
+          };
+        },
+        async mutateCard(input) {
+          mutations.push(input);
+          return { ok: true, id: input.cardId, action: input.action };
+        },
+      },
+    });
+    const result = await service.submitReflection({
+      workspaceId: "weixin_stephen",
+      cardId: "t_growth",
+      author: "weixin_stephen",
+      audio: { name: "reflection.webm", mime: "audio/webm", size: 1200 },
+      transcript: [
+        "My main mistake was that one reason was not clear enough.",
+        "I fixed it because the example should prove my opinion.",
+        "Next time I will check the opinion, reason, and example before submitting.",
+      ].join(" "),
+    });
+    assert.equal(result.ok, true, result.error || JSON.stringify(result));
+    assert.equal(result.status, "completed");
+    assert.equal(result.reflection.status, "accepted");
+    assert.equal(result.evaluation.score, 90);
+    assert.equal(result.evaluation.settlementBlockedByReflection, false);
+    assert.equal(result.reward.status, "settled");
+    assert.equal(grants.length, 1);
     assert.equal(mutations.some((call) => call.action === "comment" && call.learningGrowthEvaluation?.reflection?.status === "accepted"), true);
     assert.equal(mutations.some((call) => call.action === "complete"), true);
   } finally {
@@ -821,6 +930,183 @@ async function testNativeTaskSubmissionWorksWithoutKanbanLink() {
     assert.deepEqual(savedEvaluation.revisionRequirements, ["repair tense"]);
     assert.deepEqual(savedEvaluation.feedbackSections.focusAreas, ["verb tense"]);
     assert.equal(repository.listTaskArtifacts({ taskCardId: "task-native-only", limit: 1 }).length, 1);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function testNativeTaskSubmissionCanAcceptBeforeEvaluation() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const scheduled = [];
+  const notifications = [];
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-native-async",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Native async task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      plannedDate: "2026-05-18",
+      plannedMinutes: 15,
+      skillIds: ["english_grammar"],
+      templateId: "english-grammar-v1",
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "grammar",
+        skillId: "english_grammar",
+        learnerInstruction: "Repair grammar and explain why.",
+      },
+      privacyLevel: "summary_only",
+    });
+    const programService = createLearningProgramService({ repository });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      scheduleBackgroundTask(task) {
+        scheduled.push(task);
+      },
+      notifyEvaluationComplete(input) {
+        notifications.push(input);
+        return Promise.resolve({ ok: true });
+      },
+      evaluationService: {
+        async evaluate() {
+          return {
+            evaluationId: "eval-native-async",
+            status: "needs_revision",
+            activityType: "grammar",
+            skillId: "english_grammar",
+            score: 70,
+            maxScore: 100,
+            passed: false,
+            confidence: 0.75,
+            summary: "summary only feedback",
+            feedbackMethod: "test",
+            feedbackSections: { focusAreas: ["verb tense"], reflectionPrompts: [] },
+            revisionRequirements: ["repair tense"],
+            reward: { eligible: false },
+          };
+        },
+      },
+      reportService: { writeReport: () => null },
+    });
+    const text = [
+      "First, I compare the time signal and the verb form before choosing the answer.",
+      "Then I explain why the corrected sentence needs a past tense verb.",
+      "Finally, I write one more example and check subject verb agreement carefully.",
+    ].join("\n");
+    const accepted = await service.submitTaskAsync({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-native-async",
+      text,
+      author: "weixin_stephen",
+    });
+    assert.equal(accepted.ok, true);
+    assert.equal(accepted.status, "accepted");
+    assert.equal(scheduled.length, 1);
+    assert.equal(repository.listGrowthEvaluationJobs({ status: "pending", limit: 2 }).length, 1);
+    assert.equal(repository.listTaskSubmissions({ taskCardId: "task-native-async", limit: 1 }).length, 1);
+    assert.equal(repository.listEvaluations({ taskCardId: "task-native-async", limit: 1 }).length, 0);
+    await scheduled[0]();
+    assert.equal(repository.listEvaluations({ taskCardId: "task-native-async", limit: 1 })[0].evaluationId, "eval-native-async");
+    assert.equal(repository.listGrowthEvaluationJobs({ status: "done", limit: 2 })[0].submissionId, accepted.result.nativeSubmission.submissionId);
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0].taskCardId, "task-native-async");
+    assert.equal(notifications[0].evaluation.evaluationId, "eval-native-async");
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function testPersistedAsyncSubmissionIsRecoveredByNewService() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const notifications = [];
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-native-recover",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Native recover task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      plannedDate: "2026-05-18",
+      plannedMinutes: 15,
+      skillIds: ["english_grammar"],
+      templateId: "english-grammar-v1",
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "grammar",
+        skillId: "english_grammar",
+      },
+      privacyLevel: "summary_only",
+    });
+    const programService = createLearningProgramService({ repository });
+    const baseOptions = {
+      learningProgramService: programService,
+      scheduleBackgroundTask() {},
+      notifyEvaluationComplete(input) {
+        notifications.push(input);
+        return Promise.resolve({ ok: true });
+      },
+      evaluationService: {
+        async evaluate(input) {
+          assert.match(input.text, /subject[\s\S]*verb|verb[\s\S]*subject/);
+          return {
+            evaluationId: "eval-native-recovered",
+            status: "needs_revision",
+            activityType: "grammar",
+            skillId: "english_grammar",
+            score: 72,
+            maxScore: 100,
+            passed: false,
+            confidence: 0.75,
+            summary: "recovered summary only feedback",
+            feedbackMethod: "test",
+            feedbackSections: { focusAreas: ["agreement"], reflectionPrompts: [] },
+            revisionRequirements: ["repair agreement"],
+            reward: { eligible: false },
+          };
+        },
+      },
+      reportService: { writeReport: () => null },
+    };
+    const firstService = createLearningGrowthSubmissionService(baseOptions);
+    const text = [
+      "First, I identify the subject and check whether the verb agrees with it.",
+      "Then I explain the tense and write a corrected example for school.",
+      "Finally, I check subject verb agreement one more time before submitting.",
+      "I also compare the original sentence with the corrected sentence and explain the grammar rule in my own words.",
+      "This shows that I can notice the mistake, repair it, and apply the same pattern to a new example.",
+    ].join("\n");
+    const accepted = await firstService.submitTaskAsync({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-native-recover",
+      text,
+      author: "weixin_stephen",
+    });
+    assert.equal(accepted.ok, true);
+    assert.equal(repository.listEvaluations({ taskCardId: "task-native-recover", limit: 1 }).length, 0);
+    assert.equal(repository.listGrowthEvaluationJobs({ status: "pending", limit: 2 }).length, 1);
+
+    const recoveredService = createLearningGrowthSubmissionService(baseOptions);
+    const processed = await recoveredService.processEvaluationQueue();
+    assert.equal(processed.processed, 1);
+    assert.equal(repository.listEvaluations({ taskCardId: "task-native-recover", limit: 1 })[0].evaluationId, "eval-native-recovered");
+    assert.equal(repository.listGrowthEvaluationJobs({ status: "done", limit: 2 })[0].submissionId, accepted.result.nativeSubmission.submissionId);
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0].submissionId, accepted.result.nativeSubmission.submissionId);
   } finally {
     repository.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -1409,8 +1695,11 @@ function testDependencyValidation() {
   await testExpiredSubmissionCannotBeWithdrawn();
   await testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSettlement();
   await testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard();
+  await testScoreReachedDraftFeedbackAcceptsReflection();
   await testThreeSeriousAttemptReflectionAlwaysSettlesAfterRecording();
   await testNativeTaskSubmissionWorksWithoutKanbanLink();
+  await testNativeTaskSubmissionCanAcceptBeforeEvaluation();
+  await testPersistedAsyncSubmissionIsRecoveredByNewService();
   await testNativeRevisionSubmissionUsesPersistedEvaluationState();
   await testNativeSpeakingSubmissionUsesAudioTranscription();
   await testNativeSpeakingSubmissionRequiresAudio();

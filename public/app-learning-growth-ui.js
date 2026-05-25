@@ -196,6 +196,11 @@
     return remainder ? `${days}d ${remainder}h` : `${days}d`;
   }
 
+  function isCompletedBoardCard(card = {}) {
+    const status = String(card.status || card.executionStatus || card.laneId || card.nextAction || card.primaryAction || "").trim().toLowerCase();
+    return ["completed", "complete", "done", "settled", "completed_recent"].includes(status);
+  }
+
   function rewardDecayClass(card = {}) {
     const severity = String(card.rewardDecay?.severity || "");
     if (severity === "warning") return " is-reward-warning";
@@ -247,8 +252,9 @@
     const score = Number(evaluation.score);
     const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
     const artifacts = Number(card.artifactCount || 0);
-    const openTime = cardOpenTimeText(card);
-    const ageText = cardPublishedAgeText(card);
+    const completed = isCompletedBoardCard(card);
+    const openTime = completed ? "" : cardOpenTimeText(card);
+    const ageText = completed ? "" : cardPublishedAgeText(card);
     return `<article class="learning-growth-board-card${rewardDecayClass(card)}" data-learning-executable-task-id="${escapeHtml(taskCardId)}" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
       <div class="learning-growth-board-card-head">
         <button type="button" class="learning-growth-board-card-title" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
