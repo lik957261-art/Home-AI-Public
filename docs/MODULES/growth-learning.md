@@ -52,6 +52,8 @@ Important tables include:
 - `draft_feedback` is actionable revision, not waiting AI.
 - Numeric passing score does not mean final completion when revision/reflection is still required.
 - Completed cards should not show open-time age labels in primary list UI.
+- Mastery profile should show the full active capability taxonomy across subjects, not only subjects with evidence. Unobserved capabilities are displayed as `not_observed` so gaps are visible without fabricating evidence.
+- Mastery profile evidence remains summary-only; cross-subject display does not imply a learner has attempted every subject.
 
 ## Validation
 

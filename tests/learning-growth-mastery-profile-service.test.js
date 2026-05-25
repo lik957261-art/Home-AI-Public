@@ -65,7 +65,18 @@ function testRepeatedPositiveEvidenceCanMasterSkill() {
   const writingState = profile.skillStates.find((state) => state.skillId === "english.writing.claim_reason_example");
   assert.equal(writingState.status, "mastered");
   assert.equal(writingState.evidenceCount, 2);
+  assert.equal(writingState.displayName, "Claim, reason, example writing");
   assert.ok(profile.strengths.some((state) => state.skillId === writingState.skillId));
+}
+
+function testMasteryProfileIncludesUnobservedCrossSubjectTaxonomy() {
+  const { service } = createService();
+  service.recordTaskEvidence({ taskCard: writingTask(), evaluation: { evaluationId: "eval-1", score: 91, confidence: 0.82 } });
+  const profile = service.getMasteryProfile({ learnerId: "weixin_stephen", workspaceId: "weixin_stephen" });
+  assert.ok(profile.skillStates.some((state) => state.domain === "math" && state.status === "not_observed"));
+  assert.ok(profile.skillStates.some((state) => state.domain === "science" && state.status === "not_observed"));
+  assert.ok(profile.skillStates.some((state) => state.domain === "computer_science" && state.status === "not_observed"));
+  assert.ok(profile.domainSummary.some((item) => item.domain === "english" && item.observed >= 1));
 }
 
 function testWeaknessProjectionDrivesNextCardInput() {
@@ -101,6 +112,7 @@ function testWeaknessProjectionDrivesNextCardInput() {
 
 testExtractsSummaryOnlyEvidenceFromEvaluation();
 testRepeatedPositiveEvidenceCanMasterSkill();
+testMasteryProfileIncludesUnobservedCrossSubjectTaxonomy();
 testWeaknessProjectionDrivesNextCardInput();
 
 console.log("learning growth mastery profile service tests passed");

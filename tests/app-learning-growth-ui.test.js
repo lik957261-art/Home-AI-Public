@@ -540,6 +540,8 @@ function testOwnerSettingsShowsMasteryProfileTab() {
       skillStates: [
         {
           skillId: "english.writing.claim_reason_example",
+          displayName: "Claim, reason, example writing",
+          summary: "Builds a clear opinion, reason, and example.",
           domain: "english",
           strand: "writing",
           status: "mastered",
@@ -558,6 +560,21 @@ function testOwnerSettingsShowsMasteryProfileTab() {
           weaknesses: ["Retell structure"],
           nextRecommendation: { strategy: "repair" },
         },
+        {
+          skillId: "science.practices.explanation_from_evidence",
+          displayName: "Scientific explanation from evidence",
+          summary: "Connects observations to a scientific claim.",
+          domain: "science",
+          strand: "practices",
+          status: "not_observed",
+          confidence: 0,
+          evidenceCount: 0,
+          nextRecommendation: { strategy: "observe" },
+        },
+      ],
+      domainSummary: [
+        { domain: "english", total: 2, observed: 2, mastered: 1, needsRepair: 1 },
+        { domain: "science", total: 1, observed: 0, mastered: 0, needsRepair: 0 },
       ],
       strengths: [{ skillId: "english.writing.claim_reason_example" }],
       weaknesses: [{ skillId: "english.speaking.retell_structure" }],
@@ -574,6 +591,10 @@ function testOwnerSettingsShowsMasteryProfileTab() {
   assert.match(html, /data-learning-growth-tab="mastery" aria-selected="true" class="active"/);
   assert.match(html, /data-learning-growth-tab-panel="mastery" role="tabpanel">\s*<section class="learning-coin-panel learning-mastery-profile-panel"/);
   assert.match(html, /data-learning-mastery-profile-panel/);
+  assert.match(html, /data-learning-mastery-domain="english"/);
+  assert.match(html, /data-learning-mastery-domain="science"/);
+  assert.match(html, /Scientific explanation from evidence/);
+  assert.match(html, /未观察/);
   assert.match(html, /data-learning-mastery-skill="english\.writing\.claim_reason_example"/);
   assert.match(html, /data-learning-mastery-status="needs_repair"/);
   assert.match(html, /taxonomy-v1/);

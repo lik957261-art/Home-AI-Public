@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260525-learning-mastery-settings-v241";
+const CLIENT_VERSION = "20260525-learning-mastery-profile-all-v242";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -305,9 +305,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-learning-mastery-settings-v241/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-learning-mastery-settings-v241/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-learning-mastery-settings-v241/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-learning-mastery-profile-all-v242/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-learning-mastery-profile-all-v242/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-learning-mastery-profile-all-v242/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1368,6 +1368,9 @@ assert.match(appLearningGrowthUiJs, /data-learning-ai-recommendation-draft/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-settings-page/);
 assert.match(appLearningGrowthUiJs, /data-learning-mastery-profile-panel/);
 assert.match(appLearningGrowthUiJs, /data-learning-mastery-skill/);
+assert.match(appLearningGrowthUiJs, /data-learning-mastery-domain/);
+assert.match(appLearningGrowthUiJs, /function renderMasteryDomainSections/);
+assert.match(appLearningGrowthUiJs, /not_observed/);
 assert.match(appLearningGrowthUiJs, /function renderOwnerMasteryProfile/);
 assert.match(appLearningGrowthUiJs, /compactOwnerSettings: true/);
 assert.doesNotMatch(appLearningGrowthUiJs, /learning-settings-overview-coins/);
@@ -1462,8 +1465,8 @@ assert.match(stylesCss, /\.learning-growth-settings-page/);
 assert.match(stylesCss, /\.learning-growth-settings-page \{[\s\S]*?padding-top: 0;/);
 assert.doesNotMatch(stylesCss, /\.learning-growth-settings-head/);
 assert.doesNotMatch(appLearningGrowthUiJs, /data-learning-growth-close-settings/);
-assert.match(stylesCss, /\.learning-growth-settings-tabs \.learning-growth-tab-list \{[\s\S]*?top: 0;[\s\S]*?margin: 0 -12px 2px;[\s\S]*?border-width: 0 0 1px;[\s\S]*?background: rgba\(247, 248, 247, 0\.96\);/);
-assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.learning-growth-settings-page \{[\s\S]*?padding-top: 0 !important;[\s\S]*?\.learning-growth-settings-tabs \.learning-growth-tab-list \{[\s\S]*?margin-top: -54px;/);
+assert.match(stylesCss, /\.learning-growth-settings-tabs \.learning-growth-tab-list \{[\s\S]*?top: 0;[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;[\s\S]*?margin: 0 -12px 2px;[\s\S]*?background: rgba\(247, 248, 247, 0\.96\);/);
+assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.learning-growth-settings-page \{[\s\S]*?padding-top: 0 !important;[\s\S]*?\.learning-growth-settings-tabs \.learning-growth-tab-list \{[\s\S]*?margin-top: 0;/);
 assert.match(stylesCss, /\.learning-launch-operations-panel\.is-owner-settings-summary/);
 assert.match(stylesCss, /\.learning-launch-queue-compact summary/);
 assert.match(stylesCss, /\.learning-settings-fold summary/);
@@ -1475,6 +1478,7 @@ assert.match(stylesCss, /\.learning-mode #interruptRun \{[\s\S]*?display: none !
 assert.match(stylesCss, /\.learning-growth-answer-instruction p \{[\s\S]*?font-size: 16px;/);
 assert.match(stylesCss, /\.learning-native-growth-submission-input \{[\s\S]*?font-size: 16px;/);
 assert.match(stylesCss, /\.learning-mastery-profile-panel/);
+assert.match(stylesCss, /\.learning-mastery-domain-section/);
 assert.match(stylesCss, /\.learning-mastery-state-row/);
 assert.match(stylesCss, /\.learning-growth-feedback-detail-note/);
 assert.match(stylesCss, /\.learning-growth-feedback-criteria b/);

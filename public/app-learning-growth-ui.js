@@ -617,6 +617,7 @@
     if (key === "practicing") return "\u7ec3\u4e60\u4e2d";
     if (key === "needs_repair") return "\u9700\u4fee\u590d";
     if (key === "emerging") return "\u521a\u51fa\u73b0";
+    if (key === "not_observed") return "\u672a\u89c2\u5bdf";
     return key || "\u672a\u5b9a";
   }
 
@@ -626,12 +627,23 @@
     if (key === "stretch") return "\u62d3\u5c55";
     if (key === "stabilize") return "\u5de9\u56fa";
     if (key === "review") return "\u590d\u4e60";
+    if (key === "observe") return "\u89c2\u5bdf";
     return key || "\u5f85\u5b9a";
+  }
+
+  function masteryDomainText(domain = "") {
+    const key = String(domain || "").trim();
+    if (key === "english") return "\u82f1\u8bed";
+    if (key === "math") return "\u6570\u5b66";
+    if (key === "science") return "\u79d1\u5b66";
+    if (key === "computer_science") return "\u8ba1\u7b97\u673a\u79d1\u5b66";
+    if (key === "learning_habit") return "\u5b66\u4e60\u4e60\u60ef";
+    return key || "\u7efc\u5408";
   }
 
   function renderMasteryRows(states = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    const rows = asArray(states).slice(0, 24);
+    const rows = asArray(states);
     if (!rows.length) return `<div class="learning-coin-empty">\u6682\u65e0\u53ef\u5ba1\u8ba1\u7684\u80fd\u529b\u753b\u50cf\u8bb0\u5f55\u3002</div>`;
     return `<div class="learning-mastery-state-list">
       ${rows.map((state) => {
@@ -639,25 +651,58 @@
         const evidence = Number(state.evidenceCount || 0) || 0;
         const strategy = masteryStrategyText(state.nextRecommendation?.strategy || "");
         const meta = [
-          state.domain || "",
           state.strand || "",
           state.externalLevelReference || "",
-          evidence ? `${evidence} evidence` : "",
+          evidence ? `${evidence} \u6761\u8bc1\u636e` : "\u6682\u65e0\u8bc1\u636e",
           confidence ? `${confidence}%` : "",
         ].filter(Boolean).join(" / ");
         const weakness = asArray(state.weaknesses).find(Boolean);
         const strength = asArray(state.strengths).find(Boolean);
+        const evidenceSummary = asArray(state.evidenceSummary).map((item) => item?.summary || "").find(Boolean);
+        const description = strength || weakness || evidenceSummary || state.summary || "";
         return `<article class="learning-mastery-state-row" data-learning-mastery-skill="${escapeHtml(state.skillId || "")}" data-learning-mastery-status="${escapeHtml(state.status || "")}">
           <div>
-            <strong>${escapeHtml(state.skillId || state.microSkillId || "\u80fd\u529b\u70b9")}</strong>
+            <strong>${escapeHtml(state.displayName || state.skillId || state.microSkillId || "\u80fd\u529b\u70b9")}</strong>
             <small>${escapeHtml(meta)}</small>
-            ${strength || weakness ? `<p>${escapeHtml(strength || weakness)}</p>` : ""}
+            ${description ? `<p>${escapeHtml(description)}</p>` : ""}
           </div>
           <span>
             <em>${escapeHtml(masteryStatusText(state.status))}</em>
             <small>${escapeHtml(strategy)}</small>
           </span>
         </article>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderMasteryDomainSections(states = [], domainSummary = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const rows = asArray(states);
+    if (!rows.length) return renderMasteryRows(rows, options);
+    const order = ["english", "math", "science", "computer_science", "learning_habit"];
+    const grouped = rows.reduce((acc, state) => {
+      const key = String(state.domain || "general").trim() || "general";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(state);
+      return acc;
+    }, {});
+    const summaryByDomain = new Map(asArray(domainSummary).map((item) => [String(item.domain || "").trim(), item]));
+    const domains = Object.keys(grouped).sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
+    });
+    return `<div class="learning-mastery-domain-list">
+      ${domains.map((domain) => {
+        const summary = summaryByDomain.get(domain) || {};
+        const observed = Number(summary.observed || grouped[domain].filter((state) => state.evidenceCount > 0).length) || 0;
+        const total = Number(summary.total || grouped[domain].length) || grouped[domain].length;
+        return `<section class="learning-mastery-domain-section" data-learning-mastery-domain="${escapeHtml(domain)}">
+          <div class="learning-mastery-domain-heading">
+            <strong>${escapeHtml(masteryDomainText(domain))}</strong>
+            <span>${escapeHtml(String(observed))}/${escapeHtml(String(total))} \u5df2\u89c2\u5bdf</span>
+          </div>
+          ${renderMasteryRows(grouped[domain], options)}
+        </section>`;
       }).join("")}
     </div>`;
   }
@@ -670,6 +715,7 @@
     const states = asArray(profile.skillStates || profile.states);
     const strengths = asArray(profile.strengths);
     const weaknesses = asArray(profile.weaknesses);
+    const domainSummary = asArray(profile.domainSummary);
     const loading = Boolean(options.masteryProfileLoading);
     const error = String(options.masteryProfileError || "");
     return `<section class="learning-coin-panel learning-mastery-profile-panel" data-learning-mastery-profile-panel>
@@ -685,7 +731,7 @@
       </div>
       ${loading ? `<div class="learning-growth-muted">\u6b63\u5728\u5237\u65b0\u753b\u50cf...</div>` : ""}
       ${error ? `<div class="learning-error">${escapeHtml(error)}</div>` : ""}
-      ${renderMasteryRows(states, options)}
+      ${renderMasteryDomainSections(states, domainSummary, options)}
     </section>`;
   }
 

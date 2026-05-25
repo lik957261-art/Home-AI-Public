@@ -44,6 +44,20 @@ function stabilityFromCounts({ success, failure }) {
   return "emerging";
 }
 
+function publicStateFromTaxonomyNode(node, base = {}) {
+  return Object.assign({}, base, {
+    taxonomyVersion: TAXONOMY_VERSION,
+    domain: node.domain,
+    strand: node.strand,
+    skillId: node.skillId,
+    parentSkillId: node.parentSkillId,
+    nodeLevel: node.nodeLevel,
+    displayName: node.displayName,
+    summary: node.summary,
+    externalReferences: asArray(node.externalReferences),
+  });
+}
+
 function taskSkillCandidates(taskCard = {}) {
   return compactUnique([
     ...asArray(taskCard.skillIds),
@@ -236,21 +250,59 @@ function createLearningGrowthMasteryProfileService(options = {}) {
   }
 
   function getMasteryProfile({ learnerId, workspaceId, domain = "" } = {}) {
-    const states = repository.listMasteryStates({
+    const observedStates = repository.listMasteryStates({
       learnerId,
       workspaceId,
       domain,
       taxonomyVersion: TAXONOMY_VERSION,
       limit: 300,
     });
+    const observedBySkill = new Map(observedStates.map((state) => [state.skillId, state]));
+    const taxonomyStates = taxonomy.listNodes({ domain }).map((node) => {
+      const observed = observedBySkill.get(node.skillId);
+      if (observed) return publicStateFromTaxonomyNode(node, observed);
+      return publicStateFromTaxonomyNode(node, {
+        learnerId: cleanString(learnerId),
+        workspaceId: cleanString(workspaceId),
+        status: "not_observed",
+        stability: "not_observed",
+        confidence: 0,
+        evidenceCount: 0,
+        positiveEvidenceCount: 0,
+        negativeEvidenceCount: 0,
+        recentSuccessCount: 0,
+        recentFailureCount: 0,
+        strengths: [],
+        weaknesses: [],
+        evidenceSummary: [],
+        sourceBasisRefs: [],
+        nextRecommendation: {
+          strategy: "observe",
+          reason: "No direct Growth evidence has been recorded for this capability yet.",
+        },
+      });
+    });
+    const taxonomySkillIds = new Set(taxonomyStates.map((state) => state.skillId));
+    const states = taxonomyStates.concat(observedStates.filter((state) => !taxonomySkillIds.has(state.skillId)));
+    const observedOnly = states.filter((state) => state.status !== "not_observed" && state.evidenceCount > 0);
+    const domainSummary = states.reduce((acc, state) => {
+      const key = state.domain || "general";
+      if (!acc[key]) acc[key] = { domain: key, total: 0, observed: 0, mastered: 0, needsRepair: 0 };
+      acc[key].total += 1;
+      if (state.evidenceCount > 0) acc[key].observed += 1;
+      if (state.status === "mastered") acc[key].mastered += 1;
+      if (state.status === "needs_repair" || state.negativeEvidenceCount > 0) acc[key].needsRepair += 1;
+      return acc;
+    }, {});
     return {
       taxonomyVersion: TAXONOMY_VERSION,
       learnerId: cleanString(learnerId),
       workspaceId: cleanString(workspaceId),
       domain: cleanString(domain),
       skillStates: states,
-      strengths: states.filter((state) => ["mastered", "practicing"].includes(state.status) && state.positiveEvidenceCount > state.negativeEvidenceCount).slice(0, 12),
-      weaknesses: states.filter((state) => state.status === "needs_repair" || state.negativeEvidenceCount > 0).slice(0, 12),
+      domainSummary: Object.values(domainSummary),
+      strengths: observedOnly.filter((state) => ["mastered", "practicing"].includes(state.status) && state.positiveEvidenceCount > state.negativeEvidenceCount).slice(0, 12),
+      weaknesses: observedOnly.filter((state) => state.status === "needs_repair" || state.negativeEvidenceCount > 0).slice(0, 12),
       updatedAt: nowIso(),
     };
   }

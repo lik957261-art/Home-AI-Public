@@ -17,12 +17,10 @@ function learningGrowthLearnerWorkspaceId() {
   return selected || authWorkspace || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
 }
 
-function setLearningGrowthLearnerWorkspaceId(workspaceId) {
-  const target = String(workspaceId || "").trim();
-  if (!target || !state.auth?.isOwner) return;
-  state.learningGrowthWorkspaceId = target;
-}
+function setLearningGrowthLearnerWorkspaceId(workspaceId) { const target = String(workspaceId || "").trim(); if (target && state.auth?.isOwner) state.learningGrowthWorkspaceId = target; }
 function learningCoinStudentId() { return learningGrowthLearnerWorkspaceId(); }
+function learningCoinCurrentScopeKey() { return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`; }
+function isLearningGrowthViewActive() { return state.viewMode === "learning"; }
 function learningCoinRequestParams(options = {}) {
   const params = new URLSearchParams();
   params.set("workspaceId", learningGrowthLearnerWorkspaceId());
@@ -36,12 +34,6 @@ function learningGrowthMasteryRequestParams(options = {}) {
   params.set("learnerId", learningCoinStudentId());
   params.set("limit", String(options.limit || 80));
   return params;
-}
-function learningCoinCurrentScopeKey() {
-  return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`;
-}
-function isLearningGrowthViewActive() {
-  return state.viewMode === "learning";
 }
 function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
@@ -100,7 +92,6 @@ function renderLearningCoinsView() {
   wireLearningCoinsView();
   updateNavigationControls();
   ensureVerticalScrollAffordance();
-  return;
 }
 function selectLearningGrowthTab(tabId) {
   const id = String(tabId || "").trim();
@@ -589,6 +580,8 @@ async function submitLearningEvaluationForm(event, sessionId) {
 
 function wireLearningCoinsView() {
   const root = $("conversation");
+  const onClickAll = (selector, handler) => $("conversation")?.querySelectorAll(selector).forEach((button) => button.addEventListener("click", () => handler(button)));
+  const onSubmitAll = (selector, handler) => $("conversation")?.querySelectorAll(selector).forEach((form) => form.addEventListener("submit", (event) => handler(event, form)));
   if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks(root);
   if (root && !root.dataset.learningGrowthOpenDelegated) { root.dataset.learningGrowthOpenDelegated = "1"; root.addEventListener("click", (event) => {
     const growth = event.target?.closest?.("[data-learning-open-growth-task]"), history = event.target?.closest?.("[data-learning-open-growth-history]"), historyBack = event.target?.closest?.("[data-learning-growth-history-back]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]"), edit = event.target?.closest?.("[data-learning-native-growth-edit-answer]"), manualPass = event.target?.closest?.("[data-learning-growth-manual-pass]");
@@ -600,12 +593,8 @@ function wireLearningCoinsView() {
     if (growth && root.contains(growth)) { event.preventDefault(); event.stopPropagation(); openLearningGrowthTask(growth.dataset.learningOpenGrowthTask, growth.dataset.workspaceId).catch(showError); return; }
     if (kanban && root.contains(kanban)) { event.preventDefault(); event.stopPropagation(); openLearningKanbanCard(kanban.dataset.learningOpenKanbanCard, kanban.dataset.workspaceId).catch(showError); }
   }); }
-  $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
-    button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
-    button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
-  });
+  onClickAll("[data-learning-growth-tab]", (button) => selectLearningGrowthTab(button.dataset.learningGrowthTab));
+  onClickAll("[data-learning-growth-board-filter]", (button) => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
   $("conversation")?.querySelector("[data-learning-settings-task-back]")?.addEventListener("click", () => window.HermesLearningGrowthSettingsController?.closeSettingsTask?.());
   window.HermesLearningGrowthSettingsController?.wireSettingsTaskSwipe?.($("conversation"));
   window.HermesLearningGrowthAiController?.wireLearningGrowthAi?.();
@@ -621,39 +610,21 @@ function wireLearningCoinsView() {
   $("learningFoundationImportForm")?.addEventListener("submit", (event) => {
     submitLearningFoundationImportForm(event).catch(showError);
   });
-  $("conversation")?.querySelectorAll("[data-learning-source-directory-import]").forEach((button) => {
-    button.addEventListener("click", () => importLearningSourceDirectory(button.dataset.learningSourceDirectoryImport).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-source-directory-bootstrap]").forEach((button) => {
-    button.addEventListener("click", () => bootstrapLearningSourceDirectory(button.dataset.learningSourceDirectoryBootstrap).catch(showError));
-  });
+  onClickAll("[data-learning-source-directory-import]", (button) => importLearningSourceDirectory(button.dataset.learningSourceDirectoryImport).catch(showError));
+  onClickAll("[data-learning-source-directory-bootstrap]", (button) => bootstrapLearningSourceDirectory(button.dataset.learningSourceDirectoryBootstrap).catch(showError));
   $("conversation")?.querySelector("[data-learning-profile-rebuild]")?.addEventListener("click", () => {
     rebuildLearningProfile().catch(showError);
   });
   $("conversation")?.querySelector("[data-learning-parent-report-refresh]")?.addEventListener("click", () => {
     loadLearningParentReport().catch(showError);
   });
-  $("conversation")?.querySelectorAll("[data-learning-program-draft-action]").forEach((button) => {
-    button.addEventListener("click", () => draftLearningProgram(button.dataset.learningProgramDraftAction).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-program-rebuild-draft]").forEach((button) => {
-    button.addEventListener("click", () => rebuildLearningProgramDraft(button.dataset.learningProgramRebuildDraft).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-program-publish]").forEach((button) => {
-    button.addEventListener("click", () => publishLearningProgram(button.dataset.learningProgramPublish).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-review-decision]").forEach((button) => {
-    button.addEventListener("click", () => decideLearningReview(button.dataset.learningReviewDecision, button.dataset.decision).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-parent-review-decision]").forEach((button) => {
-    button.addEventListener("click", () => decideLearningParentReviewRequest(button.dataset.learningParentReviewDecision, button.dataset.decision).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-evaluation-settle]").forEach((button) => {
-    button.addEventListener("click", () => settleLearningEvaluationReward(button.dataset.learningEvaluationSettle).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-task-start]").forEach((button) => {
-    button.addEventListener("click", () => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
-  });
+  onClickAll("[data-learning-program-draft-action]", (button) => draftLearningProgram(button.dataset.learningProgramDraftAction).catch(showError));
+  onClickAll("[data-learning-program-rebuild-draft]", (button) => rebuildLearningProgramDraft(button.dataset.learningProgramRebuildDraft).catch(showError));
+  onClickAll("[data-learning-program-publish]", (button) => publishLearningProgram(button.dataset.learningProgramPublish).catch(showError));
+  onClickAll("[data-learning-review-decision]", (button) => decideLearningReview(button.dataset.learningReviewDecision, button.dataset.decision).catch(showError));
+  onClickAll("[data-learning-parent-review-decision]", (button) => decideLearningParentReviewRequest(button.dataset.learningParentReviewDecision, button.dataset.decision).catch(showError));
+  onClickAll("[data-learning-evaluation-settle]", (button) => settleLearningEvaluationReward(button.dataset.learningEvaluationSettle).catch(showError));
+  onClickAll("[data-learning-task-start]", (button) => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
   $("conversation")?.querySelectorAll("[data-learning-native-growth-submission-form]").forEach((form) => {
     const taskCardId = form.dataset.taskCardId || form.dataset.learningNativeGrowthSubmissionForm;
     restoreNativeGrowthSubmissionDraft(form, taskCardId);
@@ -718,18 +689,10 @@ function wireLearningCoinsView() {
     });
   });
   window.HermesLearningGrowthRewardController?.wireLearningGrowthRewardPolicy?.();
-  $("conversation")?.querySelectorAll("[data-learning-open-settings-task]").forEach((button) => {
-    button.addEventListener("click", () => window.HermesLearningGrowthSettingsController?.openSettingsTask?.(button.dataset.learningOpenSettingsTask));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-session-advance]").forEach((button) => {
-    button.addEventListener("click", () => advanceLearningSession(button.dataset.learningSessionAdvance).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-evaluation-form]").forEach((form) => {
-    form.addEventListener("submit", (event) => submitLearningEvaluationForm(event, form.dataset.learningEvaluationForm).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-redeem]").forEach((button) => {
-    button.addEventListener("click", () => requestLearningCoinRedemption(button.dataset.learningRedeem).catch(showError));
-  });
+  onClickAll("[data-learning-open-settings-task]", (button) => window.HermesLearningGrowthSettingsController?.openSettingsTask?.(button.dataset.learningOpenSettingsTask));
+  onClickAll("[data-learning-session-advance]", (button) => advanceLearningSession(button.dataset.learningSessionAdvance).catch(showError));
+  onSubmitAll("[data-learning-evaluation-form]", (event, form) => submitLearningEvaluationForm(event, form.dataset.learningEvaluationForm).catch(showError));
+  onClickAll("[data-learning-redeem]", (button) => requestLearningCoinRedemption(button.dataset.learningRedeem).catch(showError));
   $("learningRewardForm")?.addEventListener("submit", (event) => {
     submitLearningRewardForm(event).catch(showError);
   });
