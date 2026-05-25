@@ -30,6 +30,13 @@ function learningCoinRequestParams(options = {}) {
   params.set("limit", String(options.limit || 30));
   return params;
 }
+function learningGrowthMasteryRequestParams(options = {}) {
+  const params = new URLSearchParams();
+  params.set("workspaceId", learningGrowthLearnerWorkspaceId());
+  params.set("learnerId", learningCoinStudentId());
+  params.set("limit", String(options.limit || 80));
+  return params;
+}
 function learningCoinCurrentScopeKey() {
   return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`;
 }
@@ -43,6 +50,7 @@ function resetLearningCoinsState() {
   state.learningGrowthHistoryTaskCardId = "";
   state.learningGrowthSettingsOpen = false;
   state.learningCoins = null; state.learningCoinsError = "";
+  state.learningGrowthMasteryProfile = null; state.learningGrowthMasteryError = ""; state.learningGrowthMasteryLoading = false;
   state.learningParentReport = null; state.learningParentReportError = "";
   state.learningParentReportLoading = false; state.learningCoinScopeKey = learningCoinCurrentScopeKey();
 }
@@ -84,6 +92,9 @@ function renderLearningCoinsView() {
     parentReport: state.learningParentReport,
     parentReportLoading: state.learningParentReportLoading,
     parentReportError: state.learningParentReportError,
+    masteryProfile: state.learningGrowthMasteryProfile,
+    masteryProfileLoading: state.learningGrowthMasteryLoading,
+    masteryProfileError: state.learningGrowthMasteryError,
     aiSummary: state.learningAiSummary, aiSummaryLoading: state.learningAiSummaryLoading, aiSummaryError: state.learningAiSummaryError,
   });
   wireLearningCoinsView();
@@ -105,7 +116,9 @@ function selectLearningGrowthTab(tabId) {
     const active = panel.dataset.learningGrowthTabPanel === id;
     panel.classList.toggle("active", active);
     panel.hidden = !active;
-  }); if (id === "ai-analysis") window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
+  });
+  if (id === "ai-analysis") window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
+  if (id === "mastery") loadLearningGrowthMasteryProfile({ limit: 80 }).catch(showError);
 }
 function selectLearningGrowthBoardLane(laneId) {
   const root = $("conversation"), id = String(laneId || "").trim();
@@ -133,6 +146,7 @@ function openLearningGrowthSettingsPage() {
   const conversation = $("conversation");
   if (conversation) conversation.scrollTop = 0;
   window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
+  loadLearningGrowthMasteryProfile({ limit: 80 }).catch(showError);
 }
 function closeLearningGrowthSettingsPage() {
   state.learningGrowthSettingsOpen = false; state.learningGrowthSettingsTaskId = "";
@@ -153,12 +167,35 @@ async function loadLearningCoins(options = {}) {
     if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
     state.learningGrowth = result;
     state.learningCoins = result?.coins || result?.coinSummary || {};
+    if (state.auth?.isOwner && state.learningGrowthSettingsOpen) loadLearningGrowthMasteryProfile({ limit: 80 }).catch(showError);
   } catch (err) {
     if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
     state.learningCoinsError = err.message || String(err);
   } finally {
     if (seq === state.learningCoinRequestSeq) {
       state.learningCoinsLoading = false;
+      if (scopeKey === learningCoinCurrentScopeKey()) renderLearningCoinsView();
+    }
+  }
+}
+async function loadLearningGrowthMasteryProfile(options = {}) {
+  if (!state.auth?.isOwner) return;
+  const seq = (state.learningGrowthMasteryRequestSeq || 0) + 1;
+  state.learningGrowthMasteryRequestSeq = seq;
+  const scopeKey = learningCoinCurrentScopeKey();
+  state.learningGrowthMasteryLoading = true;
+  state.learningGrowthMasteryError = "";
+  renderLearningCoinsView();
+  try {
+    const result = await api(`/api/learning/growth/mastery-profile?${learningGrowthMasteryRequestParams(options)}`);
+    if (seq !== state.learningGrowthMasteryRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
+    state.learningGrowthMasteryProfile = result;
+  } catch (err) {
+    if (seq !== state.learningGrowthMasteryRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
+    state.learningGrowthMasteryError = err.message || String(err);
+  } finally {
+    if (seq === state.learningGrowthMasteryRequestSeq) {
+      state.learningGrowthMasteryLoading = false;
       if (scopeKey === learningCoinCurrentScopeKey()) renderLearningCoinsView();
     }
   }

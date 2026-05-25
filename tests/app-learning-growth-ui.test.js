@@ -495,6 +495,7 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.doesNotMatch(html, /data-learning-growth-owner-tools/);
   assert.match(html, /data-learning-growth-tabs/);
   assert.match(html, /data-learning-growth-tab="overview"/);
+  assert.match(html, /data-learning-growth-tab="mastery"/);
   assert.match(html, /data-learning-growth-tab="tasks"/);
   assert.match(html, /data-learning-growth-tab="rewards"/);
   assert.match(html, /data-learning-growth-tab="ai-analysis"/);
@@ -529,6 +530,53 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
   assert.doesNotMatch(html, /data-learning-operational-readiness/);
   assert.doesNotMatch(html, /\u51e1\u51e1\u6210\u957f\u7cfb\u7edf|\u51e1\u51e1\u6210\u957f|\u6210\u957f\u770b\u677f|<small>7d<\/small>/);
+}
+
+function testOwnerSettingsShowsMasteryProfileTab() {
+  const masteryProfile = {
+    ok: true,
+    masteryProfile: {
+      taxonomyVersion: "taxonomy-v1",
+      skillStates: [
+        {
+          skillId: "english.writing.claim_reason_example",
+          domain: "english",
+          strand: "writing",
+          status: "mastered",
+          confidence: 0.88,
+          evidenceCount: 4,
+          strengths: ["Claim, reason, example writing"],
+          nextRecommendation: { strategy: "stretch" },
+        },
+        {
+          skillId: "english.speaking.retell_structure",
+          domain: "english",
+          strand: "speaking",
+          status: "needs_repair",
+          confidence: 0.86,
+          evidenceCount: 3,
+          weaknesses: ["Retell structure"],
+          nextRecommendation: { strategy: "repair" },
+        },
+      ],
+      strengths: [{ skillId: "english.writing.claim_reason_example" }],
+      weaknesses: [{ skillId: "english.speaking.retell_structure" }],
+    },
+    trajectory: [{ sequenceGroupId: "series-1" }],
+  };
+  const html = GrowthUi.renderLearningGrowthView({
+    overview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    masteryProfile,
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningGrowthActiveTab: "mastery" },
+  });
+  assert.match(html, /data-learning-growth-tab="mastery" aria-selected="true" class="active"/);
+  assert.match(html, /data-learning-growth-tab-panel="mastery" role="tabpanel">\s*<section class="learning-coin-panel learning-mastery-profile-panel"/);
+  assert.match(html, /data-learning-mastery-profile-panel/);
+  assert.match(html, /data-learning-mastery-skill="english\.writing\.claim_reason_example"/);
+  assert.match(html, /data-learning-mastery-status="needs_repair"/);
+  assert.match(html, /taxonomy-v1/);
 }
 
 function testOwnerSettingsTaskDetailStaysInsideSettingsPage() {
@@ -573,6 +621,7 @@ testGrowthRendererShowsStandaloneTaskCardWhenSelected();
 testGrowthRendererOpensLegacyTodoAsReadOnlyTask();
 testOwnerRendererKeepsBoardSeparateFromManagementSections();
 testOwnerRendererShowsIndependentSettingsPage();
+testOwnerSettingsShowsMasteryProfileTab();
 testOwnerSettingsTaskDetailStaysInsideSettingsPage();
 testReadinessPanelRenderer();
 

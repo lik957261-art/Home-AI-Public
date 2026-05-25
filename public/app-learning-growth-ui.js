@@ -611,6 +611,84 @@
     ].join("");
   }
 
+  function masteryStatusText(status = "") {
+    const key = String(status || "").trim();
+    if (key === "mastered") return "\u5df2\u638c\u63e1";
+    if (key === "practicing") return "\u7ec3\u4e60\u4e2d";
+    if (key === "needs_repair") return "\u9700\u4fee\u590d";
+    if (key === "emerging") return "\u521a\u51fa\u73b0";
+    return key || "\u672a\u5b9a";
+  }
+
+  function masteryStrategyText(strategy = "") {
+    const key = String(strategy || "").trim();
+    if (key === "repair") return "\u4fee\u590d";
+    if (key === "stretch") return "\u62d3\u5c55";
+    if (key === "stabilize") return "\u5de9\u56fa";
+    if (key === "review") return "\u590d\u4e60";
+    return key || "\u5f85\u5b9a";
+  }
+
+  function renderMasteryRows(states = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const rows = asArray(states).slice(0, 24);
+    if (!rows.length) return `<div class="learning-coin-empty">\u6682\u65e0\u53ef\u5ba1\u8ba1\u7684\u80fd\u529b\u753b\u50cf\u8bb0\u5f55\u3002</div>`;
+    return `<div class="learning-mastery-state-list">
+      ${rows.map((state) => {
+        const confidence = Math.round((Number(state.confidence) || 0) * 100);
+        const evidence = Number(state.evidenceCount || 0) || 0;
+        const strategy = masteryStrategyText(state.nextRecommendation?.strategy || "");
+        const meta = [
+          state.domain || "",
+          state.strand || "",
+          state.externalLevelReference || "",
+          evidence ? `${evidence} evidence` : "",
+          confidence ? `${confidence}%` : "",
+        ].filter(Boolean).join(" / ");
+        const weakness = asArray(state.weaknesses).find(Boolean);
+        const strength = asArray(state.strengths).find(Boolean);
+        return `<article class="learning-mastery-state-row" data-learning-mastery-skill="${escapeHtml(state.skillId || "")}" data-learning-mastery-status="${escapeHtml(state.status || "")}">
+          <div>
+            <strong>${escapeHtml(state.skillId || state.microSkillId || "\u80fd\u529b\u70b9")}</strong>
+            <small>${escapeHtml(meta)}</small>
+            ${strength || weakness ? `<p>${escapeHtml(strength || weakness)}</p>` : ""}
+          </div>
+          <span>
+            <em>${escapeHtml(masteryStatusText(state.status))}</em>
+            <small>${escapeHtml(strategy)}</small>
+          </span>
+        </article>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderOwnerMasteryProfile(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const payload = options.masteryProfile || overview.masteryProfile || {};
+    const profile = payload.masteryProfile || payload.profile || payload || {};
+    const trajectory = asArray(payload.trajectory || overview.masteryTrajectory);
+    const states = asArray(profile.skillStates || profile.states);
+    const strengths = asArray(profile.strengths);
+    const weaknesses = asArray(profile.weaknesses);
+    const loading = Boolean(options.masteryProfileLoading);
+    const error = String(options.masteryProfileError || "");
+    return `<section class="learning-coin-panel learning-mastery-profile-panel" data-learning-mastery-profile-panel>
+      <div class="learning-section-heading">
+        <h3>\u5b66\u4e60\u753b\u50cf</h3>
+        <span>${escapeHtml(profile.taxonomyVersion || "\u80fd\u529b\u8bc1\u636e")}</span>
+      </div>
+      <div class="learning-settings-kpi-grid learning-mastery-kpi-grid">
+        <span><small>\u80fd\u529b\u70b9</small><strong>${escapeHtml(String(states.length))}</strong></span>
+        <span><small>\u4f18\u52bf</small><strong>${escapeHtml(String(strengths.length))}</strong></span>
+        <span><small>\u9700\u4fee\u590d</small><strong>${escapeHtml(String(weaknesses.length))}</strong></span>
+        <span><small>\u8f68\u8ff9</small><strong>${escapeHtml(String(trajectory.length))}</strong></span>
+      </div>
+      ${loading ? `<div class="learning-growth-muted">\u6b63\u5728\u5237\u65b0\u753b\u50cf...</div>` : ""}
+      ${error ? `<div class="learning-error">${escapeHtml(error)}</div>` : ""}
+      ${renderMasteryRows(states, options)}
+    </section>`;
+  }
+
   function renderOwnerProgramTabs(programUi, coinsHtml, overview = {}, options = {}) {
     const data = overview.programs || {};
     const programOptions = Object.assign({}, options, {
@@ -621,6 +699,7 @@
     return `<section class="learning-program-section learning-program-parent-admin learning-growth-settings-tabs" data-learning-growth-module="programs" data-learning-growth-category="parent-admin" data-learning-growth-owner-management>
       ${renderLearningGrowthTabs([
         { id: "overview", label: "总览", html: renderOwnerSettingsOverview(programUi, coinsHtml, overview, options) },
+        { id: "mastery", label: "\u753b\u50cf", html: renderOwnerMasteryProfile(overview, options) },
         { id: "tasks", label: "任务", html: renderOwnerTaskManagement(programUi, overview, options) },
         { id: "rewards", label: "奖励", html: renderOwnerRewardDashboard(programUi, coinsHtml, overview, options) },
         { id: "ai-analysis", label: "AI分析", html: renderOwnerAiSummaryRecommendationsPanel(data, programOptions) },
