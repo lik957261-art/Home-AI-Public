@@ -41,6 +41,15 @@ function defaultStatePath(env = process.env) {
   return path.join(process.cwd(), "chatgpt-pro-bridge-state.json");
 }
 
+function defaultOutputDir(env = process.env) {
+  const dataDir = env.HERMES_MOBILE_DATA_DIR || env.HERMES_WEB_DATA_DIR || "";
+  if (dataDir) return path.join(dataDir, "tmp", "chatgpt-pro");
+  if (process.platform === "win32") {
+    return "C:\\ProgramData\\HermesMobile\\data\\tmp\\chatgpt-pro";
+  }
+  return path.join("/tmp", "hermes-mobile-chatgpt-pro");
+}
+
 function codexMobileKey(env = process.env) {
   return String(
     env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY
@@ -145,6 +154,7 @@ function buildCodexPrompt(payload) {
   const outputFormat = String(payload.output_format || "markdown").trim().toLowerCase() || "markdown";
   const language = compactText(payload.language || "zh-CN", 40);
   const deliveryMode = String(payload.delivery_mode || "reply").trim().toLowerCase() || "reply";
+  const outputDir = compactText(payload.output_dir || payload.outputDir || "", 500);
   return [
     "You are the Hermes Mobile Owner-approved ChatGPT Pro execution thread.",
     "",
@@ -153,7 +163,10 @@ function buildCodexPrompt(payload) {
     "- Do not impersonate ChatGPT Pro output with your ordinary model response.",
     "- If Chrome or ChatGPT Pro is unavailable, report the failure reason directly. Do not fall back to another model.",
     "- Do not read or expose browser cookies, tokens, passwords, local secret keys, or raw credentials.",
-    "- If the user requests Word/DOCX, create a locally openable .docx file and include its absolute path in the final answer.",
+    outputDir ? `- Write all generated local files, including DOCX/PDF/Markdown intermediates, under this temporary output directory only: ${outputDir}` : "",
+    "- Do not create generated files under the Hermes Mobile source checkout, repository root, or a repo-level outputs/ directory.",
+    "- If the user requests Word/DOCX, create a locally openable .docx file in the temporary output directory and include its absolute path in the final answer.",
+    "- The temporary output directory is a handoff staging area; do not treat it as durable source or project state.",
     "",
     `Title: ${title}`,
     `Output language: ${language}`,
@@ -179,6 +192,7 @@ function createChatGptProCodexBridgeService(options = {}) {
   const workspace = options.workspace || env.HERMES_MOBILE_CHATGPT_PRO_WORKSPACE || "C:\\Users\\xuxin\\Documents\\Agent";
   const threadName = options.threadName || env.HERMES_MOBILE_CHATGPT_PRO_THREAD_NAME || DEFAULT_THREAD_NAME;
   const statePath = options.statePath || env.HERMES_MOBILE_CHATGPT_PRO_STATE_PATH || env.HERMES_WEB_CHATGPT_PRO_STATE_PATH || defaultStatePath(env);
+  const outputDir = options.outputDir || env.HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR || env.HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR || defaultOutputDir(env);
   const timeoutMs = Math.max(30000, Number(options.timeoutMs || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_TIMEOUT_MS || DEFAULT_TIMEOUT_MS));
   const pollIntervalMs = Math.max(1000, Number(options.pollIntervalMs || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_POLL_MS || DEFAULT_POLL_INTERVAL_MS));
   const model = options.model || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MODEL || "gpt-5.5";
@@ -301,9 +315,14 @@ function createChatGptProCodexBridgeService(options = {}) {
     const timer = setTimeout(() => controller.abort(), timeoutMs + 10000);
     const deadline = Date.now() + timeoutMs;
     try {
+      if (outputDir) {
+        try {
+          fsImpl.mkdirSync(outputDir, { recursive: true });
+        } catch (_) {}
+      }
       const messagePayload = {
         cwd: workspace,
-        text: buildCodexPrompt(payload),
+        text: buildCodexPrompt({ ...payload, output_dir: outputDir }),
         model,
         effort,
         permissionMode,
@@ -347,6 +366,7 @@ module.exports = {
   buildCodexPrompt,
   codexMobileKey,
   createChatGptProCodexBridgeService,
+  defaultOutputDir,
   defaultStatePath,
   extractFinalAssistantText,
   isActiveThread,

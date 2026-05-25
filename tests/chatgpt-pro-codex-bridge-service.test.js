@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   buildCodexPrompt,
   createChatGptProCodexBridgeService,
+  defaultOutputDir,
   extractFinalAssistantText,
   isActiveThread,
 } = require("../adapters/chatgpt-pro-codex-bridge-service");
@@ -23,6 +24,8 @@ async function testStartsCodexMobileThreadAndReturnsFinalAssistantText() {
       assert.equal(body.permissionMode, "full");
       assert.match(body.text, /must use the Chrome plugin \/ Chrome skill/);
       assert.match(body.text, /Do not impersonate ChatGPT Pro output/);
+      assert.match(body.text, /tmp\\chatgpt-pro/);
+      assert.match(body.text, /Do not create generated files under the Hermes Mobile source checkout/);
       return { ok: true, text: async () => JSON.stringify({ threadId: "thread_1" }) };
     }
     if (url.endsWith("/api/threads/thread_1/name")) {
@@ -50,6 +53,7 @@ async function testStartsCodexMobileThreadAndReturnsFinalAssistantText() {
     key: "test-key",
     baseUrl: "http://codex.local",
     workspace: "C:\\Work",
+    outputDir: "C:\\ProgramData\\HermesMobile\\data\\tmp\\chatgpt-pro",
     pollIntervalMs: 1,
     timeoutMs: 1000,
     statePath: path.join(fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-pro-new-")), "state.json"),
@@ -114,11 +118,22 @@ function testPromptKeepsChatGptProBoundary() {
     prompt: "Generate a report",
     output_format: "docx",
     delivery_mode: "artifact",
+    output_dir: "C:\\ProgramData\\HermesMobile\\data\\tmp\\chatgpt-pro",
   });
   assert.match(prompt, /ChatGPT Pro execution thread/);
   assert.match(prompt, /Do not fall back to another model/);
-  assert.match(prompt, /create a locally openable \.docx file/);
+  assert.match(prompt, /temporary output directory/);
+  assert.match(prompt, /Do not create generated files under the Hermes Mobile source checkout/);
+  assert.match(prompt, /repo-level outputs\/ directory/);
+  assert.match(prompt, /create a locally openable \.docx file in the temporary output directory/);
   assert.match(prompt, /Answer in Chinese for parent-facing analysis/);
+}
+
+function testDefaultOutputDirStaysOutsideWorkspace() {
+  assert.equal(
+    defaultOutputDir({ HERMES_MOBILE_DATA_DIR: "C:\\ProgramData\\HermesMobile\\data" }),
+    "C:\\ProgramData\\HermesMobile\\data\\tmp\\chatgpt-pro",
+  );
 }
 
 function testThreadStatusAndExtraction() {
@@ -139,6 +154,7 @@ async function main() {
   await testStartsCodexMobileThreadAndReturnsFinalAssistantText();
   await testReusesPersistedNamedCodexMobileThread();
   testPromptKeepsChatGptProBoundary();
+  testDefaultOutputDirStaysOutsideWorkspace();
   testThreadStatusAndExtraction();
   console.log("chatgpt-pro-codex-bridge-service tests passed");
 }
