@@ -591,6 +591,12 @@ function testOwnerSettingsShowsMasteryProfileTab() {
   assert.match(html, /data-learning-growth-tab="mastery" aria-selected="true" class="active"/);
   assert.match(html, /data-learning-growth-tab-panel="mastery" role="tabpanel">\s*<section class="learning-coin-panel learning-mastery-profile-panel"/);
   assert.match(html, /data-learning-mastery-profile-panel/);
+  assert.match(html, /data-learning-mastery-domain-switcher/);
+  assert.match(html, /data-learning-mastery-domain-tabs/);
+  assert.match(html, /data-learning-mastery-domain-tab="english"/);
+  assert.match(html, /data-learning-mastery-domain-tab="science"/);
+  assert.match(html, /learning-mastery-domain-radio" type="radio" name="learning-mastery-domain" id="learning-mastery-domain-0" checked/);
+  assert.match(html, /data-learning-mastery-domain-index="0"/);
   assert.match(html, /data-learning-mastery-domain="english"/);
   assert.match(html, /data-learning-mastery-domain="science"/);
   assert.match(html, /Scientific explanation from evidence/);

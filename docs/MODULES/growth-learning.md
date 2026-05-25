@@ -54,6 +54,7 @@ Important tables include:
 - Completed cards should not show open-time age labels in primary list UI.
 - Mastery profile should show the full active capability taxonomy across subjects, not only subjects with evidence. Unobserved capabilities are displayed as `not_observed` so gaps are visible without fabricating evidence.
 - Mastery profile evidence remains summary-only; cross-subject display does not imply a learner has attempted every subject.
+- Mastery profile UI should switch subjects through a single horizontal subject-tag row and show one subject at a time for readability on mobile.
 - Growth AI evaluations should update mastery evidence after feedback is persisted, including `draft_feedback` states that still require revision/reflection.
 - Historical mastery profile repair should use `scripts\backfill-learning-growth-mastery-profile.js`; it reads historical evaluation metadata and writes idempotent summary-only mastery states.
 

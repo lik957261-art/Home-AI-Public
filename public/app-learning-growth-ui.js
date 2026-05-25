@@ -691,12 +691,25 @@
       const ia = order.indexOf(a), ib = order.indexOf(b);
       return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
     });
-    return `<div class="learning-mastery-domain-list">
-      ${domains.map((domain) => {
+    return `<div class="learning-mastery-domain-switcher" data-learning-mastery-domain-switcher>
+      ${domains.map((domain, index) => `<input class="learning-mastery-domain-radio" type="radio" name="learning-mastery-domain" id="learning-mastery-domain-${index}"${index === 0 ? " checked" : ""}>`).join("")}
+      <div class="learning-mastery-domain-tabs" data-learning-mastery-domain-tabs aria-label="\u79d1\u76ee\u753b\u50cf">
+        ${domains.map((domain, index) => {
+          const summary = summaryByDomain.get(domain) || {};
+          const observed = Number(summary.observed || grouped[domain].filter((state) => state.evidenceCount > 0).length) || 0;
+          const total = Number(summary.total || grouped[domain].length) || grouped[domain].length;
+          return `<label class="learning-mastery-domain-tab" data-learning-mastery-domain-tab="${escapeHtml(domain)}" for="learning-mastery-domain-${index}">
+            <span>${escapeHtml(masteryDomainText(domain))}</span>
+            <small>${escapeHtml(String(observed))}/${escapeHtml(String(total))}</small>
+          </label>`;
+        }).join("")}
+      </div>
+      <div class="learning-mastery-domain-panel-list">
+      ${domains.map((domain, index) => {
         const summary = summaryByDomain.get(domain) || {};
         const observed = Number(summary.observed || grouped[domain].filter((state) => state.evidenceCount > 0).length) || 0;
         const total = Number(summary.total || grouped[domain].length) || grouped[domain].length;
-        return `<section class="learning-mastery-domain-section" data-learning-mastery-domain="${escapeHtml(domain)}">
+        return `<section class="learning-mastery-domain-section" data-learning-mastery-domain="${escapeHtml(domain)}" data-learning-mastery-domain-index="${escapeHtml(String(index))}">
           <div class="learning-mastery-domain-heading">
             <strong>${escapeHtml(masteryDomainText(domain))}</strong>
             <span>${escapeHtml(String(observed))}/${escapeHtml(String(total))} \u5df2\u89c2\u5bdf</span>
@@ -704,6 +717,7 @@
           ${renderMasteryRows(grouped[domain], options)}
         </section>`;
       }).join("")}
+      </div>
     </div>`;
   }
 

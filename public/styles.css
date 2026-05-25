@@ -9307,13 +9307,86 @@ body.task-markdown-preview-open {
   gap: 8px;
 }
 
-.learning-mastery-domain-list {
+.learning-mastery-domain-switcher,
+.learning-mastery-domain-panel-list {
   display: grid;
   gap: 12px;
+  min-width: 0;
+}
+
+.learning-mastery-domain-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.learning-mastery-domain-tabs {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.learning-mastery-domain-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.learning-mastery-domain-tab {
+  flex: 0 0 auto;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 780;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.learning-mastery-domain-tab small {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.learning-mastery-domain-radio:nth-of-type(1):checked ~ .learning-mastery-domain-tabs label:nth-of-type(1),
+.learning-mastery-domain-radio:nth-of-type(2):checked ~ .learning-mastery-domain-tabs label:nth-of-type(2),
+.learning-mastery-domain-radio:nth-of-type(3):checked ~ .learning-mastery-domain-tabs label:nth-of-type(3),
+.learning-mastery-domain-radio:nth-of-type(4):checked ~ .learning-mastery-domain-tabs label:nth-of-type(4),
+.learning-mastery-domain-radio:nth-of-type(5):checked ~ .learning-mastery-domain-tabs label:nth-of-type(5),
+.learning-mastery-domain-radio:nth-of-type(6):checked ~ .learning-mastery-domain-tabs label:nth-of-type(6),
+.learning-mastery-domain-radio:nth-of-type(7):checked ~ .learning-mastery-domain-tabs label:nth-of-type(7),
+.learning-mastery-domain-radio:nth-of-type(8):checked ~ .learning-mastery-domain-tabs label:nth-of-type(8) {
+  border-color: rgba(46, 125, 118, 0.28);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-fill);
+}
+
+.learning-mastery-domain-radio:nth-of-type(1):checked ~ .learning-mastery-domain-panel-list [data-learning-mastery-domain-index="0"],
+.learning-mastery-domain-radio:nth-of-type(2):checked ~ .learning-mastery-domain-panel-list [data-learning-mastery-domain-index="1"],
+.learning-mastery-domain-radio:nth-of-type(3):checked ~ .learning-mastery-domain-panel-list [data-learning-mastery-domain-index="2"],
+.learning-mastery-domain-radio:nth-of-type(4):checked ~ .learning-mastery-domain-panel-list [data-learning-mastery-domain-index="3"],
+.learning-mastery-domain-radio:nth-of-type(5):checked ~ .learning-mastery-domain-panel-list [data-learning-mastery-domain-index="4"],
+.learning-mastery-domain-radio:nth-of-type(6):checked ~ .learning-mastery-domain-panel-list [data-learning-mastery-domain-index="5"],
+.learning-mastery-domain-radio:nth-of-type(7):checked ~ .learning-mastery-domain-panel-list [data-learning-mastery-domain-index="6"],
+.learning-mastery-domain-radio:nth-of-type(8):checked ~ .learning-mastery-domain-panel-list [data-learning-mastery-domain-index="7"] {
+  display: grid;
 }
 
 .learning-mastery-domain-section {
-  display: grid;
+  display: none;
   gap: 8px;
 }
 
