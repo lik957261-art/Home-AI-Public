@@ -65,11 +65,12 @@ function templateSkillCandidates(taskCard = {}) {
 }
 
 function summaryEvidenceText(evaluation = {}, reflection = {}) {
+  const safeReflection = reflection && typeof reflection === "object" ? reflection : {};
   return cleanString([
     evaluation.summary,
     asArray(evaluation.remainingWeaknesses).slice(0, 3).join("; "),
     asArray(evaluation.revisionRequirements).slice(0, 3).join("; "),
-    reflection.summary,
+    safeReflection.summary,
   ].filter(Boolean).join(" "), 360);
 }
 
@@ -156,6 +157,23 @@ function createLearningGrowthMasteryProfileService(options = {}) {
         skillId: node.skillId,
         microSkillId: cleanString(item.microSkillId),
       }) || {};
+      const alreadyRecorded = asArray(existing.evidenceSummary).some((evidence) => {
+        const existingEvidenceId = cleanString(evidence.evidenceId);
+        const existingSourceRef = cleanString(evidence.sourceRef);
+        return (existingEvidenceId && existingEvidenceId === cleanString(item.evidenceId))
+          || (existingSourceRef && existingSourceRef === cleanString(item.sourceRef) && cleanString(evidence.taskCardId) === cleanString(item.taskCardId));
+      });
+      if (alreadyRecorded) {
+        changes.push({
+          skillId: node.skillId,
+          fromStatus: existing.status || "",
+          toStatus: existing.status || "",
+          confidence: numberValue(existing.confidence),
+          evidenceCount: numberValue(existing.evidenceCount),
+          skipped: true,
+        });
+        continue;
+      }
       const positive = numberValue(existing.positiveEvidenceCount) + (item.signal === "strength" || item.signal === "stability" ? 1 : 0);
       const negative = numberValue(existing.negativeEvidenceCount) + (item.signal === "weakness" || item.signal === "regression" ? 1 : 0);
       const success = numberValue(existing.recentSuccessCount) + (item.signal === "strength" || item.score >= 80 ? 1 : 0);

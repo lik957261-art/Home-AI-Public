@@ -59,9 +59,12 @@ function testRepeatedPositiveEvidenceCanMasterSkill() {
   const { service } = createService();
   service.recordTaskEvidence({ taskCard: writingTask(), evaluation: { evaluationId: "eval-1", score: 91, confidence: 0.82 } });
   service.recordTaskEvidence({ taskCard: Object.assign({}, writingTask(), { taskCardId: "ltask_writing_2" }), evaluation: { evaluationId: "eval-2", score: 88, confidence: 0.8 } });
+  const duplicate = service.recordTaskEvidence({ taskCard: Object.assign({}, writingTask(), { taskCardId: "ltask_writing_2" }), evaluation: { evaluationId: "eval-2", score: 88, confidence: 0.8 } });
+  assert.equal(duplicate.masteryChanges.some((change) => change.skipped), true);
   const profile = service.getMasteryProfile({ learnerId: "weixin_stephen", workspaceId: "weixin_stephen", domain: "english" });
   const writingState = profile.skillStates.find((state) => state.skillId === "english.writing.claim_reason_example");
   assert.equal(writingState.status, "mastered");
+  assert.equal(writingState.evidenceCount, 2);
   assert.ok(profile.strengths.some((state) => state.skillId === writingState.skillId));
 }
 

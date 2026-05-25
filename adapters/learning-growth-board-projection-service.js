@@ -154,7 +154,7 @@ function taskStatus(task = {}, latest = {}, context = {}) {
   if (reflectionStatus === "accepted") return "complete";
   const evaluationStatus = cleanString(latest.evaluation?.status);
   if (evaluationStatus === "reflection_required") return "spoken_reflection";
-  if (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision") return "revise";
+  if (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision" || evaluationStatus === "draft_feedback") return "revise";
   if (latest.evaluation?.passed) return "complete";
   if (cleanString(latest.submission?.status)) return "waiting_feedback";
   return "submit";

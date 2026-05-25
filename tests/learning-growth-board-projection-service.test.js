@@ -16,6 +16,7 @@ function overview() {
       executableTasks: [
         { taskCardId: "task-ready", title: "Ready", status: "published", plannedDate: "2026-05-20", createdAt: "2026-05-20T07:30:00.000Z", taskModel: { skillId: "english_short_writing" } },
         { taskCardId: "task-ai", title: "Waiting", status: "published" },
+        { taskCardId: "task-draft-feedback", title: "Draft feedback", status: "published" },
         { taskCardId: "task-reflect", title: "Reflect", status: "published", artifactDirectoryPath: "C:\\Deliverables\\task-reflect" },
         { taskCardId: "task-done", title: "Done", status: "completed" },
       ],
@@ -26,6 +27,7 @@ function overview() {
       evaluations: [
         { evaluationId: "eval-reflect-old", taskCardId: "task-reflect", status: "needs_repair", score: 62, passed: false, summary: "old summary", createdAt: "2026-05-20T07:59:00.000Z" },
         { evaluationId: "eval-reflect", taskCardId: "task-reflect", status: "reflection_required", score: 84, passed: true, summary: "summary", createdAt: "2026-05-20T08:01:00.000Z" },
+        { evaluationId: "eval-draft-feedback", taskCardId: "task-draft-feedback", status: "draft_feedback", nextStep: "rewrite_and_reflect", score: 90, passed: false, summary: "draft feedback ready", createdAt: "2026-05-20T08:01:30.000Z" },
         { evaluationId: "eval-done", taskCardId: "task-done", status: "passed", score: 91, passed: true, summary: "summary", createdAt: "2026-05-20T08:02:00.000Z" },
       ],
       taskReflections: [
@@ -56,6 +58,7 @@ function testBoardClassifiesNativeTasksIntoLanes() {
   const laneById = new Map(board.lanes.map((lane) => [lane.id, lane]));
   assert.ok(laneById.get("today").cards.includes("task-ready"));
   assert.ok(laneById.get("waiting_ai").cards.includes("task-ai"));
+  assert.ok(laneById.get("needs_revision").cards.includes("task-draft-feedback"));
   assert.ok(laneById.get("reflection_required").cards.includes("task-reflect"));
   assert.ok(laneById.get("completed_recent").cards.includes("task-done"));
   const reflectCard = board.cards.find((card) => card.taskCardId === "task-reflect");
@@ -72,6 +75,10 @@ function testBoardClassifiesNativeTasksIntoLanes() {
   assert.equal(waitingCard.submissionCount, 2);
   assert.equal(waitingCard.latestSubmission.submissionId, "sub-ai-2");
   assert.equal(waitingCard.latestSubmission.totalSubmissionCount, 2);
+  const draftFeedbackCard = board.cards.find((card) => card.taskCardId === "task-draft-feedback");
+  assert.equal(draftFeedbackCard.nextAction, "revise");
+  assert.equal(draftFeedbackCard.primaryAction, "revise");
+  assert.equal(draftFeedbackCard.actions.canSubmit, true);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").rewardCapCoins, 100);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").openedAt, "2026-05-20T07:30:00.000Z");
   const doneCard = board.cards.find((card) => card.taskCardId === "task-done");
@@ -167,7 +174,7 @@ function testServiceUsesOverviewWithoutKanbanProvider() {
     clock: { now: () => Date.parse("2026-05-20T09:00:00.000Z") },
   });
   const result = service.board({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen", limit: 5 });
-  assert.equal(result.board.summary.cardCount, 4);
+  assert.equal(result.board.summary.cardCount, 5);
   assert.equal(inputs[0].limit, 80);
 }
 

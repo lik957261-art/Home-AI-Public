@@ -280,7 +280,7 @@ function attachNativeTaskState(programs = {}) {
     const submissionStatus = cleanString(latestSubmission?.status);
     const nextAction = evaluationStatus === "reflection_required"
       ? "spoken_reflection"
-      : (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision" ? "revise" : (latestEvaluation?.passed ? "complete" : (submissionStatus ? "waiting_feedback" : "submit")));
+      : (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision" || evaluationStatus === "draft_feedback" ? "revise" : (latestEvaluation?.passed ? "complete" : (submissionStatus ? "waiting_feedback" : "submit")));
     return Object.assign({}, task, {
       nativeState: {
         status: evaluationStatus || submissionStatus || cleanString(task.executionStatus || task.status),

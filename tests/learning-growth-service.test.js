@@ -108,6 +108,32 @@ function makeEvergreenProgramService() {
   };
 }
 
+function makeDraftFeedbackProgramService() {
+  const base = makeProgramService();
+  return {
+    overview() {
+      const overview = base.overview();
+      overview.taskSubmissions = [{
+        submissionId: "sub-1",
+        taskCardId: "task-1",
+        status: "submitted",
+        submittedAt: "2026-05-20T08:00:00.000Z",
+      }];
+      overview.evaluations = [{
+        evaluationId: "eval-draft",
+        taskCardId: "task-1",
+        status: "draft_feedback",
+        nextStep: "rewrite_and_reflect",
+        score: 90,
+        passed: false,
+        summary: "draft feedback ready",
+        createdAt: "2026-05-20T08:05:00.000Z",
+      }];
+      return overview;
+    },
+  };
+}
+
 function testRequestNormalizationKeepsExecutorAccountId() {
   assert.deepEqual(normalizeLearningGrowthRequest({
     workspaceId: "weixin_stephen",
@@ -197,6 +223,17 @@ function testOverviewFormatsEvergreenTaskTitles() {
   assert.equal(overview.programs.executableTasks[0].title, "English short writing \u00b7 \u7b2c1\u5f20\u5361");
 }
 
+function testDraftFeedbackOverridesSubmittedWaitingState() {
+  const service = createLearningGrowthService({
+    learningCoinService: makeCoinService(),
+    learningProgramService: makeDraftFeedbackProgramService(),
+  });
+  const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(overview.programs.executableTasks[0].nativeState.nextAction, "revise");
+  assert.equal(overview.programs.executableTasks[0].latestEvaluation.status, "draft_feedback");
+  assert.equal(overview.programs.executableTasks[0].latestSubmission.status, "submitted");
+}
+
 function testExecutorOverviewStripsOwnerManagementData() {
   const service = createLearningGrowthService({
     learningCoinService: makeCoinService(),
@@ -261,6 +298,7 @@ testRequestNormalizationKeepsExecutorAccountId();
 testOverviewContainsGrowthShellAndCoinsSubsystem();
 testOverviewMergesLegacyTodoTasks();
 testOverviewFormatsEvergreenTaskTitles();
+testDraftFeedbackOverridesSubmittedWaitingState();
 testExecutorOverviewStripsOwnerManagementData();
 testOverviewCanRenderWithoutCoinService();
 
