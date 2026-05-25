@@ -9,7 +9,7 @@ const {
 function testListsInternationalCapabilityDomains() {
   const service = createLearningGrowthCapabilityTaxonomyService();
   const domains = new Set(service.listNodes().map((node) => node.domain));
-  assert.equal(TAXONOMY_VERSION, "20260525-evergreen-capability-v1");
+  assert.equal(TAXONOMY_VERSION, "20260525-evergreen-capability-v2");
   assert.ok(domains.has("english"));
   assert.ok(domains.has("math"));
   assert.ok(domains.has("science"));
@@ -21,6 +21,12 @@ function testNormalizesLegacyGrowthSkillIds() {
   const service = createLearningGrowthCapabilityTaxonomyService();
   assert.equal(service.normalizeSkillId("english_grammar_in_expression"), "english.writing.sentence_control");
   assert.equal(service.normalizeSkillId("python_debugging"), "computer_science.programming.testing_and_debugging");
+  assert.equal(service.normalizeSkillId("english_reading_comprehension"), "english.reading.evidence_based_answering");
+  assert.equal(service.normalizeSkillId("math_ratio_proportional_reasoning"), "math.number.ratio_proportional_reasoning");
+  assert.equal(service.normalizeSkillId("math_number_theory"), "math.number.number_theory");
+  assert.equal(service.normalizeSkillId("math_probability_counting"), "math.probability.counting");
+  assert.equal(service.normalizeSkillId("math_multi_step_explanation"), "math.reasoning.multi_step_explanation");
+  assert.equal(service.normalizeSkillId("python_foundation"), "computer_science.programming.python_foundation");
   assert.equal(service.getNode("english_short_writing").strand, "writing");
 }
 

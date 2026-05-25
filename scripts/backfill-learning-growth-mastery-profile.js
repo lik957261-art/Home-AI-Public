@@ -42,7 +42,8 @@ function main() {
   try {
     const service = createLearningGrowthMasteryProfileService({ repository });
     const evaluations = repository.listEvaluations({ workspaceId, learnerId, limit })
-      .filter((evaluation) => cleanString(evaluation.taskCardId));
+      .filter((evaluation) => cleanString(evaluation.taskCardId))
+      .sort((a, b) => cleanString(a.createdAt).localeCompare(cleanString(b.createdAt)));
     const reflections = typeof repository.listTaskReflections === "function"
       ? repository.listTaskReflections({ workspaceId, learnerId, limit })
       : [];
@@ -68,7 +69,21 @@ function main() {
         continue;
       }
       if (dryRun) {
-        summary.evidenceRecorded += asArray(task.skillIds || task.taskModel?.skillTargets).length || 1;
+        const evidenceItems = service.evidenceItemsFromTask({
+          taskCard: task,
+          evaluation,
+          reflection: latestByTask(reflections, task.taskCardId, "submittedAt"),
+          learnerId,
+          workspaceId,
+        });
+        summary.evidenceRecorded += evidenceItems.length;
+        if (!evidenceItems.length) {
+          summary.errors.push({
+            evaluationId,
+            taskCardId: cleanString(evaluation.taskCardId),
+            error: "No recognized mastery capability for task skill ids or template",
+          });
+        }
         continue;
       }
       try {

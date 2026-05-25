@@ -1492,6 +1492,13 @@ function createLearningGrowthSubmissionService(options = {}) {
       learningGrowthEvaluation: publicEval,
     });
     if (!evaluationMutation?.ok) return createError(evaluationMutation?.status || 502, cleanString(evaluationMutation?.error || "Unable to persist learning task evaluation"));
+    const masteryChanges = recordMasteryEvidence({
+      task: nativeTask,
+      evaluation,
+      workspaceId,
+      learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
+      author: input.author,
+    });
     let completion = null;
     let nextTask = null;
     if (evaluation.passed && !reflectionRequired) {
@@ -1502,13 +1509,6 @@ function createLearningGrowthSubmissionService(options = {}) {
         author: "learning-growth-evaluator",
       });
       if (completion?.ok) {
-        const masteryChanges = recordMasteryEvidence({
-          task: nativeTask,
-          evaluation,
-          workspaceId,
-          learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
-          author: input.author,
-        });
         nextTask = await prepareNextSequenceTask({
           taskCardId: nativeTask?.taskCardId || loaded.taskCardId,
           task: nativeTask,

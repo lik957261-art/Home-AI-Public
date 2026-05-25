@@ -34,6 +34,35 @@ function writingTask() {
   };
 }
 
+function readingRetellTask() {
+  return {
+    taskCardId: "ltask_reading_retell_1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    sequenceGroupId: "program:english",
+    templateId: "english-speaking-retell-v1",
+    skillIds: ["english_speaking_retell", "english_reading_comprehension"],
+    sourceBasisRefs: ["source:reading-summary"],
+  };
+}
+
+function mathTask() {
+  return {
+    taskCardId: "ltask_math_1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    sequenceGroupId: "program:math",
+    templateId: "math-grade7-top20-reasoning-v1",
+    skillIds: [
+      "math_ratio_proportional_reasoning",
+      "math_number_theory",
+      "math_probability_counting",
+      "math_multi_step_explanation",
+    ],
+    sourceBasisRefs: ["source:math-summary"],
+  };
+}
+
 function testExtractsSummaryOnlyEvidenceFromEvaluation() {
   const { service, repository } = createService();
   const result = service.recordTaskEvidence({
@@ -79,6 +108,25 @@ function testMasteryProfileIncludesUnobservedCrossSubjectTaxonomy() {
   assert.ok(profile.domainSummary.some((item) => item.domain === "english" && item.observed >= 1));
 }
 
+function testProductionSkillIdsMapToReadingAndMathEvidence() {
+  const { service, repository } = createService();
+  service.recordTaskEvidence({
+    taskCard: readingRetellTask(),
+    evaluation: { evaluationId: "eval-reading-retell", score: 55, confidence: 0.82, remainingWeaknesses: ["needs clearer evidence"] },
+  });
+  service.recordTaskEvidence({
+    taskCard: mathTask(),
+    evaluation: { evaluationId: "eval-math", score: 68, confidence: 0.86, remainingWeaknesses: ["multi-step explanation needs repair"] },
+  });
+  const profile = service.getMasteryProfile({ learnerId: "weixin_stephen", workspaceId: "weixin_stephen" });
+  assert.ok(profile.skillStates.some((state) => state.skillId === "english.reading.evidence_based_answering" && state.evidenceCount === 1));
+  assert.ok(profile.skillStates.some((state) => state.skillId === "math.number.ratio_proportional_reasoning" && state.evidenceCount === 1));
+  assert.ok(profile.skillStates.some((state) => state.skillId === "math.reasoning.multi_step_explanation" && state.evidenceCount === 1));
+  const mathSummary = profile.domainSummary.find((item) => item.domain === "math");
+  assert.equal(mathSummary.observed >= 4, true);
+  repository.close();
+}
+
 function testWeaknessProjectionDrivesNextCardInput() {
   const { service, repository } = createService();
   service.recordTaskEvidence({
@@ -113,6 +161,7 @@ function testWeaknessProjectionDrivesNextCardInput() {
 testExtractsSummaryOnlyEvidenceFromEvaluation();
 testRepeatedPositiveEvidenceCanMasterSkill();
 testMasteryProfileIncludesUnobservedCrossSubjectTaxonomy();
+testProductionSkillIdsMapToReadingAndMathEvidence();
 testWeaknessProjectionDrivesNextCardInput();
 
 console.log("learning growth mastery profile service tests passed");

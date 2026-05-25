@@ -18,6 +18,8 @@ The mastery profile records auditable ability evidence from Growth evaluations a
 
 Evidence writes must be idempotent by evidence id/source ref and task card id. Historical backfill should skip already-recorded evidence.
 
+Current taxonomy version is `20260525-evergreen-capability-v2`. It includes explicit aliases for production Growth card skill ids such as `english_reading_comprehension`, `math_ratio_proportional_reasoning`, `math_number_theory`, `math_probability_counting`, `math_multi_step_explanation`, `science_integrated_inquiry`, `python_foundation`, and `python_web_scraping`.
+
 ## API/UI
 
 - API: `GET /api/learning/growth/mastery-profile`
@@ -25,6 +27,9 @@ Evidence writes must be idempotent by evidence id/source ref and task card id. H
 - The UI groups capabilities by domain, including English, Math, Science, Computer Science, and learning habits when present. It should show the capability display name, summary/evidence description, evidence count, confidence, status, and next strategy without clipping important text.
 - Growth settings tabs should remain on one horizontal row with overflow scrolling on narrow screens, instead of wrapping into multiple rows or overlapping panel content.
 - Owner UI: Growth settings page, `画像` tab.
+
+- Growth evaluations should feed the mastery profile as soon as AI feedback is persisted, even when the card is still in `draft_feedback` / revision state. Final completion is not required for ability evidence.
+- Production backfill uses `scripts/backfill-learning-growth-mastery-profile.js` against the learning SQLite database and records summary-only evidence from historical evaluations.
 
 ## Constraints
 

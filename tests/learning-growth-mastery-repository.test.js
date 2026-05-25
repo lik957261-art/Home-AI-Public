@@ -39,7 +39,7 @@ function testUpsertsMasteryStateSummaryOnly() {
   const saved = repo.upsertMasteryState({
     learnerId: "weixin_stephen",
     workspaceId: "weixin_stephen",
-    taxonomyVersion: "20260525-evergreen-capability-v1",
+    taxonomyVersion: "20260525-evergreen-capability-v2",
     domain: "english",
     strand: "writing",
     skillId: "english.writing.claim_reason_example",
@@ -64,7 +64,7 @@ function testUpsertsMasteryStateSummaryOnly() {
   assert.equal(repo.getMasteryState({
     learnerId: "weixin_stephen",
     workspaceId: "weixin_stephen",
-    taxonomyVersion: "20260525-evergreen-capability-v1",
+    taxonomyVersion: "20260525-evergreen-capability-v2",
     domain: "english",
     strand: "writing",
     skillId: "english.writing.claim_reason_example",

@@ -71,10 +71,22 @@ function taskSkillCandidates(taskCard = {}) {
 function templateSkillCandidates(taskCard = {}) {
   const templateId = cleanString(taskCard.templateId || taskCard.taskModel?.templateId).toLowerCase();
   if (/short-writing|writing/.test(templateId)) return ["english_short_writing", "english_grammar_in_expression"];
-  if (/retell|speaking/.test(templateId)) return ["english_speaking_retell", "english_transition_cohesion"];
+  if (/retell|speaking/.test(templateId)) return ["english_speaking_retell", "english_transition_cohesion", "english_reading_comprehension"];
   if (/reading/.test(templateId)) return ["english_reading"];
-  if (/science/.test(templateId)) return ["science_explanation"];
-  if (/python|programming|computer/.test(templateId)) return ["python_debugging"];
+  if (/math|grade7-top20-reasoning/.test(templateId)) return [
+    "math_ratio_proportional_reasoning",
+    "math_number_theory",
+    "math_probability_counting",
+    "math_multi_step_explanation",
+  ];
+  if (/science/.test(templateId)) return [
+    "science_integrated_inquiry",
+    "science_explanation",
+    "science_physics_energy_transfer",
+    "science_chemistry_particle_model",
+    "science_biology_living_systems",
+  ];
+  if (/python|programming|computer/.test(templateId)) return ["python_foundation", "python_debugging"];
   return [];
 }
 
@@ -99,9 +111,10 @@ function createLearningGrowthMasteryProfileService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
 
   function normalizeSkillCandidates(taskCard = {}) {
-    return compactUnique(taskSkillCandidates(taskCard).concat(templateSkillCandidates(taskCard)), 10)
+    const normalized = compactUnique(taskSkillCandidates(taskCard).concat(templateSkillCandidates(taskCard)), 16)
       .map((skillId) => taxonomy.normalizeSkillId(skillId))
       .filter(Boolean);
+    return compactUnique(normalized, 12);
   }
 
   function evidenceItemsFromTask({ learnerId, workspaceId, taskCard = {}, evaluation = {}, reflection = {} }) {
