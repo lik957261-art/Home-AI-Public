@@ -94,7 +94,9 @@ async function loadSelectedView() {
       if (!currentViewStillSelected()) return;
     }
   } else if (state.viewMode === "automation") {
-    await loadAutomations();
+    await loadAutomations(state.automationRouteTargetPending
+      ? { detail: "full", refresh: true, ignoreSearch: true, routeTarget: true }
+      : {});
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "learning") {
     await loadLearningCoins();

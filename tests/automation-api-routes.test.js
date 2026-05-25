@@ -250,6 +250,14 @@ async function testListFullDetailKeepsDeliverableSort() {
   assert.equal(got.body.source.detailLevel, "full");
 }
 
+async function testListIncludesRouteAutomationTargetOutsideSearch() {
+  const { routes } = makeRoutes();
+  const got = await request(routes, "GET", "/api/automations?workspaceId=child&search=beta&automationId=alpha&limit=1&detail=full");
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(got.body.data.map((job) => job.id), ["alpha"]);
+  assert.equal(got.body.source.detailLevel, "full");
+}
+
 async function testCreateDryRunAndCreateFailure() {
   const { routes, calls } = makeRoutes();
   const got = await request(routes, "POST", "/api/automations", {
@@ -389,6 +397,7 @@ function testDependencyValidation() {
   await testRouteMetadataAndFallthrough();
   await testListFiltersWorkspaceOwnerAndSearch();
   await testListFullDetailKeepsDeliverableSort();
+  await testListIncludesRouteAutomationTargetOutsideSearch();
   await testCreateDryRunAndCreateFailure();
   await testActionDecodesJobAndClearsCache();
   await testPushTickOwnerOnly();

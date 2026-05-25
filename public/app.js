@@ -410,6 +410,8 @@ const state = {
   automationLastLoadedAt: 0,
   automationRequestSeq: 0,
   selectedAutomationId: "",
+  automationRouteTargetId: "",
+  automationRouteTargetPending: false,
   automationCreateOpen: false,
   automationEditOpen: false,
   automationEditJobId: "",

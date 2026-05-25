@@ -228,10 +228,16 @@ function createAutomationApiRoutes(deps = {}) {
       return;
     }
     const search = String(url.searchParams.get("search") || "").trim().toLowerCase();
-    let jobs = (result.jobs || [])
-      .filter((job) => deps.cronJobMatchesOwner(job, ownerPrincipalId))
+    const routeAutomationId = String(url.searchParams.get("automationId") || "").trim();
+    const ownerJobs = (result.jobs || [])
+      .filter((job) => deps.cronJobMatchesOwner(job, ownerPrincipalId));
+    let jobs = ownerJobs
       .filter((job) => deps.cronJobMatchesSearch(job, search))
       .sort(detail === "summary" ? automationSummarySort : deps.automationListSortByLatestDeliverable);
+    if (routeAutomationId && !jobs.some((job) => String(job?.id || "") === routeAutomationId)) {
+      const targetJob = ownerJobs.find((job) => String(job?.id || "") === routeAutomationId);
+      if (targetJob) jobs.unshift(targetJob);
+    }
     if (requestedLimit > 0) jobs = jobs.slice(0, requestedLimit);
     deps.sendJson(res, 200, {
       data: jobs,

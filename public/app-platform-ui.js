@@ -210,8 +210,8 @@ function applyRouteParams(params) {
     state.currentThreadId = "";
   }
   if (routeView === "automation" && automationId) {
-    state.selectedAutomationId = automationId;
-    state.automationOutputHistoryOpen = false;
+    Object.assign(state, { selectedAutomationId: automationId, automationRouteTargetId: automationId, automationRouteTargetPending: true, automationOutputHistoryOpen: false, automationCreateOpen: false, automationEditOpen: false, automationEditJobId: "" });
+    if ($("threadSearch")) $("threadSearch").value = "";
   }
   if (routeView === "todos" && todoId) {
     state.selectedTodoId = todoId;
