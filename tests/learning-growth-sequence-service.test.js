@@ -46,6 +46,7 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
   ];
   const savedTasks = [];
   const savedArtifacts = [];
+  const savedTrajectories = [];
   const jitInputs = [];
   const programService = {
     getTaskCard(taskCardId) {
@@ -69,6 +70,11 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
       saveTaskArtifact(artifact) {
         savedArtifacts.push(artifact);
         return artifact;
+      },
+      upsertCardTrajectory(trajectory) {
+        const saved = Object.assign({ trajectoryId: "traj-1" }, trajectory);
+        savedTrajectories.push(saved);
+        return saved;
       },
     },
   };
@@ -141,6 +147,8 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
   assert.equal(result.sequenceIndex, 2);
   assert.equal(result.modelStatus, "completed");
   assert.equal(result.decisionReportArtifactId, "report-task-2");
+  assert.equal(result.trajectoryId, "traj-1");
+  assert.equal(result.nextCardStrategy.strategy, "repair");
   assert.equal(savedTasks.length, 2);
   assert.equal(savedTasks[0].taskCardId, "task-1");
   assert.equal(savedTasks[0].status, "completed");
@@ -157,6 +165,11 @@ async function testPrepareNextAfterCompletionRegeneratesOnlyNextTask() {
   assert.equal(savedArtifacts[0].taskCardId, "task-2");
   assert.equal(savedArtifacts[0].artifactType, "jit_decision_report");
   assert.equal(savedArtifacts[0].raw.path, undefined);
+  assert.equal(savedTrajectories.length, 1);
+  assert.equal(savedTrajectories[0].taskCardId, "task-1");
+  assert.equal(savedTrajectories[0].nextTaskCardId, "task-2");
+  assert.equal(savedTrajectories[0].strategy, "repair");
+  assert.equal(JSON.stringify(savedTrajectories[0]).includes("Generated instruction"), false);
   assert.equal(JSON.stringify(result).includes("Generated instruction"), false);
 }
 

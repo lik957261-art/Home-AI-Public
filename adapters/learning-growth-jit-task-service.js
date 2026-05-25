@@ -114,6 +114,8 @@ function deterministicSeed(input = {}) {
   const program = input.program || {};
   const task = input.task || {};
   const state = input.recentLearningState || {};
+  const nextCardStrategy = state.nextCardStrategy && typeof state.nextCardStrategy === "object" ? state.nextCardStrategy : {};
+  const masteryProfile = state.masteryProfile && typeof state.masteryProfile === "object" ? state.masteryProfile : {};
   const ranked = asArray(state.sources)
     .map((source) => Object.assign({}, source, { score: scoreSource(source, program, task) }))
     .sort((a, b) => b.score - a.score)
@@ -122,9 +124,11 @@ function deterministicSeed(input = {}) {
   return {
     baseInstruction: baseInstruction(task),
     sourceRefs: uniqueStrings(ranked.map((source) => source.sourceRef), 6),
-    focusSignals: signals,
-    skillTargets: uniqueStrings(task.skillIds || task.taskModel?.skillId || task.taskModel?.skillIds, 5),
-    difficultyBand: difficultyBand(signals),
+    focusSignals: uniqueStrings(asArray(nextCardStrategy.targetSkillIds).concat(signals), 8),
+    skillTargets: uniqueStrings(asArray(nextCardStrategy.targetSkillIds).concat(task.skillIds || task.taskModel?.skillId || task.taskModel?.skillIds), 5),
+    difficultyBand: cleanString(nextCardStrategy.difficultyBand || difficultyBand(signals)),
+    strategy: cleanString(nextCardStrategy.strategy),
+    masteryProfileVersion: cleanString(masteryProfile.taxonomyVersion),
   };
 }
 
@@ -160,6 +164,19 @@ function buildModelPrompt(input = {}, seed = {}) {
       sources: safeSources,
       deterministicFocusSignals: seed.focusSignals,
       deterministicDifficultyBand: seed.difficultyBand,
+      masteryProfile: state.masteryProfile ? {
+        taxonomyVersion: compactText(state.masteryProfile.taxonomyVersion, 80),
+        strengths: asArray(state.masteryProfile.strengths).slice(0, 8),
+        weaknesses: asArray(state.masteryProfile.weaknesses).slice(0, 8),
+        reviewDue: asArray(state.masteryProfile.reviewDue).slice(0, 8),
+      } : null,
+      nextCardStrategy: state.nextCardStrategy || null,
+      recentTrajectory: asArray(state.recentTrajectory).slice(0, 8).map((item) => ({
+        taskCardId: compactText(item.taskCardId, 80),
+        strategy: compactText(item.strategy, 40),
+        difficultyBand: compactText(item.difficultyBand, 40),
+        performanceSummary: compactText(item.performanceSummary, 180),
+      })),
     },
   };
   return [
@@ -170,7 +187,8 @@ function buildModelPrompt(input = {}, seed = {}) {
     "If you create an exercise, make it original and bounded to this card. Do not provide the hidden answer key.",
     "If the card needs structured questions, return questionItems with stem, choices, and answerFormat. Use stem, not prompt/question/questionText. Do not include answers.",
     "For english-short-writing-v1 / english_short_writing, generate only the current first-draft submission prompt. Do not include rewrite, AI feedback, or spoken reflection as questionItems; those are later workflow states.",
-    "Return schema: {\"learnerInstruction\":\"...\",\"focusSignals\":[\"...\"],\"difficultyBand\":\"repair|steady|stretch\",\"skillTargets\":[\"...\"],\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"questionItems\":[{\"id\":\"q1\",\"type\":\"multiple_choice|written\",\"stem\":\"...\",\"choices\":[{\"id\":\"A\",\"text\":\"...\"}],\"answerFormat\":\"...\"}],\"teacherRationale\":\"...\"}",
+    "Use nextCardStrategy as the main generation constraint when present. Grade is reference only; allow above-grade stretch when strategy says so.",
+    "Return schema: {\"learnerInstruction\":\"...\",\"focusSignals\":[\"...\"],\"difficultyBand\":\"repair|steady|stretch\",\"strategy\":\"repair|stabilize|transfer|stretch|integrate|review|reflect\",\"skillTargets\":[\"...\"],\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"questionItems\":[{\"id\":\"q1\",\"type\":\"multiple_choice|written\",\"stem\":\"...\",\"choices\":[{\"id\":\"A\",\"text\":\"...\"}],\"answerFormat\":\"...\"}],\"teacherRationale\":\"...\"}",
     JSON.stringify(payload),
   ].join("\n\n");
 }
@@ -189,6 +207,7 @@ function normalizeModelOutput(parsed = {}, seed = {}, task = {}) {
     learnerInstruction,
     focusSignals,
     difficultyBand: difficultyBandValue,
+    strategy: compactText(safe.strategy || seed.strategy, 60),
     skillTargets,
     deliverables,
     acceptance,
@@ -338,6 +357,8 @@ function createLearningGrowthJitTaskService(options = {}) {
       focusSignals: normalized.focusSignals,
       skillTargets: normalized.skillTargets,
       difficultyBand: normalized.difficultyBand,
+      strategy: normalized.strategy || seed.strategy,
+      masteryProfileVersion: seed.masteryProfileVersion || "",
       modelStatus,
       model,
       reasoningEffort,

@@ -244,6 +244,16 @@ function makeRoutes(overrides = {}) {
       return Boolean(auth?.isOwner);
     },
     learningProgramService: service,
+    learningGrowthMasteryProfileService: {
+      getMasteryProfile(input) {
+        calls.push(["getGrowthMasteryProfile", input]);
+        return {
+          learnerId: input.learnerId,
+          workspaceId: input.workspaceId,
+          states: [{ skillId: "english.writing.claim_reason_example", masteryStatus: "practicing" }],
+        };
+      },
+    },
     learningGrowthSubmissionService: {
       async submitTask(input) {
         calls.push(["submitGrowthTask", input]);
@@ -293,12 +303,13 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 43);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 44);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/source-directory/import" }).id, "learning-source-directory-import");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/source-directory/bootstrap" }).id, "learning-source-directory-bootstrap");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/growth/mastery-profile" }).id, "learning-growth-mastery-profile");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
@@ -321,7 +332,7 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 43);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 44);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -364,6 +375,7 @@ async function testStudentCannotReadManagementSurfaces() {
     "/api/learning/sources?workspaceId=weixin_stephen&learnerId=weixin_stephen",
     "/api/learning/goals?workspaceId=weixin_stephen&learnerId=weixin_stephen",
     "/api/learning/profile?workspaceId=weixin_stephen&learnerId=weixin_stephen",
+    "/api/learning/growth/mastery-profile?workspaceId=weixin_stephen&learnerId=weixin_stephen",
     "/api/learning/curriculum-references?domain=english",
     "/api/learning/task-cards?workspaceId=weixin_stephen&learnerId=weixin_stephen",
     "/api/learning/reward-settlements?workspaceId=weixin_stephen&learnerId=weixin_stephen",
@@ -424,6 +436,12 @@ async function testFoundationRoutes() {
   const refs = await request(routes, "GET", "/api/learning/curriculum-references?domain=english");
   assert.equal(refs.res.statusCode, 200);
   assert.equal(refs.body.curriculumReferences[0].referenceId, "cefr-a2-b1-english-growth");
+
+  const mastery = await request(routes, "GET", "/api/learning/growth/mastery-profile?workspaceId=weixin_stephen&learnerId=weixin_stephen&domain=english");
+  assert.equal(mastery.res.statusCode, 200);
+  assert.equal(mastery.body.masteryProfile.states[0].skillId, "english.writing.claim_reason_example");
+  assert.equal(calls.at(-1)[0], "getGrowthMasteryProfile");
+  assert.equal(calls.at(-1)[1].domain, "english");
 
   const imported = await request(routes, "POST", "/api/learning/foundation-import", {
     body: {

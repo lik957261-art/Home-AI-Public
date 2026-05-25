@@ -2,9 +2,10 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 9;
+const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 10;
 
 function nowIso() {
   return new Date().toISOString();
@@ -17,6 +18,11 @@ function cleanString(value) {
 function stableJson(value) {
   if (value === undefined) return null;
   return JSON.stringify(value);
+}
+
+function stableId(prefix, parts) {
+  const digest = crypto.createHash("sha256").update(parts.map(cleanString).join("|")).digest("hex").slice(0, 18);
+  return `${prefix}_${digest}`;
 }
 
 function stripPrivateLearningFields(value, depth = 0) {
@@ -241,6 +247,70 @@ function publicSkillStateFromRow(row) {
     confidence: Number(row.confidence || 0),
     lastEvidenceRef: row.last_evidence_ref,
     sourceBasisRefs: parseJson(row.source_basis_refs_json, []),
+    updatedAt: row.updated_at,
+  });
+}
+
+function publicGrowthMasteryStateFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    masteryStateId: row.id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    taxonomyVersion: row.taxonomy_version,
+    domain: row.domain,
+    strand: row.strand,
+    skillId: row.skill_id,
+    microSkillId: row.micro_skill_id || "",
+    parentSkillId: row.parent_skill_id || "",
+    nodeLevel: row.node_level || "skill",
+    status: row.status,
+    stability: row.stability || "",
+    confidence: Number(row.confidence || 0),
+    evidenceCount: Number(row.evidence_count || 0),
+    positiveEvidenceCount: Number(row.positive_evidence_count || 0),
+    negativeEvidenceCount: Number(row.negative_evidence_count || 0),
+    recentSuccessCount: Number(row.recent_success_count || 0),
+    recentFailureCount: Number(row.recent_failure_count || 0),
+    gradeReference: row.grade_reference || "",
+    externalLevelReference: row.external_level_reference || "",
+    difficultyBand: row.difficulty_band || "",
+    supportLevel: row.support_level || "",
+    transferLevel: row.transfer_level || "",
+    lastEvidenceRef: row.last_evidence_ref || "",
+    sourceBasisRefs: parseJson(row.source_basis_refs_json, []),
+    strengths: parseJson(row.strengths_json, []),
+    weaknesses: parseJson(row.weaknesses_json, []),
+    errorPatterns: parseJson(row.error_patterns_json, []),
+    evidenceSummary: parseJson(row.evidence_summary_json, []),
+    childSkillRollup: parseJson(row.child_skill_rollup_json, {}),
+    nextRecommendation: parseJson(row.next_recommendation_json, {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+function publicGrowthCardTrajectoryFromRow(row) {
+  if (!row) return null;
+  return Object.assign(parseJson(row.raw_json, {}) || {}, {
+    trajectoryId: row.id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    sequenceGroupId: row.sequence_group_id,
+    taskCardId: row.task_card_id,
+    sequenceIndex: Number(row.sequence_index || 0),
+    strategy: row.strategy,
+    difficultyBand: row.difficulty_band || "",
+    gradeReference: row.grade_reference || "",
+    targetSkillIds: parseJson(row.target_skill_ids_json, []),
+    supportSkillIds: parseJson(row.support_skill_ids_json, []),
+    performanceSummary: row.performance_summary || "",
+    confirmedStrengths: parseJson(row.confirmed_strengths_json, []),
+    remainingWeaknesses: parseJson(row.remaining_weaknesses_json, []),
+    masteryChanges: parseJson(row.mastery_changes_json, []),
+    nextRecommendation: parseJson(row.next_recommendation_json, {}),
+    sourceBasisRefs: parseJson(row.source_basis_refs_json, []),
+    createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
 }
@@ -925,6 +995,68 @@ function createLearningProgramRepository(options = {}) {
         FOREIGN KEY(task_card_id) REFERENCES learning_task_cards(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS learning_growth_mastery_states (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        taxonomy_version TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        strand TEXT NOT NULL,
+        skill_id TEXT NOT NULL,
+        micro_skill_id TEXT NOT NULL DEFAULT '',
+        parent_skill_id TEXT NOT NULL DEFAULT '',
+        node_level TEXT NOT NULL DEFAULT 'skill',
+        status TEXT NOT NULL,
+        stability TEXT NOT NULL DEFAULT '',
+        confidence REAL NOT NULL DEFAULT 0,
+        evidence_count INTEGER NOT NULL DEFAULT 0,
+        positive_evidence_count INTEGER NOT NULL DEFAULT 0,
+        negative_evidence_count INTEGER NOT NULL DEFAULT 0,
+        recent_success_count INTEGER NOT NULL DEFAULT 0,
+        recent_failure_count INTEGER NOT NULL DEFAULT 0,
+        grade_reference TEXT NOT NULL DEFAULT '',
+        external_level_reference TEXT NOT NULL DEFAULT '',
+        difficulty_band TEXT NOT NULL DEFAULT '',
+        support_level TEXT NOT NULL DEFAULT '',
+        transfer_level TEXT NOT NULL DEFAULT '',
+        last_evidence_ref TEXT NOT NULL DEFAULT '',
+        source_basis_refs_json TEXT NOT NULL DEFAULT '[]',
+        strengths_json TEXT NOT NULL DEFAULT '[]',
+        weaknesses_json TEXT NOT NULL DEFAULT '[]',
+        error_patterns_json TEXT NOT NULL DEFAULT '[]',
+        evidence_summary_json TEXT NOT NULL DEFAULT '[]',
+        child_skill_rollup_json TEXT NOT NULL DEFAULT '{}',
+        next_recommendation_json TEXT NOT NULL DEFAULT '{}',
+        raw_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(learner_id, workspace_id, taxonomy_version, domain, strand, skill_id, micro_skill_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS learning_growth_card_trajectories (
+        id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        sequence_group_id TEXT NOT NULL,
+        task_card_id TEXT NOT NULL,
+        sequence_index INTEGER NOT NULL DEFAULT 0,
+        strategy TEXT NOT NULL,
+        difficulty_band TEXT NOT NULL DEFAULT '',
+        grade_reference TEXT NOT NULL DEFAULT '',
+        target_skill_ids_json TEXT NOT NULL DEFAULT '[]',
+        support_skill_ids_json TEXT NOT NULL DEFAULT '[]',
+        performance_summary TEXT NOT NULL DEFAULT '',
+        confirmed_strengths_json TEXT NOT NULL DEFAULT '[]',
+        remaining_weaknesses_json TEXT NOT NULL DEFAULT '[]',
+        mastery_changes_json TEXT NOT NULL DEFAULT '[]',
+        next_recommendation_json TEXT NOT NULL DEFAULT '{}',
+        source_basis_refs_json TEXT NOT NULL DEFAULT '[]',
+        raw_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(task_card_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_learning_programs_learner ON learning_programs(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_drafts_program ON learning_plan_drafts(program_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_reviews_status ON learning_parent_review_items(status, updated_at);
@@ -956,6 +1088,9 @@ function createLearningProgramRepository(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_learning_task_series_recommendations_latest ON learning_task_series_recommendations(learner_id, workspace_id, domain, created_at);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_growth_evaluation_jobs_submission ON learning_growth_evaluation_jobs(submission_id);
       CREATE INDEX IF NOT EXISTS idx_learning_growth_evaluation_jobs_status ON learning_growth_evaluation_jobs(status, available_at, lease_until);
+      CREATE INDEX IF NOT EXISTS idx_learning_growth_mastery_lookup ON learning_growth_mastery_states(learner_id, workspace_id, domain, strand, status, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_learning_growth_mastery_review_due ON learning_growth_mastery_states(learner_id, workspace_id, domain, stability, last_evidence_ref);
+      CREATE INDEX IF NOT EXISTS idx_learning_growth_card_trajectories_sequence ON learning_growth_card_trajectories(learner_id, workspace_id, sequence_group_id, sequence_index);
     `);
     ensureColumn("learning_task_cards", "reward_cap_coins", "reward_cap_coins INTEGER NOT NULL DEFAULT 100");
     ensureColumn("learning_growth_evaluation_jobs", "learner_id", "learner_id TEXT NOT NULL DEFAULT ''");
@@ -963,7 +1098,7 @@ function createLearningProgramRepository(options = {}) {
     if (!row) {
       database.prepare("INSERT INTO learning_schema_migrations(version, name, applied_at) VALUES (?, ?, ?)").run(
         CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION,
-        "learning growth evaluation durable jobs v0.9",
+        "learning growth mastery profile and trajectory v1.0",
         nowIso(),
       );
     }
@@ -2462,6 +2597,243 @@ function createLearningProgramRepository(options = {}) {
     return open().prepare(sql).all(...values, limit).map(publicRewardSettlementFromRow);
   }
 
+  function masteryStateId(input = {}) {
+    return cleanString(input.masteryStateId || input.id) || stableId("lgms", [
+      input.learnerId,
+      input.workspaceId,
+      input.taxonomyVersion,
+      input.domain,
+      input.strand,
+      input.skillId,
+      input.microSkillId || "",
+    ]);
+  }
+
+  function upsertMasteryState(input = {}) {
+    migrate();
+    const now = nowIso();
+    const id = masteryStateId(input);
+    const createdAt = cleanString(input.createdAt) || now;
+    const updatedAt = cleanString(input.updatedAt) || now;
+    const row = Object.assign({}, stripPrivateLearningFields(input) || {}, { masteryStateId: id, createdAt, updatedAt });
+    open().prepare(`
+      INSERT INTO learning_growth_mastery_states(
+        id, learner_id, workspace_id, taxonomy_version, domain, strand, skill_id, micro_skill_id,
+        parent_skill_id, node_level, status, stability, confidence, evidence_count,
+        positive_evidence_count, negative_evidence_count, recent_success_count, recent_failure_count,
+        grade_reference, external_level_reference, difficulty_band, support_level, transfer_level,
+        last_evidence_ref, source_basis_refs_json, strengths_json, weaknesses_json,
+        error_patterns_json, evidence_summary_json, child_skill_rollup_json, next_recommendation_json,
+        raw_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(learner_id, workspace_id, taxonomy_version, domain, strand, skill_id, micro_skill_id) DO UPDATE SET
+        status=excluded.status,
+        stability=excluded.stability,
+        confidence=excluded.confidence,
+        evidence_count=excluded.evidence_count,
+        positive_evidence_count=excluded.positive_evidence_count,
+        negative_evidence_count=excluded.negative_evidence_count,
+        recent_success_count=excluded.recent_success_count,
+        recent_failure_count=excluded.recent_failure_count,
+        grade_reference=excluded.grade_reference,
+        external_level_reference=excluded.external_level_reference,
+        difficulty_band=excluded.difficulty_band,
+        support_level=excluded.support_level,
+        transfer_level=excluded.transfer_level,
+        last_evidence_ref=excluded.last_evidence_ref,
+        source_basis_refs_json=excluded.source_basis_refs_json,
+        strengths_json=excluded.strengths_json,
+        weaknesses_json=excluded.weaknesses_json,
+        error_patterns_json=excluded.error_patterns_json,
+        evidence_summary_json=excluded.evidence_summary_json,
+        child_skill_rollup_json=excluded.child_skill_rollup_json,
+        next_recommendation_json=excluded.next_recommendation_json,
+        raw_json=excluded.raw_json,
+        updated_at=excluded.updated_at
+    `).run(
+      id,
+      cleanString(row.learnerId),
+      cleanString(row.workspaceId),
+      cleanString(row.taxonomyVersion),
+      cleanString(row.domain),
+      cleanString(row.strand),
+      cleanString(row.skillId),
+      cleanString(row.microSkillId),
+      cleanString(row.parentSkillId),
+      cleanString(row.nodeLevel || "skill"),
+      cleanString(row.status || "observed"),
+      cleanString(row.stability),
+      Number(row.confidence || 0),
+      Number(row.evidenceCount || 0),
+      Number(row.positiveEvidenceCount || 0),
+      Number(row.negativeEvidenceCount || 0),
+      Number(row.recentSuccessCount || 0),
+      Number(row.recentFailureCount || 0),
+      cleanString(row.gradeReference),
+      cleanString(row.externalLevelReference),
+      cleanString(row.difficultyBand),
+      cleanString(row.supportLevel),
+      cleanString(row.transferLevel),
+      cleanString(row.lastEvidenceRef),
+      stableJson(row.sourceBasisRefs || []),
+      stableJson(row.strengths || []),
+      stableJson(row.weaknesses || []),
+      stableJson(row.errorPatterns || []),
+      stableJson(row.evidenceSummary || []),
+      stableJson(row.childSkillRollup || {}),
+      stableJson(row.nextRecommendation || {}),
+      stableJson(row),
+      createdAt,
+      updatedAt,
+    );
+    return getMasteryState(row);
+  }
+
+  function getMasteryState(filters = {}) {
+    migrate();
+    const learnerId = cleanString(filters.learnerId);
+    const workspaceId = cleanString(filters.workspaceId);
+    const taxonomyVersion = cleanString(filters.taxonomyVersion);
+    const domain = cleanString(filters.domain);
+    const strand = cleanString(filters.strand);
+    const skillId = cleanString(filters.skillId);
+    const microSkillId = cleanString(filters.microSkillId);
+    if (!learnerId || !workspaceId || !taxonomyVersion || !domain || !strand || !skillId) return null;
+    return publicGrowthMasteryStateFromRow(open().prepare(`
+      SELECT * FROM learning_growth_mastery_states
+      WHERE learner_id = ? AND workspace_id = ? AND taxonomy_version = ? AND domain = ? AND strand = ? AND skill_id = ? AND micro_skill_id = ?
+    `).get(learnerId, workspaceId, taxonomyVersion, domain, strand, skillId, microSkillId));
+  }
+
+  function listMasteryStates(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    for (const [field, column] of [
+      ["learnerId", "learner_id"],
+      ["workspaceId", "workspace_id"],
+      ["taxonomyVersion", "taxonomy_version"],
+      ["domain", "domain"],
+      ["strand", "strand"],
+      ["status", "status"],
+      ["skillId", "skill_id"],
+    ]) {
+      if (filters[field]) {
+        where.push(`${column} = ?`);
+        values.push(cleanString(filters[field]));
+      }
+    }
+    const limit = Math.max(1, Math.min(500, Number(filters.limit || 100) || 100));
+    const sql = `SELECT * FROM learning_growth_mastery_states ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY updated_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicGrowthMasteryStateFromRow);
+  }
+
+  function listMasteryStatesByStrategy(filters = {}) {
+    const states = listMasteryStates(filters);
+    const nextStrategy = cleanString(filters.nextStrategy);
+    if (!nextStrategy) return states;
+    return states.filter((state) => cleanString(state.nextRecommendation?.strategy) === nextStrategy);
+  }
+
+  function listMasteryStatesDueForReview(filters = {}) {
+    migrate();
+    const learnerId = cleanString(filters.learnerId);
+    const workspaceId = cleanString(filters.workspaceId);
+    const domain = cleanString(filters.domain);
+    const beforeIso = cleanString(filters.beforeIso || filters.nowIso || nowIso());
+    const values = [learnerId, workspaceId, beforeIso];
+    const where = ["learner_id = ?", "workspace_id = ?", "updated_at <= ?"];
+    if (domain) {
+      where.push("domain = ?");
+      values.push(domain);
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    return open().prepare(`
+      SELECT * FROM learning_growth_mastery_states
+      WHERE ${where.join(" AND ")}
+      ORDER BY updated_at ASC LIMIT ?
+    `).all(...values, limit).map(publicGrowthMasteryStateFromRow);
+  }
+
+  function upsertCardTrajectory(input = {}) {
+    migrate();
+    const now = nowIso();
+    const taskCardId = cleanString(input.taskCardId);
+    const id = cleanString(input.trajectoryId || input.id) || stableId("lgtraj", [taskCardId || now, input.learnerId, input.workspaceId]);
+    const createdAt = cleanString(input.createdAt) || now;
+    const updatedAt = cleanString(input.updatedAt) || now;
+    const row = Object.assign({}, stripPrivateLearningFields(input) || {}, { trajectoryId: id, createdAt, updatedAt });
+    open().prepare(`
+      INSERT INTO learning_growth_card_trajectories(
+        id, learner_id, workspace_id, sequence_group_id, task_card_id, sequence_index,
+        strategy, difficulty_band, grade_reference, target_skill_ids_json, support_skill_ids_json,
+        performance_summary, confirmed_strengths_json, remaining_weaknesses_json, mastery_changes_json,
+        next_recommendation_json, source_basis_refs_json, raw_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(task_card_id) DO UPDATE SET
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        sequence_group_id=excluded.sequence_group_id,
+        sequence_index=excluded.sequence_index,
+        strategy=excluded.strategy,
+        difficulty_band=excluded.difficulty_band,
+        grade_reference=excluded.grade_reference,
+        target_skill_ids_json=excluded.target_skill_ids_json,
+        support_skill_ids_json=excluded.support_skill_ids_json,
+        performance_summary=excluded.performance_summary,
+        confirmed_strengths_json=excluded.confirmed_strengths_json,
+        remaining_weaknesses_json=excluded.remaining_weaknesses_json,
+        mastery_changes_json=excluded.mastery_changes_json,
+        next_recommendation_json=excluded.next_recommendation_json,
+        source_basis_refs_json=excluded.source_basis_refs_json,
+        raw_json=excluded.raw_json,
+        updated_at=excluded.updated_at
+    `).run(
+      id,
+      cleanString(row.learnerId),
+      cleanString(row.workspaceId),
+      cleanString(row.sequenceGroupId),
+      taskCardId,
+      Number(row.sequenceIndex || 0),
+      cleanString(row.strategy || "stabilize"),
+      cleanString(row.difficultyBand),
+      cleanString(row.gradeReference),
+      stableJson(row.targetSkillIds || []),
+      stableJson(row.supportSkillIds || []),
+      cleanString(row.performanceSummary, 500),
+      stableJson(row.confirmedStrengths || []),
+      stableJson(row.remainingWeaknesses || []),
+      stableJson(row.masteryChanges || []),
+      stableJson(row.nextRecommendation || {}),
+      stableJson(row.sourceBasisRefs || []),
+      stableJson(row),
+      createdAt,
+      updatedAt,
+    );
+    return publicGrowthCardTrajectoryFromRow(open().prepare("SELECT * FROM learning_growth_card_trajectories WHERE task_card_id = ?").get(taskCardId));
+  }
+
+  function listCardTrajectories(filters = {}) {
+    migrate();
+    const values = [];
+    const where = [];
+    if (filters.learnerId) {
+      where.push("learner_id = ?");
+      values.push(cleanString(filters.learnerId));
+    }
+    if (filters.workspaceId) {
+      where.push("workspace_id = ?");
+      values.push(cleanString(filters.workspaceId));
+    }
+    if (filters.sequenceGroupId) {
+      where.push("sequence_group_id = ?");
+      values.push(cleanString(filters.sequenceGroupId));
+    }
+    const limit = Math.max(1, Math.min(200, Number(filters.limit || 50) || 50));
+    const sql = `SELECT * FROM learning_growth_card_trajectories ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY sequence_index DESC, created_at DESC LIMIT ?`;
+    return open().prepare(sql).all(...values, limit).map(publicGrowthCardTrajectoryFromRow);
+  }
+
   function counts(filters = {}) {
     migrate();
     const learnerId = cleanString(filters.learnerId);
@@ -2486,6 +2858,8 @@ function createLearningProgramRepository(options = {}) {
       evaluations: count("learning_evaluations"),
       taskSubmissions: count("learning_task_submissions"),
       growthEvaluationJobs: count("learning_growth_evaluation_jobs"),
+      growthMasteryStates: count("learning_growth_mastery_states"),
+      growthCardTrajectories: count("learning_growth_card_trajectories"),
       taskReflections: count("learning_task_reflections"),
       taskArtifacts: count("learning_task_artifacts"),
       reviewRequests: count("learning_parent_review_requests"),
@@ -2557,6 +2931,7 @@ function createLearningProgramRepository(options = {}) {
     getGrowthEvaluationJobForSubmission,
     getInteractionSession,
     getLearnerProfile,
+    getMasteryState,
     getPlanDraft,
     getProgram,
     getReviewItem,
@@ -2570,11 +2945,15 @@ function createLearningProgramRepository(options = {}) {
     integritySummary,
     latestDraftForProgram,
     latestTaskSeriesRecommendation,
+    listCardTrajectories,
     listCurriculumReferences,
     listEvaluations,
     listGrowthEvaluationJobs,
     listGoals,
     listInteractionSessions,
+    listMasteryStates,
+    listMasteryStatesByStrategy,
+    listMasteryStatesDueForReview,
     listPlanDrafts,
     listPrograms,
     listPublications,
@@ -2601,10 +2980,12 @@ function createLearningProgramRepository(options = {}) {
     saveTaskReflection,
     saveTaskSubmission,
     saveTaskSeriesRecommendation,
+    upsertCardTrajectory,
     upsertTaskCard,
     upsertCurriculumReference,
     upsertGoal,
     upsertLearnerProfile,
+    upsertMasteryState,
     upsertProgram,
     upsertSkillState,
     upsertSource,
@@ -2618,6 +2999,8 @@ module.exports = {
   publicDraftFromRow,
   publicEvaluationFromRow,
   publicGoalFromRow,
+  publicGrowthCardTrajectoryFromRow,
+  publicGrowthMasteryStateFromRow,
   publicInteractionSessionFromRow,
   publicLearnerProfileFromRow,
   publicProgramFromRow,

@@ -4,6 +4,9 @@ const crypto = require("node:crypto");
 const {
   storageTitleForEvergreenClone,
 } = require("./learning-growth-title-service");
+const {
+  createLearningGrowthNextCardStrategyService,
+} = require("./learning-growth-next-card-strategy-service");
 
 function cleanString(value, limit = 1000) {
   const text = String(value ?? "").trim();
@@ -267,6 +270,15 @@ function publicNextTaskResult(result = {}) {
     generatedAt: cleanString(result.generatedAt),
     nextCompletionAllowedAt: cleanString(result.nextCompletionAllowedAt),
     decisionReportArtifactId: cleanString(result.decisionReportArtifactId),
+    trajectoryId: cleanString(result.trajectoryId),
+    nextCardStrategy: result.nextCardStrategy && typeof result.nextCardStrategy === "object" ? {
+      strategy: cleanString(result.nextCardStrategy.strategy),
+      difficultyBand: cleanString(result.nextCardStrategy.difficultyBand),
+      gradeReference: cleanString(result.nextCardStrategy.gradeReference),
+      targetSkillIds: asArray(result.nextCardStrategy.targetSkillIds).map(cleanString).filter(Boolean).slice(0, 12),
+      supportSkillIds: asArray(result.nextCardStrategy.supportSkillIds).map(cleanString).filter(Boolean).slice(0, 12),
+      reason: cleanString(result.nextCardStrategy.reason, 360),
+    } : null,
     error: cleanString(result.error),
   };
 }
@@ -302,6 +314,8 @@ function createLearningGrowthSequenceService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const decisionReportService = options.decisionReportService || null;
   const reportDirectoryForCard = typeof options.reportDirectoryForCard === "function" ? options.reportDirectoryForCard : null;
+  const masteryProfileService = options.masteryProfileService || null;
+  const nextCardStrategyService = options.nextCardStrategyService || createLearningGrowthNextCardStrategyService();
 
   async function prepareNextAfterCompletion(input = {}) {
     const programService = getLearningProgramService();
@@ -313,6 +327,7 @@ function createLearningGrowthSequenceService(options = {}) {
     if (!currentTask || !previousTaskCardId) {
       return publicNextTaskResult({ ok: false, status: "task_not_found", previousTaskCardId, error: "Completed task was not found" });
     }
+    let nextTask = null;
     try {
       const program = typeof programService.getProgram === "function" && currentTask.programId
         ? (programService.getProgram(currentTask.programId) || {})
@@ -333,7 +348,7 @@ function createLearningGrowthSequenceService(options = {}) {
           sequenceGroupId: groupId,
         }));
       }
-      let nextTask = findNextSequenceTask(candidates.concat([Object.assign({}, currentTask, { status: "completed" })]), currentTask);
+      nextTask = findNextSequenceTask(candidates.concat([Object.assign({}, currentTask, { status: "completed" })]), currentTask);
       let createdEvergreen = false;
       if (!nextTask) {
         if (!completedPolicy.enabled) {
@@ -366,14 +381,42 @@ function createLearningGrowthSequenceService(options = {}) {
         })
         : null;
       const recentLearningState = withCompletionPolicyLearningState(baseRecentLearningState, input.completedEvaluation);
+      const learnerId = cleanString(input.learnerId || nextTask.learnerId || currentTask.learnerId || program.learnerId || nextTask.workspaceId);
+      const workspaceId = cleanString(input.workspaceId || nextTask.workspaceId || currentTask.workspaceId || program.workspaceId);
+      const masteryProjection = masteryProfileService && typeof masteryProfileService.projectForNextCard === "function"
+        ? masteryProfileService.projectForNextCard({
+          learnerId,
+          workspaceId,
+          sequenceGroupId: groupId,
+          domain: cleanString(currentTask.domain || program.domain),
+          recentLimit: 8,
+        })
+        : null;
+      const nextCardStrategy = nextCardStrategyService && typeof nextCardStrategyService.recommendNextCardStrategy === "function"
+        ? nextCardStrategyService.recommendNextCardStrategy({
+          learnerId,
+          workspaceId,
+          sequenceGroupId: groupId,
+          currentTask,
+          latestEvaluation: input.completedEvaluation || {},
+          latestReflection: input.completedReflection || {},
+          masteryProfile: masteryProjection || {},
+          recentTrajectory: masteryProjection?.recentTrajectory || [],
+        })
+        : null;
+      const strategyLearningState = Object.assign({}, recentLearningState || {}, {
+        masteryProfile: masteryProjection || null,
+        nextCardStrategy: nextCardStrategy || null,
+        recentTrajectory: masteryProjection?.recentTrajectory || [],
+      });
       const prepared = await jitTaskService.prepareTaskForCard({
         program,
         draft,
         task: nextTask,
-        workspaceId: cleanString(input.workspaceId || nextTask.workspaceId || currentTask.workspaceId || program.workspaceId),
-        learnerId: cleanString(input.learnerId || nextTask.learnerId || currentTask.learnerId || program.learnerId || nextTask.workspaceId),
+        workspaceId,
+        learnerId,
         sequenceIndex,
-        recentLearningState,
+        recentLearningState: strategyLearningState,
       });
       const generatedAt = nowIso();
       const updated = withDeliverableDirectory(Object.assign({}, nextTask, prepared, {
@@ -386,10 +429,44 @@ function createLearningGrowthSequenceService(options = {}) {
         generatedAfterCompletionAt: completedAt,
         generatedAt,
         nextCompletionAllowedAt: cleanString(nextTask.nextCompletionAllowedAt),
+        learningGrowthSequenceDecision: nextCardStrategy || null,
+        generatedFromMasteryProfileVersion: masteryProjection?.taxonomyVersion || "",
       }), reportDirectoryForCard);
       const saved = typeof programService.repository?.upsertTaskCard === "function"
         ? programService.repository.upsertTaskCard(updated)
         : updated;
+      let trajectory = null;
+      if (typeof programService.repository?.upsertCardTrajectory === "function" && nextCardStrategy) {
+        trajectory = programService.repository.upsertCardTrajectory({
+          learnerId,
+          workspaceId,
+          sequenceGroupId: groupId,
+          taskCardId: previousTaskCardId,
+          sequenceIndex: sequenceIndexForTask(currentTask),
+          nextTaskCardId: saved.taskCardId || nextTask.taskCardId,
+          nextSequenceIndex: sequenceIndex,
+          strategy: nextCardStrategy.strategy,
+          difficultyBand: nextCardStrategy.difficultyBand,
+          gradeReference: nextCardStrategy.gradeReference,
+          targetSkillIds: nextCardStrategy.targetSkillIds,
+          supportSkillIds: nextCardStrategy.supportSkillIds,
+          performanceSummary: nextCardStrategy.reason,
+          recommendation: {
+            strategy: nextCardStrategy.strategy,
+            difficultyAdjustment: nextCardStrategy.difficultyAdjustment,
+            allowAboveGrade: nextCardStrategy.allowAboveGrade,
+            supportLevel: nextCardStrategy.supportLevel,
+            transferLevel: nextCardStrategy.transferLevel,
+          },
+          masteryChanges: input.masteryChanges || null,
+          sourceBasisRefs: nextCardStrategy.evidenceBasis?.sourceRefs || [],
+          raw: {
+            source: "learning_growth_sequence_service",
+            createdEvergreen,
+            evidenceBasis: nextCardStrategy.evidenceBasis || null,
+          },
+        });
+      }
       let decisionReport = null;
       if (decisionReportService && typeof decisionReportService.writeReport === "function") {
         decisionReport = decisionReportService.writeReport({
@@ -440,13 +517,15 @@ function createLearningGrowthSequenceService(options = {}) {
         generatedAt,
         nextCompletionAllowedAt: saved.nextCompletionAllowedAt,
         decisionReportArtifactId: decisionReport?.artifactId,
+        trajectoryId: trajectory?.trajectoryId,
+        nextCardStrategy,
       });
     } catch (err) {
       return publicNextTaskResult({
         ok: false,
         status: "next_task_prepare_failed",
         previousTaskCardId,
-        taskCardId: nextTask.taskCardId,
+        taskCardId: nextTask?.taskCardId,
         error: cleanString(err.message || err, 240),
       });
     }

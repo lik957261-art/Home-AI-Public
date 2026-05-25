@@ -20,6 +20,7 @@ const { createLearningGrowthDirectoryMaterializationService } = require("../adap
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
 const { createLearningGrowthJitDecisionReportService } = require("../adapters/learning-growth-jit-decision-report-service");
+const { createLearningGrowthMasteryProfileService } = require("../adapters/learning-growth-mastery-profile-service");
 const { createLearningGrowthSequenceService } = require("../adapters/learning-growth-sequence-service");
 const { createLearningGrowthTaskEvaluationService } = require("../adapters/learning-growth-task-evaluation-service");
 const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
@@ -441,10 +442,16 @@ function createMobileApiComposition(deps = {}) {
     saveAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
     transcribeAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
+  let learningGrowthMasteryProfileService = null;
+  const learningGrowthMasteryProfileBridge = {
+    recordTaskEvidence: (...args) => learningGrowthMasteryProfileService?.recordTaskEvidence?.(...args),
+    projectForNextCard: (...args) => learningGrowthMasteryProfileService?.projectForNextCard?.(...args),
+  };
   const learningGrowthSequenceService = createLearningGrowthSequenceService({
     decisionReportService: learningGrowthJitDecisionReportService,
     getJitTaskService: () => learningGrowthJitTaskService,
     getLearningProgramService: () => learningProgramService,
+    masteryProfileService: learningGrowthMasteryProfileBridge,
     nowIso: deps.nowIso,
     reportDirectoryForCard: (workspaceId, taskCardId, task) => learningGrowthDirectoryMaterializationService.reportDirectoryForCard(workspaceId, taskCardId, task),
   });
@@ -457,6 +464,7 @@ function createMobileApiComposition(deps = {}) {
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
     notifyEvaluationComplete: deps.webPushDeliveryService.notifyLearningGrowthEvaluationComplete,
+    masteryProfileService: learningGrowthMasteryProfileBridge,
     reflectionService: learningGrowthReflectionService,
     saveSubmissionAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
     sequenceService: learningGrowthSequenceService,
@@ -557,6 +565,9 @@ function createMobileApiComposition(deps = {}) {
     dataDir: deps.dataDir,
     dbPath: deps.learningProgramDbPath,
   });
+  learningGrowthMasteryProfileService = createLearningGrowthMasteryProfileService({
+    repository: learningProgramRepository,
+  });
   const learningGrowthJitTaskService = createLearningGrowthJitTaskService({
     extractJsonObject: deps.extractJsonObject,
     findWorkspace: deps.findWorkspace,
@@ -611,6 +622,7 @@ function createMobileApiComposition(deps = {}) {
 
   const learningProgramApiRoutes = createLearningProgramApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
+    learningGrowthMasteryProfileService,
     learningGrowthSubmissionService,
     learningProgramService,
     maxUploadBytes: deps.maxUploadBytes,

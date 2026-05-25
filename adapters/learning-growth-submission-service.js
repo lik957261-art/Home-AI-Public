@@ -811,6 +811,7 @@ function createLearningGrowthSubmissionService(options = {}) {
   const aiFeedbackService = options.aiFeedbackService || null;
   const progressSyncService = options.progressSyncService || createLearningGrowthProgressSyncService();
   const sequenceService = options.sequenceService || null;
+  const masteryProfileService = options.masteryProfileService || null;
   const saveSubmissionAudioUpload = typeof options.saveSubmissionAudioUpload === "function"
     ? options.saveSubmissionAudioUpload
     : (typeof options.saveAudioUpload === "function" ? options.saveAudioUpload : null);
@@ -1127,12 +1128,35 @@ function createLearningGrowthSubmissionService(options = {}) {
         learnerId: input.learnerId,
         author: input.author,
         completedEvaluation: input.evaluation,
+        completedReflection: input.reflection,
+        masteryChanges: input.masteryChanges,
       });
     } catch (err) {
       return {
         ok: false,
         status: "next_task_prepare_failed",
         previousTaskCardId: cleanString(input.taskCardId),
+        error: cleanString(err.message || err),
+      };
+    }
+  }
+
+  function recordMasteryEvidence(input = {}) {
+    if (!masteryProfileService || typeof masteryProfileService.recordTaskEvidence !== "function") return null;
+    const taskCard = input.task || input.nativeTask || null;
+    if (!taskCard?.taskCardId) return null;
+    try {
+      return masteryProfileService.recordTaskEvidence({
+        taskCard,
+        evaluation: input.evaluation,
+        reflection: input.reflection,
+        learnerId: input.learnerId || taskCard.learnerId || input.workspaceId,
+        workspaceId: input.workspaceId || taskCard.workspaceId,
+        author: input.author,
+      });
+    } catch (err) {
+      return {
+        ok: false,
         error: cleanString(err.message || err),
       };
     }
@@ -1478,6 +1502,13 @@ function createLearningGrowthSubmissionService(options = {}) {
         author: "learning-growth-evaluator",
       });
       if (completion?.ok) {
+        const masteryChanges = recordMasteryEvidence({
+          task: nativeTask,
+          evaluation,
+          workspaceId,
+          learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
+          author: input.author,
+        });
         nextTask = await prepareNextSequenceTask({
           taskCardId: nativeTask?.taskCardId || loaded.taskCardId,
           task: nativeTask,
@@ -1485,6 +1516,7 @@ function createLearningGrowthSubmissionService(options = {}) {
           learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
           author: input.author,
           evaluation,
+          masteryChanges,
         });
       }
     }
@@ -1614,6 +1646,15 @@ function createLearningGrowthSubmissionService(options = {}) {
       comment: readableCompletionComment(Object.assign({}, evaluation, recordedEvaluation), publicEval),
       author: "learning-growth-owner",
     });
+    const masteryChanges = completion?.ok
+      ? recordMasteryEvidence({
+        task: nativeTask,
+        evaluation: recordedEvaluation,
+        workspaceId,
+        learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
+        author: input.author,
+      })
+      : null;
     const nextTask = completion?.ok
       ? await prepareNextSequenceTask({
         taskCardId: nativeTask.taskCardId,
@@ -1622,6 +1663,7 @@ function createLearningGrowthSubmissionService(options = {}) {
         learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
         author: input.author,
         evaluation: recordedEvaluation,
+        masteryChanges,
       })
       : null;
     return {
@@ -1756,6 +1798,14 @@ function createLearningGrowthSubmissionService(options = {}) {
         author: "learning-growth-evaluator",
       });
       if (completion?.ok) {
+        const masteryChanges = recordMasteryEvidence({
+          task: nativeTask,
+          evaluation,
+          reflection,
+          workspaceId,
+          learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
+          author: input.author,
+        });
         nextTask = await prepareNextSequenceTask({
           taskCardId: nativeTask?.taskCardId || loaded.taskCardId,
           task: nativeTask,
@@ -1763,6 +1813,8 @@ function createLearningGrowthSubmissionService(options = {}) {
           learnerId: cardField(loaded.card, "learnerId", "studentId") || workspaceId,
           author: input.author,
           evaluation,
+          reflection,
+          masteryChanges,
         });
       }
     }

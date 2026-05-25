@@ -118,6 +118,22 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "source", "bootstrap", "owner", "sqlite"],
   },
   {
+    id: "learning-growth-mastery-profile",
+    method: "GET",
+    path: "/api/learning/growth/mastery-profile",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "getGrowthMasteryProfile",
+    summary: "Owner reads summary-only Growth mastery states and trajectory for next-card planning.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-growth-mastery", "learning-growth-trajectory"],
+    tags: ["learning", "growth", "mastery", "profile", "sqlite"],
+  },
+  {
     id: "learning-goals-list",
     method: "GET",
     path: "/api/learning/goals",
@@ -955,6 +971,53 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
   }
 
+  async function handleGrowthMasteryProfile(req, res, url, auth) {
+    if (!deps.requireOwner(req, res)) return;
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    const masteryProfileService = deps.learningGrowthMasteryProfileService || null;
+    const repository = service.repository || null;
+    try {
+      const domain = cleanString(url.searchParams.get("domain"));
+      const sequenceGroupId = cleanString(url.searchParams.get("sequenceGroupId"));
+      const profile = masteryProfileService && typeof masteryProfileService.getMasteryProfile === "function"
+        ? masteryProfileService.getMasteryProfile({
+          learnerId: query.learnerId,
+          workspaceId: query.workspaceId,
+          domain,
+          limit: query.limit || 80,
+        })
+        : {
+          learnerId: query.learnerId,
+          workspaceId: query.workspaceId,
+          states: repository && typeof repository.listMasteryStates === "function"
+            ? repository.listMasteryStates({ learnerId: query.learnerId, workspaceId: query.workspaceId, domain, limit: query.limit || 80 })
+            : [],
+        };
+      const trajectory = repository && typeof repository.listCardTrajectories === "function"
+        ? repository.listCardTrajectories({
+          learnerId: query.learnerId,
+          workspaceId: query.workspaceId,
+          sequenceGroupId,
+          limit: query.limit || 30,
+        })
+        : [];
+      deps.sendJson(res, 200, {
+        ok: true,
+        masteryProfile: profile,
+        trajectory,
+      });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
   async function handleSourceDirectoryImport(req, res, url, auth) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -1735,6 +1798,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-sources-create") await handleSourceCreate(req, res, auth);
     else if (route.id === "learning-source-directory-import") await handleSourceDirectoryImport(req, res, url, auth);
     else if (route.id === "learning-source-directory-bootstrap") await handleSourceDirectoryBootstrap(req, res, url, auth);
+    else if (route.id === "learning-growth-mastery-profile") await handleGrowthMasteryProfile(req, res, url, auth);
     else if (route.id === "learning-goals-list") await handleGoalList(req, res, url, auth);
     else if (route.id === "learning-goals-create") await handleGoalCreate(req, res, auth);
     else if (route.id === "learning-goal-update") await handleGoalUpdate(req, res, url);

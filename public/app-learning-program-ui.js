@@ -1131,6 +1131,36 @@
     </section>`;
   }
 
+  function renderNativeGrowthSequenceDecision(task = {}, options = {}) {
+    const decision = task.learningGrowthSequenceDecision || task.sequenceDecision || null;
+    if (!decision || typeof decision !== "object") return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const strategyLabels = {
+      repair: "\u4fee\u8865",
+      stabilize: "\u5de9\u56fa",
+      stretch: "\u62d3\u5c55",
+      transfer: "\u8fc1\u79fb",
+    };
+    const strategy = String(decision.strategy || "").trim();
+    const skills = compactFocus(decision.targetSkillIds || []).slice(0, 140);
+    const reason = String(decision.reason || "").trim();
+    const meta = [
+      strategyLabels[strategy] || strategy,
+      decision.difficultyBand,
+      decision.gradeReference,
+      skills,
+    ].filter(Boolean);
+    if (!meta.length && !reason) return "";
+    return `<section class="learning-growth-answer-reward" data-learning-growth-sequence-decision>
+      <div class="learning-growth-answer-reward-head">
+        <h4>\u4e0b\u4e00\u5361\u7b56\u7565</h4>
+        <strong>${escapeHtml(strategyLabels[strategy] || strategy || "\u6309\u80fd\u529b\u753b\u50cf\u63a8\u8fdb")}</strong>
+      </div>
+      ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(String(item))}</span>`).join("")}</div>` : ""}
+      ${reason ? `<p>${escapeHtml(reason)}</p>` : ""}
+    </section>`;
+  }
+
   function renderNativeGrowthInstruction(task = {}, instruction = "", options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     if (!instruction) return "";
@@ -1235,6 +1265,7 @@
       </div>
       ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
+      ${renderNativeGrowthSequenceDecision(taskForForm, options)}
       ${renderNativeGrowthReadingMaterial(taskForForm, options)}
       ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
       ${renderNativeGrowthAudioEvidence(taskForForm, data, options)}
