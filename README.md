@@ -9,6 +9,24 @@ deployment-specific secrets, runtime data, generated reports, logs, uploads,
 tokens, push endpoints, and adapter configuration outside the source
 checkout.
 
+## Documentation Map
+
+For non-trivial development, debugging, deployment, or production repair, start
+with [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md). The index points to the current
+architecture, product rules, module docs, runbooks, route/auth reference,
+frontend state map, data dictionary, Gateway manifest reference, installation
+checklist, screenshot debug map, and test matrix.
+
+High-value entry points:
+
+- Route/auth ownership: [docs/API_ROUTE_REFERENCE.md](docs/API_ROUTE_REFERENCE.md)
+- Frontend file map: [docs/FRONTEND_STATE_MAP.md](docs/FRONTEND_STATE_MAP.md)
+- SQLite tables: [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md)
+- Gateway Pool manifest: [docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md](docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md)
+- Public install checks: [docs/PUBLIC_INSTALLATION_CHECKLIST.md](docs/PUBLIC_INSTALLATION_CHECKLIST.md)
+- Screenshot triage: [docs/SCREENSHOT_DEBUG_MAP.md](docs/SCREENSHOT_DEBUG_MAP.md)
+- Focused tests: [docs/TEST_MATRIX.md](docs/TEST_MATRIX.md)
+
 ## 1.0 Scope
 
 - Mobile chat, task list, directory, todo, automation, and group chat views.

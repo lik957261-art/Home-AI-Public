@@ -11,6 +11,16 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - `docs/RUNBOOKS/` - incident diagnosis and repair procedures.
 - `.agent-context/HANDOFF.md` - latest rollout status only.
 
+## Cross-Cutting Reference Docs
+
+- API route/auth reference: `docs/API_ROUTE_REFERENCE.md`
+- Frontend tab/state map: `docs/FRONTEND_STATE_MAP.md`
+- Runtime and learning SQLite data dictionary: `docs/DATA_DICTIONARY.md`
+- Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
+- Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
+- Screenshot-to-code debug map: `docs/SCREENSHOT_DEBUG_MAP.md`
+- Module-to-test matrix: `docs/TEST_MATRIX.md`
+
 ## Current Priority Modules
 
 - Growth and learning mastery: `docs/MODULES/growth-learning.md`

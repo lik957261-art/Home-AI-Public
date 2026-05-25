@@ -9,15 +9,22 @@ Last updated: 2026-05-25.
 - Gateway Pool, maintenance workers, ChatGPT Pro bridge, Grok routing, and maintenance watchdog incidents.
 - Workspace auth, Skill permissions, directory/file/share surfaces, Web Push, Weixin ingress, group chat, Automation/Cron, static client/cache, deployment, runtime state, and disaster backup.
 
+## Covered In The Second Pass
+
+- Per-route API reference generated from current `server-routes/*` ownership.
+- Frontend state map for Chat, Topics, Directory, Growth, Automation, Group Chat, Workspace/Admin, and file preview.
+- Runtime SQLite and learning-growth SQLite data dictionary.
+- Gateway profile manifest reference with public-safe example fields.
+- Public release installation guide cross-check against README and deployment docs.
+- Screenshot-to-code debugging map for common UI labels and symptoms.
+- Module-to-test matrix for focused checks and full gates.
+
 ## Still Worth Adding Later
 
-- Per-route API reference generated from `server-routes/*`, with auth mode and Owner/workspace requirements.
-- Frontend state map for each main tab: Chat, Topics, Directory, Growth, Automation.
-- Data dictionary for runtime SQLite and learning-growth SQLite tables.
-- Gateway profile manifest reference with public-safe example manifests.
-- Public release installation guide cross-check against current README.
-- A short "how to debug from a screenshot" guide mapping common UI labels to route/service files.
-- Test matrix document that maps modules to focused tests and full gates.
+- Machine-generated API reference export from `adapters/api-route-inventory` if the route inventory becomes richer than the hand-maintained reference.
+- ER diagram rendering for runtime and learning SQLite tables.
+- Per-screen frontend screenshots annotated with responsible files after the next stable UI pass.
+- Public README mojibake cleanup in a separate public-doc polish change.
 
 ## Maintenance Rule
 
