@@ -6,7 +6,7 @@ param(
     [string]$RuntimeRoot = "/opt/hermes-gateway-runtime",
     [string]$DispatcherScript = "",
     [int]$IntervalSeconds = 60,
-    [int]$TickTimeoutSeconds = 0,
+    [int]$DispatchTimeoutSeconds = 0,
     [string]$LogPath = "",
     [switch]$CheckOnly,
     [switch]$ReplaceExisting
@@ -37,14 +37,14 @@ if (-not $LogPath) {
     $LogPath = Join-Path (Join-Path $dataRoot "logs") "cron-tick-sidecar.log"
 }
 if ($IntervalSeconds -lt 10) { $IntervalSeconds = 10 }
-if ($TickTimeoutSeconds -le 0 -and $env:HERMES_MOBILE_CRON_TICK_TIMEOUT_SECONDS) {
-    $parsedTickTimeout = 0
-    if ([int]::TryParse($env:HERMES_MOBILE_CRON_TICK_TIMEOUT_SECONDS, [ref]$parsedTickTimeout)) {
-        $TickTimeoutSeconds = $parsedTickTimeout
+if ($DispatchTimeoutSeconds -le 0 -and $env:HERMES_MOBILE_CRON_DISPATCH_TIMEOUT_SECONDS) {
+    $parsedDispatchTimeout = 0
+    if ([int]::TryParse($env:HERMES_MOBILE_CRON_DISPATCH_TIMEOUT_SECONDS, [ref]$parsedDispatchTimeout)) {
+        $DispatchTimeoutSeconds = $parsedDispatchTimeout
     }
 }
-if ($TickTimeoutSeconds -le 0) { $TickTimeoutSeconds = 180 }
-if ($TickTimeoutSeconds -lt 30) { $TickTimeoutSeconds = 30 }
+if ($DispatchTimeoutSeconds -le 0) { $DispatchTimeoutSeconds = 60 }
+if ($DispatchTimeoutSeconds -lt 15) { $DispatchTimeoutSeconds = 15 }
 
 function Get-CronTickSidecarProcess {
     $normalizedScript = $SidecarScript.Replace("/", "\").ToLowerInvariant()
@@ -90,7 +90,7 @@ if ($CheckOnly) {
     Write-Host "Hermes home: $HermesHome"
     Write-Host "Dispatcher: $DispatcherScript"
     Write-Host "Log: $LogPath"
-    Write-Host "Tick timeout seconds: $TickTimeoutSeconds"
+    Write-Host "Dispatch timeout seconds: $DispatchTimeoutSeconds"
     return
 }
 
@@ -118,7 +118,7 @@ $argumentList = @(
     "-RuntimeRoot", ('"{0}"' -f $RuntimeRoot),
     "-DispatcherScript", ('"{0}"' -f $DispatcherScript),
     "-IntervalSeconds", [string]$IntervalSeconds,
-    "-TickTimeoutSeconds", [string]$TickTimeoutSeconds,
+    "-DispatchTimeoutSeconds", [string]$DispatchTimeoutSeconds,
     "-LogPath", ('"{0}"' -f $LogPath)
 )
 $process = Start-Process -FilePath "powershell.exe" -ArgumentList $argumentList -WindowStyle Hidden -PassThru

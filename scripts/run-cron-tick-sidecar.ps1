@@ -5,7 +5,7 @@ param(
     [string]$RuntimeRoot = "/opt/hermes-gateway-runtime",
     [string]$DispatcherScript = "",
     [int]$IntervalSeconds = 60,
-    [int]$TickTimeoutSeconds = 0,
+    [int]$DispatchTimeoutSeconds = 0,
     [string]$LogPath = "",
     [switch]$Once
 )
@@ -27,14 +27,14 @@ if (-not $LogPath) {
     $LogPath = Join-Path (Join-Path $dataRoot "logs") "cron-tick-sidecar.log"
 }
 if ($IntervalSeconds -lt 10) { $IntervalSeconds = 10 }
-if ($TickTimeoutSeconds -le 0 -and $env:HERMES_MOBILE_CRON_TICK_TIMEOUT_SECONDS) {
-    $parsedTickTimeout = 0
-    if ([int]::TryParse($env:HERMES_MOBILE_CRON_TICK_TIMEOUT_SECONDS, [ref]$parsedTickTimeout)) {
-        $TickTimeoutSeconds = $parsedTickTimeout
+if ($DispatchTimeoutSeconds -le 0 -and $env:HERMES_MOBILE_CRON_DISPATCH_TIMEOUT_SECONDS) {
+    $parsedDispatchTimeout = 0
+    if ([int]::TryParse($env:HERMES_MOBILE_CRON_DISPATCH_TIMEOUT_SECONDS, [ref]$parsedDispatchTimeout)) {
+        $DispatchTimeoutSeconds = $parsedDispatchTimeout
     }
 }
-if ($TickTimeoutSeconds -le 0) { $TickTimeoutSeconds = 180 }
-if ($TickTimeoutSeconds -lt 30) { $TickTimeoutSeconds = 30 }
+if ($DispatchTimeoutSeconds -le 0) { $DispatchTimeoutSeconds = 60 }
+if ($DispatchTimeoutSeconds -lt 15) { $DispatchTimeoutSeconds = 15 }
 
 function Write-CronTickLog {
     param([string]$Message)
@@ -77,7 +77,7 @@ function Invoke-CronTick {
     )
 
     $started = Get-Date
-    Write-CronTickLog "tick start dispatcher=$dispatcherWslPath distro=$DistroName user=$WslUser hermes_home=$HermesHome timeout_seconds=$TickTimeoutSeconds"
+    Write-CronTickLog "dispatch start dispatcher=$dispatcherWslPath distro=$DistroName user=$WslUser hermes_home=$HermesHome dispatch_timeout_seconds=$DispatchTimeoutSeconds"
     $output = @()
     $timedOut = $false
     try {
@@ -85,10 +85,10 @@ function Invoke-CronTick {
         $stderrPath = [System.IO.Path]::GetTempFileName()
         try {
             $process = Start-Process -FilePath "wsl.exe" -ArgumentList $wslArgs -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
-            if (-not $process.WaitForExit($TickTimeoutSeconds * 1000)) {
+            if (-not $process.WaitForExit($DispatchTimeoutSeconds * 1000)) {
                 $timedOut = $true
                 $exitCode = 124
-                Write-CronTickLog "tick timeout pid=$($process.Id) timeout_seconds=$TickTimeoutSeconds"
+                Write-CronTickLog "dispatch timeout pid=$($process.Id) dispatch_timeout_seconds=$DispatchTimeoutSeconds"
                 try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch {}
                 try {
                     $cleanupArgs = @(
@@ -116,7 +116,7 @@ function Invoke-CronTick {
         $exitCode = 1
     }
     $elapsedMs = [int]((Get-Date) - $started).TotalMilliseconds
-    Write-CronTickLog "tick exit=$exitCode elapsed_ms=$elapsedMs timed_out=$timedOut"
+    Write-CronTickLog "dispatch exit=$exitCode elapsed_ms=$elapsedMs timed_out=$timedOut"
     if ($output.Count -gt 0) {
         $maxLines = 80
         $lines = if ($output.Count -le $maxLines) {
@@ -125,12 +125,12 @@ function Invoke-CronTick {
             @("[cron tick output truncated: $($output.Count) lines]") + ($output | Select-Object -Last $maxLines)
         }
         foreach ($line in $lines) {
-            if ($line) { Write-CronTickLog "tick output: $line" }
+            if ($line) { Write-CronTickLog "dispatch output: $line" }
         }
     }
 }
 
-Write-CronTickLog "sidecar start interval_seconds=$IntervalSeconds tick_timeout_seconds=$TickTimeoutSeconds once=$($Once.IsPresent)"
+Write-CronTickLog "sidecar start interval_seconds=$IntervalSeconds dispatch_timeout_seconds=$DispatchTimeoutSeconds once=$($Once.IsPresent)"
 while ($true) {
     $loopStart = Get-Date
     Invoke-CronTick
