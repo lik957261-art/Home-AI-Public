@@ -15,6 +15,7 @@ const {
 } = require("./learning-growth-reward-decay-service");
 
 const DEFAULT_AUTO_REWARD_LIMIT = 100;
+const DEFAULT_REQUIRE_LARGE_REWARD_REVIEW = false;
 const DEFAULT_REWARD_REASON = "Learning growth evaluation reward";
 
 function cleanString(value) {
@@ -33,6 +34,15 @@ function positiveInteger(value, fallback = 0) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.round(parsed));
+}
+
+function booleanOption(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null || value === "") return fallback;
+  const normalized = cleanString(value).toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
 }
 
 function rewardAmountForEvaluation(evaluation = {}, input = {}) {
@@ -83,6 +93,7 @@ function createLearningRewardSettlementService(options = {}) {
   const learningCoinService = options.learningCoinService || null;
   const parentReviewRequestService = options.parentReviewRequestService || null;
   const maxAutoCoins = positiveInteger(options.maxAutoCoins, DEFAULT_AUTO_REWARD_LIMIT);
+  const requireLargeRewardReview = booleanOption(options.requireLargeRewardReview, DEFAULT_REQUIRE_LARGE_REWARD_REVIEW);
   const now = typeof options.now === "function" ? options.now : () => new Date();
 
   if (!repository || typeof repository.saveRewardSettlement !== "function") {
@@ -201,7 +212,7 @@ function createLearningRewardSettlementService(options = {}) {
       const review = ensureReviewRequest(settlement, evaluation, "evaluation_review_required_before_reward", evaluation.verification?.riskFlags || []);
       return saveBlocked(settlement, "evaluation_review_required_before_reward", review);
     }
-    if (settlement.coinAmount > maxAutoCoins && !hasApprovedReview(repository, {
+    if (requireLargeRewardReview && settlement.coinAmount > maxAutoCoins && !hasApprovedReview(repository, {
       requestType: "reward_settlement_review",
       resourceType: "reward_settlement",
       resourceId: settlement.rewardSettlementId,
@@ -256,6 +267,7 @@ function createLearningRewardSettlementService(options = {}) {
 
 module.exports = {
   DEFAULT_AUTO_REWARD_LIMIT,
+  DEFAULT_REQUIRE_LARGE_REWARD_REVIEW,
   createLearningRewardSettlementService,
   rewardAmountForEvaluation,
   rewardSettlementKey,

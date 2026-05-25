@@ -200,6 +200,7 @@ function createLearningProgramService(options = {}) {
     repository,
     learningCoinService: options.learningCoinService || null,
     parentReviewRequestService,
+    requireLargeRewardReview: options.requireLargeRewardReview,
   });
   const foundationImportService = options.foundationImportService || createLearningFoundationImportService({
     repository,

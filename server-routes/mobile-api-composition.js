@@ -49,6 +49,15 @@ function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
 }
 
+function boolEnabled(value, fallback = false) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
 function createMobileApiComposition(deps = {}) {
   const publicApiRoutes = createPublicApiRoutes({
     authenticateRequest: deps.authenticateRequest,
@@ -576,6 +585,7 @@ function createMobileApiComposition(deps = {}) {
     parentReviewRequestService: learningParentReviewRequestService,
     publishService: learningProgramPublishService,
     repository: learningProgramRepository,
+    requireLargeRewardReview: boolEnabled(deps.env?.HERMES_MOBILE_LEARNING_REQUIRE_LARGE_REWARD_REVIEW || deps.env?.HERMES_WEB_LEARNING_REQUIRE_LARGE_REWARD_REVIEW, false),
     requireModelForPlanDecomposition: true,
     requireModelForTaskSeriesRecommendation: true,
     sanitizePolicy: deps.sanitizePolicy,

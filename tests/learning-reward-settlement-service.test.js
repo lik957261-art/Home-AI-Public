@@ -231,7 +231,7 @@ function testLargeRewardNeedsSettlementReview() {
     verificationMethod: "answer_key_match",
   });
   const coinService = makeCoinService();
-  const service = makeService(repository, coinService, { maxAutoCoins: 30 });
+  const service = makeService(repository, coinService, { maxAutoCoins: 30, requireLargeRewardReview: true });
   const pending = service.settleEvaluationReward("eval-large", { coinAmount: 80 });
   assert.equal(pending.status, "pending_review");
   assert.equal(pending.reason, "large_reward_review_required");
@@ -241,6 +241,29 @@ function testLargeRewardNeedsSettlementReview() {
     () => service.settleEvaluationReward("eval-large", { rawTranscript: "private" }),
     /summary-only fields/,
   );
+  repository.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+function testLargeRewardSettlesByDefault() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const session = seed(repository);
+  recordEvaluation(repository, session.sessionId, {
+    evaluationId: "eval-large-default",
+    score: 96,
+    confidence: 0.9,
+    summary: "summary only",
+    evidenceRefs: ["rubric:verified"],
+    verificationMethod: "answer_key_match",
+  });
+  const coinService = makeCoinService();
+  const service = makeService(repository, coinService, { maxAutoCoins: 30 });
+  const settlement = service.settleEvaluationReward("eval-large-default", { coinAmount: 80 });
+  assert.equal(settlement.status, "settled");
+  assert.equal(settlement.coinAmount, 80);
+  assert.equal(coinService.grants.length, 1);
+  assert.equal(repository.listReviewRequests({ requestType: "reward_settlement_review", resourceId: settlement.rewardSettlementId }).length, 0);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
@@ -306,6 +329,7 @@ testModelOnlyCreatesReviewWithoutCoins();
 testApprovedReviewAllowsModelOnlySettlement();
 testHardVerificationFailureBlocksReward();
 testLargeRewardNeedsSettlementReview();
+testLargeRewardSettlesByDefault();
 testTaskRewardCapLimitsSettlement();
 testEvergreenRewardDecayLimitsLateSettlement();
 
