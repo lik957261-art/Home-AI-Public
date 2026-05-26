@@ -56,6 +56,7 @@ Important tables include:
 - Mastery profile evidence remains summary-only; cross-subject display does not imply a learner has attempted every subject.
 - Mastery profile UI should switch subjects through a single horizontal subject-tag row and show one subject at a time for readability on mobile.
 - Growth AI evaluations should update mastery evidence after feedback is persisted, including `draft_feedback` states that still require revision/reflection.
+- True task completion is emitted only after the task is actually completed: passing evaluation without a reflection gate, accepted/forced spoken reflection, or Owner manual pass. Completion notification payloads must stay summary-only and may include task id/title, evaluation status/score, reward status/amount, reflection status, and next-task id/status. They must not include raw learner answers, transcripts, prompts, full task content, or source materials.
 - Historical mastery profile repair should use `scripts\backfill-learning-growth-mastery-profile.js`; it reads historical evaluation metadata and writes idempotent summary-only mastery states.
 
 ## Validation

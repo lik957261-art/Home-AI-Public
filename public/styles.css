@@ -10988,11 +10988,63 @@ body.task-markdown-preview-open {
   line-height: 1.35;
 }
 
+.action-inbox-source-row,
 .action-inbox-item-meta,
 .action-inbox-detail-meta,
 .action-inbox-event {
   color: var(--muted);
   font-size: 12px;
+}
+
+.action-inbox-source-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.action-inbox-source-badge,
+.action-inbox-type-badge {
+  max-width: 100%;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-hairline);
+  background: var(--ui-surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.action-inbox-source-badge.source-automation {
+  color: #52646a;
+  background: rgba(127, 153, 164, 0.16);
+}
+
+.action-inbox-source-badge.source-growth {
+  color: #5f6542;
+  background: rgba(168, 158, 108, 0.16);
+}
+
+.action-inbox-source-badge.source-manual {
+  color: #5a675d;
+  background: rgba(133, 160, 143, 0.15);
+}
+
+.action-inbox-source-badge.source-chat {
+  color: #5d6070;
+  background: rgba(134, 139, 163, 0.14);
+}
+
+.action-inbox-item-time {
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .action-inbox-status {

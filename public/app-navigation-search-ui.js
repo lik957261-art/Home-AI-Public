@@ -238,9 +238,10 @@ function updateTopMoreControls() {
   const todoCreate = kanbanComposerOpen();
   const todoList = state.viewMode === "todos" && !todoDetail && !todoCreate;
   const learningView = state.viewMode === "learning";
+  const inboxView = state.viewMode === "inbox";
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || learningView || automationList || automationDetail;
+  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || learningView || automationList || automationDetail;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {
@@ -287,10 +288,15 @@ function updateTopMoreControls() {
     learningSettings.hidden = !learningOwnerAction;
     learningSettings.disabled = !learningOwnerAction;
   }
+  const openAutomation = $("topOpenAutomation");
+  if (openAutomation) {
+    openAutomation.hidden = !inboxView;
+    openAutomation.disabled = !inboxView;
+  }
   const newAutomation = $("topNewAutomation");
   if (newAutomation) {
-    newAutomation.hidden = !automationList;
-    newAutomation.disabled = !automationList;
+    newAutomation.hidden = !(automationList || inboxView);
+    newAutomation.disabled = !(automationList || inboxView);
   }
   const selectedAutomation = currentAutomation();
   const editAutomation = $("topEditAutomation");

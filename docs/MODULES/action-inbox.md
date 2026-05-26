@@ -11,6 +11,7 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
 - The bottom navigation target is `收件箱`.
 - The intended primary bottom navigation is `聊天 / 收件箱 / 目录 / 成长`.
 - `自动化` becomes a background capability. Its completed/failed deliveries should enter Action Inbox instead of requiring a permanent bottom tab.
+- The Inbox top-right overflow menu is the primary mobile entry for Automation management: open the Automation list or create a new automation from Inbox without restoring Automation as a bottom tab.
 - Existing simple Todo behavior becomes an Action Inbox item type instead of a separate product tab.
 - Chat integration is a later step; the first implementation should focus on module-generated items and manual items.
 
@@ -83,6 +84,8 @@ Growth remains the canonical learning task system. Inbox may show action items s
 
 The item must link back to the Growth card/detail. It must not store full learner content.
 
+When a Growth task is truly completed after evaluation/reflection/manual pass, the completion notice is a summary-only Inbox item for the task workspace, Owner, and each workspace whose access policy allows that task workspace. Each recipient workspace gets its own Inbox item and Web Push deep link. `sourceRef.taskWorkspaceId` preserves the original task workspace; item title/summary may include task id/title, score, reward status, and reflection status only.
+
 ### Chat And Mentions
 
 Chat remains the message source of truth. Later integration may create Inbox items for direct mentions, approvals, or requested follow-ups. Group/chat message bodies should stay in the chat thread, not be copied into Inbox.
@@ -128,6 +131,7 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 ## Constraints
 
 - Keep mobile UI compact and scan-friendly.
+- Inbox rows and detail headers should show explicit source/type badges, not only low-contrast metadata, so items from Automation, Growth, manual Todo, and task receipts are distinguishable at a glance.
 - Keep source modules canonical; Inbox only stores summary/action projection and audit events.
 - Dedupe by stable source references so repeated refreshes or Web Push deliveries do not create duplicate items.
 - Web Push should deep-link to Inbox when the user's next action is best represented there.

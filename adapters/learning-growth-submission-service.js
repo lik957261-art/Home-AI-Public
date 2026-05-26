@@ -833,6 +833,9 @@ function createLearningGrowthSubmissionService(options = {}) {
   const notifyEvaluationComplete = typeof options.notifyEvaluationComplete === "function"
     ? options.notifyEvaluationComplete
     : null;
+  const notifyTaskComplete = typeof options.notifyTaskComplete === "function"
+    ? options.notifyTaskComplete
+    : null;
   const queueLeaseMs = Math.max(60_000, Number(options.queueLeaseMs || 20 * 60 * 1000));
   const queueRetryDelayMs = Math.max(10_000, Number(options.queueRetryDelayMs || 60_000));
   const queueMaxAttempts = Math.max(1, Number(options.queueMaxAttempts || 5));
@@ -883,6 +886,49 @@ function createLearningGrowthSubmissionService(options = {}) {
   function notifyJobComplete(payload = {}) {
     if (!notifyEvaluationComplete) return Promise.resolve(null);
     return Promise.resolve(notifyEvaluationComplete(payload)).catch(() => null);
+  }
+
+  function completionNoticePayload(input = {}) {
+    const task = input.nativeTask || {};
+    const loaded = input.loaded || {};
+    const evaluation = input.publicEval || publicEvaluation(input.evaluation || {}, input.settlement || null);
+    const reflection = input.reflection || null;
+    const nextTask = input.nextTask || null;
+    return {
+      workspaceId: input.workspaceId || loaded.workspaceId || "owner",
+      cardId: input.cardId || input.cardIdValue || loaded.cardIdValue || "",
+      taskCardId: cleanString(task.taskCardId || loaded.taskCardId || input.taskCardId),
+      learnerId: cleanString(task.learnerId || cardField(loaded.card, "learnerId", "studentId") || input.workspaceId),
+      taskTitle: cleanString(task.title || loaded.card?.title || task.taskCardId || loaded.taskCardId || input.taskCardId),
+      evaluation: {
+        evaluationId: cleanString(evaluation.evaluationId),
+        status: cleanString(evaluation.status),
+        score: Number(evaluation.score || 0),
+        maxScore: Number(evaluation.maxScore || 100),
+        completionDecision: cleanString(evaluation.completionDecision),
+      },
+      reward: evaluation.reward ? {
+        status: cleanString(evaluation.reward.status),
+        coinAmount: Number(evaluation.reward.coinAmount || 0),
+      } : null,
+      reflection: reflection ? {
+        reflectionId: cleanString(reflection.reflectionId || reflection.id),
+        status: cleanString(reflection.status),
+      } : null,
+      nextTask: nextTask ? {
+        status: cleanString(nextTask.status),
+        taskCardId: cleanString(nextTask.taskCardId),
+      } : null,
+      completion: {
+        ok: true,
+        source: cleanString(input.source),
+      },
+    };
+  }
+
+  function notifyTaskCompletion(payload = {}) {
+    if (!notifyTaskComplete) return Promise.resolve(null);
+    return Promise.resolve(notifyTaskComplete(payload)).catch(() => null);
   }
 
   async function preparedFromQueuedSubmission(job = {}) {
@@ -1518,6 +1564,17 @@ function createLearningGrowthSubmissionService(options = {}) {
           evaluation,
           masteryChanges,
         });
+        await notifyTaskCompletion(completionNoticePayload({
+          source: "evaluation",
+          workspaceId,
+          loaded,
+          nativeTask,
+          cardIdValue,
+          evaluation,
+          publicEval,
+          settlement,
+          nextTask,
+        }));
       }
     }
     return {
@@ -1666,6 +1723,19 @@ function createLearningGrowthSubmissionService(options = {}) {
         masteryChanges,
       })
       : null;
+    if (completion?.ok) {
+      await notifyTaskCompletion(completionNoticePayload({
+        source: "manual_pass",
+        workspaceId,
+        loaded,
+        nativeTask,
+        cardIdValue: loaded.cardIdValue,
+        evaluation: recordedEvaluation,
+        publicEval,
+        settlement,
+        nextTask,
+      }));
+    }
     return {
       ok: true,
       status: publicEval.status,
@@ -1816,6 +1886,18 @@ function createLearningGrowthSubmissionService(options = {}) {
           reflection,
           masteryChanges,
         });
+        await notifyTaskCompletion(completionNoticePayload({
+          source: "reflection",
+          workspaceId,
+          loaded,
+          nativeTask,
+          cardIdValue,
+          evaluation,
+          publicEval,
+          settlement,
+          reflection,
+          nextTask,
+        }));
       }
     }
     return {

@@ -33,6 +33,24 @@ function openAutomationList() {
   renderAutomationView();
 }
 
+async function openAutomationSurface(options = {}) {
+  closeTopMoreMenu();
+  clearQuotedReply({ render: false });
+  state.viewMode = "automation";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  state.currentTaskGroupId = "";
+  state.currentThread = null;
+  state.currentThreadId = "";
+  state.skillDetail = null;
+  state.selectedAutomationId = "";
+  state.automationEditOpen = false;
+  state.automationEditJobId = "";
+  state.automationOutputHistoryOpen = false;
+  state.automationCreateOpen = false;
+  await loadSelectedView();
+  if (options.create) openAutomationCreate();
+}
+
 function openActionInboxOverview() {
   state.skillDetail = null;
   openActionInboxList();

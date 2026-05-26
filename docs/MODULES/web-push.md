@@ -20,6 +20,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - Include stable route identifiers instead of content when possible: task group id, message id, automation id, learning task/evaluation id, or group-chat route flags.
 - For group chat, ordinary messages and generic AI completions do not send broad push notifications. Explicit mentions may notify only mentioned principals.
 - For Growth asynchronous evaluation, completion push should deep-link to the relevant task/evaluation detail, then the app fetches authenticated detail data.
+- For Growth true task completion, Web Push should use `notifyLearningGrowthTaskComplete`: upsert summary-only Action Inbox items for the task workspace, Owner, and authorized workspace-policy recipients, then send per-principal notifications whose URLs point to each recipient workspace's Inbox item. If Inbox upsert fails, fall back to the original Growth task URL.
 - For ordinary task completion/failure receipts, Web Push should upsert a summary-only Action Inbox item when the Inbox service is available. The push click should open `view=inbox&inboxItemId=...`, while the Inbox item keeps the original task route as its deep link.
 
 ## Service Worker Rules

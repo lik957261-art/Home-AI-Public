@@ -14,6 +14,9 @@ function actionInboxSourceLabel(sourceType) {
   if (value === "growth") return "\u6210\u957f";
   if (value === "automation") return "\u81ea\u52a8\u5316";
   if (value === "manual") return "\u5f85\u529e";
+  if (value === "chat") return "\u4efb\u52a1\u56de\u6267";
+  if (value === "weixin") return "\u5fae\u4fe1";
+  if (value === "directory") return "\u76ee\u5f55";
   return value || "\u6536\u4ef6";
 }
 
@@ -23,8 +26,21 @@ function actionInboxTypeLabel(itemType) {
   if (value === "error") return "\u5f02\u5e38";
   if (value === "review") return "\u5ba1\u9605";
   if (value === "reflection") return "\u53cd\u601d";
+  if (value === "revision") return "\u4fee\u8ba2";
+  if (value === "approval") return "\u5ba1\u6279";
+  if (value === "mention") return "\u63d0\u53ca";
+  if (value === "info") return "\u901a\u77e5";
   if (value === "todo") return "\u5f85\u529e";
   return value || "\u4e8b\u9879";
+}
+
+function actionInboxSourceTone(sourceType) {
+  const value = String(sourceType || "").toLowerCase();
+  if (value === "automation") return "source-automation";
+  if (value === "growth") return "source-growth";
+  if (value === "manual") return "source-manual";
+  if (value === "chat") return "source-chat";
+  return "source-default";
 }
 
 function actionInboxStatusTone(status) {
@@ -118,12 +134,16 @@ function renderActionInboxItem(item) {
   const time = item.updatedAt || item.lastEventAt || item.createdAt || "";
   return `<article class="action-inbox-item${active}" data-action-inbox-item-card="${escapeHtml(item.id || "")}">
     <button class="action-inbox-item-main" type="button" data-action-inbox-id="${escapeHtml(item.id || "")}">
+      <span class="action-inbox-source-row">
+        <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
+        <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
+        <span class="action-inbox-item-time">${escapeHtml(formatTime(time) || time || "")}</span>
+      </span>
       <span class="action-inbox-item-head">
         <strong>${escapeHtml(item.title || item.summary || item.id || "\u6536\u4ef6")}</strong>
         <span class="action-inbox-status ${escapeHtml(tone)}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
       </span>
       <span class="action-inbox-item-summary">${escapeHtml(item.summary || "")}</span>
-      <span class="action-inbox-item-meta">${escapeHtml(actionInboxSourceLabel(item.sourceType))} · ${escapeHtml(actionInboxTypeLabel(item.itemType))} · ${escapeHtml(formatTime(time) || time || "")}</span>
     </button>
   </article>`;
 }
@@ -149,9 +169,9 @@ function renderActionInboxDetail() {
     <h3>${escapeHtml(item.title || item.id || "\u6536\u4ef6")}</h3>
     ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ""}
     <div class="action-inbox-detail-meta">
-      <span>${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
-      <span>${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
-      <span>${escapeHtml(formatTime(item.updatedAt || item.createdAt) || item.updatedAt || item.createdAt || "")}</span>
+      <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
+      <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
+      <span>${"\u66f4\u65b0\uff1a"}${escapeHtml(formatTime(item.updatedAt || item.createdAt) || item.updatedAt || item.createdAt || "")}</span>
     </div>
     <div class="action-inbox-actions">
       ${item.deepLink ? `<button class="primary-button compact" type="button" data-action-inbox-open-link>${escapeHtml(item.actionLabel || "\u6253\u5f00")}</button>` : ""}

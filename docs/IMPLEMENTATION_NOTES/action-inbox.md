@@ -122,9 +122,11 @@ Bottom navigation target:
 
 Automation should be reachable as a background/admin surface, not as a primary bottom tab. During transition it may remain accessible from a menu or Owner/admin entry, but it should not be the main delivery-reading surface.
 
+Current mobile behavior: the Inbox top-right overflow menu exposes Automation list and new-automation actions. The top bar should show this menu on Inbox and must not leave a disabled Stop action in that slot.
+
 Inbox list should support:
 
-- compact rows with source icon/tag, title, summary, status, time, and primary action;
+- compact rows with explicit source/type badges, title, summary, status, time, and primary action;
 - filters: all/open/waiting/done and source tags;
 - detail panel with event timeline and source deep link;
 - complete, dismiss, and snooze actions;
@@ -154,6 +156,8 @@ When async evaluation completes and the next learner/Owner action is needed, ups
 - completion/reward notice.
 
 The item links to the Growth card route. Full submission/evaluation content stays in the Growth task detail projection.
+
+True Growth task completion is separate from evaluation completion. After a task is actually completed, `learning-growth-submission-service` calls the injected completion notifier. The Web Push delivery service upserts one summary-only Inbox item per authorized recipient workspace and sends per-principal push notifications to those Inbox routes. The original Growth task route remains the item deep link/original URL.
 
 ### Chat
 
@@ -191,9 +195,14 @@ Implemented in static/client version `20260526-action-inbox-v247`:
 - Bottom navigation now exposes Inbox and hides Topic/Automation from the mobile primary tab bar; Automation remains available as a background/admin surface.
 - Automation and Growth Web Push source events can upsert Inbox items and route notification clicks through `view=inbox&inboxItemId=...`.
 
+Follow-up in static/client version `20260526-inbox-growth-v249`:
+
+- Inbox rows/details show explicit source/type badges for Automation, Growth, manual Todo, chat task receipts, Weixin, and directory items.
+- Inbox top-right menu opens Automation list or new automation creation; Automation stays hidden from the primary bottom tab.
+- Growth true-completion notices fan out to the task workspace, Owner, and workspaces authorized for that task workspace, using summary-only Inbox items and recipient-specific Web Push routes.
+
 Still planned:
 
-- Map the legacy `/api/todos` compatibility path to Inbox where product callers still use Todo terminology.
 - Add metadata-only official Kanban cleanup/migration tooling.
 - Broaden source integrations for chat mentions and Owner review requests.
 

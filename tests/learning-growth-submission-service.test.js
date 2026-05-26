@@ -418,6 +418,7 @@ async function testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSet
         },
       },
     });
+    const completionNotices = [];
     const service = createLearningGrowthSubmissionService({
       learningProgramService: programService,
       reportService: {
@@ -454,6 +455,10 @@ async function testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSet
           return { ok: true, id: input.cardId, action: input.action };
         },
       },
+      notifyTaskComplete(input) {
+        completionNotices.push(input);
+        return Promise.resolve({ ok: true });
+      },
     });
     const text = [
       "First, I repair the grammar because the verb must match the subject.",
@@ -486,6 +491,7 @@ async function testFinalGenericGrowthSubmissionRequiresSpokenReflectionBeforeSet
     assert.equal(repository.listEvaluations({ learnerId: "weixin_stephen", limit: 1 })[0].status, "reflection_required");
     assert.equal(result.result.nativeSubmission.status, "submitted");
     assert.equal(result.result.nativeEvaluation.status, "reflection_required");
+    assert.equal(completionNotices.length, 0);
   } finally {
     repository.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -518,6 +524,7 @@ async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
         },
       },
     });
+    const completionNotices = [];
     const service = createLearningGrowthSubmissionService({
       learningProgramService: programService,
       kanbanCardProvider: {
@@ -550,6 +557,10 @@ async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
           mutations.push(input);
           return { ok: true, id: input.cardId, action: input.action };
         },
+      },
+      notifyTaskComplete(input) {
+        completionNotices.push(input);
+        return Promise.resolve({ ok: true });
       },
     });
     const result = await service.submitReflection({
@@ -586,6 +597,12 @@ async function testAcceptedSpokenReflectionSettlesCoinsAndCompletesCard() {
     assert.equal(result.result.nativeReflection.status, "accepted");
     assert.equal(mutations.some((call) => call.action === "comment" && call.learningGrowthEvaluation?.reflection?.status === "accepted"), true);
     assert.equal(mutations.some((call) => call.action === "complete"), true);
+    assert.equal(completionNotices.length, 1);
+    assert.equal(completionNotices[0].taskCardId, "task-growth");
+    assert.equal(completionNotices[0].workspaceId, "weixin_stephen");
+    assert.equal(completionNotices[0].reflection.status, "accepted");
+    assert.equal(Object.prototype.hasOwnProperty.call(completionNotices[0], "transcript"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(completionNotices[0], "submissionText"), false);
   } finally {
     repository.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -641,6 +658,7 @@ async function testScoreReachedDraftFeedbackAcceptsReflection() {
       },
       nextStep: "rewrite_and_reflect",
     });
+    const completionNotices = [];
     const service = createLearningGrowthSubmissionService({
       learningProgramService: programService,
       kanbanCardProvider: {
@@ -673,6 +691,10 @@ async function testScoreReachedDraftFeedbackAcceptsReflection() {
           mutations.push(input);
           return { ok: true, id: input.cardId, action: input.action };
         },
+      },
+      notifyTaskComplete(input) {
+        completionNotices.push(input);
+        return Promise.resolve({ ok: true });
       },
     });
     const result = await service.submitReflection({
@@ -764,6 +786,7 @@ async function testThreeSeriousAttemptReflectionAlwaysSettlesAfterRecording() {
       },
       nextStep: "spoken_reflection_required",
     });
+    const completionNotices = [];
     const service = createLearningGrowthSubmissionService({
       learningProgramService: programService,
       kanbanCardProvider: {
@@ -796,6 +819,10 @@ async function testThreeSeriousAttemptReflectionAlwaysSettlesAfterRecording() {
           return { ok: true, id: input.cardId, action: input.action };
         },
       },
+      notifyTaskComplete(input) {
+        completionNotices.push(input);
+        return Promise.resolve({ ok: true });
+      },
     });
     const result = await service.submitReflection({
       workspaceId: "weixin_stephen",
@@ -817,6 +844,10 @@ async function testThreeSeriousAttemptReflectionAlwaysSettlesAfterRecording() {
     assert.equal(repository.listEvaluations({ taskCardId: "task-growth", limit: 1 })[0].status, "completed");
     assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen", limit: 1 }).length, 1);
     assert.equal(mutations.some((call) => call.action === "complete"), true);
+    assert.equal(completionNotices.length, 1);
+    assert.equal(completionNotices[0].taskCardId, "task-growth");
+    assert.equal(completionNotices[0].workspaceId, "weixin_stephen");
+    assert.equal(completionNotices[0].reflection.status, "accepted");
   } finally {
     repository.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -1443,6 +1474,7 @@ async function testCompletedNativeTaskPreparesNextSequenceTask() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
   const sequenceCalls = [];
+  const completionNotices = [];
   try {
     seedGrowthProgram(repository);
     repository.upsertTaskCard({
@@ -1525,6 +1557,10 @@ async function testCompletedNativeTaskPreparesNextSequenceTask() {
           };
         },
       },
+      notifyTaskComplete(input) {
+        completionNotices.push(input);
+        return Promise.resolve({ ok: true });
+      },
     });
     const result = await service.submitTask({
       workspaceId: "weixin_stephen",
@@ -1543,6 +1579,9 @@ async function testCompletedNativeTaskPreparesNextSequenceTask() {
     assert.equal(result.result.nextTask.taskCardId, "task-growth-next");
     assert.equal(sequenceCalls.length, 1);
     assert.equal(sequenceCalls[0].taskCardId, "task-growth");
+    assert.equal(completionNotices.length, 1);
+    assert.equal(completionNotices[0].taskCardId, "task-growth");
+    assert.equal(completionNotices[0].nextTask.taskCardId, "task-growth-next");
   } finally {
     repository.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -1619,6 +1658,7 @@ async function testOwnerManualPassRecordsEvaluationAndSettlementPath() {
       },
     });
     const mutations = [];
+    const completionNotices = [];
     const service = createLearningGrowthSubmissionService({
       learningProgramService: growthProgramService,
       kanbanCardProvider: {
@@ -1629,6 +1669,10 @@ async function testOwnerManualPassRecordsEvaluationAndSettlementPath() {
           mutations.push(input);
           return { ok: true, action: input.action };
         },
+      },
+      notifyTaskComplete(input) {
+        completionNotices.push(input);
+        return Promise.resolve({ ok: true });
       },
     });
     const result = await service.manualPassTask({
@@ -1643,6 +1687,9 @@ async function testOwnerManualPassRecordsEvaluationAndSettlementPath() {
     assert.equal(result.rewardSettlement.status, "settled");
     assert.equal(programService.listEvaluations({ taskCardId: "task-growth", limit: 1 })[0].verification.method, "owner_manual_pass");
     assert.equal(mutations.some((item) => item.action === "complete"), true);
+    assert.equal(completionNotices.length, 1);
+    assert.equal(completionNotices[0].taskCardId, "task-growth");
+    assert.equal(completionNotices[0].evaluation.completionDecision, "owner_manual_pass");
   } finally {
     repository.close();
     fs.rmSync(root, { recursive: true, force: true });

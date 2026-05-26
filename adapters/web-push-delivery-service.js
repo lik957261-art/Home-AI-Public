@@ -171,6 +171,40 @@ function createWebPushDeliveryService(options = {}) {
     return workspaceId ? [workspaceId] : [];
   }
 
+  function workspaceAccessIds(workspace) {
+    const policy = workspace?.policy && typeof workspace.policy === "object" ? workspace.policy : {};
+    return dedupe([]
+      .concat(Array.isArray(policy.accessible_workspace_ids) ? policy.accessible_workspace_ids : [])
+      .concat(Array.isArray(policy.workspace_ids) ? policy.workspace_ids : [])
+      .concat(Array.isArray(policy.workspaces) ? policy.workspaces : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean));
+  }
+
+  function catalogWorkspaces() {
+    const catalog = loadCatalog() || {};
+    return Array.isArray(catalog.workspaces) ? catalog.workspaces : [];
+  }
+
+  function workspaceCanAccessWorkspace(candidate, targetWorkspaceId) {
+    const candidateId = String(candidate?.id || "").trim();
+    const target = String(targetWorkspaceId || "").trim();
+    if (!candidateId || !target) return false;
+    if (candidateId === "owner" || candidateId === target) return true;
+    return workspaceAccessIds(candidate).includes(target);
+  }
+
+  function notificationRecipientWorkspaceIdsForWorkspace(workspaceId) {
+    const target = String(workspaceId || "owner").trim() || "owner";
+    const workspaces = catalogWorkspaces();
+    const candidates = workspaces.length ? workspaces : [findWorkspace(target), findWorkspace("owner")].filter(Boolean);
+    const ids = candidates
+      .filter((workspace) => workspaceCanAccessWorkspace(workspace, target))
+      .map((workspace) => String(workspace?.id || "").trim())
+      .filter(Boolean);
+    return dedupe([target, "owner"].concat(ids));
+  }
+
   function normalizePushDelivery(item) {
     if (!item || typeof item !== "object") return null;
     const payload = item.payload && typeof item.payload === "object" ? item.payload : {};
@@ -1029,6 +1063,104 @@ function createWebPushDeliveryService(options = {}) {
     });
   }
 
+  function growthCompletionSummary(input = {}) {
+    const evaluation = input.evaluation && typeof input.evaluation === "object" ? input.evaluation : {};
+    const reward = input.reward && typeof input.reward === "object" ? input.reward : evaluation.reward || {};
+    const reflection = input.reflection && typeof input.reflection === "object" ? input.reflection : null;
+    const score = Number(evaluation.score || 0);
+    const scoreText = Number.isFinite(score) && score > 0 ? `评分 ${Math.round(score)} 分` : "";
+    const rewardStatus = String(reward.status || "").trim();
+    const rewardText = rewardStatus === "settled"
+      ? `奖励已结算${Number(reward.coinAmount || 0) ? ` ${Number(reward.coinAmount || 0)} 金币` : ""}`
+      : (rewardStatus ? `奖励状态 ${rewardStatus}` : "");
+    const reflectionText = reflection ? `反思${String(reflection.status || "").trim() === "accepted" ? "已通过" : "已记录"}` : "";
+    const parts = [scoreText, reflectionText, rewardText].filter(Boolean);
+    return compactText(parts.length ? parts.join("；") : "学习任务已完成。", 220);
+  }
+
+  async function notifyLearningGrowthTaskComplete(input = {}) {
+    const taskCardId = String(input.taskCardId || "").trim();
+    const taskWorkspaceId = String(input.workspaceId || "").trim() || "owner";
+    if (!taskCardId) return null;
+    const evaluation = input.evaluation && typeof input.evaluation === "object" ? input.evaluation : {};
+    const reward = input.reward && typeof input.reward === "object" ? input.reward : evaluation.reward || {};
+    const reflection = input.reflection && typeof input.reflection === "object" ? input.reflection : null;
+    const completion = input.completion && typeof input.completion === "object" ? input.completion : {};
+    const taskTitle = compactText(input.taskTitle || input.title || taskCardId, 80);
+    const title = taskTitle ? `Growth 完成：${taskTitle}` : "Growth 任务完成";
+    const body = growthCompletionSummary({ evaluation, reward, reflection });
+    const sourceId = taskCardId;
+    const evaluationId = String(evaluation.evaluationId || "").trim();
+    const reflectionId = String(reflection?.reflectionId || reflection?.id || "").trim();
+    const completionId = String(completion.completionId || completion.id || "").trim();
+    const dedupeSuffix = evaluationId || reflectionId || completionId || "completed";
+    const originalUrl = appRouteUrl({ view: "learning", workspaceId: taskWorkspaceId, taskCardId });
+    const recipients = notificationRecipientWorkspaceIdsForWorkspace(taskWorkspaceId);
+    const deliveries = [];
+    const inboxItems = [];
+    for (const recipientWorkspaceId of recipients) {
+      const principalId = workspacePrincipal(recipientWorkspaceId);
+      const inboxItem = await upsertActionInboxSourceItem({
+        workspaceId: recipientWorkspaceId,
+        assigneeWorkspaceId: recipientWorkspaceId,
+        sourceType: "growth",
+        sourceId,
+        sourceRef: {
+          taskWorkspaceId,
+          taskCardId,
+          cardId: input.cardId || "",
+          learnerId: input.learnerId || "",
+          evaluationId,
+          reflectionId,
+          rewardStatus: reward.status || "",
+          completed: true,
+        },
+        itemType: "info",
+        status: "open",
+        priority: "normal",
+        title,
+        summary: body,
+        actionLabel: "\u6253\u5f00",
+        deepLink: originalUrl,
+        dedupeKey: `growth-completion:${taskWorkspaceId}:${taskCardId}:${dedupeSuffix}`,
+      });
+      if (inboxItem?.id) inboxItems.push({ workspaceId: recipientWorkspaceId, itemId: inboxItem.id });
+      const data = {
+        url: inboxItem?.id ? appRouteUrl({ view: "inbox", workspaceId: recipientWorkspaceId, inboxItemId: inboxItem.id }) : originalUrl,
+        originalUrl,
+        viewMode: inboxItem?.id ? "inbox" : "learning",
+        workspaceId: recipientWorkspaceId,
+        taskWorkspaceId,
+        principalId,
+        taskCardId,
+        cardId: input.cardId || "",
+        evaluationId,
+        reflectionId,
+        messageType: "learning_growth_task_completed",
+        requireInteraction: true,
+      };
+      if (inboxItem?.id) data.inboxItemId = inboxItem.id;
+      const delivery = await sendPushNotification({
+        title,
+        body,
+        tag: `hermes-learning-growth-complete-${taskWorkspaceId}-${taskCardId}-${dedupeSuffix}`,
+        renotify: true,
+        requireInteraction: true,
+        timestamp: Date.now(),
+        data,
+      }, {
+        principalId,
+        urgency: "high",
+        ttl: 24 * 60 * 60,
+      }).catch((err) => {
+        logger.error?.(`Hermes Learning Growth completion Web Push send failed: ${err.message || String(err)}`);
+        return { enabled: false, attempted: 0, sent: 0, failed: 0, removed: 0, error: err.message || String(err) };
+      });
+      deliveries.push(Object.assign({}, delivery, { workspaceId: recipientWorkspaceId, principalId, inboxItemId: inboxItem?.id || "" }));
+    }
+    return { ok: true, taskCardId, workspaceId: taskWorkspaceId, recipients, inboxItems, deliveries };
+  }
+
   function taskReceiptStartMessageId(thread, message) {
     const taskGroupId = String(message?.taskGroupId || "").trim();
     if (!taskGroupId) return String(message?.id || "").trim();
@@ -1274,6 +1406,7 @@ function createWebPushDeliveryService(options = {}) {
     normalizePushSubscription,
     notifyGroupChatMentions,
     notifyLearningGrowthEvaluationComplete,
+    notifyLearningGrowthTaskComplete,
     notifyTaskTerminal,
     notifyTodoCreated,
     publicPushStatus,

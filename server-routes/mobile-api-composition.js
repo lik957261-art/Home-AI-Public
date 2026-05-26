@@ -482,6 +482,7 @@ function createMobileApiComposition(deps = {}) {
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
     notifyEvaluationComplete: deps.webPushDeliveryService.notifyLearningGrowthEvaluationComplete,
+    notifyTaskComplete: deps.webPushDeliveryService.notifyLearningGrowthTaskComplete,
     masteryProfileService: learningGrowthMasteryProfileBridge,
     reflectionService: learningGrowthReflectionService,
     saveSubmissionAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),

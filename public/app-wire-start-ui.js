@@ -318,8 +318,12 @@ function wireUi() {
     closeTopMoreMenu();
     openTodoCreate();
   });
+  $("topOpenAutomation")?.addEventListener("click", () => {
+    openAutomationSurface().catch(showError);
+  });
   $("topNewAutomation")?.addEventListener("click", () => {
-    openAutomationCreate();
+    if (state.viewMode === "automation") openAutomationCreate();
+    else openAutomationSurface({ create: true }).catch(showError);
   });
   $("topEditAutomation")?.addEventListener("click", () => {
     openAutomationEdit();

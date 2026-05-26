@@ -448,6 +448,123 @@ function testLearningGrowthEvaluationPushCanRouteThroughInboxItem() {
   });
 }
 
+function testLearningGrowthCompletionNotifiesAuthorizedWorkspaceInboxItems() {
+  withTempDir((root) => {
+    const inboxCalls = [];
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: `ainb_${input.workspaceId}`, workspaceId: input.workspaceId } };
+          },
+        },
+        findWorkspace: (workspaceId) => ({
+          owner: { id: "owner", label: "Owner", policy: { principal_id: "owner" } },
+          child: { id: "child", label: "Child", policy: { principal_id: "child-principal" } },
+          coach: { id: "coach", label: "Coach", policy: { principal_id: "coach-principal", accessible_workspace_ids: ["child"] } },
+          unrelated: { id: "unrelated", label: "Unrelated", policy: { principal_id: "unrelated-principal" } },
+        })[workspaceId] || null,
+        loadCatalog: () => ({
+          workspaces: [
+            { id: "owner", label: "Owner", policy: { principal_id: "owner" } },
+            { id: "child", label: "Child", policy: { principal_id: "child-principal" } },
+            { id: "coach", label: "Coach", policy: { principal_id: "coach-principal", accessible_workspace_ids: ["child"] } },
+            { id: "unrelated", label: "Unrelated", policy: { principal_id: "unrelated-principal" } },
+          ],
+        }),
+        workspaceIdForPrincipal: (principalId) => ({
+          owner: "owner",
+          "child-principal": "child",
+          "coach-principal": "coach",
+          "unrelated-principal": "unrelated",
+        })[principalId] || "owner",
+        workspacePrincipal: (workspaceId) => ({
+          owner: "owner",
+          child: "child-principal",
+          coach: "coach-principal",
+          unrelated: "unrelated-principal",
+        })[workspaceId] || "owner",
+      },
+    });
+    for (const workspaceId of ["owner", "child", "coach", "unrelated"]) {
+      service.savePushSubscription({
+        endpoint: `https://push.example/${workspaceId}`,
+        keys: { p256dh: "p256dh", auth: "auth" },
+      }, { workspaceId });
+    }
+    return service.notifyLearningGrowthTaskComplete({
+      workspaceId: "child",
+      taskCardId: "task-growth-complete",
+      taskTitle: "Grammar task",
+      evaluation: { evaluationId: "eval-complete", status: "completed", score: 91 },
+      reward: { status: "settled", coinAmount: 30 },
+      reflection: { reflectionId: "reflection-1", status: "accepted" },
+    }).then((result) => {
+      assert.deepEqual(result.recipients.sort(), ["child", "coach", "owner"]);
+      assert.deepEqual(inboxCalls.map((item) => item.workspaceId).sort(), ["child", "coach", "owner"]);
+      assert.equal(inboxCalls.some((item) => item.workspaceId === "unrelated"), false);
+      assert.equal(inboxCalls.every((item) => item.sourceType === "growth"), true);
+      assert.equal(inboxCalls.every((item) => item.itemType === "info"), true);
+      assert.equal(inboxCalls.every((item) => item.sourceRef.taskWorkspaceId === "child"), true);
+      assert.equal(inboxCalls.every((item) => item.deepLink === "/?view=learning&workspaceId=child&taskCardId=task-growth-complete"), true);
+      assert.equal(calls.sends.length, 3);
+      assert.equal(calls.sends.some((send) => send.subscription.endpoint === "https://push.example/unrelated"), false);
+      assert.equal(calls.sends.every((send) => send.payload.data.messageType === "learning_growth_task_completed"), true);
+      const ownerPayload = calls.sends.find((send) => send.subscription.endpoint === "https://push.example/owner").payload;
+      assert.equal(ownerPayload.data.viewMode, "inbox");
+      assert.equal(ownerPayload.data.workspaceId, "owner");
+      assert.equal(ownerPayload.data.taskWorkspaceId, "child");
+      assert.equal(ownerPayload.data.principalId, "owner");
+      assert.equal(ownerPayload.data.inboxItemId, "ainb_owner");
+      assert.equal(ownerPayload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=task-growth-complete");
+      assert.equal(ownerPayload.data.url, "/?view=inbox&workspaceId=owner&inboxItemId=ainb_owner");
+      const childPayload = calls.sends.find((send) => send.subscription.endpoint === "https://push.example/child").payload;
+      assert.equal(childPayload.data.principalId, "child-principal");
+      const coachPayload = calls.sends.find((send) => send.subscription.endpoint === "https://push.example/coach").payload;
+      assert.equal(coachPayload.data.principalId, "coach-principal");
+    });
+  });
+}
+
+function testLearningGrowthCompletionFallsBackWhenInboxUpsertFails() {
+  withTempDir((root) => {
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        logger: { warn() {} },
+        actionInboxService: {
+          upsertSourceItem() {
+            throw new Error("inbox unavailable");
+          },
+        },
+      },
+    });
+    for (const workspaceId of ["owner", "child"]) {
+      service.savePushSubscription({
+        endpoint: `https://push.example/${workspaceId}`,
+        keys: { p256dh: "p256dh", auth: "auth" },
+      }, { workspaceId });
+    }
+    return service.notifyLearningGrowthTaskComplete({
+      workspaceId: "child",
+      taskCardId: "task-growth-fallback",
+      taskTitle: "Fallback grammar task",
+      evaluation: { evaluationId: "eval-fallback", status: "completed", score: 88 },
+      reward: { status: "settled", coinAmount: 20 },
+    }).then((result) => {
+      assert.equal(result.inboxItems.length, 0);
+      assert.equal(calls.sends.length, 2);
+      for (const send of calls.sends) {
+        assert.equal(send.payload.data.viewMode, "learning");
+        assert.equal(send.payload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=task-growth-fallback");
+        assert.equal(send.payload.data.url, "/?view=learning&workspaceId=child&taskCardId=task-growth-fallback");
+        assert.equal(Object.prototype.hasOwnProperty.call(send.payload.data, "inboxItemId"), false);
+        assert.equal(send.payload.data.messageType, "learning_growth_task_completed");
+      }
+    });
+  });
+}
+
 function testAutomationListSortUsesLatestActivity() {
   withTempDir((root) => {
     const { service } = createHarness(root);
@@ -487,6 +604,8 @@ Promise.resolve()
   .then(testTaskTerminalPushCanRouteThroughInboxItem)
   .then(testLearningGrowthEvaluationPushRoutesToTaskCard)
   .then(testLearningGrowthEvaluationPushCanRouteThroughInboxItem)
+  .then(testLearningGrowthCompletionNotifiesAuthorizedWorkspaceInboxItems)
+  .then(testLearningGrowthCompletionFallsBackWhenInboxUpsertFails)
   .then(testAutomationListSortUsesLatestActivity)
   .then(() => {
     console.log("web-push-delivery-service tests passed");
