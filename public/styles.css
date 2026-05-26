@@ -12178,7 +12178,7 @@ body.task-markdown-preview-open {
     z-index: 10;
     height: var(--mobile-bottom-nav-height);
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: center;
     padding: 4px max(6px, env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
     border-top: 1px solid var(--ui-hairline);

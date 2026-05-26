@@ -212,6 +212,10 @@ Follow-up in static/client version `20260526-inbox-topic-nav-v251`:
 
 - Restored the Topic bottom-tab entry. The primary mobile bottom navigation is `聊天 / 收件箱 / 话题 / 目录 / 成长`; Automation remains available from the Inbox overflow menu rather than the bottom tab.
 
+Follow-up in static/client version `20260526-bottom-topic-v252`:
+
+- Corrected the mobile bottom navigation grid to five columns so `聊天 / 收件箱 / 话题 / 目录 / 成长` stays on one row instead of wrapping/cropping the Growth tab.
+
 Still planned:
 
 - Add metadata-only official Kanban cleanup/migration tooling.
