@@ -20,10 +20,13 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
 - Screenshot-to-code debug map: `docs/SCREENSHOT_DEBUG_MAP.md`
 - Module-to-test matrix: `docs/TEST_MATRIX.md`
+- Original layered topic-context design: `docs/TOPIC_CONTEXT_LAYERED_COMPACTION_IMPLEMENTATION.zh-CN.md`
 
 ## Current Priority Modules
 
+- Multi-user and multi-task platform: `docs/MODULES/multi-user-task-platform.md`
 - Growth and learning mastery: `docs/MODULES/growth-learning.md`
+- Chat context and topic compaction: `docs/MODULES/chat-context.md`
 - Gateway Pool and maintenance workers: `docs/MODULES/gateway-pool.md`
 - ChatGPT Pro bridge: `docs/MODULES/chatgpt-pro.md`
 - Skill permissions: `docs/MODULES/skill-permissions.md`
@@ -47,6 +50,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Growth submit button disabled or local submission is misleading: `docs/RUNBOOKS/growth-submit-button-disabled.md`
 - Grok Gateway authentication or routing failure: `docs/RUNBOOKS/grok-gateway-auth.md`
 - Disaster recovery backup verification: `docs/RUNBOOKS/disaster-recovery-backup.md`
+- Context compaction and chat history debugging: `docs/RUNBOOKS/context-compaction-debug.md`
 
 ## Current Priority Implementation Notes
 
@@ -56,6 +60,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Skill write protection: `docs/IMPLEMENTATION_NOTES/skill-write-protection.md`
 - Web Push deep-link routing: `docs/IMPLEMENTATION_NOTES/web-push-deeplink-routing.md`
 - Action Inbox implementation plan: `docs/IMPLEMENTATION_NOTES/action-inbox.md`
+- Topic context layered compaction implementation: `docs/IMPLEMENTATION_NOTES/topic-context-layered-compaction.md`
 
 ## Documentation Rule
 

@@ -5,8 +5,28 @@ This file records durable product rules that implementation must preserve.
 ## General
 
 - Hermes Mobile is a private family/workspace AI control plane, not a generic public SaaS app.
+- Hermes Mobile is a multi-user, multi-workspace, multi-task product layer on top of official Hermes Gateway workers, not a single-user personal Agent session and not a product-policy fork of official Hermes.
 - Owner controls production configuration, high-permission operations, workspace keys, Gateway maintenance, and Growth configuration.
 - Non-Owner accounts must retain normal workspace tools according to their workspace policy; Growth-specific restrictions must not globally lock a workspace out of chat, directory, Growth execution, Inbox, or configured background capabilities.
+
+## Multi-User And Multi-Task Platform
+
+- Every user-visible operation must resolve an authenticated actor, effective workspace, resource boundary, access policy, and task surface before model/tool execution.
+- Workspace Access Keys map ordinary users to one workspace; server-side auth must clamp or reject spoofed workspace/principal/resource fields.
+- Gateway worker/profile selection happens after access policy construction and must not silently fall back to another user's profile when a workspace mapping is missing.
+- Owner ordinary chat may use low-permission workers; Owner maintenance routes must be explicit and separate.
+- Ordinary Chat, group-chat, task-stream groups, task-list items, Action Inbox items, Automation jobs, and Growth records are different task surfaces with different sources of truth.
+- Action Inbox is the primary lightweight user-action queue; official Hermes Kanban is legacy/compatibility for Hermes Mobile Todo, not the product's main participation model.
+- Product behavior for user identity, sharing, UI state, task grouping, delivery routing, and product persistence belongs in Hermes Mobile services, not official Hermes source patches.
+
+## Chat Context
+
+- Raw chat/task history must remain auditable, but long raw history should not be injected into every model prompt by default.
+- The latest user request and current task state must take priority over compacted summaries.
+- Topic context compaction is scoped by `(threadId, taskGroupId)` and must not mix ordinary Chat, group chat, and unrelated task groups.
+- Compacted context must keep source references or stable ids so conclusions can be traced when needed.
+- Summary/state/debug metadata must not store raw secrets, push endpoints, raw prompts, full model responses, full learner answers, full transcripts, full questions, answer keys, long tool logs, or private generated reports.
+- Layered context assembly must keep a rollback path to legacy bounded recent-window behavior.
 
 ## Growth Learning
 

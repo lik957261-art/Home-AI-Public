@@ -29,6 +29,28 @@ Primary implementation: `adapters/mobile-sqlite-store.js`.
 | `topic_context_refs` | topics | References between topic summaries and target resources. |
 | `audit_log` | audit | Security/operation audit entries. Do not store secrets or raw learner content. |
 
+## Topic Context SQLite
+
+Primary implementation:
+
+- `adapters/context-assembly-service.js`
+- `adapters/topic-context-compaction-service.js`
+- `adapters/mobile-sqlite-store.js`
+
+These tables support layered prompt assembly for Chat, group chat, and task
+groups. They are summary/audit metadata, not the source of raw chat truth.
+Raw messages remain in `messages`.
+
+| Table | Important Fields | Notes |
+| --- | --- | --- |
+| `topic_context_summaries` | `topic_id`, `task_group_id`, `workspace_id`, `summary_json`, `summary_version`, `last_compacted_message_id`, `last_compacted_event_id`, `input_hash`, `created_at`, `updated_at` | Stores the compact topic summary used by layered context assembly. `summary_json` should contain only bounded summary fields, source ids, versions, and timestamps. |
+| `topic_working_states` | `topic_id`, `task_group_id`, `workspace_id`, `state_json`, `state_version`, `status`, `created_at`, `updated_at` | Stores current working state for a task group. It is not a full execution log. |
+| `topic_context_refs` | `ref_id`, `topic_id`, `task_group_id`, `workspace_id`, `ref_type`, `target_id`, `role`, `ref_json`, `created_at`, `updated_at` | Stores compact refs to messages, tool results, artifacts, files, runs, or other evidence. |
+
+Privacy rule: do not store raw prompts, full model responses, full learner
+answers, full transcripts, full questions, answer keys, push endpoints, raw
+secrets, or long tool logs in these tables.
+
 ## Action Inbox SQLite
 
 Primary implementation: `adapters/action-inbox-service.js` plus SQLite helpers in `adapters/mobile-sqlite-store.js`.

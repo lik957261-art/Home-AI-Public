@@ -1,5 +1,10 @@
 # Hermes Mobile 主题上下文分层压缩实施方案
 
+> 文档状态：这是原始设计方案。按当前文档规则，日常开发先读
+> `docs/MODULES/chat-context.md`；代码级实现状态读
+> `docs/IMPLEMENTATION_NOTES/topic-context-layered-compaction.md`；生产排障读
+> `docs/RUNBOOKS/context-compaction-debug.md`。
+
 ## 目标
 
 把当前主题上下文从固定窗口装配，逐步升级为分层、可追溯、可回退的上下文装配机制。

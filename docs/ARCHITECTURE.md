@@ -11,6 +11,16 @@ This document is the durable architecture map for the private Hermes Mobile prod
 - Codex Mobile: separate local service used by ChatGPT Pro bridge for browser/ChatGPT page workflows.
 - Static PWA client: `public/` files served by the listener and cached through `public/service-worker.js`.
 
+## Product Identity
+
+Hermes Mobile is not a single-user personal Agent session and not a fork of the
+official Hermes runtime. It is the product layer for multiple workspaces,
+multiple concurrent task surfaces, mobile delivery, and family/workspace
+permissions. Official Hermes Gateway workers remain the execution kernel for
+model/tool/Skill behavior; Hermes Mobile owns identity, access policy,
+resource authorization, task grouping, Action Inbox, Web Push, and worker/profile
+routing.
+
 ## Source And Deployment
 
 - Active private checkout: `C:\Users\xuxin\Documents\Agent`.
@@ -28,6 +38,11 @@ Run `node tests\architecture-refactor-boundary.test.js` for non-trivial server/r
 
 ## Major Domains
 
+- Multi-user/multi-task platform: workspace identities, Access Keys, resource
+  authorization, Gateway worker/profile selection, task surfaces, and Inbox
+  routing. See `docs/MODULES/multi-user-task-platform.md`.
+- Chat context: single-window Chat, group chat, task groups, bounded conversation
+  history, topic context compaction, working state, and evidence refs.
 - Growth learning: learning programs, task cards, submissions, async evaluation, reflection, rewards, mastery profile, and next-card strategy.
 - Gateway Pool: worker lifecycle, routing, health, maintenance watchdog, tool/plugin availability.
 - ChatGPT Pro: Owner-maintenance routing, Gateway plugin, bridge-host endpoint, Codex Mobile thread reuse, temporary output directory.

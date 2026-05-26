@@ -18,6 +18,10 @@ Last updated: 2026-05-25.
 - Public release installation guide cross-check against README and deployment docs.
 - Screenshot-to-code debugging map for common UI labels and symptoms.
 - Module-to-test matrix for focused checks and full gates.
+- Multi-user/multi-task platform module documenting the main product difference
+  from personal Agent sessions and upstream Hermes: workspaces, Access Keys,
+  access policy, worker/profile selection, task surfaces, Action Inbox, Web
+  Push, and resource-scoped services.
 
 ## Still Worth Adding Later
 
