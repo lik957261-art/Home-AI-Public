@@ -13,7 +13,7 @@
 2. Confirm the selected run targets `grokgw1` or the configured Grok profile.
 3. Confirm the profile config uses provider `xai-oauth` and the intended Grok model.
 4. Run a short live smoke through the product route or live Gateway endpoint.
-5. For cron/Automation `x_search`, check whether the runner is in a different WSL distro. The runner should use bridge host `/bridge/grok-gateway-proxy`, not a direct `127.0.0.1:<grok-port>` URL.
+5. For cron/Automation `x_search`, check whether the runner is in a different WSL distro. The runner should use bridge host proxy prefix `/bridge/grok-gateway-proxy`, not a direct `127.0.0.1:<grok-port>` URL. The plugin appends `/v1/responses`, so bridge host receives `/bridge/grok-gateway-proxy/v1/responses`.
 
 Do not print OAuth tokens, auth files, cookies, or raw headers.
 
@@ -23,18 +23,23 @@ Do not print OAuth tokens, auth files, cookies, or raw headers.
 - The Grok profile exists but xAI OAuth is not authenticated.
 - A stale UI exposes a Grok model variant that no live profile supports.
 - DNS/proxy rules affect xAI endpoints.
-- The cron runner's `HERMES_MOBILE_X_SEARCH_PROXY_URL` points at the runner's own loopback instead of the Windows bridge-host proxy.
+- The cron runner's `HERMES_MOBILE_X_SEARCH_PROXY_URL` points at the runner's own loopback instead of the Windows bridge-host proxy prefix.
+- Bridge host does not expose `POST /bridge/grok-gateway-proxy/v1/responses` or is not restarted after a bridge-host change.
 
 ## Repair
 
 - Fix routing in Hermes Mobile profile selection if the wrong worker is chosen.
 - Fix xAI OAuth in the Gateway profile if the right worker is chosen but auth fails.
 - Remove unsupported model variants from UI/config until backed by live profiles.
-- For cross-distro cron runners, set or let the dispatcher set `HERMES_MOBILE_X_SEARCH_PROXY_URL` to `http://<windows-host>:8798/bridge/grok-gateway-proxy`.
+- For cross-distro cron runners, set or let the dispatcher set `HERMES_MOBILE_X_SEARCH_PROXY_URL` to the proxy prefix `http://<windows-host>:8798/bridge/grok-gateway-proxy`.
+- If `scripts/bridge-host.js` changed, restart listener/bridge-host through `scripts\start-worker-host.ps1 -ReplaceExisting`.
+- If `scripts/hermes-mobile-cron-dispatcher.py` changed, restart the cron sidecar.
+- If `gateway-plugins/hermes-mobile-web/__init__.py` changed, restart Gateway Pool so worker plugin code is reloaded.
 - Only change DNS/hosts/proxy after comparing against public resolver behavior.
 
 ## Validation
 
 - Short `@Grok` smoke returns through the Grok worker.
+- Automation/Cron `x_search` smoke uses the bridge-host proxy and does not fail with `grok_gateway_proxy_failed`, `gateway_api_key_unavailable`, or `Tool x_search returned error`.
 - `/api/status?detail=1` remains healthy.
 - No live same-profile schema-smoke command should replace a production worker during routine validation.

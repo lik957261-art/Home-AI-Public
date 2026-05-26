@@ -56,6 +56,10 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
 - xAI OAuth is completed in the Gateway auth store.
 - Manifest marks worker as `securityLevel: "user"` with the correct profile/port.
 - Hermes Mobile UI exposes only supported Grok variants.
+- If Automation/Cron jobs use `x_search`, bridge host must expose
+  `/bridge/grok-gateway-proxy/v1/responses`; cron/plugin callers should use
+  `HERMES_MOBILE_X_SEARCH_PROXY_URL=http://<windows-host>:8798/bridge/grok-gateway-proxy`
+  when they cannot reach the Grok worker through their own loopback.
 - If auth fails, fix Gateway profile auth first, then restart Gateway Pool.
 
 ## Public Export Safety

@@ -32,7 +32,17 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
 
 Hermes Mobile uses `scripts/hermes-mobile-cron-dispatcher.py` as a product-layer wrapper. It dispatches due jobs into detached runners and returns quickly.
 
-Detached cron runners may execute from the interactive Ubuntu distro while the dedicated Grok Gateway listens behind the Windows host / worker-distro loopback boundary. For `x_search`, the dispatcher should pass `HERMES_MOBILE_X_SEARCH_PROXY_URL` pointing at the bridge-host route `/bridge/grok-gateway-proxy`; runners should not assume `127.0.0.1:<grok-port>` reaches the Grok worker.
+Detached cron runners may execute from the interactive Ubuntu distro while the dedicated Grok Gateway listens behind the Windows host / worker-distro loopback boundary. For `x_search`, the dispatcher should pass `HERMES_MOBILE_X_SEARCH_PROXY_URL` pointing at the bridge-host proxy prefix `/bridge/grok-gateway-proxy`; runners should not assume `127.0.0.1:<grok-port>` reaches the Grok worker.
+
+The `hermes-mobile-web` plugin appends `/v1/responses` to that prefix. Bridge
+host therefore receives `POST /bridge/grok-gateway-proxy/v1/responses` and
+forwards only to the configured local Grok Gateway `/v1/responses`.
+
+If runner logs contain `Tool x_search returned error`,
+`grok_gateway_proxy_failed`, `grok_gateway_http_`, or
+`gateway_api_key_unavailable`, the dispatcher should mark the job failed rather
+than successful so the Automation list, Web Push, and Action Inbox do not show a
+false success.
 
 Do not patch official Hermes runtime cron source for this behavior unless explicitly approved.
 

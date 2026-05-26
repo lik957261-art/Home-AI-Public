@@ -15,7 +15,22 @@
 - Node route/service/provider change: restart Hermes Mobile listener only.
 - Bridge-host change: restart listener/bridge-host through `scripts\start-worker-host.ps1 -ReplaceExisting`.
 - Gateway plugin/schema/profile/startup change: restart Gateway Pool or targeted maintenance worker as appropriate.
+- Cron dispatcher change: restart cron sidecar through `scripts\start-cron-tick-sidecar.ps1 -ReplaceExisting`.
 - Data-only repair: backup data first; avoid restart unless runtime memory can overwrite the repair.
+
+## Bridge Host Routes
+
+Bridge host lives on `http://127.0.0.1:8798` and is restarted with the listener
+host script. Current product bridge routes include:
+
+- `POST /bridge/chatgpt-pro`
+- `POST /bridge/codex-mux`
+- `POST /bridge/grok-gateway-proxy/v1/responses`
+
+The Grok Gateway proxy route exists for cross-distro Automation/Cron `x_search`
+where the plugin process cannot safely reach `127.0.0.1:<grok-port>` directly.
+Gateway/plugin callers should use proxy prefix `/bridge/grok-gateway-proxy`;
+the plugin appends `/v1/responses`.
 
 ## Standard Checks
 
