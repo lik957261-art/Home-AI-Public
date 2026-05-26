@@ -622,7 +622,7 @@ function createLearningPlanDecompositionService(options = {}) {
     try {
       const output = await hermesModelText({
         input: buildModelDraftPrompt({ program, seedDraft, templates, sources }),
-        stream: false,
+        stream: true,
         store: false,
         model,
         reasoning_effort: "medium",
@@ -642,7 +642,7 @@ function createLearningPlanDecompositionService(options = {}) {
           previousOutput: output || "",
           reason: parsed ? "Parsed JSON did not match the required dailyPlans schema." : "Initial model output was not valid JSON.",
         }),
-        stream: false,
+        stream: true,
         store: false,
         model,
         reasoning_effort: "medium",

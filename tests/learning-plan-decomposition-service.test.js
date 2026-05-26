@@ -57,6 +57,7 @@ async function testEnglishPlanIncludesExtensibleSkillCards() {
 
   const tasks = draft.dailyPlans.flatMap((day) => day.tasks);
   assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].body.stream, true);
   assert.match(modelCalls[0].body.input, /summary-only learning state/i);
   assert.equal(draft.weekStart, "2026-05-16");
   assert.equal(draft.weekEnd, "2026-05-20");
@@ -144,6 +145,8 @@ async function testModelInvalidJsonUsesRepairPass() {
   assert.equal(modelCalls.length, 2);
   assert.equal(modelCalls[0].timeoutMs, 600000);
   assert.equal(modelCalls[1].timeoutMs, 600000);
+  assert.equal(modelCalls[0].body.stream, true);
+  assert.equal(modelCalls[1].body.stream, true);
   assert.match(modelCalls[1].body.input, /Repair the previous Growth weekly learning plan/);
   assert.equal(draft.generationPolicy.mode, "model_assisted_summary_plan_decomposition");
   assert.equal(draft.generationPolicy.modelRepairApplied, true);

@@ -312,7 +312,7 @@ function createLearningGrowthJitTaskService(options = {}) {
   const model = cleanString(options.model || options.automationCreateModel || "gpt-5.5") || "gpt-5.5";
   const requestedReasoningEffort = cleanString(options.reasoningEffort || options.reasoning_effort || "xhigh").toLowerCase();
   const reasoningEffort = ["low", "medium", "high", "xhigh"].includes(requestedReasoningEffort) ? requestedReasoningEffort : "xhigh";
-  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 600000) || 600000);
   const requireModel = options.requireModel === true;
 
   function recentLearningState(input = {}) {
@@ -363,7 +363,7 @@ function createLearningGrowthJitTaskService(options = {}) {
         const workspaceId = cleanString(input.workspaceId || program.workspaceId || state.workspaceId || "owner") || "owner";
         const output = await hermesModelText({
           input: buildModelPrompt({ program, task, recentLearningState: state }, seed),
-          stream: false,
+          stream: true,
           store: false,
           model,
           reasoning_effort: reasoningEffort,

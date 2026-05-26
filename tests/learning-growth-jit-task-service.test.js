@@ -7,8 +7,8 @@ async function run() {
   const modelCalls = [];
   const service = createLearningGrowthJitTaskService({
     extractJsonObject: (text) => JSON.parse(text),
-    hermesModelText: async (body) => {
-      modelCalls.push(body);
+    hermesModelText: async (body, timeoutMs) => {
+      modelCalls.push({ body, timeoutMs });
       return JSON.stringify({
         learnerInstruction: "模型生成：完成一组语法修复题，重点解释 tense agreement，并提交真实答案。",
         focusSignals: ["grammar repair was weak", "revision missed tense agreement"],
@@ -126,11 +126,13 @@ async function run() {
   });
 
   assert.equal(modelCalls.length, 1);
-  assert.equal(modelCalls[0].model, "gpt-5.5");
-  assert.equal(modelCalls[0].reasoning_effort, "xhigh");
-  assert.match(modelCalls[0].input, /summary-only learning state/i);
-  assert.match(modelCalls[0].input, /teachingFlow is required/);
-  assert.doesNotMatch(modelCalls[0].input, /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);
+  assert.equal(modelCalls[0].body.model, "gpt-5.5");
+  assert.equal(modelCalls[0].body.reasoning_effort, "xhigh");
+  assert.equal(modelCalls[0].body.stream, true);
+  assert.equal(modelCalls[0].timeoutMs, 600000);
+  assert.match(modelCalls[0].body.input, /summary-only learning state/i);
+  assert.match(modelCalls[0].body.input, /teachingFlow is required/);
+  assert.doesNotMatch(modelCalls[0].body.input, /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);
   assert.match(prepared.learnerInstruction, /模型生成/);
   assert.match(prepared.learnerInstruction, /tense agreement/);
   assert.equal(prepared.cardRole, "teaching");
