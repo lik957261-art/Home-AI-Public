@@ -751,21 +751,21 @@ button {
 .nav-inbox-icon::before {
   content: "";
   position: absolute;
-  left: 5px;
-  top: 7px;
-  width: 18px;
-  height: 14px;
+  left: 4px;
+  top: 6px;
+  width: 20px;
+  height: 16px;
   border: 2px solid currentColor;
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
 .nav-inbox-icon::after {
   content: "";
   position: absolute;
-  left: 8px;
+  left: 7px;
   top: 10px;
-  width: 12px;
-  height: 7px;
+  width: 14px;
+  height: 8px;
   border-left: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: rotate(-45deg);
