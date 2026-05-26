@@ -1,6 +1,11 @@
 param(
-    [string]$DestinationRoot = "C:\Users\xuxin\SynologyDrive\HermesMobile-Disaster-Recovery",
+    [string]$DestinationRoot = (Join-Path $env:USERPROFILE "SynologyDrive\HermesMobile-Disaster-Recovery"),
     [string]$ReceiptDirectory = "C:\ProgramData\HermesMobile\data\backups\disaster-recovery-receipts",
+    [string]$SourceCheckout = (Join-Path $env:USERPROFILE "Documents\Agent"),
+    [string]$CodexHome = (Join-Path $env:USERPROFILE ".codex"),
+    [string]$CodexMobileWebHome = (Join-Path $env:USERPROFILE ".codex-mobile-web"),
+    [string]$WslOwnerUser = "user",
+    [string]$WslLowGatewayUser = "hermes",
     [switch]$CheckOnly,
     [switch]$SkipWsl
 )
@@ -212,34 +217,34 @@ Run-Step "sqlite-online-snapshots" {
         @("C:\ProgramData\HermesMobile\data\learning-growth.sqlite3", "learning-growth.sqlite3")
     ) | ForEach-Object { Invoke-SqliteBackup $_[0] (Join-Path $currentRoot ("production\sqlite-snapshots\" + $_[1])) }
 }
-Run-Step "source-agent-checkout" { Invoke-RobocopyChecked "C:\Users\xuxin\Documents\Agent" (Join-Path $currentRoot "source\Agent") -ExcludeDirs @("node_modules", ".tmp", "__pycache__", "outputs") }
+Run-Step "source-agent-checkout" { Invoke-RobocopyChecked $SourceCheckout (Join-Path $currentRoot "source\Agent") -ExcludeDirs @("node_modules", ".tmp", "__pycache__", "outputs") }
 Run-Step "codex-skills-memory-config" {
-    Invoke-RobocopyChecked "C:\Users\xuxin\.codex\skills" (Join-Path $currentRoot "user-home\.codex\skills")
-    Invoke-RobocopyChecked "C:\Users\xuxin\.codex\memories" (Join-Path $currentRoot "user-home\.codex\memories")
-    Invoke-RobocopyChecked "C:\Users\xuxin\.codex\plugins" (Join-Path $currentRoot "user-home\.codex\plugins")
+    Invoke-RobocopyChecked (Join-Path $CodexHome "skills") (Join-Path $currentRoot "user-home\.codex\skills")
+    Invoke-RobocopyChecked (Join-Path $CodexHome "memories") (Join-Path $currentRoot "user-home\.codex\memories")
+    Invoke-RobocopyChecked (Join-Path $CodexHome "plugins") (Join-Path $currentRoot "user-home\.codex\plugins")
     @(
-        "C:\Users\xuxin\.codex\config.toml",
-        "C:\Users\xuxin\.codex\auth.json",
-        "C:\Users\xuxin\.codex\state_5.sqlite"
+        (Join-Path $CodexHome "config.toml"),
+        (Join-Path $CodexHome "auth.json"),
+        (Join-Path $CodexHome "state_5.sqlite")
     ) | ForEach-Object { Copy-FileChecked $_ (Join-Path $currentRoot "user-home\.codex") }
 }
-Run-Step "codex-mobile-web-state" { Invoke-RobocopyChecked "C:\Users\xuxin\.codex-mobile-web" (Join-Path $currentRoot "user-home\.codex-mobile-web") -ExcludeDirs @("uploads") }
+Run-Step "codex-mobile-web-state" { Invoke-RobocopyChecked $CodexMobileWebHome (Join-Path $currentRoot "user-home\.codex-mobile-web") -ExcludeDirs @("uploads") }
 Run-Step "wsl-owner-hermes-critical" {
-    $ownerDest = Join-Path $currentRoot "wsl\home-xuxin\.hermes"
+    $ownerDest = Join-Path $currentRoot "wsl\home-owner\.hermes"
     @("hermes-agent", "sessions", "logs", "log", "cache", "tmp", "sandboxes", "audio_cache", "image_cache", "run-logs", "run-artifacts", "local-backups", "backups", "preupdate-backups") | ForEach-Object {
         Remove-BackupPath (Join-Path $ownerDest $_)
     }
     @("skills", "scripts", "cron", "memories", "plugins", "token-usage", "weixin", "weixin-todos", "access-control") | ForEach-Object {
-        Invoke-WslRsync "/home/xuxin/.hermes/$_" (Join-Path $ownerDest $_)
+        Invoke-WslRsync "/home/$WslOwnerUser/.hermes/$_" (Join-Path $ownerDest $_) -WslUser $WslOwnerUser
     }
     @("officialclean1", "officialclean2") | ForEach-Object {
-        Invoke-WslRsync "/home/xuxin/.hermes/profiles/$_" (Join-Path $ownerDest "profiles\$_")
+        Invoke-WslRsync "/home/$WslOwnerUser/.hermes/profiles/$_" (Join-Path $ownerDest "profiles\$_") -WslUser $WslOwnerUser
     }
     @("config.yaml", "auth.json", "auth.lock", "google_token.json", "google_client_secret.json", "gateway_state.json", "worker-pool.json", "worker-pool.state.json") | ForEach-Object {
-        Invoke-WslRsync "/home/xuxin/.hermes/$_" $ownerDest
+        Invoke-WslRsync "/home/$WslOwnerUser/.hermes/$_" $ownerDest -WslUser $WslOwnerUser
     }
 }
-Run-Step "wsl-lowgw-hermes" { Invoke-WslRsync "/home/hermes/.hermes" (Join-Path $currentRoot "wsl\home-hermes\.hermes") -WslUser "root" }
+Run-Step "wsl-lowgw-hermes" { Invoke-WslRsync "/home/$WslLowGatewayUser/.hermes" (Join-Path $currentRoot "wsl\home-hermes\.hermes") -WslUser "root" }
 Run-Step "cleanup-legacy-official-clean-copy" { Remove-BackupPath (Join-Path $currentRoot "wsl\opt") }
 
 $manifest = [pscustomobject]@{

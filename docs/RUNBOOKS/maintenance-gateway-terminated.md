@@ -13,8 +13,8 @@ The maintenance watchdog replaced an Owner-maintenance Gateway worker while it w
 1. `/api/status?detail=1`: confirm worker count and maintenance health.
 2. `C:\ProgramData\HermesMobile\gateway-worker\logs\start-gateway-pool.log`: check for owner-maintenance repair near the failure time.
 3. WSL profile logs:
-   - `/home/xuxin/.hermes/profiles/officialclean1/logs/gateway.log`
-   - `/home/xuxin/.hermes/profiles/officialclean2/logs/gateway.log`
+   - `/home/<owner>/.hermes/profiles/officialclean1/logs/gateway.log`
+   - `/home/<owner>/.hermes/profiles/officialclean2/logs/gateway.log`
 4. Check whether TCP port was open but `/health` was slow.
 5. Compare the SIGTERM time with `C:\ProgramData\HermesMobile\data\logs\worker-host.log`. If it aligns with listener restart and Weixin ingress startup, verify that `scripts\start-weixin-mobile-ingress-bridge.ps1` is not using a broad `gateway run --replace` matcher that can kill Gateway Pool profiles.
 

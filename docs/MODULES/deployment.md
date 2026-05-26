@@ -2,7 +2,7 @@
 
 ## Production Paths
 
-- Source checkout: `C:\Users\xuxin\Documents\Agent`
+- Source checkout: local Hermes Mobile source checkout, for example `C:\Path\To\HermesMobile`
 - Production app: `C:\ProgramData\HermesMobile\app`
 - Production data: `C:\ProgramData\HermesMobile\data`
 - Backups: `C:\ProgramData\HermesMobile\backups`

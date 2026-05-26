@@ -23,7 +23,7 @@ routing.
 
 ## Source And Deployment
 
-- Active private checkout: `C:\Users\xuxin\Documents\Agent`.
+- Active private checkout: the local Hermes Mobile source checkout, for example `C:\Path\To\HermesMobile`.
 - Production app copy: `C:\ProgramData\HermesMobile\app`.
 - Production data and secrets remain outside the source checkout.
 - Default repository rule: local commits only, no GitHub push unless explicitly requested.

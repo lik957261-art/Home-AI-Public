@@ -19,7 +19,7 @@ Gateway Pool owns official-clean Hermes worker startup, health checks, routing t
 
 - Manifest: `C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json`
 - Gateway worker root: `C:\ProgramData\HermesMobile\gateway-worker`
-- Owner-maintenance profiles: `/home/xuxin/.hermes/profiles/officialclean1`, `/home/xuxin/.hermes/profiles/officialclean2`
+- Owner-maintenance profiles: `/home/<owner>/.hermes/profiles/officialclean1`, `/home/<owner>/.hermes/profiles/officialclean2`
 - Low Gateway profiles: `C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles\lowgw*`
 
 ## Worker Roles

@@ -17,7 +17,7 @@ assert.match(gatewayRuntimeCompositionJs, /livenessDecisionAfterCheck: lifecycle
 assert.match(serverJs, /runLivenessStaleAfterMs: RUN_LIVENESS_STALE_AFTER_MS/);
 assert.match(streamServiceJs, /const \{ livenessDecisionAfterCheck \} = require\("\.\/gateway-run-lifecycle-service"\);/);
 assert.match(streamServiceJs, /const decision = livenessDecision\({/);
-assert.match(streamServiceJs, /staleAfterMs: configured\("runLivenessStaleAfterMs", 0\)/);
+assert.match(streamServiceJs, /staleAfterMs: configuredForStream\(stream, "runLivenessStaleAfterMs", 0\)/);
 assert.match(streamServiceJs, /stream\.livenessMisses = decision\.livenessMisses;/);
 assert.match(streamServiceJs, /if \(decision\.shouldAbort\)/);
 assert.match(streamServiceJs, /keeping the active stream open because long-running Gateway tools can be absent from \/v1\/runs/);

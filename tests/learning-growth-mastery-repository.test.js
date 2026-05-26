@@ -21,7 +21,7 @@ function createRepo() {
 function testSchemaCreatesAuditableMasteryTables() {
   const repo = createRepo();
   repo.migrate();
-  assert.equal(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION, 10);
+  assert.equal(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION, 11);
   const tables = repo.open().prepare(`
     SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (
       'learning_growth_mastery_states',
