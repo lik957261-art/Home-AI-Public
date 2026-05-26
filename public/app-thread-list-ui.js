@@ -152,6 +152,7 @@ function renderCurrentThreadUnsafe(options = {}) {
   const forceChatBottom = shouldForceChatStickToBottom();
   const stickToBottom = Boolean(options.stickToBottom || forceChatBottom);
   let bottomOffset = state.preservedBottomOffset;
+  if (forceChatBottom) bottomOffset = 0;
   if (!stickToBottom && conversation.scrollHeight) {
     bottomOffset = conversation.scrollHeight - conversation.scrollTop;
   }
@@ -360,6 +361,9 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   if (options.stickToBottom) {
     conversation.scrollTop = state.currentTaskGroupId ? conversation.scrollHeight : 0;
     state.conversationPinnedToBottom = Boolean(state.currentTaskGroupId);
+  } else if (Date.now() < Number(state.forceChatStickToBottomUntil || 0) && state.currentTaskGroupId) {
+    conversation.scrollTop = conversation.scrollHeight;
+    state.conversationPinnedToBottom = true;
   } else {
     conversation.scrollTop = Math.max(0, conversation.scrollHeight - bottomOffset);
     state.conversationPinnedToBottom = isNearBottom();

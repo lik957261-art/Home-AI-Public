@@ -80,6 +80,10 @@ function automationIsSummaryJob(job) {
 }
 
 function mergeAutomationJobs(existing = [], incoming = [], options = {}) {
+  if (options.replaceMissing) {
+    const existingById = new Map((existing || []).map((job) => [String(job?.id || ""), job]));
+    return (incoming || []).map((job) => Object.assign({}, existingById.get(String(job?.id || "")) || {}, job));
+  }
   if (options.preferIncomingOrder) {
     const existingById = new Map((existing || []).map((job) => [String(job?.id || ""), job]));
     const seen = new Set();
@@ -130,7 +134,7 @@ async function hydrateAutomationDetails(options = {}) {
   try {
     const result = await api(`/api/automations?${params}`);
     if (seq !== state.automationDetailRequestSeq || state.viewMode !== "automation") return;
-    state.automations = mergeAutomationJobs(state.automations, result.data || [], { preferIncomingOrder: true });
+    state.automations = mergeAutomationJobs(state.automations, result.data || [], { replaceMissing: true });
     state.automationSource = Object.assign({}, state.automationSource || {}, result.source || {}, { warning: result.warning || "" });
     state.automationFullCacheKey = cacheKey;
   } finally {
@@ -194,7 +198,7 @@ async function loadAutomations(options = {}) {
     throw err;
   }
   if (seq !== state.automationRequestSeq) return;
-  state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || [], { preferIncomingOrder: true }) : (result.data || []);
+  state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || [], { replaceMissing: Boolean(options.refresh) }) : (result.data || []);
   if (detail === "full") writeAutomationFullCache(params, result);
   state.automationSource = Object.assign({}, result.source || {}, { warning: result.warning || "" });
   state.automationCacheKey = cacheKey;

@@ -6,6 +6,9 @@ function showError(err) {
 
 function handleSendMessageResult(result, createsNewTask, consumedPendingDirectory) {
   state.forceChatStickToBottomUntil = Date.now() + 12000;
+  state.conversationViewportBottomFollowUntil = Date.now() + 5000;
+  state.conversationViewportSettleUntil = Date.now() + 900;
+  state.suppressChatAutoBottomUntil = 0;
   state.conversationPinnedToBottom = true;
   state.pendingArtifacts = [];
   if (createsNewTask) {

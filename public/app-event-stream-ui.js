@@ -210,7 +210,9 @@ async function sendMessage(event) {
 function lockComposerSendToBottom() {
   if (!conversationViewportRefreshApplies()) return;
   state.forceChatStickToBottomUntil = Date.now() + 12000;
-  state.conversationViewportBottomFollowUntil = Date.now() + 1600;
+  state.conversationViewportBottomFollowUntil = Date.now() + 5000;
+  state.conversationViewportSettleUntil = Date.now() + 900;
+  state.suppressChatAutoBottomUntil = 0;
   state.suppressConversationPinUntil = Date.now() + 700;
   state.conversationPinnedToBottom = true;
   requestAnimationFrame(() => {

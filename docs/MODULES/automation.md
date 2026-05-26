@@ -27,6 +27,7 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
 - Web Push notifications should open the specific automation detail when `automationId` is present.
 - After Action Inbox integration, Automation Web Push payloads should include `inboxItemId` when the user's next action is represented by Inbox.
 - Foreground Web Push with `messageType=automation_*` or `automationId` must invalidate Automation full-cache state. If the Automation view is open, it should force a full refresh and repaint the list after fresh data arrives.
+- A user-initiated full refresh after deleting an automation must replace the local list with the server list. Do not append missing local cache entries back into a refreshed list, or deleted jobs can appear to survive deletion.
 - Long cron jobs must not block the scheduling entrance.
 
 ## Cron Dispatcher
