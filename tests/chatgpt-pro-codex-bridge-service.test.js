@@ -134,6 +134,10 @@ function testDefaultOutputDirStaysOutsideWorkspace() {
     defaultOutputDir({ HERMES_MOBILE_DATA_DIR: "C:\\ProgramData\\HermesMobile\\data" }),
     "C:\\ProgramData\\HermesMobile\\data\\tmp\\chatgpt-pro",
   );
+  assert.equal(
+    defaultOutputDir({ HERMES_MOBILE_DATA_DIR: "/var/lib/hermes-mobile/data" }),
+    "/var/lib/hermes-mobile/data/tmp/chatgpt-pro",
+  );
 }
 
 function testThreadStatusAndExtraction() {

@@ -32,9 +32,19 @@ function defaultCodexMobileKeyPath(env = process.env) {
   return home ? path.join(home, ".codex-mobile-web", "access_key") : "";
 }
 
+function joinConfiguredPath(root, ...segments) {
+  const value = String(root || "");
+  const pathApi = /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value)
+    ? path.win32
+    : value.startsWith("/")
+      ? path.posix
+      : path;
+  return pathApi.join(value, ...segments);
+}
+
 function defaultStatePath(env = process.env) {
   const dataDir = env.HERMES_MOBILE_DATA_DIR || env.HERMES_WEB_DATA_DIR || "";
-  if (dataDir) return path.join(dataDir, "chatgpt-pro-bridge-state.json");
+  if (dataDir) return joinConfiguredPath(dataDir, "chatgpt-pro-bridge-state.json");
   if (process.platform === "win32") {
     return "C:\\ProgramData\\HermesMobile\\data\\chatgpt-pro-bridge-state.json";
   }
@@ -43,7 +53,7 @@ function defaultStatePath(env = process.env) {
 
 function defaultOutputDir(env = process.env) {
   const dataDir = env.HERMES_MOBILE_DATA_DIR || env.HERMES_WEB_DATA_DIR || "";
-  if (dataDir) return path.join(dataDir, "tmp", "chatgpt-pro");
+  if (dataDir) return joinConfiguredPath(dataDir, "tmp", "chatgpt-pro");
   if (process.platform === "win32") {
     return "C:\\ProgramData\\HermesMobile\\data\\tmp\\chatgpt-pro";
   }
