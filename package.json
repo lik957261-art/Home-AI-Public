@@ -1,6 +1,6 @@
 {
   "name": "hermes-mobile",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": false,
   "description": "Mobile-first Hermes client bridge over the local Hermes API server.",
   "license": "MIT",

@@ -42,6 +42,31 @@ High-value entry points:
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
+## 1.0.1 Public Release
+
+This release refreshes the public tree from the current Hermes Mobile source and
+keeps the package metadata aligned with the public `v1.0.1` release tag.
+
+Highlights:
+
+- Adds the native Growth learning board, teaching-card flow, learning workflow
+  contract/harness docs, and focused Growth tests.
+- Adds Action Inbox as the user action surface for automation conclusions,
+  todos, approvals, and passive completion notifications.
+- Improves Automation/Grok proxy routing, automation refresh behavior, and
+  automation detail deletion handling.
+- Includes weather Gateway plugin packaging and public deployment notes.
+- Tightens public export privacy checks and removes local-machine paths from
+  public-facing release artifacts.
+- Fixes cross-platform path handling in the ChatGPT Pro bridge tests so public
+  CI passes on Linux while preserving Windows deployment paths.
+
+Validation for this public release:
+
+- `npm.cmd run productization:check`
+- public export privacy scan
+- public repository CI for `v1.0.1`
+
 ## 2026-05-12 Public Update
 
 本次 public tree 的具体 private source commit 由 `.public-export-report.json`
