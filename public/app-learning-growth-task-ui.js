@@ -244,11 +244,16 @@
     const flow = task.teachingFlow && typeof task.teachingFlow === "object" ? task.teachingFlow : {};
     const model = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {};
     const lesson = flow.lesson && typeof flow.lesson === "object" ? flow.lesson : {};
+    const microLesson = flow.microLesson && typeof flow.microLesson === "object" ? flow.microLesson : {};
+    const workedExample = flow.workedExample && typeof flow.workedExample === "object" ? flow.workedExample : {};
     const guided = flow.guidedPractice && typeof flow.guidedPractice === "object" ? flow.guidedPractice : {};
     const quick = flow.quickCheck && typeof flow.quickCheck === "object" ? flow.quickCheck : {};
+    const workedSteps = Array.isArray(workedExample.steps) ? workedExample.steps : [];
     const examples = Array.isArray(lesson.examples) && lesson.examples.length
       ? lesson.examples
-      : (Array.isArray(task.deliverables) ? task.deliverables : (Array.isArray(model.deliverables) ? model.deliverables : []));
+      : workedSteps.length
+        ? workedSteps.map((step) => [step?.label, step?.text].filter(Boolean).join(": "))
+        : (Array.isArray(task.deliverables) ? task.deliverables : (Array.isArray(model.deliverables) ? model.deliverables : []));
     const criteria = Array.isArray(quick.completionCriteria) && quick.completionCriteria.length
       ? quick.completionCriteria
       : (Array.isArray(task.acceptance) ? task.acceptance : (Array.isArray(model.acceptance) ? model.acceptance : []));
@@ -256,7 +261,13 @@
       lesson: {
         title: lesson.title || task.title || "学习重点",
         explanation: lesson.explanation || task.learnerInstruction || task.instruction || model.learnerInstruction || task.summary || "先看讲解，再做一个很小的检查。",
+        whyItMatters: flow.whyItMatters || flow.why || "",
+        keyPoints: Array.isArray(microLesson.keyPoints) ? microLesson.keyPoints.slice(0, 5) : [],
         examples: examples.slice(0, 4),
+        workedExample: {
+          instruction: workedExample.instruction || "",
+          steps: workedSteps.slice(0, 5),
+        },
       },
       guidedPractice: {
         instruction: guided.instruction || guided.prompt || task.guidedPracticePrompt || "照着讲解做一小步，不需要一次写得很完整。",
@@ -287,7 +298,13 @@
   function renderTeachingLessonSection(flow) {
     return `<section class="learning-growth-teaching-section" data-learning-growth-teaching-section="lesson">
       <h4>${escapeHtmlLocal(flow.lesson.title)}</h4>
+      ${flow.lesson.whyItMatters ? `<p class="learning-growth-teaching-why">${escapeHtmlLocal(flow.lesson.whyItMatters)}</p>` : ""}
       <p>${escapeHtmlLocal(flow.lesson.explanation)}</p>
+      ${flow.lesson.keyPoints.length ? `<ul>${flow.lesson.keyPoints.map((item) => `<li>${escapeHtmlLocal(item)}</li>`).join("")}</ul>` : ""}
+      ${flow.lesson.workedExample.steps.length ? `<div class="learning-growth-teaching-worked-example">
+        ${flow.lesson.workedExample.instruction ? `<strong>${escapeHtmlLocal(flow.lesson.workedExample.instruction)}</strong>` : ""}
+        ${flow.lesson.workedExample.steps.map((step) => `<article><b>${escapeHtmlLocal(step.label || "")}</b><p>${escapeHtmlLocal(step.text || "")}</p></article>`).join("")}
+      </div>` : ""}
       ${flow.lesson.examples.length ? `<ul>${flow.lesson.examples.map((item) => `<li>${escapeHtmlLocal(item)}</li>`).join("")}</ul>` : ""}
     </section>`;
   }
@@ -354,7 +371,6 @@
     return `<section class="learning-growth-answer-card learning-growth-teaching-card" data-learning-growth-answer-card data-learning-growth-teaching-card="${escapeHtmlLocal(cardId)}" data-learning-growth-card-role="${escapeHtmlLocal(role)}" data-learning-executable-task-id="${escapeHtmlLocal(cardId)}">
       <div class="learning-growth-teaching-head">
         <div>${renderGrowthCardRoleBadge(role)}<span>${escapeHtmlLocal(`约 ${duration.min || 10}-${duration.max || 15} 分钟`)}</span><span>${escapeHtmlLocal(`${reward} 金币`)}</span></div>
-        <button type="button" data-learning-open-growth-history="${escapeHtmlLocal(cardId)}" data-workspace-id="${escapeHtmlLocal(task.workspaceId || "")}">历史</button>
       </div>
       <h3>${escapeHtmlLocal(task.title || "学习卡")}</h3>
       ${renderTeachingStepper(cardId, step)}

@@ -8753,8 +8753,7 @@ body.task-markdown-preview-open {
   gap: 6px;
 }
 
-.learning-growth-teaching-head span,
-.learning-growth-teaching-head button {
+.learning-growth-teaching-head span {
   min-height: 30px;
   padding: 5px 9px;
   border-radius: 999px;
@@ -8770,12 +8769,6 @@ body.task-markdown-preview-open {
 .learning-growth-teaching-head span:not(.learning-growth-role-badge) {
   color: var(--muted);
   background: rgba(31, 43, 51, 0.06);
-}
-
-.learning-growth-teaching-head button {
-  border: 1px solid rgba(31, 43, 51, 0.1);
-  color: var(--ui-accent-ink);
-  background: rgba(255, 255, 255, 0.84);
 }
 
 .learning-growth-teaching-card h3 {
@@ -8831,12 +8824,40 @@ body.task-markdown-preview-open {
 }
 
 .learning-growth-teaching-section p,
+.learning-growth-teaching-worked-example p,
 .learning-growth-teaching-feedback p {
   margin: 0;
   color: var(--ink);
   font-size: 14px;
   line-height: 1.62;
   overflow-wrap: anywhere;
+}
+
+.learning-growth-teaching-why {
+  padding: 8px 10px;
+  border-left: 3px solid rgba(75, 124, 93, 0.28);
+  border-radius: 6px;
+  background: rgba(75, 124, 93, 0.07);
+}
+
+.learning-growth-teaching-worked-example {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(31, 43, 51, 0.08);
+  border-radius: 8px;
+  background: rgba(250, 248, 242, 0.72);
+}
+
+.learning-growth-teaching-worked-example strong,
+.learning-growth-teaching-worked-example b {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.learning-growth-teaching-worked-example article {
+  display: grid;
+  gap: 4px;
 }
 
 .learning-growth-teaching-section ul {
@@ -8880,20 +8901,30 @@ body.task-markdown-preview-open {
 }
 
 .learning-growth-experience-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(31, 43, 51, 0.06);
+  border-radius: 8px;
+  background: rgba(31, 43, 51, 0.025);
 }
 
 .learning-growth-experience-actions button {
   min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid rgba(31, 43, 51, 0.1);
-  border-radius: 999px;
+  padding: 0 8px;
+  border: 1px solid rgba(31, 43, 51, 0.07);
+  border-radius: 7px;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.68);
   font-size: 12px;
   font-weight: 800;
+}
+
+.learning-growth-experience-actions button:hover,
+.learning-growth-experience-actions button:focus-visible {
+  color: var(--ui-accent-ink);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .learning-growth-answer-instruction,

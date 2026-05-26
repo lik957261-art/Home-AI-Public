@@ -209,6 +209,7 @@ function wireUi() {
     clearQuotedReply({ render: false });
     state.viewMode = "automation";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.automationReturnRoute = "";
     state.currentTaskGroupId = "";
     state.currentThread = null;
     state.currentThreadId = "";
@@ -218,6 +219,7 @@ function wireUi() {
     clearQuotedReply({ render: false });
     state.viewMode = "automation";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.automationReturnRoute = "";
     state.currentTaskGroupId = "";
     state.currentThread = null;
     state.currentThreadId = "";
@@ -340,12 +342,12 @@ function wireUi() {
   });
   $("topOpenAutomation")?.addEventListener("click", () => {
     closeTopMoreMenu();
-    openAutomationSurface().catch(showError);
+    openAutomationSurface({ returnTo: state.viewMode === "inbox" ? "inbox" : "" }).catch(showError);
   });
   $("topNewAutomation")?.addEventListener("click", () => {
     closeTopMoreMenu();
     if (state.viewMode === "automation") openAutomationCreate();
-    else openAutomationSurface({ create: true }).catch(showError);
+    else openAutomationSurface({ create: true, returnTo: state.viewMode === "inbox" ? "inbox" : "" }).catch(showError);
   });
   $("topEditAutomation")?.addEventListener("click", () => {
     openAutomationEdit();
@@ -359,6 +361,11 @@ function wireUi() {
   $("topLearningSettings")?.addEventListener("click", () => {
     closeTopMoreMenu();
     openLearningGrowthSettingsPage();
+  });
+  $("topLearningGrowthHistory")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    const taskCardId = String(state.selectedLearningTaskCardId || "").trim();
+    if (taskCardId) openLearningGrowthHistory(taskCardId, learningGrowthLearnerWorkspaceId()).catch(showError);
   });
   $("topDeleteTodo")?.addEventListener("click", () => {
     deleteTodo(state.selectedTodoId).catch(showError);

@@ -421,6 +421,10 @@ function activateTopNavButton() {
     openAutomationList();
     return;
   }
+  if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) {
+    closeAutomationSecondarySurface();
+    return;
+  }
   if (isActionInboxDetailView() || isActionInboxCreateView()) {
     openActionInboxOverview();
     return;

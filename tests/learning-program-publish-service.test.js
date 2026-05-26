@@ -237,6 +237,10 @@ async function run() {
   assert.equal(jitCard.taskModel.jitGeneration.reasoningEffort, "xhigh");
   assert.deepEqual(jitCard.taskModel.jitGeneration.sourceRefs, ["progress:grammar-1"]);
   assert.equal(jitCard.taskModel.teachingFlow.generationSource, "model_generated_jit");
+  assert.equal(jitCard.teachingFlow.generationSource, "model_generated_jit");
+  assert.equal(jitCard.teachingFlow.lesson.explanation, "Use the verb tense that matches the time word.");
+  assert.equal(jitCard.teachingFlow.guidedPractice.instruction, "Fix one similar sentence with a hint.");
+  assert.equal(jitCard.teachingFlow.quickCheck.instruction, "Fix: Last week she play tennis.");
   const futureCard = jitPublishCalls[0].input.cards[1];
   assert.equal(futureCard.learningGrowthJitPending, true);
   assert.equal(futureCard.learningGrowthSequenceVisibility, "locked_future");

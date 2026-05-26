@@ -42,6 +42,19 @@ Use full gates before public release, broad shared-service/runtime changes, perm
 | Learning rewards/coins | `node tests\learning-reward-settlement-service.test.js`, `node tests\learning-coin-service.test.js`, `node tests\learning-coin-api-routes.test.js` |
 | Public export/release | `node tests\public-export.test.js`, `node scripts\privacy-scan.js --all-files`, `npm.cmd run export:public` |
 
+## Planned Growth Workflow Contract Gate
+
+The workflow harness described in `docs\IMPLEMENTATION_NOTES\growth-learning-workflow-contract-harness.md` is the required next gate for non-trivial Growth card workflow work. Once implemented, Growth changes that touch submission, evaluation, reflection, queue recovery, reward settlement, or workflow projection should run:
+
+- `node tests\learning-card-workflow-contract.test.js`
+- `node tests\learning-card-workflow-recovery.test.js`
+- `node tests\learning-card-workflow-reconciler.test.js`
+- `node tests\learning-card-workflow-privacy.test.js`
+- `node tests\app-learning-program-ui.test.js`
+- `node tests\task-list-ui.test.js`
+
+Until those harness tests exist, implementation agents must add the relevant scenario before claiming the workflow change is complete.
+
 ## Production Verification Tiers
 
 - Static-only change: sync static/test files, run syntax/focused UI tests in production app directory, smoke `/api/client-version`.

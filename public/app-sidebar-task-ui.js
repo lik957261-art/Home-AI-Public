@@ -75,21 +75,19 @@ function backSwipeTarget() {
   if (isTaskDetailView()) return "task";
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
   if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
-  if (isAutomationDetailView() || isActionInboxDetailView() || isActionInboxCreateView()) return isAutomationDetailView() ? "automation" : (isActionInboxCreateView() ? "action-inbox-create" : "action-inbox");
+  if (isAutomationDetailView()) return "automation";
+  if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
+  if (isActionInboxDetailView() || isActionInboxCreateView()) return isActionInboxCreateView() ? "action-inbox-create" : "action-inbox";
   if (state.viewMode === "projects" && directoryActivePath()) return "directory";
   return "";
 }
 
-function backSwipeSurface(target) {
-  if (target === "directory") return document.querySelector(".directory-shell");
-  return document.querySelector(".main");
-}
+function backSwipeSurface(target) { return document.querySelector(target === "directory" ? ".directory-shell" : ".main"); }
 
 function clearBackSwipeSurface(surface) {
   if (!surface) return;
   surface.classList.remove("page-back-dragging", "page-back-settling");
-  surface.style.transform = "";
-  surface.style.opacity = "";
+  surface.style.transform = ""; surface.style.opacity = "";
 }
 
 function applyBackSwipeDrag(swipe, dx) {
@@ -115,7 +113,9 @@ function performBackSwipeAction(target) {
     renderLearningCoinsView();
   }
   else if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : navigateDirectoryUp({ animateEntry: true }).catch(showError);
-  else if (target === "automation" || target === "action-inbox" || target === "action-inbox-create") target === "automation" ? openAutomationList() : openActionInboxOverview();
+  else if (target === "automation") openAutomationList();
+  else if (target === "automation-secondary") closeAutomationSecondarySurface();
+  else if (target === "action-inbox" || target === "action-inbox-create") openActionInboxOverview();
 }
 
 async function handleInAppBackNavigation(options = {}) {
@@ -126,9 +126,7 @@ async function handleInAppBackNavigation(options = {}) {
   const target = backSwipeTarget();
   if (!target) return false;
   if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : await navigateDirectoryUp({ animateEntry: Boolean(options.animateEntry) });
-  else {
-    performBackSwipeAction(target);
-  }
+  else performBackSwipeAction(target);
   return true;
 }
 
@@ -245,6 +243,7 @@ function captureDirectoryReturnRoute() {
     threads: state.threads,
     selectedTodoId: state.selectedTodoId,
     selectedAutomationId: state.selectedAutomationId,
+    automationReturnRoute: state.automationReturnRoute,
     automationEditOpen: state.automationEditOpen,
     automationEditJobId: state.automationEditJobId,
     automationOutputHistoryOpen: state.automationOutputHistoryOpen,
@@ -272,6 +271,7 @@ function restoreDirectoryReturnRoute() {
   state.threads = route.threads || state.threads || [];
   state.selectedTodoId = route.selectedTodoId || "";
   state.selectedAutomationId = route.selectedAutomationId || "";
+  state.automationReturnRoute = route.automationReturnRoute || "";
   state.automationEditOpen = Boolean(route.automationEditOpen);
   state.automationEditJobId = route.automationEditJobId || "";
   state.automationOutputHistoryOpen = Boolean(route.automationOutputHistoryOpen);

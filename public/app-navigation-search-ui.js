@@ -173,6 +173,7 @@ function updateNavigationControls() {
   const todoDetail = isTodoDetailView();
   const todoCreate = kanbanComposerOpen();
   const automationDetail = isAutomationDetailView();
+  const automationSecondary = typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive();
   const actionInboxDetail = isActionInboxDetailView();
   const actionInboxCreate = isActionInboxCreateView();
   const skillDetail = isSkillDetailView();
@@ -180,7 +181,7 @@ function updateNavigationControls() {
   const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
   const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
   const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings;
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
@@ -240,6 +241,7 @@ function updateTopMoreControls() {
   const todoCreate = kanbanComposerOpen();
   const todoList = state.viewMode === "todos" && !todoDetail && !todoCreate;
   const learningView = state.viewMode === "learning";
+  const learningGrowthDetail = learningView && Boolean(state.selectedLearningTaskCardId);
   const actionInboxDetail = isActionInboxDetailView();
   const actionInboxCreate = isActionInboxCreateView();
   const inboxView = state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate;
@@ -296,6 +298,11 @@ function updateTopMoreControls() {
   if (learningSettings) {
     learningSettings.hidden = !learningOwnerAction;
     learningSettings.disabled = !learningOwnerAction;
+  }
+  const learningHistory = $("topLearningGrowthHistory");
+  if (learningHistory) {
+    learningHistory.hidden = !learningGrowthDetail;
+    learningHistory.disabled = !learningGrowthDetail;
   }
   const openAutomation = $("topOpenAutomation");
   if (openAutomation) {

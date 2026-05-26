@@ -123,11 +123,27 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
     rewardPolicy: { maxCoins: 100 },
     expectedDurationMinutes: { min: 10, max: 15 },
     teachingFlow: {
+      whyItMatters: "\u8fd9\u80fd\u8ba9\u590d\u8ff0\u5148\u6709\u65b9\u5411\u3002",
       lesson: { title: "\u4e3b\u65e8", explanation: "\u5148\u6293\u4e3b\u65e8\uff0c\u518d\u770b\u7ec6\u8282\u3002", examples: ["topic sentence"] },
+      microLesson: { keyPoints: ["\u5148\u8bf4\u4e3b\u65e8", "\u518d\u8865\u4e24\u4e2a\u7ec6\u8282"] },
+      workedExample: {
+        instruction: "\u5148\u770b\u4e00\u4e2a\u793a\u8303\u3002",
+        steps: [{ label: "\u793a\u8303", text: "\u8fd9\u6bb5\u4e3b\u8981\u5728\u8bb2\u5348\u9910\u89c4\u5219\u7684\u53d8\u5316\u3002" }],
+      },
       guidedPractice: { prompt: "\u627e\u5230\u4e00\u53e5\u4e3b\u65e8\u53e5\u3002" },
       quickCheck: { prompt: "\u7528\u4e00\u53e5\u8bdd\u8bf4\u660e\u4e3b\u65e8\u3002", completionCriteria: ["\u5199\u51fa\u4e3b\u65e8"] },
     },
   };
+  const lessonHtml = TaskUi.renderTeachingCardDetail(task, {
+    state: {
+      learningGrowthTeachingStepByCardId: { "teach-1": "lesson" },
+      learningGrowthTeachingDrafts: { "teach-1": { guidedPracticeText: "draft", quickCheckText: "check" } },
+    },
+  });
+  assert.match(lessonHtml, /\u8fd9\u80fd\u8ba9\u590d\u8ff0\u5148\u6709\u65b9\u5411/);
+  assert.match(lessonHtml, /\u5148\u8bf4\u4e3b\u65e8/);
+  assert.match(lessonHtml, /\u5148\u770b\u4e00\u4e2a\u793a\u8303/);
+  assert.match(lessonHtml, /\u8fd9\u6bb5\u4e3b\u8981\u5728\u8bb2/);
   const html = TaskUi.renderTeachingCardDetail(task, {
     state: {
       learningGrowthTeachingStepByCardId: { "teach-1": "quick_check" },
@@ -140,6 +156,8 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
   assert.match(html, /data-learning-growth-teaching-check-form="teach-1"/);
   assert.match(html, /data-learning-growth-experience-signal="teach-1"/);
   assert.match(html, /data-learning-growth-stage-assessment-challenge="teach-1"/);
+  assert.doesNotMatch(html, /data-learning-open-growth-history="teach-1"/);
+  assert.doesNotMatch(html, /\u8fd4\u56de\u4efb\u52a1/);
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form/);
 }
 

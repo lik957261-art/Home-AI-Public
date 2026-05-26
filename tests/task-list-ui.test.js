@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260526-growth-reflection-v255";
+const CLIENT_VERSION = "20260526-growth-teaching-flow-v256";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -197,6 +197,8 @@ assert.match(indexHtml, /id="topCompleteActionInboxItem"/);
 assert.match(indexHtml, /id="topSnoozeActionInboxItem"/);
 assert.match(indexHtml, /id="topDismissActionInboxItem"/);
 assert.match(appJs, /async function openAutomationSurface\(options = \{\}\)/);
+assert.match(appJs, /function automationSecondaryReturnActive\(\)/);
+assert.match(appJs, /state\.automationReturnRoute = returnRoute === "inbox" \? "inbox" : ""/);
 assert.match(appJs, /function isActionInboxCreateView\(\) \{\s+return state\.viewMode === "inbox" && Boolean\(state\.actionInboxCreateOpen\);/);
 assert.match(appJs, /const actionInboxCreate = isActionInboxCreateView\(\)/);
 assert.match(appJs, /const inboxView = state\.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate/);
@@ -205,8 +207,8 @@ assert.match(appJs, /newActionInbox\.hidden = !inboxView/);
 assert.match(appJs, /openAutomation\.hidden = !inboxView/);
 assert.match(appJs, /newAutomation\.hidden = !\(automationList \|\| inboxView\)/);
 assert.match(appJs, /\$\("topOpenAutomation"\)/);
-assert.match(appJs, /openAutomationSurface\(\)\.catch\(showError\)/);
-assert.match(appJs, /openAutomationSurface\(\{ create: true \}\)\.catch\(showError\)/);
+assert.match(appJs, /openAutomationSurface\(\{ returnTo: state\.viewMode === "inbox" \? "inbox" : "" \}\)\.catch\(showError\)/);
+assert.match(appJs, /openAutomationSurface\(\{ create: true, returnTo: state\.viewMode === "inbox" \? "inbox" : "" \}\)\.catch\(showError\)/);
 assert.match(appJs, /function openActionInboxCreate\(\)/);
 assert.match(appJs, /function openCurrentActionInboxItemLink\(\)/);
 assert.match(appJs, /\$\("threadTitle"\)\.textContent = creating \? "\\u65b0\\u589e\\u4e8b\\u9879" : \(item \? "\\u6536\\u4ef6\\u8be6\\u60c5" : "\\u6536\\u4ef6\\u7bb1"\)/);
@@ -374,9 +376,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-growth-reflection-v255/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-growth-reflection-v255/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-growth-reflection-v255/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-growth-teaching-flow-v256/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-growth-teaching-flow-v256/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-growth-teaching-flow-v256/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -393,7 +395,7 @@ assert.match(appJs, /state\.viewMode === "learning" && \(state\.learningGrowthSe
 assert.match(appJs, /target === "learning-growth-settings"[\s\S]*?closeLearningGrowthSettingsPage\(\)/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
 assert.match(appJs, /const learningGrowthDetail = state\.viewMode === "learning" && Boolean\(state\.selectedLearningTaskCardId\)/);
-assert.match(appJs, /mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| actionInboxDetail \|\| actionInboxCreate \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail/);
+assert.match(appJs, /mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| automationSecondary \|\| actionInboxDetail \|\| actionInboxCreate \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
 assert.match(appJs, /target === "directory"[\s\S]*?state\.directoryReturnRoute \? restoreDirectoryReturnRoute\(\) : navigateDirectoryUp\(\{ animateEntry: true \}\)\.catch\(showError\)/);
 assert.match(appJs, /if \(target === "directory"\) state\.directoryReturnRoute \? restoreDirectoryReturnRoute\(\) : await navigateDirectoryUp/);
@@ -1759,12 +1761,13 @@ assert.match(stylesCss, /\.section-toggle \{[\s\S]*?grid-template-columns: repea
 assert.match(stylesCss, /@media \(max-width: 1099px\)/);
 assert.match(appJs, /window\.matchMedia\("\(max-width: 1099px\)"\)/);
 assert.match(appJs, /const learningGrowthSettings = state\.viewMode === "learning" && Boolean\(state\.learningGrowthSettingsOpen\)/);
-assert.match(appJs, /const mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| actionInboxDetail \|\| actionInboxCreate \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail \|\| learningGrowthSettings/);
+assert.match(appJs, /const mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| automationSecondary \|\| actionInboxDetail \|\| actionInboxCreate \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail \|\| learningGrowthSettings/);
 assert.match(appJs, /if \(isTodoDetailView\(\) \|\| kanbanComposerOpen\(\)\) return isTodoDetailView\(\) \? "todo" : "todo-create";/);
-assert.match(appJs, /if \(isAutomationDetailView\(\) \|\| isActionInboxDetailView\(\) \|\| isActionInboxCreateView\(\)\) return isAutomationDetailView\(\) \? "automation" : \(isActionInboxCreateView\(\) \? "action-inbox-create" : "action-inbox"\);/);
+assert.match(appJs, /automationSecondaryReturnActive\(\)\) return "automation-secondary"/);
+assert.match(appJs, /else if \(target === "automation-secondary"\) closeAutomationSecondarySurface\(\)/);
 assert.match(appJs, /state\.learningGrowthSettingsOpen \? "learning-growth-settings" : "learning-growth-task"/);
 assert.match(appJs, /else if \(target === "todo" \|\| target === "todo-create"\) openTodoList\(\);/);
-assert.match(appJs, /target === "automation" \|\| target === "action-inbox" \|\| target === "action-inbox-create"[\s\S]*?openActionInboxOverview\(\)/);
+assert.match(appJs, /else if \(target === "action-inbox" \|\| target === "action-inbox-create"\) openActionInboxOverview\(\)/);
 assert.match(appJs, /if \(isActionInboxDetailView\(\) \|\| isActionInboxCreateView\(\)\) \{\s+openActionInboxOverview\(\);/);
 assert.match(appJs, /else if \(target === "learning-growth-settings"\) closeLearningGrowthSettingsPage\(\);/);
 assert.match(appJs, /classList\.toggle\("learning-settings-mode", learningGrowthSettings\)/);

@@ -33,11 +33,27 @@ function openAutomationList() {
   renderAutomationView();
 }
 
+function automationSecondaryReturnActive() {
+  return state.viewMode === "automation" && !isAutomationDetailView() && String(state.automationReturnRoute || "") === "inbox";
+}
+
+function closeAutomationSecondarySurface() {
+  state.automationReturnRoute = "";
+  state.selectedAutomationId = "";
+  state.automationCreateOpen = false;
+  state.automationEditOpen = false;
+  state.automationEditJobId = "";
+  state.automationOutputHistoryOpen = false;
+  openActionInboxOverview();
+}
+
 async function openAutomationSurface(options = {}) {
   closeTopMoreMenu();
   clearQuotedReply({ render: false });
+  const returnRoute = String(options.returnTo || "").trim();
   state.viewMode = "automation";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
+  state.automationReturnRoute = returnRoute === "inbox" ? "inbox" : "";
   state.currentTaskGroupId = "";
   state.currentThread = null;
   state.currentThreadId = "";

@@ -403,7 +403,11 @@ function testGrowthRendererShowsStandaloneTaskCardWhenSelected() {
   assert.match(html, /data-learning-native-growth-submission-form="task-1"/);
   assert.match(html, /Task status/);
   assert.doesNotMatch(html, /data-learning-growth-board/);
+  assert.doesNotMatch(html, /data-learning-growth-board-summary/);
   assert.doesNotMatch(html, /data-learning-growth-tabs/);
+  assert.doesNotMatch(html, /data-learning-growth-tab=/);
+  assert.doesNotMatch(html, /data-learning-settings-task-back/);
+  assert.doesNotMatch(html, /class="learning-settings-back"/);
   assert.doesNotMatch(html, /data-learning-growth-module="coins"/);
 }
 
@@ -441,6 +445,11 @@ function testGrowthRendererUsesTeachingFlowForTeachingCard() {
   assert.match(html, /data-learning-growth-teaching-card="teach-1"/);
   assert.match(html, /data-learning-growth-card-role="teaching"/);
   assert.match(html, /data-learning-growth-teaching-step="teach-1"/);
+  assert.doesNotMatch(html, /data-learning-open-growth-history="teach-1"/);
+  assert.doesNotMatch(html, /data-learning-settings-task-back/);
+  assert.doesNotMatch(html, /class="learning-settings-back"/);
+  assert.doesNotMatch(html, /data-learning-growth-board-summary/);
+  assert.doesNotMatch(html, /data-learning-growth-tab=/);
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form="teach-1"/);
 }
 
