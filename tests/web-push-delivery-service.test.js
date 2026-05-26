@@ -334,7 +334,7 @@ function testTaskTerminalAndGroupMentionNotifications() {
   });
 }
 
-function testTaskTerminalPushCanRouteThroughInboxItem() {
+function testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt() {
   withTempDir((root) => {
     const inboxCalls = [];
     const { calls, service } = createHarness(root, {
@@ -369,16 +369,11 @@ function testTaskTerminalPushCanRouteThroughInboxItem() {
     };
     return service.notifyTaskTerminal(thread, message, "done").then((result) => {
       assert.equal(result.sent, 1);
-      assert.equal(inboxCalls.length, 1);
-      assert.equal(inboxCalls[0].sourceType, "chat");
-      assert.equal(inboxCalls[0].sourceId, "a1");
-      assert.equal(inboxCalls[0].itemType, "info");
-      assert.equal(inboxCalls[0].deepLink, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=u1");
+      assert.equal(inboxCalls.length, 0);
       const payload = calls.sends[0].payload;
-      assert.equal(payload.data.viewMode, "inbox");
-      assert.equal(payload.data.inboxItemId, "ainb_task_1");
-      assert.equal(payload.data.originalUrl, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=u1");
-      assert.equal(payload.data.url, "/?view=inbox&workspaceId=child&inboxItemId=ainb_task_1");
+      assert.equal(payload.data.viewMode, "tasks");
+      assert.equal(Object.prototype.hasOwnProperty.call(payload.data, "inboxItemId"), false);
+      assert.equal(payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=u1");
       assert.equal(payload.data.messageType, "task_completed");
     });
   });
@@ -601,7 +596,7 @@ Promise.resolve()
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)
   .then(testTaskTerminalAndGroupMentionNotifications)
-  .then(testTaskTerminalPushCanRouteThroughInboxItem)
+  .then(testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt)
   .then(testLearningGrowthEvaluationPushRoutesToTaskCard)
   .then(testLearningGrowthEvaluationPushCanRouteThroughInboxItem)
   .then(testLearningGrowthCompletionNotifiesAuthorizedWorkspaceInboxItems)

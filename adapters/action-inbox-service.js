@@ -60,6 +60,9 @@ function createActionInboxService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : defaultNowIso;
   const makeId = typeof options.makeId === "function" ? options.makeId : defaultMakeId;
   const compactText = typeof options.compactText === "function" ? options.compactText : clean;
+  const defaultHiddenSourceTypes = Array.isArray(options.defaultHiddenSourceTypes)
+    ? options.defaultHiddenSourceTypes.map((item) => clean(item, 80)).filter(Boolean)
+    : ["chat"];
 
   function requireStore() {
     const store = getStore(options.store);
@@ -85,16 +88,19 @@ function createActionInboxService(options = {}) {
   function listItems(input = {}) {
     const store = requireStore();
     const workspaceId = clean(input.workspaceId || input.workspace_id || "owner", 120) || "owner";
+    const sourceType = clean(input.sourceType || input.source_type, 80);
+    const excludedSourceTypes = sourceType ? [] : defaultHiddenSourceTypes;
     const items = store.listActionInboxItems({
       workspaceId,
       status: clean(input.status || input.filterStatus, 40),
-      sourceType: clean(input.sourceType || input.source_type, 80),
+      sourceType,
+      excludedSourceTypes,
       itemType: clean(input.itemType || input.item_type, 80),
       search: clean(input.search, 200),
       includeDone: Boolean(input.includeDone || input.include_done),
       limit: Math.max(1, Math.min(500, Number(input.limit || 100) || 100)),
     });
-    const counts = typeof store.actionInboxCounts === "function" ? store.actionInboxCounts(workspaceId) : { byStatus: {}, bySourceType: {} };
+    const counts = typeof store.actionInboxCounts === "function" ? store.actionInboxCounts(workspaceId, { excludedSourceTypes }) : { byStatus: {}, bySourceType: {} };
     return { ok: true, items, counts, source: { name: "action_inbox", storage: "sqlite" } };
   }
 

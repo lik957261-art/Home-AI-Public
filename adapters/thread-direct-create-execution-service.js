@@ -51,6 +51,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
   const threadMessageCreateService = asObject(options.threadMessageCreateService || options.messageCreateService);
   const todoProvider = asObject(options.todoProvider);
   const kanbanCardProvider = asObject(options.kanbanCardProvider);
+  const actionInboxService = asObject(options.actionInboxService);
 
   const addTodo = optionalFunction(options.addTodo, optionalFunction(todoProvider.addTodo, null));
   const addKanbanCard = optionalFunction(options.addKanbanCard, optionalFunction(kanbanCardProvider.addCard, null));
@@ -84,6 +85,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
   const threadSummary = helper("threadSummary", (thread) => thread);
   const todoAssigneeLabel = helper("todoAssigneeLabel", (_workspaceId, principalId) => String(principalId || "owner"));
   const verifyDirectTodoCreateResult = helper("verifyDirectTodoCreateResult", defaultVerifyDirectTodoCreateResult);
+  const workspaceIdForPrincipal = helper("workspaceIdForPrincipal", (principalId) => String(principalId || ""));
   const workspacePrincipal = helper("workspacePrincipal", (workspaceId) => String(workspaceId || "owner"));
   const broadcast = helper("broadcast", () => {});
 
@@ -179,6 +181,47 @@ function createThreadDirectCreateExecutionService(options = {}) {
     return compactResponseThread(thread, plan);
   }
 
+  async function upsertDirectTodoInboxItem(result, createdTodo, plan) {
+    if (!actionInboxService || typeof actionInboxService.upsertSourceItem !== "function") return null;
+    const intent = plan?.directAction?.intent || {};
+    const todo = createdTodo || publicTodo(result) || {};
+    const todoId = String(todo.id || result?.id || result?.todoId || "").trim();
+    const content = String(todo.content || todo.title || result?.content || intent.content || "").trim();
+    if (!todoId && !content) return null;
+    const assigneeWorkspaceId = workspaceIdForPrincipal(intent.assignee || "") || plan?.thread?.workspaceId || "owner";
+    const dueAt = String(todo.dueAt || todo.due_at || todo.dueTime || todo.due_time || intent.dueTime || "").trim();
+    try {
+      const inboxResult = await Promise.resolve(actionInboxService.upsertSourceItem({
+        workspaceId: assigneeWorkspaceId,
+        assigneeWorkspaceId,
+        sourceType: "manual",
+        sourceId: todoId || `todo:${content.slice(0, 80)}`,
+        itemType: "todo",
+        status: "open",
+        priority: "normal",
+        title: content || todoId || "Todo",
+        summary: dueAt ? `\u622a\u6b62\uff1a${dueAt}` : "",
+        actionLabel: "\u5904\u7406",
+        deepLink: todoId ? `/?view=todos&workspaceId=${encodeURIComponent(assigneeWorkspaceId)}&todoId=${encodeURIComponent(todoId)}` : "",
+        sourceRef: {
+          todoId,
+          threadId: plan?.thread?.id || "",
+          assigneeWorkspaceId,
+          dueAt,
+          directCreate: true,
+        },
+        dedupeKey: todoId ? `todo:${todoId}` : "",
+        reopen: true,
+      }));
+      if (inboxResult?.item?.id) {
+        broadcast({ type: "actionInbox.updated", workspaceId: assigneeWorkspaceId, itemId: inboxResult.item.id });
+      }
+      return inboxResult?.ok ? inboxResult.item : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   async function executeDirectKanbanCreate(request = {}) {
     const thread = request.thread || request.plan?.thread;
     const plan = request.plan;
@@ -241,6 +284,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
       successContent: () => `\u5df2\u65b0\u589e\u5f85\u529e\uff1a${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`,
       successNotifications: () => directTodoSuccessNotification(finalResult, plan),
     });
+    const inboxItem = finalResult?.ok ? await upsertDirectTodoInboxItem(finalResult, createdTodo, plan) : null;
 
     return {
       ok: Boolean(finalResult?.ok),
@@ -248,12 +292,14 @@ function createThreadDirectCreateExecutionService(options = {}) {
       result: finalResult,
       verification: normalized.verification,
       todo: finalResult?.ok ? createdTodo : null,
+      inboxItem,
       thread,
       assistantMessage: finalized.assistantMessage,
       broadcastPayloads: finalized.broadcastPayloads,
       response: {
         ok: Boolean(finalResult?.ok),
         todo: finalResult?.ok ? createdTodo : null,
+        inboxItem,
         result: finalResult,
         verification: normalized.verification,
         thread: compactThreadForResponse(thread, plan, request),

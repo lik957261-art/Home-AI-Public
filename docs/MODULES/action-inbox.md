@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-Action Inbox is the lightweight Hermes Mobile surface for things that need a user's attention: manual todos, automation delivery results, Growth next actions, review requests, and later chat/module handoffs.
+Action Inbox is the lightweight Hermes Mobile surface for passive or durable things that need a user's attention: manual todos/reminders, automation delivery results, Growth/executor card completion, permission/approval/review requests, and later module handoffs.
 
 It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanban. It should be backed by local Hermes Mobile persistence and should stay fast enough for repeated mobile use.
 
@@ -15,7 +15,7 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
 - Inbox root actions, including new manual Inbox item creation, belong in the top-right overflow menu rather than inline page buttons.
 - Inbox detail/create screens are secondary screens. They must use the shared top-left back button and right-swipe back path; the content area should not render another back button or duplicate the top bar title.
 - Existing simple Todo behavior becomes an Action Inbox item type instead of a separate product tab.
-- Chat integration is a later step; the first implementation should focus on module-generated items and manual items.
+- Active chat/topic task receipts should not enter the default Inbox. Those are immediate responses to a request the user just made, so Web Push should route directly back to the relevant chat/topic/task view.
 
 ## Non-Goals
 
@@ -88,11 +88,11 @@ The item must link back to the Growth card/detail. It must not store full learne
 
 When a Growth task is truly completed after evaluation/reflection/manual pass, the completion notice is a summary-only Inbox item for the task workspace, Owner, and each workspace whose access policy allows that task workspace. Each recipient workspace gets its own Inbox item and Web Push deep link. `sourceRef.taskWorkspaceId` preserves the original task workspace; item title/summary may include task id/title, score, reward status, and reflection status only.
 
-### Chat And Mentions
+### Chat, Mentions, And Active Receipts
 
-Chat remains the message source of truth. Later integration may create Inbox items for direct mentions, approvals, or requested follow-ups. Group/chat message bodies should stay in the chat thread, not be copied into Inbox.
+Chat remains the message source of truth. Later integration may create Inbox items for direct mentions, permission requests, approvals, or requested follow-ups. Group/chat message bodies should stay in the chat thread, not be copied into Inbox.
 
-Ordinary task terminal receipts create summary-only `sourceType=chat` Inbox items for completion or failure, with the original task/single-window route preserved as the item deep link. The Inbox stores only title, bounded summary, status, and route identifiers.
+Ordinary active chat/topic task terminal receipts do not create Inbox items. The Web Push payload should link directly to the original task/chat route. If a future chat-derived workflow is passive and needs later attention, it should use a specific source/category such as `approval`, `review`, `growth`, or `automation`, not a generic chat receipt.
 
 ## Official Kanban Cutover
 
@@ -133,7 +133,7 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 ## Constraints
 
 - Keep mobile UI compact and scan-friendly.
-- Inbox rows and detail headers should show explicit source/type badges, not only low-contrast metadata, so items from Automation, Growth, manual Todo, and task receipts are distinguishable at a glance.
+- Inbox rows and detail headers should show explicit source/type badges, not only low-contrast metadata, so items from Automation, Growth, manual Todo/reminder, approval/review, and executor completion notices are distinguishable at a glance.
 - Do not duplicate the top bar title inside the Inbox content area. Page-level actions should stay in the overflow menu; form-submit controls may remain in the form itself.
 - Keep source modules canonical; Inbox only stores summary/action projection and audit events.
 - Dedupe by stable source references so repeated refreshes or Web Push deliveries do not create duplicate items.

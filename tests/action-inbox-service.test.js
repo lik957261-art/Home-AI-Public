@@ -104,6 +104,40 @@ function testSourceDedupeAndTerminalProtection() {
   }
 }
 
+function testDefaultListHidesOrdinaryChatReceipts() {
+  const h = makeHarness();
+  try {
+    const chat = h.service.upsertSourceItem({
+      id: "chat-receipt-item",
+      workspaceId: "owner",
+      sourceType: "chat",
+      sourceId: "receipt-1",
+      itemType: "info",
+      title: "Task completed",
+      summary: "Ordinary active chat task receipt.",
+      dedupeKey: "chat:receipt-1",
+    });
+    const todo = h.service.upsertSourceItem({
+      id: "manual-todo-item",
+      workspaceId: "owner",
+      sourceType: "manual",
+      sourceId: "todo-1",
+      itemType: "todo",
+      title: "Take medicine",
+      dedupeKey: "manual:todo-1",
+    });
+    const listed = h.service.listItems({ workspaceId: "owner" });
+    assert.deepEqual(listed.items.map((item) => item.id), [todo.item.id]);
+    assert.equal(listed.counts.bySourceType.chat, undefined);
+    assert.equal(listed.counts.byStatus.open, 1);
+    const explicitChat = h.service.listItems({ workspaceId: "owner", sourceType: "chat" });
+    assert.deepEqual(explicitChat.items.map((item) => item.id), [chat.item.id]);
+  } finally {
+    cleanup(h);
+  }
+}
+
 testManualItemLifecycle();
 testSourceDedupeAndTerminalProtection();
+testDefaultListHidesOrdinaryChatReceipts();
 console.log("action-inbox-service tests passed");

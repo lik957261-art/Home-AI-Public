@@ -91,6 +91,7 @@ function createThreadRuntimeCompositionService(deps = {}) {
       directCreateExecutionService = createThreadDirectCreateExecutionService({
         broadcast: deps.broadcast,
         compactMessage: deps.compactMessage,
+        actionInboxService: deps.actionInboxService,
         findWorkspace: deps.findWorkspace,
         formatDirectTodoCreateSuccessMessage: deps.formatDirectTodoCreateSuccessMessage,
         interpretKanbanNaturalLanguage: deps.interpretKanbanNaturalLanguage,
@@ -102,6 +103,7 @@ function createThreadRuntimeCompositionService(deps = {}) {
         todoAssigneeLabel: deps.todoAssigneeLabel,
         todoProvider: deps.todoProvider,
         verifyDirectTodoCreateResult: deps.verifyDirectTodoCreateResult,
+        workspaceIdForPrincipal: deps.workspaceIdForPrincipal,
         workspacePrincipal: deps.workspacePrincipal,
         compactResponseThread: (...args) => getMessageRunRouteService().compactThreadForMessageCreatePlan(...args),
         nowIso: deps.nowIso,

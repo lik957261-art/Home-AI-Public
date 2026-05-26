@@ -931,7 +931,7 @@ function useKanbanTodoBackend() {
 function directTodoCreateEnabled() {
   if (/^(0|false|no|off)$/i.test(DIRECT_TODO_CREATE_SETTING)) return false;
   if (/^(1|true|yes|on)$/i.test(DIRECT_TODO_CREATE_SETTING)) return true;
-  return false;
+  return true;
 }
 function useLocalAutomationBackend() {
   return backendIsLocal(AUTOMATION_BACKEND, ["bridge", "cron", "hermes", "hermes_cron"]);
@@ -2353,7 +2353,7 @@ function getThreadRuntimeCompositionService() {
     threadRuntimeCompositionService = createThreadRuntimeCompositionService({
       attachUploadedArtifactsToMessage,
       authCanAccessWorkspace,
-      authenticateRequest,
+      authenticateRequest, actionInboxService,
       broadcast,
       buildUserMessageContent: (...args) => getRuntimeStateThreadService().buildUserMessageContent(...args),
       chatGroupMemberWorkspaceIds,

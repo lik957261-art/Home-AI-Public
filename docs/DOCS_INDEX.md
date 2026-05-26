@@ -55,6 +55,8 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 ## Current Priority Implementation Notes
 
 - Learning mastery profile: `docs/IMPLEMENTATION_NOTES/learning-mastery-profile.md`
+- Growth teaching cards and stage assessment flow: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md`
+- Growth teaching card implementation plan: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
 - Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`
 - Skill write protection: `docs/IMPLEMENTATION_NOTES/skill-write-protection.md`

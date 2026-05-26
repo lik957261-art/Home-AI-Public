@@ -49,6 +49,7 @@ function makeHarness(overrides = {}) {
     broadcasts: [],
     compactResponses: [],
     format: [],
+    inbox: [],
     interpret: [],
     kanbanAdd: [],
     kanbanNotifications: [],
@@ -141,6 +142,12 @@ function makeHarness(overrides = {}) {
         kanbanStatus: result.kanbanStatus,
       };
     },
+    actionInboxService: {
+      upsertSourceItem(input) {
+        calls.inbox.push(input);
+        return { ok: true, item: { id: "ainb-direct-todo", workspaceId: input.workspaceId } };
+      },
+    },
     verifyDirectTodoCreateResult(todo) {
       calls.verify.push(todo);
       if (overrides.verifyResult) return overrides.verifyResult;
@@ -152,6 +159,9 @@ function makeHarness(overrides = {}) {
     },
     todoAssigneeLabel(_workspaceId, principalId) {
       return `label:${principalId}`;
+    },
+    workspaceIdForPrincipal(principalId) {
+      return principalId ? `workspace:${principalId}` : "";
     },
     directTodoSuccessNotification(result, plan) {
       calls.todoNotifications.push({ result, planAction: plan.nextAction });
@@ -209,6 +219,13 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
   assert.equal(result.status, 201);
   assert.equal(result.response.ok, true);
   assert.equal(result.response.todo.id, "todo-1");
+  assert.equal(result.response.inboxItem.id, "ainb-direct-todo");
+  assert.equal(calls.inbox.length, 1);
+  assert.equal(calls.inbox[0].sourceType, "manual");
+  assert.equal(calls.inbox[0].itemType, "todo");
+  assert.equal(calls.inbox[0].title, "read chapter");
+  assert.equal(calls.inbox[0].workspaceId, "workspace:child-principal");
+  assert.equal(calls.inbox[0].deepLink, "/?view=todos&workspaceId=workspace%3Achild-principal&todoId=todo-1");
   assert.equal(plan.assistantMessage.status, "done");
   assert.equal(plan.assistantMessage.content, "\u5df2\u65b0\u589e\u5f85\u529e\uff1aChild | 2026-05-16 09:00 | read chapter");
   assert.equal(plan.assistantMessage.error, null);
@@ -237,6 +254,7 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
     "message.updated",
     "todos.updated",
     "todos.updated",
+    "actionInbox.updated",
   ]);
   assert.equal(calls.todoNotifications.length, 1);
   assert.equal(result.response.thread.messageCount, 2);

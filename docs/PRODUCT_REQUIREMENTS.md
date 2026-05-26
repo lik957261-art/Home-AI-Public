@@ -32,6 +32,16 @@ This file records durable product rules that implementation must preserve.
 
 - Evergreen cards are driven by observed ability and weakness evidence, not by a fixed grade-only track.
 - Age, school, grade, and curriculum history are initialization signals; subsequent cards should primarily follow demonstrated mastery, repair needs, transfer, and trajectory.
+- Ordinary Growth cards should teach before they test. New or weak concepts should default to teaching/practice cards with explanation, example, guided practice, and lightweight understanding feedback.
+- Formal mastery checks should use stage assessment evergreen cards that activate by evidence/time conditions or Owner manual activation, not every ordinary card.
+- Executor accounts may explicitly start a challenge assessment for their own available capability cluster when cooldown and safety policy allow it.
+- A learner report such as "too hard" or "not learned" should create prerequisite-gap evidence and card-generation feedback, not directly count as a formal mastery failure.
+- Growth should optimize for sustainable learning habits, not only daily task completion. Missed days, fatigue, or repeated frustration should trigger lighter repair/review paths instead of backlog pressure.
+- Coins are secondary reinforcement. The system should also provide visible progress, small creations, choice, and parent-visible evidence.
+- V1 Growth reward defaults are configurable but fixed at product level: ordinary teaching/practice/integration cards default to 100 coins; stage assessment cards default to 300 coins.
+- Ordinary teaching/practice cards should normally target 10-15 minutes. Stage assessment cards should normally target 25-30 minutes and include more tasks/questions than daily cards.
+- New teaching/practice/stage-assessment behavior belongs to the native Hermes Mobile Growth board and native Growth SQLite persistence, not official Kanban compatibility.
+- Model-generated Growth cards must follow structured teaching/practice/assessment contracts and validation rules; unsupported high-pressure tasks should not be published just because the model generated them.
 - Growth scoring is evidence-based. A score can reach the numeric line while the card is still incomplete if a revision/reflection gate remains.
 - AI evaluation must be asynchronous and durable when grading can take time. Restarting listener or Gateway should not lose accepted evaluation work.
 - Learning records must be summary-only. Do not expose full child answers, transcripts, questions, answer keys, or prompts in planning records, docs, or handoffs.
@@ -60,9 +70,10 @@ This file records durable product rules that implementation must preserve.
 
 ## Action Inbox
 
-- Action Inbox is the primary user participation surface for manual todos, automation delivery results, Growth next actions, review requests, and later chat/module follow-ups.
+- Action Inbox is the primary passive/durable attention surface for manual Todo/reminder items, automation conclusions, Growth/executor card completion, permission requests, approvals, and review items.
 - Action Inbox must be backed by Hermes Mobile local persistence and audit events, not official Hermes Kanban.
-- The primary bottom navigation direction is `聊天 / 收件箱 / 目录 / 成长`; Automation should move to a background/admin surface.
+- The primary bottom navigation direction is `聊天 / 收件箱 / 话题 / 目录 / 成长`; Automation should move to a background/admin surface.
+- Ordinary active chat/topic task receipts should use Web Push to return directly to the relevant route and should not create default Inbox items.
 - Inbox items are summary/action projections. Source modules remain canonical and full private content must stay in the source detail views.
 - Repeated source refreshes, Web Push events, and background polling must dedupe by stable source references instead of creating duplicate items.
 - Official Kanban Todo compatibility is legacy after the Action Inbox migration; preserve or migrate the current `Everything's amazing` reading task before destructive cleanup.

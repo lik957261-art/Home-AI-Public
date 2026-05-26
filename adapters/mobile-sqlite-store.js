@@ -1584,6 +1584,9 @@ function createMobileSqliteStore(options = {}) {
     const workspaceId = String(args.workspaceId || args.workspace_id || "owner").trim() || "owner";
     const status = String(args.status || "").trim();
     const sourceType = String(args.sourceType || args.source_type || "").trim();
+    const excludedSourceTypes = (Array.isArray(args.excludedSourceTypes) ? args.excludedSourceTypes : (Array.isArray(args.excluded_source_types) ? args.excluded_source_types : []))
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
     const itemType = String(args.itemType || args.item_type || "").trim();
     const search = String(args.search || "").trim().toLowerCase();
     const includeDone = Boolean(args.includeDone || args.include_done);
@@ -1599,6 +1602,9 @@ function createMobileSqliteStore(options = {}) {
     if (sourceType) {
       clauses.push("source_type = ?");
       values.push(sourceType);
+    } else if (excludedSourceTypes.length) {
+      clauses.push(`source_type NOT IN (${excludedSourceTypes.map(() => "?").join(", ")})`);
+      values.push(...excludedSourceTypes);
     }
     if (itemType) {
       clauses.push("item_type = ?");
@@ -1621,15 +1627,24 @@ function createMobileSqliteStore(options = {}) {
     return rows.slice(0, limit);
   }
 
-  function actionInboxCounts(workspaceId) {
+  function actionInboxCounts(workspaceId, args = {}) {
     migrate();
     const workspace = String(workspaceId || "owner").trim() || "owner";
+    const excludedSourceTypes = (Array.isArray(args.excludedSourceTypes) ? args.excludedSourceTypes : (Array.isArray(args.excluded_source_types) ? args.excluded_source_types : []))
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    const clauses = ["(workspace_id = ? OR assignee_workspace_id = ?)"];
+    const values = [workspace, workspace];
+    if (excludedSourceTypes.length) {
+      clauses.push(`source_type NOT IN (${excludedSourceTypes.map(() => "?").join(", ")})`);
+      values.push(...excludedSourceTypes);
+    }
     const rows = open().prepare(`
       SELECT status, source_type, COUNT(*) AS count
       FROM action_inbox_items
-      WHERE workspace_id = ? OR assignee_workspace_id = ?
+      WHERE ${clauses.join(" AND ")}
       GROUP BY status, source_type
-    `).all(workspace, workspace);
+    `).all(...values);
     const byStatus = {};
     const bySourceType = {};
     for (const row of rows) {

@@ -1314,27 +1314,6 @@ function createWebPushDeliveryService(options = {}) {
     const fallback = status === "failed" ? (message?.error || "Task failed") : "Task completed";
     const body = notificationBodyForMessage(thread, message, fallback);
     const route = terminalNotificationRoute(thread, message);
-    const inboxItem = await upsertActionInboxSourceItem({
-      workspaceId,
-      assigneeWorkspaceId: workspaceId,
-      sourceType: "chat",
-      sourceId: String(message?.id || message?.runId || message?.taskGroupId || thread?.id || Date.now()),
-      sourceRef: {
-        threadId: thread?.id || "",
-        taskGroupId: message?.taskGroupId || "",
-        messageId: taskReceiptStartMessageId(thread, message),
-        runId: message?.runId || "",
-        status,
-      },
-      itemType: status === "failed" ? "error" : "info",
-      status: "open",
-      priority: status === "failed" ? "high" : "normal",
-      title,
-      summary: body,
-      actionLabel: "\u6253\u5f00",
-      deepLink: route.url,
-      dedupeKey: `task:${thread?.id || ""}:${message?.id || message?.runId || message?.taskGroupId || ""}:${status}`,
-    });
     const data = {
       url: route.url,
       viewMode: route.viewMode,
@@ -1348,12 +1327,6 @@ function createWebPushDeliveryService(options = {}) {
       status,
       requireInteraction: true,
     };
-    if (inboxItem?.id) {
-      data.originalUrl = route.url;
-      data.inboxItemId = inboxItem.id;
-      data.viewMode = "inbox";
-      data.url = appRouteUrl({ view: "inbox", workspaceId, inboxItemId: inboxItem.id });
-    }
     return sendPushNotification({
       title,
       body,

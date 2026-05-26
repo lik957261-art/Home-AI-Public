@@ -41,6 +41,9 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Reflection UI: `public/app-learning-growth-reflection-ui.js`
 - AI/reward controllers: `public/app-learning-growth-ai-controller.js`, `public/app-learning-growth-reward-controller.js`
 - Coins compatibility: `public/app-learning-coins-ui.js`
+- Planned teaching-card UI flow: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md`
+- Code-oriented teaching-card UI implementation plan: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`
+- Growth detail should branch by card role: teaching/practice cards use lesson, example, guided practice, quick check, and feedback steps; stage assessment cards keep the formal submit/evaluate/revise/reflect flow.
 
 ## Automation
 

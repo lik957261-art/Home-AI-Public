@@ -162,7 +162,9 @@ True Growth task completion is separate from evaluation completion. After a task
 
 ### Chat
 
-Do not implement Chat integration in phase 1 unless needed for route plumbing. Later integration can create Inbox items for mentions and explicit follow-ups.
+Ordinary active chat/topic terminal receipts should not enter the default Inbox. They are immediate responses to a request the user just made, so Web Push should route directly back to the task/chat view.
+
+Later Chat-derived integration can create Inbox items for passive attention work such as mentions, permission requests, approvals, review requests, or explicit follow-ups.
 
 ## Official Kanban Migration
 
@@ -198,7 +200,7 @@ Implemented in static/client version `20260526-action-inbox-v247`:
 
 Follow-up in static/client version `20260526-inbox-growth-v249`:
 
-- Inbox rows/details show explicit source/type badges for Automation, Growth, manual Todo, chat task receipts, Weixin, and directory items.
+- Inbox rows/details show explicit source/type badges for Automation, Growth, manual Todo/reminder, Weixin, directory, approval/review, and executor completion items.
 - Inbox top-right menu opens Automation list or new automation creation; Automation stays hidden from the primary bottom tab.
 - Growth true-completion notices fan out to the task workspace, Owner, and workspaces authorized for that task workspace, using summary-only Inbox items and recipient-specific Web Push routes.
 
@@ -219,6 +221,7 @@ Follow-up in static/client version `20260526-bottom-topic-v252`:
 Still planned:
 
 - Add metadata-only official Kanban cleanup/migration tooling.
+- Add source-specific Inbox producers for permission, approval, and review workflows.
 - Broaden source integrations for chat mentions and Owner review requests.
 
 ## Validation
