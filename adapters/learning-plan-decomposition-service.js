@@ -496,9 +496,34 @@ function findTemplateSkill(modelTask = {}, fallbackTask = {}) {
   return candidates.find((skillId) => /^english_[a-z0-9_]+$/.test(skillId)) || uniqueStrings(fallbackTask.skillIds)[0] || "english_reading_comprehension";
 }
 
+function modelDailyPlansFromParsed(parsed = {}) {
+  if (Array.isArray(parsed)) return parsed;
+  const source = parsed && typeof parsed === "object" ? parsed : {};
+  if (Array.isArray(source.dailyPlans)) return source.dailyPlans;
+  if (Array.isArray(source.daily_plans)) return source.daily_plans;
+  if (Array.isArray(source.days)) return source.days;
+  if (Array.isArray(source.schedule)) return source.schedule;
+  if (Array.isArray(source.plan?.dailyPlans)) return source.plan.dailyPlans;
+  if (Array.isArray(source.plan?.days)) return source.plan.days;
+  if (Array.isArray(source.weeklyPlan?.dailyPlans)) return source.weeklyPlan.dailyPlans;
+  if (Array.isArray(source.weeklyPlan?.days)) return source.weeklyPlan.days;
+  if (Array.isArray(source.weekly_plan?.dailyPlans)) return source.weekly_plan.dailyPlans;
+  if (Array.isArray(source.weekly_plan?.days)) return source.weekly_plan.days;
+  return [];
+}
+
+function modelPlanMetadataFromParsed(parsed = {}) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  if (parsed.plan && typeof parsed.plan === "object" && !Array.isArray(parsed.plan)) return parsed.plan;
+  if (parsed.weeklyPlan && typeof parsed.weeklyPlan === "object" && !Array.isArray(parsed.weeklyPlan)) return parsed.weeklyPlan;
+  if (parsed.weekly_plan && typeof parsed.weekly_plan === "object" && !Array.isArray(parsed.weekly_plan)) return parsed.weekly_plan;
+  return parsed;
+}
+
 function normalizeModelDraft(parsed = {}, seedDraft = {}, program = {}, options = {}) {
   const templates = options.templates || [];
-  const modelDays = Array.isArray(parsed?.dailyPlans) ? parsed.dailyPlans : [];
+  const modelDays = modelDailyPlansFromParsed(parsed);
+  const metadata = modelPlanMetadataFromParsed(parsed);
   if (!modelDays.length) return null;
   const dailyPlans = (seedDraft.dailyPlans || []).map((seedDay, dayIndex) => {
     const modelDay = modelDays[dayIndex] || {};
@@ -552,8 +577,8 @@ function normalizeModelDraft(parsed = {}, seedDraft = {}, program = {}, options 
       noRawChildContent: true,
       privacyLevel: "summary_only",
       modelStatus: "completed",
-      rationale: compactText(parsed.rationale, 500),
-      riskFlags: uniqueStrings(parsed.riskFlags).slice(0, 8),
+      rationale: compactText(metadata.rationale || metadata.reasoning || metadata.summary, 500),
+      riskFlags: uniqueStrings(metadata.riskFlags || metadata.risk_flags).slice(0, 8),
     },
   });
 }
