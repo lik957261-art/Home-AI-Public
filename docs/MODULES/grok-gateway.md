@@ -21,6 +21,8 @@ Hermes Mobile should select the correct profile; it should not assume that passi
 - Provider: `xai-oauth`
 - Current exposed model family: `grok-4.3`
 - Routing should use `preferred_worker_profiles: ["grokgw1"]` or equivalent manifest/profile selection.
+- Cron-side `x_search` calls may run from a different WSL distro than the Grok Gateway worker. In that case the `x_search` proxy URL should be the bridge-host route `/bridge/grok-gateway-proxy`, which forwards only to the configured local Grok Gateway `/v1/responses` endpoint.
+- The `hermes-mobile-web` plugin should default `x_search` to that bridge-host route when no explicit `HERMES_MOBILE_X_SEARCH_PROXY_URL` is available. Do not assume the plugin process can reach the Grok worker on its own `127.0.0.1`.
 
 Do not expose stale Grok variants unless a live Gateway profile actually supports them.
 

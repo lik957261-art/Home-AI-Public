@@ -8,6 +8,7 @@ import ipaddress
 import json
 import os
 import re
+import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -134,6 +135,50 @@ def _gateway_api_key() -> str:
     return ""
 
 
+def _default_windows_host_gateway() -> str:
+    explicit = (
+        os.environ.get("HERMES_MOBILE_WINDOWS_HOST_GATEWAY")
+        or os.environ.get("HERMES_WEB_WINDOWS_HOST_GATEWAY")
+        or ""
+    ).strip()
+    if explicit:
+        return explicit
+    try:
+        result = subprocess.run(
+            ["ip", "route", "show", "default"],
+            text=True,
+            capture_output=True,
+            timeout=2,
+            check=False,
+        )
+        parts = result.stdout.split()
+        if "via" in parts:
+            candidate = parts[parts.index("via") + 1]
+            if candidate.count(".") == 3:
+                return candidate
+        for candidate in parts:
+            if candidate.count(".") == 3:
+                return candidate
+    except Exception:
+        pass
+    return ""
+
+
+def _bridge_host_x_search_proxy_url() -> str:
+    raw = (
+        os.environ.get("HERMES_MOBILE_BRIDGE_HOST_URL")
+        or os.environ.get("HERMES_WEB_BRIDGE_HOST_URL")
+        or ""
+    ).strip().rstrip("/")
+    if (not raw) or "127.0.0.1" in raw or "localhost" in raw.lower():
+        windows_host = _default_windows_host_gateway()
+        if windows_host:
+            raw = f"http://{windows_host}:8798"
+    if not raw:
+        return ""
+    return f"{raw}/bridge/grok-gateway-proxy"
+
+
 def _x_search_proxy_url() -> str:
     raw = (
         os.environ.get("HERMES_MOBILE_X_SEARCH_PROXY_URL")
@@ -141,7 +186,14 @@ def _x_search_proxy_url() -> str:
         or ""
     ).strip()
     if raw:
+        if "127.0.0.1" in raw or "localhost" in raw.lower():
+            bridge_proxy = _bridge_host_x_search_proxy_url()
+            if bridge_proxy:
+                return bridge_proxy
         return raw.rstrip("/")
+    bridge_proxy = _bridge_host_x_search_proxy_url()
+    if bridge_proxy:
+        return bridge_proxy
     port = os.environ.get("HERMES_MOBILE_X_SEARCH_PROXY_PORT", "").strip()
     try:
         parsed_port = int(port or DEFAULT_X_SEARCH_PROXY_PORT)

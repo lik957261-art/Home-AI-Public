@@ -135,6 +135,86 @@ def _job_log_path(job_id: str) -> Path:
     return _log_dir() / f"{job_id}-{stamp}.log"
 
 
+def _default_windows_host_gateway() -> str:
+    explicit = (
+        os.environ.get("HERMES_MOBILE_WINDOWS_HOST_GATEWAY")
+        or os.environ.get("HERMES_WEB_WINDOWS_HOST_GATEWAY")
+        or ""
+    ).strip()
+    if explicit:
+        return explicit
+
+    try:
+        result = subprocess.run(
+            ["ip", "route", "show", "default"],
+            text=True,
+            capture_output=True,
+            timeout=2,
+            check=False,
+        )
+        parts = result.stdout.split()
+        if "via" in parts:
+            candidate = parts[parts.index("via") + 1]
+            if candidate.count(".") == 3:
+                return candidate
+        for candidate in parts:
+            if candidate.count(".") == 3:
+                return candidate
+    except Exception:
+        pass
+
+    try:
+        for line in Path("/etc/resolv.conf").read_text(encoding="utf-8", errors="replace").splitlines():
+            fields = line.split()
+            if len(fields) >= 2 and fields[0] == "nameserver" and fields[1].count(".") == 3:
+                return fields[1]
+    except Exception:
+        pass
+
+    return ""
+
+
+def _cron_child_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["HERMES_MOBILE_CRON_CHILD"] = "1"
+    existing_proxy = env.get("HERMES_MOBILE_X_SEARCH_PROXY_URL", "").strip()
+    if (not existing_proxy) or "127.0.0.1" in existing_proxy or "localhost" in existing_proxy.lower():
+        bridge_host = (
+            env.get("HERMES_MOBILE_BRIDGE_HOST_URL")
+            or env.get("HERMES_WEB_BRIDGE_HOST_URL")
+            or ""
+        ).strip().rstrip("/")
+        if (not bridge_host) or "127.0.0.1" in bridge_host or "localhost" in bridge_host.lower():
+            windows_host = _default_windows_host_gateway()
+            if windows_host:
+                bridge_host = f"http://{windows_host}:8798"
+        if bridge_host:
+            env["HERMES_MOBILE_X_SEARCH_PROXY_URL"] = f"{bridge_host}/bridge/grok-gateway-proxy"
+    return env
+
+
+def _runner_tool_failure_summary() -> str:
+    log_path = os.environ.get("HERMES_MOBILE_CRON_RUNNER_LOG_PATH", "").strip()
+    if not log_path:
+        return ""
+    path = Path(log_path)
+    if not path.exists():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")[-200_000:]
+    except Exception:
+        return ""
+    x_search_failures = (
+        "Tool x_search returned error",
+        "grok_gateway_proxy_failed",
+        "grok_gateway_http_",
+        "gateway_api_key_unavailable",
+    )
+    if any(marker in text for marker in x_search_failures):
+        return "x_search tool failed during cron run"
+    return ""
+
+
 def dispatch_due_jobs() -> int:
     from cron.jobs import advance_next_run, get_due_jobs
 
@@ -166,8 +246,8 @@ def dispatch_due_jobs() -> int:
         try:
             advance_next_run(job_id)
             log_path = _job_log_path(job_id)
-            env = os.environ.copy()
-            env["HERMES_MOBILE_CRON_CHILD"] = "1"
+            env = _cron_child_env()
+            env["HERMES_MOBILE_CRON_RUNNER_LOG_PATH"] = str(log_path)
             with log_path.open("ab", buffering=0) as log:
                 process = subprocess.Popen(
                     [
@@ -241,6 +321,11 @@ def run_one_job(job_id: str) -> int:
         if success and not final_response:
             success = False
             error = "Agent completed but produced empty response (model error, timeout, or misconfiguration)"
+
+        tool_failure = _runner_tool_failure_summary()
+        if success and tool_failure:
+            success = False
+            error = tool_failure
 
         mark_job_run(job_id, success, error, delivery_error=delivery_error)
         print(f"mobile cron runner: finish job {job_id} success={success}")

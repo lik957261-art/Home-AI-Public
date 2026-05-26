@@ -26,6 +26,7 @@ const runKanbanGatewayWorkerShell = read(path.join("scripts", "run-kanban-gatewa
 const startCronTickSidecar = read(path.join("scripts", "start-cron-tick-sidecar.ps1"));
 const runCronTickSidecar = read(path.join("scripts", "run-cron-tick-sidecar.ps1"));
 const hermesMobileCronDispatcher = read(path.join("scripts", "hermes-mobile-cron-dispatcher.py"));
+const bridgeHost = read(path.join("scripts", "bridge-host.js"));
 const startWeixinFrontGateway = read(path.join("scripts", "start-weixin-front-gateway.ps1"));
 const startWeixinMobileIngressBridge = read(path.join("scripts", "start-weixin-mobile-ingress-bridge.ps1"));
 const weixinMobileIngressBridge = read(path.join("scripts", "weixin-mobile-ingress-bridge.py"));
@@ -376,6 +377,14 @@ assert.doesNotMatch(runCronTickSidecar, /cron", "tick"/);
 assert.doesNotMatch(runCronTickSidecar, /gateway", "run"/);
 
 assert.match(hermesMobileCronDispatcher, /def dispatch_due_jobs/);
+assert.match(hermesMobileCronDispatcher, /def _cron_child_env/);
+assert.match(hermesMobileCronDispatcher, /def _default_windows_host_gateway/);
+assert.match(hermesMobileCronDispatcher, /def _runner_tool_failure_summary/);
+assert.match(hermesMobileCronDispatcher, /HERMES_MOBILE_X_SEARCH_PROXY_URL/);
+assert.match(hermesMobileCronDispatcher, /existing_proxy/);
+assert.match(hermesMobileCronDispatcher, /HERMES_MOBILE_CRON_RUNNER_LOG_PATH/);
+assert.match(hermesMobileCronDispatcher, /\/bridge\/grok-gateway-proxy/);
+assert.match(hermesMobileCronDispatcher, /Tool x_search returned error/);
 assert.match(hermesMobileCronDispatcher, /subprocess\.Popen/);
 assert.match(hermesMobileCronDispatcher, /start_new_session=True/);
 assert.match(hermesMobileCronDispatcher, /advance_next_run\(job_id\)/);
@@ -384,6 +393,12 @@ assert.match(hermesMobileCronDispatcher, /run_job\(job\)/);
 assert.match(hermesMobileCronDispatcher, /mark_job_run\(job_id/);
 assert.match(hermesMobileCronDispatcher, /save_job_output\(job_id/);
 assert.doesNotMatch(hermesMobileCronDispatcher, /cron tick/);
+
+assert.match(bridgeHost, /\/bridge\/grok-gateway-proxy\/v1\/responses/);
+assert.match(bridgeHost, /HERMES_MOBILE_GROK_GATEWAY_URL/);
+assert.match(bridgeHost, /new URL\("\/v1\/responses"/);
+assert.match(bridgeHost, /gateway_api_key_required/);
+assert.match(bridgeHost, /grok_gateway_proxy_failed/);
 
 assert.match(startWeixinFrontGateway, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY/);
 assert.match(startWeixinFrontGateway, /gateway_state\.json/);
@@ -592,6 +607,9 @@ assert.match(httpPlugin, /HERMES_MOBILE_HTTP_ALLOWED_ORIGINS/);
 assert.match(webPlugin, /"name": "x_search"/);
 assert.match(webPlugin, /grok-gateway-proxy/);
 assert.match(webPlugin, /HERMES_MOBILE_X_SEARCH_PROXY_URL/);
+assert.match(webPlugin, /def _bridge_host_x_search_proxy_url/);
+assert.match(webPlugin, /HERMES_MOBILE_BRIDGE_HOST_URL/);
+assert.match(webPlugin, /"127\.0\.0\.1" in raw/);
 assert.match(webPlugin, /_is_grok_gateway_profile/);
 assert.match(httpPlugin, /HERMES_MOBILE_HTTP_FILE_ROOTS/);
 assert.match(httpPlugin, /file_body/);

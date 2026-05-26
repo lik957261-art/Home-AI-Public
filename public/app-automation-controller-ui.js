@@ -8,9 +8,7 @@ function automationRequestParams(options = {}) {
   params.set("detail", options.detail === "summary" ? "summary" : "full");
   const search = options.ignoreSearch ? "" : currentSearchText();
   if (search) params.set("search", search);
-  const routeAutomationId = options.routeTarget && state.selectedAutomationId
-    ? String(state.selectedAutomationId).trim()
-    : "";
+  const routeAutomationId = options.routeTarget && state.selectedAutomationId ? String(state.selectedAutomationId).trim() : "";
   if (routeAutomationId) params.set("automationId", routeAutomationId);
   if (options.refresh) params.set("refresh", "1");
   return params;
@@ -21,7 +19,7 @@ function automationFullStorageKey(params) {
   copy.delete("refresh");
   copy.delete("fresh");
   copy.set("detail", "full");
-  return `hermes:automation:full:${copy.toString()}`;
+  return `hermes:automation:full:${CLIENT_VERSION}:${copy.toString()}`;
 }
 
 function automationRequestCacheKey(params) {
@@ -60,6 +58,21 @@ function writeAutomationFullCache(params, result = {}) {
       warning: result.warning || "",
     }));
   } catch (_) {}
+}
+
+function clearAutomationFullCaches() {
+  try {
+    const prefix = `hermes:automation:full:${CLIENT_VERSION}:`;
+    for (let index = (window.localStorage?.length || 0) - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index);
+      if (key && key.startsWith(prefix)) window.localStorage.removeItem(key);
+    }
+  } catch (_) {}
+}
+
+function invalidateAutomationListCache() {
+  Object.assign(state, { automationCacheKey: "", automationFullCacheKey: "", automationLastLoadedAt: 0 });
+  clearAutomationFullCaches();
 }
 
 function automationIsSummaryJob(job) {
@@ -103,11 +116,8 @@ function scheduleAutomationDetailHydration(cacheKey) {
     if (state.viewMode !== "automation" || state.automationFullCacheKey === cacheKey) return;
     hydrateAutomationDetails({ cacheKey, silent: true }).catch(showError);
   };
-  if (typeof window.requestIdleCallback === "function") {
-    window.requestIdleCallback(hydrate, { timeout: 1500 });
-  } else {
-    window.setTimeout(hydrate, 250);
-  }
+  if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(hydrate, { timeout: 1500 });
+  else window.setTimeout(hydrate, 250);
 }
 
 async function hydrateAutomationDetails(options = {}) {
@@ -133,6 +143,7 @@ async function hydrateAutomationDetails(options = {}) {
 
 async function loadAutomations(options = {}) {
   const params = automationRequestParams(options);
+  const detail = params.get("detail") || "summary";
   const cacheKey = automationRequestCacheKey(params);
   const summaryCacheKey = automationSummaryCacheKey(params);
   const routeTargetId = String(state.automationRouteTargetId || state.selectedAutomationId || "").trim();
@@ -171,7 +182,7 @@ async function loadAutomations(options = {}) {
   if (!options.silent && state.automations.length) {
     $("connectionState").textContent = "刷新 CRON";
   }
-  if (!options.silent) renderAutomationView();
+  if (!options.silent || detail === "full") renderAutomationView({ preserveScroll: Boolean(options.silent) });
   let result;
   try {
     result = await api(`/api/automations?${params}`);
@@ -183,7 +194,6 @@ async function loadAutomations(options = {}) {
     throw err;
   }
   if (seq !== state.automationRequestSeq) return;
-  const detail = params.get("detail") || "summary";
   state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || [], { preferIncomingOrder: true }) : (result.data || []);
   if (detail === "full") writeAutomationFullCache(params, result);
   state.automationSource = Object.assign({}, result.source || {}, { warning: result.warning || "" });
@@ -209,10 +219,25 @@ async function loadAutomations(options = {}) {
     state.automationOutputHistoryOpen = false;
   }
   updateSearchButton();
-  if (!options.silent) renderAutomationView();
+  if (!options.silent || detail === "full") renderAutomationView({ preserveScroll: Boolean(options.silent) });
   if (detail !== "full") scheduleAutomationDetailHydration(summaryCacheKey);
   setComposerEnabled(false);
   $("connectionState").textContent = "Hermes OK";
+}
+
+async function refreshAutomationAfterPush(eventData = {}) {
+  const payload = eventData.payload || {};
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
+  const nestedData = data?.data && typeof data.data === "object" ? data.data : {};
+  const messageType = String(data.messageType || nestedData.messageType || "").trim();
+  const workspaceId = String(data.workspaceId || nestedData.workspaceId || "").trim();
+  const automationId = String(data.automationId || nestedData.automationId || "").trim();
+  if (!automationId && !messageType.startsWith("automation_")) return false;
+  if (workspaceId && state.selectedWorkspaceId && workspaceId !== state.selectedWorkspaceId) return false;
+  invalidateAutomationListCache();
+  if (state.viewMode !== "automation") return true;
+  await loadAutomations({ detail: "full", refresh: true, silent: true });
+  return true;
 }
 
 function automationStatusLabel(job) {
@@ -223,30 +248,34 @@ function automationStatusLabel(job) {
   return "scheduled";
 }
 
-function automationStatusDotTone(job, status = automationStatusLabel(job)) {
+function automationStatusTone(job, status = automationStatusLabel(job)) {
   const current = String(status || "").toLowerCase();
   const last = String(job?.lastStatus || job?.last_status || "").toLowerCase();
-  if (
-    current === "error" ||
-    last === "error" ||
-    last === "failed" ||
-    last === "failure" ||
-    job?.lastError ||
-    job?.lastDeliveryError
-  ) {
-    return "error";
-  }
+  if (current === "error" || ["error", "failed", "failure"].includes(last) || job?.lastError || job?.lastDeliveryError) return "error";
   const normalCurrent = ["scheduled", "running", "ok", "done", "completed", "success", "succeeded"];
   const normalLast = ["", "ok", "done", "completed", "success", "succeeded"];
   if (normalCurrent.includes(current) && normalLast.includes(last)) return "ok";
   return "info";
 }
 
+function automationStatusText(job, status = automationStatusLabel(job)) {
+  const tone = automationStatusTone(job, status);
+  if (tone === "error") return "\u5931\u8d25";
+  if (status === "paused") return "\u6682\u505c";
+  if (status === "done" || String(job?.lastStatus || "").toLowerCase() === "ok") return "\u5b8c\u6210";
+  if (status === "running") return "\u8fd0\u884c\u4e2d";
+  return "\u8ba1\u5212\u4e2d";
+}
+
 function renderAutomationStatusSummary(job, status = automationStatusLabel(job)) {
-  const tone = automationStatusDotTone(job, status);
+  const tone = automationStatusTone(job, status);
+  const text = automationStatusText(job, status);
   const lastRun = formatTime(job?.lastRunAt) || "--";
-  const label = `${status} | ${lastRun}`;
+  const latestDoc = automationLatestDocument(job);
+  const docTime = latestDoc ? formatTime(latestDoc.runOutputUpdatedAt || latestDoc.updatedAt) : "";
+  const label = `${text} | ${lastRun}${docTime ? ` | \u4ea4\u4ed8 ${docTime}` : ""}`;
   return `<span class="automation-state automation-state-summary ${escapeHtml(tone)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">
+    <span class="automation-state-result">${escapeHtml(text)}</span>
     <span class="automation-state-time">${escapeHtml(lastRun)}</span>
     <span class="automation-state-dot ${escapeHtml(tone)}" aria-hidden="true"></span>
   </span>`;
@@ -256,9 +285,7 @@ function currentAutomation() {
   return state.automations.find((job) => job.id === state.selectedAutomationId) || null;
 }
 
-function automationTitle(job) {
-  return compactDisplayText(job?.name || job?.id || "Cron job", 120);
-}
+function automationTitle(job) { return compactDisplayText(job?.name || job?.id || "Cron job", 120); }
 
 function automationGoalLine(job, max = 190) {
   const goal = compactDisplayText(
@@ -293,10 +320,7 @@ function automationSourceLine() {
   return `Hermes CRON | ${count} job${count === 1 ? "" : "s"}`;
 }
 
-function automationLatestDocument(job) {
-  const docs = Array.isArray(job?.outputDocuments) ? job.outputDocuments : [];
-  return docs[0] || null;
-}
+function automationLatestDocument(job) { return (Array.isArray(job?.outputDocuments) ? job.outputDocuments : [])[0] || null; }
 
 function automationOutputHref(doc) {
   try {
@@ -344,25 +368,18 @@ function renderAutomationLoading(message = "正在刷新 Hermes CRON") {
   </div>`;
 }
 
-function renderAutomationList() {
-  const list = $("threadList");
-  if (!list) return;
-  list.innerHTML = "";
-  return;
-}
+function renderAutomationList() { const list = $("threadList"); if (list) list.innerHTML = ""; }
 
-function renderAutomationView() {
+function renderAutomationView(options = {}) {
   applyViewMode();
-  state.currentThread = null;
-  state.currentThreadId = "";
-  state.currentTaskGroupId = "";
-  state.threads = [];
+  Object.assign(state, { currentThread: null, currentThreadId: "", currentTaskGroupId: "", threads: [] });
   renderAutomationList();
-  renderAutomationPanel();
+  renderAutomationPanel(options);
 }
 
-function renderAutomationPanel() {
+function renderAutomationPanel(options = {}) {
   const conversation = $("conversation");
+  const previousScrollTop = conversation?.scrollTop || 0;
   const selected = currentAutomation();
   $("threadTitle").textContent = "Hermes CRON";
   $("threadMeta").textContent = selected ? automationSourceLine() : "";
@@ -425,7 +442,11 @@ function renderAutomationPanel() {
     updateAutomationFromForm(conversation).catch(showError);
   });
   ensureVerticalScrollAffordance(conversation);
-  conversation.scrollTop = 0;
+  if (options.preserveScroll) {
+    conversation.scrollTop = Math.min(previousScrollTop, Math.max(0, conversation.scrollHeight - conversation.clientHeight));
+  } else {
+    conversation.scrollTop = 0;
+  }
 }
 
 function renderAutomationCreatePanel() {
@@ -505,6 +526,8 @@ function renderAutomationOutputLinks(job) {
 
 function renderAutomationDetail(job) {
   const status = automationStatusLabel(job);
+  const statusTone = automationStatusTone(job, status);
+  const statusText = automationStatusText(job, status);
   const meta = [
     automationScheduleLine(job),
     job.ownerPrincipalId ? `Owner ${job.ownerPrincipalId}` : "",
@@ -513,7 +536,7 @@ function renderAutomationDetail(job) {
   const timeRows = [
     ["\u4e0a\u6b21\u6267\u884c", job.lastRunAt ? formatTime(job.lastRunAt) : "\u6682\u65e0"],
     ["\u4e0b\u6b21\u6267\u884c", job.nextRunAt ? formatTime(job.nextRunAt) : "\u6682\u65e0"],
-    ["\u4e0a\u6b21\u7ed3\u679c", job.lastStatus || status],
+    ["\u4e0a\u6b21\u7ed3\u679c", statusText],
   ];
   const detailRows = [
     ["ID", job.id],
@@ -539,7 +562,7 @@ function renderAutomationDetail(job) {
         <h2>${escapeHtml(automationTitle(job))}</h2>
         ${meta ? `<div class="automation-detail-meta">${escapeHtml(meta)}</div>` : ""}
       </div>
-      <span class="automation-state">${escapeHtml(status)}</span>
+      <span class="automation-state ${escapeHtml(statusTone)}">${escapeHtml(statusText)}</span>
     </div>
     <div class="automation-run-times">
       ${timeRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}
@@ -556,21 +579,11 @@ function renderAutomationDetail(job) {
   </article>`;
 }
 
-function focusAutomationCreateSoon() {
-  setTimeout(() => {
-    $("automationNaturalText")?.focus();
-  }, 40);
-}
+function focusAutomationCreateSoon() { setTimeout(() => $("automationNaturalText")?.focus(), 40); }
 
 function openAutomationCreate() {
   closeTopMoreMenu();
-  state.selectedAutomationId = "";
-  state.automationRouteTargetId = "";
-  state.automationRouteTargetPending = false;
-  state.automationEditOpen = false;
-  state.automationEditJobId = "";
-  state.automationOutputHistoryOpen = false;
-  state.automationCreateOpen = true;
+  Object.assign(state, { selectedAutomationId: "", automationRouteTargetId: "", automationRouteTargetPending: false, automationEditOpen: false, automationEditJobId: "", automationOutputHistoryOpen: false, automationCreateOpen: true });
   renderAutomationView();
   focusAutomationCreateSoon();
 }
@@ -601,11 +614,7 @@ async function createAutomationFromForm(root) {
   }
 }
 
-function focusAutomationEditSoon() {
-  setTimeout(() => {
-    $("automationEditName")?.focus();
-  }, 40);
-}
+function focusAutomationEditSoon() { setTimeout(() => $("automationEditName")?.focus(), 40); }
 
 function openAutomationEdit() {
   const job = currentAutomation();
