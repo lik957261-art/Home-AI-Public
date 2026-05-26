@@ -346,12 +346,24 @@
     </section>`;
   }
 
-  function renderExperienceSignalActions(task = {}) {
+  function renderExperienceSignalActions(task = {}, state = {}) {
     const cardId = String(task.taskCardId || task.id || "");
+    const summary = task.experienceSummary && typeof task.experienceSummary === "object" ? task.experienceSummary : {};
+    const submitted = state.learningGrowthExperienceSignalSubmitted?.[cardId] || "";
+    const busy = state.learningGrowthExperienceSignalBusy?.[cardId] || "";
+    const selected = String(summary.latestSignalType || submitted || "").trim();
+    const locked = Boolean(selected || busy);
+    const actions = [
+      ["too_easy", "太简单"],
+      ["right_level", "正合适"],
+      ["too_hard", "有点难"],
+    ];
     return `<div class="learning-growth-experience-actions" data-learning-growth-experience-actions="${escapeHtmlLocal(cardId)}">
-      <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="too_easy">太简单</button>
-      <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="right_level">正合适</button>
-      <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="too_hard">有点难</button>
+      ${actions.map(([type, label]) => {
+        const isPending = busy === type;
+        const isSelected = selected === type || isPending;
+        return `<button type="button" class="${isSelected ? "is-selected" : ""}${isPending ? " is-pending" : ""}" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="${escapeHtmlLocal(type)}" aria-pressed="${isSelected ? "true" : "false"}" ${locked ? "disabled" : ""}>${escapeHtmlLocal(isPending ? "记录中" : label)}</button>`;
+      }).join("")}
     </div>`;
   }
 
@@ -376,7 +388,7 @@
       ${step === "guided_practice" ? renderTeachingGuidedPracticeSection(task, flow, draft) : ""}
       ${step === "quick_check" ? renderTeachingGuidedPracticeSection(task, flow, draft) + renderTeachingQuickCheckSection(task, flow, draft, { busy }) : ""}
       ${renderTeachingFeedbackSection(task)}
-      ${renderExperienceSignalActions(task)}
+      ${renderExperienceSignalActions(task, state)}
     </section>`;
   }
 

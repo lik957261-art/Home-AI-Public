@@ -40,7 +40,7 @@ function resetLearningCoinsState() {
   state.learningGrowth = null; state.learningGrowthBoardLane = "";
   state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
   state.learningGrowthHistoryTaskCardId = "";
-  state.learningGrowthTeachingStepByCardId = {}; state.learningGrowthTeachingDrafts = {}; state.learningGrowthExperienceSignalBusy = {}; state.learningGrowthTeachingCheckBusy = {}; state.learningGrowthStageAssessmentActivating = {};
+  state.learningGrowthTeachingStepByCardId = {}; state.learningGrowthTeachingDrafts = {}; state.learningGrowthExperienceSignalBusy = {}; state.learningGrowthExperienceSignalSubmitted = {}; state.learningGrowthTeachingCheckBusy = {}; state.learningGrowthStageAssessmentActivating = {};
   state.learningGrowthSettingsOpen = false;
   state.learningCoins = null; state.learningCoinsError = "";
   state.learningGrowthMasteryProfile = null; state.learningGrowthMasteryError = ""; state.learningGrowthMasteryLoading = false; state.learningParentReport = null; state.learningParentReportError = ""; state.learningParentReportLoading = false; state.learningCoinScopeKey = learningCoinCurrentScopeKey();

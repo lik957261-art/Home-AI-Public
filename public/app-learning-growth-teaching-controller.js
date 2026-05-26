@@ -5,6 +5,7 @@
     state.learningGrowthTeachingStepByCardId = state.learningGrowthTeachingStepByCardId || {};
     state.learningGrowthTeachingDrafts = state.learningGrowthTeachingDrafts || {};
     state.learningGrowthExperienceSignalBusy = state.learningGrowthExperienceSignalBusy || {};
+    state.learningGrowthExperienceSignalSubmitted = state.learningGrowthExperienceSignalSubmitted || {};
     state.learningGrowthTeachingCheckBusy = state.learningGrowthTeachingCheckBusy || {};
     state.learningGrowthStageAssessmentActivating = state.learningGrowthStageAssessmentActivating || {};
   }
@@ -80,17 +81,22 @@
     if (!id || !type) return;
     ensureTeachingState();
     if (state.learningGrowthExperienceSignalBusy[id]) return;
-    state.learningGrowthExperienceSignalBusy[id] = true;
+    if (state.learningGrowthExperienceSignalSubmitted[id]) return;
+    const current = selectedTask(id);
+    if (current?.experienceSummary?.latestSignalType) return;
+    state.learningGrowthExperienceSignalBusy[id] = type;
+    renderLearningCoinsView();
     try {
       await api(`/api/learning-growth/cards/${encodeURIComponent(id)}/experience-signal`, {
         method: "POST",
         body: JSON.stringify({ signalType: type }),
       });
+      state.learningGrowthExperienceSignalSubmitted[id] = type;
       showPushToast("学习反馈已记录", "success");
       await loadLearningCoins({ limit: 80 });
       renderLearningCoinsView();
     } finally {
-      state.learningGrowthExperienceSignalBusy[id] = false;
+      delete state.learningGrowthExperienceSignalBusy[id];
     }
   }
 

@@ -163,6 +163,18 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
   assert.doesNotMatch(html, /data-learning-open-growth-history="teach-1"/);
   assert.doesNotMatch(html, /\u8fd4\u56de\u4efb\u52a1/);
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form/);
+  const lockedHtml = TaskUi.renderTeachingCardDetail(Object.assign({}, task, {
+    experienceSummary: { latestSignalType: "too_hard", latestAt: "2026-05-26T00:00:00.000Z" },
+  }), { state: { learningGrowthTeachingStepByCardId: { "teach-1": "quick_check" } } });
+  assert.match(lockedHtml, /data-signal-type="too_hard"[^>]+aria-pressed="true"[^>]+disabled/);
+  assert.match(lockedHtml, /data-signal-type="too_easy"[^>]+disabled/);
+  const pendingHtml = TaskUi.renderTeachingCardDetail(task, {
+    state: {
+      learningGrowthTeachingStepByCardId: { "teach-1": "quick_check" },
+      learningGrowthExperienceSignalBusy: { "teach-1": "right_level" },
+    },
+  });
+  assert.match(pendingHtml, /data-signal-type="right_level"[^>]+aria-pressed="true"[^>]+disabled[^>]*>\u8bb0\u5f55\u4e2d/);
 }
 
 testNewEnglishTemplateActivityLabels();

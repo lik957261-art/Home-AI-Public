@@ -8927,6 +8927,26 @@ body.task-markdown-preview-open {
   background: rgba(255, 255, 255, 0.92);
 }
 
+.learning-growth-experience-actions button.is-selected {
+  color: var(--ui-accent-ink);
+  border-color: rgba(75, 124, 93, 0.22);
+  background: rgba(75, 124, 93, 0.12);
+}
+
+.learning-growth-experience-actions button.is-pending {
+  animation: learning-growth-feedback-pulse 920ms ease-in-out infinite;
+}
+
+.learning-growth-experience-actions button:disabled {
+  cursor: default;
+}
+
+@keyframes learning-growth-feedback-pulse {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+  100% { transform: translateY(0); }
+}
+
 .learning-growth-answer-instruction,
 .learning-growth-answer-feedback,
 .learning-growth-answer-feedback-detail,
