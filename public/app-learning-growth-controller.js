@@ -13,7 +13,7 @@ function learningGrowthLearnerWorkspaceId() {
   }
   const scoped = String(state.learningGrowthWorkspaceId || "").trim();
   if (state.auth?.isOwner && scoped && (!selected || selected === "owner")) return scoped;
-  if (state.auth?.isOwner && (!selected || selected === "owner")) return "";
+  if (state.auth?.isOwner && (!selected || selected === "owner")) return listedWorkspaceIds.includes(LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID) ? LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID : "";
   return selected || authWorkspace || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
 }
 

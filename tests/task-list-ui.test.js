@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260526-growth-settings-scope-v260";
+const CLIENT_VERSION = "20260526-growth-owner-send-scroll-v261";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -376,9 +376,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-growth-settings-scope-v260/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-growth-settings-scope-v260/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-growth-settings-scope-v260/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-growth-owner-send-scroll-v261/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-growth-owner-send-scroll-v261/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-growth-owner-send-scroll-v261/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1303,7 +1303,7 @@ assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "
 assert.match(appJs, /params\.set\("workspaceId", learningGrowthLearnerWorkspaceId\(\)\)/);
 assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(appLearningGrowthControllerJs, /function setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
-assert.match(appLearningGrowthControllerJs, /state\.auth\?\.isOwner && \(!selected \|\| selected === "owner"\)\) return ""/);
+assert.match(appLearningGrowthControllerJs, /listedWorkspaceIds\.includes\(LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID\) \? LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID : ""/);
 assert.match(appLearningGrowthControllerJs, /function learningGrowthLearnerLabel\(\)/);
 assert.match(appLearningGrowthControllerJs, /learnerName: learningGrowthLearnerLabel\(\)/);
 assert.doesNotMatch(appLearningGrowthControllerJs, /learnerName: "Fanfan"|learnerName: "凡凡"|displayName: "Fanfan"/);
@@ -1630,6 +1630,9 @@ assert.match(appJs, /spoken_reflection_required/);
 assert.match(appJs, /\\u6700\\u7ec8\\u8bc4\\u5206\\u5df2\\u8fbe\\u6807/);
 assert.match(appJs, /\\u590d\\u76d8\\u901a\\u8fc7\\u540e(?:\\u518d|\\u624d)\\u7ed3\\u7b97/);
 assert.match(appJs, /function submitLearningGrowthTask\(todoId, text\)/);
+assert.match(appJs, /function lockComposerSendToBottom\(\)/);
+assert.match(appJs, /state\.conversationViewportBottomFollowUntil = Date\.now\(\) \+ 1600/);
+assert.match(appJs, /requestAnimationFrame\(\(\) => \{\s*scrollConversationToBottom\(\);\s*requestAnimationFrame\(scrollConversationToBottom\);/);
 assert.match(appJs, /failBeforeSubmit/);
 assert.match(appJs, /const restoreScrollTop = \$\("conversation"\)\?\.scrollTop \|\| 0/);
 assert.match(appJs, /LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS/);

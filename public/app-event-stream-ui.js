@@ -148,10 +148,7 @@ async function sendMessage(event) {
       return;
     }
     setComposerText("");
-    if (isSingleWindowChatView()) {
-      state.forceChatStickToBottomUntil = Date.now() + 12000;
-      state.conversationPinnedToBottom = true;
-    }
+    lockComposerSendToBottom();
     const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
       method: "POST",
       body: serializedBody,
@@ -208,6 +205,18 @@ async function sendMessage(event) {
     $("sendMessage").disabled = false;
     updateComposerAction();
   }
+}
+
+function lockComposerSendToBottom() {
+  if (!conversationViewportRefreshApplies()) return;
+  state.forceChatStickToBottomUntil = Date.now() + 12000;
+  state.conversationViewportBottomFollowUntil = Date.now() + 1600;
+  state.suppressConversationPinUntil = Date.now() + 700;
+  state.conversationPinnedToBottom = true;
+  requestAnimationFrame(() => {
+    scrollConversationToBottom();
+    requestAnimationFrame(scrollConversationToBottom);
+  });
 }
 
 async function uploadFiles(files) {
