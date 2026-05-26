@@ -9,7 +9,7 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
 ## Product Shape
 
 - The bottom navigation target is `收件箱`.
-- The intended primary bottom navigation is `聊天 / 收件箱 / 目录 / 成长`.
+- The intended primary bottom navigation is `聊天 / 收件箱 / 话题 / 目录 / 成长`.
 - `自动化` becomes a background capability. Its completed/failed deliveries should enter Action Inbox instead of requiring a permanent bottom tab.
 - The Inbox top-right overflow menu is the primary mobile entry for Automation management: open the Automation list or create a new automation from Inbox without restoring Automation as a bottom tab.
 - Inbox root actions, including new manual Inbox item creation, belong in the top-right overflow menu rather than inline page buttons.

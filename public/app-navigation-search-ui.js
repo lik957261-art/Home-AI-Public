@@ -217,7 +217,7 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  const hiddenBottomTabs = new Set(["bottomTasksMode", "bottomAutomationMode"]);
+  const hiddenBottomTabs = new Set(["bottomAutomationMode"]);
   ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {

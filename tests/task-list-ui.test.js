@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260526-inbox-nav-v250";
+const CLIENT_VERSION = "20260526-inbox-topic-nav-v251";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -372,9 +372,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-inbox-nav-v250/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-inbox-nav-v250/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-inbox-nav-v250/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-inbox-topic-nav-v251/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-inbox-topic-nav-v251/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-inbox-topic-nav-v251/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1675,8 +1675,11 @@ assert.ok(appJs.includes("Topic ID"));
 assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="&#25104;&#38271;"/);
 assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomInboxMode"[\s\S]*aria-label="&#25910;&#20214;&#31665;"/);
-assert.match(indexHtml, /id="bottomTasksMode"[\s\S]*hidden aria-hidden="true"/);
+assert.match(indexHtml, /id="bottomTasksMode"[\s\S]*aria-label="话题"/);
+assert.doesNotMatch(indexHtml, /id="bottomTasksMode"[\s\S]{0,160}hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomAutomationMode"[\s\S]*hidden aria-hidden="true"/);
+assert.match(appJs, /const hiddenBottomTabs = new Set\(\["bottomAutomationMode"\]\)/);
+assert.doesNotMatch(appJs, /hiddenBottomTabs = new Set\(\[[^\]]*"bottomTasksMode"/);
 assert.match(stylesCss, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>/);
 assert.ok(indexHtml.includes(CLIENT_VERSION));
@@ -1807,6 +1810,7 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landsca
 assert.match(stylesCss, /\.reading-fullscreen-mode \.reading-fullscreen-exit \{[\s\S]*?font-size: 17px;/);
 assert.match(stylesCss, /padding-bottom: var\(--mobile-bottom-nav-reserved-height\)/);
 assert.match(stylesCss, /height: var\(--mobile-bottom-nav-height\)/);
+assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
 assert.match(appJs, /function currentTodoKanbanStatus\(grouped\)/);
 assert.match(appJs, /data-kanban-status="\$\{escapeHtml\(status\)\}"/);
 assert.match(appJs, /localStorage\.setItem\("hermesTodoKanbanStatus", status\)/);

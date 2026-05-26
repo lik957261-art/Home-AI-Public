@@ -117,6 +117,7 @@ Bottom navigation target:
 
 - `聊天`
 - `收件箱`
+- `话题`
 - `目录`
 - `成长`
 
@@ -192,7 +193,7 @@ Implemented in static/client version `20260526-action-inbox-v247`:
 - SQLite schema version 4 adds `action_inbox_items` and `action_inbox_events`.
 - `action-inbox-service` owns source dedupe, manual item creation, complete/dismiss/snooze, and audit events.
 - `action-inbox-api-routes` exposes workspace-scoped list/detail/create/action endpoints.
-- Bottom navigation now exposes Inbox and hides Topic/Automation from the mobile primary tab bar; Automation remains available as a background/admin surface.
+- Bottom navigation now exposes Inbox and keeps Topic in the mobile primary tab bar; Automation remains hidden as a background/admin surface.
 - Automation and Growth Web Push source events can upsert Inbox items and route notification clicks through `view=inbox&inboxItemId=...`.
 
 Follow-up in static/client version `20260526-inbox-growth-v249`:
@@ -206,6 +207,10 @@ Follow-up in static/client version `20260526-inbox-nav-v250`:
 - Inbox root no longer repeats the top bar title in the content area.
 - Inbox root page-level actions, including manual item creation, live in the top-right overflow menu.
 - Inbox detail/create are secondary screens using shared top-left back and right-swipe back; detail item actions move to the top-right overflow menu.
+
+Follow-up in static/client version `20260526-inbox-topic-nav-v251`:
+
+- Restored the Topic bottom-tab entry. The primary mobile bottom navigation is `聊天 / 收件箱 / 话题 / 目录 / 成长`; Automation remains available from the Inbox overflow menu rather than the bottom tab.
 
 Still planned:
 

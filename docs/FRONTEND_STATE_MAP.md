@@ -52,7 +52,7 @@ Use this file to locate the responsible frontend files before debugging a screen
 
 - Inbox tab/list/detail: `public/app-action-inbox-ui.js`
 - Route target: `view=inbox&inboxItemId=<id>`
-- Primary bottom navigation direction: `聊天 / 收件箱 / 目录 / 成长`
+- Primary bottom navigation direction: `聊天 / 收件箱 / 话题 / 目录 / 成长`
 - Inbox should render source tags and action states compactly, one list/detail surface, without relying on official Kanban UI modules.
 - Inbox root page-level actions live in the top-right overflow menu. Inbox detail/create are secondary states and should use shared top-left back plus right-swipe back, not inline duplicate back/title controls.
 
