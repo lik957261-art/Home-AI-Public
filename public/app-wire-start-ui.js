@@ -318,10 +318,32 @@ function wireUi() {
     closeTopMoreMenu();
     openTodoCreate();
   });
+  $("topNewActionInbox")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openActionInboxCreate();
+  });
+  $("topOpenActionInboxItem")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openCurrentActionInboxItemLink().catch(showError);
+  });
+  $("topCompleteActionInboxItem")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    mutateActionInboxItem("complete").catch(showError);
+  });
+  $("topSnoozeActionInboxItem")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    mutateActionInboxItem("snooze", { availableAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() }).catch(showError);
+  });
+  $("topDismissActionInboxItem")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    mutateActionInboxItem("dismiss").catch(showError);
+  });
   $("topOpenAutomation")?.addEventListener("click", () => {
+    closeTopMoreMenu();
     openAutomationSurface().catch(showError);
   });
   $("topNewAutomation")?.addEventListener("click", () => {
+    closeTopMoreMenu();
     if (state.viewMode === "automation") openAutomationCreate();
     else openAutomationSurface({ create: true }).catch(showError);
   });

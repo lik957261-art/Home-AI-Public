@@ -201,6 +201,12 @@ Follow-up in static/client version `20260526-inbox-growth-v249`:
 - Inbox top-right menu opens Automation list or new automation creation; Automation stays hidden from the primary bottom tab.
 - Growth true-completion notices fan out to the task workspace, Owner, and workspaces authorized for that task workspace, using summary-only Inbox items and recipient-specific Web Push routes.
 
+Follow-up in static/client version `20260526-inbox-nav-v250`:
+
+- Inbox root no longer repeats the top bar title in the content area.
+- Inbox root page-level actions, including manual item creation, live in the top-right overflow menu.
+- Inbox detail/create are secondary screens using shared top-left back and right-swipe back; detail item actions move to the top-right overflow menu.
+
 Still planned:
 
 - Add metadata-only official Kanban cleanup/migration tooling.

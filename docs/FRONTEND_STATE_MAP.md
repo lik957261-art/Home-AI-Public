@@ -54,6 +54,7 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Route target: `view=inbox&inboxItemId=<id>`
 - Primary bottom navigation direction: `聊天 / 收件箱 / 目录 / 成长`
 - Inbox should render source tags and action states compactly, one list/detail surface, without relying on official Kanban UI modules.
+- Inbox root page-level actions live in the top-right overflow menu. Inbox detail/create are secondary states and should use shared top-left back plus right-swipe back, not inline duplicate back/title controls.
 
 ## Kanban/Todo
 
@@ -76,4 +77,5 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Static client changes require version bump in `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`, and `tests/task-list-ui.test.js`.
 - Local in-flight state must not be displayed as server-confirmed state.
 - Route targets should be kept until the target module has fetched or rendered the requested resource.
+- Secondary screens should be represented by explicit detail/create state and wired into `updateNavigationControls()`, `activateTopNavButton()`, `backSwipeTarget()`, and `performBackSwipeAction()`. The content area should not duplicate the top bar title or page-level overflow actions.
 - Mobile safe-area, bottom nav, keyboard viewport, and back/right-swipe behavior must be tested when changing shell/navigation code.

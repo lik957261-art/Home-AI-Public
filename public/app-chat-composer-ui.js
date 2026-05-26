@@ -187,6 +187,10 @@ function isActionInboxDetailView() {
   return state.viewMode === "inbox" && Boolean(state.selectedActionInboxItemId);
 }
 
+function isActionInboxCreateView() {
+  return state.viewMode === "inbox" && Boolean(state.actionInboxCreateOpen);
+}
+
 function isSingleWindowView() {
   return state.viewMode === "single" && Boolean(state.currentThread?.singleWindow);
 }

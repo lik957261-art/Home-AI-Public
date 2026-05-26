@@ -10860,23 +10860,8 @@ body.task-markdown-preview-open {
   gap: 12px;
 }
 
-.action-inbox-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.action-inbox-header h2 {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.2;
-}
-
-.action-inbox-header p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 13px;
+.action-inbox-secondary {
+  width: min(760px, 100%);
 }
 
 .action-inbox-filter-row {
@@ -10940,8 +10925,7 @@ body.task-markdown-preview-open {
   padding: 9px 10px;
 }
 
-.action-inbox-create-actions,
-.action-inbox-actions {
+.action-inbox-create-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -11077,7 +11061,6 @@ body.task-markdown-preview-open {
   padding: 13px;
 }
 
-.action-inbox-detail-head,
 .action-inbox-detail-meta,
 .action-inbox-event {
   display: flex;

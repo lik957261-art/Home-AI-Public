@@ -12,6 +12,8 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
 - The intended primary bottom navigation is `聊天 / 收件箱 / 目录 / 成长`.
 - `自动化` becomes a background capability. Its completed/failed deliveries should enter Action Inbox instead of requiring a permanent bottom tab.
 - The Inbox top-right overflow menu is the primary mobile entry for Automation management: open the Automation list or create a new automation from Inbox without restoring Automation as a bottom tab.
+- Inbox root actions, including new manual Inbox item creation, belong in the top-right overflow menu rather than inline page buttons.
+- Inbox detail/create screens are secondary screens. They must use the shared top-left back button and right-swipe back path; the content area should not render another back button or duplicate the top bar title.
 - Existing simple Todo behavior becomes an Action Inbox item type instead of a separate product tab.
 - Chat integration is a later step; the first implementation should focus on module-generated items and manual items.
 
@@ -132,6 +134,7 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 
 - Keep mobile UI compact and scan-friendly.
 - Inbox rows and detail headers should show explicit source/type badges, not only low-contrast metadata, so items from Automation, Growth, manual Todo, and task receipts are distinguishable at a glance.
+- Do not duplicate the top bar title inside the Inbox content area. Page-level actions should stay in the overflow menu; form-submit controls may remain in the form itself.
 - Keep source modules canonical; Inbox only stores summary/action projection and audit events.
 - Dedupe by stable source references so repeated refreshes or Web Push deliveries do not create duplicate items.
 - Web Push should deep-link to Inbox when the user's next action is best represented there.

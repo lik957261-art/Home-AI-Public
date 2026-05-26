@@ -104,6 +104,7 @@ async function loadActionInboxItem(itemId, options = {}) {
   const result = await api(`/api/action-inbox/${encodeURIComponent(id)}`);
   state.selectedActionInboxItemId = id;
   state.actionInboxDetail = result;
+  state.actionInboxCreateOpen = false;
   if (!options.silent && state.viewMode === "inbox") renderActionInboxView();
   return result;
 }
@@ -113,6 +114,14 @@ function openActionInboxList() {
   state.selectedActionInboxItemId = "";
   state.actionInboxDetail = null;
   state.actionInboxCreateOpen = false;
+  renderActionInboxView();
+}
+
+function openActionInboxCreate() {
+  state.skillDetail = null;
+  state.selectedActionInboxItemId = "";
+  state.actionInboxDetail = null;
+  state.actionInboxCreateOpen = true;
   renderActionInboxView();
 }
 
@@ -160,24 +169,14 @@ function renderActionInboxDetail() {
   const item = currentActionInboxItem();
   if (!item) return "";
   const events = Array.isArray(state.actionInboxDetail?.events) ? state.actionInboxDetail.events : [];
-  const terminal = ["done", "dismissed", "archived"].includes(String(item.status || "").toLowerCase());
   return `<section class="action-inbox-detail" aria-label="${"\u6536\u4ef6\u8be6\u60c5"}">
-    <div class="action-inbox-detail-head">
-      <button class="secondary-button compact" type="button" data-action-inbox-back>${"\u8fd4\u56de"}</button>
-      <span class="action-inbox-status ${escapeHtml(actionInboxStatusTone(item.status))}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
-    </div>
     <h3>${escapeHtml(item.title || item.id || "\u6536\u4ef6")}</h3>
     ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ""}
     <div class="action-inbox-detail-meta">
       <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
       <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
+      <span class="action-inbox-status ${escapeHtml(actionInboxStatusTone(item.status))}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
       <span>${"\u66f4\u65b0\uff1a"}${escapeHtml(formatTime(item.updatedAt || item.createdAt) || item.updatedAt || item.createdAt || "")}</span>
-    </div>
-    <div class="action-inbox-actions">
-      ${item.deepLink ? `<button class="primary-button compact" type="button" data-action-inbox-open-link>${escapeHtml(item.actionLabel || "\u6253\u5f00")}</button>` : ""}
-      ${terminal ? "" : `<button class="secondary-button compact" type="button" data-action-inbox-complete>${"\u5b8c\u6210"}</button>`}
-      ${terminal ? "" : `<button class="secondary-button compact" type="button" data-action-inbox-snooze>${"\u7a0d\u540e"}</button>`}
-      ${terminal ? "" : `<button class="secondary-button compact" type="button" data-action-inbox-dismiss>${"\u5ffd\u7565"}</button>`}
     </div>
     ${events.length ? `<div class="action-inbox-events">
       ${events.slice(0, 8).map((event) => `<div class="action-inbox-event">
@@ -191,11 +190,10 @@ function renderActionInboxDetail() {
 function renderActionInboxCreatePanel() {
   if (!state.actionInboxCreateOpen) return "";
   return `<form class="action-inbox-create" id="actionInboxCreateForm">
-    <label class="action-inbox-create-label" for="actionInboxTitle">${"\u65b0\u589e\u4e8b\u9879"}</label>
+    <label class="action-inbox-create-label" for="actionInboxTitle">${"\u6807\u9898"}</label>
     <input id="actionInboxTitle" name="title" autocomplete="off" placeholder="${"\u6807\u9898"}" maxlength="180" required>
     <textarea id="actionInboxSummary" name="summary" rows="3" placeholder="${"\u5907\u6ce8"}"></textarea>
     <div class="action-inbox-create-actions">
-      <button class="secondary-button compact" type="button" data-close-action-inbox-create>${"\u53d6\u6d88"}</button>
       <button class="primary-button compact" type="submit" ${state.actionInboxCreateBusy ? "disabled" : ""}>${state.actionInboxCreateBusy ? "\u6b63\u5728\u4fdd\u5b58" : "\u4fdd\u5b58"}</button>
     </div>
   </form>`;
@@ -212,26 +210,20 @@ function renderActionInboxView(options = {}) {
   Object.assign(state, { currentThread: null, currentThreadId: "", currentTaskGroupId: "", threads: [] });
   const list = $("threadList");
   if (list) list.innerHTML = "";
-  $("threadTitle").textContent = "\u6536\u4ef6\u7bb1";
-  $("threadMeta").textContent = actionInboxCountsText();
+  const item = currentActionInboxItem();
+  const creating = Boolean(state.actionInboxCreateOpen);
+  $("threadTitle").textContent = creating ? "\u65b0\u589e\u4e8b\u9879" : (item ? "\u6536\u4ef6\u8be6\u60c5" : "\u6536\u4ef6\u7bb1");
+  $("threadMeta").textContent = creating
+    ? "\u6536\u4ef6\u7bb1"
+    : (item ? `${actionInboxSourceLabel(item.sourceType)} · ${actionInboxStatusLabel(item.status)}` : actionInboxCountsText());
   $("interruptRun").disabled = true;
   configureComposer({ enabled: false, placeholder: "\u6536\u4ef6\u7bb1" });
   updateNavigationControls();
   const conversation = $("conversation");
   if (!conversation) return;
   const previousScrollTop = conversation.scrollTop || 0;
-  conversation.innerHTML = `<section class="action-inbox-shell">
-    <header class="action-inbox-header">
-      <div>
-        <h2>${"\u6536\u4ef6\u7bb1"}</h2>
-        <p>${escapeHtml(actionInboxCountsText())}</p>
-      </div>
-      <button class="secondary-button compact" type="button" data-open-action-inbox-create>${"\u65b0\u589e"}</button>
-    </header>
-    ${renderActionInboxFilters()}
-    ${renderActionInboxCreatePanel()}
-    ${renderActionInboxDetail()}
-    ${renderActionInboxList()}
+  conversation.innerHTML = `<section class="action-inbox-shell${creating || item ? " action-inbox-secondary" : ""}">
+    ${creating ? renderActionInboxCreatePanel() : (item ? renderActionInboxDetail() : `${renderActionInboxFilters()}${renderActionInboxList()}`)}
   </section>`;
   wireActionInboxView(conversation);
   ensureVerticalScrollAffordance(conversation);
@@ -251,14 +243,6 @@ function wireActionInboxView(root) {
       loadActionInbox().catch(showError);
     });
   });
-  root.querySelector("[data-open-action-inbox-create]")?.addEventListener("click", () => {
-    state.actionInboxCreateOpen = true;
-    renderActionInboxView({ preserveScroll: true });
-  });
-  root.querySelector("[data-close-action-inbox-create]")?.addEventListener("click", () => {
-    state.actionInboxCreateOpen = false;
-    renderActionInboxView({ preserveScroll: true });
-  });
   root.querySelector("#actionInboxCreateForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     createActionInboxManualItem(root).catch(showError);
@@ -268,14 +252,12 @@ function wireActionInboxView(root) {
       loadActionInboxItem(button.dataset.actionInboxId).catch(showError);
     });
   });
-  root.querySelector("[data-action-inbox-back]")?.addEventListener("click", () => openActionInboxList());
-  root.querySelector("[data-action-inbox-open-link]")?.addEventListener("click", () => {
-    const item = currentActionInboxItem();
-    if (item?.deepLink && typeof openNotificationRoute === "function") openNotificationRoute(item.deepLink).catch(showError);
-  });
-  root.querySelector("[data-action-inbox-complete]")?.addEventListener("click", () => mutateActionInboxItem("complete").catch(showError));
-  root.querySelector("[data-action-inbox-dismiss]")?.addEventListener("click", () => mutateActionInboxItem("dismiss").catch(showError));
-  root.querySelector("[data-action-inbox-snooze]")?.addEventListener("click", () => mutateActionInboxItem("snooze", { availableAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() }).catch(showError));
+}
+
+function openCurrentActionInboxItemLink() {
+  const item = currentActionInboxItem();
+  if (item?.deepLink && typeof openNotificationRoute === "function") return openNotificationRoute(item.deepLink);
+  return Promise.resolve(null);
 }
 
 async function createActionInboxManualItem(root) {

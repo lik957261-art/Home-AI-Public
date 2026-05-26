@@ -75,7 +75,7 @@ function backSwipeTarget() {
   if (isTaskDetailView()) return "task";
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
   if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
-  if (isAutomationDetailView() || isActionInboxDetailView()) return isAutomationDetailView() ? "automation" : "action-inbox";
+  if (isAutomationDetailView() || isActionInboxDetailView() || isActionInboxCreateView()) return isAutomationDetailView() ? "automation" : (isActionInboxCreateView() ? "action-inbox-create" : "action-inbox");
   if (state.viewMode === "projects" && directoryActivePath()) return "directory";
   return "";
 }
@@ -115,7 +115,7 @@ function performBackSwipeAction(target) {
     renderLearningCoinsView();
   }
   else if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : navigateDirectoryUp({ animateEntry: true }).catch(showError);
-  else if (target === "automation" || target === "action-inbox") target === "automation" ? openAutomationList() : openActionInboxOverview();
+  else if (target === "automation" || target === "action-inbox" || target === "action-inbox-create") target === "automation" ? openAutomationList() : openActionInboxOverview();
 }
 
 async function handleInAppBackNavigation(options = {}) {

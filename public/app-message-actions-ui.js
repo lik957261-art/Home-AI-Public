@@ -421,6 +421,10 @@ function activateTopNavButton() {
     openAutomationList();
     return;
   }
+  if (isActionInboxDetailView() || isActionInboxCreateView()) {
+    openActionInboxOverview();
+    return;
+  }
   if (state.viewMode === "learning" && state.learningGrowthSettingsOpen) {
     closeLearningGrowthSettingsPage();
     return;
