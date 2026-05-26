@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260526-growth-teaching-flow-v256";
+const CLIENT_VERSION = "20260526-growth-teaching-flow-v257";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -376,9 +376,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-growth-teaching-flow-v256/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-growth-teaching-flow-v256/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-growth-teaching-flow-v256/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-growth-teaching-flow-v257/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-growth-teaching-flow-v257/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-growth-teaching-flow-v257/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1689,6 +1689,7 @@ assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="&#25104;&#38271;
 assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomInboxMode"[\s\S]*aria-label="&#25910;&#20214;&#31665;"/);
 assert.match(indexHtml, /id="bottomTasksMode"[\s\S]*aria-label="话题"/);
+assert.match(indexHtml, /id="bottomChatMode"[\s\S]*id="bottomTasksMode"[\s\S]*id="bottomInboxMode"[\s\S]*id="bottomProjectsMode"[\s\S]*id="bottomTodosMode"/);
 assert.doesNotMatch(indexHtml, /id="bottomTasksMode"[\s\S]{0,160}hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomAutomationMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(appJs, /const hiddenBottomTabs = new Set\(\["bottomAutomationMode"\]\)/);

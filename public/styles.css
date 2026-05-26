@@ -8902,7 +8902,7 @@ body.task-markdown-preview-open {
 
 .learning-growth-experience-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   padding: 8px;
   border: 1px solid rgba(31, 43, 51, 0.06);

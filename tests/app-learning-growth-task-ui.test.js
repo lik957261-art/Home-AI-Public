@@ -155,7 +155,11 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
   assert.match(html, /\u5206\u6bb5\u9605\u8bfb/);
   assert.match(html, /data-learning-growth-teaching-check-form="teach-1"/);
   assert.match(html, /data-learning-growth-experience-signal="teach-1"/);
-  assert.match(html, /data-learning-growth-stage-assessment-challenge="teach-1"/);
+  assert.match(html, /data-signal-type="too_easy"/);
+  assert.match(html, /data-signal-type="right_level"/);
+  assert.match(html, /data-signal-type="too_hard"/);
+  assert.doesNotMatch(html, /data-signal-type="not_learned"/);
+  assert.doesNotMatch(html, /data-learning-growth-stage-assessment-challenge="teach-1"/);
   assert.doesNotMatch(html, /data-learning-open-growth-history="teach-1"/);
   assert.doesNotMatch(html, /\u8fd4\u56de\u4efb\u52a1/);
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form/);

@@ -352,8 +352,6 @@
       <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="too_easy">太简单</button>
       <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="right_level">正合适</button>
       <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="too_hard">有点难</button>
-      <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="not_learned">没学过</button>
-      <button type="button" data-learning-growth-stage-assessment-challenge="${escapeHtmlLocal(cardId)}">挑战测验</button>
     </div>`;
   }
 
