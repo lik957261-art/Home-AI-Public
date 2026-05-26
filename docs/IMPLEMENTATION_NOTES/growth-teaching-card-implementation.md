@@ -20,6 +20,7 @@ V1 is implemented as native Growth behavior rather than a Kanban compatibility l
 - `adapters/learning-program-repository.js` schema version `11` adds role, reward, duration, activation, `teaching_flow_json`, and `experience_summary_json` fields to `learning_task_cards`, plus native `learning_growth_experience_signals` and `learning_growth_stage_assessment_cycles` tables.
 - `adapters/learning-growth-card-role-service.js` owns role defaults: ordinary cards default to 100 coins and 10-15 minutes; stage assessments default to 300 coins and 25-30 minutes.
 - `adapters/learning-growth-teaching-card-contract-service.js` normalizes persisted teaching flow. Persisted learner-facing cue fields use `instruction`, not `prompt`, because the privacy guard treats any stored key named `prompt` as a raw-prompt risk.
+- `adapters/learning-growth-jit-task-service.js` now requires model-authored `teachingFlow` for `teaching`, `practice`, and `integration_practice` cards when model generation is required. The accepted model structure includes micro-lesson, worked example, guided practice, quick check, and too-hard fallback sections. Missing `teachingFlow` is treated as invalid model output in production rather than silently splitting the old instruction text into a lesson.
 - `adapters/learning-growth-teaching-check-service.js` completes teaching/practice cards by recording summary-only evaluation evidence and then settling rewards through the existing evaluation -> reward settlement -> coin ledger boundary.
 - `adapters/learning-growth-stage-assessment-service.js` creates or activates formal `stage_assessment` cards for Owner/manual and executor challenge activation.
 - `server-routes/learning-growth-card-api-routes.js` exposes the native V1 routes.
@@ -394,7 +395,9 @@ Tests:
   - `knownPrerequisites`
   - `stageAssessmentEligibility`
 - Validate model output through `learning-growth-teaching-card-contract-service`.
-- If validation fails twice, produce a safe deterministic repair card or Owner-review draft. Do not publish an unsupported high-pressure task.
+- For ordinary `teaching`, `practice`, and `integration_practice` cards, the model output must include `teachingFlow`. With `requireModel=true`, missing `teachingFlow` fails closed and blocks publishing; deterministic local flow construction is only a compatibility projection for older cards or non-production fallback paths.
+- Future locked cards must not retain pre-generated `teachingFlow`; only the currently active card is JIT-authored at publish time.
+- If validation fails twice in a future regeneration loop, produce a safe deterministic repair card or Owner-review draft. Do not publish an unsupported high-pressure task.
 
 `adapters/learning-growth-task-interaction-state-service.js`
 

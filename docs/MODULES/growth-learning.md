@@ -78,6 +78,7 @@ Important tables include:
 - V1 teaching/practice/integration cards default to 100 coins and 10-15 minutes. V1 stage assessment cards default to 300 coins, 25-30 minutes, and more tasks/questions than daily cards. Backend reward policy can override coin values.
 - New teaching-card behavior uses native Growth board persistence and native Growth SQLite tables. Do not build the new feature around official Kanban compatibility; existing Kanban-linked routes are legacy/current-flow compatibility only.
 - Model-generated cards must pass a structured card contract and validation rules. The model is not trusted to infer pedagogy policy from prose alone; invalid or unsupported output should be rejected, regenerated, downgraded to a repair card, or held for Owner review.
+- For `teaching`, `practice`, and `integration_practice` cards, production JIT generation must return an explicit model-authored `teachingFlow` with micro-lesson, worked example, guided practice, and quick check sections. If `requireModel=true` and the model output omits that structure, publishing fails closed instead of silently using a local split of the old instruction text. Deterministic teaching-flow fallback is only a compatibility/normalization aid for older stored cards, not the production authoring path for new cards.
 - Historical mastery profile repair should use `scripts\backfill-learning-growth-mastery-profile.js`; it reads historical evaluation metadata and writes idempotent summary-only mastery states.
 
 ## Teaching Card Flow
@@ -108,8 +109,10 @@ Learning experience signals:
 ## Validation
 
 - `node tests\learning-growth-service.test.js`
+- `node tests\learning-growth-jit-task-service.test.js`
 - `node tests\learning-growth-board-projection-service.test.js`
 - `node tests\learning-growth-mastery-profile-service.test.js`
+- `node tests\learning-program-publish-service.test.js`
 - `node tests\learning-program-api-routes.test.js`
 - `node tests\learning-growth-teaching-card-services.test.js`
 - `node tests\learning-growth-card-api-routes.test.js`

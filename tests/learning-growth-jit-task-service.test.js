@@ -16,6 +16,39 @@ async function run() {
         skillTargets: ["english_grammar_in_expression"],
         deliverables: ["grammar repair answer", "reason explanation"],
         acceptance: ["answer explains tense agreement", "revision is submitted"],
+        teachingFlow: {
+          learningTarget: "Repair tense agreement in one sentence.",
+          whyItMatters: "Correct tense makes the sentence easier to understand.",
+          prerequisites: [{ id: "simple-present", label: "simple present tense", evidence: "weak" }],
+          microLesson: {
+            format: "text",
+            summary: "Match the verb tense to the time signal.",
+            learnerFacingText: "When the sentence talks about yesterday, use a past-tense verb.",
+            keyPoints: ["Find the time signal", "Choose the matching verb tense"],
+          },
+          workedExample: {
+            instruction: "Read the repair step.",
+            steps: [
+              { label: "Before", text: "Yesterday he walk to school." },
+              { label: "After", text: "Yesterday he walked to school." },
+            ],
+          },
+          guidedPractice: {
+            mode: "fill_blank",
+            instruction: "Fix one tense mistake with the example beside you.",
+            hints: ["Look for the time word first."],
+          },
+          quickCheck: {
+            mode: "short_answer",
+            instruction: "Fix: Last week she play tennis.",
+            expectedEvidence: ["uses played"],
+            completionCriteria: ["the verb matches last week"],
+          },
+          tooHardFallback: {
+            action: "prerequisite_repair",
+            reason: "Review past-tense verbs first.",
+          },
+        },
         questionItems: [
           {
             id: "q1",
@@ -96,13 +129,16 @@ async function run() {
   assert.equal(modelCalls[0].model, "gpt-5.5");
   assert.equal(modelCalls[0].reasoning_effort, "xhigh");
   assert.match(modelCalls[0].input, /summary-only learning state/i);
+  assert.match(modelCalls[0].input, /teachingFlow is required/);
   assert.doesNotMatch(modelCalls[0].input, /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);
   assert.match(prepared.learnerInstruction, /模型生成/);
   assert.match(prepared.learnerInstruction, /tense agreement/);
+  assert.equal(prepared.cardRole, "teaching");
   assert.equal(prepared.learningGrowthJitGeneration.status, "ready");
   assert.equal(prepared.learningGrowthJitGeneration.sequenceIndex, 3);
   assert.equal(prepared.learningGrowthJitGeneration.difficultyBand, "repair");
   assert.equal(prepared.learningGrowthJitGeneration.modelStatus, "completed");
+  assert.equal(prepared.learningGrowthJitGeneration.teachingFlowStatus, "model_generated");
   assert.equal(prepared.learningGrowthJitGeneration.mode, "model_assisted_summary_state_at_card_creation");
   assert.deepEqual(prepared.learningGrowthJitGeneration.sourceRefs.slice().sort(), ["assessment:recent-2", "progress:recent-1"]);
   assert.equal(prepared.taskModel.jitGeneration.ready, true);
@@ -111,6 +147,13 @@ async function run() {
   assert.equal(prepared.taskModel.questionItems.length, 1);
   assert.equal(prepared.taskModel.questionItems[0].stem, "Which revision best fixes the tense agreement issue?");
   assert.doesNotMatch(JSON.stringify(prepared.taskModel.questionItems), /answerKey|must-not-leak/);
+  assert.equal(prepared.teachingFlow.generationSource, "model_generated_jit");
+  assert.equal(prepared.teachingFlow.learningTarget, "Repair tense agreement in one sentence.");
+  assert.match(prepared.teachingFlow.lesson.explanation, /past-tense verb/);
+  assert.match(prepared.teachingFlow.lesson.examples.join(" "), /Yesterday he walked/);
+  assert.equal(prepared.teachingFlow.guidedPractice.instruction, "Fix one tense mistake with the example beside you.");
+  assert.equal(prepared.teachingFlow.quickCheck.instruction, "Fix: Last week she play tennis.");
+  assert.equal(prepared.taskModel.teachingFlow.generationSource, "model_generated_jit");
   assert.deepEqual(prepared.deliverables, ["grammar repair answer", "reason explanation"]);
   assert.doesNotMatch(JSON.stringify(prepared), /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath|rawResponse/);
 
@@ -150,6 +193,17 @@ async function run() {
 
   const required = createLearningGrowthJitTaskService({ requireModel: true });
   await assert.rejects(() => required.prepareTaskForCard({ task: { title: "No model" } }), /requires model assistance/);
+
+  const missingTeachingFlow = createLearningGrowthJitTaskService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async () => JSON.stringify({
+      learnerInstruction: "Generated content without the teaching flow.",
+    }),
+    requireModel: true,
+  });
+  await assert.rejects(() => missingTeachingFlow.prepareTaskForCard({
+    task: { title: "Missing teaching flow", cardRole: "teaching" },
+  }), /must include teachingFlow/);
 }
 
 run().then(() => {

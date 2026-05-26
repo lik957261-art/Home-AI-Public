@@ -306,16 +306,16 @@ Required model input:
 Required model output schema for teaching/practice cards:
 
 - `cardRole`
-- `learningTarget`
-- `prerequisites`
-- `microLesson`
-- `workedExample`
-- `guidedPractice`
-- `quickCheck`
+- `teachingFlow.learningTarget`
+- `teachingFlow.prerequisites`
+- `teachingFlow.microLesson`
+- `teachingFlow.workedExample`
+- `teachingFlow.guidedPractice`
+- `teachingFlow.quickCheck`
 - `expectedTimeMinutes`
 - `difficultyBasis`
 - `supportLevel`
-- `tooHardFallback`
+- `teachingFlow.tooHardFallback`
 - `evidenceToRecord`
 
 Validation rules:
@@ -326,6 +326,7 @@ Validation rules:
 - If prerequisites are missing or uncertain, the card must be a teaching or repair card, not a stage assessment.
 - Expected time for ordinary cards should normally stay within 10-15 minutes.
 - The generated content must not include raw prompts, hidden answer keys in public projections, or unsupported claims about mastery.
+- In production, ordinary teaching/practice/integration cards must be authored through model output. If `requireModel=true` and the JIT model response omits `teachingFlow`, publishing fails closed rather than showing a locally fabricated lesson as if it were model-generated.
 - If schema validation fails, regenerate once with explicit errors; if it fails again, fall back to a deterministic repair card or require Owner review.
 
 This makes the model an author within a constrained product workflow, not the owner of the pedagogy policy.

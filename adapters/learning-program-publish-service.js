@@ -67,6 +67,7 @@ function stripFutureGeneratedInstruction(task = {}, sequenceIndex = 0) {
     delete taskModel.learnerInstruction;
     delete taskModel.instruction;
     delete taskModel.jitGeneration;
+    delete taskModel.teachingFlow;
   }
   const stripped = Object.assign({}, task, {
     sequenceIndex,
@@ -80,6 +81,7 @@ function stripFutureGeneratedInstruction(task = {}, sequenceIndex = 0) {
   delete stripped.prompt;
   delete stripped.taskPrompt;
   delete stripped.instructions;
+  delete stripped.teachingFlow;
   return stripped;
 }
 
