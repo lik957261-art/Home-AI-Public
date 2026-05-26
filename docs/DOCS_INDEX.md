@@ -28,6 +28,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - ChatGPT Pro bridge: `docs/MODULES/chatgpt-pro.md`
 - Skill permissions: `docs/MODULES/skill-permissions.md`
 - Automation/Cron: `docs/MODULES/automation.md`
+- Action Inbox / user participation queue: `docs/MODULES/action-inbox.md`
 - Static client/cache/deploy: `docs/MODULES/static-client.md`, `docs/MODULES/deployment.md`
 - Workspace auth, keys, and access policy: `docs/MODULES/workspace-auth-permissions.md`
 - Directory, files, previews, and shared roots: `docs/MODULES/directory-files.md`
@@ -54,6 +55,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`
 - Skill write protection: `docs/IMPLEMENTATION_NOTES/skill-write-protection.md`
 - Web Push deep-link routing: `docs/IMPLEMENTATION_NOTES/web-push-deeplink-routing.md`
+- Action Inbox implementation plan: `docs/IMPLEMENTATION_NOTES/action-inbox.md`
 
 ## Documentation Rule
 

@@ -1,6 +1,7 @@
 "use strict";
 
 const { createAccessKeyApiRoutes } = require("./access-key-api-routes");
+const { createActionInboxApiRoutes } = require("./action-inbox-api-routes");
 const { createAutomationApiRoutes } = require("./automation-api-routes");
 const { createDirectoryBrowserApiRoutes } = require("./directory-browser-api-routes");
 const { createDirectoryMutationApiRoutes } = require("./directory-mutation-api-routes");
@@ -30,6 +31,7 @@ const { createLearningParentReviewRequestService } = require("../adapters/learni
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
 const { createLearningProgramService } = require("../adapters/learning-program-service");
+const { createActionInboxService } = require("../adapters/action-inbox-service");
 const { createKanbanCaseTopicDeliveryService } = require("../adapters/kanban-case-topic-delivery-service");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
@@ -387,6 +389,21 @@ function createMobileApiComposition(deps = {}) {
     handleThreadMessageOwnerElevation: (...args) => deps.getThreadMessageRunRouteService().handleThreadMessageOwnerElevation(...args),
   });
 
+  const actionInboxService = deps.actionInboxService || createActionInboxService({
+    compactText: deps.compactText,
+    makeId: deps.makeId,
+    nowIso: deps.nowIso,
+    store: deps.mobileSqliteStore,
+  });
+  const actionInboxApiRoutes = createActionInboxApiRoutes({
+    actionInboxService,
+    broadcast: deps.broadcast,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "action inbox api routes ready");
+
   const todoApiRoutes = createTodoApiRoutes({
     boolParam: deps.boolParam,
     broadcast: deps.broadcast,
@@ -681,6 +698,7 @@ function createMobileApiComposition(deps = {}) {
 
   const mobileApiDispatcher = createMobileApiDispatcher({
     accessKeyApiRoutes,
+    actionInboxApiRoutes,
     attachClientVersionHeaders: deps.attachClientVersionHeaders,
     authenticateRequest: deps.authenticateRequest,
     automationApiRoutes,
@@ -719,10 +737,12 @@ function createMobileApiComposition(deps = {}) {
     eventStreamApiRoutes,
     mobileApiDispatcher,
     services: {
+      actionInboxService,
       learningGrowthSubmissionService,
     },
     routes: {
       accessKeyApiRoutes,
+      actionInboxApiRoutes,
       automationApiRoutes,
       directoryBrowserApiRoutes,
       directoryMutationApiRoutes,

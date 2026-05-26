@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260525-learning-mastery-domain-tabs-v244";
+const CLIENT_VERSION = "20260526-action-inbox-v247";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -156,10 +156,23 @@ assert.match(appJs, /params\.set\("detail", options\.detail === "summary" \? "su
 assert.match(appJs, /options\.ignoreSearch \? "" : currentSearchText\(\)/);
 assert.match(appJs, /if \(routeAutomationId\) params\.set\("automationId", routeAutomationId\)/);
 assert.match(appJs, /function automationFullStorageKey\(params\)/);
+assert.match(appJs, /hermes:automation:full:\$\{CLIENT_VERSION\}:\$\{copy\.toString\(\)\}/);
 assert.match(appJs, /window\.localStorage\?\.getItem\(automationFullStorageKey\(params\)\)/);
+assert.match(appJs, /function clearAutomationFullCaches\(\)/);
+assert.match(appJs, /function invalidateAutomationListCache\(\)/);
+assert.match(appJs, /window\.localStorage\.removeItem\(key\)/);
 assert.match(appJs, /cachedHasRouteTarget/);
 assert.match(appJs, /!options\.refresh && cacheFresh && !routeTargetPending/);
 assert.match(appJs, /window\.setTimeout\(\(\) => loadAutomations\(\{ detail: "full", refresh: true, silent: true \}\)\.catch\(showError\), 0\)/);
+assert.match(appJs, /if \(!options\.silent \|\| detail === "full"\) renderAutomationView\(\{ preserveScroll: Boolean\(options\.silent\) \}\)/);
+assert.match(appJs, /async function refreshAutomationAfterPush\(eventData = \{\}\)/);
+assert.match(appJs, /messageType\.startsWith\("automation_"\)/);
+assert.match(appJs, /refreshAutomationAfterPush\(eventData\)\.catch\(showError\)/);
+assert.match(appJs, /async function loadActionInbox\(options = \{\}\)/);
+assert.match(appJs, /\/api\/action-inbox\?\$\{actionInboxFilterQuery\(\)\}/);
+assert.match(appJs, /function renderActionInboxView\(options = \{\}\)/);
+assert.match(appJs, /refreshActionInboxAfterPush\(eventData\)\.catch\(showError\)/);
+assert.match(appJs, /state\.viewMode === "inbox"[\s\S]*?await loadActionInbox\(\)/);
 assert.match(appJs, /function hydrateAutomationDetails\(options = \{\}\)/);
 assert.match(appJs, /preferIncomingOrder/);
 assert.match(appJs, /detail === "full" \? mergeAutomationJobs\(state\.automations, result\.data \|\| \[\], \{ preferIncomingOrder: true \}\)/);
@@ -168,6 +181,8 @@ assert.match(appJs, /state\.automationRouteTargetPending = false/);
 assert.match(appJs, /\\u6b63\\u5728\\u6253\\u5f00\\u81ea\\u52a8\\u5316\\u4efb\\u52a1/);
 assert.match(appJs, /scheduleAutomationDetailHydration\(summaryCacheKey\)/);
 assert.match(appJs, /function automationIsSummaryJob\(job\)/);
+assert.match(appJs, /function automationStatusText\(job, status = automationStatusLabel\(job\)\)/);
+assert.match(appJs, /automation-state-result/);
 assert.match(appJs, /data-task-doc data-artifact-name="\$\{escapeHtml\(name\)\}" data-artifact-mime="\$\{escapeHtml\(mime\)\}"/);
 assert.match(appJs, /wireTaskDocumentLinks\(conversation\)/);
 assert.match(stylesCss, /\.task-markdown-preview-overlay/);
@@ -305,9 +320,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260525-learning-mastery-domain-tabs-v244/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260525-learning-mastery-domain-tabs-v244/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260525-learning-mastery-domain-tabs-v244/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-action-inbox-v247/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-action-inbox-v247/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-action-inbox-v247/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -324,7 +339,7 @@ assert.match(appJs, /state\.viewMode === "learning" && \(state\.learningGrowthSe
 assert.match(appJs, /target === "learning-growth-settings"[\s\S]*?closeLearningGrowthSettingsPage\(\)/);
 assert.match(appJs, /target === "learning-growth-task"[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
 assert.match(appJs, /const learningGrowthDetail = state\.viewMode === "learning" && Boolean\(state\.selectedLearningTaskCardId\)/);
-assert.match(appJs, /mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail/);
+assert.match(appJs, /mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| actionInboxDetail \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail/);
 assert.match(appJs, /state\.viewMode === "learning" && state\.selectedLearningTaskCardId[\s\S]*?state\.selectedLearningTaskCardId = ""[\s\S]*?renderLearningCoinsView\(\)/);
 assert.match(appJs, /target === "directory"[\s\S]*?state\.directoryReturnRoute \? restoreDirectoryReturnRoute\(\) : navigateDirectoryUp\(\{ animateEntry: true \}\)\.catch\(showError\)/);
 assert.match(appJs, /if \(target === "directory"\) state\.directoryReturnRoute \? restoreDirectoryReturnRoute\(\) : await navigateDirectoryUp/);
@@ -1219,7 +1234,7 @@ assert.doesNotMatch(appJs, /routeView && routeView !== "learning"/);
 assert.match(appJs, /function applyDefaultLaunchView\(\) \{\s*state\.viewMode = "single";/);
 assert.doesNotMatch(appJs, /node\.hidden = Boolean\(state\.auth && !state\.auth\.isOwner\)/);
 assert.doesNotMatch(appJs, /node\.disabled = Boolean\(state\.auth && !state\.auth\.isOwner\)/);
-assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"/);
+assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"/);
 assert.match(appJs, /params\.set\("workspaceId", learningGrowthLearnerWorkspaceId\(\)\)/);
 assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(appLearningGrowthControllerJs, /function setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
@@ -1607,6 +1622,9 @@ assert.match(stylesCss, /\.learning-answer-review/);
 assert.ok(appJs.includes("Topic ID"));
 assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="&#25104;&#38271;"/);
 assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"/);
+assert.match(indexHtml, /id="bottomInboxMode"[\s\S]*aria-label="&#25910;&#20214;&#31665;"/);
+assert.match(indexHtml, /id="bottomTasksMode"[\s\S]*hidden aria-hidden="true"/);
+assert.match(indexHtml, /id="bottomAutomationMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(stylesCss, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 assert.match(indexHtml, /<span class="bottom-tab-label">&#25104;&#38271;<\/span>/);
 assert.ok(indexHtml.includes(CLIENT_VERSION));
@@ -1626,6 +1644,10 @@ assert.match(serviceWorkerJs, /for \(const client of topLevelClients\.filter\(is
   assert.ok(appShellLoopStart > -1 && fallbackLoopStart > appShellLoopStart);
   assert.equal(serviceWorkerJs.slice(appShellLoopStart, fallbackLoopStart).includes("client.navigate(targetUrl)"), false);
 }
+assert.ok(
+  serviceWorkerJs.indexOf("if (data.inboxItemId)") < serviceWorkerJs.indexOf("if (data.automationId)"),
+  "notification inbox route should take precedence over automation detail fields",
+);
 assert.ok(
   serviceWorkerJs.indexOf("if (data.automationId)") < serviceWorkerJs.indexOf("return explicitUrl || \"/\";"),
   "notification structured route fields should take precedence over explicit file/preview urls",
@@ -1671,7 +1693,7 @@ assert.match(stylesCss, /\.section-toggle \{[\s\S]*?grid-template-columns: repea
 assert.match(stylesCss, /@media \(max-width: 1099px\)/);
 assert.match(appJs, /window\.matchMedia\("\(max-width: 1099px\)"\)/);
 assert.match(appJs, /const learningGrowthSettings = state\.viewMode === "learning" && Boolean\(state\.learningGrowthSettingsOpen\)/);
-assert.match(appJs, /const mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail \|\| learningGrowthSettings/);
+assert.match(appJs, /const mainBack = taskDetail \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| actionInboxDetail \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail \|\| learningGrowthSettings/);
 assert.match(appJs, /if \(isTodoDetailView\(\) \|\| kanbanComposerOpen\(\)\) return isTodoDetailView\(\) \? "todo" : "todo-create";/);
 assert.match(appJs, /state\.learningGrowthSettingsOpen \? "learning-growth-settings" : "learning-growth-task"/);
 assert.match(appJs, /else if \(target === "todo" \|\| target === "todo-create"\) openTodoList\(\);/);
@@ -1734,7 +1756,7 @@ assert.match(appJs, /function currentTodoKanbanStatus\(grouped\)/);
 assert.match(appJs, /data-kanban-status="\$\{escapeHtml\(status\)\}"/);
 assert.match(appJs, /localStorage\.setItem\("hermesTodoKanbanStatus", status\)/);
 assert.match(appJs, /function renderTodoList\(\) \{\s+const list = \$\("threadList"\);\s+if \(!list\) return;\s+list\.innerHTML = "";\s+return;/);
-assert.match(appJs, /function renderAutomationList\(\) \{\s+const list = \$\("threadList"\);\s+if \(!list\) return;\s+list\.innerHTML = "";\s+return;/);
+assert.match(appJs, /function renderAutomationList\(\) \{ const list = \$\("threadList"\); if \(list\) list\.innerHTML = ""; \}/);
 assert.match(appJs, /function projectDisplayLabel\(project\) \{\s+return project\?\.label \|\| project\?\.id \|\| "Project";\s+\}/);
 assert.match(appJs, /function renderDirectorySharedBadge\(project\)/);
 assert.match(appJs, /directory-shared-badge/);

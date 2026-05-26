@@ -173,18 +173,20 @@ function updateNavigationControls() {
   const todoDetail = isTodoDetailView();
   const todoCreate = kanbanComposerOpen();
   const automationDetail = isAutomationDetailView();
+  const actionInboxDetail = isActionInboxDetailView();
   const skillDetail = isSkillDetailView();
   const taskList = isTaskListView();
   const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
   const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
   const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings;
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || actionInboxDetail || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
     || (state.viewMode === "tasks" && !state.currentTaskGroupId)
     || (state.viewMode === "projects")
     || (state.viewMode === "todos" && !todoDetail)
+    || (state.viewMode === "inbox" && !actionInboxDetail)
     || (state.viewMode === "automation" && !automationDetail)
     || state.viewMode === "learning"
   );
@@ -193,6 +195,7 @@ function updateNavigationControls() {
   app?.classList.toggle("todo-detail-mode", todoDetail);
   app?.classList.toggle("todo-create-mode", todoCreate);
   app?.classList.toggle("automation-detail-mode", automationDetail);
+  app?.classList.toggle("action-inbox-detail-mode", actionInboxDetail);
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
   app?.classList.toggle("learning-mode", state.viewMode === "learning");
@@ -212,7 +215,14 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = false; node.disabled = false; } });
+  const hiddenBottomTabs = new Set(["bottomTasksMode", "bottomAutomationMode"]);
+  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => {
+    const node = $(id);
+    if (node) {
+      node.hidden = hiddenBottomTabs.has(id);
+      node.disabled = false;
+    }
+  });
   updateTopMoreControls();
 }
 

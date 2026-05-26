@@ -5,6 +5,19 @@ store for the mobile Todo tab. This keeps the mobile UI compatible with existing
 `/api/todos` clients while moving task state to the official Hermes Kanban
 kernel.
 
+## Legacy Status
+
+This integration is legacy for the Hermes Mobile primary user-participation surface.
+
+The product direction is Action Inbox:
+
+- new manual todos should become local Action Inbox items;
+- Automation delivery results should appear in Action Inbox;
+- Growth next actions should appear in Action Inbox;
+- official Hermes Kanban should not be the new Inbox source of truth.
+
+Production may temporarily continue to run with `HERMES_WEB_TODO_BACKEND=kanban` until Action Inbox can create, list, complete, dismiss, and deep-link local items. Before disabling this compatibility path, back up official Kanban data and preserve or migrate the current `Everything's amazing` reading task.
+
 ## Mode
 
 Enable the compatibility layer with:

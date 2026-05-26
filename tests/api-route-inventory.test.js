@@ -182,6 +182,18 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "action-inbox-api-routes",
+    exportName: "createActionInboxApiRoutes",
+    required: false,
+    minRoutes: 4,
+    probes: [
+      { method: "GET", path: "/api/action-inbox", id: "action-inbox-list" },
+      { method: "POST", path: "/api/action-inbox", id: "action-inbox-create" },
+      { method: "GET", path: "/api/action-inbox/item-1", id: "action-inbox-detail" },
+      { method: "POST", path: "/api/action-inbox/item-1/complete", id: "action-inbox-action" },
+    ],
+  },
+  {
     key: "todo-api-routes",
     exportName: "createTodoApiRoutes",
     required: false,
@@ -399,7 +411,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
 function testLearningProgramInventoryMatchesRouteModuleSpecs() {
   const inventoryById = new Map(listHermesMobileApiRoutes().map((route) => [route.id, route]));
   const moduleRoutes = createApiRouteRegistry(LEARNING_PROGRAM_API_ROUTE_SPECS).list();
-  assert.equal(moduleRoutes.length, 42);
+  assert.equal(moduleRoutes.length, 44);
   for (const expected of moduleRoutes) {
     const actual = inventoryById.get(expected.id);
     assert.ok(actual, `global inventory is missing ${expected.id}`);

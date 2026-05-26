@@ -362,6 +362,71 @@ function testLearningGrowthEvaluationPushRoutesToTaskCard() {
   });
 }
 
+function testLearningGrowthEvaluationPushCanRouteThroughInboxItem() {
+  withTempDir((root) => {
+    const inboxCalls = [];
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_1", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    service.savePushSubscription({
+      endpoint: "https://push.example/learning-inbox",
+      keys: { p256dh: "p256dh", auth: "auth" },
+    }, { workspaceId: "child" });
+    return service.notifyLearningGrowthEvaluationComplete({
+      workspaceId: "child",
+      taskCardId: "ltask_science_001",
+      submissionId: "lsub_001",
+      evaluation: { evaluationId: "leval_001", status: "needs_repair", score: 72 },
+    }).then((result) => {
+      assert.equal(result.sent, 1);
+      assert.equal(inboxCalls.length, 1);
+      assert.equal(inboxCalls[0].sourceType, "growth");
+      assert.equal(inboxCalls[0].deepLink, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      const payload = calls.sends[0].payload;
+      assert.equal(payload.data.viewMode, "inbox");
+      assert.equal(payload.data.inboxItemId, "ainb_1");
+      assert.equal(payload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      assert.equal(payload.data.url, "/?view=inbox&workspaceId=child&inboxItemId=ainb_1");
+    });
+  });
+}
+
+function testAutomationListSortUsesLatestActivity() {
+  withTempDir((root) => {
+    const { service } = createHarness(root);
+    const jobs = [
+      {
+        id: "old-delivery",
+        name: "Old delivery",
+        outputDocuments: [{ updatedAt: "2026-05-24T08:00:00Z" }],
+        nextRunAt: "2026-05-27T08:00:00Z",
+      },
+      {
+        id: "recent-failure",
+        name: "Recent failure",
+        lastRunAt: "2026-05-26T08:00:00Z",
+        lastStatus: "error",
+        outputDocuments: [],
+      },
+      {
+        id: "future-only",
+        name: "Future only",
+        nextRunAt: "2026-05-26T10:00:00Z",
+        outputDocuments: [],
+      },
+    ];
+    jobs.sort(service.automationListSortByLatestDeliverable);
+    assert.deepEqual(jobs.map((job) => job.id), ["recent-failure", "old-delivery", "future-only"]);
+  });
+}
+
 Promise.resolve()
   .then(testVapidLifecycleAndPublicStatus)
   .then(testSubscriptionSendAndRemoval)
@@ -370,6 +435,8 @@ Promise.resolve()
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)
   .then(testTaskTerminalAndGroupMentionNotifications)
   .then(testLearningGrowthEvaluationPushRoutesToTaskCard)
+  .then(testLearningGrowthEvaluationPushCanRouteThroughInboxItem)
+  .then(testAutomationListSortUsesLatestActivity)
   .then(() => {
     console.log("web-push-delivery-service tests passed");
   });

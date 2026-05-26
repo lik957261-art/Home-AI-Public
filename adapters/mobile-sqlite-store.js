@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 function nowIso() {
   return new Date().toISOString();
@@ -95,6 +95,49 @@ function publicAutomationFromRow(row) {
     ownerPrincipalId: String(row?.principal_id || ""),
     updatedAt: String(row?.updated_at || ""),
     createdAt: String(row?.created_at || ""),
+  };
+}
+
+function publicActionInboxItemFromRow(row) {
+  if (!row) return null;
+  const raw = parseJson(row.raw_json, {});
+  const sourceRef = parseJson(row.source_ref_json, {});
+  return Object.assign({}, raw && typeof raw === "object" ? raw : {}, {
+    id: String(row.id || ""),
+    workspaceId: String(row.workspace_id || ""),
+    assigneeWorkspaceId: String(row.assignee_workspace_id || ""),
+    sourceType: String(row.source_type || ""),
+    sourceId: String(row.source_id || ""),
+    sourceRef: sourceRef && typeof sourceRef === "object" ? sourceRef : {},
+    itemType: String(row.item_type || ""),
+    status: String(row.status || ""),
+    priority: String(row.priority || ""),
+    title: String(row.title || ""),
+    summary: String(row.summary || ""),
+    actionLabel: String(row.action_label || ""),
+    deepLink: String(row.deep_link || ""),
+    dedupeKey: String(row.dedupe_key || ""),
+    dueAt: String(row.due_at || ""),
+    availableAt: String(row.available_at || ""),
+    completedAt: String(row.completed_at || ""),
+    dismissedAt: String(row.dismissed_at || ""),
+    lastEventAt: String(row.last_event_at || ""),
+    createdAt: String(row.created_at || ""),
+    updatedAt: String(row.updated_at || ""),
+  });
+}
+
+function publicActionInboxEventFromRow(row) {
+  if (!row) return null;
+  const payload = parseJson(row.payload_json, {});
+  return {
+    id: String(row.id || ""),
+    itemId: String(row.item_id || ""),
+    eventType: String(row.event_type || ""),
+    actorWorkspaceId: String(row.actor_workspace_id || ""),
+    actorPrincipalId: String(row.actor_principal_id || ""),
+    payload: payload && typeof payload === "object" ? payload : {},
+    createdAt: String(row.created_at || ""),
   };
 }
 
@@ -188,6 +231,8 @@ function sqlQuoteIdent(name) {
 
 const TABLES = [
   "audit_log",
+  "action_inbox_events",
+  "action_inbox_items",
   "automation_jobs",
   "topic_context_refs",
   "topic_working_states",
@@ -222,6 +267,8 @@ const TABLE_COUNT_COLUMNS = {
   kanban_case_shares: "id",
   todo_items: "id",
   automation_jobs: "id",
+  action_inbox_items: "id",
+  action_inbox_events: "id",
   topic_context_summaries: "topic_id",
   topic_working_states: "topic_id",
   topic_context_refs: "ref_id",
@@ -251,6 +298,10 @@ function createMobileSqliteStore(options = {}) {
 
   function exec(sql) {
     open().exec(sql);
+  }
+
+  function generatedId(prefix) {
+    return `${prefix}_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
   }
 
   function migrate() {
@@ -502,6 +553,56 @@ function createMobileSqliteStore(options = {}) {
         updated_at TEXT NOT NULL DEFAULT ''
       );
 
+      CREATE TABLE IF NOT EXISTS action_inbox_items (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL DEFAULT '',
+        assignee_workspace_id TEXT NOT NULL DEFAULT '',
+        source_type TEXT NOT NULL DEFAULT '',
+        source_id TEXT NOT NULL DEFAULT '',
+        source_ref_json TEXT,
+        item_type TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT '',
+        priority TEXT NOT NULL DEFAULT 'normal',
+        title TEXT NOT NULL DEFAULT '',
+        summary TEXT NOT NULL DEFAULT '',
+        action_label TEXT NOT NULL DEFAULT '',
+        deep_link TEXT NOT NULL DEFAULT '',
+        dedupe_key TEXT NOT NULL DEFAULT '',
+        due_at TEXT NOT NULL DEFAULT '',
+        available_at TEXT NOT NULL DEFAULT '',
+        completed_at TEXT NOT NULL DEFAULT '',
+        dismissed_at TEXT NOT NULL DEFAULT '',
+        last_event_at TEXT NOT NULL DEFAULT '',
+        raw_json TEXT,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_action_inbox_items_workspace_status
+        ON action_inbox_items(workspace_id, status, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_action_inbox_items_assignee_status
+        ON action_inbox_items(assignee_workspace_id, status, updated_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_action_inbox_items_dedupe
+        ON action_inbox_items(workspace_id, dedupe_key)
+        WHERE dedupe_key IS NOT NULL AND dedupe_key <> '';
+      CREATE INDEX IF NOT EXISTS idx_action_inbox_items_source
+        ON action_inbox_items(source_type, source_id);
+
+      CREATE TABLE IF NOT EXISTS action_inbox_events (
+        id TEXT PRIMARY KEY,
+        item_id TEXT NOT NULL,
+        event_type TEXT NOT NULL DEFAULT '',
+        actor_workspace_id TEXT NOT NULL DEFAULT '',
+        actor_principal_id TEXT NOT NULL DEFAULT '',
+        payload_json TEXT,
+        created_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_action_inbox_events_item
+        ON action_inbox_events(item_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_action_inbox_events_type
+        ON action_inbox_events(event_type, created_at);
+
       CREATE TABLE IF NOT EXISTS topic_context_summaries (
         topic_id TEXT NOT NULL,
         task_group_id TEXT NOT NULL,
@@ -582,6 +683,7 @@ function createMobileSqliteStore(options = {}) {
     markMigration(1, "initial_mobile_service_layer");
     markMigration(2, "kanban_case_shares");
     markMigration(3, "topic_context");
+    markMigration(4, "action_inbox");
     setMeta("schemaVersion", CURRENT_SCHEMA_VERSION);
   }
 
@@ -1355,6 +1457,191 @@ function createMobileSqliteStore(options = {}) {
     return rows;
   }
 
+  function getActionInboxItem(itemId) {
+    migrate();
+    const row = open().prepare("SELECT * FROM action_inbox_items WHERE id = ?").get(String(itemId || ""));
+    return publicActionInboxItemFromRow(row);
+  }
+
+  function getActionInboxItemByDedupe(workspaceId, dedupeKey) {
+    migrate();
+    const workspace = String(workspaceId || "").trim();
+    const dedupe = String(dedupeKey || "").trim();
+    if (!workspace || !dedupe) return null;
+    const row = open().prepare("SELECT * FROM action_inbox_items WHERE workspace_id = ? AND dedupe_key = ?").get(workspace, dedupe);
+    return publicActionInboxItemFromRow(row);
+  }
+
+  function upsertActionInboxItem(input = {}) {
+    migrate();
+    const workspaceId = String(input.workspaceId || input.workspace_id || "owner").trim() || "owner";
+    const dedupeKey = String(input.dedupeKey || input.dedupe_key || "").trim();
+    const requestedId = String(input.id || input.itemId || input.item_id || "").trim();
+    const before = requestedId ? getActionInboxItem(requestedId) : getActionInboxItemByDedupe(workspaceId, dedupeKey);
+    const id = before?.id || requestedId || generatedId("ainb");
+    const createdAt = normalizeIso(before?.createdAt || input.createdAt || input.created_at || nowIso());
+    const updatedAt = normalizeIso(input.updatedAt || input.updated_at || nowIso());
+    const sourceRef = input.sourceRef || input.source_ref || input.sourceRefJson || {};
+    const raw = Object.assign({}, input.rawJson && typeof input.rawJson === "object" ? input.rawJson : {}, input.raw_json && typeof input.raw_json === "object" ? input.raw_json : {});
+    open().prepare(`
+      INSERT INTO action_inbox_items(id, workspace_id, assignee_workspace_id, source_type, source_id, source_ref_json,
+        item_type, status, priority, title, summary, action_label, deep_link, dedupe_key, due_at, available_at,
+        completed_at, dismissed_at, last_event_at, raw_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        workspace_id = excluded.workspace_id,
+        assignee_workspace_id = excluded.assignee_workspace_id,
+        source_type = excluded.source_type,
+        source_id = excluded.source_id,
+        source_ref_json = excluded.source_ref_json,
+        item_type = excluded.item_type,
+        status = excluded.status,
+        priority = excluded.priority,
+        title = excluded.title,
+        summary = excluded.summary,
+        action_label = excluded.action_label,
+        deep_link = excluded.deep_link,
+        dedupe_key = excluded.dedupe_key,
+        due_at = excluded.due_at,
+        available_at = excluded.available_at,
+        completed_at = excluded.completed_at,
+        dismissed_at = excluded.dismissed_at,
+        last_event_at = excluded.last_event_at,
+        raw_json = excluded.raw_json,
+        updated_at = excluded.updated_at
+    `).run(
+      id,
+      workspaceId,
+      String(input.assigneeWorkspaceId || input.assignee_workspace_id || workspaceId).trim(),
+      String(input.sourceType || input.source_type || "manual").trim(),
+      String(input.sourceId || input.source_id || "").trim(),
+      stableJson(sourceRef && typeof sourceRef === "object" ? sourceRef : {}),
+      String(input.itemType || input.item_type || "todo").trim(),
+      String(input.status || "open").trim(),
+      String(input.priority || "normal").trim(),
+      String(input.title || "").trim(),
+      String(input.summary || "").trim(),
+      String(input.actionLabel || input.action_label || "").trim(),
+      String(input.deepLink || input.deep_link || "").trim(),
+      dedupeKey,
+      normalizeIso(input.dueAt || input.due_at),
+      normalizeIso(input.availableAt || input.available_at),
+      normalizeIso(input.completedAt || input.completed_at),
+      normalizeIso(input.dismissedAt || input.dismissed_at),
+      normalizeIso(input.lastEventAt || input.last_event_at || updatedAt),
+      stableJson(raw && Object.keys(raw).length ? raw : input),
+      createdAt,
+      updatedAt,
+    );
+    return getActionInboxItem(id);
+  }
+
+  function updateActionInboxItem(itemId, patch = {}) {
+    migrate();
+    const before = getActionInboxItem(itemId);
+    if (!before) return null;
+    return upsertActionInboxItem(Object.assign({}, before, patch, {
+      id: before.id,
+      workspaceId: patch.workspaceId || before.workspaceId,
+      createdAt: before.createdAt,
+      updatedAt: patch.updatedAt || nowIso(),
+    }));
+  }
+
+  function addActionInboxEvent(input = {}) {
+    migrate();
+    const itemId = String(input.itemId || input.item_id || "").trim();
+    if (!itemId) return null;
+    const createdAt = normalizeIso(input.createdAt || input.created_at || nowIso());
+    const id = String(input.id || input.eventId || input.event_id || "").trim() || generatedId("ainbe");
+    open().prepare(`
+      INSERT INTO action_inbox_events(id, item_id, event_type, actor_workspace_id, actor_principal_id, payload_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      itemId,
+      String(input.eventType || input.event_type || "event").trim(),
+      String(input.actorWorkspaceId || input.actor_workspace_id || "").trim(),
+      String(input.actorPrincipalId || input.actor_principal_id || "").trim(),
+      stableJson(input.payload && typeof input.payload === "object" ? input.payload : {}),
+      createdAt,
+    );
+    open().prepare("UPDATE action_inbox_items SET last_event_at = ?, updated_at = ? WHERE id = ?").run(createdAt, createdAt, itemId);
+    return publicActionInboxEventFromRow(open().prepare("SELECT * FROM action_inbox_events WHERE id = ?").get(id));
+  }
+
+  function listActionInboxEvents(itemId, args = {}) {
+    migrate();
+    const limit = Math.max(1, Math.min(200, Number(args.limit || 50)));
+    return open().prepare("SELECT * FROM action_inbox_events WHERE item_id = ? ORDER BY created_at DESC LIMIT ?")
+      .all(String(itemId || ""), limit)
+      .map(publicActionInboxEventFromRow)
+      .filter(Boolean);
+  }
+
+  function listActionInboxItems(args = {}) {
+    migrate();
+    const workspaceId = String(args.workspaceId || args.workspace_id || "owner").trim() || "owner";
+    const status = String(args.status || "").trim();
+    const sourceType = String(args.sourceType || args.source_type || "").trim();
+    const itemType = String(args.itemType || args.item_type || "").trim();
+    const search = String(args.search || "").trim().toLowerCase();
+    const includeDone = Boolean(args.includeDone || args.include_done);
+    const limit = Math.max(1, Math.min(500, Number(args.limit || 100)));
+    const clauses = ["(workspace_id = ? OR assignee_workspace_id = ?)"];
+    const values = [workspaceId, workspaceId];
+    if (status && status !== "all") {
+      clauses.push("status = ?");
+      values.push(status);
+    } else if (!includeDone && status !== "all") {
+      clauses.push("status IN ('open', 'waiting')");
+    }
+    if (sourceType) {
+      clauses.push("source_type = ?");
+      values.push(sourceType);
+    }
+    if (itemType) {
+      clauses.push("item_type = ?");
+      values.push(itemType);
+    }
+    const rows = open().prepare(`
+      SELECT * FROM action_inbox_items
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY
+        CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,
+        COALESCE(NULLIF(due_at, ''), NULLIF(last_event_at, ''), updated_at, created_at) DESC
+      LIMIT ?
+    `).all(...values, search ? Math.max(limit * 5, 100) : limit)
+      .map(publicActionInboxItemFromRow)
+      .filter(Boolean)
+      .filter((item) => {
+        if (!search) return true;
+        return [item.title, item.summary, item.sourceType, item.itemType, item.status].join("\n").toLowerCase().includes(search);
+      });
+    return rows.slice(0, limit);
+  }
+
+  function actionInboxCounts(workspaceId) {
+    migrate();
+    const workspace = String(workspaceId || "owner").trim() || "owner";
+    const rows = open().prepare(`
+      SELECT status, source_type, COUNT(*) AS count
+      FROM action_inbox_items
+      WHERE workspace_id = ? OR assignee_workspace_id = ?
+      GROUP BY status, source_type
+    `).all(workspace, workspace);
+    const byStatus = {};
+    const bySourceType = {};
+    for (const row of rows) {
+      const count = Number(row.count || 0);
+      const status = String(row.status || "");
+      const sourceType = String(row.source_type || "");
+      byStatus[status] = (byStatus[status] || 0) + count;
+      bySourceType[sourceType] = (bySourceType[sourceType] || 0) + count;
+    }
+    return { byStatus, bySourceType };
+  }
+
   function getTopicContextSummary(topicId, taskGroupId) {
     const row = open().prepare("SELECT * FROM topic_context_summaries WHERE topic_id = ? AND task_group_id = ?").get(
       String(topicId || ""),
@@ -1874,6 +2161,8 @@ function createMobileSqliteStore(options = {}) {
   }
 
   return {
+    actionInboxCounts,
+    addActionInboxEvent,
     audit,
     clearImportedData,
     close,
@@ -1891,15 +2180,20 @@ function createMobileSqliteStore(options = {}) {
     importWorkspace,
     integrityReport,
     deleteAutomationJob,
+    updateActionInboxItem,
     deleteKanbanCaseShare,
     deleteTodoItem,
     getAutomationJob,
+    getActionInboxItem,
+    getActionInboxItemByDedupe,
     getKanbanCaseShare,
     getTodoItem,
     getTopicContextSummary,
     getTopicWorkingState,
     exportRuntimeState,
     listAutomationJobs,
+    listActionInboxEvents,
+    listActionInboxItems,
     listKanbanCaseShares,
     listTopicContextRefs,
     listTodoItems,
@@ -1911,6 +2205,7 @@ function createMobileSqliteStore(options = {}) {
     tableCounts,
     upsertTopicContextSummary,
     upsertTopicWorkingState,
+    upsertActionInboxItem,
     upsertKanbanCaseShare,
     replaceTopicContextRefs,
   };

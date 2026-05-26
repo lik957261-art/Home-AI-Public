@@ -32,7 +32,8 @@ Run `node tests\architecture-refactor-boundary.test.js` for non-trivial server/r
 - Gateway Pool: worker lifecycle, routing, health, maintenance watchdog, tool/plugin availability.
 - ChatGPT Pro: Owner-maintenance routing, Gateway plugin, bridge-host endpoint, Codex Mobile thread reuse, temporary output directory.
 - Skill permissions: product-level write guard for Skill analysis/fix routes and UI affordances.
-- Automation/Cron: product API, summary/full loading, official cron dispatcher isolation, Web Push deep links.
+- Action Inbox: local lightweight user-action queue for manual todos, Automation deliveries, Growth next actions, and review/follow-up items.
+- Automation/Cron: background job engine, product API, summary/full loading, official cron dispatcher isolation, and Web Push/deep-link producers.
 - Static client: PWA cache versioning, mobile UI, service worker, directory viewer.
 
 ## Privacy Boundary

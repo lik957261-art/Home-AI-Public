@@ -153,6 +153,15 @@ function wireUi() {
     state.currentTaskGroupId = "";
     await loadSelectedView();
   });
+  $("bottomInboxMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    state.viewMode = "inbox";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
   $("singleMode").addEventListener("click", async () => {
     clearQuotedReply({ render: false });
     state.viewMode = "single";

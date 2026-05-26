@@ -6,7 +6,7 @@ This file records durable product rules that implementation must preserve.
 
 - Hermes Mobile is a private family/workspace AI control plane, not a generic public SaaS app.
 - Owner controls production configuration, high-permission operations, workspace keys, Gateway maintenance, and Growth configuration.
-- Non-Owner accounts must retain normal workspace tools according to their workspace policy; Growth-specific restrictions must not globally lock a workspace out of chat, topics, directory, Kanban, or automation.
+- Non-Owner accounts must retain normal workspace tools according to their workspace policy; Growth-specific restrictions must not globally lock a workspace out of chat, directory, Growth execution, Inbox, or configured background capabilities.
 
 ## Growth Learning
 
@@ -34,8 +34,18 @@ This file records durable product rules that implementation must preserve.
 ## Automation And Web Push
 
 - Automation list should preserve full-detail user format when foreground data is shown.
+- Automation is a background capability, not a permanent primary bottom-tab destination. User-facing automation results should be delivered through Action Inbox when the Inbox domain is active.
 - Web Push notifications should deep-link to the specific resource when an id is available.
 - Notification click handling must target top-level app windows, not embedded viewer iframes.
+
+## Action Inbox
+
+- Action Inbox is the primary user participation surface for manual todos, automation delivery results, Growth next actions, review requests, and later chat/module follow-ups.
+- Action Inbox must be backed by Hermes Mobile local persistence and audit events, not official Hermes Kanban.
+- The primary bottom navigation direction is `聊天 / 收件箱 / 目录 / 成长`; Automation should move to a background/admin surface.
+- Inbox items are summary/action projections. Source modules remain canonical and full private content must stay in the source detail views.
+- Repeated source refreshes, Web Push events, and background polling must dedupe by stable source references instead of creating duplicate items.
+- Official Kanban Todo compatibility is legacy after the Action Inbox migration; preserve or migrate the current `Everything's amazing` reading task before destructive cleanup.
 
 ## Static Client
 

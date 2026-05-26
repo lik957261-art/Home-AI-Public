@@ -139,6 +139,22 @@ function createWebPushDeliveryService(options = {}) {
     return getProvider(options.automationProvider);
   }
 
+  function actionInboxService() {
+    return getProvider(options.actionInboxService);
+  }
+
+  async function upsertActionInboxSourceItem(input = {}) {
+    const service = actionInboxService();
+    if (!service || typeof service.upsertSourceItem !== "function") return null;
+    try {
+      const result = await Promise.resolve(service.upsertSourceItem(input));
+      return result?.ok ? result.item : null;
+    } catch (err) {
+      logger.warn?.(`Hermes Action Inbox source upsert failed: ${err.message || String(err)}`);
+      return null;
+    }
+  }
+
   function scopedPushPrincipalIds(principalIds) {
     const principals = normalizeStringList(principalIds);
     if (!principals.length) return ["owner"];
@@ -677,10 +693,18 @@ function createWebPushDeliveryService(options = {}) {
     return Math.max(0, ...(Array.isArray(job?.outputDocuments) ? job.outputDocuments : []).map(automationDeliverableTimeMs));
   }
 
+  function automationActivityTimeMs(job) {
+    return Math.max(
+      automationLatestDeliverableTimeMs(job),
+      automationTimeMs(job?.lastRunAt),
+      automationTimeMs(job?.updatedAt),
+    );
+  }
+
   function automationListSortByLatestDeliverable(left, right) {
-    const leftDelivery = automationLatestDeliverableTimeMs(left);
-    const rightDelivery = automationLatestDeliverableTimeMs(right);
-    if (leftDelivery !== rightDelivery) return rightDelivery - leftDelivery;
+    const leftActivity = automationActivityTimeMs(left);
+    const rightActivity = automationActivityTimeMs(right);
+    if (leftActivity !== rightActivity) return rightActivity - leftActivity;
     const leftNext = automationTimeMs(left?.nextRunAt);
     const rightNext = automationTimeMs(right?.nextRunAt);
     if (Boolean(leftNext) !== Boolean(rightNext)) return leftNext ? -1 : 1;
@@ -854,6 +878,32 @@ function createWebPushDeliveryService(options = {}) {
     if (opts.dryRun) return { ok: true, enabled: true, principals, events, initialized, deliveries: [] };
     const deliveries = [];
     for (const event of events) {
+      const originalUrl = event.payload?.data?.url || appRouteUrl({ view: "automation", workspaceId: event.workspaceId, automationId: event.jobId });
+      const inboxItem = await upsertActionInboxSourceItem({
+        workspaceId: event.workspaceId,
+        assigneeWorkspaceId: event.workspaceId,
+        sourceType: "automation",
+        sourceId: event.jobId,
+        sourceRef: {
+          automationId: event.jobId,
+          signature: event.signature,
+          latestDocumentName: event.latestDoc?.name || "",
+        },
+        itemType: /failed/i.test(String(event.payload?.data?.messageType || "")) ? "error" : "delivery",
+        status: "open",
+        priority: /failed/i.test(String(event.payload?.data?.messageType || "")) ? "high" : "normal",
+        title: event.payload?.title || "",
+        summary: event.payload?.body || "",
+        actionLabel: "\u67e5\u770b",
+        deepLink: originalUrl,
+        dedupeKey: `automation:${event.jobId}:${event.signature}`,
+      });
+      if (inboxItem?.id && event.payload?.data) {
+        event.payload.data.originalUrl = originalUrl;
+        event.payload.data.inboxItemId = inboxItem.id;
+        event.payload.data.viewMode = "inbox";
+        event.payload.data.url = appRouteUrl({ view: "inbox", workspaceId: event.workspaceId, inboxItemId: inboxItem.id });
+      }
       const delivery = await sendPushNotification(event.payload, {
         principalId: event.principalId,
         urgency: "high",
@@ -905,7 +955,7 @@ function createWebPushDeliveryService(options = {}) {
     });
   }
 
-  function notifyLearningGrowthEvaluationComplete(input = {}) {
+  async function notifyLearningGrowthEvaluationComplete(input = {}) {
     const taskCardId = String(input.taskCardId || "").trim();
     const workspaceId = String(input.workspaceId || "").trim() || "owner";
     if (!taskCardId) return null;
@@ -931,6 +981,36 @@ function createWebPushDeliveryService(options = {}) {
         messageType: failed ? "learning_growth_evaluation_failed" : "learning_growth_evaluation_completed",
       },
     };
+    const originalUrl = appRouteUrl({ view: "learning", workspaceId, taskCardId });
+    const inboxItem = await upsertActionInboxSourceItem({
+      workspaceId,
+      assigneeWorkspaceId: workspaceId,
+      sourceType: "growth",
+      sourceId: taskCardId,
+      sourceRef: {
+        taskCardId,
+        submissionId: input.submissionId || "",
+        evaluationId: evaluation.evaluationId || "",
+        status,
+      },
+      itemType: failed ? "error" : "review",
+      status: "open",
+      priority: failed ? "high" : "normal",
+      title: event.title,
+      summary: event.body,
+      actionLabel: "\u67e5\u770b",
+      deepLink: originalUrl,
+      dedupeKey: `growth:${taskCardId}:${input.submissionId || evaluation.evaluationId || status || "evaluation"}`,
+    });
+    const data = Object.assign({}, event.data, {
+      url: originalUrl,
+    });
+    if (inboxItem?.id) {
+      data.originalUrl = originalUrl;
+      data.inboxItemId = inboxItem.id;
+      data.viewMode = "inbox";
+      data.url = appRouteUrl({ view: "inbox", workspaceId, inboxItemId: inboxItem.id });
+    }
     return sendPushNotification({
       title: event.title,
       body: event.body,
@@ -938,9 +1018,7 @@ function createWebPushDeliveryService(options = {}) {
       renotify: true,
       requireInteraction: true,
       timestamp: Date.now(),
-      data: Object.assign({}, event.data, {
-        url: appRouteUrl({ view: "learning", workspaceId, taskCardId }),
-      }),
+      data,
     }, {
       principalId,
       urgency: "high",

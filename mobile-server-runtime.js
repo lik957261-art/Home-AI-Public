@@ -72,7 +72,7 @@ const { createTodoProvider } = require("./adapters/todo-provider");
 const { createTodoPublicProjectionService } = require("./adapters/todo-public-projection-service");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createWeixinRuntimeCompositionService } = require("./adapters/weixin-runtime-composition-service");
-const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service");
+const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service");
 const { createMobileApiComposition } = require("./server-routes/mobile-api-composition");
 const { createMobileRuntimeEnvironment } = require("./adapters/mobile-runtime-environment-service");
 const runtimeEnv = createMobileRuntimeEnvironment({ toolRoot: __dirname });
@@ -233,9 +233,9 @@ const runtimeConfigProvider = createRuntimeConfigProvider({
   storagePath: () => RUNTIME_CONFIG_PATH, ensureDataDir, nowIso, defaultHermesApiBase: () => HERMES_API_BASE,
   apiKeyPaths: () => HERMES_API_KEY_PATHS, envPaths: () => HERMES_ENV_PATHS,
   defaultWebPushSubject: () => WEB_PUSH_SUBJECT, defaultWebPushVapidPath: () => WEB_PUSH_VAPID_PATH,
-});
+}); const actionInboxService = createActionInboxService({ compactText, makeId, nowIso, store: mobileSqliteStore });
 webPushDeliveryService = createWebPushDeliveryService({
-  appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
+  actionInboxService: () => actionInboxService, appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
   effectiveWebPushSubject, effectiveWebPushVapidPath, hashValue, findWorkspace,
   isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
   loadCatalog, loadRuntimeConfig, logger: console, makeId, maybeReconcileKanbanDependencyBlocks, normalizeStringList,
@@ -2420,7 +2420,7 @@ const getThreadMessageCreateService = (...args) => getThreadRuntimeCompositionSe
 const getThreadDirectCreateExecutionService = (...args) => getThreadRuntimeCompositionService().getThreadDirectCreateExecutionService(...args);
 const getThreadMessageRunRouteService = (...args) => getThreadRuntimeCompositionService().getThreadMessageRunRouteService(...args);
 const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices = {} } = createMobileApiComposition({
-  accessToken: null, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
+  accessToken: null, actionInboxService, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
   applyAppUpdate, attachClientVersionHeaders, authCanAccessWorkspace, authenticateRequest, authProvider,
   automationCreateModel: AUTOMATION_CREATE_MODEL, learningGrowthJitModel: LEARNING_GROWTH_JIT_MODEL, learningGrowthJitReasoningEffort: LEARNING_GROWTH_JIT_REASONING_EFFORT, automationProvider, basename: (value) => path.basename(value), boolParam, bootTrace, broadcast,
   buildRequestContext, canRevokeGroupChatMessage, chatGroupMemberWorkspaceIds, clearCronListCache, clearDynamicProjectCache: () => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(),

@@ -633,6 +633,8 @@ handleForegroundPushMessage = function handleForegroundPushMessageWithBusinessTo
   const messageType = data.messageType || nestedData.messageType;
   const pushThreadId = String(data.threadId || nestedData.threadId || "").trim();
   const pushWorkspaceId = String(data.workspaceId || nestedData.workspaceId || "").trim();
+  if (typeof refreshAutomationAfterPush === "function") refreshAutomationAfterPush(eventData).catch(showError);
+  if (typeof refreshActionInboxAfterPush === "function") refreshActionInboxAfterPush(eventData).catch(showError);
   if (
     ["task_completed", "task_failed"].includes(messageType)
     && (

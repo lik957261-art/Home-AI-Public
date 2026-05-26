@@ -1,6 +1,6 @@
 # Hermes Mobile Frontend State Map
 
-Last updated: 2026-05-25.
+Last updated: 2026-05-26.
 
 Use this file to locate the responsible frontend files before debugging a screenshot or mobile UI report.
 
@@ -46,6 +46,14 @@ Use this file to locate the responsible frontend files before debugging a screen
 
 - Automation list/detail/cache/actions: `public/app-automation-controller-ui.js`, `public/app-automation-ui.js`
 - Automation directory links: `public/app-directory-automation-ui.js`
+- Product direction: Automation becomes a background/admin surface; user-facing completed/failed delivery reading should move to Action Inbox.
+
+## Action Inbox
+
+- Inbox tab/list/detail: `public/app-action-inbox-ui.js`
+- Route target: `view=inbox&inboxItemId=<id>`
+- Primary bottom navigation direction: `聊天 / 收件箱 / 目录 / 成长`
+- Inbox should render source tags and action states compactly, one list/detail surface, without relying on official Kanban UI modules.
 
 ## Kanban/Todo
 
@@ -54,6 +62,7 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Todo detail/core: `public/app-kanban-todo-core-ui.js`, `public/app-todo-detail-ui.js`
 - Study/learning panel: `public/app-kanban-learning-panel-ui.js`, `public/app-kanban-study-actions-ui.js`
 - Recorder/story helpers: `public/app-kanban-recorder-ui.js`, `public/app-kanban-story-core-ui.js`, `public/app-kanban-story-helpers.js`
+- Product direction: old Todo/Kanban UI is legacy for Hermes Mobile once Action Inbox is active. Official Kanban remains separate from the new Inbox source of truth.
 
 ## Workspace/Admin
 

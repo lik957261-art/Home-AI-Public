@@ -507,6 +507,62 @@ function testTopicContextCrud() {
   store.close();
 }
 
+function testActionInboxCrud() {
+  const dir = tempDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "action-inbox.sqlite3") });
+  store.migrate();
+  const first = store.upsertActionInboxItem({
+    workspaceId: "child",
+    sourceType: "automation",
+    sourceId: "job-1",
+    itemType: "delivery",
+    status: "open",
+    priority: "high",
+    title: "Automation delivery",
+    summary: "Report is ready.",
+    deepLink: "/?view=automation&workspaceId=child&automationId=job-1",
+    dedupeKey: "automation:job-1:sig-a",
+    sourceRef: { automationId: "job-1" },
+    createdAt: "2026-05-26T00:00:00.000Z",
+    updatedAt: "2026-05-26T00:00:00.000Z",
+  });
+  assert.equal(first.workspaceId, "child");
+  assert.equal(first.sourceRef.automationId, "job-1");
+  assert.equal(first.priority, "high");
+  const second = store.upsertActionInboxItem({
+    workspaceId: "child",
+    sourceType: "automation",
+    sourceId: "job-1",
+    itemType: "delivery",
+    status: "open",
+    title: "Automation delivery updated",
+    summary: "Report is ready again.",
+    dedupeKey: "automation:job-1:sig-a",
+    updatedAt: "2026-05-26T00:01:00.000Z",
+  });
+  assert.equal(second.id, first.id);
+  assert.equal(second.title, "Automation delivery updated");
+  const event = store.addActionInboxEvent({
+    itemId: first.id,
+    eventType: "source_updated",
+    actorWorkspaceId: "owner",
+    payload: { reason: "push" },
+    createdAt: "2026-05-26T00:02:00.000Z",
+  });
+  assert.equal(event.eventType, "source_updated");
+  assert.deepEqual(store.listActionInboxEvents(first.id).map((item) => item.id), [event.id]);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child" }).map((item) => item.id), [first.id]);
+  assert.equal(store.actionInboxCounts("child").byStatus.open, 1);
+  const done = store.updateActionInboxItem(first.id, {
+    status: "done",
+    completedAt: "2026-05-26T00:03:00.000Z",
+  });
+  assert.equal(done.status, "done");
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child" }), []);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child", includeDone: true }).map((item) => item.id), [first.id]);
+  store.close();
+}
+
 testImportAndIntegrity();
 testWorkspaceInferenceFallback();
 testServiceLayerLocalRows();
@@ -514,4 +570,5 @@ testKanbanCaseShareCrud();
 testRuntimeStateRoundTrip();
 testAuditStoresDecisionPayload();
 testTopicContextCrud();
+testActionInboxCrud();
 console.log("mobile-sqlite-store tests passed");

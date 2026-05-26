@@ -33,6 +33,11 @@ function openAutomationList() {
   renderAutomationView();
 }
 
+function openActionInboxOverview() {
+  state.skillDetail = null;
+  openActionInboxList();
+}
+
 function resetSidebarScroll() {
   const sidebar = $("sidebar");
   const threadList = $("threadList");
@@ -58,6 +63,11 @@ function sidebarBackToMenu() {
   }
   if (isAutomationDetailView()) {
     openAutomationList();
+    closeSidebar();
+    return;
+  }
+  if (isActionInboxDetailView()) {
+    openActionInboxOverview();
     closeSidebar();
     return;
   }
@@ -108,6 +118,7 @@ function handleAppForegrounded() {
   suppressComposerAutoFocus(900);
   blurComposerInput();
   if (state.viewMode === "todos") scheduleTodoAutoRefresh();
+  if (state.viewMode === "inbox") loadActionInbox({ silent: true, preserveScroll: true }).catch(showError);
   scheduleConversationViewportRefresh();
 }
 
@@ -148,6 +159,14 @@ function isAutomationView() {
 
 function isAutomationDetailView() {
   return state.viewMode === "automation" && Boolean(state.selectedAutomationId);
+}
+
+function isActionInboxView() {
+  return state.viewMode === "inbox";
+}
+
+function isActionInboxDetailView() {
+  return state.viewMode === "inbox" && Boolean(state.selectedActionInboxItemId);
 }
 
 function isSingleWindowView() {

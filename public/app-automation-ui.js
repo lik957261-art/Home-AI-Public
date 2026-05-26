@@ -23,16 +23,19 @@ function applyViewMode() {
   const tasks = state.viewMode === "tasks";
   const directory = state.viewMode === "projects";
   const automation = state.viewMode === "automation";
+  const inbox = state.viewMode === "inbox";
   const learning = state.viewMode === "learning";
   const todos = state.viewMode === "todos";
   if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
+  $("app")?.classList.toggle("inbox-mode", inbox);
   $("app")?.classList.toggle("automation-mode", automation);
   $("app")?.classList.toggle("learning-mode", learning);
   $("app")?.classList.toggle("projects-mode", directory);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
+  $("bottomInboxMode")?.classList.toggle("active", inbox);
   $("bottomTasksMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("singleMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("singleTaskMode")?.classList.toggle("active", single && state.singleWindowMode === "task");
@@ -49,10 +52,10 @@ function applyViewMode() {
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || learning || directory || todos);
-  $("newThread").disabled = single || tasks || automation || learning || directory || todos;
+  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || learning || directory || todos);
+  $("newThread").disabled = single || tasks || automation || inbox || learning || directory || todos;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search growth" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search growth" : "Search directories";
   updateSearchButton();
 }
 
@@ -97,6 +100,9 @@ async function loadSelectedView() {
     await loadAutomations(state.automationRouteTargetPending
       ? { detail: "full", refresh: true, ignoreSearch: true, routeTarget: true }
       : {});
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "inbox") {
+    await loadActionInbox();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "learning") {
     await loadLearningCoins();

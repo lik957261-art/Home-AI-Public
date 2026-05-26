@@ -1,6 +1,6 @@
 # Hermes Mobile Data Dictionary
 
-Last updated: 2026-05-25.
+Last updated: 2026-05-26.
 
 This is a public-safe dictionary of durable SQLite tables and their ownership. It intentionally omits raw data values.
 
@@ -28,6 +28,17 @@ Primary implementation: `adapters/mobile-sqlite-store.js`.
 | `topic_working_states` | topics | Active topic working state metadata. |
 | `topic_context_refs` | topics | References between topic summaries and target resources. |
 | `audit_log` | audit | Security/operation audit entries. Do not store secrets or raw learner content. |
+
+## Action Inbox SQLite
+
+Primary implementation: `adapters/action-inbox-service.js` plus SQLite helpers in `adapters/mobile-sqlite-store.js`.
+
+These tables were added in runtime SQLite schema version 4 for the `20260526-action-inbox-v247` Inbox UI.
+
+| Table | Domain | Purpose |
+| --- | --- | --- |
+| `action_inbox_items` | inbox | Local summary/action items for manual todos, automation deliveries, Growth next actions, review requests, and follow-ups. |
+| `action_inbox_events` | inbox/audit | Auditable event timeline for Inbox item state changes and source updates. |
 
 ## Learning-Growth SQLite
 
@@ -69,3 +80,4 @@ Primary implementation: `adapters/learning-program-repository.js`.
 - Runtime SQLite migrations belong in `mobile-sqlite-store.js` and must preserve existing data.
 - Learning migrations belong in `learning-program-repository.js` and must use additive/compatible migration patterns.
 - New durable queues or audit-sensitive tables need indexes for status/lookup fields and focused repository tests.
+- Action Inbox migrations must remain additive, idempotent, and backed by source-reference dedupe indexes before any production cutover from Kanban-backed Todo.

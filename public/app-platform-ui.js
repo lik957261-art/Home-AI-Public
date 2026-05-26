@@ -161,6 +161,7 @@ async function bootstrap() {
 
 function normalizedRouteView(value, fallback = "") {
   const view = String(value || "").trim().toLowerCase();
+  if (view === "inbox" || view === "action-inbox" || view === "actions") return "inbox";
   if (view === "automation" || view === "automations" || view === "cron") return "automation";
   if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "todo" || view === "todos") return "todos";
@@ -180,9 +181,8 @@ function sameOriginRouteUrl(value) {
 }
 
 function applyRouteParams(params) {
-  const automationId = String(params.get("automationId") || "").trim();
-  const todoId = String(params.get("todoId") || "").trim();
-  const taskCardId = String(params.get("taskCardId") || "").trim();
+  const automationId = String(params.get("automationId") || "").trim(); const inboxItemId = String(params.get("inboxItemId") || params.get("actionInboxItemId") || "").trim();
+  const todoId = String(params.get("todoId") || "").trim(); const taskCardId = String(params.get("taskCardId") || "").trim();
   const taskGroupId = String(params.get("taskGroupId") || params.get("taskId") || "").trim();
   const messageId = String(params.get("messageId") || "").trim();
   const projectId = String(params.get("projectId") || "").trim();
@@ -193,7 +193,7 @@ function applyRouteParams(params) {
   const assessmentExamRequested = ["1", "true", "yes"].includes(String(params.get("assessmentExam") || params.get("assessment_exam") || "").trim().toLowerCase());
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
-  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
+  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), inboxItemId ? "inbox" : automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && routeView === "learning" && taskCardId) {
     setLearningGrowthLearnerWorkspaceId(workspaceId);
@@ -205,14 +205,13 @@ function applyRouteParams(params) {
   if (routeView) {
     state.viewMode = routeView;
     localStorage.setItem("hermesWebViewMode", routeView);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
+    Object.assign(state, { currentTaskGroupId: "", currentThread: null, currentThreadId: "" });
   }
   if (routeView === "automation" && automationId) {
     Object.assign(state, { selectedAutomationId: automationId, automationRouteTargetId: automationId, automationRouteTargetPending: true, automationOutputHistoryOpen: false, automationCreateOpen: false, automationEditOpen: false, automationEditJobId: "" });
     if ($("threadSearch")) $("threadSearch").value = "";
   }
+  if (routeView === "inbox" && inboxItemId) { Object.assign(state, { selectedActionInboxItemId: inboxItemId, actionInboxDetail: null }); if ($("threadSearch")) $("threadSearch").value = ""; }
   if (routeView === "todos" && todoId) {
     state.selectedTodoId = todoId;
     state.todoRouteMissingTargetId = "";
@@ -267,7 +266,7 @@ function applyRouteParams(params) {
       localStorage.setItem("hermesWebWeixinChatOpen", "0");
     }
   }
-  return Boolean(routeView || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested || assessmentExamRequested);
+  return Boolean(routeView || inboxItemId || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested || assessmentExamRequested);
 }
 
 function applyRouteFromUrl(value) {

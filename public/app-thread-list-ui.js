@@ -5,6 +5,10 @@ function renderThreads() {
     renderAutomationView();
     return;
   }
+  if (state.viewMode === "inbox") {
+    renderActionInboxView();
+    return;
+  }
   if (state.viewMode === "learning") {
     renderLearningCoinsView();
     return;
@@ -129,6 +133,10 @@ function renderCurrentThreadUnsafe(options = {}) {
   }
   if (state.viewMode === "automation") {
     renderAutomationView();
+    return;
+  }
+  if (state.viewMode === "inbox") {
+    renderActionInboxView();
     return;
   }
   if (state.viewMode === "todos") {
