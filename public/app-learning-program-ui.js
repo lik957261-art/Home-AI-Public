@@ -728,6 +728,28 @@
     };
   }
 
+  function renderNativeGrowthReflectionResult(reflection = {}, options = {}) {
+    const status = String(reflection?.status || "").trim().toLowerCase();
+    if (!status || status === "accepted") return "";
+    if (!["rejected", "failed", "error"].includes(status)) return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const score = Number(reflection.score);
+    const maxScore = Number(reflection.maxScore || reflection.max_score || 100) || 100;
+    const scoreLabel = Number.isFinite(score) && score > 0 ? `${Math.round(score)}/${Math.round(maxScore)}` : "";
+    const submittedAt = nativeGrowthTimeLabel(reflection.submittedAt || reflection.createdAt || reflection.updatedAt || "", options);
+    const meta = [scoreLabel ? `\u590d\u76d8\u5f97\u5206 ${scoreLabel}` : "", submittedAt ? `\u63d0\u4ea4 ${submittedAt}` : ""].filter(Boolean);
+    const summary = String(reflection.summary || reflection.feedbackSummary || reflection.reason || "").trim().slice(0, 240);
+    const title = status === "rejected" ? "\u4e0a\u6b21\u590d\u76d8\u672a\u901a\u8fc7" : "\u590d\u76d8\u5904\u7406\u5931\u8d25";
+    const fallback = status === "rejected"
+      ? "\u8bf7\u91cd\u65b0\u5f55\u4e00\u6bb5\u590d\u76d8\uff1a\u8bf4\u6e05\u672c\u6b21\u4e3b\u8981\u9519\u8bef\u3001\u4fee\u6539\u539f\u56e0\uff0c\u4ee5\u53ca\u4e0b\u6b21\u7ec3\u4e60\u8981\u6ce8\u610f\u4ec0\u4e48\u3002"
+      : "\u672c\u6b21\u590d\u76d8\u6ca1\u6709\u5f97\u5230\u53ef\u7528\u7ed3\u679c\uff0c\u53ef\u91cd\u65b0\u5f55\u97f3\u540e\u518d\u63d0\u4ea4\u3002";
+    return `<div class="learning-native-growth-reflection-result is-${escapeHtml(status)}" data-learning-native-growth-reflection-result>
+      <strong>${escapeHtml(title)}</strong>
+      ${meta.length ? `<small>${escapeHtml(meta.join(" / "))}</small>` : ""}
+      <p>${escapeHtml(summary || fallback)}</p>
+    </div>`;
+  }
+
   function learningGrowthPlayableAudioUrl(url) {
     const raw = String(url || "").trim();
     if (!raw) return "";
@@ -1039,17 +1061,20 @@
     const editing = Boolean(options.state?.learningNativeGrowthAnswerEditing?.[taskCardId]);
     const latestEvaluationStatus = String(task?.latestEvaluation?.status || "").trim();
     const hasGradedResult = Boolean(task?.latestEvaluation && latestEvaluationStatus && latestEvaluationStatus !== "pending");
+    const latestReflection = task?.latestReflection || task?.nativeState?.latestReflection || null;
+    const latestReflectionStatus = String(latestReflection?.status || "").trim().toLowerCase();
+    const latestReflectionRejected = latestReflectionStatus === "rejected";
     const detailButton = options.hideNativeGrowthDetailButton ? "" : `<button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>`;
     const stateLabel = submitting ? (requiresAudio
       ? "\u6b63\u5728\u53d1\u9001\u5f55\u97f3\uff0c\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58\uff1b\u8bf7\u4fdd\u6301\u672c\u9875\u9762\u6253\u5f00\u3002"
       : "\u6b63\u5728\u53d1\u9001\u4f5c\u7b54\uff0c\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58\uff1b\u8bf7\u4fdd\u6301\u672c\u9875\u9762\u6253\u5f00\u3002")
-      : ({
+      : (nextAction === "spoken_reflection" && latestReflectionRejected ? "\u4e0a\u6b21\u590d\u76d8\u672a\u901a\u8fc7\uff0c\u9700\u8981\u91cd\u65b0\u5f55\u97f3\u590d\u76d8" : ({
       submit: "\u5f85\u4f5c\u7b54",
       waiting_feedback: "\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539",
       revise: "\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4",
       spoken_reflection: "\u9700\u8981\u5f55\u97f3\u6216\u6587\u5b57\u590d\u76d8",
       complete: "\u5df2\u5b8c\u6210",
-    }[nextAction] || "");
+    }[nextAction] || ""));
     if (nextAction === "complete") {
       return `<div class="learning-native-growth-submission-state is-ready">${escapeHtml(stateLabel || "\u5df2\u5b8c\u6210")}</div>`;
     }
@@ -1062,6 +1087,7 @@
     }
     if (nextAction === "spoken_reflection") {
       return `<form class="learning-native-growth-submission-form" data-learning-native-growth-reflection-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}">
+        ${renderNativeGrowthReflectionResult(latestReflection, options)}
         <p class="learning-native-growth-prompt">\u9605\u8bfb AI \u53cd\u9988\u540e\uff0c\u7528\u81ea\u5df1\u7684\u8bdd\u8bf4\u660e\u672c\u6b21\u4e3b\u8981\u9519\u8bef\u3001\u4fee\u6539\u539f\u56e0\u548c\u4e0b\u6b21\u7ec3\u4e60\u65b9\u5411\u3002</p>
         ${renderNativeGrowthReflectionRecorder(task, options)}
         <div class="learning-native-growth-submission-state" data-learning-native-growth-reflection-state="${escapeHtml(taskCardId)}">${escapeHtml(stateLabel)}</div>
@@ -1235,6 +1261,7 @@
     const skills = compactFocus(task.skillIds || model.skillTargets || []).slice(0, 120);
     const latestSubmission = nativeGrowthSubmissionEvidence(task, data);
     const latestEvaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const latestReflection = task.latestReflection || latestRecordForTask(data.taskReflections || [], taskCardId, "submittedAt");
     const latestRewardSettlement = task.latestRewardSettlement || latestRewardSettlementForTask(data.rewardSettlements || [], {
       taskCardId,
       latestEvaluation,
@@ -1248,6 +1275,7 @@
       nativeState: Object.assign({}, task.nativeState || {}, { nextAction: taskActionFromRecords(task, data) }),
       latestSubmission,
       latestEvaluation,
+      latestReflection,
       latestRewardSettlement,
       totalSubmissionCount: Number(task.totalSubmissionCount || 0) || taskSubmissionCount || undefined,
       totalEvaluationCount: Number(task.totalEvaluationCount || 0) || taskEvaluationCount || undefined,

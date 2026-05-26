@@ -10278,6 +10278,38 @@ body.task-markdown-preview-open {
   overflow-wrap: anywhere;
 }
 
+.learning-native-growth-reflection-result {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(176, 116, 42, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 248, 236, 0.78);
+}
+
+.learning-native-growth-reflection-result strong {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.learning-native-growth-reflection-result small,
+.learning-native-growth-reflection-result p {
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.learning-native-growth-reflection-result.is-failed,
+.learning-native-growth-reflection-result.is-error {
+  border-color: rgba(155, 61, 53, 0.2);
+  background: rgba(255, 245, 242, 0.72);
+}
+
 .learning-native-growth-submission-input {
   width: 100%;
   min-width: 0;
@@ -13214,6 +13246,8 @@ body.task-markdown-preview-open {
 :root[data-font-size] .learning-native-growth-prompt,
 :root[data-font-size] .learning-native-growth-submission-state,
 :root[data-font-size] .learning-native-growth-recorder-status,
+:root[data-font-size] .learning-native-growth-reflection-result small,
+:root[data-font-size] .learning-native-growth-reflection-result p,
 :root[data-font-size] .learning-program-task-item p,
 :root[data-font-size] .learning-program-guidance-copy,
 :root[data-font-size] .learning-growth-next-row span,
@@ -13266,6 +13300,7 @@ body.task-markdown-preview-open {
 :root[data-font-size] .learning-ai-recommendation-card strong,
 :root[data-font-size] .learning-program-card h3,
 :root[data-font-size] .learning-native-growth-question legend,
+:root[data-font-size] .learning-native-growth-reflection-result strong,
 :root[data-font-size] .learning-native-growth-choice,
 :root[data-font-size] .learning-program-task-item strong {
   font-size: calc(15px * var(--app-font-scale));

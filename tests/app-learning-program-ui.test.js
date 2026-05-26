@@ -697,6 +697,59 @@ function testScoreReachedDraftFeedbackRendersReflectionForm() {
   assert.doesNotMatch(html, /data-learning-native-growth-submission-input="task-native-draft-reflect"[^>]*>PREVIOUS_ANSWER_SHOULD_NOT_PREFILL/);
 }
 
+function testRejectedReflectionShowsResultAndRetry() {
+  const html = ProgramUi.renderNativeGrowthTaskDetail({
+    taskCardId: "task-native-reflection-rejected",
+    source: "learning-growth",
+    title: "Native Growth rejected reflection task",
+    status: "published",
+    workspaceId: "weixin_stephen",
+    skillIds: ["english_short_writing"],
+    nativeState: { nextAction: "submit" },
+    taskModel: {
+      activityType: "writing",
+      skillId: "english_short_writing",
+      learnerInstruction: "Write a short first draft.",
+    },
+  }, {
+    evaluations: [{
+      taskCardId: "task-native-reflection-rejected",
+      evaluationId: "eval-reflection-rejected",
+      status: "draft_feedback",
+      nextStep: "rewrite_and_reflect",
+      score: 90,
+      passingScore: 80,
+      finalPassingScore: 80,
+      createdAt: "2026-05-25T12:11:50.875Z",
+    }],
+    taskSubmissions: [{
+      taskCardId: "task-native-reflection-rejected",
+      submissionId: "sub-reflection-rejected",
+      status: "submitted",
+      displayText: "previous answer summary",
+      submittedAt: "2026-05-25T12:10:09.573Z",
+    }],
+    taskReflections: [{
+      taskCardId: "task-native-reflection-rejected",
+      reflectionId: "refl-reflection-rejected",
+      status: "rejected",
+      score: 45,
+      maxScore: 100,
+      summary: "Needs clearer mistake explanation before completion.",
+      submittedAt: "2026-05-26T13:09:19.462Z",
+    }],
+  }, {
+    state: { auth: { isOwner: false } },
+  });
+  assert.match(html, /data-learning-native-growth-reflection-form="task-native-reflection-rejected"/);
+  assert.match(html, /data-learning-native-growth-reflection-result/);
+  assert.match(html, /\u4e0a\u6b21\u590d\u76d8\u672a\u901a\u8fc7/);
+  assert.match(html, /45\/100/);
+  assert.match(html, /Needs clearer mistake explanation/);
+  assert.match(html, /data-learning-submit-native-growth-reflection="task-native-reflection-rejected"/);
+  assert.doesNotMatch(html, /\u6b63\u5728\u8f6c\u5199/);
+}
+
 function testNativeSubmittingTaskShowsAutoRefreshState() {
   const previousDateNow = Date.now;
   Date.now = () => 1779528005000;
@@ -764,6 +817,7 @@ testReviewedNativeMathTaskTreatsEmptySourceAsNativeGrowth();
 testReviewedNativeMathTaskExpandsAfterEditClickState();
 testNativeTaskReflectionStateRendersReflectionForm();
 testScoreReachedDraftFeedbackRendersReflectionForm();
+testRejectedReflectionShowsResultAndRetry();
 testNativeSubmittingTaskShowsAutoRefreshState();
 testNativeStaleSubmittingTaskEnablesSubmit();
 
