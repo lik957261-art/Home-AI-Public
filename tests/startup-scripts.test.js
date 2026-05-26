@@ -403,6 +403,8 @@ assert.match(bridgeHost, /grok_gateway_proxy_failed/);
 assert.match(startWeixinFrontGateway, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY/);
 assert.match(startWeixinFrontGateway, /gateway_state\.json/);
 assert.match(startWeixinFrontGateway, /hermes_cli\.main gateway run --replace/);
+assert.match(startWeixinFrontGateway, /HERMES_PROFILE/);
+assert.match(startWeixinFrontGateway, /\/\.hermes\/profiles\//);
 assert.match(startWeixinFrontGateway, /weixin/);
 assert.match(startWeixinFrontGateway, /api_server/);
 assert.match(startWeixinFrontGateway, /ensure-weixin-reminder-dispatcher\.sh/);
@@ -415,6 +417,8 @@ assert.match(startWeixinMobileIngressBridge, /weixin-mobile-ingress-bridge\.py/)
 assert.match(startWeixinMobileIngressBridge, /HERMES_MOBILE_WEIXIN_INGRESS_KEY_FILE/);
 assert.match(startWeixinMobileIngressBridge, /legacy_gateway_pid/);
 assert.match(startWeixinMobileIngressBridge, /stop_legacy_gateway/);
+assert.match(startWeixinMobileIngressBridge, /HERMES_PROFILE/);
+assert.match(startWeixinMobileIngressBridge, /\/\.hermes\/profiles\//);
 assert.match(startWeixinMobileIngressBridge, /WEIXIN_MOBILE_INGRESS_BRIDGE_OK/);
 assert.match(startWeixinMobileIngressBridge, /ensure-weixin-reminder-dispatcher\.sh/);
 assert.match(startWeixinMobileIngressBridge, /ensure-weixin-todo-dispatcher\.sh/);
