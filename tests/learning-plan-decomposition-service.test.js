@@ -99,7 +99,56 @@ async function testEnglishPlanIncludesExtensibleSkillCards() {
   assert.doesNotMatch(JSON.stringify(draft), /rawPrompt|answerKey|fullTranscript|localPath|must-not-leak/);
 }
 
-testEnglishPlanIncludesExtensibleSkillCards().then(() => {
+async function testModelInvalidJsonUsesRepairPass() {
+  const modelCalls = [];
+  const service = createLearningPlanDecompositionService({
+    hermesModelText: async (body) => {
+      modelCalls.push(body);
+      if (modelCalls.length === 1) return "not json";
+      return JSON.stringify({
+        dailyPlans: [
+          {
+            date: "2026-05-16",
+            plannedMinutes: 15,
+            tasks: [
+              {
+                skillId: "english_short_writing",
+                title: "Repair-pass short writing card",
+                learnerInstruction: "Write six short sentences with one clear reason and one example.",
+                plannedMinutes: 15,
+                deliverables: ["short draft"],
+                acceptance: ["draft includes a reason and example"],
+              },
+            ],
+          },
+        ],
+        rationale: "Repair pass produced strict JSON.",
+        riskFlags: ["model_repair"],
+      });
+    },
+    requireModel: true,
+    templateRegistry: createLearningTemplateRegistryService(),
+    now: () => new Date("2026-05-16T00:00:00.000Z"),
+  });
+  const draft = await service.buildDraft({
+    programId: "program-repair",
+    domain: "english",
+    startDate: "2026-05-16",
+    daysPerWeek: 5,
+    minutesPerDay: 15,
+    focusAreas: ["english_short_writing"],
+    sourceBasisRefs: ["parent_config:program-repair"],
+    curriculumRefs: ["cefr-a2-b1-growth-track"],
+  });
+
+  assert.equal(modelCalls.length, 2);
+  assert.match(modelCalls[1].input, /Repair the previous Growth weekly learning plan/);
+  assert.equal(draft.generationPolicy.mode, "model_assisted_summary_plan_decomposition");
+  assert.equal(draft.generationPolicy.modelRepairApplied, true);
+  assert.ok(draft.dailyPlans.flatMap((day) => day.tasks).some((task) => /Repair-pass/.test(task.title)));
+}
+
+testEnglishPlanIncludesExtensibleSkillCards().then(testModelInvalidJsonUsesRepairPass).then(() => {
   console.log("learning plan decomposition service tests passed");
 }).catch((err) => {
   console.error(err);
