@@ -493,6 +493,7 @@ function createMobileApiComposition(deps = {}) {
     sequenceService: learningGrowthSequenceService,
     transcribeSubmissionAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
+  learningGrowthSubmissionService.scheduleEvaluationQueue();
   const kanbanCaseTopicDeliveryService = createKanbanCaseTopicDeliveryService({
     broadcast: deps.broadcast,
     makeId: deps.makeId,

@@ -829,7 +829,11 @@ function createLearningGrowthSubmissionService(options = {}) {
   const now = typeof options.now === "function" ? options.now : () => Date.now();
   const scheduleBackgroundTask = typeof options.scheduleBackgroundTask === "function"
     ? options.scheduleBackgroundTask
-    : ((task) => setTimeout(task, 0));
+    : ((task, delayMs = 0) => {
+      const timer = setTimeout(task, Math.max(0, Number(delayMs || 0) || 0));
+      if (timer && typeof timer.unref === "function") timer.unref();
+      return timer;
+    });
   const notifyEvaluationComplete = typeof options.notifyEvaluationComplete === "function"
     ? options.notifyEvaluationComplete
     : null;
@@ -1055,8 +1059,37 @@ function createLearningGrowthSubmissionService(options = {}) {
     return { ok: true, processed, results };
   }
 
-  function scheduleEvaluationQueue() {
-    scheduleBackgroundTask(() => processEvaluationQueue().catch(() => null));
+  function nextEvaluationQueueDelayMs() {
+    const store = queueStore();
+    if (!store || typeof store.listGrowthEvaluationJobs !== "function") return null;
+    const nowMs = now();
+    const jobs = store.listGrowthEvaluationJobs({
+      status: ["pending", "retry", "processing"],
+      limit: 50,
+    });
+    let nextDelay = null;
+    for (const job of jobs) {
+      let targetMs = Date.parse(job.availableAt || "");
+      if (job.status === "processing" && job.leaseUntil) {
+        const leaseMs = Date.parse(job.leaseUntil);
+        if (Number.isFinite(leaseMs) && leaseMs > nowMs) targetMs = leaseMs;
+      }
+      const delay = Math.max(0, Number.isFinite(targetMs) ? targetMs - nowMs : 0);
+      nextDelay = nextDelay === null ? delay : Math.min(nextDelay, delay);
+    }
+    return nextDelay;
+  }
+
+  async function runScheduledEvaluationQueue() {
+    await processEvaluationQueue();
+    const nextDelay = nextEvaluationQueueDelayMs();
+    if (nextDelay !== null) {
+      scheduleEvaluationQueue(nextDelay);
+    }
+  }
+
+  function scheduleEvaluationQueue(delayMs = 0) {
+    scheduleBackgroundTask(() => runScheduledEvaluationQueue().catch(() => null), Math.max(0, Number(delayMs || 0) || 0));
   }
 
   async function loadGrowthCard(workspaceId, cardIdValue) {

@@ -1144,6 +1144,101 @@ async function testPersistedAsyncSubmissionIsRecoveredByNewService() {
   }
 }
 
+async function testRetryEvaluationJobSchedulesDelayedQueue() {
+  const root = tempRoot();
+  const repository = createLearningProgramRepository({ dataDir: root });
+  const scheduled = [];
+  let nowMs = Date.parse("2026-05-26T11:56:00.000Z");
+  let evaluationCalls = 0;
+  try {
+    seedGrowthProgram(repository);
+    repository.upsertTaskCard({
+      taskCardId: "task-native-retry-queue",
+      programId: "program-growth",
+      draftId: "draft-growth",
+      learnerId: "weixin_stephen",
+      workspaceId: "weixin_stephen",
+      title: "Native retry queue task",
+      domain: "english",
+      taskCardType: "single_subject",
+      status: "published",
+      plannedDate: "2026-05-26",
+      plannedMinutes: 15,
+      skillIds: ["english_grammar"],
+      templateId: "english-grammar-v1",
+      taskModel: {
+        version: "learning-task-model-v1",
+        activityType: "grammar",
+        skillId: "english_grammar",
+      },
+      privacyLevel: "summary_only",
+    });
+    const programService = createLearningProgramService({ repository });
+    const service = createLearningGrowthSubmissionService({
+      learningProgramService: programService,
+      now: () => nowMs,
+      queueRetryDelayMs: 10_000,
+      scheduleBackgroundTask(task, delayMs = 0) {
+        scheduled.push({ task, delayMs });
+      },
+      evaluationService: {
+        async evaluate() {
+          evaluationCalls += 1;
+          if (evaluationCalls === 1) {
+            throw new Error("temporary model endpoint unavailable");
+          }
+          return {
+            evaluationId: "eval-native-retry-queue",
+            status: "needs_revision",
+            activityType: "grammar",
+            skillId: "english_grammar",
+            score: 74,
+            maxScore: 100,
+            passed: false,
+            confidence: 0.76,
+            summary: "summary only retry feedback",
+            feedbackMethod: "test",
+            feedbackSections: { focusAreas: ["main idea"], reflectionPrompts: [] },
+            revisionRequirements: ["retell the main idea more clearly"],
+            reward: { eligible: false },
+          };
+        },
+      },
+      reportService: { writeReport: () => null },
+    });
+    const text = [
+      "First, I retell the main idea of the reading in my own words.",
+      "Then I explain two details and connect them to the topic.",
+      "Finally, I say what the writer wants the reader to understand.",
+      "I also check that my retelling follows the order of the text.",
+    ].join("\n");
+    const accepted = await service.submitTaskAsync({
+      workspaceId: "weixin_stephen",
+      taskCardId: "task-native-retry-queue",
+      text,
+      author: "weixin_stephen",
+    });
+    assert.equal(accepted.ok, true);
+    assert.equal(scheduled.length, 1);
+
+    await scheduled.shift().task();
+    const retryJob = repository.listGrowthEvaluationJobs({ status: "retry", limit: 2 })[0];
+    assert.equal(retryJob.submissionId, accepted.result.nativeSubmission.submissionId);
+    assert.match(retryJob.lastError, /temporary model endpoint unavailable/);
+    assert.equal(scheduled.length, 1);
+    assert.ok(scheduled[0].delayMs >= 10_000);
+
+    nowMs += scheduled[0].delayMs + 1;
+    await scheduled.shift().task();
+    assert.equal(repository.listEvaluations({ taskCardId: "task-native-retry-queue", limit: 1 })[0].evaluationId, "eval-native-retry-queue");
+    assert.equal(repository.listGrowthEvaluationJobs({ status: "done", limit: 2 })[0].submissionId, accepted.result.nativeSubmission.submissionId);
+    assert.equal(evaluationCalls, 2);
+  } finally {
+    repository.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function testNativeRevisionSubmissionUsesPersistedEvaluationState() {
   const root = tempRoot();
   const repository = createLearningProgramRepository({ dataDir: root });
@@ -1747,6 +1842,7 @@ function testDependencyValidation() {
   await testNativeTaskSubmissionWorksWithoutKanbanLink();
   await testNativeTaskSubmissionCanAcceptBeforeEvaluation();
   await testPersistedAsyncSubmissionIsRecoveredByNewService();
+  await testRetryEvaluationJobSchedulesDelayedQueue();
   await testNativeRevisionSubmissionUsesPersistedEvaluationState();
   await testNativeSpeakingSubmissionUsesAudioTranscription();
   await testNativeSpeakingSubmissionRequiresAudio();
