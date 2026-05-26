@@ -72,6 +72,7 @@ assert.match(startWorkerHost, /Restarting unhealthy worker listener/);
 assert.match(startWorkerHost, /healthy authenticated API endpoint with ready Gateway Pool ports/);
 assert.match(startWorkerHost, /MinGatewayPoolWorkers/);
 assert.match(startWorkerHost, /GatewayPoolPorts/);
+assert.match(startWorkerHost, /18762/);
 assert.match(startWorkerHost, /WeixinFrontGateway/);
 assert.match(startWorkerHost, /function Resolve-WeixinFrontGatewayMode/);
 assert.match(startWorkerHost, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY/);
@@ -396,6 +397,9 @@ assert.doesNotMatch(hermesMobileCronDispatcher, /cron tick/);
 
 assert.match(bridgeHost, /\/bridge\/grok-gateway-proxy\/v1\/responses/);
 assert.match(bridgeHost, /HERMES_MOBILE_GROK_GATEWAY_URL/);
+assert.match(bridgeHost, /function grokGatewayUrlFromManifest/);
+assert.match(bridgeHost, /gateway-pool-manifest\.json/);
+assert.match(bridgeHost, /xai-oauth/);
 assert.match(bridgeHost, /new URL\("\/v1\/responses"/);
 assert.match(bridgeHost, /gateway_api_key_required/);
 assert.match(bridgeHost, /grok_gateway_proxy_failed/);

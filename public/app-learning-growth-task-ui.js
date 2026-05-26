@@ -336,18 +336,21 @@
     </form>`;
   }
 
-  function renderTeachingFeedbackSection(task = {}) {
+  function renderTeachingFeedbackSection(task = {}, state = {}) {
     const summary = task.experienceSummary || {};
     const reward = Number(task.learningGrowthRewardCoins || task.latestRewardSettlement?.coinAmount || task.rewardPolicy?.maxCoins || 0) || 0;
-    if (String(task.status || "").trim().toLowerCase() !== "completed" && !summary.latestAt && !summary.lastCompletionAt) return "";
+    const completed = String(task.status || "").trim().toLowerCase() === "completed";
+    if (!completed && !summary.latestAt && !summary.lastCompletionAt) return "";
     return `<section class="learning-growth-teaching-feedback" data-learning-growth-teaching-feedback>
-      <strong>${escapeHtmlLocal(String(task.status || "").trim().toLowerCase() === "completed" ? "本卡已完成" : "学习反馈已记录")}</strong>
+      <strong>${escapeHtmlLocal(completed ? "本卡已完成" : "学习反馈已记录")}</strong>
       <p>${escapeHtmlLocal(reward ? `奖励 ${reward} 金币；这张卡只作为低压力学习证据，不当作正式能力测验。` : "这张卡只作为低压力学习证据，不当作正式能力测验。")}</p>
+      ${completed ? `<p class="learning-growth-experience-prompt">${escapeHtmlLocal("\u5b8c\u6210\u540e\uff0c\u9009\u4e00\u4e2a\u611f\u53d7\uff0c\u5e2e\u6211\u4e0b\u6b21\u628a\u96be\u5ea6\u8c03\u5f97\u66f4\u5408\u9002\u3002")}</p>${renderExperienceSignalActions(task, state)}` : ""}
     </section>`;
   }
 
   function renderExperienceSignalActions(task = {}, state = {}) {
     const cardId = String(task.taskCardId || task.id || "");
+    if (String(task.status || "").trim().toLowerCase() !== "completed") return "";
     const summary = task.experienceSummary && typeof task.experienceSummary === "object" ? task.experienceSummary : {};
     const submitted = state.learningGrowthExperienceSignalSubmitted?.[cardId] || "";
     const busy = state.learningGrowthExperienceSignalBusy?.[cardId] || "";
@@ -387,8 +390,7 @@
       ${step === "lesson" ? renderTeachingLessonSection(flow) : ""}
       ${step === "guided_practice" ? renderTeachingGuidedPracticeSection(task, flow, draft) : ""}
       ${step === "quick_check" ? renderTeachingGuidedPracticeSection(task, flow, draft) + renderTeachingQuickCheckSection(task, flow, draft, { busy }) : ""}
-      ${renderTeachingFeedbackSection(task)}
-      ${renderExperienceSignalActions(task, state)}
+      ${renderTeachingFeedbackSection(task, state)}
     </section>`;
   }
 

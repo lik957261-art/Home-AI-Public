@@ -8910,6 +8910,13 @@ body.task-markdown-preview-open {
   background: rgba(31, 43, 51, 0.025);
 }
 
+.learning-growth-experience-prompt {
+  margin: 8px 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .learning-growth-experience-actions button {
   min-height: 34px;
   padding: 0 8px;

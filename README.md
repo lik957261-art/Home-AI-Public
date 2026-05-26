@@ -42,13 +42,19 @@ High-value entry points:
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
-## 1.0.1 Public Release
+## 1.0.2 Public Release
 
 This release refreshes the public tree from the current Hermes Mobile source and
-keeps the package metadata aligned with the public `v1.0.1` release tag.
+keeps the package metadata aligned with the public `v1.0.2` release tag.
 
 Highlights:
 
+- Fixes Grok/XSearch routing when the live `grokgw1` port is derived from the
+  Gateway Pool manifest instead of the legacy fixed port.
+- Keeps ordinary no-provider runs on OpenAI Gateway workers unless Grok is
+  explicitly requested.
+- Adds run-liveness convergence so repeated Gateway 404/lost-run states fail
+  and release the UI instead of leaving the app in `running` indefinitely.
 - Adds the native Growth learning board, teaching-card flow, learning workflow
   contract/harness docs, and focused Growth tests.
 - Adds Action Inbox as the user action surface for automation conclusions,
@@ -65,7 +71,7 @@ Validation for this public release:
 
 - `npm.cmd run productization:check`
 - public export privacy scan
-- public repository CI for `v1.0.1`
+- public repository CI for `v1.0.2`
 
 ## 2026-05-12 Public Update
 

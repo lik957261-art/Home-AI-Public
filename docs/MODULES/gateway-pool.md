@@ -28,6 +28,27 @@ Gateway Pool owns official-clean Hermes worker startup, health checks, routing t
 - Owner-maintenance workers: high-permission Owner maintenance and ChatGPT Pro.
 - Grok worker: `grokgw1`, provider `xai-oauth`.
 
+Ordinary runs without a provider hint should not be scheduled onto `xai-oauth`
+workers. Grok workers are selected only when model/provider routing explicitly
+requests `provider=xai-oauth`, such as `@Grok4.3`.
+
+## Run Liveness
+
+Hermes Mobile tracks the Gateway stream and periodically checks the real Gateway
+run id through `/v1/runs/:id`.
+
+- `HERMES_WEB_RUN_LIVENESS_CHECK_AFTER_MS` defaults to `120000`.
+- `HERMES_WEB_RUN_LIVENESS_CHECK_INTERVAL_MS` defaults to `45000`.
+- `HERMES_WEB_RUN_LIVENESS_STALE_AFTER_MS` defaults to `600000`.
+
+Repeated Gateway 404 responses are tolerated only while the stream has recent
+events or remains inside the stale window. After the stale window expires,
+Hermes Mobile marks the Web task failed and releases the queue instead of
+leaving the UI in `running` indefinitely.
+
+ChatGPT Pro bridge runs may still set a stream-specific longer start/liveness
+window because those jobs can be intentionally long-running.
+
 ## Profile MCP Registration
 
 - Low Gateway profile MCP servers are generated into each profile `config.yaml` by `C:\ProgramData\HermesMobile\gateway-worker\configure-low-gateways.sh`.

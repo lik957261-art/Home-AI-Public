@@ -19,9 +19,7 @@ const CHATGPT_PRO_TIMEOUT_MS = Math.max(
   30 * 60 * 1000,
   Number(process.env.HERMES_MOBILE_CHATGPT_PRO_BRIDGE_TIMEOUT_MS || process.env.HERMES_WEB_CHATGPT_PRO_BRIDGE_TIMEOUT_MS || "1800000"),
 );
-const GROK_GATEWAY_URL = String(
-  process.env.HERMES_MOBILE_GROK_GATEWAY_URL || process.env.HERMES_GROK_GATEWAY_URL || "http://127.0.0.1:18761",
-).replace(/\/+$/, "");
+const GROK_GATEWAY_URL = resolveGrokGatewayUrl();
 const GROK_GATEWAY_PROXY_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_GROK_GATEWAY_PROXY_TIMEOUT_MS || "120000");
 const STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_STDOUT_LIMIT_BYTES || "50000000");
 const KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
@@ -35,6 +33,58 @@ function readText(filePath) {
   } catch (_) {
     return "";
   }
+}
+
+function cleanUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function gatewayPoolManifestPaths() {
+  return [
+    process.env.HERMES_MOBILE_GATEWAY_POOL_MANIFEST,
+    process.env.HERMES_WEB_GATEWAY_POOL_MANIFEST,
+    process.env.HERMES_GATEWAY_POOL_MANIFEST_PATH,
+    "C:\\ProgramData\\HermesMobile\\data\\gateway-pool-manifest.json",
+    path.join(TOOL_ROOT, "workspace", "hermes-web", "gateway-pool-manifest.json"),
+  ].filter(Boolean);
+}
+
+function grokGatewayUrlFromManifest() {
+  for (const manifestPath of gatewayPoolManifestPaths()) {
+    let parsed;
+    try {
+      parsed = JSON.parse(readText(manifestPath));
+    } catch (_) {
+      continue;
+    }
+    const workers = Array.isArray(parsed?.workers) ? parsed.workers : [];
+    const worker = workers.find((item) => (
+      item
+      && item.enabled !== false
+      && String(item.provider || "").trim() === "xai-oauth"
+      && String(item.profile || item.name || "").toLowerCase().startsWith("grokgw")
+    )) || workers.find((item) => (
+      item
+      && item.enabled !== false
+      && String(item.provider || "").trim() === "xai-oauth"
+    ));
+    if (!worker) continue;
+    const explicit = cleanUrl(worker.url || worker.gatewayUrl || worker.gateway_url || worker.apiBase || worker.api_base);
+    if (explicit) return explicit;
+    const host = String(worker.host || "127.0.0.1").trim() || "127.0.0.1";
+    const port = Number(worker.port || 0);
+    if (port > 0) return `http://${host}:${port}`;
+  }
+  return "";
+}
+
+function resolveGrokGatewayUrl() {
+  return cleanUrl(
+    process.env.HERMES_MOBILE_GROK_GATEWAY_URL
+    || process.env.HERMES_GROK_GATEWAY_URL
+    || grokGatewayUrlFromManifest()
+    || "http://127.0.0.1:18761",
+  );
 }
 
 function sendJson(res, status, payload) {

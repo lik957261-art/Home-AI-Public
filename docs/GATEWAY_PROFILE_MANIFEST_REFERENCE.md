@@ -48,6 +48,9 @@ This reference documents public-safe manifest fields. The example file is `examp
 - `provider: "xai-oauth"`
 - Dedicated profile such as `grokgw1`.
 - xAI OAuth must be configured in the Gateway profile/auth store outside the manifest.
+- Its port is part of the manifest contract. Bridge-host Grok proxy routing
+  should discover the enabled `provider=xai-oauth` worker from the manifest
+  when `HERMES_MOBILE_GROK_GATEWAY_URL` is not explicitly set.
 
 ### Owner Maintenance Worker
 
@@ -60,6 +63,8 @@ This reference documents public-safe manifest fields. The example file is `examp
 
 - Never commit real API keys, OAuth tokens, cookies, browser credentials, auth file contents, or production-only private paths.
 - Do not route Grok by only passing a model name to an ordinary worker; select a profile whose provider is configured for xAI.
+- Do not let ordinary no-provider runs fall back to a Grok worker. `xai-oauth`
+  workers should require an explicit provider/model route.
 - Do not use a broad `allowedWorkspaceIds: ["*"]` plus shared writable Skill store unless the deployment intentionally accepts that sharing model.
 - Keep manifest diagnostics non-secret in browser status projections.
 
