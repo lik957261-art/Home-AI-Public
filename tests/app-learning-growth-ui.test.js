@@ -578,6 +578,22 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.doesNotMatch(html, /\u51e1\u51e1\u6210\u957f\u7cfb\u7edf|\u51e1\u51e1\u6210\u957f|\u6210\u957f\u770b\u677f|<small>7d<\/small>/);
 }
 
+function testOwnerSettingsWithoutLearnerShowsEmptyState() {
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: { programs: {}, board: null, coins: {} },
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true },
+    learnerId: "",
+  });
+  assert.match(html, /data-learning-settings-no-learner/);
+  assert.match(html, /\u672a\u9009\u62e9\u6267\u884c\u8005/);
+  assert.match(html, /\u8bf7\u5148\u521b\u5efa\u6216\u9009\u62e9\u6267\u884c\u8005\u5de5\u4f5c\u533a/);
+  assert.doesNotMatch(html, /\u51e1\u51e1|Fanfan|weixin_stephen/);
+  assert.doesNotMatch(html, /data-learning-growth-tab=/);
+  assert.doesNotMatch(html, /data-learning-settings-task-create|data-learning-program-create|learningRewardForm/);
+}
+
 function testOwnerSettingsShowsMasteryProfileTab() {
   const masteryProfile = {
     ok: true,
@@ -695,6 +711,7 @@ testGrowthRendererUsesTeachingFlowForTeachingCard();
 testGrowthRendererOpensLegacyTodoAsReadOnlyTask();
 testOwnerRendererKeepsBoardSeparateFromManagementSections();
 testOwnerRendererShowsIndependentSettingsPage();
+testOwnerSettingsWithoutLearnerShowsEmptyState();
 testOwnerSettingsShowsMasteryProfileTab();
 testOwnerSettingsTaskDetailStaysInsideSettingsPage();
 testReadinessPanelRenderer();

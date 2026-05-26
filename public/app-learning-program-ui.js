@@ -233,7 +233,7 @@
       ? "5.5-6 / B1 \u8fc7\u6e21"
       : "\u5f85\u786e\u8ba4";
     return {
-      displayName: profile.displayName || profile.learnerId || "\u51e1\u51e1",
+      displayName: profile.displayName || profile.learnerId || "\u5b66\u4e60\u8005",
       grade,
       level,
       sourceCount: sources.length,

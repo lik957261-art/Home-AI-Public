@@ -913,6 +913,17 @@
     if (!isOwner(options) || !programUi || typeof renderOwnerProgramTabs !== "function") return "";
     const coins = options.coins || overview.coins || {};
     const learnerId = overview.learner?.id || options.learnerId;
+    if (!learnerId) {
+      return `<div class="learning-growth-view learning-growth-settings-page" data-learning-role="owner" data-learning-growth-settings-page>
+        <section class="learning-coin-panel learning-settings-empty" data-learning-settings-no-learner>
+          <div class="learning-section-heading">
+            <h3>成长设置</h3>
+            <span>未选择执行者</span>
+          </div>
+          <p class="learning-growth-muted">当前还没有可用于成长计划的执行者。请先创建或选择执行者工作区，再配置学习范围、任务和奖励规则。</p>
+        </section>
+      </div>`;
+    }
     const coinsHtml = coinsUi && typeof coinsUi.renderCoinsSubsystem === "function"
       ? coinsUi.renderCoinsSubsystem({ summary: coins, learnerId, state: options.state || {}, escapeHtml: optionFn(options, "escapeHtml", defaultEscapeHtml) })
       : "";
@@ -1036,7 +1047,7 @@
     const learner = overview.learner || {};
     const metrics = overview.metrics || {};
     const learnerLabel = learner.displayName
-      || (options.learnerId === "weixin_stephen" ? "凡凡" : options.learnerId)
+      || options.learnerId
       || learner.id
       || "Learner";
     const coins = options.coins || overview.coins || {};

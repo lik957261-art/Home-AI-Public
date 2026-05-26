@@ -13,13 +13,14 @@ function learningGrowthLearnerWorkspaceId() {
   }
   const scoped = String(state.learningGrowthWorkspaceId || "").trim();
   if (state.auth?.isOwner && scoped && (!selected || selected === "owner")) return scoped;
-  if (state.auth?.isOwner && (!selected || selected === "owner")) return LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
+  if (state.auth?.isOwner && (!selected || selected === "owner")) return "";
   return selected || authWorkspace || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
 }
 
 function setLearningGrowthLearnerWorkspaceId(workspaceId) { const target = String(workspaceId || "").trim(); if (target && state.auth?.isOwner) state.learningGrowthWorkspaceId = target; }
 function learningCoinStudentId() { return learningGrowthLearnerWorkspaceId(); }
 function learningCoinCurrentScopeKey() { return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`; }
+function learningGrowthLearnerLabel() { const id = learningGrowthLearnerWorkspaceId(); const workspace = (Array.isArray(state.workspaces) ? state.workspaces : []).find((item) => String(item?.id || "") === id); return String(workspace?.label || workspace?.displayName || id || "").trim(); }
 function isLearningGrowthViewActive() { return state.viewMode === "learning"; }
 function learningCoinRequestParams(options = {}) {
   const params = new URLSearchParams();
@@ -145,6 +146,7 @@ function closeLearningGrowthSettingsPage() {
 async function loadLearningCoins(options = {}) {
   const seq = ++state.learningCoinRequestSeq;
   const scopeKey = learningCoinCurrentScopeKey();
+  if (!learningGrowthLearnerWorkspaceId()) { state.learningGrowth = null; state.learningCoins = null; state.learningCoinsLoading = false; state.learningCoinsError = ""; state.learningCoinScopeKey = scopeKey; renderLearningCoinsView(); return; }
   if (state.learningCoinScopeKey !== scopeKey) {
     state.learningGrowth = null; state.learningCoins = null;
     state.learningCoinScopeKey = scopeKey;
@@ -170,6 +172,7 @@ async function loadLearningCoins(options = {}) {
 }
 async function loadLearningGrowthMasteryProfile(options = {}) {
   if (!state.auth?.isOwner) return;
+  if (!learningGrowthLearnerWorkspaceId()) { state.learningGrowthMasteryProfile = null; state.learningGrowthMasteryLoading = false; state.learningGrowthMasteryError = ""; renderLearningCoinsView(); return; }
   const seq = (state.learningGrowthMasteryRequestSeq || 0) + 1;
   state.learningGrowthMasteryRequestSeq = seq;
   const scopeKey = learningCoinCurrentScopeKey();
@@ -265,14 +268,12 @@ async function submitLearningTaskRewardPolicyForm(event, taskCardId) {
 }
 
 function learningProgramFormBody() {
-  const focusAreas = [...document.querySelectorAll("input[name='learningProgramFocus']:checked")]
-    .map((input) => input.value)
-    .filter(Boolean);
+  const focusAreas = [...document.querySelectorAll("input[name='learningProgramFocus']:checked")].map((input) => input.value).filter(Boolean);
   const sourceBasisRefs = learningInputList("learningProgramSourceRefs");
   return {
     workspaceId: learningGrowthLearnerWorkspaceId(),
     learnerId: learningCoinStudentId(),
-    learnerName: "凡凡",
+    learnerName: learningGrowthLearnerLabel(),
     title: $("learningProgramTitle")?.value?.trim() || "",
     domain: $("learningProgramDomain")?.value || "english",
     focusAreas,
@@ -287,12 +288,7 @@ function learningProgramFormBody() {
   };
 }
 
-function learningInputList(id) {
-  return ($(`${id}`)?.value || "")
-    .split(/\r?\n|[,;]+/)
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
+function learningInputList(id) { return ($(`${id}`)?.value || "").split(/\r?\n|[,;]+/).map((value) => value.trim()).filter(Boolean); }
 
 function learningSplitLines(id) {
   return ($(`${id}`)?.value || "")
@@ -334,7 +330,7 @@ function learningFoundationImportBody() {
   return Object.assign({}, scope, {
     sources,
     goals,
-    profile: profileSummary ? { profileSummary, displayName: "Fanfan" } : null,
+    profile: profileSummary ? { profileSummary, displayName: learningGrowthLearnerLabel() || scope.learnerId } : null,
   });
 }
 
@@ -342,7 +338,7 @@ function learningLearnerBody() {
   return {
     workspaceId: learningGrowthLearnerWorkspaceId(),
     learnerId: learningCoinStudentId(),
-    learnerName: "Fanfan",
+    learnerName: learningGrowthLearnerLabel(),
   };
 }
 
