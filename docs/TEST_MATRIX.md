@@ -14,6 +14,46 @@ Use this matrix to pick focused tests before broader gates. Always add syntax ch
 
 Use full gates before public release, broad shared-service/runtime changes, permission/security/persistence changes, or when requested.
 
+## Harness Requirement Gate
+
+Before implementing non-trivial workflow changes, classify the change with
+`docs\IMPLEMENTATION_NOTES\harness-required-matrix.md`.
+
+- H1 flows require a workflow harness or a new harness scenario before the
+  change is complete.
+- H2 flows require contract/projection coverage for navigation, scroll,
+  routing, cache, or visible status behavior.
+- H3 changes may use focused syntax/unit/UI tests only when they do not alter
+  state, async behavior, permissions, routing, release artifacts, navigation,
+  scroll, or service-worker behavior.
+
+H1 includes Growth learning cards, Action Inbox passive notifications,
+Automation/Cron execution, Web Push click routing, permission/workspace
+boundaries, and Public Export/Release.
+
+## CodeGraph-Assisted Test Selection
+
+Use CodeGraph for structural test selection, not as a replacement for the test
+matrix.
+
+- Check index health first when structural results matter:
+  - `codegraph status`
+- For known backend symbols:
+  - `codegraph callers <symbol>`
+  - `codegraph callees <symbol>`
+  - `codegraph impact <symbol>`
+- For broad backend task context:
+  - `codegraph context "<task>"`
+- Prefer MCP CodeGraph when available. The 2026-05-26 local benchmark showed
+  MCP structural calls around `12-18ms`; CLI calls were around `196-218ms`
+  because of process startup.
+- Keep `rg` for literal text, docs, static versions, DOM strings, and frontend
+  closure functions. In the same benchmark, `codegraph affected
+  public/app-learning-growth-task-ui.js -q` returned no UI tests while targeted
+  `rg` found related UI test references.
+- If `codegraph impact` and `rg` disagree on tests, run the union of relevant
+  focused tests unless the difference is clearly unrelated.
+
 ## Module Focused Tests
 
 | Area | Focused Tests |

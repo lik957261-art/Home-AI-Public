@@ -677,14 +677,18 @@ Button labels should match the current step:
 - `看反馈`
 - `完成学习`
 
-Safe feedback actions should be visible in teaching/practice detail:
+Safe feedback actions should be visible only after the teaching/practice card
+is completed, inside the completion feedback area. Do not show these controls at
+the bottom of every teaching step:
 
-- `太难`
-- `没学过`
-- `先讲一下`
-- `今天轻一点`
+- `太简单`
+- `正合适`
+- `有点难`
 
-These actions call the experience-signal route, then re-render the card with the returned recommendation.
+These actions call the experience-signal route, then lock after the first
+submission and re-render the card with the returned recommendation. Challenge
+actions are separate assessment activation actions and must not be mixed into
+this completion feedback row.
 
 Stage assessment surfaces should show a challenge action when the learner has an available capability cluster and cooldown/safety policy allows it. The action should be labeled as a challenge/checkpoint, not as daily homework.
 

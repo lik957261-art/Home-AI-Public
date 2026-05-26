@@ -154,21 +154,23 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
   assert.match(html, /\u6559\u5b66\u5361/);
   assert.match(html, /\u5206\u6bb5\u9605\u8bfb/);
   assert.match(html, /data-learning-growth-teaching-check-form="teach-1"/);
-  assert.match(html, /data-learning-growth-experience-signal="teach-1"/);
-  assert.match(html, /data-signal-type="too_easy"/);
-  assert.match(html, /data-signal-type="right_level"/);
-  assert.match(html, /data-signal-type="too_hard"/);
+  assert.doesNotMatch(html, /data-learning-growth-experience-signal="teach-1"/);
+  assert.doesNotMatch(html, /data-signal-type="too_easy"/);
+  assert.doesNotMatch(html, /data-signal-type="right_level"/);
+  assert.doesNotMatch(html, /data-signal-type="too_hard"/);
   assert.doesNotMatch(html, /data-signal-type="not_learned"/);
   assert.doesNotMatch(html, /data-learning-growth-stage-assessment-challenge="teach-1"/);
   assert.doesNotMatch(html, /data-learning-open-growth-history="teach-1"/);
   assert.doesNotMatch(html, /\u8fd4\u56de\u4efb\u52a1/);
   assert.doesNotMatch(html, /data-learning-native-growth-submission-form/);
   const lockedHtml = TaskUi.renderTeachingCardDetail(Object.assign({}, task, {
+    status: "completed",
     experienceSummary: { latestSignalType: "too_hard", latestAt: "2026-05-26T00:00:00.000Z" },
   }), { state: { learningGrowthTeachingStepByCardId: { "teach-1": "quick_check" } } });
+  assert.match(lockedHtml, /\u5b8c\u6210\u540e\uff0c\u9009\u4e00\u4e2a\u611f\u53d7/);
   assert.match(lockedHtml, /data-signal-type="too_hard"[^>]+aria-pressed="true"[^>]+disabled/);
   assert.match(lockedHtml, /data-signal-type="too_easy"[^>]+disabled/);
-  const pendingHtml = TaskUi.renderTeachingCardDetail(task, {
+  const pendingHtml = TaskUi.renderTeachingCardDetail(Object.assign({}, task, { status: "completed" }), {
     state: {
       learningGrowthTeachingStepByCardId: { "teach-1": "quick_check" },
       learningGrowthExperienceSignalBusy: { "teach-1": "right_level" },

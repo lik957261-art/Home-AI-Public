@@ -24,6 +24,9 @@ Hermes Mobile should select the correct profile; it should not assume that passi
 - Provider: `xai-oauth`
 - Current exposed model family: `grok-4.3`
 - Routing should use `preferred_worker_profiles: ["grokgw1"]` or equivalent manifest/profile selection.
+- The live port is manifest-derived. Do not assume `grokgw1` is always on a
+  fixed port; additional low-permission workers can move the Grok profile to a
+  later port.
 - Cron-side `x_search` calls may run from a different WSL distro than the Grok Gateway worker. In that case the `x_search` proxy URL should use the bridge-host proxy prefix `/bridge/grok-gateway-proxy`. The plugin appends `/v1/responses`, so the actual bridge-host request path is `/bridge/grok-gateway-proxy/v1/responses`, and bridge host forwards only to the configured local Grok Gateway `/v1/responses` endpoint.
 - The `hermes-mobile-web` plugin should default `x_search` to that bridge-host route when no explicit `HERMES_MOBILE_X_SEARCH_PROXY_URL` is available. Do not assume the plugin process can reach the Grok worker on its own `127.0.0.1`.
 
@@ -44,7 +47,9 @@ The durable path is:
    `${HERMES_MOBILE_X_SEARCH_PROXY_URL}/v1/responses`.
 4. `scripts/bridge-host.js` accepts
    `POST /bridge/grok-gateway-proxy/v1/responses` and forwards the body to
-   `${HERMES_MOBILE_GROK_GATEWAY_URL || http://127.0.0.1:18761}/v1/responses`.
+   `HERMES_MOBILE_GROK_GATEWAY_URL` when set, otherwise the first enabled
+   `provider=xai-oauth` worker in the Gateway Pool manifest, otherwise the
+   legacy `http://127.0.0.1:18761` fallback.
 
 The bridge proxy requires an Authorization bearer key and must not expose OAuth
 tokens or profile auth files.

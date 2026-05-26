@@ -368,15 +368,15 @@ The code-generation-ready implementation breakdown is in `docs/IMPLEMENTATION_NO
 - Add bounded experience-signal persistence.
 - Project friction summaries to next-card strategy.
 - Add daily scheduling policy that avoids backlog debt after missed days.
-- Add too-hard/not-learned feedback actions to the frontend and route them into prerequisite repair.
+- Add completion-page difficulty feedback actions to the frontend and route them into next-card strategy or prerequisite repair. Do not show the difficulty feedback row at the bottom of every teaching step.
 
 ### Phase 5: Frontend
 
 - Split Growth detail rendering by `cardRole`.
 - Add stepper/segmented flow for teaching cards.
-- Add compact role badges and prerequisite-gap feedback action.
+- Add compact role badges and completion-page difficulty feedback action.
 - Keep assessment cards on the existing submit/evaluate/revise/reflect flow with clearer labeling.
-- Add focused UI tests for role badges, teaching flow sections, too-hard feedback, and stage assessment activation actions.
+- Add focused UI tests for role badges, teaching flow sections, completion-only difficulty feedback, and stage assessment activation actions.
 
 ## Validation Plan
 

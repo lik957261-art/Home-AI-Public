@@ -70,6 +70,10 @@ function testOrderingHonorsProviderAndPreferredProfileHints() {
     normalizeWorker({ name: "grok", profile: "grokgw1", port: 18761, provider: "xai-oauth", securityLevel: "user", skillWorkspaceIds: ["*"] }),
   ];
   assert.deepEqual(
+    orderedWorkers(workers, 1, { securityLevel: "user" }).map((w) => w.name),
+    ["openai"],
+  );
+  assert.deepEqual(
     orderedWorkers(workers, 0, { provider: "xai-oauth", preferred_worker_profiles: ["grokgw1"], skillWorkspaceId: "owner", requireSkillProfile: true }).map((w) => w.name),
     ["grok"],
   );

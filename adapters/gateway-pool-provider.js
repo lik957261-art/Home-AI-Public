@@ -120,6 +120,7 @@ function matchesExact(worker, hints = {}) {
 function satisfiesFilter(worker, hints = {}) {
   const provider = String(hints.provider || "").trim();
   if (provider && worker.provider !== provider) return false;
+  if (!provider && worker.provider && worker.provider !== "openai-codex" && !matchesExact(worker, hints)) return false;
   const requiredSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
   if (requiredSecurityLevel !== "unspecified" && worker.securityLevel !== requiredSecurityLevel) return false;
   const workspaceId = String(hints.workspaceId || hints.workspace_id || "").trim();

@@ -20,6 +20,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
 - Screenshot-to-code debug map: `docs/SCREENSHOT_DEBUG_MAP.md`
 - Module-to-test matrix: `docs/TEST_MATRIX.md`
+- Harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Original layered topic-context design: `docs/TOPIC_CONTEXT_LAYERED_COMPACTION_IMPLEMENTATION.zh-CN.md`
 
 ## Current Priority Modules
@@ -58,6 +59,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Growth teaching cards and stage assessment flow: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md`
 - Growth teaching card implementation plan: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`
 - Growth learning workflow contract and harness: `docs/IMPLEMENTATION_NOTES/growth-learning-workflow-contract-harness.md`
+- Cross-module harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
 - Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`
 - Skill write protection: `docs/IMPLEMENTATION_NOTES/skill-write-protection.md`

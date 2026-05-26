@@ -145,7 +145,7 @@ New-NetFirewallRule -DisplayName "Hermes Mobile 8797" `
 - official Hermes runtime source/python 路径。
 - 是否启用 Gateway Pool；生产建议启用。
 - lowgw worker 数量，默认 `10`。
-- 是否启用 Grok/xAI worker；默认生产拓扑启用 `grokgw1`，端口 `18761`。
+- 是否启用 Grok/xAI worker；默认生产拓扑启用 `grokgw1`，实际端口必须以 `gateway-pool-manifest.json` 为准。
 - 是否启用 owner-maintenance Gateway，启用时需要部署者指定 WSL user/profile/ports。
 - 对外访问方式：localhost、内网、或 HTTPS reverse proxy。
 
@@ -188,7 +188,7 @@ WSL 低权限 Gateway：
 - Hermes Mobile listener：`8797`
 - Bridge host：`8798`
 - lowgw1..10：`18751..18760`
-- Grok/xAI worker `grokgw1`：`18761`
+- Grok/xAI worker `grokgw1`：从 `gateway-pool-manifest.json` 读取，不固定假设为 `18761`
 - owner-maintenance 示例：`18651..18652`
 
 部署时要把运行脚本和重启入口一起放到生产目录。至少包括：
@@ -300,6 +300,9 @@ C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json
 
 如需 Grok/xAI，在同一个 manifest 中增加独立 worker：
 
+下面的 `18761` 只是默认 `lowgw1..10` 拓扑下的示例端口；如果增加更多
+lowgw，`grokgw1` 会顺延到后续端口，实际值以 manifest 为准。
+
 ```json
 {
   "id": "grokgw1",
@@ -326,11 +329,11 @@ C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json
 $env:HERMES_GROK_GATEWAY_COUNT = "1"
 ```
 
-默认 profile/端口：
+默认 profile/端口计算：
 
 ```text
 profile: grokgw1
-port: 18761
+port: <manifest-derived-grok-port>  # 例如 lowgw1..10 时为 18761；lowgw1..11 时为 18762
 provider: xai-oauth
 model.default: grok-4.3
 ```
@@ -345,7 +348,7 @@ $env:HERMES_GROK_GATEWAY_AUTH_LOCK_PATH = "C:\ProgramData\HermesMobile\gateway-w
 这些文件是认证状态，不属于 Git，不应打印内容。如果 `grokgw1` 启动健康但 `@Grok4.3` 调用失败，先区分三类问题：
 
 1. manifest 缺少 `provider=xai-oauth`：补 manifest，重启 Gateway Pool。
-2. `grokgw1` 未监听 `18761` 或 `/api/status` 无该 worker：检查 `HERMES_GROK_GATEWAY_COUNT`、端口、防火墙、Gateway Pool 启动日志。
+2. `grokgw1` 未监听 manifest 中记录的端口，或 `/api/status` 无该 worker：检查 `HERMES_GROK_GATEWAY_COUNT`、端口、防火墙、Gateway Pool 启动日志。
 3. Gateway 返回 xAI/OAuth 认证失败：不要改 Hermes Mobile 路由；让 Codex 在目标机上按 official Hermes 的 xAI OAuth 流程修复 `grokgw1` 使用的 auth store，然后重启 Gateway Pool 并重新 smoke。
 
 Grok 认证失败时，正确交付状态是“Gateway worker 存在，但 xAI OAuth 未完成/已失效”。不要报告为 Hermes Mobile 部署完成，也不要把其他 provider worker 当作 Grok worker 使用。
@@ -488,7 +491,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMo
   -UserName "HermesMobileWorker" `
   -Port 8797 `
   -MinGatewayPoolWorkers 1 `
-  -GatewayPoolPorts "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760" `
+  -GatewayPoolPorts "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18651,18652" `
   -ReplaceExisting
 ```
 
@@ -569,8 +572,8 @@ Invoke-WebRequest -UseBasicParsing -Headers @{ "X-Hermes-Web-Key" = $key } http:
 - `ok=true`
 - `health=ok`
 - Gateway Pool workers healthy。
-- lowgw ports `18751..18760` listening。
-- 如果启用 Grok，`grokgw1` port `18761` listening，`/api/status.gatewayPool.workers` 中该 worker 为 `healthy=true`，并且 worker metadata/manifest 中保留 `provider=xai-oauth`。
+- lowgw ports listening；如部署了 `lowgw11`，也应包含 `18761`。
+- 如果启用 Grok，`grokgw1` manifest port 正在 listening，`/api/status.gatewayPool.workers` 中该 worker 为 `healthy=true`，并且 worker metadata/manifest 中保留 `provider=xai-oauth`。
 - 每个已创建 workspace 都能在 `/api/status.gatewayPool.workers` 中找到匹配的 `securityLevel=user` worker，并且该 worker 的 `allowedWorkspaceIds` 或 `skillWorkspaceIds` 包含该 workspace。
 - 生产强隔离部署中，`HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING=on`，缺少 workspace/profile 映射时应 fail closed，而不是落到其他用户 worker。
 - lowgw profile config 包含 `weather` 和 `http`。
